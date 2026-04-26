@@ -31,7 +31,7 @@ export default function OnlineTrainingPage() {
     },
   ];
 
-  const statusStyles = {
+  const statusStyles: Record<string, string> = {
     Complete: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
     Today: "border-sky-400/20 bg-sky-500/10 text-sky-300",
     Planned: "border-violet-400/20 bg-violet-500/10 text-violet-300",
