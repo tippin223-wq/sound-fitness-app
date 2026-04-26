@@ -57,7 +57,7 @@ export default function WorkoutBuilderPage() {
     core: [null],
   };
 
-  const FilterPill = ({ label, value }) => (
+  const FilterPill = ({ label, value }: { label: string; value: string }) => (
     <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 shadow-sm">
       <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
         {label}
@@ -69,19 +69,19 @@ export default function WorkoutBuilderPage() {
     </div>
   );
 
-  const SectionTitle = ({ children }) => (
+  const SectionTitle = ({ children }: { children: React.ReactNode }) => (
     <div className="mb-3 mt-6 text-xs font-semibold uppercase tracking-[0.22em] text-sky-300 first:mt-0">
       {children}
     </div>
   );
 
-  const EmptySlot = ({ label }) => (
+  const EmptySlot = ({ label }: { label: string }) => (
     <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.03] px-4 py-4 text-sm text-slate-400">
       {label}
     </div>
   );
 
-  const ExerciseCard = ({ exercise }) => (
+  const ExerciseCard = ({ exercise }: { exercise: any }) => (
     <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 shadow-sm transition hover:border-sky-400/40 hover:bg-slate-950">
       <div className="flex items-start justify-between gap-3">
         <div>
