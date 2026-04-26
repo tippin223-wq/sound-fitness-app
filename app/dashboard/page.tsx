@@ -80,7 +80,7 @@ export default function UserHomeDashboardPage() {
     { day: "Sun", label: "Mobility", active: false },
   ];
 
-  const statusStyles = {
+  const statusStyles: Record<string, string> = {
     up: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
     same: "border-white/10 bg-white/5 text-slate-300",
   };
