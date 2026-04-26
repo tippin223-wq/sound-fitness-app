@@ -1,3 +1,18 @@
+type MealStatus = "Logged" | "Planned";
+type HabitStatus = "On Track" | "Needs Attention" | "Solid" | "Planned";
+
+type TodayMeal = {
+  meal: string;
+  item: string;
+  protein: string;
+  status: MealStatus;
+};
+
+type Habit = {
+  name: string;
+  status: HabitStatus;
+};
+
 export default function NutritionPortalPage() {
   const summary = {
     protein: "132g / 160g",
@@ -6,7 +21,7 @@ export default function NutritionPortalPage() {
     focus: "Protein + consistency",
   };
 
-  const todayMeals = [
+  const todayMeals: TodayMeal[] = [
     {
       meal: "Breakfast",
       item: "Greek yogurt bowl + berries + granola",
@@ -33,7 +48,7 @@ export default function NutritionPortalPage() {
     },
   ];
 
-  const habits = [
+  const habits: Habit[] = [
     { name: "Protein Target", status: "On Track" },
     { name: "Hydration", status: "Needs Attention" },
     { name: "Meal Timing", status: "Solid" },
@@ -58,14 +73,14 @@ export default function NutritionPortalPage() {
     },
   ];
 
-  const habitStyles = {
+  const habitStyles: Record<HabitStatus, string> = {
     "On Track": "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
     "Needs Attention": "border-amber-400/20 bg-amber-500/10 text-amber-300",
     Solid: "border-sky-400/20 bg-sky-500/10 text-sky-300",
     Planned: "border-violet-400/20 bg-violet-500/10 text-violet-300",
   };
 
-  const mealStatusStyles = {
+  const mealStatusStyles: Record<MealStatus, string> = {
     Logged: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
     Planned: "border-sky-400/20 bg-sky-500/10 text-sky-300",
   };
@@ -114,6 +129,7 @@ export default function NutritionPortalPage() {
                   Main lever for recovery today.
                 </div>
               </div>
+
               <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-5 shadow-xl shadow-black/15 backdrop-blur">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
                   Hydration
@@ -125,6 +141,7 @@ export default function NutritionPortalPage() {
                   Still room to finish strong.
                 </div>
               </div>
+
               <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-5 shadow-xl shadow-black/15 backdrop-blur">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
                   Meals Logged
@@ -136,6 +153,7 @@ export default function NutritionPortalPage() {
                   Today’s progress so far.
                 </div>
               </div>
+
               <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-5 shadow-xl shadow-black/15 backdrop-blur">
                 <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
                   Nutrition Focus
