@@ -97,7 +97,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Weekly Check-In",
-          url: "/client/check-in",
+          url: "/dashboard/progress/check-in",
           status: "Needed",
           connectsTo: ["Progress", "Coach Messaging", "Recovery"],
           purpose:

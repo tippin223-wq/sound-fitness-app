@@ -65,7 +65,7 @@ export default function PostWorkoutProgressPage() {
     "Keep the same RDL load and clean up control.",
   ];
 
-  const statusStyles = {
+  const statusStyles: Record<string, string> = {
     up: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
     same: "border-white/10 bg-white/5 text-slate-300",
     down: "border-orange-400/20 bg-orange-500/10 text-orange-300",

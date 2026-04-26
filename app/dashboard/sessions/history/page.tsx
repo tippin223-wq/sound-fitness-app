@@ -56,7 +56,7 @@ export default function WorkoutHistoryPage() {
     },
   ];
 
-  const statusStyles = {
+  const statusStyles: Record<string, string> = {
     Completed: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
     Modified: "border-amber-400/20 bg-amber-500/10 text-amber-300",
     Skipped: "border-white/10 bg-white/5 text-slate-300",

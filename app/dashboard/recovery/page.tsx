@@ -46,7 +46,7 @@ export default function RecoveryPortalPage() {
     { name: "Walk / Light Movement", status: "Planned" },
   ];
 
-  const habitStyles = {
+  const habitStyles: Record<string, string> = {
     "On Track": "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
     "Needs Attention": "border-amber-400/20 bg-amber-500/10 text-amber-300",
     Planned: "border-sky-400/20 bg-sky-500/10 text-sky-300",

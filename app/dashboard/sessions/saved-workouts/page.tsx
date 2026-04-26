@@ -78,7 +78,7 @@ export default function SavedWorkoutsPage() {
     },
   ];
 
-  const typeStyles = {
+  const typeStyles: Record<string, string> = {
     Strength: "border-sky-400/20 bg-sky-500/10 text-sky-300",
     Mobility: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
     Recovery: "border-amber-400/20 bg-amber-500/10 text-amber-300",

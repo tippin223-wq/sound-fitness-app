@@ -31,7 +31,7 @@ export default function AssessmentPage() {
     [step],
   );
 
-  const setValue = (key, value) =>
+  const setValue = (key: string, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
   const next = () => setStep((s) => Math.min(s + 1, steps.length - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
@@ -56,7 +56,17 @@ export default function AssessmentPage() {
     };
   }, [form]);
 
-  const CardOption = ({ label, selected, onClick, sublabel }) => (
+  const CardOption = ({
+    label,
+    selected,
+    onClick,
+    sublabel,
+  }: {
+    label: string;
+    selected: boolean;
+    onClick: () => void;
+    sublabel?: string;
+  }) => (
     <button
       type="button"
       onClick={onClick}
