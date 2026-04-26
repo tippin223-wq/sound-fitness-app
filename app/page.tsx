@@ -1,332 +1,398 @@
 import Link from "next/link";
 
+const serviceCards = [
+  {
+    title: "Strength Training",
+    text: "Build lean muscle, improve confidence, and move with better technique.",
+    icon: "🏋️",
+    image:
+      "https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?q=80&w=900",
+  },
+  {
+    title: "Assisted Stretch",
+    text: "Increase flexibility, reduce tension, and recover faster between sessions.",
+    icon: "🧘",
+    image:
+      "https://images.unsplash.com/photo-1599901860904-17e6ed7083a0?q=80&w=900",
+  },
+  {
+    title: "Mobility & Recovery",
+    text: "Improve movement quality so daily life, training, and recovery feel better.",
+    icon: "🌿",
+    image:
+      "https://images.unsplash.com/photo-1605296867304-46d5465a13f1?q=80&w=900",
+  },
+  {
+    title: "Custom Programming",
+    text: "Fully customized training plans built around your goals, schedule, and equipment.",
+    icon: "🧠",
+    image:
+      "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=900",
+  },
+  {
+    title: "Boxing & Performance",
+    text: "Improve conditioning, coordination, and power with fun, skill-based training.",
+    icon: "🥊",
+    image:
+      "https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?q=80&w=900",
+  },
+  {
+    title: "Endurance Training",
+    text: "Build stamina, burn fat, and improve overall fitness with structured conditioning.",
+    icon: "⚡",
+    image:
+      "https://images.unsplash.com/photo-1508609349937-5ec4ae374ebf?q=80&w=900",
+  },
+  {
+    title: "Online Coaching",
+    text: "Custom programming, progress support, and accountability from anywhere.",
+    icon: "💻",
+    image:
+      "https://images.unsplash.com/photo-1551434678-e076c223a692?q=80&w=900",
+  },
+  {
+    title: "Continuation Program",
+    text: "Support after rehab, mobility decline, or life changes that require structure.",
+    icon: "🛡️",
+    image:
+      "https://images.unsplash.com/photo-1571019613914-85f342c6a11e?q=80&w=900",
+  },
+];
+
+const services = [
+  "Free Intro Session",
+  "In-Home Strength Training",
+  "Assisted Stretch",
+  "Mobility / Recovery",
+  "Online Coaching",
+  "Continuation Program",
+];
+
+const proofItems = [
+  {
+    icon: "🏠",
+    title: "We come to you",
+    text: "No gym. No hassle. Just structured coaching at your location.",
+  },
+  {
+    icon: "🎯",
+    title: "Goal focused",
+    text: "Your plan is built around your goals, ability, schedule, and space.",
+  },
+  {
+    icon: "📈",
+    title: "Progress tracked",
+    text: "Workouts, wins, habits, and progress stay organized in-app.",
+  },
+  {
+    icon: "🛡️",
+    title: "Accountability",
+    text: "You get coaching support that helps you stay consistent.",
+  },
+];
+
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-black text-white">
-      <section className="border-b border-blue-500/20 bg-black">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
-          <div className="flex items-center gap-4">
-            <img
-              src="/sound-logo.png"
-              alt="Sound Fitness"
-              className="h-16 w-16 object-contain"
-            />
-            <div>
-              <div className="text-3xl font-black tracking-wide text-white">
-                SOUND FITNESS
-              </div>
-              <div className="text-sm font-medium uppercase tracking-[0.18em] text-blue-400">
-                In-Home Training & Assisted Stretch
-              </div>
-            </div>
-          </div>
+    <main className="min-h-screen overflow-hidden bg-[#020713] text-white">
+      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_0%,rgba(0,132,255,0.22),transparent_30%),radial-gradient(circle_at_80%_10%,rgba(56,189,248,0.12),transparent_28%),linear-gradient(180deg,#020713_0%,#06111f_48%,#020713_100%)]" />
 
-          <div className="hidden items-center gap-8 text-sm font-semibold uppercase tracking-[0.14em] text-white/80 md:flex">
-            <a href="#" className="transition hover:text-blue-400">
-              About
-            </a>
-            <a href="#" className="transition hover:text-blue-400">
-              Training
-            </a>
-            <a href="#" className="transition hover:text-blue-400">
-              Results
-            </a>
-            <a href="#" className="transition hover:text-blue-400">
-              Contact
-            </a>
-          </div>
-
+      <header className="relative z-10">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-6 sm:px-8">
           <Link
-            href="/dashboard"
-            className="rounded-2xl border border-blue-500/50 px-5 py-3 text-sm font-semibold uppercase tracking-[0.12em] text-white transition hover:bg-blue-500/10"
+            href="/"
+            className="flex flex-1 justify-center items-center gap-3 text-center"
           >
-            Returning Client? <span className="text-blue-400">Sign In</span>
-          </Link>
-        </div>
-      </section>
+            <img
+              src="/sound-fitness-logo.png"
+              alt="Sound Fitness"
+              className="h-14 w-14 object-contain"
+            />
 
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.16),transparent_30%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.10),transparent_24%)]" />
-        <div className="mx-auto grid max-w-7xl gap-0 px-6 py-10 lg:grid-cols-2">
-          <div className="border-r border-blue-500/20 pr-0 lg:pr-10">
-            <div className="max-w-3xl">
-              <h1 className="text-6xl font-black uppercase leading-[0.95] tracking-tight md:text-7xl">
-                <span className="text-white">Book Your</span>
-                <br />
-                <span className="text-blue-500">Session</span>
-              </h1>
-
-              <p className="mt-6 max-w-xl text-2xl leading-relaxed text-white/85">
-                Request your session below and we’ll personally confirm the best
-                time for you.
-              </p>
-
-              <div className="mt-8 flex flex-wrap gap-8 text-xl font-semibold uppercase tracking-wide">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full border border-blue-500/60 text-2xl">
-                    🏠
-                  </div>
-                  <span className="text-white">In-Home Training</span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full border border-blue-500/60 text-2xl">
-                    👤
-                  </div>
-                  <span className="text-white">Beginner Friendly</span>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-full border border-blue-500/60 text-2xl">
-                    💬
-                  </div>
-                  <span className="text-white">We Confirm By Call Or Text</span>
-                </div>
+            <div className="leading-[0.9]">
+              <div className="text-3xl font-black uppercase tracking-[0.08em] sm:text-4xl bg-gradient-to-r from-white via-slate-200 to-white bg-clip-text text-transparent">
+                SOUND
               </div>
 
-              <div className="mt-10 rounded-[30px] border border-blue-500/35 bg-[#05070b] p-8 shadow-[0_0_0_1px_rgba(59,130,246,0.08)]">
-                <div className="mb-6 text-3xl font-black uppercase tracking-wide text-blue-500">
-                  Request a Session
+              <div className="relative mt-[-2px] text-xs font-black uppercase tracking-[0.42em] text-sky-400">
+                FITNESS
+                <div className="absolute left-1/2 top-full mt-1 h-[2px] w-[85%] -translate-x-1/2 bg-gradient-to-r from-transparent via-sky-400 to-transparent opacity-60" />
+              </div>
+            </div>
+          </Link>
+
+          <div className="flex items-center gap-3">
+            <Link
+              href="/login"
+              className="hidden rounded-xl border border-white/15 bg-white/[0.03] px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-white transition hover:border-sky-400/50 hover:bg-sky-500/10 sm:inline-flex"
+            >
+              Member Sign In
+            </Link>
+
+            <Link
+              href="/onboarding"
+              className="rounded-xl bg-sky-500 px-6 py-3 text-xs font-black uppercase tracking-[0.18em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400"
+            >
+              Start Free Intro
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <section className="relative mx-auto grid max-w-7xl gap-10 px-5 pb-12 pt-6 sm:px-8 lg:grid-cols-[1.08fr_0.92fr] lg:items-center lg:pb-20">
+        <div className="absolute left-[22%] top-0 hidden h-[580px] w-[420px] rounded-full bg-sky-500/10 blur-3xl lg:block" />
+
+        <div className="relative">
+          <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-white">
+            <span className="h-2 w-2 rounded-full bg-sky-400" />
+            In-Home Training & Assisted Stretch
+          </div>
+
+          <h1 className="mt-7 max-w-3xl text-5xl font-black uppercase leading-[0.9] tracking-tight text-white sm:text-6xl lg:text-7xl">
+            Stronger
+            <br />
+            at home.
+            <br />
+            <span className="text-sky-500">Better for life.</span>
+          </h1>
+
+          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
+            Premium in-home coaching that builds strength, improves mobility,
+            and fits your real life. We come to you. You show up. We handle the
+            structure.
+          </p>
+
+          <div className="mt-8 grid gap-5 sm:grid-cols-3">
+            {[
+              ["🏠", "We come to you", "No gym. No hassle. Just results."],
+              [
+                "👥",
+                "Expert coaching",
+                "Personalized for your goals and level.",
+              ],
+              [
+                "💬",
+                "Confirmed personally",
+                "We text or call to confirm your session.",
+              ],
+            ].map(([icon, title, text]) => (
+              <div key={title}>
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-sky-400/30 bg-sky-500/10 text-2xl text-sky-300">
+                  {icon}
                 </div>
+                <h3 className="text-xs font-black uppercase tracking-[0.14em] text-white">
+                  {title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-slate-400">{text}</p>
+              </div>
+            ))}
+          </div>
 
-                <form className="space-y-6">
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <div>
-                      <label className="mb-2 block text-sm font-bold uppercase tracking-[0.12em] text-white/90">
-                        Full Name
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Your full name"
-                        className="w-full rounded-xl border border-white/15 bg-black px-4 py-4 text-lg text-white outline-none transition placeholder:text-white/30 focus:border-blue-500"
-                      />
-                    </div>
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+            <a
+              href="#booking"
+              className="rounded-xl bg-sky-500 px-8 py-4 text-center text-sm font-black uppercase tracking-[0.16em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400"
+            >
+              Request Your Session →
+            </a>
 
-                    <div>
-                      <label className="mb-2 block text-sm font-bold uppercase tracking-[0.12em] text-white/90">
-                        Phone Number
-                      </label>
-                      <input
-                        type="tel"
-                        placeholder="(555) 123-4567"
-                        className="w-full rounded-xl border border-white/15 bg-black px-4 py-4 text-lg text-white outline-none transition placeholder:text-white/30 focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
+            <a
+              href="#services"
+              className="rounded-xl border border-white/15 bg-white/[0.03] px-8 py-4 text-center text-sm font-black uppercase tracking-[0.16em] text-white transition hover:border-sky-400/50 hover:bg-sky-500/10"
+            >
+              View Services
+            </a>
+          </div>
 
-                  <div>
-                    <label className="mb-2 block text-sm font-bold uppercase tracking-[0.12em] text-white/90">
-                      Select Service
-                    </label>
-                    <select className="w-full rounded-xl border border-white/15 bg-black px-4 py-4 text-lg text-white outline-none transition focus:border-blue-500">
-                      <option>Free Intro Session (In-Home)</option>
-                      <option>In-Home Strength Training</option>
-                      <option>Assisted Stretch Session</option>
-                      <option>Mobility / Recovery Session</option>
-                    </select>
-                  </div>
-
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <div>
-                      <label className="mb-2 block text-sm font-bold uppercase tracking-[0.12em] text-white/90">
-                        Preferred Date
-                      </label>
-                      <input
-                        type="date"
-                        className="w-full rounded-xl border border-white/15 bg-black px-4 py-4 text-lg text-white outline-none transition focus:border-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-sm font-bold uppercase tracking-[0.12em] text-white/90">
-                        Preferred Time
-                      </label>
-                      <select className="w-full rounded-xl border border-white/15 bg-black px-4 py-4 text-lg text-white outline-none transition focus:border-blue-500">
-                        <option>Select time</option>
-                        <option>Early Morning</option>
-                        <option>Morning</option>
-                        <option>Midday</option>
-                        <option>Afternoon</option>
-                        <option>Evening</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-5 md:grid-cols-2">
-                    <div>
-                      <label className="mb-2 block text-sm font-bold uppercase tracking-[0.12em] text-white/90">
-                        Location
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="City, State / Neighborhood"
-                        className="w-full rounded-xl border border-white/15 bg-black px-4 py-4 text-lg text-white outline-none transition placeholder:text-white/30 focus:border-blue-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="mb-2 block text-sm font-bold uppercase tracking-[0.12em] text-white/90">
-                        Notes (Optional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Any details we should know?"
-                        className="w-full rounded-xl border border-white/15 bg-black px-4 py-4 text-lg text-white outline-none transition placeholder:text-white/30 focus:border-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full rounded-xl bg-blue-600 px-6 py-5 text-xl font-black uppercase tracking-[0.12em] text-white transition hover:bg-blue-500"
-                  >
-                    Request Booking
-                  </button>
-
-                  <p className="text-center text-sm text-white/55">
-                    We respect your privacy. Your info is never shared.
-                  </p>
-                </form>
+          <div className="mt-7 flex items-center gap-4">
+            <div className="flex -space-x-3">
+              {["J", "K", "C", "M"].map((letter) => (
+                <div
+                  key={letter}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-950 bg-slate-800 text-xs font-black text-sky-300"
+                >
+                  {letter}
+                </div>
+              ))}
+            </div>
+            <div>
+              <div className="text-sm text-yellow-300">★★★★★</div>
+              <div className="text-xs text-slate-400">
+                Trusted by members across Seattle & the Eastside
               </div>
             </div>
           </div>
+        </div>
 
-          <div className="mt-10 lg:mt-0 lg:pl-10">
-            <div className="mb-6 overflow-hidden rounded-[30px] border border-blue-500/30 bg-[#05070b]">
-              <div className="flex min-h-[330px] items-center justify-center bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.18),transparent_38%),linear-gradient(180deg,#05070b,#0a0f18)] p-8">
-                <img
-                  src="/sound-badge.png"
-                  alt="Sound Fitness Badge"
-                  className="max-h-[300px] w-auto object-contain"
+        <section
+          id="booking"
+          className="relative rounded-[28px] border border-sky-400/50 bg-slate-950/65 p-6 shadow-[0_0_70px_rgba(14,165,233,0.18)] backdrop-blur lg:p-8"
+        >
+          <div className="absolute inset-0 rounded-[28px] bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.18),transparent_35%)]" />
+
+          <div className="relative">
+            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-400">
+              Request Your Free Intro
+            </div>
+
+            <h2 className="mt-4 text-3xl font-black tracking-tight">
+              Tell us a little about you.
+            </h2>
+
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              We’ll reach out personally to confirm the best starting point.
+            </p>
+
+            <form className="mt-6 space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <input
+                  type="text"
+                  placeholder="Full Name"
+                  className="rounded-xl border border-white/15 bg-[#050b16] px-4 py-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400"
+                />
+
+                <input
+                  type="tel"
+                  placeholder="Phone Number"
+                  className="rounded-xl border border-white/15 bg-[#050b16] px-4 py-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400"
                 />
               </div>
-            </div>
 
-            <div className="space-y-5">
-              <div className="rounded-[24px] border border-blue-500/30 bg-[#05070b] p-7">
-                <h3 className="mb-5 text-3xl font-black uppercase tracking-wide text-blue-500">
-                  How It Works
-                </h3>
+              <select className="w-full rounded-xl border border-white/15 bg-[#050b16] px-4 py-4 text-sm text-slate-300 outline-none focus:border-sky-400">
+                <option>Select Service</option>
+                {services.map((service) => (
+                  <option key={service}>{service}</option>
+                ))}
+              </select>
 
-                <div className="space-y-5">
-                  <div className="flex gap-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-500 text-lg font-bold text-blue-400">
-                      1
-                    </div>
-                    <div>
-                      <div className="text-xl font-bold text-white">
-                        Submit your request
-                      </div>
-                      <div className="mt-1 text-lg text-white/70">
-                        Fill out the form with your preferred time.
-                      </div>
-                    </div>
-                  </div>
+              <input
+                type="text"
+                placeholder="City / Neighborhood"
+                className="w-full rounded-xl border border-white/15 bg-[#050b16] px-4 py-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400"
+              />
 
-                  <div className="flex gap-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-500 text-lg font-bold text-blue-400">
-                      2
-                    </div>
-                    <div>
-                      <div className="text-xl font-bold text-white">
-                        We reach out to confirm
-                      </div>
-                      <div className="mt-1 text-lg text-white/70">
-                        We’ll call or text to lock in the best time.
-                      </div>
-                    </div>
-                  </div>
+              <textarea
+                rows={5}
+                placeholder="Goals, injuries, schedule, or anything helpful..."
+                className="w-full rounded-xl border border-white/15 bg-[#050b16] px-4 py-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400"
+              />
 
-                  <div className="flex gap-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-500 text-lg font-bold text-blue-400">
-                      3
-                    </div>
-                    <div>
-                      <div className="text-xl font-bold text-white">
-                        Show up & get results
-                      </div>
-                      <div className="mt-1 text-lg text-white/70">
-                        We meet at your location and get to work.
-                      </div>
-                    </div>
-                  </div>
+              <Link
+                href="/onboarding"
+                className="block rounded-xl bg-sky-500 px-6 py-4 text-center text-sm font-black uppercase tracking-[0.16em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400"
+              >
+                Submit Request
+              </Link>
+
+              <p className="flex items-center justify-center gap-2 pt-3 text-center text-xs text-slate-400">
+                <span className="text-sky-400">🛡</span>
+                We’ll personally confirm by call or text.
+              </p>
+            </form>
+          </div>
+        </section>
+      </section>
+
+      <section id="services" className="mx-auto max-w-7xl px-5 pb-12 sm:px-8">
+        <div className="text-center">
+          <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-400">
+            What We Offer
+          </div>
+          <h2 className="mt-4 text-3xl font-black uppercase tracking-tight sm:text-4xl">
+            Services that create real change
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+            Everything we do is focused on helping you move better, get
+            stronger, recover faster, and stay consistent.
+          </p>
+        </div>
+
+        <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-5">
+          {serviceCards.map((service) => (
+            <article
+              key={service.title}
+              className="group relative overflow-hidden rounded-[24px] border border-sky-400/20 bg-[#020713] shadow-2xl shadow-black/25 transition duration-300 hover:-translate-y-1 hover:border-sky-400/60 hover:bg-[#041222]"
+            >
+              <div className="relative h-36 overflow-hidden rounded-t-[23px] bg-slate-950">
+                <img
+                  src={service.image}
+                  alt=""
+                  className="block h-full w-full object-cover opacity-70 transition duration-500 will-change-transform group-hover:scale-[1.08] group-hover:opacity-90"
+                />
+
+                <div className="absolute inset-0 bg-gradient-to-t from-[#020713] via-[#020713]/35 to-transparent" />
+              </div>
+
+              <div className="relative bg-[#020713] px-5 pb-5 pt-12 transition duration-300 group-hover:bg-[#041222]">
+                <div className="absolute -top-9 left-5 z-20 flex h-14 w-14 -translate-y-1 items-center justify-center rounded-2xl border border-sky-400/45 bg-[#020713] text-2xl shadow-[0_0_30px_rgba(14,165,233,0.28)] transition duration-300 group-hover:-translate-y-2 group-hover:border-sky-300/70 group-hover:bg-[#041222]">
+                  <span className="relative -top-0.5">{service.icon}</span>
                 </div>
-              </div>
 
-              <div className="rounded-[24px] border border-blue-500/30 bg-[#05070b] p-7">
-                <h3 className="mb-5 text-3xl font-black uppercase tracking-wide text-blue-500">
-                  What To Expect
+                <h3 className="text-xl font-black uppercase leading-[1] text-white">
+                  {service.title}
                 </h3>
 
-                <ul className="space-y-3 text-lg text-white/80">
-                  <li>✓ Free intro session to get started</li>
-                  <li>✓ Custom plan built around your goals</li>
-                  <li>✓ No gym required — we come to you</li>
-                  <li>✓ Real coaching. Real results.</li>
-                </ul>
-              </div>
-
-              <div className="rounded-[24px] border border-blue-500/30 bg-[#05070b] p-7">
-                <h3 className="mb-4 text-3xl font-black uppercase tracking-wide text-blue-500">
-                  Already A Client?
-                </h3>
-
-                <p className="mb-6 text-lg text-white/75">
-                  Manage your existing sessions, reschedule, or update details.
+                <p className="mt-4 min-h-[72px] text-sm leading-6 text-slate-400">
+                  {service.text}
                 </p>
 
-                <Link
-                  href="/dashboard"
-                  className="inline-flex rounded-xl border border-blue-500 px-6 py-4 text-lg font-bold uppercase tracking-[0.1em] text-white transition hover:bg-blue-500/10"
-                >
-                  Sign In To Your Account
-                </Link>
+                <div className="mt-5 text-xl text-sky-400 transition duration-300 group-hover:translate-x-1">
+                  →
+                </div>
               </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-5 pb-12 sm:px-8">
+        <div className="rounded-[28px] border border-sky-400/25 bg-white/[0.04] p-6 shadow-2xl shadow-black/25 backdrop-blur lg:p-8">
+          <div className="text-center">
+            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-400">
+              Why It Works
             </div>
+            <h2 className="mt-4 text-3xl font-black uppercase tracking-tight">
+              Less friction. More consistency.
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-400">
+              Coaching at home removes barriers so you can stay consistent and
+              actually see progress.
+            </p>
+          </div>
+
+          <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+            {proofItems.map((item) => (
+              <div key={item.title} className="flex gap-4">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-sky-400/30 bg-sky-500/10 text-2xl">
+                  {item.icon}
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-black text-white">
+                    {item.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    {item.text}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="border-t border-blue-500/20 bg-black">
-        <div className="mx-auto grid max-w-7xl gap-6 px-6 py-8 md:grid-cols-5">
-          <div>
-            <div className="text-2xl font-black uppercase text-white">
-              No gym. No excuses.
-            </div>
-            <div className="mt-2 text-lg text-white/65">
-              Just results that last.
-            </div>
-          </div>
+      <footer className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 border-t border-white/10 px-5 py-8 text-xs text-slate-500 sm:px-8 md:flex-row">
+        <div>© 2026 Sound Fitness. All rights reserved.</div>
 
-          <div>
-            <div className="text-3xl font-black text-blue-500">100+</div>
-            <div className="text-sm uppercase tracking-[0.12em] text-white/60">
-              Clients Helped
-            </div>
-          </div>
-
-          <div>
-            <div className="text-3xl font-black text-blue-500">5+</div>
-            <div className="text-sm uppercase tracking-[0.12em] text-white/60">
-              Years Experience
-            </div>
-          </div>
-
-          <div>
-            <div className="text-3xl font-black text-blue-500">100%</div>
-            <div className="text-sm uppercase tracking-[0.12em] text-white/60">
-              Commitment
-            </div>
-          </div>
-
-          <div>
-            <div className="text-3xl font-black text-blue-500">1 Goal</div>
-            <div className="text-sm uppercase tracking-[0.12em] text-white/60">
-              Your Best Self
-            </div>
-          </div>
+        <div className="flex items-center gap-4">
+          <Link href="/coach/login" className="hover:text-sky-300">
+            Coach Sign In
+          </Link>
+          <span>•</span>
+          <Link href="/admin/login" className="hover:text-sky-300">
+            Admin Sign In
+          </Link>
         </div>
-      </section>
+      </footer>
     </main>
   );
 }
