@@ -5,56 +5,51 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-export default function AdminLoginPage() {
+export default function UpdatePasswordPage() {
   const router = useRouter();
 
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(true);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+  async function handleUpdatePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    setMessage("");
     setErrorMessage("");
-    setIsLoading(true);
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
+    if (password.length < 8) {
+      setErrorMessage("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+
+    const { error } = await supabase.auth.updateUser({
       password,
     });
 
-    if (error || !data.user) {
-      setIsLoading(false);
-      setErrorMessage("Email or password is incorrect.");
-      return;
-    }
+    setLoading(false);
 
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", data.user.id)
-      .single();
-
-    setIsLoading(false);
-
-    if (profileError || !profile) {
-      await supabase.auth.signOut();
-      setErrorMessage("Account profile not found.");
-      return;
-    }
-
-    if (profile.role !== "admin") {
-      await supabase.auth.signOut();
+    if (error) {
       setErrorMessage(
-        "This login is for admins only. Please use the correct portal.",
+        "Password update failed. Please request a new reset link.",
       );
       return;
     }
 
-    router.replace("/admin");
-    router.refresh();
+    setMessage("Password updated successfully. Redirecting to login...");
+
+    setTimeout(() => {
+      router.replace("/login");
+    }, 1800);
   }
 
   return (
@@ -84,50 +79,41 @@ export default function AdminLoginPage() {
         </div>
       </header>
 
-      <section className="relative mx-auto grid min-h-[calc(100vh-120px)] max-w-7xl items-center gap-10 px-5 pb-12 sm:px-8 lg:grid-cols-[0.95fr_1.05fr]">
-        <div className="absolute left-[10%] top-[10%] hidden h-[500px] w-[500px] rounded-full bg-sky-500/10 blur-3xl lg:block" />
+      <section className="relative mx-auto grid min-h-[calc(100vh-120px)] max-w-7xl items-center gap-10 px-5 pb-12 sm:px-8 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="absolute left-[10%] top-[12%] hidden h-[500px] w-[500px] rounded-full bg-sky-500/10 blur-3xl lg:block" />
 
         <div className="relative hidden lg:block">
           <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-white">
             <span className="h-2 w-2 rounded-full bg-sky-400" />
-            Admin Command Center
+            Secure Password Update
           </div>
 
           <h1 className="mt-7 max-w-2xl text-6xl font-black uppercase leading-[0.9] tracking-tight text-white">
-            Run the
+            Create new
             <br />
-            business.
+            access.
             <br />
-            <span className="text-sky-500">See everything.</span>
+            <span className="text-sky-500">Stay protected.</span>
           </h1>
 
           <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">
-            Sign in to manage leads, members, coaches, payments, scheduling,
-            content, and the systems that keep Sound Fitness growing.
+            Choose a strong password to protect your Sound Fitness account,
+            training dashboard, progress history, and coach communication.
           </p>
 
           <div className="mt-8 grid max-w-xl gap-4">
             {[
               [
-                "📍",
-                "Lead Map",
-                "Track prospects by area, source, and follow-up status.",
+                "🔐",
+                "Encrypted Auth",
+                "Supabase securely handles password updates.",
               ],
               [
-                "👥",
-                "Members & Coaches",
-                "Manage accounts, roles, sessions, and assignments.",
+                "🛡️",
+                "Private Account",
+                "Protect your training data and progress.",
               ],
-              [
-                "💳",
-                "Payments",
-                "Review packages, purchases, renewals, and revenue.",
-              ],
-              [
-                "📊",
-                "Business Dashboard",
-                "Monitor growth, activity, conversion, and operations.",
-              ],
+              ["📈", "Keep Momentum", "Get back into your dashboard quickly."],
             ].map(([icon, title, text]) => (
               <div
                 key={title}
@@ -156,67 +142,37 @@ export default function AdminLoginPage() {
           <div className="relative">
             <div className="text-center">
               <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl border border-sky-400/40 bg-sky-500/10 text-3xl shadow-[0_0_35px_rgba(14,165,233,0.25)]">
-                🛡️
+                🔑
               </div>
 
               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-400">
-                Admin Sign In
+                Update Password
               </div>
 
               <h2 className="mt-4 text-4xl font-black uppercase tracking-tight">
-                Owner access
+                New password
               </h2>
 
               <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-400">
-                Access the Sound Fitness command center and business systems.
+                Enter and confirm your new password below.
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="mt-8 space-y-4">
+            <form onSubmit={handleUpdatePassword} className="mt-8 space-y-4">
               <div>
                 <label
-                  htmlFor="email"
+                  htmlFor="password"
                   className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-300"
                 >
-                  Admin Email
+                  New Password
                 </label>
-
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  placeholder="admin@example.com"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  required
-                  className="w-full rounded-xl border border-white/15 bg-[#050b16] px-4 py-4 text-sm text-white outline-none placeholder:text-slate-500 transition focus:border-sky-400"
-                />
-              </div>
-
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-4">
-                  <label
-                    htmlFor="password"
-                    className="block text-xs font-black uppercase tracking-[0.16em] text-slate-300"
-                  >
-                    Password
-                  </label>
-
-                  <Link
-                    href="/forgot-password"
-                    className="text-xs font-black uppercase tracking-[0.12em] text-sky-400 transition hover:text-sky-300"
-                  >
-                    Forgot Password?
-                  </Link>
-                </div>
 
                 <input
                   id="password"
                   name="password"
                   type="password"
-                  placeholder="Enter password"
-                  autoComplete="current-password"
+                  placeholder="At least 8 characters"
+                  autoComplete="new-password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   required
@@ -224,25 +180,25 @@ export default function AdminLoginPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-1">
+              <div>
                 <label
-                  htmlFor="remember"
-                  className="flex cursor-pointer items-center gap-3 text-sm text-slate-400"
+                  htmlFor="confirmPassword"
+                  className="mb-2 block text-xs font-black uppercase tracking-[0.16em] text-slate-300"
                 >
-                  <input
-                    id="remember"
-                    name="remember"
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(event) => setRememberMe(event.target.checked)}
-                    className="h-4 w-4 rounded border-white/20 bg-[#050b16] accent-sky-500"
-                  />
-                  Remember me
+                  Confirm Password
                 </label>
 
-                <span className="hidden text-xs text-slate-500 sm:inline">
-                  Restricted access
-                </span>
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  placeholder="Re-enter new password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  required
+                  className="w-full rounded-xl border border-white/15 bg-[#050b16] px-4 py-4 text-sm text-white outline-none placeholder:text-slate-500 transition focus:border-sky-400"
+                />
               </div>
 
               {errorMessage && (
@@ -251,38 +207,38 @@ export default function AdminLoginPage() {
                 </div>
               )}
 
+              {message && (
+                <div className="rounded-xl border border-sky-400/30 bg-sky-500/10 px-4 py-3 text-sm text-sky-100">
+                  {message}
+                </div>
+              )}
+
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={loading}
                 className="block w-full rounded-xl bg-sky-500 px-6 py-4 text-center text-sm font-black uppercase tracking-[0.16em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isLoading ? "Signing In..." : "Enter Admin Dashboard →"}
+                {loading ? "Updating..." : "Update Password →"}
               </button>
 
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-center">
-                <p className="text-sm text-slate-400">Wrong portal?</p>
+                <p className="text-sm text-slate-400">
+                  Already updated your password?
+                </p>
 
-                <div className="mt-2 flex justify-center gap-4 text-sm font-black uppercase tracking-[0.14em]">
-                  <Link
-                    href="/login"
-                    className="text-sky-400 hover:text-sky-300"
-                  >
-                    Member
-                  </Link>
-                  <Link
-                    href="/coach/login"
-                    className="text-sky-400 hover:text-sky-300"
-                  >
-                    Coach
-                  </Link>
-                </div>
+                <Link
+                  href="/login"
+                  className="mt-2 inline-flex text-sm font-black uppercase tracking-[0.14em] text-sky-400 hover:text-sky-300"
+                >
+                  Back to Member Sign In
+                </Link>
               </div>
             </form>
 
             <div className="mt-8 border-t border-white/10 pt-5">
               <p className="text-center text-xs leading-6 text-slate-500">
-                Admin access is restricted to approved Sound Fitness ownership
-                and system operators.
+                Password updates are handled securely through your Sound Fitness
+                authentication system.
               </p>
             </div>
           </div>
@@ -291,16 +247,6 @@ export default function AdminLoginPage() {
 
       <footer className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-3 border-t border-white/10 px-5 py-6 text-xs text-slate-500 sm:px-8">
         <div>© 2026 Sound Fitness. All rights reserved.</div>
-
-        <div className="flex items-center gap-4">
-          <Link href="/login" className="hover:text-sky-300">
-            Member Sign In
-          </Link>
-          <span>•</span>
-          <Link href="/coach/login" className="hover:text-sky-300">
-            Coach Sign In
-          </Link>
-        </div>
       </footer>
     </main>
   );

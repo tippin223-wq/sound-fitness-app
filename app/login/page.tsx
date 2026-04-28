@@ -52,14 +52,15 @@ export default function MemberLoginPage() {
       return;
     }
 
-    if (profile.role === "admin") {
-      router.push("/admin");
-    } else if (profile.role === "coach") {
-      router.push("/coach/dashboard");
-    } else {
-      router.push("/dashboard");
+    if (profile.role !== "member") {
+      await supabase.auth.signOut();
+      setErrorMessage(
+        "This login is for members only. Please use the correct portal.",
+      );
+      return;
     }
 
+    router.replace("/dashboard");
     router.refresh();
   }
 

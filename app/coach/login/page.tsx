@@ -1,6 +1,62 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FormEvent, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function CoachLoginPage() {
+  const router = useRouter();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  async function handleLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setErrorMessage("");
+    setIsLoading(true);
+
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error || !data.user) {
+      setIsLoading(false);
+      setErrorMessage("Email or password is incorrect.");
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .single();
+
+    setIsLoading(false);
+
+    if (profileError || !profile) {
+      await supabase.auth.signOut();
+      setErrorMessage("Account profile not found.");
+      return;
+    }
+
+    if (profile.role !== "coach") {
+      await supabase.auth.signOut();
+      setErrorMessage(
+        "This login is for coaches only. Please use the correct portal.",
+      );
+      return;
+    }
+
+    router.replace("/coach/dashboard");
+    router.refresh();
+  }
+
   return (
     <main className="min-h-screen overflow-hidden bg-[#020713] text-white">
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_0%,rgba(0,132,255,0.22),transparent_30%),radial-gradient(circle_at_80%_10%,rgba(56,189,248,0.12),transparent_28%),linear-gradient(180deg,#020713_0%,#06111f_48%,#020713_100%)]" />
@@ -116,7 +172,7 @@ export default function CoachLoginPage() {
               </p>
             </div>
 
-            <form className="mt-8 space-y-4">
+            <form onSubmit={handleLogin} className="mt-8 space-y-4">
               <div>
                 <label
                   htmlFor="email"
@@ -131,6 +187,9 @@ export default function CoachLoginPage() {
                   type="email"
                   placeholder="coach@example.com"
                   autoComplete="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  required
                   className="w-full rounded-xl border border-white/15 bg-[#050b16] px-4 py-4 text-sm text-white outline-none placeholder:text-slate-500 transition focus:border-sky-400"
                 />
               </div>
@@ -158,6 +217,9 @@ export default function CoachLoginPage() {
                   type="password"
                   placeholder="Enter password"
                   autoComplete="current-password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
                   className="w-full rounded-xl border border-white/15 bg-[#050b16] px-4 py-4 text-sm text-white outline-none placeholder:text-slate-500 transition focus:border-sky-400"
                 />
               </div>
@@ -171,6 +233,8 @@ export default function CoachLoginPage() {
                     id="remember"
                     name="remember"
                     type="checkbox"
+                    checked={rememberMe}
+                    onChange={(event) => setRememberMe(event.target.checked)}
                     className="h-4 w-4 rounded border-white/20 bg-[#050b16] accent-sky-500"
                   />
                   Remember me
@@ -181,12 +245,19 @@ export default function CoachLoginPage() {
                 </span>
               </div>
 
-              <Link
-                href="/coach/dashboard"
-                className="block rounded-xl bg-sky-500 px-6 py-4 text-center text-sm font-black uppercase tracking-[0.16em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400"
+              {errorMessage && (
+                <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                  {errorMessage}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="block w-full rounded-xl bg-sky-500 px-6 py-4 text-center text-sm font-black uppercase tracking-[0.16em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Enter Coach Dashboard →
-              </Link>
+                {isLoading ? "Signing In..." : "Enter Coach Dashboard →"}
+              </button>
 
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-center">
                 <p className="text-sm text-slate-400">Not a coach?</p>
