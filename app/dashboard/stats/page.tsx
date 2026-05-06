@@ -3,33 +3,23 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
+import {
+  readExerciseStats,
+  subscribeToLocalWorkoutData,
+} from "@/lib/localData/workoutData";
+import type { LocalExerciseStatEntry } from "@/types";
 
-type StatEntry = {
-  exerciseId: string;
-  exerciseName: string;
-  body?: string;
-  pattern?: string;
-  equipment?: string;
-  weight: string;
-  reps: string;
-  sets: string;
-  date: string;
-  source?: "exercise-library" | "workout-session";
-};
+type StatEntry = LocalExerciseStatEntry;
 
 export default function StatsPage() {
   const [stats, setStats] = useState<StatEntry[]>([]);
 
   useEffect(() => {
-    const saved = localStorage.getItem("soundFitnessExerciseStats");
+    const syncStats = () => setStats(readExerciseStats());
 
-    if (saved) {
-      try {
-        setStats(JSON.parse(saved));
-      } catch {
-        setStats([]);
-      }
-    }
+    syncStats();
+
+    return subscribeToLocalWorkoutData(syncStats);
   }, []);
 
   const groupedStats = useMemo(() => {

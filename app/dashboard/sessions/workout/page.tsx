@@ -2,10 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { saveWorkoutSessionExerciseStats } from "@/lib/localData/workoutData";
 import { ROUTES } from "@/lib/routes";
 import type { LocalExerciseStatEntry } from "@/types";
-
-const EXERCISE_STATS_STORAGE_KEY = "soundFitnessExerciseStats";
 
 type ExerciseLogDraft = {
   weight: string;
@@ -120,19 +119,6 @@ const isCompleteExerciseLog = (log?: ExerciseLogDraft) =>
       hasPositiveNumber(log.reps) &&
       hasPositiveNumber(log.sets),
   );
-
-const readSavedExerciseStats = () => {
-  const saved = localStorage.getItem(EXERCISE_STATS_STORAGE_KEY);
-
-  if (!saved) return [];
-
-  try {
-    const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) ? (parsed as LocalExerciseStatEntry[]) : [];
-  } catch {
-    return [];
-  }
-};
 
 export default function WorkoutBuilderPage() {
   const router = useRouter();
@@ -333,14 +319,7 @@ export default function WorkoutBuilderPage() {
     }
 
     try {
-      const existingStats = readSavedExerciseStats();
-      const updatedStats = [...completedEntries, ...existingStats];
-
-      localStorage.setItem(
-        EXERCISE_STATS_STORAGE_KEY,
-        JSON.stringify(updatedStats),
-      );
-
+      saveWorkoutSessionExerciseStats(completedEntries);
       router.push(ROUTES.dashboard.stats);
     } catch {
       setSaveMessage(

@@ -2,8 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
+import {
+  prependExerciseStats,
+  readCustomExercises,
+  readExerciseStats,
+  writeCustomExercises,
+} from "@/lib/localData/workoutData";
 import { exerciseLibrary } from "@/lib/training/exerciseLibrary";
 import { ROUTES } from "@/lib/routes";
+import type { LocalExerciseStatEntry } from "@/types";
 
 type Exercise = {
   id: string;
@@ -74,18 +81,7 @@ export default function ExerciseLibraryPage() {
   const [statReps, setStatReps] = useState("");
   const [statSets, setStatSets] = useState("");
   const [savedExerciseStats, setSavedExerciseStats] = useState<
-    {
-      exerciseId: string;
-      exerciseName: string;
-      body?: string;
-      pattern?: string;
-      equipment?: string;
-      weight: string;
-      reps: string;
-      sets: string;
-      date: string;
-      source?: string;
-    }[]
+    LocalExerciseStatEntry[]
   >([]);
 
   const [newExercise, setNewExercise] = useState({
@@ -101,34 +97,15 @@ export default function ExerciseLibraryPage() {
   });
 
   useEffect(() => {
-    const saved = localStorage.getItem("soundFitnessCustomExercises");
-
-    if (saved) {
-      try {
-        setCustomExercises(JSON.parse(saved));
-      } catch {
-        setCustomExercises([]);
-      }
-    }
+    setCustomExercises(readCustomExercises<Exercise>());
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(
-      "soundFitnessCustomExercises",
-      JSON.stringify(customExercises),
-    );
+    writeCustomExercises(customExercises);
   }, [customExercises]);
 
   useEffect(() => {
-    const saved = localStorage.getItem("soundFitnessExerciseStats");
-
-    if (saved) {
-      try {
-        setSavedExerciseStats(JSON.parse(saved));
-      } catch {
-        setSavedExerciseStats([]);
-      }
-    }
+    setSavedExerciseStats(readExerciseStats());
   }, []);
 
   const allExercises: Exercise[] = useMemo(() => {
@@ -909,7 +886,7 @@ export default function ExerciseLibraryPage() {
                       )
                         return;
 
-                      const newStat = {
+                      const newStat: LocalExerciseStatEntry = {
                         exerciseId: statsExercise.id,
                         exerciseName: statsExercise.name,
                         body: statsExercise.body,
@@ -922,12 +899,7 @@ export default function ExerciseLibraryPage() {
                         source: "exercise-library",
                       };
 
-                      const updated = [newStat, ...savedExerciseStats];
-
-                      localStorage.setItem(
-                        "soundFitnessExerciseStats",
-                        JSON.stringify(updated),
-                      );
+                      const updated = prependExerciseStats(newStat);
 
                       setSavedExerciseStats(updated);
                       setStatWeight("");

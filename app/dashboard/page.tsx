@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
+import {
+  readExerciseStats,
+  subscribeToLocalWorkoutData,
+} from "@/lib/localData/workoutData";
 import { ROUTES } from "@/lib/routes";
 import { supabase } from "@/lib/supabaseClient";
 import type { LocalExerciseStatEntry } from "@/types";
-
-const EXERCISE_STATS_STORAGE_KEY = "soundFitnessExerciseStats";
 
 const formatDashboardDate = (value?: string) => {
   if (!value) return "No workout logged yet";
@@ -20,19 +22,6 @@ const formatDashboardDate = (value?: string) => {
     day: "numeric",
     year: "numeric",
   }).format(date);
-};
-
-const readSavedExerciseStats = () => {
-  const saved = localStorage.getItem(EXERCISE_STATS_STORAGE_KEY);
-
-  if (!saved) return [];
-
-  try {
-    const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) ? (parsed as LocalExerciseStatEntry[]) : [];
-  } catch {
-    return [];
-  }
 };
 
 const portalCards = [
@@ -99,12 +88,11 @@ export default function UserHomeDashboardPage() {
   }, []);
 
   useEffect(() => {
-    const syncStats = () => setExerciseStats(readSavedExerciseStats());
+    const syncStats = () => setExerciseStats(readExerciseStats());
 
     syncStats();
-    window.addEventListener("storage", syncStats);
 
-    return () => window.removeEventListener("storage", syncStats);
+    return subscribeToLocalWorkoutData(syncStats);
   }, []);
 
   const workoutSummary = useMemo(() => {
