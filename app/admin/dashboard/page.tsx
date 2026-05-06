@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ROUTES } from "@/lib/routes";
 
 export default function CoachDashboardPage() {
   const stats = [
@@ -9,14 +10,14 @@ export default function CoachDashboardPage() {
   ];
 
   const quickLinks = [
-    ["CRM Dashboard", "/crm-dashboard"],
-    ["Leads Pipeline", "/leads"],
-    ["Client Directory", "/clients"],
-    ["Follow-Ups", "/follow-ups"],
-    ["Sales", "/sales"],
-    ["Invoices", "/invoices"],
-    ["Referrals", "/referrals"],
-    ["Reports", "/reports"],
+    ["CRM Dashboard", ROUTES.admin.crmDashboard],
+    ["Leads Pipeline", ROUTES.admin.leads],
+    ["Client Directory", ROUTES.admin.clients],
+    ["Follow-Ups", ROUTES.admin.followUps],
+    ["Sales", ROUTES.admin.sales],
+    ["Invoices", ROUTES.admin.invoices],
+    ["Referrals", ROUTES.admin.referrals],
+    ["Reports", ROUTES.admin.reports],
   ];
 
   const alerts = [

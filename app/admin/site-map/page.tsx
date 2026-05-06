@@ -88,10 +88,11 @@ const siteMap: PageNode[] = [
       },
       {
         title: "Waiver / Agreement",
-        href: "/onboarding/agreement",
+        href: ROUTES.onboarding.confirmation,
         section: "Onboarding",
         status: "Recommended",
-        description: "Recommended service agreement and consent step.",
+        description:
+          "Recommended service agreement and consent step. Links to the current confirmation route until a dedicated page exists.",
         linksTo: ["/onboarding/confirmation"],
       },
     ],

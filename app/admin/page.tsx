@@ -386,7 +386,7 @@ export default function AdminHomePage() {
                   onChange={(e) =>
                     setDraft((prev) => ({ ...prev, href: e.target.value }))
                   }
-                  placeholder="/admin/new-page"
+                  placeholder="/admin/site-map"
                   className="w-full rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/50"
                 />
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
+import { ROUTES, workoutBuilderAddToPlan } from "@/lib/routes";
 import { exerciseLibrary } from "@/lib/training/exerciseLibrary";
 
 type Exercise = {
@@ -795,8 +796,8 @@ export default function WorkoutBuilderPage() {
               <Link
                 href={
                   builderMode === "start"
-                    ? "/dashboard/sessions/workout?mode=start"
-                    : `/dashboard/sessions/workout?addTo=${
+                    ? `${ROUTES.dashboard.sessionWorkout}?mode=start`
+                    : `${ROUTES.dashboard.sessionWorkout}?addTo=${
                         selectedPlanDay || "choose"
                       }`
                 }
@@ -806,7 +807,7 @@ export default function WorkoutBuilderPage() {
               </Link>
 
               <Link
-                href="/dashboard/my-plan"
+                href={ROUTES.dashboard.myPlan}
                 className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-200 hover:border-cyan-300/40"
               >
                 View Plans
@@ -825,7 +826,7 @@ export default function WorkoutBuilderPage() {
             {activePlanDays.map((item) => (
               <Link
                 key={`${item.planId}-${item.day}`}
-                href={`/dashboard/workout-builder?addTo=${item.planId}:${item.day}`}
+                href={workoutBuilderAddToPlan(item.planId, item.day)}
                 className="block rounded-2xl border border-white/10 bg-slate-950/60 p-4 transition hover:border-emerald-300/40 hover:bg-emerald-400/10"
               >
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">

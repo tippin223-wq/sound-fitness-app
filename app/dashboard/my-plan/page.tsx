@@ -288,14 +288,14 @@ export default function MyPlanPage() {
                   {/* ACTIONS */}
                   <div className="mt-5 flex flex-wrap gap-2">
                     <Link
-                      href={`/dashboard/my-plan/${plan.id}`}
+                      href={ROUTES.dashboard.myPlan}
                       className="rounded-xl bg-cyan-400 px-4 py-2 text-xs font-black text-slate-950 hover:bg-cyan-300"
                     >
                       Open Plan
                     </Link>
 
                     <Link
-                      href="/dashboard/sessions/workout"
+                      href={ROUTES.dashboard.sessionWorkout}
                       className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-xs font-black text-emerald-300 hover:bg-emerald-400/15"
                     >
                       Start Workout
