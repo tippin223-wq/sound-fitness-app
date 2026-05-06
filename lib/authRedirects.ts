@@ -1,6 +1,7 @@
 import { ROUTES } from "@/lib/routes";
+import type { ProfileRole } from "@/types";
 
-export type AuthRole = "member" | "coach" | "admin";
+export type AuthRole = ProfileRole;
 
 const publicAuthPaths = new Set<string>([
   ROUTES.auth.login,

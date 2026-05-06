@@ -1,15 +1,6 @@
-export type Exercise = {
-  id: string;
-  name: string;
-  body: string;
-  muscles: string;
-  pattern: string;
-  goal: string;
-  equipment: string;
-  level: string;
-  image: string;
-  cue: string;
-};
+import type { ExerciseCatalogItem } from "@/types";
+
+export type Exercise = ExerciseCatalogItem;
 
 const bodyPartImages: Record<string, string[]> = {
   Legs: [

@@ -1,8 +1,142 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ROUTES } from "@/lib/routes";
+import type { LocalExerciseStatEntry } from "@/types";
+
+const EXERCISE_STATS_STORAGE_KEY = "soundFitnessExerciseStats";
+
+type ExerciseLogDraft = {
+  weight: string;
+  reps: string;
+  sets: string;
+};
+
+type SessionExerciseMeta = {
+  exerciseId: string;
+  exerciseName: string;
+  body: string;
+  pattern: string;
+  equipment: string;
+  targetSets: number;
+  targetReps: string;
+  defaultWeight: string;
+};
+
+const sessionExerciseMeta: Record<number, SessionExerciseMeta> = {
+  2: {
+    exerciseId: "glute-bridge",
+    exerciseName: "Glute Bridge",
+    body: "Glutes",
+    pattern: "Hip Extension",
+    equipment: "Bodyweight",
+    targetSets: 2,
+    targetReps: "10",
+    defaultWeight: "",
+  },
+  3: {
+    exerciseId: "dead-bug",
+    exerciseName: "Dead Bug",
+    body: "Core",
+    pattern: "Core",
+    equipment: "Bodyweight",
+    targetSets: 2,
+    targetReps: "8",
+    defaultWeight: "",
+  },
+  4: {
+    exerciseId: "bodyweight-squat",
+    exerciseName: "Bodyweight Squat",
+    body: "Legs",
+    pattern: "Squat",
+    equipment: "Bodyweight",
+    targetSets: 2,
+    targetReps: "8",
+    defaultWeight: "",
+  },
+  5: {
+    exerciseId: "goblet-squat",
+    exerciseName: "Goblet Squat",
+    body: "Legs",
+    pattern: "Squat",
+    equipment: "Dumbbell",
+    targetSets: 3,
+    targetReps: "8",
+    defaultWeight: "",
+  },
+  6: {
+    exerciseId: "db-romanian-deadlift",
+    exerciseName: "DB Romanian Deadlift",
+    body: "Hamstrings",
+    pattern: "Hinge",
+    equipment: "Dumbbell",
+    targetSets: 3,
+    targetReps: "10",
+    defaultWeight: "",
+  },
+  7: {
+    exerciseId: "step-up",
+    exerciseName: "Step-Up",
+    body: "Legs",
+    pattern: "Squat",
+    equipment: "Box",
+    targetSets: 2,
+    targetReps: "10",
+    defaultWeight: "",
+  },
+  8: {
+    exerciseId: "one-arm-db-row",
+    exerciseName: "One Arm DB Row",
+    body: "Back",
+    pattern: "Pull",
+    equipment: "Dumbbell",
+    targetSets: 2,
+    targetReps: "12",
+    defaultWeight: "",
+  },
+  9: {
+    exerciseId: "plank",
+    exerciseName: "Plank",
+    body: "Core",
+    pattern: "Core",
+    equipment: "Bodyweight",
+    targetSets: 2,
+    targetReps: "30",
+    defaultWeight: "",
+  },
+};
+
+const hasNonNegativeNumber = (value: string) =>
+  value.trim() !== "" && Number(value) >= 0;
+
+const hasPositiveNumber = (value: string) =>
+  value.trim() !== "" && Number(value) > 0;
+
+const isCompleteExerciseLog = (log?: ExerciseLogDraft) =>
+  Boolean(
+    log &&
+      hasNonNegativeNumber(log.weight) &&
+      hasPositiveNumber(log.reps) &&
+      hasPositiveNumber(log.sets),
+  );
+
+const readSavedExerciseStats = () => {
+  const saved = localStorage.getItem(EXERCISE_STATS_STORAGE_KEY);
+
+  if (!saved) return [];
+
+  try {
+    const parsed = JSON.parse(saved);
+    return Array.isArray(parsed) ? (parsed as LocalExerciseStatEntry[]) : [];
+  } catch {
+    return [];
+  }
+};
 
 export default function WorkoutBuilderPage() {
+  const router = useRouter();
+
   const workout = {
     title: "Lower Body Strength Day",
     subtitle: "Beginner • Dumbbells • 35 min",
@@ -110,8 +244,38 @@ export default function WorkoutBuilderPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
+  const [saveMessage, setSaveMessage] = useState("");
+  const [exerciseLogs, setExerciseLogs] = useState<
+    Record<number, ExerciseLogDraft>
+  >(() =>
+    Object.fromEntries(
+      workout.timeline
+        .filter((step) => sessionExerciseMeta[step.id])
+        .map((step) => {
+          const meta = sessionExerciseMeta[step.id];
+
+          return [
+            step.id,
+            {
+              weight: meta.defaultWeight,
+              reps: meta.targetReps,
+              sets: String(meta.targetSets),
+            },
+          ];
+        }),
+    ),
+  );
 
   const current = workout.timeline[currentIndex];
+  const currentExerciseMeta = sessionExerciseMeta[current.id];
+  const currentExerciseLog = exerciseLogs[current.id];
+  const loggableSteps = workout.timeline.filter(
+    (step) => sessionExerciseMeta[step.id],
+  );
+  const loggedExerciseCount = loggableSteps.filter((step) =>
+    isCompleteExerciseLog(exerciseLogs[step.id]),
+  ).length;
+
   const progress = useMemo(
     () => Math.round(((currentIndex + 1) / workout.timeline.length) * 100),
     [currentIndex, workout.timeline.length],
@@ -122,6 +286,68 @@ export default function WorkoutBuilderPage() {
 
   const nextStep = () => canGoNext && setCurrentIndex((i) => i + 1);
   const prevStep = () => canGoBack && setCurrentIndex((i) => i - 1);
+  const updateExerciseLog = (
+    stepId: number,
+    field: keyof ExerciseLogDraft,
+    value: string,
+  ) => {
+    setSaveMessage("");
+    setExerciseLogs((prev) => ({
+      ...prev,
+      [stepId]: {
+        ...prev[stepId],
+        [field]: value,
+      },
+    }));
+  };
+
+  const saveWorkoutStats = () => {
+    const completedAt = new Date().toISOString();
+    const completedEntries: LocalExerciseStatEntry[] = [];
+
+    loggableSteps.forEach((step) => {
+      const meta = sessionExerciseMeta[step.id];
+      const log = exerciseLogs[step.id];
+
+      if (meta && isCompleteExerciseLog(log)) {
+        completedEntries.push({
+          exerciseId: meta.exerciseId,
+          exerciseName: meta.exerciseName,
+          body: meta.body,
+          pattern: meta.pattern,
+          equipment: meta.equipment,
+          weight: log.weight.trim(),
+          reps: log.reps.trim(),
+          sets: log.sets.trim(),
+          date: completedAt,
+          source: "workout-session",
+        });
+      }
+    });
+
+    if (completedEntries.length === 0) {
+      setSaveMessage(
+        "Log weight, reps, and sets for at least one movement before finishing.",
+      );
+      return;
+    }
+
+    try {
+      const existingStats = readSavedExerciseStats();
+      const updatedStats = [...completedEntries, ...existingStats];
+
+      localStorage.setItem(
+        EXERCISE_STATS_STORAGE_KEY,
+        JSON.stringify(updatedStats),
+      );
+
+      router.push(ROUTES.dashboard.stats);
+    } catch {
+      setSaveMessage(
+        "The workout could not be saved in this browser. Try again before leaving the page.",
+      );
+    }
+  };
 
   const badgeStyles = {
     intro: "bg-sky-500/15 text-sky-300 border-sky-400/20",
@@ -153,7 +379,7 @@ export default function WorkoutBuilderPage() {
               <p className="mt-2 text-sm text-slate-300">{workout.subtitle}</p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
                 <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
                   Current Step
@@ -176,6 +402,14 @@ export default function WorkoutBuilderPage() {
                 </div>
                 <div className="mt-1 text-sm font-semibold text-white">
                   {formatSeconds(current.duration)}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                  Logged
+                </div>
+                <div className="mt-1 text-sm font-semibold text-white">
+                  {loggedExerciseCount} of {loggableSteps.length}
                 </div>
               </div>
             </div>
@@ -333,8 +567,171 @@ export default function WorkoutBuilderPage() {
                     <p className="mt-2 text-base text-white">{current.coach}</p>
                   </div>
                 ) : null}
+
+                {currentExerciseMeta && currentExerciseLog ? (
+                  <div className="rounded-[26px] border border-yellow-300/20 bg-yellow-400/10 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[11px] uppercase tracking-[0.22em] text-yellow-300">
+                          Log this movement
+                        </div>
+                        <p className="mt-2 text-sm text-slate-300">
+                          Target: {currentExerciseMeta.targetSets} x{" "}
+                          {currentExerciseMeta.targetReps}
+                        </p>
+                      </div>
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                          isCompleteExerciseLog(currentExerciseLog)
+                            ? "bg-emerald-400/15 text-emerald-300"
+                            : "bg-slate-900/70 text-slate-400"
+                        }`}
+                      >
+                        {isCompleteExerciseLog(currentExerciseLog)
+                          ? "Ready"
+                          : "Needs log"}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-3 gap-2">
+                      {(["weight", "reps", "sets"] as const).map((field) => (
+                        <label key={field} className="block">
+                          <span className="text-xs font-semibold capitalize text-slate-400">
+                            {field}
+                          </span>
+                          <input
+                            type="number"
+                            min={field === "weight" ? "0" : "1"}
+                            inputMode="decimal"
+                            value={currentExerciseLog[field]}
+                            onChange={(event) =>
+                              updateExerciseLog(
+                                current.id,
+                                field,
+                                event.target.value,
+                              )
+                            }
+                            className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-500 focus:border-yellow-300"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
+
+            <section className="mt-6 rounded-[28px] border border-white/10 bg-slate-950/55 p-5">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.22em] text-emerald-300">
+                    Workout log
+                  </div>
+                  <h3 className="mt-2 text-2xl font-bold text-white">
+                    Save weight, reps, and sets
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Completed movements are saved to your local stats when you
+                    finish the workout. Use 0 for bodyweight movements.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-300">
+                  {loggedExerciseCount} / {loggableSteps.length} ready
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 lg:grid-cols-2">
+                {loggableSteps.map((step) => {
+                  const meta = sessionExerciseMeta[step.id];
+                  const log = exerciseLogs[step.id];
+                  const complete = isCompleteExerciseLog(log);
+
+                  return (
+                    <article
+                      key={step.id}
+                      className={`rounded-[24px] border p-4 ${
+                        complete
+                          ? "border-emerald-300/20 bg-emerald-400/10"
+                          : "border-white/10 bg-black/20"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCurrentIndex(
+                              workout.timeline.findIndex(
+                                (item) => item.id === step.id,
+                              ),
+                            )
+                          }
+                          className="text-left"
+                        >
+                          <p className="text-sm font-semibold text-white">
+                            {meta.exerciseName}
+                          </p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            {meta.body} | {meta.pattern} | Target{" "}
+                            {meta.targetSets} x {meta.targetReps}
+                          </p>
+                        </button>
+
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                            complete
+                              ? "bg-emerald-400/20 text-emerald-200"
+                              : "bg-white/5 text-slate-400"
+                          }`}
+                        >
+                          {complete ? "Logged" : "Open"}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-3 gap-2">
+                        {(["weight", "reps", "sets"] as const).map(
+                          (field) => (
+                            <label key={field} className="block">
+                              <span className="text-xs font-semibold capitalize text-slate-500">
+                                {field}
+                              </span>
+                              <input
+                                type="number"
+                                min={field === "weight" ? "0" : "1"}
+                                inputMode="decimal"
+                                value={log?.[field] || ""}
+                                onChange={(event) =>
+                                  updateExerciseLog(
+                                    step.id,
+                                    field,
+                                    event.target.value,
+                                  )
+                                }
+                                className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-3 text-sm font-semibold text-white outline-none placeholder:text-slate-500 focus:border-emerald-300"
+                              />
+                            </label>
+                          ),
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+
+              {saveMessage ? (
+                <p className="mt-4 rounded-2xl border border-yellow-300/20 bg-yellow-400/10 px-4 py-3 text-sm font-semibold text-yellow-200">
+                  {saveMessage}
+                </p>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={saveWorkoutStats}
+                className="mt-5 w-full rounded-2xl bg-gradient-to-r from-yellow-300 to-yellow-500 px-5 py-4 text-sm font-bold text-slate-950 shadow-lg shadow-yellow-500/20 transition hover:scale-[1.01]"
+              >
+                Finish Workout and View Stats
+              </button>
+            </section>
 
             <div className="mt-6 flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <button
