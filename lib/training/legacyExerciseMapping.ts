@@ -61,6 +61,58 @@ export type LegacyExerciseMappingReport = {
   };
 };
 
+export type NormalizedCatalogMigrationAction =
+  | "merge"
+  | "keep-variation"
+  | "review";
+
+export type NormalizedCatalogMigrationRecommendation = {
+  action: NormalizedCatalogMigrationAction;
+  reason: string;
+};
+
+export type NormalizedCatalogExercise = LegacyExerciseMovementMapping & {
+  variationSignature: string;
+};
+
+export type NormalizedCatalogRecommendationGroup = {
+  familyId: string;
+  familyLabel: string;
+  canonicalMovementId: CoreMovementId | null;
+  movementPatternId: MovementPatternId | null;
+  signature: string;
+  apparatus: ApparatusId | null;
+  modifierIds: ExerciseModifierId[];
+  recommendation: NormalizedCatalogMigrationRecommendation;
+  exercises: NormalizedCatalogExercise[];
+};
+
+export type NormalizedCatalogFamily = {
+  familyId: string;
+  familyLabel: string;
+  canonicalMovementId: CoreMovementId | null;
+  movementPatternId: MovementPatternId | null;
+  apparatuses: ApparatusId[];
+  sharedModifierIds: ExerciseModifierId[];
+  exercises: NormalizedCatalogExercise[];
+  recommendationGroups: NormalizedCatalogRecommendationGroup[];
+};
+
+export type NormalizedExerciseCatalogPreview = {
+  summary: {
+    legacyExercises: number;
+    families: number;
+    mergeCandidates: number;
+    reviewGroups: number;
+    keepSeparateGroups: number;
+    duplicateSignatures: number;
+  };
+  families: NormalizedCatalogFamily[];
+  mergeCandidates: NormalizedCatalogRecommendationGroup[];
+  reviewGroups: NormalizedCatalogRecommendationGroup[];
+  keepSeparateGroups: NormalizedCatalogRecommendationGroup[];
+};
+
 type CoreRule = {
   coreMovementId: CoreMovementId;
   patterns: RegExp[];
@@ -83,6 +135,17 @@ const textFor = (exercise: ExerciseCatalogItem) =>
       exercise.name,
       exercise.body,
       exercise.muscles,
+      exercise.pattern,
+      exercise.goal,
+      exercise.equipment,
+    ].join(" "),
+  );
+
+const ruleTextFor = (exercise: ExerciseCatalogItem) =>
+  normalize(
+    [
+      exercise.id,
+      exercise.name,
       exercise.pattern,
       exercise.goal,
       exercise.equipment,
@@ -315,9 +378,10 @@ const addModifier = (
 
 const matchCoreMovement = (exercise: ExerciseCatalogItem) => {
   const text = textFor(exercise);
+  const ruleText = ruleTextFor(exercise);
 
   for (const rule of coreRules) {
-    if (rule.patterns.some((pattern) => pattern.test(text))) {
+    if (rule.patterns.some((pattern) => pattern.test(ruleText))) {
       return {
         coreMovement: CORE_MOVEMENT_BY_ID[rule.coreMovementId],
         note: rule.note,
@@ -604,5 +668,264 @@ export const getLegacyExerciseMappingReport = (
         ),
       ).length,
     },
+  };
+};
+
+const variationDetailTokens = [
+  "assisted",
+  "barbell",
+  "bench",
+  "bent over",
+  "box",
+  "bulgarian",
+  "cable",
+  "chest supported",
+  "chin",
+  "conventional",
+  "curtsy",
+  "decline",
+  "deficit",
+  "dumbbell",
+  "front",
+  "goblet",
+  "half-kneeling",
+  "incline",
+  "landmine",
+  "lateral",
+  "machine",
+  "one arm",
+  "overhead",
+  "reverse",
+  "romanian",
+  "seated",
+  "single",
+  "split",
+  "standing",
+  "step",
+  "trap bar",
+  "walking",
+  "weighted",
+];
+
+const distinct = <T,>(items: T[]) => Array.from(new Set(items));
+
+const sortByLabel = <T extends { legacyName?: string; familyLabel?: string }>(
+  left: T,
+  right: T,
+) =>
+  (left.familyLabel || left.legacyName || "").localeCompare(
+    right.familyLabel || right.legacyName || "",
+  );
+
+const catalogFamilyKeyForMapping = (mapping: LegacyExerciseMovementMapping) =>
+  normalizeKey(
+    [
+      mapping.coreMovementId || "unmapped",
+      mapping.movementPatternId || "no-pattern",
+    ].join("-"),
+  );
+
+const catalogVariationSignatureForMapping = (
+  mapping: LegacyExerciseMovementMapping,
+) =>
+  [
+    mapping.apparatus || "no-apparatus",
+    ...mapping.modifierIds
+      .filter((modifierId) => !modifierId.startsWith("training-intent:"))
+      .sort(),
+  ].join("|");
+
+const hasVariationDetail = (legacyName: string) => {
+  const normalizedName = normalize(legacyName);
+  return variationDetailTokens.some((token) => normalizedName.includes(token));
+};
+
+const canonicalLegacyNameKey = (legacyName: string) => normalizeKey(legacyName);
+
+const getFamilyLabel = (mapping: LegacyExerciseMovementMapping) => {
+  const movementLabel = mapping.coreMovementId
+    ? CORE_MOVEMENT_BY_ID[mapping.coreMovementId]?.label || mapping.coreMovementId
+    : "Unmapped Movement";
+  const patternLabel = mapping.movementPatternId
+    ? MOVEMENT_PATTERN_BY_ID[mapping.movementPatternId]?.label ||
+      mapping.movementPatternId
+    : "No Pattern";
+
+  return `${movementLabel} / ${patternLabel}`;
+};
+
+const recommendCatalogGroup = (
+  exercises: NormalizedCatalogExercise[],
+  familySignatureCount: number,
+): NormalizedCatalogMigrationRecommendation => {
+  if (exercises.length > 1) {
+    const canonicalNameKeys = distinct(
+      exercises.map((exercise) => canonicalLegacyNameKey(exercise.legacyName)),
+    );
+    const hasVariationSpecificNames = exercises.some((exercise) =>
+      hasVariationDetail(exercise.legacyName),
+    );
+
+    if (canonicalNameKeys.length === 1) {
+      return {
+        action: "merge",
+        reason:
+          "These legacy entries appear to be duplicate names for the same normalized movement signature.",
+      };
+    }
+
+    return {
+      action: "review",
+      reason:
+        hasVariationSpecificNames
+          ? "These entries share the same normalized signature, but the legacy names imply setup differences that may need richer modifiers before merging."
+          : "These entries share the same normalized signature, but their names are different enough to review before merging.",
+    };
+  }
+
+  if (familySignatureCount > 1) {
+    return {
+      action: "keep-variation",
+      reason:
+        "This entry has a distinct apparatus or modifier signature inside the movement family.",
+    };
+  }
+
+  return {
+    action: "keep-variation",
+    reason:
+      "This is the only legacy entry in the normalized movement family right now.",
+  };
+};
+
+const getSharedModifierIds = (exercises: NormalizedCatalogExercise[]) => {
+  if (exercises.length === 0) return [];
+
+  return exercises[0].modifierIds
+    .filter((modifierId) =>
+      exercises.every((exercise) => exercise.modifierIds.includes(modifierId)),
+    )
+    .sort();
+};
+
+const createRecommendationGroups = (
+  family: Omit<NormalizedCatalogFamily, "recommendationGroups">,
+) => {
+  const groups = family.exercises.reduce<
+    Record<string, NormalizedCatalogExercise[]>
+  >((acc, exercise) => {
+    acc[exercise.variationSignature] = [
+      ...(acc[exercise.variationSignature] || []),
+      exercise,
+    ];
+    return acc;
+  }, {});
+
+  const signatureCount = Object.keys(groups).length;
+
+  return Object.entries(groups)
+    .map(([signature, exercises]) => {
+      const sortedExercises = [...exercises].sort(sortByLabel);
+      const firstExercise = sortedExercises[0];
+
+      return {
+        familyId: family.familyId,
+        familyLabel: family.familyLabel,
+        canonicalMovementId: family.canonicalMovementId,
+        movementPatternId: family.movementPatternId,
+        signature,
+        apparatus: firstExercise.apparatus,
+        modifierIds: firstExercise.modifierIds,
+        recommendation: recommendCatalogGroup(sortedExercises, signatureCount),
+        exercises: sortedExercises,
+      };
+    })
+    .sort((left, right) => {
+      const actionOrder: Record<NormalizedCatalogMigrationAction, number> = {
+        merge: 0,
+        review: 1,
+        "keep-variation": 2,
+      };
+
+      return (
+        actionOrder[left.recommendation.action] -
+          actionOrder[right.recommendation.action] ||
+        left.signature.localeCompare(right.signature)
+      );
+    });
+};
+
+export const getNormalizedExerciseCatalogPreview = (
+  exercises: ExerciseCatalogItem[] = exerciseLibrary,
+): NormalizedExerciseCatalogPreview => {
+  const report = getLegacyExerciseMappingReport(exercises);
+  const catalogExercises = report.mapped.map<NormalizedCatalogExercise>(
+    (mapping) => ({
+      ...mapping,
+      variationSignature: catalogVariationSignatureForMapping(mapping),
+    }),
+  );
+  const familyGroups = catalogExercises.reduce<
+    Record<string, NormalizedCatalogExercise[]>
+  >((acc, exercise) => {
+    const familyKey = catalogFamilyKeyForMapping(exercise);
+    acc[familyKey] = [...(acc[familyKey] || []), exercise];
+    return acc;
+  }, {});
+
+  const families = Object.entries(familyGroups)
+    .map(([familyId, familyExercises]) => {
+      const sortedExercises = [...familyExercises].sort(sortByLabel);
+      const firstExercise = sortedExercises[0];
+      const apparatuses = distinct(
+        sortedExercises
+          .map((exercise) => exercise.apparatus)
+          .filter(Boolean) as ApparatusId[],
+      ).sort();
+      const baseFamily = {
+        familyId,
+        familyLabel: getFamilyLabel(firstExercise),
+        canonicalMovementId: firstExercise.coreMovementId,
+        movementPatternId: firstExercise.movementPatternId,
+        apparatuses,
+        sharedModifierIds: getSharedModifierIds(sortedExercises),
+        exercises: sortedExercises,
+      };
+
+      return {
+        ...baseFamily,
+        recommendationGroups: createRecommendationGroups(baseFamily),
+      };
+    })
+    .sort(sortByLabel);
+
+  const recommendationGroups = families.flatMap(
+    (family) => family.recommendationGroups,
+  );
+  const mergeCandidates = recommendationGroups.filter(
+    (group) => group.recommendation.action === "merge",
+  );
+  const reviewGroups = recommendationGroups.filter(
+    (group) => group.recommendation.action === "review",
+  );
+  const keepSeparateGroups = recommendationGroups.filter(
+    (group) => group.recommendation.action === "keep-variation",
+  );
+
+  return {
+    summary: {
+      legacyExercises: catalogExercises.length,
+      families: families.length,
+      mergeCandidates: mergeCandidates.length,
+      reviewGroups: reviewGroups.length,
+      keepSeparateGroups: keepSeparateGroups.length,
+      duplicateSignatures: recommendationGroups.filter(
+        (group) => group.exercises.length > 1,
+      ).length,
+    },
+    families,
+    mergeCandidates,
+    reviewGroups,
+    keepSeparateGroups,
   };
 };

@@ -8,7 +8,7 @@ import {
   readExerciseStats,
   writeCustomExercises,
 } from "@/lib/localData/workoutData";
-import { exerciseLibrary } from "@/lib/training/exerciseLibrary";
+import { getExerciseCatalogWithLegacyFallback } from "@/lib/training/normalizedExerciseCatalog";
 import { ROUTES } from "@/lib/routes";
 import type { LocalExerciseStatEntry } from "@/types";
 
@@ -25,6 +25,11 @@ type Exercise = {
   cue?: string;
   custom?: boolean;
 };
+
+// Internal migration marker: system exercises now come from the normalized
+// catalog service, converted back to the current Exercise shape for this page.
+const normalizedSystemExercises =
+  getExerciseCatalogWithLegacyFallback() as Exercise[];
 
 const defaultImage =
   "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=900";
@@ -109,7 +114,7 @@ export default function ExerciseLibraryPage() {
   }, []);
 
   const allExercises: Exercise[] = useMemo(() => {
-    return [...(exerciseLibrary as Exercise[]), ...customExercises];
+    return [...normalizedSystemExercises, ...customExercises];
   }, [customExercises]);
 
   const bodyOptions = useMemo(
