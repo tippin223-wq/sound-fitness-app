@@ -1,18 +1,63 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  hasWorkoutBuilderSelectedExercises,
+  readWorkoutBuilderTemplates,
+  readWorkoutBuilderSelectedExerciseNames,
+  saveWorkoutBuilderTemplate,
+  type LocalWorkoutBuilderTemplate,
+  writeActiveWorkoutBuilderSessionTemplate,
+  writeWorkoutBuilderSelectedExercises,
+} from "@/lib/localData/workoutBuilderData";
+import { ROUTES } from "@/lib/routes";
 import { getExerciseCatalogWithLegacyFallback } from "@/lib/training/normalizedExerciseCatalog";
 import type { ExerciseCatalogItem } from "@/types";
 
 const exerciseOptions: ExerciseCatalogItem[] =
   getExerciseCatalogWithLegacyFallback();
+const defaultSelectedExerciseNames = ["Goblet Squat", "DB Romanian Deadlift"];
+
+const resolveCatalogExerciseNames = (names: string[]) => {
+  const catalogNames = new Set(exerciseOptions.map((exercise) => exercise.name));
+
+  return Array.from(new Set(names)).filter((name) => catalogNames.has(name));
+};
+
+const getCatalogExercisesByName = (names: string[]) => {
+  const selectedNames = new Set(names);
+
+  return exerciseOptions.filter((exercise) => selectedNames.has(exercise.name));
+};
 
 export default function BuildWorkoutPage() {
-  const [selected, setSelected] = useState<string[]>([
-    "Goblet Squat",
-    "Romanian Deadlift",
-  ]);
+  const router = useRouter();
+  const [selected, setSelected] = useState<string[]>(
+    resolveCatalogExerciseNames(defaultSelectedExerciseNames),
+  );
   const [title, setTitle] = useState("Lower Body Strength Template");
+  const [savedTemplates, setSavedTemplates] = useState<
+    LocalWorkoutBuilderTemplate[]
+  >([]);
+  const [templateStatus, setTemplateStatus] = useState("");
+
+  useEffect(() => {
+    setSavedTemplates(readWorkoutBuilderTemplates());
+
+    if (!hasWorkoutBuilderSelectedExercises()) {
+      writeWorkoutBuilderSelectedExercises(
+        getCatalogExercisesByName(
+          resolveCatalogExerciseNames(defaultSelectedExerciseNames),
+        ),
+      );
+      return;
+    }
+
+    setSelected(
+      resolveCatalogExerciseNames(readWorkoutBuilderSelectedExerciseNames()),
+    );
+  }, []);
 
   const selectedExercises = useMemo(
     () =>
@@ -21,11 +66,75 @@ export default function BuildWorkoutPage() {
   );
 
   function toggleExercise(name: string) {
-    setSelected((current) =>
-      current.includes(name)
+    setSelected((current) => {
+      const updatedSelection = current.includes(name)
         ? current.filter((item) => item !== name)
-        : [...current, name],
+        : [...current, name];
+      const resolvedSelection = resolveCatalogExerciseNames(updatedSelection);
+
+      writeWorkoutBuilderSelectedExercises(
+        getCatalogExercisesByName(resolvedSelection),
+      );
+      setTemplateStatus("");
+
+      return resolvedSelection;
+    });
+  }
+
+  function saveCurrentTemplate() {
+    if (selectedExercises.length === 0) {
+      setTemplateStatus("Add at least one exercise before saving a template.");
+      return;
+    }
+
+    const result = saveWorkoutBuilderTemplate({
+      title,
+      exercises: selectedExercises,
+    });
+
+    setTitle(result.template.title);
+    setSavedTemplates(result.templates);
+    setTemplateStatus(`${result.template.title} saved as a local template.`);
+  }
+
+  function loadTemplate(template: LocalWorkoutBuilderTemplate) {
+    const exerciseNames = resolveCatalogExerciseNames(
+      template.exercises.map((exercise) => exercise.name),
     );
+    const catalogExercises = getCatalogExercisesByName(exerciseNames);
+
+    setSelected(exerciseNames);
+    setTitle(template.title);
+    writeWorkoutBuilderSelectedExercises(catalogExercises);
+    setTemplateStatus(`${template.title} loaded into the builder.`);
+  }
+
+  function startTemplateWorkout(template: LocalWorkoutBuilderTemplate) {
+    const exerciseNames = resolveCatalogExerciseNames(
+      template.exercises.map((exercise) => exercise.name),
+    );
+    const catalogExercises = getCatalogExercisesByName(exerciseNames);
+
+    if (catalogExercises.length === 0) {
+      setTemplateStatus(
+        "This template has no available exercises to start right now.",
+      );
+      return;
+    }
+
+    writeWorkoutBuilderSelectedExercises(catalogExercises);
+    writeActiveWorkoutBuilderSessionTemplate({
+      ...template,
+      exercises: catalogExercises.map((exercise) => ({
+        id: exercise.id,
+        name: exercise.name,
+        body: exercise.body,
+        pattern: exercise.pattern,
+        goal: exercise.goal,
+        equipment: exercise.equipment,
+      })),
+    });
+    router.push(`${ROUTES.dashboard.sessionWorkout}?template=${template.id}`);
   }
 
   return (
@@ -96,18 +205,90 @@ export default function BuildWorkoutPage() {
           </div>
 
           <div className="exerciseRows">
-            {selectedExercises.map((exercise, index) => (
-              <div className="exerciseRow" key={exercise.name}>
-                <strong>
-                  {index + 1}. {exercise.name}
-                </strong>
-                <input placeholder="3" />
-                <input placeholder="8-10" />
-                <input placeholder="75 sec" />
-                <input placeholder="Coaching notes..." />
+            {selectedExercises.length > 0 ? (
+              selectedExercises.map((exercise, index) => (
+                <div className="exerciseRow" key={exercise.name}>
+                  <strong>
+                    {index + 1}. {exercise.name}
+                  </strong>
+                  <input placeholder="3" />
+                  <input placeholder="8-10" />
+                  <input placeholder="75 sec" />
+                  <input placeholder="Coaching notes..." />
+                </div>
+              ))
+            ) : (
+              <div className="emptyState">
+                <strong>No exercises added yet</strong>
+                <span>Use Add Exercises to build this workout.</span>
               </div>
-            ))}
+            )}
           </div>
+
+          <section className="templatePanel">
+            <div className="templateHeader">
+              <div>
+                <p className="eyebrow">Local Templates</p>
+                <h2>Save or load this workout</h2>
+              </div>
+
+              <button
+                type="button"
+                onClick={saveCurrentTemplate}
+                disabled={selectedExercises.length === 0}
+              >
+                Save Template
+              </button>
+            </div>
+
+            {templateStatus && <p className="templateStatus">{templateStatus}</p>}
+
+            <div className="templateGrid">
+              {savedTemplates.length > 0 ? (
+                savedTemplates.map((template) => (
+                  <article className="templateCard" key={template.id}>
+                    <div className="templateCardHeader">
+                      <strong>{template.title}</strong>
+                      <span>
+                        {template.exercises.length} exercise
+                        {template.exercises.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+
+                    <p>
+                      {template.exercises
+                        .slice(0, 3)
+                        .map((exercise) => exercise.name)
+                        .join(" / ")}
+                      {template.exercises.length > 3 ? " / ..." : ""}
+                    </p>
+
+                    <div className="templateActions">
+                      <button
+                        type="button"
+                        onClick={() => loadTemplate(template)}
+                      >
+                        Load Template
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startTemplateWorkout(template)}
+                      >
+                        Start Workout
+                      </button>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="emptyState">
+                  <strong>No saved templates yet</strong>
+                  <span>
+                    Name this workout, choose exercises, then save it here.
+                  </span>
+                </div>
+              )}
+            </div>
+          </section>
 
           <div className="actions">
             <a href="/dashboard/workout-builder/build/add-exercises">Add Exercises</a>
@@ -318,6 +499,114 @@ export default function BuildWorkoutPage() {
           color: #e2e8f0;
         }
 
+        .emptyState {
+          border: 1px dashed rgba(148,163,184,.28);
+          border-radius: 18px;
+          color: #cbd5e1;
+          display: grid;
+          gap: 6px;
+          padding: 18px;
+        }
+
+        .emptyState span {
+          color: #94a3b8;
+        }
+
+        .templatePanel {
+          border: 1px solid rgba(148,163,184,.16);
+          border-radius: 24px;
+          background: rgba(255,255,255,.04);
+          display: grid;
+          gap: 14px;
+          margin-top: 18px;
+          padding: 18px;
+        }
+
+        .templateHeader {
+          align-items: center;
+          display: flex;
+          gap: 14px;
+          justify-content: space-between;
+        }
+
+        .templateHeader h2 {
+          font-size: 24px;
+          letter-spacing: -.04em;
+          margin: 0;
+        }
+
+        .templateHeader button,
+        .templateCard button {
+          border: none;
+          border-radius: 14px;
+          color: white;
+          cursor: pointer;
+          font-family: inherit;
+          font-weight: 900;
+          padding: 11px 14px;
+        }
+
+        .templateHeader button {
+          background: linear-gradient(135deg, #f97316, #fb923c);
+          white-space: nowrap;
+        }
+
+        .templateHeader button:disabled {
+          cursor: not-allowed;
+          opacity: .5;
+        }
+
+        .templateStatus {
+          color: #bfdbfe;
+          font-size: 14px;
+          margin: 0;
+        }
+
+        .templateGrid {
+          display: grid;
+          gap: 10px;
+        }
+
+        .templateCard {
+          border: 1px solid rgba(148,163,184,.14);
+          border-radius: 18px;
+          background: rgba(15,23,42,.72);
+          display: grid;
+          gap: 10px;
+          padding: 14px;
+        }
+
+        .templateCardHeader {
+          display: flex;
+          gap: 10px;
+          justify-content: space-between;
+        }
+
+        .templateActions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .templateCard span,
+        .templateCard p {
+          color: #94a3b8;
+        }
+
+        .templateCard p {
+          line-height: 1.5;
+          margin: 0;
+        }
+
+        .templateCard button {
+          background: linear-gradient(135deg, #2563eb, #0ea5e9);
+          justify-self: start;
+        }
+
+        .templateActions button:last-child {
+          background: linear-gradient(135deg, #f97316, #fb923c);
+        }
+
         .actions {
           display: flex;
           gap: 10px;
@@ -360,6 +649,18 @@ export default function BuildWorkoutPage() {
 
           .exerciseRow {
             grid-template-columns: 1fr;
+          }
+
+          .templateHeader,
+          .templateCardHeader,
+          .templateActions {
+            align-items: stretch;
+            flex-direction: column;
+          }
+
+          .templateHeader button,
+          .templateCard button {
+            width: 100%;
           }
 
           .actions a,

@@ -1,7 +1,15 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import {
+  clearActiveWorkoutBuilderSessionTemplate,
+  readActiveWorkoutBuilderSessionTemplate,
+  readWorkoutBuilderTemplates,
+  type LocalWorkoutBuilderTemplate,
+  type LocalWorkoutBuilderSessionTemplate,
+  writeActiveWorkoutBuilderSessionTemplate,
+} from "@/lib/localData/workoutBuilderData";
 import { saveWorkoutSessionExerciseStats } from "@/lib/localData/workoutData";
 import { ROUTES } from "@/lib/routes";
 import type { LocalExerciseStatEntry } from "@/types";
@@ -21,6 +29,18 @@ type SessionExerciseMeta = {
   targetSets: number;
   targetReps: string;
   defaultWeight: string;
+};
+
+type SessionTimelineStep = {
+  id: number;
+  type: string;
+  title: string;
+  subtitle?: string;
+  duration: number;
+  videoLabel?: string;
+  cue?: string;
+  note?: string;
+  coach?: string;
 };
 
 const sessionExerciseMeta: Record<number, SessionExerciseMeta> = {
@@ -106,6 +126,88 @@ const sessionExerciseMeta: Record<number, SessionExerciseMeta> = {
   },
 };
 
+const createTemplateWorkout = (template: LocalWorkoutBuilderSessionTemplate) => {
+  const exerciseSteps: SessionTimelineStep[] = template.exercises.map(
+    (exercise, index) => ({
+      id: index + 2,
+      type: index === 0 ? "compound" : "accessory",
+      title: exercise.name,
+      subtitle: `Template exercise ${index + 1} â€¢ 3 sets x 8 reps`,
+      duration: 75,
+      videoLabel: `${exercise.name} Notes`,
+      cue: "Move with control, keep the setup clean, and log your working sets.",
+      note: `${exercise.body} â€¢ ${exercise.pattern} â€¢ ${exercise.equipment}`,
+    }),
+  );
+
+  return {
+    title: template.title,
+    subtitle: `Builder template â€¢ ${template.exercises.length} exercise${
+      template.exercises.length === 1 ? "" : "s"
+    }`,
+    soundscape: "Builder Template",
+    timeline: [
+      {
+        id: 1,
+        type: "intro",
+        title: "Template Session Start",
+        duration: 30,
+        coach:
+          "This workout was started from your saved builder template. Review the exercise list, then log each movement.",
+      },
+      ...exerciseSteps,
+      {
+        id: exerciseSteps.length + 2,
+        type: "finish",
+        title: "Workout Complete",
+        duration: 20,
+        coach:
+          "Nice work. Finish the workout to save these logged sets into your stats.",
+      },
+    ] as SessionTimelineStep[],
+  };
+};
+
+const createTemplateSessionExerciseMeta = (
+  template: LocalWorkoutBuilderSessionTemplate,
+) =>
+  Object.fromEntries(
+    template.exercises.map((exercise, index) => [
+      index + 2,
+      {
+        exerciseId: exercise.id,
+        exerciseName: exercise.name,
+        body: exercise.body,
+        pattern: exercise.pattern,
+        equipment: exercise.equipment,
+        targetSets: 3,
+        targetReps: "8",
+        defaultWeight: "",
+      },
+    ]),
+  ) as Record<number, SessionExerciseMeta>;
+
+const createInitialExerciseLogs = (
+  timeline: SessionTimelineStep[],
+  exerciseMeta: Record<number, SessionExerciseMeta>,
+) =>
+  Object.fromEntries(
+    timeline
+      .filter((step) => exerciseMeta[step.id])
+      .map((step) => {
+        const meta = exerciseMeta[step.id];
+
+        return [
+          step.id,
+          {
+            weight: meta.defaultWeight,
+            reps: meta.targetReps,
+            sets: String(meta.targetSets),
+          },
+        ];
+      }),
+  ) as Record<number, ExerciseLogDraft>;
+
 const hasNonNegativeNumber = (value: string) =>
   value.trim() !== "" && Number(value) >= 0;
 
@@ -123,7 +225,7 @@ const isCompleteExerciseLog = (log?: ExerciseLogDraft) =>
 export default function WorkoutBuilderPage() {
   const router = useRouter();
 
-  const workout = {
+  const defaultWorkout = {
     title: "Lower Body Strength Day",
     subtitle: "Beginner • Dumbbells • 35 min",
     soundscape: "Rain + Soft Pulse",
@@ -227,36 +329,109 @@ export default function WorkoutBuilderPage() {
     ],
   };
 
+  const [activeSessionTemplate, setActiveSessionTemplate] =
+    useState<LocalWorkoutBuilderSessionTemplate | null>(null);
+  const [savedSessionTemplates, setSavedSessionTemplates] = useState<
+    LocalWorkoutBuilderTemplate[]
+  >([]);
+  const [launcherMessage, setLauncherMessage] = useState("");
+  const workout = activeSessionTemplate
+    ? createTemplateWorkout(activeSessionTemplate)
+    : defaultWorkout;
+  const activeSessionExerciseMeta = activeSessionTemplate
+    ? createTemplateSessionExerciseMeta(activeSessionTemplate)
+    : sessionExerciseMeta;
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [saveMessage, setSaveMessage] = useState("");
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [exerciseLogs, setExerciseLogs] = useState<
     Record<number, ExerciseLogDraft>
-  >(() =>
-    Object.fromEntries(
-      workout.timeline
-        .filter((step) => sessionExerciseMeta[step.id])
-        .map((step) => {
-          const meta = sessionExerciseMeta[step.id];
+  >(() => createInitialExerciseLogs(defaultWorkout.timeline, sessionExerciseMeta));
 
-          return [
-            step.id,
-            {
-              weight: meta.defaultWeight,
-              reps: meta.targetReps,
-              sets: String(meta.targetSets),
-            },
-          ];
-        }),
-    ),
-  );
+  useEffect(() => {
+    setSavedSessionTemplates(readWorkoutBuilderTemplates());
+
+    const activeTemplate = readActiveWorkoutBuilderSessionTemplate();
+
+    if (activeTemplate?.exercises?.length) {
+      setActiveSessionTemplate(activeTemplate);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!activeSessionTemplate) return;
+
+    const templateWorkout = createTemplateWorkout(activeSessionTemplate);
+    const templateExerciseMeta =
+      createTemplateSessionExerciseMeta(activeSessionTemplate);
+
+    setCurrentIndex(0);
+    setSaveMessage("");
+    setLastSavedAt(null);
+    setIsSaving(false);
+    setExerciseLogs(
+      createInitialExerciseLogs(
+        templateWorkout.timeline,
+        templateExerciseMeta,
+      ),
+    );
+  }, [activeSessionTemplate]);
+
+  const resetDefaultWorkoutSession = () => {
+    setActiveSessionTemplate(null);
+    setCurrentIndex(0);
+    setSaveMessage("");
+    setLastSavedAt(null);
+    setIsSaving(false);
+    setExerciseLogs(
+      createInitialExerciseLogs(defaultWorkout.timeline, sessionExerciseMeta),
+    );
+  };
+
+  const startDefaultWorkout = () => {
+    clearActiveWorkoutBuilderSessionTemplate();
+    resetDefaultWorkoutSession();
+    setLauncherMessage("Default workout ready.");
+  };
+
+  const resumeActiveTemplate = () => {
+    const activeTemplate =
+      activeSessionTemplate || readActiveWorkoutBuilderSessionTemplate();
+
+    if (!activeTemplate?.exercises?.length) {
+      setLauncherMessage("No active builder template to resume.");
+      return;
+    }
+
+    setActiveSessionTemplate(activeTemplate);
+    setLauncherMessage(`${activeTemplate.title} ready.`);
+  };
+
+  const startSavedTemplate = (template: LocalWorkoutBuilderTemplate) => {
+    if (template.exercises.length === 0) {
+      setLauncherMessage("This template has no exercises to start.");
+      return;
+    }
+
+    const sessionTemplate = writeActiveWorkoutBuilderSessionTemplate(template);
+
+    setActiveSessionTemplate(sessionTemplate);
+    setLauncherMessage(`${sessionTemplate.title} ready.`);
+  };
+
+  const clearActiveTemplate = () => {
+    clearActiveWorkoutBuilderSessionTemplate();
+    resetDefaultWorkoutSession();
+    setLauncherMessage("Active builder template cleared.");
+  };
 
   const current = workout.timeline[currentIndex];
-  const currentExerciseMeta = sessionExerciseMeta[current.id];
+  const currentExerciseMeta = activeSessionExerciseMeta[current.id];
   const currentExerciseLog = exerciseLogs[current.id];
   const loggableSteps = workout.timeline.filter(
-    (step) => sessionExerciseMeta[step.id],
+    (step) => activeSessionExerciseMeta[step.id],
   );
   const loggedExerciseCount = loggableSteps.filter((step) =>
     isCompleteExerciseLog(exerciseLogs[step.id]),
@@ -294,7 +469,7 @@ export default function WorkoutBuilderPage() {
     const completedEntries: LocalExerciseStatEntry[] = [];
 
     loggableSteps.forEach((step) => {
-      const meta = sessionExerciseMeta[step.id];
+      const meta = activeSessionExerciseMeta[step.id];
       const log = exerciseLogs[step.id];
 
       if (meta && isCompleteExerciseLog(log)) {
@@ -387,7 +562,7 @@ export default function WorkoutBuilderPage() {
                   Mode
                 </div>
                 <div className="mt-1 text-sm font-semibold text-white">
-                  Logger
+                  {activeSessionTemplate ? "Builder Template" : "Logger"}
                 </div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
@@ -422,6 +597,104 @@ export default function WorkoutBuilderPage() {
             </div>
           </div>
         </header>
+
+        <section className="rounded-[24px] border border-white/10 bg-white/[0.05] p-4 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[28px] sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">
+                Session Launcher
+              </div>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight">
+                Choose workout source
+              </h2>
+              <p className="mt-2 text-sm text-slate-400">
+                {activeSessionTemplate
+                  ? `${activeSessionTemplate.title} - ${activeSessionTemplate.exercises.length} exercise${
+                      activeSessionTemplate.exercises.length === 1 ? "" : "s"
+                    } active`
+                  : "Default workout is active"}
+              </p>
+              {launcherMessage ? (
+                <p className="mt-3 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100">
+                  {launcherMessage}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 lg:min-w-[380px]">
+              <button
+                type="button"
+                onClick={startDefaultWorkout}
+                className="min-h-[48px] rounded-2xl bg-sky-500 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-sky-400"
+              >
+                Start Default Workout
+              </button>
+              <button
+                type="button"
+                onClick={resumeActiveTemplate}
+                disabled={!activeSessionTemplate}
+                className="min-h-[48px] rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-200 transition hover:bg-emerald-400 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-emerald-400/10 disabled:hover:text-emerald-200"
+              >
+                Resume Active Template
+              </button>
+              <button
+                type="button"
+                onClick={clearActiveTemplate}
+                disabled={!activeSessionTemplate}
+                className="min-h-[48px] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                Clear Active Template
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {savedSessionTemplates.length > 0 ? (
+              savedSessionTemplates.map((template) => (
+                <article
+                  key={template.id}
+                  className="rounded-[22px] border border-white/10 bg-slate-950/55 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-bold text-white">{template.title}</h3>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {template.exercises.length} exercise
+                        {template.exercises.length === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                    {activeSessionTemplate?.id === template.id ? (
+                      <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-bold text-cyan-200">
+                        Active
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <p className="mt-3 text-sm leading-5 text-slate-400">
+                    {template.exercises
+                      .slice(0, 3)
+                      .map((exercise) => exercise.name)
+                      .join(" / ")}
+                    {template.exercises.length > 3 ? " / ..." : ""}
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => startSavedTemplate(template)}
+                    className="mt-4 min-h-[44px] w-full rounded-2xl bg-gradient-to-r from-yellow-300 to-yellow-500 px-4 py-3 text-sm font-bold text-slate-950 transition hover:scale-[1.01]"
+                  >
+                    Start Template
+                  </button>
+                </article>
+              ))
+            ) : (
+              <div className="rounded-[22px] border border-dashed border-white/15 bg-slate-950/35 p-4 text-sm text-slate-400 md:col-span-2 xl:col-span-3">
+                No saved templates yet. Build and save a workout template to
+                start it from here.
+              </div>
+            )}
+          </div>
+        </section>
 
         <div className="grid flex-1 gap-6 lg:grid-cols-[0.95fr_1.3fr]">
           <aside className="rounded-[24px] border border-white/10 bg-white/[0.05] p-3 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[28px] sm:p-4">
@@ -626,7 +899,7 @@ export default function WorkoutBuilderPage() {
 
               <div className="mt-5 grid gap-3 lg:grid-cols-2">
                 {loggableSteps.map((step) => {
-                  const meta = sessionExerciseMeta[step.id];
+                  const meta = activeSessionExerciseMeta[step.id];
                   const log = exerciseLogs[step.id];
                   const complete = isCompleteExerciseLog(log);
 

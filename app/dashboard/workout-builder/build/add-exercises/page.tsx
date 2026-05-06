@@ -1,6 +1,11 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  hasWorkoutBuilderSelectedExercises,
+  readWorkoutBuilderSelectedExerciseNames,
+  writeWorkoutBuilderSelectedExercises,
+} from "@/lib/localData/workoutBuilderData";
 import { getExerciseCatalogWithLegacyFallback } from "@/lib/training/normalizedExerciseCatalog";
 import type { ExerciseCatalogItem } from "@/types";
 
@@ -13,10 +18,31 @@ const PATTERNS = [
   ...Array.from(new Set(ALL_EXERCISES.map((exercise) => exercise.pattern))).sort(),
 ] as const;
 
+const resolveCatalogExerciseNames = (names: string[]) => {
+  const catalogNames = new Set(ALL_EXERCISES.map((exercise) => exercise.name));
+
+  return Array.from(new Set(names)).filter((name) => catalogNames.has(name));
+};
+
+const getCatalogExercisesByName = (names: string[]) => {
+  const selectedNames = new Set(names);
+
+  return ALL_EXERCISES.filter((exercise) => selectedNames.has(exercise.name));
+};
+
 export default function AddExercisesPage() {
   const [query, setQuery] = useState("");
   const [pattern, setPattern] = useState<string>("All");
   const [selected, setSelected] = useState<string[]>([]);
+  const [saveMessage, setSaveMessage] = useState("");
+
+  useEffect(() => {
+    if (!hasWorkoutBuilderSelectedExercises()) return;
+
+    setSelected(
+      resolveCatalogExerciseNames(readWorkoutBuilderSelectedExerciseNames()),
+    );
+  }, []);
 
   const filtered = useMemo(() => {
     return ALL_EXERCISES.filter((ex) => {
@@ -33,8 +59,29 @@ export default function AddExercisesPage() {
   }, [query, pattern]);
 
   function toggle(name: string) {
-    setSelected((curr) =>
-      curr.includes(name) ? curr.filter((n) => n !== name) : [...curr, name],
+    setSaveMessage("");
+    setSelected((curr) => {
+      const updatedSelection = curr.includes(name)
+        ? curr.filter((n) => n !== name)
+        : [...curr, name];
+
+      return resolveCatalogExerciseNames(updatedSelection);
+    });
+  }
+
+  function saveSelectedExercises() {
+    const selectedExercises = getCatalogExercisesByName(selected);
+
+    if (selectedExercises.length === 0) {
+      setSaveMessage("Select at least one exercise before adding.");
+      return;
+    }
+
+    writeWorkoutBuilderSelectedExercises(selectedExercises);
+    setSaveMessage(
+      `${selectedExercises.length} exercise${
+        selectedExercises.length === 1 ? "" : "s"
+      } saved to this workout. Return to Builder to review.`,
     );
   }
 
@@ -78,7 +125,8 @@ export default function AddExercisesPage() {
       </section>
 
       <section className="grid">
-        {filtered.map((ex) => (
+        {filtered.length > 0 ? (
+          filtered.map((ex) => (
           <button
             key={ex.name}
             onClick={() => toggle(ex.name)}
@@ -92,18 +140,31 @@ export default function AddExercisesPage() {
               {ex.pattern} • {ex.equipment}
             </p>
           </button>
-        ))}
+          ))
+        ) : (
+          <div className="emptyState">
+            <strong>No exercises found</strong>
+            <span>Try a different search or pattern filter.</span>
+          </div>
+        )}
       </section>
 
       <section className="footerBar">
         <div>
           <strong>{selected.length} selected</strong>
           <span>Add these to your workout</span>
+          {saveMessage && <p className="saveMessage">{saveMessage}</p>}
         </div>
 
         <div className="actions">
           <a href="/dashboard/workout-builder/build">Back to Builder</a>
-          <button disabled={selected.length === 0}>Add to Workout</button>
+          <button
+            type="button"
+            onClick={saveSelectedExercises}
+            disabled={selected.length === 0}
+          >
+            Add to Workout
+          </button>
         </div>
       </section>
 
@@ -197,6 +258,26 @@ export default function AddExercisesPage() {
           display: grid;
           grid-template-columns: repeat(3, 1fr);
           gap: 12px;
+        }
+
+        .emptyState {
+          grid-column: 1 / -1;
+          border: 1px dashed rgba(148,163,184,.28);
+          border-radius: 18px;
+          color: #cbd5e1;
+          display: grid;
+          gap: 6px;
+          padding: 18px;
+        }
+
+        .emptyState span,
+        .saveMessage {
+          color: #94a3b8;
+        }
+
+        .saveMessage {
+          margin: 8px 0 0;
+          font-size: 13px;
         }
 
         .card {
