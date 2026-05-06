@@ -1,3 +1,4 @@
+export * from "./legacyExerciseMapping";
 export * from "./movementAdapter";
 export * from "./movementExamples";
 export * from "./movementGeneration";

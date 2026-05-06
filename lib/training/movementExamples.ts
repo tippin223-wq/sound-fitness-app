@@ -69,9 +69,91 @@ export const ROW_VARIATION_EXAMPLES = [
   ]),
 ];
 
+export const ACCESSORY_VARIATION_EXAMPLES = [
+  variation("leg-extension", [
+    "apparatus:machine",
+    "angle-position:seated",
+    "training-intent:hypertrophy",
+  ]),
+  variation("leg-curl", [
+    "apparatus:machine",
+    "angle-position:seated",
+    "tempo:slow-eccentric",
+    "training-intent:hypertrophy",
+  ]),
+  variation("biceps-curl", [
+    "apparatus:dumbbell",
+    "limb-usage:alternating",
+    "training-intent:hypertrophy",
+  ]),
+  variation("triceps-extension", [
+    "apparatus:cable",
+    "angle-position:standing",
+    "training-intent:hypertrophy",
+  ]),
+  variation("tibialis-raise", [
+    "apparatus:bodyweight",
+    "angle-position:standing",
+    "training-intent:rehab",
+  ]),
+  variation("step-up", [
+    "apparatus:dumbbell",
+    "training-intent:stability",
+  ]),
+];
+
+export const KINETIC_ENGINE_VARIATION_EXAMPLES = [
+  variation("clean-pull", [
+    "apparatus:barbell",
+    "tempo:explosive",
+    "load-behavior:ballistic",
+    "training-intent:power",
+  ]),
+  variation("kettlebell-swing", [
+    "tempo:explosive",
+    "load-behavior:ballistic",
+    "training-intent:power",
+  ]),
+  variation("turkish-get-up", [
+    "apparatus:kettlebell",
+    "load-behavior:skill-complex",
+    "training-intent:stability",
+  ]),
+  variation("bottoms-up-press", [
+    "apparatus:kettlebell",
+    "load-behavior:skill-complex",
+    "training-intent:stability",
+  ]),
+];
+
+export const EXPANDED_MOVEMENT_EXAMPLE_GROUPS = [
+  {
+    title: "Chest Press",
+    description: "Horizontal pressing generated from one core movement.",
+    examples: CHEST_PRESS_VARIATION_EXAMPLES,
+  },
+  {
+    title: "Rows",
+    description: "Horizontal pulling variations across apparatus and tempo.",
+    examples: ROW_VARIATION_EXAMPLES,
+  },
+  {
+    title: "Accessories",
+    description: "Isolation and step patterns used in real programming.",
+    examples: ACCESSORY_VARIATION_EXAMPLES,
+  },
+  {
+    title: "Kinetic Engine",
+    description: "Power, kettlebell, and skill-complex progressions.",
+    examples: KINETIC_ENGINE_VARIATION_EXAMPLES,
+  },
+];
+
 export const NORMALIZED_MOVEMENT_EXAMPLES = [
   ...CHEST_PRESS_VARIATION_EXAMPLES,
   ...ROW_VARIATION_EXAMPLES,
+  ...ACCESSORY_VARIATION_EXAMPLES,
+  ...KINETIC_ENGINE_VARIATION_EXAMPLES,
 ];
 
 export const LEGACY_ADAPTED_MOVEMENT_EXAMPLES =

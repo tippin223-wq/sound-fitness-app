@@ -33,6 +33,7 @@ const singleSelectionCategories = new Set<ExerciseModifierCategoryId>([
   "tempo",
   "assistance-resistance",
   "range-of-motion",
+  "load-behavior",
 ]);
 
 const labelCategoryOrder: ExerciseModifierCategoryId[] = [
@@ -43,6 +44,7 @@ const labelCategoryOrder: ExerciseModifierCategoryId[] = [
   "limb-usage",
   "stability",
   "apparatus",
+  "load-behavior",
   "training-intent",
 ];
 
@@ -58,6 +60,26 @@ const getKnownModifiers = (modifierIds: ExerciseModifierId[]) =>
   modifierIds
     .map((id) => EXERCISE_MODIFIER_BY_ID[id])
     .filter(Boolean) as ExerciseModifier[];
+
+const lowerBodyUnilateralCoreIds = new Set<CoreMovementId>([
+  "lunge",
+  "split-squat",
+  "step-up",
+  "step-down",
+]);
+
+const getUnilateralDisplayPrefix = (coreMovement: CoreMovement) =>
+  lowerBodyUnilateralCoreIds.has(coreMovement.id) ? "Single-Leg" : "Single-Arm";
+
+const shouldSkipApparatusDisplay = (
+  coreMovement: CoreMovement,
+  modifier: ExerciseModifier,
+) => {
+  if (modifier.categoryId !== "apparatus") return false;
+
+  const coreLabel = coreMovement.label.toLowerCase();
+  return coreLabel.includes(modifier.label.toLowerCase());
+};
 
 export const normalizeMovementModifierIds = (
   coreMovement: CoreMovement,
@@ -98,12 +120,17 @@ export const getModifiersByDisplayOrder = (
 };
 
 const getModifierDisplayToken = (
+  coreMovement: CoreMovement,
   modifier: ExerciseModifier,
   options: MovementLabelOptions,
 ) => {
   if (modifier.includeInDisplayName === false) return null;
+  if (shouldSkipApparatusDisplay(coreMovement, modifier)) return null;
   if (modifier.categoryId === "training-intent" && !options.includeTrainingIntent) {
     return null;
+  }
+  if (modifier.id === "limb-usage:unilateral") {
+    return getUnilateralDisplayPrefix(coreMovement);
   }
   if (
     modifier.categoryId === "apparatus" &&
@@ -128,7 +155,9 @@ export const generateMovementLabel = (
   } satisfies Required<MovementLabelOptions>;
 
   const tokens = getModifiersByDisplayOrder(modifierIds)
-    .map((modifier) => getModifierDisplayToken(modifier, labelOptions))
+    .map((modifier) =>
+      getModifierDisplayToken(coreMovement, modifier, labelOptions),
+    )
     .filter(Boolean) as string[];
 
   return compactUnique([...tokens, coreMovement.label]).join(" ");

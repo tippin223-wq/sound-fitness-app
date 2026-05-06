@@ -9,6 +9,25 @@ export type MovementPatternId =
   | "hinge"
   | "lunge"
   | "gait"
+  | "knee-extension"
+  | "knee-flexion"
+  | "hip-extension"
+  | "hip-abduction"
+  | "hip-adduction"
+  | "plantarflexion"
+  | "dorsiflexion"
+  | "elbow-flexion"
+  | "elbow-extension"
+  | "shoulder-abduction"
+  | "scapular-retraction"
+  | "scapular-protraction"
+  | "step-gait-jump"
+  | "ballistic-hinge"
+  | "ballistic-throw-slam"
+  | "olympic-pull-catch"
+  | "mobility-flow"
+  | "locomotion-conditioning"
+  | "sled-drive"
   | "rotation"
   | "anti-rotation"
   | "carry"
@@ -26,7 +45,36 @@ export type CoreMovementId =
   | "carry"
   | "rotation"
   | "anti-rotation"
-  | "brace-plank";
+  | "brace-plank"
+  | "leg-extension"
+  | "leg-curl"
+  | "hip-thrust-glute-bridge"
+  | "calf-raise"
+  | "tibialis-raise"
+  | "hip-abduction"
+  | "hip-adduction"
+  | "biceps-curl"
+  | "triceps-extension"
+  | "lateral-raise"
+  | "rear-delt-raise"
+  | "face-pull"
+  | "shrug"
+  | "step-up"
+  | "step-down"
+  | "split-squat"
+  | "clean-pull"
+  | "high-pull"
+  | "kettlebell-swing"
+  | "kettlebell-clean"
+  | "kettlebell-snatch"
+  | "turkish-get-up"
+  | "kettlebell-halo"
+  | "bottoms-up-press"
+  | "mobility-flow"
+  | "jump-landing"
+  | "medicine-ball-slam"
+  | "burpee"
+  | "sled-drive";
 
 export type ApparatusId =
   | "dumbbell"
@@ -39,7 +87,14 @@ export type ApparatusId =
   | "smith-machine"
   | "trap-bar"
   | "suspension"
-  | "landmine";
+  | "landmine"
+  | "bench"
+  | "box"
+  | "medicine-ball"
+  | "pull-up-bar"
+  | "sled"
+  | "stability-ball"
+  | "ab-wheel";
 
 export type AnglePositionId =
   | "incline"
@@ -103,6 +158,18 @@ export type TrainingIntentId =
   | "stability"
   | "athletic-performance";
 
+export type LoadBehaviorId =
+  | "constant-load"
+  | "variable-resistance"
+  | "accommodating-curve"
+  | "ascending-strength-curve"
+  | "descending-strength-curve"
+  | "ballistic"
+  | "cyclical"
+  | "grind"
+  | "loaded-carry"
+  | "skill-complex";
+
 export type ExerciseModifierCategoryId =
   | "apparatus"
   | "angle-position"
@@ -111,7 +178,8 @@ export type ExerciseModifierCategoryId =
   | "tempo"
   | "assistance-resistance"
   | "range-of-motion"
-  | "training-intent";
+  | "training-intent"
+  | "load-behavior";
 
 export type ExerciseModifierId =
   | `apparatus:${ApparatusId}`
@@ -121,7 +189,8 @@ export type ExerciseModifierId =
   | `tempo:${TempoId}`
   | `assistance-resistance:${AssistanceResistanceId}`
   | `range-of-motion:${RangeOfMotionId}`
-  | `training-intent:${TrainingIntentId}`;
+  | `training-intent:${TrainingIntentId}`
+  | `load-behavior:${LoadBehaviorId}`;
 
 export type MovementPattern = {
   id: MovementPatternId;
@@ -158,7 +227,9 @@ export type Apparatus = ExerciseModifier & {
     | "bodyweight"
     | "machine-guided"
     | "elastic"
-    | "suspension";
+    | "suspension"
+    | "support"
+    | "sled";
 };
 
 export type CoreMovement = {
