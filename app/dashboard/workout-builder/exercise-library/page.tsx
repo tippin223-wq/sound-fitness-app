@@ -679,9 +679,12 @@ export default function ExerciseLibraryPage() {
                   </button>
                 ) : (
                   <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <button className="min-h-[48px] rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950">
+                    <a
+                      href={ROUTES.workoutBuilder.exerciseDemo}
+                      className="flex min-h-[48px] items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
+                    >
                       View Demo →
-                    </button>
+                    </a>
 
                     <button
                       type="button"

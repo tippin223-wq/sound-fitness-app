@@ -99,9 +99,9 @@ export default function StatsPage() {
               </h1>
 
               <p className="mt-5 max-w-2xl text-sm leading-6 text-slate-300">
-                This page collects stats from the Exercise Library Add Stats
-                popup and is ready to receive completed workout stats once the
-                workout session page is built.
+                This page collects stats from saved workout sessions and the
+                Exercise Library so your recent work stays visible after every
+                logged set.
               </p>
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -296,9 +296,8 @@ export default function StatsPage() {
               No stats saved yet.
             </p>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-400">
-              Go to the Exercise Library, hit Add Stats, and save your first
-              set. Once workout completion is built, this page can collect those
-              session stats too.
+              Start from the workout logger or add stats from the Exercise
+              Library. Your saved entries will appear here automatically.
             </p>
 
             <Link

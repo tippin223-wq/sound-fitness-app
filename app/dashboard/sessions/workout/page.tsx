@@ -228,9 +228,9 @@ export default function WorkoutBuilderPage() {
   };
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [soundOn, setSoundOn] = useState(true);
   const [saveMessage, setSaveMessage] = useState("");
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   const [exerciseLogs, setExerciseLogs] = useState<
     Record<number, ExerciseLogDraft>
   >(() =>
@@ -278,6 +278,8 @@ export default function WorkoutBuilderPage() {
     value: string,
   ) => {
     setSaveMessage("");
+    setLastSavedAt(null);
+    setIsSaving(false);
     setExerciseLogs((prev) => ({
       ...prev,
       [stepId]: {
@@ -315,13 +317,26 @@ export default function WorkoutBuilderPage() {
       setSaveMessage(
         "Log weight, reps, and sets for at least one movement before finishing.",
       );
+      setLastSavedAt(null);
+      setIsSaving(false);
       return;
     }
 
     try {
+      setIsSaving(true);
       saveWorkoutSessionExerciseStats(completedEntries);
-      router.push(ROUTES.dashboard.stats);
+      setLastSavedAt(completedAt);
+      setSaveMessage(
+        `Saved ${completedEntries.length} exercise ${
+          completedEntries.length === 1 ? "entry" : "entries"
+        }. Opening stats...`,
+      );
+      window.setTimeout(() => {
+        router.push(ROUTES.dashboard.stats);
+      }, 650);
     } catch {
+      setIsSaving(false);
+      setLastSavedAt(null);
       setSaveMessage(
         "The workout could not be saved in this browser. Try again before leaving the page.",
       );
@@ -350,7 +365,7 @@ export default function WorkoutBuilderPage() {
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="text-[11px] uppercase tracking-[0.22em] text-sky-300">
-                Sound Fitness Session Player
+                Sound Fitness Workout Logger
               </div>
               <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-4xl">
                 {workout.title}
@@ -369,10 +384,10 @@ export default function WorkoutBuilderPage() {
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
                 <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
-                  Sound
+                  Mode
                 </div>
                 <div className="mt-1 text-sm font-semibold text-white">
-                  {soundOn ? workout.soundscape : "Muted"}
+                  Logger
                 </div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
@@ -469,19 +484,8 @@ export default function WorkoutBuilderPage() {
                 </span>
               </div>
 
-              <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
-                <button
-                  onClick={() => setSoundOn((v) => !v)}
-                  className="min-h-[44px] rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-900"
-                >
-                  {soundOn ? "Mute sound" : "Play sound"}
-                </button>
-                <button
-                  onClick={() => setIsPlaying((v) => !v)}
-                  className="min-h-[44px] rounded-2xl bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-sky-500/20 hover:bg-sky-400"
-                >
-                  {isPlaying ? "Pause" : "Start"}
-                </button>
+              <div className="min-h-[44px] rounded-2xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-center text-xs font-semibold uppercase tracking-[0.18em] text-sky-200 sm:w-auto">
+                Log sets below
               </div>
             </div>
 
@@ -491,15 +495,15 @@ export default function WorkoutBuilderPage() {
                   <div className="flex h-full flex-col justify-between rounded-[18px] bg-black/20 p-4 sm:p-5">
                     <div>
                       <div className="text-[11px] uppercase tracking-[0.22em] text-sky-300">
-                        Video
+                        Movement notes
                       </div>
                       <div className="mt-3 text-2xl font-bold text-white">
                         {current.videoLabel || current.title}
                       </div>
                     </div>
                     <div className="text-sm text-slate-300">
-                      This area is ready for your movement demo, timer overlay,
-                      subtitles, and audio track.
+                      Use the cues beside this panel, then log weight, reps,
+                      and sets in the workout table.
                     </div>
                   </div>
                 </div>
@@ -698,17 +702,29 @@ export default function WorkoutBuilderPage() {
               </div>
 
               {saveMessage ? (
-                <p className="mt-4 rounded-2xl border border-yellow-300/20 bg-yellow-400/10 px-4 py-3 text-sm font-semibold text-yellow-200">
+                <p
+                  className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                    lastSavedAt
+                      ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+                      : "border-yellow-300/20 bg-yellow-400/10 text-yellow-200"
+                  }`}
+                >
                   {saveMessage}
+                  {lastSavedAt ? (
+                    <span className="mt-1 block text-xs font-bold uppercase tracking-[0.16em] text-emerald-200/80">
+                      Last saved {new Date(lastSavedAt).toLocaleTimeString()}
+                    </span>
+                  ) : null}
                 </p>
               ) : null}
 
               <button
                 type="button"
                 onClick={saveWorkoutStats}
-                className="mt-5 min-h-[48px] w-full rounded-2xl bg-gradient-to-r from-yellow-300 to-yellow-500 px-5 py-4 text-sm font-bold text-slate-950 shadow-lg shadow-yellow-500/20 transition hover:scale-[1.01]"
+                disabled={isSaving}
+                className="mt-5 min-h-[48px] w-full rounded-2xl bg-gradient-to-r from-yellow-300 to-yellow-500 px-5 py-4 text-sm font-bold text-slate-950 shadow-lg shadow-yellow-500/20 transition hover:scale-[1.01] disabled:cursor-not-allowed disabled:from-emerald-300 disabled:to-emerald-400 disabled:hover:scale-100"
               >
-                Finish Workout and View Stats
+                {isSaving ? "Saved - opening stats..." : "Finish Workout and View Stats"}
               </button>
             </section>
 
