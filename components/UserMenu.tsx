@@ -81,9 +81,9 @@ export default function UserMenu() {
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-3 rounded-2xl border border-sky-400/30 bg-sky-500/10 px-4 py-3 text-left transition hover:border-sky-300/60 hover:bg-sky-500/15"
+        className="flex min-h-[44px] items-center gap-2 rounded-2xl border border-sky-400/30 bg-sky-500/10 px-2 py-2 text-left transition hover:border-sky-300/60 hover:bg-sky-500/15 sm:gap-3 sm:px-4 sm:py-3"
       >
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-500 text-sm font-black text-white shadow-[0_0_25px_rgba(14,165,233,0.35)]">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-sky-500 text-sm font-black text-white shadow-[0_0_25px_rgba(14,165,233,0.35)] sm:h-10 sm:w-10">
           {initial}
         </div>
 
@@ -100,7 +100,7 @@ export default function UserMenu() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-50 mt-3 w-72 overflow-hidden rounded-2xl border border-white/10 bg-[#020713] shadow-2xl shadow-black/60">
+        <div className="absolute right-0 top-full z-50 mt-3 w-72 max-w-[88vw] overflow-hidden rounded-2xl border border-white/10 bg-[#020713] shadow-2xl shadow-black/60">
           <div className="border-b border-white/10 px-5 py-4">
             <div className="text-xs font-black uppercase tracking-[0.18em] text-sky-400">
               Signed In

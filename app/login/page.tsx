@@ -114,8 +114,11 @@ export default function LoginPage() {
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_0%,rgba(0,132,255,0.22),transparent_30%),radial-gradient(circle_at_80%_10%,rgba(56,189,248,0.12),transparent_28%),linear-gradient(180deg,#020713_0%,#06111f_48%,#020713_100%)]" />
 
       <header className="relative z-10">
-        <div className="mx-auto flex max-w-7xl items-center justify-center px-5 py-8 sm:px-8">
-          <Link href={ROUTES.public.home} className="flex items-center gap-3 text-center">
+        <div className="mx-auto flex max-w-7xl items-center justify-center px-4 py-6 sm:px-8 sm:py-8">
+          <Link
+            href={ROUTES.public.home}
+            className="flex items-center gap-3 text-center"
+          >
             <img
               src="/sound-fitness-logo.png"
               alt="Sound Fitness"
@@ -123,7 +126,7 @@ export default function LoginPage() {
             />
 
             <div className="leading-[0.9]">
-              <div className="bg-gradient-to-r from-white via-slate-200 to-white bg-clip-text text-3xl font-black uppercase tracking-[0.08em] text-transparent sm:text-4xl">
+              <div className="bg-gradient-to-r from-white via-slate-200 to-white bg-clip-text text-2xl font-black uppercase tracking-[0.08em] text-transparent sm:text-4xl">
                 SOUND
               </div>
 
@@ -136,7 +139,7 @@ export default function LoginPage() {
         </div>
       </header>
 
-      <section className="relative mx-auto grid min-h-[calc(100vh-120px)] max-w-7xl items-center gap-10 px-5 pb-12 sm:px-8 lg:grid-cols-[0.95fr_1.05fr]">
+      <section className="relative mx-auto grid min-h-[calc(100vh-120px)] max-w-7xl items-center gap-10 px-4 pb-10 sm:px-8 sm:pb-12 lg:grid-cols-[0.95fr_1.05fr]">
         <div className="absolute left-[10%] top-[10%] hidden h-[500px] w-[500px] rounded-full bg-sky-500/10 blur-3xl lg:block" />
 
         <div className="relative hidden lg:block">
@@ -201,8 +204,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <section className="relative mx-auto w-full max-w-xl rounded-[32px] border border-sky-400/40 bg-slate-950/70 p-6 shadow-[0_0_80px_rgba(14,165,233,0.22)] backdrop-blur sm:p-8">
-          <div className="absolute inset-0 rounded-[32px] bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.2),transparent_35%)]" />
+        <section className="relative mx-auto w-full max-w-xl rounded-[28px] border border-sky-400/40 bg-slate-950/70 p-5 shadow-[0_0_80px_rgba(14,165,233,0.22)] backdrop-blur sm:rounded-[32px] sm:p-8">
+          <div className="absolute inset-0 rounded-[28px] bg-[radial-gradient(circle_at_top_right,rgba(14,165,233,0.2),transparent_35%)] sm:rounded-[32px]" />
 
           <div className="relative">
             <div className="text-center">
@@ -214,7 +217,7 @@ export default function LoginPage() {
                 {portal.label}
               </div>
 
-              <h2 className="mt-4 text-4xl font-black uppercase tracking-tight">
+              <h2 className="mt-4 text-3xl font-black uppercase tracking-tight sm:text-4xl">
                 {portal.title}
               </h2>
 
@@ -251,7 +254,7 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <div className="mb-2 flex items-center justify-between gap-4">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                   <label
                     htmlFor="password"
                     className="block text-xs font-black uppercase tracking-[0.16em] text-slate-300"
@@ -281,7 +284,7 @@ export default function LoginPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-between pt-1">
+              <div className="flex flex-col items-start gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
                 <label
                   htmlFor="remember"
                   className="flex cursor-pointer items-center gap-3 text-sm text-slate-400"
@@ -292,7 +295,7 @@ export default function LoginPage() {
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(event) => setRememberMe(event.target.checked)}
-                    className="h-4 w-4 rounded border-white/20 bg-[#050b16] accent-sky-500"
+                    className="h-5 w-5 rounded border-white/20 bg-[#050b16] accent-sky-500"
                   />
                   Remember me
                 </label>

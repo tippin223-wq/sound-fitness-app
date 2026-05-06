@@ -320,7 +320,7 @@ export default function ExerciseLibraryPage() {
               key={option}
               type="button"
               onClick={() => setValue(option)}
-              className={`rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.12em] transition ${
+              className={`min-h-[44px] rounded-full border px-3 py-2.5 text-xs font-black uppercase tracking-[0.1em] transition sm:px-4 sm:tracking-[0.12em] ${
                 value === option
                   ? activeClass
                   : "border-white/10 bg-white/[0.04] text-slate-400 hover:border-cyan-300/40 hover:text-white"
@@ -386,7 +386,7 @@ export default function ExerciseLibraryPage() {
                     onChange(option);
                     setOpen(false);
                   }}
-                  className={`mb-1 flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
+                  className={`mb-1 flex min-h-[44px] w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-bold transition ${
                     value === option
                       ? "bg-cyan-400 text-slate-950"
                       : "text-slate-300 hover:bg-white/10 hover:text-white"
@@ -407,15 +407,15 @@ export default function ExerciseLibraryPage() {
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
       <AppHeader />
 
-      <section className="mx-auto w-full max-w-[1240px] space-y-6 px-4 py-8">
-        <section className="overflow-hidden rounded-[42px] border border-white/10 bg-[radial-gradient(circle_at_18%_8%,rgba(34,211,238,0.2),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(16,185,129,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-6 shadow-2xl lg:p-8">
+      <section className="mx-auto w-full max-w-[1240px] space-y-6 px-3 py-6 sm:px-4 sm:py-8">
+        <section className="overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_18%_8%,rgba(34,211,238,0.2),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(16,185,129,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-4 shadow-2xl sm:rounded-[42px] sm:p-6 lg:p-8">
           <p className="text-[11px] font-black uppercase tracking-[0.3em] text-cyan-300">
             Exercise Library
           </p>
 
           <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_320px] lg:items-end">
             <div>
-              <h1 className="max-w-3xl text-4xl font-black leading-tight lg:text-5xl">
+              <h1 className="max-w-3xl text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
                 Train with clarity.
               </h1>
 
@@ -428,7 +428,7 @@ export default function ExerciseLibraryPage() {
             <div className="rounded-[28px] border border-cyan-300/20 bg-cyan-400/10 p-5 flex flex-col justify-between">
               <div>
                 <p className="text-sm text-slate-300">Library Count</p>
-                <p className="mt-2 text-4xl font-black text-white">
+                <p className="mt-2 text-3xl font-black text-white sm:text-4xl">
                   {allExercises.length}
                 </p>
                 <p className="mt-1 text-sm text-slate-400">
@@ -441,7 +441,7 @@ export default function ExerciseLibraryPage() {
                 onClick={() =>
                   (window.location.href = ROUTES.workoutBuilder.home)
                 }
-                className="mt-4 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white"
+                className="mt-4 min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white"
               >
                 ← Back to Workout Builder
               </button>
@@ -460,7 +460,7 @@ export default function ExerciseLibraryPage() {
                 placeholder="Search exercise, muscle, pattern, goal, equipment, or level..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                className="mt-4 min-h-[48px] w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-4 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
               />
             </div>
 
@@ -474,7 +474,7 @@ export default function ExerciseLibraryPage() {
             <button
               type="button"
               onClick={() => setShowAddForm((prev) => !prev)}
-              className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-4 text-sm font-black text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950"
+              className="min-h-[48px] rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-4 text-sm font-black text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950"
             >
               {showAddForm ? "Close Form" : "+ Add Exercise"}
             </button>
@@ -512,7 +512,7 @@ export default function ExerciseLibraryPage() {
                         [key]: e.target.value,
                       }))
                     }
-                    className="rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-emerald-300"
+                    className="min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-emerald-300"
                   />
                 ))}
               </div>
@@ -520,7 +520,7 @@ export default function ExerciseLibraryPage() {
               <button
                 type="button"
                 onClick={addExercise}
-                className="mt-5 rounded-2xl bg-emerald-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-300"
+                className="mt-5 min-h-[48px] rounded-2xl bg-emerald-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-300"
               >
                 Save Exercise
               </button>
@@ -588,7 +588,7 @@ export default function ExerciseLibraryPage() {
             <button
               type="button"
               onClick={resetFilters}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white"
+              className="min-h-[48px] w-full rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white sm:w-auto"
             >
               Clear Filters
             </button>
@@ -612,7 +612,7 @@ export default function ExerciseLibraryPage() {
               </div>
 
               <div className="relative z-10 p-5">
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-300">
                     {exercise.body}
                   </span>
@@ -630,7 +630,7 @@ export default function ExerciseLibraryPage() {
                   {exercise.muscles}
                 </p>
 
-                <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
+                <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                   <div className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] p-3 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)]">
                     <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
                       Pattern
@@ -673,20 +673,20 @@ export default function ExerciseLibraryPage() {
                   <button
                     type="button"
                     onClick={() => deleteCustomExercise(exercise.id)}
-                    className="mt-4 w-full rounded-2xl border border-red-300/20 bg-red-400/10 px-4 py-3 text-sm font-black text-red-300 transition hover:bg-red-400 hover:text-white"
+                    className="mt-4 min-h-[48px] w-full rounded-2xl border border-red-300/20 bg-red-400/10 px-4 py-3 text-sm font-black text-red-300 transition hover:bg-red-400 hover:text-white"
                   >
                     Delete Custom Exercise
                   </button>
                 ) : (
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    <button className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950">
+                  <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button className="min-h-[48px] rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950">
                       View Demo →
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setStatsExercise(exercise)}
-                      className="rounded-2xl border border-yellow-300/30 bg-yellow-400/15 px-4 py-3 text-sm font-black text-yellow-300 transition hover:bg-yellow-400 hover:text-slate-950"
+                      className="min-h-[48px] rounded-2xl border border-yellow-300/30 bg-yellow-400/15 px-4 py-3 text-sm font-black text-yellow-300 transition hover:bg-yellow-400 hover:text-slate-950"
                     >
                       Add Stats ✦
                     </button>
@@ -702,7 +702,7 @@ export default function ExerciseLibraryPage() {
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
               disabled={currentPage === 1}
-              className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:text-white disabled:opacity-40"
+              className="min-h-[44px] rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:text-white disabled:opacity-40"
             >
               ←
             </button>
@@ -713,7 +713,7 @@ export default function ExerciseLibraryPage() {
                 <button
                   key={page}
                   onClick={() => setCurrentPage(page)}
-                  className={`h-10 w-10 rounded-xl text-sm font-bold ${
+                  className={`h-11 w-11 rounded-xl text-sm font-bold ${
                     currentPage === page
                       ? "bg-cyan-400 text-black"
                       : "bg-white/5 text-slate-400 hover:text-white"
@@ -729,7 +729,7 @@ export default function ExerciseLibraryPage() {
                 setCurrentPage((prev) => Math.min(prev + 1, totalPages))
               }
               disabled={currentPage === totalPages}
-              className="rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:text-white disabled:opacity-40"
+              className="min-h-[44px] rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:text-white disabled:opacity-40"
             >
               →
             </button>
@@ -737,7 +737,7 @@ export default function ExerciseLibraryPage() {
         )}
 
         {filtered.length === 0 && (
-          <section className="rounded-[34px] border border-white/10 bg-white/[0.05] p-10 text-center shadow-2xl">
+          <section className="rounded-[28px] border border-white/10 bg-white/[0.05] p-6 text-center shadow-2xl sm:rounded-[34px] sm:p-10">
             <p className="text-lg font-black text-white">No exercises found.</p>
             <p className="mt-2 text-sm text-slate-400">
               Try clearing filters or adding a new movement.
@@ -747,12 +747,12 @@ export default function ExerciseLibraryPage() {
       </section>
 
       {statsExercise && (
-        <div className="fixed inset-x-3 bottom-4 z-[9999] mx-auto w-auto max-w-[760px] sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[min(94vw,760px)]">
-          <div className="max-h-[86vh] max-w-full overflow-hidden rounded-[28px] border border-white/20 bg-white/[0.075] shadow-[0_30px_120px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150 sm:rounded-[34px]">
-            <div className="max-h-[86vh] overflow-y-auto overflow-x-hidden overscroll-contain px-1">
+        <div className="fixed inset-x-2 bottom-3 top-3 z-[9999] mx-auto w-auto max-w-[760px] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:top-auto sm:w-[min(94vw,760px)]">
+          <div className="max-h-full max-w-full overflow-hidden rounded-[28px] border border-white/20 bg-white/[0.075] shadow-[0_30px_120px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150 sm:max-h-[86vh] sm:rounded-[34px]">
+            <div className="max-h-full overflow-y-auto overflow-x-hidden overscroll-contain px-1 sm:max-h-[86vh]">
               <div className="grid lg:grid-cols-[1.05fr_310px] h-full">
                 <div className="min-h-0 overflow-y-auto">
-                  <div className="relative h-[310px] overflow-hidden border-b border-white/10 bg-slate-950">
+                  <div className="relative h-52 overflow-hidden border-b border-white/10 bg-slate-950 sm:h-[310px]">
                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.22),transparent_42%),linear-gradient(135deg,rgba(8,13,30,0.95),rgba(2,6,23,0.98))]" />
 
                     <div className="absolute inset-0 flex items-center justify-center">
@@ -768,7 +768,7 @@ export default function ExerciseLibraryPage() {
                       <p className="text-[10px] font-black uppercase tracking-[0.28em] text-yellow-300">
                         Add Stats
                       </p>
-                      <h3 className="mt-1 text-3xl font-black text-white">
+                      <h3 className="mt-1 text-2xl font-black text-white sm:text-3xl">
                         {statsExercise.name}
                       </h3>
                       <p className="mt-1 text-xs text-slate-300">
@@ -846,7 +846,7 @@ export default function ExerciseLibraryPage() {
                       <button
                         type="button"
                         onClick={() => setStatsExercise(null)}
-                        className="rounded-2xl border border-white/10 bg-white/[0.08] px-4 py-2 text-xs font-black text-white/70 transition hover:bg-white/[0.18] hover:text-white"
+                        className="min-h-[44px] rounded-2xl border border-white/10 bg-white/[0.08] px-4 py-2 text-xs font-black text-white/70 transition hover:bg-white/[0.18] hover:text-white"
                       >
                         Close
                       </button>
@@ -857,21 +857,21 @@ export default function ExerciseLibraryPage() {
                         value={statWeight}
                         onChange={(e) => setStatWeight(e.target.value)}
                         placeholder="Weight"
-                        className="rounded-2xl border border-white/10 bg-white/[0.08] px-3 py-3 text-sm font-semibold text-white backdrop-blur-xl outline-none placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.12]"
+                        className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.08] px-3 py-3 text-sm font-semibold text-white backdrop-blur-xl outline-none placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.12]"
                       />
 
                       <input
                         value={statReps}
                         onChange={(e) => setStatReps(e.target.value)}
                         placeholder="Reps"
-                        className="rounded-2xl border border-white/10 bg-white/[0.08] px-3 py-3 text-sm font-semibold text-white backdrop-blur-xl outline-none placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.12]"
+                        className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.08] px-3 py-3 text-sm font-semibold text-white backdrop-blur-xl outline-none placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.12]"
                       />
 
                       <input
                         value={statSets}
                         onChange={(e) => setStatSets(e.target.value)}
                         placeholder="Sets"
-                        className="rounded-2xl border border-white/10 bg-white/[0.08] px-3 py-3 text-sm font-semibold text-white backdrop-blur-xl outline-none placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.12]"
+                        className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.08] px-3 py-3 text-sm font-semibold text-white backdrop-blur-xl outline-none placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.12]"
                       />
                     </div>
                   </div>
@@ -906,7 +906,7 @@ export default function ExerciseLibraryPage() {
                       setStatReps("");
                       setStatSets("");
                     }}
-                    className="mt-3 w-full rounded-2xl bg-gradient-to-r from-yellow-300 to-yellow-500 px-4 py-3 text-sm font-black text-slate-950 shadow-[0_0_28px_rgba(250,204,21,0.22)] transition hover:scale-[1.01]"
+                    className="mt-3 min-h-[48px] w-full rounded-2xl bg-gradient-to-r from-yellow-300 to-yellow-500 px-4 py-3 text-sm font-black text-slate-950 shadow-[0_0_28px_rgba(250,204,21,0.22)] transition hover:scale-[1.01]"
                   >
                     Save Stats
                   </button>
@@ -914,14 +914,14 @@ export default function ExerciseLibraryPage() {
                   <div className="mt-3 grid gap-2">
                     <a
                       href={ROUTES.dashboard.stats}
-                      className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-sm font-black text-slate-300 transition hover:border-yellow-300/40 hover:text-white"
+                      className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-sm font-black text-slate-300 transition hover:border-yellow-300/40 hover:text-white"
                     >
                       View Stats Page →
                     </a>
 
                     <a
                       href={ROUTES.workoutBuilder.exerciseDemo}
-                      className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
+                      className="min-h-[48px] rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
                     >
                       View Full Demo Page →
                     </a>

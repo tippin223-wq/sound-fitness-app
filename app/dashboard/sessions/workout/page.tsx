@@ -345,20 +345,20 @@ export default function WorkoutBuilderPage() {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
-      <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <header className="rounded-[28px] border border-white/10 bg-white/[0.05] p-5 shadow-2xl shadow-black/25 backdrop-blur">
+      <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-5 px-3 py-5 sm:gap-6 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+        <header className="rounded-[24px] border border-white/10 bg-white/[0.05] p-4 shadow-2xl shadow-black/25 backdrop-blur sm:rounded-[28px] sm:p-5">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="text-[11px] uppercase tracking-[0.22em] text-sky-300">
                 Sound Fitness Session Player
               </div>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+              <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-4xl">
                 {workout.title}
               </h1>
               <p className="mt-2 text-sm text-slate-300">{workout.subtitle}</p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
                 <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
                   Current Step
@@ -409,7 +409,7 @@ export default function WorkoutBuilderPage() {
         </header>
 
         <div className="grid flex-1 gap-6 lg:grid-cols-[0.95fr_1.3fr]">
-          <aside className="rounded-[28px] border border-white/10 bg-white/[0.05] p-4 shadow-2xl shadow-black/20 backdrop-blur">
+          <aside className="rounded-[24px] border border-white/10 bg-white/[0.05] p-3 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[28px] sm:p-4">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <div className="text-lg font-semibold">Workout Timeline</div>
@@ -456,7 +456,7 @@ export default function WorkoutBuilderPage() {
             </div>
           </aside>
 
-          <main className="rounded-[28px] border border-white/10 bg-white/[0.05] p-5 shadow-2xl shadow-black/20 backdrop-blur">
+          <main className="rounded-[24px] border border-white/10 bg-white/[0.05] p-4 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[28px] sm:p-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <span
@@ -469,16 +469,16 @@ export default function WorkoutBuilderPage() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
                 <button
                   onClick={() => setSoundOn((v) => !v)}
-                  className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-900"
+                  className="min-h-[44px] rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-900"
                 >
                   {soundOn ? "Mute sound" : "Play sound"}
                 </button>
                 <button
                   onClick={() => setIsPlaying((v) => !v)}
-                  className="rounded-2xl bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-sky-500/20 hover:bg-sky-400"
+                  className="min-h-[44px] rounded-2xl bg-sky-500 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-sky-500/20 hover:bg-sky-400"
                 >
                   {isPlaying ? "Pause" : "Start"}
                 </button>
@@ -486,9 +486,9 @@ export default function WorkoutBuilderPage() {
             </div>
 
             <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-              <div className="rounded-[26px] border border-white/10 bg-slate-950/55 p-4">
-                <div className="aspect-video rounded-[22px] border border-dashed border-white/15 bg-[linear-gradient(135deg,rgba(14,165,233,0.12),rgba(15,23,42,0.5))] p-5">
-                  <div className="flex h-full flex-col justify-between rounded-[18px] bg-black/20 p-5">
+              <div className="rounded-[24px] border border-white/10 bg-slate-950/55 p-3 sm:rounded-[26px] sm:p-4">
+                <div className="aspect-video rounded-[20px] border border-dashed border-white/15 bg-[linear-gradient(135deg,rgba(14,165,233,0.12),rgba(15,23,42,0.5))] p-3 sm:rounded-[22px] sm:p-5">
+                  <div className="flex h-full flex-col justify-between rounded-[18px] bg-black/20 p-4 sm:p-5">
                     <div>
                       <div className="text-[11px] uppercase tracking-[0.22em] text-sky-300">
                         Video
@@ -510,7 +510,7 @@ export default function WorkoutBuilderPage() {
                   <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
                     Current movement
                   </div>
-                  <h2 className="mt-2 text-3xl font-bold tracking-tight">
+                  <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
                     {current.title}
                   </h2>
                   {current.subtitle ? (
@@ -572,7 +572,7 @@ export default function WorkoutBuilderPage() {
                       </span>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-3 gap-2">
+                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
                       {(["weight", "reps", "sets"] as const).map((field) => (
                         <label key={field} className="block">
                           <span className="text-xs font-semibold capitalize text-slate-400">
@@ -600,7 +600,7 @@ export default function WorkoutBuilderPage() {
               </div>
             </div>
 
-            <section className="mt-6 rounded-[28px] border border-white/10 bg-slate-950/55 p-5">
+            <section className="mt-6 rounded-[24px] border border-white/10 bg-slate-950/55 p-4 sm:rounded-[28px] sm:p-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <div className="text-[11px] uppercase tracking-[0.22em] text-emerald-300">
@@ -635,7 +635,7 @@ export default function WorkoutBuilderPage() {
                           : "border-white/10 bg-black/20"
                       }`}
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between">
                         <button
                           type="button"
                           onClick={() =>
@@ -667,7 +667,7 @@ export default function WorkoutBuilderPage() {
                         </span>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-3 gap-2">
+                      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
                         {(["weight", "reps", "sets"] as const).map(
                           (field) => (
                             <label key={field} className="block">
@@ -706,7 +706,7 @@ export default function WorkoutBuilderPage() {
               <button
                 type="button"
                 onClick={saveWorkoutStats}
-                className="mt-5 w-full rounded-2xl bg-gradient-to-r from-yellow-300 to-yellow-500 px-5 py-4 text-sm font-bold text-slate-950 shadow-lg shadow-yellow-500/20 transition hover:scale-[1.01]"
+                className="mt-5 min-h-[48px] w-full rounded-2xl bg-gradient-to-r from-yellow-300 to-yellow-500 px-5 py-4 text-sm font-bold text-slate-950 shadow-lg shadow-yellow-500/20 transition hover:scale-[1.01]"
               >
                 Finish Workout and View Stats
               </button>
@@ -716,7 +716,7 @@ export default function WorkoutBuilderPage() {
               <button
                 onClick={prevStep}
                 disabled={!canGoBack}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+                className="min-h-[48px] rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-slate-200 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 ← Previous step
               </button>
@@ -730,7 +730,7 @@ export default function WorkoutBuilderPage() {
               <button
                 onClick={nextStep}
                 disabled={!canGoNext}
-                className="rounded-2xl bg-sky-500 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-sky-500/20 hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
+                className="min-h-[48px] rounded-2xl bg-sky-500 px-4 py-3 text-sm font-semibold text-slate-950 shadow-lg shadow-sky-500/20 hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {canGoNext ? "Next step →" : "Session complete"}
               </button>

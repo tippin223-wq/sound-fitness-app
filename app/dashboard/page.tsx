@@ -148,15 +148,15 @@ export default function UserHomeDashboardPage() {
 
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_0%,rgba(14,165,233,0.18),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(56,189,248,0.12),transparent_28%),linear-gradient(180deg,#020713_0%,#06111f_48%,#020713_100%)]" />
 
-      <div className="mx-auto max-w-7xl px-5 py-6 sm:px-8 lg:py-8">
-        <header className="mb-8 rounded-[30px] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20 backdrop-blur lg:p-7">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-8 lg:py-8">
+        <header className="mb-8 rounded-[28px] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[30px] sm:p-5 lg:p-7">
           <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-400">
                 Sound Fitness Member Portal
               </div>
 
-              <h1 className="mt-3 text-4xl font-black uppercase tracking-tight sm:text-5xl">
+              <h1 className="mt-3 break-words text-3xl font-black uppercase tracking-tight sm:text-5xl">
                 Welcome back, <span className="text-sky-400">{firstName}</span>
               </h1>
 
@@ -169,14 +169,14 @@ export default function UserHomeDashboardPage() {
             <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
               <Link
                 href={ROUTES.dashboard.sessionWorkout}
-                className="rounded-2xl bg-sky-500 px-6 py-4 text-center text-xs font-black uppercase tracking-[0.16em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400"
+                className="min-h-[48px] rounded-2xl bg-sky-500 px-6 py-4 text-center text-xs font-black uppercase tracking-[0.16em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400"
               >
                 Start or Resume Workout
               </Link>
 
               <Link
                 href={ROUTES.dashboard.stats}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-4 text-center text-xs font-black uppercase tracking-[0.16em] text-white transition hover:border-sky-400/50 hover:bg-sky-500/10"
+                className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-4 text-center text-xs font-black uppercase tracking-[0.16em] text-white transition hover:border-sky-400/50 hover:bg-sky-500/10"
               >
                 View Stats
               </Link>
@@ -185,11 +185,11 @@ export default function UserHomeDashboardPage() {
         </header>
 
         <section className="mb-8 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="rounded-[34px] border border-sky-400/30 bg-white/[0.05] p-6 shadow-2xl shadow-black/25 backdrop-blur lg:p-8">
+          <div className="rounded-[28px] border border-sky-400/30 bg-white/[0.05] p-5 shadow-2xl shadow-black/25 backdrop-blur sm:rounded-[34px] sm:p-6 lg:p-8">
             <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-400">
               MVP Training Loop
             </div>
-            <h2 className="mt-4 text-4xl font-black tracking-tight">
+            <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
               Log today's workout.
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
@@ -201,20 +201,20 @@ export default function UserHomeDashboardPage() {
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
               <Link
                 href={ROUTES.dashboard.sessionWorkout}
-                className="rounded-2xl bg-gradient-to-r from-sky-400 to-cyan-300 px-5 py-4 text-center text-sm font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_0_34px_rgba(14,165,233,0.3)] transition hover:scale-[1.01]"
+                className="min-h-[48px] rounded-2xl bg-gradient-to-r from-sky-400 to-cyan-300 px-5 py-4 text-center text-sm font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_0_34px_rgba(14,165,233,0.3)] transition hover:scale-[1.01]"
               >
                 Open Workout Logger
               </Link>
               <Link
                 href={ROUTES.dashboard.stats}
-                className="rounded-2xl border border-cyan-300/25 bg-cyan-400/10 px-5 py-4 text-center text-sm font-black uppercase tracking-[0.14em] text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
+                className="min-h-[48px] rounded-2xl border border-cyan-300/25 bg-cyan-400/10 px-5 py-4 text-center text-sm font-black uppercase tracking-[0.14em] text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
               >
                 Review Progress
               </Link>
             </div>
           </div>
 
-          <div className="rounded-[34px] border border-white/10 bg-white/[0.05] p-6 shadow-2xl shadow-black/20 backdrop-blur">
+          <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-5 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[34px] sm:p-6">
             <div className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-300">
               Recent Activity
             </div>
@@ -232,7 +232,7 @@ export default function UserHomeDashboardPage() {
                     key={`${entry.date}-${entry.exerciseId}-${index}`}
                     className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3"
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <span className="text-sm font-bold text-white">
                         {entry.exerciseName}
                       </span>
@@ -266,7 +266,7 @@ export default function UserHomeDashboardPage() {
               <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
                 {card.label}
               </div>
-              <div className="mt-3 break-words text-2xl font-black tracking-tight text-white">
+              <div className="mt-3 break-words text-xl font-black tracking-tight text-white sm:text-2xl">
                 {card.value}
               </div>
               <div className="mt-2 text-sm text-slate-400">{card.detail}</div>
