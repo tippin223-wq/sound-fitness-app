@@ -60,7 +60,7 @@ export default function StrengthTrackingPage() {
               <p className="eyebrow">Key Lifts</p>
               <h2>Movement Progress</h2>
             </div>
-            <a href="/online-program/progress">Back to Progress</a>
+            <a href="/dashboard/online-program/progress">Back to Progress</a>
           </div>
 
           <div className="table">
@@ -99,9 +99,9 @@ export default function StrengthTrackingPage() {
 
           <div className="quickLinks">
             <h2>Progress Pages</h2>
-            <a href="/online-program/progress/completion">Completion %</a>
-            <a href="/online-program/progress/streak">Streak</a>
-            <a href="/online-program/workouts">Program Workouts</a>
+            <a href="/dashboard/online-program/progress/completion">Completion %</a>
+            <a href="/dashboard/online-program/progress/streak">Streak</a>
+            <a href="/dashboard/online-program/workouts">Program Workouts</a>
           </div>
         </aside>
       </section>

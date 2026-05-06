@@ -58,8 +58,8 @@ export default function CompleteWorkoutPage() {
           <textarea placeholder="Workout notes: energy, pain, soreness, wins, anything Joey should know..." />
 
           <div className="actions">
-            <a href="/online-program/workouts">Back to Workouts</a>
-            <a href="/online-program/progress">View Progress</a>
+            <a href="/dashboard/online-program/workouts">Back to Workouts</a>
+            <a href="/dashboard/online-program/progress">View Progress</a>
           </div>
         </div>
 
@@ -78,7 +78,7 @@ export default function CompleteWorkoutPage() {
           <div className="nextCard">
             <h2>Next Suggested Step</h2>
             <p>Review your weekly plan and see what workout comes next.</p>
-            <a href="/online-program/weekly-plan">Open Weekly Plan</a>
+            <a href="/dashboard/online-program/weekly-plan">Open Weekly Plan</a>
           </div>
         </aside>
       </section>

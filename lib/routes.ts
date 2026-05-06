@@ -1,0 +1,171 @@
+const route = <T extends `/${string}`>(path: T) => path;
+
+type ValueOf<T> = T[keyof T];
+
+export const PUBLIC_ROUTES = {
+  home: route("/"),
+} as const;
+
+export const AUTH_ROUTES = {
+  login: route("/login"),
+  forgotPassword: route("/forgot-password"),
+  resetPasswordSent: route("/reset-password-sent"),
+  updatePassword: route("/update-password"),
+} as const;
+
+export const ONBOARDING_ROUTES = {
+  home: route("/onboarding"),
+  assessment: route("/onboarding/assessment"),
+  subscription: route("/onboarding/subscription"),
+  intakeCheckIn: route("/onboarding/intake-check-in"),
+  confirmation: route("/onboarding/confirmation"),
+} as const;
+
+export const DASHBOARD_ROUTES = {
+  home: route("/dashboard"),
+  coachMessaging: route("/dashboard/coach-messaging"),
+  myPlan: route("/dashboard/my-plan"),
+  createMyPlan: route("/dashboard/my-plan/create"),
+  payments: route("/dashboard/payments"),
+  profile: route("/dashboard/profile"),
+  progress: route("/dashboard/progress"),
+  progressCheckIn: route("/dashboard/progress/check-in"),
+  progressGoals: route("/dashboard/progress/goals"),
+  habitTracker: route("/dashboard/progress/habit-tracker"),
+  journal: route("/dashboard/progress/journal"),
+  painTracking: route("/dashboard/progress/pain-tracking"),
+  recovery: route("/dashboard/recovery"),
+  mobilityLibrary: route("/dashboard/recovery/mobility-library"),
+  recoveryRecommendations: route("/dashboard/recovery/recommendations"),
+  sessions: route("/dashboard/sessions"),
+  sessionBooking: route("/dashboard/sessions/booking"),
+  sessionHistory: route("/dashboard/sessions/history"),
+  savedSessionWorkouts: route("/dashboard/sessions/saved-workouts"),
+  sessionNotes: route("/dashboard/sessions/session-notes"),
+  sessionWorkout: route("/dashboard/sessions/workout"),
+  workoutComplete: route("/dashboard/sessions/workout-complete"),
+  social: route("/dashboard/social"),
+  socialPost: route("/dashboard/social/post"),
+  stats: route("/dashboard/stats"),
+  trainingCalendar: route("/dashboard/training-calendar"),
+} as const;
+
+export const MEMBER_ROUTES = DASHBOARD_ROUTES;
+
+export const NUTRITION_ROUTES = {
+  home: route("/dashboard/nutrition"),
+  groceryList: route("/dashboard/nutrition/grocery-list"),
+  mealPrep: route("/dashboard/nutrition/meal-prep"),
+  recipes: route("/dashboard/nutrition/recipes"),
+  chickenRiceBowl: route("/dashboard/nutrition/recipes/chicken-rice-bowl"),
+} as const;
+
+export const ONLINE_PROGRAM_ROUTES = {
+  home: route("/dashboard/online-program"),
+  currentPhase: route("/dashboard/online-program/current-phase"),
+  messages: route("/dashboard/online-program/messages"),
+  progress: route("/dashboard/online-program/progress"),
+  progressCompletion: route("/dashboard/online-program/progress/completion"),
+  progressStreak: route("/dashboard/online-program/progress/streak"),
+  progressStrength: route("/dashboard/online-program/progress/strength"),
+  weeklyPlan: route("/dashboard/online-program/weekly-plan"),
+  workouts: route("/dashboard/online-program/workouts"),
+  workoutDetail: route("/dashboard/online-program/workouts/detail"),
+  workoutComplete: route("/dashboard/online-program/workouts/detail/complete"),
+  exerciseDemo: route(
+    "/dashboard/online-program/workouts/detail/exercise-demo",
+  ),
+  logSets: route("/dashboard/online-program/workouts/detail/log-sets"),
+} as const;
+
+export const WORKOUT_BUILDER_ROUTES = {
+  home: route("/dashboard/workout-builder"),
+  build: route("/dashboard/workout-builder/build"),
+  addExercises: route("/dashboard/workout-builder/build/add-exercises"),
+  save: route("/dashboard/workout-builder/build/save"),
+  setsReps: route("/dashboard/workout-builder/build/sets-reps"),
+  exerciseLibrary: route("/dashboard/workout-builder/exercise-library"),
+  exerciseDemo: route("/dashboard/workout-builder/exercise-library/demo"),
+  saved: route("/dashboard/workout-builder/saved"),
+  savedDetail: route("/dashboard/workout-builder/saved/detail"),
+  tracking: route("/dashboard/workout-builder/tracking"),
+  trackingLog: route("/dashboard/workout-builder/tracking/log"),
+  trackingProgress: route("/dashboard/workout-builder/tracking/progress"),
+} as const;
+
+export const ADMIN_ROUTES = {
+  home: route("/admin"),
+  aiPrompt: route("/admin/ai-prompt"),
+  clients: route("/admin/clients"),
+  crmDashboard: route("/admin/crm-dashboard"),
+  dashboard: route("/admin/dashboard"),
+  followUps: route("/admin/follow-ups"),
+  invoices: route("/admin/invoices"),
+  leadMap: route("/admin/lead-map"),
+  leadProfile: route("/admin/lead-profile"),
+  leads: route("/admin/leads"),
+  login: route("/admin/login"),
+  postHub: route("/admin/post-hub"),
+  referrals: route("/admin/referrals"),
+  reports: route("/admin/reports"),
+  sales: route("/admin/sales"),
+  siteMap: route("/admin/site-map"),
+  socialPortal: route("/admin/social-portal"),
+  templates: route("/admin/templates"),
+} as const;
+
+export const COACH_ROUTES = {
+  home: route("/coach"),
+  login: route("/coach/login"),
+  dashboard: route("/coach/login/dashboard"),
+} as const;
+
+export const ROUTES = {
+  public: PUBLIC_ROUTES,
+  auth: AUTH_ROUTES,
+  onboarding: ONBOARDING_ROUTES,
+  dashboard: DASHBOARD_ROUTES,
+  member: MEMBER_ROUTES,
+  nutrition: NUTRITION_ROUTES,
+  onlineProgram: ONLINE_PROGRAM_ROUTES,
+  workoutBuilder: WORKOUT_BUILDER_ROUTES,
+  admin: ADMIN_ROUTES,
+  coach: COACH_ROUTES,
+} as const;
+
+export type AppRoute =
+  | ValueOf<typeof PUBLIC_ROUTES>
+  | ValueOf<typeof AUTH_ROUTES>
+  | ValueOf<typeof ONBOARDING_ROUTES>
+  | ValueOf<typeof DASHBOARD_ROUTES>
+  | ValueOf<typeof NUTRITION_ROUTES>
+  | ValueOf<typeof ONLINE_PROGRAM_ROUTES>
+  | ValueOf<typeof WORKOUT_BUILDER_ROUTES>
+  | ValueOf<typeof ADMIN_ROUTES>
+  | ValueOf<typeof COACH_ROUTES>;
+
+export type InternalHref = AppRoute | `${AppRoute}?${string}`;
+
+export const PROTECTED_ROUTE_PREFIXES = [
+  ADMIN_ROUTES.home,
+  COACH_ROUTES.home,
+  DASHBOARD_ROUTES.home,
+] as const;
+
+export const PUBLIC_AUTH_ROUTES = [
+  AUTH_ROUTES.login,
+  ADMIN_ROUTES.login,
+  COACH_ROUTES.login,
+  AUTH_ROUTES.forgotPassword,
+  AUTH_ROUTES.updatePassword,
+  AUTH_ROUTES.resetPasswordSent,
+] as const;
+
+export function withNext(loginRoute: AppRoute, nextPath: string) {
+  return `${loginRoute}?next=${encodeURIComponent(nextPath)}` as const;
+}
+
+export function workoutBuilderAddToPlan(planId: string, day: string) {
+  const params = new URLSearchParams({ addTo: `${planId}:${day}` });
+  return `${WORKOUT_BUILDER_ROUTES.home}?${params.toString()}` as const;
+}

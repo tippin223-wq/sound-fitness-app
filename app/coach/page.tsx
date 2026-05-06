@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ROUTES } from "@/lib/routes";
 
 const appointmentOffers = [
   {
@@ -51,13 +52,13 @@ export default function CoachDashboardPage() {
       {/* HEADER */}
       <header className="border-b border-white/5 bg-[#020713]/80 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5">
-          <Link href="/" className="flex items-center gap-3">
+          <Link href={ROUTES.public.home} className="flex items-center gap-3">
             <img src="/sound-fitness-logo.png" className="h-10 w-10" />
             <div className="text-xl font-black">SOUND FITNESS</div>
           </Link>
 
           <Link
-            href="/"
+            href={ROUTES.public.home}
             className="rounded-xl bg-sky-500 px-4 py-2 text-xs font-black"
           >
             Sign Out
@@ -152,13 +153,13 @@ export default function CoachDashboardPage() {
             <h2 className="text-xl font-black mb-4">Tools</h2>
 
             <div className="space-y-2">
-              <Link href="/coach/schedule" className="block">
+              <Link href={ROUTES.coach.dashboard} className="block">
                 📅 Schedule
               </Link>
-              <Link href="/coach/messages" className="block">
+              <Link href={ROUTES.coach.dashboard} className="block">
                 💬 Messages
               </Link>
-              <Link href="/coach/earnings" className="block">
+              <Link href={ROUTES.coach.dashboard} className="block">
                 💸 Earnings
               </Link>
             </div>

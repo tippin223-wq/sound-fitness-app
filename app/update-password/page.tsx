@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { ROUTES } from "@/lib/routes";
 
 export default function UpdatePasswordPage() {
   const router = useRouter();
@@ -48,7 +49,7 @@ export default function UpdatePasswordPage() {
     setMessage("Password updated successfully. Redirecting to login...");
 
     setTimeout(() => {
-      router.replace("/login");
+      router.replace(ROUTES.auth.login);
     }, 1800);
   }
 
@@ -58,7 +59,7 @@ export default function UpdatePasswordPage() {
 
       <header className="relative z-10">
         <div className="mx-auto flex max-w-7xl items-center justify-center px-5 py-8 sm:px-8">
-          <Link href="/" className="flex items-center gap-3 text-center">
+          <Link href={ROUTES.public.home} className="flex items-center gap-3 text-center">
             <img
               src="/sound-fitness-logo.png"
               alt="Sound Fitness"
@@ -227,7 +228,7 @@ export default function UpdatePasswordPage() {
                 </p>
 
                 <Link
-                  href="/login"
+                  href={ROUTES.auth.login}
                   className="mt-2 inline-flex text-sm font-black uppercase tracking-[0.14em] text-sky-400 hover:text-sky-300"
                 >
                   Back to Member Sign In

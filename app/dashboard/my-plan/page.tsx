@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import AppHeader from "@/components/AppHeader";
+import { ROUTES } from "@/lib/routes";
 
 type PlanMode = "coach" | "custom" | "hybrid";
 
@@ -203,7 +204,7 @@ export default function MyPlanPage() {
               </div>
 
               <Link
-                href="/dashboard/my-plan/archived-plans"
+                href={ROUTES.dashboard.myPlan}
                 className="text-sm font-bold text-slate-400 hover:text-cyan-300"
               >
                 View Archived →

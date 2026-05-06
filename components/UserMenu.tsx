@@ -3,12 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
+import { supabase } from "@/lib/supabaseClient";
+import { ROUTES } from "@/lib/routes";
 
 export default function UserMenu() {
   const router = useRouter();
@@ -54,7 +50,7 @@ export default function UserMenu() {
     await supabase.auth.signOut();
     setOpen(false);
     setUserEmail(null);
-    router.push("/");
+    router.push(ROUTES.public.home);
     router.refresh();
   }
 
@@ -62,14 +58,14 @@ export default function UserMenu() {
     return (
       <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center sm:justify-center sm:gap-3">
         <Link
-          href="/login"
+          href={ROUTES.auth.login}
           className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-white transition hover:border-sky-400/50 hover:bg-sky-500/10 sm:px-5 sm:text-xs sm:tracking-[0.18em]"
         >
           Member Sign In
         </Link>
 
         <Link
-          href="/onboarding"
+          href={ROUTES.onboarding.home}
           className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-sky-500 px-3 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400 sm:px-5 sm:text-xs sm:tracking-[0.18em]"
         >
           Start Free Intro
@@ -116,7 +112,7 @@ export default function UserMenu() {
 
           <div className="p-2">
             <Link
-              href="/dashboard"
+              href={ROUTES.dashboard.home}
               onClick={() => setOpen(false)}
               className="block rounded-xl px-4 py-3 text-sm font-bold text-white transition hover:bg-sky-500/10"
             >
@@ -124,7 +120,7 @@ export default function UserMenu() {
             </Link>
 
             <Link
-              href="/dashboard/settings"
+              href={ROUTES.dashboard.profile}
               onClick={() => setOpen(false)}
               className="block rounded-xl px-4 py-3 text-sm font-bold text-white transition hover:bg-sky-500/10"
             >
@@ -132,7 +128,7 @@ export default function UserMenu() {
             </Link>
 
             <Link
-              href="/dashboard/billing"
+              href={ROUTES.dashboard.payments}
               onClick={() => setOpen(false)}
               className="block rounded-xl px-4 py-3 text-sm font-bold text-white transition hover:bg-sky-500/10"
             >

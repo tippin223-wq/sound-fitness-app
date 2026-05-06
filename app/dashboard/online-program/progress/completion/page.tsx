@@ -46,7 +46,7 @@ export default function CompletionPage() {
               <p className="eyebrow">Workout Completion</p>
               <h2>All Workouts</h2>
             </div>
-            <a href="/online-program/progress">Back to Progress</a>
+            <a href="/dashboard/online-program/progress">Back to Progress</a>
           </div>
 
           <div className="list">
@@ -75,9 +75,9 @@ export default function CompletionPage() {
 
           <div className="quickLinks">
             <h2>Next Steps</h2>
-            <a href="/online-program/workouts">Continue Workouts</a>
-            <a href="/online-program/progress/streak">View Streak</a>
-            <a href="/online-program/weekly-plan">Weekly Plan</a>
+            <a href="/dashboard/online-program/workouts">Continue Workouts</a>
+            <a href="/dashboard/online-program/progress/streak">View Streak</a>
+            <a href="/dashboard/online-program/weekly-plan">Weekly Plan</a>
           </div>
         </aside>
       </section>

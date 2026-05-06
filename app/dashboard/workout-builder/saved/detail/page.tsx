@@ -58,7 +58,7 @@ export default function SavedWorkoutDetailPage() {
               <p className="eyebrow">Template</p>
               <h2>Lower Body Strength Template</h2>
             </div>
-            <a href="/workout-builder/saved">Back</a>
+            <a href="/dashboard/workout-builder/saved">Back</a>
           </div>
 
           {/* META */}
@@ -103,9 +103,9 @@ export default function SavedWorkoutDetailPage() {
 
           {/* ACTIONS */}
           <div className="actions">
-            <a href="/workout-builder/build">Edit</a>
-            <a href="/workout-builder/build/save">Duplicate</a>
-            <a href="/online-program/workouts">Assign</a>
+            <a href="/dashboard/workout-builder/build">Edit</a>
+            <a href="/dashboard/workout-builder/build/save">Duplicate</a>
+            <a href="/dashboard/online-program/workouts">Assign</a>
           </div>
         </section>
 
@@ -124,9 +124,9 @@ export default function SavedWorkoutDetailPage() {
 
           <div className="quickLinks">
             <h2>Quick Links</h2>
-            <a href="/workout-builder">Builder</a>
-            <a href="/workout-builder/build">Build</a>
-            <a href="/workout-builder/exercise-library">Library</a>
+            <a href="/dashboard/workout-builder">Builder</a>
+            <a href="/dashboard/workout-builder/build">Build</a>
+            <a href="/dashboard/workout-builder/exercise-library">Library</a>
           </div>
         </aside>
       </section>

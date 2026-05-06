@@ -7,7 +7,7 @@ export default function ClientSiteMapPage() {
       pages: [
         {
           name: "Client Dashboard",
-          url: "/client/dashboard",
+          url: "/dashboard",
           status: "Built",
           connectsTo: ["Online Training", "Progress", "Calendar", "Messages"],
           purpose:
@@ -15,7 +15,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Client Onboarding",
-          url: "/client/onboarding",
+          url: "/onboarding",
           status: "Needed",
           connectsTo: ["Assessment", "Goals", "Booking"],
           purpose:
@@ -28,7 +28,7 @@ export default function ClientSiteMapPage() {
       pages: [
         {
           name: "Online Training",
-          url: "/client/online-training",
+          url: "/dashboard/online-program",
           status: "Built",
           connectsTo: ["Training Calendar", "Exercise Library", "Progress"],
           purpose:
@@ -36,7 +36,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Training Calendar",
-          url: "/client/training-calendar",
+          url: "/dashboard/training-calendar",
           status: "Built",
           connectsTo: ["Workout Detail", "Booking", "Progress"],
           purpose:
@@ -44,7 +44,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Workout Detail",
-          url: "/client/workout-detail",
+          url: "/dashboard/online-program/workouts/detail",
           status: "Needed",
           connectsTo: ["Exercise Demo", "Progress", "Journal"],
           purpose:
@@ -52,7 +52,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Exercise Library",
-          url: "/client/exercise-library",
+          url: "/dashboard/workout-builder/exercise-library",
           status: "Built",
           connectsTo: ["Exercise Demo"],
           purpose:
@@ -60,7 +60,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Exercise Demo",
-          url: "/client/exercise/[id]",
+          url: "/dashboard/workout-builder/exercise-library/demo",
           status: "Needed",
           connectsTo: ["Workout Detail", "Coach Messaging"],
           purpose:
@@ -73,7 +73,7 @@ export default function ClientSiteMapPage() {
       pages: [
         {
           name: "Progress Tracking",
-          url: "/client/progress",
+          url: "/dashboard/progress",
           status: "Built",
           connectsTo: ["Journal", "Pain Tracking", "Goals"],
           purpose:
@@ -81,7 +81,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Journal",
-          url: "/client/journal",
+          url: "/dashboard/progress/journal",
           status: "Built",
           connectsTo: ["Progress", "Coach Messaging"],
           purpose:
@@ -89,7 +89,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Goals",
-          url: "/client/goals",
+          url: "/dashboard/progress/goals",
           status: "Built",
           connectsTo: ["Progress", "Dashboard"],
           purpose:
@@ -110,7 +110,7 @@ export default function ClientSiteMapPage() {
       pages: [
         {
           name: "Nutrition Portal",
-          url: "/client/nutrition-portal",
+          url: "/dashboard/nutrition",
           status: "Built",
           connectsTo: ["Recipe Library", "Grocery List", "Meal Prep"],
           purpose:
@@ -118,7 +118,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Recipe Library",
-          url: "/client/recipe-library",
+          url: "/dashboard/nutrition/recipes",
           status: "Built",
           connectsTo: ["Recipe Detail", "Grocery List"],
           purpose:
@@ -126,7 +126,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Recipe Detail",
-          url: "/client/recipe/[id]",
+          url: "/dashboard/nutrition/recipes/chicken-rice-bowl",
           status: "Needed",
           connectsTo: ["Grocery List", "Nutrition Portal"],
           purpose:
@@ -134,7 +134,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Grocery List",
-          url: "/client/grocery-list",
+          url: "/dashboard/nutrition/grocery-list",
           status: "Built",
           connectsTo: ["Recipe Library", "Meal Prep"],
           purpose:
@@ -142,7 +142,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Meal Prep",
-          url: "/client/meal-prep",
+          url: "/dashboard/nutrition/meal-prep",
           status: "Built",
           connectsTo: ["Recipe Library", "Grocery List"],
           purpose: "Meal prep guide and simple food systems for consistency.",
@@ -154,7 +154,7 @@ export default function ClientSiteMapPage() {
       pages: [
         {
           name: "Recovery Portal",
-          url: "/client/recovery-portal",
+          url: "/dashboard/recovery",
           status: "Built",
           connectsTo: [
             "Mobility Library",
@@ -165,7 +165,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Mobility Library",
-          url: "/client/mobility-library",
+          url: "/dashboard/recovery/mobility-library",
           status: "Built",
           connectsTo: ["Mobility Drill"],
           purpose:
@@ -173,7 +173,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Mobility Drill Detail",
-          url: "/client/mobility/[id]",
+          url: "/dashboard/recovery/mobility-library",
           status: "Needed",
           connectsTo: ["Recovery Portal", "Pain Tracking"],
           purpose:
@@ -181,7 +181,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Pain Tracking",
-          url: "/client/pain-tracking",
+          url: "/dashboard/progress/pain-tracking",
           status: "Built",
           connectsTo: ["Recovery Recommendations", "Coach Messaging"],
           purpose:
@@ -189,7 +189,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Recovery Recommendations",
-          url: "/client/recovery-recommendations",
+          url: "/dashboard/recovery/recommendations",
           status: "Built",
           connectsTo: ["Mobility Library", "Pain Tracking"],
           purpose:
@@ -202,7 +202,7 @@ export default function ClientSiteMapPage() {
       pages: [
         {
           name: "Coach Messaging",
-          url: "/client/coach-messaging",
+          url: "/dashboard/coach-messaging",
           status: "Built",
           connectsTo: ["Exercise Demo", "Pain Tracking", "Journal"],
           purpose:
@@ -210,14 +210,14 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Booking",
-          url: "/client/booking",
+          url: "/dashboard/sessions/booking",
           status: "Built",
           connectsTo: ["Confirmation", "Training Calendar"],
           purpose: "Book or request a session time.",
         },
         {
           name: "Confirmation",
-          url: "/client/confirmation",
+          url: "/onboarding/confirmation",
           status: "Built",
           connectsTo: ["Dashboard", "Assessment"],
           purpose: "Post-booking confirmation and next steps.",
@@ -229,7 +229,7 @@ export default function ClientSiteMapPage() {
       pages: [
         {
           name: "Profile",
-          url: "/client/profile",
+          url: "/dashboard/profile",
           status: "Built",
           connectsTo: ["Settings", "Progress"],
           purpose:
@@ -237,7 +237,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Sessions",
-          url: "/client/sessions",
+          url: "/dashboard/sessions",
           status: "Built",
           connectsTo: ["Payments", "Booking"],
           purpose:
@@ -245,21 +245,21 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Payments",
-          url: "/client/payments",
+          url: "/dashboard/payments",
           status: "Built",
           connectsTo: ["Subscription", "Sessions"],
           purpose: "Package selection, add-ons, and checkout summary.",
         },
         {
           name: "Subscription",
-          url: "/client/subscription",
+          url: "/onboarding/subscription",
           status: "Built",
           connectsTo: ["Payments", "Sessions"],
           purpose: "Manage online, hybrid, and in-home training plans.",
         },
         {
           name: "Settings",
-          url: "/client/settings",
+          url: "/dashboard/profile",
           status: "Needed",
           connectsTo: ["Profile"],
           purpose:

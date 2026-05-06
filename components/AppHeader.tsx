@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import UserMenu from "@/components/UserMenu";
+import { ROUTES } from "@/lib/routes";
 
 const navItems = [
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Schedule", href: "/dashboard/training-calendar" },
-  { label: "Progress", href: "/dashboard/progress" },
-  { label: "Messaging", href: "/dashboard/coach-messaging" },
-  { label: "Builder", href: "/dashboard/workout-builder" },
+  { label: "Dashboard", href: ROUTES.dashboard.home },
+  { label: "Schedule", href: ROUTES.dashboard.trainingCalendar },
+  { label: "Progress", href: ROUTES.dashboard.progress },
+  { label: "Messaging", href: ROUTES.dashboard.coachMessaging },
+  { label: "Builder", href: ROUTES.workoutBuilder.home },
 ];
 
 export default function AppHeader() {
@@ -31,7 +32,7 @@ export default function AppHeader() {
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#020713]/90 backdrop-blur-xl">
       <div className="mx-auto flex w-full max-w-[1120px] items-center justify-between px-5 py-4">
         {/* LEFT: LOGO */}
-        <Link href="/" className="flex items-center gap-3">
+        <Link href={ROUTES.public.home} className="flex items-center gap-3">
           <img
             src="/sound-fitness-logo.png"
             alt="Sound Fitness"

@@ -6,13 +6,13 @@ const trackingCards = [
   {
     title: "Log Workout",
     desc: "Quickly record a completed workout, notes, effort, and basic results.",
-    href: "/workout-builder/tracking/log",
+    href: "/dashboard/workout-builder/tracking/log",
     status: "Fast Entry",
   },
   {
     title: "Basic Progress",
     desc: "Review consistency, recent workouts, and simple performance trends.",
-    href: "/workout-builder/tracking/progress",
+    href: "/dashboard/workout-builder/tracking/progress",
     status: "Review",
   },
 ];
@@ -79,7 +79,7 @@ export default function BuilderTrackingPage() {
               <p className="eyebrow">Recent Activity</p>
               <h2>Workout Logs</h2>
             </div>
-            <a href="/workout-builder/tracking/log">Log Workout</a>
+            <a href="/dashboard/workout-builder/tracking/log">Log Workout</a>
           </div>
 
           <div className="logList">
@@ -106,10 +106,10 @@ export default function BuilderTrackingPage() {
 
           <div className="quickLinks">
             <h2>Quick Links</h2>
-            <a href="/workout-builder">Builder Home</a>
-            <a href="/workout-builder/saved">Saved Workouts</a>
-            <a href="/workout-builder/tracking/log">Log Workout</a>
-            <a href="/workout-builder/tracking/progress">Basic Progress</a>
+            <a href="/dashboard/workout-builder">Builder Home</a>
+            <a href="/dashboard/workout-builder/saved">Saved Workouts</a>
+            <a href="/dashboard/workout-builder/tracking/log">Log Workout</a>
+            <a href="/dashboard/workout-builder/tracking/progress">Basic Progress</a>
           </div>
         </aside>
       </section>

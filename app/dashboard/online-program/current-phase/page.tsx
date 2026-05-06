@@ -48,17 +48,17 @@ export default function CurrentPhasePage() {
       </section>
 
       <section className="cards">
-        <a href="/online-program/weekly-plan">
+        <a href="/dashboard/online-program/weekly-plan">
           <strong>Weekly Plan</strong>
           <span>See your schedule and training days</span>
         </a>
 
-        <a href="/online-program/workouts">
+        <a href="/dashboard/online-program/workouts">
           <strong>Program Workouts</strong>
           <span>Start or review your assigned workouts</span>
         </a>
 
-        <a href="/online-program/progress">
+        <a href="/dashboard/online-program/progress">
           <strong>Program Progress</strong>
           <span>Track strength, completion, and streak</span>
         </a>

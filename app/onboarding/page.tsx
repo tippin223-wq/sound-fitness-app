@@ -1,30 +1,31 @@
 "use client";
 
 import React from "react";
+import { ROUTES } from "@/lib/routes";
 
 const steps = [
   {
     title: "Assessment",
     desc: "Goals, training history, pain, schedule, equipment, and readiness.",
-    href: "/onboarding/assessment",
+    href: ROUTES.onboarding.assessment,
     status: "Step 1",
   },
   {
     title: "Subscription",
     desc: "Choose training package, membership, or online coaching option.",
-    href: "/onboarding/subscription",
+    href: ROUTES.onboarding.subscription,
     status: "Step 2",
   },
   {
     title: "Intake Check-In",
     desc: "Final readiness check before training starts.",
-    href: "/onboarding/intake-check-in",
+    href: ROUTES.onboarding.intakeCheckIn,
     status: "Step 3",
   },
   {
     title: "Confirmation",
     desc: "Thank-you page with next steps, dashboard link, and coach expectations.",
-    href: "/onboarding/confirmation",
+    href: ROUTES.onboarding.confirmation,
     status: "Finish",
   },
 ];
@@ -42,8 +43,8 @@ export default function OnboardingPage() {
           </p>
 
           <div className="actions">
-            <a href="/onboarding/assessment">Start Assessment</a>
-            <a href="/dashboard">Go to Dashboard</a>
+            <a href={ROUTES.onboarding.assessment}>Start Assessment</a>
+            <a href={ROUTES.dashboard.home}>Go to Dashboard</a>
           </div>
         </div>
 
@@ -78,9 +79,9 @@ export default function OnboardingPage() {
         </div>
 
         <div className="quickLinks">
-          <a href="/">Login</a>
-          <a href="/site-map">Site Map</a>
-          <a href="/dashboard">Dashboard</a>
+          <a href={ROUTES.public.home}>Login</a>
+          <a href={ROUTES.admin.siteMap}>Site Map</a>
+          <a href={ROUTES.dashboard.home}>Dashboard</a>
         </div>
       </section>
 

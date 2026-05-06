@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { ROUTES } from "@/lib/routes";
 
 type PlatformStatus = "Active" | "Needs Post" | "Review" | "Setup";
 type CampaignStatus = "Running" | "Planning" | "Paused" | "Test";
@@ -502,25 +503,25 @@ export default function SoundSocialPortalPage() {
 
             <div className="grid gap-3 sm:grid-cols-2">
               <a
-                href="/admin/lead-map"
+                href={ROUTES.admin.leadMap}
                 className="rounded-[24px] bg-sky-500 px-5 py-4 text-center text-sm font-semibold text-slate-950 shadow-lg shadow-sky-500/20 hover:bg-sky-400"
               >
                 Track New Lead
               </a>
               <a
-                href="/site-map"
+                href={ROUTES.admin.siteMap}
                 className="rounded-[24px] border border-white/10 bg-white/5 px-5 py-4 text-center text-sm font-medium text-slate-200 hover:bg-white/10"
               >
                 Open Site Map
               </a>
               <a
-                href="/dashboard"
+                href={ROUTES.dashboard.home}
                 className="rounded-[24px] border border-white/10 bg-white/5 px-5 py-4 text-center text-sm font-medium text-slate-200 hover:bg-white/10"
               >
                 Client Dashboard
               </a>
               <a
-                href="/workout-builder"
+                href={ROUTES.workoutBuilder.home}
                 className="rounded-[24px] border border-white/10 bg-white/5 px-5 py-4 text-center text-sm font-medium text-slate-200 hover:bg-white/10"
               >
                 Workout Builder

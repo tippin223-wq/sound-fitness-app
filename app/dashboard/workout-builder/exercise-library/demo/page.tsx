@@ -86,8 +86,8 @@ export default function BuilderExerciseDemoPage() {
           </div>
 
           <div className="actions">
-            <a href="/workout-builder/build">Add to Workout</a>
-            <a href="/workout-builder">Back to Builder</a>
+            <a href="/dashboard/workout-builder/build">Add to Workout</a>
+            <a href="/dashboard/workout-builder">Back to Builder</a>
           </div>
         </section>
       </section>

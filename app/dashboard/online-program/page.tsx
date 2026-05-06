@@ -8,21 +8,21 @@ const weeklyWorkouts = [
     title: "Lower Body Strength",
     focus: "Squat pattern, glutes, hamstrings, core brace",
     status: "Ready",
-    href: "/online-program/workouts/detail",
+    href: "/dashboard/online-program/workouts/detail",
   },
   {
     day: "Wednesday",
     title: "Upper Body Strength",
     focus: "Push, pull, shoulders, posture",
     status: "Ready",
-    href: "/online-program/workouts/detail",
+    href: "/dashboard/online-program/workouts/detail",
   },
   {
     day: "Friday",
     title: "Full Body Conditioning",
     focus: "Strength endurance, carries, core, finishers",
     status: "Locked",
-    href: "/online-program/workouts",
+    href: "/dashboard/online-program/workouts",
   },
 ];
 
@@ -53,8 +53,8 @@ export default function OnlineProgramPage() {
           </p>
 
           <div className="heroActions">
-            <a href="/online-program/weekly-plan">View Weekly Plan</a>
-            <a href="/online-program/workouts">Start Workout</a>
+            <a href="/dashboard/online-program/weekly-plan">View Weekly Plan</a>
+            <a href="/dashboard/online-program/workouts">Start Workout</a>
           </div>
         </div>
 
@@ -91,7 +91,7 @@ export default function OnlineProgramPage() {
               <p className="eyebrow">This Week</p>
               <h2>Weekly Plan</h2>
             </div>
-            <a href="/online-program/weekly-plan">Open Full Plan</a>
+            <a href="/dashboard/online-program/weekly-plan">Open Full Plan</a>
           </div>
 
           <div className="workoutList">
@@ -120,33 +120,33 @@ export default function OnlineProgramPage() {
               Focus on clean reps, controlled tempo, and logging honestly. Do
               not chase heavy weight before your form is consistent.
             </p>
-            <a href="/online-program/messages">Message Coach</a>
+            <a href="/dashboard/online-program/messages">Message Coach</a>
           </div>
 
           <div className="navBox">
             <h2>Program Pages</h2>
 
-            <a href="/online-program/current-phase">
+            <a href="/dashboard/online-program/current-phase">
               <strong>Current Phase</strong>
               <span>Training block overview</span>
             </a>
 
-            <a href="/online-program/weekly-plan">
+            <a href="/dashboard/online-program/weekly-plan">
               <strong>Weekly Plan</strong>
               <span>Schedule and priorities</span>
             </a>
 
-            <a href="/online-program/workouts">
+            <a href="/dashboard/online-program/workouts">
               <strong>Program Workouts</strong>
               <span>Workout list and details</span>
             </a>
 
-            <a href="/online-program/progress">
+            <a href="/dashboard/online-program/progress">
               <strong>Program Progress</strong>
               <span>Strength, completion, streak</span>
             </a>
 
-            <a href="/online-program/messages">
+            <a href="/dashboard/online-program/messages">
               <strong>Program Messaging</strong>
               <span>Coach support</span>
             </a>

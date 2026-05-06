@@ -37,19 +37,19 @@ export default function ProgramProgressPage() {
       </section>
 
       <section className="statsGrid">
-        <a href="/online-program/progress/strength">
+        <a href="/dashboard/online-program/progress/strength">
           <span>+8%</span>
           <strong>Strength Trend</strong>
           <p>Estimated improvement this phase</p>
         </a>
 
-        <a href="/online-program/progress/completion">
+        <a href="/dashboard/online-program/progress/completion">
           <span>5/12</span>
           <strong>Completion</strong>
           <p>Completed workouts this block</p>
         </a>
 
-        <a href="/online-program/progress/streak">
+        <a href="/dashboard/online-program/progress/streak">
           <span>3</span>
           <strong>Week Streak</strong>
           <p>Consistency weeks in a row</p>
@@ -63,7 +63,7 @@ export default function ProgramProgressPage() {
               <p className="eyebrow">Strength Tracking</p>
               <h2>Key Movement Progress</h2>
             </div>
-            <a href="/online-program/progress/strength">Open Strength Page</a>
+            <a href="/dashboard/online-program/progress/strength">Open Strength Page</a>
           </div>
 
           <div className="table">
@@ -97,10 +97,10 @@ export default function ProgramProgressPage() {
 
           <div className="quickLinks">
             <h2>Progress Pages</h2>
-            <a href="/online-program/progress/strength">Strength Tracking</a>
-            <a href="/online-program/progress/completion">Completion %</a>
-            <a href="/online-program/progress/streak">Streak</a>
-            <a href="/online-program/weekly-plan">Weekly Plan</a>
+            <a href="/dashboard/online-program/progress/strength">Strength Tracking</a>
+            <a href="/dashboard/online-program/progress/completion">Completion %</a>
+            <a href="/dashboard/online-program/progress/streak">Streak</a>
+            <a href="/dashboard/online-program/weekly-plan">Weekly Plan</a>
           </div>
         </aside>
       </section>

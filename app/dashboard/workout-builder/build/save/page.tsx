@@ -31,7 +31,7 @@ export default function SaveWorkoutPage() {
               <p className="eyebrow">Final Review</p>
               <h2>Workout Summary</h2>
             </div>
-            <a href="/workout-builder/build">Edit Workout</a>
+            <a href="/dashboard/workout-builder/build">Edit Workout</a>
           </div>
 
           <div className="workoutName">
@@ -84,8 +84,8 @@ export default function SaveWorkoutPage() {
           </div>
 
           <div className="actions">
-            <a href="/workout-builder/saved">Save Workout</a>
-            <a href="/workout-builder/build/sets-reps">Back to Sets / Reps</a>
+            <a href="/dashboard/workout-builder/saved">Save Workout</a>
+            <a href="/dashboard/workout-builder/build/sets-reps">Back to Sets / Reps</a>
           </div>
         </section>
 
@@ -103,9 +103,9 @@ export default function SaveWorkoutPage() {
 
           <div className="quickLinks">
             <h2>Quick Links</h2>
-            <a href="/workout-builder/build/add-exercises">Add Exercises</a>
-            <a href="/workout-builder/build/sets-reps">Sets / Reps</a>
-            <a href="/workout-builder/saved">Saved Workouts</a>
+            <a href="/dashboard/workout-builder/build/add-exercises">Add Exercises</a>
+            <a href="/dashboard/workout-builder/build/sets-reps">Sets / Reps</a>
+            <a href="/dashboard/workout-builder/saved">Saved Workouts</a>
           </div>
         </aside>
       </section>

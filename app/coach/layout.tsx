@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { ROUTES } from "@/lib/routes";
 
 export default function CoachLayout({
   children,
@@ -15,7 +16,7 @@ export default function CoachLayout({
 
   useEffect(() => {
     async function checkAuth() {
-      if (pathname === "/coach/login") {
+      if (pathname === ROUTES.coach.login) {
         setLoading(false);
         return;
       }
@@ -25,7 +26,7 @@ export default function CoachLayout({
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.replace("/coach/login");
+        router.replace(ROUTES.coach.login);
         return;
       }
 
@@ -37,7 +38,7 @@ export default function CoachLayout({
 
       if (!profile || profile.role !== "coach") {
         await supabase.auth.signOut();
-        router.replace("/coach/login");
+        router.replace(ROUTES.coach.login);
         return;
       }
 

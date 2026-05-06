@@ -4,8 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { ROUTES } from "@/lib/routes";
+import { getPostLoginRedirectPath, type AuthRole } from "@/lib/authRedirects";
 
-type Role = "member" | "coach" | "admin";
+type Role = AuthRole;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -55,12 +57,7 @@ export default function LoginPage() {
     const next = searchParams.get("next");
 
     // if proxy sent a destination → use it
-    if (next) return next;
-
-    // otherwise fallback by role
-    if (role === "admin") return "/admin";
-    if (role === "coach") return "/coach/dashboard";
-    return "/dashboard";
+    return getPostLoginRedirectPath(role, next);
   }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -116,7 +113,7 @@ export default function LoginPage() {
 
       <header className="relative z-10">
         <div className="mx-auto flex max-w-7xl items-center justify-center px-5 py-8 sm:px-8">
-          <Link href="/" className="flex items-center gap-3 text-center">
+          <Link href={ROUTES.public.home} className="flex items-center gap-3 text-center">
             <img
               src="/sound-fitness-logo.png"
               alt="Sound Fitness"
@@ -257,7 +254,7 @@ export default function LoginPage() {
                   </label>
 
                   <Link
-                    href="/forgot-password"
+                    href={ROUTES.auth.forgotPassword}
                     className="text-xs font-black uppercase tracking-[0.12em] text-sky-400 transition hover:text-sky-300"
                   >
                     Forgot Password?
@@ -316,7 +313,7 @@ export default function LoginPage() {
                 <p className="text-sm text-slate-400">Not a coach?</p>
 
                 <Link
-                  href="/login"
+                  href={ROUTES.auth.login}
                   className="mt-2 inline-flex text-sm font-black uppercase tracking-[0.14em] text-sky-400 hover:text-sky-300"
                 >
                   Member Sign In
@@ -337,11 +334,11 @@ export default function LoginPage() {
         <div>© 2026 Sound Fitness. All rights reserved.</div>
 
         <div className="flex items-center gap-4">
-          <Link href="/login" className="hover:text-sky-300">
+          <Link href={ROUTES.auth.login} className="hover:text-sky-300">
             Member Sign In
           </Link>
           <span>•</span>
-          <Link href="/admin/login" className="hover:text-sky-300">
+          <Link href={ROUTES.admin.login} className="hover:text-sky-300">
             Admin Sign In
           </Link>
         </div>

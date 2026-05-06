@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { ROUTES } from "@/lib/routes";
 
 type Section =
   | "Public"
@@ -43,7 +44,7 @@ const siteMap: PageNode[] = [
     section: "Public",
     status: "Live",
     description: "Main app entry, login, and start point.",
-    linksTo: ["/onboarding", "/dashboard", "/online-program"],
+    linksTo: ["/onboarding", "/dashboard", "/dashboard/online-program"],
   },
   {
     title: "Onboarding",
@@ -223,7 +224,7 @@ const siteMap: PageNode[] = [
       },
       {
         title: "Messaging",
-        href: "/dashboard/messaging",
+        href: ROUTES.dashboard.coachMessaging,
         section: "Dashboard",
         status: "Recommended",
         description:
@@ -231,7 +232,7 @@ const siteMap: PageNode[] = [
       },
       {
         title: "Rewards",
-        href: "/dashboard/rewards",
+        href: ROUTES.dashboard.social,
         section: "Dashboard",
         status: "Recommended",
         description: "Standalone Momentum rewards redemption page.",
@@ -241,57 +242,57 @@ const siteMap: PageNode[] = [
   },
   {
     title: "Online Training",
-    href: "/online-program",
+    href: "/dashboard/online-program",
     section: "Online Training",
     status: "Live",
     description: "Remote coaching dashboard.",
-    linksTo: ["/online-program/weekly-plan", "/online-program/workouts"],
+    linksTo: ["/dashboard/online-program/weekly-plan", "/dashboard/online-program/workouts"],
     children: [
       {
         title: "Current Phase",
-        href: "/online-program/current-phase",
+        href: "/dashboard/online-program/current-phase",
         section: "Online Training",
         status: "Live",
         description: "Current training block, goal, focus, and progress.",
       },
       {
         title: "Weekly Plan",
-        href: "/online-program/weekly-plan",
+        href: "/dashboard/online-program/weekly-plan",
         section: "Online Training",
         status: "Live",
         description: "Week-at-a-glance training schedule.",
       },
       {
         title: "Program Workouts",
-        href: "/online-program/workouts",
+        href: "/dashboard/online-program/workouts",
         section: "Online Training",
         status: "Live",
         description: "Assigned online program workouts.",
         children: [
           {
             title: "Workout Detail",
-            href: "/online-program/workouts/detail",
+            href: "/dashboard/online-program/workouts/detail",
             section: "Online Training",
             status: "Live",
             description: "Workout plan, exercises, and coach cues.",
             children: [
               {
                 title: "Exercise Demo",
-                href: "/online-program/workouts/detail/exercise-demo",
+                href: "/dashboard/online-program/workouts/detail/exercise-demo",
                 section: "Online Training",
                 status: "Live",
                 description: "Video demo, cues, mistakes, and modifications.",
               },
               {
                 title: "Log Sets",
-                href: "/online-program/workouts/detail/log-sets",
+                href: "/dashboard/online-program/workouts/detail/log-sets",
                 section: "Online Training",
                 status: "Live",
                 description: "Log weight, reps, RPE, and notes.",
               },
               {
                 title: "Complete Workout",
-                href: "/online-program/workouts/detail/complete",
+                href: "/dashboard/online-program/workouts/detail/complete",
                 section: "Online Training",
                 status: "Live",
                 description: "Workout recap, feedback, and next steps.",
@@ -302,28 +303,28 @@ const siteMap: PageNode[] = [
       },
       {
         title: "Program Progress",
-        href: "/online-program/progress",
+        href: "/dashboard/online-program/progress",
         section: "Online Training",
         status: "Live",
         description: "Strength, completion, and streak tracking.",
         children: [
           {
             title: "Strength Tracking",
-            href: "/online-program/progress/strength",
+            href: "/dashboard/online-program/progress/strength",
             section: "Online Training",
             status: "Live",
             description: "Track movement and lift progress.",
           },
           {
             title: "Completion %",
-            href: "/online-program/progress/completion",
+            href: "/dashboard/online-program/progress/completion",
             section: "Online Training",
             status: "Live",
             description: "Track program adherence.",
           },
           {
             title: "Streak",
-            href: "/online-program/progress/streak",
+            href: "/dashboard/online-program/progress/streak",
             section: "Online Training",
             status: "Live",
             description: "Track weekly consistency.",
@@ -332,14 +333,14 @@ const siteMap: PageNode[] = [
       },
       {
         title: "Messages",
-        href: "/online-program/messages",
+        href: "/dashboard/online-program/messages",
         section: "Online Training",
         status: "Live",
         description: "Online program messaging.",
       },
       {
         title: "Saved Workouts",
-        href: "/online-program/saved-workouts",
+        href: ROUTES.dashboard.savedSessionWorkouts,
         section: "Online Training",
         status: "Live",
         description: "Client-facing saved workout library.",
@@ -348,21 +349,21 @@ const siteMap: PageNode[] = [
   },
   {
     title: "Workout Builder",
-    href: "/workout-builder",
+    href: "/dashboard/workout-builder",
     section: "Admin",
     status: "Live",
     description: "Coach tool for creating workouts, templates, and logs.",
     children: [
       {
         title: "Exercise Library",
-        href: "/workout-builder/exercise-library",
+        href: "/dashboard/workout-builder/exercise-library",
         section: "Admin",
         status: "Live",
         description: "Exercise database and demo library.",
         children: [
           {
             title: "Exercise Demo",
-            href: "/workout-builder/exercise-library/exercise-demo",
+            href: ROUTES.workoutBuilder.exerciseDemo,
             section: "Admin",
             status: "Live",
             description: "Builder-side demo and coaching cue page.",
@@ -371,28 +372,28 @@ const siteMap: PageNode[] = [
       },
       {
         title: "Build Workout",
-        href: "/workout-builder/build",
+        href: "/dashboard/workout-builder/build",
         section: "Admin",
         status: "Live",
         description: "Create workouts from selected exercises.",
         children: [
           {
             title: "Add Exercises",
-            href: "/workout-builder/build/add-exercises",
+            href: "/dashboard/workout-builder/build/add-exercises",
             section: "Admin",
             status: "Live",
             description: "Search and select exercises.",
           },
           {
             title: "Sets / Reps",
-            href: "/workout-builder/build/sets-reps",
+            href: "/dashboard/workout-builder/build/sets-reps",
             section: "Admin",
             status: "Live",
             description: "Program volume, reps, tempo, and rest.",
           },
           {
             title: "Save Workout",
-            href: "/workout-builder/build/save",
+            href: "/dashboard/workout-builder/build/save",
             section: "Admin",
             status: "Live",
             description:
@@ -402,7 +403,7 @@ const siteMap: PageNode[] = [
       },
       {
         title: "Saved Workouts",
-        href: "/workout-builder/saved",
+        href: "/dashboard/workout-builder/saved",
         section: "Admin",
         status: "Live",
         description: "Reusable workout template library.",
@@ -418,14 +419,14 @@ const siteMap: PageNode[] = [
     children: [
       {
         title: "Session Notes",
-        href: "/coach/session-notes",
+        href: ROUTES.coach.dashboard,
         section: "Admin",
         status: "Live",
         description: "Private coaching notes and session records.",
       },
       {
         title: "Client Programming",
-        href: "/coach/programming",
+        href: ROUTES.workoutBuilder.home,
         section: "Admin",
         status: "Recommended",
         description: "Recommended coach-side program assignment system.",

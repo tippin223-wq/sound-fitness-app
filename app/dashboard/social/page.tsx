@@ -1,3 +1,5 @@
+import { ROUTES } from "@/lib/routes";
+
 const communityPosts = [
   {
     id: "1",
@@ -96,10 +98,10 @@ const postIdeas = [
 ];
 
 const quickActions = [
-  { label: "Post a Workout Win (+10)", href: "/dashboard/social/post" },
-  { label: "View Today’s Workout", href: "/dashboard" },
-  { label: "Open Progress", href: "/dashboard/progress" },
-  { label: "Message Coach", href: "/dashboard/messages" },
+  { label: "Post a Workout Win (+10)", href: ROUTES.dashboard.socialPost },
+  { label: "View Today’s Workout", href: ROUTES.dashboard.home },
+  { label: "Open Progress", href: ROUTES.dashboard.progress },
+  { label: "Message Coach", href: ROUTES.dashboard.coachMessaging },
 ];
 
 export default function ClientSocialHubPage() {

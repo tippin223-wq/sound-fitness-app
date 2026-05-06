@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { ROUTES } from "@/lib/routes";
 
 export default function AdminLayout({
   children,
@@ -15,7 +16,7 @@ export default function AdminLayout({
 
   useEffect(() => {
     async function checkAuth() {
-      if (pathname === "/admin/login") {
+      if (pathname === ROUTES.admin.login) {
         setLoading(false);
         return;
       }
@@ -25,7 +26,7 @@ export default function AdminLayout({
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.replace("/admin/login");
+        router.replace(ROUTES.admin.login);
         return;
       }
 
@@ -37,7 +38,7 @@ export default function AdminLayout({
 
       if (!profile || profile.role !== "admin") {
         await supabase.auth.signOut();
-        router.replace("/admin/login");
+        router.replace(ROUTES.admin.login);
         return;
       }
 

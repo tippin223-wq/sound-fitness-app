@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { ROUTES } from "@/lib/routes";
 
 export default function DashboardLayout({
   children,
@@ -19,7 +20,7 @@ export default function DashboardLayout({
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.replace("/login");
+        router.replace(ROUTES.auth.login);
         return;
       }
 
@@ -31,7 +32,7 @@ export default function DashboardLayout({
 
       if (!profile || profile.role !== "member") {
         await supabase.auth.signOut();
-        router.replace("/login");
+        router.replace(ROUTES.auth.login);
         return;
       }
 

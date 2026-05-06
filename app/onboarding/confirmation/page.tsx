@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ROUTES } from "@/lib/routes";
 
 export default function ConfirmationPage() {
   return (
@@ -83,14 +84,14 @@ export default function ConfirmationPage() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Link
-            href="/dashboard"
+            href={ROUTES.dashboard.home}
             className="rounded-2xl bg-sky-500 px-5 py-4 text-center font-bold text-slate-950 shadow-lg shadow-sky-500/20 hover:bg-sky-400"
           >
             Go to Dashboard
           </Link>
 
           <Link
-            href="/assessment"
+            href={ROUTES.onboarding.assessment}
             className="rounded-2xl border border-white/10 bg-white/5 px-5 py-4 text-center font-semibold text-slate-200 hover:bg-white/10"
           >
             Complete Assessment

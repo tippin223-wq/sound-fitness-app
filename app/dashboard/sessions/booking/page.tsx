@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { ROUTES } from "@/lib/routes";
 
 export default function BookingPage() {
   const router = useRouter();
@@ -23,7 +24,7 @@ export default function BookingPage() {
   function handleSubmit(e: any) {
     e.preventDefault();
     console.log(form);
-    router.push("/confirmation");
+    router.push(ROUTES.onboarding.confirmation);
   }
 
   const sessionTypes = [

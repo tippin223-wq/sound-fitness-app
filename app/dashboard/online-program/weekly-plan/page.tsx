@@ -10,7 +10,7 @@ const week = [
     time: "45–55 min",
     focus: "Squat pattern, glutes, hamstrings, bracing",
     status: "Ready",
-    href: "/online-program/workouts/detail",
+    href: "/dashboard/online-program/workouts/detail",
   },
   {
     day: "Tuesday",
@@ -19,7 +19,7 @@ const week = [
     time: "20–30 min",
     focus: "Hips, ankles, light cardio, easy movement",
     status: "Optional",
-    href: "/online-program/progress",
+    href: "/dashboard/online-program/progress",
   },
   {
     day: "Wednesday",
@@ -28,7 +28,7 @@ const week = [
     time: "45–55 min",
     focus: "Push, pull, shoulders, posture",
     status: "Ready",
-    href: "/online-program/workouts/detail",
+    href: "/dashboard/online-program/workouts/detail",
   },
   {
     day: "Thursday",
@@ -37,7 +37,7 @@ const week = [
     time: "5–10 min",
     focus: "Energy, soreness, pain, sleep, adherence",
     status: "Due",
-    href: "/online-program/progress",
+    href: "/dashboard/online-program/progress",
   },
   {
     day: "Friday",
@@ -46,7 +46,7 @@ const week = [
     time: "35–45 min",
     focus: "Carries, core, circuits, controlled pace",
     status: "Locked",
-    href: "/online-program/workouts",
+    href: "/dashboard/online-program/workouts",
   },
   {
     day: "Saturday",
@@ -55,7 +55,7 @@ const week = [
     time: "15–25 min",
     focus: "Breathing, hips, t-spine, gentle stretch",
     status: "Optional",
-    href: "/online-program/workouts",
+    href: "/dashboard/online-program/workouts",
   },
   {
     day: "Sunday",
@@ -64,7 +64,7 @@ const week = [
     time: "5 min",
     focus: "Review wins and prepare for next training week",
     status: "Open",
-    href: "/online-program/current-phase",
+    href: "/dashboard/online-program/current-phase",
   },
 ];
 
@@ -99,7 +99,7 @@ export default function WeeklyPlanPage() {
               <p className="eyebrow">Schedule</p>
               <h2>This Week</h2>
             </div>
-            <a href="/online-program/workouts">View Workouts</a>
+            <a href="/dashboard/online-program/workouts">View Workouts</a>
           </div>
 
           <div className="dayList">
@@ -138,10 +138,10 @@ export default function WeeklyPlanPage() {
 
           <div className="quickLinks">
             <h2>Quick Links</h2>
-            <a href="/online-program/current-phase">Current Phase</a>
-            <a href="/online-program/workouts">Program Workouts</a>
-            <a href="/online-program/progress">Program Progress</a>
-            <a href="/online-program/messages">Message Coach</a>
+            <a href="/dashboard/online-program/current-phase">Current Phase</a>
+            <a href="/dashboard/online-program/workouts">Program Workouts</a>
+            <a href="/dashboard/online-program/progress">Program Progress</a>
+            <a href="/dashboard/online-program/messages">Message Coach</a>
           </div>
         </aside>
       </section>

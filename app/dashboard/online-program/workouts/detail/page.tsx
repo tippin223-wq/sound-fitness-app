@@ -10,7 +10,7 @@ const exercises = [
     rest: "75 sec",
     tempo: "3-1-1",
     focus: "Control depth, brace core, drive through full foot.",
-    href: "/online-program/workouts/detail/exercise-demo",
+    href: "/dashboard/online-program/workouts/detail/exercise-demo",
   },
   {
     name: "Romanian Deadlift",
@@ -19,7 +19,7 @@ const exercises = [
     rest: "90 sec",
     tempo: "3-1-1",
     focus: "Hips back, soft knees, neutral spine, feel hamstrings.",
-    href: "/online-program/workouts/detail/exercise-demo",
+    href: "/dashboard/online-program/workouts/detail/exercise-demo",
   },
   {
     name: "Split Squat",
@@ -28,7 +28,7 @@ const exercises = [
     rest: "60 sec",
     tempo: "2-1-1",
     focus: "Stay tall, control knee path, smooth reps.",
-    href: "/online-program/workouts/detail/exercise-demo",
+    href: "/dashboard/online-program/workouts/detail/exercise-demo",
   },
   {
     name: "Dead Bug",
@@ -37,7 +37,7 @@ const exercises = [
     rest: "45 sec",
     tempo: "Slow",
     focus: "Brace ribs down, move slow, avoid arching low back.",
-    href: "/online-program/workouts/detail/exercise-demo",
+    href: "/dashboard/online-program/workouts/detail/exercise-demo",
   },
 ];
 
@@ -68,8 +68,8 @@ export default function WorkoutDetailPage() {
           </p>
 
           <div className="heroActions">
-            <a href="/online-program/workouts/detail/log-sets">Log Sets</a>
-            <a href="/online-program/workouts/detail/complete">
+            <a href="/dashboard/online-program/workouts/detail/log-sets">Log Sets</a>
+            <a href="/dashboard/online-program/workouts/detail/complete">
               Complete Workout
             </a>
           </div>
@@ -94,7 +94,7 @@ export default function WorkoutDetailPage() {
               <p className="eyebrow">Workout Plan</p>
               <h2>Exercises</h2>
             </div>
-            <a href="/online-program/workouts">Back to Workouts</a>
+            <a href="/dashboard/online-program/workouts">Back to Workouts</a>
           </div>
 
           <div className="exerciseList">
@@ -136,7 +136,7 @@ export default function WorkoutDetailPage() {
 
                 <div className="cardActions">
                   <a href={exercise.href}>View Demo</a>
-                  <a href="/online-program/workouts/detail/log-sets">
+                  <a href="/dashboard/online-program/workouts/detail/log-sets">
                     Log This Exercise
                   </a>
                 </div>
@@ -164,11 +164,11 @@ export default function WorkoutDetailPage() {
 
           <div className="quickLinks">
             <h2>Next Steps</h2>
-            <a href="/online-program/workouts/detail/exercise-demo">
+            <a href="/dashboard/online-program/workouts/detail/exercise-demo">
               Exercise Demo
             </a>
-            <a href="/online-program/workouts/detail/log-sets">Log Sets</a>
-            <a href="/online-program/workouts/detail/complete">
+            <a href="/dashboard/online-program/workouts/detail/log-sets">Log Sets</a>
+            <a href="/dashboard/online-program/workouts/detail/complete">
               Complete Workout
             </a>
           </div>

@@ -95,8 +95,8 @@ export default function ExerciseDemoPage() {
           </div>
 
           <div className="actions">
-            <a href="/online-program/workouts/detail">Back to Workout</a>
-            <a href="/online-program/workouts/detail/log-sets">Log Sets</a>
+            <a href="/dashboard/online-program/workouts/detail">Back to Workout</a>
+            <a href="/dashboard/online-program/workouts/detail/log-sets">Log Sets</a>
           </div>
         </section>
       </section>

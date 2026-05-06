@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ROUTES } from "@/lib/routes";
 
 const appointmentOffers = [
   {
@@ -44,37 +45,37 @@ const coachTools = [
     title: "My Schedule",
     icon: "📅",
     text: "View accepted appointments, availability, and upcoming sessions.",
-    href: "/coach/schedule",
+    href: ROUTES.coach.dashboard,
   },
   {
     title: "Clients",
     icon: "👥",
     text: "See client notes, goals, history, and session preferences.",
-    href: "/coach/clients",
+    href: ROUTES.coach.dashboard,
   },
   {
     title: "Session Notes",
     icon: "📝",
     text: "Log workouts, mobility work, pain notes, and coaching wins.",
-    href: "/coach/session-notes",
+    href: ROUTES.coach.dashboard,
   },
   {
     title: "Workout Builder",
     icon: "🏋️",
     text: "Build custom workouts and save templates for clients.",
-    href: "/workout-builder",
+    href: ROUTES.workoutBuilder.home,
   },
   {
     title: "Messages",
     icon: "💬",
     text: "Respond to client questions, updates, and schedule changes.",
-    href: "/coach/messages",
+    href: ROUTES.coach.dashboard,
   },
   {
     title: "Earnings",
     icon: "💸",
     text: "Track completed sessions, pending payouts, and weekly totals.",
-    href: "/coach/earnings",
+    href: ROUTES.coach.dashboard,
   },
 ];
 
@@ -347,28 +348,28 @@ export default function CoachDashboardPage() {
 
             <div className="mt-5 grid gap-3">
               <Link
-                href="/coach/schedule"
+                href={ROUTES.coach.dashboard}
                 className="rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-black text-white hover:border-sky-400/50 hover:bg-sky-500/10"
               >
                 📅 Manage Availability
               </Link>
 
               <Link
-                href="/coach/session-notes"
+                href={ROUTES.coach.dashboard}
                 className="rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-black text-white hover:border-sky-400/50 hover:bg-sky-500/10"
               >
                 📝 Add Session Notes
               </Link>
 
               <Link
-                href="/coach/messages"
+                href={ROUTES.coach.dashboard}
                 className="rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-black text-white hover:border-sky-400/50 hover:bg-sky-500/10"
               >
                 💬 Message Clients
               </Link>
 
               <Link
-                href="/coach/earnings"
+                href={ROUTES.coach.dashboard}
                 className="rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-black text-white hover:border-sky-400/50 hover:bg-sky-500/10"
               >
                 💸 View Earnings

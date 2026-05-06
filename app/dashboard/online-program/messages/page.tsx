@@ -52,7 +52,7 @@ export default function ProgramMessagingPage() {
               <p className="eyebrow">Coach Chat</p>
               <h2>Messages</h2>
             </div>
-            <a href="/online-program">Back to Dashboard</a>
+            <a href="/dashboard/online-program">Back to Dashboard</a>
           </div>
 
           <div className="messageList">
@@ -92,9 +92,9 @@ export default function ProgramMessagingPage() {
 
           <div className="quickLinks">
             <h2>Quick Links</h2>
-            <a href="/online-program/weekly-plan">Weekly Plan</a>
-            <a href="/online-program/workouts">Program Workouts</a>
-            <a href="/online-program/progress">Program Progress</a>
+            <a href="/dashboard/online-program/weekly-plan">Weekly Plan</a>
+            <a href="/dashboard/online-program/workouts">Program Workouts</a>
+            <a href="/dashboard/online-program/progress">Program Progress</a>
           </div>
         </aside>
       </section>

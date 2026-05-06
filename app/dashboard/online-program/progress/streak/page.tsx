@@ -41,7 +41,7 @@ export default function StreakPage() {
               <p className="eyebrow">Weekly Consistency</p>
               <h2>Activity Streak</h2>
             </div>
-            <a href="/online-program/progress">Back to Progress</a>
+            <a href="/dashboard/online-program/progress">Back to Progress</a>
           </div>
 
           <div className="streakGrid">
@@ -76,9 +76,9 @@ export default function StreakPage() {
 
           <div className="quickLinks">
             <h2>Next Steps</h2>
-            <a href="/online-program/weekly-plan">Weekly Plan</a>
-            <a href="/online-program/workouts">Continue Workouts</a>
-            <a href="/online-program/progress/completion">Completion %</a>
+            <a href="/dashboard/online-program/weekly-plan">Weekly Plan</a>
+            <a href="/dashboard/online-program/workouts">Continue Workouts</a>
+            <a href="/dashboard/online-program/progress/completion">Completion %</a>
           </div>
         </aside>
       </section>

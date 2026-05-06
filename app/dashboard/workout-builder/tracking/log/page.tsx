@@ -31,7 +31,7 @@ export default function LogWorkoutPage() {
               <p className="eyebrow">Workout Log</p>
               <h2>Session Details</h2>
             </div>
-            <a href="/workout-builder/tracking">Back to Tracking</a>
+            <a href="/dashboard/workout-builder/tracking">Back to Tracking</a>
           </div>
 
           <div className="formGrid">
@@ -77,8 +77,8 @@ export default function LogWorkoutPage() {
           </label>
 
           <div className="actions">
-            <a href="/workout-builder/tracking/progress">Save Log</a>
-            <a href="/workout-builder/tracking">Cancel</a>
+            <a href="/dashboard/workout-builder/tracking/progress">Save Log</a>
+            <a href="/dashboard/workout-builder/tracking">Cancel</a>
           </div>
         </section>
 
@@ -96,9 +96,9 @@ export default function LogWorkoutPage() {
 
           <div className="quickLinks">
             <h2>Quick Links</h2>
-            <a href="/workout-builder/tracking">Tracking Home</a>
-            <a href="/workout-builder/tracking/progress">Basic Progress</a>
-            <a href="/workout-builder/saved">Saved Workouts</a>
+            <a href="/dashboard/workout-builder/tracking">Tracking Home</a>
+            <a href="/dashboard/workout-builder/tracking/progress">Basic Progress</a>
+            <a href="/dashboard/workout-builder/saved">Saved Workouts</a>
           </div>
         </aside>
       </section>

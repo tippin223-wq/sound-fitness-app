@@ -9,7 +9,7 @@ const workouts = [
     duration: "45–55 min",
     status: "Completed",
     day: "Day 1",
-    href: "/online-program/workouts/detail",
+    href: "/dashboard/online-program/workouts/detail",
   },
   {
     title: "Upper Body Foundation",
@@ -17,7 +17,7 @@ const workouts = [
     duration: "45–55 min",
     status: "Ready",
     day: "Day 2",
-    href: "/online-program/workouts/detail",
+    href: "/dashboard/online-program/workouts/detail",
   },
   {
     title: "Full Body Conditioning",
@@ -25,7 +25,7 @@ const workouts = [
     duration: "35–45 min",
     status: "Locked",
     day: "Day 3",
-    href: "/online-program/workouts",
+    href: "/dashboard/online-program/workouts",
   },
 ];
 
@@ -74,9 +74,9 @@ export default function ProgramWorkoutsPage() {
       </section>
 
       <section className="navLinks">
-        <a href="/online-program/weekly-plan">← Weekly Plan</a>
-        <a href="/online-program/current-phase">Current Phase</a>
-        <a href="/online-program/progress">Progress →</a>
+        <a href="/dashboard/online-program/weekly-plan">← Weekly Plan</a>
+        <a href="/dashboard/online-program/current-phase">Current Phase</a>
+        <a href="/dashboard/online-program/progress">Progress →</a>
       </section>
 
       <style>{`

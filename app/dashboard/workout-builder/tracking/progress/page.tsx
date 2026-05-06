@@ -41,7 +41,7 @@ export default function TrackingProgressPage() {
               <p className="eyebrow">Recent Logs</p>
               <h2>Workout History</h2>
             </div>
-            <a href="/workout-builder/tracking/log">Log Workout</a>
+            <a href="/dashboard/workout-builder/tracking/log">Log Workout</a>
           </div>
 
           <div className="tableHeader">
@@ -84,9 +84,9 @@ export default function TrackingProgressPage() {
 
           <div className="quickLinks">
             <h2>Quick Links</h2>
-            <a href="/workout-builder/tracking">Tracking Home</a>
-            <a href="/workout-builder/tracking/log">Log Workout</a>
-            <a href="/workout-builder/saved">Saved Workouts</a>
+            <a href="/dashboard/workout-builder/tracking">Tracking Home</a>
+            <a href="/dashboard/workout-builder/tracking/log">Log Workout</a>
+            <a href="/dashboard/workout-builder/saved">Saved Workouts</a>
           </div>
         </aside>
       </section>

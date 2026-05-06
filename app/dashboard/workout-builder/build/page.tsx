@@ -68,7 +68,7 @@ export default function BuildWorkoutPage() {
             </button>
           ))}
 
-          <a className="libraryLink" href="/workout-builder/exercise-library">
+          <a className="libraryLink" href="/dashboard/workout-builder/exercise-library">
             Open Full Exercise Library
           </a>
         </aside>
@@ -79,7 +79,7 @@ export default function BuildWorkoutPage() {
               <p className="eyebrow">Workout Setup</p>
               <h2>Workout Details</h2>
             </div>
-            <a href="/workout-builder/build/save">Save Workout</a>
+            <a href="/dashboard/workout-builder/build/save">Save Workout</a>
           </div>
 
           <label className="field">
@@ -113,9 +113,9 @@ export default function BuildWorkoutPage() {
           </div>
 
           <div className="actions">
-            <a href="/workout-builder/build/add-exercises">Add Exercises</a>
-            <a href="/workout-builder/build/sets-reps">Edit Sets / Reps</a>
-            <a href="/workout-builder/saved">Saved Workouts</a>
+            <a href="/dashboard/workout-builder/build/add-exercises">Add Exercises</a>
+            <a href="/dashboard/workout-builder/build/sets-reps">Edit Sets / Reps</a>
+            <a href="/dashboard/workout-builder/saved">Saved Workouts</a>
           </div>
         </section>
       </section>

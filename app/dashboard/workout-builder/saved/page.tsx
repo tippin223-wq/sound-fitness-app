@@ -9,7 +9,7 @@ const savedWorkouts = [
     level: "Beginner / Intermediate",
     time: "45–55 min",
     exercises: 3,
-    href: "/workout-builder/saved/detail",
+    href: "/dashboard/workout-builder/saved/detail",
   },
   {
     title: "Upper Body Foundation",
@@ -17,7 +17,7 @@ const savedWorkouts = [
     level: "Beginner",
     time: "40–50 min",
     exercises: 5,
-    href: "/workout-builder/saved/detail",
+    href: "/dashboard/workout-builder/saved/detail",
   },
   {
     title: "Full Body Conditioning",
@@ -25,7 +25,7 @@ const savedWorkouts = [
     level: "Intermediate",
     time: "35–45 min",
     exercises: 6,
-    href: "/workout-builder/saved/detail",
+    href: "/dashboard/workout-builder/saved/detail",
   },
 ];
 
@@ -51,7 +51,7 @@ export default function SavedWorkoutsPage() {
 
       <section className="toolbar">
         <input placeholder="Search saved workouts..." />
-        <a href="/workout-builder/build">Build New Workout</a>
+        <a href="/dashboard/workout-builder/build">Build New Workout</a>
       </section>
 
       <section className="grid">
@@ -90,9 +90,9 @@ export default function SavedWorkoutsPage() {
         </div>
 
         <div className="quickLinks">
-          <a href="/workout-builder">Builder Home</a>
-          <a href="/workout-builder/exercise-library">Exercise Library</a>
-          <a href="/workout-builder/build/save">Save Workout</a>
+          <a href="/dashboard/workout-builder">Builder Home</a>
+          <a href="/dashboard/workout-builder/exercise-library">Exercise Library</a>
+          <a href="/dashboard/workout-builder/build/save">Save Workout</a>
         </div>
       </section>
 

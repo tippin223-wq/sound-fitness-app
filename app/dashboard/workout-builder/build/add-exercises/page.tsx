@@ -115,7 +115,7 @@ export default function AddExercisesPage() {
         </div>
 
         <div className="actions">
-          <a href="/workout-builder/build">Back to Builder</a>
+          <a href="/dashboard/workout-builder/build">Back to Builder</a>
           <button disabled={selected.length === 0}>Add to Workout</button>
         </div>
       </section>

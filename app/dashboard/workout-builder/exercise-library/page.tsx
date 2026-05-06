@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import { exerciseLibrary } from "@/lib/training/exerciseLibrary";
+import { ROUTES } from "@/lib/routes";
 
 type Exercise = {
   id: string;
@@ -461,7 +462,7 @@ export default function ExerciseLibraryPage() {
               <button
                 type="button"
                 onClick={() =>
-                  (window.location.href = "/dashboard/workout-builder")
+                  (window.location.href = ROUTES.workoutBuilder.home)
                 }
                 className="mt-4 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white"
               >
@@ -940,14 +941,14 @@ export default function ExerciseLibraryPage() {
 
                   <div className="mt-3 grid gap-2">
                     <a
-                      href="/dashboard/stats"
+                      href={ROUTES.dashboard.stats}
                       className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-sm font-black text-slate-300 transition hover:border-yellow-300/40 hover:text-white"
                     >
                       View Stats Page →
                     </a>
 
                     <a
-                      href={`/dashboard/workout-builder/exercise-library/${statsExercise.id}`}
+                      href={ROUTES.workoutBuilder.exerciseDemo}
                       className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
                     >
                       View Full Demo Page →

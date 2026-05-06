@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import AppHeader from "@/components/AppHeader";
+import { ROUTES } from "@/lib/routes";
 
 type PlanMode = "coach" | "custom" | "hybrid";
 
@@ -117,37 +118,37 @@ export default function SessionsPage() {
   ];
 
   const sessionLinks = [
-    { label: "Start Workout", href: "/dashboard/sessions/workout", icon: "🏋️" },
+    { label: "Start Workout", href: ROUTES.dashboard.sessionWorkout, icon: "🏋️" },
     {
       label: "Workout Builder",
-      href: "/dashboard/workout-builder",
+      href: ROUTES.workoutBuilder.home,
       icon: "🧱",
     },
     {
       label: "Exercise Library",
-      href: "/dashboard/workout-builder/exercise-library",
+      href: ROUTES.workoutBuilder.exerciseLibrary,
       icon: "📚",
     },
     {
       label: "Stats Dashboard",
-      href: "/dashboard/stats",
+      href: ROUTES.dashboard.stats,
       icon: "📈",
     },
-    { label: "Book Session", href: "/dashboard/sessions/booking", icon: "📅" },
+    { label: "Book Session", href: ROUTES.dashboard.sessionBooking, icon: "📅" },
     {
       label: "Saved Workouts",
-      href: "/dashboard/sessions/saved-workouts",
+      href: ROUTES.dashboard.savedSessionWorkouts,
       icon: "💾",
     },
     {
       label: "Session Notes",
-      href: "/dashboard/sessions/session-notes",
+      href: ROUTES.dashboard.sessionNotes,
       icon: "📝",
     },
-    { label: "History", href: "/dashboard/sessions/history", icon: "📘" },
+    { label: "History", href: ROUTES.dashboard.sessionHistory, icon: "📘" },
     {
       label: "Complete Workout",
-      href: "/dashboard/sessions/workout-complete",
+      href: ROUTES.dashboard.workoutComplete,
       icon: "✅",
     },
   ];
@@ -205,8 +206,8 @@ export default function SessionsPage() {
                 <Link
                   href={
                     hasNextSession
-                      ? "/dashboard/sessions/workout"
-                      : "/dashboard/sessions/booking"
+                      ? ROUTES.dashboard.sessionWorkout
+                      : ROUTES.dashboard.sessionBooking
                   }
                   className="rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_28px_rgba(34,211,238,0.25)] hover:bg-cyan-300"
                 >
@@ -216,7 +217,7 @@ export default function SessionsPage() {
                 </Link>
 
                 <Link
-                  href="/dashboard/sessions/saved-workouts"
+                  href={ROUTES.dashboard.savedSessionWorkouts}
                   className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-200 hover:border-cyan-300/40"
                 >
                   View Saved Workouts
@@ -372,13 +373,13 @@ export default function SessionsPage() {
 
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link
-                  href="/dashboard/sessions/workout-builder"
+                  href={ROUTES.workoutBuilder.home}
                   className="rounded-2xl bg-emerald-400 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-slate-950 hover:bg-emerald-300"
                 >
                   Edit Plan
                 </Link>
                 <Link
-                  href="/dashboard/sessions/saved-workouts"
+                  href={ROUTES.dashboard.savedSessionWorkouts}
                   className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-slate-200 hover:border-emerald-300/40"
                 >
                   Choose Template

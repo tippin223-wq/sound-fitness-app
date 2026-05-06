@@ -96,7 +96,7 @@ export default function LogSetsPage() {
               </p>
             </div>
 
-            <a href="/online-program/workouts/detail/complete">
+            <a href="/dashboard/online-program/workouts/detail/complete">
               Finish Workout
             </a>
           </div>
@@ -152,7 +152,7 @@ export default function LogSetsPage() {
           <div className="actions">
             <button onClick={addSet}>Add Set</button>
             <button onClick={clearSets}>Clear</button>
-            <a href="/online-program/workouts/detail">Back to Workout</a>
+            <a href="/dashboard/online-program/workouts/detail">Back to Workout</a>
           </div>
 
           <div className="coachBox">

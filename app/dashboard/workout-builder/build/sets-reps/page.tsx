@@ -66,7 +66,7 @@ export default function SetsRepsPage() {
             <p className="eyebrow">Programming</p>
             <h2>Workout Structure</h2>
           </div>
-          <a href="/workout-builder/build/save">Save Workout</a>
+          <a href="/dashboard/workout-builder/build/save">Save Workout</a>
         </div>
 
         <div className="tableHeader">
@@ -106,9 +106,9 @@ export default function SetsRepsPage() {
         </div>
 
         <div className="actions">
-          <a href="/workout-builder/build/add-exercises">Add Exercises</a>
-          <a href="/workout-builder/build">Back to Builder</a>
-          <a href="/workout-builder/build/save">Save</a>
+          <a href="/dashboard/workout-builder/build/add-exercises">Add Exercises</a>
+          <a href="/dashboard/workout-builder/build">Back to Builder</a>
+          <a href="/dashboard/workout-builder/build/save">Save</a>
         </div>
       </section>
 
