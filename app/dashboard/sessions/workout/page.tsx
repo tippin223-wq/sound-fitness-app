@@ -10,7 +10,7 @@ import {
   type LocalWorkoutBuilderSessionTemplate,
   writeActiveWorkoutBuilderSessionTemplate,
 } from "@/lib/localData/workoutBuilderData";
-import { saveWorkoutSessionExerciseStats } from "@/lib/localData/workoutData";
+import { saveCompletedWorkoutLogWithFallback } from "@/lib/data/workoutPersistence";
 import { ROUTES } from "@/lib/routes";
 import type { LocalExerciseStatEntry } from "@/types";
 
@@ -464,7 +464,7 @@ export default function WorkoutBuilderPage() {
     }));
   };
 
-  const saveWorkoutStats = () => {
+  const saveWorkoutStats = async () => {
     const completedAt = new Date().toISOString();
     const completedEntries: LocalExerciseStatEntry[] = [];
 
@@ -499,12 +499,21 @@ export default function WorkoutBuilderPage() {
 
     try {
       setIsSaving(true);
-      saveWorkoutSessionExerciseStats(completedEntries);
+      const result = await saveCompletedWorkoutLogWithFallback({
+        title: workout.title,
+        templateId: activeSessionTemplate?.id ?? null,
+        startedAt: activeSessionTemplate?.startedAt ?? null,
+        completedAt,
+        entries: completedEntries,
+      });
+      const sourceLabel =
+        result.source === "supabase" ? "Supabase" : "localStorage fallback";
+
       setLastSavedAt(completedAt);
       setSaveMessage(
         `Saved ${completedEntries.length} exercise ${
           completedEntries.length === 1 ? "entry" : "entries"
-        }. Opening stats...`,
+        } via ${sourceLabel}. Opening stats...`,
       );
       window.setTimeout(() => {
         router.push(ROUTES.dashboard.stats);
@@ -887,8 +896,9 @@ export default function WorkoutBuilderPage() {
                     Save weight, reps, and sets
                   </h3>
                   <p className="mt-1 text-sm text-slate-400">
-                    Completed movements are saved to your local stats when you
-                    finish the workout. Use 0 for bodyweight movements.
+                    Completed movements stay available in your local stats and
+                    sync to Supabase when available. Use 0 for bodyweight
+                    movements.
                   </p>
                 </div>
 

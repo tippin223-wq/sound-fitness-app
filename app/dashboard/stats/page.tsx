@@ -3,23 +3,50 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
-import {
-  readExerciseStats,
-  subscribeToLocalWorkoutData,
-} from "@/lib/localData/workoutData";
+import { loadWorkoutLogEntriesWithFallback } from "@/lib/data/workoutPersistence";
+import { subscribeToLocalWorkoutData } from "@/lib/localData/workoutData";
 import type { LocalExerciseStatEntry } from "@/types";
 
 type StatEntry = LocalExerciseStatEntry;
 
+const getStatsSourceLabel = ({
+  source,
+  error,
+}: {
+  source: "supabase" | "localStorage";
+  error: string | null;
+}) => {
+  if (source === "supabase") return "Supabase";
+
+  return error && !error.includes("No authenticated Supabase user")
+    ? "error fallback"
+    : "localStorage fallback";
+};
+
 export default function StatsPage() {
   const [stats, setStats] = useState<StatEntry[]>([]);
+  const [statsSourceLabel, setStatsSourceLabel] = useState("Loading stats");
 
   useEffect(() => {
-    const syncStats = () => setStats(readExerciseStats());
+    let isActive = true;
+    const syncStats = async () => {
+      const result = await loadWorkoutLogEntriesWithFallback();
+
+      if (!isActive) return;
+
+      setStats(result.data);
+      setStatsSourceLabel(getStatsSourceLabel(result));
+    };
 
     syncStats();
+    const unsubscribe = subscribeToLocalWorkoutData(() => {
+      void syncStats();
+    });
 
-    return subscribeToLocalWorkoutData(syncStats);
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
   }, []);
 
   const groupedStats = useMemo(() => {
@@ -103,6 +130,10 @@ export default function StatsPage() {
                 Exercise Library so your recent work stays visible after every
                 logged set.
               </p>
+
+              <div className="mt-4 inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                {statsSourceLabel}
+              </div>
 
               <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <Link

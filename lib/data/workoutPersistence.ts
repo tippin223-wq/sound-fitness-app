@@ -819,9 +819,15 @@ export const loadWorkoutLogEntriesWithFallback = async (): Promise<
 > => {
   const supabaseResult = await loadWorkoutLogEntriesFromSupabase();
 
-  if (supabaseResult.success) return supabaseResult;
+  if (supabaseResult.success && supabaseResult.data.length > 0) {
+    return supabaseResult;
+  }
 
   const localResult = loadWorkoutLogEntriesFromLocalStorage();
+
+  if (supabaseResult.success) {
+    return localResult.data.length > 0 ? localResult : supabaseResult;
+  }
 
   return {
     ...localResult,
@@ -832,11 +838,10 @@ export const loadWorkoutLogEntriesWithFallback = async (): Promise<
 export const saveCompletedWorkoutLogWithFallback = async (
   input: SaveCompletedWorkoutLogInput,
 ): Promise<WorkoutPersistenceResult<SavedWorkoutLogSummary>> => {
+  const localResult = saveCompletedWorkoutLogToLocalStorage(input);
   const supabaseResult = await saveCompletedWorkoutLogToSupabase(input);
 
   if (supabaseResult.success) return supabaseResult;
-
-  const localResult = saveCompletedWorkoutLogToLocalStorage(input);
 
   return {
     ...localResult,

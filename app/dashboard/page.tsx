@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
-import {
-  readExerciseStats,
-  subscribeToLocalWorkoutData,
-} from "@/lib/localData/workoutData";
+import { loadWorkoutLogEntriesWithFallback } from "@/lib/data/workoutPersistence";
+import { subscribeToLocalWorkoutData } from "@/lib/localData/workoutData";
 import { ROUTES } from "@/lib/routes";
 import { supabase } from "@/lib/supabaseClient";
 import type { LocalExerciseStatEntry } from "@/types";
@@ -22,6 +20,20 @@ const formatDashboardDate = (value?: string) => {
     day: "numeric",
     year: "numeric",
   }).format(date);
+};
+
+const getStatsSourceLabel = ({
+  source,
+  error,
+}: {
+  source: "supabase" | "localStorage";
+  error: string | null;
+}) => {
+  if (source === "supabase") return "Supabase";
+
+  return error && !error.includes("No authenticated Supabase user")
+    ? "error fallback"
+    : "localStorage fallback";
 };
 
 const portalCards = [
@@ -62,6 +74,7 @@ export default function UserHomeDashboardPage() {
   const [exerciseStats, setExerciseStats] = useState<LocalExerciseStatEntry[]>(
     [],
   );
+  const [statsSourceLabel, setStatsSourceLabel] = useState("Loading stats");
 
   useEffect(() => {
     async function loadUser() {
@@ -88,11 +101,25 @@ export default function UserHomeDashboardPage() {
   }, []);
 
   useEffect(() => {
-    const syncStats = () => setExerciseStats(readExerciseStats());
+    let isActive = true;
+    const syncStats = async () => {
+      const result = await loadWorkoutLogEntriesWithFallback();
+
+      if (!isActive) return;
+
+      setExerciseStats(result.data);
+      setStatsSourceLabel(getStatsSourceLabel(result));
+    };
 
     syncStats();
+    const unsubscribe = subscribeToLocalWorkoutData(() => {
+      void syncStats();
+    });
 
-    return subscribeToLocalWorkoutData(syncStats);
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
   }, []);
 
   const workoutSummary = useMemo(() => {
@@ -224,6 +251,9 @@ export default function UserHomeDashboardPage() {
             <p className="mt-2 text-sm text-slate-400">
               {workoutSummary.mostRecentDate}
             </p>
+            <div className="mt-3 inline-flex rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200">
+              {statsSourceLabel}
+            </div>
 
             {workoutSummary.hasStats ? (
               <div className="mt-5 space-y-2">
