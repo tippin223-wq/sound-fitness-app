@@ -1,45 +1,32 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { getExerciseCatalogWithLegacyFallback } from "@/lib/training/normalizedExerciseCatalog";
+import type { ExerciseCatalogItem } from "@/types";
 
-type Exercise = {
-  name: string;
-  pattern: "Squat" | "Hinge" | "Push" | "Pull" | "Core" | "Carry";
-  equipment: "Bodyweight" | "Dumbbell" | "Barbell" | "Cable";
-};
+type Exercise = ExerciseCatalogItem;
 
-const ALL_EXERCISES: Exercise[] = [
-  { name: "Goblet Squat", pattern: "Squat", equipment: "Dumbbell" },
-  { name: "Back Squat", pattern: "Squat", equipment: "Barbell" },
-  { name: "Romanian Deadlift", pattern: "Hinge", equipment: "Dumbbell" },
-  { name: "Deadlift", pattern: "Hinge", equipment: "Barbell" },
-  { name: "Push-Up", pattern: "Push", equipment: "Bodyweight" },
-  { name: "DB Bench Press", pattern: "Push", equipment: "Dumbbell" },
-  { name: "1-Arm Row", pattern: "Pull", equipment: "Dumbbell" },
-  { name: "Cable Row", pattern: "Pull", equipment: "Cable" },
-  { name: "Dead Bug", pattern: "Core", equipment: "Bodyweight" },
-  { name: "Pallof Press", pattern: "Core", equipment: "Cable" },
-  { name: "Farmer Carry", pattern: "Carry", equipment: "Dumbbell" },
-];
+const ALL_EXERCISES: Exercise[] = getExerciseCatalogWithLegacyFallback();
 
 const PATTERNS = [
   "All",
-  "Squat",
-  "Hinge",
-  "Push",
-  "Pull",
-  "Core",
-  "Carry",
+  ...Array.from(new Set(ALL_EXERCISES.map((exercise) => exercise.pattern))).sort(),
 ] as const;
 
 export default function AddExercisesPage() {
   const [query, setQuery] = useState("");
-  const [pattern, setPattern] = useState<(typeof PATTERNS)[number]>("All");
+  const [pattern, setPattern] = useState<string>("All");
   const [selected, setSelected] = useState<string[]>([]);
 
   const filtered = useMemo(() => {
     return ALL_EXERCISES.filter((ex) => {
-      const matchesQuery = ex.name.toLowerCase().includes(query.toLowerCase());
+      const normalizedQuery = query.toLowerCase();
+      const matchesQuery =
+        ex.name.toLowerCase().includes(normalizedQuery) ||
+        ex.body.toLowerCase().includes(normalizedQuery) ||
+        ex.muscles.toLowerCase().includes(normalizedQuery) ||
+        ex.equipment.toLowerCase().includes(normalizedQuery) ||
+        ex.goal.toLowerCase().includes(normalizedQuery);
       const matchesPattern = pattern === "All" ? true : ex.pattern === pattern;
       return matchesQuery && matchesPattern;
     });

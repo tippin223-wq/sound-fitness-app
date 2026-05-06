@@ -4,16 +4,12 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
 import { ROUTES, workoutBuilderAddToPlan } from "@/lib/routes";
-import { exerciseLibrary } from "@/lib/training/exerciseLibrary";
+import { getExerciseCatalogWithLegacyFallback } from "@/lib/training/normalizedExerciseCatalog";
+import type { ExerciseCatalogItem } from "@/types";
 
-type Exercise = {
-  id: number;
-  name: string;
-  goal: string;
-  equipment: string;
-  body?: string;
-  pattern?: string;
-};
+type Exercise = ExerciseCatalogItem;
+
+const builderExercises: Exercise[] = getExerciseCatalogWithLegacyFallback();
 
 type TemplateSection = {
   title: string;
@@ -142,61 +138,11 @@ export default function WorkoutBuilderPage() {
     [],
   );
 
-  const exerciseResults: Exercise[] = [
-    {
-      id: 1,
-      name: "Goblet Squat",
-      pattern: "Squat",
-      goal: "Strength",
-      equipment: "DB",
-      body: "Legs",
-    },
-    {
-      id: 2,
-      name: "RDL",
-      pattern: "Hinge",
-      goal: "Strength",
-      equipment: "DB",
-      body: "Hamstrings",
-    },
-    {
-      id: 3,
-      name: "Bench Press",
-      pattern: "Push",
-      goal: "Strength",
-      equipment: "Barbell",
-      body: "Chest",
-    },
-    {
-      id: 4,
-      name: "Pull-Up",
-      pattern: "Pull",
-      goal: "Strength",
-      equipment: "Bodyweight",
-      body: "Back",
-    },
-    {
-      id: 5,
-      name: "Dead Bug",
-      pattern: "Core",
-      goal: "Mobility",
-      equipment: "Bodyweight",
-      body: "Core",
-    },
-    {
-      id: 6,
-      name: "Farmer Carry",
-      pattern: "Carry",
-      goal: "Strength",
-      equipment: "DB",
-      body: "Full Body",
-    },
-  ];
   const exerciseBodyOptions = useMemo(() => {
     return [
       "All",
       ...Array.from(
-        new Set(exerciseLibrary.map((exercise) => exercise.body)),
+        new Set(builderExercises.map((exercise) => exercise.body)),
       ).sort(),
     ];
   }, []);
@@ -205,7 +151,7 @@ export default function WorkoutBuilderPage() {
     return [
       "All",
       ...Array.from(
-        new Set(exerciseLibrary.map((exercise) => exercise.goal)),
+        new Set(builderExercises.map((exercise) => exercise.goal)),
       ).sort(),
     ];
   }, []);
@@ -213,7 +159,7 @@ export default function WorkoutBuilderPage() {
   const filteredExercises = useMemo(() => {
     const q = exerciseSearch.toLowerCase();
 
-    return exerciseLibrary.filter((exercise) => {
+    return builderExercises.filter((exercise) => {
       const matchesSearch =
         exercise.name.toLowerCase().includes(q) ||
         exercise.body.toLowerCase().includes(q) ||
@@ -292,7 +238,7 @@ export default function WorkoutBuilderPage() {
     onChange: (value: string) => void;
   }) => {
     const [open, setOpen] = useState(false);
-    const selected = exerciseLibrary.find(
+    const selected = builderExercises.find(
       (exercise) => exercise.name === value,
     );
 
@@ -318,7 +264,7 @@ export default function WorkoutBuilderPage() {
 
         {open && (
           <div className="absolute left-0 right-0 z-50 mt-2 max-h-80 overflow-y-auto rounded-[24px] border border-cyan-300/20 bg-slate-950/95 p-2 shadow-[0_30px_90px_rgba(0,0,0,0.65)] backdrop-blur-xl">
-            {exerciseLibrary.map((exercise) => (
+            {builderExercises.map((exercise) => (
               <button
                 key={exercise.id}
                 type="button"
@@ -358,7 +304,7 @@ export default function WorkoutBuilderPage() {
     const filteredPickerExercises = useMemo(() => {
       const q = exerciseSearch.trim().toLowerCase();
 
-      return exerciseLibrary.filter((exercise) => {
+      return builderExercises.filter((exercise) => {
         const matchesSearch =
           q === "" ||
           exercise.name.toLowerCase().includes(q) ||
@@ -632,7 +578,7 @@ export default function WorkoutBuilderPage() {
                 <div className="flex w-max gap-4">
                   {templateSections.flatMap((section, sectionIndex) =>
                     section.slots.map((slot, slotIndex) => {
-                      const selected = exerciseLibrary.find(
+                      const selected = builderExercises.find(
                         (exercise) => exercise.name === slot.exercise,
                       );
 

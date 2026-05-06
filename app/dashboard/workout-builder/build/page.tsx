@@ -1,14 +1,11 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import { getExerciseCatalogWithLegacyFallback } from "@/lib/training/normalizedExerciseCatalog";
+import type { ExerciseCatalogItem } from "@/types";
 
-const exerciseOptions = [
-  { name: "Goblet Squat", pattern: "Squat", equipment: "Dumbbell" },
-  { name: "Romanian Deadlift", pattern: "Hinge", equipment: "Dumbbells" },
-  { name: "Push-Up", pattern: "Push", equipment: "Bodyweight" },
-  { name: "1-Arm Row", pattern: "Pull", equipment: "Dumbbell" },
-  { name: "Dead Bug", pattern: "Core", equipment: "Bodyweight" },
-];
+const exerciseOptions: ExerciseCatalogItem[] =
+  getExerciseCatalogWithLegacyFallback();
 
 export default function BuildWorkoutPage() {
   const [selected, setSelected] = useState<string[]>([

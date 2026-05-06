@@ -1,11 +1,34 @@
 "use client";
 
 import React, { useState } from "react";
+import { getExerciseCatalogWithLegacyFallback } from "@/lib/training/normalizedExerciseCatalog";
+import type { ExerciseCatalogItem } from "@/types";
 
-const exercises = ["Squat", "Bench Press", "Deadlift", "Row", "Shoulder Press"];
+const demoExerciseNames = [
+  "Goblet Squat",
+  "Barbell Bench Press",
+  "Conventional Deadlift",
+  "Bent Over Row",
+  "DB Shoulder Press",
+];
+
+const catalogExercises: ExerciseCatalogItem[] =
+  getExerciseCatalogWithLegacyFallback();
+
+const exercises = demoExerciseNames
+  .map((name) => catalogExercises.find((exercise) => exercise.name === name))
+  .filter(Boolean) as ExerciseCatalogItem[];
+
+const demoExercises =
+  exercises.length > 0 ? exercises : catalogExercises.slice(0, 5);
 
 export default function BuilderExerciseDemoPage() {
-  const [selected, setSelected] = useState("Squat");
+  const [selected, setSelected] = useState(
+    demoExercises[0]?.name || "Exercise Demo",
+  );
+  const selectedExercise =
+    demoExercises.find((exercise) => exercise.name === selected) ||
+    demoExercises[0];
 
   return (
     <main className="builderDemoPage">
@@ -20,8 +43,12 @@ export default function BuilderExerciseDemoPage() {
         </div>
 
         <div className="quickCard">
-          <h2>{selected}</h2>
-          <p>Movement demo, cues, mistakes, and programming notes.</p>
+          <h2>{selectedExercise?.name || selected}</h2>
+          <p>
+            {selectedExercise
+              ? `${selectedExercise.pattern} - ${selectedExercise.equipment}`
+              : "Movement demo, cues, mistakes, and programming notes."}
+          </p>
         </div>
       </section>
 
@@ -29,13 +56,13 @@ export default function BuilderExerciseDemoPage() {
         <aside className="exerciseList">
           <h2>Exercises</h2>
 
-          {exercises.map((ex) => (
+          {demoExercises.map((ex) => (
             <button
-              key={ex}
-              onClick={() => setSelected(ex)}
-              className={selected === ex ? "active" : ""}
+              key={ex.id}
+              onClick={() => setSelected(ex.name)}
+              className={selected === ex.name ? "active" : ""}
             >
-              {ex}
+              {ex.name}
             </button>
           ))}
         </aside>
@@ -53,7 +80,7 @@ export default function BuilderExerciseDemoPage() {
             <div className="card">
               <h3>Coach Cues</h3>
               <ul>
-                <li>Stay controlled</li>
+                <li>{selectedExercise?.cue || "Stay controlled"}</li>
                 <li>Brace before moving</li>
                 <li>Use full range of motion</li>
               </ul>
