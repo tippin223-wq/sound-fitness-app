@@ -1,8 +1,46 @@
+"use client";
+
 import Link from "next/link";
+import AppHeader from "@/components/AppHeader";
+import { useEffect, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+);
 
 export default function UserHomeDashboardPage() {
+  const [firstName, setFirstName] = useState("Member");
+
+  useEffect(() => {
+    async function loadUser() {
+      const { data } = await supabase.auth.getUser();
+
+      const { data: authData } = await supabase.auth.getUser();
+
+      if (!authData.user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", authData.user.id)
+        .single();
+
+      const name =
+        profile?.full_name?.split(" ")[0] ||
+        authData.user.user_metadata?.first_name ||
+        "Member";
+
+      setFirstName(name);
+
+      setFirstName(name);
+    }
+
+    loadUser();
+  }, []);
+
   const user = {
-    firstName: "Joey",
     nextWorkout: "Lower Body Strength",
     nextWorkoutTime: "Today • 6:30 PM",
     streak: 6,
@@ -96,6 +134,8 @@ export default function UserHomeDashboardPage() {
 
   return (
     <main className="min-h-screen bg-[#020713] text-white">
+      <AppHeader />
+
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_0%,rgba(14,165,233,0.18),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(56,189,248,0.12),transparent_28%),linear-gradient(180deg,#020713_0%,#06111f_48%,#020713_100%)]" />
 
       <div className="mx-auto max-w-7xl px-5 py-6 sm:px-8 lg:py-8">
@@ -104,10 +144,11 @@ export default function UserHomeDashboardPage() {
             <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-400">
               Sound Fitness Member Portal
             </div>
+
             <h1 className="mt-3 text-4xl font-black uppercase tracking-tight sm:text-5xl">
-              Welcome back,{" "}
-              <span className="text-sky-400">{user.firstName}</span>
+              Welcome back, <span className="text-sky-400">{firstName}</span>
             </h1>
+
             <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
               Your workouts, sessions, recovery, nutrition, payments, messages,
               and progress are all organized here.
@@ -121,6 +162,7 @@ export default function UserHomeDashboardPage() {
             >
               View Sessions
             </Link>
+
             <Link
               href="/dashboard/progress"
               className="rounded-2xl bg-sky-500 px-5 py-3 text-center text-xs font-black uppercase tracking-[0.16em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400"

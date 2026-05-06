@@ -2,17 +2,67 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-export default function MemberLoginPage() {
+type Role = "member" | "coach" | "admin";
+
+export default function LoginPage() {
   const router = useRouter();
+  const pathname =
+    typeof window !== "undefined" ? window.location.pathname : "/login";
+
+  const portal = useMemo(() => {
+    if (pathname.startsWith("/admin")) {
+      return {
+        label: "Admin Sign In",
+        title: "Admin Access",
+        subtitle:
+          "Access your Sound Fitness admin portal and manage the business.",
+        button: "Enter Admin Portal →",
+        allowedRoles: ["admin"] as Role[],
+      };
+    }
+
+    if (pathname.startsWith("/coach")) {
+      return {
+        label: "Coach Sign In",
+        title: "Coach Access",
+        subtitle:
+          "Access your coaching tools, members, sessions, and messages.",
+        button: "Enter Coach Portal →",
+        allowedRoles: ["coach", "admin"] as Role[],
+      };
+    }
+
+    return {
+      label: "Member Sign In",
+      title: "Welcome Back",
+      subtitle:
+        "Access your Sound Fitness dashboard and keep your momentum going.",
+      button: "Enter Member Dashboard →",
+      allowedRoles: ["member"] as Role[],
+    };
+  }, [pathname]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  function getRedirectPath(role: Role) {
+    const next =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("next")
+        : null;
+
+    if (next) return next;
+
+    if (role === "admin") return "/admin";
+    if (role === "coach") return "/coach/dashboard";
+    return "/dashboard";
+  }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -25,42 +75,39 @@ export default function MemberLoginPage() {
       password,
     });
 
-    if (error) {
+    if (error || !data.user) {
       setIsLoading(false);
       setErrorMessage("Email or password is incorrect.");
       return;
     }
 
-    const user = data.user;
-
-    if (!user) {
-      setIsLoading(false);
-      setErrorMessage("Login failed. Please try again.");
-      return;
-    }
-
+    // 🔥 IMPORTANT: get role
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
-      .eq("id", user.id)
+      .eq("id", data.user.id)
       .single();
 
-    setIsLoading(false);
-
-    if (profileError || !profile) {
+    if (profileError || !profile?.role) {
+      setIsLoading(false);
       setErrorMessage("Account profile not found.");
       return;
     }
 
-    if (profile.role !== "member") {
+    const role = profile.role as Role;
+
+    // 🚫 block wrong portal usage
+    if (!portal.allowedRoles.includes(role)) {
       await supabase.auth.signOut();
-      setErrorMessage(
-        "This login is for members only. Please use the correct portal.",
-      );
+      setIsLoading(false);
+      setErrorMessage("Use the correct portal for this account.");
       return;
     }
 
-    router.replace("/dashboard");
+    // ✅ FINAL REDIRECT FIX
+    const destination = getRedirectPath(role);
+
+    router.replace(destination);
     router.refresh();
   }
 
@@ -97,7 +144,7 @@ export default function MemberLoginPage() {
         <div className="relative hidden lg:block">
           <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/30 bg-sky-500/10 px-4 py-2 text-[11px] font-black uppercase tracking-[0.18em] text-white">
             <span className="h-2 w-2 rounded-full bg-sky-400" />
-            Member Training Portal
+            {portal.label}
           </div>
 
           <h1 className="mt-7 max-w-2xl text-6xl font-black uppercase leading-[0.9] tracking-tight text-white">
@@ -109,8 +156,7 @@ export default function MemberLoginPage() {
           </h1>
 
           <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">
-            Log in to view your workouts, track progress, message your coach,
-            manage sessions, and stay consistent between appointments.
+            {portal.subtitle}
           </p>
 
           <div className="mt-8 grid max-w-xl gap-4">
@@ -167,20 +213,23 @@ export default function MemberLoginPage() {
               </div>
 
               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-400">
-                Member Sign In
+                {portal.label}
               </div>
 
               <h2 className="mt-4 text-4xl font-black uppercase tracking-tight">
-                Welcome back
+                {portal.title}
               </h2>
 
               <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-slate-400">
-                Access your Sound Fitness dashboard and keep your momentum
-                going.
+                {portal.subtitle}
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="mt-8 space-y-4">
+            <form
+              onSubmit={handleLogin}
+              className="mt-8 space-y-4"
+              data-lpignore="true"
+            >
               <div>
                 <label
                   htmlFor="email"
@@ -195,6 +244,7 @@ export default function MemberLoginPage() {
                   type="email"
                   placeholder="you@example.com"
                   autoComplete="email"
+                  data-lpignore="true"
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   required
@@ -225,6 +275,7 @@ export default function MemberLoginPage() {
                   type="password"
                   placeholder="Enter password"
                   autoComplete="current-password"
+                  data-lpignore="true"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   required
@@ -249,7 +300,7 @@ export default function MemberLoginPage() {
                 </label>
 
                 <span className="hidden text-xs text-slate-500 sm:inline">
-                  Secure member access
+                  Secure portal access
                 </span>
               </div>
 
@@ -272,7 +323,7 @@ export default function MemberLoginPage() {
                 disabled={isLoading}
                 className="block w-full rounded-xl bg-sky-500 px-6 py-4 text-center text-sm font-black uppercase tracking-[0.16em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isLoading ? "Signing In..." : "Enter Member Dashboard →"}
+                {isLoading ? "Signing In..." : portal.button}
               </button>
 
               <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-center">
@@ -290,7 +341,7 @@ export default function MemberLoginPage() {
             <div className="mt-8 border-t border-white/10 pt-5">
               <p className="text-center text-xs leading-6 text-slate-500">
                 Your training data, messages, and progress tools live inside
-                your private member portal.
+                your private Sound Fitness portal.
               </p>
             </div>
           </div>

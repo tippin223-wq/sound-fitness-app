@@ -1,3 +1,4 @@
+import UserMenu from "@/components/UserMenu";
 import Link from "next/link";
 
 const serviceCards = [
@@ -121,19 +122,7 @@ export default function HomePage() {
           </Link>
 
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center sm:justify-center sm:gap-3">
-            <Link
-              href="/login"
-              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-white transition hover:border-sky-400/50 hover:bg-sky-500/10 sm:px-5 sm:text-xs sm:tracking-[0.18em]"
-            >
-              Member Sign In
-            </Link>
-
-            <Link
-              href="/onboarding"
-              className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-sky-500 px-3 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400 sm:px-5 sm:text-xs sm:tracking-[0.18em]"
-            >
-              Start Free Intro
-            </Link>
+            <UserMenu />
           </div>
         </div>
       </header>
@@ -154,7 +143,12 @@ export default function HomePage() {
             <br />
             <span className="text-sky-500">Better for life.</span>
           </h1>
-
+          <p
+            className="mt-3 text-sm italic font-medium text-slate-400"
+            style={{ fontFamily: "'Playfair Display', cursive" }}
+          >
+            Serving Seattle & the Eastside
+          </p>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
             Premium in-home coaching that builds strength, improves mobility,
             and fits your real life. We come to you. You show up. We handle the

@@ -1,18 +1,67 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { FormEvent, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
-export default function CoachLoginPage() {
+type Role = "member" | "coach" | "admin";
+
+export default function LoginPage() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const portal = useMemo(() => {
+    if (pathname.startsWith("/admin")) {
+      return {
+        label: "Admin Sign In",
+        title: "Admin Access",
+        subtitle:
+          "Access your Sound Fitness admin portal and manage the business.",
+        button: "Enter Admin Portal →",
+        allowedRoles: ["admin"] as Role[],
+      };
+    }
+
+    if (pathname.startsWith("/coach")) {
+      return {
+        label: "Coach Sign In",
+        title: "Coach Access",
+        subtitle:
+          "Access your coaching tools, members, sessions, and messages.",
+        button: "Enter Coach Portal →",
+        allowedRoles: ["coach", "admin"] as Role[],
+      };
+    }
+
+    return {
+      label: "Member Sign In",
+      title: "Welcome Back",
+      subtitle:
+        "Access your Sound Fitness dashboard and keep your momentum going.",
+      button: "Enter Member Dashboard →",
+      allowedRoles: ["member"] as Role[],
+    };
+  }, [pathname]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
+  function getRedirectPath(role: Role) {
+    const next = searchParams.get("next");
+
+    // if proxy sent a destination → use it
+    if (next) return next;
+
+    // otherwise fallback by role
+    if (role === "admin") return "/admin";
+    if (role === "coach") return "/coach/dashboard";
+    return "/dashboard";
+  }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -31,29 +80,33 @@ export default function CoachLoginPage() {
       return;
     }
 
+    // 🔥 IMPORTANT: get role
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", data.user.id)
       .single();
 
-    setIsLoading(false);
-
-    if (profileError || !profile) {
-      await supabase.auth.signOut();
+    if (profileError || !profile?.role) {
+      setIsLoading(false);
       setErrorMessage("Account profile not found.");
       return;
     }
 
-    if (profile.role !== "coach") {
+    const role = profile.role as Role;
+
+    // 🚫 block wrong portal usage
+    if (!portal.allowedRoles.includes(role)) {
       await supabase.auth.signOut();
-      setErrorMessage(
-        "This login is for coaches only. Please use the correct portal.",
-      );
+      setIsLoading(false);
+      setErrorMessage("Use the correct portal for this account.");
       return;
     }
 
-    router.replace("/coach/dashboard");
+    // ✅ FINAL REDIRECT FIX
+    const destination = getRedirectPath(role);
+
+    router.replace(destination);
     router.refresh();
   }
 
