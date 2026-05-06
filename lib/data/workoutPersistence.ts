@@ -39,6 +39,14 @@ export type SavedWorkoutLogSummary = {
   entries: LocalExerciseStatEntry[];
 };
 
+export type WorkoutDataSyncSummary = {
+  localItems: number;
+  syncedItems: number;
+  skippedItems: number;
+  failedItems: number;
+  errors: string[];
+};
+
 type WorkoutTemplateRow = {
   id: string;
   owner_profile_id: string;
@@ -202,6 +210,45 @@ const normalizeStatEntries = (entries: LocalExerciseStatEntry[]) =>
     date: entry.date || new Date().toISOString(),
     source: entry.source || "workout-session",
   }));
+
+const createEmptySyncSummary = (): WorkoutDataSyncSummary => ({
+  localItems: 0,
+  syncedItems: 0,
+  skippedItems: 0,
+  failedItems: 0,
+  errors: [],
+});
+
+const normalizeSyncValue = (value: string | number | null | undefined) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+const getTemplateSyncKey = (template: LocalWorkoutBuilderTemplate) =>
+  normalizeTemplateTitle(template.title).toLowerCase();
+
+const getStatEntrySyncKey = (entry: LocalExerciseStatEntry) =>
+  [
+    entry.exerciseId,
+    entry.exerciseName,
+    entry.date,
+    entry.weight,
+    entry.reps,
+    entry.sets,
+    entry.source || "workout-session",
+  ]
+    .map(normalizeSyncValue)
+    .join("|");
+
+const groupStatEntriesByCompletedAt = (entries: LocalExerciseStatEntry[]) =>
+  entries.reduce<Map<string, LocalExerciseStatEntry[]>>((groups, entry) => {
+    const completedAt = entry.date || new Date().toISOString();
+    const existing = groups.get(completedAt) || [];
+
+    groups.set(completedAt, [...existing, entry]);
+
+    return groups;
+  }, new Map<string, LocalExerciseStatEntry[]>());
 
 export const getCurrentAuthenticatedWorkoutProfile = async (): Promise<
   WorkoutPersistenceResult<AuthenticatedWorkoutProfile | null>
@@ -847,4 +894,168 @@ export const saveCompletedWorkoutLogWithFallback = async (
     ...localResult,
     error: supabaseResult.error,
   };
+};
+
+export const syncLocalWorkoutTemplatesToSupabase = async (): Promise<
+  WorkoutPersistenceResult<WorkoutDataSyncSummary>
+> => {
+  const localTemplates = readWorkoutBuilderTemplates();
+  const summary = createEmptySyncSummary();
+
+  summary.localItems = localTemplates.length;
+
+  const auth = await getCurrentAuthenticatedWorkoutProfile();
+
+  if (!auth.success || !auth.data) {
+    return createResult({
+      source: "supabase",
+      success: false,
+      data: summary,
+      error: auth.error,
+    });
+  }
+
+  const supabaseTemplates = await loadWorkoutTemplatesFromSupabase();
+
+  if (!supabaseTemplates.success) {
+    return createResult({
+      source: "supabase",
+      success: false,
+      data: summary,
+      error: supabaseTemplates.error,
+    });
+  }
+
+  const existingById = new Map(
+    supabaseTemplates.data.map((template) => [template.id, template]),
+  );
+  const existingByTitle = new Map(
+    supabaseTemplates.data.map((template) => [
+      getTemplateSyncKey(template),
+      template,
+    ]),
+  );
+  const seenLocalTemplateKeys = new Set<string>();
+
+  for (const localTemplate of localTemplates) {
+    const templateKey = getTemplateSyncKey(localTemplate);
+
+    if (seenLocalTemplateKeys.has(templateKey)) {
+      summary.skippedItems += 1;
+      continue;
+    }
+
+    seenLocalTemplateKeys.add(templateKey);
+
+    const existingTemplate =
+      existingById.get(localTemplate.id) || existingByTitle.get(templateKey);
+    const templateToSync = existingTemplate
+      ? {
+          ...localTemplate,
+          id: existingTemplate.id,
+          createdAt: existingTemplate.createdAt || localTemplate.createdAt,
+        }
+      : localTemplate;
+    const result = await saveWorkoutTemplateToSupabase(templateToSync);
+
+    if (result.success) {
+      summary.syncedItems += 1;
+      existingById.set(result.data.id, result.data);
+      existingByTitle.set(getTemplateSyncKey(result.data), result.data);
+      continue;
+    }
+
+    summary.failedItems += 1;
+    summary.errors.push(
+      `${localTemplate.title}: ${result.error || "Could not sync template."}`,
+    );
+  }
+
+  return createResult({
+    source: "supabase",
+    success: summary.failedItems === 0,
+    data: summary,
+    error: summary.errors[0] || null,
+  });
+};
+
+export const syncLocalWorkoutLogsToSupabase = async (): Promise<
+  WorkoutPersistenceResult<WorkoutDataSyncSummary>
+> => {
+  const localEntries = readExerciseStats();
+  const summary = createEmptySyncSummary();
+
+  summary.localItems = localEntries.length;
+
+  const auth = await getCurrentAuthenticatedWorkoutProfile();
+
+  if (!auth.success || !auth.data) {
+    return createResult({
+      source: "supabase",
+      success: false,
+      data: summary,
+      error: auth.error,
+    });
+  }
+
+  const supabaseEntries = await loadWorkoutLogEntriesFromSupabase();
+
+  if (!supabaseEntries.success) {
+    return createResult({
+      source: "supabase",
+      success: false,
+      data: summary,
+      error: supabaseEntries.error,
+    });
+  }
+
+  const existingEntryKeys = new Set(
+    supabaseEntries.data.map(getStatEntrySyncKey),
+  );
+  const seenLocalEntryKeys = new Set<string>();
+  const unsyncedEntries = localEntries.filter((entry) => {
+    const entryKey = getStatEntrySyncKey(entry);
+
+    if (existingEntryKeys.has(entryKey) || seenLocalEntryKeys.has(entryKey)) {
+      summary.skippedItems += 1;
+      return false;
+    }
+
+    seenLocalEntryKeys.add(entryKey);
+    return true;
+  });
+  const groupedEntries = groupStatEntriesByCompletedAt(
+    normalizeStatEntries(unsyncedEntries),
+  );
+
+  for (const [completedAt, entries] of groupedEntries) {
+    const result = await saveCompletedWorkoutLogToSupabase({
+      title:
+        entries.length === 1
+          ? `Imported Local Workout - ${entries[0].exerciseName}`
+          : "Imported Local Workout",
+      completedAt,
+      entries,
+    });
+
+    if (result.success) {
+      summary.syncedItems += entries.length;
+      result.data.entries.forEach((entry) => {
+        existingEntryKeys.add(getStatEntrySyncKey(entry));
+      });
+      continue;
+    }
+
+    summary.failedItems += entries.length;
+    summary.errors.push(
+      `${completedAt}: ${result.error || "Could not sync workout entries."}`,
+    );
+  }
+
+  return createResult({
+    source: "supabase",
+    success: summary.failedItems === 0,
+    data: summary,
+    error: summary.errors[0] || null,
+  });
 };

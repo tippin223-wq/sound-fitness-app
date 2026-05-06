@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import AppHeader from "@/components/AppHeader";
-import { loadWorkoutLogEntriesWithFallback } from "@/lib/data/workoutPersistence";
+import {
+  loadWorkoutLogEntriesWithFallback,
+  syncLocalWorkoutLogsToSupabase,
+  syncLocalWorkoutTemplatesToSupabase,
+} from "@/lib/data/workoutPersistence";
 import { subscribeToLocalWorkoutData } from "@/lib/localData/workoutData";
 import { ROUTES } from "@/lib/routes";
 import { supabase } from "@/lib/supabaseClient";
@@ -34,6 +38,22 @@ const getStatsSourceLabel = ({
   return error && !error.includes("No authenticated Supabase user")
     ? "error fallback"
     : "localStorage fallback";
+};
+
+const WORKOUT_SYNC_LAST_SYNCED_KEY = "soundFitnessWorkoutDataLastSyncedAt";
+
+const formatLastSyncedAt = (value: string | null) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 };
 
 const portalCards = [
@@ -75,12 +95,21 @@ export default function UserHomeDashboardPage() {
     [],
   );
   const [statsSourceLabel, setStatsSourceLabel] = useState("Loading stats");
+  const [canSyncWorkoutData, setCanSyncWorkoutData] = useState(false);
+  const [isSyncingWorkoutData, setIsSyncingWorkoutData] = useState(false);
+  const [syncStatusMessage, setSyncStatusMessage] = useState("");
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadUser() {
       const { data: authData } = await supabase.auth.getUser();
 
-      if (!authData.user) return;
+      if (!authData.user) {
+        setCanSyncWorkoutData(false);
+        return;
+      }
+
+      setCanSyncWorkoutData(true);
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -98,6 +127,14 @@ export default function UserHomeDashboardPage() {
     }
 
     loadUser();
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    setLastSyncedAt(
+      window.localStorage.getItem(WORKOUT_SYNC_LAST_SYNCED_KEY),
+    );
   }, []);
 
   useEffect(() => {
@@ -121,6 +158,89 @@ export default function UserHomeDashboardPage() {
       unsubscribe();
     };
   }, []);
+
+  async function refreshHybridStats() {
+    const result = await loadWorkoutLogEntriesWithFallback();
+
+    setExerciseStats(result.data);
+    setStatsSourceLabel(getStatsSourceLabel(result));
+
+    return result;
+  }
+
+  async function syncLocalWorkoutData() {
+    if (!canSyncWorkoutData || isSyncingWorkoutData) return;
+
+    setIsSyncingWorkoutData(true);
+    setSyncStatusMessage("Syncing local workout data...");
+
+    try {
+      const [templatesResult, logsResult] = await Promise.all([
+        syncLocalWorkoutTemplatesToSupabase(),
+        syncLocalWorkoutLogsToSupabase(),
+      ]);
+
+      await refreshHybridStats();
+
+      const templateSummary = templatesResult.data;
+      const logSummary = logsResult.data;
+      const syncedCount =
+        templateSummary.syncedItems + logSummary.syncedItems;
+      const skippedCount =
+        templateSummary.skippedItems + logSummary.skippedItems;
+      const failedCount =
+        templateSummary.failedItems + logSummary.failedItems;
+      const localCount =
+        templateSummary.localItems + logSummary.localItems;
+
+      if (!templatesResult.success || !logsResult.success) {
+        setSyncStatusMessage(
+          `Sync hit a snag, but your local data is still safe. Synced ${syncedCount}, skipped ${skippedCount} duplicate${
+            skippedCount === 1 ? "" : "s"
+          }, failed ${failedCount}. ${
+            templatesResult.error ||
+            logsResult.error ||
+            "Some data could not sync."
+          }`,
+        );
+      } else if (localCount === 0) {
+        setSyncStatusMessage(
+          "Nothing local to sync yet. New workout data will still save locally and sync when available.",
+        );
+      } else {
+        setSyncStatusMessage(
+          `Account backup complete: ${templateSummary.syncedItems} template${
+            templateSummary.syncedItems === 1 ? "" : "s"
+          } synced, ${logSummary.syncedItems} workout log ${
+            logSummary.syncedItems === 1 ? "entry" : "entries"
+          } synced, and ${skippedCount} duplicate${
+            skippedCount === 1 ? "" : "s"
+          } skipped.`,
+        );
+      }
+
+      if (failedCount === 0) {
+        const syncedAt = new Date().toISOString();
+
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(
+            WORKOUT_SYNC_LAST_SYNCED_KEY,
+            syncedAt,
+          );
+        }
+
+        setLastSyncedAt(syncedAt);
+      }
+    } catch {
+      setSyncStatusMessage(
+        "Local workout data could not sync right now. Your local fallback is still safe.",
+      );
+    } finally {
+      setIsSyncingWorkoutData(false);
+    }
+  }
+
+  const lastSyncedLabel = formatLastSyncedAt(lastSyncedAt);
 
   const workoutSummary = useMemo(() => {
     const sortedStats = [...exerciseStats].sort(
@@ -238,7 +358,30 @@ export default function UserHomeDashboardPage() {
               >
                 Review Progress
               </Link>
+              <button
+                type="button"
+                onClick={syncLocalWorkoutData}
+                disabled={!canSyncWorkoutData || isSyncingWorkoutData}
+                className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-center text-sm font-black uppercase tracking-[0.14em] text-white transition hover:border-sky-400/50 hover:bg-sky-500/10 disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {isSyncingWorkoutData
+                  ? "Syncing..."
+                  : canSyncWorkoutData
+                    ? "Sync local workout data"
+                    : "Sign in to sync"}
+              </button>
             </div>
+
+            {syncStatusMessage ? (
+              <p className="mt-4 rounded-2xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm font-semibold text-sky-100">
+                {syncStatusMessage}
+              </p>
+            ) : null}
+            {lastSyncedLabel ? (
+              <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+                Last synced {lastSyncedLabel}
+              </p>
+            ) : null}
           </div>
 
           <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-5 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[34px] sm:p-6">
