@@ -4,13 +4,17 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   hasWorkoutBuilderSelectedExercises,
-  readWorkoutBuilderTemplates,
   readWorkoutBuilderSelectedExerciseNames,
-  saveWorkoutBuilderTemplate,
+  toWorkoutBuilderSelectedExercise,
+  type LocalWorkoutBuilderSelectedExercise,
   type LocalWorkoutBuilderTemplate,
   writeActiveWorkoutBuilderSessionTemplate,
   writeWorkoutBuilderSelectedExercises,
 } from "@/lib/localData/workoutBuilderData";
+import {
+  loadWorkoutTemplatesWithFallback,
+  saveWorkoutTemplateWithFallback,
+} from "@/lib/data/workoutPersistence";
 import { ROUTES } from "@/lib/routes";
 import { getExerciseCatalogWithLegacyFallback } from "@/lib/training/normalizedExerciseCatalog";
 import type { ExerciseCatalogItem } from "@/types";
@@ -31,6 +35,31 @@ const getCatalogExercisesByName = (names: string[]) => {
   return exerciseOptions.filter((exercise) => selectedNames.has(exercise.name));
 };
 
+const createLocalTemplateId = () => {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `template-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+};
+
+const getNormalizedTemplateTitle = (value: string) =>
+  value.trim() || "Untitled Workout Template";
+
+const getTemplateSourceLabel = ({
+  source,
+  error,
+}: {
+  source: "supabase" | "localStorage";
+  error: string | null;
+}) => {
+  if (source === "supabase") return "Supabase";
+
+  return error && !error.includes("No authenticated Supabase user")
+    ? "error fallback"
+    : "localStorage fallback";
+};
+
 export default function BuildWorkoutPage() {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>(
@@ -41,9 +70,23 @@ export default function BuildWorkoutPage() {
     LocalWorkoutBuilderTemplate[]
   >([]);
   const [templateStatus, setTemplateStatus] = useState("");
+  const [templateSourceLabel, setTemplateSourceLabel] =
+    useState("Loading templates");
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
   useEffect(() => {
-    setSavedTemplates(readWorkoutBuilderTemplates());
+    let isActive = true;
+
+    const loadSavedTemplates = async () => {
+      const result = await loadWorkoutTemplatesWithFallback();
+
+      if (!isActive) return;
+
+      setSavedTemplates(result.data);
+      setTemplateSourceLabel(getTemplateSourceLabel(result));
+    };
+
+    loadSavedTemplates();
 
     if (!hasWorkoutBuilderSelectedExercises()) {
       writeWorkoutBuilderSelectedExercises(
@@ -51,12 +94,15 @@ export default function BuildWorkoutPage() {
           resolveCatalogExerciseNames(defaultSelectedExerciseNames),
         ),
       );
-      return;
+    } else {
+      setSelected(
+        resolveCatalogExerciseNames(readWorkoutBuilderSelectedExerciseNames()),
+      );
     }
 
-    setSelected(
-      resolveCatalogExerciseNames(readWorkoutBuilderSelectedExerciseNames()),
-    );
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   const selectedExercises = useMemo(
@@ -81,20 +127,63 @@ export default function BuildWorkoutPage() {
     });
   }
 
-  function saveCurrentTemplate() {
+  async function refreshSavedTemplates() {
+    const result = await loadWorkoutTemplatesWithFallback();
+
+    setSavedTemplates(result.data);
+    setTemplateSourceLabel(getTemplateSourceLabel(result));
+
+    return result;
+  }
+
+  function buildCurrentTemplate(): LocalWorkoutBuilderTemplate {
+    const now = new Date().toISOString();
+    const normalizedTitle = getNormalizedTemplateTitle(title);
+    const existingTemplate = savedTemplates.find(
+      (template) =>
+        template.title.trim().toLowerCase() === normalizedTitle.toLowerCase(),
+    );
+    const exercises: LocalWorkoutBuilderSelectedExercise[] =
+      selectedExercises.map(toWorkoutBuilderSelectedExercise);
+
+    return {
+      id: existingTemplate?.id || createLocalTemplateId(),
+      title: normalizedTitle,
+      exercises,
+      createdAt: existingTemplate?.createdAt || now,
+      updatedAt: now,
+    };
+  }
+
+  async function saveCurrentTemplate() {
     if (selectedExercises.length === 0) {
       setTemplateStatus("Add at least one exercise before saving a template.");
       return;
     }
 
-    const result = saveWorkoutBuilderTemplate({
-      title,
-      exercises: selectedExercises,
-    });
+    setIsSavingTemplate(true);
+    setTemplateStatus("Saving template...");
 
-    setTitle(result.template.title);
-    setSavedTemplates(result.templates);
-    setTemplateStatus(`${result.template.title} saved as a local template.`);
+    try {
+      const result = await saveWorkoutTemplateWithFallback(
+        buildCurrentTemplate(),
+      );
+      const refreshResult = await refreshSavedTemplates();
+      const sourceLabel = getTemplateSourceLabel(result);
+      const savedTemplate = result.data;
+
+      setTitle(savedTemplate.title);
+      setTemplateSourceLabel(getTemplateSourceLabel(refreshResult));
+      setTemplateStatus(
+        result.error
+          ? `${savedTemplate.title} saved locally. Supabase sync can retry later.`
+          : `${savedTemplate.title} saved via ${sourceLabel}.`,
+      );
+    } catch {
+      setTemplateStatus("Template could not be saved. Try again.");
+    } finally {
+      setIsSavingTemplate(false);
+    }
   }
 
   function loadTemplate(template: LocalWorkoutBuilderTemplate) {
@@ -228,17 +317,20 @@ export default function BuildWorkoutPage() {
           <section className="templatePanel">
             <div className="templateHeader">
               <div>
-                <p className="eyebrow">Local Templates</p>
+                <p className="eyebrow">Saved Templates</p>
                 <h2>Save or load this workout</h2>
               </div>
 
-              <button
-                type="button"
-                onClick={saveCurrentTemplate}
-                disabled={selectedExercises.length === 0}
-              >
-                Save Template
-              </button>
+              <div className="templateHeaderActions">
+                <span className="templateSource">{templateSourceLabel}</span>
+                <button
+                  type="button"
+                  onClick={saveCurrentTemplate}
+                  disabled={selectedExercises.length === 0 || isSavingTemplate}
+                >
+                  {isSavingTemplate ? "Saving..." : "Save Template"}
+                </button>
+              </div>
             </div>
 
             {templateStatus && <p className="templateStatus">{templateStatus}</p>}
@@ -535,6 +627,23 @@ export default function BuildWorkoutPage() {
           margin: 0;
         }
 
+        .templateHeaderActions {
+          align-items: center;
+          display: flex;
+          gap: 10px;
+        }
+
+        .templateSource {
+          border: 1px solid rgba(148,163,184,.16);
+          border-radius: 999px;
+          color: #bfdbfe;
+          font-size: 12px;
+          font-weight: 900;
+          padding: 7px 10px;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
         .templateHeader button,
         .templateCard button {
           border: none;
@@ -653,6 +762,7 @@ export default function BuildWorkoutPage() {
 
           .templateHeader,
           .templateCardHeader,
+          .templateHeaderActions,
           .templateActions {
             align-items: stretch;
             flex-direction: column;
