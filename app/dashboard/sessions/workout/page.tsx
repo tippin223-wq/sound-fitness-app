@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import {
   clearActiveWorkoutBuilderSessionTemplate,
   readActiveWorkoutBuilderSessionTemplate,
-  readWorkoutBuilderTemplates,
   type LocalWorkoutBuilderTemplate,
   type LocalWorkoutBuilderSessionTemplate,
   writeActiveWorkoutBuilderSessionTemplate,
 } from "@/lib/localData/workoutBuilderData";
-import { saveCompletedWorkoutLogWithFallback } from "@/lib/data/workoutPersistence";
+import {
+  loadWorkoutTemplatesWithFallback,
+  saveCompletedWorkoutLogWithFallback,
+} from "@/lib/data/workoutPersistence";
 import { ROUTES } from "@/lib/routes";
 import type { LocalExerciseStatEntry } from "@/types";
 
@@ -222,6 +224,20 @@ const isCompleteExerciseLog = (log?: ExerciseLogDraft) =>
       hasPositiveNumber(log.sets),
   );
 
+const getTemplateSourceLabel = ({
+  source,
+  error,
+}: {
+  source: "supabase" | "localStorage";
+  error: string | null;
+}) => {
+  if (source === "supabase") return "Supabase";
+
+  return error && !error.includes("No authenticated Supabase user")
+    ? "error fallback"
+    : "localStorage fallback";
+};
+
 export default function WorkoutBuilderPage() {
   const router = useRouter();
 
@@ -335,6 +351,8 @@ export default function WorkoutBuilderPage() {
     LocalWorkoutBuilderTemplate[]
   >([]);
   const [launcherMessage, setLauncherMessage] = useState("");
+  const [templateSourceLabel, setTemplateSourceLabel] =
+    useState("Loading templates");
   const workout = activeSessionTemplate
     ? createTemplateWorkout(activeSessionTemplate)
     : defaultWorkout;
@@ -351,13 +369,28 @@ export default function WorkoutBuilderPage() {
   >(() => createInitialExerciseLogs(defaultWorkout.timeline, sessionExerciseMeta));
 
   useEffect(() => {
-    setSavedSessionTemplates(readWorkoutBuilderTemplates());
+    let isActive = true;
+
+    const loadSavedSessionTemplates = async () => {
+      const result = await loadWorkoutTemplatesWithFallback();
+
+      if (!isActive) return;
+
+      setSavedSessionTemplates(result.data);
+      setTemplateSourceLabel(getTemplateSourceLabel(result));
+    };
+
+    loadSavedSessionTemplates();
 
     const activeTemplate = readActiveWorkoutBuilderSessionTemplate();
 
     if (activeTemplate?.exercises?.length) {
       setActiveSessionTemplate(activeTemplate);
     }
+
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -623,6 +656,9 @@ export default function WorkoutBuilderPage() {
                     } active`
                   : "Default workout is active"}
               </p>
+              <div className="mt-3 inline-flex rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-200">
+                {templateSourceLabel}
+              </div>
               {launcherMessage ? (
                 <p className="mt-3 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100">
                   {launcherMessage}
