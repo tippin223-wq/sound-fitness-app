@@ -30,7 +30,7 @@ export default function BookingPage() {
   const sessionTypes = [
     "Free Intro",
     "In-Home Training",
-    "Online Training",
+    "Video Review",
     "Assisted Stretch",
   ];
 

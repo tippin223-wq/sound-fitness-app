@@ -91,7 +91,7 @@ const statuses: ContentStatus[] = [
 const pillars = [
   "In-Home Training",
   "Assisted Stretch",
-  "Online Training",
+  "Video Review",
   "Continuation Program",
   "Strength Education",
   "Mobility",

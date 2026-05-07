@@ -28,6 +28,7 @@ const HEADER_CONFIG: Record<ProtectedHeaderRole, HeaderConfig> = {
     navItems: [
       { label: "Dashboard", href: ROUTES.dashboard.home },
       { label: "Workout", href: ROUTES.dashboard.sessionWorkout },
+      { label: "Video Review", href: ROUTES.dashboard.videoReview },
       { label: "Stats", href: ROUTES.dashboard.stats },
       { label: "Builder", href: ROUTES.workoutBuilder.home },
       { label: "Library", href: ROUTES.workoutBuilder.exerciseLibrary },

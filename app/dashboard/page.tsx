@@ -67,6 +67,11 @@ const portalCards = [
     text: "Exercise library, saved workouts, and builder tools.",
   },
   {
+    title: "Video Review",
+    href: ROUTES.dashboard.videoReview,
+    text: "Submit form checks and connect coach feedback to workouts.",
+  },
+  {
     title: "Progress",
     href: ROUTES.dashboard.progress,
     text: "Goals, check-ins, habits, pain tracking, and journals.",

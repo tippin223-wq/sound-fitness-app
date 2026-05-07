@@ -48,6 +48,7 @@ export const DASHBOARD_ROUTES = {
   socialPost: route("/dashboard/social/post"),
   stats: route("/dashboard/stats"),
   trainingCalendar: route("/dashboard/training-calendar"),
+  videoReview: route("/dashboard/video-review"),
 } as const;
 
 export const MEMBER_ROUTES = DASHBOARD_ROUTES;
@@ -118,7 +119,8 @@ export const ADMIN_ROUTES = {
 export const COACH_ROUTES = {
   home: route("/coach"),
   login: route("/coach/login"),
-  dashboard: route("/coach/login/dashboard"),
+  dashboard: route("/coach/dashboard"),
+  legacyDashboard: route("/coach/login/dashboard"),
 } as const;
 
 export const ROUTES = {

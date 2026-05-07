@@ -9,7 +9,7 @@ export default function ClientSiteMapPage() {
           name: "Client Dashboard",
           url: "/dashboard",
           status: "Built",
-          connectsTo: ["Online Training", "Progress", "Calendar", "Messages"],
+          connectsTo: ["Video Review", "Progress", "Calendar", "Messages"],
           purpose:
             "Main landing page after login. Shows next workout, quick stats, session status, and shortcuts.",
         },
@@ -27,12 +27,12 @@ export default function ClientSiteMapPage() {
       title: "Training Flow",
       pages: [
         {
-          name: "Online Training",
-          url: "/dashboard/online-program",
+          name: "Video Review",
+          url: "/dashboard/video-review",
           status: "Built",
-          connectsTo: ["Training Calendar", "Exercise Library", "Progress"],
+          connectsTo: ["Training Calendar", "Exercise Library", "Coach Messaging"],
           purpose:
-            "Training hub. Shows current plan, today’s workout, training tools, and coach notes.",
+            "Form-check hub. Connects exercise videos to workouts, sessions, and coach notes.",
         },
         {
           name: "Training Calendar",
@@ -44,7 +44,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Workout Detail",
-          url: "/dashboard/online-program/workouts/detail",
+          url: "/dashboard/sessions/workout",
           status: "Needed",
           connectsTo: ["Exercise Demo", "Progress", "Journal"],
           purpose:

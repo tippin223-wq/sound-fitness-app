@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { ROUTES } from "@/lib/routes";
 
 const workout = [
   {
@@ -105,7 +106,7 @@ export default function SavedWorkoutDetailPage() {
           <div className="actions">
             <a href="/dashboard/workout-builder/build">Edit</a>
             <a href="/dashboard/workout-builder/build/save">Duplicate</a>
-            <a href="/dashboard/online-program/workouts">Assign</a>
+            <a href={ROUTES.dashboard.sessionWorkout}>Start</a>
           </div>
         </section>
 

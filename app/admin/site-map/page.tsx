@@ -7,7 +7,7 @@ type Section =
   | "Public"
   | "Onboarding"
   | "Dashboard"
-  | "Online Training"
+  | "Video Review"
   | "Admin";
 
 type Status = "Live" | "Build Next" | "Recommended" | "Needs Review";
@@ -26,7 +26,7 @@ const sectionStyles: Record<Section, string> = {
   Public: "border-blue-400/30 bg-blue-500/10 text-blue-300",
   Onboarding: "border-emerald-400/30 bg-emerald-500/10 text-emerald-300",
   Dashboard: "border-sky-400/30 bg-sky-500/10 text-sky-300",
-  "Online Training": "border-violet-400/30 bg-violet-500/10 text-violet-300",
+  "Video Review": "border-violet-400/30 bg-violet-500/10 text-violet-300",
   Admin: "border-amber-400/30 bg-amber-500/10 text-amber-300",
 };
 
@@ -44,7 +44,7 @@ const siteMap: PageNode[] = [
     section: "Public",
     status: "Live",
     description: "Main app entry, login, and start point.",
-    linksTo: ["/onboarding", "/dashboard", "/dashboard/online-program"],
+    linksTo: ["/onboarding", "/dashboard", ROUTES.dashboard.videoReview],
   },
   {
     title: "Onboarding",
@@ -242,109 +242,41 @@ const siteMap: PageNode[] = [
     ],
   },
   {
-    title: "Online Training",
-    href: "/dashboard/online-program",
-    section: "Online Training",
+    title: "Video Review",
+    href: ROUTES.dashboard.videoReview,
+    section: "Video Review",
     status: "Live",
-    description: "Remote coaching dashboard.",
-    linksTo: ["/dashboard/online-program/weekly-plan", "/dashboard/online-program/workouts"],
+    description:
+      "Focused form-check hub that links exercise videos to workouts, sessions, coach feedback, and progress notes.",
+    linksTo: [
+      ROUTES.dashboard.sessionWorkout,
+      ROUTES.workoutBuilder.exerciseLibrary,
+      ROUTES.dashboard.coachMessaging,
+      ROUTES.dashboard.stats,
+    ],
     children: [
       {
-        title: "Current Phase",
-        href: "/dashboard/online-program/current-phase",
-        section: "Online Training",
+        title: "Submit Video",
+        href: ROUTES.dashboard.videoReview,
+        section: "Video Review",
         status: "Live",
-        description: "Current training block, goal, focus, and progress.",
+        description:
+          "Submit a video link with related exercise, workout/session context, and notes for the coach.",
       },
       {
-        title: "Weekly Plan",
-        href: "/dashboard/online-program/weekly-plan",
-        section: "Online Training",
+        title: "Pending Reviews",
+        href: ROUTES.dashboard.videoReview,
+        section: "Video Review",
         status: "Live",
-        description: "Week-at-a-glance training schedule.",
+        description: "See videos waiting for coach review or resubmission.",
       },
       {
-        title: "Program Workouts",
-        href: "/dashboard/online-program/workouts",
-        section: "Online Training",
+        title: "Coach Feedback",
+        href: ROUTES.dashboard.videoReview,
+        section: "Video Review",
         status: "Live",
-        description: "Assigned online program workouts.",
-        children: [
-          {
-            title: "Workout Detail",
-            href: "/dashboard/online-program/workouts/detail",
-            section: "Online Training",
-            status: "Live",
-            description: "Workout plan, exercises, and coach cues.",
-            children: [
-              {
-                title: "Exercise Demo",
-                href: "/dashboard/online-program/workouts/detail/exercise-demo",
-                section: "Online Training",
-                status: "Live",
-                description: "Video demo, cues, mistakes, and modifications.",
-              },
-              {
-                title: "Log Sets",
-                href: "/dashboard/online-program/workouts/detail/log-sets",
-                section: "Online Training",
-                status: "Live",
-                description: "Log weight, reps, RPE, and notes.",
-              },
-              {
-                title: "Complete Workout",
-                href: "/dashboard/online-program/workouts/detail/complete",
-                section: "Online Training",
-                status: "Live",
-                description: "Workout recap, feedback, and next steps.",
-              },
-            ],
-          },
-        ],
-      },
-      {
-        title: "Program Progress",
-        href: "/dashboard/online-program/progress",
-        section: "Online Training",
-        status: "Live",
-        description: "Strength, completion, and streak tracking.",
-        children: [
-          {
-            title: "Strength Tracking",
-            href: "/dashboard/online-program/progress/strength",
-            section: "Online Training",
-            status: "Live",
-            description: "Track movement and lift progress.",
-          },
-          {
-            title: "Completion %",
-            href: "/dashboard/online-program/progress/completion",
-            section: "Online Training",
-            status: "Live",
-            description: "Track program adherence.",
-          },
-          {
-            title: "Streak",
-            href: "/dashboard/online-program/progress/streak",
-            section: "Online Training",
-            status: "Live",
-            description: "Track weekly consistency.",
-          },
-        ],
-      },
-      {
-        title: "Messages",
-        href: "/dashboard/online-program/messages",
-        section: "Online Training",
-        status: "Live",
-        description: "Online program messaging.",
-      },
-      {
-        title: "Saved Workouts",
-        href: ROUTES.dashboard.savedSessionWorkouts,
-        section: "Online Training",
-        status: "Live",
-        description: "Client-facing saved workout library.",
+        description:
+          "Review coach form notes and connect the next action to workouts or messages.",
       },
     ],
   },
@@ -804,7 +736,7 @@ export default function SiteMapPage() {
 
               <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300">
                 Color-coded map for the five major areas: Public, Onboarding,
-                Dashboard, Online Training, and Admin. Check pages off, add
+                Dashboard, Video Review, and Admin. Check pages off, add
                 notes, annotate links, and track recommended future pages.
               </p>
 

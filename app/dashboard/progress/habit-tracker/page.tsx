@@ -46,7 +46,7 @@ export default function OnlineTrainingPage() {
               <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <div className="text-[11px] uppercase tracking-[0.24em] text-sky-300">
-                    Online Training Portal
+                    Video Review + Training Support
                   </div>
                   <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
                     Your training plan, all in one place
@@ -194,9 +194,9 @@ export default function OnlineTrainingPage() {
               </h2>
 
               <p className="mt-4 text-sm leading-6 text-slate-300">
-                Online training works best when the next step is obvious.
-                Complete the workout, log your notes, and send any form
-                questions so the plan can keep adjusting to you.
+                Video review works best when the next step is obvious. Complete
+                the workout, log your notes, and send any form questions so the
+                plan can keep adjusting to you.
               </p>
             </section>
           </div>
