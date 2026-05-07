@@ -4,13 +4,21 @@ import React, { useMemo, useState } from "react";
 import { ROUTES } from "@/lib/routes";
 
 type Section =
-  | "Public"
-  | "Onboarding"
-  | "Dashboard"
-  | "Video Review"
-  | "Admin";
+  | "Public / Onboarding"
+  | "Member App"
+  | "Coach Portal"
+  | "Admin Portal"
+  | "Dev Tools"
+  | "Legacy / Hidden";
 
-type Status = "Live" | "Build Next" | "Recommended" | "Needs Review";
+type Status =
+  | "Canonical"
+  | "Active Secondary"
+  | "Redirect Wrapper"
+  | "Hidden / Deprecated"
+  | "Safe To Delete Later"
+  | "Future"
+  | "Dev Tool";
 
 type PageNode = {
   title: string;
@@ -18,467 +26,578 @@ type PageNode = {
   description: string;
   section: Section;
   status: Status;
-  linksTo?: string[];
+  target?: string;
   children?: PageNode[];
 };
 
 const sectionStyles: Record<Section, string> = {
-  Public: "border-blue-400/30 bg-blue-500/10 text-blue-300",
-  Onboarding: "border-emerald-400/30 bg-emerald-500/10 text-emerald-300",
-  Dashboard: "border-sky-400/30 bg-sky-500/10 text-sky-300",
-  "Video Review": "border-violet-400/30 bg-violet-500/10 text-violet-300",
-  Admin: "border-amber-400/30 bg-amber-500/10 text-amber-300",
+  "Public / Onboarding":
+    "border-blue-400/30 bg-blue-500/10 text-blue-300",
+  "Member App": "border-sky-400/30 bg-sky-500/10 text-sky-300",
+  "Coach Portal": "border-cyan-400/30 bg-cyan-500/10 text-cyan-300",
+  "Admin Portal": "border-amber-400/30 bg-amber-500/10 text-amber-300",
+  "Dev Tools": "border-violet-400/30 bg-violet-500/10 text-violet-300",
+  "Legacy / Hidden":
+    "border-slate-400/20 bg-slate-500/10 text-slate-300",
 };
 
 const statusStyles: Record<Status, string> = {
-  Live: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
-  "Build Next": "border-sky-400/20 bg-sky-500/10 text-sky-300",
-  Recommended: "border-slate-400/20 bg-slate-500/10 text-slate-400 opacity-70",
-  "Needs Review": "border-amber-400/20 bg-amber-500/10 text-amber-300",
+  Canonical: "border-emerald-400/25 bg-emerald-500/10 text-emerald-300",
+  "Active Secondary": "border-sky-400/25 bg-sky-500/10 text-sky-300",
+  "Redirect Wrapper": "border-cyan-400/25 bg-cyan-500/10 text-cyan-300",
+  "Hidden / Deprecated":
+    "border-slate-400/20 bg-slate-500/10 text-slate-400",
+  "Safe To Delete Later":
+    "border-red-400/25 bg-red-500/10 text-red-300",
+  Future: "border-fuchsia-400/25 bg-fuchsia-500/10 text-fuchsia-300",
+  "Dev Tool": "border-violet-400/25 bg-violet-500/10 text-violet-300",
 };
 
+const route = (
+  title: string,
+  href: string,
+  section: Section,
+  status: Status,
+  description: string,
+  target?: string,
+  children?: PageNode[],
+): PageNode => ({
+  title,
+  href,
+  section,
+  status,
+  description,
+  target,
+  children,
+});
+
+const onlineProgramRedirects: PageNode[] = [
+  route(
+    "Online Program",
+    ROUTES.onlineProgram.home,
+    "Legacy / Hidden",
+    "Redirect Wrapper",
+    "Replaced by the focused Video Review concept.",
+    ROUTES.dashboard.videoReview,
+  ),
+  route(
+    "Online Program Current Phase",
+    ROUTES.onlineProgram.currentPhase,
+    "Legacy / Hidden",
+    "Redirect Wrapper",
+    "Program phase view now belongs in the weekly plan hub.",
+    ROUTES.dashboard.myPlan,
+  ),
+  route(
+    "Online Program Messages",
+    ROUTES.onlineProgram.messages,
+    "Legacy / Hidden",
+    "Redirect Wrapper",
+    "Coach communication now uses the member messaging route.",
+    ROUTES.dashboard.coachMessaging,
+  ),
+  route(
+    "Online Program Weekly Plan",
+    ROUTES.onlineProgram.weeklyPlan,
+    "Legacy / Hidden",
+    "Redirect Wrapper",
+    "Weekly programming now belongs in My Plan.",
+    ROUTES.dashboard.myPlan,
+  ),
+  route(
+    "Online Program Workouts",
+    ROUTES.onlineProgram.workouts,
+    "Legacy / Hidden",
+    "Redirect Wrapper",
+    "Workout selection now starts from the Sessions command center.",
+    ROUTES.dashboard.sessions,
+  ),
+  route(
+    "Online Program Workout Detail",
+    ROUTES.onlineProgram.workoutDetail,
+    "Legacy / Hidden",
+    "Redirect Wrapper",
+    "Set logging now uses the canonical workout session logger.",
+    ROUTES.dashboard.sessionWorkout,
+  ),
+  route(
+    "Online Program Log Sets",
+    ROUTES.onlineProgram.logSets,
+    "Legacy / Hidden",
+    "Redirect Wrapper",
+    "Duplicate workout logging path.",
+    ROUTES.dashboard.sessionWorkout,
+  ),
+  route(
+    "Online Program Completion",
+    ROUTES.onlineProgram.workoutComplete,
+    "Legacy / Hidden",
+    "Redirect Wrapper",
+    "Completion state now uses the canonical session completion route.",
+    ROUTES.dashboard.workoutComplete,
+  ),
+  route(
+    "Online Program Exercise Demo",
+    ROUTES.onlineProgram.exerciseDemo,
+    "Legacy / Hidden",
+    "Redirect Wrapper",
+    "Exercise demos now live under the normalized Exercise Library.",
+    ROUTES.workoutBuilder.exerciseDemo,
+  ),
+  route(
+    "Online Program Progress",
+    ROUTES.onlineProgram.progress,
+    "Legacy / Hidden",
+    "Redirect Wrapper",
+    "Progress reporting now uses the canonical Stats route.",
+    ROUTES.dashboard.stats,
+  ),
+  route(
+    "Online Program Completion Progress",
+    ROUTES.onlineProgram.progressCompletion,
+    "Legacy / Hidden",
+    "Redirect Wrapper",
+    "Progress metric page folded into Stats.",
+    ROUTES.dashboard.stats,
+  ),
+  route(
+    "Online Program Streak Progress",
+    ROUTES.onlineProgram.progressStreak,
+    "Legacy / Hidden",
+    "Redirect Wrapper",
+    "Progress metric page folded into Stats.",
+    ROUTES.dashboard.stats,
+  ),
+  route(
+    "Online Program Strength Progress",
+    ROUTES.onlineProgram.progressStrength,
+    "Legacy / Hidden",
+    "Redirect Wrapper",
+    "Progress metric page folded into Stats.",
+    ROUTES.dashboard.stats,
+  ),
+];
+
 const siteMap: PageNode[] = [
-  {
-    title: "Public / Login",
-    href: "/",
-    section: "Public",
-    status: "Live",
-    description: "Main app entry, login, and start point.",
-    linksTo: ["/onboarding", "/dashboard", ROUTES.dashboard.videoReview],
-  },
-  {
-    title: "Onboarding",
-    href: "/onboarding",
-    section: "Onboarding",
-    status: "Live",
-    description: "New client setup before dashboard access.",
-    linksTo: ["/onboarding/assessment", "/onboarding/subscription"],
-    children: [
-      {
-        title: "Assessment",
-        href: "/onboarding/assessment",
-        section: "Onboarding",
-        status: "Live",
-        description: "Goals, injuries, training history, schedule, readiness.",
-        linksTo: ["/onboarding/subscription"],
-      },
-      {
-        title: "Subscription",
-        href: "/onboarding/subscription",
-        section: "Onboarding",
-        status: "Live",
-        description: "Package, payment, or membership selection.",
-        linksTo: ["/onboarding/intake-check-in"],
-      },
-      {
-        title: "Intake Check-In",
-        href: "/onboarding/intake-check-in",
-        section: "Onboarding",
-        status: "Live",
-        description: "First readiness check before training begins.",
-        linksTo: ["/onboarding/confirmation"],
-      },
-      {
-        title: "Confirmation",
-        href: "/onboarding/confirmation",
-        section: "Onboarding",
-        status: "Live",
-        description: "Thank-you page with next steps.",
-        linksTo: ["/dashboard"],
-      },
-      {
-        title: "Waiver / Agreement",
-        href: ROUTES.onboarding.confirmation,
-        section: "Onboarding",
-        status: "Recommended",
-        description:
-          "Recommended service agreement and consent step. Links to the current confirmation route until a dedicated page exists.",
-        linksTo: ["/onboarding/confirmation"],
-      },
+  route(
+    "Public and Auth",
+    ROUTES.public.home,
+    "Public / Onboarding",
+    "Active Secondary",
+    "Public entry, auth, and onboarding routes.",
+    undefined,
+    [
+      route(
+        "Member Login",
+        ROUTES.auth.login,
+        "Public / Onboarding",
+        "Active Secondary",
+        "Public member login route.",
+      ),
+      route(
+        "Admin Login",
+        ROUTES.admin.login,
+        "Public / Onboarding",
+        "Active Secondary",
+        "Public admin login route.",
+      ),
+      route(
+        "Coach Login",
+        ROUTES.coach.login,
+        "Public / Onboarding",
+        "Active Secondary",
+        "Public coach login route.",
+      ),
+      route(
+        "Onboarding",
+        ROUTES.onboarding.home,
+        "Public / Onboarding",
+        "Active Secondary",
+        "New member setup flow before dashboard use.",
+      ),
     ],
-  },
-  {
-    title: "Dashboard",
-    href: "/dashboard",
-    section: "Dashboard",
-    status: "Live",
-    description: "Main client dashboard after login.",
-    linksTo: [
-      "/dashboard/profile",
-      "/dashboard/sessions",
-      "/dashboard/progress",
-      "/dashboard/social",
-      "/dashboard/payments",
+  ),
+  route(
+    "Member Command Center",
+    ROUTES.dashboard.home,
+    "Member App",
+    "Canonical",
+    "Main member hub that answers what to do next and where to go.",
+    undefined,
+    [
+      route(
+        "Dashboard",
+        ROUTES.dashboard.home,
+        "Member App",
+        "Canonical",
+        "Main member command center.",
+      ),
+      route(
+        "Sessions",
+        ROUTES.dashboard.sessions,
+        "Member App",
+        "Canonical",
+        "Workout command center for starting, resuming, templates, history, and links.",
+      ),
+      route(
+        "Workout Session Logger",
+        ROUTES.dashboard.sessionWorkout,
+        "Member App",
+        "Canonical",
+        "Canonical workout logging route for sets, reps, weight, and completion.",
+      ),
+      route(
+        "Workout Builder",
+        ROUTES.workoutBuilder.home,
+        "Member App",
+        "Canonical",
+        "Canonical builder route for selected exercises, template save/load, plan assignment, and start workout.",
+      ),
+      route(
+        "Exercise Library",
+        ROUTES.workoutBuilder.exerciseLibrary,
+        "Member App",
+        "Canonical",
+        "Canonical normalized exercise catalog, custom exercises, Add Stats, and builder selection path.",
+      ),
+      route(
+        "My Plan",
+        ROUTES.dashboard.myPlan,
+        "Member App",
+        "Canonical",
+        "Weekly plan hub with timeline weeks, assignments, duplicate week, and start workout.",
+      ),
+      route(
+        "Stats",
+        ROUTES.dashboard.stats,
+        "Member App",
+        "Canonical",
+        "Canonical workout stats and recent logged exercise performance.",
+      ),
+      route(
+        "Video Review",
+        ROUTES.dashboard.videoReview,
+        "Member App",
+        "Canonical",
+        "Focused video submission and coach feedback concept replacing Online Program.",
+      ),
     ],
-    children: [
-      {
-        title: "Profile",
-        href: "/dashboard/profile",
-        section: "Dashboard",
-        status: "Live",
-        description: "Client bio, goals, preferences, notes, and contact info.",
-        linksTo: ["/dashboard/progress", "/dashboard/sessions"],
-      },
-      {
-        title: "Sessions",
-        href: "/dashboard/sessions",
-        section: "Dashboard",
-        status: "Live",
-        description: "Booking, session history, and upcoming appointments.",
-        linksTo: ["/dashboard/training-calendar", "/dashboard/payments"],
-      },
-      {
-        title: "Progress",
-        href: "/dashboard/progress",
-        section: "Dashboard",
-        status: "Live",
-        description:
-          "Workout stats, goals, movement progress, body focus, Momentum Points.",
-        linksTo: ["/dashboard/social", "/dashboard/social/post"],
-        children: [
-          {
-            title: "Habit Tracker",
-            href: "/dashboard/progress/habit-tracker",
-            section: "Dashboard",
-            status: "Live",
-            description: "Track habits that support training progress.",
-          },
-          {
-            title: "Weekly Check-In",
-            href: "/dashboard/progress/check-in",
-            section: "Dashboard",
-            status: "Live",
-            description: "Weekly readiness, recovery, wins, and notes.",
-          },
-        ],
-      },
-      {
-        title: "Social Hub",
-        href: "/dashboard/social",
-        section: "Dashboard",
-        status: "Live",
-        description:
-          "Private client feed with photos, replies, workout wins, and rewards.",
-        linksTo: ["/dashboard/social/post", "/dashboard/progress"],
-      },
-      {
-        title: "Post a Win",
-        href: "/dashboard/social/post",
-        section: "Dashboard",
-        status: "Live",
-        description:
-          "Create a workout win post with photo/video, caption, and Momentum Points.",
-        linksTo: ["/dashboard/social", "/dashboard/progress"],
-      },
-      {
-        title: "Recovery",
-        href: "/dashboard/recovery",
-        section: "Dashboard",
-        status: "Live",
-        description:
-          "Mobility, recovery, assisted stretch, and readiness support.",
-      },
-      {
-        title: "Nutrition",
-        href: "/dashboard/nutrition",
-        section: "Dashboard",
-        status: "Live",
-        description:
-          "Recipes, meal prep, grocery lists, and nutrition support.",
-        children: [
-          {
-            title: "Meal Prep",
-            href: "/dashboard/nutrition/meal-prep",
-            section: "Dashboard",
-            status: "Live",
-            description: "Meal prep planning and repeatable meals.",
-          },
-          {
-            title: "Chicken Rice Bowl",
-            href: "/dashboard/nutrition/recipes/chicken-rice-bowl",
-            section: "Dashboard",
-            status: "Live",
-            description: "Guided recipe page.",
-          },
-        ],
-      },
-      {
-        title: "Payments",
-        href: "/dashboard/payments",
-        section: "Dashboard",
-        status: "Live",
-        description: "Client packages, payments, renewals, and checkout links.",
-      },
-      {
-        title: "Training Calendar",
-        href: "/dashboard/training-calendar",
-        section: "Dashboard",
-        status: "Live",
-        description: "Training schedule and upcoming sessions.",
-      },
-      {
-        title: "Coach Messaging",
-        href: "/dashboard/coach-messaging",
-        section: "Dashboard",
-        status: "Live",
-        description: "Client-to-coach messages.",
-      },
-      {
-        title: "Messaging",
-        href: ROUTES.dashboard.coachMessaging,
-        section: "Dashboard",
-        status: "Recommended",
-        description:
-          "Recommended alias or replacement route for coach messaging.",
-      },
-      {
-        title: "Rewards",
-        href: ROUTES.dashboard.social,
-        section: "Dashboard",
-        status: "Recommended",
-        description: "Standalone Momentum rewards redemption page.",
-        linksTo: ["/dashboard/social", "/dashboard/payments"],
-      },
+  ),
+  route(
+    "Member Secondary Routes",
+    ROUTES.dashboard.profile,
+    "Member App",
+    "Active Secondary",
+    "Useful member pages that remain available but are not the main workout spine.",
+    undefined,
+    [
+      route(
+        "Profile",
+        ROUTES.dashboard.profile,
+        "Member App",
+        "Active Secondary",
+        "Member account, profile, and preferences.",
+      ),
+      route(
+        "Coach Messaging",
+        ROUTES.dashboard.coachMessaging,
+        "Member App",
+        "Active Secondary",
+        "Member-to-coach messaging.",
+      ),
+      route(
+        "Session History",
+        ROUTES.dashboard.sessionHistory,
+        "Member App",
+        "Active Secondary",
+        "Historical session review route.",
+      ),
+      route(
+        "Session Booking",
+        ROUTES.dashboard.sessionBooking,
+        "Member App",
+        "Active Secondary",
+        "Booking and package-related session route.",
+      ),
+      route(
+        "Session Notes",
+        ROUTES.dashboard.sessionNotes,
+        "Member App",
+        "Active Secondary",
+        "Notes route for session context.",
+      ),
+      route(
+        "Workout Complete",
+        ROUTES.dashboard.workoutComplete,
+        "Member App",
+        "Active Secondary",
+        "Post-workout completion route.",
+      ),
+      route(
+        "Create My Plan",
+        ROUTES.dashboard.createMyPlan,
+        "Member App",
+        "Active Secondary",
+        "Plan creation route that supports the My Plan hub.",
+      ),
+      route(
+        "Exercise Demo",
+        ROUTES.workoutBuilder.exerciseDemo,
+        "Member App",
+        "Active Secondary",
+        "Exercise detail/demo route under the canonical library.",
+      ),
+      route(
+        "Nutrition",
+        ROUTES.nutrition.home,
+        "Member App",
+        "Active Secondary",
+        "Nutrition hub and recipes.",
+      ),
+      route(
+        "Recovery",
+        ROUTES.dashboard.recovery,
+        "Member App",
+        "Active Secondary",
+        "Recovery, mobility, and readiness pages.",
+      ),
+      route(
+        "Progress",
+        ROUTES.dashboard.progress,
+        "Member App",
+        "Active Secondary",
+        "Older progress hub retained alongside canonical Stats.",
+      ),
+      route(
+        "Social",
+        ROUTES.dashboard.social,
+        "Member App",
+        "Active Secondary",
+        "Member social feed and posts.",
+      ),
+      route(
+        "Payments",
+        ROUTES.dashboard.payments,
+        "Member App",
+        "Active Secondary",
+        "Payments and packages.",
+      ),
+      route(
+        "Training Calendar",
+        ROUTES.dashboard.trainingCalendar,
+        "Member App",
+        "Active Secondary",
+        "Calendar view for training and sessions.",
+      ),
     ],
-  },
-  {
-    title: "Video Review",
-    href: ROUTES.dashboard.videoReview,
-    section: "Video Review",
-    status: "Live",
-    description:
-      "Focused form-check hub that links exercise videos to workouts, sessions, coach feedback, and progress notes.",
-    linksTo: [
-      ROUTES.dashboard.sessionWorkout,
-      ROUTES.workoutBuilder.exerciseLibrary,
-      ROUTES.dashboard.coachMessaging,
-      ROUTES.dashboard.stats,
+  ),
+  route(
+    "Coach Portal",
+    ROUTES.coach.dashboard,
+    "Coach Portal",
+    "Canonical",
+    "Coach-facing protected dashboard.",
+    undefined,
+    [
+      route(
+        "Coach Dashboard",
+        ROUTES.coach.dashboard,
+        "Coach Portal",
+        "Canonical",
+        "Canonical coach dashboard.",
+      ),
+      route(
+        "Coach Root",
+        ROUTES.coach.home,
+        "Coach Portal",
+        "Redirect Wrapper",
+        "Compatibility route that forwards to the canonical coach dashboard.",
+        ROUTES.coach.dashboard,
+      ),
+      route(
+        "Coach Login Dashboard",
+        ROUTES.coach.legacyDashboard,
+        "Coach Portal",
+        "Redirect Wrapper",
+        "Legacy post-login dashboard path.",
+        ROUTES.coach.dashboard,
+      ),
     ],
-    children: [
-      {
-        title: "Submit Video",
-        href: ROUTES.dashboard.videoReview,
-        section: "Video Review",
-        status: "Live",
-        description:
-          "Submit a video link with related exercise, workout/session context, and notes for the coach.",
-      },
-      {
-        title: "Pending Reviews",
-        href: ROUTES.dashboard.videoReview,
-        section: "Video Review",
-        status: "Live",
-        description: "See videos waiting for coach review or resubmission.",
-      },
-      {
-        title: "Coach Feedback",
-        href: ROUTES.dashboard.videoReview,
-        section: "Video Review",
-        status: "Live",
-        description:
-          "Review coach form notes and connect the next action to workouts or messages.",
-      },
+  ),
+  route(
+    "Admin Portal",
+    ROUTES.admin.home,
+    "Admin Portal",
+    "Active Secondary",
+    "Business, CRM, content, reports, and operational tools.",
+    undefined,
+    [
+      route(
+        "Admin Home",
+        ROUTES.admin.home,
+        "Admin Portal",
+        "Active Secondary",
+        "Admin landing route.",
+      ),
+      route(
+        "Admin Dashboard",
+        ROUTES.admin.dashboard,
+        "Admin Portal",
+        "Active Secondary",
+        "Admin business overview.",
+      ),
+      route(
+        "Clients",
+        ROUTES.admin.clients,
+        "Admin Portal",
+        "Active Secondary",
+        "Admin client management.",
+      ),
+      route(
+        "Leads",
+        ROUTES.admin.leads,
+        "Admin Portal",
+        "Active Secondary",
+        "Lead pipeline.",
+      ),
+      route(
+        "CRM Dashboard",
+        ROUTES.admin.crmDashboard,
+        "Admin Portal",
+        "Active Secondary",
+        "CRM overview.",
+      ),
+      route(
+        "Post Hub",
+        ROUTES.admin.postHub,
+        "Admin Portal",
+        "Active Secondary",
+        "Content and marketing hub.",
+      ),
+      route(
+        "Site Map",
+        ROUTES.admin.siteMap,
+        "Admin Portal",
+        "Active Secondary",
+        "This route structure audit page.",
+      ),
     ],
-  },
-  {
-    title: "Workout Builder",
-    href: "/dashboard/workout-builder",
-    section: "Admin",
-    status: "Live",
-    description: "Coach tool for creating workouts, templates, and logs.",
-    children: [
-      {
-        title: "Exercise Library",
-        href: "/dashboard/workout-builder/exercise-library",
-        section: "Admin",
-        status: "Live",
-        description: "Exercise database and demo library.",
-        children: [
-          {
-            title: "Exercise Demo",
-            href: ROUTES.workoutBuilder.exerciseDemo,
-            section: "Admin",
-            status: "Live",
-            description: "Builder-side demo and coaching cue page.",
-          },
-        ],
-      },
-      {
-        title: "Builder Workspace",
-        href: ROUTES.workoutBuilder.home,
-        section: "Admin",
-        status: "Live",
-        description:
-          "Canonical builder workspace for selected exercises, template save/load, and starting workouts.",
-        children: [
-          {
-            title: "Add Exercises",
-            href: ROUTES.workoutBuilder.addExercises,
-            section: "Admin",
-            status: "Live",
-            description: "Search and select exercises.",
-          },
-        ],
-      },
-      {
-        title: "Saved Workouts",
-        href: "/dashboard/workout-builder/saved",
-        section: "Admin",
-        status: "Live",
-        description: "Reusable workout template library.",
-      },
+  ),
+  route(
+    "Dev Tools",
+    ROUTES.admin.devMovementIntelligence,
+    "Dev Tools",
+    "Dev Tool",
+    "Internal validation and preview routes.",
+    undefined,
+    [
+      route(
+        "Movement Intelligence",
+        ROUTES.admin.devMovementIntelligence,
+        "Dev Tools",
+        "Dev Tool",
+        "Normalized movement taxonomy, mapping, validation, and catalog preview.",
+      ),
     ],
-  },
-  {
-    title: "Coach",
-    href: "/coach",
-    section: "Admin",
-    status: "Live",
-    description: "Coach-only operations and client management.",
-    children: [
-      {
-        title: "Session Notes",
-        href: ROUTES.coach.dashboard,
-        section: "Admin",
-        status: "Live",
-        description: "Private coaching notes and session records.",
-      },
-      {
-        title: "Client Programming",
-        href: ROUTES.workoutBuilder.home,
-        section: "Admin",
-        status: "Recommended",
-        description: "Recommended coach-side program assignment system.",
-      },
+  ),
+  route(
+    "Legacy Redirect Wrappers",
+    ROUTES.onlineProgram.home,
+    "Legacy / Hidden",
+    "Hidden / Deprecated",
+    "Routes hidden from primary UX and retained only to avoid stale-link dead ends.",
+    undefined,
+    [
+      ...onlineProgramRedirects,
+      route(
+        "Session Saved Workouts",
+        ROUTES.dashboard.savedSessionWorkouts,
+        "Legacy / Hidden",
+        "Redirect Wrapper",
+        "Static saved-workouts page replaced by Sessions and Builder template flows.",
+        ROUTES.dashboard.sessions,
+      ),
+      route(
+        "Builder Saved Workouts",
+        ROUTES.legacyWorkoutBuilder.saved,
+        "Legacy / Hidden",
+        "Redirect Wrapper",
+        "Static saved workout vault replaced by the canonical builder template area.",
+        ROUTES.workoutBuilder.home,
+      ),
+      route(
+        "Builder Saved Workout Detail",
+        ROUTES.legacyWorkoutBuilder.savedDetail,
+        "Legacy / Hidden",
+        "Redirect Wrapper",
+        "Static detail page replaced by the canonical builder template area.",
+        ROUTES.workoutBuilder.home,
+      ),
+      route(
+        "Builder Tracking",
+        ROUTES.legacyWorkoutBuilder.tracking,
+        "Legacy / Hidden",
+        "Redirect Wrapper",
+        "Duplicate tracking hub replaced by canonical Stats.",
+        ROUTES.dashboard.stats,
+      ),
+      route(
+        "Builder Tracking Log",
+        ROUTES.legacyWorkoutBuilder.trackingLog,
+        "Legacy / Hidden",
+        "Redirect Wrapper",
+        "Duplicate workout log route replaced by the workout session logger.",
+        ROUTES.dashboard.sessionWorkout,
+      ),
+      route(
+        "Builder Tracking Progress",
+        ROUTES.legacyWorkoutBuilder.trackingProgress,
+        "Legacy / Hidden",
+        "Redirect Wrapper",
+        "Duplicate progress route replaced by canonical Stats.",
+        ROUTES.dashboard.stats,
+      ),
+      route(
+        "Deleted Builder Child Pages",
+        ROUTES.workoutBuilder.home,
+        "Legacy / Hidden",
+        "Safe To Delete Later",
+        "Legacy /dashboard/workout-builder/build, add-exercises, save, and sets-reps child pages have no active route files.",
+        ROUTES.workoutBuilder.home,
+      ),
     ],
-  },
-  {
-    title: "Admin",
-    href: "/admin",
-    section: "Admin",
-    status: "Live",
-    description:
-      "Business command center for leads, marketing, and operations.",
-    linksTo: ["/admin/site-map", "/admin/post-hub", "/admin/lead-map"],
-    children: [
-      {
-        title: "Admin Dashboard",
-        href: "/admin/dashboard",
-        section: "Admin",
-        status: "Live",
-        description: "Admin business overview, priorities, and metrics.",
-      },
-      {
-        title: "AI Prompt Center",
-        href: "/admin/ai-prompt",
-        section: "Admin",
-        status: "Live",
-        description: "Master context, reusable prompts, and AI handoff.",
-      },
-      {
-        title: "Post Hub",
-        href: "/admin/post-hub",
-        section: "Admin",
-        status: "Live",
-        description:
-          "Content hub for posts, emails, blogs, scripts, and platforms.",
-      },
-      {
-        title: "Social Portal",
-        href: "/admin/social-portal",
-        section: "Admin",
-        status: "Live",
-        description: "Social links and marketing workflow hub.",
-      },
-      {
-        title: "Lead Map",
-        href: "/admin/lead-map",
-        section: "Admin",
-        status: "Live",
-        description: "Track leads by address, city, source, and status.",
-      },
-      {
-        title: "Leads",
-        href: "/admin/leads",
-        section: "Admin",
-        status: "Live",
-        description: "Lead list, pipeline, source, value, and next action.",
-      },
-      {
-        title: "Lead Profile",
-        href: "/admin/lead-profile",
-        section: "Admin",
-        status: "Live",
-        description: "Individual prospect profile and follow-up notes.",
-      },
-      {
-        title: "Clients",
-        href: "/admin/clients",
-        section: "Admin",
-        status: "Live",
-        description: "Admin-side client management.",
-      },
-      {
-        title: "CRM Dashboard",
-        href: "/admin/crm-dashboard",
-        section: "Admin",
-        status: "Live",
-        description: "Lead, referral, follow-up, and sales pipeline overview.",
-      },
-      {
-        title: "Follow-Ups",
-        href: "/admin/follow-ups",
-        section: "Admin",
-        status: "Live",
-        description: "Daily lead, client, referral, and renewal follow-ups.",
-      },
-      {
-        title: "Invoices",
-        href: "/admin/invoices",
-        section: "Admin",
-        status: "Live",
-        description: "Invoices, payments, balances, and package records.",
-      },
-      {
-        title: "Referrals",
-        href: "/admin/referrals",
-        section: "Admin",
-        status: "Live",
-        description:
-          "Referral sources, doctors, clients, partners, and outreach.",
-      },
-      {
-        title: "Reports",
-        href: "/admin/reports",
-        section: "Admin",
-        status: "Live",
-        description:
-          "Revenue, leads, retention, conversion, and growth reports.",
-      },
-      {
-        title: "Sales",
-        href: "/admin/sales",
-        section: "Admin",
-        status: "Live",
-        description:
-          "Offers, packages, upsells, objections, and close tracking.",
-      },
-      {
-        title: "Templates",
-        href: "/admin/templates",
-        section: "Admin",
-        status: "Live",
-        description: "Reusable messages, scripts, forms, contracts, and notes.",
-      },
-      {
-        title: "Site Map",
-        href: "/admin/site-map",
-        section: "Admin",
-        status: "Live",
-        description: "Editable architecture map and page tracker.",
-      },
+  ),
+  route(
+    "Future Route Areas",
+    ROUTES.nutrition.home,
+    "Member App",
+    "Future",
+    "Useful concepts that should get deeper data design before large feature expansion.",
+    undefined,
+    [
+      route(
+        "Nutrition Logic",
+        ROUTES.nutrition.home,
+        "Member App",
+        "Future",
+        "Keep route available, but centralize models before expanding meal planning.",
+      ),
+      route(
+        "Recovery Logic",
+        ROUTES.dashboard.recovery,
+        "Member App",
+        "Future",
+        "Keep route available, but wire readiness and pain logs deliberately.",
+      ),
+      route(
+        "Coach Client Workflows",
+        ROUTES.coach.dashboard,
+        "Coach Portal",
+        "Future",
+        "Coach portal needs real client views, notes, messaging, and programming assignment later.",
+      ),
     ],
-  },
+  ),
 ];
 
 function flatten(nodes: PageNode[]): PageNode[] {
@@ -495,177 +614,95 @@ function filterTree(nodes: PageNode[], term: string): PageNode[] {
   return nodes
     .map((node) => {
       const children = node.children ? filterTree(node.children, term) : [];
-
       const match =
         node.title.toLowerCase().includes(lower) ||
         node.href.toLowerCase().includes(lower) ||
         node.description.toLowerCase().includes(lower) ||
         node.section.toLowerCase().includes(lower) ||
-        node.status.toLowerCase().includes(lower);
+        node.status.toLowerCase().includes(lower) ||
+        node.target?.toLowerCase().includes(lower);
 
-      if (match || children.length) {
-        return { ...node, children };
-      }
-
-      return null;
+      return match || children.length ? { ...node, children } : null;
     })
     .filter(Boolean) as PageNode[];
 }
 
-function TreeNode({
-  node,
-  depth = 0,
-  checked,
-  setChecked,
-  notes,
-  setNotes,
-  linkNotes,
-  setLinkNotes,
-}: {
-  node: PageNode;
-  depth?: number;
-  checked: Record<string, boolean>;
-  setChecked: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-  notes: Record<string, string>;
-  setNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  linkNotes: Record<string, string>;
-  setLinkNotes: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-}) {
-  const [open, setOpen] = useState(false);
+function TreeNode({ node, depth = 0 }: { node: PageNode; depth?: number }) {
+  const [open, setOpen] = useState(depth < 1);
   const hasChildren = Boolean(node.children?.length);
-  const isRecommended = node.status === "Recommended";
+  const isMuted =
+    node.status === "Hidden / Deprecated" ||
+    node.status === "Redirect Wrapper" ||
+    node.status === "Safe To Delete Later";
 
   return (
-    <div style={{ marginLeft: depth * 22 }} className="mt-3">
+    <div style={{ marginLeft: depth * 18 }} className="mt-3">
       <div
-        className={`rounded-[24px] border p-4 shadow-xl shadow-black/10 backdrop-blur transition hover:border-sky-400/40 ${
-          isRecommended
-            ? "border-white/5 bg-slate-950/25 opacity-70"
-            : "border-white/10 bg-slate-950/45 hover:bg-white/[0.07]"
+        className={`rounded-[26px] border p-4 shadow-xl shadow-black/10 backdrop-blur transition ${
+          isMuted
+            ? "border-white/5 bg-slate-950/25"
+            : "border-white/10 bg-slate-950/45 hover:border-sky-400/35 hover:bg-white/[0.06]"
         }`}
       >
-        <div className="grid gap-3 sm:grid-cols-[32px_32px_1fr_auto] sm:items-start">
-          <input
-            type="checkbox"
-            checked={Boolean(checked[node.href])}
-            onChange={(e) =>
-              setChecked((prev) => ({
-                ...prev,
-                [node.href]: e.target.checked,
-              }))
-            }
-            className="mt-2 h-5 w-5 accent-sky-500"
-          />
-
+        <div className="grid gap-3 sm:grid-cols-[36px_1fr_auto] sm:items-start">
           <button
             onClick={() => setOpen((value) => !value)}
-            className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-white/5 text-sm font-bold text-white hover:bg-white/10"
+            className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/5 text-sm font-black text-white hover:bg-white/10"
+            aria-label={hasChildren ? "Toggle section" : "Route item"}
           >
-            {hasChildren ? (open ? "▾" : "▸") : "•"}
+            {hasChildren ? (open ? "v" : ">") : "-"}
           </button>
 
           <div>
             <a
               href={node.href}
-              className="text-lg font-bold tracking-tight text-white hover:text-sky-300"
+              className="text-lg font-black tracking-tight text-white hover:text-sky-300"
             >
               {node.title}
             </a>
-
             <p className="mt-1 text-sm leading-6 text-slate-400">
               {node.description}
             </p>
 
             <div className="mt-3 flex flex-wrap gap-2">
               <span
-                className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${sectionStyles[node.section]}`}
+                className={`rounded-full border px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] ${sectionStyles[node.section]}`}
               >
                 {node.section}
               </span>
-
               <span
-                className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusStyles[node.status]}`}
+                className={`rounded-full border px-3 py-1 text-xs font-bold ${statusStyles[node.status]}`}
               >
                 {node.status}
               </span>
-
               <code className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
                 {node.href}
               </code>
             </div>
 
-            <div className="mt-4 grid gap-3 lg:grid-cols-2">
-              <textarea
-                value={notes[node.href] || ""}
-                onChange={(e) =>
-                  setNotes((prev) => ({
-                    ...prev,
-                    [node.href]: e.target.value,
-                  }))
-                }
-                placeholder="Notes for this page..."
-                rows={3}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/40"
-              />
-
-              <textarea
-                value={linkNotes[node.href] || ""}
-                onChange={(e) =>
-                  setLinkNotes((prev) => ({
-                    ...prev,
-                    [node.href]: e.target.value,
-                  }))
-                }
-                placeholder="Annotate which buttons, CTAs, or pages this links to..."
-                rows={3}
-                className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/40"
-              />
-            </div>
-
-            {node.linksTo?.length ? (
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
-                <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                  Links To
-                </div>
-
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {node.linksTo.map((link) => (
-                    <a
-                      key={link}
-                      href={link}
-                      className="rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-1 text-xs text-sky-300 hover:bg-sky-500/15"
-                    >
-                      {link}
-                    </a>
-                  ))}
-                </div>
+            {node.target ? (
+              <div className="mt-3 rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-3 text-sm text-cyan-100">
+                Redirects / points to{" "}
+                <a href={node.target} className="font-bold underline">
+                  {node.target}
+                </a>
               </div>
             ) : null}
           </div>
 
           <div className="text-right text-xs text-slate-500">
-            {hasChildren ? `${node.children?.length} child pages` : "Page"}
+            {hasChildren ? `${node.children?.length} routes` : "Route"}
           </div>
         </div>
       </div>
 
-      {hasChildren && open && (
+      {hasChildren && open ? (
         <div>
           {node.children!.map((child) => (
-            <TreeNode
-              key={`${child.href}-${child.title}`}
-              node={child}
-              depth={depth + 1}
-              checked={checked}
-              setChecked={setChecked}
-              notes={notes}
-              setNotes={setNotes}
-              linkNotes={linkNotes}
-              setLinkNotes={setLinkNotes}
-            />
+            <TreeNode key={`${child.href}-${child.title}`} node={child} depth={depth + 1} />
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -673,9 +710,6 @@ function TreeNode({
 export default function SiteMapPage() {
   const [query, setQuery] = useState("");
   const [sectionFilter, setSectionFilter] = useState<"All" | Section>("All");
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const [notes, setNotes] = useState<Record<string, string>>({});
-  const [linkNotes, setLinkNotes] = useState<Record<string, string>>({});
 
   const allPages = useMemo(() => flatten(siteMap), []);
   const sections = useMemo(
@@ -693,6 +727,22 @@ export default function SiteMapPage() {
     [filteredBySection, query],
   );
 
+  const counts = useMemo(() => {
+    return {
+      total: allPages.length,
+      canonical: allPages.filter((page) => page.status === "Canonical").length,
+      secondary: allPages.filter((page) => page.status === "Active Secondary")
+        .length,
+      redirects: allPages.filter((page) => page.status === "Redirect Wrapper")
+        .length,
+      deprecated: allPages.filter(
+        (page) =>
+          page.status === "Hidden / Deprecated" ||
+          page.status === "Safe To Delete Later",
+      ).length,
+    };
+  }, [allPages]);
+
   const sectionCounts = useMemo(() => {
     return allPages.reduce<Record<string, number>>((acc, page) => {
       acc[page.section] = (acc[page.section] || 0) + 1;
@@ -700,106 +750,76 @@ export default function SiteMapPage() {
     }, {});
   }, [allPages]);
 
-  const completedCount = Object.values(checked).filter(Boolean).length;
-  const recommendedCount = allPages.filter(
-    (page) => page.status === "Recommended",
-  ).length;
-  const liveCount = allPages.filter((page) => page.status === "Live").length;
-
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.14),_transparent_30%),radial-gradient(circle_at_80%_10%,_rgba(249,115,22,0.14),_transparent_26%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.14),_transparent_30%),radial-gradient(circle_at_80%_10%,_rgba(16,185,129,0.12),_transparent_26%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
       <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <section className="rounded-[34px] border border-white/10 bg-white/[0.055] p-6 shadow-2xl shadow-black/25 backdrop-blur lg:p-8">
-          <div className="grid gap-6 xl:grid-cols-[1fr_360px] xl:items-end">
+          <div className="grid gap-6 xl:grid-cols-[1fr_420px] xl:items-end">
             <div>
               <div className="text-[11px] uppercase tracking-[0.24em] text-sky-300">
                 Sound Fitness Architecture
               </div>
-
-              <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
-                Admin Site Map
+              <h1 className="mt-3 text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+                Canonical Site Map
               </h1>
-
               <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300">
-                Color-coded map for the five major areas: Public, Onboarding,
-                Dashboard, Video Review, and Admin. Check pages off, add
-                notes, annotate links, and track recommended future pages.
+                Current route map for canonical systems, active secondary pages,
+                hidden legacy wrappers, internal dev tools, and future cleanup
+                candidates.
               </p>
-
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <a
-                  href="/dashboard"
-                  className="rounded-[24px] bg-sky-500 px-5 py-4 text-center text-sm font-semibold text-slate-950 shadow-lg shadow-sky-500/20 hover:bg-sky-400"
-                >
-                  Dashboard
-                </a>
-
-                <a
-                  href="/dashboard/social"
-                  className="rounded-[24px] border border-white/10 bg-white/5 px-5 py-4 text-center text-sm font-medium text-slate-200 hover:bg-white/10"
-                >
-                  Social Hub
-                </a>
-
-                <a
-                  href="/admin"
-                  className="rounded-[24px] border border-white/10 bg-white/5 px-5 py-4 text-center text-sm font-medium text-slate-200 hover:bg-white/10"
-                >
-                  Admin
-                </a>
-              </div>
             </div>
 
-            <div className="grid gap-3">
-              <div className="rounded-[28px] border border-white/10 bg-slate-950/40 p-5">
-                <div className="text-5xl font-bold tracking-tight">
-                  {completedCount}/{allPages.length}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4">
+                <div className="text-3xl font-black text-emerald-300">
+                  {counts.canonical}
                 </div>
-                <div className="mt-2 text-[11px] uppercase tracking-[0.2em] text-slate-400">
-                  Checked Pages
-                </div>
+                <div className="text-xs text-slate-400">Canonical</div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4">
-                  <div className="text-2xl font-bold text-emerald-300">
-                    {liveCount}
-                  </div>
-                  <div className="text-xs text-slate-400">Live / Existing</div>
+              <div className="rounded-[24px] border border-sky-400/20 bg-sky-500/10 p-4">
+                <div className="text-3xl font-black text-sky-300">
+                  {counts.secondary}
                 </div>
-
-                <div className="rounded-[24px] border border-slate-400/20 bg-slate-500/10 p-4">
-                  <div className="text-2xl font-bold text-slate-300">
-                    {recommendedCount}
-                  </div>
-                  <div className="text-xs text-slate-400">Recommended</div>
+                <div className="text-xs text-slate-400">Secondary</div>
+              </div>
+              <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-500/10 p-4">
+                <div className="text-3xl font-black text-cyan-300">
+                  {counts.redirects}
                 </div>
+                <div className="text-xs text-slate-400">Redirects</div>
+              </div>
+              <div className="rounded-[24px] border border-slate-400/20 bg-slate-500/10 p-4">
+                <div className="text-3xl font-black text-slate-300">
+                  {counts.deprecated}
+                </div>
+                <div className="text-xs text-slate-400">Deprecated</div>
               </div>
             </div>
           </div>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-5">
+        <section className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
           {sections.map((section) => (
             <button
               key={section}
               onClick={() => setSectionFilter(section)}
               className={`rounded-[26px] border p-4 text-left shadow-xl shadow-black/10 backdrop-blur ${sectionStyles[section]}`}
             >
-              <div className="text-3xl font-bold">{sectionCounts[section]}</div>
-              <div className="mt-1 text-xs font-semibold">{section}</div>
+              <div className="text-3xl font-black">
+                {sectionCounts[section]}
+              </div>
+              <div className="mt-1 text-xs font-bold">{section}</div>
             </button>
           ))}
         </section>
 
-        <section className="grid gap-3 lg:grid-cols-[1fr_260px_160px]">
+        <section className="grid gap-3 lg:grid-cols-[1fr_280px_160px]">
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search pages, routes, descriptions, status..."
+            placeholder="Search routes, status, sections, redirect targets..."
             className="rounded-[22px] border border-white/10 bg-white/[0.055] px-5 py-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-sky-400/40"
           />
-
           <select
             value={sectionFilter}
             onChange={(event) =>
@@ -812,10 +832,9 @@ export default function SiteMapPage() {
               <option key={section}>{section}</option>
             ))}
           </select>
-
           <button
             onClick={() => setSectionFilter("All")}
-            className="rounded-[22px] border border-white/10 bg-white/5 px-5 py-4 text-sm font-medium text-white hover:bg-white/10"
+            className="rounded-[22px] border border-white/10 bg-white/5 px-5 py-4 text-sm font-bold text-white hover:bg-white/10"
           >
             Show All
           </button>
@@ -824,26 +843,28 @@ export default function SiteMapPage() {
         <section className="rounded-[34px] border border-white/10 bg-white/[0.055] p-6 shadow-2xl shadow-black/20 backdrop-blur">
           <div className="mb-5">
             <div className="text-[11px] uppercase tracking-[0.22em] text-cyan-300">
-              Default Closed Hierarchy
+              Controlled Route Map
             </div>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight">
+            <h2 className="mt-2 text-2xl font-black tracking-tight">
               Page Tree
             </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Canonical routes should receive new product work. Redirect
+              wrappers prevent stale internal links from becoming dead ends.
+            </p>
           </div>
 
           <div>
             {filteredTree.map((node) => (
-              <TreeNode
-                key={`${node.href}-${node.title}`}
-                node={node}
-                checked={checked}
-                setChecked={setChecked}
-                notes={notes}
-                setNotes={setNotes}
-                linkNotes={linkNotes}
-                setLinkNotes={setLinkNotes}
-              />
+              <TreeNode key={`${node.href}-${node.title}`} node={node} />
             ))}
+          </div>
+
+          <div className="mt-6 rounded-[26px] border border-white/10 bg-slate-950/45 p-5 text-sm leading-6 text-slate-300">
+            <strong className="text-white">Cleanup order:</strong> keep
+            canonical routes stable, let redirect wrappers age through at least
+            one usage cycle, then delete wrappers that have no analytics hits,
+            external links, saved bookmarks, or unique UI left to migrate.
           </div>
         </section>
       </div>

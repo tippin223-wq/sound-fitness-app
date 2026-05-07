@@ -67,11 +67,11 @@ const formatLastSyncedAt = (value: string | null) => {
 };
 
 const getSourceLabel = ({ source, error }: SourceResult) => {
-  if (source === "supabase") return "Supabase";
+  if (source === "supabase") return "Account-backed";
 
   return error && !error.includes("No authenticated Supabase user")
-    ? "error fallback"
-    : "localStorage fallback";
+    ? "Backup retry"
+    : "Browser backup";
 };
 
 const buildTemplateWorkoutHref = (templateId: string) =>
@@ -445,8 +445,8 @@ export default function UserHomeDashboardPage() {
               </h1>
 
               <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-                Start training, check your progress, sync local data, and jump
-                into the next part of your plan from one place.
+                Start training, check your progress, back up your workout data,
+                and jump into the next part of your plan from one place.
               </p>
             </div>
 
@@ -512,7 +512,7 @@ export default function UserHomeDashboardPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-300">
-                  Sync Status
+                  Backup Status
                 </div>
                 <h2 className="mt-2 text-2xl font-black tracking-tight">
                   Account backup
@@ -524,8 +524,8 @@ export default function UserHomeDashboardPage() {
             </div>
 
             <p className="mt-3 text-sm leading-6 text-slate-300">
-              Workout logs and templates keep local fallback protection while
-              authenticated accounts can sync to Supabase.
+              Workout logs and templates stay available in this browser, and
+              signed-in accounts can back them up for future sessions.
             </p>
 
             <button
@@ -535,10 +535,10 @@ export default function UserHomeDashboardPage() {
               className="mt-5 min-h-[48px] w-full rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-center text-sm font-black uppercase tracking-[0.14em] text-white transition hover:border-sky-400/50 hover:bg-sky-500/10 disabled:cursor-not-allowed disabled:opacity-45"
             >
               {isSyncingWorkoutData
-                ? "Syncing..."
-                : canSyncWorkoutData
-                  ? "Sync local workout data"
-                  : "Sign in to sync"}
+                  ? "Syncing..."
+                  : canSyncWorkoutData
+                    ? "Back up workout data"
+                    : "Sign in to sync"}
             </button>
 
             {syncStatusMessage ? (
@@ -732,8 +732,8 @@ export default function UserHomeDashboardPage() {
               Keep the plan moving
             </h2>
             <p className="mt-3 text-sm leading-6 text-slate-300">
-              Use My Plan and the Sessions hub as the active continuation path.
-              Older online-program routes stay hidden from the primary UX.
+              Use My Plan and the Sessions hub as the active continuation path
+              for weekly programming, workout launches, and progress follow-up.
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <Link

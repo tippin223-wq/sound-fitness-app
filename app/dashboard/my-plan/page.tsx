@@ -1,317 +1,935 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { ROUTES } from "@/lib/routes";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { loadWorkoutTemplatesWithFallback } from "@/lib/data/workoutPersistence";
+import {
+  writeActiveWorkoutBuilderSessionTemplate,
+  type LocalWorkoutBuilderTemplate,
+} from "@/lib/localData/workoutBuilderData";
+import {
+  createWorkoutPlan,
+  duplicatePlanToNextWeek,
+  getActiveWorkoutPlanId,
+  readWorkoutPlans,
+  setActiveWorkoutPlan,
+  setActiveWorkoutSessionContext,
+  type LocalPlanAssignment,
+  type LocalPlanDay,
+  type LocalWeeklyPlan,
+} from "@/lib/localData/workoutPlanData";
+import { ROUTES, workoutBuilderAddToPlan } from "@/lib/routes";
 
-type PlanMode = "coach" | "custom" | "hybrid";
+type PlanMessageTone = "success" | "warning" | "error";
 
-export default function MyPlanPage() {
-  const [planMode, setPlanMode] = useState<PlanMode>("coach");
+type PlanMessage = {
+  tone: PlanMessageTone;
+  text: string;
+};
 
-  const plans = {
-    coach: {
-      title: "Strength + Mobility Phase 1",
-      type: "Coach Plan",
-      phase: "Foundation",
-      goal: "Build strength, improve mobility, and stay consistent.",
-      split: "Upper / Lower",
-      weeklyTarget: "4 workouts",
-      restDays: "2 recovery days",
-      sessionTypes: "Strength • Mobility • Assisted Stretch",
-      primaryFocus: "Strength",
-      secondaryFocus: "Core stability + mobility",
-      recovery: "Ready",
-      rule: "Stop 1–2 reps before failure unless coach says otherwise.",
-      progression: "+5 lbs when all reps are completed with clean form.",
-      note: "Follow the planned sequence. Keep lower body controlled and prioritize clean reps.",
-      weakPoints: ["Glutes undertrained", "Upper pull volume low"],
-      workouts: [
-        "Lower Body Strength",
-        "Upper Push + Core",
-        "Upper Pull + Mobility",
-      ],
-    },
-    custom: {
-      title: "My Custom Plan",
-      type: "Custom Plan",
-      phase: "Flexible",
-      goal: "Train based on personal preference while staying balanced.",
-      split: "User Selected",
-      weeklyTarget: "3–5 workouts",
-      restDays: "As needed",
-      sessionTypes: "Custom Strength • Conditioning • Mobility",
-      primaryFocus: "Personal preference",
-      secondaryFocus: "App-guided balance",
-      recovery: "Needs Review",
-      rule: "If soreness is high, reduce volume by 20% or choose mobility.",
-      progression: "Add reps first, then weight when form stays clean.",
-      note: "Build freely, but use app warnings to avoid imbalance.",
-      weakPoints: ["Needs push/pull review", "Needs recovery check"],
-      workouts: ["Choose Workout", "Build Session", "Save Template"],
-    },
-    hybrid: {
-      title: "Hybrid Strength Plan",
-      type: "Hybrid Plan",
-      phase: "Build",
-      goal: "Let the client choose while the system keeps training balanced.",
-      split: "Guided Flexible",
-      weeklyTarget: "4 workouts",
-      restDays: "1–2 recovery days",
-      sessionTypes: "Strength • Mobility • Optional Conditioning",
-      primaryFocus: "Smart autonomy",
-      secondaryFocus: "Weak-point correction",
-      recovery: "Balanced",
-      rule: "Choose what you enjoy, but follow recovery and volume guardrails.",
-      progression: "Progress when heat map and recovery both look ready.",
-      note: "Best option: client preference plus coach/program guardrails.",
-      weakPoints: ["Posterior chain priority", "Core endurance"],
-      workouts: ["Lower Body Priority", "Upper Strength", "Mobility + Core"],
-    },
+const PLANNING_HORIZON_WEEKS = 4;
+
+const formatPlanDate = (value?: string) => {
+  if (!value) return "Not scheduled";
+
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+};
+
+const getShortDate = (value?: string) => {
+  if (!value) return "";
+
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+};
+
+const getPlanModeLabel = (mode: LocalWeeklyPlan["mode"]) => {
+  const labels: Record<LocalWeeklyPlan["mode"], string> = {
+    coach: "Coach",
+    custom: "Custom",
+    hybrid: "Hybrid",
   };
 
-  const activePlan = plans[planMode];
+  return labels[mode];
+};
 
-  const volumeTargets = [
-    { muscle: "Chest", target: 14, completed: 9 },
-    { muscle: "Back", target: 16, completed: 7 },
-    { muscle: "Legs", target: 18, completed: 10 },
-    { muscle: "Core", target: 12, completed: 6 },
-    { muscle: "Glutes", target: 14, completed: 5 },
-    { muscle: "Shoulders", target: 10, completed: 6 },
-  ];
+const getPlanStatusLabel = (plan: LocalWeeklyPlan, activePlanId: string | null) =>
+  plan.id === activePlanId || plan.status === "active" ? "Active" : "Draft";
+
+const getDayStatusLabel = (day: LocalPlanDay) => {
+  if (day.assignments.length > 1) return `${day.assignments.length} workouts`;
+  if (day.assignments.length === 1) return "Planned";
+
+  return "Open";
+};
+
+const resolveAssignmentTemplate = (
+  assignment: LocalPlanAssignment,
+  templates: LocalWorkoutBuilderTemplate[],
+) =>
+  templates.find((template) => template.id === assignment.templateId) ||
+  templates.find(
+    (template) =>
+      template.title.trim().toLowerCase() ===
+      assignment.templateTitle.trim().toLowerCase(),
+  ) ||
+  null;
+
+const getWeekRangeLabel = (plan: LocalWeeklyPlan) => {
+  const firstDay = plan.days[0]?.date || plan.weekStartDate;
+  const lastDay = plan.days[plan.days.length - 1]?.date || plan.weekStartDate;
+
+  return `${getShortDate(firstDay)} - ${getShortDate(lastDay)}`;
+};
+
+const getDateOnlyTimestamp = (value: string) =>
+  new Date(`${value}T00:00:00`).getTime();
+
+const addDaysToDateOnly = (value: string, days: number) => {
+  const date = new Date(`${value}T00:00:00`);
+  date.setDate(date.getDate() + days);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const getPlanningHorizonEndDate = (plan: LocalWeeklyPlan) =>
+  addDaysToDateOnly(plan.weekStartDate, (PLANNING_HORIZON_WEEKS - 1) * 7);
+
+const getPlansInPlanningHorizon = (
+  plans: LocalWeeklyPlan[],
+  activePlan: LocalWeeklyPlan | null,
+) => {
+  if (!activePlan) return plans.slice(0, PLANNING_HORIZON_WEEKS);
+
+  const horizonStart = getDateOnlyTimestamp(activePlan.weekStartDate);
+  const horizonEnd = getDateOnlyTimestamp(getPlanningHorizonEndDate(activePlan));
+  const plansInsideHorizon = plans
+    .filter((plan) => {
+      const weekStart = getDateOnlyTimestamp(plan.weekStartDate);
+      return weekStart >= horizonStart && weekStart <= horizonEnd;
+    })
+    .sort(
+      (a, b) =>
+        getDateOnlyTimestamp(a.weekStartDate) -
+        getDateOnlyTimestamp(b.weekStartDate),
+    );
+
+  return plansInsideHorizon.slice(0, PLANNING_HORIZON_WEEKS);
+};
+
+const canDuplicatePlanInsideHorizon = (
+  plan: LocalWeeklyPlan,
+  activePlan: LocalWeeklyPlan | null,
+) => {
+  if (!activePlan) return true;
+
+  const nextWeekStart = addDaysToDateOnly(plan.weekStartDate, 7);
+  const horizonEnd = getPlanningHorizonEndDate(activePlan);
+
+  return (
+    getDateOnlyTimestamp(nextWeekStart) <= getDateOnlyTimestamp(horizonEnd)
+  );
+};
+
+const messageToneClass: Record<PlanMessageTone, string> = {
+  success: "border-emerald-300/20 bg-emerald-400/10 text-emerald-200",
+  warning: "border-amber-300/20 bg-amber-300/10 text-amber-100",
+  error: "border-rose-300/20 bg-rose-400/10 text-rose-100",
+};
+
+const volumeTargets = [
+  { muscle: "Chest", target: 14, completed: 9 },
+  { muscle: "Back", target: 16, completed: 7 },
+  { muscle: "Legs", target: 18, completed: 10 },
+  { muscle: "Core", target: 12, completed: 6 },
+  { muscle: "Glutes", target: 14, completed: 5 },
+  { muscle: "Shoulders", target: 10, completed: 6 },
+] as const;
+
+const planBuilderSections = [
+  {
+    title: "Plan Identity",
+    accent: "text-cyan-300",
+    items: ["Plan name", "Plan mode", "Goal", "Week start"],
+  },
+  {
+    title: "Weekly Structure",
+    accent: "text-emerald-300",
+    items: ["Training days", "Assigned templates", "Day focus", "Notes"],
+  },
+  {
+    title: "Training Focus",
+    accent: "text-amber-300",
+    items: ["Primary focus", "Secondary focus", "Priority muscles", "Balance"],
+  },
+  {
+    title: "Execution",
+    accent: "text-sky-300",
+    items: ["Start from day", "Session context", "Workout logger", "Stats"],
+  },
+  {
+    title: "Guidance Rules",
+    accent: "text-rose-300",
+    items: ["Effort rules", "Soreness rules", "Missed sessions", "Guardrails"],
+  },
+  {
+    title: "Recovery / Progression",
+    accent: "text-fuchsia-300",
+    items: ["Readiness", "Deload rules", "Add reps", "Add weight"],
+  },
+] as const;
+
+const createTemplateAvailabilityLabel = (
+  templates: LocalWorkoutBuilderTemplate[],
+  loaded: boolean,
+) => {
+  if (!loaded) return "Loading saved templates";
+  if (templates.length === 0) return "No saved templates available";
+
+  return `${templates.length} saved template${
+    templates.length === 1 ? "" : "s"
+  } available`;
+};
+
+export default function MyPlanPage() {
+  const router = useRouter();
+  const [plans, setPlans] = useState<LocalWeeklyPlan[]>([]);
+  const [activePlanId, setActivePlanId] = useState<string | null>(null);
+  const [expandedPlanIds, setExpandedPlanIds] = useState<string[]>([]);
+  const [savedTemplates, setSavedTemplates] = useState<
+    LocalWorkoutBuilderTemplate[]
+  >([]);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  const [planMessage, setPlanMessage] = useState<PlanMessage | null>(null);
+
+  function refreshPlans(options: { expandPlanId?: string } = {}) {
+    const storedPlans = readWorkoutPlans();
+    const storedActivePlanId = getActiveWorkoutPlanId();
+    const activeIdIsValid = storedPlans.some(
+      (plan) => plan.id === storedActivePlanId,
+    );
+    const fallbackActivePlan =
+      storedPlans.find((plan) => plan.status === "active") || storedPlans[0];
+    const nextActivePlanId = activeIdIsValid
+      ? storedActivePlanId
+      : fallbackActivePlan?.id || null;
+    const idsToExpand = [
+      options.expandPlanId,
+      nextActivePlanId,
+      ...expandedPlanIds.filter((id) =>
+        storedPlans.some((plan) => plan.id === id),
+      ),
+    ].filter(Boolean) as string[];
+
+    setPlans(storedPlans);
+    setActivePlanId(nextActivePlanId);
+    setExpandedPlanIds(Array.from(new Set(idsToExpand)));
+  }
+
+  useEffect(() => {
+    let isActive = true;
+
+    refreshPlans();
+
+    const loadTemplates = async () => {
+      const result = await loadWorkoutTemplatesWithFallback();
+
+      if (!isActive) return;
+
+      setSavedTemplates(result.data);
+      setTemplatesLoaded(true);
+    };
+
+    loadTemplates();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const activePlan = useMemo(
+    () =>
+      plans.find((plan) => plan.id === activePlanId) ||
+      plans.find((plan) => plan.status === "active") ||
+      plans[0] ||
+      null,
+    [activePlanId, plans],
+  );
+
+  const orderedPlans = useMemo(() => {
+    return [...plans].sort((a, b) => {
+      if (a.id === activePlan?.id) return -1;
+      if (b.id === activePlan?.id) return 1;
+
+      return (
+        new Date(b.weekStartDate).getTime() -
+        new Date(a.weekStartDate).getTime()
+      );
+    });
+  }, [activePlan?.id, plans]);
+
+  const visiblePlans = useMemo(
+    () => getPlansInPlanningHorizon(orderedPlans, activePlan),
+    [activePlan, orderedPlans],
+  );
+
+  const hiddenPlanCount = Math.max(orderedPlans.length - visiblePlans.length, 0);
+  const canCreateAnotherWeek =
+    !activePlan || visiblePlans.length < PLANNING_HORIZON_WEEKS;
+
+  const planSummary = useMemo(() => {
+    if (!activePlan) {
+      return {
+        trainingDays: 0,
+        plannedDays: 0,
+        assignments: 0,
+        exercises: 0,
+      };
+    }
+
+    const plannedDays = activePlan.days.filter(
+      (day) => day.assignments.length > 0,
+    );
+    const assignments = activePlan.days.flatMap((day) => day.assignments);
+
+    return {
+      trainingDays: activePlan.days.length,
+      plannedDays: plannedDays.length,
+      assignments: assignments.length,
+      exercises: assignments.reduce(
+        (sum, assignment) => sum + assignment.templateExerciseCount,
+        0,
+      ),
+    };
+  }, [activePlan]);
+
+  const templateAvailabilityLabel = createTemplateAvailabilityLabel(
+    savedTemplates,
+    templatesLoaded,
+  );
+
+  function createLocalPlan() {
+    if (activePlan && !canCreateAnotherWeek) {
+      setPlanMessage({
+        tone: "warning",
+        text: "My Plan is limited to a 4-week horizon. Duplicate or edit within the visible 4 weeks.",
+      });
+      return;
+    }
+
+    if (activePlan && visiblePlans.length > 0) {
+      const latestVisiblePlan = [...visiblePlans].sort(
+        (a, b) =>
+          getDateOnlyTimestamp(b.weekStartDate) -
+          getDateOnlyTimestamp(a.weekStartDate),
+      )[0];
+
+      if (latestVisiblePlan) {
+        duplicatePlan(latestVisiblePlan);
+        return;
+      }
+    }
+
+    const result = createWorkoutPlan({
+      title: "This Week's Workout Plan",
+      goal: "Build consistency",
+      mode: "custom",
+      status: "active",
+    });
+
+    setActiveWorkoutPlan(result.plan.id);
+    refreshPlans({ expandPlanId: result.plan.id });
+    setPlanMessage({
+      tone: "success",
+      text: `${result.plan.title} created.`,
+    });
+  }
+
+  function makePlanActive(planId: string) {
+    const result = setActiveWorkoutPlan(planId);
+
+    if (!result) {
+      setPlanMessage({
+        tone: "error",
+        text: "That plan could not be found.",
+      });
+      return;
+    }
+
+    refreshPlans({ expandPlanId: planId });
+    setPlanMessage({
+      tone: "success",
+      text: `${result.plan.title} is now active.`,
+    });
+  }
+
+  function duplicatePlan(plan: LocalWeeklyPlan) {
+    if (!canDuplicatePlanInsideHorizon(plan, activePlan)) {
+      setPlanMessage({
+        tone: "warning",
+        text: "That duplicate would go beyond the 4-week planning horizon.",
+      });
+      return;
+    }
+
+    const nextWeekStart = addDaysToDateOnly(plan.weekStartDate, 7);
+    const nextWeekAlreadyExists = plans.some(
+      (existingPlan) => existingPlan.weekStartDate === nextWeekStart,
+    );
+
+    if (nextWeekAlreadyExists) {
+      setPlanMessage({
+        tone: "warning",
+        text: "The next week already exists. Expand that week or duplicate the latest visible week.",
+      });
+      return;
+    }
+
+    const result = duplicatePlanToNextWeek(plan.id);
+
+    if (!result) {
+      setPlanMessage({
+        tone: "error",
+        text: "This week could not be duplicated.",
+      });
+      return;
+    }
+
+    refreshPlans({ expandPlanId: result.plan.id });
+    setPlanMessage({
+      tone: "success",
+      text: `${result.plan.title} was created for the next week.`,
+    });
+  }
+
+  function toggleWeek(planId: string) {
+    setExpandedPlanIds((current) =>
+      current.includes(planId)
+        ? current.filter((id) => id !== planId)
+        : [...current, planId],
+    );
+  }
+
+  function startPlanAssignment(
+    plan: LocalWeeklyPlan,
+    day: LocalPlanDay,
+    assignment: LocalPlanAssignment,
+  ) {
+    const template = resolveAssignmentTemplate(assignment, savedTemplates);
+
+    if (!template || template.exercises.length === 0) {
+      setPlanMessage({
+        tone: "warning",
+        text: `${assignment.templateTitle} is assigned, but the saved template exercises are not available yet.`,
+      });
+      return;
+    }
+
+    setActiveWorkoutSessionContext({
+      source: "plan",
+      planId: plan.id,
+      planTitle: plan.title,
+      planDayId: day.id,
+      planDayDate: day.date,
+      assignmentId: assignment.id,
+      templateId: template.id,
+      templateTitle: template.title,
+    });
+    writeActiveWorkoutBuilderSessionTemplate(template);
+    router.push(
+      `${ROUTES.dashboard.sessionWorkout}?template=${encodeURIComponent(
+        template.id,
+      )}`,
+    );
+  }
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
-      <section className="mx-auto w-full max-w-[1120px] space-y-6 px-4 py-8">
-        <section className="overflow-hidden rounded-[40px] border border-white/10 bg-[radial-gradient(circle_at_18%_8%,rgba(34,211,238,0.18),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(16,185,129,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-6 shadow-2xl lg:p-8">
-          <p className="text-[11px] font-black uppercase tracking-[0.3em] text-emerald-300">
-            My Plan
-          </p>
-
-          <div className="mt-5 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+      <section className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_18%_8%,rgba(34,211,238,0.18),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(16,185,129,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-5 shadow-2xl sm:rounded-[40px] sm:p-6 lg:p-8">
+          <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
-              <h1 className="max-w-3xl text-4xl font-black leading-tight lg:text-5xl">
-                Your training system.
+              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-emerald-300">
+                My Plan
+              </p>
+              <h1 className="mt-4 max-w-3xl text-3xl font-black leading-tight sm:text-5xl">
+                Weekly training timeline.
               </h1>
-
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
-                Follow a coach-built plan, build your own, or use a hybrid plan
-                with smart guardrails.
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+                Plan the week, review each day as a timeline row, duplicate
+                forward, and start assigned workouts directly from the plan.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {[
-                ["coach", "Coach Plan"],
-                ["custom", "Build My Own"],
-                ["hybrid", "Hybrid"],
-              ].map(([mode, label]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setPlanMode(mode as PlanMode)}
-                  className={`rounded-2xl px-4 py-2 text-xs font-black uppercase tracking-[0.14em] transition ${
-                    planMode === mode
-                      ? "bg-emerald-400 text-slate-950 shadow-[0_0_24px_rgba(52,211,153,0.25)]"
-                      : "border border-white/10 bg-slate-950/60 text-slate-300 hover:border-emerald-300/40"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-[36px] border border-white/10 bg-white/[0.05] p-6 shadow-2xl">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
-                Active Plan
-              </p>
-              <h2 className="mt-3 text-3xl font-black">{activePlan.title}</h2>
-              <p className="mt-2 text-sm text-slate-400">
-                {activePlan.type} • {activePlan.phase}
-              </p>
-            </div>
-
-            <Link
-              href="/dashboard/sessions/workout"
-              className="w-fit rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_28px_rgba(34,211,238,0.25)] hover:bg-cyan-300"
-            >
-              Start Next Workout →
-            </Link>
-          </div>
-
-          <div className="mt-6 rounded-[28px] border border-cyan-300/15 bg-cyan-400/10 p-5">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-300">
-              Goal
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-200">
-              {activePlan.goal}
-            </p>
-          </div>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-4">
-            {[
-              ["Split", activePlan.split],
-              ["Weekly Target", activePlan.weeklyTarget],
-              ["Primary Focus", activePlan.primaryFocus],
-              ["Recovery", activePlan.recovery],
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                className="rounded-2xl border border-white/10 bg-slate-950/60 p-4"
+            <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[360px]">
+              <button
+                type="button"
+                onClick={createLocalPlan}
+                className="min-h-[48px] rounded-2xl bg-emerald-400 px-5 py-4 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_0_28px_rgba(52,211,153,0.25)] transition hover:bg-emerald-300"
               >
-                <p className="text-xs text-slate-400">{label}</p>
-                <p className="mt-2 text-lg font-black text-white">{value}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
-            {[
-              ["Rest Days", activePlan.restDays],
-              ["Session Types", activePlan.sessionTypes],
-              ["Secondary Focus", activePlan.secondaryFocus],
-            ].map(([label, value]) => (
-              <div
-                key={label}
-                className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"
-              >
-                <p className="text-xs text-slate-400">{label}</p>
-                <p className="mt-2 text-sm font-bold leading-5 text-slate-200">
-                  {value}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <div className="grid gap-6 lg:grid-cols-[1fr_0.85fr]">
-          {/* ACTIVE PLAN VIEW */}
-          <section className="rounded-[36px] border border-white/10 bg-white/[0.05] p-5 shadow-2xl">
-            <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.26em] text-cyan-300">
-                  Active Plan View
-                </p>
-                <h2 className="mt-2 text-2xl font-black">Your current plans</h2>
-              </div>
-
+                {activePlan
+                  ? canCreateAnotherWeek
+                    ? "Add Week"
+                    : "4 Week Limit"
+                  : "Create Plan"}
+              </button>
               <Link
-                href={ROUTES.dashboard.myPlan}
-                className="text-sm font-bold text-slate-400 hover:text-cyan-300"
+                href={ROUTES.workoutBuilder.home}
+                className="min-h-[48px] rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-5 py-4 text-center text-xs font-black uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-300 hover:text-slate-950"
               >
-                View Archived →
+                Build Template
               </Link>
             </div>
+          </div>
+        </section>
 
-            <div className="space-y-4">
-              {activePlans.map((plan) => (
-                <div
-                  key={plan.id}
-                  className="rounded-[28px] border border-white/10 bg-slate-950/60 p-5"
+        {planMessage ? (
+          <p
+            className={`rounded-2xl border px-4 py-3 text-sm font-bold ${messageToneClass[planMessage.tone]}`}
+          >
+            {planMessage.text}
+          </p>
+        ) : null}
+
+        {!activePlan ? (
+          <section className="rounded-[36px] border border-white/10 bg-white/[0.05] p-6 shadow-2xl">
+            <div className="grid gap-6 lg:grid-cols-[1fr_340px] lg:items-center">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
+                  Empty Plan State
+                </p>
+                <h2 className="mt-3 text-3xl font-black">
+                  No weekly plan yet.
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                  Create a local week first. Then assign saved templates from
+                  the workout builder to each training day.
+                </p>
+              </div>
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={createLocalPlan}
+                  className="min-h-[48px] w-full rounded-2xl bg-cyan-400 px-5 py-4 text-sm font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_0_28px_rgba(34,211,238,0.25)] transition hover:bg-cyan-300"
                 >
-                  {/* HEADER */}
-                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <h3 className="text-xl font-black text-white">
-                        {plan.name}
-                      </h3>
-                      <p className="text-xs text-slate-400">
-                        Created by {plan.createdBy}
-                      </p>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-bold text-emerald-300">
-                        Active
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* PLAN META */}
-                  <div className="mt-4 grid gap-3 md:grid-cols-4 text-sm">
-                    <div>
-                      <p className="text-slate-500">Goal</p>
-                      <p className="font-bold text-white">{plan.goal}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Target</p>
-                      <p className="font-bold text-white">
-                        {plan.weeklyTarget}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Split</p>
-                      <p className="font-bold text-white">{plan.split}</p>
-                    </div>
-                    <div>
-                      <p className="text-slate-500">Focus</p>
-                      <p className="font-bold text-white">{plan.focus}</p>
-                    </div>
-                  </div>
-
-                  {/* FULL WEEK ROW */}
-                  <div className="mt-5">
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-sky-300">
-                      Weekly Layout
-                    </p>
-
-                    <div className="mt-3 grid grid-cols-7 gap-2">
-                      {plan.week.map((day) => (
-                        <div
-                          key={day.day}
-                          className="rounded-xl border border-white/10 bg-white/[0.035] p-2"
-                        >
-                          <p className="text-[10px] font-black uppercase text-cyan-300">
-                            {day.day}
-                          </p>
-
-                          <p className="mt-1 text-xs font-bold text-white leading-tight">
-                            {day.workout}
-                          </p>
-
-                          <p className="mt-1 text-[10px] text-slate-400 leading-tight">
-                            {day.detail}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* ACTIONS */}
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <Link
-                      href={ROUTES.dashboard.myPlan}
-                      className="rounded-xl bg-cyan-400 px-4 py-2 text-xs font-black text-slate-950 hover:bg-cyan-300"
-                    >
-                      Open Plan
-                    </Link>
-
-                    <Link
-                      href={ROUTES.dashboard.sessionWorkout}
-                      className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-xs font-black text-emerald-300 hover:bg-emerald-400/15"
-                    >
-                      Start Workout
-                    </Link>
-
-                    <button className="rounded-xl border border-rose-300/20 bg-rose-400/10 px-4 py-2 text-xs font-black text-rose-300 hover:bg-rose-400/15">
-                      Archive
-                    </button>
-                  </div>
-                </div>
-              ))}
+                  Create Local Week
+                </button>
+                <Link
+                  href={ROUTES.dashboard.createMyPlan}
+                  className="block min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-center text-sm font-black uppercase tracking-[0.14em] text-white transition hover:border-cyan-300/40 hover:bg-cyan-400/10"
+                >
+                  Open Advanced Builder
+                </Link>
+              </div>
             </div>
           </section>
-        </div>
+        ) : (
+          <>
+            <section className="rounded-[36px] border border-white/10 bg-white/[0.05] p-5 shadow-2xl sm:p-6">
+              <div className="grid gap-6 xl:grid-cols-[1fr_360px] xl:items-start">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
+                    Active Plan View
+                  </p>
+                  <h2 className="mt-3 text-3xl font-black">
+                    {activePlan.title}
+                  </h2>
+                  <p className="mt-2 text-sm text-slate-400">
+                    {getWeekRangeLabel(activePlan)} -{" "}
+                    {getPlanModeLabel(activePlan.mode)} plan -{" "}
+                    {getPlanStatusLabel(activePlan, activePlanId)}
+                  </p>
+                  <div className="mt-6 rounded-[28px] border border-cyan-300/15 bg-cyan-400/10 p-5">
+                    <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-300">
+                      Goal
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-200">
+                      {activePlan.goal || "Build consistency across the week."}
+                    </p>
+                  </div>
+                </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_0.8fr]">
+                <div className="rounded-[28px] border border-white/10 bg-slate-950/55 p-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-300">
+                    Week Summary
+                  </p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    {[
+                      ["Training Days", String(planSummary.trainingDays)],
+                      ["Planned Days", String(planSummary.plannedDays)],
+                      ["Assignments", String(planSummary.assignments)],
+                      ["Exercises", String(planSummary.exercises)],
+                    ].map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="rounded-2xl border border-white/10 bg-white/[0.035] p-3"
+                      >
+                        <p className="text-xs text-slate-400">{label}</p>
+                        <p className="mt-1 text-2xl font-black text-white">
+                          {value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-[1fr_330px]">
+              <div className="space-y-4">
+                <div className="rounded-[34px] border border-white/10 bg-white/[0.045] p-5 shadow-2xl sm:p-6">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-[0.26em] text-emerald-300">
+                        Weekly Layout
+                      </p>
+                      <h2 className="mt-2 text-2xl font-black">
+                        4-week timeline
+                      </h2>
+                    </div>
+                    <p className="text-sm font-bold text-slate-400">
+                      {templateAvailabilityLabel}
+                    </p>
+                  </div>
+                  {hiddenPlanCount > 0 ? (
+                    <p className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm font-semibold text-amber-100">
+                      Showing the active 4-week planning horizon.{" "}
+                      {hiddenPlanCount} older or out-of-range week
+                      {hiddenPlanCount === 1 ? "" : "s"} hidden.
+                    </p>
+                  ) : null}
+                </div>
+
+                {visiblePlans.map((plan) => {
+                  const isExpanded = expandedPlanIds.includes(plan.id);
+                  const isActive = plan.id === activePlan.id;
+                  const planAssignments = plan.days.flatMap(
+                    (day) => day.assignments,
+                  );
+                  const plannedDayCount = plan.days.filter(
+                    (day) => day.assignments.length > 0,
+                  ).length;
+
+                  return (
+                    <section
+                      key={plan.id}
+                      className={`overflow-hidden rounded-[34px] border shadow-2xl ${
+                        isActive
+                          ? "border-cyan-300/30 bg-cyan-400/10"
+                          : "border-white/10 bg-white/[0.04]"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        aria-expanded={isExpanded}
+                        onClick={() => toggleWeek(plan.id)}
+                        className="flex w-full flex-col gap-4 p-5 text-left transition hover:bg-white/[0.035] sm:p-6 lg:flex-row lg:items-center lg:justify-between"
+                      >
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                              {getPlanStatusLabel(plan, activePlanId)}
+                            </span>
+                            <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">
+                              {getPlanModeLabel(plan.mode)}
+                            </span>
+                          </div>
+                          <h3 className="mt-3 text-2xl font-black text-white">
+                            {plan.title}
+                          </h3>
+                          <p className="mt-1 text-sm text-slate-400">
+                            {getWeekRangeLabel(plan)} - {plannedDayCount} of{" "}
+                            {plan.days.length} days planned
+                          </p>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-slate-300">
+                            {planAssignments.length} assignment
+                            {planAssignments.length === 1 ? "" : "s"}
+                          </span>
+                          <span className="rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-slate-300">
+                            {isExpanded ? "Collapse" : "Expand"}
+                          </span>
+                        </div>
+                      </button>
+
+                      {isExpanded ? (
+                        <div className="border-t border-white/10 p-4 sm:p-5 lg:p-6">
+                          <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="max-w-2xl">
+                              <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">
+                                Week Focus
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-slate-300">
+                                {plan.goal ||
+                                  "Use this week to create consistency and clean execution."}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {plan.id !== activePlan.id ? (
+                                <button
+                                  type="button"
+                                  onClick={() => makePlanActive(plan.id)}
+                                  className="min-h-[44px] rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-300 hover:text-slate-950"
+                                >
+                                  Set Active
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() => duplicatePlan(plan)}
+                                className="min-h-[44px] rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-emerald-100 transition hover:bg-emerald-300 hover:text-slate-950"
+                              >
+                                Duplicate Week
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3">
+                            {plan.days.map((day, index) => (
+                              <section
+                                key={day.id}
+                                className="grid gap-4 rounded-[24px] border border-white/10 bg-slate-950/50 p-4 lg:grid-cols-[150px_1fr_190px] lg:items-center"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-cyan-300/25 bg-cyan-400/10 text-sm font-black text-cyan-100">
+                                    {index + 1}
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-300">
+                                      {day.dayOfWeek}
+                                    </p>
+                                    <p className="mt-1 text-sm font-bold text-white">
+                                      {getShortDate(day.date)}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                <div className="min-w-0 border-l border-white/10 pl-4">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span
+                                      className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${
+                                        day.assignments.length > 0
+                                          ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-200"
+                                          : "border-white/10 bg-white/[0.04] text-slate-400"
+                                      }`}
+                                    >
+                                      {getDayStatusLabel(day)}
+                                    </span>
+                                    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">
+                                      {day.focus || "Focus open"}
+                                    </span>
+                                  </div>
+
+                                  <div className="mt-3 space-y-2">
+                                    {day.assignments.length > 0 ? (
+                                      day.assignments.map((assignment) => {
+                                        const template =
+                                          resolveAssignmentTemplate(
+                                            assignment,
+                                            savedTemplates,
+                                          );
+
+                                        return (
+                                          <div
+                                            key={assignment.id}
+                                            className="rounded-2xl border border-white/10 bg-white/[0.035] p-3"
+                                          >
+                                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                              <div>
+                                                <h4 className="font-black text-white">
+                                                  {assignment.templateTitle}
+                                                </h4>
+                                                <p className="mt-1 text-sm text-slate-400">
+                                                  {
+                                                    assignment.templateExerciseCount
+                                                  }{" "}
+                                                  planned exercises
+                                                </p>
+                                              </div>
+                                              <span className="rounded-full border border-white/10 bg-slate-950/45 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">
+                                                {template
+                                                  ? "Ready"
+                                                  : "Needs template"}
+                                              </span>
+                                            </div>
+                                            {assignment.focus ||
+                                            assignment.notes ? (
+                                              <p className="mt-2 text-sm leading-6 text-slate-300">
+                                                {assignment.focus ||
+                                                  "Template assignment"}
+                                                {assignment.notes
+                                                  ? ` - ${assignment.notes}`
+                                                  : ""}
+                                              </p>
+                                            ) : null}
+                                          </div>
+                                        );
+                                      })
+                                    ) : (
+                                      <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.025] p-3 text-sm leading-6 text-slate-400">
+                                        No workout assigned yet. Open the
+                                        builder to attach a saved template to
+                                        this day.
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {day.notes ? (
+                                    <p className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-slate-300">
+                                      {day.notes}
+                                    </p>
+                                  ) : null}
+                                </div>
+
+                                <div className="flex flex-col gap-2">
+                                  {day.assignments.length > 0 ? (
+                                    day.assignments.map((assignment) => {
+                                      const template = resolveAssignmentTemplate(
+                                        assignment,
+                                        savedTemplates,
+                                      );
+
+                                      return (
+                                        <button
+                                          key={assignment.id}
+                                          type="button"
+                                          onClick={() =>
+                                            startPlanAssignment(
+                                              plan,
+                                              day,
+                                              assignment,
+                                            )
+                                          }
+                                          disabled={!template}
+                                          className="min-h-[44px] rounded-2xl bg-cyan-400 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-45"
+                                        >
+                                          {template
+                                            ? "Start Workout"
+                                            : "Template Missing"}
+                                        </button>
+                                      );
+                                    })
+                                  ) : (
+                                    <Link
+                                      href={workoutBuilderAddToPlan(
+                                        plan.id,
+                                        day.id,
+                                      )}
+                                      className="min-h-[44px] rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center text-xs font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:bg-cyan-300 hover:text-slate-950"
+                                    >
+                                      Assign in Builder
+                                    </Link>
+                                  )}
+                                </div>
+                              </section>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+                    </section>
+                  );
+                })}
+              </div>
+
+              <aside className="space-y-5">
+                <section className="rounded-[30px] border border-white/10 bg-slate-950/60 p-5 shadow-2xl">
+                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-300">
+                    Active Plan
+                  </p>
+                  <h3 className="mt-3 text-xl font-black text-white">
+                    {activePlan.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">
+                    {getWeekRangeLabel(activePlan)}
+                  </p>
+                  <div className="mt-4 space-y-3">
+                    {visiblePlans.map((plan) => {
+                      const isSelected = plan.id === activePlan.id;
+
+                      return (
+                        <div
+                          key={plan.id}
+                          className={`rounded-2xl border p-4 ${
+                            isSelected
+                              ? "border-cyan-300/30 bg-cyan-400/10"
+                              : "border-white/10 bg-white/[0.035]"
+                          }`}
+                        >
+                          <p className="font-black text-white">{plan.title}</p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            {getWeekRangeLabel(plan)} -{" "}
+                            {getPlanStatusLabel(plan, activePlanId)}
+                          </p>
+                          {!isSelected && visiblePlans.length > 1 ? (
+                            <button
+                              type="button"
+                              onClick={() => makePlanActive(plan.id)}
+                              className="mt-3 min-h-[40px] rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:bg-cyan-300 hover:text-slate-950"
+                            >
+                              Set Active
+                            </button>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+
+                <section className="rounded-[30px] border border-emerald-300/20 bg-emerald-400/10 p-5 shadow-2xl">
+                  <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-300">
+                    Build / Create Plan
+                  </p>
+                  <p className="mt-3 text-sm leading-6 text-slate-200">
+                    Create reusable templates in the builder, then assign them
+                    to timeline days. This keeps planning separate from workout
+                    logging.
+                  </p>
+                  <div className="mt-4 grid gap-3">
+                    <Link
+                      href={ROUTES.workoutBuilder.home}
+                      className="min-h-[44px] rounded-2xl bg-emerald-400 px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-950 transition hover:bg-emerald-300"
+                    >
+                      Open Builder
+                    </Link>
+                    <Link
+                      href={ROUTES.dashboard.createMyPlan}
+                      className="min-h-[44px] rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-white transition hover:border-emerald-300/40 hover:bg-emerald-400/10"
+                    >
+                      Advanced Builder
+                    </Link>
+                  </div>
+                </section>
+              </aside>
+            </section>
+          </>
+        )}
+
+        <section className="grid gap-6 lg:grid-cols-[1fr_0.82fr]">
           <section className="rounded-[32px] border border-white/10 bg-slate-950/60 p-6 shadow-2xl">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-300">
               Volume Targets
+            </p>
+            <p className="mt-3 text-sm leading-6 text-slate-400">
+              Placeholder targets remain visible until plan assignments and
+              completed sessions are joined into a real weekly volume model.
             </p>
 
             <div className="mt-5 space-y-4">
@@ -322,7 +940,7 @@ export default function MyPlanPage() {
 
                 return (
                   <div key={item.muscle}>
-                    <div className="mb-1 flex items-center justify-between text-sm">
+                    <div className="mb-1 flex items-center justify-between gap-3 text-sm">
                       <span className="font-bold text-slate-200">
                         {item.muscle}
                       </span>
@@ -330,7 +948,6 @@ export default function MyPlanPage() {
                         {item.completed}/{item.target} sets
                       </span>
                     </div>
-
                     <div className="h-2 overflow-hidden rounded-full bg-white/10">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-emerald-300"
@@ -342,180 +959,75 @@ export default function MyPlanPage() {
               })}
             </div>
           </section>
-          <section className="rounded-[36px] border border-emerald-300/20 bg-[radial-gradient(circle_at_20%_0%,rgba(52,211,153,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.98))] p-6 shadow-2xl">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.28em] text-emerald-300">
-                  Create a Plan
-                </p>
-
-                <h2 className="mt-3 text-3xl font-black text-white">
-                  Build your training plan
-                </h2>
-
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
-                  Choose a goal, weekly structure, focus areas, recovery rules,
-                  and progression style. You can follow a coach plan, build your
-                  own, or use a hybrid plan with smart guardrails.
-                </p>
-              </div>
-
-              <Link
-                href="/dashboard/my-plan/create"
-                className="w-fit rounded-2xl bg-emerald-400 px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_28px_rgba(52,211,153,0.25)] hover:bg-emerald-300"
-              >
-                Create Plan →
-              </Link>
-            </div>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {[
-                {
-                  title: "Plan Identity",
-                  items: ["Plan name", "Plan type", "Goal", "Phase"],
-                  icon: "🧭",
-                },
-                {
-                  title: "Weekly Structure",
-                  items: [
-                    "Training split",
-                    "Weekly target",
-                    "Rest days",
-                    "Session types",
-                  ],
-                  icon: "🏗️",
-                },
-                {
-                  title: "Training Focus",
-                  items: [
-                    "Primary focus",
-                    "Secondary focus",
-                    "Weak points",
-                    "Priority muscles",
-                  ],
-                  icon: "🎯",
-                },
-                {
-                  title: "Execution",
-                  items: [
-                    "Next 3 workouts",
-                    "Today’s workout",
-                    "Warm-up",
-                    "Main lifts",
-                  ],
-                  icon: "📅",
-                },
-                {
-                  title: "Volume Targets",
-                  items: [
-                    "Sets per muscle",
-                    "Completed sets",
-                    "Target volume",
-                    "Heat map sync",
-                  ],
-                  icon: "🔥",
-                },
-                {
-                  title: "Guidance Rules",
-                  items: [
-                    "Effort rules",
-                    "Soreness rules",
-                    "Missed session rules",
-                    "Guardrails",
-                  ],
-                  icon: "🧠",
-                },
-                {
-                  title: "Recovery",
-                  items: [
-                    "Ready status",
-                    "Fatigue level",
-                    "DOMS window",
-                    "Adjustment suggestion",
-                  ],
-                  icon: "🧘",
-                },
-                {
-                  title: "Progression",
-                  items: [
-                    "Add reps",
-                    "Add weight",
-                    "Deload rules",
-                    "Coach notes",
-                  ],
-                  icon: "📈",
-                },
-              ].map((section) => (
-                <div
-                  key={section.title}
-                  className="rounded-2xl border border-white/10 bg-slate-950/60 p-4"
-                >
-                  <div className="text-2xl">{section.icon}</div>
-
-                  <h3 className="mt-3 text-sm font-black uppercase tracking-[0.14em] text-white">
-                    {section.title}
-                  </h3>
-
-                  <div className="mt-3 space-y-2">
-                    {section.items.map((item) => (
-                      <div key={item} className="text-sm text-slate-400">
-                        • {item}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
 
           <section className="rounded-[32px] border border-white/10 bg-slate-950/60 p-6 shadow-2xl">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-rose-300">
-              Guardrails
+              Guidance Rules
             </p>
-
             <div className="mt-5 space-y-3">
-              {activePlan.weakPoints.map((point) => (
+              {[
+                "Use the session logger as the only workout completion path.",
+                "If soreness is high, reduce volume or swap to recovery work.",
+                "Missed days should move forward instead of stacking fatigue.",
+              ].map((point) => (
                 <div
                   key={point}
-                  className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm text-slate-300"
+                  className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-sm leading-6 text-slate-300"
                 >
-                  ⚠️ {point}
+                  {point}
                 </div>
               ))}
             </div>
+          </section>
+        </section>
 
-            <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-              <p className="text-xs font-black uppercase text-slate-400">
-                App Logic Coming Next
+        <section className="rounded-[36px] border border-emerald-300/20 bg-[radial-gradient(circle_at_20%_0%,rgba(52,211,153,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.98))] p-6 shadow-2xl">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.28em] text-emerald-300">
+                Build Your Training Plan
               </p>
-              <p className="mt-2 text-sm leading-6 text-slate-300">
-                Later this can connect to your heat map, workout logs, and
-                recovery score to automatically update plan recommendations.
+              <h2 className="mt-3 text-3xl font-black text-white">
+                Planning systems preserved
+              </h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                The weekly timeline now drives execution. These planning
+                concepts stay visible as the next layer for coaching,
+                progression, and recovery logic.
               </p>
             </div>
-          </section>
-        </div>
+
+            <Link
+              href={ROUTES.dashboard.createMyPlan}
+              className="w-fit rounded-2xl bg-emerald-400 px-5 py-3 text-sm font-black text-slate-950 shadow-[0_0_28px_rgba(52,211,153,0.25)] transition hover:bg-emerald-300"
+            >
+              Advanced Builder
+            </Link>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {planBuilderSections.map((section) => (
+              <div
+                key={section.title}
+                className="rounded-2xl border border-white/10 bg-slate-950/60 p-4"
+              >
+                <h3
+                  className={`text-sm font-black uppercase tracking-[0.14em] ${section.accent}`}
+                >
+                  {section.title}
+                </h3>
+                <div className="mt-3 space-y-2">
+                  {section.items.map((item) => (
+                    <div key={item} className="text-sm text-slate-400">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
       </section>
     </main>
   );
 }
-const activePlans = [
-  {
-    id: "1",
-    name: "Strength Plan",
-    createdBy: "Joey",
-    goal: "Build Strength",
-    weeklyTarget: "4 workouts",
-    split: "Flexible",
-    focus: "Strength",
-    week: [
-      { day: "Mon", workout: "Lower", detail: "Squat • Core" },
-      { day: "Tue", workout: "Rest", detail: "" },
-      { day: "Wed", workout: "Upper", detail: "Push • Pull" },
-      { day: "Thu", workout: "Rest", detail: "" },
-      { day: "Fri", workout: "Full", detail: "Tempo • Core" },
-      { day: "Sat", workout: "Mobility", detail: "" },
-      { day: "Sun", workout: "Rest", detail: "" },
-    ],
-  },
-];

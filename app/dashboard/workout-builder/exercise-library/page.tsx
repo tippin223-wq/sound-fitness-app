@@ -2,6 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
+  readWorkoutBuilderSelectedExercises,
+  writeWorkoutBuilderSelectedExercises,
+} from "@/lib/localData/workoutBuilderData";
+import {
   prependExerciseStats,
   readCustomExercises,
   readExerciseStats,
@@ -9,7 +13,7 @@ import {
 } from "@/lib/localData/workoutData";
 import { getExerciseCatalogWithLegacyFallback } from "@/lib/training/normalizedExerciseCatalog";
 import { ROUTES } from "@/lib/routes";
-import type { LocalExerciseStatEntry } from "@/types";
+import type { ExerciseCatalogItem, LocalExerciseStatEntry } from "@/types";
 
 type Exercise = {
   id: string;
@@ -32,6 +36,29 @@ const normalizedSystemExercises =
 
 const defaultImage =
   "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=900";
+
+type BuilderSelectableExercise = Pick<
+  Exercise,
+  "id" | "name" | "body" | "pattern" | "goal" | "equipment"
+> &
+  Partial<Pick<Exercise, "muscles" | "level" | "image" | "cue">>;
+
+const toBuilderCatalogExercise = (
+  exercise: BuilderSelectableExercise,
+): ExerciseCatalogItem => ({
+  id: exercise.id,
+  name: exercise.name,
+  body: exercise.body,
+  muscles: exercise.muscles || "",
+  pattern: exercise.pattern,
+  goal: exercise.goal,
+  equipment: exercise.equipment,
+  level: exercise.level || "",
+  image: exercise.image || defaultImage,
+  cue:
+    exercise.cue ||
+    "Move with control, own the position, and make every rep count.",
+});
 
 const baseGoals = [
   "Strength",
@@ -87,6 +114,7 @@ export default function ExerciseLibraryPage() {
   const [savedExerciseStats, setSavedExerciseStats] = useState<
     LocalExerciseStatEntry[]
   >([]);
+  const [builderAddMessage, setBuilderAddMessage] = useState("");
 
   const [newExercise, setNewExercise] = useState({
     name: "",
@@ -285,6 +313,24 @@ export default function ExerciseLibraryPage() {
 
   const deleteCustomExercise = (id: string) => {
     setCustomExercises((prev) => prev.filter((exercise) => exercise.id !== id));
+  };
+
+  const addExerciseToBuilder = (exercise: Exercise) => {
+    const existingExercises = readWorkoutBuilderSelectedExercises();
+    const alreadySelected = existingExercises.some(
+      (selectedExercise) => selectedExercise.name === exercise.name,
+    );
+
+    if (alreadySelected) {
+      setBuilderAddMessage(`${exercise.name} is already in Workout Builder.`);
+      return;
+    }
+
+    writeWorkoutBuilderSelectedExercises([
+      ...existingExercises.map(toBuilderCatalogExercise),
+      toBuilderCatalogExercise(exercise),
+    ]);
+    setBuilderAddMessage(`${exercise.name} added to Workout Builder.`);
   };
 
   const FilterButtons = ({
@@ -594,6 +640,18 @@ export default function ExerciseLibraryPage() {
             >
               Clear Filters
             </button>
+
+            {builderAddMessage && (
+              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-bold text-cyan-100">
+                {builderAddMessage}{" "}
+                <a
+                  href={ROUTES.workoutBuilder.home}
+                  className="underline decoration-cyan-200/50 underline-offset-4 hover:text-white"
+                >
+                  Review builder
+                </a>
+              </div>
+            )}
           </div>
         </section>
 
@@ -672,15 +730,31 @@ export default function ExerciseLibraryPage() {
                 </div>
 
                 {exercise.custom ? (
-                  <button
-                    type="button"
-                    onClick={() => deleteCustomExercise(exercise.id)}
-                    className="mt-4 min-h-[48px] w-full rounded-2xl border border-red-300/20 bg-red-400/10 px-4 py-3 text-sm font-black text-red-300 transition hover:bg-red-400 hover:text-white"
-                  >
-                    Delete Custom Exercise
-                  </button>
-                ) : (
                   <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() => addExerciseToBuilder(exercise)}
+                      className="min-h-[48px] rounded-2xl border border-orange-300/25 bg-orange-400/15 px-4 py-3 text-sm font-black text-orange-200 transition hover:bg-orange-400 hover:text-slate-950"
+                    >
+                      Add to Builder
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => deleteCustomExercise(exercise.id)}
+                      className="min-h-[48px] rounded-2xl border border-red-300/20 bg-red-400/10 px-4 py-3 text-sm font-black text-red-300 transition hover:bg-red-400 hover:text-white"
+                    >
+                      Delete Custom
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <button
+                      type="button"
+                      onClick={() => addExerciseToBuilder(exercise)}
+                      className="min-h-[48px] rounded-2xl border border-orange-300/25 bg-orange-400/15 px-4 py-3 text-sm font-black text-orange-200 transition hover:bg-orange-400 hover:text-slate-950"
+                    >
+                      Add to Builder
+                    </button>
                     <a
                       href={ROUTES.workoutBuilder.exerciseDemo}
                       className="flex min-h-[48px] items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"

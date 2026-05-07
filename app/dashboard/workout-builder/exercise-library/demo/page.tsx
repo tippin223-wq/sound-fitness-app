@@ -1,6 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
+import {
+  readWorkoutBuilderSelectedExercises,
+  writeWorkoutBuilderSelectedExercises,
+} from "@/lib/localData/workoutBuilderData";
+import { ROUTES } from "@/lib/routes";
 import { getExerciseCatalogWithLegacyFallback } from "@/lib/training/normalizedExerciseCatalog";
 import type { ExerciseCatalogItem } from "@/types";
 
@@ -26,9 +31,41 @@ export default function BuilderExerciseDemoPage() {
   const [selected, setSelected] = useState(
     demoExercises[0]?.name || "Exercise Demo",
   );
+  const [builderStatus, setBuilderStatus] = useState("");
   const selectedExercise =
     demoExercises.find((exercise) => exercise.name === selected) ||
     demoExercises[0];
+
+  function addSelectedExerciseToBuilder() {
+    if (!selectedExercise) return;
+
+    const existingExercises = readWorkoutBuilderSelectedExercises();
+    const alreadySelected = existingExercises.some(
+      (exercise) => exercise.name === selectedExercise.name,
+    );
+
+    if (alreadySelected) {
+      setBuilderStatus(`${selectedExercise.name} is already in Workout Builder.`);
+      return;
+    }
+
+    writeWorkoutBuilderSelectedExercises([
+      ...existingExercises.map((exercise) => ({
+        id: exercise.id,
+        name: exercise.name,
+        body: exercise.body,
+        muscles: "",
+        pattern: exercise.pattern,
+        goal: exercise.goal,
+        equipment: exercise.equipment,
+        level: "",
+        image: "",
+        cue: "",
+      })),
+      selectedExercise,
+    ]);
+    setBuilderStatus(`${selectedExercise.name} added to Workout Builder.`);
+  }
 
   return (
     <main className="builderDemoPage">
@@ -113,9 +150,13 @@ export default function BuilderExerciseDemoPage() {
           </div>
 
           <div className="actions">
-            <a href="/dashboard/workout-builder">Add to Workout</a>
-            <a href="/dashboard/workout-builder">Back to Builder</a>
+            <button type="button" onClick={addSelectedExerciseToBuilder}>
+              Add to Builder
+            </button>
+            <a href={ROUTES.workoutBuilder.home}>Back to Builder</a>
           </div>
+
+          {builderStatus && <p className="status">{builderStatus}</p>}
         </section>
       </section>
 
@@ -203,13 +244,23 @@ export default function BuilderExerciseDemoPage() {
           gap: 10px;
         }
 
-        .actions a {
+        .actions a,
+        .actions button {
           padding: 12px 16px;
           border-radius: 12px;
           text-decoration: none;
           font-weight: 900;
           color: white;
+          border: 0;
           background: linear-gradient(135deg,#2563eb,#f97316);
+          cursor: pointer;
+          font: inherit;
+        }
+
+        .status {
+          color: #bfdbfe;
+          font-weight: 800;
+          margin-top: 14px;
         }
 
         @media (max-width: 900px) {
