@@ -49,23 +49,6 @@ export default function CoachDashboardPage() {
       {/* BACKGROUND */}
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_0%,rgba(0,132,255,0.22),transparent_30%),linear-gradient(180deg,#020713_0%,#06111f_48%,#020713_100%)]" />
 
-      {/* HEADER */}
-      <header className="border-b border-white/5 bg-[#020713]/80 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5">
-          <Link href={ROUTES.public.home} className="flex items-center gap-3">
-            <img src="/sound-fitness-logo.png" className="h-10 w-10" />
-            <div className="text-xl font-black">SOUND FITNESS</div>
-          </Link>
-
-          <Link
-            href={ROUTES.public.home}
-            className="rounded-xl bg-sky-500 px-4 py-2 text-xs font-black"
-          >
-            Sign Out
-          </Link>
-        </div>
-      </header>
-
       {/* HERO */}
       <section className="mx-auto max-w-7xl px-5 py-8">
         <h1 className="text-4xl font-black sm:text-6xl">Coach Dashboard</h1>

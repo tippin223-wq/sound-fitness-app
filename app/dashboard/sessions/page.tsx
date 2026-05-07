@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import AppHeader from "@/components/AppHeader";
 import { ROUTES } from "@/lib/routes";
 
 type PlanMode = "coach" | "custom" | "hybrid";
@@ -181,8 +180,6 @@ export default function SessionsPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
-      <AppHeader />
-
       <section className="mx-auto w-full max-w-[1120px] space-y-6 px-4 py-8">
         <section className="overflow-hidden rounded-[40px] border border-white/10 bg-[radial-gradient(circle_at_20%_10%,rgba(34,211,238,0.18),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.95),rgba(2,6,23,0.98))] p-6 shadow-2xl lg:p-8">
           <p className="text-[11px] font-black uppercase tracking-[0.3em] text-cyan-300">

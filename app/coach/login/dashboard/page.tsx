@@ -63,7 +63,7 @@ const coachTools = [
     title: "Workout Builder",
     icon: "🏋️",
     text: "Build custom workouts and save templates for clients.",
-    href: ROUTES.workoutBuilder.home,
+    href: ROUTES.coach.dashboard,
   },
   {
     title: "Messages",
@@ -104,48 +104,6 @@ export default function CoachDashboardPage() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#020713] text-white">
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_0%,rgba(0,132,255,0.22),transparent_30%),radial-gradient(circle_at_80%_10%,rgba(56,189,248,0.12),transparent_28%),linear-gradient(180deg,#020713_0%,#06111f_48%,#020713_100%)]" />
-
-      <header className="relative z-20 border-b border-white/5 bg-[#020713]/80 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col items-center gap-4 px-4 py-4 sm:px-8 md:flex-row md:justify-between md:gap-6 md:py-6">
-          <Link
-            href="/"
-            className="flex min-w-0 items-center justify-center gap-3 text-center md:justify-start"
-          >
-            <img
-              src="/sound-fitness-logo.png"
-              alt="Sound Fitness"
-              className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14"
-            />
-
-            <div className="min-w-0 leading-[0.9]">
-              <div className="bg-gradient-to-r from-white via-slate-200 to-white bg-clip-text text-2xl font-black uppercase tracking-[0.07em] text-transparent sm:text-4xl">
-                SOUND
-              </div>
-
-              <div className="relative mt-[-2px] text-[10px] font-black uppercase tracking-[0.34em] text-sky-400 sm:text-xs sm:tracking-[0.42em]">
-                FITNESS
-                <div className="absolute left-1/2 top-full mt-1 h-[2px] w-[85%] -translate-x-1/2 bg-gradient-to-r from-transparent via-sky-400 to-transparent opacity-60" />
-              </div>
-            </div>
-          </Link>
-
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center sm:justify-center sm:gap-3">
-            <Link
-              href="/coach"
-              className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-white transition hover:border-sky-400/50 hover:bg-sky-500/10 sm:px-5 sm:text-xs sm:tracking-[0.18em]"
-            >
-              Coach Home
-            </Link>
-
-            <Link
-              href="/"
-              className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-sky-500 px-3 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400 sm:px-5 sm:text-xs sm:tracking-[0.18em]"
-            >
-              Sign Out
-            </Link>
-          </div>
-        </div>
-      </header>
 
       <section className="mx-auto max-w-7xl px-5 pb-8 pt-8 sm:px-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -424,12 +382,12 @@ export default function CoachDashboardPage() {
         <div>© 2026 Sound Fitness Coach Portal.</div>
 
         <div className="flex items-center gap-4">
-          <Link href="/dashboard" className="hover:text-sky-300">
-            Member View
+          <Link href={ROUTES.auth.login} className="hover:text-sky-300">
+            Member Login
           </Link>
           <span>•</span>
-          <Link href="/admin" className="hover:text-sky-300">
-            Admin
+          <Link href={ROUTES.admin.login} className="hover:text-sky-300">
+            Admin Login
           </Link>
         </div>
       </footer>

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import AppHeader from "@/components/AppHeader";
 
 type Step = "identity" | "structure" | "focus" | "execution" | "rules";
 
@@ -184,8 +183,6 @@ export default function CreatePlanPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
-      <AppHeader />
-
       <section className="mx-auto grid w-full max-w-[1120px] gap-6 px-4 py-8 lg:grid-cols-[1fr_340px]">
         <div className="space-y-6">
           <section className="rounded-[40px] border border-white/10 bg-[radial-gradient(circle_at_18%_8%,rgba(52,211,153,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-6 shadow-2xl lg:p-8">

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import AppHeader from "@/components/AppHeader";
 import {
   loadWorkoutLogEntriesWithFallback,
   syncLocalWorkoutLogsToSupabase,
@@ -291,8 +290,6 @@ export default function UserHomeDashboardPage() {
 
   return (
     <main className="min-h-screen bg-[#020713] text-white">
-      <AppHeader />
-
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_20%_0%,rgba(14,165,233,0.18),transparent_32%),radial-gradient(circle_at_80%_10%,rgba(56,189,248,0.12),transparent_28%),linear-gradient(180deg,#020713_0%,#06111f_48%,#020713_100%)]" />
 
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-8 lg:py-8">

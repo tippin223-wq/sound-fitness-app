@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import AppHeader from "@/components/AppHeader";
 import { ROUTES, workoutBuilderAddToPlan } from "@/lib/routes";
 import { getExerciseCatalogWithLegacyFallback } from "@/lib/training/normalizedExerciseCatalog";
 import type { ExerciseCatalogItem } from "@/types";
@@ -474,8 +473,6 @@ export default function WorkoutBuilderPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
-      <AppHeader />
-
       {activeSlot && (
         <ExercisePickerOverlay
           open={true}

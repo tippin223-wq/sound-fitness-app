@@ -112,6 +112,7 @@ export const ADMIN_ROUTES = {
   siteMap: route("/admin/site-map"),
   socialPortal: route("/admin/social-portal"),
   templates: route("/admin/templates"),
+  devMovementIntelligence: route("/admin/dev/movement-intelligence"),
 } as const;
 
 export const COACH_ROUTES = {

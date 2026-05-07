@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import AppHeader from "@/components/AppHeader";
 import { supabase } from "@/lib/supabaseClient";
 import { ROUTES } from "@/lib/routes";
 
@@ -44,5 +45,10 @@ export default function DashboardLayout({
 
   if (loading) return null;
 
-  return <>{children}</>;
+  return (
+    <>
+      <AppHeader />
+      {children}
+    </>
+  );
 }

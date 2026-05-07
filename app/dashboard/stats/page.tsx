@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import AppHeader from "@/components/AppHeader";
 import { loadWorkoutLogEntriesWithFallback } from "@/lib/data/workoutPersistence";
 import { subscribeToLocalWorkoutData } from "@/lib/localData/workoutData";
 import type { LocalExerciseStatEntry } from "@/types";
@@ -111,8 +110,6 @@ export default function StatsPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(250,204,21,0.18),transparent_30%),radial-gradient(circle_at_top_right,rgba(34,211,238,0.18),transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_52%,#020617_100%)] text-white">
-      <AppHeader />
-
       <section className="mx-auto w-full max-w-[1240px] space-y-6 px-3 py-6 sm:px-4 sm:py-8">
         <section className="overflow-hidden rounded-[28px] border border-yellow-300/20 bg-[radial-gradient(circle_at_20%_0%,rgba(250,204,21,0.22),transparent_35%),radial-gradient(circle_at_85%_20%,rgba(34,211,238,0.2),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-4 shadow-[0_30px_120px_rgba(0,0,0,0.7)] sm:rounded-[44px] sm:p-6 lg:p-8">
           <div className="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-center">

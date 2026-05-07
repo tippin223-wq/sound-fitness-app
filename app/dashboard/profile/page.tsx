@@ -4,7 +4,6 @@
 //region 📦 IMPORTS
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import AppHeader from "@/components/AppHeader";
 import MuscleHeatMap from "@/components/anatomy/MuscleHeatMap";
 //endregion
 
@@ -170,7 +169,6 @@ export default function ClientProfilePage() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
       {/*region 🔝 APP HEADER */}
-      <AppHeader />
       {/*endregion*/}
 
       {/*region 📦 MAIN CONTENT WRAPPER */}
