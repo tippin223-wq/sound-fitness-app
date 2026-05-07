@@ -104,8 +104,8 @@ export default function SavedWorkoutDetailPage() {
 
           {/* ACTIONS */}
           <div className="actions">
-            <a href="/dashboard/workout-builder/build">Edit</a>
-            <a href="/dashboard/workout-builder/build/save">Duplicate</a>
+            <a href="/dashboard/workout-builder">Edit</a>
+            <a href="/dashboard/workout-builder">Duplicate</a>
             <a href={ROUTES.dashboard.sessionWorkout}>Start</a>
           </div>
         </section>
@@ -126,7 +126,7 @@ export default function SavedWorkoutDetailPage() {
           <div className="quickLinks">
             <h2>Quick Links</h2>
             <a href="/dashboard/workout-builder">Builder</a>
-            <a href="/dashboard/workout-builder/build">Build</a>
+            <a href="/dashboard/workout-builder">Build</a>
             <a href="/dashboard/workout-builder/exercise-library">Library</a>
           </div>
         </aside>

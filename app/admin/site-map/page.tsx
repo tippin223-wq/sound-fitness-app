@@ -304,33 +304,19 @@ const siteMap: PageNode[] = [
         ],
       },
       {
-        title: "Build Workout",
-        href: "/dashboard/workout-builder/build",
+        title: "Builder Workspace",
+        href: ROUTES.workoutBuilder.home,
         section: "Admin",
         status: "Live",
-        description: "Create workouts from selected exercises.",
+        description:
+          "Canonical builder workspace for selected exercises, template save/load, and starting workouts.",
         children: [
           {
             title: "Add Exercises",
-            href: "/dashboard/workout-builder/build/add-exercises",
+            href: ROUTES.workoutBuilder.addExercises,
             section: "Admin",
             status: "Live",
             description: "Search and select exercises.",
-          },
-          {
-            title: "Sets / Reps",
-            href: "/dashboard/workout-builder/build/sets-reps",
-            section: "Admin",
-            status: "Live",
-            description: "Program volume, reps, tempo, and rest.",
-          },
-          {
-            title: "Save Workout",
-            href: "/dashboard/workout-builder/build/save",
-            section: "Admin",
-            status: "Live",
-            description:
-              "Save as template, client workout, or program workout.",
           },
         ],
       },

@@ -366,7 +366,7 @@ export default function SessionsPage() {
                   Start From Library
                 </Link>
                 <Link
-                  href={ROUTES.workoutBuilder.build}
+                  href={ROUTES.workoutBuilder.home}
                   className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-center text-sm font-black uppercase tracking-[0.14em] text-slate-200 transition hover:border-emerald-300/40 hover:bg-emerald-400/10"
                 >
                   Build Workout
@@ -495,7 +495,7 @@ export default function SessionsPage() {
                   then it will appear here as a one-tap workout start.
                   <div className="mt-4">
                     <Link
-                      href={ROUTES.workoutBuilder.build}
+                      href={ROUTES.workoutBuilder.home}
                       className="inline-flex min-h-[44px] items-center rounded-2xl bg-yellow-300 px-4 text-sm font-black text-slate-950"
                     >
                       Build Template

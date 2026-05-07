@@ -81,10 +81,8 @@ export const ONLINE_PROGRAM_ROUTES = {
 
 export const WORKOUT_BUILDER_ROUTES = {
   home: route("/dashboard/workout-builder"),
-  build: route("/dashboard/workout-builder/build"),
-  addExercises: route("/dashboard/workout-builder/build/add-exercises"),
-  save: route("/dashboard/workout-builder/build/save"),
-  setsReps: route("/dashboard/workout-builder/build/sets-reps"),
+  build: route("/dashboard/workout-builder"),
+  addExercises: route("/dashboard/workout-builder/add-exercises"),
   exerciseLibrary: route("/dashboard/workout-builder/exercise-library"),
   exerciseDemo: route("/dashboard/workout-builder/exercise-library/demo"),
   saved: route("/dashboard/workout-builder/saved"),
@@ -92,6 +90,10 @@ export const WORKOUT_BUILDER_ROUTES = {
   tracking: route("/dashboard/workout-builder/tracking"),
   trackingLog: route("/dashboard/workout-builder/tracking/log"),
   trackingProgress: route("/dashboard/workout-builder/tracking/progress"),
+  legacyBuild: route("/dashboard/workout-builder/build"),
+  legacyAddExercises: route("/dashboard/workout-builder/build/add-exercises"),
+  legacySave: route("/dashboard/workout-builder/build/save"),
+  legacySetsReps: route("/dashboard/workout-builder/build/sets-reps"),
 } as const;
 
 export const ADMIN_ROUTES = {

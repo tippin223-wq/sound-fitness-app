@@ -51,7 +51,7 @@ export default function SavedWorkoutsPage() {
 
       <section className="toolbar">
         <input placeholder="Search saved workouts..." />
-        <a href="/dashboard/workout-builder/build">Build New Workout</a>
+        <a href="/dashboard/workout-builder">Build New Workout</a>
       </section>
 
       <section className="grid">
@@ -92,7 +92,7 @@ export default function SavedWorkoutsPage() {
         <div className="quickLinks">
           <a href="/dashboard/workout-builder">Builder Home</a>
           <a href="/dashboard/workout-builder/exercise-library">Exercise Library</a>
-          <a href="/dashboard/workout-builder/build/save">Save Workout</a>
+          <a href="/dashboard/workout-builder">Save Workout</a>
         </div>
       </section>
 

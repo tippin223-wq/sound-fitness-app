@@ -1,812 +1,792 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState } from "react";
-import { ROUTES, workoutBuilderAddToPlan } from "@/lib/routes";
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  hasWorkoutBuilderSelectedExercises,
+  readWorkoutBuilderSelectedExerciseNames,
+  toWorkoutBuilderSelectedExercise,
+  type LocalWorkoutBuilderSelectedExercise,
+  type LocalWorkoutBuilderTemplate,
+  writeActiveWorkoutBuilderSessionTemplate,
+  writeWorkoutBuilderSelectedExercises,
+} from "@/lib/localData/workoutBuilderData";
+import {
+  loadWorkoutTemplatesWithFallback,
+  saveWorkoutTemplateWithFallback,
+} from "@/lib/data/workoutPersistence";
+import { ROUTES } from "@/lib/routes";
 import { getExerciseCatalogWithLegacyFallback } from "@/lib/training/normalizedExerciseCatalog";
 import type { ExerciseCatalogItem } from "@/types";
 
-type Exercise = ExerciseCatalogItem;
+const exerciseOptions: ExerciseCatalogItem[] =
+  getExerciseCatalogWithLegacyFallback();
+const defaultSelectedExerciseNames = ["Goblet Squat", "DB Romanian Deadlift"];
 
-const builderExercises: Exercise[] = getExerciseCatalogWithLegacyFallback();
+const resolveCatalogExerciseNames = (names: string[]) => {
+  const catalogNames = new Set(exerciseOptions.map((exercise) => exercise.name));
 
-type TemplateSection = {
-  title: string;
-  accent: string;
-  slots: {
-    label: string;
-    exercise: string;
-  }[];
+  return Array.from(new Set(names)).filter((name) => catalogNames.has(name));
+};
+
+const getCatalogExercisesByName = (names: string[]) => {
+  const selectedNames = new Set(names);
+
+  return exerciseOptions.filter((exercise) => selectedNames.has(exercise.name));
+};
+
+const createLocalTemplateId = () => {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `template-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+};
+
+const getNormalizedTemplateTitle = (value: string) =>
+  value.trim() || "Untitled Workout Template";
+
+const getTemplateSourceLabel = ({
+  source,
+  error,
+}: {
+  source: "supabase" | "localStorage";
+  error: string | null;
+}) => {
+  if (source === "supabase") return "Supabase";
+
+  return error && !error.includes("No authenticated Supabase user")
+    ? "error fallback"
+    : "localStorage fallback";
 };
 
 export default function WorkoutBuilderPage() {
-  const [selectedPlanDay, setSelectedPlanDay] = useState("");
-  const [builderMode, setBuilderMode] = useState<"start" | "plan">("start");
-  const [workoutType, setWorkoutType] = useState("Strength");
-  const [selectedBodyPart, setSelectedBodyPart] = useState("All");
-  const [activeSlot, setActiveSlot] = useState<{
-    sectionIndex: number;
-    slotIndex: number;
-  } | null>(null);
+  const router = useRouter();
+  const [selected, setSelected] = useState<string[]>(
+    resolveCatalogExerciseNames(defaultSelectedExerciseNames),
+  );
+  const [title, setTitle] = useState("Lower Body Strength Template");
+  const [savedTemplates, setSavedTemplates] = useState<
+    LocalWorkoutBuilderTemplate[]
+  >([]);
+  const [templateStatus, setTemplateStatus] = useState("");
+  const [templateSourceLabel, setTemplateSourceLabel] =
+    useState("Loading templates");
+  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
 
-  const [exercisePickerOpen, setExercisePickerOpen] = useState(false);
+  useEffect(() => {
+    let isActive = true;
 
-  const [previewExercise, setPreviewExercise] = useState<Exercise | null>(null);
-  const [exerciseSearch, setExerciseSearch] = useState("");
-  const [exerciseBodyFilter, setExerciseBodyFilter] = useState("All");
-  const [exerciseGoalFilter, setExerciseGoalFilter] = useState("All");
+    const loadSavedTemplates = async () => {
+      const result = await loadWorkoutTemplatesWithFallback();
 
-  const [templateSections, setTemplateSections] = useState<TemplateSection[]>([
-    {
-      title: "Warm-Up",
-      accent: "text-emerald-300",
-      slots: [
-        { label: "Movement prep", exercise: "" },
-        { label: "Mobility", exercise: "" },
-      ],
-    },
-    {
-      title: "Main Work",
-      accent: "text-cyan-300",
-      slots: [
-        { label: "Primary lift", exercise: "" },
-        { label: "Secondary lift", exercise: "" },
-      ],
-    },
-    {
-      title: "Cool Down",
-      accent: "text-violet-300",
-      slots: [{ label: "Recovery notes", exercise: "" }],
-    },
-  ]);
+      if (!isActive) return;
 
-  function addSlot(sectionIndex: number) {
-    setTemplateSections((prev) =>
-      prev.map((section, index) =>
-        index === sectionIndex
-          ? {
-              ...section,
-              slots: [...section.slots, { label: "New slot", exercise: "" }],
-            }
-          : section,
-      ),
-    );
-  }
+      setSavedTemplates(result.data);
+      setTemplateSourceLabel(getTemplateSourceLabel(result));
+    };
 
-  function removeSlot(sectionIndex: number, slotIndex: number) {
-    setTemplateSections((prev) =>
-      prev.map((section, index) =>
-        index === sectionIndex
-          ? {
-              ...section,
-              slots: section.slots.filter((_, i) => i !== slotIndex),
-            }
-          : section,
-      ),
-    );
-  }
+    loadSavedTemplates();
 
-  function updateSlot(
-    sectionIndex: number,
-    slotIndex: number,
-    field: "label" | "exercise",
-    value: string,
-  ) {
-    setTemplateSections((prev) =>
-      prev.map((section, index) =>
-        index === sectionIndex
-          ? {
-              ...section,
-              slots: section.slots.map((slot, i) =>
-                i === slotIndex ? { ...slot, [field]: value } : slot,
-              ),
-            }
-          : section,
-      ),
-    );
-  }
+    if (!hasWorkoutBuilderSelectedExercises()) {
+      writeWorkoutBuilderSelectedExercises(
+        getCatalogExercisesByName(
+          resolveCatalogExerciseNames(defaultSelectedExerciseNames),
+        ),
+      );
+    } else {
+      setSelected(
+        resolveCatalogExerciseNames(readWorkoutBuilderSelectedExerciseNames()),
+      );
+    }
 
-  const activePlans = [
-    {
-      id: "1",
-      name: "Strength Plan",
-      createdBy: "Joey",
-      week: [
-        { day: "Mon", workout: "Lower", detail: "Squat • Core" },
-        { day: "Tue", workout: "Rest", detail: "" },
-        { day: "Wed", workout: "Upper", detail: "Push • Pull" },
-        { day: "Thu", workout: "Rest", detail: "" },
-        { day: "Fri", workout: "Full", detail: "Tempo • Core" },
-        { day: "Sat", workout: "Mobility", detail: "" },
-        { day: "Sun", workout: "Rest", detail: "" },
-      ],
-    },
-  ];
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
-  const activePlanDays = useMemo(
+  const selectedExercises = useMemo(
     () =>
-      activePlans.flatMap((plan) =>
-        plan.week.map((day) => ({
-          planId: plan.id,
-          planName: plan.name,
-          day: day.day,
-          workout: day.workout,
-          detail: day.detail,
-        })),
-      ),
-    [],
+      exerciseOptions.filter((exercise) => selected.includes(exercise.name)),
+    [selected],
   );
 
-  const exerciseBodyOptions = useMemo(() => {
-    return [
-      "All",
-      ...Array.from(
-        new Set(builderExercises.map((exercise) => exercise.body)),
-      ).sort(),
-    ];
-  }, []);
+  function toggleExercise(name: string) {
+    setSelected((current) => {
+      const updatedSelection = current.includes(name)
+        ? current.filter((item) => item !== name)
+        : [...current, name];
+      const resolvedSelection = resolveCatalogExerciseNames(updatedSelection);
 
-  const exerciseGoalOptions = useMemo(() => {
-    return [
-      "All",
-      ...Array.from(
-        new Set(builderExercises.map((exercise) => exercise.goal)),
-      ).sort(),
-    ];
-  }, []);
+      writeWorkoutBuilderSelectedExercises(
+        getCatalogExercisesByName(resolvedSelection),
+      );
+      setTemplateStatus("");
 
-  const filteredExercises = useMemo(() => {
-    const q = exerciseSearch.toLowerCase();
-
-    return builderExercises.filter((exercise) => {
-      const matchesSearch =
-        exercise.name.toLowerCase().includes(q) ||
-        exercise.body.toLowerCase().includes(q) ||
-        exercise.muscles.toLowerCase().includes(q) ||
-        exercise.pattern.toLowerCase().includes(q) ||
-        exercise.goal.toLowerCase().includes(q) ||
-        exercise.equipment.toLowerCase().includes(q) ||
-        exercise.level.toLowerCase().includes(q);
-
-      const matchesBody =
-        exerciseBodyFilter === "All" || exercise.body === exerciseBodyFilter;
-
-      const matchesGoal =
-        exerciseGoalFilter === "All" || exercise.goal === exerciseGoalFilter;
-
-      return matchesSearch && matchesBody && matchesGoal;
+      return resolvedSelection;
     });
-  }, [exerciseSearch, exerciseBodyFilter, exerciseGoalFilter]);
+  }
 
-  const navCards = [
-    {
-      title: "Build",
-      href: "/dashboard/workout-builder/build",
-      icon: "🧱",
-      text: "Create a full workout from scratch.",
-    },
-    {
-      title: "Exercise Library",
-      href: "/dashboard/workout-builder/exercise-library",
-      icon: "📚",
-      text: "Browse exercises, demos, muscles, and patterns.",
-    },
-    {
-      title: "Saved",
-      href: "/dashboard/workout-builder/saved",
-      icon: "💾",
-      text: "Use templates and saved workouts.",
-    },
-    {
-      title: "Tracking",
-      href: "/dashboard/workout-builder/tracking",
-      icon: "📈",
-      text: "Review sets, volume, and progress.",
-    },
-    {
-      title: "My Plan",
-      href: "/dashboard/my-plan",
-      icon: "🧭",
-      text: "View active plans and weekly layout.",
-    },
-    {
-      title: "Create Plan",
-      href: "/dashboard/my-plan/create",
-      icon: "✨",
-      text: "Build a new training plan.",
-    },
-    {
-      title: "Workout Session",
-      href: "/dashboard/sessions/workout",
-      icon: "🏋️",
-      text: "Start the live workout flow.",
-    },
-    {
-      title: "Saved Workouts",
-      href: "/dashboard/sessions/saved-workouts",
-      icon: "📦",
-      text: "Open session-level saved workouts.",
-    },
-  ];
+  async function refreshSavedTemplates() {
+    const result = await loadWorkoutTemplatesWithFallback();
 
-  const ExercisePicker = ({
-    value,
-    onChange,
-  }: {
-    value: string;
-    onChange: (value: string) => void;
-  }) => {
-    const [open, setOpen] = useState(false);
-    const selected = builderExercises.find(
-      (exercise) => exercise.name === value,
+    setSavedTemplates(result.data);
+    setTemplateSourceLabel(getTemplateSourceLabel(result));
+
+    return result;
+  }
+
+  function buildCurrentTemplate(): LocalWorkoutBuilderTemplate {
+    const now = new Date().toISOString();
+    const normalizedTitle = getNormalizedTemplateTitle(title);
+    const existingTemplate = savedTemplates.find(
+      (template) =>
+        template.title.trim().toLowerCase() === normalizedTitle.toLowerCase(),
     );
+    const exercises: LocalWorkoutBuilderSelectedExercise[] =
+      selectedExercises.map(toWorkoutBuilderSelectedExercise);
 
-    return (
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => setOpen((prev) => !prev)}
-          className="w-full rounded-2xl border border-white/10 bg-slate-950/80 p-3 text-left transition hover:border-cyan-300/40"
-        >
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-300">
-            Exercise
-          </p>
-          <p className="mt-1 text-sm font-black text-white">
-            {selected ? selected.name : "Choose exercise"}
-          </p>
-          {selected && (
-            <p className="mt-1 text-xs text-slate-500">
-              {selected.pattern} • {selected.equipment} • {selected.goal}
-            </p>
-          )}
-        </button>
+    return {
+      id: existingTemplate?.id || createLocalTemplateId(),
+      title: normalizedTitle,
+      exercises,
+      createdAt: existingTemplate?.createdAt || now,
+      updatedAt: now,
+    };
+  }
 
-        {open && (
-          <div className="absolute left-0 right-0 z-50 mt-2 max-h-80 overflow-y-auto rounded-[24px] border border-cyan-300/20 bg-slate-950/95 p-2 shadow-[0_30px_90px_rgba(0,0,0,0.65)] backdrop-blur-xl">
-            {builderExercises.map((exercise) => (
-              <button
-                key={exercise.id}
-                type="button"
-                onClick={() => {
-                  onChange(exercise.name);
-                  setOpen(false);
-                }}
-                className={`mb-1 w-full rounded-2xl p-3 text-left transition ${
-                  value === exercise.name
-                    ? "bg-cyan-400 text-slate-950"
-                    : "hover:bg-white/10"
-                }`}
-              >
-                <p className="text-sm font-black">{exercise.name}</p>
-                <p className="mt-1 text-xs opacity-75">
-                  {exercise.body} • {exercise.pattern} • {exercise.equipment}
-                </p>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+  async function saveCurrentTemplate() {
+    if (selectedExercises.length === 0) {
+      setTemplateStatus("Add at least one exercise before saving a template.");
+      return;
+    }
+
+    setIsSavingTemplate(true);
+    setTemplateStatus("Saving template...");
+
+    try {
+      const result = await saveWorkoutTemplateWithFallback(
+        buildCurrentTemplate(),
+      );
+      const refreshResult = await refreshSavedTemplates();
+      const sourceLabel = getTemplateSourceLabel(result);
+      const savedTemplate = result.data;
+
+      setTitle(savedTemplate.title);
+      setTemplateSourceLabel(getTemplateSourceLabel(refreshResult));
+      setTemplateStatus(
+        result.error
+          ? `${savedTemplate.title} saved locally. Supabase sync can retry later.`
+          : `${savedTemplate.title} saved via ${sourceLabel}.`,
+      );
+    } catch {
+      setTemplateStatus("Template could not be saved. Try again.");
+    } finally {
+      setIsSavingTemplate(false);
+    }
+  }
+
+  function loadTemplate(template: LocalWorkoutBuilderTemplate) {
+    const exerciseNames = resolveCatalogExerciseNames(
+      template.exercises.map((exercise) => exercise.name),
     );
-  };
+    const catalogExercises = getCatalogExercisesByName(exerciseNames);
 
-  const ExercisePickerOverlay = ({
-    open,
-    value,
-    onClose,
-    onChange,
-  }: {
-    open: boolean;
-    value: string;
-    onClose: () => void;
-    onChange: (value: string) => void;
-  }) => {
-    const filteredPickerExercises = useMemo(() => {
-      const q = exerciseSearch.trim().toLowerCase();
+    setSelected(exerciseNames);
+    setTitle(template.title);
+    writeWorkoutBuilderSelectedExercises(catalogExercises);
+    setTemplateStatus(`${template.title} loaded into the builder.`);
+  }
 
-      return builderExercises.filter((exercise) => {
-        const matchesSearch =
-          q === "" ||
-          exercise.name.toLowerCase().includes(q) ||
-          exercise.body.toLowerCase().includes(q) ||
-          exercise.muscles.toLowerCase().includes(q) ||
-          exercise.pattern.toLowerCase().includes(q) ||
-          exercise.goal.toLowerCase().includes(q) ||
-          exercise.equipment.toLowerCase().includes(q) ||
-          exercise.level.toLowerCase().includes(q);
-
-        const matchesBody =
-          exerciseBodyFilter === "All" || exercise.body === exerciseBodyFilter;
-
-        const matchesGoal =
-          exerciseGoalFilter === "All" || exercise.goal === exerciseGoalFilter;
-
-        return matchesSearch && matchesBody && matchesGoal;
-      });
-    }, [exerciseSearch, exerciseBodyFilter, exerciseGoalFilter]);
-
-    if (!open) return null;
-
-    return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-4 backdrop-blur-md">
-        <div className="w-full max-w-3xl rounded-[32px] border border-cyan-300/20 bg-slate-950 p-5 shadow-[0_40px_120px_rgba(0,0,0,0.85)]">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
-                Exercise Library
-              </p>
-              <h3 className="mt-2 text-2xl font-black text-white">
-                Choose exercise
-              </h3>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setExerciseSearch("");
-                setExerciseBodyFilter("All");
-                setExerciseGoalFilter("All");
-                onClose();
-              }}
-              className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-black text-slate-300 hover:text-white"
-            >
-              Close
-            </button>
-          </div>
-
-          <input
-            value={exerciseSearch}
-            onChange={(e) => setExerciseSearch(e.target.value)}
-            placeholder="Search by exercise, body, muscle, pattern, goal, or equipment..."
-            className="mt-5 w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
-          />
-
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
-                Body Area
-              </span>
-
-              <select
-                value={exerciseBodyFilter}
-                onChange={(e) => setExerciseBodyFilter(e.target.value)}
-                className="w-full cursor-pointer appearance-none rounded-2xl border border-cyan-300/40 bg-slate-900 bg-[linear-gradient(45deg,transparent_50%,#67e8f9_50%),linear-gradient(135deg,#67e8f9_50%,transparent_50%)] bg-[length:6px_6px,6px_6px] bg-[position:calc(100%-22px)_50%,calc(100%-16px)_50%] bg-no-repeat px-4 py-3 pr-12 text-sm font-black text-white outline-none transition hover:border-cyan-300 focus:border-cyan-300"
-              >
-                {exerciseBodyOptions.map((body) => (
-                  <option key={body} value={body}>
-                    {body}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">
-                Training Goal
-              </span>
-
-              <select
-                value={exerciseGoalFilter}
-                onChange={(e) => setExerciseGoalFilter(e.target.value)}
-                className="w-full cursor-pointer appearance-none rounded-2xl border border-emerald-300/30 bg-slate-900 bg-[linear-gradient(45deg,transparent_50%,#6ee7b7_50%),linear-gradient(135deg,#6ee7b7_50%,transparent_50%)] bg-[length:6px_6px,6px_6px] bg-[position:calc(100%-22px)_50%,calc(100%-16px)_50%] bg-no-repeat px-4 py-3 pr-12 text-sm font-black text-white outline-none transition hover:border-emerald-300 focus:border-emerald-300"
-              >
-                {exerciseGoalOptions.map((goal) => (
-                  <option key={goal} value={goal}>
-                    {goal}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="mt-4 flex items-center justify-between text-xs text-slate-400">
-            <span>
-              Showing{" "}
-              <strong className="text-cyan-300">
-                {filteredPickerExercises.length}
-              </strong>{" "}
-              exercises
-            </span>
-
-            <button
-              type="button"
-              onClick={() => {
-                setExerciseSearch("");
-                setExerciseBodyFilter("All");
-                setExerciseGoalFilter("All");
-              }}
-              className="font-black text-cyan-300 hover:text-cyan-200"
-            >
-              Reset filters
-            </button>
-          </div>
-
-          <div className="mt-4 max-h-[460px] space-y-2 overflow-y-auto pr-2">
-            {filteredPickerExercises.length > 0 ? (
-              filteredPickerExercises.map((exercise) => (
-                <button
-                  key={exercise.id}
-                  type="button"
-                  onClick={() => {
-                    onChange(exercise.name);
-                    setExerciseSearch("");
-                    setExerciseBodyFilter("All");
-                    setExerciseGoalFilter("All");
-                    onClose();
-                  }}
-                  className={`flex w-full gap-3 rounded-2xl p-3 text-left transition ${
-                    value === exercise.name
-                      ? "bg-cyan-400 text-slate-950"
-                      : "bg-white/[0.04] text-slate-200 hover:bg-white/10"
-                  }`}
-                >
-                  <img
-                    src={exercise.image}
-                    alt={exercise.name}
-                    className="h-16 w-16 rounded-xl object-cover"
-                  />
-
-                  <div>
-                    <p className="text-sm font-black">{exercise.name}</p>
-                    <p className="mt-1 text-xs opacity-75">
-                      {exercise.body} • {exercise.pattern} •{" "}
-                      {exercise.equipment}
-                    </p>
-                    <p className="mt-1 text-[11px] opacity-60">
-                      {exercise.goal} • {exercise.level}
-                    </p>
-                  </div>
-                </button>
-              ))
-            ) : (
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-6 text-center">
-                <p className="font-black text-white">No exercises found</p>
-                <p className="mt-2 text-sm text-slate-400">
-                  Try changing the body, goal, or search text.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+  function startTemplateWorkout(template: LocalWorkoutBuilderTemplate) {
+    const exerciseNames = resolveCatalogExerciseNames(
+      template.exercises.map((exercise) => exercise.name),
     );
-  };
+    const catalogExercises = getCatalogExercisesByName(exerciseNames);
+
+    if (catalogExercises.length === 0) {
+      setTemplateStatus(
+        "This template has no available exercises to start right now.",
+      );
+      return;
+    }
+
+    writeWorkoutBuilderSelectedExercises(catalogExercises);
+    writeActiveWorkoutBuilderSessionTemplate({
+      ...template,
+      exercises: catalogExercises.map((exercise) => ({
+        id: exercise.id,
+        name: exercise.name,
+        body: exercise.body,
+        pattern: exercise.pattern,
+        goal: exercise.goal,
+        equipment: exercise.equipment,
+      })),
+    });
+    router.push(`${ROUTES.dashboard.sessionWorkout}?template=${template.id}`);
+  }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
-      {activeSlot && (
-        <ExercisePickerOverlay
-          open={true}
-          value={
-            templateSections[activeSlot.sectionIndex]?.slots[
-              activeSlot.slotIndex
-            ]?.exercise || ""
-          }
-          onClose={() => setActiveSlot(null)}
-          onChange={(value) => {
-            updateSlot(
-              activeSlot.sectionIndex,
-              activeSlot.slotIndex,
-              "exercise",
-              value,
-            );
-            setActiveSlot(null);
-          }}
-        />
-      )}
-
-      <section className="mx-auto w-full max-w-[1240px] space-y-6 px-4 py-8">
-        {/* BUILDER FORM */}
-        <section className="rounded-[40px] border border-white/10 bg-[radial-gradient(circle_at_18%_8%,rgba(34,211,238,0.18),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(16,185,129,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-6 shadow-2xl lg:p-8">
-          <p className="text-[11px] font-black uppercase tracking-[0.3em] text-cyan-300">
-            Workout Builder
+    <main className="buildPage">
+      <section className="hero">
+        <div>
+          <p className="eyebrow">Workout Builder</p>
+          <h1>Build Workout</h1>
+          <p>
+            Create a workout by choosing exercises, setting structure, and
+            preparing it to save or assign.
           </p>
+        </div>
 
-          <h1 className="mt-4 text-4xl font-black leading-tight lg:text-5xl">
-            Build, start, or assign workouts.
-          </h1>
-
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300">
-            Choose a workout style, build each section, select exercises from
-            the library, then start now or attach it to an active plan day.
-          </p>
-
-          <div className="mt-6">
-            <p className="mb-3 text-sm font-bold text-slate-300">
-              Workout Type
-            </p>
-
-            <div className="flex flex-wrap gap-2">
-              {[
-                "Strength",
-                "Hypertrophy",
-                "Calisthenics",
-                "Mobility",
-                "Conditioning",
-                "Power",
-                "Recovery",
-                "Full Body",
-              ].map((type) => (
-                <button
-                  key={type}
-                  type="button"
-                  onClick={() => setWorkoutType(type)}
-                  className={`rounded-full border px-4 py-2 text-xs font-black uppercase tracking-[0.12em] transition ${
-                    workoutType === type
-                      ? "border-cyan-300 bg-cyan-400 text-slate-950 shadow-[0_0_22px_rgba(34,211,238,0.25)]"
-                      : "border-white/10 bg-white/[0.04] text-slate-400 hover:border-cyan-300/40 hover:text-white"
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-6 rounded-[30px] border border-white/10 bg-slate-950/45 p-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-300">
-                  Template Structure
-                </p>
-                <h2 className="mt-2 text-2xl font-black">
-                  {workoutType} session layout
-                </h2>
-              </div>
-
-              <span className="w-fit rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-bold text-cyan-300">
-                Editable template
-              </span>
-            </div>
-            <div className="mt-6">
-              <div className="mb-4 flex flex-wrap gap-2">
-                {templateSections.map((section, sectionIndex) => (
-                  <button
-                    key={section.title}
-                    type="button"
-                    onClick={() => addSlot(sectionIndex)}
-                    className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-4 py-2 text-xs font-black text-emerald-300 hover:bg-emerald-400/15"
-                  >
-                    + Add {section.title}
-                  </button>
-                ))}
-              </div>
-
-              <div className="overflow-x-auto pb-5">
-                <div className="flex w-max gap-4">
-                  {templateSections.flatMap((section, sectionIndex) =>
-                    section.slots.map((slot, slotIndex) => {
-                      const selected = builderExercises.find(
-                        (exercise) => exercise.name === slot.exercise,
-                      );
-
-                      const pickerKey = `${sectionIndex}-${slotIndex}`;
-
-                      return (
-                        <div
-                          key={`${section.title}-${slotIndex}`}
-                          className="flex h-[430px] w-[360px] shrink-0 flex-col rounded-[30px] border border-white/10 bg-slate-950/75 p-4 shadow-xl transition duration-300 hover:scale-[1.03] hover:border-cyan-300/40"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span
-                              className={`rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${section.accent}`}
-                            >
-                              {section.title}
-                            </span>
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                removeSlot(sectionIndex, slotIndex)
-                              }
-                              className="rounded-lg border border-rose-300/20 bg-rose-400/10 px-2 py-1 text-[10px] font-black text-rose-300 hover:bg-rose-400/15"
-                            >
-                              −
-                            </button>
-                          </div>
-
-                          <input
-                            value={slot.label}
-                            onChange={(e) =>
-                              updateSlot(
-                                sectionIndex,
-                                slotIndex,
-                                "label",
-                                e.target.value,
-                              )
-                            }
-                            className="mt-4 w-full bg-transparent text-xl font-black text-white outline-none placeholder:text-slate-600"
-                            placeholder="Exercise block"
-                          />
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setActiveSlot({ sectionIndex, slotIndex })
-                            }
-                            className="mt-4 w-full rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-4 text-left transition hover:border-cyan-300/60 hover:bg-cyan-400/15"
-                          >
-                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-300">
-                              Exercise
-                            </p>
-                            <p className="mt-1 text-sm font-black text-white">
-                              {selected
-                                ? selected.name
-                                : "Choose from exercise library"}
-                            </p>
-
-                            {selected && (
-                              <p className="mt-2 text-xs text-slate-400">
-                                {selected.body} • {selected.pattern} •{" "}
-                                {selected.equipment}
-                              </p>
-                            )}
-                          </button>
-
-                          <div className="mt-4 h-[145px] overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80">
-                            {selected?.image ? (
-                              <img
-                                src={selected.image}
-                                alt={selected.name}
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.18),transparent_45%),linear-gradient(135deg,rgba(15,23,42,0.95),rgba(2,6,23,0.95))]">
-                                <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
-                                  Preview Photo
-                                </p>
-                              </div>
-                            )}
-                          </div>
-
-                          {selected && (
-                            <div className="mt-4 flex-1 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-                                Coaching Cue
-                              </p>
-                              <p className="mt-2 text-sm leading-5 text-slate-300">
-                                {selected.cue}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }),
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 rounded-[30px] border border-cyan-300/20 bg-cyan-400/10 p-5">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-300">
-              Builder Destination
-            </p>
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => setBuilderMode("start")}
-                className={`rounded-2xl border p-4 text-left transition ${
-                  builderMode === "start"
-                    ? "border-cyan-300 bg-cyan-400/20"
-                    : "border-white/10 bg-slate-950/60 hover:border-cyan-300/40"
-                }`}
-              >
-                <p className="font-black text-white">Start Now</p>
-                <p className="mt-1 text-xs text-slate-400">
-                  Use this workout immediately.
-                </p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setBuilderMode("plan")}
-                className={`rounded-2xl border p-4 text-left transition ${
-                  builderMode === "plan"
-                    ? "border-emerald-300 bg-emerald-400/20"
-                    : "border-white/10 bg-slate-950/60 hover:border-emerald-300/40"
-                }`}
-              >
-                <p className="font-black text-white">Add to Plan</p>
-                <p className="mt-1 text-xs text-slate-400">
-                  Attach to an active plan day.
-                </p>
-              </button>
-            </div>
-
-            {builderMode === "plan" && (
-              <label className="mt-4 block text-sm font-bold text-slate-300">
-                Active plan day
-                <select
-                  value={selectedPlanDay}
-                  onChange={(e) => setSelectedPlanDay(e.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none focus:border-cyan-300"
-                >
-                  <option value="">Choose plan day</option>
-                  {activePlanDays.map((item) => (
-                    <option
-                      key={`${item.planId}-${item.day}`}
-                      value={`${item.planId}:${item.day}`}
-                    >
-                      {item.planName} — {item.day} — {item.workout}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            <div className="mt-5 flex flex-wrap gap-3">
-              <Link
-                href={
-                  builderMode === "start"
-                    ? `${ROUTES.dashboard.sessionWorkout}?mode=start`
-                    : `${ROUTES.dashboard.sessionWorkout}?addTo=${
-                        selectedPlanDay || "choose"
-                      }`
-                }
-                className="rounded-2xl bg-cyan-400 px-5 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300"
-              >
-                Continue →
-              </Link>
-
-              <Link
-                href={ROUTES.dashboard.myPlan}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-200 hover:border-cyan-300/40"
-              >
-                View Plans
-              </Link>
-            </div>
-          </div>
-        </section>
-        <section className="rounded-[34px] border border-white/10 bg-white/[0.05] p-6 shadow-2xl">
-          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300">
-            Active Plan Days
-          </p>
-
-          <h2 className="mt-3 text-2xl font-black">Available destinations</h2>
-
-          <div className="mt-5 space-y-3">
-            {activePlanDays.map((item) => (
-              <Link
-                key={`${item.planId}-${item.day}`}
-                href={workoutBuilderAddToPlan(item.planId, item.day)}
-                className="block rounded-2xl border border-white/10 bg-slate-950/60 p-4 transition hover:border-emerald-300/40 hover:bg-emerald-400/10"
-              >
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">
-                  {item.planName} • {item.day}
-                </p>
-                <p className="mt-2 font-black text-white">{item.workout}</p>
-                <p className="mt-1 text-sm text-slate-400">
-                  {item.detail || "No workout detail yet"}
-                </p>
-              </Link>
-            ))}
-          </div>
-        </section>
-        <section className="rounded-[34px] border border-white/10 bg-white/[0.05] p-6 shadow-2xl">
-          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300">
-            Builder Navigation
-          </p>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {navCards.map((card) => (
-              <Link
-                key={card.href}
-                href={card.href}
-                className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 transition hover:border-cyan-300/40 hover:bg-cyan-400/10"
-              >
-                <div className="text-2xl">{card.icon}</div>
-                <h3 className="mt-3 text-lg font-black">{card.title}</h3>
-                <p className="mt-2 text-sm leading-5 text-slate-400">
-                  {card.text}
-                </p>
-              </Link>
-            ))}
-          </div>
-        </section>
-
-        <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]"></div>
+        <div className="summaryCard">
+          <span>{selected.length}</span>
+          <h2>Exercises Added</h2>
+          <p>{title}</p>
+        </div>
       </section>
+
+      <section className="layout">
+        <aside className="libraryPanel">
+          <p className="eyebrow">Library</p>
+          <h2>Add Exercises</h2>
+
+          {exerciseOptions.map((exercise) => (
+            <button
+              key={exercise.name}
+              onClick={() => toggleExercise(exercise.name)}
+              className={selected.includes(exercise.name) ? "active" : ""}
+            >
+              <strong>{exercise.name}</strong>
+              <span>
+                {exercise.pattern} • {exercise.equipment}
+              </span>
+            </button>
+          ))}
+
+          <a className="libraryLink" href="/dashboard/workout-builder/exercise-library">
+            Open Full Exercise Library
+          </a>
+        </aside>
+
+        <section className="builderPanel">
+          <div className="panelHeader">
+            <div>
+              <p className="eyebrow">Workout Setup</p>
+              <h2>Workout Details</h2>
+            </div>
+            <button type="button" onClick={saveCurrentTemplate}>
+              Save Workout
+            </button>
+          </div>
+
+          <label className="field">
+            <span>Workout Name</span>
+            <input
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </label>
+
+          <div className="tableHeader">
+            <span>Exercise</span>
+            <span>Sets</span>
+            <span>Reps</span>
+            <span>Rest</span>
+            <span>Notes</span>
+          </div>
+
+          <div className="exerciseRows">
+            {selectedExercises.length > 0 ? (
+              selectedExercises.map((exercise, index) => (
+                <div className="exerciseRow" key={exercise.name}>
+                  <strong>
+                    {index + 1}. {exercise.name}
+                  </strong>
+                  <input placeholder="3" />
+                  <input placeholder="8-10" />
+                  <input placeholder="75 sec" />
+                  <input placeholder="Coaching notes..." />
+                </div>
+              ))
+            ) : (
+              <div className="emptyState">
+                <strong>No exercises added yet</strong>
+                <span>Use Add Exercises to build this workout.</span>
+              </div>
+            )}
+          </div>
+
+          <section className="templatePanel">
+            <div className="templateHeader">
+              <div>
+                <p className="eyebrow">Saved Templates</p>
+                <h2>Save or load this workout</h2>
+              </div>
+
+              <div className="templateHeaderActions">
+                <span className="templateSource">{templateSourceLabel}</span>
+                <button
+                  type="button"
+                  onClick={saveCurrentTemplate}
+                  disabled={selectedExercises.length === 0 || isSavingTemplate}
+                >
+                  {isSavingTemplate ? "Saving..." : "Save Template"}
+                </button>
+              </div>
+            </div>
+
+            {templateStatus && <p className="templateStatus">{templateStatus}</p>}
+
+            <div className="templateGrid">
+              {savedTemplates.length > 0 ? (
+                savedTemplates.map((template) => (
+                  <article className="templateCard" key={template.id}>
+                    <div className="templateCardHeader">
+                      <strong>{template.title}</strong>
+                      <span>
+                        {template.exercises.length} exercise
+                        {template.exercises.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+
+                    <p>
+                      {template.exercises
+                        .slice(0, 3)
+                        .map((exercise) => exercise.name)
+                        .join(" / ")}
+                      {template.exercises.length > 3 ? " / ..." : ""}
+                    </p>
+
+                    <div className="templateActions">
+                      <button
+                        type="button"
+                        onClick={() => loadTemplate(template)}
+                      >
+                        Load Template
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startTemplateWorkout(template)}
+                      >
+                        Start Workout
+                      </button>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="emptyState">
+                  <strong>No saved templates yet</strong>
+                  <span>
+                    Name this workout, choose exercises, then save it here.
+                  </span>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <div className="actions">
+            <a href={ROUTES.workoutBuilder.addExercises}>Add Exercises</a>
+            <a href="/dashboard/my-plan">Add to Plan</a>
+            <a href="/dashboard/workout-builder/saved">Saved Workouts</a>
+          </div>
+        </section>
+      </section>
+
+      <style>{`
+        .buildPage {
+          min-height: 100vh;
+          padding: 28px;
+          color: #f8fafc;
+          background:
+            radial-gradient(circle at top left, rgba(37,99,235,.25), transparent 34%),
+            radial-gradient(circle at top right, rgba(249,115,22,.18), transparent 30%),
+            #070707;
+          font-family: Inter, system-ui, sans-serif;
+        }
+
+        .hero {
+          display: grid;
+          grid-template-columns: 1fr 320px;
+          gap: 22px;
+          margin-bottom: 22px;
+        }
+
+        .eyebrow {
+          color: #60a5fa;
+          text-transform: uppercase;
+          letter-spacing: .16em;
+          font-size: 12px;
+          font-weight: 900;
+          margin: 0 0 10px;
+        }
+
+        h1 {
+          font-size: clamp(44px, 8vw, 88px);
+          line-height: .9;
+          letter-spacing: -.07em;
+          margin: 0;
+        }
+
+        .hero p {
+          color: #cbd5e1;
+          max-width: 760px;
+          font-size: 18px;
+          line-height: 1.7;
+          margin-top: 18px;
+        }
+
+        .summaryCard,
+        .libraryPanel,
+        .builderPanel {
+          background: rgba(15,23,42,.76);
+          border: 1px solid rgba(148,163,184,.18);
+          box-shadow: 0 24px 80px rgba(0,0,0,.35);
+          border-radius: 28px;
+          backdrop-filter: blur(18px);
+          padding: 24px;
+        }
+
+        .summaryCard span {
+          font-size: 68px;
+          font-weight: 950;
+          letter-spacing: -.07em;
+        }
+
+        .summaryCard h2 {
+          margin: 4px 0 8px;
+        }
+
+        .summaryCard p {
+          color: #94a3b8;
+          margin: 0;
+        }
+
+        .layout {
+          display: grid;
+          grid-template-columns: 320px 1fr;
+          gap: 20px;
+          align-items: start;
+        }
+
+        .libraryPanel {
+          display: grid;
+          gap: 10px;
+          position: sticky;
+          top: 20px;
+        }
+
+        .libraryPanel h2,
+        .panelHeader h2 {
+          margin: 0;
+          font-size: 28px;
+          letter-spacing: -.04em;
+        }
+
+        .libraryPanel button {
+          border: 1px solid rgba(148,163,184,.14);
+          background: rgba(255,255,255,.055);
+          color: white;
+          border-radius: 18px;
+          padding: 14px;
+          text-align: left;
+          cursor: pointer;
+          display: grid;
+          gap: 5px;
+          font-family: inherit;
+        }
+
+        .libraryPanel button.active,
+        .libraryPanel button:hover {
+          border-color: rgba(249,115,22,.55);
+          background: rgba(249,115,22,.14);
+        }
+
+        .libraryPanel span {
+          color: #94a3b8;
+          font-size: 14px;
+        }
+
+        .libraryLink,
+        .panelHeader a,
+        .panelHeader button,
+        .actions a {
+          border: 0;
+          color: white;
+          cursor: pointer;
+          text-decoration: none;
+          font-weight: 900;
+          border-radius: 16px;
+          padding: 12px 16px;
+          background: linear-gradient(135deg, #2563eb, #0ea5e9);
+          font-family: inherit;
+          text-align: center;
+        }
+
+        .panelHeader {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          align-items: center;
+          margin-bottom: 18px;
+        }
+
+        .panelHeader a,
+        .panelHeader button {
+          background: linear-gradient(135deg, #f97316, #fb923c);
+        }
+
+        .field {
+          display: grid;
+          gap: 8px;
+          margin-bottom: 18px;
+        }
+
+        .field span {
+          color: #94a3b8;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: .08em;
+          font-weight: 900;
+        }
+
+        input {
+          width: 100%;
+          box-sizing: border-box;
+          border-radius: 14px;
+          border: 1px solid rgba(148,163,184,.18);
+          background: rgba(0,0,0,.22);
+          color: white;
+          padding: 12px;
+          outline: none;
+          font-family: inherit;
+        }
+
+        input::placeholder {
+          color: #64748b;
+        }
+
+        .tableHeader,
+        .exerciseRow {
+          display: grid;
+          grid-template-columns: 1.5fr .7fr .7fr .8fr 1.5fr;
+          gap: 10px;
+          align-items: center;
+        }
+
+        .tableHeader {
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: .08em;
+          font-size: 12px;
+          font-weight: 900;
+          margin-bottom: 10px;
+        }
+
+        .exerciseRows {
+          display: grid;
+          gap: 10px;
+        }
+
+        .exerciseRow {
+          background: rgba(255,255,255,.055);
+          border: 1px solid rgba(148,163,184,.12);
+          border-radius: 18px;
+          padding: 12px;
+        }
+
+        .exerciseRow strong {
+          color: #e2e8f0;
+        }
+
+        .emptyState {
+          border: 1px dashed rgba(148,163,184,.28);
+          border-radius: 18px;
+          color: #cbd5e1;
+          display: grid;
+          gap: 6px;
+          padding: 18px;
+        }
+
+        .emptyState span {
+          color: #94a3b8;
+        }
+
+        .templatePanel {
+          border: 1px solid rgba(148,163,184,.16);
+          border-radius: 24px;
+          background: rgba(255,255,255,.04);
+          display: grid;
+          gap: 14px;
+          margin-top: 18px;
+          padding: 18px;
+        }
+
+        .templateHeader {
+          align-items: center;
+          display: flex;
+          gap: 14px;
+          justify-content: space-between;
+        }
+
+        .templateHeader h2 {
+          font-size: 24px;
+          letter-spacing: -.04em;
+          margin: 0;
+        }
+
+        .templateHeaderActions {
+          align-items: center;
+          display: flex;
+          gap: 10px;
+        }
+
+        .templateSource {
+          border: 1px solid rgba(148,163,184,.16);
+          border-radius: 999px;
+          color: #bfdbfe;
+          font-size: 12px;
+          font-weight: 900;
+          padding: 7px 10px;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .templateHeader button,
+        .templateCard button {
+          border: none;
+          border-radius: 14px;
+          color: white;
+          cursor: pointer;
+          font-family: inherit;
+          font-weight: 900;
+          padding: 11px 14px;
+        }
+
+        .templateHeader button {
+          background: linear-gradient(135deg, #f97316, #fb923c);
+          white-space: nowrap;
+        }
+
+        .templateHeader button:disabled {
+          cursor: not-allowed;
+          opacity: .5;
+        }
+
+        .templateStatus {
+          color: #bfdbfe;
+          font-size: 14px;
+          margin: 0;
+        }
+
+        .templateGrid {
+          display: grid;
+          gap: 10px;
+        }
+
+        .templateCard {
+          border: 1px solid rgba(148,163,184,.14);
+          border-radius: 18px;
+          background: rgba(15,23,42,.72);
+          display: grid;
+          gap: 10px;
+          padding: 14px;
+        }
+
+        .templateCardHeader {
+          display: flex;
+          gap: 10px;
+          justify-content: space-between;
+        }
+
+        .templateActions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+
+        .templateCard span,
+        .templateCard p {
+          color: #94a3b8;
+        }
+
+        .templateCard p {
+          line-height: 1.5;
+          margin: 0;
+        }
+
+        .templateCard button {
+          background: linear-gradient(135deg, #2563eb, #0ea5e9);
+          justify-self: start;
+        }
+
+        .templateActions button:last-child {
+          background: linear-gradient(135deg, #f97316, #fb923c);
+        }
+
+        .actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-top: 18px;
+        }
+
+        .actions a:nth-child(2) {
+          background: linear-gradient(135deg, #f97316, #fb923c);
+        }
+
+        .actions a:nth-child(3) {
+          background: rgba(255,255,255,.1);
+        }
+
+        @media (max-width: 1000px) {
+          .hero,
+          .layout {
+            grid-template-columns: 1fr;
+          }
+
+          .libraryPanel {
+            position: static;
+          }
+
+          .panelHeader {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+        }
+
+        @media (max-width: 760px) {
+          .buildPage {
+            padding: 16px;
+          }
+
+          .tableHeader {
+            display: none;
+          }
+
+          .exerciseRow {
+            grid-template-columns: 1fr;
+          }
+
+          .templateHeader,
+          .templateCardHeader,
+          .templateHeaderActions,
+          .templateActions {
+            align-items: stretch;
+            flex-direction: column;
+          }
+
+          .templateHeader button,
+          .templateCard button {
+            width: 100%;
+          }
+
+          .actions a,
+          .panelHeader a,
+          .panelHeader button {
+            width: 100%;
+          }
+        }
+      `}</style>
     </main>
   );
 }
