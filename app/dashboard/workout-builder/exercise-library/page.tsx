@@ -8,6 +8,7 @@ import {
   type SetStateAction,
 } from "react";
 import { useRouter } from "next/navigation";
+import { loadWorkoutLogEntriesWithFallback } from "@/lib/data/workoutPersistence";
 import {
   readWorkoutBuilderSelectedExercises,
   writeWorkoutBuilderSelectedExercises,
@@ -15,7 +16,7 @@ import {
 import {
   prependExerciseStats,
   readCustomExercises,
-  readExerciseStats,
+  subscribeToLocalWorkoutData,
   writeCustomExercises,
 } from "@/lib/localData/workoutData";
 import {
@@ -50,6 +51,13 @@ type Exercise = {
   image?: string;
   cue?: string;
   custom?: boolean;
+};
+
+type ExerciseLibraryViewMode = "detail" | "grid";
+
+const viewModeLabels: Record<ExerciseLibraryViewMode, string> = {
+  detail: "Detail View",
+  grid: "Grid View",
 };
 
 const normalizedCatalog = getNormalizedExerciseCatalog();
@@ -124,7 +132,9 @@ const getModifierLabel = (modifierId: string) =>
     ?.label || labelize(modifierId.split(":").pop() || modifierId);
 
 const getModifierCategoryLabel = (categoryId: ExerciseModifierCategoryId) =>
-  EXERCISE_MODIFIER_CATEGORY_BY_ID[categoryId]?.label || labelize(categoryId);
+  categoryId === "apparatus"
+    ? "Equipment"
+    : EXERCISE_MODIFIER_CATEGORY_BY_ID[categoryId]?.label || labelize(categoryId);
 
 const getMetadataForExercise = (exercise: Exercise) =>
   exercise.custom
@@ -163,7 +173,7 @@ const getCompatibleModifierGroups = (
       if (!acc[modifier.categoryId]) {
         acc[modifier.categoryId] = {
           categoryId: modifier.categoryId,
-          label: category?.label || getModifierCategoryLabel(modifier.categoryId),
+          label: getModifierCategoryLabel(modifier.categoryId),
           displayOrder: category?.displayOrder || 999,
           modifiers: [],
         };
@@ -248,6 +258,47 @@ const getSelectedGoalLabel = (
   );
 
   return selectedIntent.map((modifier) => modifier.label).join(", ") || exercise.goal;
+};
+
+const getStatTime = (stat: LocalExerciseStatEntry) => {
+  const time = new Date(stat.date).getTime();
+  return Number.isFinite(time) ? time : 0;
+};
+
+const parseStatNumber = (value: string | number | undefined) => {
+  const parsed = Number.parseFloat(String(value || "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatMetric = (value: number) =>
+  value > 0 ? value.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "--";
+
+const getStatVolume = (stat: LocalExerciseStatEntry) =>
+  parseStatNumber(stat.weight) *
+  parseStatNumber(stat.reps) *
+  parseStatNumber(stat.sets);
+
+const getRecentExerciseStats = (
+  stats: LocalExerciseStatEntry[],
+  exercise: Exercise,
+  variationName: string,
+) => {
+  const normalizedNames = new Set(
+    [exercise.name, variationName]
+      .filter(Boolean)
+      .map((name) => name.trim().toLowerCase()),
+  );
+
+  return stats
+    .filter((stat) => {
+      const statName = stat.exerciseName?.trim().toLowerCase();
+      return (
+        stat.exerciseId === exercise.id ||
+        (statName ? normalizedNames.has(statName) : false)
+      );
+    })
+    .sort((a, b) => getStatTime(b) - getStatTime(a))
+    .slice(0, 3);
 };
 
 const optionLabels = (options: Array<{ label: string }>) => [
@@ -344,13 +395,113 @@ const getMovementSuggestions = (
   return { substitutions, progressions, regressions };
 };
 
+function ModifierRail({
+  label,
+  modifiers,
+  selectedModifierIds,
+  onToggleModifier,
+  priority = false,
+}: {
+  label: string;
+  modifiers: ExerciseModifier[];
+  selectedModifierIds: ExerciseModifierId[];
+  onToggleModifier: (modifier: ExerciseModifier) => void;
+  priority?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <p
+        className={`text-[10px] font-bold uppercase tracking-[0.12em] ${
+          priority ? "text-cyan-100/75" : "text-white/40"
+        }`}
+      >
+        {label}
+      </p>
+      <div className="relative mt-2">
+        <div className="pointer-events-none absolute bottom-1 right-0 top-0 z-10 w-8 rounded-r-2xl bg-gradient-to-l from-slate-950/35 via-slate-950/12 to-transparent" />
+        <div className="flex snap-x gap-1.5 overflow-x-auto overflow-y-hidden pb-1 pr-7 [-webkit-overflow-scrolling:touch] [scrollbar-color:rgba(34,211,238,0.38)_transparent] [scrollbar-width:thin]">
+          {modifiers.map((modifier) => {
+            const isSelected = selectedModifierIds.includes(modifier.id);
+
+            return (
+              <button
+                key={modifier.id}
+                type="button"
+                onClick={() => onToggleModifier(modifier)}
+                className={`min-h-[36px] shrink-0 snap-start whitespace-nowrap rounded-full border px-3 py-1.5 text-[11px] font-black transition ${
+                  isSelected
+                    ? "border-emerald-300 bg-emerald-300 text-slate-950"
+                    : "border-white/10 bg-white/[0.045] text-slate-300 hover:border-cyan-300/40 hover:text-white"
+                }`}
+              >
+                {modifier.shortLabel || modifier.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GridModifierSelect({
+  label,
+  value,
+  options,
+  fallback,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: ExerciseModifier[];
+  fallback: string;
+  onChange: (modifierId: string) => void;
+}) {
+  if (!options.length) {
+    return (
+      <div className="min-w-0 rounded-xl border border-white/10 bg-slate-950/45 px-2.5 py-2">
+        <p className="text-[8px] font-black uppercase tracking-[0.1em] text-white/35">
+          {label}
+        </p>
+        <p className="mt-0.5 break-words text-[11px] font-black leading-4 text-white">
+          {fallback}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <label className="relative min-w-0 rounded-xl border border-white/10 bg-slate-950/45 px-2.5 py-2">
+      <span className="block text-[8px] font-black uppercase tracking-[0.1em] text-white/35">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-0.5 min-h-[28px] w-full appearance-none bg-transparent pr-5 text-[11px] font-black leading-4 text-white outline-none"
+      >
+        <option value="">Select</option>
+        {options.map((modifier) => (
+          <option key={modifier.id} value={modifier.id} className="bg-slate-950">
+            {modifier.shortLabel || modifier.label}
+          </option>
+        ))}
+      </select>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute bottom-3 right-2 text-[10px] font-black text-cyan-200"
+      >
+        v
+      </span>
+    </label>
+  );
+}
+
 function MovementMetadataPanel({
-  exercise,
   metadata,
   selectedModifierIds,
   setSelectedModifierIds,
 }: {
-  exercise: Exercise;
   metadata: NormalizedExerciseCatalogItem | null;
   selectedModifierIds: ExerciseModifierId[];
   setSelectedModifierIds: Dispatch<SetStateAction<ExerciseModifierId[]>>;
@@ -364,11 +515,19 @@ function MovementMetadataPanel({
     (count, group) => count + group.modifiers.length,
     0,
   );
-  const selectedEquipmentLabel = getSelectedEquipmentLabel(
-    exercise,
-    metadata,
-    selectedModifierIds,
-  );
+  const coverageValue = metadata
+    ? compatibleModifierCount > 0
+      ? String(compatibleModifierCount)
+      : "Core"
+    : "--";
+  const coverageLabel = metadata
+    ? compatibleModifierCount > 0
+      ? "compatible options"
+      : "mapped movement"
+    : "custom movement";
+  const coverageNote = metadata
+    ? "validated for this movement"
+    : "metadata pending";
 
   const toggleModifier = (modifier: ExerciseModifier) => {
     setSelectedModifierIds((prev) => {
@@ -395,51 +554,33 @@ function MovementMetadataPanel({
   const displayedLoadBehaviorLabels = selectedLoadBehaviorLabels.length
     ? selectedLoadBehaviorLabels
     : loadBehaviorLabels;
+  const equipmentModifierGroup = compatibleModifierGroups.find(
+    (group) => group.categoryId === "apparatus",
+  );
+  const angleModifierGroup = compatibleModifierGroups.find(
+    (group) => group.categoryId === "angle-position",
+  );
+  const remainingModifierGroups = compatibleModifierGroups.filter(
+    (group) =>
+      group.categoryId !== "apparatus" && group.categoryId !== "angle-position",
+  );
 
   return (
-    <div className="mt-3 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.07] p-4 backdrop-blur-2xl">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
-          Movement Intelligence
-        </p>
-        <span className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 text-right text-[10px] font-bold text-slate-300">
-          <span className="block uppercase tracking-[0.14em] text-cyan-200">
-            Variation Coverage
-          </span>
-          <span className="mt-0.5 block text-white/80">
-            {metadata
-              ? compatibleModifierCount > 0
-                ? `${compatibleModifierCount} compatible modifiers`
-                : "Core movement mapped"
-              : "Custom movement"}
-          </span>
-        </span>
+    <div className="mt-3 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] p-3 backdrop-blur-2xl">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
+            Movement Intelligence
+          </p>
+          <p className="mt-0.5 text-[11px] font-semibold text-slate-400">
+            Compatible variation controls
+          </p>
+        </div>
       </div>
 
       {metadata ? (
-        <div className="mt-3 space-y-3">
-          <div className="grid gap-2 text-xs sm:grid-cols-3">
-            <div>
-              <span className="text-white/35">Pattern</span>
-              <p className="mt-1 font-black text-white">
-                {metadata.movementPatternLabel}
-              </p>
-            </div>
-            <div>
-              <span className="text-white/35">Region</span>
-              <p className="mt-1 font-black text-white">
-                {exercise.body}
-              </p>
-            </div>
-            <div>
-              <span className="text-white/35">Equipment</span>
-              <p className="mt-1 font-black text-white">
-                {selectedEquipmentLabel}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-1.5">
+        <div className="mt-2.5 space-y-2">
+          <div className="flex w-full flex-wrap items-start gap-1.5">
             {(selectedModifierLabels.length
               ? selectedModifierLabels
               : displayedLoadBehaviorLabels.length
@@ -448,56 +589,77 @@ function MovementMetadataPanel({
             ).map((label) => (
               <span
                 key={label}
-                className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2.5 py-1 text-[10px] font-bold text-violet-100"
+                className="inline-flex max-w-full items-center rounded-full border border-violet-300/20 bg-violet-400/10 px-2.5 py-1 text-[10px] font-bold leading-4 text-violet-100"
               >
-                {label}
+                <span className="min-w-0 break-words">{label}</span>
               </span>
             ))}
           </div>
 
-          <details className="group rounded-2xl border border-white/10 bg-slate-950/35">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-emerald-200">
-              <span>Choose Variation Modifiers</span>
-              <span
-                aria-hidden="true"
-                className="text-sm text-emerald-100 transition group-open:rotate-180"
-              >
-                v
+          {equipmentModifierGroup ? (
+            <ModifierRail
+              label={equipmentModifierGroup.label}
+              modifiers={equipmentModifierGroup.modifiers}
+              selectedModifierIds={selectedModifierIds}
+              onToggleModifier={toggleModifier}
+              priority
+            />
+          ) : null}
+
+          {angleModifierGroup ? (
+            <ModifierRail
+              label={angleModifierGroup.label}
+              modifiers={angleModifierGroup.modifiers}
+              selectedModifierIds={selectedModifierIds}
+              onToggleModifier={toggleModifier}
+              priority
+            />
+          ) : null}
+
+          <div className="rounded-2xl border border-cyan-200/25 bg-[linear-gradient(135deg,rgba(34,211,238,0.22),rgba(16,185,129,0.12))] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_34px_rgba(8,145,178,0.16)]">
+            <p className="text-[8px] font-black uppercase leading-3 tracking-[0.16em] text-cyan-100/75">
+              Variation Coverage
+            </p>
+
+            <div className="mt-1.5 flex flex-wrap items-end gap-x-2 gap-y-1">
+              <span className="text-3xl font-black leading-none text-white">
+                {coverageValue}
               </span>
-            </summary>
-
-            <div className="space-y-3 border-t border-white/10 p-3">
-              {compatibleModifierGroups.map((group) => (
-                <div key={group.categoryId}>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/40">
-                    {group.label}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {group.modifiers.map((modifier) => {
-                      const isSelected = selectedModifierIds.includes(
-                        modifier.id,
-                      );
-
-                      return (
-                        <button
-                          key={modifier.id}
-                          type="button"
-                          onClick={() => toggleModifier(modifier)}
-                          className={`min-h-[36px] rounded-full border px-3 py-1.5 text-[11px] font-black transition ${
-                            isSelected
-                              ? "border-emerald-300 bg-emerald-300 text-slate-950"
-                              : "border-white/10 bg-white/[0.045] text-slate-300 hover:border-cyan-300/40 hover:text-white"
-                          }`}
-                        >
-                          {modifier.shortLabel || modifier.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+              <span className="max-w-[150px] pb-0.5 text-[10px] font-black uppercase leading-3 tracking-[0.08em] text-emerald-100/80">
+                {coverageLabel}
+              </span>
             </div>
-          </details>
+
+            <p className="mt-1 text-[10px] font-semibold leading-4 text-cyan-50/60">
+              {coverageNote}
+            </p>
+          </div>
+
+          {remainingModifierGroups.length ? (
+            <details className="group rounded-2xl border border-white/10 bg-slate-950/35">
+              <summary className="flex min-h-[42px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-emerald-200">
+                <span>Choose Variation Modifiers</span>
+                <span
+                  aria-hidden="true"
+                  className="text-sm text-emerald-100 transition group-open:rotate-180"
+                >
+                  v
+                </span>
+              </summary>
+
+              <div className="space-y-3 border-t border-white/10 p-3">
+                {remainingModifierGroups.map((group) => (
+                  <ModifierRail
+                    key={group.categoryId}
+                    label={group.label}
+                    modifiers={group.modifiers}
+                    selectedModifierIds={selectedModifierIds}
+                    onToggleModifier={toggleModifier}
+                  />
+                ))}
+              </div>
+            </details>
+          ) : null}
         </div>
       ) : (
         <p className="mt-3 text-sm leading-5 text-slate-300">
@@ -505,6 +667,110 @@ function MovementMetadataPanel({
           custom exercise sync expands.
         </p>
       )}
+    </div>
+  );
+}
+
+function RecentStatsStrip({
+  stats,
+  compact = false,
+}: {
+  stats: LocalExerciseStatEntry[];
+  compact?: boolean;
+}) {
+  const latest = stats[0];
+  const bestReps = stats.reduce(
+    (best, stat) => Math.max(best, parseStatNumber(stat.reps)),
+    0,
+  );
+  const recentVolume = stats.reduce(
+    (total, stat) => total + getStatVolume(stat),
+    0,
+  );
+
+  if (!latest) {
+    return (
+      <div
+        className={`mt-3 rounded-2xl border border-white/10 bg-white/[0.045] ${
+          compact ? "px-3 py-2.5" : "px-4 py-3"
+        }`}
+      >
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/45">
+          Recent Stats
+        </p>
+        <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
+          No recent stats yet. Log this movement to build history.
+        </p>
+      </div>
+    );
+  }
+
+  const cells = [
+    {
+      label: "Last Load",
+      value: latest.weight || "--",
+      detail: `${latest.reps || "--"} reps x ${latest.sets || "--"} sets`,
+    },
+    {
+      label: "Best Reps",
+      value: formatMetric(bestReps),
+      detail: "from recent entries",
+    },
+    {
+      label: "Recent Volume",
+      value: formatMetric(recentVolume),
+      detail: "last 3 entries",
+    },
+  ];
+
+  if (compact) {
+    return (
+      <div className="mt-3 rounded-2xl border border-emerald-300/15 bg-[linear-gradient(135deg,rgba(16,185,129,0.13),rgba(34,211,238,0.06))] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
+            Recent
+          </p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
+            {new Date(latest.date).toLocaleDateString()}
+          </p>
+        </div>
+        <p className="mt-1 break-words text-xs font-black leading-5 text-white">
+          {latest.weight || "--"} load / {latest.reps || "--"} reps /{" "}
+          {latest.sets || "--"} sets
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-2xl border border-emerald-300/15 bg-[linear-gradient(135deg,rgba(16,185,129,0.13),rgba(34,211,238,0.06))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
+          Recent Stats
+        </p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
+          {new Date(latest.date).toLocaleDateString()}
+        </p>
+      </div>
+
+      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {cells.map((cell) => (
+          <div
+            key={cell.label}
+            className="min-w-0 rounded-xl border border-white/10 bg-slate-950/35 px-2.5 py-2"
+          >
+            <p className="break-words text-[9px] font-black uppercase leading-3 tracking-[0.1em] text-white/35">
+              {cell.label}
+            </p>
+            <p className="mt-1 break-words text-base font-black leading-5 text-white sm:text-sm">
+              {cell.value}
+            </p>
+            <p className="mt-0.5 break-words text-[10px] font-semibold leading-4 text-slate-400">
+              {cell.detail}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -627,6 +893,8 @@ function ExerciseLibraryCard({
   metadata,
   suggestions,
   planAddToParam,
+  savedExerciseStats,
+  viewMode,
   onAddToPlan,
   onDeleteCustom,
   onAddStats,
@@ -635,6 +903,8 @@ function ExerciseLibraryCard({
   metadata: NormalizedExerciseCatalogItem | null;
   suggestions: ReturnType<typeof getMovementSuggestions>;
   planAddToParam: string;
+  savedExerciseStats: LocalExerciseStatEntry[];
+  viewMode: ExerciseLibraryViewMode;
   onAddToPlan: (exercise: Exercise) => void;
   onDeleteCustom: (id: string) => void;
   onAddStats: (exercise: Exercise) => void;
@@ -654,69 +924,118 @@ function ExerciseLibraryCard({
     selectedModifierIds,
   );
   const goalLabel = getSelectedGoalLabel(exercise, selectedModifierIds);
+  const recentStats = getRecentExerciseStats(
+    savedExerciseStats,
+    exercise,
+    variationName,
+  );
+  const isGridView = viewMode === "grid";
+  const latestGridStat = recentStats[0];
+  const gridModifierGroups = getCompatibleModifierGroups(metadata);
+  const gridEquipmentModifierGroup = gridModifierGroups.find(
+    (group) => group.categoryId === "apparatus",
+  );
+  const gridAngleModifierGroup = gridModifierGroups.find(
+    (group) => group.categoryId === "angle-position",
+  );
+  const selectedEquipmentModifierId =
+    getSelectedModifiersByCategory(selectedModifierIds, "apparatus").find(
+      (modifier) =>
+        gridEquipmentModifierGroup?.modifiers.some(
+          (option) => option.id === modifier.id,
+        ),
+    )?.id || "";
+  const selectedAngleModifierId =
+    getSelectedModifiersByCategory(selectedModifierIds, "angle-position").find(
+      (modifier) =>
+        gridAngleModifierGroup?.modifiers.some(
+          (option) => option.id === modifier.id,
+        ),
+    )?.id || "";
+  const setModifierForCategory = (
+    categoryId: ExerciseModifierCategoryId,
+    modifierId: string,
+  ) => {
+    setSelectedModifierIds((prev) => [
+      ...prev.filter((id) => getModifierCategoryId(id) !== categoryId),
+      ...(modifierId ? [modifierId as ExerciseModifierId] : []),
+    ]);
+  };
+  const handleAddStats = () =>
+    onAddStats({
+      ...exercise,
+      name: variationName,
+      pattern: patternLabel,
+      equipment: equipmentLabel,
+      goal: goalLabel,
+    });
+  const actionButtons = (
+    <div
+      className={`grid grid-cols-1 gap-2 ${
+        isGridView ? "mt-3" : "mt-4 sm:grid-cols-2"
+      }`}
+    >
+      {planAddToParam ? (
+        <button
+          type="button"
+          onClick={() => onAddToPlan(exercise)}
+          className="min-h-[48px] rounded-2xl border border-cyan-300/25 bg-cyan-400/15 px-4 py-3 text-sm font-black text-cyan-200 transition hover:bg-cyan-400 hover:text-slate-950"
+        >
+          Add to Plan
+        </button>
+      ) : null}
 
-  return (
-    <article className="group relative overflow-hidden rounded-[30px] border border-white/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.13),rgba(255,255,255,0.035))] shadow-[0_24px_80px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.20)] backdrop-blur-2xl backdrop-saturate-150 transition hover:border-white/30 hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.055))] hover:shadow-[0_32px_100px_rgba(0,0,0,0.56),inset_0_1px_0_rgba(255,255,255,0.26)]">
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.18),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.16)_0%,rgba(255,255,255,0.055)_36%,transparent_68%)] opacity-70" />
+      {!exercise.custom ? (
+        <a
+          href={ROUTES.workoutBuilder.exerciseDemo}
+          className="flex min-h-[48px] items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
+        >
+          View Demo
+        </a>
+      ) : null}
 
-      <div className="relative z-10 h-44 overflow-hidden bg-slate-950/60">
-        <img
-          src={exercise.image || defaultImage}
-          alt={variationName}
-          className="h-full w-full object-cover opacity-80 transition duration-500 group-hover:scale-105 group-hover:opacity-100"
-        />
-      </div>
+      <button
+        type="button"
+        onClick={handleAddStats}
+        className="min-h-[48px] rounded-2xl border border-yellow-300/30 bg-yellow-400/15 px-4 py-3 text-sm font-black text-yellow-300 transition hover:bg-yellow-400 hover:text-slate-950"
+      >
+        Add Stats
+      </button>
 
-      <div className="relative z-10 p-5">
-        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-300">
-            {exercise.body}
+      {exercise.custom ? (
+        <button
+          type="button"
+          onClick={() => onDeleteCustom(exercise.id)}
+          className="min-h-[48px] rounded-2xl border border-red-300/20 bg-red-400/10 px-4 py-3 text-sm font-black text-red-300 transition hover:bg-red-400 hover:text-white"
+        >
+          Delete Custom
+        </button>
+      ) : null}
+    </div>
+  );
+  const movementDetails = (
+    <details
+      className="group mt-3 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.055] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_40px_rgba(8,145,178,0.12)] backdrop-blur-2xl"
+    >
+      <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+        <span className="min-w-0">
+          <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
+            Movement Details
           </span>
-
-          <span className="text-xs font-bold text-slate-500">
-            {exercise.level}
+          <span className="mt-0.5 block text-xs font-semibold text-slate-400">
+            Modifiers, substitutions, progressions, and coaching cue
           </span>
-        </div>
+        </span>
+        <span
+          aria-hidden="true"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-100/15 bg-white/[0.06] text-sm font-black text-cyan-100 transition group-open:rotate-180"
+        >
+          v
+        </span>
+      </summary>
 
-        <h2 className="mt-4 text-xl font-extrabold text-white/90 tracking-wide drop-shadow-[0_0_12px_rgba(255,255,255,0.35)]">
-          {variationName}
-        </h2>
-
-        <p className="mt-2 text-sm leading-5 text-white/55 drop-shadow-[0_0_8px_rgba(255,255,255,0.18)]">
-          {exercise.muscles || exercise.body}
-        </p>
-
-        <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] p-3 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)]">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
-              Pattern
-            </p>
-            <p className="mt-1 text-sm font-extrabold tracking-wide text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.18)]">
-              {patternLabel}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] p-3 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)]">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
-              Equipment
-            </p>
-            <p className="mt-1 text-sm font-extrabold tracking-wide text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.18)]">
-              {equipmentLabel}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-2 rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] p-3 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)] text-xs">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
-            Goal
-          </p>
-          <p className="mt-1 text-sm font-extrabold tracking-wide text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.18)]">
-            {goalLabel}
-          </p>
-        </div>
-
+      <div className="border-t border-white/10 p-3 [&>div:first-child]:mt-0">
         <MovementMetadataPanel
-          exercise={exercise}
           metadata={metadata}
           selectedModifierIds={selectedModifierIds}
           setSelectedModifierIds={setSelectedModifierIds}
@@ -726,7 +1045,7 @@ function ExerciseLibraryCard({
 
         <MovementProgressPanel suggestions={suggestions} />
 
-        <div className="mt-4 rounded-2xl border border-emerald-300/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(16,185,129,0.05))] p-4 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
+        <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(16,185,129,0.05))] p-4 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-200/80 drop-shadow-[0_0_8px_rgba(16,185,129,0.35)]">
             Coaching Cue
           </p>
@@ -735,45 +1054,206 @@ function ExerciseLibraryCard({
             {exercise.cue}
           </p>
         </div>
+      </div>
+    </details>
+  );
 
-        <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {planAddToParam ? (
-            <button
-              type="button"
-              onClick={() => onAddToPlan(exercise)}
-              className="min-h-[48px] rounded-2xl border border-cyan-300/25 bg-cyan-400/15 px-4 py-3 text-sm font-black text-cyan-200 transition hover:bg-cyan-400 hover:text-slate-950"
-            >
-              Add to Plan
-            </button>
-          ) : null}
+  if (isGridView) {
+    return (
+      <article className="group relative overflow-hidden rounded-2xl border border-white/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.035))] shadow-[0_16px_46px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150 transition hover:border-cyan-200/25 hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.16),rgba(255,255,255,0.045))]">
+        <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.16),transparent_30%),linear-gradient(120deg,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.035)_42%,transparent_74%)] opacity-70" />
 
-          {!exercise.custom ? (
-            <a
-              href={ROUTES.workoutBuilder.exerciseDemo}
-              className="flex min-h-[48px] items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
-            >
-              View Demo
-            </a>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={() => onAddStats(exercise)}
-            className="min-h-[48px] rounded-2xl border border-yellow-300/30 bg-yellow-400/15 px-4 py-3 text-sm font-black text-yellow-300 transition hover:bg-yellow-400 hover:text-slate-950"
-          >
-            Add Stats
-          </button>
-
-          {exercise.custom ? (
-            <button
-              type="button"
-              onClick={() => onDeleteCustom(exercise.id)}
-              className="min-h-[48px] rounded-2xl border border-red-300/20 bg-red-400/10 px-4 py-3 text-sm font-black text-red-300 transition hover:bg-red-400 hover:text-white"
-            >
-              Delete Custom
-            </button>
-          ) : null}
+        <div className="relative z-10 h-20 overflow-hidden bg-slate-950/70">
+          <img
+            src={exercise.image || defaultImage}
+            alt={variationName}
+            className="h-full w-full object-cover opacity-78 transition duration-500 group-hover:scale-105 group-hover:opacity-95"
+          />
+          <div className="absolute bottom-2 left-2 rounded-full border border-cyan-300/20 bg-slate-950/65 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-200 backdrop-blur-xl">
+            {exercise.body}
+          </div>
         </div>
+
+        <div className="relative z-10 p-3">
+          <h2 className="max-h-10 overflow-hidden text-base font-black leading-tight tracking-wide text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.34)]">
+            {variationName}
+          </h2>
+
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <GridModifierSelect
+              label="Equipment"
+              value={selectedEquipmentModifierId}
+              options={gridEquipmentModifierGroup?.modifiers || []}
+              fallback={equipmentLabel}
+              onChange={(modifierId) =>
+                setModifierForCategory("apparatus", modifierId)
+              }
+            />
+
+            <GridModifierSelect
+              label="Position"
+              value={selectedAngleModifierId}
+              options={gridAngleModifierGroup?.modifiers || []}
+              fallback={patternLabel}
+              onChange={(modifierId) =>
+                setModifierForCategory("angle-position", modifierId)
+              }
+            />
+          </div>
+
+          <div className="mt-2 rounded-xl border border-cyan-100/15 bg-[linear-gradient(135deg,rgba(34,211,238,0.11),rgba(16,185,129,0.075))] px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">
+                Recent Stats
+              </p>
+              {latestGridStat ? (
+                <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/35">
+                  {new Date(latestGridStat.date).toLocaleDateString()}
+                </p>
+              ) : null}
+            </div>
+            <p className="mt-1 break-words text-[11px] font-black leading-4 text-slate-100">
+              {latestGridStat
+                ? `${latestGridStat.weight || "--"} load / ${
+                    latestGridStat.reps || "--"
+                  } reps / ${latestGridStat.sets || "--"} sets`
+                : "Log stats to build history"}
+            </p>
+          </div>
+
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            {!exercise.custom ? (
+              <a
+                href={ROUTES.workoutBuilder.exerciseDemo}
+                className="flex min-h-[38px] items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-center text-[10px] font-black uppercase tracking-[0.12em] text-cyan-200 transition hover:bg-cyan-400 hover:text-slate-950"
+              >
+                View Demo
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onDeleteCustom(exercise.id)}
+                className="min-h-[38px] rounded-xl border border-red-300/20 bg-red-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-red-200 transition hover:bg-red-400 hover:text-white"
+              >
+                Delete
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleAddStats}
+              className="min-h-[38px] rounded-xl border border-yellow-300/30 bg-yellow-400/15 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-yellow-300 transition hover:bg-yellow-400 hover:text-slate-950"
+            >
+              Add Stats
+            </button>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <article className="group relative overflow-hidden rounded-[30px] border border-white/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.13),rgba(255,255,255,0.035))] shadow-[0_24px_80px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.20)] backdrop-blur-2xl backdrop-saturate-150 transition hover:border-white/30 hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.055))] hover:shadow-[0_32px_100px_rgba(0,0,0,0.56),inset_0_1px_0_rgba(255,255,255,0.26)]">
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.18),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.16)_0%,rgba(255,255,255,0.055)_36%,transparent_68%)] opacity-70" />
+
+      <div
+        className={`relative z-10 overflow-hidden bg-slate-950/60 ${
+          isGridView ? "h-32" : "h-44"
+        }`}
+      >
+        <img
+          src={exercise.image || defaultImage}
+          alt={variationName}
+          className="h-full w-full object-cover opacity-80 transition duration-500 group-hover:scale-105 group-hover:opacity-100"
+        />
+      </div>
+
+      <div className={`relative z-10 ${isGridView ? "p-4" : "p-5"}`}>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-300">
+            {exercise.body}
+          </span>
+
+          {metadata?.familyLabel ? (
+            <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">
+              {metadata.familyLabel}
+            </span>
+          ) : null}
+
+          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+            {exercise.level}
+          </span>
+        </div>
+
+        <h2
+          className={`mt-4 font-extrabold tracking-wide text-white drop-shadow-[0_0_14px_rgba(255,255,255,0.42)] ${
+            isGridView ? "text-lg leading-tight" : "text-xl"
+          }`}
+        >
+          {variationName}
+        </h2>
+
+        <p
+          className={`mt-2 leading-5 text-white/55 drop-shadow-[0_0_8px_rgba(255,255,255,0.18)] ${
+            isGridView ? "text-xs" : "text-sm"
+          }`}
+        >
+          {exercise.muscles || exercise.body}
+        </p>
+
+        <div
+          className={`grid gap-2 text-xs ${
+            isGridView ? "mt-3 grid-cols-3" : "mt-4 grid-cols-1 sm:grid-cols-2"
+          }`}
+        >
+          <div
+            className={`rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)] ${
+              isGridView ? "p-2" : "p-3"
+            }`}
+          >
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
+              Pattern
+            </p>
+            <p
+              className={`mt-1 break-words font-extrabold tracking-wide text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.18)] ${
+                isGridView ? "text-[11px] leading-4" : "text-sm"
+              }`}
+            >
+              {patternLabel}
+            </p>
+          </div>
+
+          <div
+            className={`rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)] ${
+              isGridView ? "p-2" : "p-3"
+            }`}
+          >
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
+              Equipment
+            </p>
+            <p
+              className={`mt-1 break-words font-extrabold tracking-wide text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.18)] ${
+                isGridView ? "text-[11px] leading-4" : "text-sm"
+              }`}
+            >
+              {equipmentLabel}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-2 rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] p-3 text-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
+            Goal
+          </p>
+          <p className="mt-1 text-sm font-extrabold tracking-wide text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.18)]">
+            {goalLabel}
+          </p>
+        </div>
+
+        <RecentStatsStrip stats={recentStats} />
+
+        {movementDetails}
+        {actionButtons}
       </div>
     </article>
   );
@@ -783,6 +1263,8 @@ export default function ExerciseLibraryPage() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [viewMode, setViewMode] =
+    useState<ExerciseLibraryViewMode>("detail");
   const exercisesPerPage = 12;
   const [bodyFilter, setBodyFilter] = useState("All");
   const [goalFilter, setGoalFilter] = useState("All");
@@ -824,7 +1306,26 @@ export default function ExerciseLibraryPage() {
   }, [customExercises]);
 
   useEffect(() => {
-    setSavedExerciseStats(readExerciseStats());
+    let isActive = true;
+
+    const syncStats = async () => {
+      const result = await loadWorkoutLogEntriesWithFallback();
+
+      if (!isActive) return;
+
+      setSavedExerciseStats(result.data);
+    };
+
+    void syncStats();
+
+    const unsubscribe = subscribeToLocalWorkoutData(() => {
+      void syncStats();
+    });
+
+    return () => {
+      isActive = false;
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -1185,7 +1686,7 @@ export default function ExerciseLibraryPage() {
         </section>
 
         <section className="relative z-50 overflow-visible rounded-[34px] border border-white/15 bg-white/[0.055] p-5 shadow-[0_20px_70px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl backdrop-saturate-150">
-          <div className="grid gap-4 lg:grid-cols-[1fr_auto_auto_auto] lg:items-start">
+          <div className="grid gap-4 lg:grid-cols-[1fr_auto_auto_auto_auto] lg:items-start">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300">
                 Movement Filters
@@ -1207,6 +1708,27 @@ export default function ExerciseLibraryPage() {
               <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
                 Core cards
               </p>
+            </div>
+
+            <div className="rounded-2xl border border-cyan-300/15 bg-slate-950/55 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+              <div className="grid grid-cols-2 gap-1">
+                {(["detail", "grid"] as ExerciseLibraryViewMode[]).map(
+                  (mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setViewMode(mode)}
+                      className={`min-h-[44px] rounded-xl px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition ${
+                        viewMode === mode
+                          ? "bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.22)]"
+                          : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
+                      }`}
+                    >
+                      {viewModeLabels[mode]}
+                    </button>
+                  ),
+                )}
+              </div>
             </div>
 
             <button
@@ -1355,7 +1877,13 @@ export default function ExerciseLibraryPage() {
           </div>
         </section>
 
-        <section className="relative z-0 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <section
+          className={`relative z-0 grid ${
+            viewMode === "grid"
+              ? "gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
+              : "gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          }`}
+        >
           {paginatedExercises.map((exercise) => {
             const metadata = getMetadataForExercise(exercise);
             const suggestions = getMovementSuggestions(exercise, metadata);
@@ -1367,6 +1895,8 @@ export default function ExerciseLibraryPage() {
                 metadata={metadata}
                 suggestions={suggestions}
                 planAddToParam={planAddToParam}
+                savedExerciseStats={savedExerciseStats}
+                viewMode={viewMode}
                 onAddToPlan={addExerciseToPlanBuilder}
                 onDeleteCustom={deleteCustomExercise}
                 onAddStats={setStatsExercise}
@@ -1456,11 +1986,11 @@ export default function ExerciseLibraryPage() {
                     </div>
                   </div>
 
-                  <div className="border-t border-white/10 bg-white/[0.055] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
-                    <p className="mt-2 rounded-2xl border border-white/10 bg-white/[0.06] p-4 text-sm leading-6 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
+                  <div className="border-t border-cyan-200/15 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.16),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(14,165,233,0.12),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.74),rgba(2,6,23,0.64))] p-5 shadow-[0_18px_56px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.16),inset_0_0_40px_rgba(34,211,238,0.06)] backdrop-blur-2xl backdrop-saturate-150">
+                    <p className="mt-2 rounded-2xl border border-cyan-100/20 bg-white/[0.075] p-4 text-sm font-black uppercase tracking-[0.16em] text-cyan-100 shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.18),inset_0_0_26px_rgba(34,211,238,0.055)] backdrop-blur-2xl">
                       Coaching Cue
                     </p>
-                    <p className="mt-2 text-sm leading-6 text-slate-300">
+                    <p className="mt-2 rounded-2xl border border-white/12 bg-white/[0.055] p-4 text-sm leading-6 text-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl">
                       {statsExercise.cue ||
                         "Move with control, own the position, and make every rep count."}
                     </p>
@@ -1510,7 +2040,7 @@ export default function ExerciseLibraryPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-[28px] border border-white/10 bg-white/[0.05] p-4 backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+                  <div className="mt-4 rounded-[28px] border border-yellow-200/15 bg-[radial-gradient(circle_at_12%_0%,rgba(250,204,21,0.16),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.82))] p-4 shadow-[0_18px_52px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.16),inset_0_0_32px_rgba(250,204,21,0.055)] backdrop-blur-xl">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80 drop-shadow-[0_0_10px_rgba(255,255,255,0.25)]">
@@ -1530,26 +2060,26 @@ export default function ExerciseLibraryPage() {
                       </button>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                       <input
                         value={statWeight}
                         onChange={(e) => setStatWeight(e.target.value)}
                         placeholder="Weight"
-                        className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.08] px-3 py-3 text-sm font-semibold text-white backdrop-blur-xl outline-none placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.12]"
+                        className="min-h-[50px] rounded-2xl border border-white/12 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.055))] px-3.5 py-3 text-sm font-bold text-white shadow-[0_10px_28px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl outline-none transition placeholder:text-white/35 hover:border-yellow-200/25 hover:bg-white/[0.12] focus:border-yellow-200/45 focus:bg-white/[0.14] focus:shadow-[0_14px_34px_rgba(0,0,0,0.28),0_0_0_3px_rgba(250,204,21,0.08),inset_0_1px_0_rgba(255,255,255,0.18)]"
                       />
 
                       <input
                         value={statReps}
                         onChange={(e) => setStatReps(e.target.value)}
                         placeholder="Reps"
-                        className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.08] px-3 py-3 text-sm font-semibold text-white backdrop-blur-xl outline-none placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.12]"
+                        className="min-h-[50px] rounded-2xl border border-white/12 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.055))] px-3.5 py-3 text-sm font-bold text-white shadow-[0_10px_28px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl outline-none transition placeholder:text-white/35 hover:border-yellow-200/25 hover:bg-white/[0.12] focus:border-yellow-200/45 focus:bg-white/[0.14] focus:shadow-[0_14px_34px_rgba(0,0,0,0.28),0_0_0_3px_rgba(250,204,21,0.08),inset_0_1px_0_rgba(255,255,255,0.18)]"
                       />
 
                       <input
                         value={statSets}
                         onChange={(e) => setStatSets(e.target.value)}
                         placeholder="Sets"
-                        className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.08] px-3 py-3 text-sm font-semibold text-white backdrop-blur-xl outline-none placeholder:text-white/30 focus:border-white/30 focus:bg-white/[0.12]"
+                        className="min-h-[50px] rounded-2xl border border-white/12 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.055))] px-3.5 py-3 text-sm font-bold text-white shadow-[0_10px_28px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl outline-none transition placeholder:text-white/35 hover:border-yellow-200/25 hover:bg-white/[0.12] focus:border-yellow-200/45 focus:bg-white/[0.14] focus:shadow-[0_14px_34px_rgba(0,0,0,0.28),0_0_0_3px_rgba(250,204,21,0.08),inset_0_1px_0_rgba(255,255,255,0.18)]"
                       />
                     </div>
                   </div>
@@ -1577,9 +2107,9 @@ export default function ExerciseLibraryPage() {
                         source: "exercise-library",
                       };
 
-                      const updated = prependExerciseStats(newStat);
+                      prependExerciseStats(newStat);
 
-                      setSavedExerciseStats(updated);
+                      setSavedExerciseStats((prev) => [newStat, ...prev]);
                       setStatWeight("");
                       setStatReps("");
                       setStatSets("");
