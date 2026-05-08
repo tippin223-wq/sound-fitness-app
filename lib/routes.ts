@@ -40,8 +40,6 @@ export const DASHBOARD_ROUTES = {
   sessions: route("/dashboard/sessions"),
   sessionBooking: route("/dashboard/sessions/booking"),
   sessionHistory: route("/dashboard/sessions/history"),
-  // Legacy wrapper: saved workout templates now surface from Sessions and Workout Builder.
-  savedSessionWorkouts: route("/dashboard/sessions/saved-workouts"),
   sessionNotes: route("/dashboard/sessions/session-notes"),
   sessionWorkout: route("/dashboard/sessions/workout"),
   workoutComplete: route("/dashboard/sessions/workout-complete"),
@@ -62,39 +60,10 @@ export const NUTRITION_ROUTES = {
   chickenRiceBowl: route("/dashboard/nutrition/recipes/chicken-rice-bowl"),
 } as const;
 
-// Legacy Online Program pages are retained only as redirect wrappers.
-// New member workout flow lives in dashboard, sessions, my-plan, stats, and video-review.
-export const ONLINE_PROGRAM_ROUTES = {
-  home: route("/dashboard/online-program"),
-  currentPhase: route("/dashboard/online-program/current-phase"),
-  messages: route("/dashboard/online-program/messages"),
-  progress: route("/dashboard/online-program/progress"),
-  progressCompletion: route("/dashboard/online-program/progress/completion"),
-  progressStreak: route("/dashboard/online-program/progress/streak"),
-  progressStrength: route("/dashboard/online-program/progress/strength"),
-  weeklyPlan: route("/dashboard/online-program/weekly-plan"),
-  workouts: route("/dashboard/online-program/workouts"),
-  workoutDetail: route("/dashboard/online-program/workouts/detail"),
-  workoutComplete: route("/dashboard/online-program/workouts/detail/complete"),
-  exerciseDemo: route(
-    "/dashboard/online-program/workouts/detail/exercise-demo",
-  ),
-  logSets: route("/dashboard/online-program/workouts/detail/log-sets"),
-} as const;
-
 export const WORKOUT_BUILDER_ROUTES = {
   home: route("/dashboard/workout-builder"),
   exerciseLibrary: route("/dashboard/workout-builder/exercise-library"),
   exerciseDemo: route("/dashboard/workout-builder/exercise-library/demo"),
-} as const;
-
-// Legacy builder routes are hidden from navigation and kept as redirect wrappers.
-export const LEGACY_WORKOUT_BUILDER_ROUTES = {
-  saved: route("/dashboard/workout-builder/saved"),
-  savedDetail: route("/dashboard/workout-builder/saved/detail"),
-  tracking: route("/dashboard/workout-builder/tracking"),
-  trackingLog: route("/dashboard/workout-builder/tracking/log"),
-  trackingProgress: route("/dashboard/workout-builder/tracking/progress"),
 } as const;
 
 export const ADMIN_ROUTES = {
@@ -133,9 +102,7 @@ export const ROUTES = {
   dashboard: DASHBOARD_ROUTES,
   member: MEMBER_ROUTES,
   nutrition: NUTRITION_ROUTES,
-  onlineProgram: ONLINE_PROGRAM_ROUTES,
   workoutBuilder: WORKOUT_BUILDER_ROUTES,
-  legacyWorkoutBuilder: LEGACY_WORKOUT_BUILDER_ROUTES,
   admin: ADMIN_ROUTES,
   coach: COACH_ROUTES,
 } as const;
@@ -146,9 +113,7 @@ export type AppRoute =
   | ValueOf<typeof ONBOARDING_ROUTES>
   | ValueOf<typeof DASHBOARD_ROUTES>
   | ValueOf<typeof NUTRITION_ROUTES>
-  | ValueOf<typeof ONLINE_PROGRAM_ROUTES>
   | ValueOf<typeof WORKOUT_BUILDER_ROUTES>
-  | ValueOf<typeof LEGACY_WORKOUT_BUILDER_ROUTES>
   | ValueOf<typeof ADMIN_ROUTES>
   | ValueOf<typeof COACH_ROUTES>;
 
