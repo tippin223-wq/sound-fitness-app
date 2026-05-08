@@ -355,12 +355,20 @@ function MovementMetadataPanel({
   selectedModifierIds: ExerciseModifierId[];
   setSelectedModifierIds: Dispatch<SetStateAction<ExerciseModifierId[]>>;
 }) {
-  const apparatusLabels = getModifierLabelsByCategory(metadata, "apparatus");
   const loadBehaviorLabels = getModifierLabelsByCategory(
     metadata,
     "load-behavior",
   );
   const compatibleModifierGroups = getCompatibleModifierGroups(metadata);
+  const compatibleModifierCount = compatibleModifierGroups.reduce(
+    (count, group) => count + group.modifiers.length,
+    0,
+  );
+  const selectedEquipmentLabel = getSelectedEquipmentLabel(
+    exercise,
+    metadata,
+    selectedModifierIds,
+  );
 
   const toggleModifier = (modifier: ExerciseModifier) => {
     setSelectedModifierIds((prev) => {
@@ -380,6 +388,13 @@ function MovementMetadataPanel({
   const selectedModifierLabels = selectedModifierIds
     .map(getModifierLabel)
     .filter(Boolean);
+  const selectedLoadBehaviorLabels = getSelectedModifiersByCategory(
+    selectedModifierIds,
+    "load-behavior",
+  ).map((modifier) => modifier.label);
+  const displayedLoadBehaviorLabels = selectedLoadBehaviorLabels.length
+    ? selectedLoadBehaviorLabels
+    : loadBehaviorLabels;
 
   return (
     <div className="mt-3 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.07] p-4 backdrop-blur-2xl">
@@ -387,33 +402,48 @@ function MovementMetadataPanel({
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
           Movement Intelligence
         </p>
-        <span className="rounded-full border border-white/10 bg-white/[0.06] px-2.5 py-1 text-[10px] font-bold text-slate-300">
-          {metadata
-            ? `${Math.round(metadata.confidenceScore * 100)}% mapped`
-            : "Custom"}
+        <span className="rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 text-right text-[10px] font-bold text-slate-300">
+          <span className="block uppercase tracking-[0.14em] text-cyan-200">
+            Variation Coverage
+          </span>
+          <span className="mt-0.5 block text-white/80">
+            {metadata
+              ? compatibleModifierCount > 0
+                ? `${compatibleModifierCount} compatible modifiers`
+                : "Core movement mapped"
+              : "Custom movement"}
+          </span>
         </span>
       </div>
 
       {metadata ? (
         <div className="mt-3 space-y-3">
-          <div className="grid gap-2 text-xs">
+          <div className="grid gap-2 text-xs sm:grid-cols-3">
             <div>
-              <span className="text-white/35">Core Movement</span>
-              <p className="mt-1 text-lg font-black text-white">
-                {metadata.coreMovementLabel}
+              <span className="text-white/35">Pattern</span>
+              <p className="mt-1 font-black text-white">
+                {metadata.movementPatternLabel}
               </p>
             </div>
-            <p className="leading-5 text-slate-300">
-              {metadata.familyLabel} / {metadata.movementPatternLabel} /{" "}
-              {apparatusLabels.join(", ") || exercise.equipment}
-            </p>
+            <div>
+              <span className="text-white/35">Region</span>
+              <p className="mt-1 font-black text-white">
+                {exercise.body}
+              </p>
+            </div>
+            <div>
+              <span className="text-white/35">Equipment</span>
+              <p className="mt-1 font-black text-white">
+                {selectedEquipmentLabel}
+              </p>
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-1.5">
             {(selectedModifierLabels.length
               ? selectedModifierLabels
-              : loadBehaviorLabels.length
-                ? loadBehaviorLabels
+              : displayedLoadBehaviorLabels.length
+                ? displayedLoadBehaviorLabels
                 : ["Select compatible modifiers"]
             ).map((label) => (
               <span
@@ -425,9 +455,15 @@ function MovementMetadataPanel({
             ))}
           </div>
 
-          <details className="rounded-2xl border border-white/10 bg-slate-950/35">
-            <summary className="cursor-pointer list-none px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-emerald-200">
-              Select Compatible Modifiers
+          <details className="group rounded-2xl border border-white/10 bg-slate-950/35">
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-emerald-200">
+              <span>Choose Variation Modifiers</span>
+              <span
+                aria-hidden="true"
+                className="text-sm text-emerald-100 transition group-open:rotate-180"
+              >
+                v
+              </span>
             </summary>
 
             <div className="space-y-3 border-t border-white/10 p-3">
@@ -517,13 +553,21 @@ function MovementSuggestionsPanel({
   suggestions: ReturnType<typeof getMovementSuggestions>;
 }) {
   return (
-    <details className="mt-3 rounded-2xl border border-white/10 bg-slate-950/45">
-      <summary className="cursor-pointer list-none px-4 py-3">
-        <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
-          Similar / Substitutions
+    <details className="group mt-3 rounded-2xl border border-white/10 bg-slate-950/45">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+        <span>
+          <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
+            Similar / Substitutions
+          </span>
+          <span className="mt-1 block text-xs leading-5 text-slate-400">
+            Same core movement first. Open for alternatives.
+          </span>
         </span>
-        <span className="mt-1 block text-xs leading-5 text-slate-400">
-          Same core movement first. Open for alternatives.
+        <span
+          aria-hidden="true"
+          className="text-sm font-black text-cyan-100 transition group-open:rotate-180"
+        >
+          v
         </span>
       </summary>
 
@@ -544,13 +588,21 @@ function MovementProgressPanel({
   suggestions: ReturnType<typeof getMovementSuggestions>;
 }) {
   return (
-    <details className="mt-3 rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.07]">
-      <summary className="cursor-pointer list-none px-4 py-3">
-        <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
-          Progress / Regress
+    <details className="group mt-3 rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.07]">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+        <span>
+          <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
+            Progress / Regress
+          </span>
+          <span className="mt-1 block text-xs leading-5 text-slate-400">
+            Early movement intelligence. Open for simpler or harder options.
+          </span>
         </span>
-        <span className="mt-1 block text-xs leading-5 text-slate-400">
-          Early movement intelligence. Open for simpler or harder options.
+        <span
+          aria-hidden="true"
+          className="text-sm font-black text-emerald-100 transition group-open:rotate-180"
+        >
+          v
         </span>
       </summary>
 
@@ -631,16 +683,8 @@ function ExerciseLibraryCard({
         </h2>
 
         <p className="mt-2 text-sm leading-5 text-white/55 drop-shadow-[0_0_8px_rgba(255,255,255,0.18)]">
-          {metadata
-            ? `${metadata.coreMovementLabel} / ${metadata.familyLabel}`
-            : exercise.muscles}
+          {exercise.muscles || exercise.body}
         </p>
-
-        {metadata ? (
-          <p className="mt-1 text-xs leading-5 text-white/40">
-            {exercise.muscles}
-          </p>
-        ) : null}
 
         <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
           <div className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] p-3 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)]">
@@ -1054,7 +1098,12 @@ export default function ExerciseLibraryPage() {
             <p className="mt-0.5 text-sm font-black text-white">{value}</p>
           </div>
 
-          <span className={`text-lg transition ${open ? "rotate-180" : ""}`}>
+          <span
+            aria-hidden="true"
+            className={`relative ml-3 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-sm font-black text-transparent transition after:absolute after:text-cyan-100 after:content-['v'] ${
+              open ? "rotate-180 border-cyan-300/40 text-white" : ""
+            }`}
+          >
             ↓
           </span>
         </button>
@@ -1229,6 +1278,23 @@ export default function ExerciseLibraryPage() {
               Plan assignment mode
             </div>
           ) : null}
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            {bodyOptions.map((body) => (
+              <button
+                key={body}
+                type="button"
+                onClick={() => setBodyFilter(body)}
+                className={`min-h-[36px] rounded-full border px-3 py-1.5 text-xs font-black transition ${
+                  bodyFilter === body
+                    ? "border-cyan-300 bg-cyan-300 text-slate-950"
+                    : "border-white/10 bg-white/[0.04] text-slate-300 hover:border-cyan-300/40 hover:text-white"
+                }`}
+              >
+                {body}
+              </button>
+            ))}
+          </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <FilterMenu
