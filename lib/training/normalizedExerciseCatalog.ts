@@ -8,6 +8,14 @@ import type {
 } from "@/types";
 import { exerciseLibrary, getExerciseImage } from "./exerciseLibrary";
 import {
+  CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS,
+  coreMovementPatternCardToExercise,
+  getCoreMovementPatternSemanticVariations,
+  getCoreMovementPatternVariationNames,
+  type CoreMovementPatternCardDefinition,
+  type CoreMovementSemanticVariation,
+} from "./coreMovementPatternCards";
+import {
   type ExerciseVariationValidationResult,
   validateExerciseVariation,
 } from "./movementCompatibility";
@@ -23,7 +31,7 @@ import {
   mapLegacyExerciseToMovement,
 } from "./legacyExerciseMapping";
 
-export type NormalizedExerciseCatalogSource = "legacy-mapped";
+export type NormalizedExerciseCatalogSource = "legacy-mapped" | "core-pattern";
 
 export type NormalizedExerciseCatalogItem = {
   id: string;
@@ -36,6 +44,8 @@ export type NormalizedExerciseCatalogItem = {
   coreMovementLabel: string;
   movementPatternId: MovementPatternId;
   movementPatternLabel: string;
+  semanticVariationNames: string[];
+  semanticVariations: CoreMovementSemanticVariation[];
   apparatus: ApparatusId | null;
   modifierIds: ExerciseModifierId[];
   modifiersByCategory: Partial<
@@ -217,6 +227,139 @@ const normalizeSingleSelectionModifierIds = (
   return unique(normalized);
 };
 
+const getPrimaryApparatusFromModifierIds = (
+  modifierIds: ExerciseModifierId[],
+): ApparatusId | null => {
+  for (const modifierId of modifierIds) {
+    const modifier = EXERCISE_MODIFIER_BY_ID[modifierId];
+    if (
+      modifier?.categoryId === "apparatus" &&
+      "apparatusId" in modifier &&
+      modifier.apparatusId
+    ) {
+      return modifier.apparatusId as ApparatusId;
+    }
+  }
+
+  return null;
+};
+
+const getCorePatternCardDedupKey = (
+  definition: CoreMovementPatternCardDefinition,
+) =>
+  normalizeKey(
+    [
+      definition.category,
+      definition.movementPatternId,
+      definition.name,
+    ].join("-"),
+  );
+
+const getDedupedCorePatternDefinitions = () => {
+  const seen = new Set<string>();
+
+  return CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS.filter((definition) => {
+    const key = getCorePatternCardDedupKey(definition);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+const createCoreMovementPatternItem = (
+  definition: CoreMovementPatternCardDefinition,
+): NormalizedExerciseCatalogItem => {
+  const legacyExercise = coreMovementPatternCardToExercise(definition);
+  const modifierIds = normalizeSingleSelectionModifierIds(definition.modifierIds);
+  const modifiersByCategory = groupModifierIdsByCategory(modifierIds);
+  const apparatus = getPrimaryApparatusFromModifierIds(modifierIds);
+  const coreMovement = CORE_MOVEMENT_BY_ID[definition.coreMovementId];
+  const movementPattern = MOVEMENT_PATTERN_BY_ID[definition.movementPatternId];
+  const semanticVariationNames = getCoreMovementPatternVariationNames(
+    definition.id,
+  );
+  const semanticVariations = getCoreMovementPatternSemanticVariations(
+    definition.id,
+  );
+  const compatibility = validateExerciseVariation({
+    coreMovementId: definition.coreMovementId,
+    movementPatternId: definition.movementPatternId,
+    modifierIds,
+    primaryApparatusId: apparatus,
+  });
+  const mapping: LegacyExerciseMovementMapping = {
+    legacyId: legacyExercise.id,
+    legacyName: legacyExercise.name,
+    legacyPattern: legacyExercise.pattern,
+    legacyEquipment: legacyExercise.equipment,
+    coreMovementId: definition.coreMovementId,
+    movementPatternId: definition.movementPatternId,
+    apparatus,
+    modifierIds,
+    modifiersByCategory,
+    confidenceScore: 1,
+    confidence: "high",
+    notes: [`Core movement card: ${definition.category}`, definition.description],
+    warnings: compatibility.isValid
+      ? []
+      : compatibility.issues.map((issue) => issue.message),
+  };
+
+  return {
+    id: normalizeKey(["normalized", definition.id].join("-")),
+    legacyExerciseId: legacyExercise.id,
+    legacyExerciseName: legacyExercise.name,
+    source: "core-pattern",
+    legacyExercise,
+    mapping,
+    coreMovementId: definition.coreMovementId,
+    coreMovementLabel: coreMovement?.label || definition.name,
+    movementPatternId: definition.movementPatternId,
+    movementPatternLabel: movementPattern?.label || definition.name,
+    semanticVariationNames,
+    semanticVariations,
+    apparatus,
+    modifierIds,
+    modifiersByCategory,
+    compatibility,
+    confidenceScore: 1,
+    confidence: "high",
+    familyId: getFamilyId(definition.coreMovementId, definition.movementPatternId),
+    familyLabel: `${definition.name} / ${definition.category}`,
+    searchTokens: compactSearchTokens([
+      legacyExercise.name,
+      legacyExercise.body,
+      legacyExercise.muscles,
+      legacyExercise.pattern,
+      legacyExercise.goal,
+      legacyExercise.equipment,
+      definition.category,
+      definition.description,
+      coreMovement?.label || "",
+      ...(coreMovement?.aliases || []),
+      movementPattern?.label || "",
+      ...(movementPattern ? [movementPattern.description] : []),
+      ...semanticVariationNames,
+      ...semanticVariations.flatMap((variation) => [
+        ...variation.aliases,
+        ...variation.modifierIds.map(
+          (modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId]?.label || modifierId,
+        ),
+      ]),
+      ...definition.aliases,
+      ...modifierIds.map(
+        (modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId]?.label || modifierId,
+      ),
+      definition.integrated ? "integrated" : "",
+    ]),
+    notes: mapping.notes,
+    warnings: mapping.warnings,
+  };
+};
+
+export const getCoreMovementPatternCatalogItems = () =>
+  getDedupedCorePatternDefinitions().map(createCoreMovementPatternItem);
+
 const getNormalizedCatalogId = (
   legacyExercise: ExerciseCatalogItem,
   mapping: LegacyExerciseMovementMapping,
@@ -263,6 +406,8 @@ const createNormalizedItem = (
     coreMovementLabel: coreMovement?.label || mapping.coreMovementId,
     movementPatternId: mapping.movementPatternId,
     movementPatternLabel: movementPattern?.label || mapping.movementPatternId,
+    semanticVariationNames: [],
+    semanticVariations: [],
     apparatus: mapping.apparatus,
     modifierIds,
     modifiersByCategory,
@@ -466,11 +611,13 @@ const createCatalogReport = (
 export const getNormalizedExerciseCatalog = (
   exercises: ExerciseCatalogItem[] = exerciseLibrary,
 ): NormalizedExerciseCatalog => {
+  const corePatternItems = getCoreMovementPatternCatalogItems();
   const legacyWithNormalizedMetadata =
     getLegacyExercisesWithNormalizedMetadata(exercises);
-  const items = legacyWithNormalizedMetadata
+  const legacyItems = legacyWithNormalizedMetadata
     .map((entry) => entry.normalizedItem)
     .filter(Boolean) as NormalizedExerciseCatalogItem[];
+  const items = [...corePatternItems, ...legacyItems];
   const mappingReport = getLegacyExerciseMappingReport(exercises);
 
   return {
@@ -500,9 +647,16 @@ export const getNormalizedExerciseCatalogReport = (
 
 export const getExerciseCatalogWithLegacyFallback = (
   exercises: ExerciseCatalogItem[] = exerciseLibrary,
-) =>
-  getNormalizedExerciseCatalog(exercises).legacyWithNormalizedMetadata.map((entry) =>
+) => {
+  const catalog = getNormalizedExerciseCatalog(exercises);
+  const corePatternExercises = catalog.items
+    .filter((item) => item.source === "core-pattern")
+    .map(normalizedCatalogItemToExercise);
+  const legacyExercises = catalog.legacyWithNormalizedMetadata.map((entry) =>
     entry.normalizedItem
       ? normalizedCatalogItemToExercise(entry.normalizedItem)
       : entry.fallbackExercise,
   );
+
+  return [...corePatternExercises, ...legacyExercises];
+};

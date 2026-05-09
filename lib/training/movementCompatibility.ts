@@ -336,7 +336,9 @@ const defineRule = (input: RuleInput): MovementCompatibilityRule => {
 
 const baseCategories = modifierCategories;
 
-export const CORE_MOVEMENT_COMPATIBILITY_RULES = {
+export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
+  Record<CoreMovementId, MovementCompatibilityRule>
+> = {
   "chest-press": defineRule({
     coreMovementId: "chest-press",
     allowedApparatusIds: [
@@ -1374,7 +1376,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES = {
     requiredContext: [sledContext],
     notes: ["Push versus pull direction should become a modifier or prescription detail."],
   }),
-} satisfies Record<CoreMovementId, MovementCompatibilityRule>;
+};
 
 const getModifierIdsForRule = (rule: MovementCompatibilityRule) =>
   compactUnique([

@@ -1,0 +1,108 @@
+import type { ExerciseCatalogItem } from "@/types";
+import type {
+  ExerciseModifierId,
+  ExerciseVariation,
+  IntegratedMovement,
+  MovementPatternId,
+} from "../types";
+import { EXERCISE_SYSTEM_VARIATIONS } from "./catalog";
+import { normalizeSemanticText } from "../search/semanticSearch";
+import { getAllModifierIds, getAllPatternIds } from "../utils/matching";
+
+export type LegacyExerciseSystemMigration = {
+  legacyExercise: ExerciseCatalogItem;
+  matchedVariation: ExerciseVariation | IntegratedMovement | null;
+  inferredPatternIds: MovementPatternId[];
+  inferredModifierIds: ExerciseModifierId[];
+  confidence: "high" | "medium" | "low";
+  notes: string[];
+};
+
+const legacyPatternMap: Record<string, MovementPatternId> = {
+  squat: "squat",
+  hinge: "hinge",
+  lunge: "lunge",
+  "horizontal push": "chest-press",
+  "vertical push": "shoulder-press",
+  "horizontal pull": "row",
+  "vertical pull": "vertical-pull",
+  "anti rotation": "anti-rotation",
+  "anti extension": "anti-extension",
+  "anti lateral flexion": "anti-lateral-flexion",
+  rotation: "rotation",
+  carry: "carry",
+  jump: "jump",
+  conditioning: "integrated-movement",
+  mobility: "mobility",
+  "power push": "throw",
+  "squat to press": "integrated-movement",
+};
+
+const legacyEquipmentMap: Record<string, ExerciseModifierId> = {
+  bodyweight: "equipment:bodyweight",
+  dumbbell: "equipment:dumbbell",
+  kettlebell: "equipment:kettlebell",
+  barbell: "equipment:barbell",
+  cable: "equipment:cable",
+  machine: "equipment:machine",
+  band: "equipment:band",
+  box: "equipment:box",
+  "medicine ball": "equipment:medicine-ball",
+  "trap bar": "equipment:trap-bar",
+  sled: "equipment:sled",
+  "pull up bar": "equipment:pull-up-bar",
+  "pull-up bar": "equipment:pull-up-bar",
+  "stability ball": "stability:stability-ball",
+  bosu: "stability:bosu",
+};
+
+const findDirectSystemMatch = (exerciseName: string) => {
+  const normalizedName = normalizeSemanticText(exerciseName);
+
+  return (
+    EXERCISE_SYSTEM_VARIATIONS.find((variation) =>
+      [
+        variation.displayName,
+        variation.id,
+        ...(variation.aliases || []),
+      ]
+        .map(normalizeSemanticText)
+        .includes(normalizedName),
+    ) || null
+  );
+};
+
+export const mapLegacyExerciseToExerciseSystem = (
+  legacyExercise: ExerciseCatalogItem,
+): LegacyExerciseSystemMigration => {
+  const matchedVariation = findDirectSystemMatch(legacyExercise.name);
+  const normalizedPattern = normalizeSemanticText(legacyExercise.pattern);
+  const normalizedEquipment = normalizeSemanticText(legacyExercise.equipment);
+  const inferredPatternIds = matchedVariation
+    ? getAllPatternIds(matchedVariation)
+    : [legacyPatternMap[normalizedPattern]].filter(Boolean);
+  const inferredModifierIds = matchedVariation
+    ? getAllModifierIds(matchedVariation)
+    : [legacyEquipmentMap[normalizedEquipment]].filter(Boolean);
+  const notes = [
+    matchedVariation
+      ? "Direct semantic system match found."
+      : "No exact system seed match; using inferred pattern/equipment mapping.",
+    inferredModifierIds.some((modifierId) => modifierId.startsWith("stability:"))
+      ? "Surface/control item mapped as stability, not equipment."
+      : "",
+  ].filter(Boolean);
+
+  return {
+    legacyExercise,
+    matchedVariation,
+    inferredPatternIds,
+    inferredModifierIds,
+    confidence: matchedVariation ? "high" : inferredPatternIds.length ? "medium" : "low",
+    notes,
+  };
+};
+
+export const migrateLegacyExercisesToExerciseSystem = (
+  exercises: ExerciseCatalogItem[],
+) => exercises.map(mapLegacyExerciseToExerciseSystem);

@@ -6,9 +6,11 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type Dispatch,
   type SetStateAction,
 } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { loadWorkoutLogEntriesWithFallback } from "@/lib/data/workoutPersistence";
 import {
@@ -26,11 +28,21 @@ import {
   getNormalizedExerciseCatalog,
   type NormalizedExerciseCatalogItem,
 } from "@/lib/training/normalizedExerciseCatalog";
+import {
+  EXERCISE_MODIFIER_BY_ID as SEMANTIC_EXERCISE_MODIFIER_BY_ID,
+  MOVEMENT_PATTERN_BY_ID as SEMANTIC_MOVEMENT_PATTERN_BY_ID,
+  mapLegacyExerciseToExerciseSystem,
+  semanticExerciseMatchesQuery,
+  type ExerciseModifierId as SemanticExerciseModifierId,
+  type IntegratedMovement as SemanticIntegratedMovement,
+  type MovementPatternId as SemanticMovementPatternId,
+} from "@/lib/exercise-system";
 import { getCompatibleModifiersForMovement } from "@/lib/training/movementCompatibility";
 import {
   CORE_MOVEMENT_BY_ID,
   EXERCISE_MODIFIER_BY_ID,
   EXERCISE_MODIFIER_CATEGORY_BY_ID,
+  MOVEMENT_PATTERN_CATEGORY_BY_ID,
   MOVEMENT_PATTERN_BY_ID,
 } from "@/lib/training/movementTaxonomy";
 import { createExerciseVariation } from "@/lib/training/movementGeneration";
@@ -60,6 +72,7 @@ type Exercise = {
 };
 
 type ExerciseLibraryViewMode = "detail" | "grid";
+type ExerciseStatsMenuMode = "detail" | "grid";
 
 const viewModeLabels: Record<ExerciseLibraryViewMode, string> = {
   detail: "Detail View",
@@ -114,12 +127,16 @@ type FilterMenuOption = {
 };
 
 type MovementTypeGroup =
-  | "Main Strength"
-  | "Upper Body"
-  | "Lower Body"
+  | "Lower Body Compound"
+  | "Lower Body Isolation"
+  | "Upper Push"
+  | "Upper Pull"
+  | "Arm Isolation"
   | "Core"
-  | "Accessory / Rehab"
-  | "Power / Athletic";
+  | "Athletic"
+  | "Mobility"
+  | "Cervical Isolation"
+  | "Integrated";
 
 type MovementTypeOption = {
   value: string;
@@ -131,12 +148,16 @@ type MovementTypeOption = {
 };
 
 const movementTypeGroupOrder: MovementTypeGroup[] = [
-  "Main Strength",
-  "Upper Body",
-  "Lower Body",
+  "Lower Body Compound",
+  "Lower Body Isolation",
+  "Upper Push",
+  "Upper Pull",
+  "Arm Isolation",
   "Core",
-  "Accessory / Rehab",
-  "Power / Athletic",
+  "Athletic",
+  "Mobility",
+  "Cervical Isolation",
+  "Integrated",
 ];
 
 const movementTypeDefinitions: Array<
@@ -145,149 +166,184 @@ const movementTypeDefinitions: Array<
   {
     value: "strength:chest-press",
     label: "Chest Press",
-    group: "Main Strength",
+    group: "Upper Push",
     coreMovementIds: ["chest-press"],
-    movementPatternIds: ["horizontal-push"],
+    movementPatternIds: ["chest-press", "horizontal-push"],
+  },
+  {
+    value: "upper-push:chest-fly",
+    label: "Chest Fly",
+    group: "Upper Push",
+    coreMovementIds: ["chest-fly"],
+    movementPatternIds: ["chest-fly"],
   },
   {
     value: "strength:row",
     label: "Row",
-    group: "Main Strength",
+    group: "Upper Pull",
     coreMovementIds: ["row"],
-    movementPatternIds: ["horizontal-pull"],
+    movementPatternIds: ["row", "horizontal-pull"],
   },
   {
     value: "strength:squat",
     label: "Squat",
-    group: "Main Strength",
+    group: "Lower Body Compound",
     coreMovementIds: ["squat"],
     movementPatternIds: ["squat"],
   },
   {
     value: "strength:hinge",
     label: "Hinge",
-    group: "Main Strength",
+    group: "Lower Body Compound",
     coreMovementIds: ["hinge"],
     movementPatternIds: ["hinge"],
   },
   {
     value: "strength:lunge",
     label: "Lunge",
-    group: "Main Strength",
+    group: "Lower Body Compound",
     coreMovementIds: ["lunge"],
     movementPatternIds: ["lunge"],
   },
   {
     value: "strength:shoulder-press",
     label: "Shoulder Press",
-    group: "Main Strength",
+    group: "Upper Push",
     coreMovementIds: ["shoulder-press"],
-    movementPatternIds: ["vertical-push"],
+    movementPatternIds: ["shoulder-press", "vertical-push"],
   },
   {
     value: "upper:vertical-pull",
-    label: "Pulldown / Pull-Up",
-    group: "Upper Body",
-    coreMovementIds: ["pulldown", "pull-up"],
+    label: "Vertical Pull",
+    group: "Upper Pull",
+    coreMovementIds: ["vertical-pull", "pulldown", "pull-up"],
     movementPatternIds: ["vertical-pull"],
   },
   {
+    value: "upper:pullover",
+    label: "Pullover",
+    group: "Upper Pull",
+    coreMovementIds: ["pullover"],
+    movementPatternIds: ["pullover"],
+  },
+  {
     value: "upper:biceps-curl",
-    label: "Biceps Curl",
-    group: "Upper Body",
-    coreMovementIds: ["biceps-curl"],
-    movementPatternIds: ["elbow-flexion"],
+    label: "Curl",
+    group: "Arm Isolation",
+    coreMovementIds: ["curl", "biceps-curl"],
+    movementPatternIds: ["curl", "elbow-flexion"],
   },
   {
     value: "upper:triceps-extension",
     label: "Triceps Extension",
-    group: "Upper Body",
+    group: "Arm Isolation",
     coreMovementIds: ["triceps-extension"],
-    movementPatternIds: ["elbow-extension"],
+    movementPatternIds: ["triceps-extension", "elbow-extension"],
+  },
+  {
+    value: "arm:wrist-flexion",
+    label: "Wrist Flexion",
+    group: "Arm Isolation",
+    coreMovementIds: ["wrist-flexion"],
+    movementPatternIds: ["wrist-flexion"],
+  },
+  {
+    value: "arm:wrist-extension",
+    label: "Wrist Extension",
+    group: "Arm Isolation",
+    coreMovementIds: ["wrist-extension"],
+    movementPatternIds: ["wrist-extension"],
+  },
+  {
+    value: "arm:wrist-rotation",
+    label: "Wrist Rotation",
+    group: "Arm Isolation",
+    coreMovementIds: ["wrist-rotation"],
+    movementPatternIds: ["wrist-rotation"],
   },
   {
     value: "upper:lateral-raise",
     label: "Lateral Raise",
-    group: "Upper Body",
+    group: "Upper Push",
     coreMovementIds: ["lateral-raise"],
-    movementPatternIds: ["shoulder-abduction"],
+    movementPatternIds: ["lateral-raise", "shoulder-abduction"],
   },
   {
     value: "upper:rear-delt-raise",
-    label: "Rear Delt Raise",
-    group: "Upper Body",
-    coreMovementIds: ["rear-delt-raise"],
-    movementPatternIds: [],
+    label: "Reverse Fly",
+    group: "Upper Pull",
+    coreMovementIds: ["reverse-fly", "rear-delt-raise"],
+    movementPatternIds: ["reverse-fly", "scapular-retraction"],
   },
   {
     value: "upper:face-pull",
     label: "Face Pull",
-    group: "Upper Body",
+    group: "Arm Isolation",
     coreMovementIds: ["face-pull"],
-    movementPatternIds: [],
+    movementPatternIds: ["scapular-retraction"],
   },
   {
     value: "upper:shrug",
     label: "Shrug",
-    group: "Upper Body",
+    group: "Upper Pull",
     coreMovementIds: ["shrug"],
-    movementPatternIds: [],
+    movementPatternIds: ["scapular-retraction"],
   },
   {
     value: "lower:knee-extension",
     label: "Knee Extension",
-    group: "Lower Body",
-    coreMovementIds: ["leg-extension"],
+    group: "Lower Body Isolation",
+    coreMovementIds: ["knee-extension", "leg-extension"],
     movementPatternIds: ["knee-extension"],
   },
   {
     value: "lower:knee-flexion",
     label: "Knee Flexion",
-    group: "Lower Body",
-    coreMovementIds: ["leg-curl"],
+    group: "Lower Body Isolation",
+    coreMovementIds: ["knee-flexion", "leg-curl"],
     movementPatternIds: ["knee-flexion"],
   },
   {
-    value: "lower:hip-extension",
-    label: "Hip Extension",
-    group: "Lower Body",
-    coreMovementIds: ["hip-thrust-glute-bridge"],
-    movementPatternIds: ["hip-extension"],
+    value: "lower:hip-thrust-bridge",
+    label: "Hip Thrust / Bridge",
+    group: "Lower Body Compound",
+    coreMovementIds: ["hip-thrust-bridge", "hip-thrust-glute-bridge"],
+    movementPatternIds: ["hip-thrust-bridge", "hip-extension"],
   },
   {
     value: "lower:calf-raise",
-    label: "Calf Raise / Plantar Flexion",
-    group: "Lower Body",
+    label: "Calf Raise",
+    group: "Lower Body Isolation",
     coreMovementIds: ["calf-raise"],
-    movementPatternIds: ["plantarflexion"],
+    movementPatternIds: ["calf-raise", "plantarflexion"],
   },
   {
     value: "lower:tibialis-raise",
-    label: "Ankle Dorsiflexion / Tibialis Raise",
-    group: "Lower Body",
+    label: "Tibialis Raise",
+    group: "Lower Body Isolation",
     coreMovementIds: ["tibialis-raise"],
-    movementPatternIds: ["dorsiflexion"],
+    movementPatternIds: ["tibialis-raise", "dorsiflexion"],
   },
   {
     value: "lower:step-up",
     label: "Step-Up",
-    group: "Lower Body",
+    group: "Lower Body Compound",
     coreMovementIds: ["step-up"],
-    movementPatternIds: [],
+    movementPatternIds: ["step-up", "step-gait-jump"],
   },
   {
     value: "lower:step-down",
     label: "Step-Down",
-    group: "Lower Body",
+    group: "Lower Body Compound",
     coreMovementIds: ["step-down"],
-    movementPatternIds: [],
+    movementPatternIds: ["step-gait-jump"],
   },
   {
     value: "lower:split-squat",
     label: "Split Squat",
-    group: "Lower Body",
+    group: "Lower Body Compound",
     coreMovementIds: ["split-squat"],
-    movementPatternIds: [],
+    movementPatternIds: ["lunge"],
   },
   {
     value: "core:rotation",
@@ -304,247 +360,411 @@ const movementTypeDefinitions: Array<
     movementPatternIds: ["anti-rotation"],
   },
   {
-    value: "core:brace",
-    label: "Brace / Plank",
+    value: "core:flexion",
+    label: "Flexion",
     group: "Core",
-    coreMovementIds: ["brace-plank"],
-    movementPatternIds: ["brace"],
+    coreMovementIds: ["flexion"],
+    movementPatternIds: ["flexion"],
+  },
+  {
+    value: "core:brace",
+    label: "Anti-Extension",
+    group: "Core",
+    coreMovementIds: ["anti-extension", "brace-plank"],
+    movementPatternIds: ["anti-extension", "brace"],
+  },
+  {
+    value: "core:anti-lateral-flexion",
+    label: "Anti-Lateral Flexion",
+    group: "Core",
+    coreMovementIds: ["anti-lateral-flexion"],
+    movementPatternIds: ["anti-lateral-flexion"],
   },
   {
     value: "core:carry",
     label: "Carry",
-    group: "Core",
+    group: "Athletic",
     coreMovementIds: ["carry"],
     movementPatternIds: ["carry"],
   },
   {
     value: "rehab:hip-abduction",
     label: "Hip Abduction",
-    group: "Accessory / Rehab",
+    group: "Lower Body Isolation",
     coreMovementIds: ["hip-abduction"],
     movementPatternIds: ["hip-abduction"],
   },
   {
     value: "rehab:hip-adduction",
     label: "Hip Adduction",
-    group: "Accessory / Rehab",
+    group: "Lower Body Isolation",
     coreMovementIds: ["hip-adduction"],
     movementPatternIds: ["hip-adduction"],
   },
   {
     value: "rehab:hip-external-rotation",
     label: "Hip External Rotation",
-    group: "Accessory / Rehab",
-    coreMovementIds: [],
+    group: "Lower Body Isolation",
+    coreMovementIds: ["hip-external-rotation"],
     movementPatternIds: ["hip-external-rotation"],
   },
   {
     value: "rehab:hip-internal-rotation",
     label: "Hip Internal Rotation",
-    group: "Accessory / Rehab",
-    coreMovementIds: [],
+    group: "Lower Body Isolation",
+    coreMovementIds: ["hip-internal-rotation"],
     movementPatternIds: ["hip-internal-rotation"],
   },
   {
-    value: "rehab:scapular-retraction",
-    label: "Scapular Retraction",
-    group: "Accessory / Rehab",
-    coreMovementIds: [],
-    movementPatternIds: ["scapular-retraction"],
+    value: "arm:scapular-control",
+    label: "Scapular Control",
+    group: "Arm Isolation",
+    coreMovementIds: ["scapular-control"],
+    movementPatternIds: [
+      "scapular-control",
+      "scapular-retraction",
+      "scapular-protraction",
+    ],
   },
   {
     value: "rehab:shoulder-external-rotation",
     label: "Shoulder External Rotation",
-    group: "Accessory / Rehab",
-    coreMovementIds: [],
+    group: "Arm Isolation",
+    coreMovementIds: ["shoulder-external-rotation"],
     movementPatternIds: ["shoulder-external-rotation"],
   },
   {
     value: "rehab:shoulder-internal-rotation",
     label: "Shoulder Internal Rotation",
-    group: "Accessory / Rehab",
-    coreMovementIds: [],
+    group: "Arm Isolation",
+    coreMovementIds: ["shoulder-internal-rotation"],
     movementPatternIds: ["shoulder-internal-rotation"],
   },
   {
     value: "power:clean-pull",
     label: "Clean Pull",
-    group: "Power / Athletic",
+    group: "Athletic",
     coreMovementIds: ["clean-pull"],
     movementPatternIds: ["olympic-pull-catch"],
   },
   {
     value: "power:high-pull",
     label: "High Pull",
-    group: "Power / Athletic",
+    group: "Athletic",
     coreMovementIds: ["high-pull"],
-    movementPatternIds: [],
+    movementPatternIds: ["olympic-pull-catch"],
   },
   {
     value: "power:kettlebell-swing",
     label: "Kettlebell Swing",
-    group: "Power / Athletic",
+    group: "Athletic",
     coreMovementIds: ["kettlebell-swing"],
     movementPatternIds: ["ballistic-hinge"],
   },
   {
     value: "power:kettlebell-clean",
     label: "Kettlebell Clean",
-    group: "Power / Athletic",
+    group: "Athletic",
     coreMovementIds: ["kettlebell-clean"],
-    movementPatternIds: [],
+    movementPatternIds: ["olympic-pull-catch"],
   },
   {
     value: "power:kettlebell-snatch",
     label: "Kettlebell Snatch",
-    group: "Power / Athletic",
+    group: "Athletic",
     coreMovementIds: ["kettlebell-snatch"],
-    movementPatternIds: [],
+    movementPatternIds: ["olympic-pull-catch"],
   },
   {
     value: "power:turkish-get-up",
     label: "Turkish Get-Up",
-    group: "Power / Athletic",
+    group: "Athletic",
     coreMovementIds: ["turkish-get-up"],
-    movementPatternIds: [],
+    movementPatternIds: ["step-gait-jump"],
   },
   {
     value: "power:kettlebell-halo",
     label: "Kettlebell Halo",
-    group: "Power / Athletic",
+    group: "Athletic",
     coreMovementIds: ["kettlebell-halo"],
-    movementPatternIds: [],
+    movementPatternIds: ["rotation"],
   },
   {
     value: "power:bottoms-up-press",
     label: "Bottoms-Up Press",
-    group: "Power / Athletic",
+    group: "Athletic",
     coreMovementIds: ["bottoms-up-press"],
-    movementPatternIds: [],
+    movementPatternIds: ["vertical-push"],
   },
   {
     value: "power:jump-landing",
-    label: "Jump / Landing",
-    group: "Power / Athletic",
-    coreMovementIds: ["jump-landing"],
-    movementPatternIds: ["step-gait-jump"],
+    label: "Jump",
+    group: "Athletic",
+    coreMovementIds: ["jump", "jump-landing"],
+    movementPatternIds: ["jump", "step-gait-jump"],
   },
   {
     value: "power:medicine-ball-slam",
-    label: "Medicine Ball Slam",
-    group: "Power / Athletic",
-    coreMovementIds: ["medicine-ball-slam"],
-    movementPatternIds: ["ballistic-throw-slam"],
+    label: "Throw",
+    group: "Athletic",
+    coreMovementIds: ["throw", "medicine-ball-slam"],
+    movementPatternIds: ["throw", "ballistic-throw-slam"],
+  },
+  {
+    value: "power:crawl",
+    label: "Crawl",
+    group: "Athletic",
+    coreMovementIds: ["crawl"],
+    movementPatternIds: ["crawl"],
+  },
+  {
+    value: "power:sprint",
+    label: "Sprint",
+    group: "Athletic",
+    coreMovementIds: ["sprint"],
+    movementPatternIds: ["sprint"],
   },
   {
     value: "power:burpee",
     label: "Burpee",
-    group: "Power / Athletic",
+    group: "Athletic",
     coreMovementIds: ["burpee"],
     movementPatternIds: ["locomotion-conditioning"],
   },
   {
     value: "power:sled-drive",
     label: "Sled Drive",
-    group: "Power / Athletic",
+    group: "Athletic",
     coreMovementIds: ["sled-drive"],
     movementPatternIds: ["sled-drive"],
+  },
+  {
+    value: "mobility:mobility-flow",
+    label: "Mobility",
+    group: "Mobility",
+    coreMovementIds: ["mobility", "mobility-flow"],
+    movementPatternIds: ["mobility", "mobility-flow"],
+  },
+  {
+    value: "mobility:breathing-bracing",
+    label: "Breathing / Bracing",
+    group: "Mobility",
+    coreMovementIds: ["breathing-bracing"],
+    movementPatternIds: ["breathing-bracing"],
+  },
+  {
+    value: "cervical:neck-flexion",
+    label: "Neck Flexion",
+    group: "Cervical Isolation",
+    coreMovementIds: ["neck-flexion"],
+    movementPatternIds: ["neck-flexion"],
+  },
+  {
+    value: "cervical:neck-extension",
+    label: "Neck Extension",
+    group: "Cervical Isolation",
+    coreMovementIds: ["neck-extension"],
+    movementPatternIds: ["neck-extension"],
+  },
+  {
+    value: "cervical:neck-rotation",
+    label: "Neck Rotation",
+    group: "Cervical Isolation",
+    coreMovementIds: ["neck-rotation"],
+    movementPatternIds: ["neck-rotation"],
+  },
+  {
+    value: "integrated:movement",
+    label: "Integrated Movement",
+    group: "Integrated",
+    coreMovementIds: ["integrated-movement"],
+    movementPatternIds: ["integrated-movement"],
   },
 ];
 
 const movementTypeGroupByCoreMovementId: Partial<
   Record<CoreMovementId, MovementTypeGroup>
 > = {
-  "chest-press": "Main Strength",
-  row: "Main Strength",
-  squat: "Main Strength",
-  hinge: "Main Strength",
-  lunge: "Main Strength",
-  "shoulder-press": "Main Strength",
-  pulldown: "Upper Body",
-  "pull-up": "Upper Body",
-  carry: "Core",
+  "chest-press": "Upper Push",
+  "chest-fly": "Upper Push",
+  row: "Upper Pull",
+  squat: "Lower Body Compound",
+  hinge: "Lower Body Compound",
+  lunge: "Lower Body Compound",
+  "shoulder-press": "Upper Push",
+  "vertical-pull": "Upper Pull",
+  pullover: "Upper Pull",
+  pulldown: "Upper Pull",
+  "pull-up": "Upper Pull",
+  carry: "Athletic",
+  crawl: "Athletic",
+  jump: "Athletic",
+  sprint: "Athletic",
+  throw: "Athletic",
   rotation: "Core",
   "anti-rotation": "Core",
+  flexion: "Core",
+  "anti-extension": "Core",
+  "anti-lateral-flexion": "Core",
   "brace-plank": "Core",
-  "leg-extension": "Lower Body",
-  "leg-curl": "Lower Body",
-  "hip-thrust-glute-bridge": "Lower Body",
-  "calf-raise": "Lower Body",
-  "tibialis-raise": "Lower Body",
-  "hip-abduction": "Accessory / Rehab",
-  "hip-adduction": "Accessory / Rehab",
-  "biceps-curl": "Upper Body",
-  "triceps-extension": "Upper Body",
-  "lateral-raise": "Upper Body",
-  "rear-delt-raise": "Upper Body",
-  "face-pull": "Upper Body",
-  shrug: "Upper Body",
-  "step-up": "Lower Body",
-  "step-down": "Lower Body",
-  "split-squat": "Lower Body",
-  "clean-pull": "Power / Athletic",
-  "high-pull": "Power / Athletic",
-  "kettlebell-swing": "Power / Athletic",
-  "kettlebell-clean": "Power / Athletic",
-  "kettlebell-snatch": "Power / Athletic",
-  "turkish-get-up": "Power / Athletic",
-  "kettlebell-halo": "Power / Athletic",
-  "bottoms-up-press": "Power / Athletic",
-  "mobility-flow": "Accessory / Rehab",
-  "jump-landing": "Power / Athletic",
-  "medicine-ball-slam": "Power / Athletic",
-  burpee: "Power / Athletic",
-  "sled-drive": "Power / Athletic",
+  "knee-extension": "Lower Body Isolation",
+  "knee-flexion": "Lower Body Isolation",
+  "leg-extension": "Lower Body Isolation",
+  "leg-curl": "Lower Body Isolation",
+  "hip-thrust-bridge": "Lower Body Compound",
+  "hip-thrust-glute-bridge": "Lower Body Compound",
+  "calf-raise": "Lower Body Isolation",
+  "tibialis-raise": "Lower Body Isolation",
+  "hip-abduction": "Lower Body Isolation",
+  "hip-adduction": "Lower Body Isolation",
+  "hip-internal-rotation": "Lower Body Isolation",
+  "hip-external-rotation": "Lower Body Isolation",
+  "biceps-curl": "Arm Isolation",
+  curl: "Arm Isolation",
+  "triceps-extension": "Arm Isolation",
+  "wrist-flexion": "Arm Isolation",
+  "wrist-extension": "Arm Isolation",
+  "wrist-rotation": "Arm Isolation",
+  "lateral-raise": "Upper Push",
+  "reverse-fly": "Upper Pull",
+  "rear-delt-raise": "Upper Pull",
+  "face-pull": "Arm Isolation",
+  "shoulder-internal-rotation": "Arm Isolation",
+  "shoulder-external-rotation": "Arm Isolation",
+  "scapular-control": "Arm Isolation",
+  shrug: "Upper Pull",
+  "step-up": "Lower Body Compound",
+  "step-down": "Lower Body Compound",
+  "split-squat": "Lower Body Compound",
+  "clean-pull": "Athletic",
+  "high-pull": "Athletic",
+  "kettlebell-swing": "Athletic",
+  "kettlebell-clean": "Athletic",
+  "kettlebell-snatch": "Athletic",
+  "turkish-get-up": "Athletic",
+  "kettlebell-halo": "Athletic",
+  "bottoms-up-press": "Athletic",
+  "mobility-flow": "Mobility",
+  mobility: "Mobility",
+  "breathing-bracing": "Mobility",
+  "neck-flexion": "Cervical Isolation",
+  "neck-extension": "Cervical Isolation",
+  "neck-rotation": "Cervical Isolation",
+  "jump-landing": "Athletic",
+  "medicine-ball-slam": "Athletic",
+  burpee: "Athletic",
+  "sled-drive": "Athletic",
+  "integrated-movement": "Integrated",
 };
 
 const movementTypeGroupByPatternId: Partial<
   Record<MovementPatternId, MovementTypeGroup>
 > = {
-  "horizontal-push": "Main Strength",
-  "horizontal-pull": "Main Strength",
-  "vertical-push": "Main Strength",
-  "vertical-pull": "Upper Body",
-  squat: "Main Strength",
-  hinge: "Main Strength",
-  lunge: "Main Strength",
-  gait: "Core",
-  "knee-extension": "Lower Body",
-  "knee-flexion": "Lower Body",
-  "hip-extension": "Lower Body",
-  "hip-abduction": "Accessory / Rehab",
-  "hip-adduction": "Accessory / Rehab",
-  "hip-external-rotation": "Accessory / Rehab",
-  "hip-internal-rotation": "Accessory / Rehab",
-  plantarflexion: "Lower Body",
-  dorsiflexion: "Lower Body",
-  "elbow-flexion": "Upper Body",
-  "elbow-extension": "Upper Body",
-  "shoulder-abduction": "Upper Body",
-  "shoulder-external-rotation": "Accessory / Rehab",
-  "shoulder-internal-rotation": "Accessory / Rehab",
-  "scapular-retraction": "Accessory / Rehab",
-  "scapular-protraction": "Accessory / Rehab",
-  "step-gait-jump": "Power / Athletic",
-  "ballistic-hinge": "Power / Athletic",
-  "ballistic-throw-slam": "Power / Athletic",
-  "olympic-pull-catch": "Power / Athletic",
-  "mobility-flow": "Accessory / Rehab",
-  "locomotion-conditioning": "Power / Athletic",
-  "sled-drive": "Power / Athletic",
+  "horizontal-push": "Upper Push",
+  "horizontal-pull": "Upper Pull",
+  "vertical-push": "Upper Push",
+  "vertical-pull": "Upper Pull",
+  squat: "Lower Body Compound",
+  hinge: "Lower Body Compound",
+  lunge: "Lower Body Compound",
+  "step-up": "Lower Body Compound",
+  "hip-thrust-bridge": "Lower Body Compound",
+  gait: "Athletic",
+  "knee-extension": "Lower Body Isolation",
+  "knee-flexion": "Lower Body Isolation",
+  "hip-extension": "Lower Body Compound",
+  "hip-abduction": "Lower Body Isolation",
+  "hip-adduction": "Lower Body Isolation",
+  "hip-external-rotation": "Lower Body Isolation",
+  "hip-internal-rotation": "Lower Body Isolation",
+  "calf-raise": "Lower Body Isolation",
+  "tibialis-raise": "Lower Body Isolation",
+  plantarflexion: "Lower Body Isolation",
+  dorsiflexion: "Lower Body Isolation",
+  "chest-press": "Upper Push",
+  "shoulder-press": "Upper Push",
+  "chest-fly": "Upper Push",
+  "lateral-raise": "Upper Push",
+  row: "Upper Pull",
+  pullover: "Upper Pull",
+  "reverse-fly": "Upper Pull",
+  curl: "Arm Isolation",
+  "triceps-extension": "Arm Isolation",
+  "elbow-flexion": "Arm Isolation",
+  "elbow-extension": "Arm Isolation",
+  "wrist-flexion": "Arm Isolation",
+  "wrist-extension": "Arm Isolation",
+  "wrist-rotation": "Arm Isolation",
+  "shoulder-abduction": "Upper Push",
+  "shoulder-external-rotation": "Arm Isolation",
+  "shoulder-internal-rotation": "Arm Isolation",
+  "scapular-control": "Arm Isolation",
+  "scapular-retraction": "Upper Pull",
+  "scapular-protraction": "Upper Push",
+  "step-gait-jump": "Athletic",
+  "ballistic-hinge": "Athletic",
+  "ballistic-throw-slam": "Athletic",
+  "olympic-pull-catch": "Athletic",
+  "mobility-flow": "Mobility",
+  "locomotion-conditioning": "Athletic",
+  "sled-drive": "Athletic",
   rotation: "Core",
   "anti-rotation": "Core",
-  carry: "Core",
+  flexion: "Core",
+  "anti-extension": "Core",
+  "anti-lateral-flexion": "Core",
+  carry: "Athletic",
+  crawl: "Athletic",
+  jump: "Athletic",
+  sprint: "Athletic",
+  throw: "Athletic",
   brace: "Core",
+  mobility: "Mobility",
+  "breathing-bracing": "Mobility",
+  "neck-flexion": "Cervical Isolation",
+  "neck-extension": "Cervical Isolation",
+  "neck-rotation": "Cervical Isolation",
+  "integrated-movement": "Integrated",
 };
 
 const friendlyMovementPatternLabels: Partial<Record<MovementPatternId, string>> = {
   plantarflexion: "Calf Raise / Plantar Flexion",
-  dorsiflexion: "Ankle Dorsiflexion / Tibialis Raise",
+  dorsiflexion: "Tibialis Raise",
+  "calf-raise": "Calf Raise",
+  "tibialis-raise": "Tibialis Raise",
+  "hip-thrust-bridge": "Hip Thrust / Bridge",
+  "chest-press": "Chest Press",
+  "shoulder-press": "Shoulder Press",
+  "chest-fly": "Chest Fly",
+  "lateral-raise": "Lateral Raise",
+  row: "Row",
+  pullover: "Pullover",
+  "reverse-fly": "Reverse Fly",
+  curl: "Curl",
+  "triceps-extension": "Triceps Extension",
   "hip-external-rotation": "Hip External Rotation",
   "hip-internal-rotation": "Hip Internal Rotation",
+  "scapular-control": "Scapular Control",
+  "scapular-retraction": "Reverse Fly / Scapular Retraction",
+  "scapular-protraction": "Scapular Protraction",
   "shoulder-external-rotation": "Shoulder External Rotation",
   "shoulder-internal-rotation": "Shoulder Internal Rotation",
+  "wrist-flexion": "Wrist Flexion",
+  "wrist-extension": "Wrist Extension",
+  "wrist-rotation": "Wrist Rotation",
+  "breathing-bracing": "Breathing / Bracing",
+  "neck-flexion": "Neck Flexion",
+  "neck-extension": "Neck Extension",
+  "neck-rotation": "Neck Rotation",
+  flexion: "Flexion",
+  "anti-extension": "Anti-Extension",
+  "anti-lateral-flexion": "Anti-Lateral Flexion",
+  crawl: "Crawl",
+  jump: "Jump",
+  sprint: "Sprint",
+  throw: "Throw",
+  mobility: "Mobility",
+  "integrated-movement": "Integrated Movement",
 };
 
 const movementTypeMatchesItem = (
@@ -567,12 +787,10 @@ const countMovementTypeItems = (
 };
 
 const createMovementTypeOptions = (): MovementTypeOption[] => {
-  const supportedDefinitions = movementTypeDefinitions
-    .map((definition) => ({
-      ...definition,
-      count: countMovementTypeItems(definition),
-    }))
-    .filter((definition) => definition.count > 0);
+  const supportedDefinitions = movementTypeDefinitions.map((definition) => ({
+    ...definition,
+    count: countMovementTypeItems(definition),
+  }));
   const coveredCoreMovementIds = new Set(
     supportedDefinitions.flatMap((option) => option.coreMovementIds),
   );
@@ -585,7 +803,7 @@ const createMovementTypeOptions = (): MovementTypeOption[] => {
       value: `core:${option.id}`,
       label: CORE_MOVEMENT_BY_ID[option.id]?.label || option.label,
       group:
-        movementTypeGroupByCoreMovementId[option.id] || "Accessory / Rehab",
+        movementTypeGroupByCoreMovementId[option.id] || "Arm Isolation",
       coreMovementIds: [option.id],
       movementPatternIds: [],
       count: option.count,
@@ -598,7 +816,7 @@ const createMovementTypeOptions = (): MovementTypeOption[] => {
         friendlyMovementPatternLabels[option.id] ||
         MOVEMENT_PATTERN_BY_ID[option.id]?.label ||
         option.label,
-      group: movementTypeGroupByPatternId[option.id] || "Accessory / Rehab",
+      group: movementTypeGroupByPatternId[option.id] || "Arm Isolation",
       coreMovementIds: [],
       movementPatternIds: [option.id],
       count: option.count,
@@ -632,7 +850,10 @@ const movementTypeFilterOptions: FilterMenuOption[] = [
     value: option.value,
     label: option.label,
     group: option.group,
-    helper: `${option.count} movement${option.count === 1 ? "" : "s"}`,
+    helper:
+      option.count > 0
+        ? `${option.count} movement${option.count === 1 ? "" : "s"}`
+        : "No mapped exercises yet",
   })),
 ];
 
@@ -723,6 +944,15 @@ const getModifierLabelsByCategory = (
     .map(getModifierLabel)
     .filter(Boolean);
 
+const getModifierLabelsByCategoryFromIds = (
+  modifierIds: ExerciseModifierId[],
+  categoryId: ExerciseModifierCategoryId,
+) =>
+  modifierIds
+    .filter((modifierId) => getModifierCategoryId(modifierId) === categoryId)
+    .map(getModifierLabel)
+    .filter(Boolean);
+
 const getCompatibleModifierGroups = (
   metadata: NormalizedExerciseCatalogItem | null,
 ) => {
@@ -758,6 +988,32 @@ const getCompatibleModifierGroups = (
       return acc;
     }, {});
 
+  metadata.semanticVariations
+    .flatMap((variation) => variation.modifierIds)
+    .forEach((modifierId) => {
+      const modifier = EXERCISE_MODIFIER_BY_ID[modifierId];
+      if (!modifier) return;
+
+      const category = EXERCISE_MODIFIER_CATEGORY_BY_ID[modifier.categoryId];
+
+      if (!groups[modifier.categoryId]) {
+        groups[modifier.categoryId] = {
+          categoryId: modifier.categoryId,
+          label: getModifierCategoryLabel(modifier.categoryId),
+          displayOrder: category?.displayOrder || 999,
+          modifiers: [],
+        };
+      }
+
+      const group = groups[modifier.categoryId];
+      if (
+        group &&
+        !group.modifiers.some((existing) => existing.id === modifier.id)
+      ) {
+        group.modifiers.push(modifier);
+      }
+    });
+
   return Object.values(groups)
     .filter(Boolean)
     .map((group) => ({
@@ -783,6 +1039,13 @@ const getSelectedModifiersByCategory = (
       (modifier): modifier is ExerciseModifier =>
         Boolean(modifier) && modifier.categoryId === categoryId,
     );
+
+const positionLimbUsageModifierIds = new Set<ExerciseModifierId>([
+  "limb-usage:standard-stance",
+  "limb-usage:conventional-stance",
+  "limb-usage:sumo-stance",
+  "limb-usage:wide-stance",
+]);
 
 const getGeneratedVariationName = (
   exercise: Exercise,
@@ -834,6 +1097,575 @@ const getSelectedGoalLabel = (
   return selectedIntent.map((modifier) => modifier.label).join(", ") || exercise.goal;
 };
 
+type MovementArchitectureChipTone =
+  | "movement"
+  | "secondary"
+  | "classification"
+  | "equipment"
+  | "stability"
+  | "modifier"
+  | "integrated"
+  | "fallback";
+
+type MovementArchitectureChip = {
+  key: string;
+  label: string;
+  tone: MovementArchitectureChipTone;
+};
+
+const movementArchitectureChipClasses: Record<
+  MovementArchitectureChipTone,
+  string
+> = {
+  movement:
+    "border-cyan-300/25 bg-cyan-400/12 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)]",
+  secondary:
+    "border-violet-300/25 bg-violet-400/12 text-violet-100 shadow-[0_0_16px_rgba(167,139,250,0.08)]",
+  classification:
+    "border-sky-300/20 bg-sky-400/10 text-sky-100 shadow-[0_0_16px_rgba(56,189,248,0.08)]",
+  equipment:
+    "border-emerald-300/25 bg-emerald-400/12 text-emerald-100 shadow-[0_0_16px_rgba(16,185,129,0.08)]",
+  stability:
+    "border-blue-300/25 bg-blue-400/12 text-blue-100 shadow-[0_0_16px_rgba(96,165,250,0.08)]",
+  modifier:
+    "border-white/15 bg-white/[0.055] text-slate-200",
+  integrated:
+    "border-yellow-300/30 bg-yellow-400/15 text-yellow-100 shadow-[0_0_18px_rgba(250,204,21,0.10)]",
+  fallback:
+    "border-white/10 bg-white/[0.035] text-slate-400",
+};
+
+const getSemanticPatternLabel = (patternId: SemanticMovementPatternId) =>
+  SEMANTIC_MOVEMENT_PATTERN_BY_ID[patternId]?.label || labelize(patternId);
+
+const movementPatternCategoryLabels: Record<string, string> = {
+  "lower-body-compound": "Lower Body Compound",
+  "lower-body-isolation": "Lower Body Isolation",
+  "upper-push": "Upper Push",
+  "upper-pull": "Upper Pull",
+  "arm-isolation": "Arm Isolation",
+  core: "Core",
+  athletic: "Athletic",
+  mobility: "Mobility",
+  "cervical-isolation": "Cervical Isolation",
+  integrated: "Integrated",
+};
+
+const getMovementPatternCategoryLabel = (categoryId?: string | null) =>
+  categoryId ? movementPatternCategoryLabels[categoryId] || labelize(categoryId) : "";
+
+const getSemanticPatternCategoryLabel = (
+  patternId: SemanticMovementPatternId,
+) =>
+  getMovementPatternCategoryLabel(
+    SEMANTIC_MOVEMENT_PATTERN_BY_ID[patternId]?.group,
+  );
+
+const getMappedPatternCategoryLabel = (patternId: MovementPatternId) =>
+  getMovementPatternCategoryLabel(MOVEMENT_PATTERN_CATEGORY_BY_ID[patternId]);
+
+const getCardClassificationLabel = (
+  metadata: NormalizedExerciseCatalogItem | null,
+) => (metadata ? getMappedPatternCategoryLabel(metadata.movementPatternId) : "");
+
+const getSemanticModifier = (modifierId: SemanticExerciseModifierId) =>
+  SEMANTIC_EXERCISE_MODIFIER_BY_ID[modifierId];
+
+const getSemanticModifierLabel = (modifierId: SemanticExerciseModifierId) =>
+  getSemanticModifier(modifierId)?.label || labelize(modifierId.split(":").pop() || modifierId);
+
+const isIntegratedSemanticMovement = (
+  variation: ReturnType<typeof mapLegacyExerciseToExerciseSystem>["matchedVariation"],
+): variation is SemanticIntegratedMovement =>
+  Boolean(variation && "patternChain" in variation);
+
+const addMovementChip = (
+  chips: MovementArchitectureChip[],
+  chip: MovementArchitectureChip,
+) => {
+  if (!chip.label.trim()) return;
+  const normalizedLabel = chip.label.trim().toLowerCase();
+  if (chips.some((item) => item.label.trim().toLowerCase() === normalizedLabel)) {
+    return;
+  }
+
+  chips.push(chip);
+};
+
+const getMovementArchitectureChips = (
+  exercise: Exercise,
+  metadata: NormalizedExerciseCatalogItem | null,
+  selectedModifierIds: ExerciseModifierId[] = metadata?.modifierIds || [],
+): MovementArchitectureChip[] => {
+  if (exercise.custom) {
+    return [{ key: "custom-unmapped", label: "Unmapped", tone: "fallback" }];
+  }
+
+  const migration = mapLegacyExerciseToExerciseSystem(
+    toBuilderCatalogExercise(exercise),
+  );
+  const variation = migration.matchedVariation;
+  const chips: MovementArchitectureChip[] = [];
+  const classificationLabels = new Map<string, string>();
+  const addClassificationLabel = (label: string) => {
+    if (!label.trim()) return;
+    classificationLabels.set(label.trim().toLowerCase(), label.trim());
+  };
+
+  if (isIntegratedSemanticMovement(variation)) {
+    variation.patternChain.forEach((patternRef) => {
+      const roleLabel =
+        patternRef.role === "primary"
+          ? "Primary"
+          : patternRef.role === "secondary"
+            ? "Secondary"
+            : "Tertiary";
+
+      addMovementChip(chips, {
+        key: `${variation.id}-${patternRef.role}-${patternRef.patternId}`,
+        label: `${roleLabel}: ${getSemanticPatternLabel(patternRef.patternId)}`,
+        tone: patternRef.role === "primary" ? "movement" : "secondary",
+      });
+
+      if (patternRef.role === "primary") {
+        addClassificationLabel(
+          getSemanticPatternCategoryLabel(patternRef.patternId),
+        );
+      }
+    });
+
+    addMovementChip(chips, {
+      key: `${variation.id}-integrated`,
+      label: "Integrated",
+      tone: "integrated",
+    });
+  } else if (variation) {
+    addMovementChip(chips, {
+      key: `${variation.id}-primary-${variation.primaryPatternId}`,
+      label: getSemanticPatternLabel(variation.primaryPatternId),
+      tone: "movement",
+    });
+    addClassificationLabel(
+      getSemanticPatternCategoryLabel(variation.primaryPatternId),
+    );
+
+    (variation.secondaryPatternIds || []).forEach((patternId) =>
+      addMovementChip(chips, {
+        key: `${variation.id}-secondary-${patternId}`,
+        label: `Secondary: ${getSemanticPatternLabel(patternId)}`,
+        tone: "secondary",
+      }),
+    );
+
+    (variation.tertiaryPatternIds || []).forEach((patternId) =>
+      addMovementChip(chips, {
+        key: `${variation.id}-tertiary-${patternId}`,
+        label: `Tertiary: ${getSemanticPatternLabel(patternId)}`,
+        tone: "secondary",
+      }),
+    );
+  } else if (metadata) {
+    addMovementChip(chips, {
+      key: `${metadata.id}-core-${metadata.coreMovementId}`,
+      label: metadata.coreMovementLabel,
+      tone: "movement",
+    });
+    addClassificationLabel(
+      getMappedPatternCategoryLabel(metadata.movementPatternId),
+    );
+
+    if (
+      metadata.movementPatternLabel &&
+      metadata.movementPatternLabel !== metadata.coreMovementLabel
+    ) {
+      addMovementChip(chips, {
+        key: `${metadata.id}-pattern-${metadata.movementPatternId}`,
+        label: metadata.movementPatternLabel,
+        tone: "secondary",
+      });
+    }
+  }
+
+  const semanticModifierIds = migration.inferredModifierIds;
+  const semanticEquipmentIds = semanticModifierIds.filter(
+    (modifierId) => getSemanticModifier(modifierId)?.categoryId === "equipment",
+  );
+  const semanticStabilityIds = semanticModifierIds.filter(
+    (modifierId) => getSemanticModifier(modifierId)?.categoryId === "stability",
+  );
+  const semanticVariationIds = semanticModifierIds.filter((modifierId) => {
+    const categoryId = getSemanticModifier(modifierId)?.categoryId;
+    return categoryId && categoryId !== "equipment" && categoryId !== "stability";
+  });
+
+  semanticEquipmentIds.forEach((modifierId) =>
+    addMovementChip(chips, {
+      key: `semantic-equipment-${modifierId}`,
+      label: getSemanticModifierLabel(modifierId),
+      tone: "equipment",
+    }),
+  );
+
+  semanticStabilityIds.forEach((modifierId) =>
+    addMovementChip(chips, {
+      key: `semantic-stability-${modifierId}`,
+      label: getSemanticModifierLabel(modifierId),
+      tone: "stability",
+    }),
+  );
+
+  semanticVariationIds.forEach((modifierId) =>
+    addMovementChip(chips, {
+      key: `semantic-modifier-${modifierId}`,
+      label: getSemanticModifierLabel(modifierId),
+      tone: "modifier",
+    }),
+  );
+
+  if (metadata) {
+    const displayModifierIds = selectedModifierIds.length
+      ? selectedModifierIds
+      : metadata.modifierIds;
+    const mappedEquipment = getModifierLabelsByCategoryFromIds(
+      displayModifierIds,
+      "apparatus",
+    );
+    const mappedStability = getModifierLabelsByCategoryFromIds(
+      displayModifierIds,
+      "stability",
+    );
+    const mappedVariationLabels = displayModifierIds
+      .filter((modifierId) => {
+        const categoryId = getModifierCategoryId(modifierId);
+        return (
+          categoryId &&
+          categoryId !== "apparatus" &&
+          categoryId !== "stability" &&
+          categoryId !== "training-intent"
+        );
+      })
+      .map(getModifierLabel);
+
+    mappedEquipment.forEach((label) =>
+      addMovementChip(chips, {
+        key: `mapped-equipment-${label}`,
+        label,
+        tone: "equipment",
+      }),
+    );
+
+    mappedStability.forEach((label) =>
+      addMovementChip(chips, {
+        key: `mapped-stability-${label}`,
+        label,
+        tone: "stability",
+      }),
+    );
+
+    mappedVariationLabels.forEach((label) =>
+      addMovementChip(chips, {
+        key: `mapped-modifier-${label}`,
+        label,
+        tone: "modifier",
+      }),
+    );
+  }
+
+  classificationLabels.forEach((label, key) =>
+    addMovementChip(chips, {
+      key: `classification-${key}`,
+      label,
+      tone: "classification",
+    }),
+  );
+
+  if (!chips.length) {
+    chips.push({ key: "unmapped", label: "Unmapped", tone: "fallback" });
+  }
+
+  return chips;
+};
+
+type SemanticVariationOption =
+  NormalizedExerciseCatalogItem["semanticVariations"][number];
+
+const uniqueModifierIds = (modifierIds: ExerciseModifierId[]) =>
+  Array.from(new Set(modifierIds));
+
+const getDefaultSelectedModifierIds = (
+  metadata: NormalizedExerciseCatalogItem | null,
+) => {
+  const firstSemanticVariation = metadata?.semanticVariations.find(
+    (variation) => variation.modifierIds.length > 0,
+  );
+
+  return firstSemanticVariation
+    ? [...firstSemanticVariation.modifierIds]
+    : [...(metadata?.modifierIds || [])];
+};
+
+const getMatchingSemanticVariation = (
+  variations: SemanticVariationOption[],
+  selectedModifierIds: ExerciseModifierId[],
+) => {
+  if (!variations.length || !selectedModifierIds.length) return null;
+
+  const selectedSet = new Set(selectedModifierIds);
+  const matches = variations
+    .map((variation) => {
+      const matchSets = variation.matchModifierSets.length
+        ? variation.matchModifierSets
+        : [variation.modifierIds];
+      const matchedSet = matchSets.find(
+        (modifierIds) =>
+          modifierIds.length > 0 &&
+          modifierIds.every((modifierId) => selectedSet.has(modifierId)),
+      );
+
+      return matchedSet ? { variation, score: matchedSet.length } : null;
+    })
+    .filter(
+      (
+        match,
+      ): match is { variation: SemanticVariationOption; score: number } =>
+        Boolean(match),
+    )
+    .sort((a, b) => b.score - a.score);
+
+  return matches[0]?.variation || null;
+};
+
+const applySemanticVariationModifierPreset = (
+  currentModifierIds: ExerciseModifierId[],
+  presetModifierIds: ExerciseModifierId[],
+) => {
+  const presetCategories = new Set(
+    presetModifierIds.map(getModifierCategoryId).filter(Boolean),
+  );
+  const preservedModifierIds = currentModifierIds.filter((modifierId) => {
+    const categoryId = getModifierCategoryId(modifierId);
+    return !categoryId || !presetCategories.has(categoryId);
+  });
+
+  return uniqueModifierIds([...preservedModifierIds, ...presetModifierIds]);
+};
+
+function SemanticVariationSelect({
+  options,
+  value,
+  onChange,
+  onOpenChange,
+  compact = false,
+}: {
+  options: SemanticVariationOption[];
+  value: string;
+  onChange: (variation: SemanticVariationOption) => void;
+  onOpenChange?: (open: boolean) => void;
+  compact?: boolean;
+}) {
+  const dropdownId = useId();
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
+
+  const selectedVariation =
+    options.find((variation) => variation.id === value) || null;
+  const displayValue = selectedVariation?.name || "Select variation";
+
+  const updateMenuPosition = () => {
+    const button = buttonRef.current;
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const menuWidth = Math.min(
+      Math.max(rect.width, compact ? 220 : 280),
+      viewportWidth - 24,
+    );
+    const left = Math.min(
+      Math.max(12, rect.left),
+      Math.max(12, viewportWidth - menuWidth - 12),
+    );
+
+    setMenuStyle({
+      top: rect.bottom + 8,
+      left,
+      width: menuWidth,
+      maxHeight: Math.min(360, window.innerHeight - rect.bottom - 24),
+      zIndex: 1200,
+    });
+  };
+
+  useEffect(() => {
+    onOpenChange?.(open);
+    if (!open) return;
+
+    updateMenuPosition();
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (
+        buttonRef.current?.contains(target) ||
+        menuRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    const handleCloseOtherDropdowns = (event: Event) => {
+      const detail = (event as CustomEvent<{ id: string }>).detail;
+      if (detail?.id !== dropdownId) setOpen(false);
+    };
+    const handleScroll = () => setOpen(false);
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", handleScroll, true);
+    window.addEventListener(
+      exerciseLibraryDropdownOpenEvent,
+      handleCloseOtherDropdowns,
+    );
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener(
+        exerciseLibraryDropdownOpenEvent,
+        handleCloseOtherDropdowns,
+      );
+    };
+  }, [dropdownId, onOpenChange, open]);
+
+  if (!options.length) return null;
+
+  const selectVariation = (variation: SemanticVariationOption) => {
+    onChange(variation);
+    setOpen(false);
+  };
+
+  return (
+    <div className={compact ? "mt-1" : "mt-1.5"}>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => {
+          if (!open) {
+            announceExerciseLibraryDropdownOpen(dropdownId);
+            updateMenuPosition();
+          }
+          setOpen((current) => !current);
+        }}
+        className={`group/semantic flex max-w-full items-center gap-1.5 rounded-full border border-yellow-200/20 bg-yellow-300/[0.075] text-left font-black text-yellow-100/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_22px_rgba(250,204,21,0.08)] outline-none transition hover:border-yellow-200/35 hover:bg-yellow-300/[0.12] ${
+          compact
+            ? "px-2 py-1 text-[9px] leading-4"
+            : "px-3 py-1.5 text-[11px] leading-5"
+        }`}
+        title={displayValue}
+      >
+        <span className="min-w-0 truncate tracking-[0.04em] drop-shadow-[0_0_12px_rgba(250,204,21,0.34)]">
+          {displayValue}
+        </span>
+        <span
+          aria-hidden="true"
+          className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-yellow-100/15 bg-yellow-200/10 text-[9px] transition ${
+            open ? "rotate-180 border-yellow-100/30" : ""
+          }`}
+        >
+          v
+        </span>
+      </button>
+
+      {typeof document !== "undefined" && open && menuStyle
+        ? createPortal(
+            <div
+              ref={menuRef}
+              style={menuStyle}
+              className="fixed overflow-hidden rounded-2xl border border-yellow-100/20 bg-[radial-gradient(circle_at_12%_0%,rgba(250,204,21,0.18),transparent_35%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-1.5 shadow-[0_26px_70px_rgba(0,0,0,0.68),0_0_34px_rgba(250,204,21,0.10),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl"
+            >
+              <div
+                role="listbox"
+                aria-label="Semantic exercise variations"
+                style={{ maxHeight: menuStyle.maxHeight }}
+                className="overflow-y-auto pr-1 [scrollbar-color:rgba(250,204,21,0.32)_transparent] [scrollbar-width:thin]"
+              >
+                {options.map((variation) => {
+                  const isSelected = variation.id === value;
+
+                  return (
+                    <button
+                      key={variation.id}
+                      type="button"
+                      role="option"
+                      aria-selected={isSelected}
+                      onClick={() => selectVariation(variation)}
+                      className={`mb-1 flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm font-black transition ${
+                        isSelected
+                          ? "border-yellow-200 bg-yellow-300 text-slate-950 shadow-[0_0_24px_rgba(250,204,21,0.22)]"
+                          : "border-white/10 bg-white/[0.045] text-yellow-100/85 hover:border-yellow-200/35 hover:bg-yellow-300/12 hover:text-yellow-50"
+                      }`}
+                    >
+                      <span className="min-w-0 whitespace-normal leading-5">
+                        {variation.name}
+                      </span>
+                      {isSelected ? <span>Selected</span> : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
+function MovementArchitectureChips({
+  chips,
+  compact = false,
+}: {
+  chips: MovementArchitectureChip[];
+  compact?: boolean;
+}) {
+  const visibleChips = compact ? chips.slice(0, 4) : chips;
+  const hiddenCount = chips.length - visibleChips.length;
+
+  return (
+    <div
+      className={`flex flex-wrap items-center gap-1.5 ${
+        compact ? "mt-2" : "mt-3"
+      }`}
+      aria-label="Movement architecture tags"
+    >
+      {visibleChips.map((chip) => (
+        <span
+          key={chip.key}
+          className={`max-w-full rounded-full border px-2.5 py-1 text-[9px] font-black uppercase leading-4 tracking-[0.08em] ${movementArchitectureChipClasses[chip.tone]}`}
+          title={chip.label}
+        >
+          {chip.label}
+        </span>
+      ))}
+
+      {hiddenCount > 0 ? (
+        <span className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-[9px] font-black uppercase leading-4 tracking-[0.08em] text-slate-400">
+          +{hiddenCount}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 const getStatTime = (stat: LocalExerciseStatEntry) => {
   const time = new Date(stat.date).getTime();
   return Number.isFinite(time) ? time : 0;
@@ -877,11 +1709,23 @@ const getRecentExerciseStats = (
 
 const getFocusedExerciseCards = (exercises: Exercise[]) => {
   const seenCoreMovements = new Set<string>();
+  const hasCorePatternCards = exercises.some(
+    (exercise) => getMetadataForExercise(exercise)?.source === "core-pattern",
+  );
 
   return exercises.filter((exercise) => {
     if (exercise.custom) return true;
 
     const metadata = getMetadataForExercise(exercise);
+    if (metadata?.source === "core-pattern") {
+      const key = metadata.legacyExerciseId;
+      if (seenCoreMovements.has(key)) return false;
+      seenCoreMovements.add(key);
+      return true;
+    }
+
+    if (hasCorePatternCards && metadata) return false;
+
     const key = metadata?.coreMovementId || exercise.id;
 
     if (seenCoreMovements.has(key)) return false;
@@ -1036,8 +1880,7 @@ function ModifierRail({
         {label}
       </p>
       <div className="relative mt-2">
-        <div className="pointer-events-none absolute bottom-1 right-0 top-0 z-10 w-8 rounded-r-2xl bg-gradient-to-l from-slate-950/35 via-slate-950/12 to-transparent" />
-        <div className="flex snap-x gap-1.5 overflow-x-auto overflow-y-hidden pb-1 pr-7 [-webkit-overflow-scrolling:touch] [scrollbar-color:rgba(34,211,238,0.38)_transparent] [scrollbar-width:thin]">
+        <div className="flex snap-x gap-1.5 overflow-x-auto overflow-y-hidden pb-1 pr-1 [-webkit-overflow-scrolling:touch] [scrollbar-color:rgba(34,211,238,0.38)_transparent] [scrollbar-width:thin]">
           {modifiers.map((modifier) => {
             const isSelected = selectedModifierIds.includes(modifier.id);
 
@@ -1068,12 +1911,14 @@ function GridModifierSelect({
   options,
   fallback,
   onChange,
+  onOpenChange,
 }: {
   label: string;
   value: string;
   options: ExerciseModifier[];
   fallback: string;
   onChange: (modifierId: string) => void;
+  onOpenChange?: (open: boolean) => void;
 }) {
   return (
     <DetailVariationSelect
@@ -1082,8 +1927,10 @@ function GridModifierSelect({
       options={options}
       fallback={fallback}
       onChange={onChange}
-      accent={label === "Equipment" ? "cyan" : "emerald"}
+      onOpenChange={onOpenChange}
+      accent={label === "Equipment" ? "cyan" : "violet"}
       size="grid"
+      showInlineLabel={false}
     />
   );
 }
@@ -1097,19 +1944,27 @@ function DetailVariationSelect({
   accent = "cyan",
   size = "detail",
   className = "",
+  onOpenChange,
+  showInlineLabel = true,
 }: {
   label: string;
   value: string;
   options: ExerciseModifier[];
   fallback: string;
   onChange: (modifierId: string) => void;
-  accent?: "cyan" | "emerald" | "yellow";
+  accent?: "cyan" | "emerald" | "yellow" | "violet";
   size?: "detail" | "grid";
   className?: string;
+  onOpenChange?: (open: boolean) => void;
+  showInlineLabel?: boolean;
 }) {
   const dropdownId = useId();
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const dropdownButtonRef = useRef<HTMLButtonElement | null>(null);
+  const dropdownMenuRef = useRef<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [dropdownMenuStyle, setDropdownMenuStyle] =
+    useState<CSSProperties | null>(null);
   const isGrid = size === "grid";
   const selectedOption = options.find((option) => option.id === value);
   const displayValue = selectedOption
@@ -1117,51 +1972,129 @@ function DetailVariationSelect({
     : fallback;
   const accentClasses = {
     cyan: {
-      focus: "focus:border-cyan-200/55 focus:ring-cyan-200/15",
+      focus:
+        "focus-visible:border-cyan-200/35 focus-visible:ring-1 focus-visible:ring-cyan-200/15",
       selected: "border-cyan-200 bg-cyan-300 text-slate-950",
       hover: "hover:border-cyan-200/40 hover:bg-cyan-300/10 hover:text-white",
       glow: "shadow-[0_0_24px_rgba(34,211,238,0.16)]",
     },
     emerald: {
-      focus: "focus:border-emerald-200/55 focus:ring-emerald-200/15",
+      focus:
+        "focus-visible:border-emerald-200/35 focus-visible:ring-1 focus-visible:ring-emerald-200/15",
       selected: "border-emerald-200 bg-emerald-300 text-slate-950",
       hover:
         "hover:border-emerald-200/40 hover:bg-emerald-300/10 hover:text-white",
       glow: "shadow-[0_0_24px_rgba(16,185,129,0.16)]",
     },
     yellow: {
-      focus: "focus:border-yellow-200/55 focus:ring-yellow-200/15",
+      focus:
+        "focus-visible:border-yellow-200/35 focus-visible:ring-1 focus-visible:ring-yellow-200/15",
       selected: "border-yellow-200 bg-yellow-300 text-slate-950",
       hover: "hover:border-yellow-200/40 hover:bg-yellow-300/10 hover:text-white",
       glow: "shadow-[0_0_24px_rgba(250,204,21,0.14)]",
     },
+    violet: {
+      focus:
+        "focus-visible:border-violet-200/35 focus-visible:ring-1 focus-visible:ring-violet-200/15",
+      selected: "border-violet-200 bg-violet-300 text-slate-950",
+      hover:
+        "hover:border-violet-200/40 hover:bg-violet-300/10 hover:text-white",
+      glow: "shadow-[0_0_24px_rgba(167,139,250,0.15)]",
+    },
+  };
+  const setDropdownOpen = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    onOpenChange?.(nextOpen);
+    if (!nextOpen) setDropdownMenuStyle(null);
+  };
+  const updateDropdownMenuPosition = () => {
+    const trigger = dropdownButtonRef.current;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const margin = 12;
+    const preferredWidth = isGrid ? 224 : 304;
+    const width = Math.min(
+      Math.max(rect.width, preferredWidth),
+      viewportWidth - margin * 2,
+    );
+    const left = Math.min(
+      Math.max(rect.left, margin),
+      viewportWidth - width - margin,
+    );
+    const belowTop = rect.bottom + 8;
+    const maxMenuHeight = isGrid ? 176 : 224;
+    const availableBelow = viewportHeight - belowTop - margin;
+    const availableAbove = rect.top - margin - 8;
+    const opensAbove = availableBelow < 148 && availableAbove > availableBelow;
+    const maxHeight = Math.max(
+      132,
+      Math.min(
+        maxMenuHeight,
+        opensAbove ? availableAbove : Math.max(availableBelow, 132),
+      ),
+    );
+    const top = opensAbove
+      ? Math.max(margin, rect.top - 8 - maxHeight)
+      : belowTop;
+
+    setDropdownMenuStyle({
+      left,
+      top,
+      width,
+      maxHeight,
+      zIndex: 2147483000,
+    });
   };
   const selectModifier = (modifierId: string) => {
     onChange(modifierId);
-    setOpen(false);
+    setDropdownOpen(false);
   };
 
   useEffect(() => {
+    if (!open) return;
+
     const closeWhenAnotherDropdownOpens = (event: Event) => {
       const detail = (event as CustomEvent<{ id: string }>).detail;
-      if (detail?.id !== dropdownId) setOpen(false);
+      if (detail?.id !== dropdownId) setDropdownOpen(false);
     };
     const closeOnOutsidePointer = (event: PointerEvent) => {
       const target = event.target;
-      if (
-        target instanceof Node &&
-        dropdownRef.current &&
-        !dropdownRef.current.contains(target)
-      ) {
-        setOpen(false);
+      if (!(target instanceof Node)) return;
+
+      const clickedTrigger = dropdownRef.current?.contains(target);
+      const clickedMenu = dropdownMenuRef.current?.contains(target);
+
+      if (!clickedTrigger && !clickedMenu) {
+        setDropdownOpen(false);
       }
     };
+    const closeOnPageScroll = (event: Event) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        dropdownMenuRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setDropdownOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDropdownOpen(false);
+    };
+    const closeOnResize = () => setDropdownOpen(false);
 
     window.addEventListener(
       exerciseLibraryDropdownOpenEvent,
       closeWhenAnotherDropdownOpens,
     );
     document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("scroll", closeOnPageScroll, true);
+    window.addEventListener("resize", closeOnResize);
 
     return () => {
       window.removeEventListener(
@@ -1169,117 +2102,100 @@ function DetailVariationSelect({
         closeWhenAnotherDropdownOpens,
       );
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("scroll", closeOnPageScroll, true);
+      window.removeEventListener("resize", closeOnResize);
     };
-  }, [dropdownId]);
+  }, [dropdownId, open]);
 
-  if (!options.length) {
-    return (
-      <div
-        title={fallback}
-        className={`flex min-w-0 flex-col justify-between border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur-2xl ${
-          isGrid
-            ? "min-h-[58px] rounded-xl px-2.5 py-2"
-            : "min-h-[74px] rounded-2xl px-3.5 py-3"
-        } ${className}`}
-      >
-        <p
-          className={`font-bold uppercase text-white/35 ${
-            isGrid
-              ? "text-[9px] tracking-[0.1em]"
-              : "text-[10px] tracking-[0.12em]"
-          }`}
-        >
-          {label}
-        </p>
-        <p
-          className={`truncate font-extrabold tracking-wide text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.18)] ${
-            isGrid
-              ? "mt-1 text-xs leading-4"
-              : "mt-1 text-sm leading-5"
-          }`}
-        >
-          {fallback}
-        </p>
-      </div>
-    );
-  }
+  if (!options.length) return null;
 
   return (
     <div
       ref={dropdownRef}
-      onBlur={(event) => {
-        const nextTarget = event.relatedTarget;
-        if (
-          !(nextTarget instanceof Node) ||
-          !event.currentTarget.contains(nextTarget)
-        ) {
-          setOpen(false);
-        }
-      }}
       onKeyDown={(event) => {
-        if (event.key === "Escape") setOpen(false);
+        if (event.key === "Escape") setDropdownOpen(false);
       }}
-      className={`relative z-[1] flex min-w-0 flex-col justify-between border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur-2xl focus-within:z-[150] ${
-        isGrid
-          ? "min-h-[58px] rounded-xl px-2.5 py-2"
-          : "min-h-[74px] rounded-2xl px-3.5 py-3"
+      className={`relative min-w-0 ${
+        open ? "z-[180]" : "z-[1]"
       } ${className}`}
     >
-      <span
-        className={`block font-bold uppercase text-white/35 ${
-          isGrid
-            ? "text-[9px] tracking-[0.1em]"
-            : "text-[10px] tracking-[0.12em]"
-        }`}
-      >
-        {label}
-      </span>
       <button
+        ref={dropdownButtonRef}
         type="button"
         aria-expanded={open}
         aria-haspopup="listbox"
         title={displayValue || "Default"}
         onClick={() => {
-          if (!open) announceExerciseLibraryDropdownOpen(dropdownId);
-          setOpen((prev) => !prev);
+          if (open) {
+            setDropdownOpen(false);
+            return;
+          }
+
+          announceExerciseLibraryDropdownOpen(dropdownId);
+          updateDropdownMenuPosition();
+          setDropdownOpen(true);
         }}
-        className={`flex w-full min-w-0 items-center justify-between gap-2 border border-transparent bg-white/[0.025] pl-0 text-left font-extrabold tracking-wide text-white outline-none transition focus:ring-2 ${
+        className={`group/control flex w-full min-w-0 items-center justify-between gap-2 border bg-[linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0.035))] text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_28px_rgba(0,0,0,0.32)] outline-none backdrop-blur-2xl transition hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.14),rgba(255,255,255,0.045))] ${
           isGrid
-            ? "mt-1 min-h-[30px] rounded-lg pr-6 text-xs leading-4"
-            : "mt-1 min-h-[36px] rounded-xl pr-8 text-sm leading-5"
+            ? "min-h-[34px] rounded-full px-2.5 py-1.5"
+            : "min-h-[42px] rounded-full px-3 py-2"
         } ${accentClasses[accent].focus}`}
       >
-        <span className="min-w-0 truncate">
-          {displayValue || "Default"}
+        <span
+          className={`flex min-w-0 flex-1 items-center ${
+            showInlineLabel ? "gap-1.5" : "justify-center"
+          }`}
+        >
+          {showInlineLabel ? (
+            <span
+              className={`shrink-0 font-black uppercase text-white/38 ${
+                isGrid
+                  ? "text-[8px] tracking-[0.08em]"
+                  : "text-[9px] tracking-[0.12em]"
+              }`}
+            >
+              {label}
+            </span>
+          ) : null}
+          <span
+            className={`min-w-0 flex-1 font-black tracking-[0.03em] text-slate-100 drop-shadow-[0_0_10px_rgba(255,255,255,0.16)] [hyphens:none] [overflow-wrap:normal] [word-break:normal] ${
+              showInlineLabel
+                ? "truncate"
+                : "line-clamp-2 whitespace-normal break-normal text-center leading-tight"
+            }`}
+          >
+            {displayValue || fallback || "Default"}
+          </span>
         </span>
-      </button>
-      <span
-        aria-hidden="true"
-        className={`pointer-events-none absolute flex items-center justify-center rounded-full border border-white/10 bg-white/[0.055] font-black text-cyan-100 transition ${
+        <span
+          aria-hidden="true"
+          className={`flex shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] font-black text-cyan-100 transition ${
           isGrid
-            ? "bottom-[11px] right-2 h-4 w-4 text-[9px]"
-            : "bottom-[17px] right-3 h-5 w-5 text-[10px]"
+            ? "h-4 w-4 text-[9px]"
+            : "h-5 w-5 text-[10px]"
         } ${
           open ? "rotate-180 border-cyan-200/35 bg-cyan-300/10" : ""
         }`}
-      >
-        v
-      </span>
-
-      {open ? (
-        <div
-          className={`absolute left-0 z-[160] w-max min-w-full overflow-hidden border border-cyan-100/15 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.64),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl ${
-            isGrid
-              ? "top-[calc(100%+0.35rem)] max-w-[min(18rem,calc(100vw-2rem))] rounded-xl sm:min-w-[13rem]"
-              : "top-[calc(100%+0.5rem)] max-w-[min(26rem,calc(100vw-2rem))] rounded-2xl sm:min-w-[16rem]"
-          }`}
         >
+          v
+        </span>
+      </button>
+
+      {typeof document !== "undefined" && open && dropdownMenuStyle
+        ? createPortal(
+            <div
+              ref={dropdownMenuRef}
+              style={dropdownMenuStyle}
+              className={`fixed overflow-hidden border border-cyan-100/15 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.64),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl ${
+                isGrid ? "rounded-xl" : "rounded-2xl"
+              }`}
+            >
           <div
             role="listbox"
             aria-label={label}
-            className={`overflow-y-auto pr-1 [scrollbar-color:rgba(34,211,238,0.34)_transparent] [scrollbar-width:thin] ${
-              isGrid ? "max-h-44" : "max-h-56"
-            }`}
+            style={{ maxHeight: dropdownMenuStyle.maxHeight }}
+            className="overflow-y-auto pr-1 [scrollbar-color:rgba(34,211,238,0.34)_transparent] [scrollbar-width:thin]"
           >
             <button
               type="button"
@@ -1300,7 +2216,7 @@ function DetailVariationSelect({
               <span className="min-w-0 whitespace-normal break-words leading-4">
                 Default
               </span>
-              {!value ? <span>✓</span> : null}
+              {!value ? <span>Selected</span> : null}
             </button>
 
             {options.map((modifier) => {
@@ -1327,13 +2243,15 @@ function DetailVariationSelect({
                   <span className="min-w-0 whitespace-normal break-words leading-4">
                     {modifier.shortLabel || modifier.label}
                   </span>
-                  {isSelected ? <span>✓</span> : null}
+                  {isSelected ? <span>Selected</span> : null}
                 </button>
               );
             })}
           </div>
-        </div>
-      ) : null}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
@@ -1347,6 +2265,12 @@ function MovementMetadataPanel({
   selectedModifierIds: ExerciseModifierId[];
   setSelectedModifierIds: Dispatch<SetStateAction<ExerciseModifierId[]>>;
 }) {
+  const modifierPanelId = useId();
+  const modifierTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const modifierPopoverRef = useRef<HTMLDivElement | null>(null);
+  const [isModifierPanelOpen, setIsModifierPanelOpen] = useState(false);
+  const [modifierPopoverStyle, setModifierPopoverStyle] =
+    useState<CSSProperties | null>(null);
   const loadBehaviorLabels = getModifierLabelsByCategory(
     metadata,
     "load-behavior",
@@ -1401,6 +2325,119 @@ function MovementMetadataPanel({
         group.categoryId,
       ),
   );
+  const updateModifierPopoverPosition = () => {
+    const trigger = modifierTriggerRef.current;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const margin = viewportWidth < 640 ? 12 : 16;
+    const preferredWidth =
+      viewportWidth < 640 ? viewportWidth - margin * 2 : 760;
+    const width = Math.min(preferredWidth, viewportWidth - margin * 2);
+    const centeredLeft = rect.left + rect.width / 2 - width / 2;
+    const left = Math.min(
+      Math.max(centeredLeft, margin),
+      viewportWidth - width - margin,
+    );
+    const rawTop = rect.bottom + 8;
+    const viewportSafeHeight = Math.max(220, viewportHeight - margin * 2);
+    const availableBelow = Math.max(0, viewportHeight - rawTop - margin);
+    const maxMenuHeight = Math.min(520, viewportSafeHeight);
+    const minimumUsableHeight = Math.min(260, maxMenuHeight);
+    let top = rawTop;
+    let maxHeight = Math.min(
+      maxMenuHeight,
+      Math.max(minimumUsableHeight, availableBelow),
+    );
+
+    if (availableBelow < minimumUsableHeight) {
+      top = Math.max(
+        margin,
+        Math.min(rawTop, viewportHeight - maxMenuHeight - margin),
+      );
+      maxHeight = Math.min(maxMenuHeight, viewportHeight - top - margin);
+    }
+
+    setModifierPopoverStyle({
+      left,
+      top,
+      width,
+      maxHeight,
+      zIndex: 2147483647,
+    });
+  };
+  const toggleModifierPanel = () => {
+    if (isModifierPanelOpen) {
+      setIsModifierPanelOpen(false);
+      setModifierPopoverStyle(null);
+      return;
+    }
+
+    announceExerciseLibraryDropdownOpen(modifierPanelId);
+    updateModifierPopoverPosition();
+    setIsModifierPanelOpen(true);
+  };
+
+  useEffect(() => {
+    if (!isModifierPanelOpen) return;
+    const closeModifierPanel = () => {
+      setIsModifierPanelOpen(false);
+      setModifierPopoverStyle(null);
+    };
+
+    const closeWhenAnotherDropdownOpens = (event: Event) => {
+      const detail = (event as CustomEvent<{ id: string }>).detail;
+      if (detail?.id !== modifierPanelId) closeModifierPanel();
+    };
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+
+      const clickedTrigger = modifierTriggerRef.current?.contains(target);
+      const clickedPopover = modifierPopoverRef.current?.contains(target);
+
+      if (!clickedTrigger && !clickedPopover) {
+        closeModifierPanel();
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeModifierPanel();
+    };
+    const closeOnPageScroll = (event: Event) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        modifierPopoverRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      closeModifierPanel();
+    };
+    const closeOnResize = () => closeModifierPanel();
+
+    window.addEventListener(
+      exerciseLibraryDropdownOpenEvent,
+      closeWhenAnotherDropdownOpens,
+    );
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("scroll", closeOnPageScroll, true);
+    window.addEventListener("resize", closeOnResize);
+
+    return () => {
+      window.removeEventListener(
+        exerciseLibraryDropdownOpenEvent,
+        closeWhenAnotherDropdownOpens,
+      );
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("scroll", closeOnPageScroll, true);
+      window.removeEventListener("resize", closeOnResize);
+    };
+  }, [isModifierPanelOpen, modifierPanelId]);
 
   return (
     <div className="mt-3 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] p-3 backdrop-blur-2xl">
@@ -1453,29 +2490,72 @@ function MovementMetadataPanel({
           </div>
 
           {remainingModifierGroups.length ? (
-            <details className="group rounded-2xl border border-white/10 bg-slate-950/35">
-              <summary className="flex min-h-[42px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-emerald-200">
+            <div className="rounded-2xl border border-white/10 bg-slate-950/35">
+              <button
+                ref={modifierTriggerRef}
+                type="button"
+                aria-controls={modifierPanelId}
+                aria-expanded={isModifierPanelOpen}
+                onClick={toggleModifierPanel}
+                className="flex min-h-[42px] w-full cursor-pointer items-center justify-between gap-3 px-4 py-2.5 text-left text-xs font-black uppercase tracking-[0.14em] text-emerald-200"
+              >
                 <span>Choose Variation Modifiers</span>
                 <span
                   aria-hidden="true"
-                  className="text-sm text-emerald-100 transition group-open:rotate-180"
+                  className={`text-sm text-emerald-100 ${
+                    isModifierPanelOpen ? "rotate-180" : ""
+                  }`}
                 >
                   v
                 </span>
-              </summary>
+              </button>
 
-              <div className="space-y-3 border-t border-white/10 p-3">
-                {remainingModifierGroups.map((group) => (
-                  <ModifierRail
-                    key={group.categoryId}
-                    label={group.label}
-                    modifiers={group.modifiers}
-                    selectedModifierIds={selectedModifierIds}
-                    onToggleModifier={toggleModifier}
-                  />
-                ))}
-              </div>
-            </details>
+              {typeof document !== "undefined" &&
+              isModifierPanelOpen &&
+              modifierPopoverStyle
+                ? createPortal(
+                    <div
+                      ref={modifierPopoverRef}
+                      id={modifierPanelId}
+                      style={modifierPopoverStyle}
+                      className="fixed max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-[26px] border border-cyan-100/15 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(16,185,129,0.13),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.94))] shadow-[0_30px_100px_rgba(0,0,0,0.72),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl sm:max-w-[calc(100vw-2rem)]"
+                    >
+                      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/45 to-transparent" />
+                      <div
+                        style={{ maxHeight: modifierPopoverStyle.maxHeight }}
+                        className="relative overflow-y-auto overflow-x-hidden overscroll-contain p-4 [scrollbar-gutter:stable] sm:p-5"
+                      >
+                        <div className="space-y-4">
+                          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-3">
+                            <div>
+                              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                                Variation Modifiers
+                              </p>
+                              <p className="mt-1 text-xs font-semibold text-slate-400">
+                                Validated controls for this movement
+                              </p>
+                            </div>
+                            <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-200">
+                              {remainingModifierGroups.length} groups
+                            </span>
+                          </div>
+
+                          {remainingModifierGroups.map((group) => (
+                            <ModifierRail
+                              key={group.categoryId}
+                              label={group.label}
+                              modifiers={group.modifiers}
+                              selectedModifierIds={selectedModifierIds}
+                              onToggleModifier={toggleModifier}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>,
+                    document.body,
+                  )
+                : null}
+            </div>
           ) : null}
         </div>
       ) : (
@@ -1720,6 +2800,8 @@ function ExerciseLibraryCard({
   onAddToPlan,
   onDeleteCustom,
   onAddStats,
+  isMovementDetailsOpen,
+  onToggleMovementDetails,
 }: {
   exercise: Exercise;
   metadata: NormalizedExerciseCatalogItem | null;
@@ -1729,16 +2811,33 @@ function ExerciseLibraryCard({
   viewMode: ExerciseLibraryViewMode;
   onAddToPlan: (exercise: Exercise) => void;
   onDeleteCustom: (id: string) => void;
-  onAddStats: (exercise: Exercise) => void;
+  onAddStats: (exercise: Exercise, mode: ExerciseStatsMenuMode) => void;
+  isMovementDetailsOpen: boolean;
+  onToggleMovementDetails: (exerciseId: string | null) => void;
 }) {
   const [selectedModifierIds, setSelectedModifierIds] = useState<
     ExerciseModifierId[]
-  >(() => metadata?.modifierIds || []);
+  >(() => getDefaultSelectedModifierIds(metadata));
+  const [isVariationDropdownOpen, setIsVariationDropdownOpen] =
+    useState(false);
+  const [isSemanticDropdownOpen, setIsSemanticDropdownOpen] = useState(false);
+  const semanticVariationOptions = metadata?.semanticVariations || [];
+  const selectedSemanticVariation = getMatchingSemanticVariation(
+    semanticVariationOptions,
+    selectedModifierIds,
+  );
   const variationName = getGeneratedVariationName(
     exercise,
     metadata,
     selectedModifierIds,
   );
+  const activeSemanticVariationName = selectedSemanticVariation?.name || "";
+  const cardTitle =
+    metadata?.source === "core-pattern"
+      ? metadata.coreMovementLabel
+      : variationName;
+  const cardClassificationLabel = getCardClassificationLabel(metadata);
+  const activeExerciseName = activeSemanticVariationName || variationName;
   const patternLabel = metadata?.movementPatternLabel || exercise.pattern;
   const equipmentLabel = getSelectedEquipmentLabel(
     exercise,
@@ -1749,7 +2848,12 @@ function ExerciseLibraryCard({
   const recentStats = getRecentExerciseStats(
     savedExerciseStats,
     exercise,
-    variationName,
+    activeExerciseName,
+  );
+  const movementArchitectureChips = getMovementArchitectureChips(
+    exercise,
+    metadata,
+    selectedModifierIds,
   );
   const isGridView = viewMode === "grid";
   const latestGridStat = recentStats[0];
@@ -1760,9 +2864,18 @@ function ExerciseLibraryCard({
   const gridAngleModifierGroup = compatibleModifierGroups.find(
     (group) => group.categoryId === "angle-position",
   );
+  const limbUsageModifierGroup = compatibleModifierGroups.find(
+    (group) => group.categoryId === "limb-usage",
+  );
   const goalModifierGroup = compatibleModifierGroups.find(
     (group) => group.categoryId === "training-intent",
   );
+  const positionModifierOptions = [
+    ...(gridAngleModifierGroup?.modifiers || []),
+    ...((limbUsageModifierGroup?.modifiers || []).filter((modifier) =>
+      positionLimbUsageModifierIds.has(modifier.id),
+    )),
+  ];
   const selectedEquipmentModifierId =
     getSelectedModifiersByCategory(selectedModifierIds, "apparatus").find(
       (modifier) =>
@@ -1782,6 +2895,17 @@ function ExerciseLibraryCard({
           (option) => option.id === modifier.id,
         ),
     )?.id || "";
+  const selectedPositionModifierId =
+    selectedAngleModifierId ||
+    selectedModifierIds.find(
+      (modifierId) =>
+        positionLimbUsageModifierIds.has(modifierId) &&
+        positionModifierOptions.some((option) => option.id === modifierId),
+    ) ||
+    "";
+  const positionLabel = selectedPositionModifierId
+    ? getModifierLabel(selectedPositionModifierId)
+    : patternLabel;
   const setModifierForCategory = (
     categoryId: ExerciseModifierCategoryId,
     modifierId: string,
@@ -1791,14 +2915,54 @@ function ExerciseLibraryCard({
       ...(modifierId ? [modifierId as ExerciseModifierId] : []),
     ]);
   };
+  const setPositionModifier = (modifierId: string) => {
+    setSelectedModifierIds((prev) => [
+      ...prev.filter((id) => {
+        const categoryId = getModifierCategoryId(id);
+        return (
+          categoryId !== "angle-position" &&
+          !positionLimbUsageModifierIds.has(id)
+        );
+      }),
+      ...(modifierId ? [modifierId as ExerciseModifierId] : []),
+    ]);
+  };
+  const handleSemanticVariationChange = (
+    variation: SemanticVariationOption,
+  ) => {
+    setSelectedModifierIds((prev) =>
+      applySemanticVariationModifierPreset(prev, variation.modifierIds),
+    );
+  };
+
+  useEffect(() => {
+    setSelectedModifierIds(getDefaultSelectedModifierIds(metadata));
+  }, [exercise.id, metadata?.id]);
+
+  const movementDetailsPanelId = `movement-details-${exercise.id.replace(
+    /[^a-zA-Z0-9_-]/g,
+    "-",
+  )}`;
+  const handleMovementDetailsToggle = () => {
+    if (isMovementDetailsOpen) {
+      onToggleMovementDetails(null);
+      return;
+    }
+
+    announceExerciseLibraryDropdownOpen(movementDetailsPanelId);
+    onToggleMovementDetails(exercise.id);
+  };
   const handleAddStats = () =>
-    onAddStats({
-      ...exercise,
-      name: variationName,
-      pattern: patternLabel,
-      equipment: equipmentLabel,
-      goal: goalLabel,
-    });
+    onAddStats(
+      {
+        ...exercise,
+        name: activeExerciseName,
+        pattern: patternLabel,
+        equipment: equipmentLabel,
+        goal: goalLabel,
+      },
+      isGridView ? "grid" : "detail",
+    );
   const actionButtons = (
     <div
       className={`grid grid-cols-1 gap-2 ${
@@ -1844,10 +3008,14 @@ function ExerciseLibraryCard({
     </div>
   );
   const movementDetails = (
-    <details
-      className="group mt-2.5 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.055] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_40px_rgba(8,145,178,0.12)] backdrop-blur-2xl"
-    >
-      <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+    <div className="group mt-2.5 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.055] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_40px_rgba(8,145,178,0.12)] backdrop-blur-2xl">
+      <button
+        type="button"
+        aria-controls={movementDetailsPanelId}
+        aria-expanded={isMovementDetailsOpen}
+        onClick={handleMovementDetailsToggle}
+        className="flex min-h-[48px] w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
+      >
         <span className="min-w-0">
           <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
             Movement Details
@@ -1858,63 +3026,84 @@ function ExerciseLibraryCard({
         </span>
         <span
           aria-hidden="true"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-100/15 bg-white/[0.06] text-sm font-black text-cyan-100 transition group-open:rotate-180"
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-100/15 bg-white/[0.06] text-sm font-black text-cyan-100 transition ${
+            isMovementDetailsOpen ? "rotate-180 border-cyan-200/30" : ""
+          }`}
         >
           v
         </span>
-      </summary>
+      </button>
 
-      <div className="border-t border-white/10 p-3 [&>div:first-child]:mt-0">
-        <MovementMetadataPanel
-          metadata={metadata}
-          selectedModifierIds={selectedModifierIds}
-          setSelectedModifierIds={setSelectedModifierIds}
-        />
+      {isMovementDetailsOpen ? (
+        <div
+          id={movementDetailsPanelId}
+          className="border-t border-white/10 p-3 [&>div:first-child]:mt-0"
+        >
+          <MovementMetadataPanel
+            metadata={metadata}
+            selectedModifierIds={selectedModifierIds}
+            setSelectedModifierIds={setSelectedModifierIds}
+          />
 
-        <MovementSuggestionsPanel suggestions={suggestions} />
+          <MovementSuggestionsPanel suggestions={suggestions} />
 
-        <MovementProgressPanel suggestions={suggestions} />
+          <MovementProgressPanel suggestions={suggestions} />
 
-        <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(16,185,129,0.05))] p-4 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-200/80 drop-shadow-[0_0_8px_rgba(16,185,129,0.35)]">
-            Coaching Cue
-          </p>
+          <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(16,185,129,0.05))] p-4 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-200/80 drop-shadow-[0_0_8px_rgba(16,185,129,0.35)]">
+              Coaching Cue
+            </p>
 
-          <p className="mt-2 text-sm leading-5 text-emerald-100/80 drop-shadow-[0_0_10px_rgba(16,185,129,0.25)]">
-            {exercise.cue}
-          </p>
+            <p className="mt-2 text-sm leading-5 text-emerald-100/80 drop-shadow-[0_0_10px_rgba(16,185,129,0.25)]">
+              {exercise.cue}
+            </p>
+          </div>
         </div>
-      </div>
-    </details>
+      ) : null}
+    </div>
   );
 
   if (isGridView) {
     return (
-      <article className="group relative z-0 overflow-visible rounded-2xl border border-white/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.035))] shadow-[0_16px_46px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150 transition hover:z-20 hover:border-cyan-200/25 hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.16),rgba(255,255,255,0.045))] focus-within:z-40">
+      <article
+        className={`group relative self-start overflow-visible rounded-2xl border border-white/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.035))] shadow-[0_16px_46px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150 transition hover:border-cyan-200/25 hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.16),rgba(255,255,255,0.045))] ${
+          isVariationDropdownOpen || isSemanticDropdownOpen
+            ? "z-[520]"
+            : "z-0 hover:z-20"
+        }`}
+      >
         <div className="pointer-events-none absolute inset-0 z-0 rounded-2xl bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.16),transparent_30%),linear-gradient(120deg,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.035)_42%,transparent_74%)] opacity-70" />
 
-        <div className="relative z-10 h-20 overflow-hidden rounded-t-2xl bg-slate-950/70">
+        <div className="relative z-10 h-16 overflow-hidden rounded-t-2xl bg-slate-950/70 sm:h-24">
           <img
             src={exercise.image || defaultImage}
-            alt={variationName}
+            alt={cardTitle}
             className="h-full w-full object-cover opacity-78 transition duration-500 group-hover:scale-105 group-hover:opacity-95"
           />
-          <div className="absolute bottom-2 left-2 rounded-full border border-cyan-300/20 bg-slate-950/65 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-200 backdrop-blur-xl">
+          <div className="absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate rounded-full border border-cyan-300/20 bg-slate-950/65 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-200 backdrop-blur-xl sm:bottom-2 sm:left-2 sm:px-2.5 sm:py-1 sm:text-[9px] sm:tracking-[0.12em]">
             {exercise.body}
           </div>
         </div>
 
-        <div className="relative z-10 p-3">
-          <h2 className="max-h-10 overflow-hidden text-base font-black leading-tight tracking-wide text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.34)]">
-            {variationName}
+        <div className="relative z-10 p-2 sm:p-3">
+          <h2 className="line-clamp-2 text-sm font-black leading-4 tracking-wide text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.34)] sm:text-base sm:leading-tight">
+            {cardTitle}
           </h2>
+          <SemanticVariationSelect
+            options={semanticVariationOptions}
+            value={selectedSemanticVariation?.id || ""}
+            onChange={handleSemanticVariationChange}
+            onOpenChange={setIsSemanticDropdownOpen}
+            compact
+          />
 
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <div className="mt-1.5 grid grid-cols-1 gap-1 sm:mt-2 sm:gap-1.5">
             <GridModifierSelect
               label="Equipment"
               value={selectedEquipmentModifierId}
               options={gridEquipmentModifierGroup?.modifiers || []}
               fallback={equipmentLabel}
+              onOpenChange={setIsVariationDropdownOpen}
               onChange={(modifierId) =>
                 setModifierForCategory("apparatus", modifierId)
               }
@@ -1922,40 +3111,41 @@ function ExerciseLibraryCard({
 
             <GridModifierSelect
               label="Position"
-              value={selectedAngleModifierId}
-              options={gridAngleModifierGroup?.modifiers || []}
-              fallback={patternLabel}
-              onChange={(modifierId) =>
-                setModifierForCategory("angle-position", modifierId)
-              }
+              value={selectedPositionModifierId}
+              options={positionModifierOptions}
+              fallback={positionLabel}
+              onOpenChange={setIsVariationDropdownOpen}
+              onChange={setPositionModifier}
             />
           </div>
 
-          <div className="mt-2 rounded-xl border border-cyan-100/15 bg-[linear-gradient(135deg,rgba(34,211,238,0.11),rgba(16,185,129,0.075))] px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">
+          <MovementArchitectureChips chips={movementArchitectureChips} compact />
+
+          <div className="mt-1.5 rounded-lg border border-cyan-100/15 bg-[linear-gradient(135deg,rgba(34,211,238,0.11),rgba(16,185,129,0.075))] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl sm:mt-2 sm:rounded-xl sm:px-2.5 sm:py-2">
+            <div className="hidden items-center justify-between gap-2 sm:flex">
+              <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100/70 sm:text-[8px]">
                 Recent Stats
               </p>
               {latestGridStat ? (
-                <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/35">
+                <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/35 sm:text-[8px]">
                   {new Date(latestGridStat.date).toLocaleDateString()}
                 </p>
               ) : null}
             </div>
-            <p className="mt-1 break-words text-[11px] font-black leading-4 text-slate-100">
+            <p className="truncate text-[10px] font-black leading-4 text-slate-100 sm:mt-1 sm:break-words sm:text-[11px]">
               {latestGridStat
                 ? `${latestGridStat.weight || "--"} load / ${
                     latestGridStat.reps || "--"
                   } reps / ${latestGridStat.sets || "--"} sets`
-                : "Log stats to build history"}
+                : "No stats yet"}
             </p>
           </div>
 
-          <div className="mt-2 grid grid-cols-2 gap-1.5">
+          <div className="mt-1.5 grid grid-cols-2 gap-1 sm:mt-2 sm:gap-1.5">
             {!exercise.custom ? (
               <a
                 href={ROUTES.workoutBuilder.exerciseDemo}
-                className="flex min-h-[38px] items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-center text-[10px] font-black uppercase tracking-[0.12em] text-cyan-200 transition hover:bg-cyan-400 hover:text-slate-950"
+                className="flex min-h-[40px] items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-1.5 py-2 text-center text-[9px] font-black uppercase tracking-[0.08em] text-cyan-200 transition hover:bg-cyan-400 hover:text-slate-950 sm:min-h-[38px] sm:rounded-xl sm:px-3 sm:text-[10px] sm:tracking-[0.12em]"
               >
                 View Demo
               </a>
@@ -1963,7 +3153,7 @@ function ExerciseLibraryCard({
               <button
                 type="button"
                 onClick={() => onDeleteCustom(exercise.id)}
-                className="min-h-[38px] rounded-xl border border-red-300/20 bg-red-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-red-200 transition hover:bg-red-400 hover:text-white"
+                className="min-h-[40px] rounded-lg border border-red-300/20 bg-red-400/10 px-1.5 py-2 text-[9px] font-black uppercase tracking-[0.08em] text-red-200 transition hover:bg-red-400 hover:text-white sm:min-h-[38px] sm:rounded-xl sm:px-3 sm:text-[10px] sm:tracking-[0.12em]"
               >
                 Delete
               </button>
@@ -1972,7 +3162,7 @@ function ExerciseLibraryCard({
             <button
               type="button"
               onClick={handleAddStats}
-              className="min-h-[38px] rounded-xl border border-yellow-300/30 bg-yellow-400/15 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-yellow-300 transition hover:bg-yellow-400 hover:text-slate-950"
+              className="min-h-[40px] rounded-lg border border-yellow-300/30 bg-yellow-400/15 px-1.5 py-2 text-[9px] font-black uppercase tracking-[0.08em] text-yellow-300 transition hover:bg-yellow-400 hover:text-slate-950 sm:min-h-[38px] sm:rounded-xl sm:px-3 sm:text-[10px] sm:tracking-[0.12em]"
             >
               Add Stats
             </button>
@@ -1983,7 +3173,15 @@ function ExerciseLibraryCard({
   }
 
   return (
-    <article className="group relative overflow-visible rounded-[30px] border border-white/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.13),rgba(255,255,255,0.035))] shadow-[0_24px_80px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.20)] backdrop-blur-2xl backdrop-saturate-150 transition hover:z-20 hover:border-white/30 hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.055))] hover:shadow-[0_32px_100px_rgba(0,0,0,0.56),inset_0_1px_0_rgba(255,255,255,0.26)] focus-within:z-30">
+    <article
+      className={`group relative mb-4 inline-block w-full break-inside-avoid self-start overflow-visible rounded-[30px] border border-white/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.13),rgba(255,255,255,0.035))] shadow-[0_24px_80px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.20)] backdrop-blur-2xl backdrop-saturate-150 transition hover:border-white/30 hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.055))] hover:shadow-[0_32px_100px_rgba(0,0,0,0.56),inset_0_1px_0_rgba(255,255,255,0.26)] ${
+        isVariationDropdownOpen || isSemanticDropdownOpen
+          ? "z-[520]"
+          : isMovementDetailsOpen
+            ? "z-[120]"
+            : "z-0 hover:z-20"
+      }`}
+    >
       <div className="pointer-events-none absolute inset-0 z-0 rounded-[30px] bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.18),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.16)_0%,rgba(255,255,255,0.055)_36%,transparent_68%)] opacity-70" />
 
       <div
@@ -1993,7 +3191,7 @@ function ExerciseLibraryCard({
       >
         <img
           src={exercise.image || defaultImage}
-          alt={variationName}
+          alt={cardTitle}
           className="h-full w-full object-cover opacity-80 transition duration-500 group-hover:scale-105 group-hover:opacity-100"
         />
       </div>
@@ -2004,9 +3202,9 @@ function ExerciseLibraryCard({
             {exercise.body}
           </span>
 
-          {metadata?.familyLabel ? (
+          {cardClassificationLabel ? (
             <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">
-              {metadata.familyLabel}
+              {cardClassificationLabel}
             </span>
           ) : null}
 
@@ -2016,46 +3214,70 @@ function ExerciseLibraryCard({
         </div>
 
         <h2 className="mt-3.5 text-xl font-extrabold leading-7 tracking-wide text-white drop-shadow-[0_0_14px_rgba(255,255,255,0.42)]">
-          {variationName}
+          {cardTitle}
         </h2>
+        <SemanticVariationSelect
+          options={semanticVariationOptions}
+          value={selectedSemanticVariation?.id || ""}
+          onChange={handleSemanticVariationChange}
+          onOpenChange={setIsSemanticDropdownOpen}
+        />
+      </div>
 
-        <p className="mt-1.5 text-sm leading-5 text-white/55 drop-shadow-[0_0_8px_rgba(255,255,255,0.18)]">
-          {exercise.muscles || exercise.body}
-        </p>
-
-        <div className="mt-4 grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
-          <DetailVariationSelect
-            label="Angle / Position"
-            value={selectedAngleModifierId}
-            options={gridAngleModifierGroup?.modifiers || []}
-            fallback={patternLabel}
-            onChange={(modifierId) =>
-              setModifierForCategory("angle-position", modifierId)
-            }
-            accent="cyan"
-          />
-
+      {gridEquipmentModifierGroup || positionModifierOptions.length ? (
+        <div className="relative z-20 mx-4 -mt-1 rounded-[24px] border border-white/12 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.10),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.82),rgba(2,6,23,0.58))] p-2 shadow-[0_16px_42px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl">
+          <div
+            className="grid gap-2 text-xs"
+            style={{
+              gridTemplateColumns:
+                "repeat(auto-fit, minmax(min(100%, 10.75rem), 1fr))",
+            }}
+          >
           <DetailVariationSelect
             label="Equipment"
             value={selectedEquipmentModifierId}
             options={gridEquipmentModifierGroup?.modifiers || []}
             fallback={equipmentLabel}
+            onOpenChange={setIsVariationDropdownOpen}
             onChange={(modifierId) =>
               setModifierForCategory("apparatus", modifierId)
             }
-            accent="emerald"
+            accent="cyan"
+            showInlineLabel={false}
           />
 
+          <DetailVariationSelect
+            label="Position"
+            value={selectedPositionModifierId}
+            options={positionModifierOptions}
+            fallback={positionLabel}
+            onOpenChange={setIsVariationDropdownOpen}
+            onChange={setPositionModifier}
+            accent="violet"
+            showInlineLabel={false}
+          />
+          </div>
+        </div>
+      ) : null}
+
+      <div className="relative z-10 px-5 pb-5 pt-3">
+        <p className="mt-1.5 text-sm leading-5 text-white/55 drop-shadow-[0_0_8px_rgba(255,255,255,0.18)]">
+          {exercise.muscles || exercise.body}
+        </p>
+
+        <MovementArchitectureChips chips={movementArchitectureChips} />
+
+        <div className="mt-3 text-xs">
           <DetailVariationSelect
             label="Goal"
             value={selectedGoalModifierId}
             options={goalModifierGroup?.modifiers || []}
             fallback={goalLabel}
+            onOpenChange={setIsVariationDropdownOpen}
             onChange={(modifierId) =>
               setModifierForCategory("training-intent", modifierId)
             }
             accent="yellow"
-            className="sm:col-span-2"
           />
         </div>
 
@@ -2082,10 +3304,16 @@ export default function ExerciseLibraryPage() {
   const [apparatusFilter, setApparatusFilter] = useState("All");
   const [loadBehaviorFilter, setLoadBehaviorFilter] = useState("All");
   const [planAddToParam, setPlanAddToParam] = useState("");
+  const [openMovementDetailsId, setOpenMovementDetailsId] = useState<
+    string | null
+  >(null);
 
   const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [statsExercise, setStatsExercise] = useState<Exercise | null>(null);
+  const [statsMenuMode, setStatsMenuMode] =
+    useState<ExerciseStatsMenuMode>("detail");
+  const statsMenuRef = useRef<HTMLDivElement | null>(null);
   const [statWeight, setStatWeight] = useState("");
   const [statReps, setStatReps] = useState("");
   const [statSets, setStatSets] = useState("");
@@ -2216,7 +3444,26 @@ export default function ExerciseLibraryPage() {
         exercise.level?.toLowerCase().includes(searchValue) ||
         normalizedSearchTokens.some((token) =>
           token.toLowerCase().includes(searchValue),
-        );
+        ) ||
+        semanticExerciseMatchesQuery(search, {
+          id: exercise.id,
+          name: exercise.name,
+          movementPatterns: metadata
+            ? [
+                metadata.coreMovementLabel,
+                metadata.movementPatternLabel,
+                metadata.familyLabel,
+              ]
+            : [exercise.pattern],
+          modifiers: metadata
+            ? [
+                metadata.apparatus || "",
+                ...metadata.modifierIds.map(getModifierLabel),
+              ]
+            : [exercise.equipment],
+          muscleGroups: [exercise.body, exercise.muscles],
+          tags: normalizedSearchTokens,
+        });
 
       const matchesBody = bodyFilter === "All" || exercise.body === bodyFilter;
 
@@ -2297,6 +3544,7 @@ export default function ExerciseLibraryPage() {
 
   useEffect(() => {
     setCurrentPage(1);
+    setOpenMovementDetailsId(null);
   }, [
     search,
     bodyFilter,
@@ -2306,6 +3554,10 @@ export default function ExerciseLibraryPage() {
     apparatusFilter,
     loadBehaviorFilter,
   ]);
+
+  useEffect(() => {
+    setOpenMovementDetailsId(null);
+  }, [currentPage, viewMode]);
 
   const resetFilters = () => {
     setSearch("");
@@ -2385,6 +3637,73 @@ export default function ExerciseLibraryPage() {
       )}`,
     );
   };
+
+  const openStatsMenu = (exercise: Exercise, mode: ExerciseStatsMenuMode) => {
+    setStatsMenuMode(mode);
+    setStatsExercise(exercise);
+  };
+
+  const closeStatsMenu = () => {
+    setStatsExercise(null);
+  };
+
+  const saveStatsEntry = () => {
+    if (
+      !statsExercise ||
+      !statWeight.trim() ||
+      !statReps.trim() ||
+      !statSets.trim()
+    ) {
+      return;
+    }
+
+    const newStat: LocalExerciseStatEntry = {
+      exerciseId: statsExercise.id,
+      exerciseName: statsExercise.name,
+      body: statsExercise.body,
+      pattern: statsExercise.pattern,
+      equipment: statsExercise.equipment,
+      weight: statWeight.trim(),
+      reps: statReps.trim(),
+      sets: statSets.trim(),
+      date: new Date().toISOString(),
+      source: "exercise-library",
+    };
+
+    prependExerciseStats(newStat);
+
+    setSavedExerciseStats((prev) => [newStat, ...prev]);
+    setStatWeight("");
+    setStatReps("");
+    setStatSets("");
+  };
+
+  useEffect(() => {
+    if (!statsExercise) return;
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (
+        target instanceof Node &&
+        statsMenuRef.current &&
+        !statsMenuRef.current.contains(target)
+      ) {
+        setStatsExercise(null);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setStatsExercise(null);
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [statsExercise]);
 
   const FilterMenu = ({
     label,
@@ -2627,7 +3946,7 @@ export default function ExerciseLibraryPage() {
         </section>
 
         <section className="relative z-50 overflow-visible rounded-[30px] border border-white/15 bg-white/[0.055] p-4 shadow-[0_18px_58px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl backdrop-saturate-150">
-          <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto_auto] lg:items-start">
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-start">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300">
                 Movement Filters
@@ -2651,41 +3970,12 @@ export default function ExerciseLibraryPage() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-cyan-300/15 bg-slate-950/55 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-              <div className="grid grid-cols-2 gap-1">
-                {(["detail", "grid"] as ExerciseLibraryViewMode[]).map(
-                  (mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => setViewMode(mode)}
-                      className={`min-h-[44px] rounded-xl px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition ${
-                        viewMode === mode
-                          ? "bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.22)]"
-                          : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
-                      }`}
-                    >
-                      {viewModeLabels[mode]}
-                    </button>
-                  ),
-                )}
-              </div>
-            </div>
-
             <button
               type="button"
               onClick={() => setShowAddForm((prev) => !prev)}
               className="min-h-[44px] rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-sm font-black text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950"
             >
               {showAddForm ? "Close Form" : "+ Add Exercise"}
-            </button>
-
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="min-h-[44px] rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white"
-            >
-              Clear
             </button>
           </div>
 
@@ -2810,13 +4100,44 @@ export default function ExerciseLibraryPage() {
                 accent="violet"
               />
           </div>
+
+          <div className="mt-4 flex flex-col gap-2 border-t border-white/10 pt-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="rounded-2xl border border-cyan-300/15 bg-slate-950/55 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+              <div className="grid grid-cols-2 gap-1">
+                {(["detail", "grid"] as ExerciseLibraryViewMode[]).map(
+                  (mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setViewMode(mode)}
+                      className={`min-h-[40px] rounded-xl px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition ${
+                        viewMode === mode
+                          ? "bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.22)]"
+                          : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
+                      }`}
+                    >
+                      {viewModeLabels[mode]}
+                    </button>
+                  ),
+                )}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="min-h-[42px] rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white sm:min-w-[116px]"
+            >
+              Clear
+            </button>
+          </div>
         </section>
 
         <section
-          className={`relative z-0 grid overflow-visible ${
+          className={`relative z-0 overflow-visible ${
             viewMode === "grid"
-              ? "gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
-              : "gap-4 sm:grid-cols-2 lg:grid-cols-3"
+              ? "grid grid-cols-2 items-start gap-2 max-[360px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4"
+              : "columns-1 gap-4 sm:columns-2 lg:columns-3"
           }`}
         >
           {paginatedExercises.map((exercise) => {
@@ -2834,7 +4155,9 @@ export default function ExerciseLibraryPage() {
                 viewMode={viewMode}
                 onAddToPlan={addExerciseToPlanBuilder}
                 onDeleteCustom={deleteCustomExercise}
-                onAddStats={setStatsExercise}
+                onAddStats={openStatsMenu}
+                isMovementDetailsOpen={openMovementDetailsId === exercise.id}
+                onToggleMovementDetails={setOpenMovementDetailsId}
               />
             );
           })}
@@ -2889,9 +4212,89 @@ export default function ExerciseLibraryPage() {
         )}
       </section>
 
-      {statsExercise && (
+      {statsExercise && statsMenuMode === "grid" && (
+        <div className="fixed inset-x-3 bottom-3 z-[9999] mx-auto w-auto max-w-[430px] sm:bottom-6 sm:right-6 sm:left-auto sm:w-[min(92vw,430px)]">
+          <div
+            ref={statsMenuRef}
+            className="overflow-hidden rounded-[28px] border border-white/20 bg-[radial-gradient(circle_at_12%_0%,rgba(250,204,21,0.18),transparent_34%),radial-gradient(circle_at_90%_12%,rgba(34,211,238,0.14),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.88))] p-4 shadow-[0_30px_120px_rgba(0,0,0,0.82),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-300">
+                  Quick Stats
+                </p>
+                <h3 className="mt-1 line-clamp-2 text-lg font-black leading-6 text-white">
+                  {statsExercise.name}
+                </h3>
+                <p className="mt-1 truncate text-xs font-semibold text-slate-400">
+                  {statsExercise.equipment || statsExercise.pattern}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={closeStatsMenu}
+                className="min-h-[40px] shrink-0 rounded-2xl border border-white/10 bg-white/[0.08] px-3 py-2 text-xs font-black text-white/70 transition hover:bg-white/[0.18] hover:text-white"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 rounded-[24px] border border-yellow-200/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.105),rgba(255,255,255,0.045))] p-3 shadow-[0_14px_38px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-xl">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/70">
+                Weight × Reps × Sets
+              </p>
+
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <input
+                  value={statWeight}
+                  onChange={(e) => setStatWeight(e.target.value)}
+                  placeholder="Weight"
+                  className="min-h-[46px] min-w-0 rounded-2xl border border-white/12 bg-slate-950/45 px-3 py-2 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] outline-none transition placeholder:text-white/35 focus:border-yellow-200/45 focus:bg-white/[0.10]"
+                />
+
+                <input
+                  value={statReps}
+                  onChange={(e) => setStatReps(e.target.value)}
+                  placeholder="Reps"
+                  className="min-h-[46px] min-w-0 rounded-2xl border border-white/12 bg-slate-950/45 px-3 py-2 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] outline-none transition placeholder:text-white/35 focus:border-yellow-200/45 focus:bg-white/[0.10]"
+                />
+
+                <input
+                  value={statSets}
+                  onChange={(e) => setStatSets(e.target.value)}
+                  placeholder="Sets"
+                  className="min-h-[46px] min-w-0 rounded-2xl border border-white/12 bg-slate-950/45 px-3 py-2 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] outline-none transition placeholder:text-white/35 focus:border-yellow-200/45 focus:bg-white/[0.10]"
+                />
+              </div>
+            </div>
+
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={saveStatsEntry}
+                className="min-h-[46px] rounded-2xl bg-gradient-to-r from-yellow-300 to-yellow-500 px-4 py-3 text-sm font-black text-slate-950 shadow-[0_0_28px_rgba(250,204,21,0.22)] transition hover:scale-[1.01]"
+              >
+                Save Stats
+              </button>
+
+              <a
+                href={ROUTES.dashboard.stats}
+                className="flex min-h-[46px] items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-sm font-black text-slate-300 transition hover:border-yellow-300/40 hover:text-white"
+              >
+                View Stats Page
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {statsExercise && statsMenuMode === "detail" && (
         <div className="fixed inset-x-2 bottom-3 top-3 z-[9999] mx-auto w-auto max-w-[760px] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:top-auto sm:w-[min(94vw,760px)]">
-          <div className="max-h-full max-w-full overflow-hidden rounded-[28px] border border-white/20 bg-white/[0.075] shadow-[0_30px_120px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150 sm:max-h-[86vh] sm:rounded-[34px]">
+          <div
+            ref={statsMenuRef}
+            className="max-h-full max-w-full overflow-hidden rounded-[28px] border border-white/20 bg-white/[0.075] shadow-[0_30px_120px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150 sm:max-h-[86vh] sm:rounded-[34px]"
+          >
             <div className="max-h-full overflow-y-auto overflow-x-hidden overscroll-contain px-1 sm:max-h-[86vh]">
               <div className="grid lg:grid-cols-[1.05fr_310px] h-full">
                 <div className="min-h-0 overflow-y-auto">
@@ -2988,7 +4391,7 @@ export default function ExerciseLibraryPage() {
 
                       <button
                         type="button"
-                        onClick={() => setStatsExercise(null)}
+                        onClick={closeStatsMenu}
                         className="min-h-[44px] rounded-2xl border border-white/10 bg-white/[0.08] px-4 py-2 text-xs font-black text-white/70 transition hover:bg-white/[0.18] hover:text-white"
                       >
                         Close
@@ -3021,34 +4424,7 @@ export default function ExerciseLibraryPage() {
 
                   <button
                     type="button"
-                    onClick={() => {
-                      if (
-                        !statWeight.trim() ||
-                        !statReps.trim() ||
-                        !statSets.trim()
-                      )
-                        return;
-
-                      const newStat: LocalExerciseStatEntry = {
-                        exerciseId: statsExercise.id,
-                        exerciseName: statsExercise.name,
-                        body: statsExercise.body,
-                        pattern: statsExercise.pattern,
-                        equipment: statsExercise.equipment,
-                        weight: statWeight.trim(),
-                        reps: statReps.trim(),
-                        sets: statSets.trim(),
-                        date: new Date().toISOString(),
-                        source: "exercise-library",
-                      };
-
-                      prependExerciseStats(newStat);
-
-                      setSavedExerciseStats((prev) => [newStat, ...prev]);
-                      setStatWeight("");
-                      setStatReps("");
-                      setStatSets("");
-                    }}
+                    onClick={saveStatsEntry}
                     className="mt-3 min-h-[48px] w-full rounded-2xl bg-gradient-to-r from-yellow-300 to-yellow-500 px-4 py-3 text-sm font-black text-slate-950 shadow-[0_0_28px_rgba(250,204,21,0.22)] transition hover:scale-[1.01]"
                   >
                     Save Stats
