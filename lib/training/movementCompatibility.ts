@@ -1015,7 +1015,11 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES = {
   "face-pull": defineRule({
     coreMovementId: "face-pull",
     allowedApparatusIds: ["cable", "band"],
-    allowedMovementPatternIds: ["scapular-retraction", "horizontal-pull"],
+    allowedMovementPatternIds: [
+      "scapular-retraction",
+      "horizontal-pull",
+      "shoulder-external-rotation",
+    ],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
       angle.standing,
@@ -1275,7 +1279,13 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES = {
   "mobility-flow": defineRule({
     coreMovementId: "mobility-flow",
     allowedApparatusIds: ["bodyweight", "band", "bench", "box"],
-    allowedMovementPatternIds: ["mobility-flow", "gait", "rotation"],
+    allowedMovementPatternIds: [
+      "mobility-flow",
+      "gait",
+      "rotation",
+      "hip-external-rotation",
+      "hip-internal-rotation",
+    ],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
       angle.standing,

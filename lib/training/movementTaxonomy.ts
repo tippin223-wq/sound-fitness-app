@@ -102,6 +102,20 @@ export const MOVEMENT_PATTERNS = [
     plane: "frontal",
   },
   {
+    id: "hip-external-rotation",
+    label: "Hip External Rotation",
+    legacyPattern: "Mobility",
+    description: "Rotating the femur outward for hip control and mobility.",
+    plane: "transverse",
+  },
+  {
+    id: "hip-internal-rotation",
+    label: "Hip Internal Rotation",
+    legacyPattern: "Mobility",
+    description: "Rotating the femur inward for hip control and mobility.",
+    plane: "transverse",
+  },
+  {
     id: "plantarflexion",
     label: "Plantarflexion",
     legacyPattern: "Accessory",
@@ -135,6 +149,20 @@ export const MOVEMENT_PATTERNS = [
     legacyPattern: "Accessory",
     description: "Raising the arm away from the body through the frontal plane.",
     plane: "frontal",
+  },
+  {
+    id: "shoulder-external-rotation",
+    label: "Shoulder External Rotation",
+    legacyPattern: "Accessory",
+    description: "Rotating the upper arm outward for cuff and shoulder control.",
+    plane: "transverse",
+  },
+  {
+    id: "shoulder-internal-rotation",
+    label: "Shoulder Internal Rotation",
+    legacyPattern: "Accessory",
+    description: "Rotating the upper arm inward for cuff and shoulder control.",
+    plane: "transverse",
   },
   {
     id: "scapular-retraction",

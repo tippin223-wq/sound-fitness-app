@@ -328,6 +328,24 @@ const legacyPatternMap: Record<string, MovementPatternId> = {
   stability: "brace",
 };
 
+const specificPatternRules: Array<{
+  movementPatternId: MovementPatternId;
+  patterns: RegExp[];
+}> = [
+  {
+    movementPatternId: "hip-external-rotation",
+    patterns: [/90\/90 hip rotation/, /90-90-hip-rotation/],
+  },
+  {
+    movementPatternId: "hip-internal-rotation",
+    patterns: [/hip mobility flow/],
+  },
+  {
+    movementPatternId: "shoulder-external-rotation",
+    patterns: [/face pull/],
+  },
+];
+
 const apparatusMap: Record<string, ApparatusId> = {
   dumbbell: "dumbbell",
   dumbbells: "dumbbell",
@@ -404,6 +422,12 @@ const inferPattern = (
   exercise: ExerciseCatalogItem,
   coreMovement: CoreMovement | null,
 ) => {
+  const ruleText = ruleTextFor(exercise);
+  const specificPattern = specificPatternRules.find((rule) =>
+    rule.patterns.some((pattern) => pattern.test(ruleText)),
+  );
+
+  if (specificPattern) return specificPattern.movementPatternId;
   if (coreMovement) return coreMovement.patternId;
 
   return legacyPatternMap[normalize(exercise.pattern)] || null;

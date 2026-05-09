@@ -2,7 +2,9 @@
 
 import {
   useEffect,
+  useId,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type SetStateAction,
@@ -26,17 +28,21 @@ import {
 } from "@/lib/training/normalizedExerciseCatalog";
 import { getCompatibleModifiersForMovement } from "@/lib/training/movementCompatibility";
 import {
+  CORE_MOVEMENT_BY_ID,
   EXERCISE_MODIFIER_BY_ID,
   EXERCISE_MODIFIER_CATEGORY_BY_ID,
+  MOVEMENT_PATTERN_BY_ID,
 } from "@/lib/training/movementTaxonomy";
 import { createExerciseVariation } from "@/lib/training/movementGeneration";
 import { ROUTES } from "@/lib/routes";
 import type {
+  CoreMovementId,
   ExerciseCatalogItem,
   ExerciseModifier,
   ExerciseModifierCategoryId,
   ExerciseModifierId,
   LocalExerciseStatEntry,
+  MovementPatternId,
 } from "@/types";
 
 type Exercise = {
@@ -60,7 +66,575 @@ const viewModeLabels: Record<ExerciseLibraryViewMode, string> = {
   grid: "Grid View",
 };
 
+const exerciseLibraryDropdownOpenEvent =
+  "sound-fitness:exercise-library-dropdown-open";
+
+const announceExerciseLibraryDropdownOpen = (id: string) => {
+  window.dispatchEvent(
+    new CustomEvent<{ id: string }>(exerciseLibraryDropdownOpenEvent, {
+      detail: { id },
+    }),
+  );
+};
+
+const levelSegments = [
+  {
+    value: "Beginner",
+    label: "Beginner",
+    tone:
+      "border-cyan-200/25 bg-cyan-300/10 text-cyan-100 hover:border-cyan-200/45 hover:bg-cyan-300/18",
+    active:
+      "border-cyan-200 bg-cyan-300 text-slate-950 shadow-[0_0_28px_rgba(34,211,238,0.28)]",
+  },
+  {
+    value: "Intermediate",
+    label: "Intermediate",
+    tone:
+      "border-emerald-200/25 bg-emerald-300/10 text-emerald-100 hover:border-emerald-200/45 hover:bg-emerald-300/18",
+    active:
+      "border-emerald-200 bg-emerald-300 text-slate-950 shadow-[0_0_28px_rgba(16,185,129,0.28)]",
+  },
+  {
+    value: "Advanced",
+    label: "Advanced",
+    tone:
+      "border-violet-200/25 bg-violet-300/10 text-violet-100 hover:border-violet-200/45 hover:bg-violet-300/18",
+    active:
+      "border-violet-200 bg-violet-300 text-slate-950 shadow-[0_0_30px_rgba(167,139,250,0.28)]",
+  },
+];
+
 const normalizedCatalog = getNormalizedExerciseCatalog();
+
+type FilterMenuOption = {
+  value: string;
+  label: string;
+  group?: string;
+  helper?: string;
+};
+
+type MovementTypeGroup =
+  | "Main Strength"
+  | "Upper Body"
+  | "Lower Body"
+  | "Core"
+  | "Accessory / Rehab"
+  | "Power / Athletic";
+
+type MovementTypeOption = {
+  value: string;
+  label: string;
+  group: MovementTypeGroup;
+  coreMovementIds: CoreMovementId[];
+  movementPatternIds: MovementPatternId[];
+  count: number;
+};
+
+const movementTypeGroupOrder: MovementTypeGroup[] = [
+  "Main Strength",
+  "Upper Body",
+  "Lower Body",
+  "Core",
+  "Accessory / Rehab",
+  "Power / Athletic",
+];
+
+const movementTypeDefinitions: Array<
+  Omit<MovementTypeOption, "count"> & { helper?: string }
+> = [
+  {
+    value: "strength:chest-press",
+    label: "Chest Press",
+    group: "Main Strength",
+    coreMovementIds: ["chest-press"],
+    movementPatternIds: ["horizontal-push"],
+  },
+  {
+    value: "strength:row",
+    label: "Row",
+    group: "Main Strength",
+    coreMovementIds: ["row"],
+    movementPatternIds: ["horizontal-pull"],
+  },
+  {
+    value: "strength:squat",
+    label: "Squat",
+    group: "Main Strength",
+    coreMovementIds: ["squat"],
+    movementPatternIds: ["squat"],
+  },
+  {
+    value: "strength:hinge",
+    label: "Hinge",
+    group: "Main Strength",
+    coreMovementIds: ["hinge"],
+    movementPatternIds: ["hinge"],
+  },
+  {
+    value: "strength:lunge",
+    label: "Lunge",
+    group: "Main Strength",
+    coreMovementIds: ["lunge"],
+    movementPatternIds: ["lunge"],
+  },
+  {
+    value: "strength:shoulder-press",
+    label: "Shoulder Press",
+    group: "Main Strength",
+    coreMovementIds: ["shoulder-press"],
+    movementPatternIds: ["vertical-push"],
+  },
+  {
+    value: "upper:vertical-pull",
+    label: "Pulldown / Pull-Up",
+    group: "Upper Body",
+    coreMovementIds: ["pulldown", "pull-up"],
+    movementPatternIds: ["vertical-pull"],
+  },
+  {
+    value: "upper:biceps-curl",
+    label: "Biceps Curl",
+    group: "Upper Body",
+    coreMovementIds: ["biceps-curl"],
+    movementPatternIds: ["elbow-flexion"],
+  },
+  {
+    value: "upper:triceps-extension",
+    label: "Triceps Extension",
+    group: "Upper Body",
+    coreMovementIds: ["triceps-extension"],
+    movementPatternIds: ["elbow-extension"],
+  },
+  {
+    value: "upper:lateral-raise",
+    label: "Lateral Raise",
+    group: "Upper Body",
+    coreMovementIds: ["lateral-raise"],
+    movementPatternIds: ["shoulder-abduction"],
+  },
+  {
+    value: "upper:rear-delt-raise",
+    label: "Rear Delt Raise",
+    group: "Upper Body",
+    coreMovementIds: ["rear-delt-raise"],
+    movementPatternIds: [],
+  },
+  {
+    value: "upper:face-pull",
+    label: "Face Pull",
+    group: "Upper Body",
+    coreMovementIds: ["face-pull"],
+    movementPatternIds: [],
+  },
+  {
+    value: "upper:shrug",
+    label: "Shrug",
+    group: "Upper Body",
+    coreMovementIds: ["shrug"],
+    movementPatternIds: [],
+  },
+  {
+    value: "lower:knee-extension",
+    label: "Knee Extension",
+    group: "Lower Body",
+    coreMovementIds: ["leg-extension"],
+    movementPatternIds: ["knee-extension"],
+  },
+  {
+    value: "lower:knee-flexion",
+    label: "Knee Flexion",
+    group: "Lower Body",
+    coreMovementIds: ["leg-curl"],
+    movementPatternIds: ["knee-flexion"],
+  },
+  {
+    value: "lower:hip-extension",
+    label: "Hip Extension",
+    group: "Lower Body",
+    coreMovementIds: ["hip-thrust-glute-bridge"],
+    movementPatternIds: ["hip-extension"],
+  },
+  {
+    value: "lower:calf-raise",
+    label: "Calf Raise / Plantar Flexion",
+    group: "Lower Body",
+    coreMovementIds: ["calf-raise"],
+    movementPatternIds: ["plantarflexion"],
+  },
+  {
+    value: "lower:tibialis-raise",
+    label: "Ankle Dorsiflexion / Tibialis Raise",
+    group: "Lower Body",
+    coreMovementIds: ["tibialis-raise"],
+    movementPatternIds: ["dorsiflexion"],
+  },
+  {
+    value: "lower:step-up",
+    label: "Step-Up",
+    group: "Lower Body",
+    coreMovementIds: ["step-up"],
+    movementPatternIds: [],
+  },
+  {
+    value: "lower:step-down",
+    label: "Step-Down",
+    group: "Lower Body",
+    coreMovementIds: ["step-down"],
+    movementPatternIds: [],
+  },
+  {
+    value: "lower:split-squat",
+    label: "Split Squat",
+    group: "Lower Body",
+    coreMovementIds: ["split-squat"],
+    movementPatternIds: [],
+  },
+  {
+    value: "core:rotation",
+    label: "Rotation",
+    group: "Core",
+    coreMovementIds: ["rotation"],
+    movementPatternIds: ["rotation"],
+  },
+  {
+    value: "core:anti-rotation",
+    label: "Anti-Rotation",
+    group: "Core",
+    coreMovementIds: ["anti-rotation"],
+    movementPatternIds: ["anti-rotation"],
+  },
+  {
+    value: "core:brace",
+    label: "Brace / Plank",
+    group: "Core",
+    coreMovementIds: ["brace-plank"],
+    movementPatternIds: ["brace"],
+  },
+  {
+    value: "core:carry",
+    label: "Carry",
+    group: "Core",
+    coreMovementIds: ["carry"],
+    movementPatternIds: ["carry"],
+  },
+  {
+    value: "rehab:hip-abduction",
+    label: "Hip Abduction",
+    group: "Accessory / Rehab",
+    coreMovementIds: ["hip-abduction"],
+    movementPatternIds: ["hip-abduction"],
+  },
+  {
+    value: "rehab:hip-adduction",
+    label: "Hip Adduction",
+    group: "Accessory / Rehab",
+    coreMovementIds: ["hip-adduction"],
+    movementPatternIds: ["hip-adduction"],
+  },
+  {
+    value: "rehab:hip-external-rotation",
+    label: "Hip External Rotation",
+    group: "Accessory / Rehab",
+    coreMovementIds: [],
+    movementPatternIds: ["hip-external-rotation"],
+  },
+  {
+    value: "rehab:hip-internal-rotation",
+    label: "Hip Internal Rotation",
+    group: "Accessory / Rehab",
+    coreMovementIds: [],
+    movementPatternIds: ["hip-internal-rotation"],
+  },
+  {
+    value: "rehab:scapular-retraction",
+    label: "Scapular Retraction",
+    group: "Accessory / Rehab",
+    coreMovementIds: [],
+    movementPatternIds: ["scapular-retraction"],
+  },
+  {
+    value: "rehab:shoulder-external-rotation",
+    label: "Shoulder External Rotation",
+    group: "Accessory / Rehab",
+    coreMovementIds: [],
+    movementPatternIds: ["shoulder-external-rotation"],
+  },
+  {
+    value: "rehab:shoulder-internal-rotation",
+    label: "Shoulder Internal Rotation",
+    group: "Accessory / Rehab",
+    coreMovementIds: [],
+    movementPatternIds: ["shoulder-internal-rotation"],
+  },
+  {
+    value: "power:clean-pull",
+    label: "Clean Pull",
+    group: "Power / Athletic",
+    coreMovementIds: ["clean-pull"],
+    movementPatternIds: ["olympic-pull-catch"],
+  },
+  {
+    value: "power:high-pull",
+    label: "High Pull",
+    group: "Power / Athletic",
+    coreMovementIds: ["high-pull"],
+    movementPatternIds: [],
+  },
+  {
+    value: "power:kettlebell-swing",
+    label: "Kettlebell Swing",
+    group: "Power / Athletic",
+    coreMovementIds: ["kettlebell-swing"],
+    movementPatternIds: ["ballistic-hinge"],
+  },
+  {
+    value: "power:kettlebell-clean",
+    label: "Kettlebell Clean",
+    group: "Power / Athletic",
+    coreMovementIds: ["kettlebell-clean"],
+    movementPatternIds: [],
+  },
+  {
+    value: "power:kettlebell-snatch",
+    label: "Kettlebell Snatch",
+    group: "Power / Athletic",
+    coreMovementIds: ["kettlebell-snatch"],
+    movementPatternIds: [],
+  },
+  {
+    value: "power:turkish-get-up",
+    label: "Turkish Get-Up",
+    group: "Power / Athletic",
+    coreMovementIds: ["turkish-get-up"],
+    movementPatternIds: [],
+  },
+  {
+    value: "power:kettlebell-halo",
+    label: "Kettlebell Halo",
+    group: "Power / Athletic",
+    coreMovementIds: ["kettlebell-halo"],
+    movementPatternIds: [],
+  },
+  {
+    value: "power:bottoms-up-press",
+    label: "Bottoms-Up Press",
+    group: "Power / Athletic",
+    coreMovementIds: ["bottoms-up-press"],
+    movementPatternIds: [],
+  },
+  {
+    value: "power:jump-landing",
+    label: "Jump / Landing",
+    group: "Power / Athletic",
+    coreMovementIds: ["jump-landing"],
+    movementPatternIds: ["step-gait-jump"],
+  },
+  {
+    value: "power:medicine-ball-slam",
+    label: "Medicine Ball Slam",
+    group: "Power / Athletic",
+    coreMovementIds: ["medicine-ball-slam"],
+    movementPatternIds: ["ballistic-throw-slam"],
+  },
+  {
+    value: "power:burpee",
+    label: "Burpee",
+    group: "Power / Athletic",
+    coreMovementIds: ["burpee"],
+    movementPatternIds: ["locomotion-conditioning"],
+  },
+  {
+    value: "power:sled-drive",
+    label: "Sled Drive",
+    group: "Power / Athletic",
+    coreMovementIds: ["sled-drive"],
+    movementPatternIds: ["sled-drive"],
+  },
+];
+
+const movementTypeGroupByCoreMovementId: Partial<
+  Record<CoreMovementId, MovementTypeGroup>
+> = {
+  "chest-press": "Main Strength",
+  row: "Main Strength",
+  squat: "Main Strength",
+  hinge: "Main Strength",
+  lunge: "Main Strength",
+  "shoulder-press": "Main Strength",
+  pulldown: "Upper Body",
+  "pull-up": "Upper Body",
+  carry: "Core",
+  rotation: "Core",
+  "anti-rotation": "Core",
+  "brace-plank": "Core",
+  "leg-extension": "Lower Body",
+  "leg-curl": "Lower Body",
+  "hip-thrust-glute-bridge": "Lower Body",
+  "calf-raise": "Lower Body",
+  "tibialis-raise": "Lower Body",
+  "hip-abduction": "Accessory / Rehab",
+  "hip-adduction": "Accessory / Rehab",
+  "biceps-curl": "Upper Body",
+  "triceps-extension": "Upper Body",
+  "lateral-raise": "Upper Body",
+  "rear-delt-raise": "Upper Body",
+  "face-pull": "Upper Body",
+  shrug: "Upper Body",
+  "step-up": "Lower Body",
+  "step-down": "Lower Body",
+  "split-squat": "Lower Body",
+  "clean-pull": "Power / Athletic",
+  "high-pull": "Power / Athletic",
+  "kettlebell-swing": "Power / Athletic",
+  "kettlebell-clean": "Power / Athletic",
+  "kettlebell-snatch": "Power / Athletic",
+  "turkish-get-up": "Power / Athletic",
+  "kettlebell-halo": "Power / Athletic",
+  "bottoms-up-press": "Power / Athletic",
+  "mobility-flow": "Accessory / Rehab",
+  "jump-landing": "Power / Athletic",
+  "medicine-ball-slam": "Power / Athletic",
+  burpee: "Power / Athletic",
+  "sled-drive": "Power / Athletic",
+};
+
+const movementTypeGroupByPatternId: Partial<
+  Record<MovementPatternId, MovementTypeGroup>
+> = {
+  "horizontal-push": "Main Strength",
+  "horizontal-pull": "Main Strength",
+  "vertical-push": "Main Strength",
+  "vertical-pull": "Upper Body",
+  squat: "Main Strength",
+  hinge: "Main Strength",
+  lunge: "Main Strength",
+  gait: "Core",
+  "knee-extension": "Lower Body",
+  "knee-flexion": "Lower Body",
+  "hip-extension": "Lower Body",
+  "hip-abduction": "Accessory / Rehab",
+  "hip-adduction": "Accessory / Rehab",
+  "hip-external-rotation": "Accessory / Rehab",
+  "hip-internal-rotation": "Accessory / Rehab",
+  plantarflexion: "Lower Body",
+  dorsiflexion: "Lower Body",
+  "elbow-flexion": "Upper Body",
+  "elbow-extension": "Upper Body",
+  "shoulder-abduction": "Upper Body",
+  "shoulder-external-rotation": "Accessory / Rehab",
+  "shoulder-internal-rotation": "Accessory / Rehab",
+  "scapular-retraction": "Accessory / Rehab",
+  "scapular-protraction": "Accessory / Rehab",
+  "step-gait-jump": "Power / Athletic",
+  "ballistic-hinge": "Power / Athletic",
+  "ballistic-throw-slam": "Power / Athletic",
+  "olympic-pull-catch": "Power / Athletic",
+  "mobility-flow": "Accessory / Rehab",
+  "locomotion-conditioning": "Power / Athletic",
+  "sled-drive": "Power / Athletic",
+  rotation: "Core",
+  "anti-rotation": "Core",
+  carry: "Core",
+  brace: "Core",
+};
+
+const friendlyMovementPatternLabels: Partial<Record<MovementPatternId, string>> = {
+  plantarflexion: "Calf Raise / Plantar Flexion",
+  dorsiflexion: "Ankle Dorsiflexion / Tibialis Raise",
+  "hip-external-rotation": "Hip External Rotation",
+  "hip-internal-rotation": "Hip Internal Rotation",
+  "shoulder-external-rotation": "Shoulder External Rotation",
+  "shoulder-internal-rotation": "Shoulder Internal Rotation",
+};
+
+const movementTypeMatchesItem = (
+  option: Pick<MovementTypeOption, "coreMovementIds" | "movementPatternIds">,
+  item: NormalizedExerciseCatalogItem,
+) =>
+  option.coreMovementIds.includes(item.coreMovementId) ||
+  option.movementPatternIds.includes(item.movementPatternId);
+
+const countMovementTypeItems = (
+  option: Pick<MovementTypeOption, "coreMovementIds" | "movementPatternIds">,
+) => {
+  const matchedIds = new Set(
+    normalizedCatalog.items
+      .filter((item) => movementTypeMatchesItem(option, item))
+      .map((item) => item.id),
+  );
+
+  return matchedIds.size;
+};
+
+const createMovementTypeOptions = (): MovementTypeOption[] => {
+  const supportedDefinitions = movementTypeDefinitions
+    .map((definition) => ({
+      ...definition,
+      count: countMovementTypeItems(definition),
+    }))
+    .filter((definition) => definition.count > 0);
+  const coveredCoreMovementIds = new Set(
+    supportedDefinitions.flatMap((option) => option.coreMovementIds),
+  );
+  const coveredPatternIds = new Set(
+    supportedDefinitions.flatMap((option) => option.movementPatternIds),
+  );
+  const fallbackCoreOptions = normalizedCatalog.filterOptions.coreMovements
+    .filter((option) => !coveredCoreMovementIds.has(option.id))
+    .map<MovementTypeOption>((option) => ({
+      value: `core:${option.id}`,
+      label: CORE_MOVEMENT_BY_ID[option.id]?.label || option.label,
+      group:
+        movementTypeGroupByCoreMovementId[option.id] || "Accessory / Rehab",
+      coreMovementIds: [option.id],
+      movementPatternIds: [],
+      count: option.count,
+    }));
+  const fallbackPatternOptions = normalizedCatalog.filterOptions.movementPatterns
+    .filter((option) => !coveredPatternIds.has(option.id))
+    .map<MovementTypeOption>((option) => ({
+      value: `pattern:${option.id}`,
+      label:
+        friendlyMovementPatternLabels[option.id] ||
+        MOVEMENT_PATTERN_BY_ID[option.id]?.label ||
+        option.label,
+      group: movementTypeGroupByPatternId[option.id] || "Accessory / Rehab",
+      coreMovementIds: [],
+      movementPatternIds: [option.id],
+      count: option.count,
+    }));
+
+  return [
+    ...supportedDefinitions,
+    ...fallbackCoreOptions,
+    ...fallbackPatternOptions,
+  ].sort((left, right) => {
+    const groupDelta =
+      movementTypeGroupOrder.indexOf(left.group) -
+      movementTypeGroupOrder.indexOf(right.group);
+
+    return groupDelta || left.label.localeCompare(right.label);
+  });
+};
+
+const movementTypeOptions = createMovementTypeOptions();
+const movementTypeOptionByValue = new Map(
+  movementTypeOptions.map((option) => [option.value, option]),
+);
+const movementTypeFilterOptions: FilterMenuOption[] = [
+  {
+    value: "All",
+    label: "All Movement Types",
+    group: "All",
+    helper: `${movementTypeOptions.length} supported types`,
+  },
+  ...movementTypeOptions.map((option) => ({
+    value: option.value,
+    label: option.label,
+    group: option.group,
+    helper: `${option.count} movement${option.count === 1 ? "" : "s"}`,
+  })),
+];
 
 // Internal migration marker: system exercises now come from the normalized
 // catalog service, converted back to the current Exercise shape for this page.
@@ -301,17 +875,61 @@ const getRecentExerciseStats = (
     .slice(0, 3);
 };
 
-const optionLabels = (options: Array<{ label: string }>) => [
-  "All",
-  ...options.map((option) => option.label),
+const getFocusedExerciseCards = (exercises: Exercise[]) => {
+  const seenCoreMovements = new Set<string>();
+
+  return exercises.filter((exercise) => {
+    if (exercise.custom) return true;
+
+    const metadata = getMetadataForExercise(exercise);
+    const key = metadata?.coreMovementId || exercise.id;
+
+    if (seenCoreMovements.has(key)) return false;
+    seenCoreMovements.add(key);
+    return true;
+  });
+};
+
+const formatCountLabel = (count: number, singular: string, plural?: string) =>
+  `${count} ${count === 1 ? singular : plural || `${singular}s`}`;
+
+const createCountedFilterOptions = ({
+  allHelper,
+  group,
+  items,
+}: {
+  allHelper: string;
+  group: string;
+  items: Array<{ label: string; count?: number }>;
+}): FilterMenuOption[] => [
+  {
+    value: "All",
+    label: "All",
+    helper: allHelper,
+  },
+  ...items.map((option) => ({
+    value: option.label,
+    label: option.label,
+    group,
+    helper:
+      typeof option.count === "number"
+        ? formatCountLabel(option.count, "movement")
+        : undefined,
+  })),
 ];
 
-const loadBehaviorOptions = [
-  "All",
-  ...normalizedCatalog.filterOptions.modifiers
-    .filter((option) => option.id.startsWith("load-behavior:"))
-    .map((option) => option.label),
-];
+const loadBehaviorFilterOptions = createCountedFilterOptions({
+  allHelper: formatCountLabel(
+    normalizedCatalog.filterOptions.modifiers.filter((option) =>
+      option.id.startsWith("load-behavior:"),
+    ).length,
+    "behavior",
+  ),
+  group: "Load Behavior",
+  items: normalizedCatalog.filterOptions.modifiers.filter((option) =>
+    option.id.startsWith("load-behavior:"),
+  ),
+});
 
 const levelRank = (level?: string) => {
   const normalized = (level || "").toLowerCase();
@@ -457,13 +1075,129 @@ function GridModifierSelect({
   fallback: string;
   onChange: (modifierId: string) => void;
 }) {
+  return (
+    <DetailVariationSelect
+      label={label}
+      value={value}
+      options={options}
+      fallback={fallback}
+      onChange={onChange}
+      accent={label === "Equipment" ? "cyan" : "emerald"}
+      size="grid"
+    />
+  );
+}
+
+function DetailVariationSelect({
+  label,
+  value,
+  options,
+  fallback,
+  onChange,
+  accent = "cyan",
+  size = "detail",
+  className = "",
+}: {
+  label: string;
+  value: string;
+  options: ExerciseModifier[];
+  fallback: string;
+  onChange: (modifierId: string) => void;
+  accent?: "cyan" | "emerald" | "yellow";
+  size?: "detail" | "grid";
+  className?: string;
+}) {
+  const dropdownId = useId();
+  const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const isGrid = size === "grid";
+  const selectedOption = options.find((option) => option.id === value);
+  const displayValue = selectedOption
+    ? selectedOption.shortLabel || selectedOption.label
+    : fallback;
+  const accentClasses = {
+    cyan: {
+      focus: "focus:border-cyan-200/55 focus:ring-cyan-200/15",
+      selected: "border-cyan-200 bg-cyan-300 text-slate-950",
+      hover: "hover:border-cyan-200/40 hover:bg-cyan-300/10 hover:text-white",
+      glow: "shadow-[0_0_24px_rgba(34,211,238,0.16)]",
+    },
+    emerald: {
+      focus: "focus:border-emerald-200/55 focus:ring-emerald-200/15",
+      selected: "border-emerald-200 bg-emerald-300 text-slate-950",
+      hover:
+        "hover:border-emerald-200/40 hover:bg-emerald-300/10 hover:text-white",
+      glow: "shadow-[0_0_24px_rgba(16,185,129,0.16)]",
+    },
+    yellow: {
+      focus: "focus:border-yellow-200/55 focus:ring-yellow-200/15",
+      selected: "border-yellow-200 bg-yellow-300 text-slate-950",
+      hover: "hover:border-yellow-200/40 hover:bg-yellow-300/10 hover:text-white",
+      glow: "shadow-[0_0_24px_rgba(250,204,21,0.14)]",
+    },
+  };
+  const selectModifier = (modifierId: string) => {
+    onChange(modifierId);
+    setOpen(false);
+  };
+
+  useEffect(() => {
+    const closeWhenAnotherDropdownOpens = (event: Event) => {
+      const detail = (event as CustomEvent<{ id: string }>).detail;
+      if (detail?.id !== dropdownId) setOpen(false);
+    };
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target)
+      ) {
+        setOpen(false);
+      }
+    };
+
+    window.addEventListener(
+      exerciseLibraryDropdownOpenEvent,
+      closeWhenAnotherDropdownOpens,
+    );
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+
+    return () => {
+      window.removeEventListener(
+        exerciseLibraryDropdownOpenEvent,
+        closeWhenAnotherDropdownOpens,
+      );
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+    };
+  }, [dropdownId]);
+
   if (!options.length) {
     return (
-      <div className="min-w-0 rounded-xl border border-white/10 bg-slate-950/45 px-2.5 py-2">
-        <p className="text-[8px] font-black uppercase tracking-[0.1em] text-white/35">
+      <div
+        title={fallback}
+        className={`flex min-w-0 flex-col justify-between border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur-2xl ${
+          isGrid
+            ? "min-h-[58px] rounded-xl px-2.5 py-2"
+            : "min-h-[74px] rounded-2xl px-3.5 py-3"
+        } ${className}`}
+      >
+        <p
+          className={`font-bold uppercase text-white/35 ${
+            isGrid
+              ? "text-[9px] tracking-[0.1em]"
+              : "text-[10px] tracking-[0.12em]"
+          }`}
+        >
           {label}
         </p>
-        <p className="mt-0.5 break-words text-[11px] font-black leading-4 text-white">
+        <p
+          className={`truncate font-extrabold tracking-wide text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.18)] ${
+            isGrid
+              ? "mt-1 text-xs leading-4"
+              : "mt-1 text-sm leading-5"
+          }`}
+        >
           {fallback}
         </p>
       </div>
@@ -471,29 +1205,136 @@ function GridModifierSelect({
   }
 
   return (
-    <label className="relative min-w-0 rounded-xl border border-white/10 bg-slate-950/45 px-2.5 py-2">
-      <span className="block text-[8px] font-black uppercase tracking-[0.1em] text-white/35">
+    <div
+      ref={dropdownRef}
+      onBlur={(event) => {
+        const nextTarget = event.relatedTarget;
+        if (
+          !(nextTarget instanceof Node) ||
+          !event.currentTarget.contains(nextTarget)
+        ) {
+          setOpen(false);
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") setOpen(false);
+      }}
+      className={`relative z-[1] flex min-w-0 flex-col justify-between border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur-2xl focus-within:z-[150] ${
+        isGrid
+          ? "min-h-[58px] rounded-xl px-2.5 py-2"
+          : "min-h-[74px] rounded-2xl px-3.5 py-3"
+      } ${className}`}
+    >
+      <span
+        className={`block font-bold uppercase text-white/35 ${
+          isGrid
+            ? "text-[9px] tracking-[0.1em]"
+            : "text-[10px] tracking-[0.12em]"
+        }`}
+      >
         {label}
       </span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-0.5 min-h-[28px] w-full appearance-none bg-transparent pr-5 text-[11px] font-black leading-4 text-white outline-none"
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        title={displayValue || "Default"}
+        onClick={() => {
+          if (!open) announceExerciseLibraryDropdownOpen(dropdownId);
+          setOpen((prev) => !prev);
+        }}
+        className={`flex w-full min-w-0 items-center justify-between gap-2 border border-transparent bg-white/[0.025] pl-0 text-left font-extrabold tracking-wide text-white outline-none transition focus:ring-2 ${
+          isGrid
+            ? "mt-1 min-h-[30px] rounded-lg pr-6 text-xs leading-4"
+            : "mt-1 min-h-[36px] rounded-xl pr-8 text-sm leading-5"
+        } ${accentClasses[accent].focus}`}
       >
-        <option value="">Select</option>
-        {options.map((modifier) => (
-          <option key={modifier.id} value={modifier.id} className="bg-slate-950">
-            {modifier.shortLabel || modifier.label}
-          </option>
-        ))}
-      </select>
+        <span className="min-w-0 truncate">
+          {displayValue || "Default"}
+        </span>
+      </button>
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-3 right-2 text-[10px] font-black text-cyan-200"
+        className={`pointer-events-none absolute flex items-center justify-center rounded-full border border-white/10 bg-white/[0.055] font-black text-cyan-100 transition ${
+          isGrid
+            ? "bottom-[11px] right-2 h-4 w-4 text-[9px]"
+            : "bottom-[17px] right-3 h-5 w-5 text-[10px]"
+        } ${
+          open ? "rotate-180 border-cyan-200/35 bg-cyan-300/10" : ""
+        }`}
       >
         v
       </span>
-    </label>
+
+      {open ? (
+        <div
+          className={`absolute left-0 z-[160] w-max min-w-full overflow-hidden border border-cyan-100/15 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.64),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl ${
+            isGrid
+              ? "top-[calc(100%+0.35rem)] max-w-[min(18rem,calc(100vw-2rem))] rounded-xl sm:min-w-[13rem]"
+              : "top-[calc(100%+0.5rem)] max-w-[min(26rem,calc(100vw-2rem))] rounded-2xl sm:min-w-[16rem]"
+          }`}
+        >
+          <div
+            role="listbox"
+            aria-label={label}
+            className={`overflow-y-auto pr-1 [scrollbar-color:rgba(34,211,238,0.34)_transparent] [scrollbar-width:thin] ${
+              isGrid ? "max-h-44" : "max-h-56"
+            }`}
+          >
+            <button
+              type="button"
+              role="option"
+              aria-selected={!value}
+              onClick={() => selectModifier("")}
+              title="Default"
+              className={`mb-1 flex w-full items-center justify-between gap-3 border text-left font-black transition ${
+                isGrid
+                  ? "min-h-[36px] rounded-lg px-2.5 py-1.5 text-xs"
+                  : "min-h-[40px] rounded-xl px-3 py-2 text-sm"
+              } ${
+                !value
+                  ? `${accentClasses[accent].selected} ${accentClasses[accent].glow}`
+                  : `border-white/10 bg-white/[0.045] text-slate-300 ${accentClasses[accent].hover}`
+              }`}
+            >
+              <span className="min-w-0 whitespace-normal break-words leading-4">
+                Default
+              </span>
+              {!value ? <span>✓</span> : null}
+            </button>
+
+            {options.map((modifier) => {
+              const isSelected = modifier.id === value;
+
+              return (
+                <button
+                  key={modifier.id}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  onClick={() => selectModifier(modifier.id)}
+                  title={modifier.shortLabel || modifier.label}
+                  className={`mb-1 flex w-full items-center justify-between gap-3 border text-left font-black transition ${
+                    isGrid
+                      ? "min-h-[36px] rounded-lg px-2.5 py-1.5 text-xs"
+                      : "min-h-[40px] rounded-xl px-3 py-2 text-sm"
+                  } ${
+                    isSelected
+                      ? `${accentClasses[accent].selected} ${accentClasses[accent].glow}`
+                      : `border-white/10 bg-white/[0.045] text-slate-300 ${accentClasses[accent].hover}`
+                  }`}
+                >
+                  <span className="min-w-0 whitespace-normal break-words leading-4">
+                    {modifier.shortLabel || modifier.label}
+                  </span>
+                  {isSelected ? <span>✓</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -554,15 +1395,11 @@ function MovementMetadataPanel({
   const displayedLoadBehaviorLabels = selectedLoadBehaviorLabels.length
     ? selectedLoadBehaviorLabels
     : loadBehaviorLabels;
-  const equipmentModifierGroup = compatibleModifierGroups.find(
-    (group) => group.categoryId === "apparatus",
-  );
-  const angleModifierGroup = compatibleModifierGroups.find(
-    (group) => group.categoryId === "angle-position",
-  );
   const remainingModifierGroups = compatibleModifierGroups.filter(
     (group) =>
-      group.categoryId !== "apparatus" && group.categoryId !== "angle-position",
+      !["apparatus", "angle-position", "training-intent"].includes(
+        group.categoryId,
+      ),
   );
 
   return (
@@ -595,26 +1432,6 @@ function MovementMetadataPanel({
               </span>
             ))}
           </div>
-
-          {equipmentModifierGroup ? (
-            <ModifierRail
-              label={equipmentModifierGroup.label}
-              modifiers={equipmentModifierGroup.modifiers}
-              selectedModifierIds={selectedModifierIds}
-              onToggleModifier={toggleModifier}
-              priority
-            />
-          ) : null}
-
-          {angleModifierGroup ? (
-            <ModifierRail
-              label={angleModifierGroup.label}
-              modifiers={angleModifierGroup.modifiers}
-              selectedModifierIds={selectedModifierIds}
-              onToggleModifier={toggleModifier}
-              priority
-            />
-          ) : null}
 
           <div className="rounded-2xl border border-cyan-200/25 bg-[linear-gradient(135deg,rgba(34,211,238,0.22),rgba(16,185,129,0.12))] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_34px_rgba(8,145,178,0.16)]">
             <p className="text-[8px] font-black uppercase leading-3 tracking-[0.16em] text-cyan-100/75">
@@ -691,14 +1508,19 @@ function RecentStatsStrip({
   if (!latest) {
     return (
       <div
-        className={`mt-3 rounded-2xl border border-white/10 bg-white/[0.045] ${
-          compact ? "px-3 py-2.5" : "px-4 py-3"
+        className={`rounded-2xl border border-emerald-300/12 bg-[linear-gradient(135deg,rgba(16,185,129,0.08),rgba(34,211,238,0.045))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${
+          compact ? "mt-2 px-3 py-2.5" : "mt-2.5 px-3.5 py-3"
         }`}
       >
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/45">
-          Recent Stats
-        </p>
-        <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
+            Recent Stats
+          </p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/30">
+            Empty
+          </p>
+        </div>
+        <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-400">
           No recent stats yet. Log this movement to build history.
         </p>
       </div>
@@ -743,29 +1565,29 @@ function RecentStatsStrip({
   }
 
   return (
-    <div className="mt-3 rounded-2xl border border-emerald-300/15 bg-[linear-gradient(135deg,rgba(16,185,129,0.13),rgba(34,211,238,0.06))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
+    <div className="mt-2.5 rounded-2xl border border-emerald-300/15 bg-[linear-gradient(135deg,rgba(16,185,129,0.13),rgba(34,211,238,0.06))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_10px_30px_rgba(16,185,129,0.08)]">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
           Recent Stats
         </p>
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
+        <p className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
           {new Date(latest.date).toLocaleDateString()}
         </p>
       </div>
 
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className="mt-2.5 grid grid-cols-3 gap-1.5">
         {cells.map((cell) => (
           <div
             key={cell.label}
-            className="min-w-0 rounded-xl border border-white/10 bg-slate-950/35 px-2.5 py-2"
+            className="min-w-0 rounded-xl border border-white/10 bg-slate-950/35 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
           >
-            <p className="break-words text-[9px] font-black uppercase leading-3 tracking-[0.1em] text-white/35">
+            <p className="break-words text-[8px] font-black uppercase leading-[11px] tracking-[0.06em] text-white/35">
               {cell.label}
             </p>
-            <p className="mt-1 break-words text-base font-black leading-5 text-white sm:text-sm">
+            <p className="mt-1 break-words text-sm font-black leading-4 text-white">
               {cell.value}
             </p>
-            <p className="mt-0.5 break-words text-[10px] font-semibold leading-4 text-slate-400">
+            <p className="mt-0.5 break-words text-[9px] font-semibold leading-3 text-slate-400">
               {cell.detail}
             </p>
           </div>
@@ -931,12 +1753,15 @@ function ExerciseLibraryCard({
   );
   const isGridView = viewMode === "grid";
   const latestGridStat = recentStats[0];
-  const gridModifierGroups = getCompatibleModifierGroups(metadata);
-  const gridEquipmentModifierGroup = gridModifierGroups.find(
+  const compatibleModifierGroups = getCompatibleModifierGroups(metadata);
+  const gridEquipmentModifierGroup = compatibleModifierGroups.find(
     (group) => group.categoryId === "apparatus",
   );
-  const gridAngleModifierGroup = gridModifierGroups.find(
+  const gridAngleModifierGroup = compatibleModifierGroups.find(
     (group) => group.categoryId === "angle-position",
+  );
+  const goalModifierGroup = compatibleModifierGroups.find(
+    (group) => group.categoryId === "training-intent",
   );
   const selectedEquipmentModifierId =
     getSelectedModifiersByCategory(selectedModifierIds, "apparatus").find(
@@ -944,6 +1769,11 @@ function ExerciseLibraryCard({
         gridEquipmentModifierGroup?.modifiers.some(
           (option) => option.id === modifier.id,
         ),
+    )?.id || "";
+  const selectedGoalModifierId =
+    getSelectedModifiersByCategory(selectedModifierIds, "training-intent").find(
+      (modifier) =>
+        goalModifierGroup?.modifiers.some((option) => option.id === modifier.id),
     )?.id || "";
   const selectedAngleModifierId =
     getSelectedModifiersByCategory(selectedModifierIds, "angle-position").find(
@@ -1015,7 +1845,7 @@ function ExerciseLibraryCard({
   );
   const movementDetails = (
     <details
-      className="group mt-3 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.055] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_40px_rgba(8,145,178,0.12)] backdrop-blur-2xl"
+      className="group mt-2.5 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.055] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_40px_rgba(8,145,178,0.12)] backdrop-blur-2xl"
     >
       <summary className="flex min-h-[48px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
         <span className="min-w-0">
@@ -1060,10 +1890,10 @@ function ExerciseLibraryCard({
 
   if (isGridView) {
     return (
-      <article className="group relative overflow-hidden rounded-2xl border border-white/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.035))] shadow-[0_16px_46px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150 transition hover:border-cyan-200/25 hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.16),rgba(255,255,255,0.045))]">
-        <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.16),transparent_30%),linear-gradient(120deg,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.035)_42%,transparent_74%)] opacity-70" />
+      <article className="group relative z-0 overflow-visible rounded-2xl border border-white/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.035))] shadow-[0_16px_46px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150 transition hover:z-20 hover:border-cyan-200/25 hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.16),rgba(255,255,255,0.045))] focus-within:z-40">
+        <div className="pointer-events-none absolute inset-0 z-0 rounded-2xl bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.16),transparent_30%),linear-gradient(120deg,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.035)_42%,transparent_74%)] opacity-70" />
 
-        <div className="relative z-10 h-20 overflow-hidden bg-slate-950/70">
+        <div className="relative z-10 h-20 overflow-hidden rounded-t-2xl bg-slate-950/70">
           <img
             src={exercise.image || defaultImage}
             alt={variationName}
@@ -1153,11 +1983,11 @@ function ExerciseLibraryCard({
   }
 
   return (
-    <article className="group relative overflow-hidden rounded-[30px] border border-white/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.13),rgba(255,255,255,0.035))] shadow-[0_24px_80px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.20)] backdrop-blur-2xl backdrop-saturate-150 transition hover:border-white/30 hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.055))] hover:shadow-[0_32px_100px_rgba(0,0,0,0.56),inset_0_1px_0_rgba(255,255,255,0.26)]">
-      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.18),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.16)_0%,rgba(255,255,255,0.055)_36%,transparent_68%)] opacity-70" />
+    <article className="group relative overflow-visible rounded-[30px] border border-white/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.13),rgba(255,255,255,0.035))] shadow-[0_24px_80px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.20)] backdrop-blur-2xl backdrop-saturate-150 transition hover:z-20 hover:border-white/30 hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.055))] hover:shadow-[0_32px_100px_rgba(0,0,0,0.56),inset_0_1px_0_rgba(255,255,255,0.26)] focus-within:z-30">
+      <div className="pointer-events-none absolute inset-0 z-0 rounded-[30px] bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.18),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.16)_0%,rgba(255,255,255,0.055)_36%,transparent_68%)] opacity-70" />
 
       <div
-        className={`relative z-10 overflow-hidden bg-slate-950/60 ${
+        className={`relative z-10 overflow-hidden rounded-t-[30px] bg-slate-950/60 ${
           isGridView ? "h-32" : "h-44"
         }`}
       >
@@ -1168,7 +1998,7 @@ function ExerciseLibraryCard({
         />
       </div>
 
-      <div className={`relative z-10 ${isGridView ? "p-4" : "p-5"}`}>
+      <div className="relative z-10 p-5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-300">
             {exercise.body}
@@ -1185,69 +2015,48 @@ function ExerciseLibraryCard({
           </span>
         </div>
 
-        <h2
-          className={`mt-4 font-extrabold tracking-wide text-white drop-shadow-[0_0_14px_rgba(255,255,255,0.42)] ${
-            isGridView ? "text-lg leading-tight" : "text-xl"
-          }`}
-        >
+        <h2 className="mt-3.5 text-xl font-extrabold leading-7 tracking-wide text-white drop-shadow-[0_0_14px_rgba(255,255,255,0.42)]">
           {variationName}
         </h2>
 
-        <p
-          className={`mt-2 leading-5 text-white/55 drop-shadow-[0_0_8px_rgba(255,255,255,0.18)] ${
-            isGridView ? "text-xs" : "text-sm"
-          }`}
-        >
+        <p className="mt-1.5 text-sm leading-5 text-white/55 drop-shadow-[0_0_8px_rgba(255,255,255,0.18)]">
           {exercise.muscles || exercise.body}
         </p>
 
-        <div
-          className={`grid gap-2 text-xs ${
-            isGridView ? "mt-3 grid-cols-3" : "mt-4 grid-cols-1 sm:grid-cols-2"
-          }`}
-        >
-          <div
-            className={`rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)] ${
-              isGridView ? "p-2" : "p-3"
-            }`}
-          >
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
-              Pattern
-            </p>
-            <p
-              className={`mt-1 break-words font-extrabold tracking-wide text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.18)] ${
-                isGridView ? "text-[11px] leading-4" : "text-sm"
-              }`}
-            >
-              {patternLabel}
-            </p>
-          </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 text-xs sm:grid-cols-2">
+          <DetailVariationSelect
+            label="Angle / Position"
+            value={selectedAngleModifierId}
+            options={gridAngleModifierGroup?.modifiers || []}
+            fallback={patternLabel}
+            onChange={(modifierId) =>
+              setModifierForCategory("angle-position", modifierId)
+            }
+            accent="cyan"
+          />
 
-          <div
-            className={`rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)] ${
-              isGridView ? "p-2" : "p-3"
-            }`}
-          >
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
-              Equipment
-            </p>
-            <p
-              className={`mt-1 break-words font-extrabold tracking-wide text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.18)] ${
-                isGridView ? "text-[11px] leading-4" : "text-sm"
-              }`}
-            >
-              {equipmentLabel}
-            </p>
-          </div>
-        </div>
+          <DetailVariationSelect
+            label="Equipment"
+            value={selectedEquipmentModifierId}
+            options={gridEquipmentModifierGroup?.modifiers || []}
+            fallback={equipmentLabel}
+            onChange={(modifierId) =>
+              setModifierForCategory("apparatus", modifierId)
+            }
+            accent="emerald"
+          />
 
-        <div className="mt-2 rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(2,6,23,0.92),rgba(15,23,42,0.55))] p-3 text-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_30px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
-            Goal
-          </p>
-          <p className="mt-1 text-sm font-extrabold tracking-wide text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.18)]">
-            {goalLabel}
-          </p>
+          <DetailVariationSelect
+            label="Goal"
+            value={selectedGoalModifierId}
+            options={goalModifierGroup?.modifiers || []}
+            fallback={goalLabel}
+            onChange={(modifierId) =>
+              setModifierForCategory("training-intent", modifierId)
+            }
+            accent="yellow"
+            className="sm:col-span-2"
+          />
         </div>
 
         <RecentStatsStrip stats={recentStats} />
@@ -1269,9 +2078,8 @@ export default function ExerciseLibraryPage() {
   const [bodyFilter, setBodyFilter] = useState("All");
   const [goalFilter, setGoalFilter] = useState("All");
   const [levelFilter, setLevelFilter] = useState("All");
-  const [coreMovementFilter, setCoreMovementFilter] = useState("All");
+  const [movementTypeFilter, setMovementTypeFilter] = useState("All");
   const [apparatusFilter, setApparatusFilter] = useState("All");
-  const [movementPatternFilter, setMovementPatternFilter] = useState("All");
   const [loadBehaviorFilter, setLoadBehaviorFilter] = useState("All");
   const [planAddToParam, setPlanAddToParam] = useState("");
 
@@ -1337,18 +2145,16 @@ export default function ExerciseLibraryPage() {
     return [...normalizedSystemExercises, ...customExercises];
   }, [customExercises]);
 
-  const coreMovementOptions = useMemo(
-    () => optionLabels(normalizedCatalog.filterOptions.coreMovements),
-    [],
-  );
-
   const apparatusOptions = useMemo(
-    () => optionLabels(normalizedCatalog.filterOptions.apparatus),
-    [],
-  );
-
-  const movementPatternOptions = useMemo(
-    () => optionLabels(normalizedCatalog.filterOptions.movementPatterns),
+    () =>
+      createCountedFilterOptions({
+        allHelper: formatCountLabel(
+          normalizedCatalog.filterOptions.apparatus.length,
+          "equipment option",
+        ),
+        group: "Equipment",
+        items: normalizedCatalog.filterOptions.apparatus,
+      }),
     [],
   );
 
@@ -1358,22 +2164,30 @@ export default function ExerciseLibraryPage() {
   );
 
   const goalOptions = useMemo(() => {
-    const existingGoals = allExercises
-      .map((exercise) => exercise.goal)
-      .filter(Boolean);
+    const goalCounts = allExercises.reduce<Map<string, number>>(
+      (counts, exercise) => {
+        if (!exercise.goal) return counts;
 
-    return [
-      "All",
-      ...Array.from(new Set([...baseGoals, ...existingGoals])).sort(),
-    ];
+        counts.set(exercise.goal, (counts.get(exercise.goal) || 0) + 1);
+        return counts;
+      },
+      new Map(),
+    );
+    const goals = Array.from(
+      new Set([...baseGoals, ...Array.from(goalCounts.keys())]),
+    ).sort();
+
+    return createCountedFilterOptions({
+      allHelper: formatCountLabel(goals.length, "goal"),
+      group: "Goal",
+      items: goals.map((goal) => ({
+        label: goal,
+        count: goalCounts.get(goal) || 0,
+      })),
+    });
   }, [allExercises]);
 
-  const levelOptions = useMemo(
-    () => getUniqueOptions(allExercises, "level"),
-    [allExercises],
-  );
-
-  const filtered = useMemo(() => {
+  const levelAvailabilityBase = useMemo(() => {
     return allExercises.filter((exercise) => {
       const searchValue = search.toLowerCase();
       const metadata = getMetadataForExercise(exercise);
@@ -1408,19 +2222,22 @@ export default function ExerciseLibraryPage() {
 
       const matchesGoal = goalFilter === "All" || exercise.goal === goalFilter;
 
-      const matchesLevel =
-        levelFilter === "All" || exercise.level === levelFilter;
-      const matchesCoreMovement =
-        coreMovementFilter === "All" ||
-        metadata?.coreMovementLabel === coreMovementFilter;
+      const selectedMovementType =
+        movementTypeFilter === "All"
+          ? null
+          : movementTypeOptionByValue.get(movementTypeFilter) || null;
+      const matchesMovementType =
+        movementTypeFilter === "All" ||
+        Boolean(
+          metadata &&
+            selectedMovementType &&
+            movementTypeMatchesItem(selectedMovementType, metadata),
+        );
       const matchesApparatus =
         apparatusFilter === "All" ||
         getModifierLabelsByCategory(metadata, "apparatus").includes(
           apparatusFilter,
         );
-      const matchesMovementPattern =
-        movementPatternFilter === "All" ||
-        metadata?.movementPatternLabel === movementPatternFilter;
       const matchesLoadBehavior =
         loadBehaviorFilter === "All" ||
         loadBehaviorLabels.includes(loadBehaviorFilter);
@@ -1429,10 +2246,8 @@ export default function ExerciseLibraryPage() {
         matchesSearch &&
         matchesBody &&
         matchesGoal &&
-        matchesLevel &&
-        matchesCoreMovement &&
+        matchesMovementType &&
         matchesApparatus &&
-        matchesMovementPattern &&
         matchesLoadBehavior
       );
     });
@@ -1441,27 +2256,37 @@ export default function ExerciseLibraryPage() {
     search,
     bodyFilter,
     goalFilter,
-    levelFilter,
-    coreMovementFilter,
+    movementTypeFilter,
     apparatusFilter,
-    movementPatternFilter,
     loadBehaviorFilter,
   ]);
 
-  const focusedExercises = useMemo(() => {
-    const seenCoreMovements = new Set<string>();
+  const filtered = useMemo(
+    () =>
+      levelAvailabilityBase.filter(
+        (exercise) => levelFilter === "All" || exercise.level === levelFilter,
+      ),
+    [levelAvailabilityBase, levelFilter],
+  );
 
-    return filtered.filter((exercise) => {
-      if (exercise.custom) return true;
+  const focusedExercises = useMemo(
+    () => getFocusedExerciseCards(filtered),
+    [filtered],
+  );
 
-      const metadata = getMetadataForExercise(exercise);
-      const key = metadata?.coreMovementId || exercise.id;
+  const levelCounts = useMemo(
+    () =>
+      levelSegments.reduce<Record<string, number>>((counts, segment) => {
+        counts[segment.value] = getFocusedExerciseCards(
+          levelAvailabilityBase.filter(
+            (exercise) => exercise.level === segment.value,
+          ),
+        ).length;
 
-      if (seenCoreMovements.has(key)) return false;
-      seenCoreMovements.add(key);
-      return true;
-    });
-  }, [filtered]);
+        return counts;
+      }, {}),
+    [levelAvailabilityBase],
+  );
 
   const totalPages = Math.ceil(focusedExercises.length / exercisesPerPage);
 
@@ -1477,9 +2302,8 @@ export default function ExerciseLibraryPage() {
     bodyFilter,
     goalFilter,
     levelFilter,
-    coreMovementFilter,
+    movementTypeFilter,
     apparatusFilter,
-    movementPatternFilter,
     loadBehaviorFilter,
   ]);
 
@@ -1488,9 +2312,8 @@ export default function ExerciseLibraryPage() {
     setBodyFilter("All");
     setGoalFilter("All");
     setLevelFilter("All");
-    setCoreMovementFilter("All");
+    setMovementTypeFilter("All");
     setApparatusFilter("All");
-    setMovementPatternFilter("All");
     setLoadBehaviorFilter("All");
   };
 
@@ -1572,11 +2395,21 @@ export default function ExerciseLibraryPage() {
   }: {
     label: string;
     value: string;
-    options: string[];
+    options: Array<string | FilterMenuOption>;
     onChange: (value: string) => void;
     accent?: "cyan" | "emerald" | "blue" | "violet";
   }) => {
+    const dropdownId = useId();
+    const dropdownRef = useRef<HTMLDivElement | null>(null);
     const [open, setOpen] = useState(false);
+    const normalizedOptions: FilterMenuOption[] = options.map((option) =>
+      typeof option === "string"
+        ? { value: option, label: option }
+        : option,
+    );
+    const selectedOption =
+      normalizedOptions.find((option) => option.value === value) ||
+      normalizedOptions[0];
 
     const accentClasses = {
       cyan: "border-cyan-300/30 bg-cyan-400/10 text-cyan-200",
@@ -1585,18 +2418,61 @@ export default function ExerciseLibraryPage() {
       violet: "border-violet-300/30 bg-violet-400/10 text-violet-200",
     };
 
+    useEffect(() => {
+      const closeWhenAnotherDropdownOpens = (event: Event) => {
+        const detail = (event as CustomEvent<{ id: string }>).detail;
+        if (detail?.id !== dropdownId) setOpen(false);
+      };
+      const closeOnOutsidePointer = (event: PointerEvent) => {
+        const target = event.target;
+        if (
+          target instanceof Node &&
+          dropdownRef.current &&
+          !dropdownRef.current.contains(target)
+        ) {
+          setOpen(false);
+        }
+      };
+
+      window.addEventListener(
+        exerciseLibraryDropdownOpenEvent,
+        closeWhenAnotherDropdownOpens,
+      );
+      document.addEventListener("pointerdown", closeOnOutsidePointer);
+
+      return () => {
+        window.removeEventListener(
+          exerciseLibraryDropdownOpenEvent,
+          closeWhenAnotherDropdownOpens,
+        );
+        document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      };
+    }, [dropdownId]);
+
     return (
-      <div className="relative">
+      <div ref={dropdownRef} className="relative">
         <button
           type="button"
-          onClick={() => setOpen((prev) => !prev)}
-          className={`flex w-full items-center justify-between rounded-2xl border px-3 py-3 text-left shadow-xl transition hover:scale-[1.01] ${accentClasses[accent]}`}
+          onClick={() => {
+            if (!open) announceExerciseLibraryDropdownOpen(dropdownId);
+            setOpen((prev) => !prev);
+          }}
+          className={`flex min-h-[46px] w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left shadow-xl transition hover:scale-[1.01] ${accentClasses[accent]}`}
         >
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">
               {label}
             </p>
-            <p className="mt-0.5 text-sm font-black text-white">{value}</p>
+            <p className="mt-0.5 text-sm font-black text-white">
+              {selectedOption?.label || value}
+            </p>
+            {(selectedOption?.group || selectedOption?.helper) ? (
+              <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/45">
+                {[selectedOption.group, selectedOption.helper]
+                  .filter(Boolean)
+                  .join(" / ")}
+              </p>
+            ) : null}
           </div>
 
           <span
@@ -1612,22 +2488,37 @@ export default function ExerciseLibraryPage() {
         {open && (
           <div className="absolute left-0 right-0 z-[9999] mt-2 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/95 p-2 shadow-[0_24px_80px_rgba(0,0,0,0.75)] backdrop-blur-xl">
             <div className="max-h-72 overflow-y-auto pr-1">
-              {options.map((option) => (
+              {normalizedOptions.map((option) => (
                 <button
-                  key={option}
+                  key={option.value}
                   type="button"
                   onClick={() => {
-                    onChange(option);
+                    onChange(option.value);
                     setOpen(false);
                   }}
                   className={`mb-1 flex min-h-[40px] w-full items-center justify-between rounded-2xl px-4 py-2.5 text-left text-sm font-bold transition ${
-                    value === option
+                    value === option.value
                       ? "bg-cyan-400 text-slate-950"
                       : "text-slate-300 hover:bg-white/10 hover:text-white"
                   }`}
                 >
-                  <span>{option}</span>
-                  {value === option && <span>✓</span>}
+                  <span className="min-w-0">
+                    <span className="block">{option.label}</span>
+                    {(option.group || option.helper) && (
+                      <span
+                        className={`mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] ${
+                          value === option.value
+                            ? "text-slate-900/65"
+                            : "text-white/35"
+                        }`}
+                      >
+                        {[option.group, option.helper]
+                          .filter(Boolean)
+                          .join(" / ")}
+                      </span>
+                    )}
+                  </span>
+                  {value === option.value && <span>✓</span>}
                 </button>
               ))}
             </div>
@@ -1636,6 +2527,56 @@ export default function ExerciseLibraryPage() {
       </div>
     );
   };
+
+  const LevelSegmentedControl = ({
+    value,
+    onChange,
+    counts,
+  }: {
+    value: string;
+    onChange: (value: string) => void;
+    counts: Record<string, number>;
+  }) => (
+    <div
+      aria-label="Level"
+      className="grid min-h-[46px] grid-cols-3 overflow-hidden rounded-2xl shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl"
+    >
+        {levelSegments.map((segment, index) => {
+          const isActive = value === segment.value;
+          const count = counts[segment.value] || 0;
+          const radiusClass =
+            index === 0
+              ? "rounded-l-2xl rounded-r-none"
+              : index === levelSegments.length - 1
+                ? "rounded-r-2xl rounded-l-none"
+                : "rounded-none";
+
+          return (
+            <button
+              key={segment.value}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => onChange(isActive ? "All" : segment.value)}
+              title={
+                isActive
+                  ? `Clear level filter (${count} available)`
+                  : `Filter ${segment.label} (${count} available)`
+              }
+              className={`min-w-0 border-y border-l px-1 py-1.5 text-[9px] font-black uppercase leading-3 tracking-[0.04em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 focus:ring-violet-200/45 sm:px-1.5 sm:text-[10px] ${
+                isActive ? segment.active : segment.tone
+              } ${radiusClass} ${
+                index === levelSegments.length - 1 ? "border-r" : ""
+              }`}
+            >
+              <span className="block truncate">{segment.label}</span>
+              <span className="mt-0.5 block truncate text-[8px] font-black leading-3 opacity-70 sm:text-[9px]">
+                {count} available
+              </span>
+            </button>
+          );
+        })}
+    </div>
+  );
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
@@ -1685,8 +2626,8 @@ export default function ExerciseLibraryPage() {
           </div>
         </section>
 
-        <section className="relative z-50 overflow-visible rounded-[34px] border border-white/15 bg-white/[0.055] p-5 shadow-[0_20px_70px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl backdrop-saturate-150">
-          <div className="grid gap-4 lg:grid-cols-[1fr_auto_auto_auto_auto] lg:items-start">
+        <section className="relative z-50 overflow-visible rounded-[30px] border border-white/15 bg-white/[0.055] p-4 shadow-[0_18px_58px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl backdrop-saturate-150">
+          <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto_auto] lg:items-start">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300">
                 Movement Filters
@@ -1696,11 +2637,11 @@ export default function ExerciseLibraryPage() {
                 placeholder="Search core movement, muscle, pattern, goal, equipment, or level..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="mt-4 min-h-[48px] w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-4 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                className="mt-3 min-h-[44px] w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
               />
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3">
+            <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-2.5">
               <p className="text-xs text-slate-400">Showing</p>
               <p className="mt-1 text-2xl font-black text-cyan-300">
                 {focusedExercises.length}
@@ -1734,7 +2675,7 @@ export default function ExerciseLibraryPage() {
             <button
               type="button"
               onClick={() => setShowAddForm((prev) => !prev)}
-              className="min-h-[48px] rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-4 text-sm font-black text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950"
+              className="min-h-[44px] rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-sm font-black text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950"
             >
               {showAddForm ? "Close Form" : "+ Add Exercise"}
             </button>
@@ -1742,7 +2683,7 @@ export default function ExerciseLibraryPage() {
             <button
               type="button"
               onClick={resetFilters}
-              className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-sm font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white"
+              className="min-h-[44px] rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white"
             >
               Clear
             </button>
@@ -1801,46 +2742,42 @@ export default function ExerciseLibraryPage() {
             </div>
           ) : null}
 
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 rounded-[24px] border border-cyan-200/10 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.72),rgba(2,6,23,0.56))] p-2.5 shadow-[0_14px_38px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl">
+            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/65">
+                Body / Region
+              </p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
+                Quick filter
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-1.5">
             {bodyOptions.map((body) => (
               <button
                 key={body}
                 type="button"
+                aria-pressed={bodyFilter === body}
                 onClick={() => setBodyFilter(body)}
-                className={`min-h-[36px] rounded-full border px-3 py-1.5 text-xs font-black transition ${
+                className={`min-h-[34px] rounded-full border px-3 py-1.5 text-xs font-black transition focus:outline-none focus:ring-2 focus:ring-cyan-200/45 ${
                   bodyFilter === body
-                    ? "border-cyan-300 bg-cyan-300 text-slate-950"
-                    : "border-white/10 bg-white/[0.04] text-slate-300 hover:border-cyan-300/40 hover:text-white"
+                    ? "border-cyan-200 bg-[linear-gradient(135deg,rgba(34,211,238,0.98),rgba(16,185,129,0.88))] text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.24),inset_0_1px_0_rgba(255,255,255,0.34)]"
+                    : "border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.035))] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-cyan-300/40 hover:bg-cyan-300/10 hover:text-white hover:shadow-[0_0_18px_rgba(34,211,238,0.12)]"
                 }`}
               >
                 {body}
               </button>
             ))}
+            </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-3 grid gap-2.5 md:grid-cols-2 xl:grid-cols-5">
               <FilterMenu
-                label="Body / Region"
-                value={bodyFilter}
-                options={bodyOptions}
-                onChange={setBodyFilter}
-                accent="cyan"
-              />
-
-              <FilterMenu
-                label="Core Movement"
-                value={coreMovementFilter}
-                options={coreMovementOptions}
-                onChange={setCoreMovementFilter}
+                label="Movement Type"
+                value={movementTypeFilter}
+                options={movementTypeFilterOptions}
+                onChange={setMovementTypeFilter}
                 accent="emerald"
-              />
-
-              <FilterMenu
-                label="Pattern"
-                value={movementPatternFilter}
-                options={movementPatternOptions}
-                onChange={setMovementPatternFilter}
-                accent="cyan"
               />
 
               <FilterMenu
@@ -1859,18 +2796,16 @@ export default function ExerciseLibraryPage() {
                 accent="emerald"
               />
 
-              <FilterMenu
-                label="Level"
+              <LevelSegmentedControl
                 value={levelFilter}
-                options={levelOptions}
                 onChange={setLevelFilter}
-                accent="violet"
+                counts={levelCounts}
               />
 
               <FilterMenu
                 label="Load Behavior"
                 value={loadBehaviorFilter}
-                options={loadBehaviorOptions}
+                options={loadBehaviorFilterOptions}
                 onChange={setLoadBehaviorFilter}
                 accent="violet"
               />
@@ -1878,10 +2813,10 @@ export default function ExerciseLibraryPage() {
         </section>
 
         <section
-          className={`relative z-0 grid ${
+          className={`relative z-0 grid overflow-visible ${
             viewMode === "grid"
               ? "gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6"
-              : "gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+              : "gap-4 sm:grid-cols-2 lg:grid-cols-3"
           }`}
         >
           {paginatedExercises.map((exercise) => {
