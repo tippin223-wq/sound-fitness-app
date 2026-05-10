@@ -557,9 +557,15 @@ export const EXERCISE_MODIFIER_CATEGORIES = [
   },
   {
     id: "limb-usage",
-    label: "Limb Usage",
-    description: "How limbs share or alternate the work.",
+    label: "Stance / Grip",
+    description: "Stance width, foot setup, or grip/contact style.",
     displayOrder: 30,
+  },
+  {
+    id: "execution-style",
+    label: "Execution Style",
+    description: "How the movement is performed across limbs or sides.",
+    displayOrder: 32,
   },
   {
     id: "direction",
@@ -825,30 +831,6 @@ export const ANGLE_POSITION_MODIFIERS = [
 
 export const LIMB_USAGE_MODIFIERS = [
   {
-    id: "limb-usage:bilateral",
-    categoryId: "limb-usage",
-    slug: "bilateral",
-    label: "Bilateral",
-    includeInDisplayName: false,
-    displayOrder: 10,
-  },
-  {
-    id: "limb-usage:unilateral",
-    categoryId: "limb-usage",
-    slug: "unilateral",
-    label: "Unilateral",
-    displayPrefix: "Single-Arm",
-    aliases: ["single arm", "single-leg"],
-    displayOrder: 20,
-  },
-  {
-    id: "limb-usage:alternating",
-    categoryId: "limb-usage",
-    slug: "alternating",
-    label: "Alternating",
-    displayOrder: 30,
-  },
-  {
     id: "limb-usage:staggered",
     categoryId: "limb-usage",
     slug: "staggered",
@@ -856,10 +838,11 @@ export const LIMB_USAGE_MODIFIERS = [
     displayOrder: 40,
   },
   {
-    id: "limb-usage:offset",
+    id: "limb-usage:kickstand",
     categoryId: "limb-usage",
-    slug: "offset",
-    label: "Offset",
+    slug: "kickstand",
+    label: "Kickstand",
+    aliases: ["kickstand stance", "b-stance", "b stance"],
     displayOrder: 50,
   },
   {
@@ -900,6 +883,13 @@ export const LIMB_USAGE_MODIFIERS = [
     displayOrder: 90,
   },
   {
+    id: "limb-usage:single-leg",
+    categoryId: "limb-usage",
+    slug: "single-leg",
+    label: "Single Leg",
+    displayOrder: 95,
+  },
+  {
     id: "limb-usage:close-grip",
     categoryId: "limb-usage",
     slug: "close-grip",
@@ -934,19 +924,22 @@ export const LIMB_USAGE_MODIFIERS = [
     label: "Underhand Grip",
     displayOrder: 140,
   },
+] as const satisfies readonly ExerciseModifier[];
+
+export const EXECUTION_STYLE_MODIFIERS = [
   {
-    id: "limb-usage:single-arm",
-    categoryId: "limb-usage",
-    slug: "single-arm",
-    label: "Single-Arm",
-    displayOrder: 150,
+    id: "execution-style:unilateral",
+    categoryId: "execution-style",
+    slug: "unilateral",
+    label: "Unilateral",
+    displayOrder: 20,
   },
   {
-    id: "limb-usage:single-leg",
-    categoryId: "limb-usage",
-    slug: "single-leg",
-    label: "Single-Leg",
-    displayOrder: 160,
+    id: "execution-style:alternating",
+    categoryId: "execution-style",
+    slug: "alternating",
+    label: "Alternating",
+    displayOrder: 30,
   },
 ] as const satisfies readonly ExerciseModifier[];
 
@@ -967,15 +960,6 @@ export const DIRECTION_MODIFIERS = [
 })) as ExerciseModifier[];
 
 export const STABILITY_MODIFIERS = [
-  ["unstable", "Unstable"],
-  {
-    id: "stability:swiss-ball",
-    categoryId: "stability",
-    slug: "swiss-ball",
-    label: "Stability Ball",
-    aliases: ["swiss ball"],
-    displayOrder: 30,
-  },
   {
     id: "stability:bosu",
     categoryId: "stability",
@@ -984,19 +968,6 @@ export const STABILITY_MODIFIERS = [
     aliases: ["bosu ball", "unstable surface"],
     displayOrder: 40,
   },
-  ["suspension", "Suspension"],
-  {
-    id: "stability:balance-focused",
-    categoryId: "stability",
-    slug: "balance-focused",
-    label: "Balance",
-    aliases: ["balance-focused", "balance focused"],
-    displayOrder: 70,
-  },
-  ["offset-stability", "Offset Stability"],
-  ["stability-pad", "Stability Pad"],
-  ["reactive-surface", "Reactive Surface"],
-  ["dynamic-stability", "Dynamic Stability"],
 ].map((modifier, index) =>
   Array.isArray(modifier)
     ? {
@@ -1026,7 +997,6 @@ export const TEMPO_MODIFIERS = [
 
 export const ASSISTANCE_RESISTANCE_MODIFIERS = [
   ["assisted", "Assisted"],
-  ["band-assisted", "Band-Assisted"],
   {
     id: "assistance-resistance:chaotic",
     categoryId: "assistance-resistance",
@@ -1051,7 +1021,28 @@ export const ASSISTANCE_RESISTANCE_MODIFIERS = [
     aliases: ["chain", "chains", "chain loaded", "chain resistance"],
     displayOrder: 50,
   },
-  ["partner-assisted", "Partner-Assisted"],
+  {
+    id: "assistance-resistance:variable-resistance",
+    categoryId: "assistance-resistance",
+    slug: "variable-resistance",
+    label: "Variable Resistance",
+    aliases: ["band resistance", "variable load", "variable resistance"],
+    displayOrder: 60,
+  },
+  {
+    id: "assistance-resistance:contralateral",
+    categoryId: "assistance-resistance",
+    slug: "contralateral",
+    label: "Contralateral",
+    displayOrder: 70,
+  },
+  {
+    id: "assistance-resistance:ipsilateral",
+    categoryId: "assistance-resistance",
+    slug: "ipsilateral",
+    label: "Ipsilateral",
+    displayOrder: 80,
+  },
 ].map((modifier, index) =>
   Array.isArray(modifier)
     ? {
@@ -1193,6 +1184,7 @@ export const ALL_EXERCISE_MODIFIERS = [
   ...APPARATUS_MODIFIERS,
   ...ANGLE_POSITION_MODIFIERS,
   ...LIMB_USAGE_MODIFIERS,
+  ...EXECUTION_STYLE_MODIFIERS,
   ...DIRECTION_MODIFIERS,
   ...STABILITY_MODIFIERS,
   ...TEMPO_MODIFIERS,
@@ -1210,6 +1202,7 @@ const commonModifierCategories: ExerciseModifierCategoryId[] = [
   "apparatus",
   "angle-position",
   "limb-usage",
+  "execution-style",
   "direction",
   "stability",
   "tempo",
@@ -1234,7 +1227,6 @@ export const CORE_MOVEMENTS = [
     defaultIntentIds: ["strength", "hypertrophy"],
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
   },
@@ -1252,7 +1244,6 @@ export const CORE_MOVEMENTS = [
     defaultIntentIds: ["strength", "hypertrophy"],
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
   },
@@ -1270,7 +1261,6 @@ export const CORE_MOVEMENTS = [
     defaultIntentIds: ["strength", "hypertrophy"],
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
   },
@@ -1288,7 +1278,6 @@ export const CORE_MOVEMENTS = [
     defaultIntentIds: ["strength", "hypertrophy"],
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
   },
@@ -1306,7 +1295,6 @@ export const CORE_MOVEMENTS = [
     defaultIntentIds: ["stability", "hypertrophy"],
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
-      "limb-usage:staggered",
       "range-of-motion:full-rom",
     ],
   },
@@ -1324,7 +1312,6 @@ export const CORE_MOVEMENTS = [
     defaultIntentIds: ["strength", "hypertrophy"],
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
   },
@@ -1343,7 +1330,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:cable",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
   },
@@ -1362,7 +1348,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:bodyweight",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
   },
@@ -1381,7 +1366,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:dumbbell",
-      "limb-usage:bilateral",
     ],
   },
   {
@@ -1398,7 +1382,6 @@ export const CORE_MOVEMENTS = [
     defaultIntentIds: ["power", "athletic-performance"],
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
   },
@@ -1417,7 +1400,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:cable",
-      "limb-usage:bilateral",
     ],
   },
   {
@@ -1435,7 +1417,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:bodyweight",
-      "limb-usage:bilateral",
     ],
   },
   {
@@ -1454,7 +1435,6 @@ export const CORE_MOVEMENTS = [
     defaultModifierIds: [
       "apparatus:machine",
       "angle-position:seated",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:ascending-strength-curve",
     ],
@@ -1475,7 +1455,6 @@ export const CORE_MOVEMENTS = [
     defaultModifierIds: [
       "apparatus:machine",
       "angle-position:seated",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:constant-load",
     ],
@@ -1494,7 +1473,6 @@ export const CORE_MOVEMENTS = [
     defaultIntentIds: ["hypertrophy", "strength"],
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:ascending-strength-curve",
     ],
@@ -1513,7 +1491,6 @@ export const CORE_MOVEMENTS = [
     defaultIntentIds: ["hypertrophy", "endurance"],
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:constant-load",
     ],
@@ -1533,7 +1510,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:bodyweight",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:constant-load",
     ],
@@ -1553,7 +1529,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:band",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:constant-load",
     ],
@@ -1573,7 +1548,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:machine",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:constant-load",
     ],
@@ -1631,7 +1605,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:dumbbell",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:constant-load",
     ],
@@ -1651,7 +1624,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:cable",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:constant-load",
     ],
@@ -1728,7 +1700,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:dumbbell",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:descending-strength-curve",
     ],
@@ -1787,7 +1758,6 @@ export const CORE_MOVEMENTS = [
     defaultModifierIds: [
       "apparatus:dumbbell",
       "angle-position:prone",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:descending-strength-curve",
     ],
@@ -1808,7 +1778,6 @@ export const CORE_MOVEMENTS = [
     defaultModifierIds: [
       "apparatus:cable",
       "angle-position:standing",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:constant-load",
     ],
@@ -1847,7 +1816,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:dumbbell",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:constant-load",
     ],
@@ -1866,7 +1834,7 @@ export const CORE_MOVEMENTS = [
     defaultIntentIds: ["stability", "hypertrophy"],
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
-      "limb-usage:unilateral",
+      "execution-style:unilateral",
       "range-of-motion:full-rom",
       "load-behavior:constant-load",
     ],
@@ -1885,8 +1853,6 @@ export const CORE_MOVEMENTS = [
     defaultIntentIds: ["stability", "rehab"],
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
-      "limb-usage:unilateral",
-      "stability:balance-focused",
       "range-of-motion:full-rom",
       "load-behavior:constant-load",
     ],
@@ -1925,7 +1891,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:barbell",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:ballistic",
     ],
@@ -1945,7 +1910,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:barbell",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:ballistic",
     ],
@@ -1965,7 +1929,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:kettlebell",
-      "limb-usage:bilateral",
       "load-behavior:ballistic",
     ],
   },
@@ -1984,7 +1947,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:kettlebell",
-      "limb-usage:unilateral",
       "load-behavior:ballistic",
     ],
   },
@@ -2003,7 +1965,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:kettlebell",
-      "limb-usage:unilateral",
       "load-behavior:ballistic",
     ],
   },
@@ -2022,8 +1983,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:kettlebell",
-      "limb-usage:unilateral",
-      "stability:balance-focused",
       "load-behavior:skill-complex",
     ],
   },
@@ -2042,7 +2001,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:kettlebell",
-      "limb-usage:bilateral",
       "load-behavior:skill-complex",
     ],
   },
@@ -2061,8 +2019,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:kettlebell",
-      "limb-usage:unilateral",
-      "stability:balance-focused",
       "range-of-motion:full-rom",
       "load-behavior:skill-complex",
     ],
@@ -2181,7 +2137,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:bodyweight",
-      "limb-usage:bilateral",
       "load-behavior:ballistic",
     ],
   },
@@ -2200,7 +2155,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:medicine-ball",
-      "limb-usage:bilateral",
       "load-behavior:ballistic",
     ],
   },
@@ -2219,7 +2173,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:bodyweight",
-      "limb-usage:bilateral",
       "load-behavior:cyclical",
     ],
   },
@@ -2238,7 +2191,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:sled",
-      "limb-usage:bilateral",
       "load-behavior:cyclical",
     ],
   },
@@ -2258,7 +2210,6 @@ export const CORE_MOVEMENTS = [
     defaultModifierIds: [
       "apparatus:dumbbell",
       "angle-position:flat",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:descending-strength-curve",
     ],
@@ -2278,7 +2229,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:bodyweight",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
   },
@@ -2298,7 +2248,6 @@ export const CORE_MOVEMENTS = [
     defaultModifierIds: [
       "apparatus:dumbbell",
       "angle-position:supine",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
   },
@@ -2318,7 +2267,6 @@ export const CORE_MOVEMENTS = [
     defaultModifierIds: [
       "apparatus:dumbbell",
       "angle-position:prone",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
   },
@@ -2337,7 +2285,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:dumbbell",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:constant-load",
     ],
@@ -2358,7 +2305,6 @@ export const CORE_MOVEMENTS = [
     defaultModifierIds: [
       "apparatus:machine",
       "angle-position:seated",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:ascending-strength-curve",
     ],
@@ -2379,7 +2325,6 @@ export const CORE_MOVEMENTS = [
     defaultModifierIds: [
       "apparatus:machine",
       "angle-position:seated",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:constant-load",
     ],
@@ -2400,7 +2345,6 @@ export const CORE_MOVEMENTS = [
     defaultModifierIds: [
       "apparatus:bodyweight",
       "angle-position:floor",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
       "load-behavior:ascending-strength-curve",
     ],
@@ -2421,7 +2365,6 @@ export const CORE_MOVEMENTS = [
     defaultModifierIds: [
       "apparatus:bodyweight",
       "angle-position:supine",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
   },
@@ -2440,7 +2383,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:bodyweight",
-      "limb-usage:bilateral",
       "load-behavior:skill-complex",
     ],
   },
@@ -2459,7 +2401,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:dumbbell",
-      "limb-usage:offset",
       "load-behavior:loaded-carry",
     ],
   },
@@ -2478,7 +2419,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:bodyweight",
-      "limb-usage:bilateral",
       "load-behavior:cyclical",
     ],
   },
@@ -2497,7 +2437,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:bodyweight",
-      "limb-usage:bilateral",
       "load-behavior:ballistic",
     ],
   },
@@ -2534,7 +2473,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:medicine-ball",
-      "limb-usage:bilateral",
       "load-behavior:ballistic",
     ],
   },
@@ -2571,7 +2509,6 @@ export const CORE_MOVEMENTS = [
     compatibleModifierCategoryIds: commonModifierCategories,
     defaultModifierIds: [
       "apparatus:bodyweight",
-      "limb-usage:bilateral",
       "load-behavior:skill-complex",
     ],
   },

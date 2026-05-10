@@ -87,6 +87,7 @@ export type ModifierCategoryId =
   | "equipment"
   | "grip"
   | "stance"
+  | "executionStyle"
   | "loadPosition"
   | "bodyPosition"
   | "structure"

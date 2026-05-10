@@ -212,6 +212,7 @@ export type LimbUsageId =
   | "unilateral"
   | "alternating"
   | "staggered"
+  | "kickstand"
   | "offset"
   | "standard-stance"
   | "narrow-stance"
@@ -225,6 +226,16 @@ export type LimbUsageId =
   | "underhand-grip"
   | "single-arm"
   | "single-leg";
+
+export type ExecutionStyleId =
+  | "bilateral"
+  | "unilateral"
+  | "alternating"
+  | "contralateral"
+  | "ipsilateral"
+  | "single-arm"
+  | "single-leg"
+  | "offset";
 
 export type DirectionId =
   | "vertical"
@@ -256,10 +267,11 @@ export type TempoId =
 
 export type AssistanceResistanceId =
   | "assisted"
-  | "band-assisted"
   | "chaotic"
   | "chains"
-  | "partner-assisted";
+  | "variable-resistance"
+  | "contralateral"
+  | "ipsilateral";
 
 export type RangeOfMotionId =
   | "full-rom"
@@ -295,6 +307,7 @@ export type ExerciseModifierCategoryId =
   | "apparatus"
   | "angle-position"
   | "limb-usage"
+  | "execution-style"
   | "direction"
   | "stability"
   | "tempo"
@@ -307,6 +320,7 @@ export type ExerciseModifierId =
   | `apparatus:${ApparatusId}`
   | `angle-position:${AnglePositionId}`
   | `limb-usage:${LimbUsageId}`
+  | `execution-style:${ExecutionStyleId}`
   | `direction:${DirectionId}`
   | `stability:${StabilityId}`
   | `tempo:${TempoId}`

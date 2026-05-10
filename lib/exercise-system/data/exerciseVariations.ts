@@ -87,7 +87,6 @@ export const EXERCISE_VARIATIONS = [
     requiredModifierIds: [
       "equipment:trx",
       "bodyPosition:floor",
-      "stability:unstable",
     ],
     difficultyTier: "intermediate",
     primaryMuscles: ["chest"],
@@ -122,7 +121,6 @@ export const EXERCISE_VARIATIONS = [
     requiredModifierIds: [
       "equipment:trx",
       "bodyPosition:standing",
-      "stability:unstable",
     ],
     difficultyTier: "intermediate",
     primaryMuscles: ["chest"],
@@ -147,10 +145,7 @@ export const EXERCISE_VARIATIONS = [
     id: "trx-assisted-squat",
     displayName: "TRX Assisted Squat",
     primaryPatternId: "squat",
-    requiredModifierIds: [
-      "equipment:trx",
-      "stance:bilateral",
-    ],
+    requiredModifierIds: ["equipment:trx"],
     primaryMuscles: ["quads", "glutes"],
     secondaryMuscles: ["abs"],
     aliases: ["suspension trainer assisted squat"],
@@ -180,7 +175,6 @@ export const EXERCISE_VARIATIONS = [
     primaryPatternId: "squat",
     requiredModifierIds: [
       "equipment:bodyweight",
-      "stance:single-leg",
       "rom:full",
     ],
     difficultyTier: "advanced",
@@ -213,7 +207,7 @@ export const EXERCISE_VARIATIONS = [
     primaryPatternId: "lunge",
     requiredModifierIds: [
       "bodyPosition:rear-foot-elevated",
-      "stance:unilateral",
+      "executionStyle:unilateral",
     ],
     difficultyTier: "intermediate",
     primaryMuscles: ["quads", "glutes"],
@@ -226,7 +220,7 @@ export const EXERCISE_VARIATIONS = [
     primaryPatternId: "lunge",
     requiredModifierIds: [
       "equipment:trx",
-      "stance:unilateral",
+      "executionStyle:unilateral",
       "bodyPosition:standing",
     ],
     primaryMuscles: ["quads", "glutes"],
@@ -370,7 +364,7 @@ export const EXERCISE_VARIATIONS = [
     primaryPatternId: "row",
     requiredModifierIds: [
       "equipment:kettlebell",
-      "stance:alternating",
+      "executionStyle:alternating",
       "rom:dead-stop",
       "bodyPosition:bent-over",
     ],
@@ -551,7 +545,7 @@ export const EXERCISE_VARIATIONS = [
     id: "farmer-carry",
     displayName: "Farmer Carry",
     primaryPatternId: "carry",
-    requiredModifierIds: ["stance:bilateral"],
+    requiredModifierIds: [],
     primaryMuscles: ["grip", "traps"],
     secondaryMuscles: ["abs", "glutes"],
   }),
@@ -560,7 +554,7 @@ export const EXERCISE_VARIATIONS = [
     displayName: "Suitcase Carry",
     primaryPatternId: "carry",
     secondaryPatternIds: ["anti-lateral-flexion", "anti-rotation"],
-    requiredModifierIds: ["loadPosition:offset-load", "stance:unilateral"],
+    requiredModifierIds: ["loadPosition:offset-load"],
     primaryMuscles: ["obliques", "grip"],
     secondaryMuscles: ["traps", "glutes"],
     semanticTags: ["anti rotation carry", "anti lateral flexion"],

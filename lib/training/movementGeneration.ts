@@ -27,6 +27,7 @@ export type MovementLabelOptions = {
 
 const singleSelectionCategories = new Set<ExerciseModifierCategoryId>([
   "angle-position",
+  "execution-style",
   "direction",
   "stability",
   "tempo",
@@ -39,6 +40,7 @@ const labelCategoryOrder: ExerciseModifierCategoryId[] = [
   "tempo",
   "assistance-resistance",
   "range-of-motion",
+  "execution-style",
   "angle-position",
   "limb-usage",
   "direction",
@@ -60,12 +62,39 @@ const canonicalizeMovementModifierId = (
   modifierId: ExerciseModifierId,
 ): ExerciseModifierId => {
   if (modifierId === "apparatus:suspension") return "apparatus:trx";
-  if (modifierId === "apparatus:stability-ball") return "stability:swiss-ball";
+  if (modifierId === "apparatus:stability-ball") return modifierId;
   if (modifierId === ("stability:single-leg" as ExerciseModifierId)) {
     return "limb-usage:single-leg";
   }
+  if (modifierId === "limb-usage:bilateral") {
+    return modifierId;
+  }
+  if (modifierId === "limb-usage:unilateral") {
+    return "execution-style:unilateral";
+  }
+  if (modifierId === "limb-usage:alternating") {
+    return "execution-style:alternating";
+  }
+  if (modifierId === "limb-usage:single-arm") {
+    return "execution-style:unilateral";
+  }
+  if (modifierId === "limb-usage:single-leg") {
+    return "limb-usage:single-leg";
+  }
+  if (modifierId === "limb-usage:offset") {
+    return modifierId;
+  }
   if (modifierId === "limb-usage:sumo-stance") {
     return "limb-usage:wide-stance";
+  }
+  if (modifierId === ("execution-style:contralateral" as ExerciseModifierId)) {
+    return "assistance-resistance:contralateral";
+  }
+  if (modifierId === ("execution-style:ipsilateral" as ExerciseModifierId)) {
+    return "assistance-resistance:ipsilateral";
+  }
+  if (modifierId === ("execution-style:single-leg" as ExerciseModifierId)) {
+    return "limb-usage:single-leg";
   }
   if (modifierId === ("stability:chaotic" as ExerciseModifierId)) {
     return "assistance-resistance:chaotic";
@@ -87,16 +116,6 @@ const getKnownModifiers = (modifierIds: ExerciseModifierId[]) =>
     .map(canonicalizeMovementModifierId)
     .map((id) => EXERCISE_MODIFIER_BY_ID[id])
     .filter(Boolean) as ExerciseModifier[];
-
-const lowerBodyUnilateralCoreIds = new Set<CoreMovementId>([
-  "lunge",
-  "split-squat",
-  "step-up",
-  "step-down",
-]);
-
-const getUnilateralDisplayPrefix = (coreMovement: CoreMovement) =>
-  lowerBodyUnilateralCoreIds.has(coreMovement.id) ? "Single-Leg" : "Single-Arm";
 
 const shouldSkipApparatusDisplay = (
   coreMovement: CoreMovement,
@@ -156,9 +175,6 @@ const getModifierDisplayToken = (
   if (shouldSkipApparatusDisplay(coreMovement, modifier)) return null;
   if (modifier.categoryId === "training-intent" && !options.includeTrainingIntent) {
     return null;
-  }
-  if (modifier.id === "limb-usage:unilateral") {
-    return getUnilateralDisplayPrefix(coreMovement);
   }
   if (
     modifier.categoryId === "apparatus" &&

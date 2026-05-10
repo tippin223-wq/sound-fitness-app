@@ -12,6 +12,7 @@ const nameCategoryOrder: ModifierCategoryId[] = [
   "equipment",
   "grip",
   "stance",
+  "executionStyle",
   "loadPosition",
   "bodyPosition",
   "structure",

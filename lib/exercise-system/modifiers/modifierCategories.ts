@@ -24,9 +24,16 @@ export const MODIFIER_CATEGORIES = [
   {
     id: "stance",
     label: "Stance",
-    description: "Bilateral, unilateral, alternating, or offset stance strategy.",
+    description: "Foot width or stance setup.",
     selectionMode: "single",
     displayOrder: 30,
+  },
+  {
+    id: "executionStyle",
+    label: "Execution Style",
+    description: "How the movement is performed across limbs or sides.",
+    selectionMode: "single",
+    displayOrder: 35,
   },
   {
     id: "loadPosition",
@@ -80,8 +87,7 @@ export const MODIFIER_CATEGORIES = [
   {
     id: "stability",
     label: "Stability",
-    description:
-      "Surface and control challenge. BOSU, stability ball, pads, and reactive surfaces live here.",
+    description: "Surface challenge. BOSU is the only selectable stability modifier.",
     selectionMode: "single",
     displayOrder: 110,
   },
@@ -158,20 +164,17 @@ export const EXERCISE_MODIFIERS = [
   modifier("grip", "underhand", "Underhand Grip", 40),
   modifier("grip", "wide", "Wide Grip", 50),
 
-  modifier("stance", "bilateral", "Bilateral", 10),
-  modifier("stance", "unilateral", "Unilateral", 20),
-  modifier("stance", "single-leg", "Single Leg", 30, {
-    aliases: ["single leg", "one leg"],
-  }),
   modifier("stance", "narrow", "Narrow Stance", 40, {
     aliases: ["narrow", "narrow stance"],
   }),
-  modifier("stance", "alternating", "Alternating", 50),
   modifier("stance", "split-stance", "Split Stance", 60),
   modifier("stance", "staggered", "Staggered", 70),
   modifier("stance", "frog-stance", "Frog Stance", 80, {
     aliases: ["frog stance", "frog position"],
   }),
+
+  modifier("executionStyle", "unilateral", "Unilateral", 20),
+  modifier("executionStyle", "alternating", "Alternating", 30),
 
   modifier("loadPosition", "goblet", "Goblet", 10),
   modifier("loadPosition", "front-loaded", "Front Loaded", 20),
@@ -269,20 +272,10 @@ export const EXERCISE_MODIFIERS = [
   modifier("tempo", "paused", "Paused", 30),
   modifier("tempo", "isometric", "Isometric", 40),
 
-  modifier("stability", "unstable", "Unstable", 20),
   modifier("stability", "bosu", "BOSU", 30, {
     aliases: ["bosu ball"],
     semanticTags: ["unstable surface"],
   }),
-  modifier("stability", "stability-ball", "Stability Ball", 40),
-  modifier("stability", "stability-pad", "Stability Pad", 50),
-  modifier("stability", "reactive-surface", "Reactive Surface", 60),
-  modifier("stability", "balance", "Balance", 70, {
-    aliases: ["balance-focused", "balance focused"],
-  }),
-  modifier("stability", "offset-stability", "Offset Stability", 80),
-  modifier("stability", "dynamic-stability", "Dynamic Stability", 90),
-  modifier("stability", "shoulder-stability", "Shoulder Stability", 100),
 
   modifier("assistanceResistance", "assisted", "Assisted", 10),
   modifier("assistanceResistance", "chaotic", "Chaotic", 40, {
@@ -301,6 +294,9 @@ export const EXERCISE_MODIFIERS = [
     aliases: ["chain", "chains", "chain loaded", "chain resistance"],
     semanticTags: ["accommodating resistance", "variable resistance"],
   }),
+  modifier("assistanceResistance", "variable-resistance", "Variable Resistance", 60),
+  modifier("assistanceResistance", "contralateral", "Contralateral", 70),
+  modifier("assistanceResistance", "ipsilateral", "Ipsilateral", 80),
 
   modifier("athleticIntent", "plyometric", "Plyometric", 10),
   modifier("athleticIntent", "ballistic", "Ballistic", 20),

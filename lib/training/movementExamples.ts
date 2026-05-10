@@ -30,7 +30,7 @@ export const CHEST_PRESS_VARIATION_EXAMPLES = [
     "training-intent:strength",
   ]),
   variation("chest-press", [
-    "limb-usage:unilateral",
+    "execution-style:unilateral",
     "apparatus:cable",
     "training-intent:stability",
   ]),
@@ -48,7 +48,7 @@ export const CHEST_PRESS_VARIATION_EXAMPLES = [
 export const ROW_VARIATION_EXAMPLES = [
   variation("row", ["apparatus:dumbbell", "training-intent:strength"]),
   variation("row", [
-    "limb-usage:unilateral",
+    "execution-style:unilateral",
     "apparatus:dumbbell",
     "training-intent:hypertrophy",
   ]),
@@ -83,7 +83,7 @@ export const ACCESSORY_VARIATION_EXAMPLES = [
   ]),
   variation("biceps-curl", [
     "apparatus:dumbbell",
-    "limb-usage:alternating",
+    "execution-style:alternating",
     "training-intent:hypertrophy",
   ]),
   variation("triceps-extension", [

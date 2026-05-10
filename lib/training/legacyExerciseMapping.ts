@@ -487,23 +487,21 @@ const inferModifierIds = (
       (token) => text.includes(token),
     )
   ) {
-    addModifier(modifierIds, "limb-usage:unilateral");
+    addModifier(modifierIds, "execution-style:unilateral");
   }
   if (["single-leg", "single leg"].some((token) => text.includes(token))) {
-    addModifier(modifierIds, "limb-usage:unilateral");
     addModifier(modifierIds, "limb-usage:single-leg");
   }
   if (text.includes("reverse")) addModifier(modifierIds, "direction:reverse");
   if (text.includes("forward")) addModifier(modifierIds, "direction:forward");
   if (text.includes("walking")) {
     addModifier(modifierIds, "direction:walking");
-    addModifier(modifierIds, "limb-usage:alternating");
+    addModifier(modifierIds, "execution-style:alternating");
   }
   if (text.includes("lateral")) addModifier(modifierIds, "direction:lateral");
   if (text.includes("curtsy") || text.includes("crossover")) {
     addModifier(modifierIds, "direction:crossover");
   }
-  if (text.includes("offset")) addModifier(modifierIds, "limb-usage:offset");
   if (text.includes("bosu")) addModifier(modifierIds, "stability:bosu");
   if (
     [

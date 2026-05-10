@@ -66,10 +66,7 @@ export const INTEGRATED_MOVEMENTS = [
     displayName: "Turkish Get-Up",
     primaryPattern: ref("integrated-movement", "primary", "Floor transfer"),
     secondaryPattern: ref("lunge", "secondary", "Half-kneeling to stand"),
-    requiredModifierIds: [
-      "structure:floor-transfer",
-      "stability:shoulder-stability",
-    ],
+    requiredModifierIds: ["structure:floor-transfer"],
     difficultyTier: "advanced",
     primaryMuscles: ["shoulders", "abs", "glutes"],
     secondaryMuscles: ["obliques", "quads", "triceps"],

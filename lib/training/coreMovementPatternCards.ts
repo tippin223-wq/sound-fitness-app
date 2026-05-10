@@ -71,7 +71,9 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Romanian Deadlift",
     "Stiff Leg Deadlift",
     "Single Leg RDL",
+    "Kickstand RDL",
     "Good Morning",
+    "Seated Good Morning",
     "Trap Bar Deadlift",
     "Kettlebell Swing",
     "Snatch Grip Deadlift",
@@ -86,6 +88,7 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Lateral Lunge",
     "Slider Lateral Lunge",
     "Deficit Lunge",
+    "ATG Split Squat",
     "Bulgarian Split Squat",
     "TRX Reverse Lunge",
     "Lunge to Press",
@@ -94,6 +97,7 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
   "core-step-up": [
     "Step-Up",
     "Lateral Step-Up",
+    "Crossover Step-Up",
     "Step-Up with Knee Drive",
     "Plyometric Step-Up",
   ],
@@ -334,7 +338,6 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "TRX Push-Up": [
     "apparatus:trx",
     "angle-position:floor",
-    "stability:suspension",
   ],
   "Air Squat": ["apparatus:bodyweight", "limb-usage:standard-stance"],
   "Goblet Squat": ["apparatus:kettlebell", "angle-position:goblet"],
@@ -394,7 +397,17 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "tempo:slow-eccentric",
     "range-of-motion:full-rom",
   ],
+  "Kickstand RDL": [
+    "limb-usage:kickstand",
+    "tempo:slow-eccentric",
+    "range-of-motion:full-rom",
+  ],
   "Good Morning": ["apparatus:barbell", "angle-position:back-loaded"],
+  "Seated Good Morning": [
+    "apparatus:barbell",
+    "angle-position:seated",
+    "angle-position:back-loaded",
+  ],
   "Trap Bar Deadlift": [
     "apparatus:trap-bar",
     "limb-usage:neutral-grip",
@@ -413,64 +426,62 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Reverse Lunge": [
     "apparatus:bodyweight",
     "direction:reverse",
-    "angle-position:split-stance",
   ],
   "Slider Reverse Lunge": [
     "apparatus:sliders",
     "direction:reverse",
-    "angle-position:split-stance",
   ],
   "Forward Lunge": [
     "apparatus:bodyweight",
     "direction:forward",
-    "angle-position:split-stance",
   ],
   "Walking Lunge": [
     "apparatus:bodyweight",
     "direction:walking",
-    "limb-usage:alternating",
+    "execution-style:alternating",
   ],
   "Curtsy Lunge": [
     "apparatus:bodyweight",
     "direction:crossover",
-    "angle-position:split-stance",
   ],
   "Slider Curtsy Lunge": [
     "apparatus:sliders",
     "direction:crossover",
-    "angle-position:split-stance",
   ],
   "Lateral Lunge": [
     "apparatus:bodyweight",
     "direction:lateral",
-    "limb-usage:wide-stance",
   ],
   "Slider Lateral Lunge": [
     "apparatus:sliders",
     "direction:lateral",
-    "limb-usage:wide-stance",
   ],
   "Deficit Lunge": [
     "apparatus:bodyweight",
     "direction:reverse",
     "range-of-motion:deficit",
   ],
+  "ATG Split Squat": [
+    "apparatus:bodyweight",
+    "angle-position:split-stance",
+    "range-of-motion:full-rom",
+  ],
   "Bulgarian Split Squat": [
     "apparatus:bodyweight",
     "angle-position:rear-foot-elevated",
-    "limb-usage:unilateral",
+    "execution-style:unilateral",
   ],
   "TRX Reverse Lunge": [
     "apparatus:trx",
     "direction:reverse",
-    "angle-position:split-stance",
     "assistance-resistance:assisted",
   ],
-  "Lunge to Press": ["angle-position:split-stance", "load-behavior:skill-complex"],
-  "Lunge to Curl": ["angle-position:split-stance", "load-behavior:skill-complex"],
-  "Step-Up": ["apparatus:bodyweight", "apparatus:box", "direction:vertical"],
-  "Lateral Step-Up": ["apparatus:box", "limb-usage:unilateral"],
-  "Step-Up with Knee Drive": ["apparatus:box", "limb-usage:unilateral"],
+  "Lunge to Press": ["load-behavior:skill-complex"],
+  "Lunge to Curl": ["load-behavior:skill-complex"],
+  "Step-Up": ["apparatus:bodyweight", "direction:forward"],
+  "Lateral Step-Up": ["apparatus:bodyweight", "direction:lateral"],
+  "Crossover Step-Up": ["apparatus:bodyweight", "direction:crossover"],
+  "Step-Up with Knee Drive": ["apparatus:bodyweight", "direction:forward"],
   "Plyometric Step-Up": [
     "apparatus:box",
     "tempo:explosive",
@@ -506,7 +517,7 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "range-of-motion:full-rom",
   ],
   "Nordic Curl": ["apparatus:bodyweight", "tempo:slow-eccentric"],
-  "Stability Ball Ham Curl": ["stability:swiss-ball", "angle-position:supine"],
+  "Stability Ball Ham Curl": ["angle-position:supine"],
   "Band Walk": ["apparatus:band", "limb-usage:wide-stance"],
   "Clamshell": ["apparatus:band", "angle-position:side-lying"],
   "Hip Abduction Machine": ["apparatus:machine", "angle-position:seated"],
@@ -594,7 +605,6 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Bent Over Row": ["apparatus:barbell", "angle-position:bent-over"],
   "Gorilla Row": [
     "apparatus:kettlebell",
-    "limb-usage:alternating",
     "range-of-motion:dead-stop",
     "angle-position:bent-over",
   ],
@@ -607,9 +617,8 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Renegade Row": [
     "apparatus:dumbbell",
     "angle-position:plank",
-    "stability:balance-focused",
   ],
-  "Meadows Row": ["apparatus:landmine", "limb-usage:single-arm"],
+  "Meadows Row": ["apparatus:landmine"],
   "Pull-Up": ["apparatus:bodyweight", "limb-usage:overhand-grip"],
   "Chin-Up": ["apparatus:bodyweight", "limb-usage:underhand-grip"],
   "Neutral Grip Pull-Up": ["apparatus:bodyweight", "limb-usage:neutral-grip"],
@@ -671,7 +680,7 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Landmine Rotation": ["apparatus:landmine", "direction:rotational"],
   "Pallof Press": ["apparatus:cable", "tempo:isometric"],
   "Renegade Hold": ["apparatus:dumbbell", "angle-position:plank"],
-  "Single Arm Carry": ["limb-usage:single-arm", "load-behavior:loaded-carry"],
+  "Single Arm Carry": ["load-behavior:loaded-carry"],
   "TRX Body Saw": [
     "apparatus:trx",
     "angle-position:plank",
@@ -708,16 +717,13 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "TRX Pike": ["apparatus:trx", "angle-position:plank"],
   "Side Plank": ["apparatus:bodyweight", "angle-position:side-support"],
   "Suitcase Carry": [
-    "limb-usage:single-arm",
-    "limb-usage:offset",
     "load-behavior:loaded-carry",
   ],
-  "Offset Hold": ["limb-usage:offset", "tempo:isometric"],
-  "Farmer Carry": ["limb-usage:bilateral", "load-behavior:loaded-carry"],
+  "Offset Hold": ["tempo:isometric"],
+  "Farmer Carry": ["load-behavior:loaded-carry"],
   "Front Rack Carry": ["angle-position:front-loaded", "load-behavior:loaded-carry"],
   "Overhead Carry": ["angle-position:overhead", "load-behavior:loaded-carry"],
   "Waiter Carry": [
-    "limb-usage:single-arm",
     "angle-position:overhead",
     "load-behavior:loaded-carry",
   ],
@@ -773,6 +779,13 @@ const SEMANTIC_VARIATION_ALIASES: Partial<Record<string, readonly string[]>> = {
   "Narrow Stance Squat": ["narrow squat", "narrow stance squat"],
   "Romanian Deadlift": ["rdl"],
   "Single Leg RDL": ["single leg romanian deadlift"],
+  "Kickstand RDL": [
+    "kickstand rdl",
+    "kickstand romanian deadlift",
+    "b-stance rdl",
+    "b stance rdl",
+    "b-stance romanian deadlift",
+  ],
   "Dumbbell Reverse Fly": ["rear delt fly"],
   "90/90 Breathing": ["breathing drill", "brace drill"],
   "World's Greatest Stretch": ["worlds greatest stretch"],
@@ -781,6 +794,16 @@ const SEMANTIC_VARIATION_ALIASES: Partial<Record<string, readonly string[]>> = {
   "TRX Chest Fly": ["trx chest fly", "suspension trainer chest fly"],
   "TRX Assisted Squat": ["suspension trainer assisted squat"],
   "Pistol Squat": ["single leg squat", "bodyweight single leg squat"],
+  "Seated Good Morning": [
+    "seated good morning",
+    "seated hinge",
+    "seated back loaded hinge",
+  ],
+  "ATG Split Squat": [
+    "atg split squat",
+    "deep split squat",
+    "knees over toes split squat",
+  ],
   "Glute Extension": [
     "kneeling glute extension",
     "half kneeling glute extension",
@@ -799,6 +822,12 @@ const SEMANTIC_VARIATION_ALIASES: Partial<Record<string, readonly string[]>> = {
     "weighted pancake",
     "pancake stretch cable",
     "loaded pancake stretch",
+  ],
+  "Lateral Step-Up": ["lateral step up", "side step-up", "side step up"],
+  "Crossover Step-Up": [
+    "crossover step-up",
+    "crossover step up",
+    "cross-over step-up",
   ],
   "TRX Reverse Lunge": ["suspension trainer reverse lunge"],
   "Slider Reverse Lunge": ["sliders reverse lunge", "glider reverse lunge"],
@@ -849,11 +878,23 @@ const flexibleLungeApparatus: readonly ExerciseModifierId[] = [
   "apparatus:sliders",
 ];
 
+const flexibleStepUpApparatus: readonly ExerciseModifierId[] = [
+  "apparatus:bodyweight",
+  "apparatus:dumbbell",
+  "apparatus:kettlebell",
+  "apparatus:barbell",
+];
+
 const flexibleRdlApparatus: readonly ExerciseModifierId[] = [
   "apparatus:barbell",
   "apparatus:dumbbell",
   "apparatus:kettlebell",
   "apparatus:cable",
+  "apparatus:band",
+];
+
+const flexibleGoodMorningApparatus: readonly ExerciseModifierId[] = [
+  "apparatus:barbell",
   "apparatus:band",
 ];
 
@@ -999,6 +1040,14 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
     ],
     defaultApparatusId: "apparatus:dumbbell",
   },
+  "Kickstand RDL": {
+    allowedApparatusIds: flexibleRdlApparatus,
+    defaultApparatusId: "apparatus:dumbbell",
+  },
+  "Seated Good Morning": {
+    allowedApparatusIds: flexibleGoodMorningApparatus,
+    defaultApparatusId: "apparatus:barbell",
+  },
   "Trap Bar Deadlift": {
     allowedApparatusIds: ["apparatus:trap-bar"],
     defaultApparatusId: "apparatus:trap-bar",
@@ -1048,6 +1097,10 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
     allowedApparatusIds: flexibleLungeApparatus,
     defaultApparatusId: "apparatus:bodyweight",
   },
+  "ATG Split Squat": {
+    allowedApparatusIds: flexibleLungeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
   "Bulgarian Split Squat": {
     allowedApparatusIds: flexibleLungeApparatus,
     defaultApparatusId: "apparatus:bodyweight",
@@ -1056,6 +1109,22 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
     allowedApparatusIds: ["apparatus:trx"],
     defaultApparatusId: "apparatus:trx",
     equipmentStrict: true,
+  },
+  "Step-Up": {
+    allowedApparatusIds: flexibleStepUpApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Lateral Step-Up": {
+    allowedApparatusIds: flexibleStepUpApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Crossover Step-Up": {
+    allowedApparatusIds: flexibleStepUpApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Step-Up with Knee Drive": {
+    allowedApparatusIds: flexibleStepUpApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
   },
   "Slider Hamstring Curl": {
     allowedApparatusIds: ["apparatus:sliders"],
@@ -1225,13 +1294,22 @@ const SEMANTIC_VARIATION_DEFINING_MODIFIER_IDS: Partial<
   ],
   "Reverse Lunge": ["direction:reverse"],
   "Forward Lunge": ["direction:forward"],
-  "Walking Lunge": ["direction:walking", "limb-usage:alternating"],
+  "Walking Lunge": ["direction:walking", "execution-style:alternating"],
   "Curtsy Lunge": ["direction:crossover"],
   "Lateral Lunge": ["direction:lateral"],
   "Deficit Lunge": ["range-of-motion:deficit"],
+  "ATG Split Squat": [
+    "angle-position:split-stance",
+    "range-of-motion:full-rom",
+  ],
   "Bulgarian Split Squat": ["angle-position:rear-foot-elevated"],
   "TRX Reverse Lunge": ["direction:reverse", "assistance-resistance:assisted"],
+  "Step-Up": ["direction:forward"],
+  "Lateral Step-Up": ["direction:lateral"],
+  "Crossover Step-Up": ["direction:crossover"],
+  "Step-Up with Knee Drive": ["direction:forward"],
   "Pistol Squat": ["limb-usage:single-leg", "range-of-motion:full-rom"],
+  "Kickstand RDL": ["limb-usage:kickstand"],
   "Narrow Stance Squat": ["limb-usage:narrow-stance"],
   "Glute Extension": [
     "angle-position:kneeling",
@@ -1288,6 +1366,10 @@ const SEMANTIC_VARIATION_MATCH_MODIFIER_SETS: Partial<
     ["limb-usage:single-leg", "range-of-motion:full-rom"],
     ["limb-usage:single-leg"],
   ],
+  "Kickstand RDL": [
+    ["limb-usage:kickstand", "tempo:slow-eccentric", "range-of-motion:full-rom"],
+    ["limb-usage:kickstand"],
+  ],
   "Glute Bridge": [
     ["angle-position:floor"],
     ["angle-position:feet-elevated"],
@@ -1298,11 +1380,6 @@ const SEMANTIC_VARIATION_MATCH_MODIFIER_SETS: Partial<
     ["limb-usage:wide-stance"],
     ["angle-position:split-stance"],
     ["stability:bosu"],
-    ["stability:swiss-ball"],
-    ["stability:stability-pad"],
-    ["stability:balance-focused"],
-    ["stability:offset-stability"],
-    ["stability:dynamic-stability"],
   ],
   "Glute Extension": [
     ["angle-position:kneeling", "angle-position:back-loaded"],
@@ -1330,12 +1407,21 @@ const SEMANTIC_VARIATION_MATCH_MODIFIER_SETS: Partial<
     ["apparatus:barbell", "limb-usage:wide-stance", "range-of-motion:dead-stop"],
     ["limb-usage:wide-stance", "range-of-motion:dead-stop"],
   ],
-  "Reverse Lunge": [["direction:reverse", "angle-position:split-stance"]],
-  "Forward Lunge": [["direction:forward", "angle-position:split-stance"]],
+  "Reverse Lunge": [["direction:reverse"]],
+  "Forward Lunge": [["direction:forward"]],
   "Walking Lunge": [["direction:walking", "load-behavior:cyclical"]],
-  "Curtsy Lunge": [["direction:crossover", "angle-position:split-stance"]],
-  "Lateral Lunge": [["direction:lateral", "limb-usage:wide-stance"]],
+  "Curtsy Lunge": [["direction:crossover"]],
+  "Lateral Lunge": [["direction:lateral"]],
   "Deficit Lunge": [["direction:reverse", "range-of-motion:deficit"]],
+  "ATG Split Squat": [
+    ["angle-position:split-stance", "range-of-motion:full-rom"],
+  ],
+  "Seated Good Morning": [
+    ["angle-position:seated", "angle-position:back-loaded"],
+  ],
+  "Step-Up": [["direction:forward"]],
+  "Lateral Step-Up": [["direction:lateral"]],
+  "Crossover Step-Up": [["direction:crossover"]],
   "Lat Pulldown": [
     ["apparatus:machine", "angle-position:seated", "limb-usage:overhand-grip"],
     ["angle-position:seated", "limb-usage:wide-grip"],
@@ -1460,7 +1546,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       ...commonBodyweightModifiers,
-      "limb-usage:bilateral",
     ],
     aliases: [
       "air squat",
@@ -1489,7 +1574,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       ...commonBodyweightModifiers,
-      "limb-usage:bilateral",
     ],
     aliases: ["deadlift", "rdl", "romanian deadlift", "good morning", "swing"],
   },
@@ -1507,7 +1591,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       ...commonBodyweightModifiers,
-      "limb-usage:unilateral",
     ],
     aliases: ["reverse lunge", "forward lunge", "walking lunge", "split squat"],
   },
@@ -1525,7 +1608,7 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       ...commonBodyweightModifiers,
-      "limb-usage:unilateral",
+      "execution-style:unilateral",
     ],
     aliases: ["box step-up", "lateral step-up", "step down", "box step"],
   },
@@ -1544,7 +1627,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:bodyweight",
       "angle-position:floor",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
     aliases: [
@@ -1577,7 +1659,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:machine",
       "angle-position:seated",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
     aliases: ["leg extension", "terminal knee extension"],
@@ -1597,7 +1678,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:machine",
       "angle-position:seated",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
     aliases: ["leg curl", "hamstring curl", "nordic curl"],
@@ -1726,7 +1806,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       ...commonBodyweightModifiers,
-      "limb-usage:bilateral",
     ],
     aliases: ["push-up", "push up", "bench press", "dumbbell press", "chest press"],
   },
@@ -1745,7 +1824,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:dumbbell",
       "angle-position:standing",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
     aliases: ["overhead press", "military press", "dumbbell shoulder press"],
@@ -1765,7 +1843,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:dumbbell",
       "angle-position:flat",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
     aliases: ["pec fly", "dumbbell fly", "cable fly", "machine fly"],
@@ -1785,7 +1862,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:dumbbell",
       "angle-position:standing",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
     aliases: ["side raise", "dumbbell lateral raise", "shoulder abduction"],
@@ -1805,7 +1881,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:dumbbell",
       "angle-position:standing",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
     aliases: ["db row", "dumbbell row", "cable row", "gorilla row", "renegade row"],
@@ -1824,7 +1899,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       ...commonBodyweightModifiers,
-      "limb-usage:bilateral",
     ],
     aliases: ["pull-up", "pull up", "chin-up", "chin up", "lat pulldown"],
   },
@@ -1843,7 +1917,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:dumbbell",
       "angle-position:supine",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
     aliases: ["dumbbell pullover", "straight arm pulldown"],
@@ -1863,7 +1936,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:dumbbell",
       "angle-position:prone",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
     aliases: ["rear delt fly", "reverse dumbbell fly", "rear delt raise"],
@@ -1883,7 +1955,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:dumbbell",
       "angle-position:standing",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
     aliases: ["biceps curl", "hammer curl", "preacher curl"],
@@ -1903,7 +1974,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:cable",
       "angle-position:standing",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
     aliases: ["pushdown", "pressdown", "skullcrusher", "overhead triceps extension"],
@@ -2036,7 +2106,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:cable",
       "angle-position:standing",
-      "limb-usage:bilateral",
       "range-of-motion:full-rom",
     ],
     aliases: ["wood chop", "russian twist", "rotational throw"],
@@ -2056,7 +2125,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:cable",
       "angle-position:standing",
-      "limb-usage:bilateral",
     ],
     aliases: ["pallof press", "anti rotation", "anti-rotation", "renegade row", "suitcase carry"],
   },
@@ -2110,7 +2178,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       "apparatus:dumbbell",
-      "limb-usage:offset",
       "load-behavior:loaded-carry",
     ],
     aliases: ["side plank", "suitcase carry", "offset hold", "anti lateral flexion"],
@@ -2129,7 +2196,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       "apparatus:dumbbell",
-      "limb-usage:bilateral",
       "load-behavior:loaded-carry",
     ],
     aliases: ["farmer carry", "suitcase carry", "front rack carry"],
@@ -2148,7 +2214,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       "apparatus:bodyweight",
-      "limb-usage:bilateral",
       "load-behavior:cyclical",
     ],
     aliases: ["bear crawl", "leopard crawl", "lateral crawl"],
@@ -2167,7 +2232,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Intermediate",
     modifierIds: [
       "apparatus:bodyweight",
-      "limb-usage:bilateral",
       "load-behavior:ballistic",
     ],
     aliases: ["box jump", "broad jump", "single leg hop", "jump"],
@@ -2204,7 +2268,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       "apparatus:medicine-ball",
-      "limb-usage:bilateral",
       "load-behavior:ballistic",
     ],
     aliases: ["med ball throw", "rotational throw", "slam ball", "medicine ball throw"],
@@ -2310,7 +2373,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Intermediate",
     modifierIds: [
       "apparatus:bodyweight",
-      "limb-usage:bilateral",
       "load-behavior:skill-complex",
     ],
     aliases: ["burpee", "thruster", "turkish get-up", "man maker", "devil press", "clean to press", "complex", "combo"],

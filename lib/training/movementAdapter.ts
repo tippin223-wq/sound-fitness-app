@@ -149,7 +149,7 @@ const inferModifierIdsFromLegacyExercise = (
       (token) => haystack.includes(token),
     )
   ) {
-    modifierIds.push("limb-usage:unilateral");
+    modifierIds.push("execution-style:unilateral");
   }
 
   return Array.from(new Set(modifierIds));

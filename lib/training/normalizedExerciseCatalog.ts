@@ -131,6 +131,7 @@ const singleSelectionCategories = new Set<ExerciseModifierCategoryId>([
   "apparatus",
   "angle-position",
   "limb-usage",
+  "execution-style",
   "direction",
   "stability",
   "tempo",

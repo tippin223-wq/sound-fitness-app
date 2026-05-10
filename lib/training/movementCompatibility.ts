@@ -32,6 +32,7 @@ export type MovementCompatibilityRule = {
   allowedModifierCategoryIds: ExerciseModifierCategoryId[];
   allowedAnglePositionModifierIds: ExerciseModifierId[];
   allowedLimbUsageModifierIds: ExerciseModifierId[];
+  allowedExecutionStyleModifierIds: ExerciseModifierId[];
   allowedDirectionModifierIds: ExerciseModifierId[];
   allowedStabilityModifierIds: ExerciseModifierId[];
   allowedTempoModifierIds: ExerciseModifierId[];
@@ -80,9 +81,13 @@ export type ExerciseVariationValidationResult = {
 
 type RuleInput = Omit<
   MovementCompatibilityRule,
-  "forbiddenApparatusIds" | "forbiddenModifierIds" | "allowedDirectionModifierIds"
+  | "forbiddenApparatusIds"
+  | "forbiddenModifierIds"
+  | "allowedDirectionModifierIds"
+  | "allowedExecutionStyleModifierIds"
 > & {
   allowedDirectionModifierIds?: ExerciseModifierId[];
+  allowedExecutionStyleModifierIds?: ExerciseModifierId[];
   forbiddenApparatusIds?: ApparatusId[];
   forbiddenModifierIds?: ExerciseModifierId[];
 };
@@ -98,6 +103,7 @@ const modifierCategories: ExerciseModifierCategoryId[] = [
   "apparatus",
   "angle-position",
   "limb-usage",
+  "execution-style",
   "direction",
   "stability",
   "tempo",
@@ -117,6 +123,10 @@ const hipThrustBridgeCompatibilityCoreIds = new Set<CoreMovementId>([
   "hip-thrust-bridge",
   "hip-thrust-glute-bridge",
 ]);
+const sideRelationshipResistanceCoreIds = new Set<CoreMovementId>([
+  "anti-extension",
+  "crawl",
+]);
 
 const apparatusModifierId = (apparatusId: ApparatusId) =>
   `apparatus:${apparatusId}` as ExerciseModifierId;
@@ -128,6 +138,17 @@ const allTrainingIntentModifierIds = ALL_EXERCISE_MODIFIERS.filter(
 const allDirectionModifierIds = ALL_EXERCISE_MODIFIERS.filter(
   (modifier) => modifier.categoryId === "direction",
 ).map((modifier) => modifier.id);
+
+const allExecutionStyleModifierIds = ALL_EXERCISE_MODIFIERS.filter(
+  (modifier) => modifier.categoryId === "execution-style",
+).map((modifier) => modifier.id);
+const executionStyleCoreMovementIds = new Set<CoreMovementId>([
+  "shoulder-press",
+  "biceps-curl",
+  "curl",
+  "lunge",
+  "step-up",
+]);
 
 const angle = {
   incline: "angle-position:incline",
@@ -163,6 +184,7 @@ const limb = {
   unilateral: "limb-usage:unilateral",
   alternating: "limb-usage:alternating",
   staggered: "limb-usage:staggered",
+  kickstand: "limb-usage:kickstand",
   offset: "limb-usage:offset",
   standard: "limb-usage:standard-stance",
   narrow: "limb-usage:narrow-stance",
@@ -176,6 +198,23 @@ const limb = {
   underhandGrip: "limb-usage:underhand-grip",
   singleArm: "limb-usage:single-arm",
   singleLeg: "limb-usage:single-leg",
+} as const satisfies Record<string, ExerciseModifierId>;
+
+const execution = {
+  bilateral: "execution-style:bilateral",
+  unilateral: "execution-style:unilateral",
+  alternating: "execution-style:alternating",
+  contralateral: "execution-style:contralateral",
+  ipsilateral: "execution-style:ipsilateral",
+  singleArm: "execution-style:single-arm",
+  singleLeg: "execution-style:single-leg",
+  offset: "execution-style:offset",
+} as const satisfies Record<string, ExerciseModifierId>;
+
+const direction = {
+  forward: "direction:forward",
+  lateral: "direction:lateral",
+  crossover: "direction:crossover",
 } as const satisfies Record<string, ExerciseModifierId>;
 
 const stability = {
@@ -203,12 +242,15 @@ const tempo = {
 
 const assistance = {
   assisted: "assistance-resistance:assisted",
-  bandAssisted: "assistance-resistance:band-assisted",
+  bandAssisted: "assistance-resistance:band-assisted" as ExerciseModifierId,
   accommodating: "assistance-resistance:accommodating-resistance" as ExerciseModifierId,
   chaotic: "assistance-resistance:chaotic",
   chains: "assistance-resistance:chains",
+  variableResistance: "assistance-resistance:variable-resistance",
+  contralateral: "assistance-resistance:contralateral",
+  ipsilateral: "assistance-resistance:ipsilateral",
   deloaded: "assistance-resistance:deloaded" as ExerciseModifierId,
-  partnerAssisted: "assistance-resistance:partner-assisted",
+  partnerAssisted: "assistance-resistance:partner-assisted" as ExerciseModifierId,
 } as const satisfies Record<string, ExerciseModifierId>;
 
 const rom = {
@@ -262,15 +304,24 @@ const commonResistance = [
   assistance.chains,
   assistance.chaotic,
   assistance.assisted,
-  assistance.bandAssisted,
+  assistance.variableResistance,
+  assistance.contralateral,
+  assistance.ipsilateral,
 ];
 const freeWeightResistance = [
   assistance.chaotic,
   assistance.chains,
-  assistance.partnerAssisted,
   assistance.assisted,
-  assistance.bandAssisted,
+  assistance.variableResistance,
 ];
+const activeAssistanceResistanceModifierIds = new Set<ExerciseModifierId>([
+  assistance.assisted,
+  assistance.chains,
+  assistance.chaotic,
+  assistance.variableResistance,
+  assistance.contralateral,
+  assistance.ipsilateral,
+]);
 
 const benchContext = {
   id: "bench-support",
@@ -321,6 +372,11 @@ const isModifierAllowedByInput = (
   if (modifier.categoryId === "limb-usage") {
     return input.allowedLimbUsageModifierIds.includes(modifier.id);
   }
+  if (modifier.categoryId === "execution-style") {
+    return (
+      input.allowedExecutionStyleModifierIds || allExecutionStyleModifierIds
+    ).includes(modifier.id);
+  }
   if (modifier.categoryId === "direction") {
     return (input.allowedDirectionModifierIds || allDirectionModifierIds).includes(
       modifier.id,
@@ -348,41 +404,27 @@ const isModifierAllowedByInput = (
 const expandAllowedStabilityModifierIds = (
   modifierIds: ExerciseModifierId[],
 ) => {
-  const ids = compactUnique(modifierIds).filter(
-    (modifierId) =>
-      modifierId !== stability.stable && modifierId !== stability.singleLeg,
+  return compactUnique(
+    modifierIds.filter((modifierId) => modifierId === stability.bosu),
   );
-  const allowsInstability = [
-    stability.unstable,
-    stability.bosu,
-    stability.balanceFocused,
-    stability.offsetStability,
-    stability.reactiveSurface,
-    stability.dynamicStability,
-  ].some((modifierId) => ids.includes(modifierId));
-
-  return compactUnique([
-    ...ids,
-    ...(allowsInstability ? [stability.bosu] : []),
-  ]);
 };
 
 const expandAllowedAssistanceResistanceModifierIds = (
   modifierIds: ExerciseModifierId[],
 ) => {
-  const ids = compactUnique(modifierIds).filter(
-    (modifierId) =>
-      modifierId !== assistance.accommodating &&
-      modifierId !== assistance.deloaded,
+  return compactUnique(
+    modifierIds
+      .map((modifierId) => {
+        if (modifierId === assistance.bandAssisted) return assistance.assisted;
+        if (modifierId === assistance.accommodating) {
+          return assistance.variableResistance;
+        }
+        return modifierId;
+      })
+      .filter((modifierId) =>
+        activeAssistanceResistanceModifierIds.has(modifierId),
+      ),
   );
-  const allowsLoadedResistance =
-    ids.includes(assistance.chains) ||
-    ids.includes(assistance.chaotic);
-
-  return compactUnique([
-    ...ids,
-    ...(allowsLoadedResistance ? [assistance.chaotic, assistance.chains] : []),
-  ]);
 };
 
 const expandAllowedRangeOfMotionModifierIds = (
@@ -395,9 +437,44 @@ const expandAllowedRangeOfMotionModifierIds = (
   ]);
 };
 
+const legacyExecutionStyleModifierMap: Partial<
+  Record<ExerciseModifierId, ExerciseModifierId>
+> = {
+  "limb-usage:unilateral": "execution-style:unilateral",
+  "limb-usage:alternating": "execution-style:alternating",
+};
+
+const canonicalizeLegacyExecutionStyleModifierId = (
+  modifierId: ExerciseModifierId,
+) => legacyExecutionStyleModifierMap[modifierId] || modifierId;
+
 const defineRule = (input: RuleInput): MovementCompatibilityRule => {
+  const canonicalAllowedLimbUsageModifierIds = compactUnique(
+    input.allowedLimbUsageModifierIds.map(canonicalizeLegacyExecutionStyleModifierId),
+  );
+  const inheritedExecutionStyleModifierIds = canonicalAllowedLimbUsageModifierIds
+    .filter(
+      (modifierId) =>
+        EXERCISE_MODIFIER_BY_ID[modifierId]?.categoryId === "execution-style",
+    );
+  const allowedLimbUsageModifierIds = canonicalAllowedLimbUsageModifierIds
+    .filter(
+      (modifierId) =>
+        EXERCISE_MODIFIER_BY_ID[modifierId]?.categoryId === "limb-usage",
+    );
+  const allowsExecutionStyle = executionStyleCoreMovementIds.has(
+    input.coreMovementId,
+  );
+  const activeExecutionStyleModifierIds = compactUnique([
+    ...inheritedExecutionStyleModifierIds,
+    ...(input.allowedExecutionStyleModifierIds || []),
+  ]).filter((modifierId) => allExecutionStyleModifierIds.includes(modifierId));
   const normalizedInput = {
     ...input,
+    allowedLimbUsageModifierIds,
+    allowedExecutionStyleModifierIds: allowsExecutionStyle
+      ? activeExecutionStyleModifierIds
+      : [],
     allowedStabilityModifierIds: expandAllowedStabilityModifierIds(
       input.allowedStabilityModifierIds,
     ),
@@ -435,7 +512,12 @@ const defineRule = (input: RuleInput): MovementCompatibilityRule => {
     allowedAnglePositionModifierIds: compactUnique(
       input.allowedAnglePositionModifierIds,
     ),
-    allowedLimbUsageModifierIds: compactUnique(input.allowedLimbUsageModifierIds),
+    allowedLimbUsageModifierIds: compactUnique(
+      normalizedInput.allowedLimbUsageModifierIds,
+    ),
+    allowedExecutionStyleModifierIds: compactUnique(
+      normalizedInput.allowedExecutionStyleModifierIds || [],
+    ),
     allowedDirectionModifierIds: compactUnique(
       input.allowedDirectionModifierIds || allDirectionModifierIds,
     ),
@@ -716,6 +798,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
       limb.bilateral,
       limb.unilateral,
       limb.staggered,
+      limb.kickstand,
       limb.offset,
       limb.singleLeg,
     ],
@@ -754,8 +837,11 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     allowedLimbUsageModifierIds: [
       limb.unilateral,
       limb.alternating,
-      limb.staggered,
       limb.offset,
+    ],
+    allowedExecutionStyleModifierIds: [
+      execution.unilateral,
+      execution.alternating,
     ],
     allowedStabilityModifierIds: [
       stability.stable,
@@ -1334,6 +1420,15 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [angle.standing],
     allowedLimbUsageModifierIds: [limb.unilateral, limb.alternating],
+    allowedExecutionStyleModifierIds: [
+      execution.unilateral,
+      execution.alternating,
+    ],
+    allowedDirectionModifierIds: [
+      direction.forward,
+      direction.lateral,
+      direction.crossover,
+    ],
     allowedStabilityModifierIds: [
       stability.stable,
       stability.singleLeg,
@@ -1646,25 +1741,75 @@ const canonicalizeModifierId = (
   modifierId: ExerciseModifierId,
 ): ExerciseModifierId | null => {
   if (modifierId === "apparatus:suspension") return "apparatus:trx";
-  if (modifierId === "apparatus:stability-ball") return "stability:swiss-ball";
+  if (modifierId === "apparatus:stability-ball") return null;
   if (modifierId === ("stability:stable" as ExerciseModifierId)) {
     return null;
   }
   if (modifierId === ("stability:single-leg" as ExerciseModifierId)) {
     return "limb-usage:single-leg";
   }
+  if (modifierId === "limb-usage:bilateral") {
+    return null;
+  }
+  if (modifierId === "limb-usage:unilateral") {
+    return "execution-style:unilateral";
+  }
+  if (modifierId === "limb-usage:alternating") {
+    return "execution-style:alternating";
+  }
+  if (modifierId === "limb-usage:single-arm") {
+    return "execution-style:unilateral";
+  }
+  if (modifierId === "limb-usage:single-leg") {
+    return "limb-usage:single-leg";
+  }
+  if (modifierId === "limb-usage:offset") {
+    return null;
+  }
   if (modifierId === "limb-usage:sumo-stance") {
     return "limb-usage:wide-stance";
   }
+  if (modifierId === ("execution-style:bilateral" as ExerciseModifierId)) {
+    return null;
+  }
+  if (modifierId === ("execution-style:contralateral" as ExerciseModifierId)) {
+    return "assistance-resistance:contralateral";
+  }
+  if (modifierId === ("execution-style:ipsilateral" as ExerciseModifierId)) {
+    return "assistance-resistance:ipsilateral";
+  }
+  if (modifierId === ("execution-style:single-arm" as ExerciseModifierId)) {
+    return null;
+  }
+  if (modifierId === ("execution-style:single-leg" as ExerciseModifierId)) {
+    return "limb-usage:single-leg";
+  }
+  if (modifierId === ("execution-style:offset" as ExerciseModifierId)) {
+    return null;
+  }
   if (modifierId === ("stability:chaotic" as ExerciseModifierId)) {
     return "assistance-resistance:chaotic";
+  }
+  if (
+    modifierId !== "stability:bosu" &&
+    EXERCISE_MODIFIER_BY_ID[modifierId]?.categoryId === "stability"
+  ) {
+    return null;
+  }
+  if (modifierId === ("assistance-resistance:band-assisted" as ExerciseModifierId)) {
+    return "assistance-resistance:assisted";
   }
   if (modifierId === ("assistance-resistance:weighted" as ExerciseModifierId)) {
     return null;
   }
   if (
-    modifierId === ("assistance-resistance:accommodating-resistance" as ExerciseModifierId) ||
-    modifierId === ("assistance-resistance:deloaded" as ExerciseModifierId)
+    modifierId === ("assistance-resistance:accommodating-resistance" as ExerciseModifierId)
+  ) {
+    return "assistance-resistance:variable-resistance";
+  }
+  if (
+    modifierId === ("assistance-resistance:deloaded" as ExerciseModifierId) ||
+    modifierId === ("assistance-resistance:partner-assisted" as ExerciseModifierId)
   ) {
     return null;
   }
@@ -1691,6 +1836,10 @@ const canonicalizeModifierIdForMovement = (
     canonicalModifierId === angle.supine
   ) {
     return angle.floor;
+  }
+
+  if (coreMovementId === "lunge" && canonicalModifierId === limb.staggered) {
+    return limb.standard;
   }
 
   return canonicalModifierId;
@@ -1769,6 +1918,10 @@ const mergeFinalizedCompatibilityRule = (
       ...(existingRule?.allowedLimbUsageModifierIds || []),
       ...getModifierIdsByCategory(modifierIds, "limb-usage"),
     ]),
+    allowedExecutionStyleModifierIds: compactUnique([
+      ...(existingRule?.allowedExecutionStyleModifierIds || []),
+      ...getModifierIdsByCategory(modifierIds, "execution-style"),
+    ]),
     allowedDirectionModifierIds: compactUnique([
       ...(existingRule?.allowedDirectionModifierIds || []),
       ...getModifierIdsByCategory(modifierIds, "direction"),
@@ -1784,6 +1937,9 @@ const mergeFinalizedCompatibilityRule = (
     allowedAssistanceResistanceModifierIds: compactUnique([
       ...(existingRule?.allowedAssistanceResistanceModifierIds || []),
       ...getModifierIdsByCategory(modifierIds, "assistance-resistance"),
+      ...(sideRelationshipResistanceCoreIds.has(card.coreMovementId)
+        ? [assistance.contralateral, assistance.ipsilateral]
+        : []),
     ]),
     allowedRangeOfMotionModifierIds: compactUnique([
       ...(existingRule?.allowedRangeOfMotionModifierIds || []),
@@ -1810,6 +1966,7 @@ const getModifierIdsForRule = (rule: MovementCompatibilityRule) =>
     ...rule.allowedApparatusIds.map(apparatusModifierId),
     ...rule.allowedAnglePositionModifierIds,
     ...rule.allowedLimbUsageModifierIds,
+    ...rule.allowedExecutionStyleModifierIds,
     ...rule.allowedDirectionModifierIds,
     ...rule.allowedStabilityModifierIds,
     ...rule.allowedTempoModifierIds,
@@ -1851,6 +2008,9 @@ const getAllowedIdsForModifierCategory = (
   }
   if (categoryId === "angle-position") return rule.allowedAnglePositionModifierIds;
   if (categoryId === "limb-usage") return rule.allowedLimbUsageModifierIds;
+  if (categoryId === "execution-style") {
+    return rule.allowedExecutionStyleModifierIds;
+  }
   if (categoryId === "direction") return rule.allowedDirectionModifierIds;
   if (categoryId === "stability") return rule.allowedStabilityModifierIds;
   if (categoryId === "tempo") return rule.allowedTempoModifierIds;
