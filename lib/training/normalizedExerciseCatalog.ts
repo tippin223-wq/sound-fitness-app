@@ -189,6 +189,12 @@ const getModifierCategoryLabel = (categoryId: ExerciseModifierCategoryId) =>
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
 
+const getModifierSearchTokens = (modifierId: ExerciseModifierId) => {
+  const modifier = EXERCISE_MODIFIER_BY_ID[modifierId];
+
+  return modifier ? [modifier.label, ...(modifier.aliases || [])] : [modifierId];
+};
+
 const groupModifierIdsByCategory = (modifierIds: ExerciseModifierId[]) =>
   modifierIds.reduce<
     Partial<Record<ExerciseModifierCategoryId, ExerciseModifierId[]>>
@@ -262,7 +268,10 @@ const getFilterApparatusIdsForItem = (
     ...(item.apparatus ? [item.apparatus] : []),
     ...getApparatusIdsFromModifierIds(item.modifierIds),
     ...item.semanticVariations.flatMap((variation) =>
-      getApparatusIdsFromModifierIds(variation.modifierIds),
+      getApparatusIdsFromModifierIds([
+        ...variation.modifierIds,
+        ...variation.allowedApparatusIds,
+      ]),
     ),
   ]);
 
@@ -364,14 +373,11 @@ const createCoreMovementPatternItem = (
       ...semanticVariationNames,
       ...semanticVariations.flatMap((variation) => [
         ...variation.aliases,
-        ...variation.modifierIds.map(
-          (modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId]?.label || modifierId,
-        ),
+        ...variation.modifierIds.flatMap(getModifierSearchTokens),
+        ...variation.allowedApparatusIds.flatMap(getModifierSearchTokens),
       ]),
       ...definition.aliases,
-      ...modifierIds.map(
-        (modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId]?.label || modifierId,
-      ),
+      ...modifierIds.flatMap(getModifierSearchTokens),
       definition.integrated ? "integrated" : "",
     ]),
     notes: mapping.notes,
@@ -413,9 +419,7 @@ const createNormalizedItem = (
   const coreMovement = CORE_MOVEMENT_BY_ID[mapping.coreMovementId];
   const movementPattern = MOVEMENT_PATTERN_BY_ID[mapping.movementPatternId];
   const modifiersByCategory = groupModifierIdsByCategory(modifierIds);
-  const modifierLabels = modifierIds
-    .map((modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId]?.label || modifierId)
-    .filter(Boolean);
+  const modifierLabels = modifierIds.flatMap(getModifierSearchTokens);
 
   return {
     id: getNormalizedCatalogId(legacyExercise, mapping),

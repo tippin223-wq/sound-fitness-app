@@ -95,6 +95,7 @@ export type ModifierCategoryId =
   | "rom"
   | "tempo"
   | "stability"
+  | "assistanceResistance"
   | "athleticIntent"
   | "movementIntent";
 

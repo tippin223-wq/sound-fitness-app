@@ -63,6 +63,21 @@ const queryExpansions: Record<string, string[]> = {
   suspension: ["trx", "suspension trainer", "suspension training"],
   "suspension trainer": ["trx", "suspension training"],
   "suspension training": ["trx", "suspension trainer"],
+  sliders: [
+    "slider",
+    "glider",
+    "gliders",
+    "furniture slider",
+    "furniture sliders",
+    "slider hamstring curl",
+    "slider reverse lunge",
+    "slider body saw",
+  ],
+  slider: ["sliders", "glider", "gliders", "slider reverse lunge", "slider body saw"],
+  glider: ["sliders", "slider", "gliders", "furniture sliders"],
+  gliders: ["sliders", "slider", "glider", "furniture sliders"],
+  "furniture slider": ["sliders", "slider", "gliders"],
+  "furniture sliders": ["sliders", "slider", "gliders"],
 };
 
 export const normalizeSemanticText = (value: string) =>
@@ -94,9 +109,13 @@ export const buildSemanticTokensForVariation = (
     ...getAllPatternIds(variation).map(
       (patternId) => MOVEMENT_PATTERN_BY_ID[patternId]?.label || patternId,
     ),
-    ...getAllModifierIds(variation).map(
-      (modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId]?.label || modifierId,
-    ),
+    ...getAllModifierIds(variation).flatMap((modifierId) => {
+      const modifier = EXERCISE_MODIFIER_BY_ID[modifierId];
+
+      return modifier
+        ? [modifier.label, ...(modifier.aliases || [])]
+        : [modifierId];
+    }),
     ...variation.primaryMuscles,
     ...(variation.secondaryMuscles || []),
     ...(variation.semanticTags || []),

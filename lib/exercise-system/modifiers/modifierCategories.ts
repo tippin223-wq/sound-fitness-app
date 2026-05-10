@@ -86,6 +86,13 @@ export const MODIFIER_CATEGORIES = [
     displayOrder: 110,
   },
   {
+    id: "assistanceResistance",
+    label: "Assistance / Resistance",
+    description: "Extra help, load, or resistance profile.",
+    selectionMode: "multi",
+    displayOrder: 115,
+  },
+  {
     id: "athleticIntent",
     label: "Athletic Intent",
     description: "Power, plyometric, ballistic, sprint, throw, or carry emphasis.",
@@ -139,10 +146,11 @@ export const EXERCISE_MODIFIERS = [
   modifier("equipment", "trx", "TRX", 150, {
     aliases: ["suspension trainer", "suspension training", "suspension"],
   }),
-  modifier("equipment", "suspension", "TRX", 151, {
-    aliases: ["trx", "suspension trainer", "suspension training"],
+  modifier("equipment", "sliders", "Sliders", 160, {
+    shortLabel: "Slider",
+    aliases: ["slider", "glider", "gliders", "furniture slider", "furniture sliders"],
   }),
-  modifier("equipment", "ab-wheel", "Ab Wheel", 160),
+  modifier("equipment", "ab-wheel", "Ab Wheel", 170),
 
   modifier("grip", "close", "Close Grip", 10),
   modifier("grip", "neutral", "Neutral Grip", 20),
@@ -152,11 +160,20 @@ export const EXERCISE_MODIFIERS = [
 
   modifier("stance", "bilateral", "Bilateral", 10),
   modifier("stance", "unilateral", "Unilateral", 20),
-  modifier("stance", "alternating", "Alternating", 30),
-  modifier("stance", "split-stance", "Split Stance", 40),
-  modifier("stance", "staggered", "Staggered", 50),
+  modifier("stance", "single-leg", "Single Leg", 30, {
+    aliases: ["single leg", "one leg"],
+  }),
+  modifier("stance", "narrow", "Narrow Stance", 40, {
+    aliases: ["narrow", "narrow stance"],
+  }),
+  modifier("stance", "alternating", "Alternating", 50),
+  modifier("stance", "split-stance", "Split Stance", 60),
+  modifier("stance", "staggered", "Staggered", 70),
+  modifier("stance", "frog-stance", "Frog Stance", 80, {
+    aliases: ["frog stance", "frog position"],
+  }),
 
-  modifier("loadPosition", "goblet", "Goblet Load", 10),
+  modifier("loadPosition", "goblet", "Goblet", 10),
   modifier("loadPosition", "front-loaded", "Front Loaded", 20),
   modifier("loadPosition", "back-loaded", "Back Loaded", 30),
   modifier("loadPosition", "offset-load", "Offset Load", 40),
@@ -175,6 +192,7 @@ export const EXERCISE_MODIFIERS = [
   modifier("bodyPosition", "seated", "Seated", 90),
   modifier("bodyPosition", "half-kneeling", "Half-Kneeling", 100),
   modifier("bodyPosition", "rear-foot-elevated", "Rear Foot Elevated", 110),
+  modifier("bodyPosition", "supine", "Supine", 120),
 
   modifier("structure", "integrated", "Integrated", 10),
   modifier("structure", "floor-transfer", "Floor Transfer", 20),
@@ -183,24 +201,74 @@ export const EXERCISE_MODIFIERS = [
   modifier("direction", "rotational", "Rotational", 10),
   modifier("direction", "horizontal", "Horizontal", 20),
   modifier("direction", "vertical", "Vertical", 30),
+  modifier("direction", "reverse", "Reverse", 40),
+  modifier("direction", "forward", "Forward", 50),
+  modifier("direction", "walking", "Walking", 60),
+  modifier("direction", "lateral", "Lateral", 70),
+  modifier("direction", "crossover", "Crossover", 80),
 
   modifier("angle", "flat", "Flat", 10),
   modifier("angle", "incline", "Incline", 20),
   modifier("angle", "decline", "Decline", 30),
 
-  modifier("rom", "full", "Full ROM", 10),
-  modifier("rom", "partial", "Partial ROM", 20),
-  modifier("rom", "deficit", "Deficit", 30),
-  modifier("rom", "dead-stop", "Dead Stop", 40),
+  modifier("rom", "full", "Full ROM", 10, {
+    aliases: ["extended rom", "complete range"],
+    includeInGeneratedName: false,
+  }),
+  modifier("rom", "shortened-partial", "Shortened Partial", 30, {
+    aliases: [
+      "partial rom",
+      "partial range",
+      "top-half",
+      "top half",
+      "lockout partial",
+      "partial near lockout",
+      "shortened bias",
+    ],
+    semanticTags: ["partial reps near lockout", "top range partial"],
+  }),
+  modifier("rom", "lengthened-partial", "Lengthened Partial", 40, {
+    aliases: [
+      "partial rom",
+      "partial range",
+      "bottom-half",
+      "bottom half",
+      "stretch partial",
+      "stretched partial",
+      "partial near stretch",
+      "lengthened bias",
+    ],
+    semanticTags: ["partial reps near stretch", "bottom range partial"],
+  }),
+  modifier("rom", "deficit", "Deficit", 50, {
+    aliases: ["extended rom", "extended range"],
+  }),
+  modifier("rom", "dead-stop", "Dead Stop", 60),
+  modifier("rom", "rom-limiter", "ROM Limiter", 70, {
+    aliases: [
+      "box rom",
+      "box rom modifier",
+      "limited rom",
+      "limited range",
+      "range limiter",
+      "pins",
+      "pin press",
+      "blocks",
+      "block pull",
+      "boards",
+      "board press",
+      "rack pull",
+      "safety bars",
+      "depth limiter",
+    ],
+    semanticTags: ["external range constraint", "limited range of motion"],
+  }),
 
   modifier("tempo", "slow-eccentric", "Slow Eccentric", 10),
   modifier("tempo", "explosive", "Explosive", 20),
   modifier("tempo", "paused", "Paused", 30),
   modifier("tempo", "isometric", "Isometric", 40),
 
-  modifier("stability", "stable", "Stable", 10, {
-    includeInGeneratedName: false,
-  }),
   modifier("stability", "unstable", "Unstable", 20),
   modifier("stability", "bosu", "BOSU", 30, {
     aliases: ["bosu ball"],
@@ -209,7 +277,30 @@ export const EXERCISE_MODIFIERS = [
   modifier("stability", "stability-ball", "Stability Ball", 40),
   modifier("stability", "stability-pad", "Stability Pad", 50),
   modifier("stability", "reactive-surface", "Reactive Surface", 60),
-  modifier("stability", "shoulder-stability", "Shoulder Stability", 70),
+  modifier("stability", "balance", "Balance", 70, {
+    aliases: ["balance-focused", "balance focused"],
+  }),
+  modifier("stability", "offset-stability", "Offset Stability", 80),
+  modifier("stability", "dynamic-stability", "Dynamic Stability", 90),
+  modifier("stability", "shoulder-stability", "Shoulder Stability", 100),
+
+  modifier("assistanceResistance", "assisted", "Assisted", 10),
+  modifier("assistanceResistance", "chaotic", "Chaotic", 40, {
+    aliases: [
+      "chaos",
+      "chaotic load",
+      "oscillating load",
+      "hanging plates",
+      "hanging kettlebells",
+      "band-suspended weight",
+      "earthquake bar",
+    ],
+    semanticTags: ["load instability", "oscillating load"],
+  }),
+  modifier("assistanceResistance", "chains", "Chains", 50, {
+    aliases: ["chain", "chains", "chain loaded", "chain resistance"],
+    semanticTags: ["accommodating resistance", "variable resistance"],
+  }),
 
   modifier("athleticIntent", "plyometric", "Plyometric", 10),
   modifier("athleticIntent", "ballistic", "Ballistic", 20),

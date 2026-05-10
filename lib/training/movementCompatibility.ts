@@ -14,6 +14,10 @@ import {
   CORE_MOVEMENT_BY_ID,
   EXERCISE_MODIFIER_BY_ID,
 } from "./movementTaxonomy";
+import {
+  CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS,
+  getCoreMovementPatternSemanticVariations,
+} from "./coreMovementPatternCards";
 
 export type MovementCompatibilityContext = {
   id: string;
@@ -109,6 +113,11 @@ const allApparatusIds = APPARATUS_MODIFIERS.map(
 
 const compactUnique = <T,>(items: T[]) => Array.from(new Set(items));
 
+const hipThrustBridgeCompatibilityCoreIds = new Set<CoreMovementId>([
+  "hip-thrust-bridge",
+  "hip-thrust-glute-bridge",
+]);
+
 const apparatusModifierId = (apparatusId: ApparatusId) =>
   `apparatus:${apparatusId}` as ExerciseModifierId;
 
@@ -127,8 +136,10 @@ const angle = {
   floor: "angle-position:floor",
   handsElevated: "angle-position:hands-elevated",
   feetElevated: "angle-position:feet-elevated",
+  frogStance: "angle-position:frog-stance",
   seated: "angle-position:seated",
   standing: "angle-position:standing",
+  kneeling: "angle-position:kneeling",
   halfKneeling: "angle-position:half-kneeling",
   splitStance: "angle-position:split-stance",
   tallKneeling: "angle-position:tall-kneeling",
@@ -137,11 +148,14 @@ const angle = {
   sideLying: "angle-position:side-lying",
   bentOver: "angle-position:bent-over",
   chestSupported: "angle-position:chest-supported",
+  benchSupported: "angle-position:bench-supported",
   plank: "angle-position:plank",
   goblet: "angle-position:goblet",
   frontLoaded: "angle-position:front-loaded",
   backLoaded: "angle-position:back-loaded",
   overhead: "angle-position:overhead",
+  ninetyNinety: "angle-position:90-90",
+  hanging: "angle-position:hanging",
 } as const satisfies Record<string, ExerciseModifierId>;
 
 const limb = {
@@ -151,6 +165,7 @@ const limb = {
   staggered: "limb-usage:staggered",
   offset: "limb-usage:offset",
   standard: "limb-usage:standard-stance",
+  narrow: "limb-usage:narrow-stance",
   conventional: "limb-usage:conventional-stance",
   sumo: "limb-usage:sumo-stance",
   wide: "limb-usage:wide-stance",
@@ -164,13 +179,17 @@ const limb = {
 } as const satisfies Record<string, ExerciseModifierId>;
 
 const stability = {
-  stable: "stability:stable",
+  stable: "stability:stable" as ExerciseModifierId,
   unstable: "stability:unstable",
   swissBall: "stability:swiss-ball",
   bosu: "stability:bosu",
   suspension: "stability:suspension",
-  singleLeg: "stability:single-leg",
+  singleLeg: "stability:single-leg" as ExerciseModifierId,
   balanceFocused: "stability:balance-focused",
+  offsetStability: "stability:offset-stability",
+  stabilityPad: "stability:stability-pad",
+  reactiveSurface: "stability:reactive-surface",
+  dynamicStability: "stability:dynamic-stability",
 } as const satisfies Record<string, ExerciseModifierId>;
 
 const tempo = {
@@ -185,19 +204,20 @@ const tempo = {
 const assistance = {
   assisted: "assistance-resistance:assisted",
   bandAssisted: "assistance-resistance:band-assisted",
-  weighted: "assistance-resistance:weighted",
-  accommodating: "assistance-resistance:accommodating-resistance",
-  deloaded: "assistance-resistance:deloaded",
+  accommodating: "assistance-resistance:accommodating-resistance" as ExerciseModifierId,
+  chaotic: "assistance-resistance:chaotic",
+  chains: "assistance-resistance:chains",
+  deloaded: "assistance-resistance:deloaded" as ExerciseModifierId,
   partnerAssisted: "assistance-resistance:partner-assisted",
 } as const satisfies Record<string, ExerciseModifierId>;
 
 const rom = {
   full: "range-of-motion:full-rom",
-  partial: "range-of-motion:partial-rom",
+  shortenedPartial: "range-of-motion:shortened-partial",
+  lengthenedPartial: "range-of-motion:lengthened-partial",
   deficit: "range-of-motion:deficit",
   deadStop: "range-of-motion:dead-stop",
-  pinPress: "range-of-motion:pin-press",
-  extended: "range-of-motion:extended-rom",
+  romLimiter: "range-of-motion:rom-limiter",
 } as const satisfies Record<string, ExerciseModifierId>;
 
 const load = {
@@ -234,19 +254,22 @@ const accessoryLoad = [
   load.ascending,
   load.descending,
 ];
-const fullPartialRom = [rom.full, rom.partial];
-const pressRom = [rom.full, rom.partial, rom.deadStop, rom.pinPress];
-const lowerRom = [rom.full, rom.partial, rom.deficit, rom.extended];
+const partialRom = [rom.shortenedPartial, rom.lengthenedPartial];
+const fullPartialRom = [rom.full, ...partialRom];
+const pressRom = [rom.full, ...partialRom, rom.deadStop, rom.romLimiter];
+const lowerRom = [rom.full, ...partialRom, rom.deficit, rom.romLimiter];
 const commonResistance = [
-  assistance.weighted,
-  assistance.accommodating,
-  assistance.deloaded,
+  assistance.chains,
+  assistance.chaotic,
+  assistance.assisted,
+  assistance.bandAssisted,
 ];
 const freeWeightResistance = [
-  assistance.weighted,
-  assistance.accommodating,
-  assistance.deloaded,
+  assistance.chaotic,
+  assistance.chains,
   assistance.partnerAssisted,
+  assistance.assisted,
+  assistance.bandAssisted,
 ];
 
 const benchContext = {
@@ -322,7 +345,70 @@ const isModifierAllowedByInput = (
   return false;
 };
 
+const expandAllowedStabilityModifierIds = (
+  modifierIds: ExerciseModifierId[],
+) => {
+  const ids = compactUnique(modifierIds).filter(
+    (modifierId) =>
+      modifierId !== stability.stable && modifierId !== stability.singleLeg,
+  );
+  const allowsInstability = [
+    stability.unstable,
+    stability.bosu,
+    stability.balanceFocused,
+    stability.offsetStability,
+    stability.reactiveSurface,
+    stability.dynamicStability,
+  ].some((modifierId) => ids.includes(modifierId));
+
+  return compactUnique([
+    ...ids,
+    ...(allowsInstability ? [stability.bosu] : []),
+  ]);
+};
+
+const expandAllowedAssistanceResistanceModifierIds = (
+  modifierIds: ExerciseModifierId[],
+) => {
+  const ids = compactUnique(modifierIds).filter(
+    (modifierId) =>
+      modifierId !== assistance.accommodating &&
+      modifierId !== assistance.deloaded,
+  );
+  const allowsLoadedResistance =
+    ids.includes(assistance.chains) ||
+    ids.includes(assistance.chaotic);
+
+  return compactUnique([
+    ...ids,
+    ...(allowsLoadedResistance ? [assistance.chaotic, assistance.chains] : []),
+  ]);
+};
+
+const expandAllowedRangeOfMotionModifierIds = (
+  modifierIds: ExerciseModifierId[],
+) => {
+  const ids = compactUnique(modifierIds);
+
+  return compactUnique([
+    ...ids,
+  ]);
+};
+
 const defineRule = (input: RuleInput): MovementCompatibilityRule => {
+  const normalizedInput = {
+    ...input,
+    allowedStabilityModifierIds: expandAllowedStabilityModifierIds(
+      input.allowedStabilityModifierIds,
+    ),
+    allowedAssistanceResistanceModifierIds:
+      expandAllowedAssistanceResistanceModifierIds(
+        input.allowedAssistanceResistanceModifierIds,
+      ),
+    allowedRangeOfMotionModifierIds: expandAllowedRangeOfMotionModifierIds(
+      input.allowedRangeOfMotionModifierIds,
+    ),
+  };
   const allowedApparatusIds = compactUnique(input.allowedApparatusIds);
   const explicitForbiddenApparatusIds = input.forbiddenApparatusIds || [];
   const forbiddenApparatusIds = compactUnique([
@@ -335,7 +421,7 @@ const defineRule = (input: RuleInput): MovementCompatibilityRule => {
   const explicitForbiddenModifierIds = input.forbiddenModifierIds || [];
   const forbiddenModifierIds = compactUnique([
     ...ALL_EXERCISE_MODIFIERS.filter(
-      (modifier) => !isModifierAllowedByInput(input, modifier),
+      (modifier) => !isModifierAllowedByInput(normalizedInput, modifier),
     ).map((modifier) => modifier.id),
     ...forbiddenApparatusIds.map(apparatusModifierId),
     ...explicitForbiddenModifierIds,
@@ -353,14 +439,13 @@ const defineRule = (input: RuleInput): MovementCompatibilityRule => {
     allowedDirectionModifierIds: compactUnique(
       input.allowedDirectionModifierIds || allDirectionModifierIds,
     ),
-    allowedStabilityModifierIds: compactUnique(input.allowedStabilityModifierIds),
+    allowedStabilityModifierIds:
+      normalizedInput.allowedStabilityModifierIds,
     allowedTempoModifierIds: compactUnique(input.allowedTempoModifierIds),
-    allowedAssistanceResistanceModifierIds: compactUnique(
-      input.allowedAssistanceResistanceModifierIds,
-    ),
-    allowedRangeOfMotionModifierIds: compactUnique(
-      input.allowedRangeOfMotionModifierIds,
-    ),
+    allowedAssistanceResistanceModifierIds:
+      normalizedInput.allowedAssistanceResistanceModifierIds,
+    allowedRangeOfMotionModifierIds:
+      normalizedInput.allowedRangeOfMotionModifierIds,
     allowedLoadBehaviorModifierIds: compactUnique(
       input.allowedLoadBehaviorModifierIds,
     ),
@@ -403,12 +488,14 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
       angle.feetElevated,
       angle.seated,
       angle.standing,
+      angle.kneeling,
       angle.halfKneeling,
       angle.tallKneeling,
       angle.supine,
     ],
     allowedLimbUsageModifierIds: [
       limb.standard,
+      limb.narrow,
       limb.bilateral,
       limb.unilateral,
       limb.alternating,
@@ -623,6 +710,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     allowedAnglePositionModifierIds: [angle.standing, angle.splitStance],
     allowedLimbUsageModifierIds: [
       limb.conventional,
+      limb.narrow,
       limb.sumo,
       limb.wide,
       limb.bilateral,
@@ -640,10 +728,9 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     allowedAssistanceResistanceModifierIds: commonResistance,
     allowedRangeOfMotionModifierIds: [
       rom.full,
-      rom.partial,
+      ...partialRom,
       rom.deficit,
       rom.deadStop,
-      rom.extended,
     ],
     allowedLoadBehaviorModifierIds: [...strengthLoad, load.ascending, load.ballistic],
     requiredContext: [],
@@ -758,10 +845,9 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     allowedAssistanceResistanceModifierIds: [
       assistance.assisted,
       assistance.bandAssisted,
-      assistance.weighted,
       assistance.deloaded,
     ],
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial, rom.deadStop],
+    allowedRangeOfMotionModifierIds: [rom.full, ...partialRom, rom.deadStop],
     allowedLoadBehaviorModifierIds: [load.constant, load.grind],
     requiredContext: [overheadContext],
     notes: ["Suspension pulling is currently modeled as row, not pull-up."],
@@ -787,7 +873,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     ],
     allowedStabilityModifierIds: [stability.stable, stability.balanceFocused],
     allowedTempoModifierIds: [tempo.isometric, tempo.controlled],
-    allowedAssistanceResistanceModifierIds: [assistance.weighted],
+    allowedAssistanceResistanceModifierIds: commonResistance,
     allowedRangeOfMotionModifierIds: empty,
     allowedLoadBehaviorModifierIds: [load.carry, load.constant],
     requiredContext: [sledContext],
@@ -893,7 +979,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
       assistance.bandAssisted,
       assistance.deloaded,
     ],
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial, rom.extended],
+    allowedRangeOfMotionModifierIds: fullPartialRom,
     allowedLoadBehaviorModifierIds: [load.skill, load.constant],
     requiredContext: [anchorContext],
     notes: ["Loaded anti-extension and rollout work should stay here for now."],
@@ -936,23 +1022,52 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   "hip-thrust-glute-bridge": defineRule({
     coreMovementId: "hip-thrust-glute-bridge",
     allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "cable",
-      "machine",
       "bodyweight",
-      "band",
+      "barbell",
+      "dumbbell",
+      "kettlebell",
       "smith-machine",
+      "machine",
+      "band",
+      "cable",
       "bench",
     ],
     allowedMovementPatternIds: ["hip-extension", "hinge"],
     allowedModifierCategoryIds: baseCategories,
-    allowedAnglePositionModifierIds: [angle.supine, angle.seated],
-    allowedLimbUsageModifierIds: [limb.bilateral, limb.unilateral, limb.alternating],
-    allowedStabilityModifierIds: [stability.stable, stability.singleLeg],
+    allowedAnglePositionModifierIds: [
+      angle.floor,
+      angle.feetElevated,
+      angle.frogStance,
+      angle.seated,
+      angle.standing,
+      angle.kneeling,
+      angle.halfKneeling,
+      angle.splitStance,
+      angle.benchSupported,
+      angle.backLoaded,
+    ],
+    allowedLimbUsageModifierIds: [
+      limb.bilateral,
+      limb.unilateral,
+      limb.alternating,
+      limb.standard,
+      limb.narrow,
+      limb.wide,
+      limb.singleLeg,
+    ],
+    allowedStabilityModifierIds: [
+      stability.stable,
+      stability.singleLeg,
+      stability.bosu,
+      stability.swissBall,
+      stability.stabilityPad,
+      stability.balanceFocused,
+      stability.offsetStability,
+      stability.dynamicStability,
+    ],
     allowedTempoModifierIds: controlledTempo,
     allowedAssistanceResistanceModifierIds: commonResistance,
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial, rom.extended],
+    allowedRangeOfMotionModifierIds: fullPartialRom,
     allowedLoadBehaviorModifierIds: [load.constant, load.ascending, load.variable],
     requiredContext: [benchContext],
     notes: ["Kickback-style hip extension may need its own accessory subfamily later."],
@@ -979,7 +1094,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     ],
     allowedTempoModifierIds: controlledTempo,
     allowedAssistanceResistanceModifierIds: commonResistance,
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial, rom.deficit],
+    allowedRangeOfMotionModifierIds: [rom.full, ...partialRom, rom.deficit],
     allowedLoadBehaviorModifierIds: [load.constant, load.variable],
     requiredContext: [benchContext],
     notes: ["Deficit calf raises require an explicit stable step or platform context."],
@@ -1226,7 +1341,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     ],
     allowedTempoModifierIds: controlledTempo,
     allowedAssistanceResistanceModifierIds: commonResistance,
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial, rom.deficit],
+    allowedRangeOfMotionModifierIds: [rom.full, ...partialRom, rom.deficit],
     allowedLoadBehaviorModifierIds: [load.constant, load.variable],
     requiredContext: [landingContext],
     notes: ["Box height is required prescription context but not modeled as a modifier yet."],
@@ -1245,7 +1360,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     ],
     allowedTempoModifierIds: controlledTempo,
     allowedAssistanceResistanceModifierIds: [assistance.deloaded],
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial, rom.deficit],
+    allowedRangeOfMotionModifierIds: [rom.full, ...partialRom, rom.deficit],
     allowedLoadBehaviorModifierIds: [load.constant],
     requiredContext: [landingContext],
     notes: ["Eccentric-control prescription should be captured in tempo."],
@@ -1288,7 +1403,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     allowedStabilityModifierIds: [stability.stable],
     allowedTempoModifierIds: [tempo.explosive],
     allowedAssistanceResistanceModifierIds: [assistance.deloaded],
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial, rom.deficit],
+    allowedRangeOfMotionModifierIds: [rom.full, ...partialRom, rom.deficit],
     allowedLoadBehaviorModifierIds: [load.ballistic],
     requiredContext: [],
     notes: ["High-skill Olympic derivatives require coaching-level progression checks."],
@@ -1303,7 +1418,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     allowedStabilityModifierIds: [stability.stable],
     allowedTempoModifierIds: [tempo.explosive],
     allowedAssistanceResistanceModifierIds: [assistance.deloaded],
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial],
+    allowedRangeOfMotionModifierIds: fullPartialRom,
     allowedLoadBehaviorModifierIds: [load.ballistic],
     requiredContext: [overheadContext],
     notes: ["Catch variations are not modeled yet."],
@@ -1371,8 +1486,8 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
       stability.singleLeg,
     ],
     allowedTempoModifierIds: [tempo.isometric, tempo.controlled],
-    allowedAssistanceResistanceModifierIds: [assistance.weighted, assistance.deloaded],
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial],
+    allowedAssistanceResistanceModifierIds: [assistance.deloaded],
+    allowedRangeOfMotionModifierIds: fullPartialRom,
     allowedLoadBehaviorModifierIds: [load.skill],
     requiredContext: [overheadContext],
     notes: ["Reject machine and sled because the get-up is a floor-to-stand skill complex."],
@@ -1392,7 +1507,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     allowedStabilityModifierIds: [stability.stable, stability.balanceFocused],
     allowedTempoModifierIds: [tempo.controlled, tempo.slowEccentric],
     allowedAssistanceResistanceModifierIds: [assistance.deloaded],
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial],
+    allowedRangeOfMotionModifierIds: fullPartialRom,
     allowedLoadBehaviorModifierIds: [load.skill],
     requiredContext: [overheadContext],
     notes: ["Shoulder mobility readiness should be checked before loading."],
@@ -1454,7 +1569,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     ],
     allowedTempoModifierIds: [tempo.controlled, tempo.isometric],
     allowedAssistanceResistanceModifierIds: [assistance.assisted, assistance.deloaded],
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial, rom.extended],
+    allowedRangeOfMotionModifierIds: fullPartialRom,
     allowedLoadBehaviorModifierIds: [load.skill],
     requiredContext: [],
     notes: ["Mobility flows need region-specific tags before advanced recovery logic."],
@@ -1469,7 +1584,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     allowedStabilityModifierIds: [stability.stable, stability.balanceFocused],
     allowedTempoModifierIds: [tempo.explosive],
     allowedAssistanceResistanceModifierIds: empty,
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial],
+    allowedRangeOfMotionModifierIds: fullPartialRom,
     allowedLoadBehaviorModifierIds: [load.ballistic],
     requiredContext: [landingContext],
     notes: ["Reject seated or machine variants because jumps require free landing mechanics."],
@@ -1484,7 +1599,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     allowedStabilityModifierIds: [stability.stable],
     allowedTempoModifierIds: [tempo.explosive],
     allowedAssistanceResistanceModifierIds: empty,
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial],
+    allowedRangeOfMotionModifierIds: fullPartialRom,
     allowedLoadBehaviorModifierIds: [load.ballistic],
     requiredContext: [landingContext],
     notes: ["Throw direction and rebound context are not modeled yet."],
@@ -1499,7 +1614,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     allowedStabilityModifierIds: [stability.stable],
     allowedTempoModifierIds: [tempo.explosive, tempo.controlled],
     allowedAssistanceResistanceModifierIds: [assistance.deloaded],
-    allowedRangeOfMotionModifierIds: [rom.full, rom.partial],
+    allowedRangeOfMotionModifierIds: fullPartialRom,
     allowedLoadBehaviorModifierIds: [load.cyclical],
     requiredContext: [landingContext],
     notes: ["Burpees should eventually carry impact and fatigue tags."],
@@ -1513,13 +1628,182 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     allowedLimbUsageModifierIds: [limb.bilateral, limb.alternating],
     allowedStabilityModifierIds: [stability.stable],
     allowedTempoModifierIds: [tempo.explosive, tempo.controlled],
-    allowedAssistanceResistanceModifierIds: [assistance.weighted, assistance.deloaded],
+    allowedAssistanceResistanceModifierIds: [assistance.deloaded],
     allowedRangeOfMotionModifierIds: empty,
     allowedLoadBehaviorModifierIds: [load.cyclical, load.grind],
     requiredContext: [sledContext],
     notes: ["Push versus pull direction should become a modifier or prescription detail."],
   }),
 };
+
+const canonicalizeApparatusId = (apparatusId: ApparatusId): ApparatusId | null => {
+  if (apparatusId === "suspension") return "trx";
+  if (apparatusId === "stability-ball") return null;
+  return apparatusId;
+};
+
+const canonicalizeModifierId = (
+  modifierId: ExerciseModifierId,
+): ExerciseModifierId | null => {
+  if (modifierId === "apparatus:suspension") return "apparatus:trx";
+  if (modifierId === "apparatus:stability-ball") return "stability:swiss-ball";
+  if (modifierId === ("stability:stable" as ExerciseModifierId)) {
+    return null;
+  }
+  if (modifierId === ("stability:single-leg" as ExerciseModifierId)) {
+    return "limb-usage:single-leg";
+  }
+  if (modifierId === "limb-usage:sumo-stance") {
+    return "limb-usage:wide-stance";
+  }
+  if (modifierId === ("stability:chaotic" as ExerciseModifierId)) {
+    return "assistance-resistance:chaotic";
+  }
+  if (modifierId === ("assistance-resistance:weighted" as ExerciseModifierId)) {
+    return null;
+  }
+  if (
+    modifierId === ("assistance-resistance:accommodating-resistance" as ExerciseModifierId) ||
+    modifierId === ("assistance-resistance:deloaded" as ExerciseModifierId)
+  ) {
+    return null;
+  }
+  if (modifierId === ("range-of-motion:partial-rom" as ExerciseModifierId)) {
+    return "range-of-motion:shortened-partial";
+  }
+  if (modifierId === ("range-of-motion:extended-rom" as ExerciseModifierId)) {
+    return "range-of-motion:full-rom";
+  }
+  if (modifierId === ("range-of-motion:pin-press" as ExerciseModifierId)) {
+    return "range-of-motion:rom-limiter";
+  }
+  return modifierId;
+};
+
+const canonicalizeModifierIdForMovement = (
+  coreMovementId: CoreMovementId,
+  modifierId: ExerciseModifierId,
+) => {
+  const canonicalModifierId = canonicalizeModifierId(modifierId);
+
+  if (
+    hipThrustBridgeCompatibilityCoreIds.has(coreMovementId) &&
+    canonicalModifierId === angle.supine
+  ) {
+    return angle.floor;
+  }
+
+  return canonicalModifierId;
+};
+
+const canonicalizeModifierIds = (modifierIds: ExerciseModifierId[]) =>
+  compactUnique(
+    modifierIds
+      .map(canonicalizeModifierId)
+      .filter((modifierId): modifierId is ExerciseModifierId => Boolean(modifierId)),
+  );
+
+const getModifierIdsByCategory = (
+  modifierIds: ExerciseModifierId[],
+  categoryId: ExerciseModifierCategoryId,
+) =>
+  canonicalizeModifierIds(modifierIds).filter(
+    (modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId]?.categoryId === categoryId,
+  );
+
+const getApparatusIdsFromModifierIds = (modifierIds: ExerciseModifierId[]) =>
+  compactUnique(
+    canonicalizeModifierIds(modifierIds)
+      .map((modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId])
+      .filter((modifier) => modifier?.categoryId === "apparatus")
+      .map((modifier) => canonicalizeApparatusId(modifier.slug as ApparatusId))
+      .filter((apparatusId): apparatusId is ApparatusId => Boolean(apparatusId)),
+  );
+
+const canonicalizeApparatusIds = (apparatusIds: ApparatusId[] = []) =>
+  compactUnique(
+    apparatusIds
+      .map(canonicalizeApparatusId)
+      .filter((apparatusId): apparatusId is ApparatusId => Boolean(apparatusId)),
+  );
+
+const mergeFinalizedCompatibilityRule = (
+  card: (typeof CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS)[number],
+) => {
+  const existingRule = CORE_MOVEMENT_COMPATIBILITY_RULES[card.coreMovementId];
+  const semanticModifierIds = getCoreMovementPatternSemanticVariations(card.id)
+    .flatMap((variation) => [
+      ...variation.modifierIds,
+      ...variation.allowedApparatusIds,
+      ...variation.definingModifierIds,
+      ...variation.matchModifierSets.flat(),
+    ]);
+  const modifierIds = canonicalizeModifierIds([
+    ...card.modifierIds,
+    ...semanticModifierIds,
+  ]);
+  const coreMovement = CORE_MOVEMENT_BY_ID[card.coreMovementId];
+  const existingApparatusIds = canonicalizeApparatusIds(
+    existingRule?.allowedApparatusIds || [],
+  );
+
+  return defineRule({
+    coreMovementId: card.coreMovementId,
+    allowedApparatusIds: compactUnique([
+      ...existingApparatusIds,
+      ...getApparatusIdsFromModifierIds(modifierIds),
+    ]),
+    allowedMovementPatternIds: compactUnique(
+      [
+        ...(existingRule?.allowedMovementPatternIds || []),
+        card.movementPatternId,
+        coreMovement?.patternId,
+      ].filter((id): id is MovementPatternId => Boolean(id)),
+    ),
+    allowedModifierCategoryIds: baseCategories,
+    allowedAnglePositionModifierIds: compactUnique([
+      ...(existingRule?.allowedAnglePositionModifierIds || []),
+      ...getModifierIdsByCategory(modifierIds, "angle-position"),
+    ]),
+    allowedLimbUsageModifierIds: compactUnique([
+      ...(existingRule?.allowedLimbUsageModifierIds || []),
+      ...getModifierIdsByCategory(modifierIds, "limb-usage"),
+    ]),
+    allowedDirectionModifierIds: compactUnique([
+      ...(existingRule?.allowedDirectionModifierIds || []),
+      ...getModifierIdsByCategory(modifierIds, "direction"),
+    ]),
+    allowedStabilityModifierIds: compactUnique([
+      ...(existingRule?.allowedStabilityModifierIds || []),
+      ...getModifierIdsByCategory(modifierIds, "stability"),
+    ]),
+    allowedTempoModifierIds: compactUnique([
+      ...(existingRule?.allowedTempoModifierIds || []),
+      ...getModifierIdsByCategory(modifierIds, "tempo"),
+    ]),
+    allowedAssistanceResistanceModifierIds: compactUnique([
+      ...(existingRule?.allowedAssistanceResistanceModifierIds || []),
+      ...getModifierIdsByCategory(modifierIds, "assistance-resistance"),
+    ]),
+    allowedRangeOfMotionModifierIds: compactUnique([
+      ...(existingRule?.allowedRangeOfMotionModifierIds || []),
+      ...getModifierIdsByCategory(modifierIds, "range-of-motion"),
+    ]),
+    allowedLoadBehaviorModifierIds: compactUnique([
+      ...(existingRule?.allowedLoadBehaviorModifierIds || []),
+      ...getModifierIdsByCategory(modifierIds, "load-behavior"),
+    ]),
+    requiredContext: existingRule?.requiredContext || [],
+    notes: existingRule?.notes || [
+      "Generated from finalized core movement semantic variation definitions.",
+    ],
+  });
+};
+
+CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS.forEach((card) => {
+  CORE_MOVEMENT_COMPATIBILITY_RULES[card.coreMovementId] =
+    mergeFinalizedCompatibilityRule(card);
+});
 
 const getModifierIdsForRule = (rule: MovementCompatibilityRule) =>
   compactUnique([
@@ -1544,13 +1828,17 @@ const getSelectedApparatusIds = (
   input: ExerciseVariationValidationInput,
 ): ApparatusId[] => {
   const apparatusFromModifiers = (input.modifierIds || [])
+    .map((modifierId) => canonicalizeModifierId(modifierId) || modifierId)
     .map((modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId])
     .filter((modifier) => modifier?.categoryId === "apparatus")
-    .map((modifier) => modifier.slug as ApparatusId);
+    .map((modifier) => canonicalizeApparatusId(modifier.slug as ApparatusId))
+    .filter((apparatusId): apparatusId is ApparatusId => Boolean(apparatusId));
 
   return compactUnique([
     ...apparatusFromModifiers,
-    ...(input.primaryApparatusId ? [input.primaryApparatusId] : []),
+    ...(input.primaryApparatusId
+      ? canonicalizeApparatusIds([input.primaryApparatusId])
+      : []),
   ]);
 };
 
@@ -1639,7 +1927,10 @@ export const validateExerciseVariation = (
     }
   });
 
-  (input.modifierIds || []).forEach((modifierId) => {
+  (input.modifierIds || []).forEach((rawModifierId) => {
+    const modifierId =
+      canonicalizeModifierIdForMovement(input.coreMovementId, rawModifierId) ||
+      rawModifierId;
     const modifier = EXERCISE_MODIFIER_BY_ID[modifierId];
     if (!modifier) {
       issues.push({

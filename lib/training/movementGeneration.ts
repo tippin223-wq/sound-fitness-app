@@ -26,9 +26,7 @@ export type MovementLabelOptions = {
 };
 
 const singleSelectionCategories = new Set<ExerciseModifierCategoryId>([
-  "apparatus",
   "angle-position",
-  "limb-usage",
   "direction",
   "stability",
   "tempo",
@@ -58,8 +56,35 @@ const toSlug = (value: string) =>
 
 const compactUnique = <T>(items: T[]) => Array.from(new Set(items));
 
+const canonicalizeMovementModifierId = (
+  modifierId: ExerciseModifierId,
+): ExerciseModifierId => {
+  if (modifierId === "apparatus:suspension") return "apparatus:trx";
+  if (modifierId === "apparatus:stability-ball") return "stability:swiss-ball";
+  if (modifierId === ("stability:single-leg" as ExerciseModifierId)) {
+    return "limb-usage:single-leg";
+  }
+  if (modifierId === "limb-usage:sumo-stance") {
+    return "limb-usage:wide-stance";
+  }
+  if (modifierId === ("stability:chaotic" as ExerciseModifierId)) {
+    return "assistance-resistance:chaotic";
+  }
+  if (modifierId === ("range-of-motion:partial-rom" as ExerciseModifierId)) {
+    return "range-of-motion:shortened-partial";
+  }
+  if (modifierId === ("range-of-motion:extended-rom" as ExerciseModifierId)) {
+    return "range-of-motion:full-rom";
+  }
+  if (modifierId === ("range-of-motion:pin-press" as ExerciseModifierId)) {
+    return "range-of-motion:rom-limiter";
+  }
+  return modifierId;
+};
+
 const getKnownModifiers = (modifierIds: ExerciseModifierId[]) =>
   modifierIds
+    .map(canonicalizeMovementModifierId)
     .map((id) => EXERCISE_MODIFIER_BY_ID[id])
     .filter(Boolean) as ExerciseModifier[];
 
@@ -89,7 +114,8 @@ export const normalizeMovementModifierIds = (
 ) => {
   const normalized = [...coreMovement.defaultModifierIds];
 
-  modifierIds.forEach((modifierId) => {
+  modifierIds.forEach((rawModifierId) => {
+    const modifierId = canonicalizeMovementModifierId(rawModifierId);
     const modifier = EXERCISE_MODIFIER_BY_ID[modifierId];
     if (!modifier) return;
 

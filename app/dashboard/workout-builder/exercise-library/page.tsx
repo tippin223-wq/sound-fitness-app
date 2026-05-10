@@ -70,6 +70,11 @@ type Exercise = {
   image?: string;
   cue?: string;
   custom?: boolean;
+  coreMovementPattern?: CoreMovementId | string;
+  semanticVariationId?: string;
+  semanticVariationName?: string;
+  generatedTitle?: string;
+  selectedModifierIds?: ExerciseModifierId[];
 };
 
 type ExerciseLibraryViewMode = "detail" | "grid";
@@ -79,6 +84,7 @@ type ExerciseLibrarySortMode =
   | "alpha"
   | "difficulty"
   | "body"
+  | "favorites"
   | "recent"
   | "logged";
 
@@ -92,11 +98,105 @@ const sortModeLabels: Record<ExerciseLibrarySortMode, string> = {
   alpha: "A-Z",
   difficulty: "Difficulty",
   body: "Body Region",
+  favorites: "Favorites",
   recent: "Recently Used",
   logged: "Most Logged",
 };
 
+const exerciseLibraryFavoritesStorageKey =
+  "sound-fitness:exercise-library:favorites";
+
+const readExerciseLibraryFavoriteIds = () => {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(exerciseLibraryFavoritesStorageKey) || "[]",
+    );
+
+    return Array.isArray(parsed)
+      ? parsed.filter((value): value is string => typeof value === "string")
+      : [];
+  } catch {
+    return [];
+  }
+};
+
+const writeExerciseLibraryFavoriteIds = (favoriteIds: Set<string>) => {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      exerciseLibraryFavoritesStorageKey,
+      JSON.stringify(Array.from(favoriteIds).sort()),
+    );
+  } catch {
+    // Local persistence can fail in restricted browser modes; UI state still toggles.
+  }
+};
+
 const difficultyOrder = ["Beginner", "Intermediate", "Advanced"];
+
+type DifficultyTheme = {
+  tone: string;
+  active: string;
+  pill: string;
+  focusRing: string;
+};
+
+const difficultyThemeFallback: DifficultyTheme = {
+  tone:
+    "border-slate-200/20 bg-slate-300/[0.08] text-slate-200 hover:border-slate-200/35 hover:bg-slate-300/[0.14]",
+  active:
+    "border-slate-100 bg-slate-200 text-slate-950 shadow-[0_0_24px_rgba(148,163,184,0.22)]",
+  pill:
+    "border-slate-200/18 bg-slate-300/8 text-slate-300 shadow-[0_0_16px_rgba(148,163,184,0.08)]",
+  focusRing: "focus:ring-slate-200/35",
+};
+
+const difficultyThemes: Record<string, DifficultyTheme> = {
+  beginner: {
+    tone:
+      "border-emerald-200/25 bg-emerald-300/10 text-emerald-100 hover:border-emerald-200/45 hover:bg-emerald-300/18",
+    active:
+      "border-emerald-200 bg-emerald-300 text-slate-950 shadow-[0_0_28px_rgba(16,185,129,0.28)]",
+    pill:
+      "border-emerald-200/25 bg-emerald-300/12 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.10)]",
+    focusRing: "focus:ring-emerald-200/40",
+  },
+  intermediate: {
+    tone:
+      "border-cyan-200/25 bg-cyan-300/10 text-cyan-100 hover:border-cyan-200/45 hover:bg-cyan-300/18",
+    active:
+      "border-cyan-200 bg-cyan-300 text-slate-950 shadow-[0_0_28px_rgba(34,211,238,0.28)]",
+    pill:
+      "border-cyan-200/25 bg-cyan-300/12 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.10)]",
+    focusRing: "focus:ring-cyan-200/40",
+  },
+  advanced: {
+    tone:
+      "border-amber-200/25 bg-amber-300/10 text-amber-100 hover:border-amber-200/45 hover:bg-amber-300/18",
+    active:
+      "border-amber-200 bg-amber-300 text-slate-950 shadow-[0_0_30px_rgba(251,191,36,0.28)]",
+    pill:
+      "border-amber-200/26 bg-amber-300/12 text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.10)]",
+    focusRing: "focus:ring-amber-200/40",
+  },
+  elite: {
+    tone:
+      "border-fuchsia-200/25 bg-fuchsia-300/10 text-fuchsia-100 hover:border-fuchsia-200/45 hover:bg-fuchsia-300/18",
+    active:
+      "border-fuchsia-200 bg-fuchsia-300 text-slate-950 shadow-[0_0_30px_rgba(217,70,239,0.28)]",
+    pill:
+      "border-fuchsia-200/26 bg-fuchsia-300/12 text-fuchsia-100 shadow-[0_0_18px_rgba(217,70,239,0.10)]",
+    focusRing: "focus:ring-fuchsia-200/40",
+  },
+};
+
+const getDifficultyTheme = (difficulty?: string | null): DifficultyTheme =>
+  difficulty
+    ? difficultyThemes[difficulty.trim().toLowerCase()] || difficultyThemeFallback
+    : difficultyThemeFallback;
 
 function ViewModeIcon({ mode }: { mode: ExerciseLibraryViewMode }) {
   if (mode === "grid") {
@@ -127,6 +227,56 @@ function ViewModeIcon({ mode }: { mode: ExerciseLibraryViewMode }) {
         />
       ))}
     </span>
+  );
+}
+
+function FavoriteStarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m12 2 3.09 6.26 6.91 1-5 4.87 1.18 6.87L12 17.77 5.82 21 7 14.13l-5-4.87 6.91-1L12 2Z" />
+    </svg>
+  );
+}
+
+function FavoriteButton({
+  isFavorite,
+  onToggle,
+  compact = false,
+}: {
+  isFavorite: boolean;
+  onToggle: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={isFavorite}
+      aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+      title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onToggle();
+      }}
+      className={`absolute right-2 top-2 z-[35] flex items-center justify-center rounded-full border backdrop-blur-xl transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-yellow-200/40 ${
+        compact ? "h-8 w-8" : "h-10 w-10"
+      } ${
+        isFavorite
+          ? "border-yellow-200/70 bg-yellow-300/22 text-yellow-200 shadow-[0_0_28px_rgba(250,204,21,0.30),inset_0_1px_0_rgba(255,255,255,0.20)]"
+          : "border-white/15 bg-slate-950/58 text-white/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] hover:border-yellow-200/45 hover:bg-yellow-300/12 hover:text-yellow-100"
+      }`}
+    >
+      <FavoriteStarIcon filled={isFavorite} />
+    </button>
   );
 }
 
@@ -226,26 +376,17 @@ const levelSegments = [
   {
     value: "Beginner",
     label: "Beginner",
-    tone:
-      "border-cyan-200/25 bg-cyan-300/10 text-cyan-100 hover:border-cyan-200/45 hover:bg-cyan-300/18",
-    active:
-      "border-cyan-200 bg-cyan-300 text-slate-950 shadow-[0_0_28px_rgba(34,211,238,0.28)]",
+    ...getDifficultyTheme("Beginner"),
   },
   {
     value: "Intermediate",
     label: "Intermediate",
-    tone:
-      "border-emerald-200/25 bg-emerald-300/10 text-emerald-100 hover:border-emerald-200/45 hover:bg-emerald-300/18",
-    active:
-      "border-emerald-200 bg-emerald-300 text-slate-950 shadow-[0_0_28px_rgba(16,185,129,0.28)]",
+    ...getDifficultyTheme("Intermediate"),
   },
   {
     value: "Advanced",
     label: "Advanced",
-    tone:
-      "border-violet-200/25 bg-violet-300/10 text-violet-100 hover:border-violet-200/45 hover:bg-violet-300/18",
-    active:
-      "border-violet-200 bg-violet-300 text-slate-950 shadow-[0_0_30px_rgba(167,139,250,0.28)]",
+    ...getDifficultyTheme("Advanced"),
   },
 ];
 
@@ -465,7 +606,7 @@ function SearchInputWithSuggestions({
           onChange(event.target.value);
           if (!open) openPanel();
         }}
-        className="mt-3 min-h-[44px] w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+        className="mt-3 min-h-[44px] w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300 md:mt-2 md:min-h-[40px] md:rounded-xl md:px-3 md:py-2 min-[1100px]:mt-3 min-[1100px]:min-h-[44px] min-[1100px]:rounded-2xl min-[1100px]:px-4 min-[1100px]:py-3"
         aria-label="Search Exercise Library"
         aria-expanded={open}
       />
@@ -1308,6 +1449,21 @@ const getUniqueOptions = (items: Exercise[], key: keyof Exercise) => {
   ];
 };
 
+const reorderBodyRegionOptions = (options: string[]) => {
+  const reorderedOptions = [...options];
+  const fullBodyIndex = reorderedOptions.indexOf("Full Body");
+  const upperBackShouldersIndex = reorderedOptions.indexOf(
+    "Upper Back / Shoulders",
+  );
+
+  if (fullBodyIndex !== -1 && upperBackShouldersIndex !== -1) {
+    [reorderedOptions[fullBodyIndex], reorderedOptions[upperBackShouldersIndex]] =
+      [reorderedOptions[upperBackShouldersIndex], reorderedOptions[fullBodyIndex]];
+  }
+
+  return reorderedOptions;
+};
+
 const labelize = (value: string) =>
   value
     .split("-")
@@ -1457,6 +1613,12 @@ const equipmentLabelReplacements: Record<string, string> = {
   suspension: "TRX",
   "suspension trainer": "TRX",
   "suspension training": "TRX",
+  slider: "Sliders",
+  sliders: "Sliders",
+  glider: "Sliders",
+  gliders: "Sliders",
+  "furniture slider": "Sliders",
+  "furniture sliders": "Sliders",
 };
 
 const normalizeEquipmentLabel = (label: string) => {
@@ -1464,10 +1626,145 @@ const normalizeEquipmentLabel = (label: string) => {
   return equipmentLabelReplacements[normalizedKey] || label.trim();
 };
 
+const normalizeEquipmentSearchTerm = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[’']/g, "")
+    .replace(/[-_/]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const equipmentSearchAliasLabels: Record<string, string[]> = {
+  barbell: ["bb"],
+  dumbbell: ["db", "dumbbells", "dumbell"],
+  kettlebell: ["kb", "kettle bell", "kettle-ball"],
+  bodyweight: ["body weight", "no equipment"],
+  "medicine ball": ["med ball"],
+  trx: ["suspension", "suspension trainer", "suspension training"],
+  sliders: ["slider", "glider", "gliders", "furniture slider", "furniture sliders"],
+};
+
+const getEquipmentSearchAliasesForLabel = (label: string) => {
+  const canonicalLabel = normalizeEquipmentLabel(label);
+  const normalizedCanonical = normalizeEquipmentSearchTerm(canonicalLabel);
+
+  return Array.from(
+    new Set([
+      canonicalLabel,
+      label,
+      normalizedCanonical,
+      ...(equipmentSearchAliasLabels[normalizedCanonical] || []),
+    ]),
+  ).filter(Boolean);
+};
+
+const equipmentSearchModifierAliases: Array<{
+  modifierId: ExerciseModifierId;
+  terms: string[];
+}> = [
+  { modifierId: "apparatus:barbell", terms: ["barbell", "bb"] },
+  {
+    modifierId: "apparatus:dumbbell",
+    terms: ["dumbbell", "dumbbells", "dumbell", "db"],
+  },
+  {
+    modifierId: "apparatus:kettlebell",
+    terms: ["kettlebell", "kettle bell", "kettle-ball", "kb"],
+  },
+  {
+    modifierId: "apparatus:bodyweight",
+    terms: ["bodyweight", "body weight", "no equipment"],
+  },
+  { modifierId: "apparatus:machine", terms: ["machine"] },
+  { modifierId: "apparatus:cable", terms: ["cable"] },
+  { modifierId: "apparatus:band", terms: ["band"] },
+  {
+    modifierId: "apparatus:medicine-ball",
+    terms: ["medicine ball", "med ball"],
+  },
+  { modifierId: "apparatus:landmine", terms: ["landmine"] },
+  { modifierId: "apparatus:trap-bar", terms: ["trap bar"] },
+  {
+    modifierId: "apparatus:trx",
+    terms: ["trx", "suspension trainer", "suspension training"],
+  },
+  {
+    modifierId: "apparatus:sliders",
+    terms: ["sliders", "slider", "glider", "gliders", "furniture slider", "furniture sliders"],
+  },
+  { modifierId: "apparatus:box", terms: ["box"] },
+  { modifierId: "apparatus:sled", terms: ["sled"] },
+];
+
+const getSearchedEquipmentModifierId = (
+  query: string,
+): ExerciseModifierId | null => {
+  const normalizedQuery = normalizeEquipmentSearchTerm(query);
+  if (!normalizedQuery) return null;
+
+  const paddedQuery = ` ${normalizedQuery} `;
+  const match = equipmentSearchModifierAliases
+    .flatMap((entry) =>
+      entry.terms.map((term) => ({
+        modifierId: entry.modifierId,
+        term: normalizeEquipmentSearchTerm(term),
+      })),
+    )
+    .sort((left, right) => right.term.length - left.term.length)
+    .find(
+      ({ term }) =>
+        normalizedQuery === term || paddedQuery.includes(` ${term} `),
+    );
+
+  return match?.modifierId || null;
+};
+
 const getModifierDisplayLabel = (modifier: ExerciseModifier) =>
   modifier.categoryId === "apparatus"
     ? normalizeEquipmentLabel(modifier.label)
     : modifier.label;
+
+const getControlModifierDisplayLabel = (
+  label: string,
+  modifier: ExerciseModifier,
+) =>
+  isFeetWidthControlLabel(label)
+    ? feetWidthDisplayLabels[modifier.id] || getModifierDisplayLabel(modifier)
+    : getModifierDisplayLabel(modifier);
+
+const getSearchedModifierIds = (query: string): ExerciseModifierId[] => {
+  const normalizedQuery = normalizeEquipmentSearchTerm(query);
+  if (!normalizedQuery) return [];
+
+  const paddedQuery = ` ${normalizedQuery} `;
+
+  return Object.values(EXERCISE_MODIFIER_BY_ID)
+    .filter((modifier) => modifier.categoryId !== "apparatus")
+    .filter((modifier) => {
+      const terms = [
+        modifier.label,
+        modifier.slug,
+        ...(modifier.aliases || []),
+      ].map(normalizeEquipmentSearchTerm);
+
+      return terms.some(
+        (term) =>
+          term && (normalizedQuery === term || paddedQuery.includes(` ${term} `)),
+      );
+    })
+    .map((modifier) => modifier.id);
+};
+
+const resistanceProfileSuggestionModifierIds = [
+  "assistance-resistance:chaotic",
+  "assistance-resistance:chains",
+  "range-of-motion:shortened-partial",
+  "range-of-motion:lengthened-partial",
+  "range-of-motion:rom-limiter",
+  "load-behavior:variable-resistance",
+] as ExerciseModifierId[];
 
 const normalizeModifierDisplayKey = (label: string) =>
   label.trim().toLowerCase().replace(/\s+/g, " ");
@@ -1481,6 +1778,108 @@ const dedupeModifierOptionsByDisplayLabel = (modifiers: ExerciseModifier[]) => {
     seen.add(key);
     return true;
   });
+};
+
+const modifierDedupLabelReplacements: Record<string, string> = {
+  db: "dumbbell",
+  dumbell: "dumbbell",
+  dumbbell: "dumbbell",
+  kb: "kettlebell",
+  kettlebell: "kettlebell",
+  "kettle bell": "kettlebell",
+  "body weight": "bodyweight",
+  bodyweight: "bodyweight",
+  standard: "standard stance",
+  "standard stance": "standard stance",
+  narrow: "narrow stance",
+  "narrow stance": "narrow stance",
+  conventional: "conventional stance",
+  "conventional stance": "conventional stance",
+  sumo: "wide stance",
+  "sumo stance": "wide stance",
+  "sumo position": "wide stance",
+  "goblet load": "goblet",
+  "goblet load position": "goblet",
+  goblet: "goblet",
+  deadstop: "dead stop",
+  "dead stop": "dead stop",
+  "floor position": "floor",
+  floor: "floor",
+  chaos: "chaotic",
+  "chaotic load": "chaotic",
+  "oscillating load": "chaotic",
+  "hanging plates": "chaotic",
+  "band suspended weight": "chaotic",
+  "band-suspended weight": "chaotic",
+  "hanging kettlebells": "chaotic",
+  "earthquake bar": "chaotic",
+  chain: "chains",
+  chains: "chains",
+  "chain loaded": "chains",
+  "chain resistance": "chains",
+  "top half": "shortened partial",
+  "top-half": "shortened partial",
+  "lockout partial": "shortened partial",
+  "partial near lockout": "shortened partial",
+  "shortened bias": "shortened partial",
+  "bottom half": "lengthened partial",
+  "bottom-half": "lengthened partial",
+  "stretch partial": "lengthened partial",
+  "stretched partial": "lengthened partial",
+  "partial near stretch": "lengthened partial",
+  "lengthened bias": "lengthened partial",
+  "box rom": "rom limiter",
+  "box rom modifier": "rom limiter",
+  "limited rom": "rom limiter",
+  "limited range": "rom limiter",
+  "range limiter": "rom limiter",
+  pins: "rom limiter",
+  "pin press": "rom limiter",
+  blocks: "rom limiter",
+  "block pull": "rom limiter",
+  boards: "rom limiter",
+  "board press": "rom limiter",
+  "rack pull": "rom limiter",
+  "safety bars": "rom limiter",
+};
+
+const normalizeModifierDedupLabel = (label: string) => {
+  const normalizedEquipmentLabel = normalizeEquipmentLabel(label);
+  const normalizedKey = normalizedEquipmentLabel
+    .trim()
+    .toLowerCase()
+    .replace(/[â€™']/g, "")
+    .replace(/[-_/]+/g, " ")
+    .replace(/[^a-z0-9\s]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return modifierDedupLabelReplacements[normalizedKey] || normalizedKey;
+};
+
+const getModifierDedupKeysForLabel = (label: string) => {
+  const normalized = normalizeModifierDedupLabel(label);
+  return normalized ? [normalized] : [];
+};
+
+const getModifierDedupKeysForModifier = (modifier: ExerciseModifier) =>
+  Array.from(
+    new Set(
+      [
+        getModifierDisplayLabel(modifier),
+        modifier.label,
+        ...(modifier.aliases || []),
+        modifier.id.split(":").pop() || modifier.id,
+      ].flatMap(getModifierDedupKeysForLabel),
+    ),
+  );
+
+const getModifierDedupKeysForModifierId = (modifierId: ExerciseModifierId) => {
+  const modifier = EXERCISE_MODIFIER_BY_ID[modifierId];
+
+  return modifier
+    ? getModifierDedupKeysForModifier(modifier)
+    : getModifierDedupKeysForLabel(modifierId.split(":").pop() || modifierId);
 };
 
 const getApparatusFilterLabelsForMetadata = (
@@ -1501,6 +1900,7 @@ const getApparatusFilterLabelsForMetadata = (
 
 const positionLimbUsageModifierIds = new Set<ExerciseModifierId>([
   "limb-usage:standard-stance",
+  "limb-usage:narrow-stance",
   "limb-usage:conventional-stance",
   "limb-usage:sumo-stance",
   "limb-usage:wide-stance",
@@ -1515,6 +1915,108 @@ type CardModifierControlDefinition = {
   optionIds?: ExerciseModifierId[];
   accent: "cyan" | "emerald" | "yellow" | "violet";
 };
+
+const feetWidthOptionIds = modifierIds([
+  "limb-usage:narrow-stance",
+  "limb-usage:standard-stance",
+  "limb-usage:conventional-stance",
+  "limb-usage:wide-stance",
+  "angle-position:split-stance",
+]);
+
+const hipThrustBridgeFeetWidthOptionIds = modifierIds([
+  "limb-usage:narrow-stance",
+  "limb-usage:standard-stance",
+  "limb-usage:wide-stance",
+  "angle-position:split-stance",
+]);
+
+const feetWidthDisplayLabels: Partial<Record<ExerciseModifierId, string>> = {
+  "limb-usage:narrow-stance": "Narrow",
+  "limb-usage:standard-stance": "Standard",
+  "limb-usage:conventional-stance": "Standard",
+  "limb-usage:wide-stance": "Wide",
+  "limb-usage:sumo-stance": "Wide",
+  "angle-position:split-stance": "Split",
+};
+
+const isFeetWidthControlLabel = (label: string) =>
+  label.trim().toLowerCase() === "feet width";
+
+const getFeetWidthControl = (
+  key: string,
+  optionIds: ExerciseModifierId[] = feetWidthOptionIds,
+): CardModifierControlDefinition => ({
+  key,
+  label: "Feet Width",
+  categories: ["limb-usage", "angle-position"],
+  optionIds,
+  accent: "violet",
+});
+
+const lowerBodyFeetWidthFallbackCoreIds = new Set<CoreMovementId>([
+  "step-up",
+  "step-down",
+]);
+
+const hipThrustBridgeCoreMovementIds = new Set<CoreMovementId>([
+  "hip-thrust-bridge",
+  "hip-thrust-glute-bridge",
+]);
+
+const hipThrustBridgeModifierControls: CardModifierControlDefinition[] = [
+  {
+    key: "hip-thrust-equipment",
+    label: "Equipment",
+    categories: ["apparatus"],
+    optionIds: modifierIds([
+      "apparatus:bodyweight",
+      "apparatus:barbell",
+      "apparatus:dumbbell",
+      "apparatus:kettlebell",
+      "apparatus:smith-machine",
+      "apparatus:machine",
+      "apparatus:band",
+      "apparatus:cable",
+    ]),
+    accent: "cyan",
+  },
+  {
+    key: "hip-thrust-position",
+    label: "Position",
+    categories: ["angle-position", "limb-usage"],
+    optionIds: modifierIds([
+      "angle-position:floor",
+      "angle-position:feet-elevated",
+      "limb-usage:single-leg",
+      "angle-position:frog-stance",
+      "angle-position:bench-supported",
+      "angle-position:seated",
+      "angle-position:kneeling",
+      "angle-position:half-kneeling",
+      "angle-position:standing",
+    ]),
+    accent: "violet",
+  },
+  getFeetWidthControl(
+    "hip-thrust-feet-width",
+    hipThrustBridgeFeetWidthOptionIds,
+  ),
+  {
+    key: "hip-thrust-stability",
+    label: "Stability",
+    categories: ["stability"],
+    optionIds: modifierIds([
+      "stability:bosu",
+      "stability:swiss-ball",
+      "stability:stability-pad",
+      "stability:balance-focused",
+      "stability:offset-stability",
+      "stability:dynamic-stability",
+    ]),
+    accent: "emerald",
+  },
+];
 
 const cardModifierControlPresets: Partial<
   Record<CoreMovementId, CardModifierControlDefinition[]>
@@ -1550,20 +2052,7 @@ const cardModifierControlPresets: Partial<
       ]),
       accent: "emerald",
     },
-    {
-      key: "squat-stance",
-      label: "Stance",
-      categories: ["limb-usage"],
-      optionIds: modifierIds([
-        "limb-usage:standard-stance",
-        "limb-usage:wide-stance",
-        "limb-usage:sumo-stance",
-        "limb-usage:staggered",
-        "limb-usage:single-leg",
-        "limb-usage:unilateral",
-      ]),
-      accent: "violet",
-    },
+    getFeetWidthControl("squat-feet-width"),
   ],
   "chest-press": [
     {
@@ -1645,7 +2134,8 @@ const cardModifierControlPresets: Partial<
       optionIds: modifierIds([
         "limb-usage:wide-grip",
         "limb-usage:close-grip",
-        "range-of-motion:partial-rom",
+        "range-of-motion:shortened-partial",
+        "range-of-motion:lengthened-partial",
         "range-of-motion:full-rom",
       ]),
       accent: "emerald",
@@ -1688,7 +2178,8 @@ const cardModifierControlPresets: Partial<
         "direction:reverse",
         "limb-usage:wide-grip",
         "limb-usage:close-grip",
-        "range-of-motion:partial-rom",
+        "range-of-motion:shortened-partial",
+        "range-of-motion:lengthened-partial",
         "range-of-motion:full-rom",
       ]),
       accent: "emerald",
@@ -1724,7 +2215,8 @@ const cardModifierControlPresets: Partial<
       categories: ["direction", "range-of-motion"],
       optionIds: modifierIds([
         "direction:lateral",
-        "range-of-motion:partial-rom",
+        "range-of-motion:shortened-partial",
+        "range-of-motion:lengthened-partial",
         "range-of-motion:full-rom",
       ]),
       accent: "emerald",
@@ -1776,6 +2268,9 @@ const cardModifierControlPresets: Partial<
         "limb-usage:bilateral",
         "range-of-motion:dead-stop",
         "stability:balance-focused",
+        "stability:bosu",
+        "assistance-resistance:chaotic",
+        "assistance-resistance:chains",
       ]),
       accent: "emerald",
     },
@@ -1797,30 +2292,20 @@ const cardModifierControlPresets: Partial<
       ]),
       accent: "cyan",
     },
-    {
-      key: "hinge-stance",
-      label: "Stance",
-      categories: ["limb-usage"],
-      optionIds: modifierIds([
-        "limb-usage:conventional-stance",
-        "limb-usage:sumo-stance",
-        "limb-usage:wide-stance",
-        "limb-usage:staggered",
-        "limb-usage:single-leg",
-      ]),
-      accent: "violet",
-    },
+    getFeetWidthControl("hinge-feet-width"),
     {
       key: "hinge-rom-tempo",
       label: "ROM / Tempo",
-      categories: ["range-of-motion", "tempo", "load-behavior"],
+      categories: ["range-of-motion", "tempo"],
       optionIds: modifierIds([
         "range-of-motion:dead-stop",
         "range-of-motion:deficit",
+        "range-of-motion:rom-limiter",
         "range-of-motion:full-rom",
+        "range-of-motion:shortened-partial",
+        "range-of-motion:lengthened-partial",
         "tempo:slow-eccentric",
         "tempo:explosive",
-        "load-behavior:ballistic",
       ]),
       accent: "emerald",
     },
@@ -1839,6 +2324,7 @@ const cardModifierControlPresets: Partial<
         "apparatus:band",
         "apparatus:cable",
         "apparatus:trx",
+        "apparatus:sliders",
       ]),
       accent: "cyan",
     },
@@ -1855,21 +2341,23 @@ const cardModifierControlPresets: Partial<
       ]),
       accent: "emerald",
     },
+    getFeetWidthControl("lunge-feet-width"),
     {
-      key: "lunge-position-stance",
-      label: "Position / Stance",
+      key: "lunge-position-elevation",
+      label: "Position / Elevation",
       categories: ["angle-position", "limb-usage", "range-of-motion"],
       optionIds: modifierIds([
-        "angle-position:split-stance",
         "angle-position:rear-foot-elevated",
         "limb-usage:unilateral",
         "limb-usage:alternating",
-        "limb-usage:wide-stance",
         "range-of-motion:deficit",
+        "range-of-motion:rom-limiter",
       ]),
       accent: "violet",
     },
   ],
+  "hip-thrust-bridge": hipThrustBridgeModifierControls,
+  "hip-thrust-glute-bridge": hipThrustBridgeModifierControls,
 };
 
 const defaultEquipmentControl: CardModifierControlDefinition = {
@@ -1897,16 +2385,24 @@ const defaultPositionControl: CardModifierControlDefinition = {
     "angle-position:prone",
     "angle-position:side-lying",
     "angle-position:quadruped",
+    "angle-position:90-90",
+    "angle-position:hanging",
+    "angle-position:kneeling",
     "angle-position:split-stance",
     "angle-position:rear-foot-elevated",
     "angle-position:half-kneeling",
     "limb-usage:standard-stance",
     "limb-usage:conventional-stance",
-    "limb-usage:sumo-stance",
     "limb-usage:wide-stance",
   ]),
   accent: "violet",
 };
+
+const nonApplicableModifierControlLabel = "N/A";
+
+const isLoadPositionControl = (control: CardModifierControlDefinition) =>
+  control.label.trim().toLowerCase() === "load position" ||
+  control.key.toLowerCase().includes("load-position");
 
 const getFallbackThirdControl = (
   coreMovementId?: CoreMovementId | null,
@@ -1938,7 +2434,7 @@ const getFallbackThirdControl = (
     return {
       key: "fallback-direction-structure",
       label: "Direction / Structure",
-      categories: ["direction", "limb-usage", "load-behavior", "tempo"],
+      categories: ["direction", "limb-usage", "tempo"],
       accent: "emerald",
     };
   }
@@ -1969,10 +2465,17 @@ const getFallbackThirdControl = (
     };
   }
 
+  if (
+    coreMovementId &&
+    lowerBodyFeetWidthFallbackCoreIds.has(coreMovementId)
+  ) {
+    return getFeetWidthControl("fallback-feet-width");
+  }
+
   return {
     key: "fallback-modifier",
     label: "Modifier",
-    categories: ["direction", "limb-usage", "range-of-motion", "load-behavior"],
+    categories: ["direction", "limb-usage", "range-of-motion"],
     accent: "emerald",
   };
 };
@@ -2030,6 +2533,9 @@ const getPrimaryEquipmentPrefix = (equipmentLabel: string) =>
   equipmentLabel
     .split(/\s*,\s*|\s+or\s+|\s*\/\s*/i)
     .map((part) => part.trim())
+    .map((part) =>
+      normalizeGeneratedTitlePart(part) === "sliders" ? "Slider" : part,
+    )
     .find((part) => part && part.toLowerCase() !== "all") || "";
 
 const semanticNameIncludesEquipment = (
@@ -2043,6 +2549,8 @@ const semanticNameIncludesEquipment = (
   const equipmentAliases: Record<string, string[]> = {
     "medicine ball": ["medicine ball", "med ball"],
     "stability ball": ["stability ball", "swiss ball"],
+    sliders: ["slider", "sliders", "glider", "gliders", "furniture slider", "furniture sliders"],
+    slider: ["slider", "sliders", "glider", "gliders", "furniture slider", "furniture sliders"],
     trx: ["trx", "suspension", "suspension trainer", "suspension training"],
     suspension: ["suspension", "trx", "suspension trainer", "suspension training"],
   };
@@ -2061,7 +2569,11 @@ const semanticNameImpliesBodyweight = (semanticVariationName: string) => {
   const semanticName = normalizeGeneratedTitlePart(semanticVariationName);
 
   return [
-    "air squat",
+  "air squat",
+  "sumo squat",
+  "narrow squat",
+  "narrow stance squat",
+  "pistol squat",
     "pull up",
     "chin up",
     "plank",
@@ -2083,33 +2595,303 @@ const semanticNameImpliesBodyweight = (semanticVariationName: string) => {
   ].some((bodyweightName) => semanticName.includes(bodyweightName));
 };
 
+const fallbackTitleStanceModifierIds = new Set<ExerciseModifierId>(
+  modifierIds([
+    "limb-usage:standard-stance",
+    "limb-usage:narrow-stance",
+        "limb-usage:conventional-stance",
+        "limb-usage:wide-stance",
+        "limb-usage:staggered",
+    "limb-usage:single-leg",
+    "limb-usage:unilateral",
+    "limb-usage:bilateral",
+    "limb-usage:offset",
+  ]),
+);
+
+const fallbackTitleLoadPositionModifierIds = new Set<ExerciseModifierId>(
+  modifierIds([
+    "angle-position:goblet",
+    "angle-position:front-loaded",
+    "angle-position:back-loaded",
+    "angle-position:overhead",
+  ]),
+);
+
+const fallbackTitleModifierCategoryPriority: ExerciseModifierCategoryId[] = [
+  "direction",
+  "range-of-motion",
+  "tempo",
+  "load-behavior",
+  "limb-usage",
+  "stability",
+  "assistance-resistance",
+];
+
+const lowerBodyDescriptorCoreIds = new Set<string>([
+    "squat",
+    "hinge",
+    "lunge",
+    "step-up",
+    "hip-thrust-bridge",
+    "knee-extension",
+    "knee-flexion",
+    "hip-abduction",
+    "hip-adduction",
+    "hip-internal-rotation",
+    "hip-external-rotation",
+    "calf-raise",
+    "tibialis-raise",
+]);
+
+const getFallbackTitleModifierLabel = (
+  modifier: ExerciseModifier,
+  metadata: NormalizedExerciseCatalogItem | null,
+) => {
+  if (modifier.includeInDisplayName === false) return "";
+
+  if (
+    metadata?.coreMovementId === "squat" &&
+    (modifier.id === "limb-usage:wide-stance" ||
+      modifier.id === "limb-usage:sumo-stance")
+  ) {
+    return "Sumo";
+  }
+
+  if (modifier.id === "limb-usage:unilateral") {
+    return metadata && lowerBodyDescriptorCoreIds.has(metadata.coreMovementId)
+      ? "Single-Leg"
+      : "Single-Arm";
+  }
+
+  return (modifier.displayPrefix || modifier.label)
+    .replace(/\s+Stance$/i, "")
+    .replace(/\s+Position$/i, "")
+    .trim();
+};
+
+const getSelectedFallbackTitleModifier = (
+  selectedModifierIds: ExerciseModifierId[],
+  predicate: (modifier: ExerciseModifier) => boolean,
+) =>
+  selectedModifierIds
+    .map((modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId])
+    .filter(
+      (modifier): modifier is ExerciseModifier =>
+        Boolean(modifier) && predicate(modifier),
+    )
+    .sort((a, b) => a.displayOrder - b.displayOrder)[0] || null;
+
+const getFallbackTitleDescriptor = (
+  metadata: NormalizedExerciseCatalogItem | null,
+  selectedModifierIds: ExerciseModifierId[],
+) => {
+  const stanceModifier = getSelectedFallbackTitleModifier(
+    selectedModifierIds,
+    (modifier) => fallbackTitleStanceModifierIds.has(modifier.id),
+  );
+  const positionModifier = getSelectedFallbackTitleModifier(
+    selectedModifierIds,
+    (modifier) =>
+      modifier.categoryId === "angle-position" &&
+      !fallbackTitleLoadPositionModifierIds.has(modifier.id),
+  );
+  const loadPositionModifier = getSelectedFallbackTitleModifier(
+    selectedModifierIds,
+    (modifier) => fallbackTitleLoadPositionModifierIds.has(modifier.id),
+  );
+  const usefulModifier = fallbackTitleModifierCategoryPriority
+    .map((categoryId) =>
+      getSelectedFallbackTitleModifier(
+        selectedModifierIds,
+        (modifier) =>
+          modifier.categoryId === categoryId &&
+          !fallbackTitleStanceModifierIds.has(modifier.id),
+      ),
+    )
+    .find(Boolean);
+
+  return [
+    stanceModifier,
+    positionModifier,
+    loadPositionModifier,
+    usefulModifier,
+  ]
+    .map((modifier) =>
+      modifier ? getFallbackTitleModifierLabel(modifier, metadata) : "",
+    )
+    .find(Boolean) || "";
+};
+
+const gluteBridgeTitleModifierLabels: Partial<Record<ExerciseModifierId, string>> = {
+  "limb-usage:single-leg": "Single Leg",
+  "angle-position:frog-stance": "Frog Stance",
+  "angle-position:feet-elevated": "Feet Elevated",
+  "limb-usage:wide-stance": "Wide Stance",
+  "limb-usage:narrow-stance": "Narrow Stance",
+  "angle-position:split-stance": "Split Stance",
+  "stability:bosu": "BOSU",
+  "stability:swiss-ball": "Stability Ball",
+  "stability:stability-pad": "Stability Pad",
+  "stability:balance-focused": "Balance",
+  "stability:offset-stability": "Offset Stability",
+  "stability:dynamic-stability": "Dynamic Stability",
+};
+
+const gluteBridgeTitleModifierPriority = modifierIds([
+  "limb-usage:single-leg",
+  "angle-position:frog-stance",
+  "angle-position:feet-elevated",
+  "stability:bosu",
+  "stability:swiss-ball",
+  "stability:stability-pad",
+  "stability:balance-focused",
+  "stability:offset-stability",
+  "stability:dynamic-stability",
+  "limb-usage:wide-stance",
+  "limb-usage:narrow-stance",
+  "angle-position:split-stance",
+]);
+
+const getSemanticVariationTitleDescriptor = (
+  metadata: NormalizedExerciseCatalogItem | null,
+  semanticVariationName: string,
+  selectedModifierIds: ExerciseModifierId[],
+) => {
+  if (
+    !metadata ||
+    !hipThrustBridgeCoreMovementIds.has(metadata.coreMovementId) ||
+    normalizeGeneratedTitlePart(semanticVariationName) !== "glute bridge"
+  ) {
+    return "";
+  }
+
+  const selectedModifierIdSet = new Set(selectedModifierIds);
+  const modifierId = gluteBridgeTitleModifierPriority.find((id) =>
+    selectedModifierIdSet.has(id),
+  );
+
+  return modifierId ? gluteBridgeTitleModifierLabels[modifierId] || "" : "";
+};
+
+const compactGeneratedTitleParts = (parts: string[]) => {
+  const seen = new Set<string>();
+
+  return parts
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => {
+      const key = normalizeGeneratedTitlePart(part);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
+const getFallbackGeneratedCardTitle = ({
+  exercise,
+  metadata,
+  equipmentLabel,
+  selectedModifierIds,
+}: {
+  exercise: Exercise;
+  metadata: NormalizedExerciseCatalogItem | null;
+  equipmentLabel: string;
+  selectedModifierIds: ExerciseModifierId[];
+}) => {
+  const equipmentPrefix = getPrimaryEquipmentPrefix(equipmentLabel);
+  const descriptor = getFallbackTitleDescriptor(metadata, selectedModifierIds);
+  const coreMovementName = metadata?.coreMovementLabel || exercise.name;
+
+  return (
+    compactGeneratedTitleParts([
+      equipmentPrefix,
+      descriptor,
+      coreMovementName,
+    ]).join(" ") || coreMovementName
+  );
+};
+
+const normalizeModifierIdsForCoreMovement = (
+  coreMovementId: CoreMovementId | null | undefined,
+  modifierIds: ExerciseModifierId[],
+) =>
+  uniqueModifierIds(
+    modifierIds.map((modifierId) => {
+      if (
+        coreMovementId &&
+        hipThrustBridgeCoreMovementIds.has(coreMovementId) &&
+        modifierId === "angle-position:supine"
+      ) {
+        return "angle-position:floor";
+      }
+
+      if (modifierId === "limb-usage:sumo-stance") {
+        return "limb-usage:wide-stance";
+      }
+
+      if (
+        coreMovementId === "squat" &&
+        modifierId === "limb-usage:unilateral"
+      ) {
+        return "limb-usage:single-leg";
+      }
+
+      return modifierId;
+    }),
+  );
+
 const getGeneratedCardTitle = ({
   exercise,
   metadata,
   semanticVariationName,
   equipmentLabel,
+  selectedModifierIds,
 }: {
   exercise: Exercise;
   metadata: NormalizedExerciseCatalogItem | null;
   semanticVariationName: string;
   equipmentLabel: string;
+  selectedModifierIds: ExerciseModifierId[];
 }) => {
   const semanticName = semanticVariationName.trim();
-  const fallbackTitle = metadata?.coreMovementLabel || exercise.name;
 
-  if (!semanticName) return fallbackTitle;
+  if (!semanticName) {
+    return getFallbackGeneratedCardTitle({
+      exercise,
+      metadata,
+      equipmentLabel,
+      selectedModifierIds,
+    });
+  }
 
   const equipmentPrefix = getPrimaryEquipmentPrefix(equipmentLabel);
+  const semanticDescriptor = getSemanticVariationTitleDescriptor(
+    metadata,
+    semanticName,
+    selectedModifierIds,
+  );
+  const omitBodyweightPrefix =
+    Boolean(semanticDescriptor) &&
+    normalizeGeneratedTitlePart(equipmentPrefix) === "bodyweight";
   if (
     !equipmentPrefix ||
+    omitBodyweightPrefix ||
     semanticNameIncludesEquipment(semanticName, equipmentPrefix) ||
     (normalizeGeneratedTitlePart(equipmentPrefix) === "bodyweight" &&
       semanticNameImpliesBodyweight(semanticName))
   ) {
-    return semanticName;
+    return (
+      compactGeneratedTitleParts([semanticDescriptor, semanticName]).join(" ") ||
+      semanticName
+    );
   }
 
-  return `${equipmentPrefix} ${semanticName}`;
+  return compactGeneratedTitleParts([
+    equipmentPrefix,
+    semanticDescriptor,
+    semanticName,
+  ]).join(" ");
 };
 
 const getSelectedGoalLabel = (
@@ -2468,8 +3250,10 @@ const positionAngleModifierSlugs = new Set([
   "floor",
   "hands-elevated",
   "feet-elevated",
+  "frog-stance",
   "seated",
   "standing",
+  "kneeling",
   "half-kneeling",
   "split-stance",
   "tall-kneeling",
@@ -2486,6 +3270,8 @@ const positionAngleModifierSlugs = new Set([
   "preacher",
   "side-support",
   "quadruped",
+  "90-90",
+  "hanging",
 ]);
 
 const modifierAnglePositionSlugs = new Set([
@@ -2497,6 +3283,7 @@ const modifierAnglePositionSlugs = new Set([
 
 const positionLimbUsageSlugs = new Set([
   "standard-stance",
+  "narrow-stance",
   "conventional-stance",
   "sumo-stance",
   "wide-stance",
@@ -2581,6 +3368,73 @@ const addMovementChip = (
 
   chips.push(chip);
 };
+
+const legacyChaoticStabilityModifierId =
+  "stability:chaotic" as ExerciseModifierId;
+
+const getDerivedResistanceProfileChips = (
+  metadata: NormalizedExerciseCatalogItem | null,
+  modifierIds: ExerciseModifierId[],
+): MovementArchitectureChip[] => {
+  const modifierIdSet = new Set(modifierIds);
+  const chips: MovementArchitectureChip[] = [];
+
+  if (modifierIdSet.has("assistance-resistance:chains")) {
+    chips.push({
+      key: "derived-resistance-chains-variable",
+      label: "Variable Resistance",
+      tone: "modifier",
+    });
+  }
+
+  if (
+    modifierIdSet.has("apparatus:band") ||
+    modifierIdSet.has("assistance-resistance:band-assisted")
+  ) {
+    chips.push({
+      key: "derived-resistance-variable",
+      label: "Variable Resistance",
+      tone: "modifier",
+    });
+  }
+
+  if (
+    modifierIdSet.has("assistance-resistance:chaotic") ||
+    modifierIdSet.has(legacyChaoticStabilityModifierId)
+  ) {
+    chips.push({
+      key: "derived-resistance-chaotic",
+      label: "Chaotic Resistance",
+      tone: "modifier",
+    });
+  }
+
+  if (modifierIdSet.has("range-of-motion:shortened-partial")) {
+    chips.push({
+      key: "derived-resistance-shortened-bias",
+      label: "Shortened Bias",
+      tone: "modifier",
+    });
+  } else if (
+    modifierIdSet.has("range-of-motion:lengthened-partial") ||
+    metadata?.coreMovementId === "chest-fly" ||
+    metadata?.coreMovementId === "reverse-fly"
+  ) {
+    chips.push({
+      key: "derived-resistance-lengthened-bias",
+      label: "Lengthened Bias",
+      tone: "modifier",
+    });
+  }
+
+  return chips;
+};
+
+const shouldSuppressDirectResistanceProfileChip = (
+  modifierId: ExerciseModifierId,
+) =>
+  modifierId === "assistance-resistance:chaotic" ||
+  modifierId === legacyChaoticStabilityModifierId;
 
 const getMovementArchitectureChips = (
   exercise: Exercise,
@@ -2731,7 +3585,8 @@ const getMovementArchitectureChips = (
           categoryId &&
           categoryId !== "apparatus" &&
           categoryId !== "stability" &&
-          categoryId !== "training-intent"
+          categoryId !== "training-intent" &&
+          !shouldSuppressDirectResistanceProfileChip(modifierId)
         );
       },
     );
@@ -2778,6 +3633,10 @@ const getMovementArchitectureChips = (
         label: getModifierLabel(modifierId),
         tone: getTrainingModifierChipTone(modifierId),
       }),
+    );
+
+    getDerivedResistanceProfileChips(metadata, displayModifierIds).forEach(
+      (chip) => addMovementChip(chips, chip),
     );
   }
 
@@ -2943,25 +3802,6 @@ const getSemanticVariationMatchDetails = (
 
   if (scoredMatches[0]) return scoredMatches[0];
 
-  const apparatusModifierIds = allowedApparatusIds.length
-    ? allowedApparatusIds
-    : fallbackApparatusIds;
-  const apparatusMatchCount = apparatusModifierIds.filter((modifierId) =>
-    selectedSet.has(modifierId),
-  ).length;
-
-  if (apparatusModifierIds.length > 0 && apparatusMatchCount > 0) {
-    const equipmentScore = apparatusMatchCount * 10;
-
-    return {
-      score: equipmentScore,
-      nonEquipmentScore: 0,
-      equipmentScore,
-      hasRequiredNonEquipmentMatch: false,
-      hasEquipmentConflict: false,
-    };
-  }
-
   return null;
 };
 
@@ -3018,6 +3858,12 @@ const applySemanticVariationModifierPreset = (
     nonApparatusPresetModifierIds.map(getModifierCategoryId).filter(Boolean),
   );
   const nextApparatusIds = ((): ExerciseModifierId[] => {
+    if (presetApparatusIds.length > 1) {
+      return presetApparatusIds.filter((modifierId) =>
+        allowedApparatusIds.length ? allowedApparatusIds.includes(modifierId) : true,
+      );
+    }
+
     if (allowedApparatusIds.length) {
       const allowedCurrentApparatusIds = currentApparatusIds.filter(
         (modifierId) => allowedApparatusIds.includes(modifierId),
@@ -3603,6 +4449,7 @@ const getExerciseSortTitle = (exercise: Exercise) => {
     metadata,
     semanticVariationName,
     equipmentLabel,
+    selectedModifierIds,
   });
 
   return (
@@ -3610,6 +4457,19 @@ const getExerciseSortTitle = (exercise: Exercise) => {
     semanticVariationName ||
     metadata?.coreMovementLabel ||
     metadata?.movementPatternLabel ||
+    exercise.name ||
+    ""
+  );
+};
+
+const getExerciseCoreMovementSortTitle = (exercise: Exercise) => {
+  const metadata = getMetadataForExercise(exercise);
+
+  return (
+    metadata?.coreMovementLabel ||
+    metadata?.movementPatternLabel ||
+    exercise.coreMovementPattern ||
+    exercise.pattern ||
     exercise.name ||
     ""
   );
@@ -3677,13 +4537,25 @@ const sortExercisesForLibrary = (
   exercises: Exercise[],
   sortMode: ExerciseLibrarySortMode,
   stats: LocalExerciseStatEntry[],
+  favoriteExerciseIds: Set<string>,
 ) =>
   [...exercises].sort((left, right) => {
     const titleSort = getExerciseSortTitle(left).localeCompare(
       getExerciseSortTitle(right),
     );
+    const coreMovementTitleSort = getExerciseCoreMovementSortTitle(
+      left,
+    ).localeCompare(getExerciseCoreMovementSortTitle(right));
 
-    if (sortMode === "alpha") return titleSort;
+    if (sortMode === "favorites") {
+      return (
+        Number(favoriteExerciseIds.has(right.id)) -
+          Number(favoriteExerciseIds.has(left.id)) ||
+        titleSort
+      );
+    }
+
+    if (sortMode === "alpha") return coreMovementTitleSort || titleSort;
 
     if (sortMode === "difficulty") {
       return (
@@ -3722,9 +4594,10 @@ const sortExercisesForLibrary = (
 const getExerciseSectionLabel = (
   exercise: Exercise,
   sortMode: ExerciseLibrarySortMode,
+  favoriteExerciseIds: Set<string>,
 ) => {
   if (sortMode === "alpha") {
-    const firstCharacter = getExerciseSortTitle(exercise)
+    const firstCharacter = getExerciseCoreMovementSortTitle(exercise)
       .trim()
       .charAt(0)
       .toUpperCase();
@@ -3734,6 +4607,9 @@ const getExerciseSectionLabel = (
 
   if (sortMode === "difficulty") return exercise.level || "Unassigned";
   if (sortMode === "body") return exercise.body || "Other";
+  if (sortMode === "favorites") {
+    return favoriteExerciseIds.has(exercise.id) ? "Favorites" : "Other Exercises";
+  }
   if (sortMode === "recent") return "Recently Used";
   if (sortMode === "logged") return "Most Logged";
 
@@ -3743,11 +4619,16 @@ const getExerciseSectionLabel = (
 const groupExercisesIntoSections = (
   exercises: Exercise[],
   sortMode: ExerciseLibrarySortMode,
+  favoriteExerciseIds: Set<string>,
 ) => {
   const sections = new Map<string, { label: string; exercises: Exercise[] }>();
 
   exercises.forEach((exercise) => {
-    const label = getExerciseSectionLabel(exercise, sortMode);
+    const label = getExerciseSectionLabel(
+      exercise,
+      sortMode,
+      favoriteExerciseIds,
+    );
     const key = label.toLowerCase();
     const section = sections.get(key) || { label, exercises: [] };
 
@@ -4028,6 +4909,7 @@ function GridModifierSelect({
           : label === "Position" ||
               label.includes("Position /") ||
               label === "Stance" ||
+              label === "Feet Width" ||
               label === "Body Position" ||
               label === "Elevation"
             ? "violet"
@@ -4076,15 +4958,15 @@ function DetailVariationSelect({
   const isGrid = size === "grid";
   const displayOptions = dedupeModifierOptionsByDisplayLabel(options);
   const selectedOption = displayOptions.find((option) => option.id === value);
+  const getModifierOptionLabel = (modifier: ExerciseModifier) =>
+    getControlModifierDisplayLabel(label, modifier);
   const displayValue = selectedOption
-    ? getModifierDisplayLabel(selectedOption)
+    ? getModifierOptionLabel(selectedOption)
     : fallback;
   const fallbackOptionLabel =
     fallback.trim().toLowerCase() === "default" || !fallback.trim()
       ? label
       : fallback.trim();
-  const getModifierOptionLabel = (modifier: ExerciseModifier) =>
-    getModifierDisplayLabel(modifier);
   const normalizeOptionLabel = (optionLabel: string) =>
     optionLabel.trim().toLowerCase();
   const fallbackOptionKey = normalizeOptionLabel(fallbackOptionLabel);
@@ -4465,12 +5347,18 @@ function MovementMetadataPanel({
   setSelectedModifierIds,
   movementArchitectureChips,
   classificationChipClass,
+  customizeSettingsModifierIds = [],
+  customizeSettingsFallbackLabels = [],
+  customizeSettingsCategoryIds = [],
 }: {
   metadata: NormalizedExerciseCatalogItem | null;
   selectedModifierIds: ExerciseModifierId[];
   setSelectedModifierIds: Dispatch<SetStateAction<ExerciseModifierId[]>>;
   movementArchitectureChips: MovementArchitectureChip[];
   classificationChipClass?: string;
+  customizeSettingsModifierIds?: ExerciseModifierId[];
+  customizeSettingsFallbackLabels?: string[];
+  customizeSettingsCategoryIds?: ExerciseModifierCategoryId[];
 }) {
   const modifierPanelId = useId();
   const modifierTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -4501,24 +5389,69 @@ function MovementMetadataPanel({
   const toggleModifier = (modifier: ExerciseModifier) => {
     setSelectedModifierIds((prev) => {
       if (prev.includes(modifier.id)) {
-        return prev.filter((modifierId) => modifierId !== modifier.id);
+        return normalizeModifierIdsForCoreMovement(
+          metadata?.coreMovementId,
+          prev.filter((modifierId) => modifierId !== modifier.id),
+        );
       }
 
-      return [
-        ...prev.filter(
-          (modifierId) => getModifierCategoryId(modifierId) !== modifier.categoryId,
-        ),
-        modifier.id,
-      ];
+      return normalizeModifierIdsForCoreMovement(
+        metadata?.coreMovementId,
+        [
+          ...prev.filter(
+            (modifierId) =>
+              getModifierCategoryId(modifierId) !== modifier.categoryId,
+          ),
+          modifier.id,
+        ],
+      );
     });
   };
 
-  const remainingModifierGroups = compatibleModifierGroups.filter(
-    (group) =>
-      !["apparatus", "angle-position", "training-intent"].includes(
-        group.categoryId,
+  const isSquatUnilateralModifier = (modifier: ExerciseModifier) =>
+    metadata?.coreMovementId === "squat" &&
+    modifier.id === "limb-usage:unilateral";
+
+  const customizeSettingsModifierIdSet = new Set(customizeSettingsModifierIds);
+  const customizeSettingsDedupKeys = new Set([
+    ...customizeSettingsModifierIds.flatMap(getModifierDedupKeysForModifierId),
+    ...customizeSettingsFallbackLabels.flatMap(getModifierDedupKeysForLabel),
+  ]);
+  const hiddenVariationModifierGroupCategoryIds =
+    new Set<ExerciseModifierCategoryId>([
+      "apparatus",
+      "angle-position",
+      "load-behavior",
+      "training-intent",
+      ...customizeSettingsCategoryIds,
+      ...(metadata?.coreMovementId === "squat"
+        ? (["direction", "limb-usage"] as ExerciseModifierCategoryId[])
+        : []),
+      ...(metadata?.coreMovementId &&
+      hipThrustBridgeCoreMovementIds.has(metadata.coreMovementId)
+        ? (["range-of-motion", "tempo"] as ExerciseModifierCategoryId[])
+        : []),
+    ]);
+  const isModifierRepresentedByCustomizeSettings = (
+    modifier: ExerciseModifier,
+  ) =>
+    customizeSettingsModifierIdSet.has(modifier.id) ||
+    getModifierDedupKeysForModifier(modifier).some((key) =>
+      customizeSettingsDedupKeys.has(key),
+    );
+  const remainingModifierGroups = compatibleModifierGroups
+    .filter(
+      (group) => !hiddenVariationModifierGroupCategoryIds.has(group.categoryId),
+    )
+    .map((group) => ({
+      ...group,
+      modifiers: group.modifiers.filter(
+        (modifier) =>
+          !isSquatUnilateralModifier(modifier) &&
+          !isModifierRepresentedByCustomizeSettings(modifier),
       ),
-  );
+    }))
+    .filter((group) => group.modifiers.length > 0);
   const updateModifierPopoverPosition = () => {
     const trigger = modifierTriggerRef.current;
     if (!trigger) return;
@@ -5004,6 +5937,9 @@ function ExerciseLibraryCard({
   planAddToParam,
   savedExerciseStats,
   viewMode,
+  searchedEquipmentModifierId,
+  isFavorite,
+  onToggleFavorite,
   onAddToPlan,
   onDeleteCustom,
   onAddStats,
@@ -5016,6 +5952,9 @@ function ExerciseLibraryCard({
   planAddToParam: string;
   savedExerciseStats: LocalExerciseStatEntry[];
   viewMode: ExerciseLibraryViewMode;
+  searchedEquipmentModifierId: ExerciseModifierId | null;
+  isFavorite: boolean;
+  onToggleFavorite: (exerciseId: string) => void;
   onAddToPlan: (exercise: Exercise) => void;
   onDeleteCustom: (id: string) => void;
   onAddStats: (
@@ -5028,7 +5967,12 @@ function ExerciseLibraryCard({
 }) {
   const [selectedModifierIds, setSelectedModifierIds] = useState<
     ExerciseModifierId[]
-  >(() => getDefaultSelectedModifierIds(metadata));
+  >(() =>
+    normalizeModifierIdsForCoreMovement(
+      metadata?.coreMovementId,
+      getDefaultSelectedModifierIds(metadata),
+    ),
+  );
   const [isVariationDropdownOpen, setIsVariationDropdownOpen] =
     useState(false);
   const [isSemanticDropdownOpen, setIsSemanticDropdownOpen] = useState(false);
@@ -5060,6 +6004,7 @@ function ExerciseLibraryCard({
   const activeSemanticVariationName = selectedSemanticVariation?.name || "";
   const cardClassificationLabel = getCardClassificationLabel(metadata);
   const categoryTheme = getCategoryTheme(cardClassificationLabel);
+  const difficultyTheme = getDifficultyTheme(exercise.level);
   const activeExerciseName = activeSemanticVariationName || variationName;
   const patternLabel = metadata?.movementPatternLabel || exercise.pattern;
   const equipmentLabel = getSelectedEquipmentLabel(
@@ -5073,6 +6018,7 @@ function ExerciseLibraryCard({
     metadata,
     semanticVariationName: activeSemanticVariationName,
     equipmentLabel,
+    selectedModifierIds,
   });
   const goalLabel = getSelectedGoalLabel(exercise, selectedModifierIds);
   const recentStats = getRecentExerciseStats(
@@ -5131,6 +6077,9 @@ function ExerciseLibraryCard({
     options: ExerciseModifier[],
   ) => {
     if (control.categories.includes("apparatus")) return equipmentLabel;
+    if (isLoadPositionControl(control)) return nonApplicableModifierControlLabel;
+    if (isFeetWidthControlLabel(control.label)) return "Standard";
+    if (control.label === "Stability") return "Support";
 
     return patternLabel || control.label;
   };
@@ -5146,9 +6095,88 @@ function ExerciseLibraryCard({
       };
     })
     .filter((control) => control.options.length > 0);
+  const customizeSettingsOptionIdSet = new Set(
+    modifierControls.flatMap((control) =>
+      control.options.map((option) => option.id),
+    ),
+  );
+  const customizeSettingsModifierIds = uniqueModifierIds(
+    selectedModifierIds.filter((modifierId) =>
+      customizeSettingsOptionIdSet.has(modifierId),
+    ),
+  );
+  const customizeSettingsCategoryIds = Array.from(
+    new Set(
+      modifierControls.flatMap((control) => control.categories),
+    ),
+  );
+  const customizeSettingsFallbackLabels = modifierControls
+    .filter((control) => !control.value)
+    .map((control) => control.fallback)
+    .filter(Boolean);
+  const searchedEquipmentControl = modifierControls.find((control) =>
+    control.categories.includes("apparatus"),
+  );
+  const searchedEquipmentOptionIds =
+    searchedEquipmentControl?.options.map((option) => option.id) || [];
+  const searchedEquipmentOptionKey = searchedEquipmentOptionIds.join("|");
+  const searchedEquipmentIsAvailable = searchedEquipmentModifierId
+    ? searchedEquipmentOptionIds.includes(searchedEquipmentModifierId)
+    : false;
+  const searchedEquipmentCanPreserveOrSwitchSemantic = (() => {
+    if (
+      !searchedEquipmentModifierId ||
+      !searchedEquipmentIsAvailable ||
+      !selectedSemanticVariation
+    ) {
+      return true;
+    }
+
+    const allowedApparatusIds = getSemanticVariationAllowedApparatusIds(
+      selectedSemanticVariation,
+    );
+    if (
+      !selectedSemanticVariation.equipmentStrict ||
+      allowedApparatusIds.includes(searchedEquipmentModifierId)
+    ) {
+      return true;
+    }
+
+    const candidateModifierIds = uniqueModifierIds([
+      ...getNonApparatusModifierIds(selectedModifierIds),
+      searchedEquipmentModifierId,
+    ]);
+    const selectedNonApparatusIdSet = new Set(
+      getNonApparatusModifierIds(selectedModifierIds),
+    );
+
+    return semanticVariationOptions.some((variation) => {
+      if (variation.id === selectedSemanticVariation.id) return false;
+      if (
+        !getSemanticVariationAllowedApparatusIds(variation).includes(
+          searchedEquipmentModifierId,
+        )
+      ) {
+        return false;
+      }
+
+      const candidateDefiningIds = variation.definingModifierIds?.length
+        ? variation.definingModifierIds
+        : getNonApparatusModifierIds(variation.modifierIds);
+      const hasNonEquipmentOverlap = candidateDefiningIds.some((modifierId) =>
+        selectedNonApparatusIdSet.has(modifierId),
+      );
+
+      return Boolean(
+        hasNonEquipmentOverlap ||
+          getSemanticVariationMatchDetails(variation, candidateModifierIds),
+      );
+    });
+  })();
   const setModifierForCategories = (
     categoryIds: ExerciseModifierCategoryId[],
     modifierId: string,
+    controlOptionIds: ExerciseModifierId[] = [],
   ) => {
     const selectedModifierCategoryId = modifierId
       ? getModifierCategoryId(modifierId as ExerciseModifierId)
@@ -5156,14 +6184,18 @@ function ExerciseLibraryCard({
     const categoriesToClear = selectedModifierCategoryId
       ? [selectedModifierCategoryId]
       : categoryIds;
+    const controlOptionIdSet = new Set(controlOptionIds);
 
-    setSelectedModifierIds((prev) => [
-      ...prev.filter((id) => {
-        const categoryId = getModifierCategoryId(id);
-        return !categoryId || !categoriesToClear.includes(categoryId);
-      }),
-      ...(modifierId ? [modifierId as ExerciseModifierId] : []),
-    ]);
+    setSelectedModifierIds((prev) =>
+      normalizeModifierIdsForCoreMovement(metadata?.coreMovementId, [
+        ...prev.filter((id) => {
+          const categoryId = getModifierCategoryId(id);
+          if (controlOptionIdSet.size > 0) return !controlOptionIdSet.has(id);
+          return !categoryId || !categoriesToClear.includes(categoryId);
+        }),
+        ...(modifierId ? [modifierId as ExerciseModifierId] : []),
+      ]),
+    );
   };
   const setModifierForCategory = (
     categoryId: ExerciseModifierCategoryId,
@@ -5174,16 +6206,52 @@ function ExerciseLibraryCard({
   ) => {
     setExplicitSemanticVariationId(variation.id);
     setSelectedModifierIds((prev) =>
-      applySemanticVariationModifierPreset(prev, variation),
+      normalizeModifierIdsForCoreMovement(
+        metadata?.coreMovementId,
+        applySemanticVariationModifierPreset(prev, variation),
+      ),
     );
   };
 
   useEffect(() => {
-    setSelectedModifierIds(getDefaultSelectedModifierIds(metadata));
+    setSelectedModifierIds(
+      normalizeModifierIdsForCoreMovement(
+        metadata?.coreMovementId,
+        getDefaultSelectedModifierIds(metadata),
+      ),
+    );
     setExplicitSemanticVariationId("");
     setIsGridDetailsOpen(false);
     setIsSettingsOpen(false);
   }, [exercise.id, metadata?.id]);
+
+  useEffect(() => {
+    if (
+      !searchedEquipmentModifierId ||
+      !searchedEquipmentIsAvailable ||
+      !searchedEquipmentCanPreserveOrSwitchSemantic
+    ) {
+      return;
+    }
+
+    setSelectedModifierIds((prev) => {
+      if (prev.includes(searchedEquipmentModifierId)) return prev;
+
+      const equipmentOptionIdSet = new Set(searchedEquipmentOptionIds);
+
+      return normalizeModifierIdsForCoreMovement(metadata?.coreMovementId, [
+          ...prev.filter((modifierId) => !equipmentOptionIdSet.has(modifierId)),
+          searchedEquipmentModifierId,
+        ]);
+    });
+  }, [
+    exercise.id,
+    metadata?.id,
+    searchedEquipmentCanPreserveOrSwitchSemantic,
+    searchedEquipmentIsAvailable,
+    searchedEquipmentModifierId,
+    searchedEquipmentOptionKey,
+  ]);
 
   const gridDetailsDropdownId = `details-${exercise.id.replace(
     /[^a-zA-Z0-9_-]/g,
@@ -5324,6 +6392,11 @@ function ExerciseLibraryCard({
         pattern: patternLabel,
         equipment: equipmentLabel,
         goal: goalLabel,
+        coreMovementPattern: metadata?.coreMovementId,
+        semanticVariationId: selectedSemanticVariation?.id,
+        semanticVariationName: activeSemanticVariationName,
+        generatedTitle: variationName,
+        selectedModifierIds,
       },
       isGridView ? "grid" : "detail",
       event?.currentTarget || null,
@@ -5383,7 +6456,11 @@ function ExerciseLibraryCard({
           fallback={control.fallback}
           onOpenChange={setIsVariationDropdownOpen}
           onChange={(modifierId) =>
-            setModifierForCategories(control.categories, modifierId)
+            setModifierForCategories(
+              control.categories,
+              modifierId,
+              control.options.map((option) => option.id),
+            )
           }
           parentDropdownId={settingsDropdownId}
           keepOpenDropdownIds={[settingsDropdownId, gridDetailsDropdownId]}
@@ -5570,6 +6647,9 @@ function ExerciseLibraryCard({
             setSelectedModifierIds={setSelectedModifierIds}
             movementArchitectureChips={movementArchitectureChips}
             classificationChipClass={categoryTheme.pillClass}
+            customizeSettingsModifierIds={customizeSettingsModifierIds}
+            customizeSettingsFallbackLabels={customizeSettingsFallbackLabels}
+            customizeSettingsCategoryIds={customizeSettingsCategoryIds}
           />
 
           <MovementSuggestionsPanel suggestions={suggestions} />
@@ -5593,7 +6673,7 @@ function ExerciseLibraryCard({
   if (isGridView) {
     return (
       <article
-        className={`group relative self-start overflow-visible rounded-2xl border backdrop-blur-2xl backdrop-saturate-150 transition ${categoryTheme.surfaceClass} ${categoryTheme.cardClass} ${categoryTheme.hoverClass} ${
+        className={`group relative mb-2 inline-block w-full break-inside-avoid self-start overflow-visible rounded-2xl border backdrop-blur-2xl backdrop-saturate-150 transition sm:mb-3 ${categoryTheme.surfaceClass} ${categoryTheme.cardClass} ${categoryTheme.hoverClass} ${
           isVariationDropdownOpen ||
           isSemanticDropdownOpen ||
           isGridDetailsOpen ||
@@ -5604,6 +6684,11 @@ function ExerciseLibraryCard({
       >
         <div className={`pointer-events-none absolute inset-0 z-0 rounded-2xl ${categoryTheme.overlayClass} opacity-70`} />
         <div className={`pointer-events-none absolute inset-x-0 top-0 z-[12] h-px ${categoryTheme.accentClass}`} />
+        <FavoriteButton
+          isFavorite={isFavorite}
+          onToggle={() => onToggleFavorite(exercise.id)}
+          compact
+        />
 
         <div className="relative z-10 h-16 overflow-hidden rounded-t-2xl bg-slate-950/70 sm:h-24">
           <img
@@ -5703,6 +6788,10 @@ function ExerciseLibraryCard({
     >
       <div className={`pointer-events-none absolute inset-0 z-0 rounded-[30px] ${categoryTheme.overlayClass} opacity-70`} />
       <div className={`pointer-events-none absolute inset-x-0 top-0 z-[12] h-px ${categoryTheme.accentClass}`} />
+      <FavoriteButton
+        isFavorite={isFavorite}
+        onToggle={() => onToggleFavorite(exercise.id)}
+      />
 
       <div
         className={`relative z-10 overflow-hidden rounded-t-[30px] bg-slate-950/60 ${
@@ -5728,7 +6817,7 @@ function ExerciseLibraryCard({
             </span>
           ) : null}
 
-          <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+          <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${difficultyTheme.pill}`}>
             {exercise.level}
           </span>
         </div>
@@ -5797,6 +6886,9 @@ export default function ExerciseLibraryPage() {
   const [openMovementDetailsId, setOpenMovementDetailsId] = useState<
     string | null
   >(null);
+  const [favoriteExerciseIds, setFavoriteExerciseIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -5829,11 +6921,27 @@ export default function ExerciseLibraryPage() {
 
   useEffect(() => {
     setCustomExercises(readCustomExercises<Exercise>());
+    setFavoriteExerciseIds(new Set(readExerciseLibraryFavoriteIds()));
   }, []);
 
   useEffect(() => {
     writeCustomExercises(customExercises);
   }, [customExercises]);
+
+  const toggleFavoriteExercise = (exerciseId: string) => {
+    setFavoriteExerciseIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(exerciseId)) {
+        next.delete(exerciseId);
+      } else {
+        next.add(exerciseId);
+      }
+
+      writeExerciseLibraryFavoriteIds(next);
+      return next;
+    });
+  };
 
   useEffect(() => {
     let isActive = true;
@@ -5888,7 +6996,7 @@ export default function ExerciseLibraryPage() {
   }, []);
 
   const bodyOptions = useMemo(
-    () => getUniqueOptions(allExercises, "body"),
+    () => reorderBodyRegionOptions(getUniqueOptions(allExercises, "body")),
     [allExercises],
   );
 
@@ -5964,12 +7072,22 @@ export default function ExerciseLibraryPage() {
           group: "Equipment",
           helper: option.helper,
           query: option.label,
-          aliases:
-            option.label === "TRX"
-              ? ["trx", "suspension trainer", "suspension training"]
-              : [option.value],
+          aliases: getEquipmentSearchAliasesForLabel(option.label),
         });
       });
+
+    resistanceProfileSuggestionModifierIds.forEach((modifierId) => {
+      const modifier = EXERCISE_MODIFIER_BY_ID[modifierId];
+      if (!modifier) return;
+
+      addSuggestion({
+        id: `modifier-${modifier.id}`,
+        label: getModifierDisplayLabel(modifier),
+        group: getModifierCategoryLabel(modifier.categoryId),
+        query: getModifierDisplayLabel(modifier),
+        aliases: [modifier.slug, ...(modifier.aliases || [])],
+      });
+    });
 
     bodyOptions
       .filter((body) => body !== "All")
@@ -6001,6 +7119,15 @@ export default function ExerciseLibraryPage() {
     );
   }, [apparatusOptions, bodyOptions, goalOptions]);
 
+  const searchedEquipmentModifierId = useMemo(
+    () => getSearchedEquipmentModifierId(search),
+    [search],
+  );
+  const searchedModifierIds = useMemo(
+    () => getSearchedModifierIds(search),
+    [search],
+  );
+
   const levelAvailabilityBase = useMemo(() => {
     return allExercises.filter((exercise) => {
       const searchValue = search.toLowerCase();
@@ -6019,6 +7146,12 @@ export default function ExerciseLibraryPage() {
             ...metadata.modifierIds.map(getModifierLabel),
           ]
         : [];
+      const compatibleSearchedModifierMatch =
+        metadata && searchedModifierIds.length
+          ? getCompatibleModifiersForMovement(metadata.coreMovementId).some(
+              (modifier) => searchedModifierIds.includes(modifier.id),
+            )
+          : false;
 
       const matchesSearch =
         exercise.name?.toLowerCase().includes(searchValue) ||
@@ -6031,6 +7164,7 @@ export default function ExerciseLibraryPage() {
         normalizedSearchTokens.some((token) =>
           token.toLowerCase().includes(searchValue),
         ) ||
+        compatibleSearchedModifierMatch ||
         semanticExerciseMatchesQuery(search, {
           id: exercise.id,
           name: exercise.name,
@@ -6086,6 +7220,7 @@ export default function ExerciseLibraryPage() {
   }, [
     allExercises,
     search,
+    searchedModifierIds,
     bodyFilters,
     goalFilter,
     movementTypeFilter,
@@ -6105,6 +7240,7 @@ export default function ExerciseLibraryPage() {
     () => getFocusedExerciseCards(filtered),
     [filtered],
   );
+  const favoriteCount = favoriteExerciseIds.size;
 
   const sortOptions = useMemo<FilterMenuOption[]>(() => {
     const hasStats = savedExerciseStats.length > 0;
@@ -6130,6 +7266,13 @@ export default function ExerciseLibraryPage() {
         label: sortModeLabels.body,
         helper: "Body region groups",
       },
+      {
+        value: "favorites",
+        label: favoriteCount
+          ? `${sortModeLabels.favorites} (${favoriteCount})`
+          : sortModeLabels.favorites,
+        helper: "Favorited cards first",
+      },
       ...(hasStats
         ? [
             {
@@ -6145,7 +7288,7 @@ export default function ExerciseLibraryPage() {
           ]
         : []),
     ];
-  }, [savedExerciseStats.length]);
+  }, [favoriteCount, savedExerciseStats.length]);
 
   useEffect(() => {
     if (!sortOptions.some((option) => option.value === sortMode)) {
@@ -6154,8 +7297,14 @@ export default function ExerciseLibraryPage() {
   }, [sortMode, sortOptions]);
 
   const sortedFocusedExercises = useMemo(
-    () => sortExercisesForLibrary(focusedExercises, sortMode, savedExerciseStats),
-    [focusedExercises, sortMode, savedExerciseStats],
+    () =>
+      sortExercisesForLibrary(
+        focusedExercises,
+        sortMode,
+        savedExerciseStats,
+        favoriteExerciseIds,
+      ),
+    [focusedExercises, sortMode, savedExerciseStats, favoriteExerciseIds],
   );
 
   const levelCounts = useMemo(
@@ -6180,8 +7329,13 @@ export default function ExerciseLibraryPage() {
   }, [sortedFocusedExercises, currentPage, exercisesPerPage]);
 
   const paginatedExerciseSections = useMemo(
-    () => groupExercisesIntoSections(paginatedExercises, sortMode),
-    [paginatedExercises, sortMode],
+    () =>
+      groupExercisesIntoSections(
+        paginatedExercises,
+        sortMode,
+        favoriteExerciseIds,
+      ),
+    [paginatedExercises, sortMode, favoriteExerciseIds],
   );
 
   useEffect(() => {
@@ -6412,6 +7566,11 @@ export default function ExerciseLibraryPage() {
       body: statsExercise.body,
       pattern: statsExercise.pattern,
       equipment: statsExercise.equipment,
+      coreMovementPattern: statsExercise.coreMovementPattern,
+      semanticVariationId: statsExercise.semanticVariationId,
+      semanticVariationName: statsExercise.semanticVariationName,
+      generatedTitle: statsExercise.generatedTitle,
+      selectedModifierIds: statsExercise.selectedModifierIds,
       weight: statWeight.trim(),
       reps: statReps.trim(),
       sets: statSets.trim(),
@@ -6790,17 +7949,17 @@ export default function ExerciseLibraryPage() {
             if (!open) announceExerciseLibraryDropdownOpen(dropdownId);
             setOpen((prev) => !prev);
           }}
-          className={`flex min-h-[46px] w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left shadow-xl transition hover:scale-[1.01] md:min-h-[42px] md:px-2.5 md:py-2 min-[1100px]:min-h-[46px] min-[1100px]:px-3 min-[1100px]:py-2.5 ${accentClasses[accent].trigger}`}
+          className={`flex min-h-[46px] w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left shadow-xl transition hover:scale-[1.01] md:min-h-[40px] md:rounded-xl md:px-2.5 md:py-1.5 min-[1100px]:min-h-[46px] min-[1100px]:rounded-2xl min-[1100px]:px-3 min-[1100px]:py-2.5 ${accentClasses[accent].trigger}`}
         >
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70 md:text-[9px] md:tracking-[0.14em] min-[1100px]:text-[10px] min-[1100px]:tracking-[0.18em]">
               {label}
             </p>
-            <p className="mt-0.5 text-sm font-black text-white">
+            <p className="mt-0.5 text-sm font-black text-white md:text-[13px] md:leading-4 min-[1100px]:text-sm">
               {selectedOption?.label || value}
             </p>
             {(selectedOption?.group || selectedOption?.helper) ? (
-              <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/45">
+              <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/45 md:text-[9px] md:leading-3 md:tracking-[0.1em] min-[1100px]:text-[10px] min-[1100px]:tracking-[0.12em]">
                 {[selectedOption.group, selectedOption.helper]
                   .filter(Boolean)
                   .join(" / ")}
@@ -6810,7 +7969,7 @@ export default function ExerciseLibraryPage() {
 
           <span
             aria-hidden="true"
-            className={`relative ml-3 flex h-7 w-7 items-center justify-center rounded-full border text-sm font-black text-transparent transition after:absolute after:content-['v'] ${accentClasses[accent].arrow} ${
+            className={`relative ml-3 flex h-7 w-7 items-center justify-center rounded-full border text-sm font-black text-transparent transition after:absolute after:content-['v'] md:ml-2 md:h-6 md:w-6 min-[1100px]:ml-3 min-[1100px]:h-7 min-[1100px]:w-7 ${accentClasses[accent].arrow} ${
               open ? accentClasses[accent].arrowOpen : ""
             }`}
           >
@@ -6885,7 +8044,7 @@ export default function ExerciseLibraryPage() {
   }) => (
     <div
       aria-label="Level"
-      className="grid min-h-[46px] grid-cols-3 overflow-hidden rounded-2xl shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl"
+      className="grid min-h-[46px] grid-cols-3 overflow-hidden rounded-2xl shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl md:min-h-[40px] md:rounded-xl min-[1100px]:min-h-[46px] min-[1100px]:rounded-2xl"
     >
         {levelSegments.map((segment, index) => {
           const isActive = value === segment.value;
@@ -6908,14 +8067,14 @@ export default function ExerciseLibraryPage() {
                   ? `Clear level filter (${count} available)`
                   : `Filter ${segment.label} (${count} available)`
               }
-              className={`min-w-0 border-y border-l px-1 py-1.5 text-[9px] font-black uppercase leading-3 tracking-[0.04em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 focus:ring-violet-200/45 sm:px-1.5 sm:text-[10px] ${
+              className={`min-w-0 border-y border-l px-1 py-1.5 text-[9px] font-black uppercase leading-3 tracking-[0.04em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 sm:px-1.5 sm:text-[10px] md:py-1 md:text-[9px] min-[1100px]:py-1.5 min-[1100px]:text-[10px] ${segment.focusRing} ${
                 isActive ? segment.active : segment.tone
               } ${radiusClass} ${
                 index === levelSegments.length - 1 ? "border-r" : ""
               }`}
             >
               <span className="block truncate">{segment.label}</span>
-              <span className="mt-0.5 block truncate text-[8px] font-black leading-3 opacity-70 sm:text-[9px]">
+              <span className="mt-0.5 block truncate text-[8px] font-black leading-3 opacity-70 sm:text-[9px] md:text-[8px] min-[1100px]:text-[9px]">
                 {count} available
               </span>
             </button>
@@ -6986,12 +8145,14 @@ export default function ExerciseLibraryPage() {
               />
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-2.5 md:min-w-[9rem] md:justify-self-start md:px-3 md:py-2 min-[1100px]:px-4 min-[1100px]:py-2.5">
-              <p className="text-xs text-slate-400">Showing</p>
-              <p className="mt-1 text-2xl font-black text-cyan-300 md:text-xl min-[1100px]:text-2xl">
+            <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-2.5 md:flex md:min-h-[40px] md:min-w-[12rem] md:items-center md:gap-2.5 md:justify-self-start md:px-3 md:py-1.5 min-[1100px]:block min-[1100px]:px-4 min-[1100px]:py-2.5">
+              <p className="text-xs text-slate-400 md:text-[10px] md:font-bold md:uppercase md:leading-none md:tracking-[0.12em] min-[1100px]:text-xs min-[1100px]:font-normal min-[1100px]:normal-case min-[1100px]:tracking-normal">
+                Showing
+              </p>
+              <p className="mt-1 text-2xl font-black text-cyan-300 md:mt-0 md:text-xl md:leading-none min-[1100px]:mt-1 min-[1100px]:text-2xl">
                 {focusedExercises.length}
               </p>
-              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 md:mt-0 md:text-[9px] md:leading-none md:tracking-[0.1em] min-[1100px]:mt-1 min-[1100px]:text-[10px] min-[1100px]:tracking-[0.14em]">
                 Core cards
               </p>
             </div>
@@ -6999,7 +8160,7 @@ export default function ExerciseLibraryPage() {
             <button
               type="button"
               onClick={() => setShowAddForm((prev) => !prev)}
-              className="min-h-[44px] rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-sm font-black text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950 md:min-h-[42px] md:justify-self-end md:px-4 md:py-2.5 min-[1100px]:min-h-[44px] min-[1100px]:px-5 min-[1100px]:py-3"
+              className="min-h-[44px] rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-sm font-black text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950 md:min-h-[40px] md:justify-self-end md:rounded-xl md:px-3.5 md:py-2 md:text-xs min-[1100px]:min-h-[44px] min-[1100px]:rounded-2xl min-[1100px]:px-5 min-[1100px]:py-3 min-[1100px]:text-sm"
             >
               {showAddForm ? "Close Form" : "+ Add Exercise"}
             </button>
@@ -7058,7 +8219,7 @@ export default function ExerciseLibraryPage() {
             </div>
           ) : null}
 
-          <div className="mt-2.5 grid gap-2.5 md:grid-cols-2 md:gap-2 min-[1100px]:grid-cols-4 min-[1100px]:gap-2.5">
+          <div className="mt-2.5 grid gap-2.5 md:grid-cols-3 md:gap-2 min-[1100px]:grid-cols-4 min-[1100px]:gap-2.5">
               <FilterMenu
                 label="Movement Type"
                 value={movementTypeFilter}
@@ -7197,8 +8358,8 @@ export default function ExerciseLibraryPage() {
                   <div
                     className={`relative z-0 overflow-visible ${
                       viewMode === "grid"
-                        ? "grid grid-cols-2 items-start gap-2 max-[360px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4"
-                        : "grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                        ? "columns-1 gap-2 overflow-visible sm:columns-2 sm:gap-3 md:columns-3 lg:columns-4"
+                        : "columns-1 gap-4 overflow-visible sm:columns-2 lg:columns-3"
                     }`}
                   >
                     {section.exercises.map((exercise) => {
@@ -7214,6 +8375,9 @@ export default function ExerciseLibraryPage() {
                           planAddToParam={planAddToParam}
                           savedExerciseStats={savedExerciseStats}
                           viewMode={viewMode}
+                          searchedEquipmentModifierId={searchedEquipmentModifierId}
+                          isFavorite={favoriteExerciseIds.has(exercise.id)}
+                          onToggleFavorite={toggleFavoriteExercise}
                           onAddToPlan={addExerciseToPlanBuilder}
                           onDeleteCustom={deleteCustomExercise}
                           onAddStats={openStatsMenu}

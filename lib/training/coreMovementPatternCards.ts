@@ -56,10 +56,12 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Back Squat",
     "Overhead Squat",
     "Sumo Squat",
+    "Narrow Stance Squat",
     "Box Squat",
     "Hack Squat",
     "TRX Assisted Squat",
     "Zercher Squat",
+    "Pistol Squat",
     "Cossack Squat",
     "Jump Squat",
   ],
@@ -76,10 +78,13 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
   ],
   "core-lunge": [
     "Reverse Lunge",
+    "Slider Reverse Lunge",
     "Forward Lunge",
     "Walking Lunge",
     "Curtsy Lunge",
+    "Slider Curtsy Lunge",
     "Lateral Lunge",
+    "Slider Lateral Lunge",
     "Deficit Lunge",
     "Bulgarian Split Squat",
     "TRX Reverse Lunge",
@@ -97,16 +102,38 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Hip Thrust",
     "Single Leg Hip Thrust",
     "Frog Pump",
+    "Glute Extension",
+    "Pull Through",
+    "Cable Pancake",
   ],
   "core-knee-extension": ["Leg Extension", "Terminal Knee Extension"],
   "core-knee-flexion": [
     "Seated Hamstring Curl",
     "Lying Hamstring Curl",
+    "Slider Hamstring Curl",
+    "Floor Slider Hamstring Curl",
     "Nordic Curl",
     "Stability Ball Ham Curl",
   ],
-  "core-hip-abduction": ["Band Walk", "Clamshell", "Hip Abduction Machine"],
-  "core-hip-adduction": ["Adductor Machine", "Copenhagen Plank"],
+  "core-hip-abduction": [
+    "Band Walk",
+    "Clamshell",
+    "Hip Abduction Machine",
+    "Slider Hip Abduction",
+  ],
+  "core-hip-adduction": [
+    "Adductor Machine",
+    "Copenhagen Plank",
+    "Slider Adductor Slide",
+  ],
+  "core-hip-internal-rotation": [
+    "Seated Hip Internal Rotation",
+    "90/90 Hip Internal Rotation",
+  ],
+  "core-hip-external-rotation": [
+    "Seated Hip External Rotation",
+    "90/90 Hip External Rotation",
+  ],
   "core-calf-raise": [
     "Standing Calf Raise",
     "Seated Calf Raise",
@@ -201,6 +228,9 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Ab Wheel Rollout",
     "Dead Bug",
     "Body Saw",
+    "Slider Body Saw",
+    "Slider Mountain Climber",
+    "Slider Pike",
     "TRX Fallout",
     "TRX Pike",
   ],
@@ -311,15 +341,32 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Front Squat": ["apparatus:barbell", "angle-position:front-loaded"],
   "Back Squat": ["apparatus:barbell", "angle-position:back-loaded"],
   "Overhead Squat": ["apparatus:barbell", "angle-position:overhead"],
-  "Sumo Squat": ["apparatus:bodyweight", "limb-usage:sumo-stance"],
-  "Box Squat": ["apparatus:box", "angle-position:seated"],
-  "Hack Squat": ["apparatus:machine"],
+  "Sumo Squat": ["apparatus:bodyweight", "limb-usage:wide-stance"],
+  "Narrow Stance Squat": [
+    "apparatus:bodyweight",
+    "limb-usage:narrow-stance",
+  ],
+  "Box Squat": [
+    "apparatus:box",
+    "angle-position:seated",
+    "range-of-motion:rom-limiter",
+  ],
+  "Hack Squat": [
+    "apparatus:machine",
+    "angle-position:standing",
+    "limb-usage:standard-stance",
+  ],
   "TRX Assisted Squat": [
     "apparatus:trx",
     "assistance-resistance:assisted",
     "limb-usage:standard-stance",
   ],
   "Zercher Squat": ["apparatus:barbell", "angle-position:front-loaded"],
+  "Pistol Squat": [
+    "apparatus:bodyweight",
+    "limb-usage:single-leg",
+    "range-of-motion:full-rom",
+  ],
   "Cossack Squat": [
     "apparatus:bodyweight",
     "direction:lateral",
@@ -337,7 +384,7 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   ],
   "Sumo Deadlift": [
     "apparatus:barbell",
-    "limb-usage:sumo-stance",
+    "limb-usage:wide-stance",
     "range-of-motion:dead-stop",
   ],
   "Romanian Deadlift": ["tempo:slow-eccentric", "range-of-motion:full-rom"],
@@ -368,6 +415,11 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "direction:reverse",
     "angle-position:split-stance",
   ],
+  "Slider Reverse Lunge": [
+    "apparatus:sliders",
+    "direction:reverse",
+    "angle-position:split-stance",
+  ],
   "Forward Lunge": [
     "apparatus:bodyweight",
     "direction:forward",
@@ -383,8 +435,18 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "direction:crossover",
     "angle-position:split-stance",
   ],
+  "Slider Curtsy Lunge": [
+    "apparatus:sliders",
+    "direction:crossover",
+    "angle-position:split-stance",
+  ],
   "Lateral Lunge": [
     "apparatus:bodyweight",
+    "direction:lateral",
+    "limb-usage:wide-stance",
+  ],
+  "Slider Lateral Lunge": [
+    "apparatus:sliders",
     "direction:lateral",
     "limb-usage:wide-stance",
   ],
@@ -406,7 +468,7 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   ],
   "Lunge to Press": ["angle-position:split-stance", "load-behavior:skill-complex"],
   "Lunge to Curl": ["angle-position:split-stance", "load-behavior:skill-complex"],
-  "Step-Up": ["apparatus:bodyweight", "apparatus:box"],
+  "Step-Up": ["apparatus:bodyweight", "apparatus:box", "direction:vertical"],
   "Lateral Step-Up": ["apparatus:box", "limb-usage:unilateral"],
   "Step-Up with Knee Drive": ["apparatus:box", "limb-usage:unilateral"],
   "Plyometric Step-Up": [
@@ -414,24 +476,72 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "tempo:explosive",
     "load-behavior:ballistic",
   ],
-  "Glute Bridge": ["apparatus:bodyweight", "angle-position:supine"],
+  "Glute Bridge": ["apparatus:bodyweight", "angle-position:floor"],
   "Hip Thrust": ["angle-position:bench-supported"],
   "Single Leg Hip Thrust": [
     "angle-position:bench-supported",
     "limb-usage:single-leg",
   ],
-  "Frog Pump": ["apparatus:bodyweight", "angle-position:supine"],
+  "Frog Pump": ["apparatus:bodyweight", "angle-position:floor"],
+  "Glute Extension": [
+    "apparatus:bodyweight",
+    "angle-position:kneeling",
+    "angle-position:back-loaded",
+  ],
+  "Pull Through": ["apparatus:cable", "angle-position:standing"],
+  "Cable Pancake": [
+    "apparatus:cable",
+    "limb-usage:wide-stance",
+    "angle-position:seated",
+    "range-of-motion:lengthened-partial",
+  ],
   "Leg Extension": ["apparatus:machine", "angle-position:seated"],
   "Terminal Knee Extension": ["apparatus:band", "angle-position:standing"],
   "Seated Hamstring Curl": ["apparatus:machine", "angle-position:seated"],
   "Lying Hamstring Curl": ["apparatus:machine", "angle-position:lying"],
+  "Slider Hamstring Curl": ["apparatus:sliders", "angle-position:supine"],
+  "Floor Slider Hamstring Curl": [
+    "apparatus:sliders",
+    "angle-position:supine",
+    "range-of-motion:full-rom",
+  ],
   "Nordic Curl": ["apparatus:bodyweight", "tempo:slow-eccentric"],
   "Stability Ball Ham Curl": ["stability:swiss-ball", "angle-position:supine"],
   "Band Walk": ["apparatus:band", "limb-usage:wide-stance"],
   "Clamshell": ["apparatus:band", "angle-position:side-lying"],
   "Hip Abduction Machine": ["apparatus:machine", "angle-position:seated"],
+  "Slider Hip Abduction": [
+    "apparatus:sliders",
+    "angle-position:standing",
+    "direction:lateral",
+  ],
   "Adductor Machine": ["apparatus:machine", "angle-position:seated"],
   "Copenhagen Plank": ["apparatus:bodyweight", "angle-position:side-support"],
+  "Slider Adductor Slide": [
+    "apparatus:sliders",
+    "angle-position:standing",
+    "direction:lateral",
+  ],
+  "Seated Hip Internal Rotation": [
+    "apparatus:bodyweight",
+    "angle-position:seated",
+    "direction:rotational",
+  ],
+  "90/90 Hip Internal Rotation": [
+    "apparatus:bodyweight",
+    "angle-position:90-90",
+    "direction:rotational",
+  ],
+  "Seated Hip External Rotation": [
+    "apparatus:bodyweight",
+    "angle-position:seated",
+    "direction:rotational",
+  ],
+  "90/90 Hip External Rotation": [
+    "apparatus:bodyweight",
+    "angle-position:90-90",
+    "direction:rotational",
+  ],
   "Standing Calf Raise": ["angle-position:standing"],
   "Seated Calf Raise": ["angle-position:seated"],
   "Single Leg Calf Raise": ["angle-position:standing", "limb-usage:single-leg"],
@@ -523,11 +633,27 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Reverse Wrist Curl": ["angle-position:seated"],
   "Hammer Rotation": ["apparatus:dumbbell", "limb-usage:neutral-grip"],
   "Club Rotation": ["load-behavior:skill-complex"],
-  "Band Pronation/Supination": ["apparatus:band"],
-  "Band Shoulder Internal Rotation": ["apparatus:band"],
-  "Cable Shoulder Internal Rotation": ["apparatus:cable"],
-  "Band Shoulder External Rotation": ["apparatus:band"],
-  "Cable Shoulder External Rotation": ["apparatus:cable"],
+  "Band Pronation/Supination": ["apparatus:band", "direction:rotational"],
+  "Band Shoulder Internal Rotation": [
+    "apparatus:band",
+    "angle-position:standing",
+    "direction:rotational",
+  ],
+  "Cable Shoulder Internal Rotation": [
+    "apparatus:cable",
+    "angle-position:standing",
+    "direction:rotational",
+  ],
+  "Band Shoulder External Rotation": [
+    "apparatus:band",
+    "angle-position:standing",
+    "direction:rotational",
+  ],
+  "Cable Shoulder External Rotation": [
+    "apparatus:cable",
+    "angle-position:standing",
+    "direction:rotational",
+  ],
   "Side-Lying External Rotation": ["angle-position:side-lying"],
   "Scapular Push-Up": ["apparatus:bodyweight", "angle-position:floor"],
   "Scapular Pull-Up": ["apparatus:bodyweight", "limb-usage:overhand-grip"],
@@ -542,27 +668,42 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "tempo:explosive",
     "load-behavior:ballistic",
   ],
-  "Landmine Rotation": ["apparatus:landmine"],
+  "Landmine Rotation": ["apparatus:landmine", "direction:rotational"],
   "Pallof Press": ["apparatus:cable", "tempo:isometric"],
   "Renegade Hold": ["apparatus:dumbbell", "angle-position:plank"],
   "Single Arm Carry": ["limb-usage:single-arm", "load-behavior:loaded-carry"],
   "TRX Body Saw": [
     "apparatus:trx",
     "angle-position:plank",
-    "range-of-motion:extended-rom",
+    "range-of-motion:full-rom",
   ],
   Crunch: ["apparatus:bodyweight", "angle-position:supine"],
   "Sit-Up": ["apparatus:bodyweight", "angle-position:supine"],
   "Reverse Crunch": ["apparatus:bodyweight", "angle-position:supine"],
-  "Hanging Leg Raise": ["apparatus:pull-up-bar"],
+  "Hanging Leg Raise": ["apparatus:pull-up-bar", "angle-position:hanging"],
   Plank: ["apparatus:bodyweight", "angle-position:plank", "tempo:isometric"],
-  "Ab Wheel Rollout": ["apparatus:ab-wheel", "range-of-motion:extended-rom"],
+  "Ab Wheel Rollout": ["apparatus:ab-wheel", "range-of-motion:full-rom"],
   "Dead Bug": ["apparatus:bodyweight", "angle-position:supine"],
   "Body Saw": ["apparatus:bodyweight", "angle-position:plank"],
+  "Slider Body Saw": [
+    "apparatus:sliders",
+    "angle-position:plank",
+    "range-of-motion:full-rom",
+  ],
+  "Slider Mountain Climber": [
+    "apparatus:sliders",
+    "angle-position:plank",
+    "load-behavior:cyclical",
+  ],
+  "Slider Pike": [
+    "apparatus:sliders",
+    "angle-position:plank",
+    "range-of-motion:full-rom",
+  ],
   "TRX Fallout": [
     "apparatus:trx",
     "angle-position:standing",
-    "range-of-motion:extended-rom",
+    "range-of-motion:full-rom",
   ],
   "TRX Pike": ["apparatus:trx", "angle-position:plank"],
   "Side Plank": ["apparatus:bodyweight", "angle-position:side-support"],
@@ -628,6 +769,8 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
 };
 
 const SEMANTIC_VARIATION_ALIASES: Partial<Record<string, readonly string[]>> = {
+  "Sumo Squat": ["wide squat", "sumo squat"],
+  "Narrow Stance Squat": ["narrow squat", "narrow stance squat"],
   "Romanian Deadlift": ["rdl"],
   "Single Leg RDL": ["single leg romanian deadlift"],
   "Dumbbell Reverse Fly": ["rear delt fly"],
@@ -637,7 +780,44 @@ const SEMANTIC_VARIATION_ALIASES: Partial<Record<string, readonly string[]>> = {
   "TRX Push-Up": ["trx push up", "suspension trainer push-up"],
   "TRX Chest Fly": ["trx chest fly", "suspension trainer chest fly"],
   "TRX Assisted Squat": ["suspension trainer assisted squat"],
+  "Pistol Squat": ["single leg squat", "bodyweight single leg squat"],
+  "Glute Extension": [
+    "kneeling glute extension",
+    "half kneeling glute extension",
+    "shoulder loaded glute extension",
+    "hip extension kneeling",
+  ],
+  "Pull Through": [
+    "cable pull through",
+    "band pull through",
+    "glute pull through",
+    "hip extension pull through",
+  ],
+  "Cable Pancake": [
+    "cable pancake",
+    "weighted cable pancake",
+    "weighted pancake",
+    "pancake stretch cable",
+    "loaded pancake stretch",
+  ],
   "TRX Reverse Lunge": ["suspension trainer reverse lunge"],
+  "Slider Reverse Lunge": ["sliders reverse lunge", "glider reverse lunge"],
+  "Slider Lateral Lunge": ["sliders lateral lunge", "glider lateral lunge"],
+  "Slider Curtsy Lunge": ["sliders curtsy lunge", "glider curtsy lunge"],
+  "Slider Hamstring Curl": ["sliders hamstring curl", "glider hamstring curl"],
+  "Floor Slider Hamstring Curl": [
+    "floor sliders hamstring curl",
+    "floor glider hamstring curl",
+  ],
+  "Slider Hip Abduction": ["sliders hip abduction", "glider hip abduction"],
+  "Slider Adductor Slide": ["sliders adductor slide", "glider adductor slide"],
+  "Seated Hip Internal Rotation": ["hip ir", "seated hip ir"],
+  "90/90 Hip Internal Rotation": ["90/90 hip ir", "ninety ninety hip internal rotation"],
+  "Seated Hip External Rotation": ["hip er", "seated hip er"],
+  "90/90 Hip External Rotation": ["90/90 hip er", "ninety ninety hip external rotation"],
+  "Slider Body Saw": ["sliders body saw", "glider body saw"],
+  "Slider Mountain Climber": ["sliders mountain climber", "glider mountain climber"],
+  "Slider Pike": ["sliders pike", "glider pike"],
   "TRX Fallout": ["suspension trainer fallout"],
   "TRX Pike": ["suspension trainer pike"],
   "TRX Body Saw": ["suspension trainer body saw"],
@@ -666,6 +846,7 @@ const flexibleLungeApparatus: readonly ExerciseModifierId[] = [
   "apparatus:band",
   "apparatus:cable",
   "apparatus:trx",
+  "apparatus:sliders",
 ];
 
 const flexibleRdlApparatus: readonly ExerciseModifierId[] = [
@@ -674,6 +855,27 @@ const flexibleRdlApparatus: readonly ExerciseModifierId[] = [
   "apparatus:kettlebell",
   "apparatus:cable",
   "apparatus:band",
+];
+
+const flexibleHipThrustBridgeApparatus: readonly ExerciseModifierId[] = [
+  "apparatus:bodyweight",
+  "apparatus:barbell",
+  "apparatus:dumbbell",
+  "apparatus:kettlebell",
+  "apparatus:smith-machine",
+  "apparatus:machine",
+  "apparatus:band",
+  "apparatus:cable",
+];
+
+const flexibleGluteBridgeApparatus: readonly ExerciseModifierId[] = [
+  "apparatus:bodyweight",
+  "apparatus:dumbbell",
+  "apparatus:barbell",
+  "apparatus:band",
+  "apparatus:kettlebell",
+  "apparatus:smith-machine",
+  "apparatus:machine",
 ];
 
 const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
@@ -746,6 +948,10 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
     allowedApparatusIds: flexibleSquatApparatus,
     defaultApparatusId: "apparatus:bodyweight",
   },
+  "Narrow Stance Squat": {
+    allowedApparatusIds: flexibleSquatApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
   "Hack Squat": {
     allowedApparatusIds: ["apparatus:machine"],
     defaultApparatusId: "apparatus:machine",
@@ -754,6 +960,11 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
   "TRX Assisted Squat": {
     allowedApparatusIds: ["apparatus:trx"],
     defaultApparatusId: "apparatus:trx",
+    equipmentStrict: true,
+  },
+  "Pistol Squat": {
+    allowedApparatusIds: ["apparatus:bodyweight"],
+    defaultApparatusId: "apparatus:bodyweight",
     equipmentStrict: true,
   },
   "Jump Squat": {
@@ -802,6 +1013,11 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
     allowedApparatusIds: flexibleLungeApparatus,
     defaultApparatusId: "apparatus:bodyweight",
   },
+  "Slider Reverse Lunge": {
+    allowedApparatusIds: ["apparatus:sliders"],
+    defaultApparatusId: "apparatus:sliders",
+    equipmentStrict: true,
+  },
   "Forward Lunge": {
     allowedApparatusIds: flexibleLungeApparatus,
     defaultApparatusId: "apparatus:bodyweight",
@@ -814,9 +1030,19 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
     allowedApparatusIds: flexibleLungeApparatus,
     defaultApparatusId: "apparatus:bodyweight",
   },
+  "Slider Curtsy Lunge": {
+    allowedApparatusIds: ["apparatus:sliders"],
+    defaultApparatusId: "apparatus:sliders",
+    equipmentStrict: true,
+  },
   "Lateral Lunge": {
     allowedApparatusIds: flexibleLungeApparatus,
     defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Slider Lateral Lunge": {
+    allowedApparatusIds: ["apparatus:sliders"],
+    defaultApparatusId: "apparatus:sliders",
+    equipmentStrict: true,
   },
   "Deficit Lunge": {
     allowedApparatusIds: flexibleLungeApparatus,
@@ -829,6 +1055,26 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
   "TRX Reverse Lunge": {
     allowedApparatusIds: ["apparatus:trx"],
     defaultApparatusId: "apparatus:trx",
+    equipmentStrict: true,
+  },
+  "Slider Hamstring Curl": {
+    allowedApparatusIds: ["apparatus:sliders"],
+    defaultApparatusId: "apparatus:sliders",
+    equipmentStrict: true,
+  },
+  "Floor Slider Hamstring Curl": {
+    allowedApparatusIds: ["apparatus:sliders"],
+    defaultApparatusId: "apparatus:sliders",
+    equipmentStrict: true,
+  },
+  "Slider Hip Abduction": {
+    allowedApparatusIds: ["apparatus:sliders"],
+    defaultApparatusId: "apparatus:sliders",
+    equipmentStrict: true,
+  },
+  "Slider Adductor Slide": {
+    allowedApparatusIds: ["apparatus:sliders"],
+    defaultApparatusId: "apparatus:sliders",
     equipmentStrict: true,
   },
   "Gorilla Row": {
@@ -919,6 +1165,51 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
     defaultApparatusId: "apparatus:band",
     equipmentStrict: true,
   },
+  "Slider Body Saw": {
+    allowedApparatusIds: ["apparatus:sliders"],
+    defaultApparatusId: "apparatus:sliders",
+    equipmentStrict: true,
+  },
+  "Slider Mountain Climber": {
+    allowedApparatusIds: ["apparatus:sliders"],
+    defaultApparatusId: "apparatus:sliders",
+    equipmentStrict: true,
+  },
+  "Slider Pike": {
+    allowedApparatusIds: ["apparatus:sliders"],
+    defaultApparatusId: "apparatus:sliders",
+    equipmentStrict: true,
+  },
+  "Glute Bridge": {
+    allowedApparatusIds: flexibleGluteBridgeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Hip Thrust": {
+    allowedApparatusIds: flexibleHipThrustBridgeApparatus,
+    defaultApparatusId: "apparatus:barbell",
+  },
+  "Single Leg Hip Thrust": {
+    allowedApparatusIds: flexibleHipThrustBridgeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Frog Pump": {
+    allowedApparatusIds: flexibleHipThrustBridgeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Glute Extension": {
+    allowedApparatusIds: flexibleHipThrustBridgeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Pull Through": {
+    allowedApparatusIds: ["apparatus:cable", "apparatus:band"],
+    defaultApparatusId: "apparatus:cable",
+    equipmentStrict: true,
+  },
+  "Cable Pancake": {
+    allowedApparatusIds: ["apparatus:cable"],
+    defaultApparatusId: "apparatus:cable",
+    equipmentStrict: true,
+  },
 };
 
 const SEMANTIC_VARIATION_DEFINING_MODIFIER_IDS: Partial<
@@ -940,6 +1231,17 @@ const SEMANTIC_VARIATION_DEFINING_MODIFIER_IDS: Partial<
   "Deficit Lunge": ["range-of-motion:deficit"],
   "Bulgarian Split Squat": ["angle-position:rear-foot-elevated"],
   "TRX Reverse Lunge": ["direction:reverse", "assistance-resistance:assisted"],
+  "Pistol Squat": ["limb-usage:single-leg", "range-of-motion:full-rom"],
+  "Narrow Stance Squat": ["limb-usage:narrow-stance"],
+  "Glute Extension": [
+    "angle-position:kneeling",
+    "angle-position:back-loaded",
+  ],
+  "Pull Through": ["angle-position:standing"],
+  "Cable Pancake": [
+    "limb-usage:wide-stance",
+    "range-of-motion:lengthened-partial",
+  ],
   "Dumbbell Lateral Raise": ["angle-position:standing", "direction:lateral"],
   "Cable Lateral Raise": ["angle-position:standing", "direction:lateral"],
   "Band Lateral Raise": ["angle-position:standing", "direction:lateral"],
@@ -976,6 +1278,53 @@ const SEMANTIC_VARIATION_MATCH_MODIFIER_SETS: Partial<
   "Sumo Squat": [
     ["apparatus:bodyweight", "limb-usage:wide-stance"],
     ["limb-usage:wide-stance"],
+  ],
+  "Narrow Stance Squat": [
+    ["apparatus:bodyweight", "limb-usage:narrow-stance"],
+    ["limb-usage:narrow-stance"],
+  ],
+  "Pistol Squat": [
+    ["apparatus:bodyweight", "limb-usage:single-leg", "range-of-motion:full-rom"],
+    ["limb-usage:single-leg", "range-of-motion:full-rom"],
+    ["limb-usage:single-leg"],
+  ],
+  "Glute Bridge": [
+    ["angle-position:floor"],
+    ["angle-position:feet-elevated"],
+    ["limb-usage:single-leg"],
+    ["angle-position:frog-stance"],
+    ["limb-usage:narrow-stance"],
+    ["limb-usage:standard-stance"],
+    ["limb-usage:wide-stance"],
+    ["angle-position:split-stance"],
+    ["stability:bosu"],
+    ["stability:swiss-ball"],
+    ["stability:stability-pad"],
+    ["stability:balance-focused"],
+    ["stability:offset-stability"],
+    ["stability:dynamic-stability"],
+  ],
+  "Glute Extension": [
+    ["angle-position:kneeling", "angle-position:back-loaded"],
+    ["angle-position:kneeling"],
+    ["angle-position:half-kneeling", "angle-position:back-loaded"],
+    ["angle-position:half-kneeling"],
+  ],
+  "Pull Through": [
+    ["apparatus:cable", "angle-position:standing"],
+    ["apparatus:band", "angle-position:standing"],
+    ["angle-position:standing"],
+  ],
+  "Cable Pancake": [
+    [
+      "apparatus:cable",
+      "limb-usage:wide-stance",
+      "angle-position:seated",
+      "range-of-motion:lengthened-partial",
+    ],
+    ["limb-usage:wide-stance", "angle-position:seated"],
+    ["limb-usage:wide-stance", "angle-position:floor"],
+    ["limb-usage:wide-stance", "range-of-motion:lengthened-partial"],
   ],
   "Sumo Deadlift": [
     ["apparatus:barbell", "limb-usage:wide-stance", "range-of-motion:dead-stop"],
@@ -1073,7 +1422,6 @@ export const getCoreMovementPatternSemanticVariations = (
 
 const commonBodyweightModifiers: ExerciseModifierId[] = [
   "apparatus:bodyweight",
-  "stability:stable",
   "range-of-motion:full-rom",
 ];
 
@@ -1114,7 +1462,18 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
       ...commonBodyweightModifiers,
       "limb-usage:bilateral",
     ],
-    aliases: ["air squat", "bodyweight squat", "goblet squat", "front squat", "back squat"],
+    aliases: [
+      "air squat",
+      "bodyweight squat",
+      "goblet squat",
+      "front squat",
+      "back squat",
+      "pistol squat",
+      "single leg squat",
+      "bodyweight single leg squat",
+      "narrow squat",
+      "narrow stance squat",
+    ],
   },
   {
     id: "core-hinge",
@@ -1184,12 +1543,24 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       "apparatus:bodyweight",
-      "angle-position:supine",
+      "angle-position:floor",
       "limb-usage:bilateral",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
-    aliases: ["glute bridge", "hip thrust", "barbell hip thrust"],
+    aliases: [
+      "glute bridge",
+      "hip thrust",
+      "barbell hip thrust",
+      "glute extension",
+      "kneeling glute extension",
+      "half kneeling glute extension",
+      "pull through",
+      "cable pull through",
+      "band pull through",
+      "cable pancake",
+      "weighted pancake",
+      "loaded pancake stretch",
+    ],
   },
   {
     id: "core-knee-extension",
@@ -1207,7 +1578,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
       "apparatus:machine",
       "angle-position:seated",
       "limb-usage:bilateral",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["leg extension", "terminal knee extension"],
@@ -1228,7 +1598,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
       "apparatus:machine",
       "angle-position:seated",
       "limb-usage:bilateral",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["leg curl", "hamstring curl", "nordic curl"],
@@ -1248,7 +1617,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:band",
       "angle-position:standing",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["band walk", "clamshell", "abduction machine"],
@@ -1268,7 +1636,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:machine",
       "angle-position:seated",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["adductor machine", "copenhagen plank"],
@@ -1379,7 +1746,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
       "apparatus:dumbbell",
       "angle-position:standing",
       "limb-usage:bilateral",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["overhead press", "military press", "dumbbell shoulder press"],
@@ -1400,7 +1766,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
       "apparatus:dumbbell",
       "angle-position:flat",
       "limb-usage:bilateral",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["pec fly", "dumbbell fly", "cable fly", "machine fly"],
@@ -1421,7 +1786,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
       "apparatus:dumbbell",
       "angle-position:standing",
       "limb-usage:bilateral",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["side raise", "dumbbell lateral raise", "shoulder abduction"],
@@ -1442,7 +1806,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
       "apparatus:dumbbell",
       "angle-position:standing",
       "limb-usage:bilateral",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["db row", "dumbbell row", "cable row", "gorilla row", "renegade row"],
@@ -1481,7 +1844,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
       "apparatus:dumbbell",
       "angle-position:supine",
       "limb-usage:bilateral",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["dumbbell pullover", "straight arm pulldown"],
@@ -1502,7 +1864,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
       "apparatus:dumbbell",
       "angle-position:prone",
       "limb-usage:bilateral",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["rear delt fly", "reverse dumbbell fly", "rear delt raise"],
@@ -1523,7 +1884,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
       "apparatus:dumbbell",
       "angle-position:standing",
       "limb-usage:bilateral",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["biceps curl", "hammer curl", "preacher curl"],
@@ -1544,7 +1904,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
       "apparatus:cable",
       "angle-position:standing",
       "limb-usage:bilateral",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["pushdown", "pressdown", "skullcrusher", "overhead triceps extension"],
@@ -1564,7 +1923,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:dumbbell",
       "angle-position:seated",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["wrist curl", "forearm curl"],
@@ -1584,7 +1942,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:dumbbell",
       "angle-position:seated",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["reverse wrist curl"],
@@ -1604,7 +1961,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:dumbbell",
       "angle-position:seated",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["pronation", "supination", "hammer rotation", "wrist rotation"],
@@ -1624,7 +1980,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:band",
       "angle-position:standing",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["shoulder ir", "internal rotation", "shoulder internal rotation"],
@@ -1644,7 +1999,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:band",
       "angle-position:standing",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["shoulder er", "external rotation", "shoulder external rotation"],
@@ -1683,7 +2037,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
       "apparatus:cable",
       "angle-position:standing",
       "limb-usage:bilateral",
-      "stability:stable",
       "range-of-motion:full-rom",
     ],
     aliases: ["wood chop", "russian twist", "rotational throw"],
@@ -1704,7 +2057,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
       "apparatus:cable",
       "angle-position:standing",
       "limb-usage:bilateral",
-      "stability:stable",
     ],
     aliases: ["pallof press", "anti rotation", "anti-rotation", "renegade row", "suitcase carry"],
   },
@@ -1740,7 +2092,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       "apparatus:bodyweight",
-      "stability:stable",
       "load-behavior:skill-complex",
     ],
     aliases: ["plank", "dead bug", "ab wheel rollout", "body saw"],
@@ -1760,7 +2111,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:dumbbell",
       "limb-usage:offset",
-      "stability:stable",
       "load-behavior:loaded-carry",
     ],
     aliases: ["side plank", "suitcase carry", "offset hold", "anti lateral flexion"],
@@ -1780,7 +2130,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:dumbbell",
       "limb-usage:bilateral",
-      "stability:stable",
       "load-behavior:loaded-carry",
     ],
     aliases: ["farmer carry", "suitcase carry", "front rack carry"],
@@ -1800,7 +2149,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:bodyweight",
       "limb-usage:bilateral",
-      "stability:stable",
       "load-behavior:cyclical",
     ],
     aliases: ["bear crawl", "leopard crawl", "lateral crawl"],
@@ -1820,7 +2168,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:bodyweight",
       "limb-usage:bilateral",
-      "stability:stable",
       "load-behavior:ballistic",
     ],
     aliases: ["box jump", "broad jump", "single leg hop", "jump"],
@@ -1839,7 +2186,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Intermediate",
     modifierIds: [
       "apparatus:bodyweight",
-      "stability:stable",
       "load-behavior:cyclical",
     ],
     aliases: ["hill sprint", "shuttle sprint", "sled sprint", "sprint"],
@@ -1859,7 +2205,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:medicine-ball",
       "limb-usage:bilateral",
-      "stability:stable",
       "load-behavior:ballistic",
     ],
     aliases: ["med ball throw", "rotational throw", "slam ball", "medicine ball throw"],
@@ -1878,7 +2223,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       "apparatus:bodyweight",
-      "stability:stable",
       "load-behavior:skill-complex",
     ],
     aliases: ["mobility drill", "world's greatest stretch", "90/90 hip mobility", "couch stretch"],
@@ -1897,7 +2241,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     level: "Beginner",
     modifierIds: [
       "apparatus:bodyweight",
-      "stability:stable",
       "load-behavior:skill-complex",
     ],
     aliases: ["90/90 breathing", "crocodile breathing", "brace drill", "breathing", "bracing"],
@@ -1968,7 +2311,6 @@ const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     modifierIds: [
       "apparatus:bodyweight",
       "limb-usage:bilateral",
-      "stability:stable",
       "load-behavior:skill-complex",
     ],
     aliases: ["burpee", "thruster", "turkish get-up", "man maker", "devil press", "clean to press", "complex", "combo"],

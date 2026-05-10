@@ -371,6 +371,12 @@ const apparatusMap: Record<string, ApparatusId> = {
   "pull-up bar": "pull-up-bar",
   "pull up bar": "pull-up-bar",
   sled: "sled",
+  slider: "sliders",
+  sliders: "sliders",
+  glider: "sliders",
+  gliders: "sliders",
+  "furniture slider": "sliders",
+  "furniture sliders": "sliders",
   "stability ball": "stability-ball",
   "swiss ball": "stability-ball",
   "ab wheel": "ab-wheel",
@@ -485,7 +491,7 @@ const inferModifierIds = (
   }
   if (["single-leg", "single leg"].some((token) => text.includes(token))) {
     addModifier(modifierIds, "limb-usage:unilateral");
-    addModifier(modifierIds, "stability:single-leg");
+    addModifier(modifierIds, "limb-usage:single-leg");
   }
   if (text.includes("reverse")) addModifier(modifierIds, "direction:reverse");
   if (text.includes("forward")) addModifier(modifierIds, "direction:forward");
@@ -498,14 +504,65 @@ const inferModifierIds = (
     addModifier(modifierIds, "direction:crossover");
   }
   if (text.includes("offset")) addModifier(modifierIds, "limb-usage:offset");
+  if (text.includes("bosu")) addModifier(modifierIds, "stability:bosu");
+  if (
+    [
+      "chaotic",
+      "chaotic load",
+      "chaos",
+      "oscillating load",
+      "hanging plates",
+      "band-suspended weight",
+      "band suspended weight",
+      "hanging kettlebells",
+      "earthquake bar",
+    ].some((token) => text.includes(token))
+  ) {
+    addModifier(modifierIds, "assistance-resistance:chaotic");
+  }
+  if (
+    ["chain", "chains", "chain loaded", "chain resistance"].some((token) =>
+      text.includes(token),
+    )
+  ) {
+    addModifier(modifierIds, "assistance-resistance:chains");
+  }
+  if (
+    ["shortened partial", "top-half", "top half", "lockout partial"].some(
+      (token) => text.includes(token),
+    )
+  ) {
+    addModifier(modifierIds, "range-of-motion:shortened-partial");
+  }
+  if (
+    ["lengthened partial", "bottom-half", "bottom half", "stretch partial"].some(
+      (token) => text.includes(token),
+    )
+  ) {
+    addModifier(modifierIds, "range-of-motion:lengthened-partial");
+  }
+  if (
+    [
+      "box squat",
+      "box rom",
+      "box rom modifier",
+      "limited rom",
+      "limited range",
+      "range limiter",
+      "pin press",
+      "rack pull",
+      "block pull",
+      "board press",
+      "safety bar",
+      "safety bars",
+    ].some((token) => text.includes(token))
+  ) {
+    addModifier(modifierIds, "range-of-motion:rom-limiter");
+  }
 
   if (text.includes("assisted")) {
     addModifier(modifierIds, "assistance-resistance:assisted");
   }
-  if (text.includes("weighted")) {
-    addModifier(modifierIds, "assistance-resistance:weighted");
-  }
-
   const intentModifier = intentMap[normalize(exercise.goal)];
   if (intentModifier) addModifier(modifierIds, intentModifier);
 
@@ -740,7 +797,6 @@ const variationDetailTokens = [
   "step",
   "trap bar",
   "walking",
-  "weighted",
 ];
 
 const distinct = <T,>(items: T[]) => Array.from(new Set(items));

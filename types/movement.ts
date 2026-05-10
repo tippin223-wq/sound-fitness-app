@@ -169,6 +169,7 @@ export type ApparatusId =
   | "medicine-ball"
   | "pull-up-bar"
   | "sled"
+  | "sliders"
   | "stability-ball"
   | "ab-wheel";
 
@@ -179,8 +180,10 @@ export type AnglePositionId =
   | "floor"
   | "hands-elevated"
   | "feet-elevated"
+  | "frog-stance"
   | "seated"
   | "standing"
+  | "kneeling"
   | "half-kneeling"
   | "split-stance"
   | "tall-kneeling"
@@ -200,7 +203,9 @@ export type AnglePositionId =
   | "overhead"
   | "preacher"
   | "side-support"
-  | "quadruped";
+  | "quadruped"
+  | "90-90"
+  | "hanging";
 
 export type LimbUsageId =
   | "bilateral"
@@ -209,6 +214,7 @@ export type LimbUsageId =
   | "staggered"
   | "offset"
   | "standard-stance"
+  | "narrow-stance"
   | "conventional-stance"
   | "sumo-stance"
   | "wide-stance"
@@ -230,13 +236,15 @@ export type DirectionId =
   | "crossover";
 
 export type StabilityId =
-  | "stable"
   | "unstable"
   | "swiss-ball"
   | "bosu"
   | "suspension"
-  | "single-leg"
-  | "balance-focused";
+  | "balance-focused"
+  | "offset-stability"
+  | "stability-pad"
+  | "reactive-surface"
+  | "dynamic-stability";
 
 export type TempoId =
   | "explosive"
@@ -249,18 +257,17 @@ export type TempoId =
 export type AssistanceResistanceId =
   | "assisted"
   | "band-assisted"
-  | "weighted"
-  | "accommodating-resistance"
-  | "deloaded"
+  | "chaotic"
+  | "chains"
   | "partner-assisted";
 
 export type RangeOfMotionId =
   | "full-rom"
-  | "partial-rom"
+  | "shortened-partial"
+  | "lengthened-partial"
   | "deficit"
   | "dead-stop"
-  | "pin-press"
-  | "extended-rom";
+  | "rom-limiter";
 
 export type TrainingIntentId =
   | "hypertrophy"

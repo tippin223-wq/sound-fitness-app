@@ -18,6 +18,7 @@ const nameCategoryOrder: ModifierCategoryId[] = [
   "tempo",
   "rom",
   "stability",
+  "assistanceResistance",
   "athleticIntent",
 ];
 

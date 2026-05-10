@@ -1,4 +1,5 @@
 import type { EntityId, EntityTimestamps, ISODateString } from "./common";
+import type { CoreMovementId, ExerciseModifierId } from "./movement";
 import type { ProfileId } from "./profile";
 
 export type ExerciseId = EntityId;
@@ -107,6 +108,11 @@ export type LocalExerciseStatEntry = {
   body?: string;
   pattern?: string;
   equipment?: string;
+  coreMovementPattern?: CoreMovementId | string;
+  semanticVariationId?: string;
+  semanticVariationName?: string;
+  generatedTitle?: string;
+  selectedModifierIds?: ExerciseModifierId[];
   weight: string;
   reps: string;
   sets: string;
