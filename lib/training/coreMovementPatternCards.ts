@@ -239,14 +239,26 @@ export type CoreMovementSemanticVariation = {
 const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   Record<string, readonly ExerciseModifierId[]>
 > = {
-  "Push-Up": ["apparatus:bodyweight", "angle-position:floor"],
+  "Push-Up": [
+    "apparatus:bodyweight",
+    "angle-position:floor",
+    "limb-usage:standard-stance",
+  ],
   "Diamond Push-Up": [
     "apparatus:bodyweight",
     "angle-position:floor",
     "limb-usage:close-grip",
   ],
-  "Incline Push-Up": ["apparatus:bodyweight", "angle-position:hands-elevated"],
-  "Decline Push-Up": ["apparatus:bodyweight", "angle-position:feet-elevated"],
+  "Incline Push-Up": [
+    "apparatus:bodyweight",
+    "angle-position:hands-elevated",
+    "limb-usage:standard-stance",
+  ],
+  "Decline Push-Up": [
+    "apparatus:bodyweight",
+    "angle-position:feet-elevated",
+    "limb-usage:standard-stance",
+  ],
   "Bench Press": ["apparatus:barbell", "angle-position:flat"],
   "Incline Dumbbell Press": ["apparatus:dumbbell", "angle-position:incline"],
   "Floor Press": [
@@ -498,6 +510,31 @@ const SEMANTIC_VARIATION_ALIASES: Partial<Record<string, readonly string[]>> = {
 const SEMANTIC_VARIATION_MATCH_MODIFIER_SETS: Partial<
   Record<string, readonly (readonly ExerciseModifierId[])[]>
 > = {
+  "Goblet Squat": [
+    ["apparatus:dumbbell", "angle-position:goblet"],
+    ["apparatus:kettlebell", "angle-position:goblet"],
+    ["angle-position:goblet"],
+  ],
+  "Incline Push-Up": [
+    [
+      "apparatus:bodyweight",
+      "angle-position:incline",
+      "limb-usage:standard-stance",
+    ],
+    ["apparatus:bodyweight", "angle-position:incline"],
+  ],
+  "Decline Push-Up": [
+    [
+      "apparatus:bodyweight",
+      "angle-position:decline",
+      "limb-usage:standard-stance",
+    ],
+    ["apparatus:bodyweight", "angle-position:decline"],
+  ],
+  "Sumo Squat": [
+    ["apparatus:bodyweight", "limb-usage:wide-stance"],
+    ["limb-usage:wide-stance"],
+  ],
   "Sumo Deadlift": [
     ["apparatus:barbell", "limb-usage:wide-stance", "range-of-motion:dead-stop"],
     ["limb-usage:wide-stance", "range-of-motion:dead-stop"],

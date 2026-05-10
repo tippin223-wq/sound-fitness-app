@@ -1040,12 +1040,482 @@ const getSelectedModifiersByCategory = (
         Boolean(modifier) && modifier.categoryId === categoryId,
     );
 
+const equipmentLabelReplacements: Record<string, string> = {
+  db: "Dumbbell",
+  dumbell: "Dumbbell",
+  dumbbell: "Dumbbell",
+  kb: "Kettlebell",
+  kettlebell: "Kettlebell",
+  "kettle bell": "Kettlebell",
+  "kettle bell ": "Kettlebell",
+  "kettle-ball": "Kettlebell",
+  "medicine ball": "Medicine Ball",
+  "med ball": "Medicine Ball",
+  bodyweight: "Bodyweight",
+  barbell: "Barbell",
+  machine: "Machine",
+  cable: "Cable",
+  band: "Band",
+  "trap bar": "Trap Bar",
+  landmine: "Landmine",
+  box: "Box",
+  sled: "Sled",
+  "stability ball": "Stability Ball",
+  suspension: "Suspension",
+  "suspension trainer": "Suspension",
+};
+
+const normalizeEquipmentLabel = (label: string) => {
+  const normalizedKey = label.trim().toLowerCase().replace(/\s+/g, " ");
+  return equipmentLabelReplacements[normalizedKey] || label.trim();
+};
+
+const getModifierDisplayLabel = (modifier: ExerciseModifier) =>
+  modifier.categoryId === "apparatus"
+    ? normalizeEquipmentLabel(modifier.label)
+    : modifier.label;
+
+const normalizeModifierDisplayKey = (label: string) =>
+  label.trim().toLowerCase().replace(/\s+/g, " ");
+
+const dedupeModifierOptionsByDisplayLabel = (modifiers: ExerciseModifier[]) => {
+  const seen = new Set<string>();
+
+  return modifiers.filter((modifier) => {
+    const key = normalizeModifierDisplayKey(getModifierDisplayLabel(modifier));
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
 const positionLimbUsageModifierIds = new Set<ExerciseModifierId>([
   "limb-usage:standard-stance",
   "limb-usage:conventional-stance",
   "limb-usage:sumo-stance",
   "limb-usage:wide-stance",
 ]);
+
+const modifierIds = (ids: string[]) => ids as ExerciseModifierId[];
+
+type CardModifierControlDefinition = {
+  key: string;
+  label: string;
+  categories: ExerciseModifierCategoryId[];
+  optionIds?: ExerciseModifierId[];
+  accent: "cyan" | "emerald" | "yellow" | "violet";
+};
+
+const cardModifierControlPresets: Partial<
+  Record<CoreMovementId, CardModifierControlDefinition[]>
+> = {
+  squat: [
+    {
+      key: "squat-equipment",
+      label: "Equipment",
+      categories: ["apparatus"],
+      optionIds: modifierIds([
+        "apparatus:bodyweight",
+        "apparatus:dumbbell",
+        "apparatus:kettlebell",
+        "apparatus:barbell",
+        "apparatus:machine",
+        "apparatus:smith-machine",
+        "apparatus:landmine",
+        "apparatus:band",
+        "apparatus:cable",
+      ]),
+      accent: "cyan",
+    },
+    {
+      key: "squat-load-position",
+      label: "Load Position",
+      categories: ["angle-position"],
+      optionIds: modifierIds([
+        "angle-position:goblet",
+        "angle-position:front-loaded",
+        "angle-position:back-loaded",
+        "angle-position:overhead",
+      ]),
+      accent: "emerald",
+    },
+    {
+      key: "squat-stance",
+      label: "Stance",
+      categories: ["limb-usage"],
+      optionIds: modifierIds([
+        "limb-usage:standard-stance",
+        "limb-usage:wide-stance",
+        "limb-usage:sumo-stance",
+        "limb-usage:staggered",
+        "limb-usage:single-leg",
+        "limb-usage:unilateral",
+      ]),
+      accent: "violet",
+    },
+  ],
+  "chest-press": [
+    {
+      key: "chest-press-equipment",
+      label: "Equipment",
+      categories: ["apparatus"],
+      optionIds: modifierIds([
+        "apparatus:bodyweight",
+        "apparatus:dumbbell",
+        "apparatus:barbell",
+        "apparatus:machine",
+        "apparatus:cable",
+        "apparatus:band",
+        "apparatus:suspension",
+        "apparatus:landmine",
+      ]),
+      accent: "cyan",
+    },
+    {
+      key: "chest-press-position-angle",
+      label: "Position / Angle",
+      categories: ["angle-position"],
+      optionIds: modifierIds([
+        "angle-position:floor",
+        "angle-position:flat",
+        "angle-position:incline",
+        "angle-position:decline",
+        "angle-position:hands-elevated",
+        "angle-position:feet-elevated",
+      ]),
+      accent: "violet",
+    },
+    {
+      key: "chest-press-grip-width",
+      label: "Grip Width",
+      categories: ["limb-usage"],
+      optionIds: modifierIds([
+        "limb-usage:standard-stance",
+        "limb-usage:close-grip",
+        "limb-usage:wide-grip",
+        "limb-usage:neutral-grip",
+      ]),
+      accent: "emerald",
+    },
+  ],
+  "chest-fly": [
+    {
+      key: "fly-equipment",
+      label: "Equipment",
+      categories: ["apparatus"],
+      optionIds: modifierIds([
+        "apparatus:dumbbell",
+        "apparatus:cable",
+        "apparatus:machine",
+        "apparatus:band",
+        "apparatus:suspension",
+      ]),
+      accent: "cyan",
+    },
+    {
+      key: "fly-position",
+      label: "Position",
+      categories: ["angle-position"],
+      optionIds: modifierIds([
+        "angle-position:flat",
+        "angle-position:incline",
+        "angle-position:decline",
+        "angle-position:standing",
+        "angle-position:bent-over",
+        "angle-position:seated",
+        "angle-position:chest-supported",
+      ]),
+      accent: "violet",
+    },
+    {
+      key: "fly-angle-path",
+      label: "Angle / Path",
+      categories: ["limb-usage", "range-of-motion"],
+      optionIds: modifierIds([
+        "limb-usage:wide-grip",
+        "limb-usage:close-grip",
+        "range-of-motion:partial-rom",
+        "range-of-motion:full-rom",
+      ]),
+      accent: "emerald",
+    },
+  ],
+  "reverse-fly": [
+    {
+      key: "reverse-fly-equipment",
+      label: "Equipment",
+      categories: ["apparatus"],
+      optionIds: modifierIds([
+        "apparatus:dumbbell",
+        "apparatus:cable",
+        "apparatus:machine",
+        "apparatus:band",
+        "apparatus:suspension",
+      ]),
+      accent: "cyan",
+    },
+    {
+      key: "reverse-fly-position",
+      label: "Position",
+      categories: ["angle-position"],
+      optionIds: modifierIds([
+        "angle-position:flat",
+        "angle-position:incline",
+        "angle-position:decline",
+        "angle-position:standing",
+        "angle-position:bent-over",
+        "angle-position:seated",
+        "angle-position:chest-supported",
+      ]),
+      accent: "violet",
+    },
+    {
+      key: "reverse-fly-angle-path",
+      label: "Angle / Path",
+      categories: ["limb-usage", "range-of-motion"],
+      optionIds: modifierIds([
+        "limb-usage:wide-grip",
+        "limb-usage:close-grip",
+        "range-of-motion:partial-rom",
+        "range-of-motion:full-rom",
+      ]),
+      accent: "emerald",
+    },
+  ],
+  "lateral-raise": [
+    {
+      key: "lateral-raise-equipment",
+      label: "Equipment",
+      categories: ["apparatus"],
+      optionIds: modifierIds([
+        "apparatus:dumbbell",
+        "apparatus:cable",
+        "apparatus:band",
+        "apparatus:machine",
+      ]),
+      accent: "cyan",
+    },
+    {
+      key: "lateral-raise-position",
+      label: "Position",
+      categories: ["angle-position"],
+      optionIds: modifierIds([
+        "angle-position:standing",
+        "angle-position:seated",
+        "angle-position:side-lying",
+      ]),
+      accent: "violet",
+    },
+    {
+      key: "lateral-raise-angle-path",
+      label: "Angle / Path",
+      categories: ["range-of-motion"],
+      optionIds: modifierIds([
+        "range-of-motion:partial-rom",
+        "range-of-motion:full-rom",
+      ]),
+      accent: "emerald",
+    },
+  ],
+  row: [
+    {
+      key: "row-equipment",
+      label: "Equipment",
+      categories: ["apparatus"],
+      optionIds: modifierIds([
+        "apparatus:dumbbell",
+        "apparatus:kettlebell",
+        "apparatus:barbell",
+        "apparatus:cable",
+        "apparatus:machine",
+        "apparatus:band",
+        "apparatus:suspension",
+        "apparatus:landmine",
+      ]),
+      accent: "cyan",
+    },
+    {
+      key: "row-position",
+      label: "Position",
+      categories: ["angle-position"],
+      optionIds: modifierIds([
+        "angle-position:bent-over",
+        "angle-position:chest-supported",
+        "angle-position:standing",
+        "angle-position:split-stance",
+        "angle-position:plank",
+        "angle-position:seated",
+      ]),
+      accent: "violet",
+    },
+    {
+      key: "row-grip-structure",
+      label: "Grip / Structure",
+      categories: ["limb-usage"],
+      optionIds: modifierIds([
+        "limb-usage:neutral-grip",
+        "limb-usage:underhand-grip",
+        "limb-usage:overhand-grip",
+        "limb-usage:wide-grip",
+        "limb-usage:close-grip",
+        "limb-usage:single-arm",
+        "limb-usage:alternating",
+        "limb-usage:bilateral",
+      ]),
+      accent: "emerald",
+    },
+  ],
+  hinge: [
+    {
+      key: "hinge-equipment",
+      label: "Equipment",
+      categories: ["apparatus"],
+      optionIds: modifierIds([
+        "apparatus:barbell",
+        "apparatus:dumbbell",
+        "apparatus:kettlebell",
+        "apparatus:trap-bar",
+        "apparatus:cable",
+        "apparatus:band",
+        "apparatus:machine",
+        "apparatus:landmine",
+      ]),
+      accent: "cyan",
+    },
+    {
+      key: "hinge-stance",
+      label: "Stance",
+      categories: ["limb-usage"],
+      optionIds: modifierIds([
+        "limb-usage:conventional-stance",
+        "limb-usage:sumo-stance",
+        "limb-usage:wide-stance",
+        "limb-usage:staggered",
+        "limb-usage:single-leg",
+      ]),
+      accent: "violet",
+    },
+    {
+      key: "hinge-rom-tempo",
+      label: "ROM / Tempo",
+      categories: ["range-of-motion", "tempo", "load-behavior"],
+      optionIds: modifierIds([
+        "range-of-motion:dead-stop",
+        "range-of-motion:deficit",
+        "range-of-motion:full-rom",
+        "tempo:slow-eccentric",
+        "tempo:explosive",
+        "load-behavior:ballistic",
+      ]),
+      accent: "emerald",
+    },
+  ],
+};
+
+const defaultEquipmentControl: CardModifierControlDefinition = {
+  key: "fallback-equipment",
+  label: "Equipment",
+  categories: ["apparatus"],
+  accent: "cyan",
+};
+
+const defaultPositionControl: CardModifierControlDefinition = {
+  key: "fallback-position",
+  label: "Position",
+  categories: ["angle-position", "limb-usage"],
+  optionIds: modifierIds([
+    "angle-position:floor",
+    "angle-position:flat",
+    "angle-position:incline",
+    "angle-position:decline",
+    "angle-position:standing",
+    "angle-position:seated",
+    "angle-position:bent-over",
+    "angle-position:chest-supported",
+    "angle-position:plank",
+    "angle-position:supine",
+    "angle-position:prone",
+    "angle-position:side-lying",
+    "angle-position:quadruped",
+    "angle-position:split-stance",
+    "angle-position:rear-foot-elevated",
+    "angle-position:half-kneeling",
+    "limb-usage:standard-stance",
+    "limb-usage:conventional-stance",
+    "limb-usage:sumo-stance",
+    "limb-usage:wide-stance",
+  ]),
+  accent: "violet",
+};
+
+const getFallbackThirdControl = (
+  coreMovementId?: CoreMovementId | null,
+): CardModifierControlDefinition => {
+  if (
+    coreMovementId &&
+    [
+      "curl",
+      "biceps-curl",
+      "triceps-extension",
+      "shoulder-press",
+      "pulldown",
+      "pull-up",
+      "pullover",
+    ].includes(coreMovementId)
+  ) {
+    return {
+      key: "fallback-grip",
+      label: "Grip / Structure",
+      categories: ["limb-usage"],
+      accent: "emerald",
+    };
+  }
+
+  if (
+    coreMovementId &&
+    ["carry", "crawl", "jump", "sprint", "throw"].includes(coreMovementId)
+  ) {
+    return {
+      key: "fallback-direction-structure",
+      label: "Direction / Structure",
+      categories: ["limb-usage", "load-behavior", "tempo"],
+      accent: "emerald",
+    };
+  }
+
+  if (
+    coreMovementId &&
+    [
+      "leg-extension",
+      "leg-curl",
+      "knee-extension",
+      "knee-flexion",
+      "hip-abduction",
+      "hip-adduction",
+      "hip-internal-rotation",
+      "hip-external-rotation",
+      "calf-raise",
+      "tibialis-raise",
+      "wrist-flexion",
+      "wrist-extension",
+      "wrist-rotation",
+    ].includes(coreMovementId)
+  ) {
+    return {
+      key: "fallback-rom-tempo",
+      label: "ROM / Tempo",
+      categories: ["range-of-motion", "tempo"],
+      accent: "emerald",
+    };
+  }
+
+  return {
+    key: "fallback-modifier",
+    label: "Modifier",
+    categories: ["limb-usage", "range-of-motion", "load-behavior"],
+    accent: "emerald",
+  };
+};
 
 const getGeneratedVariationName = (
   exercise: Exercise,
@@ -1076,13 +1546,109 @@ const getSelectedEquipmentLabel = (
     selectedModifierIds,
     "apparatus",
   );
-  const mappedApparatus = getModifierLabelsByCategory(metadata, "apparatus");
+  const mappedApparatus = getModifierLabelsByCategory(metadata, "apparatus").map(
+    normalizeEquipmentLabel,
+  );
 
   return (
-    selectedApparatus.map((modifier) => modifier.label).join(", ") ||
+    selectedApparatus.map(getModifierDisplayLabel).join(", ") ||
     mappedApparatus.join(", ") ||
     exercise.equipment
   );
+};
+
+const normalizeGeneratedTitlePart = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getPrimaryEquipmentPrefix = (equipmentLabel: string) =>
+  equipmentLabel
+    .split(/\s*,\s*|\s+or\s+|\s*\/\s*/i)
+    .map((part) => part.trim())
+    .find((part) => part && part.toLowerCase() !== "all") || "";
+
+const semanticNameIncludesEquipment = (
+  semanticVariationName: string,
+  equipmentLabel: string,
+) => {
+  const semanticName = normalizeGeneratedTitlePart(semanticVariationName);
+  const equipmentName = normalizeGeneratedTitlePart(equipmentLabel);
+  if (!semanticName || !equipmentName) return false;
+
+  const equipmentAliases: Record<string, string[]> = {
+    "medicine ball": ["medicine ball", "med ball"],
+    "stability ball": ["stability ball", "swiss ball"],
+    suspension: ["suspension", "trx"],
+  };
+  const aliases = equipmentAliases[equipmentName] || [equipmentName];
+
+  return aliases.some((alias) => {
+    const normalizedAlias = normalizeGeneratedTitlePart(alias);
+    return (
+      semanticName === normalizedAlias ||
+      semanticName.startsWith(`${normalizedAlias} `)
+    );
+  });
+};
+
+const semanticNameImpliesBodyweight = (semanticVariationName: string) => {
+  const semanticName = normalizeGeneratedTitlePart(semanticVariationName);
+
+  return [
+    "air squat",
+    "pull up",
+    "chin up",
+    "plank",
+    "side plank",
+    "crunch",
+    "sit up",
+    "reverse crunch",
+    "hanging leg raise",
+    "burpee",
+    "bear crawl",
+    "leopard crawl",
+    "lateral crawl",
+    "box jump",
+    "broad jump",
+    "depth jump",
+    "single leg hop",
+    "hill sprint",
+    "shuttle sprint",
+  ].some((bodyweightName) => semanticName.includes(bodyweightName));
+};
+
+const getGeneratedCardTitle = ({
+  exercise,
+  metadata,
+  semanticVariationName,
+  equipmentLabel,
+}: {
+  exercise: Exercise;
+  metadata: NormalizedExerciseCatalogItem | null;
+  semanticVariationName: string;
+  equipmentLabel: string;
+}) => {
+  const semanticName = semanticVariationName.trim();
+  const fallbackTitle = metadata?.coreMovementLabel || exercise.name;
+
+  if (!semanticName) return fallbackTitle;
+
+  const equipmentPrefix = getPrimaryEquipmentPrefix(equipmentLabel);
+  if (
+    !equipmentPrefix ||
+    semanticNameIncludesEquipment(semanticName, equipmentPrefix) ||
+    (normalizeGeneratedTitlePart(equipmentPrefix) === "bodyweight" &&
+      semanticNameImpliesBodyweight(semanticName))
+  ) {
+    return semanticName;
+  }
+
+  return `${equipmentPrefix} ${semanticName}`;
 };
 
 const getSelectedGoalLabel = (
@@ -1102,6 +1668,7 @@ type MovementArchitectureChipTone =
   | "secondary"
   | "classification"
   | "equipment"
+  | "position"
   | "stability"
   | "modifier"
   | "integrated"
@@ -1120,15 +1687,17 @@ const movementArchitectureChipClasses: Record<
   movement:
     "border-cyan-300/25 bg-cyan-400/12 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)]",
   secondary:
-    "border-violet-300/25 bg-violet-400/12 text-violet-100 shadow-[0_0_16px_rgba(167,139,250,0.08)]",
-  classification:
-    "border-sky-300/20 bg-sky-400/10 text-sky-100 shadow-[0_0_16px_rgba(56,189,248,0.08)]",
-  equipment:
-    "border-emerald-300/25 bg-emerald-400/12 text-emerald-100 shadow-[0_0_16px_rgba(16,185,129,0.08)]",
-  stability:
     "border-blue-300/25 bg-blue-400/12 text-blue-100 shadow-[0_0_16px_rgba(96,165,250,0.08)]",
+  classification:
+    "border-emerald-300/20 bg-emerald-400/10 text-emerald-100 shadow-[0_0_16px_rgba(16,185,129,0.08)]",
+  equipment:
+    "border-cyan-300/25 bg-cyan-400/12 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)]",
+  position:
+    "border-violet-300/25 bg-violet-400/12 text-violet-100 shadow-[0_0_16px_rgba(167,139,250,0.08)]",
+  stability:
+    "border-teal-300/25 bg-teal-400/12 text-teal-100 shadow-[0_0_16px_rgba(45,212,191,0.08)]",
   modifier:
-    "border-white/15 bg-white/[0.055] text-slate-200",
+    "border-teal-300/25 bg-teal-400/12 text-teal-100 shadow-[0_0_16px_rgba(45,212,191,0.08)]",
   integrated:
     "border-yellow-300/30 bg-yellow-400/15 text-yellow-100 shadow-[0_0_18px_rgba(250,204,21,0.10)]",
   fallback:
@@ -1173,6 +1742,108 @@ const getSemanticModifier = (modifierId: SemanticExerciseModifierId) =>
 
 const getSemanticModifierLabel = (modifierId: SemanticExerciseModifierId) =>
   getSemanticModifier(modifierId)?.label || labelize(modifierId.split(":").pop() || modifierId);
+
+const positionAngleModifierSlugs = new Set([
+  "incline",
+  "decline",
+  "flat",
+  "floor",
+  "hands-elevated",
+  "feet-elevated",
+  "seated",
+  "standing",
+  "half-kneeling",
+  "split-stance",
+  "tall-kneeling",
+  "supine",
+  "prone",
+  "lying",
+  "side-lying",
+  "bent-over",
+  "chest-supported",
+  "bench-supported",
+  "plank",
+  "rear-foot-elevated",
+  "front-foot-elevated",
+  "preacher",
+  "side-support",
+  "quadruped",
+]);
+
+const modifierAnglePositionSlugs = new Set([
+  "goblet",
+  "front-loaded",
+  "back-loaded",
+  "overhead",
+]);
+
+const positionLimbUsageSlugs = new Set([
+  "standard-stance",
+  "conventional-stance",
+  "sumo-stance",
+  "wide-stance",
+  "staggered",
+  "single-leg",
+]);
+
+const getTrainingModifierChipTone = (
+  modifierId: ExerciseModifierId,
+): MovementArchitectureChipTone => {
+  const modifier = EXERCISE_MODIFIER_BY_ID[modifierId];
+  if (!modifier) return "fallback";
+
+  if (modifier.categoryId === "apparatus") return "equipment";
+  if (modifier.categoryId === "angle-position") {
+    return modifierAnglePositionSlugs.has(modifier.slug) ? "modifier" : "position";
+  }
+  if (modifier.categoryId === "limb-usage") {
+    return positionLimbUsageSlugs.has(modifier.slug) ? "position" : "modifier";
+  }
+  if (modifier.categoryId === "stability") return "stability";
+  if (
+    [
+      "range-of-motion",
+      "tempo",
+      "load-behavior",
+      "assistance-resistance",
+      "training-intent",
+    ].includes(modifier.categoryId)
+  ) {
+    return "modifier";
+  }
+
+  return "fallback";
+};
+
+const getSemanticModifierChipTone = (
+  modifierId: SemanticExerciseModifierId,
+): MovementArchitectureChipTone => {
+  const categoryId = getSemanticModifier(modifierId)?.categoryId;
+
+  if (categoryId === "equipment") return "equipment";
+  if (categoryId === "stance" || categoryId === "bodyPosition") {
+    return "position";
+  }
+  if (
+    categoryId &&
+    [
+      "grip",
+      "loadPosition",
+      "structure",
+      "direction",
+      "angle",
+      "rom",
+      "tempo",
+      "stability",
+      "athleticIntent",
+      "movementIntent",
+    ].includes(categoryId)
+  ) {
+    return categoryId === "stability" ? "stability" : "modifier";
+  }
+
+  return "fallback";
+};
 
 const isIntegratedSemanticMovement = (
   variation: ReturnType<typeof mapLegacyExerciseToExerciseSystem>["matchedVariation"],
@@ -1302,7 +1973,7 @@ const getMovementArchitectureChips = (
     addMovementChip(chips, {
       key: `semantic-equipment-${modifierId}`,
       label: getSemanticModifierLabel(modifierId),
-      tone: "equipment",
+      tone: getSemanticModifierChipTone(modifierId),
     }),
   );
 
@@ -1310,7 +1981,7 @@ const getMovementArchitectureChips = (
     addMovementChip(chips, {
       key: `semantic-stability-${modifierId}`,
       label: getSemanticModifierLabel(modifierId),
-      tone: "stability",
+      tone: getSemanticModifierChipTone(modifierId),
     }),
   );
 
@@ -1318,7 +1989,7 @@ const getMovementArchitectureChips = (
     addMovementChip(chips, {
       key: `semantic-modifier-${modifierId}`,
       label: getSemanticModifierLabel(modifierId),
-      tone: "modifier",
+      tone: getSemanticModifierChipTone(modifierId),
     }),
   );
 
@@ -1334,8 +2005,8 @@ const getMovementArchitectureChips = (
       displayModifierIds,
       "stability",
     );
-    const mappedVariationLabels = displayModifierIds
-      .filter((modifierId) => {
+    const mappedVariationModifierIds = displayModifierIds.filter(
+      (modifierId) => {
         const categoryId = getModifierCategoryId(modifierId);
         return (
           categoryId &&
@@ -1343,30 +2014,50 @@ const getMovementArchitectureChips = (
           categoryId !== "stability" &&
           categoryId !== "training-intent"
         );
-      })
-      .map(getModifierLabel);
+      },
+    );
+
+    displayModifierIds
+      .filter((modifierId) => getModifierCategoryId(modifierId) === "apparatus")
+      .forEach((modifierId) =>
+        addMovementChip(chips, {
+          key: `mapped-equipment-${modifierId}`,
+          label: getModifierLabel(modifierId),
+          tone: getTrainingModifierChipTone(modifierId),
+        }),
+      );
 
     mappedEquipment.forEach((label) =>
       addMovementChip(chips, {
-        key: `mapped-equipment-${label}`,
+        key: `mapped-equipment-fallback-${label}`,
         label,
         tone: "equipment",
       }),
     );
 
+    displayModifierIds
+      .filter((modifierId) => getModifierCategoryId(modifierId) === "stability")
+      .forEach((modifierId) =>
+        addMovementChip(chips, {
+          key: `mapped-stability-${modifierId}`,
+          label: getModifierLabel(modifierId),
+          tone: getTrainingModifierChipTone(modifierId),
+        }),
+      );
+
     mappedStability.forEach((label) =>
       addMovementChip(chips, {
-        key: `mapped-stability-${label}`,
+        key: `mapped-stability-fallback-${label}`,
         label,
         tone: "stability",
       }),
     );
 
-    mappedVariationLabels.forEach((label) =>
+    mappedVariationModifierIds.forEach((modifierId) =>
       addMovementChip(chips, {
-        key: `mapped-modifier-${label}`,
-        label,
-        tone: "modifier",
+        key: `mapped-modifier-${modifierId}`,
+        label: getModifierLabel(modifierId),
+        tone: getTrainingModifierChipTone(modifierId),
       }),
     );
   }
@@ -1392,6 +2083,76 @@ type SemanticVariationOption =
 const uniqueModifierIds = (modifierIds: ExerciseModifierId[]) =>
   Array.from(new Set(modifierIds));
 
+const getApparatusModifierIds = (modifierIds: ExerciseModifierId[]) =>
+  modifierIds.filter(
+    (modifierId) => getModifierCategoryId(modifierId) === "apparatus",
+  );
+
+const getNonApparatusModifierIds = (modifierIds: ExerciseModifierId[]) =>
+  modifierIds.filter(
+    (modifierId) => getModifierCategoryId(modifierId) !== "apparatus",
+  );
+
+const variationEquipmentAllowanceOverrides: Record<
+  string,
+  ExerciseModifierId[]
+> = {
+  "Goblet Squat": ["apparatus:dumbbell", "apparatus:kettlebell"],
+};
+
+const variationEquipmentNameMap: Array<{
+  pattern: RegExp;
+  modifierId: ExerciseModifierId;
+}> = [
+  { pattern: /\bdumbbell\b/i, modifierId: "apparatus:dumbbell" },
+  { pattern: /\bkettlebell\b/i, modifierId: "apparatus:kettlebell" },
+  { pattern: /\bbarbell\b/i, modifierId: "apparatus:barbell" },
+  { pattern: /\btrap bar\b/i, modifierId: "apparatus:trap-bar" },
+  { pattern: /\blandmine\b/i, modifierId: "apparatus:landmine" },
+  { pattern: /\bcable\b/i, modifierId: "apparatus:cable" },
+  { pattern: /\bmachine\b/i, modifierId: "apparatus:machine" },
+  { pattern: /\bband\b/i, modifierId: "apparatus:band" },
+  { pattern: /\bmedicine ball\b|\bmed ball\b/i, modifierId: "apparatus:medicine-ball" },
+  { pattern: /\bbox\b/i, modifierId: "apparatus:box" },
+  { pattern: /\bsled\b/i, modifierId: "apparatus:sled" },
+];
+
+const bodyweightConstrainedVariationPatterns = [
+  /\bair squat\b/i,
+  /\bpush-up\b|\bpush up\b/i,
+  /\bpull-up\b|\bpull up\b/i,
+  /\bchin-up\b|\bchin up\b/i,
+  /\bplank\b/i,
+  /\bcrunch\b/i,
+  /\bsit-up\b|\bsit up\b/i,
+  /\bhanging leg raise\b/i,
+  /\bbear crawl\b|\bleopard crawl\b|\blateral crawl\b/i,
+  /\bhill sprint\b|\bshuttle sprint\b/i,
+];
+
+const getSemanticVariationAllowedApparatusIds = (
+  variation: SemanticVariationOption,
+): ExerciseModifierId[] => {
+  const override = variationEquipmentAllowanceOverrides[variation.name];
+  if (override) return override;
+
+  const namedEquipmentIds = variationEquipmentNameMap
+    .filter(({ pattern }) => pattern.test(variation.name))
+    .map(({ modifierId }) => modifierId);
+
+  if (namedEquipmentIds.length) return uniqueModifierIds(namedEquipmentIds);
+
+  if (
+    bodyweightConstrainedVariationPatterns.some((pattern) =>
+      pattern.test(variation.name),
+    )
+  ) {
+    return ["apparatus:bodyweight"];
+  }
+
+  return [];
+};
+
 const getDefaultSelectedModifierIds = (
   metadata: NormalizedExerciseCatalogItem | null,
 ) => {
@@ -1410,19 +2171,14 @@ const getMatchingSemanticVariation = (
 ) => {
   if (!variations.length || !selectedModifierIds.length) return null;
 
-  const selectedSet = new Set(selectedModifierIds);
   const matches = variations
     .map((variation) => {
-      const matchSets = variation.matchModifierSets.length
-        ? variation.matchModifierSets
-        : [variation.modifierIds];
-      const matchedSet = matchSets.find(
-        (modifierIds) =>
-          modifierIds.length > 0 &&
-          modifierIds.every((modifierId) => selectedSet.has(modifierId)),
+      const score = getSemanticVariationMatchScore(
+        variation,
+        selectedModifierIds,
       );
 
-      return matchedSet ? { variation, score: matchedSet.length } : null;
+      return score === null ? null : { variation, score };
     })
     .filter(
       (
@@ -1435,19 +2191,105 @@ const getMatchingSemanticVariation = (
   return matches[0]?.variation || null;
 };
 
+const getSemanticVariationMatchScore = (
+  variation: SemanticVariationOption,
+  selectedModifierIds: ExerciseModifierId[],
+) => {
+  if (!selectedModifierIds.length) return null;
+
+  const selectedSet = new Set<string>(selectedModifierIds);
+  const selectedApparatusIds = getApparatusModifierIds(selectedModifierIds);
+  const matchSets = variation.matchModifierSets.length
+    ? variation.matchModifierSets
+    : [variation.modifierIds];
+  const allowedApparatusIds = getSemanticVariationAllowedApparatusIds(variation);
+  const scoredMatches = matchSets
+    .map((modifierIds) => {
+      const nonApparatusModifierIds = getNonApparatusModifierIds(modifierIds);
+      const apparatusModifierIds = allowedApparatusIds.length
+        ? allowedApparatusIds
+        : getApparatusModifierIds(modifierIds);
+      const nonApparatusMatches =
+        nonApparatusModifierIds.length > 0 &&
+        nonApparatusModifierIds.every((modifierId) =>
+          selectedSet.has(modifierId),
+        );
+      const apparatusMatchCount = apparatusModifierIds.filter((modifierId) =>
+        selectedSet.has(modifierId),
+      ).length;
+      const isEquipmentConstrained = allowedApparatusIds.length > 0;
+
+      if (nonApparatusModifierIds.length > 0) {
+        if (!nonApparatusMatches) return null;
+        if (
+          isEquipmentConstrained &&
+          selectedApparatusIds.length > 0 &&
+          apparatusMatchCount === 0
+        ) {
+          return null;
+        }
+
+        return nonApparatusModifierIds.length * 100 + apparatusMatchCount * 10;
+      }
+
+      if (apparatusModifierIds.length > 0 && apparatusMatchCount > 0) {
+        return apparatusMatchCount * 10;
+      }
+
+      return null;
+    })
+    .filter(
+      (score): score is number =>
+        typeof score === "number" && Number.isFinite(score),
+    )
+    .sort((a, b) => b - a);
+
+  return scoredMatches[0] ?? null;
+};
+
 const applySemanticVariationModifierPreset = (
   currentModifierIds: ExerciseModifierId[],
-  presetModifierIds: ExerciseModifierId[],
+  variation: SemanticVariationOption,
 ) => {
+  const presetModifierIds = variation.modifierIds;
+  const presetApparatusIds = getApparatusModifierIds(presetModifierIds);
+  const nonApparatusPresetModifierIds =
+    getNonApparatusModifierIds(presetModifierIds);
+  const currentApparatusIds = getApparatusModifierIds(currentModifierIds);
+  const allowedApparatusIds = getSemanticVariationAllowedApparatusIds(variation);
   const presetCategories = new Set(
-    presetModifierIds.map(getModifierCategoryId).filter(Boolean),
+    nonApparatusPresetModifierIds.map(getModifierCategoryId).filter(Boolean),
   );
+  const nextApparatusIds = ((): ExerciseModifierId[] => {
+    if (allowedApparatusIds.length) {
+      const allowedCurrentApparatusIds = currentApparatusIds.filter(
+        (modifierId) => allowedApparatusIds.includes(modifierId),
+      );
+      if (allowedCurrentApparatusIds.length) return allowedCurrentApparatusIds;
+
+      const preferredPresetApparatus = presetApparatusIds.find((modifierId) =>
+        allowedApparatusIds.includes(modifierId),
+      );
+
+      return [preferredPresetApparatus || allowedApparatusIds[0]];
+    }
+
+    if (currentApparatusIds.length) return currentApparatusIds;
+    return presetApparatusIds.slice(0, 1);
+  })();
   const preservedModifierIds = currentModifierIds.filter((modifierId) => {
     const categoryId = getModifierCategoryId(modifierId);
-    return !categoryId || !presetCategories.has(categoryId);
+    return (
+      categoryId !== "apparatus" &&
+      (!categoryId || !presetCategories.has(categoryId))
+    );
   });
 
-  return uniqueModifierIds([...preservedModifierIds, ...presetModifierIds]);
+  return uniqueModifierIds([
+    ...preservedModifierIds,
+    ...nextApparatusIds,
+    ...nonApparatusPresetModifierIds,
+  ]);
 };
 
 function SemanticVariationSelect({
@@ -1567,8 +2409,8 @@ function SemanticVariationSelect({
         }}
         className={`group/semantic flex max-w-full items-center gap-1.5 rounded-full border border-yellow-200/20 bg-yellow-300/[0.075] text-left font-black text-yellow-100/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_22px_rgba(250,204,21,0.08)] outline-none transition hover:border-yellow-200/35 hover:bg-yellow-300/[0.12] ${
           compact
-            ? "px-2 py-1 text-[9px] leading-4"
-            : "px-3 py-1.5 text-[11px] leading-5"
+            ? "px-2.5 py-1 text-[10px] leading-4 sm:text-[11px]"
+            : "px-3.5 py-1.5 text-[13px] leading-5 sm:text-sm"
         }`}
         title={displayValue}
       >
@@ -1895,12 +2737,67 @@ function ModifierRail({
                     : "border-white/10 bg-white/[0.045] text-slate-300 hover:border-cyan-300/40 hover:text-white"
                 }`}
               >
-                {modifier.shortLabel || modifier.label}
+                {getModifierDisplayLabel(modifier)}
               </button>
             );
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+function LabeledModifierSelect({
+  label,
+  value,
+  options,
+  fallback,
+  onChange,
+  onOpenChange,
+  accent,
+  size = "detail",
+}: {
+  label: string;
+  value: string;
+  options: ExerciseModifier[];
+  fallback: string;
+  onChange: (modifierId: string) => void;
+  onOpenChange?: (open: boolean) => void;
+  accent: "cyan" | "emerald" | "yellow" | "violet";
+  size?: "detail" | "grid";
+}) {
+  if (!options.length) return null;
+
+  const isGrid = size === "grid";
+  const labelAccentClasses = {
+    cyan: "text-cyan-100/62",
+    emerald: "text-emerald-100/62",
+    yellow: "text-yellow-100/62",
+    violet: "text-violet-100/62",
+  };
+
+  return (
+    <div className="min-w-0">
+      <p
+        className={`mb-1 font-black uppercase ${labelAccentClasses[accent]} ${
+          isGrid
+            ? "text-[7px] tracking-[0.08em] sm:text-[8px]"
+            : "text-[9px] tracking-[0.13em]"
+        }`}
+      >
+        {label}
+      </p>
+      <DetailVariationSelect
+        label={label}
+        value={value}
+        options={options}
+        fallback={fallback}
+        onChange={onChange}
+        onOpenChange={onOpenChange}
+        accent={accent}
+        size={size}
+        showInlineLabel={false}
+      />
     </div>
   );
 }
@@ -1921,16 +2818,25 @@ function GridModifierSelect({
   onOpenChange?: (open: boolean) => void;
 }) {
   return (
-    <DetailVariationSelect
+    <LabeledModifierSelect
       label={label}
       value={value}
       options={options}
       fallback={fallback}
       onChange={onChange}
       onOpenChange={onOpenChange}
-      accent={label === "Equipment" ? "cyan" : "violet"}
+      accent={
+        label === "Equipment"
+          ? "cyan"
+          : label === "Position" ||
+              label.includes("Position /") ||
+              label === "Stance" ||
+              label === "Body Position" ||
+              label === "Elevation"
+            ? "violet"
+            : "emerald"
+      }
       size="grid"
-      showInlineLabel={false}
     />
   );
 }
@@ -1966,40 +2872,98 @@ function DetailVariationSelect({
   const [dropdownMenuStyle, setDropdownMenuStyle] =
     useState<CSSProperties | null>(null);
   const isGrid = size === "grid";
-  const selectedOption = options.find((option) => option.id === value);
+  const displayOptions = dedupeModifierOptionsByDisplayLabel(options);
+  const selectedOption = displayOptions.find((option) => option.id === value);
   const displayValue = selectedOption
-    ? selectedOption.shortLabel || selectedOption.label
+    ? getModifierDisplayLabel(selectedOption)
     : fallback;
+  const fallbackOptionLabel =
+    fallback.trim().toLowerCase() === "default" || !fallback.trim()
+      ? label
+      : fallback.trim();
+  const getModifierOptionLabel = (modifier: ExerciseModifier) =>
+    getModifierDisplayLabel(modifier);
+  const normalizeOptionLabel = (optionLabel: string) =>
+    optionLabel.trim().toLowerCase();
+  const fallbackOptionKey = normalizeOptionLabel(fallbackOptionLabel);
+  const fallbackMatchesOption = displayOptions.some(
+    (option) => normalizeOptionLabel(getModifierOptionLabel(option)) === fallbackOptionKey,
+  );
   const accentClasses = {
     cyan: {
       focus:
-        "focus-visible:border-cyan-200/35 focus-visible:ring-1 focus-visible:ring-cyan-200/15",
+        "focus-visible:border-cyan-100/70 focus-visible:ring-2 focus-visible:ring-cyan-200/30",
+      trigger:
+        "border-cyan-200/30 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.20),transparent_34%),linear-gradient(135deg,rgba(8,47,73,0.62),rgba(15,23,42,0.84))] text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_8px_28px_rgba(8,145,178,0.16),0_8px_28px_rgba(0,0,0,0.30)] hover:border-cyan-100/55 hover:bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.28),transparent_34%),linear-gradient(135deg,rgba(8,47,73,0.76),rgba(15,23,42,0.88))] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_0_24px_rgba(34,211,238,0.16),0_8px_28px_rgba(0,0,0,0.32)]",
+      panel:
+        "border-cyan-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.20),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] shadow-[0_24px_70px_rgba(0,0,0,0.64),0_0_34px_rgba(34,211,238,0.13),inset_0_1px_0_rgba(255,255,255,0.14)]",
       selected: "border-cyan-200 bg-cyan-300 text-slate-950",
       hover: "hover:border-cyan-200/40 hover:bg-cyan-300/10 hover:text-white",
       glow: "shadow-[0_0_24px_rgba(34,211,238,0.16)]",
+      scrollbar: "[scrollbar-color:rgba(34,211,238,0.42)_transparent]",
+      label: "text-cyan-100/62",
+      value: "text-cyan-50 drop-shadow-[0_0_12px_rgba(34,211,238,0.24)]",
+      arrow:
+        "border-cyan-200/25 bg-cyan-300/12 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.14)] group-hover/control:border-cyan-100/50 group-hover/control:bg-cyan-300/18",
+      arrowOpen: "rotate-180 border-cyan-100/60 bg-cyan-300/24 text-cyan-50",
     },
     emerald: {
       focus:
-        "focus-visible:border-emerald-200/35 focus-visible:ring-1 focus-visible:ring-emerald-200/15",
+        "focus-visible:border-emerald-100/70 focus-visible:ring-2 focus-visible:ring-emerald-200/30",
+      trigger:
+        "border-emerald-200/30 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.20),transparent_34%),linear-gradient(135deg,rgba(6,78,59,0.58),rgba(15,23,42,0.84))] text-emerald-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_8px_28px_rgba(5,150,105,0.16),0_8px_28px_rgba(0,0,0,0.30)] hover:border-emerald-100/55 hover:bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.28),transparent_34%),linear-gradient(135deg,rgba(6,78,59,0.74),rgba(15,23,42,0.88))] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_0_24px_rgba(16,185,129,0.16),0_8px_28px_rgba(0,0,0,0.32)]",
+      panel:
+        "border-emerald-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.20),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] shadow-[0_24px_70px_rgba(0,0,0,0.64),0_0_34px_rgba(16,185,129,0.13),inset_0_1px_0_rgba(255,255,255,0.14)]",
       selected: "border-emerald-200 bg-emerald-300 text-slate-950",
       hover:
         "hover:border-emerald-200/40 hover:bg-emerald-300/10 hover:text-white",
       glow: "shadow-[0_0_24px_rgba(16,185,129,0.16)]",
+      scrollbar: "[scrollbar-color:rgba(16,185,129,0.42)_transparent]",
+      label: "text-emerald-100/62",
+      value:
+        "text-emerald-50 drop-shadow-[0_0_12px_rgba(16,185,129,0.24)]",
+      arrow:
+        "border-emerald-200/25 bg-emerald-300/12 text-emerald-100 shadow-[0_0_16px_rgba(16,185,129,0.14)] group-hover/control:border-emerald-100/50 group-hover/control:bg-emerald-300/18",
+      arrowOpen:
+        "rotate-180 border-emerald-100/60 bg-emerald-300/24 text-emerald-50",
     },
     yellow: {
       focus:
-        "focus-visible:border-yellow-200/35 focus-visible:ring-1 focus-visible:ring-yellow-200/15",
+        "focus-visible:border-yellow-100/70 focus-visible:ring-2 focus-visible:ring-yellow-200/25",
+      trigger:
+        "border-yellow-200/30 bg-[radial-gradient(circle_at_12%_0%,rgba(250,204,21,0.16),transparent_34%),linear-gradient(135deg,rgba(113,63,18,0.42),rgba(15,23,42,0.84))] text-yellow-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_8px_28px_rgba(202,138,4,0.12),0_8px_28px_rgba(0,0,0,0.30)] hover:border-yellow-100/55 hover:bg-[radial-gradient(circle_at_12%_0%,rgba(250,204,21,0.24),transparent_34%),linear-gradient(135deg,rgba(113,63,18,0.56),rgba(15,23,42,0.88))] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_0_24px_rgba(250,204,21,0.12),0_8px_28px_rgba(0,0,0,0.32)]",
+      panel:
+        "border-yellow-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(250,204,21,0.16),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] shadow-[0_24px_70px_rgba(0,0,0,0.64),0_0_34px_rgba(250,204,21,0.10),inset_0_1px_0_rgba(255,255,255,0.14)]",
       selected: "border-yellow-200 bg-yellow-300 text-slate-950",
       hover: "hover:border-yellow-200/40 hover:bg-yellow-300/10 hover:text-white",
       glow: "shadow-[0_0_24px_rgba(250,204,21,0.14)]",
+      scrollbar: "[scrollbar-color:rgba(250,204,21,0.38)_transparent]",
+      label: "text-yellow-100/62",
+      value: "text-yellow-50 drop-shadow-[0_0_12px_rgba(250,204,21,0.20)]",
+      arrow:
+        "border-yellow-200/25 bg-yellow-300/12 text-yellow-100 shadow-[0_0_16px_rgba(250,204,21,0.12)] group-hover/control:border-yellow-100/50 group-hover/control:bg-yellow-300/18",
+      arrowOpen:
+        "rotate-180 border-yellow-100/60 bg-yellow-300/24 text-yellow-50",
     },
     violet: {
       focus:
-        "focus-visible:border-violet-200/35 focus-visible:ring-1 focus-visible:ring-violet-200/15",
+        "focus-visible:border-violet-100/70 focus-visible:ring-2 focus-visible:ring-violet-200/30",
+      trigger:
+        "border-violet-200/30 bg-[radial-gradient(circle_at_12%_0%,rgba(167,139,250,0.20),transparent_34%),linear-gradient(135deg,rgba(76,29,149,0.52),rgba(15,23,42,0.84))] text-violet-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_8px_28px_rgba(124,58,237,0.16),0_8px_28px_rgba(0,0,0,0.30)] hover:border-violet-100/55 hover:bg-[radial-gradient(circle_at_12%_0%,rgba(167,139,250,0.28),transparent_34%),linear-gradient(135deg,rgba(76,29,149,0.68),rgba(15,23,42,0.88))] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_0_24px_rgba(167,139,250,0.16),0_8px_28px_rgba(0,0,0,0.32)]",
+      panel:
+        "border-violet-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(167,139,250,0.20),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] shadow-[0_24px_70px_rgba(0,0,0,0.64),0_0_34px_rgba(167,139,250,0.13),inset_0_1px_0_rgba(255,255,255,0.14)]",
       selected: "border-violet-200 bg-violet-300 text-slate-950",
       hover:
         "hover:border-violet-200/40 hover:bg-violet-300/10 hover:text-white",
       glow: "shadow-[0_0_24px_rgba(167,139,250,0.15)]",
+      scrollbar: "[scrollbar-color:rgba(167,139,250,0.42)_transparent]",
+      label: "text-violet-100/62",
+      value:
+        "text-violet-50 drop-shadow-[0_0_12px_rgba(167,139,250,0.24)]",
+      arrow:
+        "border-violet-200/25 bg-violet-300/12 text-violet-100 shadow-[0_0_16px_rgba(167,139,250,0.14)] group-hover/control:border-violet-100/50 group-hover/control:bg-violet-300/18",
+      arrowOpen:
+        "rotate-180 border-violet-100/60 bg-violet-300/24 text-violet-50",
     },
   };
   const setDropdownOpen = (nextOpen: boolean) => {
@@ -2108,7 +3072,7 @@ function DetailVariationSelect({
     };
   }, [dropdownId, open]);
 
-  if (!options.length) return null;
+  if (!displayOptions.length) return null;
 
   return (
     <div
@@ -2125,7 +3089,7 @@ function DetailVariationSelect({
         type="button"
         aria-expanded={open}
         aria-haspopup="listbox"
-        title={displayValue || "Default"}
+        title={displayValue || fallbackOptionLabel}
         onClick={() => {
           if (open) {
             setDropdownOpen(false);
@@ -2136,11 +3100,11 @@ function DetailVariationSelect({
           updateDropdownMenuPosition();
           setDropdownOpen(true);
         }}
-        className={`group/control flex w-full min-w-0 items-center justify-between gap-2 border bg-[linear-gradient(135deg,rgba(255,255,255,0.10),rgba(255,255,255,0.035))] text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_28px_rgba(0,0,0,0.32)] outline-none backdrop-blur-2xl transition hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.14),rgba(255,255,255,0.045))] ${
+        className={`group/control flex w-full min-w-0 items-center justify-between gap-2 border text-left outline-none backdrop-blur-2xl transition ${
           isGrid
             ? "min-h-[34px] rounded-full px-2.5 py-1.5"
             : "min-h-[42px] rounded-full px-3 py-2"
-        } ${accentClasses[accent].focus}`}
+        } ${accentClasses[accent].trigger} ${accentClasses[accent].focus}`}
       >
         <span
           className={`flex min-w-0 flex-1 items-center ${
@@ -2149,7 +3113,7 @@ function DetailVariationSelect({
         >
           {showInlineLabel ? (
             <span
-              className={`shrink-0 font-black uppercase text-white/38 ${
+              className={`shrink-0 font-black uppercase ${accentClasses[accent].label} ${
                 isGrid
                   ? "text-[8px] tracking-[0.08em]"
                   : "text-[9px] tracking-[0.12em]"
@@ -2159,23 +3123,23 @@ function DetailVariationSelect({
             </span>
           ) : null}
           <span
-            className={`min-w-0 flex-1 font-black tracking-[0.03em] text-slate-100 drop-shadow-[0_0_10px_rgba(255,255,255,0.16)] [hyphens:none] [overflow-wrap:normal] [word-break:normal] ${
+            className={`min-w-0 flex-1 font-black tracking-[0.03em] ${accentClasses[accent].value} [hyphens:none] [overflow-wrap:normal] [word-break:normal] ${
               showInlineLabel
                 ? "truncate"
                 : "line-clamp-2 whitespace-normal break-normal text-center leading-tight"
             }`}
           >
-            {displayValue || fallback || "Default"}
+            {displayValue || fallbackOptionLabel}
           </span>
         </span>
         <span
           aria-hidden="true"
-          className={`flex shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] font-black text-cyan-100 transition ${
+          className={`flex shrink-0 items-center justify-center rounded-full border font-black transition ${accentClasses[accent].arrow} ${
           isGrid
             ? "h-4 w-4 text-[9px]"
             : "h-5 w-5 text-[10px]"
         } ${
-          open ? "rotate-180 border-cyan-200/35 bg-cyan-300/10" : ""
+          open ? accentClasses[accent].arrowOpen : ""
         }`}
         >
           v
@@ -2187,7 +3151,7 @@ function DetailVariationSelect({
             <div
               ref={dropdownMenuRef}
               style={dropdownMenuStyle}
-              className={`fixed overflow-hidden border border-cyan-100/15 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.64),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl ${
+              className={`fixed overflow-hidden border ${accentClasses[accent].panel} p-1.5 backdrop-blur-2xl ${
                 isGrid ? "rounded-xl" : "rounded-2xl"
               }`}
             >
@@ -2195,32 +3159,37 @@ function DetailVariationSelect({
             role="listbox"
             aria-label={label}
             style={{ maxHeight: dropdownMenuStyle.maxHeight }}
-            className="overflow-y-auto pr-1 [scrollbar-color:rgba(34,211,238,0.34)_transparent] [scrollbar-width:thin]"
+            className={`overflow-y-auto pr-1 ${accentClasses[accent].scrollbar} [scrollbar-width:thin]`}
           >
-            <button
-              type="button"
-              role="option"
-              aria-selected={!value}
-              onClick={() => selectModifier("")}
-              title="Default"
-              className={`mb-1 flex w-full items-center justify-between gap-3 border text-left font-black transition ${
-                isGrid
-                  ? "min-h-[36px] rounded-lg px-2.5 py-1.5 text-xs"
-                  : "min-h-[40px] rounded-xl px-3 py-2 text-sm"
-              } ${
-                !value
-                  ? `${accentClasses[accent].selected} ${accentClasses[accent].glow}`
-                  : `border-white/10 bg-white/[0.045] text-slate-300 ${accentClasses[accent].hover}`
-              }`}
-            >
-              <span className="min-w-0 whitespace-normal break-words leading-4">
-                Default
-              </span>
-              {!value ? <span>Selected</span> : null}
-            </button>
+            {!value && !fallbackMatchesOption ? (
+              <button
+                type="button"
+                role="option"
+                aria-selected={!value}
+                onClick={() => selectModifier("")}
+                title={fallbackOptionLabel}
+                className={`mb-1 flex w-full items-center justify-between gap-3 border text-left font-black transition ${
+                  isGrid
+                    ? "min-h-[36px] rounded-lg px-2.5 py-1.5 text-xs"
+                    : "min-h-[40px] rounded-xl px-3 py-2 text-sm"
+                } ${
+                  !value
+                    ? `${accentClasses[accent].selected} ${accentClasses[accent].glow}`
+                    : `border-white/10 bg-white/[0.045] text-slate-300 ${accentClasses[accent].hover}`
+                }`}
+              >
+                <span className="min-w-0 whitespace-normal break-words leading-4">
+                  {fallbackOptionLabel}
+                </span>
+                {!value ? <span>Selected</span> : null}
+              </button>
+            ) : null}
 
-            {options.map((modifier) => {
-              const isSelected = modifier.id === value;
+            {displayOptions.map((modifier) => {
+              const modifierLabel = getModifierOptionLabel(modifier);
+              const matchesFallback =
+                normalizeOptionLabel(modifierLabel) === fallbackOptionKey;
+              const isSelected = modifier.id === value || (!value && matchesFallback);
 
               return (
                 <button
@@ -2228,8 +3197,8 @@ function DetailVariationSelect({
                   type="button"
                   role="option"
                   aria-selected={isSelected}
-                  onClick={() => selectModifier(modifier.id)}
-                  title={modifier.shortLabel || modifier.label}
+                  onClick={() => selectModifier(!value && matchesFallback ? "" : modifier.id)}
+                  title={modifierLabel}
                   className={`mb-1 flex w-full items-center justify-between gap-3 border text-left font-black transition ${
                     isGrid
                       ? "min-h-[36px] rounded-lg px-2.5 py-1.5 text-xs"
@@ -2241,7 +3210,7 @@ function DetailVariationSelect({
                   }`}
                 >
                   <span className="min-w-0 whitespace-normal break-words leading-4">
-                    {modifier.shortLabel || modifier.label}
+                    {modifierLabel}
                   </span>
                   {isSelected ? <span>Selected</span> : null}
                 </button>
@@ -2821,21 +3790,31 @@ function ExerciseLibraryCard({
   const [isVariationDropdownOpen, setIsVariationDropdownOpen] =
     useState(false);
   const [isSemanticDropdownOpen, setIsSemanticDropdownOpen] = useState(false);
+  const [explicitSemanticVariationId, setExplicitSemanticVariationId] =
+    useState("");
   const semanticVariationOptions = metadata?.semanticVariations || [];
-  const selectedSemanticVariation = getMatchingSemanticVariation(
+  const matchedSemanticVariation = getMatchingSemanticVariation(
     semanticVariationOptions,
     selectedModifierIds,
   );
+  const explicitSemanticVariation =
+    semanticVariationOptions.find(
+      (variation) => variation.id === explicitSemanticVariationId,
+    ) || null;
+  const selectedSemanticVariation =
+    explicitSemanticVariation &&
+    getSemanticVariationMatchScore(
+      explicitSemanticVariation,
+      selectedModifierIds,
+    ) !== null
+      ? explicitSemanticVariation
+      : matchedSemanticVariation;
   const variationName = getGeneratedVariationName(
     exercise,
     metadata,
     selectedModifierIds,
   );
   const activeSemanticVariationName = selectedSemanticVariation?.name || "";
-  const cardTitle =
-    metadata?.source === "core-pattern"
-      ? metadata.coreMovementLabel
-      : variationName;
   const cardClassificationLabel = getCardClassificationLabel(metadata);
   const activeExerciseName = activeSemanticVariationName || variationName;
   const patternLabel = metadata?.movementPatternLabel || exercise.pattern;
@@ -2844,6 +3823,13 @@ function ExerciseLibraryCard({
     metadata,
     selectedModifierIds,
   );
+  const coreMovementLabel = metadata?.coreMovementLabel || "";
+  const cardTitle = getGeneratedCardTitle({
+    exercise,
+    metadata,
+    semanticVariationName: activeSemanticVariationName,
+    equipmentLabel,
+  });
   const goalLabel = getSelectedGoalLabel(exercise, selectedModifierIds);
   const recentStats = getRecentExerciseStats(
     savedExerciseStats,
@@ -2858,85 +3844,91 @@ function ExerciseLibraryCard({
   const isGridView = viewMode === "grid";
   const latestGridStat = recentStats[0];
   const compatibleModifierGroups = getCompatibleModifierGroups(metadata);
-  const gridEquipmentModifierGroup = compatibleModifierGroups.find(
-    (group) => group.categoryId === "apparatus",
-  );
-  const gridAngleModifierGroup = compatibleModifierGroups.find(
-    (group) => group.categoryId === "angle-position",
-  );
-  const limbUsageModifierGroup = compatibleModifierGroups.find(
-    (group) => group.categoryId === "limb-usage",
-  );
   const goalModifierGroup = compatibleModifierGroups.find(
     (group) => group.categoryId === "training-intent",
   );
-  const positionModifierOptions = [
-    ...(gridAngleModifierGroup?.modifiers || []),
-    ...((limbUsageModifierGroup?.modifiers || []).filter((modifier) =>
-      positionLimbUsageModifierIds.has(modifier.id),
-    )),
-  ];
-  const selectedEquipmentModifierId =
-    getSelectedModifiersByCategory(selectedModifierIds, "apparatus").find(
-      (modifier) =>
-        gridEquipmentModifierGroup?.modifiers.some(
-          (option) => option.id === modifier.id,
-        ),
-    )?.id || "";
   const selectedGoalModifierId =
     getSelectedModifiersByCategory(selectedModifierIds, "training-intent").find(
       (modifier) =>
         goalModifierGroup?.modifiers.some((option) => option.id === modifier.id),
     )?.id || "";
-  const selectedAngleModifierId =
-    getSelectedModifiersByCategory(selectedModifierIds, "angle-position").find(
-      (modifier) =>
-        gridAngleModifierGroup?.modifiers.some(
-          (option) => option.id === modifier.id,
-        ),
-    )?.id || "";
-  const selectedPositionModifierId =
-    selectedAngleModifierId ||
-    selectedModifierIds.find(
-      (modifierId) =>
-        positionLimbUsageModifierIds.has(modifierId) &&
-        positionModifierOptions.some((option) => option.id === modifierId),
-    ) ||
-    "";
-  const positionLabel = selectedPositionModifierId
-    ? getModifierLabel(selectedPositionModifierId)
-    : patternLabel;
-  const setModifierForCategory = (
-    categoryId: ExerciseModifierCategoryId,
+  const modifierGroupsByCategory = new Map(
+    compatibleModifierGroups.map((group) => [group.categoryId, group]),
+  );
+  const coreMovementId = metadata?.coreMovementId || null;
+  const modifierControlDefinitions =
+    (coreMovementId && cardModifierControlPresets[coreMovementId]) || [
+      defaultEquipmentControl,
+      defaultPositionControl,
+      getFallbackThirdControl(coreMovementId),
+    ];
+  const getOptionsForControl = (control: CardModifierControlDefinition) => {
+    const categoryOptions = control.categories.flatMap(
+      (categoryId) => modifierGroupsByCategory.get(categoryId)?.modifiers || [],
+    );
+    const availableOptionsById = new Map(
+      categoryOptions.map((modifier) => [modifier.id, modifier]),
+    );
+    const orderedOptions = control.optionIds
+      ? control.optionIds
+          .map((modifierId) => availableOptionsById.get(modifierId))
+          .filter((modifier): modifier is ExerciseModifier => Boolean(modifier))
+      : categoryOptions;
+
+    return dedupeModifierOptionsByDisplayLabel(orderedOptions);
+  };
+  const getSelectedModifierIdForControl = (options: ExerciseModifier[]) =>
+    selectedModifierIds.find((modifierId) =>
+      options.some((option) => option.id === modifierId),
+    ) || "";
+  const getFallbackForControl = (
+    control: CardModifierControlDefinition,
+    options: ExerciseModifier[],
+  ) => {
+    if (control.categories.includes("apparatus")) return equipmentLabel;
+
+    return patternLabel || control.label;
+  };
+  const modifierControls = modifierControlDefinitions
+    .map((control) => {
+      const options = getOptionsForControl(control);
+
+      return {
+        ...control,
+        options,
+        value: getSelectedModifierIdForControl(options),
+        fallback: getFallbackForControl(control, options),
+      };
+    })
+    .filter((control) => control.options.length > 0);
+  const setModifierForCategories = (
+    categoryIds: ExerciseModifierCategoryId[],
     modifierId: string,
   ) => {
     setSelectedModifierIds((prev) => [
-      ...prev.filter((id) => getModifierCategoryId(id) !== categoryId),
-      ...(modifierId ? [modifierId as ExerciseModifierId] : []),
-    ]);
-  };
-  const setPositionModifier = (modifierId: string) => {
-    setSelectedModifierIds((prev) => [
       ...prev.filter((id) => {
         const categoryId = getModifierCategoryId(id);
-        return (
-          categoryId !== "angle-position" &&
-          !positionLimbUsageModifierIds.has(id)
-        );
+        return !categoryId || !categoryIds.includes(categoryId);
       }),
       ...(modifierId ? [modifierId as ExerciseModifierId] : []),
     ]);
   };
+  const setModifierForCategory = (
+    categoryId: ExerciseModifierCategoryId,
+    modifierId: string,
+  ) => setModifierForCategories([categoryId], modifierId);
   const handleSemanticVariationChange = (
     variation: SemanticVariationOption,
   ) => {
+    setExplicitSemanticVariationId(variation.id);
     setSelectedModifierIds((prev) =>
-      applySemanticVariationModifierPreset(prev, variation.modifierIds),
+      applySemanticVariationModifierPreset(prev, variation),
     );
   };
 
   useEffect(() => {
     setSelectedModifierIds(getDefaultSelectedModifierIds(metadata));
+    setExplicitSemanticVariationId("");
   }, [exercise.id, metadata?.id]);
 
   const movementDetailsPanelId = `movement-details-${exercise.id.replace(
@@ -3086,6 +4078,13 @@ function ExerciseLibraryCard({
         </div>
 
         <div className="relative z-10 p-2 sm:p-3">
+          {coreMovementLabel ? (
+            <p className="mb-1 text-[8px] font-black uppercase leading-3 tracking-[0.1em] text-cyan-100/70 sm:text-[9px]">
+              Core Movement:{" "}
+              <span className="text-cyan-50">{coreMovementLabel}</span>
+            </p>
+          ) : null}
+
           <h2 className="line-clamp-2 text-sm font-black leading-4 tracking-wide text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.34)] sm:text-base sm:leading-tight">
             {cardTitle}
           </h2>
@@ -3098,25 +4097,21 @@ function ExerciseLibraryCard({
           />
 
           <div className="mt-1.5 grid grid-cols-1 gap-1 sm:mt-2 sm:gap-1.5">
-            <GridModifierSelect
-              label="Equipment"
-              value={selectedEquipmentModifierId}
-              options={gridEquipmentModifierGroup?.modifiers || []}
-              fallback={equipmentLabel}
-              onOpenChange={setIsVariationDropdownOpen}
-              onChange={(modifierId) =>
-                setModifierForCategory("apparatus", modifierId)
-              }
-            />
-
-            <GridModifierSelect
-              label="Position"
-              value={selectedPositionModifierId}
-              options={positionModifierOptions}
-              fallback={positionLabel}
-              onOpenChange={setIsVariationDropdownOpen}
-              onChange={setPositionModifier}
-            />
+            {modifierControls.map((control) => (
+              <LabeledModifierSelect
+                key={control.key}
+                label={control.label}
+                value={control.value}
+                options={control.options}
+                fallback={control.fallback}
+                onOpenChange={setIsVariationDropdownOpen}
+                onChange={(modifierId) =>
+                  setModifierForCategories(control.categories, modifierId)
+                }
+                accent={control.accent}
+                size="grid"
+              />
+            ))}
           </div>
 
           <MovementArchitectureChips chips={movementArchitectureChips} compact />
@@ -3213,7 +4208,14 @@ function ExerciseLibraryCard({
           </span>
         </div>
 
-        <h2 className="mt-3.5 text-xl font-extrabold leading-7 tracking-wide text-white drop-shadow-[0_0_14px_rgba(255,255,255,0.42)]">
+        {coreMovementLabel ? (
+          <p className="mt-3.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/70">
+            Core Movement:{" "}
+            <span className="text-cyan-50">{coreMovementLabel}</span>
+          </p>
+        ) : null}
+
+        <h2 className={`${coreMovementLabel ? "mt-1.5" : "mt-3.5"} text-xl font-extrabold leading-7 tracking-wide text-white drop-shadow-[0_0_14px_rgba(255,255,255,0.42)]`}>
           {cardTitle}
         </h2>
         <SemanticVariationSelect
@@ -3224,7 +4226,7 @@ function ExerciseLibraryCard({
         />
       </div>
 
-      {gridEquipmentModifierGroup || positionModifierOptions.length ? (
+      {modifierControls.length ? (
         <div className="relative z-20 mx-4 -mt-1 rounded-[24px] border border-white/12 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.10),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.82),rgba(2,6,23,0.58))] p-2 shadow-[0_16px_42px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl">
           <div
             className="grid gap-2 text-xs"
@@ -3233,29 +4235,20 @@ function ExerciseLibraryCard({
                 "repeat(auto-fit, minmax(min(100%, 10.75rem), 1fr))",
             }}
           >
-          <DetailVariationSelect
-            label="Equipment"
-            value={selectedEquipmentModifierId}
-            options={gridEquipmentModifierGroup?.modifiers || []}
-            fallback={equipmentLabel}
-            onOpenChange={setIsVariationDropdownOpen}
-            onChange={(modifierId) =>
-              setModifierForCategory("apparatus", modifierId)
-            }
-            accent="cyan"
-            showInlineLabel={false}
-          />
-
-          <DetailVariationSelect
-            label="Position"
-            value={selectedPositionModifierId}
-            options={positionModifierOptions}
-            fallback={positionLabel}
-            onOpenChange={setIsVariationDropdownOpen}
-            onChange={setPositionModifier}
-            accent="violet"
-            showInlineLabel={false}
-          />
+          {modifierControls.map((control) => (
+            <LabeledModifierSelect
+              key={control.key}
+              label={control.label}
+              value={control.value}
+              options={control.options}
+              fallback={control.fallback}
+              onOpenChange={setIsVariationDropdownOpen}
+              onChange={(modifierId) =>
+                setModifierForCategories(control.categories, modifierId)
+              }
+              accent={control.accent}
+            />
+          ))}
           </div>
         </div>
       ) : null}
@@ -3297,7 +4290,7 @@ export default function ExerciseLibraryPage() {
   const [viewMode, setViewMode] =
     useState<ExerciseLibraryViewMode>("detail");
   const exercisesPerPage = 12;
-  const [bodyFilter, setBodyFilter] = useState("All");
+  const [bodyFilters, setBodyFilters] = useState<string[]>([]);
   const [goalFilter, setGoalFilter] = useState("All");
   const [levelFilter, setLevelFilter] = useState("All");
   const [movementTypeFilter, setMovementTypeFilter] = useState("All");
@@ -3465,7 +4458,8 @@ export default function ExerciseLibraryPage() {
           tags: normalizedSearchTokens,
         });
 
-      const matchesBody = bodyFilter === "All" || exercise.body === bodyFilter;
+      const matchesBody =
+        bodyFilters.length === 0 || bodyFilters.includes(exercise.body);
 
       const matchesGoal = goalFilter === "All" || exercise.goal === goalFilter;
 
@@ -3501,7 +4495,7 @@ export default function ExerciseLibraryPage() {
   }, [
     allExercises,
     search,
-    bodyFilter,
+    bodyFilters,
     goalFilter,
     movementTypeFilter,
     apparatusFilter,
@@ -3547,7 +4541,7 @@ export default function ExerciseLibraryPage() {
     setOpenMovementDetailsId(null);
   }, [
     search,
-    bodyFilter,
+    bodyFilters,
     goalFilter,
     levelFilter,
     movementTypeFilter,
@@ -3561,12 +4555,25 @@ export default function ExerciseLibraryPage() {
 
   const resetFilters = () => {
     setSearch("");
-    setBodyFilter("All");
+    setBodyFilters([]);
     setGoalFilter("All");
     setLevelFilter("All");
     setMovementTypeFilter("All");
     setApparatusFilter("All");
     setLoadBehaviorFilter("All");
+  };
+
+  const toggleBodyFilter = (body: string) => {
+    if (body === "All") {
+      setBodyFilters([]);
+      return;
+    }
+
+    setBodyFilters((currentFilters) =>
+      currentFilters.includes(body)
+        ? currentFilters.filter((activeBody) => activeBody !== body)
+        : [...currentFilters, body],
+    );
   };
 
   const addExercise = () => {
@@ -3731,10 +4738,50 @@ export default function ExerciseLibraryPage() {
       normalizedOptions[0];
 
     const accentClasses = {
-      cyan: "border-cyan-300/30 bg-cyan-400/10 text-cyan-200",
-      emerald: "border-emerald-300/30 bg-emerald-400/10 text-emerald-200",
-      blue: "border-blue-300/30 bg-blue-400/10 text-blue-200",
-      violet: "border-violet-300/30 bg-violet-400/10 text-violet-200",
+      cyan: {
+        trigger: "border-cyan-300/30 bg-cyan-400/10 text-cyan-200",
+        panel:
+          "border-cyan-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] shadow-[0_24px_80px_rgba(0,0,0,0.72),0_0_34px_rgba(34,211,238,0.12)]",
+        selected: "bg-cyan-300 text-slate-950",
+        hover: "text-slate-300 hover:bg-cyan-300/10 hover:text-white",
+        scrollbar: "[scrollbar-color:rgba(34,211,238,0.38)_transparent]",
+        arrow:
+          "border-cyan-200/25 bg-cyan-300/10 after:text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.12)]",
+        arrowOpen: "rotate-180 border-cyan-200/50 bg-cyan-300/20",
+      },
+      emerald: {
+        trigger: "border-emerald-300/30 bg-emerald-400/10 text-emerald-200",
+        panel:
+          "border-emerald-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] shadow-[0_24px_80px_rgba(0,0,0,0.72),0_0_34px_rgba(16,185,129,0.12)]",
+        selected: "bg-emerald-300 text-slate-950",
+        hover: "text-slate-300 hover:bg-emerald-300/10 hover:text-white",
+        scrollbar: "[scrollbar-color:rgba(16,185,129,0.38)_transparent]",
+        arrow:
+          "border-emerald-200/25 bg-emerald-300/10 after:text-emerald-100 shadow-[0_0_14px_rgba(16,185,129,0.12)]",
+        arrowOpen: "rotate-180 border-emerald-200/50 bg-emerald-300/20",
+      },
+      blue: {
+        trigger: "border-blue-300/30 bg-blue-400/10 text-blue-200",
+        panel:
+          "border-sky-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(56,189,248,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] shadow-[0_24px_80px_rgba(0,0,0,0.72),0_0_34px_rgba(56,189,248,0.12)]",
+        selected: "bg-sky-300 text-slate-950",
+        hover: "text-slate-300 hover:bg-sky-300/10 hover:text-white",
+        scrollbar: "[scrollbar-color:rgba(56,189,248,0.38)_transparent]",
+        arrow:
+          "border-sky-200/25 bg-sky-300/10 after:text-sky-100 shadow-[0_0_14px_rgba(56,189,248,0.12)]",
+        arrowOpen: "rotate-180 border-sky-200/50 bg-sky-300/20",
+      },
+      violet: {
+        trigger: "border-violet-300/30 bg-violet-400/10 text-violet-200",
+        panel:
+          "border-violet-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(167,139,250,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] shadow-[0_24px_80px_rgba(0,0,0,0.72),0_0_34px_rgba(167,139,250,0.12)]",
+        selected: "bg-violet-300 text-slate-950",
+        hover: "text-slate-300 hover:bg-violet-300/10 hover:text-white",
+        scrollbar: "[scrollbar-color:rgba(167,139,250,0.38)_transparent]",
+        arrow:
+          "border-violet-200/25 bg-violet-300/10 after:text-violet-100 shadow-[0_0_14px_rgba(167,139,250,0.12)]",
+        arrowOpen: "rotate-180 border-violet-200/50 bg-violet-300/20",
+      },
     };
 
     useEffect(() => {
@@ -3776,7 +4823,7 @@ export default function ExerciseLibraryPage() {
             if (!open) announceExerciseLibraryDropdownOpen(dropdownId);
             setOpen((prev) => !prev);
           }}
-          className={`flex min-h-[46px] w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left shadow-xl transition hover:scale-[1.01] ${accentClasses[accent]}`}
+          className={`flex min-h-[46px] w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left shadow-xl transition hover:scale-[1.01] ${accentClasses[accent].trigger}`}
         >
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">
@@ -3796,8 +4843,8 @@ export default function ExerciseLibraryPage() {
 
           <span
             aria-hidden="true"
-            className={`relative ml-3 flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-sm font-black text-transparent transition after:absolute after:text-cyan-100 after:content-['v'] ${
-              open ? "rotate-180 border-cyan-300/40 text-white" : ""
+            className={`relative ml-3 flex h-7 w-7 items-center justify-center rounded-full border text-sm font-black text-transparent transition after:absolute after:content-['v'] ${accentClasses[accent].arrow} ${
+              open ? accentClasses[accent].arrowOpen : ""
             }`}
           >
             ↓
@@ -3805,8 +4852,8 @@ export default function ExerciseLibraryPage() {
         </button>
 
         {open && (
-          <div className="absolute left-0 right-0 z-[9999] mt-2 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/95 p-2 shadow-[0_24px_80px_rgba(0,0,0,0.75)] backdrop-blur-xl">
-            <div className="max-h-72 overflow-y-auto pr-1">
+          <div className={`absolute left-0 right-0 z-[9999] mt-2 overflow-hidden rounded-[24px] border p-2 backdrop-blur-xl ${accentClasses[accent].panel}`}>
+            <div className={`max-h-72 overflow-y-auto pr-1 ${accentClasses[accent].scrollbar} [scrollbar-width:thin]`}>
               {normalizedOptions.map((option) => (
                 <button
                   key={option.value}
@@ -3817,8 +4864,8 @@ export default function ExerciseLibraryPage() {
                   }}
                   className={`mb-1 flex min-h-[40px] w-full items-center justify-between rounded-2xl px-4 py-2.5 text-left text-sm font-bold transition ${
                     value === option.value
-                      ? "bg-cyan-400 text-slate-950"
-                      : "text-slate-300 hover:bg-white/10 hover:text-white"
+                      ? accentClasses[accent].selected
+                      : accentClasses[accent].hover
                   }`}
                 >
                   <span className="min-w-0">
@@ -4032,36 +5079,7 @@ export default function ExerciseLibraryPage() {
             </div>
           ) : null}
 
-          <div className="mt-3 rounded-[24px] border border-cyan-200/10 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.72),rgba(2,6,23,0.56))] p-2.5 shadow-[0_14px_38px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl">
-            <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/65">
-                Body / Region
-              </p>
-              <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
-                Quick filter
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5">
-            {bodyOptions.map((body) => (
-              <button
-                key={body}
-                type="button"
-                aria-pressed={bodyFilter === body}
-                onClick={() => setBodyFilter(body)}
-                className={`min-h-[34px] rounded-full border px-3 py-1.5 text-xs font-black transition focus:outline-none focus:ring-2 focus:ring-cyan-200/45 ${
-                  bodyFilter === body
-                    ? "border-cyan-200 bg-[linear-gradient(135deg,rgba(34,211,238,0.98),rgba(16,185,129,0.88))] text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.24),inset_0_1px_0_rgba(255,255,255,0.34)]"
-                    : "border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.035))] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-cyan-300/40 hover:bg-cyan-300/10 hover:text-white hover:shadow-[0_0_18px_rgba(34,211,238,0.12)]"
-                }`}
-              >
-                {body}
-              </button>
-            ))}
-            </div>
-          </div>
-
-          <div className="mt-3 grid gap-2.5 md:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-3 grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
               <FilterMenu
                 label="Movement Type"
                 value={movementTypeFilter}
@@ -4092,13 +5110,6 @@ export default function ExerciseLibraryPage() {
                 counts={levelCounts}
               />
 
-              <FilterMenu
-                label="Load Behavior"
-                value={loadBehaviorFilter}
-                options={loadBehaviorFilterOptions}
-                onChange={setLoadBehaviorFilter}
-                accent="violet"
-              />
           </div>
 
           <div className="mt-4 flex flex-col gap-2 border-t border-white/10 pt-3 sm:flex-row sm:items-center sm:justify-between">
@@ -4131,13 +5142,42 @@ export default function ExerciseLibraryPage() {
               Clear
             </button>
           </div>
+
+          <div className="-mx-4 -mb-4 mt-3 overflow-hidden rounded-b-[30px] border-t border-cyan-200/15">
+            <div className="flex flex-wrap gap-px bg-cyan-100/10">
+              {bodyOptions.map((body) => {
+                const isActive =
+                  body === "All"
+                    ? bodyFilters.length === 0
+                    : bodyFilters.includes(body);
+
+                return (
+                  <button
+                    key={body}
+                    type="button"
+                    aria-pressed={isActive}
+                    onClick={() => toggleBodyFilter(body)}
+                    className={`flex min-h-[48px] min-w-0 flex-[1_1_7.25rem] items-center justify-center px-2.5 py-2.5 text-center text-[10px] font-black uppercase leading-[1.12] tracking-[0.07em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 focus:ring-cyan-200/45 sm:min-h-[52px] sm:px-3 sm:text-[11px] ${
+                      isActive
+                        ? "bg-[linear-gradient(135deg,rgba(34,211,238,0.98),rgba(56,189,248,0.78))] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.26),inset_0_1px_0_rgba(255,255,255,0.38)] ring-1 ring-cyan-100/70"
+                        : "bg-[linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.76))] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:bg-[linear-gradient(135deg,rgba(34,211,238,0.14),rgba(15,23,42,0.88))] hover:text-cyan-50"
+                    }`}
+                  >
+                    <span className="block max-w-full whitespace-normal break-normal [hyphens:none] [overflow-wrap:normal] [text-wrap:balance]">
+                      {body}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </section>
 
         <section
           className={`relative z-0 overflow-visible ${
             viewMode === "grid"
               ? "grid grid-cols-2 items-start gap-2 max-[360px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4"
-              : "columns-1 gap-4 sm:columns-2 lg:columns-3"
+              : "grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3"
           }`}
         >
           {paginatedExercises.map((exercise) => {
