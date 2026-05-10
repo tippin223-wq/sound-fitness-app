@@ -59,6 +59,10 @@ const queryExpansions: Record<string, string[]> = {
   "neck extension": ["cervical extension", "neck"],
   "neck rotation": ["cervical rotation", "neck"],
   cervical: ["neck flexion", "neck extension", "neck rotation"],
+  trx: ["suspension trainer", "suspension training", "trx row", "trx push up"],
+  suspension: ["trx", "suspension trainer", "suspension training"],
+  "suspension trainer": ["trx", "suspension training"],
+  "suspension training": ["trx", "suspension trainer"],
 };
 
 export const normalizeSemanticText = (value: string) =>

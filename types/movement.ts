@@ -161,6 +161,7 @@ export type ApparatusId =
   | "band"
   | "smith-machine"
   | "trap-bar"
+  | "trx"
   | "suspension"
   | "landmine"
   | "bench"
@@ -218,6 +219,15 @@ export type LimbUsageId =
   | "underhand-grip"
   | "single-arm"
   | "single-leg";
+
+export type DirectionId =
+  | "vertical"
+  | "forward"
+  | "reverse"
+  | "walking"
+  | "lateral"
+  | "rotational"
+  | "crossover";
 
 export type StabilityId =
   | "stable"
@@ -278,6 +288,7 @@ export type ExerciseModifierCategoryId =
   | "apparatus"
   | "angle-position"
   | "limb-usage"
+  | "direction"
   | "stability"
   | "tempo"
   | "assistance-resistance"
@@ -289,6 +300,7 @@ export type ExerciseModifierId =
   | `apparatus:${ApparatusId}`
   | `angle-position:${AnglePositionId}`
   | `limb-usage:${LimbUsageId}`
+  | `direction:${DirectionId}`
   | `stability:${StabilityId}`
   | `tempo:${TempoId}`
   | `assistance-resistance:${AssistanceResistanceId}`

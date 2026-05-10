@@ -47,6 +47,7 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Incline Dumbbell Press",
     "Floor Press",
     "Plyo Push-Up",
+    "TRX Push-Up",
   ],
   "core-squat": [
     "Air Squat",
@@ -57,6 +58,7 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Sumo Squat",
     "Box Squat",
     "Hack Squat",
+    "TRX Assisted Squat",
     "Zercher Squat",
     "Cossack Squat",
     "Jump Squat",
@@ -80,6 +82,7 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Lateral Lunge",
     "Deficit Lunge",
     "Bulgarian Split Squat",
+    "TRX Reverse Lunge",
     "Lunge to Press",
     "Lunge to Curl",
   ],
@@ -117,7 +120,7 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Z Press",
     "Landmine Press",
   ],
-  "core-chest-fly": ["Dumbbell Fly", "Cable Fly", "Pec Deck"],
+  "core-chest-fly": ["Dumbbell Fly", "Cable Fly", "Pec Deck", "TRX Chest Fly"],
   "core-lateral-raise": [
     "Dumbbell Lateral Raise",
     "Cable Lateral Raise",
@@ -132,6 +135,7 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
   "core-row": [
     "Bent Over Row",
     "Gorilla Row",
+    "TRX Row",
     "Seal Row",
     "Renegade Row",
     "Meadows Row",
@@ -174,6 +178,8 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
   "core-scapular-control": [
     "Scapular Push-Up",
     "Scapular Pull-Up",
+    "TRX Y Raise",
+    "TRX T Raise",
     "Wall Slide",
     "Serratus Wall Slide",
   ],
@@ -183,9 +189,21 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Med Ball Rotational Throw",
     "Landmine Rotation",
   ],
-  "core-anti-rotation": ["Pallof Press", "Renegade Hold", "Single Arm Carry"],
+  "core-anti-rotation": [
+    "Pallof Press",
+    "Renegade Hold",
+    "Single Arm Carry",
+    "TRX Body Saw",
+  ],
   "core-flexion": ["Crunch", "Sit-Up", "Reverse Crunch", "Hanging Leg Raise"],
-  "core-anti-extension": ["Plank", "Ab Wheel Rollout", "Dead Bug", "Body Saw"],
+  "core-anti-extension": [
+    "Plank",
+    "Ab Wheel Rollout",
+    "Dead Bug",
+    "Body Saw",
+    "TRX Fallout",
+    "TRX Pike",
+  ],
   "core-anti-lateral-flexion": ["Side Plank", "Suitcase Carry", "Offset Hold"],
   "core-carry": [
     "Farmer Carry",
@@ -230,10 +248,21 @@ export const getCoreMovementPatternVariationNames = (
 
 export type CoreMovementSemanticVariation = {
   id: string;
+  parentCoreMovementCardId: CoreMovementPatternCardDefinition["id"];
   name: string;
   modifierIds: ExerciseModifierId[];
+  definingModifierIds: ExerciseModifierId[];
   matchModifierSets: ExerciseModifierId[][];
+  allowedApparatusIds: ExerciseModifierId[];
+  defaultApparatusId?: ExerciseModifierId;
+  equipmentStrict: boolean;
   aliases: string[];
+};
+
+type SemanticVariationEquipmentRule = {
+  allowedApparatusIds: readonly ExerciseModifierId[];
+  defaultApparatusId?: ExerciseModifierId;
+  equipmentStrict?: boolean;
 };
 
 const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
@@ -272,6 +301,11 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "tempo:explosive",
     "load-behavior:ballistic",
   ],
+  "TRX Push-Up": [
+    "apparatus:trx",
+    "angle-position:floor",
+    "stability:suspension",
+  ],
   "Air Squat": ["apparatus:bodyweight", "limb-usage:standard-stance"],
   "Goblet Squat": ["apparatus:kettlebell", "angle-position:goblet"],
   "Front Squat": ["apparatus:barbell", "angle-position:front-loaded"],
@@ -280,8 +314,17 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Sumo Squat": ["apparatus:bodyweight", "limb-usage:sumo-stance"],
   "Box Squat": ["apparatus:box", "angle-position:seated"],
   "Hack Squat": ["apparatus:machine"],
+  "TRX Assisted Squat": [
+    "apparatus:trx",
+    "assistance-resistance:assisted",
+    "limb-usage:standard-stance",
+  ],
   "Zercher Squat": ["apparatus:barbell", "angle-position:front-loaded"],
-  "Cossack Squat": ["apparatus:bodyweight", "limb-usage:wide-stance"],
+  "Cossack Squat": [
+    "apparatus:bodyweight",
+    "direction:lateral",
+    "limb-usage:wide-stance",
+  ],
   "Jump Squat": [
     "apparatus:bodyweight",
     "tempo:explosive",
@@ -320,16 +363,46 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "limb-usage:wide-grip",
     "range-of-motion:dead-stop",
   ],
-  "Reverse Lunge": ["apparatus:bodyweight", "angle-position:split-stance"],
-  "Forward Lunge": ["apparatus:bodyweight", "angle-position:split-stance"],
-  "Walking Lunge": ["apparatus:bodyweight", "load-behavior:cyclical"],
-  "Curtsy Lunge": ["apparatus:bodyweight", "angle-position:split-stance"],
-  "Lateral Lunge": ["apparatus:bodyweight", "limb-usage:wide-stance"],
-  "Deficit Lunge": ["apparatus:bodyweight", "range-of-motion:deficit"],
+  "Reverse Lunge": [
+    "apparatus:bodyweight",
+    "direction:reverse",
+    "angle-position:split-stance",
+  ],
+  "Forward Lunge": [
+    "apparatus:bodyweight",
+    "direction:forward",
+    "angle-position:split-stance",
+  ],
+  "Walking Lunge": [
+    "apparatus:bodyweight",
+    "direction:walking",
+    "limb-usage:alternating",
+  ],
+  "Curtsy Lunge": [
+    "apparatus:bodyweight",
+    "direction:crossover",
+    "angle-position:split-stance",
+  ],
+  "Lateral Lunge": [
+    "apparatus:bodyweight",
+    "direction:lateral",
+    "limb-usage:wide-stance",
+  ],
+  "Deficit Lunge": [
+    "apparatus:bodyweight",
+    "direction:reverse",
+    "range-of-motion:deficit",
+  ],
   "Bulgarian Split Squat": [
     "apparatus:bodyweight",
     "angle-position:rear-foot-elevated",
     "limb-usage:unilateral",
+  ],
+  "TRX Reverse Lunge": [
+    "apparatus:trx",
+    "direction:reverse",
+    "angle-position:split-stance",
+    "assistance-resistance:assisted",
   ],
   "Lunge to Press": ["angle-position:split-stance", "load-behavior:skill-complex"],
   "Lunge to Curl": ["angle-position:split-stance", "load-behavior:skill-complex"],
@@ -372,13 +445,42 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Dumbbell Fly": ["apparatus:dumbbell", "angle-position:flat"],
   "Cable Fly": ["apparatus:cable", "angle-position:standing"],
   "Pec Deck": ["apparatus:machine", "angle-position:seated"],
-  "Dumbbell Lateral Raise": ["apparatus:dumbbell", "angle-position:standing"],
-  "Cable Lateral Raise": ["apparatus:cable", "angle-position:standing"],
-  "Band Lateral Raise": ["apparatus:band", "angle-position:standing"],
-  "Dumbbell Reverse Fly": ["apparatus:dumbbell", "angle-position:bent-over"],
-  "Cable Reverse Fly": ["apparatus:cable", "angle-position:standing"],
-  "Band Reverse Fly": ["apparatus:band", "angle-position:standing"],
-  "Rear Delt Fly": ["apparatus:dumbbell", "angle-position:bent-over"],
+  "TRX Chest Fly": ["apparatus:trx", "angle-position:standing"],
+  "Dumbbell Lateral Raise": [
+    "apparatus:dumbbell",
+    "angle-position:standing",
+    "direction:lateral",
+  ],
+  "Cable Lateral Raise": [
+    "apparatus:cable",
+    "angle-position:standing",
+    "direction:lateral",
+  ],
+  "Band Lateral Raise": [
+    "apparatus:band",
+    "angle-position:standing",
+    "direction:lateral",
+  ],
+  "Dumbbell Reverse Fly": [
+    "apparatus:dumbbell",
+    "angle-position:bent-over",
+    "direction:reverse",
+  ],
+  "Cable Reverse Fly": [
+    "apparatus:cable",
+    "angle-position:standing",
+    "direction:reverse",
+  ],
+  "Band Reverse Fly": [
+    "apparatus:band",
+    "angle-position:standing",
+    "direction:reverse",
+  ],
+  "Rear Delt Fly": [
+    "apparatus:dumbbell",
+    "angle-position:bent-over",
+    "direction:reverse",
+  ],
   "Bent Over Row": ["apparatus:barbell", "angle-position:bent-over"],
   "Gorilla Row": [
     "apparatus:kettlebell",
@@ -386,13 +488,26 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "range-of-motion:dead-stop",
     "angle-position:bent-over",
   ],
+  "TRX Row": [
+    "apparatus:trx",
+    "angle-position:standing",
+    "limb-usage:neutral-grip",
+  ],
   "Seal Row": ["apparatus:barbell", "angle-position:chest-supported"],
-  "Renegade Row": ["apparatus:dumbbell", "angle-position:plank"],
+  "Renegade Row": [
+    "apparatus:dumbbell",
+    "angle-position:plank",
+    "stability:balance-focused",
+  ],
   "Meadows Row": ["apparatus:landmine", "limb-usage:single-arm"],
   "Pull-Up": ["apparatus:bodyweight", "limb-usage:overhand-grip"],
   "Chin-Up": ["apparatus:bodyweight", "limb-usage:underhand-grip"],
   "Neutral Grip Pull-Up": ["apparatus:bodyweight", "limb-usage:neutral-grip"],
-  "Lat Pulldown": ["apparatus:cable", "angle-position:seated"],
+  "Lat Pulldown": [
+    "apparatus:cable",
+    "angle-position:seated",
+    "limb-usage:overhand-grip",
+  ],
   "Dumbbell Pullover": ["apparatus:dumbbell", "angle-position:supine"],
   "Straight Arm Pulldown": ["apparatus:cable", "angle-position:standing"],
   "Hammer Curl": ["apparatus:dumbbell", "limb-usage:neutral-grip"],
@@ -416,6 +531,8 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Side-Lying External Rotation": ["angle-position:side-lying"],
   "Scapular Push-Up": ["apparatus:bodyweight", "angle-position:floor"],
   "Scapular Pull-Up": ["apparatus:bodyweight", "limb-usage:overhand-grip"],
+  "TRX Y Raise": ["apparatus:trx", "angle-position:standing"],
+  "TRX T Raise": ["apparatus:trx", "angle-position:standing"],
   "Wall Slide": ["apparatus:bodyweight", "angle-position:standing"],
   "Serratus Wall Slide": ["apparatus:bodyweight", "angle-position:standing"],
   "Russian Twist": ["apparatus:bodyweight", "angle-position:seated"],
@@ -429,6 +546,11 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Pallof Press": ["apparatus:cable", "tempo:isometric"],
   "Renegade Hold": ["apparatus:dumbbell", "angle-position:plank"],
   "Single Arm Carry": ["limb-usage:single-arm", "load-behavior:loaded-carry"],
+  "TRX Body Saw": [
+    "apparatus:trx",
+    "angle-position:plank",
+    "range-of-motion:extended-rom",
+  ],
   Crunch: ["apparatus:bodyweight", "angle-position:supine"],
   "Sit-Up": ["apparatus:bodyweight", "angle-position:supine"],
   "Reverse Crunch": ["apparatus:bodyweight", "angle-position:supine"],
@@ -437,6 +559,12 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Ab Wheel Rollout": ["apparatus:ab-wheel", "range-of-motion:extended-rom"],
   "Dead Bug": ["apparatus:bodyweight", "angle-position:supine"],
   "Body Saw": ["apparatus:bodyweight", "angle-position:plank"],
+  "TRX Fallout": [
+    "apparatus:trx",
+    "angle-position:standing",
+    "range-of-motion:extended-rom",
+  ],
+  "TRX Pike": ["apparatus:trx", "angle-position:plank"],
   "Side Plank": ["apparatus:bodyweight", "angle-position:side-support"],
   "Suitcase Carry": [
     "limb-usage:single-arm",
@@ -505,6 +633,320 @@ const SEMANTIC_VARIATION_ALIASES: Partial<Record<string, readonly string[]>> = {
   "Dumbbell Reverse Fly": ["rear delt fly"],
   "90/90 Breathing": ["breathing drill", "brace drill"],
   "World's Greatest Stretch": ["worlds greatest stretch"],
+  "TRX Row": ["suspension row", "suspension trainer row"],
+  "TRX Push-Up": ["trx push up", "suspension trainer push-up"],
+  "TRX Chest Fly": ["trx chest fly", "suspension trainer chest fly"],
+  "TRX Assisted Squat": ["suspension trainer assisted squat"],
+  "TRX Reverse Lunge": ["suspension trainer reverse lunge"],
+  "TRX Fallout": ["suspension trainer fallout"],
+  "TRX Pike": ["suspension trainer pike"],
+  "TRX Body Saw": ["suspension trainer body saw"],
+  "TRX Y Raise": ["trx y-raise", "suspension trainer y raise"],
+  "TRX T Raise": ["trx t-raise", "suspension trainer t raise"],
+};
+
+const flexibleSquatApparatus: readonly ExerciseModifierId[] = [
+  "apparatus:bodyweight",
+  "apparatus:dumbbell",
+  "apparatus:kettlebell",
+  "apparatus:barbell",
+  "apparatus:machine",
+  "apparatus:smith-machine",
+  "apparatus:landmine",
+  "apparatus:band",
+  "apparatus:cable",
+];
+
+const flexibleLungeApparatus: readonly ExerciseModifierId[] = [
+  "apparatus:bodyweight",
+  "apparatus:dumbbell",
+  "apparatus:kettlebell",
+  "apparatus:barbell",
+  "apparatus:landmine",
+  "apparatus:band",
+  "apparatus:cable",
+  "apparatus:trx",
+];
+
+const flexibleRdlApparatus: readonly ExerciseModifierId[] = [
+  "apparatus:barbell",
+  "apparatus:dumbbell",
+  "apparatus:kettlebell",
+  "apparatus:cable",
+  "apparatus:band",
+];
+
+const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
+  Record<string, SemanticVariationEquipmentRule>
+> = {
+  "Push-Up": {
+    allowedApparatusIds: ["apparatus:bodyweight"],
+    defaultApparatusId: "apparatus:bodyweight",
+    equipmentStrict: true,
+  },
+  "Diamond Push-Up": {
+    allowedApparatusIds: ["apparatus:bodyweight"],
+    defaultApparatusId: "apparatus:bodyweight",
+    equipmentStrict: true,
+  },
+  "Incline Push-Up": {
+    allowedApparatusIds: ["apparatus:bodyweight"],
+    defaultApparatusId: "apparatus:bodyweight",
+    equipmentStrict: true,
+  },
+  "Decline Push-Up": {
+    allowedApparatusIds: ["apparatus:bodyweight"],
+    defaultApparatusId: "apparatus:bodyweight",
+    equipmentStrict: true,
+  },
+  "Plyo Push-Up": {
+    allowedApparatusIds: ["apparatus:bodyweight"],
+    defaultApparatusId: "apparatus:bodyweight",
+    equipmentStrict: true,
+  },
+  "Bench Press": {
+    allowedApparatusIds: ["apparatus:barbell"],
+    defaultApparatusId: "apparatus:barbell",
+    equipmentStrict: true,
+  },
+  "Incline Dumbbell Press": {
+    allowedApparatusIds: ["apparatus:dumbbell"],
+    defaultApparatusId: "apparatus:dumbbell",
+    equipmentStrict: true,
+  },
+  "TRX Push-Up": {
+    allowedApparatusIds: ["apparatus:trx"],
+    defaultApparatusId: "apparatus:trx",
+    equipmentStrict: true,
+  },
+  "Air Squat": {
+    allowedApparatusIds: ["apparatus:bodyweight"],
+    defaultApparatusId: "apparatus:bodyweight",
+    equipmentStrict: true,
+  },
+  "Goblet Squat": {
+    allowedApparatusIds: ["apparatus:dumbbell", "apparatus:kettlebell"],
+    defaultApparatusId: "apparatus:kettlebell",
+  },
+  "Front Squat": {
+    allowedApparatusIds: ["apparatus:barbell"],
+    defaultApparatusId: "apparatus:barbell",
+    equipmentStrict: true,
+  },
+  "Back Squat": {
+    allowedApparatusIds: ["apparatus:barbell"],
+    defaultApparatusId: "apparatus:barbell",
+    equipmentStrict: true,
+  },
+  "Overhead Squat": {
+    allowedApparatusIds: ["apparatus:barbell"],
+    defaultApparatusId: "apparatus:barbell",
+  },
+  "Sumo Squat": {
+    allowedApparatusIds: flexibleSquatApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Hack Squat": {
+    allowedApparatusIds: ["apparatus:machine"],
+    defaultApparatusId: "apparatus:machine",
+    equipmentStrict: true,
+  },
+  "TRX Assisted Squat": {
+    allowedApparatusIds: ["apparatus:trx"],
+    defaultApparatusId: "apparatus:trx",
+    equipmentStrict: true,
+  },
+  "Jump Squat": {
+    allowedApparatusIds: ["apparatus:bodyweight"],
+    defaultApparatusId: "apparatus:bodyweight",
+    equipmentStrict: true,
+  },
+  "Conventional Deadlift": {
+    allowedApparatusIds: ["apparatus:barbell"],
+    defaultApparatusId: "apparatus:barbell",
+    equipmentStrict: true,
+  },
+  "Sumo Deadlift": {
+    allowedApparatusIds: ["apparatus:barbell"],
+    defaultApparatusId: "apparatus:barbell",
+    equipmentStrict: true,
+  },
+  "Romanian Deadlift": {
+    allowedApparatusIds: flexibleRdlApparatus,
+    defaultApparatusId: "apparatus:barbell",
+  },
+  "Stiff Leg Deadlift": {
+    allowedApparatusIds: flexibleRdlApparatus,
+    defaultApparatusId: "apparatus:barbell",
+  },
+  "Single Leg RDL": {
+    allowedApparatusIds: [
+      "apparatus:bodyweight",
+      "apparatus:dumbbell",
+      "apparatus:kettlebell",
+      "apparatus:barbell",
+    ],
+    defaultApparatusId: "apparatus:dumbbell",
+  },
+  "Trap Bar Deadlift": {
+    allowedApparatusIds: ["apparatus:trap-bar"],
+    defaultApparatusId: "apparatus:trap-bar",
+    equipmentStrict: true,
+  },
+  "Kettlebell Swing": {
+    allowedApparatusIds: ["apparatus:kettlebell"],
+    defaultApparatusId: "apparatus:kettlebell",
+    equipmentStrict: true,
+  },
+  "Reverse Lunge": {
+    allowedApparatusIds: flexibleLungeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Forward Lunge": {
+    allowedApparatusIds: flexibleLungeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Walking Lunge": {
+    allowedApparatusIds: flexibleLungeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Curtsy Lunge": {
+    allowedApparatusIds: flexibleLungeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Lateral Lunge": {
+    allowedApparatusIds: flexibleLungeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Deficit Lunge": {
+    allowedApparatusIds: flexibleLungeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Bulgarian Split Squat": {
+    allowedApparatusIds: flexibleLungeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "TRX Reverse Lunge": {
+    allowedApparatusIds: ["apparatus:trx"],
+    defaultApparatusId: "apparatus:trx",
+    equipmentStrict: true,
+  },
+  "Gorilla Row": {
+    allowedApparatusIds: ["apparatus:kettlebell"],
+    defaultApparatusId: "apparatus:kettlebell",
+    equipmentStrict: true,
+  },
+  "TRX Row": {
+    allowedApparatusIds: ["apparatus:trx"],
+    defaultApparatusId: "apparatus:trx",
+    equipmentStrict: true,
+  },
+  "Renegade Row": {
+    allowedApparatusIds: ["apparatus:dumbbell", "apparatus:kettlebell"],
+    defaultApparatusId: "apparatus:dumbbell",
+  },
+  "Meadows Row": {
+    allowedApparatusIds: ["apparatus:landmine"],
+    defaultApparatusId: "apparatus:landmine",
+    equipmentStrict: true,
+  },
+  "Pull-Up": {
+    allowedApparatusIds: ["apparatus:bodyweight"],
+    defaultApparatusId: "apparatus:bodyweight",
+    equipmentStrict: true,
+  },
+  "Chin-Up": {
+    allowedApparatusIds: ["apparatus:bodyweight"],
+    defaultApparatusId: "apparatus:bodyweight",
+    equipmentStrict: true,
+  },
+  "Neutral Grip Pull-Up": {
+    allowedApparatusIds: ["apparatus:bodyweight"],
+    defaultApparatusId: "apparatus:bodyweight",
+    equipmentStrict: true,
+  },
+  "Lat Pulldown": {
+    allowedApparatusIds: ["apparatus:cable", "apparatus:machine"],
+    defaultApparatusId: "apparatus:cable",
+  },
+  "Dumbbell Fly": {
+    allowedApparatusIds: ["apparatus:dumbbell"],
+    defaultApparatusId: "apparatus:dumbbell",
+    equipmentStrict: true,
+  },
+  "Cable Fly": {
+    allowedApparatusIds: ["apparatus:cable"],
+    defaultApparatusId: "apparatus:cable",
+    equipmentStrict: true,
+  },
+  "Pec Deck": {
+    allowedApparatusIds: ["apparatus:machine"],
+    defaultApparatusId: "apparatus:machine",
+    equipmentStrict: true,
+  },
+  "TRX Chest Fly": {
+    allowedApparatusIds: ["apparatus:trx"],
+    defaultApparatusId: "apparatus:trx",
+    equipmentStrict: true,
+  },
+  "Dumbbell Lateral Raise": {
+    allowedApparatusIds: ["apparatus:dumbbell"],
+    defaultApparatusId: "apparatus:dumbbell",
+    equipmentStrict: true,
+  },
+  "Cable Lateral Raise": {
+    allowedApparatusIds: ["apparatus:cable"],
+    defaultApparatusId: "apparatus:cable",
+    equipmentStrict: true,
+  },
+  "Band Lateral Raise": {
+    allowedApparatusIds: ["apparatus:band"],
+    defaultApparatusId: "apparatus:band",
+    equipmentStrict: true,
+  },
+  "Dumbbell Reverse Fly": {
+    allowedApparatusIds: ["apparatus:dumbbell"],
+    defaultApparatusId: "apparatus:dumbbell",
+    equipmentStrict: true,
+  },
+  "Cable Reverse Fly": {
+    allowedApparatusIds: ["apparatus:cable"],
+    defaultApparatusId: "apparatus:cable",
+    equipmentStrict: true,
+  },
+  "Band Reverse Fly": {
+    allowedApparatusIds: ["apparatus:band"],
+    defaultApparatusId: "apparatus:band",
+    equipmentStrict: true,
+  },
+};
+
+const SEMANTIC_VARIATION_DEFINING_MODIFIER_IDS: Partial<
+  Record<string, readonly ExerciseModifierId[]>
+> = {
+  "Incline Push-Up": [
+    "angle-position:hands-elevated",
+    "limb-usage:standard-stance",
+  ],
+  "Decline Push-Up": [
+    "angle-position:feet-elevated",
+    "limb-usage:standard-stance",
+  ],
+  "Reverse Lunge": ["direction:reverse"],
+  "Forward Lunge": ["direction:forward"],
+  "Walking Lunge": ["direction:walking", "limb-usage:alternating"],
+  "Curtsy Lunge": ["direction:crossover"],
+  "Lateral Lunge": ["direction:lateral"],
+  "Deficit Lunge": ["range-of-motion:deficit"],
+  "Bulgarian Split Squat": ["angle-position:rear-foot-elevated"],
+  "TRX Reverse Lunge": ["direction:reverse", "assistance-resistance:assisted"],
+  "Dumbbell Lateral Raise": ["angle-position:standing", "direction:lateral"],
+  "Cable Lateral Raise": ["angle-position:standing", "direction:lateral"],
+  "Band Lateral Raise": ["angle-position:standing", "direction:lateral"],
+  "Dumbbell Reverse Fly": ["angle-position:bent-over", "direction:reverse"],
+  "Cable Reverse Fly": ["angle-position:standing", "direction:reverse"],
+  "Band Reverse Fly": ["angle-position:standing", "direction:reverse"],
+  "Rear Delt Fly": ["direction:reverse"],
 };
 
 const SEMANTIC_VARIATION_MATCH_MODIFIER_SETS: Partial<
@@ -539,6 +981,16 @@ const SEMANTIC_VARIATION_MATCH_MODIFIER_SETS: Partial<
     ["apparatus:barbell", "limb-usage:wide-stance", "range-of-motion:dead-stop"],
     ["limb-usage:wide-stance", "range-of-motion:dead-stop"],
   ],
+  "Reverse Lunge": [["direction:reverse", "angle-position:split-stance"]],
+  "Forward Lunge": [["direction:forward", "angle-position:split-stance"]],
+  "Walking Lunge": [["direction:walking", "load-behavior:cyclical"]],
+  "Curtsy Lunge": [["direction:crossover", "angle-position:split-stance"]],
+  "Lateral Lunge": [["direction:lateral", "limb-usage:wide-stance"]],
+  "Deficit Lunge": [["direction:reverse", "range-of-motion:deficit"]],
+  "Lat Pulldown": [
+    ["apparatus:machine", "angle-position:seated", "limb-usage:overhand-grip"],
+    ["angle-position:seated", "limb-usage:wide-grip"],
+  ],
 };
 
 const semanticVariationId = (name: string) =>
@@ -548,21 +1000,76 @@ const semanticVariationId = (name: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+const getApparatusModifierIds = (modifierIds: readonly ExerciseModifierId[]) =>
+  modifierIds.filter((modifierId) =>
+    modifierId.startsWith("apparatus:"),
+  ) as ExerciseModifierId[];
+
+const getNonApparatusModifierIds = (
+  modifierIds: readonly ExerciseModifierId[],
+) =>
+  modifierIds.filter(
+    (modifierId) => !modifierId.startsWith("apparatus:"),
+  ) as ExerciseModifierId[];
+
+const getSemanticVariationEquipmentRule = (
+  name: string,
+  modifierIds: readonly ExerciseModifierId[],
+) => {
+  const explicitRule = SEMANTIC_VARIATION_EQUIPMENT_RULES[name];
+  const presetApparatusIds = getApparatusModifierIds(modifierIds);
+  const allowedApparatusIds = [
+    ...(explicitRule?.allowedApparatusIds || presetApparatusIds),
+  ];
+
+  return {
+    allowedApparatusIds,
+    defaultApparatusId:
+      explicitRule?.defaultApparatusId ||
+      presetApparatusIds.find((modifierId) =>
+        allowedApparatusIds.includes(modifierId),
+      ) ||
+      allowedApparatusIds[0],
+    equipmentStrict: Boolean(explicitRule?.equipmentStrict),
+  };
+};
+
+const getSemanticVariationDefiningModifierIds = (
+  name: string,
+  modifierIds: readonly ExerciseModifierId[],
+) => [
+  ...(SEMANTIC_VARIATION_DEFINING_MODIFIER_IDS[name] ||
+    getNonApparatusModifierIds(modifierIds)),
+];
+
 export const getCoreMovementPatternSemanticVariations = (
   id: CoreMovementPatternCardDefinition["id"],
 ): CoreMovementSemanticVariation[] =>
-  getCoreMovementPatternVariationNames(id).map((name) => ({
-    id: `${id}-${semanticVariationId(name)}`,
-    name,
-    modifierIds: [...(SEMANTIC_VARIATION_MODIFIER_IDS[name] || [])],
-    matchModifierSets: [
-      [...(SEMANTIC_VARIATION_MODIFIER_IDS[name] || [])],
-      ...(SEMANTIC_VARIATION_MATCH_MODIFIER_SETS[name] || []).map((modifierIds) => [
-        ...modifierIds,
-      ]),
-    ],
-    aliases: [...(SEMANTIC_VARIATION_ALIASES[name] || [])],
-  }));
+  getCoreMovementPatternVariationNames(id).map((name) => {
+    const modifierIds = [...(SEMANTIC_VARIATION_MODIFIER_IDS[name] || [])];
+    const equipmentRule = getSemanticVariationEquipmentRule(name, modifierIds);
+
+    return {
+      id: `${id}-${semanticVariationId(name)}`,
+      parentCoreMovementCardId: id,
+      name,
+      modifierIds,
+      definingModifierIds: getSemanticVariationDefiningModifierIds(
+        name,
+        modifierIds,
+      ),
+      matchModifierSets: [
+        modifierIds,
+        ...(SEMANTIC_VARIATION_MATCH_MODIFIER_SETS[name] || []).map(
+          (modifierIds) => [...modifierIds],
+        ),
+      ],
+      allowedApparatusIds: [...equipmentRule.allowedApparatusIds],
+      defaultApparatusId: equipmentRule.defaultApparatusId,
+      equipmentStrict: equipmentRule.equipmentStrict,
+      aliases: [...(SEMANTIC_VARIATION_ALIASES[name] || [])],
+    };
+  });
 
 const commonBodyweightModifiers: ExerciseModifierId[] = [
   "apparatus:bodyweight",
@@ -570,7 +1077,27 @@ const commonBodyweightModifiers: ExerciseModifierId[] = [
   "range-of-motion:full-rom",
 ];
 
-export const CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
+const CORE_MOVEMENT_PATTERN_CATEGORY_DIFFICULTY: Record<
+  CoreMovementPatternCategory,
+  string
+> = {
+  "Lower Body Compound": "Intermediate",
+  "Lower Body Isolation": "Beginner",
+  "Upper Push": "Intermediate",
+  "Upper Pull": "Intermediate",
+  "Arm Isolation": "Beginner",
+  Core: "Beginner",
+  Athletic: "Advanced",
+  Mobility: "Beginner",
+  "Cervical Isolation": "Beginner",
+  Integrated: "Advanced",
+};
+
+export const getCoreMovementPatternDefaultDifficulty = (
+  category: CoreMovementPatternCategory,
+) => CORE_MOVEMENT_PATTERN_CATEGORY_DIFFICULTY[category];
+
+const RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
   {
     id: "core-squat",
     name: "Squat",
@@ -1448,6 +1975,14 @@ export const CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS = [
     integrated: true,
   },
 ] as const satisfies readonly CoreMovementPatternCardDefinition[];
+
+export const CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS: readonly CoreMovementPatternCardDefinition[] =
+  RAW_CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS.map((definition) => ({
+    ...definition,
+    level: getCoreMovementPatternDefaultDifficulty(definition.category),
+    modifierIds: [...definition.modifierIds],
+    aliases: [...definition.aliases],
+  }));
 
 export const CORE_MOVEMENT_PATTERN_CARD_COUNT =
   CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS.length;

@@ -28,6 +28,7 @@ export type MovementCompatibilityRule = {
   allowedModifierCategoryIds: ExerciseModifierCategoryId[];
   allowedAnglePositionModifierIds: ExerciseModifierId[];
   allowedLimbUsageModifierIds: ExerciseModifierId[];
+  allowedDirectionModifierIds: ExerciseModifierId[];
   allowedStabilityModifierIds: ExerciseModifierId[];
   allowedTempoModifierIds: ExerciseModifierId[];
   allowedAssistanceResistanceModifierIds: ExerciseModifierId[];
@@ -75,8 +76,9 @@ export type ExerciseVariationValidationResult = {
 
 type RuleInput = Omit<
   MovementCompatibilityRule,
-  "forbiddenApparatusIds" | "forbiddenModifierIds"
+  "forbiddenApparatusIds" | "forbiddenModifierIds" | "allowedDirectionModifierIds"
 > & {
+  allowedDirectionModifierIds?: ExerciseModifierId[];
   forbiddenApparatusIds?: ApparatusId[];
   forbiddenModifierIds?: ExerciseModifierId[];
 };
@@ -92,6 +94,7 @@ const modifierCategories: ExerciseModifierCategoryId[] = [
   "apparatus",
   "angle-position",
   "limb-usage",
+  "direction",
   "stability",
   "tempo",
   "assistance-resistance",
@@ -111,6 +114,10 @@ const apparatusModifierId = (apparatusId: ApparatusId) =>
 
 const allTrainingIntentModifierIds = ALL_EXERCISE_MODIFIERS.filter(
   (modifier) => modifier.categoryId === "training-intent",
+).map((modifier) => modifier.id);
+
+const allDirectionModifierIds = ALL_EXERCISE_MODIFIERS.filter(
+  (modifier) => modifier.categoryId === "direction",
 ).map((modifier) => modifier.id);
 
 const angle = {
@@ -291,6 +298,11 @@ const isModifierAllowedByInput = (
   if (modifier.categoryId === "limb-usage") {
     return input.allowedLimbUsageModifierIds.includes(modifier.id);
   }
+  if (modifier.categoryId === "direction") {
+    return (input.allowedDirectionModifierIds || allDirectionModifierIds).includes(
+      modifier.id,
+    );
+  }
   if (modifier.categoryId === "stability") {
     return input.allowedStabilityModifierIds.includes(modifier.id);
   }
@@ -338,6 +350,9 @@ const defineRule = (input: RuleInput): MovementCompatibilityRule => {
       input.allowedAnglePositionModifierIds,
     ),
     allowedLimbUsageModifierIds: compactUnique(input.allowedLimbUsageModifierIds),
+    allowedDirectionModifierIds: compactUnique(
+      input.allowedDirectionModifierIds || allDirectionModifierIds,
+    ),
     allowedStabilityModifierIds: compactUnique(input.allowedStabilityModifierIds),
     allowedTempoModifierIds: compactUnique(input.allowedTempoModifierIds),
     allowedAssistanceResistanceModifierIds: compactUnique(
@@ -371,6 +386,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
       "medicine-ball",
       "bodyweight",
       "band",
+      "trx",
       "suspension",
       "smith-machine",
       "landmine",
@@ -424,6 +440,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
       "cable",
       "machine",
       "band",
+      "trx",
       "suspension",
     ],
     allowedMovementPatternIds: ["chest-fly"],
@@ -458,6 +475,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
       "cable",
       "machine",
       "band",
+      "trx",
       "suspension",
     ],
     allowedMovementPatternIds: ["reverse-fly", "scapular-retraction", "horizontal-pull"],
@@ -495,6 +513,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
       "kettlebell",
       "bodyweight",
       "band",
+      "trx",
       "suspension",
       "landmine",
       "bench",
@@ -548,6 +567,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
       "bodyweight",
       "band",
       "cable",
+      "trx",
       "smith-machine",
       "landmine",
       "box",
@@ -637,6 +657,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
       "kettlebell",
       "bodyweight",
       "band",
+      "trx",
       "smith-machine",
       "landmine",
     ],
@@ -814,7 +835,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "anti-rotation": defineRule({
     coreMovementId: "anti-rotation",
-    allowedApparatusIds: ["cable", "band", "dumbbell", "kettlebell"],
+    allowedApparatusIds: ["cable", "band", "dumbbell", "kettlebell", "trx"],
     allowedMovementPatternIds: ["anti-rotation"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -839,6 +860,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
       "bodyweight",
       "ab-wheel",
       "stability-ball",
+      "trx",
       "suspension",
       "band",
       "bench",
@@ -1504,6 +1526,7 @@ const getModifierIdsForRule = (rule: MovementCompatibilityRule) =>
     ...rule.allowedApparatusIds.map(apparatusModifierId),
     ...rule.allowedAnglePositionModifierIds,
     ...rule.allowedLimbUsageModifierIds,
+    ...rule.allowedDirectionModifierIds,
     ...rule.allowedStabilityModifierIds,
     ...rule.allowedTempoModifierIds,
     ...rule.allowedAssistanceResistanceModifierIds,
@@ -1540,6 +1563,7 @@ const getAllowedIdsForModifierCategory = (
   }
   if (categoryId === "angle-position") return rule.allowedAnglePositionModifierIds;
   if (categoryId === "limb-usage") return rule.allowedLimbUsageModifierIds;
+  if (categoryId === "direction") return rule.allowedDirectionModifierIds;
   if (categoryId === "stability") return rule.allowedStabilityModifierIds;
   if (categoryId === "tempo") return rule.allowedTempoModifierIds;
   if (categoryId === "assistance-resistance") {

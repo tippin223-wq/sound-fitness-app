@@ -8,6 +8,7 @@ import {
   useState,
   type CSSProperties,
   type Dispatch,
+  type MouseEvent,
   type SetStateAction,
 } from "react";
 import { createPortal } from "react-dom";
@@ -73,21 +74,152 @@ type Exercise = {
 
 type ExerciseLibraryViewMode = "detail" | "grid";
 type ExerciseStatsMenuMode = "detail" | "grid";
+type ExerciseLibrarySortMode =
+  | "category"
+  | "alpha"
+  | "difficulty"
+  | "body"
+  | "recent"
+  | "logged";
 
 const viewModeLabels: Record<ExerciseLibraryViewMode, string> = {
   detail: "Detail View",
   grid: "Grid View",
 };
 
+const sortModeLabels: Record<ExerciseLibrarySortMode, string> = {
+  category: "Category Order",
+  alpha: "A-Z",
+  difficulty: "Difficulty",
+  body: "Body Region",
+  recent: "Recently Used",
+  logged: "Most Logged",
+};
+
+const difficultyOrder = ["Beginner", "Intermediate", "Advanced"];
+
+function ViewModeIcon({ mode }: { mode: ExerciseLibraryViewMode }) {
+  if (mode === "grid") {
+    return (
+      <span
+        aria-hidden="true"
+        className="grid h-4 w-4 grid-cols-2 gap-0.5"
+      >
+        {Array.from({ length: 4 }).map((_, index) => (
+          <span
+            key={index}
+            className="rounded-[3px] border border-current/80 bg-current/20"
+          />
+        ))}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      aria-hidden="true"
+      className="flex h-4 w-4 flex-col justify-center gap-1"
+    >
+      {Array.from({ length: 3 }).map((_, index) => (
+        <span
+          key={index}
+          className="h-0.5 rounded-full bg-current"
+        />
+      ))}
+    </span>
+  );
+}
+
 const exerciseLibraryDropdownOpenEvent =
   "sound-fitness:exercise-library-dropdown-open";
 
-const announceExerciseLibraryDropdownOpen = (id: string) => {
+type ExerciseLibraryDropdownOpenDetail = {
+  id: string;
+  parentId?: string;
+  keepOpenIds?: string[];
+};
+
+const announceExerciseLibraryDropdownOpen = (
+  id: string,
+  detail?: Omit<ExerciseLibraryDropdownOpenDetail, "id">,
+) => {
   window.dispatchEvent(
-    new CustomEvent<{ id: string }>(exerciseLibraryDropdownOpenEvent, {
-      detail: { id },
-    }),
+    new CustomEvent<ExerciseLibraryDropdownOpenDetail>(
+      exerciseLibraryDropdownOpenEvent,
+      {
+        detail: { id, ...detail },
+      },
+    ),
   );
+};
+
+const createFixedDropdownStyle = ({
+  left,
+  top,
+  width,
+  maxHeight,
+  zIndex,
+}: {
+  left: number;
+  top: number;
+  width: number;
+  maxHeight: number;
+  zIndex: number;
+}): CSSProperties => {
+  const roundedLeft = Math.round(left);
+  const roundedTop = Math.round(top);
+
+  return {
+    left: 0,
+    top: 0,
+    width: Math.round(width),
+    maxHeight: Math.round(maxHeight),
+    zIndex,
+    transform: `translate3d(${roundedLeft}px, ${roundedTop}px, 0)`,
+    willChange: "transform",
+  };
+};
+
+const setStableFixedDropdownStyle = (
+  setStyle: Dispatch<SetStateAction<CSSProperties | null>>,
+  nextStyle: CSSProperties,
+) => {
+  setStyle((currentStyle) => {
+    if (
+      currentStyle &&
+      currentStyle.transform === nextStyle.transform &&
+      currentStyle.width === nextStyle.width &&
+      currentStyle.maxHeight === nextStyle.maxHeight &&
+      currentStyle.zIndex === nextStyle.zIndex
+    ) {
+      return currentStyle;
+    }
+
+    return nextStyle;
+  });
+};
+
+const topFilterDropdownZIndex = 45;
+
+const getTopNavigationSafeArea = () => {
+  const baseMargin = 12;
+
+  if (typeof document === "undefined") return baseMargin;
+
+  const stickyHeaderBottom = Array.from(document.querySelectorAll("header"))
+    .map((header) => {
+      const style = window.getComputedStyle(header);
+      const rect = header.getBoundingClientRect();
+      const isTopNavigation =
+        (style.position === "sticky" || style.position === "fixed") &&
+        rect.top <= baseMargin &&
+        rect.bottom > 0;
+
+      return isTopNavigation ? rect.bottom : 0;
+    })
+    .reduce((maxBottom, bottom) => Math.max(maxBottom, bottom), 0);
+
+  return Math.max(baseMargin, Math.ceil(stickyHeaderBottom) + 8);
 };
 
 const levelSegments = [
@@ -125,6 +257,266 @@ type FilterMenuOption = {
   group?: string;
   helper?: string;
 };
+
+type SearchSuggestion = {
+  id: string;
+  label: string;
+  group: string;
+  helper?: string;
+  query: string;
+  aliases?: string[];
+};
+
+const normalizeSuggestionText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const getSearchSuggestionRank = (
+  query: string,
+  suggestion: SearchSuggestion,
+) => {
+  const normalizedQuery = normalizeSuggestionText(query);
+  if (!normalizedQuery) return 4;
+
+  const label = normalizeSuggestionText(suggestion.label);
+  const aliases = (suggestion.aliases || []).map(normalizeSuggestionText);
+
+  if (label === normalizedQuery) return 0;
+  if (label.startsWith(normalizedQuery)) return 1;
+  if (label.includes(normalizedQuery)) return 2;
+  if (
+    aliases.some(
+      (alias) =>
+        alias === normalizedQuery ||
+        alias.startsWith(normalizedQuery) ||
+        alias.includes(normalizedQuery),
+    )
+  ) {
+    return 3;
+  }
+
+  return null;
+};
+
+const getRankedSearchSuggestions = (
+  query: string,
+  suggestions: SearchSuggestion[],
+) =>
+  suggestions
+    .map((suggestion) => {
+      const rank = getSearchSuggestionRank(query, suggestion);
+      return rank === null ? null : { suggestion, rank };
+    })
+    .filter(
+      (
+        item,
+      ): item is { suggestion: SearchSuggestion; rank: number } =>
+        Boolean(item),
+    )
+    .sort(
+      (left, right) =>
+        left.rank - right.rank ||
+        left.suggestion.group.localeCompare(right.suggestion.group) ||
+        left.suggestion.label.localeCompare(right.suggestion.label),
+    )
+    .map(({ suggestion }) => suggestion);
+
+function SearchInputWithSuggestions({
+  value,
+  onChange,
+  suggestions,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  suggestions: SearchSuggestion[];
+}) {
+  const dropdownId = useId();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const lockedPanelWidthRef = useRef<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
+  const visibleSuggestions = useMemo(
+    () => getRankedSearchSuggestions(value, suggestions).slice(0, 16),
+    [value, suggestions],
+  );
+
+  const updatePanelPosition = () => {
+    const trigger = inputRef.current;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const margin = 12;
+    const safeTop = getTopNavigationSafeArea();
+    const measuredWidth = Math.min(
+      Math.max(rect.width, 720),
+      viewportWidth - margin * 2,
+    );
+    const width = lockedPanelWidthRef.current ?? measuredWidth;
+    lockedPanelWidthRef.current = width;
+    const usableHeight = Math.max(160, viewportHeight - safeTop - margin);
+    const minPanelHeight = Math.min(220, usableHeight);
+    const panelMaxHeight = Math.min(420, usableHeight);
+    const preferredTop = Math.max(rect.bottom + 8, safeTop);
+    const top = Math.min(
+      preferredTop,
+      Math.max(safeTop, viewportHeight - minPanelHeight - margin),
+    );
+    const left = Math.min(
+      Math.max(rect.left, margin),
+      Math.max(margin, viewportWidth - width - margin),
+    );
+    const maxHeight = Math.max(
+      minPanelHeight,
+      Math.min(panelMaxHeight, viewportHeight - top - margin),
+    );
+
+    setStableFixedDropdownStyle(
+      setPanelStyle,
+      createFixedDropdownStyle({
+        left,
+        top,
+        width,
+        maxHeight,
+        zIndex: topFilterDropdownZIndex,
+      }),
+    );
+  };
+
+  const openPanel = () => {
+    announceExerciseLibraryDropdownOpen(dropdownId);
+    setOpen(true);
+  };
+
+  useEffect(() => {
+    if (!open) {
+      lockedPanelWidthRef.current = null;
+      setPanelStyle(null);
+      return;
+    }
+
+    updatePanelPosition();
+
+    const closeWhenAnotherDropdownOpens = (event: Event) => {
+      const detail = (event as CustomEvent<{ id: string }>).detail;
+      if (detail?.id !== dropdownId) setOpen(false);
+    };
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        !inputRef.current?.contains(target) &&
+        !panelRef.current?.contains(target)
+      ) {
+        setOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    let animationFrame: number | null = null;
+    const schedulePositionUpdate = (unlockWidth = false) => {
+      if (unlockWidth) lockedPanelWidthRef.current = null;
+      if (animationFrame !== null) return;
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updatePanelPosition();
+      });
+    };
+    const handleResize = () => schedulePositionUpdate(true);
+    const handleScroll = () => schedulePositionUpdate();
+
+    window.addEventListener(
+      exerciseLibraryDropdownOpenEvent,
+      closeWhenAnotherDropdownOpens,
+    );
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener(
+        exerciseLibraryDropdownOpenEvent,
+        closeWhenAnotherDropdownOpens,
+      );
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [dropdownId, open]);
+
+  return (
+    <div>
+      <input
+        ref={inputRef}
+        placeholder="Search core movement, muscle, pattern, goal, equipment, or level..."
+        value={value}
+        onFocus={openPanel}
+        onChange={(event) => {
+          onChange(event.target.value);
+          if (!open) openPanel();
+        }}
+        className="mt-3 min-h-[44px] w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+        aria-label="Search Exercise Library"
+        aria-expanded={open}
+      />
+
+      {open && panelStyle
+        ? createPortal(
+            <div
+              ref={panelRef}
+              style={panelStyle}
+              className="fixed overflow-hidden rounded-[26px] border border-cyan-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-2 shadow-[0_26px_90px_rgba(0,0,0,0.76),0_0_36px_rgba(34,211,238,0.14)] backdrop-blur-xl [scrollbar-color:rgba(34,211,238,0.38)_transparent]"
+            >
+              <div className="max-h-[inherit] overflow-y-auto pr-1 [scrollbar-width:thin]">
+                {visibleSuggestions.length > 0 ? (
+                  visibleSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion.id}
+                      type="button"
+                      onClick={() => {
+                        onChange(suggestion.query);
+                        setOpen(false);
+                      }}
+                      className="mb-1 flex min-h-[42px] w-full items-center justify-between gap-3 rounded-2xl px-4 py-2.5 text-left text-sm font-bold text-slate-300 transition hover:bg-cyan-300/10 hover:text-white"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-white">
+                          {suggestion.label}
+                        </span>
+                        <span className="mt-0.5 block truncate text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100/45">
+                          {[suggestion.group, suggestion.helper]
+                            .filter(Boolean)
+                            .join(" / ")}
+                        </span>
+                      </span>
+                      <span className="shrink-0 rounded-full border border-cyan-200/20 bg-cyan-300/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                        Search
+                      </span>
+                    </button>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-sm font-bold text-slate-400">
+                    No suggestions yet
+                  </div>
+                )}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
 
 type MovementTypeGroup =
   | "Lower Body Compound"
@@ -1057,12 +1449,14 @@ const equipmentLabelReplacements: Record<string, string> = {
   cable: "Cable",
   band: "Band",
   "trap bar": "Trap Bar",
+  trx: "TRX",
   landmine: "Landmine",
   box: "Box",
   sled: "Sled",
   "stability ball": "Stability Ball",
-  suspension: "Suspension",
-  "suspension trainer": "Suspension",
+  suspension: "TRX",
+  "suspension trainer": "TRX",
+  "suspension training": "TRX",
 };
 
 const normalizeEquipmentLabel = (label: string) => {
@@ -1088,6 +1482,22 @@ const dedupeModifierOptionsByDisplayLabel = (modifiers: ExerciseModifier[]) => {
     return true;
   });
 };
+
+const getApparatusFilterLabelsForMetadata = (
+  metadata: NormalizedExerciseCatalogItem | null,
+) =>
+  Array.from(
+    new Set(
+      [
+        ...getModifierLabelsByCategory(metadata, "apparatus"),
+        ...(metadata?.semanticVariations || []).flatMap((variation) =>
+          getModifierLabelsByCategoryFromIds(variation.modifierIds, "apparatus"),
+        ),
+      ]
+        .map(normalizeEquipmentLabel)
+        .filter(Boolean),
+    ),
+  );
 
 const positionLimbUsageModifierIds = new Set<ExerciseModifierId>([
   "limb-usage:standard-stance",
@@ -1122,6 +1532,7 @@ const cardModifierControlPresets: Partial<
         "apparatus:machine",
         "apparatus:smith-machine",
         "apparatus:landmine",
+        "apparatus:trx",
         "apparatus:band",
         "apparatus:cable",
       ]),
@@ -1166,7 +1577,7 @@ const cardModifierControlPresets: Partial<
         "apparatus:machine",
         "apparatus:cable",
         "apparatus:band",
-        "apparatus:suspension",
+        "apparatus:trx",
         "apparatus:landmine",
       ]),
       accent: "cyan",
@@ -1208,7 +1619,7 @@ const cardModifierControlPresets: Partial<
         "apparatus:cable",
         "apparatus:machine",
         "apparatus:band",
-        "apparatus:suspension",
+        "apparatus:trx",
       ]),
       accent: "cyan",
     },
@@ -1250,7 +1661,7 @@ const cardModifierControlPresets: Partial<
         "apparatus:cable",
         "apparatus:machine",
         "apparatus:band",
-        "apparatus:suspension",
+        "apparatus:trx",
       ]),
       accent: "cyan",
     },
@@ -1272,8 +1683,9 @@ const cardModifierControlPresets: Partial<
     {
       key: "reverse-fly-angle-path",
       label: "Angle / Path",
-      categories: ["limb-usage", "range-of-motion"],
+      categories: ["direction", "limb-usage", "range-of-motion"],
       optionIds: modifierIds([
+        "direction:reverse",
         "limb-usage:wide-grip",
         "limb-usage:close-grip",
         "range-of-motion:partial-rom",
@@ -1309,8 +1721,9 @@ const cardModifierControlPresets: Partial<
     {
       key: "lateral-raise-angle-path",
       label: "Angle / Path",
-      categories: ["range-of-motion"],
+      categories: ["direction", "range-of-motion"],
       optionIds: modifierIds([
+        "direction:lateral",
         "range-of-motion:partial-rom",
         "range-of-motion:full-rom",
       ]),
@@ -1329,7 +1742,7 @@ const cardModifierControlPresets: Partial<
         "apparatus:cable",
         "apparatus:machine",
         "apparatus:band",
-        "apparatus:suspension",
+        "apparatus:trx",
         "apparatus:landmine",
       ]),
       accent: "cyan",
@@ -1351,7 +1764,7 @@ const cardModifierControlPresets: Partial<
     {
       key: "row-grip-structure",
       label: "Grip / Structure",
-      categories: ["limb-usage"],
+      categories: ["limb-usage", "range-of-motion", "stability"],
       optionIds: modifierIds([
         "limb-usage:neutral-grip",
         "limb-usage:underhand-grip",
@@ -1361,6 +1774,8 @@ const cardModifierControlPresets: Partial<
         "limb-usage:single-arm",
         "limb-usage:alternating",
         "limb-usage:bilateral",
+        "range-of-motion:dead-stop",
+        "stability:balance-focused",
       ]),
       accent: "emerald",
     },
@@ -1408,6 +1823,51 @@ const cardModifierControlPresets: Partial<
         "load-behavior:ballistic",
       ]),
       accent: "emerald",
+    },
+  ],
+  lunge: [
+    {
+      key: "lunge-equipment",
+      label: "Equipment",
+      categories: ["apparatus"],
+      optionIds: modifierIds([
+        "apparatus:bodyweight",
+        "apparatus:dumbbell",
+        "apparatus:kettlebell",
+        "apparatus:barbell",
+        "apparatus:landmine",
+        "apparatus:band",
+        "apparatus:cable",
+        "apparatus:trx",
+      ]),
+      accent: "cyan",
+    },
+    {
+      key: "lunge-direction",
+      label: "Direction",
+      categories: ["direction"],
+      optionIds: modifierIds([
+        "direction:reverse",
+        "direction:forward",
+        "direction:walking",
+        "direction:lateral",
+        "direction:crossover",
+      ]),
+      accent: "emerald",
+    },
+    {
+      key: "lunge-position-stance",
+      label: "Position / Stance",
+      categories: ["angle-position", "limb-usage", "range-of-motion"],
+      optionIds: modifierIds([
+        "angle-position:split-stance",
+        "angle-position:rear-foot-elevated",
+        "limb-usage:unilateral",
+        "limb-usage:alternating",
+        "limb-usage:wide-stance",
+        "range-of-motion:deficit",
+      ]),
+      accent: "violet",
     },
   ],
 };
@@ -1478,7 +1938,7 @@ const getFallbackThirdControl = (
     return {
       key: "fallback-direction-structure",
       label: "Direction / Structure",
-      categories: ["limb-usage", "load-behavior", "tempo"],
+      categories: ["direction", "limb-usage", "load-behavior", "tempo"],
       accent: "emerald",
     };
   }
@@ -1512,7 +1972,7 @@ const getFallbackThirdControl = (
   return {
     key: "fallback-modifier",
     label: "Modifier",
-    categories: ["limb-usage", "range-of-motion", "load-behavior"],
+    categories: ["direction", "limb-usage", "range-of-motion", "load-behavior"],
     accent: "emerald",
   };
 };
@@ -1583,7 +2043,8 @@ const semanticNameIncludesEquipment = (
   const equipmentAliases: Record<string, string[]> = {
     "medicine ball": ["medicine ball", "med ball"],
     "stability ball": ["stability ball", "swiss ball"],
-    suspension: ["suspension", "trx"],
+    trx: ["trx", "suspension", "suspension trainer", "suspension training"],
+    suspension: ["suspension", "trx", "suspension trainer", "suspension training"],
   };
   const aliases = equipmentAliases[equipmentName] || [equipmentName];
 
@@ -1704,6 +2165,263 @@ const movementArchitectureChipClasses: Record<
     "border-white/10 bg-white/[0.035] text-slate-400",
 };
 
+type CategoryTheme = {
+  surfaceClass: string;
+  cardClass: string;
+  overlayClass: string;
+  accentClass: string;
+  pillClass: string;
+  hoverClass: string;
+  tabClass: string;
+  tabHoverClass: string;
+};
+
+const categoryThemeFallback: CategoryTheme = {
+  surfaceClass:
+    "bg-[linear-gradient(135deg,rgba(30,41,59,0.42),rgba(15,23,42,0.76),rgba(2,6,23,0.92))]",
+  cardClass:
+    "border-slate-300/15 shadow-[0_18px_58px_rgba(0,0,0,0.38),0_0_24px_rgba(148,163,184,0.055),inset_0_1px_0_rgba(255,255,255,0.16)]",
+  overlayClass:
+    "bg-[radial-gradient(circle_at_20%_0%,rgba(148,163,184,0.16),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.11)_0%,rgba(255,255,255,0.035)_42%,transparent_74%)]",
+  accentClass:
+    "bg-gradient-to-r from-transparent via-slate-300/50 to-transparent",
+  pillClass:
+    "border-slate-300/20 bg-slate-300/10 text-slate-200 shadow-[0_0_16px_rgba(148,163,184,0.08)]",
+  hoverClass:
+    "hover:border-slate-200/28 hover:shadow-[0_26px_86px_rgba(0,0,0,0.48),0_0_34px_rgba(148,163,184,0.12),inset_0_1px_0_rgba(255,255,255,0.20)]",
+  tabClass:
+    "bg-[linear-gradient(135deg,rgba(148,163,184,0.88),rgba(100,116,139,0.72))] text-slate-950 shadow-[0_0_24px_rgba(148,163,184,0.18),inset_0_1px_0_rgba(255,255,255,0.34)] ring-1 ring-slate-100/45",
+  tabHoverClass:
+    "hover:bg-[linear-gradient(135deg,rgba(148,163,184,0.18),rgba(15,23,42,0.88))] hover:text-slate-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-slate-200/35",
+};
+
+const categoryThemes: Record<string, CategoryTheme> = {
+  "lower body compound": {
+    surfaceClass:
+      "bg-[linear-gradient(135deg,rgba(6,78,59,0.34),rgba(15,23,42,0.76),rgba(2,6,23,0.92))]",
+    cardClass:
+      "border-emerald-300/22 shadow-[0_18px_58px_rgba(0,0,0,0.38),0_0_28px_rgba(16,185,129,0.10),inset_0_1px_0_rgba(255,255,255,0.16)]",
+    overlayClass:
+      "bg-[radial-gradient(circle_at_20%_0%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(120deg,rgba(16,185,129,0.12)_0%,rgba(255,255,255,0.04)_42%,transparent_74%)]",
+    accentClass:
+      "bg-gradient-to-r from-transparent via-emerald-300/65 to-transparent",
+    pillClass:
+      "border-emerald-300/25 bg-emerald-400/12 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.10)]",
+    hoverClass:
+      "hover:border-emerald-200/36 hover:shadow-[0_26px_86px_rgba(0,0,0,0.50),0_0_36px_rgba(16,185,129,0.15),inset_0_1px_0_rgba(255,255,255,0.22)]",
+    tabClass:
+      "bg-[linear-gradient(135deg,rgba(52,211,153,0.98),rgba(16,185,129,0.78))] text-slate-950 shadow-[0_0_26px_rgba(16,185,129,0.26),inset_0_1px_0_rgba(255,255,255,0.38)] ring-1 ring-emerald-100/70",
+    tabHoverClass:
+      "hover:bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(15,23,42,0.88))] hover:text-emerald-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-emerald-200/35",
+  },
+  "lower body isolation": {
+    surfaceClass:
+      "bg-[linear-gradient(135deg,rgba(63,98,18,0.32),rgba(15,23,42,0.76),rgba(2,6,23,0.92))]",
+    cardClass:
+      "border-lime-300/22 shadow-[0_18px_58px_rgba(0,0,0,0.38),0_0_28px_rgba(190,242,100,0.10),inset_0_1px_0_rgba(255,255,255,0.16)]",
+    overlayClass:
+      "bg-[radial-gradient(circle_at_20%_0%,rgba(190,242,100,0.16),transparent_34%),linear-gradient(120deg,rgba(132,204,22,0.10)_0%,rgba(255,255,255,0.04)_42%,transparent_74%)]",
+    accentClass:
+      "bg-gradient-to-r from-transparent via-lime-300/65 to-transparent",
+    pillClass:
+      "border-lime-300/25 bg-lime-400/12 text-lime-100 shadow-[0_0_18px_rgba(190,242,100,0.10)]",
+    hoverClass:
+      "hover:border-lime-200/36 hover:shadow-[0_26px_86px_rgba(0,0,0,0.50),0_0_36px_rgba(190,242,100,0.14),inset_0_1px_0_rgba(255,255,255,0.22)]",
+    tabClass:
+      "bg-[linear-gradient(135deg,rgba(190,242,100,0.98),rgba(132,204,22,0.78))] text-slate-950 shadow-[0_0_26px_rgba(190,242,100,0.24),inset_0_1px_0_rgba(255,255,255,0.38)] ring-1 ring-lime-100/70",
+    tabHoverClass:
+      "hover:bg-[linear-gradient(135deg,rgba(190,242,100,0.16),rgba(15,23,42,0.88))] hover:text-lime-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-lime-200/35",
+  },
+  "upper push": {
+    surfaceClass:
+      "bg-[linear-gradient(135deg,rgba(8,145,178,0.32),rgba(15,23,42,0.76),rgba(2,6,23,0.92))]",
+    cardClass:
+      "border-cyan-300/22 shadow-[0_18px_58px_rgba(0,0,0,0.38),0_0_28px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.16)]",
+    overlayClass:
+      "bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,0.17),transparent_34%),linear-gradient(120deg,rgba(56,189,248,0.11)_0%,rgba(255,255,255,0.04)_42%,transparent_74%)]",
+    accentClass:
+      "bg-gradient-to-r from-transparent via-cyan-300/65 to-transparent",
+    pillClass:
+      "border-cyan-300/25 bg-cyan-400/12 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.10)]",
+    hoverClass:
+      "hover:border-cyan-200/36 hover:shadow-[0_26px_86px_rgba(0,0,0,0.50),0_0_36px_rgba(34,211,238,0.15),inset_0_1px_0_rgba(255,255,255,0.22)]",
+    tabClass:
+      "bg-[linear-gradient(135deg,rgba(34,211,238,0.98),rgba(56,189,248,0.78))] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.26),inset_0_1px_0_rgba(255,255,255,0.38)] ring-1 ring-cyan-100/70",
+    tabHoverClass:
+      "hover:bg-[linear-gradient(135deg,rgba(34,211,238,0.16),rgba(15,23,42,0.88))] hover:text-cyan-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-cyan-200/35",
+  },
+  "upper pull": {
+    surfaceClass:
+      "bg-[linear-gradient(135deg,rgba(91,33,182,0.31),rgba(15,23,42,0.76),rgba(2,6,23,0.92))]",
+    cardClass:
+      "border-violet-300/22 shadow-[0_18px_58px_rgba(0,0,0,0.38),0_0_28px_rgba(167,139,250,0.10),inset_0_1px_0_rgba(255,255,255,0.16)]",
+    overlayClass:
+      "bg-[radial-gradient(circle_at_20%_0%,rgba(167,139,250,0.17),transparent_34%),linear-gradient(120deg,rgba(139,92,246,0.11)_0%,rgba(255,255,255,0.04)_42%,transparent_74%)]",
+    accentClass:
+      "bg-gradient-to-r from-transparent via-violet-300/65 to-transparent",
+    pillClass:
+      "border-violet-300/25 bg-violet-400/12 text-violet-100 shadow-[0_0_18px_rgba(167,139,250,0.10)]",
+    hoverClass:
+      "hover:border-violet-200/36 hover:shadow-[0_26px_86px_rgba(0,0,0,0.50),0_0_36px_rgba(167,139,250,0.15),inset_0_1px_0_rgba(255,255,255,0.22)]",
+    tabClass:
+      "bg-[linear-gradient(135deg,rgba(167,139,250,0.98),rgba(139,92,246,0.78))] text-slate-950 shadow-[0_0_26px_rgba(167,139,250,0.25),inset_0_1px_0_rgba(255,255,255,0.38)] ring-1 ring-violet-100/70",
+    tabHoverClass:
+      "hover:bg-[linear-gradient(135deg,rgba(167,139,250,0.17),rgba(15,23,42,0.88))] hover:text-violet-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-violet-200/35",
+  },
+  "arm isolation": {
+    surfaceClass:
+      "bg-[linear-gradient(135deg,rgba(146,64,14,0.30),rgba(15,23,42,0.76),rgba(2,6,23,0.92))]",
+    cardClass:
+      "border-amber-300/22 shadow-[0_18px_58px_rgba(0,0,0,0.38),0_0_28px_rgba(251,191,36,0.10),inset_0_1px_0_rgba(255,255,255,0.16)]",
+    overlayClass:
+      "bg-[radial-gradient(circle_at_20%_0%,rgba(251,191,36,0.16),transparent_34%),linear-gradient(120deg,rgba(245,158,11,0.10)_0%,rgba(255,255,255,0.04)_42%,transparent_74%)]",
+    accentClass:
+      "bg-gradient-to-r from-transparent via-amber-300/65 to-transparent",
+    pillClass:
+      "border-amber-300/25 bg-amber-400/12 text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.10)]",
+    hoverClass:
+      "hover:border-amber-200/36 hover:shadow-[0_26px_86px_rgba(0,0,0,0.50),0_0_36px_rgba(251,191,36,0.14),inset_0_1px_0_rgba(255,255,255,0.22)]",
+    tabClass:
+      "bg-[linear-gradient(135deg,rgba(251,191,36,0.98),rgba(245,158,11,0.78))] text-slate-950 shadow-[0_0_26px_rgba(251,191,36,0.24),inset_0_1px_0_rgba(255,255,255,0.38)] ring-1 ring-amber-100/70",
+    tabHoverClass:
+      "hover:bg-[linear-gradient(135deg,rgba(251,191,36,0.17),rgba(15,23,42,0.88))] hover:text-amber-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-amber-200/35",
+  },
+  core: {
+    surfaceClass:
+      "bg-[linear-gradient(135deg,rgba(159,18,57,0.30),rgba(15,23,42,0.76),rgba(2,6,23,0.92))]",
+    cardClass:
+      "border-rose-300/22 shadow-[0_18px_58px_rgba(0,0,0,0.38),0_0_28px_rgba(251,113,133,0.10),inset_0_1px_0_rgba(255,255,255,0.16)]",
+    overlayClass:
+      "bg-[radial-gradient(circle_at_20%_0%,rgba(251,113,133,0.16),transparent_34%),linear-gradient(120deg,rgba(244,63,94,0.10)_0%,rgba(255,255,255,0.04)_42%,transparent_74%)]",
+    accentClass:
+      "bg-gradient-to-r from-transparent via-rose-300/65 to-transparent",
+    pillClass:
+      "border-rose-300/25 bg-rose-400/12 text-rose-100 shadow-[0_0_18px_rgba(251,113,133,0.10)]",
+    hoverClass:
+      "hover:border-rose-200/36 hover:shadow-[0_26px_86px_rgba(0,0,0,0.50),0_0_36px_rgba(251,113,133,0.14),inset_0_1px_0_rgba(255,255,255,0.22)]",
+    tabClass:
+      "bg-[linear-gradient(135deg,rgba(251,113,133,0.98),rgba(244,63,94,0.78))] text-slate-950 shadow-[0_0_26px_rgba(251,113,133,0.24),inset_0_1px_0_rgba(255,255,255,0.38)] ring-1 ring-rose-100/70",
+    tabHoverClass:
+      "hover:bg-[linear-gradient(135deg,rgba(251,113,133,0.17),rgba(15,23,42,0.88))] hover:text-rose-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-rose-200/35",
+  },
+  athletic: {
+    surfaceClass:
+      "bg-[linear-gradient(135deg,rgba(154,52,18,0.34),rgba(15,23,42,0.76),rgba(2,6,23,0.92))]",
+    cardClass:
+      "border-orange-300/24 shadow-[0_18px_58px_rgba(0,0,0,0.38),0_0_30px_rgba(251,146,60,0.12),inset_0_1px_0_rgba(255,255,255,0.16)]",
+    overlayClass:
+      "bg-[radial-gradient(circle_at_20%_0%,rgba(251,146,60,0.18),transparent_34%),linear-gradient(120deg,rgba(249,115,22,0.11)_0%,rgba(255,255,255,0.04)_42%,transparent_74%)]",
+    accentClass:
+      "bg-gradient-to-r from-transparent via-orange-300/70 to-transparent",
+    pillClass:
+      "border-orange-300/28 bg-orange-400/14 text-orange-100 shadow-[0_0_18px_rgba(251,146,60,0.12)]",
+    hoverClass:
+      "hover:border-orange-200/40 hover:shadow-[0_26px_86px_rgba(0,0,0,0.50),0_0_38px_rgba(251,146,60,0.16),inset_0_1px_0_rgba(255,255,255,0.22)]",
+    tabClass:
+      "bg-[linear-gradient(135deg,rgba(251,146,60,0.98),rgba(249,115,22,0.82))] text-slate-950 shadow-[0_0_28px_rgba(251,146,60,0.26),inset_0_1px_0_rgba(255,255,255,0.38)] ring-1 ring-orange-100/70",
+    tabHoverClass:
+      "hover:bg-[linear-gradient(135deg,rgba(251,146,60,0.18),rgba(15,23,42,0.88))] hover:text-orange-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-orange-200/35",
+  },
+  mobility: {
+    surfaceClass:
+      "bg-[linear-gradient(135deg,rgba(15,118,110,0.31),rgba(15,23,42,0.76),rgba(2,6,23,0.92))]",
+    cardClass:
+      "border-teal-300/22 shadow-[0_18px_58px_rgba(0,0,0,0.38),0_0_28px_rgba(45,212,191,0.10),inset_0_1px_0_rgba(255,255,255,0.16)]",
+    overlayClass:
+      "bg-[radial-gradient(circle_at_20%_0%,rgba(45,212,191,0.17),transparent_34%),linear-gradient(120deg,rgba(20,184,166,0.11)_0%,rgba(255,255,255,0.04)_42%,transparent_74%)]",
+    accentClass:
+      "bg-gradient-to-r from-transparent via-teal-300/65 to-transparent",
+    pillClass:
+      "border-teal-300/25 bg-teal-400/12 text-teal-100 shadow-[0_0_18px_rgba(45,212,191,0.10)]",
+    hoverClass:
+      "hover:border-teal-200/36 hover:shadow-[0_26px_86px_rgba(0,0,0,0.50),0_0_36px_rgba(45,212,191,0.14),inset_0_1px_0_rgba(255,255,255,0.22)]",
+    tabClass:
+      "bg-[linear-gradient(135deg,rgba(45,212,191,0.98),rgba(20,184,166,0.78))] text-slate-950 shadow-[0_0_26px_rgba(45,212,191,0.24),inset_0_1px_0_rgba(255,255,255,0.38)] ring-1 ring-teal-100/70",
+    tabHoverClass:
+      "hover:bg-[linear-gradient(135deg,rgba(45,212,191,0.17),rgba(15,23,42,0.88))] hover:text-teal-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-teal-200/35",
+  },
+  "cervical isolation": {
+    surfaceClass:
+      "bg-[linear-gradient(135deg,rgba(14,116,144,0.22),rgba(30,41,59,0.64),rgba(2,6,23,0.92))]",
+    cardClass:
+      "border-sky-200/20 shadow-[0_18px_58px_rgba(0,0,0,0.38),0_0_26px_rgba(125,211,252,0.09),inset_0_1px_0_rgba(255,255,255,0.16)]",
+    overlayClass:
+      "bg-[radial-gradient(circle_at_20%_0%,rgba(125,211,252,0.14),transparent_34%),linear-gradient(120deg,rgba(148,163,184,0.10)_0%,rgba(255,255,255,0.04)_42%,transparent_74%)]",
+    accentClass:
+      "bg-gradient-to-r from-transparent via-sky-200/60 to-transparent",
+    pillClass:
+      "border-sky-200/24 bg-sky-300/10 text-sky-100 shadow-[0_0_18px_rgba(125,211,252,0.09)]",
+    hoverClass:
+      "hover:border-sky-100/34 hover:shadow-[0_26px_86px_rgba(0,0,0,0.50),0_0_34px_rgba(125,211,252,0.13),inset_0_1px_0_rgba(255,255,255,0.22)]",
+    tabClass:
+      "bg-[linear-gradient(135deg,rgba(186,230,253,0.96),rgba(125,211,252,0.72))] text-slate-950 shadow-[0_0_24px_rgba(125,211,252,0.22),inset_0_1px_0_rgba(255,255,255,0.38)] ring-1 ring-sky-100/70",
+    tabHoverClass:
+      "hover:bg-[linear-gradient(135deg,rgba(125,211,252,0.15),rgba(15,23,42,0.88))] hover:text-sky-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-sky-200/35",
+  },
+  integrated: {
+    surfaceClass:
+      "bg-[linear-gradient(135deg,rgba(113,63,18,0.30),rgba(76,29,149,0.24),rgba(2,6,23,0.92))]",
+    cardClass:
+      "border-yellow-200/26 shadow-[0_18px_58px_rgba(0,0,0,0.38),0_0_32px_rgba(250,204,21,0.12),inset_0_1px_0_rgba(255,255,255,0.18)]",
+    overlayClass:
+      "bg-[radial-gradient(circle_at_18%_0%,rgba(250,204,21,0.16),transparent_32%),radial-gradient(circle_at_82%_10%,rgba(167,139,250,0.14),transparent_34%),linear-gradient(120deg,rgba(250,204,21,0.08)_0%,rgba(139,92,246,0.08)_42%,transparent_76%)]",
+    accentClass:
+      "bg-gradient-to-r from-transparent via-yellow-200/70 to-violet-300/55",
+    pillClass:
+      "border-yellow-200/30 bg-[linear-gradient(135deg,rgba(250,204,21,0.16),rgba(167,139,250,0.12))] text-yellow-100 shadow-[0_0_20px_rgba(250,204,21,0.12)]",
+    hoverClass:
+      "hover:border-yellow-100/40 hover:shadow-[0_26px_86px_rgba(0,0,0,0.50),0_0_40px_rgba(250,204,21,0.16),inset_0_1px_0_rgba(255,255,255,0.22)]",
+    tabClass:
+      "bg-[linear-gradient(135deg,rgba(250,204,21,0.96),rgba(167,139,250,0.82))] text-slate-950 shadow-[0_0_30px_rgba(250,204,21,0.24),inset_0_1px_0_rgba(255,255,255,0.38)] ring-1 ring-yellow-100/70",
+    tabHoverClass:
+      "hover:bg-[linear-gradient(135deg,rgba(250,204,21,0.16),rgba(167,139,250,0.12),rgba(15,23,42,0.88))] hover:text-yellow-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-yellow-200/35",
+  },
+};
+
+const getCategoryTheme = (category?: string | null): CategoryTheme =>
+  category
+    ? categoryThemes[
+        category.trim().toLowerCase() === "integrated movement"
+          ? "integrated"
+          : category.trim().toLowerCase()
+      ] || categoryThemeFallback
+    : categoryThemeFallback;
+
+const getBodyRegionTheme = (region?: string | null): CategoryTheme => {
+  const normalizedRegion = region?.trim().toLowerCase() || "";
+  if (!normalizedRegion || normalizedRegion === "all") return categoryThemeFallback;
+
+  if (/(neck|cervical)/.test(normalizedRegion)) {
+    return getCategoryTheme("Cervical Isolation");
+  }
+  if (/(athletic|power|plyo|jump|sprint|throw|carry|crawl|full body)/.test(normalizedRegion)) {
+    return getCategoryTheme("Athletic");
+  }
+  if (/(core|abs|oblique|anti|rotation|trunk)/.test(normalizedRegion)) {
+    return getCategoryTheme("Core");
+  }
+  if (/(mobility|recovery|breath|bracing)/.test(normalizedRegion)) {
+    return getCategoryTheme("Mobility");
+  }
+  if (/(arm|bicep|tricep|wrist|forearm|rotator|cuff)/.test(normalizedRegion)) {
+    return getCategoryTheme("Arm Isolation");
+  }
+  if (/(back|pull|lat|trap|rhomboid|upper back|posterior shoulder|rear delt)/.test(normalizedRegion)) {
+    return getCategoryTheme("Upper Pull");
+  }
+  if (/(chest|pec|push|shoulder|delt)/.test(normalizedRegion)) {
+    return getCategoryTheme("Upper Push");
+  }
+  if (/(quad|calf|tibialis|adductor|abductor|knee|ankle)/.test(normalizedRegion)) {
+    return getCategoryTheme("Lower Body Isolation");
+  }
+  if (/(leg|lower|glute|hamstring|hip|posterior chain)/.test(normalizedRegion)) {
+    return getCategoryTheme("Lower Body Compound");
+  }
+
+  return categoryThemeFallback;
+};
+
 const getSemanticPatternLabel = (patternId: SemanticMovementPatternId) =>
   SEMANTIC_MOVEMENT_PATTERN_BY_ID[patternId]?.label || labelize(patternId);
 
@@ -1803,6 +2521,7 @@ const getTrainingModifierChipTone = (
   if (
     [
       "range-of-motion",
+      "direction",
       "tempo",
       "load-behavior",
       "assistance-resistance",
@@ -2093,65 +2812,13 @@ const getNonApparatusModifierIds = (modifierIds: ExerciseModifierId[]) =>
     (modifierId) => getModifierCategoryId(modifierId) !== "apparatus",
   );
 
-const variationEquipmentAllowanceOverrides: Record<
-  string,
-  ExerciseModifierId[]
-> = {
-  "Goblet Squat": ["apparatus:dumbbell", "apparatus:kettlebell"],
-};
-
-const variationEquipmentNameMap: Array<{
-  pattern: RegExp;
-  modifierId: ExerciseModifierId;
-}> = [
-  { pattern: /\bdumbbell\b/i, modifierId: "apparatus:dumbbell" },
-  { pattern: /\bkettlebell\b/i, modifierId: "apparatus:kettlebell" },
-  { pattern: /\bbarbell\b/i, modifierId: "apparatus:barbell" },
-  { pattern: /\btrap bar\b/i, modifierId: "apparatus:trap-bar" },
-  { pattern: /\blandmine\b/i, modifierId: "apparatus:landmine" },
-  { pattern: /\bcable\b/i, modifierId: "apparatus:cable" },
-  { pattern: /\bmachine\b/i, modifierId: "apparatus:machine" },
-  { pattern: /\bband\b/i, modifierId: "apparatus:band" },
-  { pattern: /\bmedicine ball\b|\bmed ball\b/i, modifierId: "apparatus:medicine-ball" },
-  { pattern: /\bbox\b/i, modifierId: "apparatus:box" },
-  { pattern: /\bsled\b/i, modifierId: "apparatus:sled" },
-];
-
-const bodyweightConstrainedVariationPatterns = [
-  /\bair squat\b/i,
-  /\bpush-up\b|\bpush up\b/i,
-  /\bpull-up\b|\bpull up\b/i,
-  /\bchin-up\b|\bchin up\b/i,
-  /\bplank\b/i,
-  /\bcrunch\b/i,
-  /\bsit-up\b|\bsit up\b/i,
-  /\bhanging leg raise\b/i,
-  /\bbear crawl\b|\bleopard crawl\b|\blateral crawl\b/i,
-  /\bhill sprint\b|\bshuttle sprint\b/i,
-];
-
 const getSemanticVariationAllowedApparatusIds = (
   variation: SemanticVariationOption,
-): ExerciseModifierId[] => {
-  const override = variationEquipmentAllowanceOverrides[variation.name];
-  if (override) return override;
+): ExerciseModifierId[] => [...(variation.allowedApparatusIds || [])];
 
-  const namedEquipmentIds = variationEquipmentNameMap
-    .filter(({ pattern }) => pattern.test(variation.name))
-    .map(({ modifierId }) => modifierId);
-
-  if (namedEquipmentIds.length) return uniqueModifierIds(namedEquipmentIds);
-
-  if (
-    bodyweightConstrainedVariationPatterns.some((pattern) =>
-      pattern.test(variation.name),
-    )
-  ) {
-    return ["apparatus:bodyweight"];
-  }
-
-  return [];
-};
+const getSemanticVariationDefaultApparatusId = (
+  variation: SemanticVariationOption,
+) => variation.defaultApparatusId || getApparatusModifierIds(variation.modifierIds)[0];
 
 const getDefaultSelectedModifierIds = (
   metadata: NormalizedExerciseCatalogItem | null,
@@ -2171,80 +2838,170 @@ const getMatchingSemanticVariation = (
 ) => {
   if (!variations.length || !selectedModifierIds.length) return null;
 
-  const matches = variations
-    .map((variation) => {
-      const score = getSemanticVariationMatchScore(
-        variation,
-        selectedModifierIds,
-      );
-
-      return score === null ? null : { variation, score };
-    })
-    .filter(
-      (
-        match,
-      ): match is { variation: SemanticVariationOption; score: number } =>
-        Boolean(match),
-    )
-    .sort((a, b) => b.score - a.score);
+  const matches = getSemanticVariationMatches(variations, selectedModifierIds);
 
   return matches[0]?.variation || null;
 };
 
-const getSemanticVariationMatchScore = (
+type SemanticVariationMatchDetails = {
+  score: number;
+  nonEquipmentScore: number;
+  equipmentScore: number;
+  hasRequiredNonEquipmentMatch: boolean;
+  hasEquipmentConflict: boolean;
+};
+
+const getSemanticVariationMatches = (
+  variations: SemanticVariationOption[],
+  selectedModifierIds: ExerciseModifierId[],
+) =>
+  variations
+    .map((variation, index) => {
+      const details = getSemanticVariationMatchDetails(
+        variation,
+        selectedModifierIds,
+      );
+
+      return details === null ? null : { variation, details, index };
+    })
+    .filter(
+      (
+        match,
+      ): match is {
+        variation: SemanticVariationOption;
+        details: SemanticVariationMatchDetails;
+        index: number;
+      } => Boolean(match),
+    )
+    .sort(
+      (a, b) =>
+        b.details.score - a.details.score ||
+        b.details.nonEquipmentScore - a.details.nonEquipmentScore ||
+        b.details.equipmentScore - a.details.equipmentScore ||
+        a.index - b.index,
+    );
+
+const getSemanticVariationMatchDetails = (
   variation: SemanticVariationOption,
   selectedModifierIds: ExerciseModifierId[],
-) => {
+): SemanticVariationMatchDetails | null => {
   if (!selectedModifierIds.length) return null;
 
   const selectedSet = new Set<string>(selectedModifierIds);
   const selectedApparatusIds = getApparatusModifierIds(selectedModifierIds);
-  const matchSets = variation.matchModifierSets.length
-    ? variation.matchModifierSets
-    : [variation.modifierIds];
+  const definingModifierIds = variation.definingModifierIds?.length
+    ? variation.definingModifierIds
+    : getNonApparatusModifierIds(variation.modifierIds);
+  const matchSets = [
+    definingModifierIds,
+    ...(variation.matchModifierSets || []).map(getNonApparatusModifierIds),
+  ].filter((modifierIds) => modifierIds.length > 0);
   const allowedApparatusIds = getSemanticVariationAllowedApparatusIds(variation);
+  const fallbackApparatusIds = getApparatusModifierIds(variation.modifierIds);
   const scoredMatches = matchSets
     .map((modifierIds) => {
-      const nonApparatusModifierIds = getNonApparatusModifierIds(modifierIds);
       const apparatusModifierIds = allowedApparatusIds.length
         ? allowedApparatusIds
-        : getApparatusModifierIds(modifierIds);
-      const nonApparatusMatches =
-        nonApparatusModifierIds.length > 0 &&
-        nonApparatusModifierIds.every((modifierId) =>
-          selectedSet.has(modifierId),
-        );
+        : fallbackApparatusIds;
+      const isEquipmentConstrained =
+        allowedApparatusIds.length > 0 || variation.equipmentStrict;
+      const nonApparatusMatches = modifierIds.every((modifierId) =>
+        selectedSet.has(modifierId),
+      );
       const apparatusMatchCount = apparatusModifierIds.filter((modifierId) =>
         selectedSet.has(modifierId),
       ).length;
-      const isEquipmentConstrained = allowedApparatusIds.length > 0;
+      const hasEquipmentConflict =
+        isEquipmentConstrained &&
+        selectedApparatusIds.length > 0 &&
+        apparatusMatchCount === 0;
 
-      if (nonApparatusModifierIds.length > 0) {
-        if (!nonApparatusMatches) return null;
-        if (
-          isEquipmentConstrained &&
-          selectedApparatusIds.length > 0 &&
-          apparatusMatchCount === 0
-        ) {
-          return null;
-        }
+      if (!nonApparatusMatches) return null;
+      if (hasEquipmentConflict) return null;
 
-        return nonApparatusModifierIds.length * 100 + apparatusMatchCount * 10;
-      }
+      const nonEquipmentScore = modifierIds.length * 100;
+      const equipmentScore = apparatusMatchCount * 10;
 
-      if (apparatusModifierIds.length > 0 && apparatusMatchCount > 0) {
-        return apparatusMatchCount * 10;
-      }
-
-      return null;
+      return {
+        score: nonEquipmentScore + equipmentScore,
+        nonEquipmentScore,
+        equipmentScore,
+        hasRequiredNonEquipmentMatch: true,
+        hasEquipmentConflict: false,
+      };
     })
     .filter(
-      (score): score is number =>
-        typeof score === "number" && Number.isFinite(score),
+      (details): details is SemanticVariationMatchDetails =>
+        details !== null && Number.isFinite(details.score),
     )
-    .sort((a, b) => b - a);
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.nonEquipmentScore - a.nonEquipmentScore ||
+        b.equipmentScore - a.equipmentScore,
+    );
 
-  return scoredMatches[0] ?? null;
+  if (scoredMatches[0]) return scoredMatches[0];
+
+  const apparatusModifierIds = allowedApparatusIds.length
+    ? allowedApparatusIds
+    : fallbackApparatusIds;
+  const apparatusMatchCount = apparatusModifierIds.filter((modifierId) =>
+    selectedSet.has(modifierId),
+  ).length;
+
+  if (apparatusModifierIds.length > 0 && apparatusMatchCount > 0) {
+    const equipmentScore = apparatusMatchCount * 10;
+
+    return {
+      score: equipmentScore,
+      nonEquipmentScore: 0,
+      equipmentScore,
+      hasRequiredNonEquipmentMatch: false,
+      hasEquipmentConflict: false,
+    };
+  }
+
+  return null;
+};
+
+const getPreferredSemanticVariation = ({
+  variations,
+  selectedModifierIds,
+  currentVariation,
+}: {
+  variations: SemanticVariationOption[];
+  selectedModifierIds: ExerciseModifierId[];
+  currentVariation: SemanticVariationOption | null;
+}) => {
+  const matches = getSemanticVariationMatches(variations, selectedModifierIds);
+  const bestMatch = matches[0] || null;
+
+  if (!currentVariation) return bestMatch?.variation || null;
+
+  const currentDetails = getSemanticVariationMatchDetails(
+    currentVariation,
+    selectedModifierIds,
+  );
+
+  if (!currentDetails) return bestMatch?.variation || null;
+
+  const currentCanBePreserved =
+    currentDetails.hasRequiredNonEquipmentMatch &&
+    !currentDetails.hasEquipmentConflict;
+
+  if (!currentCanBePreserved) return bestMatch?.variation || null;
+
+  if (
+    bestMatch &&
+    bestMatch.variation.id !== currentVariation.id &&
+    bestMatch.details.nonEquipmentScore >=
+      currentDetails.nonEquipmentScore + 100
+  ) {
+    return bestMatch.variation;
+  }
+
+  return currentVariation;
 };
 
 const applySemanticVariationModifierPreset = (
@@ -2271,7 +3028,11 @@ const applySemanticVariationModifierPreset = (
         allowedApparatusIds.includes(modifierId),
       );
 
-      return [preferredPresetApparatus || allowedApparatusIds[0]];
+      return [
+        preferredPresetApparatus ||
+          getSemanticVariationDefaultApparatusId(variation) ||
+          allowedApparatusIds[0],
+      ];
     }
 
     if (currentApparatusIds.length) return currentApparatusIds;
@@ -2308,6 +3069,7 @@ function SemanticVariationSelect({
   const dropdownId = useId();
   const buttonRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const lockedMenuWidthRef = useRef<number | null>(null);
   const [open, setOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
 
@@ -2321,27 +3083,49 @@ function SemanticVariationSelect({
 
     const rect = button.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
-    const menuWidth = Math.min(
+    const viewportHeight = window.innerHeight;
+    const margin = 12;
+    const measuredMenuWidth = Math.min(
       Math.max(rect.width, compact ? 220 : 280),
-      viewportWidth - 24,
+      viewportWidth - margin * 2,
     );
+    const menuWidth = lockedMenuWidthRef.current ?? measuredMenuWidth;
+    lockedMenuWidthRef.current = menuWidth;
     const left = Math.min(
-      Math.max(12, rect.left),
-      Math.max(12, viewportWidth - menuWidth - 12),
+      Math.max(margin, rect.left),
+      Math.max(margin, viewportWidth - menuWidth - margin),
+    );
+    const maxMenuHeight = Math.min(360, viewportHeight - margin * 2);
+    const belowTop = rect.bottom + 8;
+    const availableBelow = viewportHeight - belowTop - margin;
+    const availableAbove = rect.top - margin - 8;
+    const opensAbove = availableBelow < 148 && availableAbove > availableBelow;
+    const preferredTop = opensAbove ? rect.top - 8 - maxMenuHeight : belowTop;
+    const top = Math.min(
+      Math.max(preferredTop, margin),
+      Math.max(margin, viewportHeight - maxMenuHeight - margin),
+    );
+    const maxHeight = Math.max(
+      132,
+      Math.min(maxMenuHeight, viewportHeight - top - margin),
     );
 
-    setMenuStyle({
-      top: rect.bottom + 8,
+    setStableFixedDropdownStyle(setMenuStyle, createFixedDropdownStyle({
+      top,
       left,
       width: menuWidth,
-      maxHeight: Math.min(360, window.innerHeight - rect.bottom - 24),
-      zIndex: 1200,
-    });
+      maxHeight,
+      zIndex: 2147483000,
+    }));
   };
 
   useEffect(() => {
     onOpenChange?.(open);
-    if (!open) return;
+    if (!open) {
+      lockedMenuWidthRef.current = null;
+      setMenuStyle(null);
+      return;
+    }
 
     updateMenuPosition();
 
@@ -2363,22 +3147,44 @@ function SemanticVariationSelect({
       const detail = (event as CustomEvent<{ id: string }>).detail;
       if (detail?.id !== dropdownId) setOpen(false);
     };
-    const handleScroll = () => setOpen(false);
+    let animationFrame: number | null = null;
+    const scheduleMenuPositionUpdate = (
+      event?: Event,
+      unlockWidth = false,
+    ) => {
+      const target = event?.target;
+      if (target instanceof Node && menuRef.current?.contains(target)) {
+        return;
+      }
+
+      if (unlockWidth) lockedMenuWidthRef.current = null;
+      if (animationFrame !== null) return;
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updateMenuPosition();
+      });
+    };
 
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("scroll", handleScroll, true);
+    const handleResize = () => scheduleMenuPositionUpdate(undefined, true);
+    const handleScroll = (event: Event) => scheduleMenuPositionUpdate(event);
+    window.addEventListener("resize", handleResize);
+    document.addEventListener("scroll", handleScroll, true);
     window.addEventListener(
       exerciseLibraryDropdownOpenEvent,
       handleCloseOtherDropdowns,
     );
 
     return () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleResize);
+      document.removeEventListener("scroll", handleScroll, true);
       window.removeEventListener(
         exerciseLibraryDropdownOpenEvent,
         handleCloseOtherDropdowns,
@@ -2432,6 +3238,7 @@ function SemanticVariationSelect({
             <div
               ref={menuRef}
               style={menuStyle}
+              data-exercise-library-floating-menu="true"
               className="fixed overflow-hidden rounded-2xl border border-yellow-100/20 bg-[radial-gradient(circle_at_12%_0%,rgba(250,204,21,0.18),transparent_35%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-1.5 shadow-[0_26px_70px_rgba(0,0,0,0.68),0_0_34px_rgba(250,204,21,0.10),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl"
             >
               <div
@@ -2475,9 +3282,11 @@ function SemanticVariationSelect({
 function MovementArchitectureChips({
   chips,
   compact = false,
+  classificationChipClass,
 }: {
   chips: MovementArchitectureChip[];
   compact?: boolean;
+  classificationChipClass?: string;
 }) {
   const visibleChips = compact ? chips.slice(0, 4) : chips;
   const hiddenCount = chips.length - visibleChips.length;
@@ -2492,7 +3301,11 @@ function MovementArchitectureChips({
       {visibleChips.map((chip) => (
         <span
           key={chip.key}
-          className={`max-w-full rounded-full border px-2.5 py-1 text-[9px] font-black uppercase leading-4 tracking-[0.08em] ${movementArchitectureChipClasses[chip.tone]}`}
+          className={`max-w-full rounded-full border px-2.5 py-1 text-[9px] font-black uppercase leading-4 tracking-[0.08em] ${
+            chip.tone === "classification" && classificationChipClass
+              ? classificationChipClass
+              : movementArchitectureChipClasses[chip.tone]
+          }`}
           title={chip.label}
         >
           {chip.label}
@@ -2504,6 +3317,195 @@ function MovementArchitectureChips({
           +{hiddenCount}
         </span>
       ) : null}
+    </div>
+  );
+}
+
+type MuscleIntelligence = {
+  primary: string[];
+  secondary: string[];
+  stabilizers: string[];
+  source: "movement" | "profile";
+};
+
+const muscleLabelOverrides: Record<string, string> = {
+  abs: "Abs",
+  chest: "Pecs",
+  "hip-flexors": "Hip Flexors",
+  lats: "Lats",
+  "lower-back": "Low Back",
+  "rear-delts": "Rear Delts",
+  "rotator-cuff": "Rotator Cuff",
+  "tibialis-anterior": "Tibialis Anterior",
+  "upper-back": "Upper Back",
+};
+
+const formatMuscleLabel = (muscle: string) => {
+  const normalized = muscle.trim().toLowerCase();
+  if (!normalized) return "";
+  if (muscleLabelOverrides[normalized]) return muscleLabelOverrides[normalized];
+
+  return normalized
+    .split(/[\s-]+/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+};
+
+const getUniqueMuscleLabels = (muscles: string[]) => {
+  const seen = new Set<string>();
+
+  return muscles
+    .map(formatMuscleLabel)
+    .filter((muscle) => {
+      if (!muscle) return false;
+      const key = muscle.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
+const splitMuscleText = (muscles: string) =>
+  getUniqueMuscleLabels(
+    muscles
+      .split(/\s*(?:\/|•|\u2022|,|\+|\band\b)\s*/i)
+      .map((muscle) => muscle.trim()),
+  );
+
+const getExerciseMuscleIntelligence = (
+  exercise: Exercise,
+  metadata: NormalizedExerciseCatalogItem | null,
+): MuscleIntelligence => {
+  if (!exercise.custom) {
+    const migration = mapLegacyExerciseToExerciseSystem(
+      toBuilderCatalogExercise(exercise),
+    );
+    const variation = migration.matchedVariation;
+
+    if (variation?.primaryMuscles?.length) {
+      return {
+        primary: getUniqueMuscleLabels(variation.primaryMuscles),
+        secondary: getUniqueMuscleLabels(variation.secondaryMuscles || []),
+        stabilizers: [],
+        source: "movement",
+      };
+    }
+  }
+
+  const coreMovement = metadata?.coreMovementId
+    ? CORE_MOVEMENT_BY_ID[metadata.coreMovementId]
+    : null;
+
+  if (coreMovement?.primaryMuscles?.length) {
+    return {
+      primary: getUniqueMuscleLabels(coreMovement.primaryMuscles),
+      secondary: getUniqueMuscleLabels(coreMovement.secondaryMuscles || []),
+      stabilizers: [],
+      source: "movement",
+    };
+  }
+
+  const parsedMuscles = splitMuscleText(exercise.muscles || exercise.body);
+
+  return {
+    primary: parsedMuscles.slice(0, 1),
+    secondary: parsedMuscles.slice(1),
+    stabilizers: [],
+    source: "profile",
+  };
+};
+
+function MuscleIntelligenceBlock({
+  muscles,
+  compact = false,
+  showSourceBadge = true,
+}: {
+  muscles: MuscleIntelligence;
+  compact?: boolean;
+  showSourceBadge?: boolean;
+}) {
+  if (
+    !muscles.primary.length &&
+    !muscles.secondary.length &&
+    !muscles.stabilizers.length
+  ) {
+    return null;
+  }
+
+  const muscleRows = [
+    {
+      label: "Primary",
+      value: muscles.primary.join(" • "),
+      tone:
+        "border-cyan-200/20 bg-cyan-300/10 text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]",
+      labelTone: "text-cyan-200/70",
+    },
+    {
+      label: "Secondary",
+      value: muscles.secondary.join(" • "),
+      tone:
+        "border-violet-200/20 bg-violet-300/10 text-violet-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]",
+      labelTone: "text-violet-200/70",
+    },
+    {
+      label: "Stabilizers",
+      value: muscles.stabilizers.join(" • "),
+      tone:
+        "border-emerald-200/20 bg-emerald-300/10 text-emerald-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]",
+      labelTone: "text-emerald-200/70",
+    },
+  ].filter((row) => row.value);
+
+  return (
+    <div
+      className={`rounded-2xl border border-cyan-100/15 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.74))] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_12px_34px_rgba(0,0,0,0.22)] backdrop-blur-xl ${
+        compact ? "mt-1.5 p-2" : "mt-2.5 p-3"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p
+          className={`font-black uppercase tracking-[0.14em] text-cyan-100/70 ${
+            compact ? "text-[8px]" : "text-[10px]"
+          }`}
+        >
+          Muscle Intelligence
+        </p>
+        {showSourceBadge ? (
+          <span
+            className={`rounded-full border border-white/10 bg-white/[0.045] font-black uppercase tracking-[0.12em] text-white/40 ${
+              compact ? "px-1.5 py-0.5 text-[7px]" : "px-2 py-1 text-[8px]"
+            }`}
+          >
+            {muscles.source === "movement" ? "Mapped" : "Profile"}
+          </span>
+        ) : null}
+      </div>
+
+      <div className={`mt-2 grid ${compact ? "gap-1" : "gap-2"}`}>
+        {muscleRows.map((row) => (
+          <div
+            key={row.label}
+            className={`rounded-xl border ${row.tone} ${
+              compact ? "px-2 py-1.5" : "px-3 py-2"
+            }`}
+          >
+            <p
+              className={`font-black uppercase tracking-[0.12em] ${row.labelTone} ${
+                compact ? "text-[7px]" : "text-[8px]"
+              }`}
+            >
+              {row.label}
+            </p>
+            <p
+              className={`mt-0.5 font-black leading-snug ${
+                compact ? "text-[10px]" : "text-sm"
+              }`}
+            >
+              {row.value}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -2574,6 +3576,189 @@ const getFocusedExerciseCards = (exercises: Exercise[]) => {
     seenCoreMovements.add(key);
     return true;
   });
+};
+
+const getExerciseSortTitle = (exercise: Exercise) => {
+  const metadata = getMetadataForExercise(exercise);
+  const selectedModifierIds = getDefaultSelectedModifierIds(metadata);
+  const semanticVariationOptions = metadata?.semanticVariations || [];
+  const matchedSemanticVariation = getMatchingSemanticVariation(
+    semanticVariationOptions,
+    selectedModifierIds,
+  );
+  const selectedSemanticVariation = getPreferredSemanticVariation({
+    variations: semanticVariationOptions,
+    selectedModifierIds,
+    currentVariation: matchedSemanticVariation,
+  });
+  const semanticVariationName =
+    selectedSemanticVariation?.name || metadata?.semanticVariationNames?.[0] || "";
+  const equipmentLabel = getSelectedEquipmentLabel(
+    exercise,
+    metadata,
+    selectedModifierIds,
+  );
+  const generatedTitle = getGeneratedCardTitle({
+    exercise,
+    metadata,
+    semanticVariationName,
+    equipmentLabel,
+  });
+
+  return (
+    generatedTitle ||
+    semanticVariationName ||
+    metadata?.coreMovementLabel ||
+    metadata?.movementPatternLabel ||
+    exercise.name ||
+    ""
+  );
+};
+
+const getExerciseCategorySectionLabel = (exercise: Exercise) => {
+  const metadata = getMetadataForExercise(exercise);
+
+  return getCardClassificationLabel(metadata) || (exercise.custom ? "Custom" : "Other");
+};
+
+const getCategorySortRank = (label: string) => {
+  const index = movementTypeGroupOrder.indexOf(label as MovementTypeGroup);
+
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+};
+
+const getDifficultySortRank = (level: string) => {
+  const index = difficultyOrder.indexOf(level);
+
+  return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+};
+
+const getExerciseStatMatchesForSort = (
+  stats: LocalExerciseStatEntry[],
+  exercise: Exercise,
+) => {
+  const metadata = getMetadataForExercise(exercise);
+  const normalizedNames = new Set(
+    [
+      exercise.name,
+      metadata?.coreMovementLabel || "",
+      metadata?.movementPatternLabel || "",
+      ...(metadata?.semanticVariationNames || []),
+    ]
+      .filter(Boolean)
+      .map((name) => name.trim().toLowerCase()),
+  );
+
+  return stats.filter((stat) => {
+    const statName = stat.exerciseName?.trim().toLowerCase();
+
+    return (
+      stat.exerciseId === exercise.id ||
+      (statName ? normalizedNames.has(statName) : false)
+    );
+  });
+};
+
+const getExerciseLastUsedTime = (
+  stats: LocalExerciseStatEntry[],
+  exercise: Exercise,
+) =>
+  getExerciseStatMatchesForSort(stats, exercise).reduce(
+    (latest, stat) => Math.max(latest, getStatTime(stat)),
+    0,
+  );
+
+const getExerciseLoggedCount = (
+  stats: LocalExerciseStatEntry[],
+  exercise: Exercise,
+) => getExerciseStatMatchesForSort(stats, exercise).length;
+
+const sortExercisesForLibrary = (
+  exercises: Exercise[],
+  sortMode: ExerciseLibrarySortMode,
+  stats: LocalExerciseStatEntry[],
+) =>
+  [...exercises].sort((left, right) => {
+    const titleSort = getExerciseSortTitle(left).localeCompare(
+      getExerciseSortTitle(right),
+    );
+
+    if (sortMode === "alpha") return titleSort;
+
+    if (sortMode === "difficulty") {
+      return (
+        getDifficultySortRank(left.level) - getDifficultySortRank(right.level) ||
+        titleSort
+      );
+    }
+
+    if (sortMode === "body") {
+      return left.body.localeCompare(right.body) || titleSort;
+    }
+
+    if (sortMode === "recent") {
+      return (
+        getExerciseLastUsedTime(stats, right) -
+          getExerciseLastUsedTime(stats, left) ||
+        titleSort
+      );
+    }
+
+    if (sortMode === "logged") {
+      return (
+        getExerciseLoggedCount(stats, right) -
+          getExerciseLoggedCount(stats, left) ||
+        titleSort
+      );
+    }
+
+    return (
+      getCategorySortRank(getExerciseCategorySectionLabel(left)) -
+        getCategorySortRank(getExerciseCategorySectionLabel(right)) ||
+      titleSort
+    );
+  });
+
+const getExerciseSectionLabel = (
+  exercise: Exercise,
+  sortMode: ExerciseLibrarySortMode,
+) => {
+  if (sortMode === "alpha") {
+    const firstCharacter = getExerciseSortTitle(exercise)
+      .trim()
+      .charAt(0)
+      .toUpperCase();
+
+    return /^[A-Z]$/.test(firstCharacter) ? firstCharacter : "#";
+  }
+
+  if (sortMode === "difficulty") return exercise.level || "Unassigned";
+  if (sortMode === "body") return exercise.body || "Other";
+  if (sortMode === "recent") return "Recently Used";
+  if (sortMode === "logged") return "Most Logged";
+
+  return getExerciseCategorySectionLabel(exercise);
+};
+
+const groupExercisesIntoSections = (
+  exercises: Exercise[],
+  sortMode: ExerciseLibrarySortMode,
+) => {
+  const sections = new Map<string, { label: string; exercises: Exercise[] }>();
+
+  exercises.forEach((exercise) => {
+    const label = getExerciseSectionLabel(exercise, sortMode);
+    const key = label.toLowerCase();
+    const section = sections.get(key) || { label, exercises: [] };
+
+    section.exercises.push(exercise);
+    sections.set(key, section);
+  });
+
+  return Array.from(sections.entries()).map(([key, section]) => ({
+    key,
+    ...section,
+  }));
 };
 
 const formatCountLabel = (count: number, singular: string, plural?: string) =>
@@ -2754,6 +3939,8 @@ function LabeledModifierSelect({
   fallback,
   onChange,
   onOpenChange,
+  parentDropdownId,
+  keepOpenDropdownIds,
   accent,
   size = "detail",
 }: {
@@ -2763,6 +3950,8 @@ function LabeledModifierSelect({
   fallback: string;
   onChange: (modifierId: string) => void;
   onOpenChange?: (open: boolean) => void;
+  parentDropdownId?: string;
+  keepOpenDropdownIds?: string[];
   accent: "cyan" | "emerald" | "yellow" | "violet";
   size?: "detail" | "grid";
 }) {
@@ -2794,6 +3983,8 @@ function LabeledModifierSelect({
         fallback={fallback}
         onChange={onChange}
         onOpenChange={onOpenChange}
+        parentDropdownId={parentDropdownId}
+        keepOpenDropdownIds={keepOpenDropdownIds}
         accent={accent}
         size={size}
         showInlineLabel={false}
@@ -2809,6 +4000,8 @@ function GridModifierSelect({
   fallback,
   onChange,
   onOpenChange,
+  parentDropdownId,
+  keepOpenDropdownIds,
 }: {
   label: string;
   value: string;
@@ -2816,6 +4009,8 @@ function GridModifierSelect({
   fallback: string;
   onChange: (modifierId: string) => void;
   onOpenChange?: (open: boolean) => void;
+  parentDropdownId?: string;
+  keepOpenDropdownIds?: string[];
 }) {
   return (
     <LabeledModifierSelect
@@ -2825,6 +4020,8 @@ function GridModifierSelect({
       fallback={fallback}
       onChange={onChange}
       onOpenChange={onOpenChange}
+      parentDropdownId={parentDropdownId}
+      keepOpenDropdownIds={keepOpenDropdownIds}
       accent={
         label === "Equipment"
           ? "cyan"
@@ -2851,6 +4048,8 @@ function DetailVariationSelect({
   size = "detail",
   className = "",
   onOpenChange,
+  parentDropdownId,
+  keepOpenDropdownIds,
   showInlineLabel = true,
 }: {
   label: string;
@@ -2862,12 +4061,15 @@ function DetailVariationSelect({
   size?: "detail" | "grid";
   className?: string;
   onOpenChange?: (open: boolean) => void;
+  parentDropdownId?: string;
+  keepOpenDropdownIds?: string[];
   showInlineLabel?: boolean;
 }) {
   const dropdownId = useId();
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const dropdownButtonRef = useRef<HTMLButtonElement | null>(null);
   const dropdownMenuRef = useRef<HTMLDivElement | null>(null);
+  const lockedDropdownWidthRef = useRef<number | null>(null);
   const [open, setOpen] = useState(false);
   const [dropdownMenuStyle, setDropdownMenuStyle] =
     useState<CSSProperties | null>(null);
@@ -2969,7 +4171,10 @@ function DetailVariationSelect({
   const setDropdownOpen = (nextOpen: boolean) => {
     setOpen(nextOpen);
     onOpenChange?.(nextOpen);
-    if (!nextOpen) setDropdownMenuStyle(null);
+    if (!nextOpen) {
+      lockedDropdownWidthRef.current = null;
+      setDropdownMenuStyle(null);
+    }
   };
   const updateDropdownMenuPosition = () => {
     const trigger = dropdownButtonRef.current;
@@ -2980,10 +4185,12 @@ function DetailVariationSelect({
     const viewportHeight = window.innerHeight;
     const margin = 12;
     const preferredWidth = isGrid ? 224 : 304;
-    const width = Math.min(
+    const measuredWidth = Math.min(
       Math.max(rect.width, preferredWidth),
       viewportWidth - margin * 2,
     );
+    const width = lockedDropdownWidthRef.current ?? measuredWidth;
+    lockedDropdownWidthRef.current = width;
     const left = Math.min(
       Math.max(rect.left, margin),
       viewportWidth - width - margin,
@@ -3000,17 +4207,25 @@ function DetailVariationSelect({
         opensAbove ? availableAbove : Math.max(availableBelow, 132),
       ),
     );
-    const top = opensAbove
+    const preferredTop = opensAbove
       ? Math.max(margin, rect.top - 8 - maxHeight)
       : belowTop;
+    const top = Math.min(
+      Math.max(preferredTop, margin),
+      Math.max(margin, viewportHeight - maxHeight - margin),
+    );
+    const adjustedMaxHeight = Math.max(
+      132,
+      Math.min(maxHeight, viewportHeight - top - margin),
+    );
 
-    setDropdownMenuStyle({
+    setStableFixedDropdownStyle(setDropdownMenuStyle, createFixedDropdownStyle({
       left,
       top,
       width,
-      maxHeight,
+      maxHeight: adjustedMaxHeight,
       zIndex: 2147483000,
-    });
+    }));
   };
   const selectModifier = (modifierId: string) => {
     onChange(modifierId);
@@ -3035,8 +4250,15 @@ function DetailVariationSelect({
         setDropdownOpen(false);
       }
     };
-    const closeOnPageScroll = (event: Event) => {
-      const target = event.target;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDropdownOpen(false);
+    };
+    let animationFrame: number | null = null;
+    const scheduleDropdownPositionUpdate = (
+      event?: Event,
+      unlockWidth = false,
+    ) => {
+      const target = event?.target;
       if (
         target instanceof Node &&
         dropdownMenuRef.current?.contains(target)
@@ -3044,12 +4266,14 @@ function DetailVariationSelect({
         return;
       }
 
-      setDropdownOpen(false);
+      if (unlockWidth) lockedDropdownWidthRef.current = null;
+      if (animationFrame !== null) return;
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updateDropdownMenuPosition();
+      });
     };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDropdownOpen(false);
-    };
-    const closeOnResize = () => setDropdownOpen(false);
 
     window.addEventListener(
       exerciseLibraryDropdownOpenEvent,
@@ -3057,18 +4281,24 @@ function DetailVariationSelect({
     );
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     document.addEventListener("keydown", closeOnEscape);
-    document.addEventListener("scroll", closeOnPageScroll, true);
-    window.addEventListener("resize", closeOnResize);
+    const handleScroll = (event: Event) =>
+      scheduleDropdownPositionUpdate(event);
+    const handleResize = () => scheduleDropdownPositionUpdate(undefined, true);
+    document.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", handleResize);
 
     return () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
       window.removeEventListener(
         exerciseLibraryDropdownOpenEvent,
         closeWhenAnotherDropdownOpens,
       );
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
       document.removeEventListener("keydown", closeOnEscape);
-      document.removeEventListener("scroll", closeOnPageScroll, true);
-      window.removeEventListener("resize", closeOnResize);
+      document.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleResize);
     };
   }, [dropdownId, open]);
 
@@ -3096,7 +4326,10 @@ function DetailVariationSelect({
             return;
           }
 
-          announceExerciseLibraryDropdownOpen(dropdownId);
+          announceExerciseLibraryDropdownOpen(dropdownId, {
+            parentId: parentDropdownId,
+            keepOpenIds: keepOpenDropdownIds,
+          });
           updateDropdownMenuPosition();
           setDropdownOpen(true);
         }}
@@ -3151,6 +4384,7 @@ function DetailVariationSelect({
             <div
               ref={dropdownMenuRef}
               style={dropdownMenuStyle}
+              data-exercise-library-floating-menu="true"
               className={`fixed overflow-hidden border ${accentClasses[accent].panel} p-1.5 backdrop-blur-2xl ${
                 isGrid ? "rounded-xl" : "rounded-2xl"
               }`}
@@ -3229,21 +4463,22 @@ function MovementMetadataPanel({
   metadata,
   selectedModifierIds,
   setSelectedModifierIds,
+  movementArchitectureChips,
+  classificationChipClass,
 }: {
   metadata: NormalizedExerciseCatalogItem | null;
   selectedModifierIds: ExerciseModifierId[];
   setSelectedModifierIds: Dispatch<SetStateAction<ExerciseModifierId[]>>;
+  movementArchitectureChips: MovementArchitectureChip[];
+  classificationChipClass?: string;
 }) {
   const modifierPanelId = useId();
   const modifierTriggerRef = useRef<HTMLButtonElement | null>(null);
   const modifierPopoverRef = useRef<HTMLDivElement | null>(null);
+  const lockedModifierPopoverWidthRef = useRef<number | null>(null);
   const [isModifierPanelOpen, setIsModifierPanelOpen] = useState(false);
   const [modifierPopoverStyle, setModifierPopoverStyle] =
     useState<CSSProperties | null>(null);
-  const loadBehaviorLabels = getModifierLabelsByCategory(
-    metadata,
-    "load-behavior",
-  );
   const compatibleModifierGroups = getCompatibleModifierGroups(metadata);
   const compatibleModifierCount = compatibleModifierGroups.reduce(
     (count, group) => count + group.modifiers.length,
@@ -3278,16 +4513,6 @@ function MovementMetadataPanel({
     });
   };
 
-  const selectedModifierLabels = selectedModifierIds
-    .map(getModifierLabel)
-    .filter(Boolean);
-  const selectedLoadBehaviorLabels = getSelectedModifiersByCategory(
-    selectedModifierIds,
-    "load-behavior",
-  ).map((modifier) => modifier.label);
-  const displayedLoadBehaviorLabels = selectedLoadBehaviorLabels.length
-    ? selectedLoadBehaviorLabels
-    : loadBehaviorLabels;
   const remainingModifierGroups = compatibleModifierGroups.filter(
     (group) =>
       !["apparatus", "angle-position", "training-intent"].includes(
@@ -3304,7 +4529,9 @@ function MovementMetadataPanel({
     const margin = viewportWidth < 640 ? 12 : 16;
     const preferredWidth =
       viewportWidth < 640 ? viewportWidth - margin * 2 : 760;
-    const width = Math.min(preferredWidth, viewportWidth - margin * 2);
+    const measuredWidth = Math.min(preferredWidth, viewportWidth - margin * 2);
+    const width = lockedModifierPopoverWidthRef.current ?? measuredWidth;
+    lockedModifierPopoverWidthRef.current = width;
     const centeredLeft = rect.left + rect.width / 2 - width / 2;
     const left = Math.min(
       Math.max(centeredLeft, margin),
@@ -3329,17 +4556,18 @@ function MovementMetadataPanel({
       maxHeight = Math.min(maxMenuHeight, viewportHeight - top - margin);
     }
 
-    setModifierPopoverStyle({
+    setStableFixedDropdownStyle(setModifierPopoverStyle, createFixedDropdownStyle({
       left,
       top,
       width,
       maxHeight,
       zIndex: 2147483647,
-    });
+    }));
   };
   const toggleModifierPanel = () => {
     if (isModifierPanelOpen) {
       setIsModifierPanelOpen(false);
+      lockedModifierPopoverWidthRef.current = null;
       setModifierPopoverStyle(null);
       return;
     }
@@ -3350,9 +4578,14 @@ function MovementMetadataPanel({
   };
 
   useEffect(() => {
-    if (!isModifierPanelOpen) return;
+    if (!isModifierPanelOpen) {
+      lockedModifierPopoverWidthRef.current = null;
+      setModifierPopoverStyle(null);
+      return;
+    }
     const closeModifierPanel = () => {
       setIsModifierPanelOpen(false);
+      lockedModifierPopoverWidthRef.current = null;
       setModifierPopoverStyle(null);
     };
 
@@ -3374,8 +4607,12 @@ function MovementMetadataPanel({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") closeModifierPanel();
     };
-    const closeOnPageScroll = (event: Event) => {
-      const target = event.target;
+    let animationFrame: number | null = null;
+    const scheduleModifierPopoverPositionUpdate = (
+      event?: Event,
+      unlockWidth = false,
+    ) => {
+      const target = event?.target;
       if (
         target instanceof Node &&
         modifierPopoverRef.current?.contains(target)
@@ -3383,9 +4620,14 @@ function MovementMetadataPanel({
         return;
       }
 
-      closeModifierPanel();
+      if (unlockWidth) lockedModifierPopoverWidthRef.current = null;
+      if (animationFrame !== null) return;
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updateModifierPopoverPosition();
+      });
     };
-    const closeOnResize = () => closeModifierPanel();
 
     window.addEventListener(
       exerciseLibraryDropdownOpenEvent,
@@ -3393,18 +4635,25 @@ function MovementMetadataPanel({
     );
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     document.addEventListener("keydown", closeOnEscape);
-    document.addEventListener("scroll", closeOnPageScroll, true);
-    window.addEventListener("resize", closeOnResize);
+    const handleScroll = (event: Event) =>
+      scheduleModifierPopoverPositionUpdate(event);
+    const handleResize = () =>
+      scheduleModifierPopoverPositionUpdate(undefined, true);
+    document.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", handleResize);
 
     return () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
       window.removeEventListener(
         exerciseLibraryDropdownOpenEvent,
         closeWhenAnotherDropdownOpens,
       );
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
       document.removeEventListener("keydown", closeOnEscape);
-      document.removeEventListener("scroll", closeOnPageScroll, true);
-      window.removeEventListener("resize", closeOnResize);
+      document.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleResize);
     };
   }, [isModifierPanelOpen, modifierPanelId]);
 
@@ -3423,21 +4672,10 @@ function MovementMetadataPanel({
 
       {metadata ? (
         <div className="mt-2.5 space-y-2">
-          <div className="flex w-full flex-wrap items-start gap-1.5">
-            {(selectedModifierLabels.length
-              ? selectedModifierLabels
-              : displayedLoadBehaviorLabels.length
-                ? displayedLoadBehaviorLabels
-                : ["Select compatible modifiers"]
-            ).map((label) => (
-              <span
-                key={label}
-                className="inline-flex max-w-full items-center rounded-full border border-violet-300/20 bg-violet-400/10 px-2.5 py-1 text-[10px] font-bold leading-4 text-violet-100"
-              >
-                <span className="min-w-0 break-words">{label}</span>
-              </span>
-            ))}
-          </div>
+          <MovementArchitectureChips
+            chips={movementArchitectureChips}
+            classificationChipClass={classificationChipClass}
+          />
 
           <div className="rounded-2xl border border-cyan-200/25 bg-[linear-gradient(135deg,rgba(34,211,238,0.22),rgba(16,185,129,0.12))] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_34px_rgba(8,145,178,0.16)]">
             <p className="text-[8px] font-black uppercase leading-3 tracking-[0.16em] text-cyan-100/75">
@@ -3780,7 +5018,11 @@ function ExerciseLibraryCard({
   viewMode: ExerciseLibraryViewMode;
   onAddToPlan: (exercise: Exercise) => void;
   onDeleteCustom: (id: string) => void;
-  onAddStats: (exercise: Exercise, mode: ExerciseStatsMenuMode) => void;
+  onAddStats: (
+    exercise: Exercise,
+    mode: ExerciseStatsMenuMode,
+    anchorElement?: HTMLElement | null,
+  ) => void;
   isMovementDetailsOpen: boolean;
   onToggleMovementDetails: (exerciseId: string | null) => void;
 }) {
@@ -3790,6 +5032,10 @@ function ExerciseLibraryCard({
   const [isVariationDropdownOpen, setIsVariationDropdownOpen] =
     useState(false);
   const [isSemanticDropdownOpen, setIsSemanticDropdownOpen] = useState(false);
+  const [isGridDetailsOpen, setIsGridDetailsOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const gridDetailsDropdownRef = useRef<HTMLDivElement | null>(null);
+  const settingsDropdownRef = useRef<HTMLDivElement | null>(null);
   const [explicitSemanticVariationId, setExplicitSemanticVariationId] =
     useState("");
   const semanticVariationOptions = metadata?.semanticVariations || [];
@@ -3801,14 +5047,11 @@ function ExerciseLibraryCard({
     semanticVariationOptions.find(
       (variation) => variation.id === explicitSemanticVariationId,
     ) || null;
-  const selectedSemanticVariation =
-    explicitSemanticVariation &&
-    getSemanticVariationMatchScore(
-      explicitSemanticVariation,
-      selectedModifierIds,
-    ) !== null
-      ? explicitSemanticVariation
-      : matchedSemanticVariation;
+  const selectedSemanticVariation = getPreferredSemanticVariation({
+    variations: semanticVariationOptions,
+    selectedModifierIds,
+    currentVariation: explicitSemanticVariation || matchedSemanticVariation,
+  });
   const variationName = getGeneratedVariationName(
     exercise,
     metadata,
@@ -3816,6 +5059,7 @@ function ExerciseLibraryCard({
   );
   const activeSemanticVariationName = selectedSemanticVariation?.name || "";
   const cardClassificationLabel = getCardClassificationLabel(metadata);
+  const categoryTheme = getCategoryTheme(cardClassificationLabel);
   const activeExerciseName = activeSemanticVariationName || variationName;
   const patternLabel = metadata?.movementPatternLabel || exercise.pattern;
   const equipmentLabel = getSelectedEquipmentLabel(
@@ -3841,6 +5085,7 @@ function ExerciseLibraryCard({
     metadata,
     selectedModifierIds,
   );
+  const muscleIntelligence = getExerciseMuscleIntelligence(exercise, metadata);
   const isGridView = viewMode === "grid";
   const latestGridStat = recentStats[0];
   const compatibleModifierGroups = getCompatibleModifierGroups(metadata);
@@ -3905,10 +5150,17 @@ function ExerciseLibraryCard({
     categoryIds: ExerciseModifierCategoryId[],
     modifierId: string,
   ) => {
+    const selectedModifierCategoryId = modifierId
+      ? getModifierCategoryId(modifierId as ExerciseModifierId)
+      : null;
+    const categoriesToClear = selectedModifierCategoryId
+      ? [selectedModifierCategoryId]
+      : categoryIds;
+
     setSelectedModifierIds((prev) => [
       ...prev.filter((id) => {
         const categoryId = getModifierCategoryId(id);
-        return !categoryId || !categoryIds.includes(categoryId);
+        return !categoryId || !categoriesToClear.includes(categoryId);
       }),
       ...(modifierId ? [modifierId as ExerciseModifierId] : []),
     ]);
@@ -3929,12 +5181,132 @@ function ExerciseLibraryCard({
   useEffect(() => {
     setSelectedModifierIds(getDefaultSelectedModifierIds(metadata));
     setExplicitSemanticVariationId("");
+    setIsGridDetailsOpen(false);
+    setIsSettingsOpen(false);
   }, [exercise.id, metadata?.id]);
 
+  const gridDetailsDropdownId = `details-${exercise.id.replace(
+    /[^a-zA-Z0-9_-]/g,
+    "-",
+  )}`;
+  const gridDetailsPanelId = `details-panel-${exercise.id.replace(
+    /[^a-zA-Z0-9_-]/g,
+    "-",
+  )}`;
+  const settingsDropdownId = `settings-${exercise.id.replace(
+    /[^a-zA-Z0-9_-]/g,
+    "-",
+  )}`;
   const movementDetailsPanelId = `movement-details-${exercise.id.replace(
     /[^a-zA-Z0-9_-]/g,
     "-",
   )}`;
+  const dropdownEventKeepsPanelOpen = (
+    detail: ExerciseLibraryDropdownOpenDetail | undefined,
+    panelId: string,
+  ) =>
+    detail?.id === panelId ||
+    detail?.parentId === panelId ||
+    Boolean(detail?.keepOpenIds?.includes(panelId));
+
+  useEffect(() => {
+    if (!isSettingsOpen) return;
+
+    const closeWhenAnotherDropdownOpens = (event: Event) => {
+      const detail = (event as CustomEvent<ExerciseLibraryDropdownOpenDetail>)
+        .detail;
+      if (!dropdownEventKeepsPanelOpen(detail, settingsDropdownId)) {
+        setIsSettingsOpen(false);
+      }
+    };
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (
+        target instanceof Node &&
+        settingsDropdownRef.current &&
+        !settingsDropdownRef.current.contains(target) &&
+        !(
+          target instanceof Element &&
+          target.closest('[data-exercise-library-floating-menu="true"]')
+        )
+      ) {
+        setIsSettingsOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsSettingsOpen(false);
+    };
+
+    window.addEventListener(
+      exerciseLibraryDropdownOpenEvent,
+      closeWhenAnotherDropdownOpens,
+    );
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      window.removeEventListener(
+        exerciseLibraryDropdownOpenEvent,
+        closeWhenAnotherDropdownOpens,
+      );
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isSettingsOpen, settingsDropdownId]);
+  useEffect(() => {
+    if (!isGridDetailsOpen) return;
+
+    const closeWhenAnotherDropdownOpens = (event: Event) => {
+      const detail = (event as CustomEvent<ExerciseLibraryDropdownOpenDetail>)
+        .detail;
+      if (
+        !dropdownEventKeepsPanelOpen(detail, gridDetailsDropdownId) &&
+        !dropdownEventKeepsPanelOpen(detail, settingsDropdownId)
+      ) {
+        setIsGridDetailsOpen(false);
+        setIsSettingsOpen(false);
+      }
+    };
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (
+        target instanceof Node &&
+        gridDetailsDropdownRef.current &&
+        !gridDetailsDropdownRef.current.contains(target) &&
+        !(
+          target instanceof Element &&
+          target.closest('[data-exercise-library-floating-menu="true"]')
+        )
+      ) {
+        setIsGridDetailsOpen(false);
+        setIsSettingsOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsGridDetailsOpen(false);
+        setIsSettingsOpen(false);
+      }
+    };
+
+    window.addEventListener(
+      exerciseLibraryDropdownOpenEvent,
+      closeWhenAnotherDropdownOpens,
+    );
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      window.removeEventListener(
+        exerciseLibraryDropdownOpenEvent,
+        closeWhenAnotherDropdownOpens,
+      );
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [gridDetailsDropdownId, isGridDetailsOpen, settingsDropdownId]);
   const handleMovementDetailsToggle = () => {
     if (isMovementDetailsOpen) {
       onToggleMovementDetails(null);
@@ -3944,7 +5316,7 @@ function ExerciseLibraryCard({
     announceExerciseLibraryDropdownOpen(movementDetailsPanelId);
     onToggleMovementDetails(exercise.id);
   };
-  const handleAddStats = () =>
+  const handleAddStats = (event?: MouseEvent<HTMLButtonElement>) =>
     onAddStats(
       {
         ...exercise,
@@ -3954,6 +5326,7 @@ function ExerciseLibraryCard({
         goal: goalLabel,
       },
       isGridView ? "grid" : "detail",
+      event?.currentTarget || null,
     );
   const actionButtons = (
     <div
@@ -3999,6 +5372,166 @@ function ExerciseLibraryCard({
       ) : null}
     </div>
   );
+  const settingsControls = modifierControls.length ? (
+    <div className="grid gap-2 text-xs">
+      {modifierControls.map((control) => (
+        <LabeledModifierSelect
+          key={control.key}
+          label={control.label}
+          value={control.value}
+          options={control.options}
+          fallback={control.fallback}
+          onOpenChange={setIsVariationDropdownOpen}
+          onChange={(modifierId) =>
+            setModifierForCategories(control.categories, modifierId)
+          }
+          parentDropdownId={settingsDropdownId}
+          keepOpenDropdownIds={[settingsDropdownId, gridDetailsDropdownId]}
+          accent={control.accent}
+          size={isGridView ? "grid" : "detail"}
+        />
+      ))}
+    </div>
+  ) : null;
+  const settingsButtonClass = `flex w-full items-center justify-between border border-cyan-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.16),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.70))] text-left font-black uppercase text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_26px_rgba(0,0,0,0.24)] transition hover:border-cyan-100/45 hover:bg-cyan-300/10 ${
+    isGridView
+      ? "min-h-[34px] rounded-xl px-2.5 py-1.5 text-[9px] tracking-[0.08em] sm:text-[10px]"
+      : "min-h-[42px] rounded-2xl px-3.5 py-2 text-[11px] tracking-[0.12em]"
+  }`;
+  const renderSettingsChevron = (open: boolean) => (
+    <span
+      aria-hidden="true"
+      className={`flex items-center justify-center rounded-full border border-cyan-200/20 bg-cyan-300/10 text-cyan-100 transition ${
+        isGridView ? "h-5 w-5 text-[10px]" : "h-6 w-6 text-xs"
+      } ${
+        open
+          ? "rotate-180 border-cyan-100/50 bg-cyan-300/20"
+          : ""
+      }`}
+    >
+      v
+    </span>
+  );
+  const settingsPanelHeader = (
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+      <p className="min-w-0 flex-1 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/70">
+        Exercise Settings
+      </p>
+      <span className="shrink-0 whitespace-nowrap rounded-full border border-cyan-200/12 bg-cyan-300/[0.07] px-1.5 py-px text-[7px] font-black uppercase leading-4 tracking-[0.1em] text-cyan-100/50">
+        Mapped
+      </span>
+    </div>
+  );
+  const renderExerciseSettingsDropdown = ({
+    label,
+    wrapperClassName,
+    panelClassName,
+  }: {
+    label: string;
+    wrapperClassName: string;
+    panelClassName: string;
+  }) =>
+    modifierControls.length ? (
+      <div ref={settingsDropdownRef} className={wrapperClassName}>
+        <button
+          type="button"
+          aria-expanded={isSettingsOpen}
+          onClick={() => {
+            if (!isSettingsOpen) {
+              announceExerciseLibraryDropdownOpen(
+                settingsDropdownId,
+                isGridView
+                  ? {
+                      parentId: gridDetailsDropdownId,
+                      keepOpenIds: [gridDetailsDropdownId],
+                    }
+                  : undefined,
+              );
+            }
+            setIsSettingsOpen((current) => !current);
+          }}
+          className={settingsButtonClass}
+        >
+          <span>{label}</span>
+          {renderSettingsChevron(isSettingsOpen)}
+        </button>
+
+        {isSettingsOpen ? (
+          <div className={panelClassName}>
+            {settingsPanelHeader}
+            {settingsControls}
+          </div>
+        ) : null}
+      </div>
+    ) : null;
+  const settingsDropdown = renderExerciseSettingsDropdown({
+    label: "Customize Settings",
+    wrapperClassName: "relative mt-3",
+    panelClassName:
+      "relative z-[80] mt-2.5 rounded-2xl border border-cyan-100/30 bg-slate-950/95 p-2.5 shadow-[0_24px_74px_rgba(0,0,0,0.72),0_0_34px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-200/10 backdrop-blur-2xl",
+  });
+  const gridExerciseSettingsDropdown = renderExerciseSettingsDropdown({
+    label: "Exercise Settings",
+    wrapperClassName: "relative z-[140]",
+    panelClassName:
+      "absolute left-0 right-0 top-full z-[940] mt-1.5 max-h-[210px] overflow-y-auto overscroll-contain rounded-2xl border border-cyan-100/35 bg-slate-950/98 p-2.5 shadow-[0_24px_76px_rgba(0,0,0,0.78),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-200/14 backdrop-blur-2xl [scrollbar-color:rgba(34,211,238,0.42)_transparent] [scrollbar-width:thin]",
+  });
+  const gridDetailsDropdown = (
+    <div ref={gridDetailsDropdownRef} className="relative mt-1.5 sm:mt-2">
+      <button
+        type="button"
+        aria-controls={gridDetailsPanelId}
+        aria-expanded={isGridDetailsOpen}
+        onClick={() => {
+          if (!isGridDetailsOpen) {
+            announceExerciseLibraryDropdownOpen(gridDetailsDropdownId);
+            setIsSettingsOpen(false);
+          }
+          setIsGridDetailsOpen((current) => {
+            if (current) setIsSettingsOpen(false);
+            return !current;
+          });
+        }}
+        className={settingsButtonClass}
+      >
+        <span>Details & Settings</span>
+        {renderSettingsChevron(isGridDetailsOpen)}
+      </button>
+
+      {isGridDetailsOpen ? (
+        <div
+          id={gridDetailsPanelId}
+          className="mt-2 overflow-visible rounded-2xl border border-cyan-100/24 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.94))] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_12px_34px_rgba(0,0,0,0.34)] ring-1 ring-cyan-200/10"
+        >
+          <div className="p-2.5">
+            {gridExerciseSettingsDropdown}
+
+            <MuscleIntelligenceBlock
+              muscles={muscleIntelligence}
+              compact
+              showSourceBadge={false}
+            />
+
+            <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100/60">
+                  Movement Intelligence
+                </p>
+                <span className="shrink-0 whitespace-nowrap rounded-full border border-cyan-200/12 bg-cyan-300/[0.07] px-1.5 py-px text-[7px] font-black uppercase leading-4 tracking-[0.1em] text-cyan-100/50">
+                  Mapped
+                </span>
+              </div>
+              <MovementArchitectureChips
+                chips={movementArchitectureChips}
+                compact
+                classificationChipClass={categoryTheme.pillClass}
+              />
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
   const movementDetails = (
     <div className="group mt-2.5 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.055] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_40px_rgba(8,145,178,0.12)] backdrop-blur-2xl">
       <button
@@ -4035,6 +5568,8 @@ function ExerciseLibraryCard({
             metadata={metadata}
             selectedModifierIds={selectedModifierIds}
             setSelectedModifierIds={setSelectedModifierIds}
+            movementArchitectureChips={movementArchitectureChips}
+            classificationChipClass={categoryTheme.pillClass}
           />
 
           <MovementSuggestionsPanel suggestions={suggestions} />
@@ -4058,13 +5593,17 @@ function ExerciseLibraryCard({
   if (isGridView) {
     return (
       <article
-        className={`group relative self-start overflow-visible rounded-2xl border border-white/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.035))] shadow-[0_16px_46px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150 transition hover:border-cyan-200/25 hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.16),rgba(255,255,255,0.045))] ${
-          isVariationDropdownOpen || isSemanticDropdownOpen
+        className={`group relative self-start overflow-visible rounded-2xl border backdrop-blur-2xl backdrop-saturate-150 transition ${categoryTheme.surfaceClass} ${categoryTheme.cardClass} ${categoryTheme.hoverClass} ${
+          isVariationDropdownOpen ||
+          isSemanticDropdownOpen ||
+          isGridDetailsOpen ||
+          isSettingsOpen
             ? "z-[520]"
             : "z-0 hover:z-20"
         }`}
       >
-        <div className="pointer-events-none absolute inset-0 z-0 rounded-2xl bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.16),transparent_30%),linear-gradient(120deg,rgba(255,255,255,0.12)_0%,rgba(255,255,255,0.035)_42%,transparent_74%)] opacity-70" />
+        <div className={`pointer-events-none absolute inset-0 z-0 rounded-2xl ${categoryTheme.overlayClass} opacity-70`} />
+        <div className={`pointer-events-none absolute inset-x-0 top-0 z-[12] h-px ${categoryTheme.accentClass}`} />
 
         <div className="relative z-10 h-16 overflow-hidden rounded-t-2xl bg-slate-950/70 sm:h-24">
           <img
@@ -4072,7 +5611,7 @@ function ExerciseLibraryCard({
             alt={cardTitle}
             className="h-full w-full object-cover opacity-78 transition duration-500 group-hover:scale-105 group-hover:opacity-95"
           />
-          <div className="absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate rounded-full border border-cyan-300/20 bg-slate-950/65 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-200 backdrop-blur-xl sm:bottom-2 sm:left-2 sm:px-2.5 sm:py-1 sm:text-[9px] sm:tracking-[0.12em]">
+          <div className={`absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate rounded-full border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.08em] backdrop-blur-xl sm:bottom-2 sm:left-2 sm:px-2.5 sm:py-1 sm:text-[9px] sm:tracking-[0.12em] ${categoryTheme.pillClass}`}>
             {exercise.body}
           </div>
         </div>
@@ -4096,25 +5635,7 @@ function ExerciseLibraryCard({
             compact
           />
 
-          <div className="mt-1.5 grid grid-cols-1 gap-1 sm:mt-2 sm:gap-1.5">
-            {modifierControls.map((control) => (
-              <LabeledModifierSelect
-                key={control.key}
-                label={control.label}
-                value={control.value}
-                options={control.options}
-                fallback={control.fallback}
-                onOpenChange={setIsVariationDropdownOpen}
-                onChange={(modifierId) =>
-                  setModifierForCategories(control.categories, modifierId)
-                }
-                accent={control.accent}
-                size="grid"
-              />
-            ))}
-          </div>
-
-          <MovementArchitectureChips chips={movementArchitectureChips} compact />
+          {gridDetailsDropdown}
 
           <div className="mt-1.5 rounded-lg border border-cyan-100/15 bg-[linear-gradient(135deg,rgba(34,211,238,0.11),rgba(16,185,129,0.075))] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl sm:mt-2 sm:rounded-xl sm:px-2.5 sm:py-2">
             <div className="hidden items-center justify-between gap-2 sm:flex">
@@ -4169,15 +5690,19 @@ function ExerciseLibraryCard({
 
   return (
     <article
-      className={`group relative mb-4 inline-block w-full break-inside-avoid self-start overflow-visible rounded-[30px] border border-white/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.13),rgba(255,255,255,0.035))] shadow-[0_24px_80px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.20)] backdrop-blur-2xl backdrop-saturate-150 transition hover:border-white/30 hover:bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.055))] hover:shadow-[0_32px_100px_rgba(0,0,0,0.56),inset_0_1px_0_rgba(255,255,255,0.26)] ${
-        isVariationDropdownOpen || isSemanticDropdownOpen
+      className={`group relative mb-4 inline-block w-full break-inside-avoid self-start overflow-visible rounded-[30px] border backdrop-blur-2xl backdrop-saturate-150 transition ${categoryTheme.surfaceClass} ${categoryTheme.cardClass} ${categoryTheme.hoverClass} ${
+        isVariationDropdownOpen ||
+        isSemanticDropdownOpen ||
+        isGridDetailsOpen ||
+        isSettingsOpen
           ? "z-[520]"
           : isMovementDetailsOpen
             ? "z-[120]"
             : "z-0 hover:z-20"
       }`}
     >
-      <div className="pointer-events-none absolute inset-0 z-0 rounded-[30px] bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.18),transparent_34%),linear-gradient(120deg,rgba(255,255,255,0.16)_0%,rgba(255,255,255,0.055)_36%,transparent_68%)] opacity-70" />
+      <div className={`pointer-events-none absolute inset-0 z-0 rounded-[30px] ${categoryTheme.overlayClass} opacity-70`} />
+      <div className={`pointer-events-none absolute inset-x-0 top-0 z-[12] h-px ${categoryTheme.accentClass}`} />
 
       <div
         className={`relative z-10 overflow-hidden rounded-t-[30px] bg-slate-950/60 ${
@@ -4193,12 +5718,12 @@ function ExerciseLibraryCard({
 
       <div className="relative z-10 p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-300">
+          <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${categoryTheme.pillClass}`}>
             {exercise.body}
           </span>
 
           {cardClassificationLabel ? (
-            <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200">
+            <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${categoryTheme.pillClass}`}>
               {cardClassificationLabel}
             </span>
           ) : null}
@@ -4224,41 +5749,11 @@ function ExerciseLibraryCard({
           onChange={handleSemanticVariationChange}
           onOpenChange={setIsSemanticDropdownOpen}
         />
+        {settingsDropdown}
       </div>
 
-      {modifierControls.length ? (
-        <div className="relative z-20 mx-4 -mt-1 rounded-[24px] border border-white/12 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.10),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.82),rgba(2,6,23,0.58))] p-2 shadow-[0_16px_42px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl">
-          <div
-            className="grid gap-2 text-xs"
-            style={{
-              gridTemplateColumns:
-                "repeat(auto-fit, minmax(min(100%, 10.75rem), 1fr))",
-            }}
-          >
-          {modifierControls.map((control) => (
-            <LabeledModifierSelect
-              key={control.key}
-              label={control.label}
-              value={control.value}
-              options={control.options}
-              fallback={control.fallback}
-              onOpenChange={setIsVariationDropdownOpen}
-              onChange={(modifierId) =>
-                setModifierForCategories(control.categories, modifierId)
-              }
-              accent={control.accent}
-            />
-          ))}
-          </div>
-        </div>
-      ) : null}
-
       <div className="relative z-10 px-5 pb-5 pt-3">
-        <p className="mt-1.5 text-sm leading-5 text-white/55 drop-shadow-[0_0_8px_rgba(255,255,255,0.18)]">
-          {exercise.muscles || exercise.body}
-        </p>
-
-        <MovementArchitectureChips chips={movementArchitectureChips} />
+        <MuscleIntelligenceBlock muscles={muscleIntelligence} />
 
         <div className="mt-3 text-xs">
           <DetailVariationSelect
@@ -4289,6 +5784,8 @@ export default function ExerciseLibraryPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [viewMode, setViewMode] =
     useState<ExerciseLibraryViewMode>("detail");
+  const [sortMode, setSortMode] =
+    useState<ExerciseLibrarySortMode>("category");
   const exercisesPerPage = 12;
   const [bodyFilters, setBodyFilters] = useState<string[]>([]);
   const [goalFilter, setGoalFilter] = useState("All");
@@ -4307,6 +5804,10 @@ export default function ExerciseLibraryPage() {
   const [statsMenuMode, setStatsMenuMode] =
     useState<ExerciseStatsMenuMode>("detail");
   const statsMenuRef = useRef<HTMLDivElement | null>(null);
+  const statsMenuAnchorRef = useRef<HTMLElement | null>(null);
+  const lockedStatsMenuWidthRef = useRef<number | null>(null);
+  const [statsMenuStyle, setStatsMenuStyle] =
+    useState<CSSProperties | null>(null);
   const [statWeight, setStatWeight] = useState("");
   const [statReps, setStatReps] = useState("");
   const [statSets, setStatSets] = useState("");
@@ -4366,18 +5867,25 @@ export default function ExerciseLibraryPage() {
     return [...normalizedSystemExercises, ...customExercises];
   }, [customExercises]);
 
-  const apparatusOptions = useMemo(
-    () =>
-      createCountedFilterOptions({
-        allHelper: formatCountLabel(
-          normalizedCatalog.filterOptions.apparatus.length,
-          "equipment option",
-        ),
-        group: "Equipment",
-        items: normalizedCatalog.filterOptions.apparatus,
-      }),
-    [],
-  );
+  const apparatusOptions = useMemo(() => {
+    const equipmentCounts = normalizedCatalog.filterOptions.apparatus.reduce(
+      (counts, option) => {
+        const label = normalizeEquipmentLabel(option.label);
+        counts.set(label, (counts.get(label) || 0) + option.count);
+        return counts;
+      },
+      new Map<string, number>(),
+    );
+    const equipmentItems = Array.from(equipmentCounts.entries())
+      .map(([label, count]) => ({ label, count }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+
+    return createCountedFilterOptions({
+      allHelper: formatCountLabel(equipmentItems.length, "equipment option"),
+      group: "Equipment",
+      items: equipmentItems,
+    });
+  }, []);
 
   const bodyOptions = useMemo(
     () => getUniqueOptions(allExercises, "body"),
@@ -4407,6 +5915,91 @@ export default function ExerciseLibraryPage() {
       })),
     });
   }, [allExercises]);
+
+  const searchSuggestions = useMemo<SearchSuggestion[]>(() => {
+    const suggestions = new Map<string, SearchSuggestion>();
+    const addSuggestion = (suggestion: SearchSuggestion) => {
+      const key = `${suggestion.group}:${suggestion.label}`.toLowerCase();
+      if (!suggestions.has(key)) suggestions.set(key, suggestion);
+    };
+
+    movementTypeOptions.forEach((option) => {
+      addSuggestion({
+        id: `movement-${option.value}`,
+        label: option.label,
+        group: "Movement Type",
+        helper: option.group,
+        query: option.label,
+        aliases: [
+          option.value,
+          ...option.coreMovementIds.map(
+            (id) => CORE_MOVEMENT_BY_ID[id]?.label || id,
+          ),
+          ...option.movementPatternIds.map(
+            (id) => MOVEMENT_PATTERN_BY_ID[id]?.label || id,
+          ),
+        ],
+      });
+    });
+
+    normalizedCatalog.items.forEach((item) => {
+      item.semanticVariations.forEach((variation) => {
+        addSuggestion({
+          id: `variation-${variation.id}`,
+          label: variation.name,
+          group: "Exercise Variation",
+          helper: item.coreMovementLabel,
+          query: variation.name,
+          aliases: variation.aliases,
+        });
+      });
+    });
+
+    apparatusOptions
+      .filter((option) => option.value !== "All")
+      .forEach((option) => {
+        addSuggestion({
+          id: `equipment-${option.value}`,
+          label: option.label,
+          group: "Equipment",
+          helper: option.helper,
+          query: option.label,
+          aliases:
+            option.label === "TRX"
+              ? ["trx", "suspension trainer", "suspension training"]
+              : [option.value],
+        });
+      });
+
+    bodyOptions
+      .filter((body) => body !== "All")
+      .forEach((body) => {
+        addSuggestion({
+          id: `body-${body}`,
+          label: body,
+          group: "Body Region",
+          query: body,
+        });
+      });
+
+    goalOptions
+      .filter((option) => option.value !== "All")
+      .forEach((option) => {
+        addSuggestion({
+          id: `goal-${option.value}`,
+          label: option.label,
+          group: "Goal",
+          helper: option.helper,
+          query: option.label,
+        });
+      });
+
+    return Array.from(suggestions.values()).sort(
+      (left, right) =>
+        left.group.localeCompare(right.group) ||
+        left.label.localeCompare(right.label),
+    );
+  }, [apparatusOptions, bodyOptions, goalOptions]);
 
   const levelAvailabilityBase = useMemo(() => {
     return allExercises.filter((exercise) => {
@@ -4476,9 +6069,7 @@ export default function ExerciseLibraryPage() {
         );
       const matchesApparatus =
         apparatusFilter === "All" ||
-        getModifierLabelsByCategory(metadata, "apparatus").includes(
-          apparatusFilter,
-        );
+        getApparatusFilterLabelsForMetadata(metadata).includes(apparatusFilter);
       const matchesLoadBehavior =
         loadBehaviorFilter === "All" ||
         loadBehaviorLabels.includes(loadBehaviorFilter);
@@ -4515,6 +6106,58 @@ export default function ExerciseLibraryPage() {
     [filtered],
   );
 
+  const sortOptions = useMemo<FilterMenuOption[]>(() => {
+    const hasStats = savedExerciseStats.length > 0;
+
+    return [
+      {
+        value: "category",
+        label: sortModeLabels.category,
+        helper: "Architecture group order",
+      },
+      {
+        value: "alpha",
+        label: sortModeLabels.alpha,
+        helper: "Title order",
+      },
+      {
+        value: "difficulty",
+        label: sortModeLabels.difficulty,
+        helper: "Beginner to Advanced",
+      },
+      {
+        value: "body",
+        label: sortModeLabels.body,
+        helper: "Body region groups",
+      },
+      ...(hasStats
+        ? [
+            {
+              value: "recent",
+              label: sortModeLabels.recent,
+              helper: "Latest logged first",
+            },
+            {
+              value: "logged",
+              label: sortModeLabels.logged,
+              helper: "Highest log count first",
+            },
+          ]
+        : []),
+    ];
+  }, [savedExerciseStats.length]);
+
+  useEffect(() => {
+    if (!sortOptions.some((option) => option.value === sortMode)) {
+      setSortMode("category");
+    }
+  }, [sortMode, sortOptions]);
+
+  const sortedFocusedExercises = useMemo(
+    () => sortExercisesForLibrary(focusedExercises, sortMode, savedExerciseStats),
+    [focusedExercises, sortMode, savedExerciseStats],
+  );
+
   const levelCounts = useMemo(
     () =>
       levelSegments.reduce<Record<string, number>>((counts, segment) => {
@@ -4529,12 +6172,17 @@ export default function ExerciseLibraryPage() {
     [levelAvailabilityBase],
   );
 
-  const totalPages = Math.ceil(focusedExercises.length / exercisesPerPage);
+  const totalPages = Math.ceil(sortedFocusedExercises.length / exercisesPerPage);
 
   const paginatedExercises = useMemo(() => {
     const startIndex = (currentPage - 1) * exercisesPerPage;
-    return focusedExercises.slice(startIndex, startIndex + exercisesPerPage);
-  }, [focusedExercises, currentPage, exercisesPerPage]);
+    return sortedFocusedExercises.slice(startIndex, startIndex + exercisesPerPage);
+  }, [sortedFocusedExercises, currentPage, exercisesPerPage]);
+
+  const paginatedExerciseSections = useMemo(
+    () => groupExercisesIntoSections(paginatedExercises, sortMode),
+    [paginatedExercises, sortMode],
+  );
 
   useEffect(() => {
     setCurrentPage(1);
@@ -4547,6 +6195,7 @@ export default function ExerciseLibraryPage() {
     movementTypeFilter,
     apparatusFilter,
     loadBehaviorFilter,
+    sortMode,
   ]);
 
   useEffect(() => {
@@ -4645,13 +6294,106 @@ export default function ExerciseLibraryPage() {
     );
   };
 
-  const openStatsMenu = (exercise: Exercise, mode: ExerciseStatsMenuMode) => {
+  const updateStatsMenuPosition = (mode: ExerciseStatsMenuMode = statsMenuMode) => {
+    const anchor = statsMenuAnchorRef.current;
+    if (!anchor || !anchor.isConnected) {
+      setStatsMenuStyle(null);
+      return;
+    }
+
+    const rect = anchor.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const margin = 12;
+    const gap = 12;
+    const isDetailMode = mode === "detail";
+    const maxHeight = isDetailMode
+      ? Math.min(Math.round(viewportHeight * 0.86), viewportHeight - margin * 2)
+      : Math.min(430, viewportHeight - margin * 2);
+    const measuredHeight = Math.min(
+      statsMenuRef.current?.offsetHeight || (isDetailMode ? 640 : 360),
+      maxHeight,
+    );
+    const measuredWidth = Math.min(
+      viewportWidth < 640
+        ? viewportWidth - margin * 2
+        : isDetailMode
+          ? 760
+          : 380,
+      viewportWidth - margin * 2,
+    );
+    const width = lockedStatsMenuWidthRef.current ?? measuredWidth;
+    lockedStatsMenuWidthRef.current = width;
+    const centeredLeft = rect.left + rect.width / 2 - width / 2;
+    const centeredTop = rect.top + rect.height / 2 - measuredHeight / 2;
+    const canOpenRight = rect.right + gap + width <= viewportWidth - margin;
+    const canOpenLeft = rect.left - gap - width >= margin;
+    const canOpenBelow =
+      rect.bottom + gap + measuredHeight <= viewportHeight - margin;
+    const canOpenAbove = rect.top - gap - measuredHeight >= margin;
+    let left = centeredLeft;
+    let top = centeredTop;
+
+    if (viewportWidth >= 640 && canOpenRight) {
+      left = rect.right + gap;
+      top = centeredTop;
+    } else if (viewportWidth >= 640 && canOpenLeft) {
+      left = rect.left - gap - width;
+      top = centeredTop;
+    } else if (canOpenBelow) {
+      left = centeredLeft;
+      top = rect.bottom + gap;
+    } else if (canOpenAbove) {
+      left = centeredLeft;
+      top = rect.top - gap - measuredHeight;
+    }
+
+    left = Math.min(
+      Math.max(left, margin),
+      Math.max(margin, viewportWidth - width - margin),
+    );
+    top = Math.min(
+      Math.max(top, margin),
+      Math.max(margin, viewportHeight - measuredHeight - margin),
+    );
+
+    setStableFixedDropdownStyle(
+      setStatsMenuStyle,
+      createFixedDropdownStyle({
+        left,
+        top,
+        width,
+        maxHeight,
+        zIndex: 2147483647,
+      }),
+    );
+  };
+
+  const resetStatsMenuAnchor = () => {
+    statsMenuAnchorRef.current = null;
+    lockedStatsMenuWidthRef.current = null;
+    setStatsMenuStyle(null);
+  };
+
+  const openStatsMenu = (
+    exercise: Exercise,
+    mode: ExerciseStatsMenuMode,
+    anchorElement?: HTMLElement | null,
+  ) => {
     setStatsMenuMode(mode);
+    if (anchorElement) {
+      statsMenuAnchorRef.current = anchorElement;
+      lockedStatsMenuWidthRef.current = null;
+      updateStatsMenuPosition(mode);
+    } else {
+      resetStatsMenuAnchor();
+    }
     setStatsExercise(exercise);
   };
 
   const closeStatsMenu = () => {
     setStatsExercise(null);
+    resetStatsMenuAnchor();
   };
 
   const saveStatsEntry = () => {
@@ -4683,6 +6425,9 @@ export default function ExerciseLibraryPage() {
     setStatWeight("");
     setStatReps("");
     setStatSets("");
+    if (statsMenuMode === "grid") {
+      closeStatsMenu();
+    }
   };
 
   useEffect(() => {
@@ -4696,11 +6441,11 @@ export default function ExerciseLibraryPage() {
         statsMenuRef.current &&
         !statsMenuRef.current.contains(target)
       ) {
-        setStatsExercise(null);
+        closeStatsMenu();
       }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setStatsExercise(null);
+      if (event.key === "Escape") closeStatsMenu();
     };
 
     document.addEventListener("pointerdown", closeOnOutsidePointer);
@@ -4712,27 +6457,108 @@ export default function ExerciseLibraryPage() {
     };
   }, [statsExercise]);
 
+  useEffect(() => {
+    if (!statsExercise) return;
+
+    updateStatsMenuPosition(statsMenuMode);
+
+    let animationFrame: number | null = null;
+    const schedulePositionUpdate = (event?: Event, unlockWidth = false) => {
+      const target = event?.target;
+      if (target instanceof Node && statsMenuRef.current?.contains(target)) {
+        return;
+      }
+
+      if (unlockWidth) lockedStatsMenuWidthRef.current = null;
+      if (animationFrame !== null) return;
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updateStatsMenuPosition(statsMenuMode);
+      });
+    };
+    const handleScroll = (event: Event) => schedulePositionUpdate(event);
+    const handleResize = () => schedulePositionUpdate(undefined, true);
+
+    document.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      document.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [statsExercise, statsMenuMode]);
+
   const FilterMenu = ({
     label,
     value,
     options,
     onChange,
     accent = "cyan",
+    widePanel = false,
+    searchable = false,
+    groupOrder = [],
+    panelWidth = 560,
+    preserveOrder = false,
   }: {
     label: string;
     value: string;
     options: Array<string | FilterMenuOption>;
     onChange: (value: string) => void;
     accent?: "cyan" | "emerald" | "blue" | "violet";
+    widePanel?: boolean;
+    searchable?: boolean;
+    groupOrder?: string[];
+    panelWidth?: number;
+    preserveOrder?: boolean;
   }) => {
     const dropdownId = useId();
     const dropdownRef = useRef<HTMLDivElement | null>(null);
+    const buttonRef = useRef<HTMLButtonElement | null>(null);
+    const panelRef = useRef<HTMLDivElement | null>(null);
+    const lockedPanelWidthRef = useRef<number | null>(null);
     const [open, setOpen] = useState(false);
+    const [panelQuery, setPanelQuery] = useState("");
+    const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
     const normalizedOptions: FilterMenuOption[] = options.map((option) =>
       typeof option === "string"
         ? { value: option, label: option }
         : option,
     );
+    const allOption = normalizedOptions.find((option) => option.value === "All");
+    const nonAllOptions = normalizedOptions.filter(
+      (option) => option.value !== "All",
+    );
+    const sortedOptions = [
+      ...(allOption ? [allOption] : []),
+      ...(preserveOrder
+        ? nonAllOptions
+        : nonAllOptions.sort((left, right) => {
+            const leftGroupIndex = groupOrder.indexOf(left.group || "");
+            const rightGroupIndex = groupOrder.indexOf(right.group || "");
+            const leftGroupSort =
+              leftGroupIndex === -1 ? Number.MAX_SAFE_INTEGER : leftGroupIndex;
+            const rightGroupSort =
+              rightGroupIndex === -1 ? Number.MAX_SAFE_INTEGER : rightGroupIndex;
+
+            return (
+              leftGroupSort - rightGroupSort ||
+              (left.group || "").localeCompare(right.group || "") ||
+              left.label.localeCompare(right.label)
+            );
+          })),
+    ];
+    const filteredOptions = panelQuery.trim()
+      ? sortedOptions.filter((option) =>
+          [option.label, option.group || "", option.helper || ""]
+            .join(" ")
+            .toLowerCase()
+            .includes(panelQuery.trim().toLowerCase()),
+        )
+      : sortedOptions;
     const selectedOption =
       normalizedOptions.find((option) => option.value === value) ||
       normalizedOptions[0];
@@ -4784,6 +6610,50 @@ export default function ExerciseLibraryPage() {
       },
     };
 
+    const updatePanelPosition = () => {
+      const button = buttonRef.current;
+      if (!button || !widePanel) return;
+
+      const rect = button.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const margin = 12;
+      const safeTop = getTopNavigationSafeArea();
+      const measuredWidth = Math.min(
+        Math.max(rect.width, panelWidth),
+        viewportWidth - margin * 2,
+      );
+      const width = lockedPanelWidthRef.current ?? measuredWidth;
+      lockedPanelWidthRef.current = width;
+      const usableHeight = Math.max(160, viewportHeight - safeTop - margin);
+      const minPanelHeight = Math.min(240, usableHeight);
+      const panelMaxHeight = Math.min(520, usableHeight);
+      const preferredTop = Math.max(rect.bottom + 8, safeTop);
+      const top = Math.min(
+        preferredTop,
+        Math.max(safeTop, viewportHeight - minPanelHeight - margin),
+      );
+      const left = Math.min(
+        Math.max(rect.left, margin),
+        Math.max(margin, viewportWidth - width - margin),
+      );
+      const maxHeight = Math.max(
+        minPanelHeight,
+        Math.min(panelMaxHeight, viewportHeight - top - margin),
+      );
+
+      setStableFixedDropdownStyle(
+        setPanelStyle,
+        createFixedDropdownStyle({
+          left,
+          top,
+          width,
+          maxHeight,
+          zIndex: topFilterDropdownZIndex,
+        }),
+      );
+    };
+
     useEffect(() => {
       const closeWhenAnotherDropdownOpens = (event: Event) => {
         const detail = (event as CustomEvent<{ id: string }>).detail;
@@ -4794,10 +6664,14 @@ export default function ExerciseLibraryPage() {
         if (
           target instanceof Node &&
           dropdownRef.current &&
-          !dropdownRef.current.contains(target)
+          !dropdownRef.current.contains(target) &&
+          !panelRef.current?.contains(target)
         ) {
           setOpen(false);
         }
+      };
+      const closeOnEscape = (event: KeyboardEvent) => {
+        if (event.key === "Escape") setOpen(false);
       };
 
       window.addEventListener(
@@ -4805,6 +6679,7 @@ export default function ExerciseLibraryPage() {
         closeWhenAnotherDropdownOpens,
       );
       document.addEventListener("pointerdown", closeOnOutsidePointer);
+      document.addEventListener("keydown", closeOnEscape);
 
       return () => {
         window.removeEventListener(
@@ -4812,18 +6687,110 @@ export default function ExerciseLibraryPage() {
           closeWhenAnotherDropdownOpens,
         );
         document.removeEventListener("pointerdown", closeOnOutsidePointer);
+        document.removeEventListener("keydown", closeOnEscape);
       };
     }, [dropdownId]);
+
+    useEffect(() => {
+      if (!open) {
+        lockedPanelWidthRef.current = null;
+        setPanelStyle(null);
+        setPanelQuery("");
+        return;
+      }
+
+      if (!widePanel) return;
+
+      updatePanelPosition();
+
+      let animationFrame: number | null = null;
+      const schedulePositionUpdate = (unlockWidth = false) => {
+        if (unlockWidth) lockedPanelWidthRef.current = null;
+        if (animationFrame !== null) return;
+
+        animationFrame = window.requestAnimationFrame(() => {
+          animationFrame = null;
+          updatePanelPosition();
+        });
+      };
+      const handleResize = () => schedulePositionUpdate(true);
+      const handleScroll = () => schedulePositionUpdate();
+
+      document.addEventListener("scroll", handleScroll, true);
+      window.addEventListener("resize", handleResize);
+
+      return () => {
+        if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+        document.removeEventListener("scroll", handleScroll, true);
+        window.removeEventListener("resize", handleResize);
+      };
+    }, [open, widePanel, panelWidth]);
+
+    const optionList = (
+      <div className={`${widePanel ? "max-h-[inherit]" : "max-h-72"} overflow-y-auto pr-1 ${accentClasses[accent].scrollbar} [scrollbar-width:thin]`}>
+        {searchable ? (
+          <input
+            value={panelQuery}
+            onChange={(event) => setPanelQuery(event.target.value)}
+            placeholder={`Search ${label.toLowerCase()}...`}
+            className="mb-2 min-h-[40px] w-full rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-white/25"
+          />
+        ) : null}
+
+        {filteredOptions.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => {
+              onChange(option.value);
+              setOpen(false);
+            }}
+            className={`mb-1 flex min-h-[40px] w-full items-center justify-between rounded-2xl px-4 py-2.5 text-left text-sm font-bold transition ${
+              value === option.value
+                ? accentClasses[accent].selected
+                : accentClasses[accent].hover
+            }`}
+          >
+            <span className="min-w-0">
+              <span className="block">{option.label}</span>
+              {(option.group || option.helper) && (
+                <span
+                  className={`mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] ${
+                    value === option.value
+                      ? "text-slate-900/65"
+                      : "text-white/35"
+                  }`}
+                >
+                  {[option.group, option.helper]
+                    .filter(Boolean)
+                    .join(" / ")}
+                </span>
+              )}
+            </span>
+            {value === option.value && <span>✓</span>}
+          </button>
+        ))}
+
+        {filteredOptions.length === 0 ? (
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-sm font-bold text-slate-400">
+            No options found
+          </div>
+        ) : null}
+      </div>
+    );
 
     return (
       <div ref={dropdownRef} className="relative">
         <button
+          ref={buttonRef}
           type="button"
+          aria-label={label}
+          aria-expanded={open}
           onClick={() => {
             if (!open) announceExerciseLibraryDropdownOpen(dropdownId);
             setOpen((prev) => !prev);
           }}
-          className={`flex min-h-[46px] w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left shadow-xl transition hover:scale-[1.01] ${accentClasses[accent].trigger}`}
+          className={`flex min-h-[46px] w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left shadow-xl transition hover:scale-[1.01] md:min-h-[42px] md:px-2.5 md:py-2 min-[1100px]:min-h-[46px] min-[1100px]:px-3 min-[1100px]:py-2.5 ${accentClasses[accent].trigger}`}
         >
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70">
@@ -4851,7 +6818,20 @@ export default function ExerciseLibraryPage() {
           </span>
         </button>
 
-        {open && (
+        {open && widePanel && panelStyle
+          ? createPortal(
+              <div
+                ref={panelRef}
+                style={panelStyle}
+                className={`fixed overflow-hidden rounded-[26px] border p-2 backdrop-blur-xl ${accentClasses[accent].panel}`}
+              >
+                {optionList}
+              </div>,
+              document.body,
+            )
+          : null}
+
+        {open && !widePanel && (
           <div className={`absolute left-0 right-0 z-[9999] mt-2 overflow-hidden rounded-[24px] border p-2 backdrop-blur-xl ${accentClasses[accent].panel}`}>
             <div className={`max-h-72 overflow-y-auto pr-1 ${accentClasses[accent].scrollbar} [scrollbar-width:thin]`}>
               {normalizedOptions.map((option) => (
@@ -4992,24 +6972,23 @@ export default function ExerciseLibraryPage() {
           </div>
         </section>
 
-        <section className="relative z-50 overflow-visible rounded-[30px] border border-white/15 bg-white/[0.055] p-4 shadow-[0_18px_58px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl backdrop-saturate-150">
-          <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-start">
-            <div>
+        <section className="relative z-30 overflow-visible rounded-[30px] border border-white/15 bg-white/[0.055] p-4 shadow-[0_18px_58px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl backdrop-saturate-150 md:p-3 min-[1100px]:p-4">
+          <div className="grid gap-2.5 md:grid-cols-[minmax(0,1fr)_auto] md:items-end min-[1100px]:grid-cols-[1fr_auto_auto] min-[1100px]:items-start">
+            <div className="md:col-span-2 min-[1100px]:col-span-1">
               <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300">
                 Movement Filters
               </p>
 
-              <input
-                placeholder="Search core movement, muscle, pattern, goal, equipment, or level..."
+              <SearchInputWithSuggestions
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="mt-3 min-h-[44px] w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
+                onChange={setSearch}
+                suggestions={searchSuggestions}
               />
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-2.5">
+            <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-2.5 md:min-w-[9rem] md:justify-self-start md:px-3 md:py-2 min-[1100px]:px-4 min-[1100px]:py-2.5">
               <p className="text-xs text-slate-400">Showing</p>
-              <p className="mt-1 text-2xl font-black text-cyan-300">
+              <p className="mt-1 text-2xl font-black text-cyan-300 md:text-xl min-[1100px]:text-2xl">
                 {focusedExercises.length}
               </p>
               <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
@@ -5020,7 +6999,7 @@ export default function ExerciseLibraryPage() {
             <button
               type="button"
               onClick={() => setShowAddForm((prev) => !prev)}
-              className="min-h-[44px] rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-sm font-black text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950"
+              className="min-h-[44px] rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-sm font-black text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950 md:min-h-[42px] md:justify-self-end md:px-4 md:py-2.5 min-[1100px]:min-h-[44px] min-[1100px]:px-5 min-[1100px]:py-3"
             >
               {showAddForm ? "Close Form" : "+ Add Exercise"}
             </button>
@@ -5079,13 +7058,17 @@ export default function ExerciseLibraryPage() {
             </div>
           ) : null}
 
-          <div className="mt-3 grid gap-2.5 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-2.5 grid gap-2.5 md:grid-cols-2 md:gap-2 min-[1100px]:grid-cols-4 min-[1100px]:gap-2.5">
               <FilterMenu
                 label="Movement Type"
                 value={movementTypeFilter}
                 options={movementTypeFilterOptions}
                 onChange={setMovementTypeFilter}
                 accent="emerald"
+                widePanel
+                searchable
+                groupOrder={[...movementTypeGroupOrder]}
+                panelWidth={680}
               />
 
               <FilterMenu
@@ -5094,6 +7077,8 @@ export default function ExerciseLibraryPage() {
                 options={apparatusOptions}
                 onChange={setApparatusFilter}
                 accent="blue"
+                widePanel
+                panelWidth={540}
               />
 
               <FilterMenu
@@ -5112,7 +7097,7 @@ export default function ExerciseLibraryPage() {
 
           </div>
 
-          <div className="mt-4 flex flex-col gap-2 border-t border-white/10 pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-3 flex flex-col gap-2 border-t border-white/10 pt-2.5 sm:flex-row sm:items-center md:flex-nowrap">
             <div className="rounded-2xl border border-cyan-300/15 bg-slate-950/55 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
               <div className="grid grid-cols-2 gap-1">
                 {(["detail", "grid"] as ExerciseLibraryViewMode[]).map(
@@ -5120,18 +7105,31 @@ export default function ExerciseLibraryPage() {
                     <button
                       key={mode}
                       type="button"
+                      aria-label={viewModeLabels[mode]}
+                      title={viewModeLabels[mode]}
                       onClick={() => setViewMode(mode)}
-                      className={`min-h-[40px] rounded-xl px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition ${
+                      className={`flex min-h-[40px] min-w-[42px] items-center justify-center rounded-xl px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition ${
                         viewMode === mode
                           ? "bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.22)]"
                           : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
                       }`}
                     >
-                      {viewModeLabels[mode]}
+                      <ViewModeIcon mode={mode} />
                     </button>
                   ),
                 )}
               </div>
+            </div>
+
+            <div className="w-full sm:max-w-[15rem]">
+              <FilterMenu
+                label="Sort"
+                value={sortMode}
+                options={sortOptions}
+                onChange={(value) => setSortMode(value as ExerciseLibrarySortMode)}
+                accent="cyan"
+                preserveOrder
+              />
             </div>
 
             <button
@@ -5143,13 +7141,14 @@ export default function ExerciseLibraryPage() {
             </button>
           </div>
 
-          <div className="-mx-4 -mb-4 mt-3 overflow-hidden rounded-b-[30px] border-t border-cyan-200/15">
-            <div className="flex flex-wrap gap-px bg-cyan-100/10">
+          <div className="-mx-4 -mb-4 mt-3 box-border overflow-hidden rounded-b-[30px] border-t border-white/10 bg-white/10 md:-mx-3 md:-mb-3 min-[1100px]:-mx-4 min-[1100px]:-mb-4">
+            <div className="box-border flex w-full flex-wrap gap-px">
               {bodyOptions.map((body) => {
                 const isActive =
                   body === "All"
                     ? bodyFilters.length === 0
                     : bodyFilters.includes(body);
+                const bodyTheme = getBodyRegionTheme(body);
 
                 return (
                   <button
@@ -5157,10 +7156,10 @@ export default function ExerciseLibraryPage() {
                     type="button"
                     aria-pressed={isActive}
                     onClick={() => toggleBodyFilter(body)}
-                    className={`flex min-h-[48px] min-w-0 flex-[1_1_7.25rem] items-center justify-center px-2.5 py-2.5 text-center text-[10px] font-black uppercase leading-[1.12] tracking-[0.07em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 focus:ring-cyan-200/45 sm:min-h-[52px] sm:px-3 sm:text-[11px] ${
+                    className={`flex min-h-[48px] min-w-0 flex-[1_1_7.25rem] items-center justify-center px-2.5 py-2.5 text-center text-[10px] font-black uppercase leading-[1.12] tracking-[0.07em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 focus:ring-white/30 sm:min-h-[52px] sm:px-3 sm:text-[11px] ${
                       isActive
-                        ? "bg-[linear-gradient(135deg,rgba(34,211,238,0.98),rgba(56,189,248,0.78))] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.26),inset_0_1px_0_rgba(255,255,255,0.38)] ring-1 ring-cyan-100/70"
-                        : "bg-[linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.76))] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:bg-[linear-gradient(135deg,rgba(34,211,238,0.14),rgba(15,23,42,0.88))] hover:text-cyan-50"
+                        ? bodyTheme.tabClass
+                        : `bg-[linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.76))] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${bodyTheme.tabHoverClass}`
                     }`}
                   >
                     <span className="block max-w-full whitespace-normal break-normal [hyphens:none] [overflow-wrap:normal] [text-wrap:balance]">
@@ -5173,34 +7172,61 @@ export default function ExerciseLibraryPage() {
           </div>
         </section>
 
-        <section
-          className={`relative z-0 overflow-visible ${
-            viewMode === "grid"
-              ? "grid grid-cols-2 items-start gap-2 max-[360px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4"
-              : "grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3"
-          }`}
-        >
-          {paginatedExercises.map((exercise) => {
-            const metadata = getMetadataForExercise(exercise);
-            const suggestions = getMovementSuggestions(exercise, metadata);
+        <section className="relative z-0 space-y-7 overflow-visible">
+          {paginatedExerciseSections.map((section) => (
+            (() => {
+              const sectionTheme =
+                sortMode === "body"
+                  ? getBodyRegionTheme(section.label)
+                  : getCategoryTheme(section.label);
 
-            return (
-              <ExerciseLibraryCard
-                key={exercise.id}
-                exercise={exercise}
-                metadata={metadata}
-                suggestions={suggestions}
-                planAddToParam={planAddToParam}
-                savedExerciseStats={savedExerciseStats}
-                viewMode={viewMode}
-                onAddToPlan={addExerciseToPlanBuilder}
-                onDeleteCustom={deleteCustomExercise}
-                onAddStats={openStatsMenu}
-                isMovementDetailsOpen={openMovementDetailsId === exercise.id}
-                onToggleMovementDetails={setOpenMovementDetailsId}
-              />
-            );
-          })}
+              return (
+                <div key={section.key} className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                    <div>
+                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${sectionTheme.pillClass}`}>
+                        {section.label}
+                      </span>
+                      <div className={`mt-1.5 h-px w-16 ${sectionTheme.accentClass}`} />
+                    </div>
+                    <span className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${sectionTheme.pillClass}`}>
+                      {section.exercises.length}
+                    </span>
+                  </div>
+
+                  <div
+                    className={`relative z-0 overflow-visible ${
+                      viewMode === "grid"
+                        ? "grid grid-cols-2 items-start gap-2 max-[360px]:grid-cols-1 sm:grid-cols-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4"
+                        : "grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3"
+                    }`}
+                  >
+                    {section.exercises.map((exercise) => {
+                      const metadata = getMetadataForExercise(exercise);
+                      const suggestions = getMovementSuggestions(exercise, metadata);
+
+                      return (
+                        <ExerciseLibraryCard
+                          key={exercise.id}
+                          exercise={exercise}
+                          metadata={metadata}
+                          suggestions={suggestions}
+                          planAddToParam={planAddToParam}
+                          savedExerciseStats={savedExerciseStats}
+                          viewMode={viewMode}
+                          onAddToPlan={addExerciseToPlanBuilder}
+                          onDeleteCustom={deleteCustomExercise}
+                          onAddStats={openStatsMenu}
+                          isMovementDetailsOpen={openMovementDetailsId === exercise.id}
+                          onToggleMovementDetails={setOpenMovementDetailsId}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()
+          ))}
         </section>
 
         {focusedExercises.length > exercisesPerPage && (
@@ -5253,10 +7279,17 @@ export default function ExerciseLibraryPage() {
       </section>
 
       {statsExercise && statsMenuMode === "grid" && (
-        <div className="fixed inset-x-3 bottom-3 z-[9999] mx-auto w-auto max-w-[430px] sm:bottom-6 sm:right-6 sm:left-auto sm:w-[min(92vw,430px)]">
+        <div
+          style={statsMenuStyle || undefined}
+          className={
+            statsMenuStyle
+              ? "fixed max-w-[calc(100vw-1.5rem)]"
+              : "fixed inset-x-3 bottom-3 z-[9999] mx-auto w-auto max-w-[430px] sm:bottom-6 sm:right-6 sm:left-auto sm:w-[min(92vw,430px)]"
+          }
+        >
           <div
             ref={statsMenuRef}
-            className="overflow-hidden rounded-[28px] border border-white/20 bg-[radial-gradient(circle_at_12%_0%,rgba(250,204,21,0.18),transparent_34%),radial-gradient(circle_at_90%_12%,rgba(34,211,238,0.14),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.88))] p-4 shadow-[0_30px_120px_rgba(0,0,0,0.82),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150"
+            className="max-h-[inherit] overflow-y-auto overflow-x-hidden rounded-[28px] border border-white/20 bg-[radial-gradient(circle_at_12%_0%,rgba(250,204,21,0.18),transparent_34%),radial-gradient(circle_at_90%_12%,rgba(34,211,238,0.14),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.94),rgba(2,6,23,0.90))] p-4 shadow-[0_30px_120px_rgba(0,0,0,0.82),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150"
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -5330,12 +7363,19 @@ export default function ExerciseLibraryPage() {
       )}
 
       {statsExercise && statsMenuMode === "detail" && (
-        <div className="fixed inset-x-2 bottom-3 top-3 z-[9999] mx-auto w-auto max-w-[760px] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:top-auto sm:w-[min(94vw,760px)]">
+        <div
+          style={statsMenuStyle || undefined}
+          className={
+            statsMenuStyle
+              ? "fixed max-w-[calc(100vw-1.5rem)]"
+              : "fixed inset-x-2 bottom-3 top-3 z-[9999] mx-auto w-auto max-w-[760px] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:top-auto sm:w-[min(94vw,760px)]"
+          }
+        >
           <div
             ref={statsMenuRef}
-            className="max-h-full max-w-full overflow-hidden rounded-[28px] border border-white/20 bg-white/[0.075] shadow-[0_30px_120px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150 sm:max-h-[86vh] sm:rounded-[34px]"
+            className="max-h-[inherit] max-w-full overflow-hidden rounded-[28px] border border-white/20 bg-white/[0.075] shadow-[0_30px_120px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150 sm:rounded-[34px]"
           >
-            <div className="max-h-full overflow-y-auto overflow-x-hidden overscroll-contain px-1 sm:max-h-[86vh]">
+            <div className="max-h-[inherit] overflow-y-auto overflow-x-hidden overscroll-contain px-1">
               <div className="grid lg:grid-cols-[1.05fr_310px] h-full">
                 <div className="min-h-0 overflow-y-auto">
                   <div className="relative h-52 overflow-hidden border-b border-white/10 bg-slate-950 sm:h-[310px]">

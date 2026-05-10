@@ -136,7 +136,12 @@ export const EXERCISE_MODIFIERS = [
   modifier("equipment", "pull-up-bar", "Pull-Up Bar", 120),
   modifier("equipment", "landmine", "Landmine", 130),
   modifier("equipment", "smith-machine", "Smith Machine", 140),
-  modifier("equipment", "suspension", "Suspension Trainer", 150),
+  modifier("equipment", "trx", "TRX", 150, {
+    aliases: ["suspension trainer", "suspension training", "suspension"],
+  }),
+  modifier("equipment", "suspension", "TRX", 151, {
+    aliases: ["trx", "suspension trainer", "suspension training"],
+  }),
   modifier("equipment", "ab-wheel", "Ab Wheel", 160),
 
   modifier("grip", "close", "Close Grip", 10),

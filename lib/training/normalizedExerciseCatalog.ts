@@ -131,6 +131,7 @@ const singleSelectionCategories = new Set<ExerciseModifierCategoryId>([
   "apparatus",
   "angle-position",
   "limb-usage",
+  "direction",
   "stability",
   "tempo",
   "assistance-resistance",
@@ -243,6 +244,27 @@ const getPrimaryApparatusFromModifierIds = (
 
   return null;
 };
+
+const getApparatusIdsFromModifierIds = (
+  modifierIds: ExerciseModifierId[],
+): ApparatusId[] =>
+  unique(
+    modifierIds
+      .map((modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId])
+      .filter((modifier) => modifier?.categoryId === "apparatus")
+      .map((modifier) => modifier.slug as ApparatusId),
+  );
+
+const getFilterApparatusIdsForItem = (
+  item: NormalizedExerciseCatalogItem,
+): ApparatusId[] =>
+  unique([
+    ...(item.apparatus ? [item.apparatus] : []),
+    ...getApparatusIdsFromModifierIds(item.modifierIds),
+    ...item.semanticVariations.flatMap((variation) =>
+      getApparatusIdsFromModifierIds(variation.modifierIds),
+    ),
+  ]);
 
 const getCorePatternCardDedupKey = (
   definition: CoreMovementPatternCardDefinition,
@@ -544,7 +566,9 @@ const createFilterOptions = (
   items.forEach((item) => {
     increment(coreMovementCounts, item.coreMovementId);
     increment(movementPatternCounts, item.movementPatternId);
-    if (item.apparatus) increment(apparatusCounts, item.apparatus);
+    getFilterApparatusIdsForItem(item).forEach((apparatusId) =>
+      increment(apparatusCounts, apparatusId),
+    );
     increment(bodyRegionCounts, item.legacyExercise.body);
     increment(goalCounts, item.legacyExercise.goal);
     increment(levelCounts, item.legacyExercise.level);

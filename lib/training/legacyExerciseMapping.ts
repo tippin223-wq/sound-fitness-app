@@ -359,7 +359,10 @@ const apparatusMap: Record<string, ApparatusId> = {
   band: "band",
   "smith machine": "smith-machine",
   "trap bar": "trap-bar",
-  suspension: "suspension",
+  trx: "trx",
+  suspension: "trx",
+  "suspension trainer": "trx",
+  "suspension training": "trx",
   landmine: "landmine",
   bench: "bench",
   box: "box",
@@ -484,7 +487,16 @@ const inferModifierIds = (
     addModifier(modifierIds, "limb-usage:unilateral");
     addModifier(modifierIds, "stability:single-leg");
   }
-  if (text.includes("walking")) addModifier(modifierIds, "limb-usage:alternating");
+  if (text.includes("reverse")) addModifier(modifierIds, "direction:reverse");
+  if (text.includes("forward")) addModifier(modifierIds, "direction:forward");
+  if (text.includes("walking")) {
+    addModifier(modifierIds, "direction:walking");
+    addModifier(modifierIds, "limb-usage:alternating");
+  }
+  if (text.includes("lateral")) addModifier(modifierIds, "direction:lateral");
+  if (text.includes("curtsy") || text.includes("crossover")) {
+    addModifier(modifierIds, "direction:crossover");
+  }
   if (text.includes("offset")) addModifier(modifierIds, "limb-usage:offset");
 
   if (text.includes("assisted")) {

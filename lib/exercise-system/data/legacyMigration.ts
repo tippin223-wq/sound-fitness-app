@@ -52,6 +52,10 @@ const legacyEquipmentMap: Record<string, ExerciseModifierId> = {
   sled: "equipment:sled",
   "pull up bar": "equipment:pull-up-bar",
   "pull-up bar": "equipment:pull-up-bar",
+  trx: "equipment:trx",
+  suspension: "equipment:trx",
+  "suspension trainer": "equipment:trx",
+  "suspension training": "equipment:trx",
   "stability ball": "stability:stability-ball",
   bosu: "stability:bosu",
 };

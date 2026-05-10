@@ -562,6 +562,12 @@ export const EXERCISE_MODIFIER_CATEGORIES = [
     displayOrder: 30,
   },
   {
+    id: "direction",
+    label: "Direction",
+    description: "Primary travel, loading path, or movement orientation.",
+    displayOrder: 35,
+  },
+  {
     id: "stability",
     label: "Stability",
     description: "Balance demand or support surface constraint.",
@@ -689,13 +695,23 @@ export const APPARATUS_MODIFIERS = [
     loadingStyle: "external-load",
   },
   {
+    id: "apparatus:trx",
+    categoryId: "apparatus",
+    apparatusId: "trx",
+    slug: "trx",
+    label: "TRX",
+    aliases: ["suspension", "suspension trainer", "suspension training"],
+    displayOrder: 100,
+    loadingStyle: "suspension",
+  },
+  {
     id: "apparatus:suspension",
     categoryId: "apparatus",
     apparatusId: "suspension",
     slug: "suspension",
-    label: "Suspension",
-    aliases: ["trx"],
-    displayOrder: 100,
+    label: "TRX",
+    aliases: ["trx", "suspension trainer", "suspension training"],
+    displayOrder: 101,
     loadingStyle: "suspension",
   },
   {
@@ -931,6 +947,22 @@ export const LIMB_USAGE_MODIFIERS = [
   },
 ] as const satisfies readonly ExerciseModifier[];
 
+export const DIRECTION_MODIFIERS = [
+  ["vertical", "Vertical"],
+  ["forward", "Forward"],
+  ["reverse", "Reverse"],
+  ["walking", "Walking"],
+  ["lateral", "Lateral"],
+  ["rotational", "Rotational"],
+  ["crossover", "Crossover"],
+].map(([slug, label], index) => ({
+  id: `direction:${slug}`,
+  categoryId: "direction",
+  slug,
+  label,
+  displayOrder: (index + 1) * 10,
+})) as ExerciseModifier[];
+
 export const STABILITY_MODIFIERS = [
   {
     id: "stability:stable",
@@ -1056,6 +1088,7 @@ export const ALL_EXERCISE_MODIFIERS = [
   ...APPARATUS_MODIFIERS,
   ...ANGLE_POSITION_MODIFIERS,
   ...LIMB_USAGE_MODIFIERS,
+  ...DIRECTION_MODIFIERS,
   ...STABILITY_MODIFIERS,
   ...TEMPO_MODIFIERS,
   ...ASSISTANCE_RESISTANCE_MODIFIERS,
@@ -1072,6 +1105,7 @@ const commonModifierCategories: ExerciseModifierCategoryId[] = [
   "apparatus",
   "angle-position",
   "limb-usage",
+  "direction",
   "stability",
   "tempo",
   "assistance-resistance",
