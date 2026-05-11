@@ -622,7 +622,7 @@ export const APPARATUS_MODIFIERS = [
     apparatusId: "dumbbell",
     slug: "dumbbell",
     label: "Dumbbell",
-    aliases: ["db", "dumbbells"],
+    aliases: ["db", "dumbbells", "dumbell"],
     displayOrder: 10,
     loadingStyle: "external-load",
   },
@@ -634,6 +634,16 @@ export const APPARATUS_MODIFIERS = [
     label: "Barbell",
     aliases: ["bb"],
     displayOrder: 20,
+    loadingStyle: "external-load",
+  },
+  {
+    id: "apparatus:ez-bar",
+    categoryId: "apparatus",
+    apparatusId: "ez-bar",
+    slug: "ez-bar",
+    label: "EZ Bar",
+    aliases: ["ez curl bar", "curl bar"],
+    displayOrder: 25,
     loadingStyle: "external-load",
   },
   {
@@ -660,7 +670,7 @@ export const APPARATUS_MODIFIERS = [
     apparatusId: "kettlebell",
     slug: "kettlebell",
     label: "Kettlebell",
-    aliases: ["kb"],
+    aliases: ["kb", "kettle bell"],
     displayOrder: 50,
     loadingStyle: "external-load",
   },
@@ -688,8 +698,19 @@ export const APPARATUS_MODIFIERS = [
     apparatusId: "smith-machine",
     slug: "smith-machine",
     label: "Smith Machine",
+    aliases: ["smith"],
     displayOrder: 80,
     loadingStyle: "machine-guided",
+  },
+  {
+    id: "apparatus:safety-bar",
+    categoryId: "apparatus",
+    apparatusId: "safety-bar",
+    slug: "safety-bar",
+    label: "Safety Bar",
+    aliases: ["safety squat bar", "ssb"],
+    displayOrder: 85,
+    loadingStyle: "external-load",
   },
   {
     id: "apparatus:trap-bar",
@@ -745,6 +766,36 @@ export const APPARATUS_MODIFIERS = [
     label: "Medicine Ball",
     aliases: ["med ball"],
     displayOrder: 140,
+    loadingStyle: "external-load",
+  },
+  {
+    id: "apparatus:slam-ball",
+    categoryId: "apparatus",
+    apparatusId: "slam-ball",
+    slug: "slam-ball",
+    label: "Slam Ball",
+    aliases: ["dead ball"],
+    displayOrder: 142,
+    loadingStyle: "external-load",
+  },
+  {
+    id: "apparatus:weight-plate",
+    categoryId: "apparatus",
+    apparatusId: "weight-plate",
+    slug: "weight-plate",
+    label: "Weight Plate",
+    aliases: ["plate", "olympic plate", "iron plate", "bumper plate"],
+    displayOrder: 145,
+    loadingStyle: "external-load",
+  },
+  {
+    id: "apparatus:sandbag",
+    categoryId: "apparatus",
+    apparatusId: "sandbag",
+    slug: "sandbag",
+    label: "Sandbag",
+    aliases: ["sand bag"],
+    displayOrder: 148,
     loadingStyle: "external-load",
   },
   {
@@ -809,6 +860,7 @@ export const ANGLE_POSITION_MODIFIERS = [
   ["bent-over", "Bent Over"],
   ["chest-supported", "Chest Supported"],
   ["bench-supported", "Bench Supported"],
+  ["roman-chair", "Roman Chair"],
   ["plank", "Plank Position"],
   ["rear-foot-elevated", "Rear Foot Elevated"],
   ["front-foot-elevated", "Front Foot Elevated"],
@@ -1054,6 +1106,14 @@ export const ASSISTANCE_RESISTANCE_MODIFIERS = [
       }
     : modifier,
 ) as ExerciseModifier[];
+
+export const STANDARD_RANGE_OF_MOTION_MODIFIER_IDS = [
+  "range-of-motion:full-rom",
+  "range-of-motion:shortened-partial",
+  "range-of-motion:lengthened-partial",
+  "range-of-motion:deficit",
+  "range-of-motion:rom-limiter",
+] as const satisfies readonly ExerciseModifierId[];
 
 export const RANGE_OF_MOTION_MODIFIERS = [
   {

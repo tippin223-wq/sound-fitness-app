@@ -59,6 +59,7 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Narrow Stance Squat",
     "Box Squat",
     "Hack Squat",
+    "Leg Press",
     "TRX Assisted Squat",
     "Zercher Squat",
     "Pistol Squat",
@@ -72,8 +73,12 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Stiff Leg Deadlift",
     "Single Leg RDL",
     "Kickstand RDL",
+    "Airplane RDL",
     "Good Morning",
     "Seated Good Morning",
+    "Jefferson Curl",
+    "Roman Chair Back Extension",
+    "Single Leg Roman Chair Back Extension",
     "Trap Bar Deadlift",
     "Kettlebell Swing",
     "Snatch Grip Deadlift",
@@ -100,6 +105,7 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Crossover Step-Up",
     "Step-Up with Knee Drive",
     "Plyometric Step-Up",
+    "Glute Drive Machine",
   ],
   "core-hip-thrust-bridge": [
     "Glute Bridge",
@@ -120,6 +126,9 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
     "Stability Ball Ham Curl",
   ],
   "core-hip-abduction": [
+    "Standing Leg Raise",
+    "Cable Abduction",
+    "Hip Dip",
     "Band Walk",
     "Clamshell",
     "Hip Abduction Machine",
@@ -133,10 +142,12 @@ export const CORE_MOVEMENT_PATTERN_VARIATION_NAMES: Partial<
   "core-hip-internal-rotation": [
     "Seated Hip Internal Rotation",
     "90/90 Hip Internal Rotation",
+    "Single Leg Cable Hip Internal Rotation",
   ],
   "core-hip-external-rotation": [
     "Seated Hip External Rotation",
     "90/90 Hip External Rotation",
+    "Adductor Machine Hip External Rotation",
   ],
   "core-calf-raise": [
     "Standing Calf Raise",
@@ -327,7 +338,7 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Floor Press": [
     "apparatus:dumbbell",
     "angle-position:floor",
-    "range-of-motion:dead-stop",
+    "range-of-motion:rom-limiter",
   ],
   "Plyo Push-Up": [
     "apparatus:bodyweight",
@@ -359,6 +370,12 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "angle-position:standing",
     "limb-usage:standard-stance",
   ],
+  "Leg Press": [
+    "apparatus:machine",
+    "angle-position:seated",
+    "limb-usage:standard-stance",
+    "range-of-motion:full-rom",
+  ],
   "TRX Assisted Squat": [
     "apparatus:trx",
     "assistance-resistance:assisted",
@@ -383,12 +400,12 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Conventional Deadlift": [
     "apparatus:barbell",
     "limb-usage:conventional-stance",
-    "range-of-motion:dead-stop",
+    "range-of-motion:full-rom",
   ],
   "Sumo Deadlift": [
     "apparatus:barbell",
     "limb-usage:wide-stance",
-    "range-of-motion:dead-stop",
+    "range-of-motion:full-rom",
   ],
   "Romanian Deadlift": ["tempo:slow-eccentric", "range-of-motion:full-rom"],
   "Stiff Leg Deadlift": ["tempo:slow-eccentric", "range-of-motion:full-rom"],
@@ -402,16 +419,42 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "tempo:slow-eccentric",
     "range-of-motion:full-rom",
   ],
+  "Airplane RDL": [
+    "apparatus:bodyweight",
+    "limb-usage:single-leg",
+    "direction:rotational",
+    "tempo:tempo-controlled",
+    "range-of-motion:full-rom",
+  ],
   "Good Morning": ["apparatus:barbell", "angle-position:back-loaded"],
   "Seated Good Morning": [
     "apparatus:barbell",
     "angle-position:seated",
     "angle-position:back-loaded",
   ],
+  "Jefferson Curl": [
+    "apparatus:bodyweight",
+    "angle-position:standing",
+    "tempo:slow-eccentric",
+    "range-of-motion:full-rom",
+  ],
+  "Roman Chair Back Extension": [
+    "apparatus:bodyweight",
+    "angle-position:roman-chair",
+    "tempo:tempo-controlled",
+    "range-of-motion:full-rom",
+  ],
+  "Single Leg Roman Chair Back Extension": [
+    "apparatus:bodyweight",
+    "angle-position:roman-chair",
+    "limb-usage:single-leg",
+    "tempo:tempo-controlled",
+    "range-of-motion:full-rom",
+  ],
   "Trap Bar Deadlift": [
     "apparatus:trap-bar",
     "limb-usage:neutral-grip",
-    "range-of-motion:dead-stop",
+    "range-of-motion:full-rom",
   ],
   "Kettlebell Swing": [
     "apparatus:kettlebell",
@@ -421,7 +464,7 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Snatch Grip Deadlift": [
     "apparatus:barbell",
     "limb-usage:wide-grip",
-    "range-of-motion:dead-stop",
+    "range-of-motion:full-rom",
   ],
   "Reverse Lunge": [
     "apparatus:bodyweight",
@@ -487,6 +530,11 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "tempo:explosive",
     "load-behavior:ballistic",
   ],
+  "Glute Drive Machine": [
+    "apparatus:machine",
+    "direction:forward",
+    "execution-style:unilateral",
+  ],
   "Glute Bridge": ["apparatus:bodyweight", "angle-position:floor"],
   "Hip Thrust": ["angle-position:bench-supported"],
   "Single Leg Hip Thrust": [
@@ -519,6 +567,17 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Nordic Curl": ["apparatus:bodyweight", "tempo:slow-eccentric"],
   "Stability Ball Ham Curl": ["angle-position:supine"],
   "Band Walk": ["apparatus:band", "limb-usage:wide-stance"],
+  "Standing Leg Raise": [
+    "apparatus:bodyweight",
+    "angle-position:standing",
+    "direction:lateral",
+  ],
+  "Cable Abduction": [
+    "apparatus:cable",
+    "angle-position:standing",
+    "direction:lateral",
+  ],
+  "Hip Dip": ["apparatus:bodyweight", "angle-position:side-lying"],
   "Clamshell": ["apparatus:band", "angle-position:side-lying"],
   "Hip Abduction Machine": ["apparatus:machine", "angle-position:seated"],
   "Slider Hip Abduction": [
@@ -543,6 +602,13 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "angle-position:90-90",
     "direction:rotational",
   ],
+  "Single Leg Cable Hip Internal Rotation": [
+    "apparatus:cable",
+    "angle-position:standing",
+    "limb-usage:single-leg",
+    "direction:rotational",
+    "range-of-motion:full-rom",
+  ],
   "Seated Hip External Rotation": [
     "apparatus:bodyweight",
     "angle-position:seated",
@@ -552,6 +618,12 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
     "apparatus:bodyweight",
     "angle-position:90-90",
     "direction:rotational",
+  ],
+  "Adductor Machine Hip External Rotation": [
+    "apparatus:machine",
+    "angle-position:seated",
+    "direction:rotational",
+    "range-of-motion:full-rom",
   ],
   "Standing Calf Raise": ["angle-position:standing"],
   "Seated Calf Raise": ["angle-position:seated"],
@@ -605,7 +677,7 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
   "Bent Over Row": ["apparatus:barbell", "angle-position:bent-over"],
   "Gorilla Row": [
     "apparatus:kettlebell",
-    "range-of-motion:dead-stop",
+    "range-of-motion:full-rom",
     "angle-position:bent-over",
   ],
   "TRX Row": [
@@ -777,6 +849,9 @@ const SEMANTIC_VARIATION_MODIFIER_IDS: Partial<
 const SEMANTIC_VARIATION_ALIASES: Partial<Record<string, readonly string[]>> = {
   "Sumo Squat": ["wide squat", "sumo squat"],
   "Narrow Stance Squat": ["narrow squat", "narrow stance squat"],
+  "Goblet Squat": ["plate goblet squat", "weight plate goblet squat"],
+  "Reverse Lunge": ["plate reverse lunge", "weight plate reverse lunge"],
+  "Leg Press": ["machine leg press", "seated leg press"],
   "Romanian Deadlift": ["rdl"],
   "Single Leg RDL": ["single leg romanian deadlift"],
   "Kickstand RDL": [
@@ -785,6 +860,27 @@ const SEMANTIC_VARIATION_ALIASES: Partial<Record<string, readonly string[]>> = {
     "b-stance rdl",
     "b stance rdl",
     "b-stance romanian deadlift",
+  ],
+  "Airplane RDL": [
+    "hip airplane",
+    "single leg airplane rdl",
+    "airplane romanian deadlift",
+  ],
+  "Jefferson Curl": [
+    "loaded jefferson curl",
+    "spinal hinge curl",
+  ],
+  "Roman Chair Back Extension": [
+    "roman chair extension",
+    "back extension",
+    "hyperextension",
+    "roman chair hyperextension",
+  ],
+  "Single Leg Roman Chair Back Extension": [
+    "single leg back extension",
+    "single leg roman chair extension",
+    "single leg hyperextension",
+    "sl roman chair back extension",
   ],
   "Dumbbell Reverse Fly": ["rear delt fly"],
   "90/90 Breathing": ["breathing drill", "brace drill"],
@@ -810,6 +906,7 @@ const SEMANTIC_VARIATION_ALIASES: Partial<Record<string, readonly string[]>> = {
     "shoulder loaded glute extension",
     "hip extension kneeling",
   ],
+  "Glute Bridge": ["plate glute bridge", "weight plate glute bridge"],
   "Pull Through": [
     "cable pull through",
     "band pull through",
@@ -829,6 +926,11 @@ const SEMANTIC_VARIATION_ALIASES: Partial<Record<string, readonly string[]>> = {
     "crossover step up",
     "cross-over step-up",
   ],
+  "Glute Drive Machine": [
+    "glute drive machine",
+    "machine glute drive",
+    "glute drive",
+  ],
   "TRX Reverse Lunge": ["suspension trainer reverse lunge"],
   "Slider Reverse Lunge": ["sliders reverse lunge", "glider reverse lunge"],
   "Slider Lateral Lunge": ["sliders lateral lunge", "glider lateral lunge"],
@@ -838,12 +940,42 @@ const SEMANTIC_VARIATION_ALIASES: Partial<Record<string, readonly string[]>> = {
     "floor sliders hamstring curl",
     "floor glider hamstring curl",
   ],
-  "Slider Hip Abduction": ["sliders hip abduction", "glider hip abduction"],
+  "Slider Hip Abduction": [
+    "slider abduction",
+    "sliding hip abduction",
+    "sliders hip abduction",
+    "glider hip abduction",
+  ],
+  "Standing Leg Raise": [
+    "standing hip abduction",
+    "standing side leg raise",
+    "side leg raise",
+  ],
+  "Cable Abduction": ["cable hip abduction", "cable standing abduction"],
+  "Hip Dip": [
+    "side lying hip dip",
+    "side lying hip abduction",
+    "hip dip raise",
+  ],
   "Slider Adductor Slide": ["sliders adductor slide", "glider adductor slide"],
   "Seated Hip Internal Rotation": ["hip ir", "seated hip ir"],
   "90/90 Hip Internal Rotation": ["90/90 hip ir", "ninety ninety hip internal rotation"],
+  "Single Leg Cable Hip Internal Rotation": [
+    "single leg cable hip internal rotation",
+    "cable hip internal rotation",
+    "standing cable hip internal rotation",
+  ],
   "Seated Hip External Rotation": ["hip er", "seated hip er"],
   "90/90 Hip External Rotation": ["90/90 hip er", "ninety ninety hip external rotation"],
+  "Adductor Machine Hip External Rotation": [
+    "adductor machine hip external rotation",
+    "machine hip external rotation",
+    "seated hip external rotation",
+  ],
+  "Russian Twist": ["plate rotation", "plate russian twist", "weight plate russian twist"],
+  Crunch: ["plate crunch", "weight plate crunch"],
+  "Sit-Up": ["plate sit-up", "weight plate sit-up", "plate sit up"],
+  "Farmer Carry": ["plate carry", "weight plate carry"],
   "Slider Body Saw": ["sliders body saw", "glider body saw"],
   "Slider Mountain Climber": ["sliders mountain climber", "glider mountain climber"],
   "Slider Pike": ["sliders pike", "glider pike"],
@@ -854,69 +986,71 @@ const SEMANTIC_VARIATION_ALIASES: Partial<Record<string, readonly string[]>> = {
   "TRX T Raise": ["trx t-raise", "suspension trainer t raise"],
 };
 
-const flexibleSquatApparatus: readonly ExerciseModifierId[] = [
+const commonFlexibleLoadApparatus: readonly ExerciseModifierId[] = [
   "apparatus:bodyweight",
   "apparatus:dumbbell",
   "apparatus:kettlebell",
   "apparatus:barbell",
+  "apparatus:ez-bar",
+  "apparatus:cable",
+  "apparatus:band",
   "apparatus:machine",
   "apparatus:smith-machine",
   "apparatus:landmine",
-  "apparatus:band",
-  "apparatus:cable",
+  "apparatus:weight-plate",
+  "apparatus:trx",
+  "apparatus:sandbag",
+  "apparatus:safety-bar",
+];
+
+const flexibleSquatApparatus: readonly ExerciseModifierId[] = [
+  ...commonFlexibleLoadApparatus,
+  "apparatus:trap-bar",
+  "apparatus:box",
 ];
 
 const flexibleLungeApparatus: readonly ExerciseModifierId[] = [
-  "apparatus:bodyweight",
-  "apparatus:dumbbell",
-  "apparatus:kettlebell",
-  "apparatus:barbell",
-  "apparatus:landmine",
-  "apparatus:band",
-  "apparatus:cable",
-  "apparatus:trx",
+  ...commonFlexibleLoadApparatus,
   "apparatus:sliders",
 ];
 
 const flexibleStepUpApparatus: readonly ExerciseModifierId[] = [
-  "apparatus:bodyweight",
-  "apparatus:dumbbell",
-  "apparatus:kettlebell",
-  "apparatus:barbell",
+  ...commonFlexibleLoadApparatus,
+  "apparatus:box",
+];
+
+const flexibleCarryApparatus: readonly ExerciseModifierId[] = [
+  ...commonFlexibleLoadApparatus,
+  "apparatus:trap-bar",
+  "apparatus:sled",
 ];
 
 const flexibleRdlApparatus: readonly ExerciseModifierId[] = [
-  "apparatus:barbell",
-  "apparatus:dumbbell",
-  "apparatus:kettlebell",
-  "apparatus:cable",
-  "apparatus:band",
+  ...commonFlexibleLoadApparatus,
+  "apparatus:trap-bar",
 ];
 
 const flexibleGoodMorningApparatus: readonly ExerciseModifierId[] = [
   "apparatus:barbell",
-  "apparatus:band",
-];
-
-const flexibleHipThrustBridgeApparatus: readonly ExerciseModifierId[] = [
-  "apparatus:bodyweight",
-  "apparatus:barbell",
-  "apparatus:dumbbell",
-  "apparatus:kettlebell",
+  "apparatus:ez-bar",
+  "apparatus:safety-bar",
   "apparatus:smith-machine",
-  "apparatus:machine",
   "apparatus:band",
   "apparatus:cable",
 ];
 
+const flexibleBodyweightHingeApparatus: readonly ExerciseModifierId[] = [
+  ...commonFlexibleLoadApparatus,
+];
+
+const flexibleHipThrustBridgeApparatus: readonly ExerciseModifierId[] = [
+  ...commonFlexibleLoadApparatus,
+  "apparatus:box",
+];
+
 const flexibleGluteBridgeApparatus: readonly ExerciseModifierId[] = [
-  "apparatus:bodyweight",
-  "apparatus:dumbbell",
-  "apparatus:barbell",
-  "apparatus:band",
-  "apparatus:kettlebell",
-  "apparatus:smith-machine",
-  "apparatus:machine",
+  ...commonFlexibleLoadApparatus,
+  "apparatus:box",
 ];
 
 const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
@@ -968,7 +1102,11 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
     equipmentStrict: true,
   },
   "Goblet Squat": {
-    allowedApparatusIds: ["apparatus:dumbbell", "apparatus:kettlebell"],
+    allowedApparatusIds: [
+      "apparatus:dumbbell",
+      "apparatus:kettlebell",
+      "apparatus:weight-plate",
+    ],
     defaultApparatusId: "apparatus:kettlebell",
   },
   "Front Squat": {
@@ -994,6 +1132,11 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
     defaultApparatusId: "apparatus:bodyweight",
   },
   "Hack Squat": {
+    allowedApparatusIds: ["apparatus:machine"],
+    defaultApparatusId: "apparatus:machine",
+    equipmentStrict: true,
+  },
+  "Leg Press": {
     allowedApparatusIds: ["apparatus:machine"],
     defaultApparatusId: "apparatus:machine",
     equipmentStrict: true,
@@ -1032,21 +1175,32 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
     defaultApparatusId: "apparatus:barbell",
   },
   "Single Leg RDL": {
-    allowedApparatusIds: [
-      "apparatus:bodyweight",
-      "apparatus:dumbbell",
-      "apparatus:kettlebell",
-      "apparatus:barbell",
-    ],
+    allowedApparatusIds: flexibleRdlApparatus,
     defaultApparatusId: "apparatus:dumbbell",
   },
   "Kickstand RDL": {
     allowedApparatusIds: flexibleRdlApparatus,
     defaultApparatusId: "apparatus:dumbbell",
   },
+  "Airplane RDL": {
+    allowedApparatusIds: flexibleBodyweightHingeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
   "Seated Good Morning": {
     allowedApparatusIds: flexibleGoodMorningApparatus,
     defaultApparatusId: "apparatus:barbell",
+  },
+  "Jefferson Curl": {
+    allowedApparatusIds: flexibleBodyweightHingeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Roman Chair Back Extension": {
+    allowedApparatusIds: flexibleBodyweightHingeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Single Leg Roman Chair Back Extension": {
+    allowedApparatusIds: flexibleBodyweightHingeApparatus,
+    defaultApparatusId: "apparatus:bodyweight",
   },
   "Trap Bar Deadlift": {
     allowedApparatusIds: ["apparatus:trap-bar"],
@@ -1126,6 +1280,11 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
     allowedApparatusIds: flexibleStepUpApparatus,
     defaultApparatusId: "apparatus:bodyweight",
   },
+  "Glute Drive Machine": {
+    allowedApparatusIds: ["apparatus:machine"],
+    defaultApparatusId: "apparatus:machine",
+    equipmentStrict: true,
+  },
   "Slider Hamstring Curl": {
     allowedApparatusIds: ["apparatus:sliders"],
     defaultApparatusId: "apparatus:sliders",
@@ -1134,6 +1293,21 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
   "Floor Slider Hamstring Curl": {
     allowedApparatusIds: ["apparatus:sliders"],
     defaultApparatusId: "apparatus:sliders",
+    equipmentStrict: true,
+  },
+  "Standing Leg Raise": {
+    allowedApparatusIds: ["apparatus:bodyweight"],
+    defaultApparatusId: "apparatus:bodyweight",
+    equipmentStrict: true,
+  },
+  "Cable Abduction": {
+    allowedApparatusIds: ["apparatus:cable"],
+    defaultApparatusId: "apparatus:cable",
+    equipmentStrict: true,
+  },
+  "Hip Dip": {
+    allowedApparatusIds: ["apparatus:bodyweight"],
+    defaultApparatusId: "apparatus:bodyweight",
     equipmentStrict: true,
   },
   "Slider Hip Abduction": {
@@ -1145,6 +1319,56 @@ const SEMANTIC_VARIATION_EQUIPMENT_RULES: Partial<
     allowedApparatusIds: ["apparatus:sliders"],
     defaultApparatusId: "apparatus:sliders",
     equipmentStrict: true,
+  },
+  "Single Leg Cable Hip Internal Rotation": {
+    allowedApparatusIds: ["apparatus:cable"],
+    defaultApparatusId: "apparatus:cable",
+    equipmentStrict: true,
+  },
+  "Adductor Machine Hip External Rotation": {
+    allowedApparatusIds: ["apparatus:machine"],
+    defaultApparatusId: "apparatus:machine",
+    equipmentStrict: true,
+  },
+  "Russian Twist": {
+    allowedApparatusIds: ["apparatus:bodyweight", "apparatus:weight-plate"],
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  Crunch: {
+    allowedApparatusIds: ["apparatus:bodyweight", "apparatus:weight-plate"],
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Sit-Up": {
+    allowedApparatusIds: ["apparatus:bodyweight", "apparatus:weight-plate"],
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Reverse Crunch": {
+    allowedApparatusIds: ["apparatus:bodyweight", "apparatus:weight-plate"],
+    defaultApparatusId: "apparatus:bodyweight",
+  },
+  "Single Arm Carry": {
+    allowedApparatusIds: flexibleCarryApparatus,
+    defaultApparatusId: "apparatus:dumbbell",
+  },
+  "Farmer Carry": {
+    allowedApparatusIds: flexibleCarryApparatus,
+    defaultApparatusId: "apparatus:dumbbell",
+  },
+  "Suitcase Carry": {
+    allowedApparatusIds: flexibleCarryApparatus,
+    defaultApparatusId: "apparatus:dumbbell",
+  },
+  "Front Rack Carry": {
+    allowedApparatusIds: flexibleCarryApparatus,
+    defaultApparatusId: "apparatus:barbell",
+  },
+  "Overhead Carry": {
+    allowedApparatusIds: flexibleCarryApparatus,
+    defaultApparatusId: "apparatus:barbell",
+  },
+  "Waiter Carry": {
+    allowedApparatusIds: flexibleCarryApparatus,
+    defaultApparatusId: "apparatus:dumbbell",
   },
   "Gorilla Row": {
     allowedApparatusIds: ["apparatus:kettlebell"],
@@ -1308,7 +1532,28 @@ const SEMANTIC_VARIATION_DEFINING_MODIFIER_IDS: Partial<
   "Lateral Step-Up": ["direction:lateral"],
   "Crossover Step-Up": ["direction:crossover"],
   "Step-Up with Knee Drive": ["direction:forward"],
+  "Glute Drive Machine": ["direction:forward", "execution-style:unilateral"],
   "Pistol Squat": ["limb-usage:single-leg", "range-of-motion:full-rom"],
+  "Leg Press": [
+    "angle-position:seated",
+    "limb-usage:standard-stance",
+    "range-of-motion:full-rom",
+  ],
+  "Airplane RDL": [
+    "limb-usage:single-leg",
+    "direction:rotational",
+    "range-of-motion:full-rom",
+  ],
+  "Jefferson Curl": [
+    "angle-position:standing",
+    "tempo:slow-eccentric",
+    "range-of-motion:full-rom",
+  ],
+  "Roman Chair Back Extension": ["angle-position:roman-chair"],
+  "Single Leg Roman Chair Back Extension": [
+    "angle-position:roman-chair",
+    "limb-usage:single-leg",
+  ],
   "Kickstand RDL": ["limb-usage:kickstand"],
   "Narrow Stance Squat": ["limb-usage:narrow-stance"],
   "Glute Extension": [
@@ -1319,6 +1564,15 @@ const SEMANTIC_VARIATION_DEFINING_MODIFIER_IDS: Partial<
   "Cable Pancake": [
     "limb-usage:wide-stance",
     "range-of-motion:lengthened-partial",
+  ],
+  "Single Leg Cable Hip Internal Rotation": [
+    "angle-position:standing",
+    "limb-usage:single-leg",
+    "range-of-motion:full-rom",
+  ],
+  "Adductor Machine Hip External Rotation": [
+    "angle-position:seated",
+    "range-of-motion:full-rom",
   ],
   "Dumbbell Lateral Raise": ["angle-position:standing", "direction:lateral"],
   "Cable Lateral Raise": ["angle-position:standing", "direction:lateral"],
@@ -1361,6 +1615,15 @@ const SEMANTIC_VARIATION_MATCH_MODIFIER_SETS: Partial<
     ["apparatus:bodyweight", "limb-usage:narrow-stance"],
     ["limb-usage:narrow-stance"],
   ],
+  "Leg Press": [
+    [
+      "apparatus:machine",
+      "angle-position:seated",
+      "limb-usage:standard-stance",
+      "range-of-motion:full-rom",
+    ],
+    ["angle-position:seated", "limb-usage:standard-stance"],
+  ],
   "Pistol Squat": [
     ["apparatus:bodyweight", "limb-usage:single-leg", "range-of-motion:full-rom"],
     ["limb-usage:single-leg", "range-of-motion:full-rom"],
@@ -1369,6 +1632,36 @@ const SEMANTIC_VARIATION_MATCH_MODIFIER_SETS: Partial<
   "Kickstand RDL": [
     ["limb-usage:kickstand", "tempo:slow-eccentric", "range-of-motion:full-rom"],
     ["limb-usage:kickstand"],
+  ],
+  "Airplane RDL": [
+    [
+      "limb-usage:single-leg",
+      "direction:rotational",
+      "tempo:tempo-controlled",
+      "range-of-motion:full-rom",
+    ],
+    ["limb-usage:single-leg", "direction:rotational"],
+  ],
+  "Jefferson Curl": [
+    [
+      "angle-position:standing",
+      "tempo:slow-eccentric",
+      "range-of-motion:full-rom",
+    ],
+    ["angle-position:standing", "tempo:slow-eccentric"],
+  ],
+  "Roman Chair Back Extension": [
+    ["angle-position:roman-chair", "tempo:tempo-controlled", "range-of-motion:full-rom"],
+    ["angle-position:roman-chair"],
+  ],
+  "Single Leg Roman Chair Back Extension": [
+    [
+      "angle-position:roman-chair",
+      "limb-usage:single-leg",
+      "tempo:tempo-controlled",
+      "range-of-motion:full-rom",
+    ],
+    ["angle-position:roman-chair", "limb-usage:single-leg"],
   ],
   "Glute Bridge": [
     ["angle-position:floor"],
@@ -1404,8 +1697,9 @@ const SEMANTIC_VARIATION_MATCH_MODIFIER_SETS: Partial<
     ["limb-usage:wide-stance", "range-of-motion:lengthened-partial"],
   ],
   "Sumo Deadlift": [
-    ["apparatus:barbell", "limb-usage:wide-stance", "range-of-motion:dead-stop"],
-    ["limb-usage:wide-stance", "range-of-motion:dead-stop"],
+    ["apparatus:barbell", "limb-usage:wide-stance", "range-of-motion:full-rom"],
+    ["limb-usage:wide-stance", "range-of-motion:full-rom"],
+    ["limb-usage:wide-stance"],
   ],
   "Reverse Lunge": [["direction:reverse"]],
   "Forward Lunge": [["direction:forward"]],
@@ -1422,6 +1716,27 @@ const SEMANTIC_VARIATION_MATCH_MODIFIER_SETS: Partial<
   "Step-Up": [["direction:forward"]],
   "Lateral Step-Up": [["direction:lateral"]],
   "Crossover Step-Up": [["direction:crossover"]],
+  "Glute Drive Machine": [
+    ["apparatus:machine", "direction:forward", "execution-style:unilateral"],
+    ["direction:forward", "execution-style:unilateral"],
+  ],
+  "Single Leg Cable Hip Internal Rotation": [
+    [
+      "apparatus:cable",
+      "angle-position:standing",
+      "limb-usage:single-leg",
+      "range-of-motion:full-rom",
+    ],
+    ["angle-position:standing", "limb-usage:single-leg"],
+  ],
+  "Adductor Machine Hip External Rotation": [
+    [
+      "apparatus:machine",
+      "angle-position:seated",
+      "range-of-motion:full-rom",
+    ],
+    ["angle-position:seated", "range-of-motion:full-rom"],
+  ],
   "Lat Pulldown": [
     ["apparatus:machine", "angle-position:seated", "limb-usage:overhand-grip"],
     ["angle-position:seated", "limb-usage:wide-grip"],

@@ -136,19 +136,42 @@ export const EXERCISE_MODIFIERS = [
   modifier("equipment", "bodyweight", "Bodyweight", 10, {
     aliases: ["no equipment"],
   }),
-  modifier("equipment", "dumbbell", "Dumbbell", 20),
-  modifier("equipment", "kettlebell", "Kettlebell", 30),
-  modifier("equipment", "barbell", "Barbell", 40),
+  modifier("equipment", "dumbbell", "Dumbbell", 20, {
+    aliases: ["db", "dumbbells", "dumbell"],
+  }),
+  modifier("equipment", "kettlebell", "Kettlebell", 30, {
+    aliases: ["kb", "kettle bell"],
+  }),
+  modifier("equipment", "barbell", "Barbell", 40, {
+    aliases: ["bb"],
+  }),
+  modifier("equipment", "ez-bar", "EZ Bar", 45, {
+    aliases: ["ez curl bar", "curl bar"],
+  }),
   modifier("equipment", "trap-bar", "Trap Bar", 50),
+  modifier("equipment", "safety-bar", "Safety Bar", 55, {
+    aliases: ["safety squat bar", "ssb"],
+  }),
   modifier("equipment", "cable", "Cable", 60),
   modifier("equipment", "machine", "Machine", 70),
   modifier("equipment", "band", "Band", 80),
   modifier("equipment", "medicine-ball", "Medicine Ball", 90),
+  modifier("equipment", "slam-ball", "Slam Ball", 92, {
+    aliases: ["dead ball"],
+  }),
+  modifier("equipment", "weight-plate", "Weight Plate", 95, {
+    aliases: ["plate", "olympic plate", "iron plate", "bumper plate"],
+  }),
+  modifier("equipment", "sandbag", "Sandbag", 98, {
+    aliases: ["sand bag"],
+  }),
   modifier("equipment", "box", "Box", 100),
   modifier("equipment", "sled", "Sled", 110),
   modifier("equipment", "pull-up-bar", "Pull-Up Bar", 120),
   modifier("equipment", "landmine", "Landmine", 130),
-  modifier("equipment", "smith-machine", "Smith Machine", 140),
+  modifier("equipment", "smith-machine", "Smith Machine", 140, {
+    aliases: ["smith"],
+  }),
   modifier("equipment", "trx", "TRX", 150, {
     aliases: ["suspension trainer", "suspension training", "suspension"],
   }),

@@ -133,9 +133,10 @@ export const EXERCISE_VARIATIONS = [
     primaryPatternId: "squat",
     requiredModifierIds: ["loadPosition:goblet"],
     requiredModifierOptions: [
-      anyEquipment("goblet-load-source", "Dumbbell or Kettlebell", [
+      anyEquipment("goblet-load-source", "Dumbbell, Kettlebell, or Weight Plate", [
         "equipment:dumbbell",
         "equipment:kettlebell",
+        "equipment:weight-plate",
       ]),
     ],
     primaryMuscles: ["quads", "glutes"],
@@ -161,6 +162,7 @@ export const EXERCISE_VARIATIONS = [
         "equipment:dumbbell",
         "equipment:kettlebell",
         "equipment:barbell",
+        "equipment:weight-plate",
       ]),
     ],
     difficultyTier: "intermediate",

@@ -13,6 +13,7 @@ import {
   CORE_MOVEMENTS,
   CORE_MOVEMENT_BY_ID,
   EXERCISE_MODIFIER_BY_ID,
+  STANDARD_RANGE_OF_MOTION_MODIFIER_IDS,
 } from "./movementTaxonomy";
 import {
   CORE_MOVEMENT_PATTERN_CARD_DEFINITIONS,
@@ -119,6 +120,62 @@ const allApparatusIds = APPARATUS_MODIFIERS.map(
 
 const compactUnique = <T,>(items: T[]) => Array.from(new Set(items));
 
+const commonLoadApparatusIds: ApparatusId[] = [
+  "bodyweight",
+  "dumbbell",
+  "kettlebell",
+  "barbell",
+  "ez-bar",
+  "cable",
+  "band",
+  "machine",
+  "smith-machine",
+  "landmine",
+  "weight-plate",
+  "trx",
+  "sandbag",
+  "safety-bar",
+];
+
+const squatLoadApparatusIds: ApparatusId[] = [
+  ...commonLoadApparatusIds,
+  "trap-bar",
+  "box",
+];
+
+const hingeLoadApparatusIds: ApparatusId[] = [
+  ...commonLoadApparatusIds,
+  "trap-bar",
+];
+
+const lungeLoadApparatusIds: ApparatusId[] = [
+  ...commonLoadApparatusIds,
+  "sliders",
+];
+
+const stepUpLoadApparatusIds: ApparatusId[] = [
+  ...commonLoadApparatusIds,
+  "box",
+  "bench",
+];
+
+const carryLoadApparatusIds: ApparatusId[] = [
+  ...commonLoadApparatusIds,
+  "trap-bar",
+  "sled",
+];
+
+const hipAccessoryLoadApparatusIds: ApparatusId[] = [
+  ...commonLoadApparatusIds,
+  "sliders",
+];
+
+const hipThrustBridgeLoadApparatusIds: ApparatusId[] = [
+  ...commonLoadApparatusIds,
+  "bench",
+  "box",
+];
+
 const hipThrustBridgeCompatibilityCoreIds = new Set<CoreMovementId>([
   "hip-thrust-bridge",
   "hip-thrust-glute-bridge",
@@ -170,6 +227,7 @@ const angle = {
   bentOver: "angle-position:bent-over",
   chestSupported: "angle-position:chest-supported",
   benchSupported: "angle-position:bench-supported",
+  romanChair: "angle-position:roman-chair",
   plank: "angle-position:plank",
   goblet: "angle-position:goblet",
   frontLoaded: "angle-position:front-loaded",
@@ -298,7 +356,7 @@ const accessoryLoad = [
 ];
 const partialRom = [rom.shortenedPartial, rom.lengthenedPartial];
 const fullPartialRom = [rom.full, ...partialRom];
-const pressRom = [rom.full, ...partialRom, rom.deadStop, rom.romLimiter];
+const pressRom = [rom.full, ...partialRom, rom.romLimiter];
 const lowerRom = [rom.full, ...partialRom, rom.deficit, rom.romLimiter];
 const commonResistance = [
   assistance.chains,
@@ -430,10 +488,34 @@ const expandAllowedAssistanceResistanceModifierIds = (
 const expandAllowedRangeOfMotionModifierIds = (
   modifierIds: ExerciseModifierId[],
 ) => {
-  const ids = compactUnique(modifierIds);
+  const ids = compactUnique(
+    modifierIds.map((modifierId) => {
+      if (
+        modifierId === ("range-of-motion:partial-rom" as ExerciseModifierId) ||
+        modifierId === ("range-of-motion:extended-rom" as ExerciseModifierId)
+      ) {
+        return rom.full;
+      }
+      if (
+        modifierId === ("range-of-motion:limited-rom" as ExerciseModifierId) ||
+        modifierId === ("range-of-motion:box-rom" as ExerciseModifierId) ||
+        modifierId === ("range-of-motion:box-rom-modifier" as ExerciseModifierId) ||
+        modifierId === ("range-of-motion:pin-press" as ExerciseModifierId) ||
+        modifierId === ("range-of-motion:rack-pull" as ExerciseModifierId) ||
+        modifierId === ("range-of-motion:block-pull" as ExerciseModifierId)
+      ) {
+        return rom.romLimiter;
+      }
+
+      return modifierId;
+    }),
+  );
+
+  if (!ids.length) return [];
 
   return compactUnique([
     ...ids,
+    ...STANDARD_RANGE_OF_MOTION_MODIFIER_IDS,
   ]);
 };
 
@@ -545,20 +627,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
 > = {
   "chest-press": defineRule({
     coreMovementId: "chest-press",
-    allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "cable",
-      "machine",
-      "medicine-ball",
-      "bodyweight",
-      "band",
-      "trx",
-      "suspension",
-      "smith-machine",
-      "landmine",
-      "bench",
-    ],
+    allowedApparatusIds: commonLoadApparatusIds,
     allowedMovementPatternIds: ["horizontal-push", "scapular-protraction"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -604,14 +673,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "chest-fly": defineRule({
     coreMovementId: "chest-fly",
-    allowedApparatusIds: [
-      "dumbbell",
-      "cable",
-      "machine",
-      "band",
-      "trx",
-      "suspension",
-    ],
+    allowedApparatusIds: commonLoadApparatusIds,
     allowedMovementPatternIds: ["chest-fly"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -639,14 +701,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "reverse-fly": defineRule({
     coreMovementId: "reverse-fly",
-    allowedApparatusIds: [
-      "dumbbell",
-      "cable",
-      "machine",
-      "band",
-      "trx",
-      "suspension",
-    ],
+    allowedApparatusIds: commonLoadApparatusIds,
     allowedMovementPatternIds: ["reverse-fly", "scapular-retraction", "horizontal-pull"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -674,20 +729,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   row: defineRule({
     coreMovementId: "row",
-    allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "cable",
-      "machine",
-      "kettlebell",
-      "bodyweight",
-      "band",
-      "trx",
-      "suspension",
-      "landmine",
-      "bench",
-      "stability-ball",
-    ],
+    allowedApparatusIds: [...commonLoadApparatusIds, "bench"],
     allowedMovementPatternIds: ["horizontal-pull", "scapular-retraction"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -728,19 +770,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   squat: defineRule({
     coreMovementId: "squat",
-    allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "machine",
-      "kettlebell",
-      "bodyweight",
-      "band",
-      "cable",
-      "trx",
-      "smith-machine",
-      "landmine",
-      "box",
-    ],
+    allowedApparatusIds: squatLoadApparatusIds,
     allowedMovementPatternIds: ["squat"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -776,20 +806,16 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   hinge: defineRule({
     coreMovementId: "hinge",
-    allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "cable",
-      "machine",
-      "kettlebell",
-      "bodyweight",
-      "band",
-      "trap-bar",
-      "landmine",
-    ],
+    allowedApparatusIds: hingeLoadApparatusIds,
     allowedMovementPatternIds: ["hinge", "hip-extension"],
     allowedModifierCategoryIds: baseCategories,
-    allowedAnglePositionModifierIds: [angle.standing, angle.splitStance],
+    allowedAnglePositionModifierIds: [
+      angle.standing,
+      angle.seated,
+      angle.splitStance,
+      angle.backLoaded,
+      angle.romanChair,
+    ],
     allowedLimbUsageModifierIds: [
       limb.conventional,
       limb.narrow,
@@ -813,7 +839,6 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
       rom.full,
       ...partialRom,
       rom.deficit,
-      rom.deadStop,
     ],
     allowedLoadBehaviorModifierIds: [...strengthLoad, load.ascending, load.ballistic],
     requiredContext: [],
@@ -821,16 +846,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   lunge: defineRule({
     coreMovementId: "lunge",
-    allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "kettlebell",
-      "bodyweight",
-      "band",
-      "trx",
-      "smith-machine",
-      "landmine",
-    ],
+    allowedApparatusIds: lungeLoadApparatusIds,
     allowedMovementPatternIds: ["lunge", "gait"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [angle.standing, angle.splitStance],
@@ -857,17 +873,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "shoulder-press": defineRule({
     coreMovementId: "shoulder-press",
-    allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "cable",
-      "machine",
-      "kettlebell",
-      "bodyweight",
-      "band",
-      "smith-machine",
-      "landmine",
-    ],
+    allowedApparatusIds: commonLoadApparatusIds,
     allowedMovementPatternIds: ["vertical-push"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -933,21 +939,14 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
       assistance.bandAssisted,
       assistance.deloaded,
     ],
-    allowedRangeOfMotionModifierIds: [rom.full, ...partialRom, rom.deadStop],
+    allowedRangeOfMotionModifierIds: [rom.full, ...partialRom],
     allowedLoadBehaviorModifierIds: [load.constant, load.grind],
     requiredContext: [overheadContext],
     notes: ["Suspension pulling is currently modeled as row, not pull-up."],
   }),
   carry: defineRule({
     coreMovementId: "carry",
-    allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "kettlebell",
-      "bodyweight",
-      "trap-bar",
-      "sled",
-    ],
+    allowedApparatusIds: carryLoadApparatusIds,
     allowedMovementPatternIds: ["carry", "gait"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [angle.standing],
@@ -968,13 +967,9 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   rotation: defineRule({
     coreMovementId: "rotation",
     allowedApparatusIds: [
-      "dumbbell",
-      "cable",
-      "kettlebell",
-      "bodyweight",
-      "band",
+      ...commonLoadApparatusIds,
       "medicine-ball",
-      "landmine",
+      "slam-ball",
     ],
     allowedMovementPatternIds: ["rotation"],
     allowedModifierCategoryIds: baseCategories,
@@ -1007,7 +1002,11 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "anti-rotation": defineRule({
     coreMovementId: "anti-rotation",
-    allowedApparatusIds: ["cable", "band", "dumbbell", "kettlebell", "trx"],
+    allowedApparatusIds: [
+      ...commonLoadApparatusIds,
+      "medicine-ball",
+      "weight-plate",
+    ],
     allowedMovementPatternIds: ["anti-rotation"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -1107,17 +1106,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "hip-thrust-glute-bridge": defineRule({
     coreMovementId: "hip-thrust-glute-bridge",
-    allowedApparatusIds: [
-      "bodyweight",
-      "barbell",
-      "dumbbell",
-      "kettlebell",
-      "smith-machine",
-      "machine",
-      "band",
-      "cable",
-      "bench",
-    ],
+    allowedApparatusIds: hipThrustBridgeLoadApparatusIds,
     allowedMovementPatternIds: ["hip-extension", "hinge"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -1160,15 +1149,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "calf-raise": defineRule({
     coreMovementId: "calf-raise",
-    allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "machine",
-      "bodyweight",
-      "smith-machine",
-      "bench",
-      "box",
-    ],
+    allowedApparatusIds: [...commonLoadApparatusIds, "box", "bench"],
     allowedMovementPatternIds: ["plantarflexion"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [angle.standing, angle.seated],
@@ -1202,12 +1183,13 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "hip-abduction": defineRule({
     coreMovementId: "hip-abduction",
-    allowedApparatusIds: ["machine", "band", "cable", "bodyweight"],
+    allowedApparatusIds: hipAccessoryLoadApparatusIds,
     allowedMovementPatternIds: ["hip-abduction"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
       angle.seated,
       angle.standing,
+      angle.sideLying,
       angle.supine,
       angle.prone,
     ],
@@ -1220,13 +1202,14 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
     allowedTempoModifierIds: controlledTempo,
     allowedAssistanceResistanceModifierIds: [assistance.deloaded],
     allowedRangeOfMotionModifierIds: fullPartialRom,
+    allowedDirectionModifierIds: [direction.lateral],
     allowedLoadBehaviorModifierIds: [load.constant, load.variable],
     requiredContext: [anchorContext],
-    notes: ["Side-lying position is approximated with supine/prone until position taxonomy expands."],
+    notes: ["Standing, side-lying, machine, cable, band, and slider abduction variations are supported."],
   }),
   "hip-adduction": defineRule({
     coreMovementId: "hip-adduction",
-    allowedApparatusIds: ["machine", "band", "cable", "bodyweight", "bench"],
+    allowedApparatusIds: [...hipAccessoryLoadApparatusIds, "bench"],
     allowedMovementPatternIds: ["hip-adduction"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -1250,15 +1233,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "biceps-curl": defineRule({
     coreMovementId: "biceps-curl",
-    allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "cable",
-      "machine",
-      "kettlebell",
-      "band",
-      "bench",
-    ],
+    allowedApparatusIds: [...commonLoadApparatusIds, "bench"],
     allowedMovementPatternIds: ["elbow-flexion"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -1278,15 +1253,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "triceps-extension": defineRule({
     coreMovementId: "triceps-extension",
-    allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "cable",
-      "machine",
-      "kettlebell",
-      "band",
-      "bench",
-    ],
+    allowedApparatusIds: [...commonLoadApparatusIds, "bench"],
     allowedMovementPatternIds: ["elbow-extension"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -1308,7 +1275,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "lateral-raise": defineRule({
     coreMovementId: "lateral-raise",
-    allowedApparatusIds: ["dumbbell", "cable", "machine", "band"],
+    allowedApparatusIds: commonLoadApparatusIds,
     allowedMovementPatternIds: ["shoulder-abduction"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -1328,15 +1295,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "rear-delt-raise": defineRule({
     coreMovementId: "rear-delt-raise",
-    allowedApparatusIds: [
-      "dumbbell",
-      "cable",
-      "machine",
-      "bodyweight",
-      "band",
-      "bench",
-      "stability-ball",
-    ],
+    allowedApparatusIds: [...commonLoadApparatusIds, "bench"],
     allowedMovementPatternIds: ["scapular-retraction", "horizontal-pull"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [
@@ -1384,15 +1343,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   shrug: defineRule({
     coreMovementId: "shrug",
-    allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "cable",
-      "machine",
-      "kettlebell",
-      "smith-machine",
-      "trap-bar",
-    ],
+    allowedApparatusIds: [...commonLoadApparatusIds, "trap-bar"],
     allowedMovementPatternIds: ["scapular-retraction"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [angle.standing, angle.seated],
@@ -1407,15 +1358,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "step-up": defineRule({
     coreMovementId: "step-up",
-    allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "kettlebell",
-      "bodyweight",
-      "band",
-      "box",
-      "bench",
-    ],
+    allowedApparatusIds: stepUpLoadApparatusIds,
     allowedMovementPatternIds: ["step-gait-jump", "gait"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [angle.standing],
@@ -1443,7 +1386,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "step-down": defineRule({
     coreMovementId: "step-down",
-    allowedApparatusIds: ["dumbbell", "kettlebell", "bodyweight", "box", "bench"],
+    allowedApparatusIds: stepUpLoadApparatusIds,
     allowedMovementPatternIds: ["step-gait-jump", "gait"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [angle.standing],
@@ -1462,16 +1405,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "split-squat": defineRule({
     coreMovementId: "split-squat",
-    allowedApparatusIds: [
-      "dumbbell",
-      "barbell",
-      "kettlebell",
-      "bodyweight",
-      "band",
-      "smith-machine",
-      "landmine",
-      "bench",
-    ],
+    allowedApparatusIds: [...lungeLoadApparatusIds, "bench"],
     allowedMovementPatternIds: ["lunge"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [angle.standing, angle.splitStance],
@@ -1686,7 +1620,7 @@ export const CORE_MOVEMENT_COMPATIBILITY_RULES: Partial<
   }),
   "medicine-ball-slam": defineRule({
     coreMovementId: "medicine-ball-slam",
-    allowedApparatusIds: ["medicine-ball"],
+    allowedApparatusIds: ["medicine-ball", "slam-ball"],
     allowedMovementPatternIds: ["ballistic-throw-slam"],
     allowedModifierCategoryIds: baseCategories,
     allowedAnglePositionModifierIds: [angle.standing, angle.halfKneeling],
@@ -1740,8 +1674,49 @@ const canonicalizeApparatusId = (apparatusId: ApparatusId): ApparatusId | null =
 const canonicalizeModifierId = (
   modifierId: ExerciseModifierId,
 ): ExerciseModifierId | null => {
-  if (modifierId === "apparatus:suspension") return "apparatus:trx";
+  if (
+    modifierId === "apparatus:suspension" ||
+    modifierId === ("apparatus:suspension-trainer" as ExerciseModifierId) ||
+    modifierId === ("apparatus:suspension-training" as ExerciseModifierId)
+  ) {
+    return "apparatus:trx";
+  }
   if (modifierId === "apparatus:stability-ball") return null;
+  if (
+    modifierId === ("apparatus:ez-curl-bar" as ExerciseModifierId) ||
+    modifierId === ("apparatus:curl-bar" as ExerciseModifierId)
+  ) {
+    return "apparatus:ez-bar";
+  }
+  if (
+    modifierId === ("apparatus:safety-squat-bar" as ExerciseModifierId) ||
+    modifierId === ("apparatus:ssb" as ExerciseModifierId)
+  ) {
+    return "apparatus:safety-bar";
+  }
+  if (modifierId === ("apparatus:dead-ball" as ExerciseModifierId)) {
+    return "apparatus:slam-ball";
+  }
+  if (modifierId === ("apparatus:sand-bag" as ExerciseModifierId)) {
+    return "apparatus:sandbag";
+  }
+  if (
+    modifierId === ("apparatus:slider" as ExerciseModifierId) ||
+    modifierId === ("apparatus:glider" as ExerciseModifierId) ||
+    modifierId === ("apparatus:gliders" as ExerciseModifierId) ||
+    modifierId === ("apparatus:furniture-slider" as ExerciseModifierId) ||
+    modifierId === ("apparatus:furniture-sliders" as ExerciseModifierId)
+  ) {
+    return "apparatus:sliders";
+  }
+  if (
+    modifierId === ("apparatus:plate" as ExerciseModifierId) ||
+    modifierId === ("apparatus:olympic-plate" as ExerciseModifierId) ||
+    modifierId === ("apparatus:iron-plate" as ExerciseModifierId) ||
+    modifierId === ("apparatus:bumper-plate" as ExerciseModifierId)
+  ) {
+    return "apparatus:weight-plate";
+  }
   if (modifierId === ("stability:stable" as ExerciseModifierId)) {
     return null;
   }
@@ -1813,13 +1788,20 @@ const canonicalizeModifierId = (
   ) {
     return null;
   }
-  if (modifierId === ("range-of-motion:partial-rom" as ExerciseModifierId)) {
-    return "range-of-motion:shortened-partial";
-  }
-  if (modifierId === ("range-of-motion:extended-rom" as ExerciseModifierId)) {
+  if (
+    modifierId === ("range-of-motion:partial-rom" as ExerciseModifierId) ||
+    modifierId === ("range-of-motion:extended-rom" as ExerciseModifierId)
+  ) {
     return "range-of-motion:full-rom";
   }
-  if (modifierId === ("range-of-motion:pin-press" as ExerciseModifierId)) {
+  if (
+    modifierId === ("range-of-motion:limited-rom" as ExerciseModifierId) ||
+    modifierId === ("range-of-motion:box-rom" as ExerciseModifierId) ||
+    modifierId === ("range-of-motion:box-rom-modifier" as ExerciseModifierId) ||
+    modifierId === ("range-of-motion:pin-press" as ExerciseModifierId) ||
+    modifierId === ("range-of-motion:rack-pull" as ExerciseModifierId) ||
+    modifierId === ("range-of-motion:block-pull" as ExerciseModifierId)
+  ) {
     return "range-of-motion:rom-limiter";
   }
   return modifierId;

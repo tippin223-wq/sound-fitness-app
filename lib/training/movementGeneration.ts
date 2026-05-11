@@ -61,8 +61,49 @@ const compactUnique = <T>(items: T[]) => Array.from(new Set(items));
 const canonicalizeMovementModifierId = (
   modifierId: ExerciseModifierId,
 ): ExerciseModifierId => {
-  if (modifierId === "apparatus:suspension") return "apparatus:trx";
+  if (
+    modifierId === "apparatus:suspension" ||
+    modifierId === ("apparatus:suspension-trainer" as ExerciseModifierId) ||
+    modifierId === ("apparatus:suspension-training" as ExerciseModifierId)
+  ) {
+    return "apparatus:trx";
+  }
   if (modifierId === "apparatus:stability-ball") return modifierId;
+  if (
+    modifierId === ("apparatus:ez-curl-bar" as ExerciseModifierId) ||
+    modifierId === ("apparatus:curl-bar" as ExerciseModifierId)
+  ) {
+    return "apparatus:ez-bar";
+  }
+  if (
+    modifierId === ("apparatus:safety-squat-bar" as ExerciseModifierId) ||
+    modifierId === ("apparatus:ssb" as ExerciseModifierId)
+  ) {
+    return "apparatus:safety-bar";
+  }
+  if (modifierId === ("apparatus:dead-ball" as ExerciseModifierId)) {
+    return "apparatus:slam-ball";
+  }
+  if (modifierId === ("apparatus:sand-bag" as ExerciseModifierId)) {
+    return "apparatus:sandbag";
+  }
+  if (
+    modifierId === ("apparatus:slider" as ExerciseModifierId) ||
+    modifierId === ("apparatus:glider" as ExerciseModifierId) ||
+    modifierId === ("apparatus:gliders" as ExerciseModifierId) ||
+    modifierId === ("apparatus:furniture-slider" as ExerciseModifierId) ||
+    modifierId === ("apparatus:furniture-sliders" as ExerciseModifierId)
+  ) {
+    return "apparatus:sliders";
+  }
+  if (
+    modifierId === ("apparatus:plate" as ExerciseModifierId) ||
+    modifierId === ("apparatus:olympic-plate" as ExerciseModifierId) ||
+    modifierId === ("apparatus:iron-plate" as ExerciseModifierId) ||
+    modifierId === ("apparatus:bumper-plate" as ExerciseModifierId)
+  ) {
+    return "apparatus:weight-plate";
+  }
   if (modifierId === ("stability:single-leg" as ExerciseModifierId)) {
     return "limb-usage:single-leg";
   }
@@ -99,13 +140,20 @@ const canonicalizeMovementModifierId = (
   if (modifierId === ("stability:chaotic" as ExerciseModifierId)) {
     return "assistance-resistance:chaotic";
   }
-  if (modifierId === ("range-of-motion:partial-rom" as ExerciseModifierId)) {
-    return "range-of-motion:shortened-partial";
-  }
-  if (modifierId === ("range-of-motion:extended-rom" as ExerciseModifierId)) {
+  if (
+    modifierId === ("range-of-motion:partial-rom" as ExerciseModifierId) ||
+    modifierId === ("range-of-motion:extended-rom" as ExerciseModifierId)
+  ) {
     return "range-of-motion:full-rom";
   }
-  if (modifierId === ("range-of-motion:pin-press" as ExerciseModifierId)) {
+  if (
+    modifierId === ("range-of-motion:limited-rom" as ExerciseModifierId) ||
+    modifierId === ("range-of-motion:box-rom" as ExerciseModifierId) ||
+    modifierId === ("range-of-motion:box-rom-modifier" as ExerciseModifierId) ||
+    modifierId === ("range-of-motion:pin-press" as ExerciseModifierId) ||
+    modifierId === ("range-of-motion:rack-pull" as ExerciseModifierId) ||
+    modifierId === ("range-of-motion:block-pull" as ExerciseModifierId)
+  ) {
     return "range-of-motion:rom-limiter";
   }
   return modifierId;

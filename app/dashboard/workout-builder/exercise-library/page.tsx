@@ -45,6 +45,7 @@ import {
   EXERCISE_MODIFIER_CATEGORY_BY_ID,
   MOVEMENT_PATTERN_CATEGORY_BY_ID,
   MOVEMENT_PATTERN_BY_ID,
+  STANDARD_RANGE_OF_MOTION_MODIFIER_IDS,
 } from "@/lib/training/movementTaxonomy";
 import { createExerciseVariation } from "@/lib/training/movementGeneration";
 import { ROUTES } from "@/lib/routes";
@@ -87,6 +88,8 @@ type ExerciseLibrarySortMode =
   | "favorites"
   | "recent"
   | "logged";
+
+type MovementDetailsSubPanel = "similar" | "progress";
 
 const viewModeLabels: Record<ExerciseLibraryViewMode, string> = {
   detail: "Detail View",
@@ -1618,9 +1621,12 @@ const getCompatibleModifierGroups = (
     .filter(Boolean)
     .map((group) => ({
       ...group,
-      modifiers: group.modifiers.sort(
-        (a, b) => a.displayOrder - b.displayOrder,
-      ),
+      modifiers:
+        group.categoryId === "range-of-motion"
+          ? getStandardRangeOfMotionOptions()
+          : group.modifiers.sort(
+              (a, b) => a.displayOrder - b.displayOrder,
+            ),
     }))
     .sort((a, b) => a.displayOrder - b.displayOrder);
 };
@@ -1644,18 +1650,40 @@ const equipmentLabelReplacements: Record<string, string> = {
   db: "Dumbbell",
   dumbell: "Dumbbell",
   dumbbell: "Dumbbell",
+  dumbbells: "Dumbbell",
   kb: "Kettlebell",
   kettlebell: "Kettlebell",
   "kettle bell": "Kettlebell",
   "kettle bell ": "Kettlebell",
   "kettle-ball": "Kettlebell",
+  "ez bar": "EZ Bar",
+  "ez-bar": "EZ Bar",
+  "ez curl bar": "EZ Bar",
+  "curl bar": "EZ Bar",
   "medicine ball": "Medicine Ball",
   "med ball": "Medicine Ball",
+  "slam ball": "Slam Ball",
+  "dead ball": "Slam Ball",
+  plate: "Weight Plate",
+  "weight plate": "Weight Plate",
+  "olympic plate": "Weight Plate",
+  "iron plate": "Weight Plate",
+  "bumper plate": "Weight Plate",
+  sandbag: "Sandbag",
+  "sand bag": "Sandbag",
   bodyweight: "Bodyweight",
+  "body weight": "Bodyweight",
+  "no equipment": "Bodyweight",
+  bb: "Barbell",
   barbell: "Barbell",
+  smith: "Smith Machine",
+  "smith machine": "Smith Machine",
   machine: "Machine",
   cable: "Cable",
   band: "Band",
+  "safety bar": "Safety Bar",
+  "safety squat bar": "Safety Bar",
+  ssb: "Safety Bar",
   "trap bar": "Trap Bar",
   trx: "TRX",
   landmine: "Landmine",
@@ -1690,10 +1718,16 @@ const normalizeEquipmentSearchTerm = (value: string) =>
 
 const equipmentSearchAliasLabels: Record<string, string[]> = {
   barbell: ["bb"],
+  "smith machine": ["smith"],
   dumbbell: ["db", "dumbbells", "dumbell"],
   kettlebell: ["kb", "kettle bell", "kettle-ball"],
+  "ez bar": ["ez-bar", "ez curl bar", "curl bar"],
   bodyweight: ["body weight", "no equipment"],
   "medicine ball": ["med ball"],
+  "slam ball": ["dead ball"],
+  "weight plate": ["plate", "olympic plate", "iron plate", "bumper plate"],
+  sandbag: ["sand bag"],
+  "safety bar": ["safety squat bar", "ssb"],
   trx: ["suspension", "suspension trainer", "suspension training"],
   sliders: ["slider", "glider", "gliders", "furniture slider", "furniture sliders"],
 };
@@ -1717,6 +1751,11 @@ const equipmentSearchModifierAliases: Array<{
   terms: string[];
 }> = [
   { modifierId: "apparatus:barbell", terms: ["barbell", "bb"] },
+  { modifierId: "apparatus:smith-machine", terms: ["smith machine", "smith"] },
+  {
+    modifierId: "apparatus:ez-bar",
+    terms: ["ez bar", "ez-bar", "ez curl bar", "curl bar"],
+  },
   {
     modifierId: "apparatus:dumbbell",
     terms: ["dumbbell", "dumbbells", "dumbell", "db"],
@@ -1735,6 +1774,22 @@ const equipmentSearchModifierAliases: Array<{
   {
     modifierId: "apparatus:medicine-ball",
     terms: ["medicine ball", "med ball"],
+  },
+  {
+    modifierId: "apparatus:slam-ball",
+    terms: ["slam ball", "dead ball"],
+  },
+  {
+    modifierId: "apparatus:weight-plate",
+    terms: ["weight plate", "plate", "olympic plate", "iron plate", "bumper plate"],
+  },
+  {
+    modifierId: "apparatus:sandbag",
+    terms: ["sandbag", "sand bag"],
+  },
+  {
+    modifierId: "apparatus:safety-bar",
+    terms: ["safety bar", "safety squat bar", "ssb"],
   },
   { modifierId: "apparatus:landmine", terms: ["landmine"] },
   { modifierId: "apparatus:trap-bar", terms: ["trap bar"] },
@@ -1818,6 +1873,11 @@ const resistanceProfileSuggestionModifierIds = [
   "load-behavior:variable-resistance",
 ] as ExerciseModifierId[];
 
+const getStandardRangeOfMotionOptions = () =>
+  STANDARD_RANGE_OF_MOTION_MODIFIER_IDS
+    .map((modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId])
+    .filter((modifier): modifier is ExerciseModifier => Boolean(modifier));
+
 const normalizeModifierDisplayKey = (label: string) =>
   label.trim().toLowerCase().replace(/\s+/g, " ");
 
@@ -1839,8 +1899,19 @@ const modifierDedupLabelReplacements: Record<string, string> = {
   kb: "kettlebell",
   kettlebell: "kettlebell",
   "kettle bell": "kettlebell",
+  "ez bar": "ez bar",
+  "ez-bar": "ez bar",
+  "ez curl bar": "ez bar",
+  "curl bar": "ez bar",
   "body weight": "bodyweight",
   bodyweight: "bodyweight",
+  "safety bar": "safety bar",
+  "safety squat bar": "safety bar",
+  ssb: "safety bar",
+  "slam ball": "slam ball",
+  "dead ball": "slam ball",
+  "sand bag": "sandbag",
+  sandbag: "sandbag",
   standard: "standard stance",
   "standard stance": "standard stance",
   narrow: "narrow stance",
@@ -1968,6 +2039,49 @@ type CardModifierControlDefinition = {
   accent: "cyan" | "emerald" | "yellow" | "violet";
 };
 
+const commonLoadEquipmentOptionIds = modifierIds([
+  "apparatus:bodyweight",
+  "apparatus:dumbbell",
+  "apparatus:kettlebell",
+  "apparatus:barbell",
+  "apparatus:ez-bar",
+  "apparatus:cable",
+  "apparatus:band",
+  "apparatus:machine",
+  "apparatus:smith-machine",
+  "apparatus:landmine",
+  "apparatus:weight-plate",
+  "apparatus:trx",
+  "apparatus:sandbag",
+  "apparatus:safety-bar",
+]);
+
+const squatEquipmentOptionIds = modifierIds([
+  ...commonLoadEquipmentOptionIds,
+  "apparatus:trap-bar",
+  "apparatus:box",
+]);
+
+const hingeEquipmentOptionIds = modifierIds([
+  ...commonLoadEquipmentOptionIds,
+  "apparatus:trap-bar",
+]);
+
+const lungeEquipmentOptionIds = modifierIds([
+  ...commonLoadEquipmentOptionIds,
+  "apparatus:sliders",
+]);
+
+const stepUpEquipmentOptionIds = modifierIds([
+  ...commonLoadEquipmentOptionIds,
+  "apparatus:box",
+]);
+
+const hipThrustBridgeEquipmentOptionIds = modifierIds([
+  ...commonLoadEquipmentOptionIds,
+  "apparatus:box",
+]);
+
 const feetWidthOptionIds = modifierIds([
   "limb-usage:narrow-stance",
   "limb-usage:standard-stance",
@@ -1995,6 +2109,12 @@ const hingeFeetWidthOptionIds = modifierIds([
   "limb-usage:staggered",
   "limb-usage:kickstand",
   "limb-usage:single-leg",
+]);
+
+const hingePositionOptionIds = modifierIds([
+  "angle-position:standing",
+  "angle-position:seated",
+  "angle-position:roman-chair",
 ]);
 
 const stepUpDirectionOptionIds = modifierIds([
@@ -2049,16 +2169,7 @@ const hipThrustBridgeModifierControls: CardModifierControlDefinition[] = [
     key: "hip-thrust-equipment",
     label: "Equipment",
     categories: ["apparatus"],
-    optionIds: modifierIds([
-      "apparatus:bodyweight",
-      "apparatus:barbell",
-      "apparatus:dumbbell",
-      "apparatus:kettlebell",
-      "apparatus:smith-machine",
-      "apparatus:machine",
-      "apparatus:band",
-      "apparatus:cable",
-    ]),
+    optionIds: hipThrustBridgeEquipmentOptionIds,
     accent: "cyan",
   },
   {
@@ -2091,18 +2202,7 @@ const cardModifierControlPresets: Partial<
       key: "squat-equipment",
       label: "Equipment",
       categories: ["apparatus"],
-      optionIds: modifierIds([
-        "apparatus:bodyweight",
-        "apparatus:dumbbell",
-        "apparatus:kettlebell",
-        "apparatus:barbell",
-        "apparatus:machine",
-        "apparatus:smith-machine",
-        "apparatus:landmine",
-        "apparatus:trx",
-        "apparatus:band",
-        "apparatus:cable",
-      ]),
+      optionIds: squatEquipmentOptionIds,
       accent: "cyan",
     },
     {
@@ -2124,16 +2224,7 @@ const cardModifierControlPresets: Partial<
       key: "chest-press-equipment",
       label: "Equipment",
       categories: ["apparatus"],
-      optionIds: modifierIds([
-        "apparatus:bodyweight",
-        "apparatus:dumbbell",
-        "apparatus:barbell",
-        "apparatus:machine",
-        "apparatus:cable",
-        "apparatus:band",
-        "apparatus:trx",
-        "apparatus:landmine",
-      ]),
+      optionIds: commonLoadEquipmentOptionIds,
       accent: "cyan",
     },
     {
@@ -2168,13 +2259,7 @@ const cardModifierControlPresets: Partial<
       key: "fly-equipment",
       label: "Equipment",
       categories: ["apparatus"],
-      optionIds: modifierIds([
-        "apparatus:dumbbell",
-        "apparatus:cable",
-        "apparatus:machine",
-        "apparatus:band",
-        "apparatus:trx",
-      ]),
+      optionIds: commonLoadEquipmentOptionIds,
       accent: "cyan",
     },
     {
@@ -2211,13 +2296,7 @@ const cardModifierControlPresets: Partial<
       key: "reverse-fly-equipment",
       label: "Equipment",
       categories: ["apparatus"],
-      optionIds: modifierIds([
-        "apparatus:dumbbell",
-        "apparatus:cable",
-        "apparatus:machine",
-        "apparatus:band",
-        "apparatus:trx",
-      ]),
+      optionIds: commonLoadEquipmentOptionIds,
       accent: "cyan",
     },
     {
@@ -2255,12 +2334,7 @@ const cardModifierControlPresets: Partial<
       key: "lateral-raise-equipment",
       label: "Equipment",
       categories: ["apparatus"],
-      optionIds: modifierIds([
-        "apparatus:dumbbell",
-        "apparatus:cable",
-        "apparatus:band",
-        "apparatus:machine",
-      ]),
+      optionIds: commonLoadEquipmentOptionIds,
       accent: "cyan",
     },
     {
@@ -2292,16 +2366,7 @@ const cardModifierControlPresets: Partial<
       key: "row-equipment",
       label: "Equipment",
       categories: ["apparatus"],
-      optionIds: modifierIds([
-        "apparatus:dumbbell",
-        "apparatus:kettlebell",
-        "apparatus:barbell",
-        "apparatus:cable",
-        "apparatus:machine",
-        "apparatus:band",
-        "apparatus:trx",
-        "apparatus:landmine",
-      ]),
+      optionIds: commonLoadEquipmentOptionIds,
       accent: "cyan",
     },
     {
@@ -2328,7 +2393,6 @@ const cardModifierControlPresets: Partial<
         "limb-usage:overhand-grip",
         "limb-usage:wide-grip",
         "limb-usage:close-grip",
-        "range-of-motion:dead-stop",
         "stability:bosu",
         "assistance-resistance:chaotic",
         "assistance-resistance:chains",
@@ -2341,30 +2405,27 @@ const cardModifierControlPresets: Partial<
       key: "hinge-equipment",
       label: "Equipment",
       categories: ["apparatus"],
-      optionIds: modifierIds([
-        "apparatus:barbell",
-        "apparatus:dumbbell",
-        "apparatus:kettlebell",
-        "apparatus:trap-bar",
-        "apparatus:cable",
-        "apparatus:band",
-        "apparatus:machine",
-        "apparatus:landmine",
-      ]),
+      optionIds: hingeEquipmentOptionIds,
       accent: "cyan",
     },
     getFeetWidthControl("hinge-feet-width", hingeFeetWidthOptionIds),
+    {
+      key: "hinge-position",
+      label: "Position",
+      categories: ["angle-position"],
+      optionIds: hingePositionOptionIds,
+      accent: "violet",
+    },
     {
       key: "hinge-rom",
       label: "ROM",
       categories: ["range-of-motion"],
       optionIds: modifierIds([
-        "range-of-motion:dead-stop",
-        "range-of-motion:deficit",
-        "range-of-motion:rom-limiter",
         "range-of-motion:full-rom",
         "range-of-motion:shortened-partial",
         "range-of-motion:lengthened-partial",
+        "range-of-motion:deficit",
+        "range-of-motion:rom-limiter",
       ]),
       accent: "emerald",
     },
@@ -2374,17 +2435,7 @@ const cardModifierControlPresets: Partial<
       key: "lunge-equipment",
       label: "Equipment",
       categories: ["apparatus"],
-      optionIds: modifierIds([
-        "apparatus:bodyweight",
-        "apparatus:dumbbell",
-        "apparatus:kettlebell",
-        "apparatus:barbell",
-        "apparatus:landmine",
-        "apparatus:band",
-        "apparatus:cable",
-        "apparatus:trx",
-        "apparatus:sliders",
-      ]),
+      optionIds: lungeEquipmentOptionIds,
       accent: "cyan",
     },
     {
@@ -2420,12 +2471,7 @@ const cardModifierControlPresets: Partial<
       key: "step-up-equipment",
       label: "Equipment",
       categories: ["apparatus"],
-      optionIds: modifierIds([
-        "apparatus:bodyweight",
-        "apparatus:dumbbell",
-        "apparatus:kettlebell",
-        "apparatus:barbell",
-      ]),
+      optionIds: stepUpEquipmentOptionIds,
       accent: "cyan",
     },
     {
@@ -2484,10 +2530,20 @@ const defaultPositionControl: CardModifierControlDefinition = {
 };
 
 const nonApplicableModifierControlLabel = "N/A";
+const defaultRangeOfMotionModifierId =
+  STANDARD_RANGE_OF_MOTION_MODIFIER_IDS[0];
 
 const isLoadPositionControl = (control: CardModifierControlDefinition) =>
   control.label.trim().toLowerCase() === "load position" ||
   control.key.toLowerCase().includes("load-position");
+
+const hasRangeOfMotionControlCategory = (
+  control: CardModifierControlDefinition,
+) => control.categories.includes("range-of-motion");
+
+const isRangeOfMotionControl = (control: CardModifierControlDefinition) =>
+  control.categories.length === 1 &&
+  control.categories[0] === "range-of-motion";
 
 const getFallbackThirdControl = (
   coreMovementId?: CoreMovementId | null,
@@ -2518,8 +2574,8 @@ const getFallbackThirdControl = (
   ) {
     return {
       key: "fallback-direction-structure",
-      label: "Direction / Structure",
-      categories: ["direction", "tempo"],
+      label: "Direction",
+      categories: ["direction"],
       accent: "emerald",
     };
   }
@@ -2543,9 +2599,9 @@ const getFallbackThirdControl = (
     ].includes(coreMovementId)
   ) {
     return {
-      key: "fallback-rom-tempo",
-      label: "ROM / Tempo",
-      categories: ["range-of-motion", "tempo"],
+      key: "fallback-rom",
+      label: "ROM",
+      categories: ["range-of-motion"],
       accent: "emerald",
     };
   }
@@ -2632,7 +2688,13 @@ const semanticNameIncludesEquipment = (
   if (!semanticName || !equipmentName) return false;
 
   const equipmentAliases: Record<string, string[]> = {
+    "ez bar": ["ez bar", "ez curl bar", "curl bar"],
     "medicine ball": ["medicine ball", "med ball"],
+    "slam ball": ["slam ball", "dead ball"],
+    "weight plate": ["weight plate", "plate", "olympic plate", "iron plate", "bumper plate"],
+    plate: ["plate", "weight plate", "olympic plate", "iron plate", "bumper plate"],
+    sandbag: ["sandbag", "sand bag"],
+    "safety bar": ["safety bar", "safety squat bar", "ssb"],
     "stability ball": ["stability ball", "swiss ball"],
     sliders: ["slider", "sliders", "glider", "gliders", "furniture slider", "furniture sliders"],
     slider: ["slider", "sliders", "glider", "gliders", "furniture slider", "furniture sliders"],
@@ -2645,7 +2707,9 @@ const semanticNameIncludesEquipment = (
     const normalizedAlias = normalizeGeneratedTitlePart(alias);
     return (
       semanticName === normalizedAlias ||
-      semanticName.startsWith(`${normalizedAlias} `)
+      semanticName.startsWith(`${normalizedAlias} `) ||
+      semanticName.includes(` ${normalizedAlias} `) ||
+      semanticName.endsWith(` ${normalizedAlias}`)
     );
   });
 };
@@ -2950,10 +3014,59 @@ const normalizeModifierIdsForCoreMovement = (
       }
 
       if (
+        modifierId === "apparatus:suspension" ||
+        modifierId === ("apparatus:suspension-trainer" as ExerciseModifierId) ||
+        modifierId === ("apparatus:suspension-training" as ExerciseModifierId)
+      ) {
+        return "apparatus:trx";
+      }
+
+      if (
         modifierId !== "stability:bosu" &&
         getModifierCategoryId(modifierId) === "stability"
       ) {
         return [];
+      }
+
+      if (
+        modifierId === ("apparatus:ez-curl-bar" as ExerciseModifierId) ||
+        modifierId === ("apparatus:curl-bar" as ExerciseModifierId)
+      ) {
+        return "apparatus:ez-bar";
+      }
+
+      if (
+        modifierId === ("apparatus:safety-squat-bar" as ExerciseModifierId) ||
+        modifierId === ("apparatus:ssb" as ExerciseModifierId)
+      ) {
+        return "apparatus:safety-bar";
+      }
+
+      if (modifierId === ("apparatus:dead-ball" as ExerciseModifierId)) {
+        return "apparatus:slam-ball";
+      }
+
+      if (modifierId === ("apparatus:sand-bag" as ExerciseModifierId)) {
+        return "apparatus:sandbag";
+      }
+
+      if (
+        modifierId === ("apparatus:slider" as ExerciseModifierId) ||
+        modifierId === ("apparatus:glider" as ExerciseModifierId) ||
+        modifierId === ("apparatus:gliders" as ExerciseModifierId) ||
+        modifierId === ("apparatus:furniture-slider" as ExerciseModifierId) ||
+        modifierId === ("apparatus:furniture-sliders" as ExerciseModifierId)
+      ) {
+        return "apparatus:sliders";
+      }
+
+      if (
+        modifierId === ("apparatus:plate" as ExerciseModifierId) ||
+        modifierId === ("apparatus:olympic-plate" as ExerciseModifierId) ||
+        modifierId === ("apparatus:iron-plate" as ExerciseModifierId) ||
+        modifierId === ("apparatus:bumper-plate" as ExerciseModifierId)
+      ) {
+        return "apparatus:weight-plate";
       }
 
       if (modifierId === ("execution-style:contralateral" as ExerciseModifierId)) {
@@ -3575,6 +3688,7 @@ const positionAngleModifierSlugs = new Set([
   "bent-over",
   "chest-supported",
   "bench-supported",
+  "roman-chair",
   "plank",
   "rear-foot-elevated",
   "front-foot-elevated",
@@ -6172,12 +6286,21 @@ function MovementSuggestionList({
 
 function MovementSuggestionsPanel({
   suggestions,
+  isOpen,
+  onToggle,
 }: {
   suggestions: ReturnType<typeof getMovementSuggestions>;
+  isOpen: boolean;
+  onToggle: () => void;
 }) {
   return (
-    <details className="group mt-3 rounded-2xl border border-white/10 bg-slate-950/45">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+    <div className="group mt-3 rounded-2xl border border-white/10 bg-slate-950/45">
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        onClick={onToggle}
+        className="flex w-full cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-left"
+      >
         <span>
           <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
             Similar / Substitutions
@@ -6188,31 +6311,44 @@ function MovementSuggestionsPanel({
         </span>
         <span
           aria-hidden="true"
-          className="text-sm font-black text-cyan-100 transition group-open:rotate-180"
+          className={`text-sm font-black text-cyan-100 transition ${
+            isOpen ? "rotate-180" : ""
+          }`}
         >
           v
         </span>
-      </summary>
+      </button>
 
-      <div className="border-t border-white/10 p-3">
-        <MovementSuggestionList
-          title="Best Matches"
-          suggestions={suggestions.substitutions}
-          empty="No close substitutions found yet."
-        />
-      </div>
-    </details>
+      {isOpen ? (
+        <div className="border-t border-white/10 p-3">
+          <MovementSuggestionList
+            title="Best Matches"
+            suggestions={suggestions.substitutions}
+            empty="No close substitutions found yet."
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
 function MovementProgressPanel({
   suggestions,
+  isOpen,
+  onToggle,
 }: {
   suggestions: ReturnType<typeof getMovementSuggestions>;
+  isOpen: boolean;
+  onToggle: () => void;
 }) {
   return (
-    <details className="group mt-3 rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.07]">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+    <div className="group mt-3 rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.07]">
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        onClick={onToggle}
+        className="flex w-full cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-left"
+      >
         <span>
           <span className="block text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
             Progress / Regress
@@ -6223,25 +6359,29 @@ function MovementProgressPanel({
         </span>
         <span
           aria-hidden="true"
-          className="text-sm font-black text-emerald-100 transition group-open:rotate-180"
+          className={`text-sm font-black text-emerald-100 transition ${
+            isOpen ? "rotate-180" : ""
+          }`}
         >
           v
         </span>
-      </summary>
+      </button>
 
-      <div className="grid gap-2 border-t border-white/10 p-3">
-        <MovementSuggestionList
-          title="Progress"
-          suggestions={suggestions.progressions}
-          empty="No clear progression mapped yet."
-        />
-        <MovementSuggestionList
-          title="Regress"
-          suggestions={suggestions.regressions}
-          empty="No simpler regression mapped yet."
-        />
-      </div>
-    </details>
+      {isOpen ? (
+        <div className="grid gap-2 border-t border-white/10 p-3">
+          <MovementSuggestionList
+            title="Progress"
+            suggestions={suggestions.progressions}
+            empty="No clear progression mapped yet."
+          />
+          <MovementSuggestionList
+            title="Regress"
+            suggestions={suggestions.regressions}
+            empty="No simpler regression mapped yet."
+          />
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -6258,6 +6398,8 @@ function ExerciseLibraryCard({
   onAddToPlan,
   onDeleteCustom,
   onAddStats,
+  isExerciseDetailsOpen,
+  onToggleExerciseDetails,
   isMovementDetailsOpen,
   onToggleMovementDetails,
 }: {
@@ -6277,6 +6419,8 @@ function ExerciseLibraryCard({
     mode: ExerciseStatsMenuMode,
     anchorElement?: HTMLElement | null,
   ) => void;
+  isExerciseDetailsOpen: boolean;
+  onToggleExerciseDetails: (exerciseId: string | null) => void;
   isMovementDetailsOpen: boolean;
   onToggleMovementDetails: (exerciseId: string | null) => void;
 }) {
@@ -6291,7 +6435,8 @@ function ExerciseLibraryCard({
   const [isVariationDropdownOpen, setIsVariationDropdownOpen] =
     useState(false);
   const [isSemanticDropdownOpen, setIsSemanticDropdownOpen] = useState(false);
-  const [isGridDetailsOpen, setIsGridDetailsOpen] = useState(false);
+  const [activeMovementDetailsSubPanel, setActiveMovementDetailsSubPanel] =
+    useState<MovementDetailsSubPanel | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const gridDetailsDropdownRef = useRef<HTMLDivElement | null>(null);
   const settingsDropdownRef = useRef<HTMLDivElement | null>(null);
@@ -6348,6 +6493,8 @@ function ExerciseLibraryCard({
   );
   const muscleIntelligence = getExerciseMuscleIntelligence(exercise, metadata);
   const isGridView = viewMode === "grid";
+  const isGridDetailsOpen = isGridView && isExerciseDetailsOpen;
+  const isDetailExerciseDetailsOpen = !isGridView && isExerciseDetailsOpen;
   const latestGridStat = recentStats[0];
   const compatibleModifierGroups = getCompatibleModifierGroups(metadata);
   const coreMovementId = metadata?.coreMovementId || null;
@@ -6385,25 +6532,63 @@ function ExerciseLibraryCard({
     const availableOptionsById = new Map(
       categoryOptions.map((modifier) => [modifier.id, modifier]),
     );
+    const explicitOptionSourceById = control.categories.includes("apparatus")
+      ? new Map(
+          Object.values(EXERCISE_MODIFIER_BY_ID).map((modifier) => [
+            modifier.id,
+            modifier,
+          ]),
+        )
+      : availableOptionsById;
+    const standardRangeOfMotionOptions = getStandardRangeOfMotionOptions();
+
+    if (isRangeOfMotionControl(control)) {
+      return standardRangeOfMotionOptions;
+    }
+
     const orderedOptions = control.optionIds
       ? control.optionIds
-          .map((modifierId) => availableOptionsById.get(modifierId))
+          .map((modifierId) => explicitOptionSourceById.get(modifierId))
           .filter((modifier): modifier is ExerciseModifier => Boolean(modifier))
       : categoryOptions;
+    const normalizedOptions = hasRangeOfMotionControlCategory(control)
+      ? [
+          ...orderedOptions.filter(
+            (modifier) => modifier.categoryId !== "range-of-motion",
+          ),
+          ...standardRangeOfMotionOptions,
+        ]
+      : orderedOptions;
 
-    return dedupeModifierOptionsByDisplayLabel(orderedOptions);
+    return dedupeModifierOptionsByDisplayLabel(normalizedOptions);
   };
-  const getSelectedModifierIdForControl = (options: ExerciseModifier[]) =>
-    selectedModifierIds.find((modifierId) =>
+  const getSelectedModifierIdForControl = (
+    control: CardModifierControlDefinition,
+    options: ExerciseModifier[],
+  ) => {
+    const selectedModifierId = selectedModifierIds.find((modifierId) =>
       options.some((option) => option.id === modifierId),
-    ) || "";
+    );
+    if (selectedModifierId) return selectedModifierId;
+
+    if (
+      isRangeOfMotionControl(control) &&
+      options.some((option) => option.id === defaultRangeOfMotionModifierId)
+    ) {
+      return defaultRangeOfMotionModifierId;
+    }
+
+    return "";
+  };
   const getFallbackForControl = (
     control: CardModifierControlDefinition,
     options: ExerciseModifier[],
   ) => {
     if (control.categories.includes("apparatus")) return equipmentLabel;
     if (isLoadPositionControl(control)) return nonApplicableModifierControlLabel;
+    if (isRangeOfMotionControl(control)) return "Full ROM";
     if (isFeetWidthControlLabel(control.label)) return "Standard";
+    if (control.key === "hinge-position") return "Standing";
     if (control.label === "Stability") return "Support";
 
     return patternLabel || control.label;
@@ -6415,7 +6600,7 @@ function ExerciseLibraryCard({
       return {
         ...control,
         options,
-        value: getSelectedModifierIdForControl(options),
+        value: getSelectedModifierIdForControl(control, options),
         fallback: getFallbackForControl(control, options),
       };
     })
@@ -6546,7 +6731,7 @@ function ExerciseLibraryCard({
       ),
     );
     setExplicitSemanticVariationId("");
-    setIsGridDetailsOpen(false);
+    setActiveMovementDetailsSubPanel(null);
     setIsSettingsOpen(false);
   }, [exercise.id, metadata?.id]);
 
@@ -6583,6 +6768,10 @@ function ExerciseLibraryCard({
     "-",
   )}`;
   const gridDetailsPanelId = `details-panel-${exercise.id.replace(
+    /[^a-zA-Z0-9_-]/g,
+    "-",
+  )}`;
+  const detailExerciseDetailsPanelId = `exercise-details-panel-${exercise.id.replace(
     /[^a-zA-Z0-9_-]/g,
     "-",
   )}`;
@@ -6657,7 +6846,7 @@ function ExerciseLibraryCard({
         !dropdownEventKeepsPanelOpen(detail, gridDetailsDropdownId) &&
         !dropdownEventKeepsPanelOpen(detail, settingsDropdownId)
       ) {
-        setIsGridDetailsOpen(false);
+        onToggleExerciseDetails(null);
         setIsSettingsOpen(false);
       }
     };
@@ -6673,13 +6862,13 @@ function ExerciseLibraryCard({
           target.closest('[data-exercise-library-floating-menu="true"]')
         )
       ) {
-        setIsGridDetailsOpen(false);
+        onToggleExerciseDetails(null);
         setIsSettingsOpen(false);
       }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setIsGridDetailsOpen(false);
+        onToggleExerciseDetails(null);
         setIsSettingsOpen(false);
       }
     };
@@ -6699,15 +6888,51 @@ function ExerciseLibraryCard({
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [gridDetailsDropdownId, isGridDetailsOpen, settingsDropdownId]);
+  }, [
+    gridDetailsDropdownId,
+    isGridDetailsOpen,
+    onToggleExerciseDetails,
+    settingsDropdownId,
+  ]);
+  useEffect(() => {
+    if (!isMovementDetailsOpen) {
+      setActiveMovementDetailsSubPanel(null);
+    }
+  }, [isMovementDetailsOpen]);
+
+  const closeMovementDetailsAccordion = () => {
+    setActiveMovementDetailsSubPanel(null);
+    if (isMovementDetailsOpen) onToggleMovementDetails(null);
+  };
+  const toggleMovementDetailsSubPanel = (
+    panel: MovementDetailsSubPanel,
+  ) => {
+    setActiveMovementDetailsSubPanel((current) =>
+      current === panel ? null : panel,
+    );
+  };
   const handleMovementDetailsToggle = () => {
     if (isMovementDetailsOpen) {
+      setActiveMovementDetailsSubPanel(null);
       onToggleMovementDetails(null);
       return;
     }
 
     announceExerciseLibraryDropdownOpen(movementDetailsPanelId);
+    setActiveMovementDetailsSubPanel(null);
     onToggleMovementDetails(exercise.id);
+  };
+  const handleDetailExerciseDetailsToggle = () => {
+    if (isDetailExerciseDetailsOpen) {
+      onToggleExerciseDetails(null);
+      closeMovementDetailsAccordion();
+      setIsSettingsOpen(false);
+      return;
+    }
+
+    announceExerciseLibraryDropdownOpen(detailExerciseDetailsPanelId);
+    onToggleExerciseDetails(exercise.id);
+    closeMovementDetailsAccordion();
   };
   const handleAddStats = (event?: MouseEvent<HTMLButtonElement>) =>
     onAddStats(
@@ -6872,27 +7097,30 @@ function ExerciseLibraryCard({
     panelClassName:
       "relative z-[80] mt-2.5 rounded-2xl border border-cyan-100/30 bg-slate-950/95 p-2.5 shadow-[0_24px_74px_rgba(0,0,0,0.72),0_0_34px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-200/10 backdrop-blur-2xl",
   });
-  const gridExerciseSettingsDropdown = renderExerciseSettingsDropdown({
-    label: "Exercise Settings",
-    wrapperClassName: "relative z-[140]",
+  const gridSettingsDropdown = renderExerciseSettingsDropdown({
+    label: "Customize Settings",
+    wrapperClassName: "relative z-[140] mt-1.5 sm:mt-2",
     panelClassName:
       "absolute left-0 right-0 top-full z-[940] mt-1.5 max-h-[210px] overflow-y-auto overscroll-contain rounded-2xl border border-cyan-100/35 bg-slate-950/98 p-2.5 shadow-[0_24px_76px_rgba(0,0,0,0.78),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-200/14 backdrop-blur-2xl [scrollbar-color:rgba(34,211,238,0.42)_transparent] [scrollbar-width:thin]",
   });
   const gridDetailsDropdown = (
-    <div ref={gridDetailsDropdownRef} className="relative mt-1.5 sm:mt-2">
+    <div
+      ref={gridDetailsDropdownRef}
+      className="relative mt-1.5 w-full max-w-none sm:mt-2"
+    >
       <button
         type="button"
         aria-controls={gridDetailsPanelId}
         aria-expanded={isGridDetailsOpen}
         onClick={() => {
-          if (!isGridDetailsOpen) {
+          if (isGridDetailsOpen) {
+            onToggleExerciseDetails(null);
+          } else {
             announceExerciseLibraryDropdownOpen(gridDetailsDropdownId);
+            onToggleExerciseDetails(exercise.id);
             setIsSettingsOpen(false);
           }
-          setIsGridDetailsOpen((current) => {
-            if (current) setIsSettingsOpen(false);
-            return !current;
-          });
+          closeMovementDetailsAccordion();
         }}
         className={settingsButtonClass}
       >
@@ -6903,11 +7131,9 @@ function ExerciseLibraryCard({
       {isGridDetailsOpen ? (
         <div
           id={gridDetailsPanelId}
-          className="mt-2 overflow-visible rounded-2xl border border-cyan-100/24 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.94))] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_12px_34px_rgba(0,0,0,0.34)] ring-1 ring-cyan-200/10"
+          className="mt-2 w-full max-w-none overflow-visible rounded-2xl border border-cyan-100/24 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.94))] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_12px_34px_rgba(0,0,0,0.34)] ring-1 ring-cyan-200/10"
         >
-          <div className="p-2.5">
-            {gridExerciseSettingsDropdown}
-
+          <div className="w-full max-w-none">
             <MuscleIntelligenceBlock
               muscles={muscleIntelligence}
               compact
@@ -6977,9 +7203,17 @@ function ExerciseLibraryCard({
             customizeSettingsCategoryIds={customizeSettingsCategoryIds}
           />
 
-          <MovementSuggestionsPanel suggestions={suggestions} />
+          <MovementSuggestionsPanel
+            suggestions={suggestions}
+            isOpen={activeMovementDetailsSubPanel === "similar"}
+            onToggle={() => toggleMovementDetailsSubPanel("similar")}
+          />
 
-          <MovementProgressPanel suggestions={suggestions} />
+          <MovementProgressPanel
+            suggestions={suggestions}
+            isOpen={activeMovementDetailsSubPanel === "progress"}
+            onToggle={() => toggleMovementDetailsSubPanel("progress")}
+          />
 
           <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(16,185,129,0.05))] p-4 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
             <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-200/80 drop-shadow-[0_0_8px_rgba(16,185,129,0.35)]">
@@ -6990,6 +7224,47 @@ function ExerciseLibraryCard({
               {exercise.cue}
             </p>
           </div>
+        </div>
+      ) : null}
+    </div>
+  );
+  const goalSelectorBlock = (
+    <div className="mt-3 text-xs">
+      <DetailVariationSelect
+        label="Goal"
+        value={selectedGoalModifierId}
+        options={goalModifierGroup?.modifiers || []}
+        fallback={goalLabel}
+        onOpenChange={setIsVariationDropdownOpen}
+        onChange={(modifierId) =>
+          setModifierForCategory("training-intent", modifierId)
+        }
+        accent="yellow"
+      />
+      <GoalTrainingTips goalLabel={goalLabel} />
+    </div>
+  );
+  const detailExerciseDetails = (
+    <div className="mt-3 w-full max-w-none">
+      <button
+        type="button"
+        aria-controls={detailExerciseDetailsPanelId}
+        aria-expanded={isDetailExerciseDetailsOpen}
+        onClick={handleDetailExerciseDetailsToggle}
+        className={settingsButtonClass}
+      >
+        <span>Exercise Details</span>
+        {renderSettingsChevron(isDetailExerciseDetailsOpen)}
+      </button>
+
+      {isDetailExerciseDetailsOpen ? (
+        <div
+          id={detailExerciseDetailsPanelId}
+          className="mt-2.5 w-full max-w-none rounded-2xl border border-cyan-100/18 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.92))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_16px_46px_rgba(0,0,0,0.34)] ring-1 ring-cyan-200/10"
+        >
+          <MuscleIntelligenceBlock muscles={muscleIntelligence} />
+          {movementDetails}
+          {goalSelectorBlock}
         </div>
       ) : null}
     </div>
@@ -7045,6 +7320,7 @@ function ExerciseLibraryCard({
             compact
           />
 
+          {gridSettingsDropdown}
           {gridDetailsDropdown}
 
           <div className="mt-1.5 rounded-lg border border-cyan-100/15 bg-[linear-gradient(135deg,rgba(34,211,238,0.11),rgba(16,185,129,0.075))] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl sm:mt-2 sm:rounded-xl sm:px-2.5 sm:py-2">
@@ -7104,11 +7380,10 @@ function ExerciseLibraryCard({
         isVariationDropdownOpen ||
         isSemanticDropdownOpen ||
         isGridDetailsOpen ||
+        isDetailExerciseDetailsOpen ||
         isSettingsOpen
           ? "z-[520]"
-          : isMovementDetailsOpen
-            ? "z-[120]"
-            : "z-0 hover:z-20"
+          : "z-0 hover:z-20"
       }`}
     >
       <div className={`pointer-events-none absolute inset-0 z-0 rounded-[30px] ${categoryTheme.overlayClass} opacity-70`} />
@@ -7164,29 +7439,12 @@ function ExerciseLibraryCard({
           onOpenChange={setIsSemanticDropdownOpen}
         />
         {settingsDropdown}
+        {detailExerciseDetails}
       </div>
 
       <div className="relative z-10 px-5 pb-5 pt-3">
-        <MuscleIntelligenceBlock muscles={muscleIntelligence} />
-
-        <div className="mt-3 text-xs">
-          <DetailVariationSelect
-            label="Goal"
-            value={selectedGoalModifierId}
-            options={goalModifierGroup?.modifiers || []}
-            fallback={goalLabel}
-            onOpenChange={setIsVariationDropdownOpen}
-            onChange={(modifierId) =>
-              setModifierForCategory("training-intent", modifierId)
-            }
-            accent="yellow"
-          />
-          <GoalTrainingTips goalLabel={goalLabel} />
-        </div>
-
         <RecentStatsStrip stats={recentStats} />
 
-        {movementDetails}
         {actionButtons}
       </div>
     </article>
@@ -7209,6 +7467,8 @@ export default function ExerciseLibraryPage() {
   const [apparatusFilter, setApparatusFilter] = useState("All");
   const [loadBehaviorFilter, setLoadBehaviorFilter] = useState("All");
   const [planAddToParam, setPlanAddToParam] = useState("");
+  const [activeExerciseDetailsCardId, setActiveExerciseDetailsCardId] =
+    useState<string | null>(null);
   const [openMovementDetailsId, setOpenMovementDetailsId] = useState<
     string | null
   >(null);
@@ -7666,6 +7926,7 @@ export default function ExerciseLibraryPage() {
 
   useEffect(() => {
     setCurrentPage(1);
+    setActiveExerciseDetailsCardId(null);
     setOpenMovementDetailsId(null);
   }, [
     search,
@@ -7679,8 +7940,13 @@ export default function ExerciseLibraryPage() {
   ]);
 
   useEffect(() => {
+    setActiveExerciseDetailsCardId(null);
     setOpenMovementDetailsId(null);
   }, [currentPage, viewMode]);
+
+  useEffect(() => {
+    setOpenMovementDetailsId(null);
+  }, [activeExerciseDetailsCardId]);
 
   const resetFilters = () => {
     setSearch("");
@@ -8707,6 +8973,10 @@ export default function ExerciseLibraryPage() {
                           onAddToPlan={addExerciseToPlanBuilder}
                           onDeleteCustom={deleteCustomExercise}
                           onAddStats={openStatsMenu}
+                          isExerciseDetailsOpen={
+                            activeExerciseDetailsCardId === exercise.id
+                          }
+                          onToggleExerciseDetails={setActiveExerciseDetailsCardId}
                           isMovementDetailsOpen={openMovementDetailsId === exercise.id}
                           onToggleMovementDetails={setOpenMovementDetailsId}
                         />
