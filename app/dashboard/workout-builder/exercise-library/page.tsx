@@ -9,6 +9,7 @@ import {
   type CSSProperties,
   type Dispatch,
   type MouseEvent,
+  type ReactNode,
   type SetStateAction,
 } from "react";
 import { createPortal } from "react-dom";
@@ -90,6 +91,8 @@ type ExerciseLibrarySortMode =
   | "logged";
 
 type MovementDetailsSubPanel = "similar" | "progress";
+
+const defaultExerciseLibrarySortMode: ExerciseLibrarySortMode = "category";
 
 const viewModeLabels: Record<ExerciseLibraryViewMode, string> = {
   detail: "Detail View",
@@ -3279,20 +3282,36 @@ const getGoalTrainingTips = (goalLabel: string) => {
   return goalTipMap[normalizedGoal] || [];
 };
 
-function GoalTrainingTips({ goalLabel }: { goalLabel: string }) {
+function GoalTrainingTips({
+  goalLabel,
+  compact = false,
+}: {
+  goalLabel: string;
+  compact?: boolean;
+}) {
   const tips = getGoalTrainingTips(goalLabel);
   if (!tips.length) return null;
 
   return (
-    <div className="mt-2 rounded-2xl border border-yellow-200/14 bg-[linear-gradient(135deg,rgba(250,204,21,0.10),rgba(15,23,42,0.72))] px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
-      <p className="text-[8px] font-black uppercase tracking-[0.16em] text-yellow-100/62">
+    <div
+      className={`border border-yellow-200/14 bg-[linear-gradient(135deg,rgba(250,204,21,0.10),rgba(15,23,42,0.72))] shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] ${
+        compact
+          ? "mt-1.5 rounded-xl px-2 py-1.5"
+          : "mt-2 rounded-2xl px-3 py-2"
+      }`}
+    >
+      <p className={`${compact ? "text-[7px]" : "text-[8px]"} font-black uppercase tracking-[0.16em] text-yellow-100/62`}>
         Training Focus
       </p>
-      <div className="mt-1.5 flex flex-wrap gap-1.5">
+      <div className={`${compact ? "mt-1 gap-1" : "mt-1.5 gap-1.5"} flex flex-wrap`}>
         {tips.map((tip) => (
           <span
             key={tip}
-            className="rounded-full border border-yellow-200/16 bg-yellow-300/8 px-2 py-1 text-[10px] font-bold leading-3 text-yellow-50/82"
+            className={`rounded-full border border-yellow-200/16 bg-yellow-300/8 font-bold text-yellow-50/82 ${
+              compact
+                ? "px-1.5 py-0.5 text-[8px] leading-3"
+                : "px-2 py-1 text-[10px] leading-3"
+            }`}
           >
             {tip}
           </span>
@@ -5065,6 +5084,198 @@ const groupExercisesIntoSections = (
     ...section,
   }));
 };
+
+type ExerciseLibrarySection = ReturnType<typeof groupExercisesIntoSections>[number];
+
+function ExerciseCategoryShelf({
+  children,
+  section,
+  sectionTheme,
+}: {
+  children: ReactNode;
+  section: ExerciseLibrarySection;
+  sectionTheme: CategoryTheme;
+}) {
+  const sliderRef = useRef<HTMLDivElement | null>(null);
+  const [scrollState, setScrollState] = useState({
+    canScrollLeft: false,
+    canScrollRight: false,
+    isOverflowing: false,
+  });
+
+  const updateScrollState = () => {
+    const slider = sliderRef.current;
+    if (!slider) return;
+
+    const maxScrollLeft = slider.scrollWidth - slider.clientWidth;
+    const nextState = {
+      canScrollLeft: slider.scrollLeft > 4,
+      canScrollRight: slider.scrollLeft < maxScrollLeft - 4,
+      isOverflowing: maxScrollLeft > 4,
+    };
+
+    setScrollState((currentState) =>
+      currentState.canScrollLeft === nextState.canScrollLeft &&
+      currentState.canScrollRight === nextState.canScrollRight &&
+      currentState.isOverflowing === nextState.isOverflowing
+        ? currentState
+        : nextState,
+    );
+  };
+
+  useEffect(() => {
+    const slider = sliderRef.current;
+    if (!slider) return;
+
+    updateScrollState();
+
+    const handleScroll = () => updateScrollState();
+    slider.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+
+    const animationFrame = window.requestAnimationFrame(updateScrollState);
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(updateScrollState)
+        : null;
+
+    resizeObserver?.observe(slider);
+    Array.from(slider.children).forEach((child) =>
+      resizeObserver?.observe(child),
+    );
+
+    return () => {
+      slider.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+      window.cancelAnimationFrame(animationFrame);
+      resizeObserver?.disconnect();
+    };
+  }, [section.exercises.length]);
+
+  const scrollShelf = (direction: "left" | "right") => {
+    const slider = sliderRef.current;
+    if (!slider) return;
+
+    const firstCard = slider.querySelector<HTMLElement>(
+      ".exercise-library-card-slide",
+    );
+    const computedStyle = window.getComputedStyle(slider);
+    const rowGap =
+      Number.parseFloat(computedStyle.columnGap) ||
+      Number.parseFloat(computedStyle.gap) ||
+      12;
+    const cardWidth =
+      firstCard?.getBoundingClientRect().width || slider.clientWidth * 0.78;
+    const cardsPerClick =
+      window.innerWidth >= 1024 ? 3 : window.innerWidth >= 768 ? 2 : 1;
+    const scrollAmount =
+      (cardWidth + rowGap) * cardsPerClick * (direction === "right" ? 1 : -1);
+
+    slider.scrollBy({
+      behavior: "smooth",
+      left: scrollAmount,
+    });
+
+    window.setTimeout(updateScrollState, 260);
+  };
+
+  const showLeftControl =
+    scrollState.isOverflowing && scrollState.canScrollLeft;
+  const showRightControl =
+    scrollState.isOverflowing && scrollState.canScrollRight;
+
+  return (
+    <div
+      className={`relative overflow-hidden rounded-[26px] border p-2.5 backdrop-blur-2xl backdrop-saturate-150 sm:p-3 ${sectionTheme.surfaceClass} ${sectionTheme.cardClass}`}
+    >
+      <div className={`pointer-events-none absolute inset-0 z-0 ${sectionTheme.overlayClass} opacity-70`} />
+      <div className={`pointer-events-none absolute inset-x-0 top-0 z-[1] h-px ${sectionTheme.accentClass}`} />
+
+      <div className="relative z-10 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-1.5">
+          <div>
+            <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${sectionTheme.pillClass}`}>
+              {section.label}
+            </span>
+            <div className={`mt-1.5 h-px w-16 ${sectionTheme.accentClass}`} />
+          </div>
+          <span className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${sectionTheme.pillClass}`}>
+            {section.exercises.length}
+          </span>
+        </div>
+
+        <div className="exercise-library-shelf-window">
+          <div
+            ref={sliderRef}
+            className="exercise-library-card-slider relative z-0"
+            aria-label={`${section.label} exercises`}
+            role="list"
+          >
+            {children}
+          </div>
+
+          <div
+            aria-hidden="true"
+            className={`exercise-library-shelf-fade exercise-library-shelf-fade--left ${
+              showLeftControl ? "exercise-library-shelf-fade--visible" : ""
+            }`}
+          />
+          <div
+            aria-hidden="true"
+            className={`exercise-library-shelf-fade exercise-library-shelf-fade--right ${
+              showRightControl ? "exercise-library-shelf-fade--visible" : ""
+            }`}
+          />
+
+          <button
+            type="button"
+            aria-label={`Scroll ${section.label} exercises left`}
+            className={`exercise-library-shelf-arrow exercise-library-shelf-arrow--left ${
+              showLeftControl ? "exercise-library-shelf-arrow--visible" : ""
+            }`}
+            disabled={!showLeftControl}
+            onClick={() => scrollShelf("left")}
+          >
+            <svg
+              aria-hidden="true"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2.4"
+              viewBox="0 0 24 24"
+            >
+              <path d="m15 18-6-6 6-6" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            aria-label={`Scroll ${section.label} exercises right`}
+            className={`exercise-library-shelf-arrow exercise-library-shelf-arrow--right ${
+              showRightControl ? "exercise-library-shelf-arrow--visible" : ""
+            }`}
+            disabled={!showRightControl}
+            onClick={() => scrollShelf("right")}
+          >
+            <svg
+              aria-hidden="true"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2.4"
+              viewBox="0 0 24 24"
+            >
+              <path d="m9 18 6-6-6-6" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const formatCountLabel = (count: number, singular: string, plural?: string) =>
   `${count} ${count === 1 ? singular : plural || `${singular}s`}`;
@@ -7470,7 +7681,7 @@ function ExerciseLibraryCard({
     </div>
   );
   const goalSelectorBlock = (
-    <div className="mt-3 text-xs">
+    <div className={isGridView ? "mt-1.5 text-xs sm:mt-2" : "mt-3 text-xs"}>
       <DetailVariationSelect
         label="Goal"
         value={selectedGoalModifierId}
@@ -7481,8 +7692,9 @@ function ExerciseLibraryCard({
           setModifierForCategory("training-intent", modifierId)
         }
         accent="yellow"
+        size={isGridView ? "grid" : "detail"}
       />
-      <GoalTrainingTips goalLabel={goalLabel} />
+      <GoalTrainingTips goalLabel={goalLabel} compact={isGridView} />
     </div>
   );
   const detailExerciseDetails = (
@@ -7563,6 +7775,7 @@ function ExerciseLibraryCard({
 
           {gridSettingsDropdown}
           {gridDetailsDropdown}
+          {goalSelectorBlock}
 
           <div className="mt-1.5 rounded-lg border border-cyan-100/15 bg-[linear-gradient(135deg,rgba(34,211,238,0.11),rgba(16,185,129,0.075))] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl sm:mt-2 sm:rounded-xl sm:px-2.5 sm:py-2">
             <div className="hidden items-center justify-between gap-2 sm:flex">
@@ -7699,8 +7912,8 @@ export default function ExerciseLibraryPage() {
   const [viewMode, setViewMode] =
     useState<ExerciseLibraryViewMode>("detail");
   const [sortMode, setSortMode] =
-    useState<ExerciseLibrarySortMode>("category");
-  const exercisesPerPage = 12;
+    useState<ExerciseLibrarySortMode>(defaultExerciseLibrarySortMode);
+  const exerciseSectionsPerPage = 4;
   const [bodyFilters, setBodyFilters] = useState<string[]>([]);
   const [goalFilter, setGoalFilter] = useState("All");
   const [levelFilter, setLevelFilter] = useState("All");
@@ -8119,7 +8332,7 @@ export default function ExerciseLibraryPage() {
 
   useEffect(() => {
     if (!sortOptions.some((option) => option.value === sortMode)) {
-      setSortMode("category");
+      setSortMode(defaultExerciseLibrarySortMode);
     }
   }, [sortMode, sortOptions]);
 
@@ -8148,22 +8361,25 @@ export default function ExerciseLibraryPage() {
     [levelAvailabilityBase],
   );
 
-  const totalPages = Math.ceil(sortedFocusedExercises.length / exercisesPerPage);
-
-  const paginatedExercises = useMemo(() => {
-    const startIndex = (currentPage - 1) * exercisesPerPage;
-    return sortedFocusedExercises.slice(startIndex, startIndex + exercisesPerPage);
-  }, [sortedFocusedExercises, currentPage, exercisesPerPage]);
-
-  const paginatedExerciseSections = useMemo(
+  const exerciseSections = useMemo(
     () =>
       groupExercisesIntoSections(
-        paginatedExercises,
+        sortedFocusedExercises,
         sortMode,
         favoriteExerciseIds,
       ),
-    [paginatedExercises, sortMode, favoriteExerciseIds],
+    [sortedFocusedExercises, sortMode, favoriteExerciseIds],
   );
+
+  const totalPages = Math.ceil(exerciseSections.length / exerciseSectionsPerPage);
+
+  const paginatedExerciseSections = useMemo(() => {
+    const startIndex = (currentPage - 1) * exerciseSectionsPerPage;
+    return exerciseSections.slice(
+      startIndex,
+      startIndex + exerciseSectionsPerPage,
+    );
+  }, [currentPage, exerciseSections, exerciseSectionsPerPage]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -8197,6 +8413,7 @@ export default function ExerciseLibraryPage() {
     setMovementTypeFilter("All");
     setApparatusFilter("All");
     setLoadBehaviorFilter("All");
+    setSortMode(defaultExerciseLibrarySortMode);
   };
 
   const toggleBodyFilter = (body: string) => {
@@ -9181,70 +9398,56 @@ export default function ExerciseLibraryPage() {
                   : getCategoryTheme(section.label);
 
               return (
-                <div key={section.key} className="space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-1.5">
-                    <div>
-                      <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${sectionTheme.pillClass}`}>
-                        {section.label}
-                      </span>
-                      <div className={`mt-1.5 h-px w-16 ${sectionTheme.accentClass}`} />
-                    </div>
-                    <span className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${sectionTheme.pillClass}`}>
-                      {section.exercises.length}
-                    </span>
-                  </div>
+                <ExerciseCategoryShelf
+                  key={section.key}
+                  section={section}
+                  sectionTheme={sectionTheme}
+                >
+                  {section.exercises.map((exercise) => {
+                    const metadata = getMetadataForExercise(exercise);
+                    const suggestions = getMovementSuggestions(exercise, metadata);
 
-                  <div
-                    className="exercise-library-card-slider relative z-0"
-                    aria-label={`${section.label} exercises`}
-                    role="list"
-                  >
-                    {section.exercises.map((exercise) => {
-                      const metadata = getMetadataForExercise(exercise);
-                      const suggestions = getMovementSuggestions(exercise, metadata);
-
-                      return (
-                        <div
-                          key={exercise.id}
-                          className={`exercise-library-card-slide ${
-                            viewMode === "grid"
-                              ? "exercise-library-card-slide--grid"
-                              : "exercise-library-card-slide--detail"
-                          }`}
-                          role="listitem"
-                        >
-                          <ExerciseLibraryCard
-                            exercise={exercise}
-                            metadata={metadata}
-                            suggestions={suggestions}
-                            planAddToParam={planAddToParam}
-                            savedExerciseStats={savedExerciseStats}
-                            viewMode={viewMode}
-                            searchedEquipmentModifierId={searchedEquipmentModifierId}
-                            isFavorite={favoriteExerciseIds.has(exercise.id)}
-                            onToggleFavorite={toggleFavoriteExercise}
-                            onAddToPlan={addExerciseToPlanBuilder}
-                            onDeleteCustom={deleteCustomExercise}
-                            onAddStats={openStatsMenu}
-                            isExerciseDetailsOpen={
-                              activeExerciseDetailsCardId === exercise.id
-                            }
-                            onToggleExerciseDetails={setActiveExerciseDetailsCardId}
-                            isMovementDetailsOpen={
-                              openMovementDetailsId === exercise.id
-                            }
-                            onToggleMovementDetails={setOpenMovementDetailsId}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                    return (
+                      <div
+                        key={exercise.id}
+                        className={`exercise-library-card-slide ${
+                          viewMode === "grid"
+                            ? "exercise-library-card-slide--grid"
+                            : "exercise-library-card-slide--detail"
+                        }`}
+                        role="listitem"
+                      >
+                        <ExerciseLibraryCard
+                          exercise={exercise}
+                          metadata={metadata}
+                          suggestions={suggestions}
+                          planAddToParam={planAddToParam}
+                          savedExerciseStats={savedExerciseStats}
+                          viewMode={viewMode}
+                          searchedEquipmentModifierId={searchedEquipmentModifierId}
+                          isFavorite={favoriteExerciseIds.has(exercise.id)}
+                          onToggleFavorite={toggleFavoriteExercise}
+                          onAddToPlan={addExerciseToPlanBuilder}
+                          onDeleteCustom={deleteCustomExercise}
+                          onAddStats={openStatsMenu}
+                          isExerciseDetailsOpen={
+                            activeExerciseDetailsCardId === exercise.id
+                          }
+                          onToggleExerciseDetails={setActiveExerciseDetailsCardId}
+                          isMovementDetailsOpen={
+                            openMovementDetailsId === exercise.id
+                          }
+                          onToggleMovementDetails={setOpenMovementDetailsId}
+                        />
+                      </div>
+                    );
+                  })}
+                </ExerciseCategoryShelf>
               );
             })()
           ))}
 
-        {focusedExercises.length > exercisesPerPage && (
+        {exerciseSections.length > exerciseSectionsPerPage && (
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
             <button
               onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
