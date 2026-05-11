@@ -48,3 +48,91 @@ body {
     rgba(250, 204, 21, 0.28)
   );
 }
+
+.exercise-library-card-slider {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior-x: contain;
+  padding: 0.125rem 0.125rem 0.85rem;
+  scroll-padding-inline: 0.25rem;
+  scroll-snap-type: x mandatory;
+  scrollbar-color: rgba(34, 211, 238, 0.36) transparent;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.exercise-library-slider-shelf {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: min(100%, calc(100vw - 1.5rem));
+  width: min(100%, calc(100vw - 1.5rem));
+}
+
+.exercise-library-card-slider::-webkit-scrollbar {
+  height: 8px;
+}
+
+.exercise-library-card-slider::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.24);
+  border-radius: 999px;
+}
+
+.exercise-library-card-slider::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    90deg,
+    rgba(34, 211, 238, 0.32),
+    rgba(16, 185, 129, 0.28)
+  );
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+
+.exercise-library-card-slide {
+  flex: 0 0 auto;
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+.exercise-library-card-slide > article {
+  margin-bottom: 0;
+}
+
+.exercise-library-card-slide--grid {
+  width: clamp(10rem, 47vw, 16rem);
+}
+
+.exercise-library-card-slide--detail {
+  width: clamp(17rem, 82vw, 26rem);
+}
+
+@media (min-width: 768px) {
+  .exercise-library-slider-shelf {
+    max-width: min(88rem, calc(100vw - 2rem));
+    width: min(88rem, calc(100vw - 2rem));
+  }
+
+  .exercise-library-card-slide--grid {
+    width: clamp(13rem, 28vw, 17rem);
+  }
+
+  .exercise-library-card-slide--detail {
+    width: clamp(20rem, 34vw, 26rem);
+  }
+}
+
+@media (min-width: 1280px) {
+  .exercise-library-slider-shelf {
+    max-width: min(96rem, calc(100vw - 3rem));
+    width: min(96rem, calc(100vw - 3rem));
+  }
+
+  .exercise-library-card-slide--grid {
+    width: clamp(14rem, 20vw, 18rem);
+  }
+
+  .exercise-library-card-slide--detail {
+    width: clamp(22rem, 28vw, 27rem);
+  }
+}

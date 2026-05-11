@@ -609,7 +609,7 @@ function SearchInputWithSuggestions({
           onChange(event.target.value);
           if (!open) openPanel();
         }}
-        className="mt-3 min-h-[44px] w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none placeholder:text-slate-500 focus:border-cyan-300 md:mt-2 md:min-h-[40px] md:rounded-xl md:px-3 md:py-2 min-[1100px]:mt-3 min-[1100px]:min-h-[44px] min-[1100px]:rounded-2xl min-[1100px]:px-4 min-[1100px]:py-3"
+        className="mt-2 min-h-[42px] w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-300 md:min-h-[40px] md:px-3 md:py-2 min-[1100px]:mt-3 min-[1100px]:min-h-[44px] min-[1100px]:rounded-2xl min-[1100px]:px-4 min-[1100px]:py-3 min-[1100px]:text-base"
         aria-label="Search Exercise Library"
         aria-expanded={open}
       />
@@ -6439,7 +6439,17 @@ function ExerciseLibraryCard({
     useState<MovementDetailsSubPanel | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const gridDetailsDropdownRef = useRef<HTMLDivElement | null>(null);
+  const gridDetailsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const gridDetailsFloatingPanelRef = useRef<HTMLDivElement | null>(null);
   const settingsDropdownRef = useRef<HTMLDivElement | null>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const settingsFloatingPanelRef = useRef<HTMLDivElement | null>(null);
+  const lockedGridDetailsPanelWidthRef = useRef<number | null>(null);
+  const lockedGridSettingsPanelWidthRef = useRef<number | null>(null);
+  const [gridDetailsPanelStyle, setGridDetailsPanelStyle] =
+    useState<CSSProperties | null>(null);
+  const [gridSettingsPanelStyle, setGridSettingsPanelStyle] =
+    useState<CSSProperties | null>(null);
   const [explicitSemanticVariationId, setExplicitSemanticVariationId] =
     useState("");
   const semanticVariationOptions = metadata?.semanticVariations || [];
@@ -6790,6 +6800,98 @@ function ExerciseLibraryCard({
     detail?.id === panelId ||
     detail?.parentId === panelId ||
     Boolean(detail?.keepOpenIds?.includes(panelId));
+  const updateGridFloatingPanelPosition = ({
+    anchor,
+    maxHeight,
+    maxWidth,
+    minHeight,
+    preferredWidth,
+    setStyle,
+    lockedWidthRef,
+    zIndex,
+  }: {
+    anchor: HTMLElement | null;
+    maxHeight: number;
+    maxWidth: number;
+    minHeight: number;
+    preferredWidth: number;
+    setStyle: Dispatch<SetStateAction<CSSProperties | null>>;
+    lockedWidthRef: { current: number | null };
+    zIndex: number;
+  }) => {
+    if (!anchor || typeof window === "undefined") return;
+
+    const rect = anchor.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const margin = 12;
+    const measuredWidth = Math.min(
+      Math.max(rect.width, preferredWidth),
+      maxWidth,
+      viewportWidth - margin * 2,
+    );
+    const width = lockedWidthRef.current ?? measuredWidth;
+
+    lockedWidthRef.current = width;
+
+    const left = Math.min(
+      Math.max(rect.left, margin),
+      viewportWidth - width - margin,
+    );
+    const belowTop = rect.bottom + 8;
+    const availableBelow = viewportHeight - belowTop - margin;
+    const availableAbove = rect.top - margin - 8;
+    const opensAbove =
+      availableBelow < minHeight && availableAbove > availableBelow;
+    const maxPanelHeight = Math.max(
+      minHeight,
+      Math.min(
+        maxHeight,
+        opensAbove ? availableAbove : Math.max(availableBelow, minHeight),
+      ),
+    );
+    const preferredTop = opensAbove
+      ? Math.max(margin, rect.top - 8 - maxPanelHeight)
+      : belowTop;
+    const top = Math.min(
+      Math.max(preferredTop, margin),
+      Math.max(margin, viewportHeight - maxPanelHeight - margin),
+    );
+    const adjustedMaxHeight = Math.max(
+      minHeight,
+      Math.min(maxPanelHeight, viewportHeight - top - margin),
+    );
+
+    setStableFixedDropdownStyle(setStyle, createFixedDropdownStyle({
+      left,
+      top,
+      width,
+      maxHeight: adjustedMaxHeight,
+      zIndex,
+    }));
+  };
+  const updateGridSettingsPanelPosition = () =>
+    updateGridFloatingPanelPosition({
+      anchor: settingsButtonRef.current,
+      maxHeight: 360,
+      maxWidth: 392,
+      minHeight: 176,
+      preferredWidth: 320,
+      setStyle: setGridSettingsPanelStyle,
+      lockedWidthRef: lockedGridSettingsPanelWidthRef,
+      zIndex: 2147483020,
+    });
+  const updateGridDetailsPanelPosition = () =>
+    updateGridFloatingPanelPosition({
+      anchor: gridDetailsButtonRef.current,
+      maxHeight: 460,
+      maxWidth: 680,
+      minHeight: 240,
+      preferredWidth: 560,
+      setStyle: setGridDetailsPanelStyle,
+      lockedWidthRef: lockedGridDetailsPanelWidthRef,
+      zIndex: 2147483010,
+    });
 
   useEffect(() => {
     if (!isSettingsOpen) return;
@@ -6819,6 +6921,39 @@ function ExerciseLibraryCard({
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setIsSettingsOpen(false);
     };
+    let animationFrame: number | null = null;
+    const scheduleGridSettingsPositionUpdate = (
+      event?: Event,
+      unlockWidth = false,
+    ) => {
+      const target = event?.target;
+      if (
+        target instanceof Node &&
+        settingsFloatingPanelRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      if (unlockWidth) lockedGridSettingsPanelWidthRef.current = null;
+      if (animationFrame !== null) return;
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updateGridSettingsPanelPosition();
+      });
+    };
+    const handleGridSettingsResize = () =>
+      scheduleGridSettingsPositionUpdate(undefined, true);
+
+    if (isGridView) {
+      updateGridSettingsPanelPosition();
+      document.addEventListener(
+        "scroll",
+        scheduleGridSettingsPositionUpdate,
+        true,
+      );
+      window.addEventListener("resize", handleGridSettingsResize);
+    }
 
     window.addEventListener(
       exerciseLibraryDropdownOpenEvent,
@@ -6828,14 +6963,25 @@ function ExerciseLibraryCard({
     document.addEventListener("keydown", closeOnEscape);
 
     return () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
       window.removeEventListener(
         exerciseLibraryDropdownOpenEvent,
         closeWhenAnotherDropdownOpens,
       );
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
       document.removeEventListener("keydown", closeOnEscape);
+      if (isGridView) {
+        document.removeEventListener(
+          "scroll",
+          scheduleGridSettingsPositionUpdate,
+          true,
+        );
+        window.removeEventListener("resize", handleGridSettingsResize);
+      }
     };
-  }, [isSettingsOpen, settingsDropdownId]);
+  }, [isGridView, isSettingsOpen, settingsDropdownId]);
   useEffect(() => {
     if (!isGridDetailsOpen) return;
 
@@ -6872,6 +7018,31 @@ function ExerciseLibraryCard({
         setIsSettingsOpen(false);
       }
     };
+    let animationFrame: number | null = null;
+    const scheduleGridDetailsPositionUpdate = (
+      event?: Event,
+      unlockWidth = false,
+    ) => {
+      const target = event?.target;
+      if (
+        target instanceof Node &&
+        gridDetailsFloatingPanelRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      if (unlockWidth) lockedGridDetailsPanelWidthRef.current = null;
+      if (animationFrame !== null) return;
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updateGridDetailsPanelPosition();
+      });
+    };
+    const handleGridDetailsResize = () =>
+      scheduleGridDetailsPositionUpdate(undefined, true);
+
+    updateGridDetailsPanelPosition();
 
     window.addEventListener(
       exerciseLibraryDropdownOpenEvent,
@@ -6879,14 +7050,25 @@ function ExerciseLibraryCard({
     );
     document.addEventListener("pointerdown", closeOnOutsidePointer);
     document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("scroll", scheduleGridDetailsPositionUpdate, true);
+    window.addEventListener("resize", handleGridDetailsResize);
 
     return () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
       window.removeEventListener(
         exerciseLibraryDropdownOpenEvent,
         closeWhenAnotherDropdownOpens,
       );
       document.removeEventListener("pointerdown", closeOnOutsidePointer);
       document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener(
+        "scroll",
+        scheduleGridDetailsPositionUpdate,
+        true,
+      );
+      window.removeEventListener("resize", handleGridDetailsResize);
     };
   }, [
     gridDetailsDropdownId,
@@ -6894,6 +7076,18 @@ function ExerciseLibraryCard({
     onToggleExerciseDetails,
     settingsDropdownId,
   ]);
+  useEffect(() => {
+    if (isSettingsOpen && isGridView) return;
+
+    lockedGridSettingsPanelWidthRef.current = null;
+    setGridSettingsPanelStyle(null);
+  }, [isGridView, isSettingsOpen]);
+  useEffect(() => {
+    if (isGridDetailsOpen) return;
+
+    lockedGridDetailsPanelWidthRef.current = null;
+    setGridDetailsPanelStyle(null);
+  }, [isGridDetailsOpen]);
   useEffect(() => {
     if (!isMovementDetailsOpen) {
       setActiveMovementDetailsSubPanel(null);
@@ -6918,7 +7112,15 @@ function ExerciseLibraryCard({
       return;
     }
 
-    announceExerciseLibraryDropdownOpen(movementDetailsPanelId);
+    announceExerciseLibraryDropdownOpen(
+      movementDetailsPanelId,
+      isGridView
+        ? {
+            parentId: gridDetailsDropdownId,
+            keepOpenIds: [gridDetailsDropdownId],
+          }
+        : undefined,
+    );
     setActiveMovementDetailsSubPanel(null);
     onToggleMovementDetails(exercise.id);
   };
@@ -7053,14 +7255,17 @@ function ExerciseLibraryCard({
     label,
     wrapperClassName,
     panelClassName,
+    floatingPanelClassName,
   }: {
     label: string;
     wrapperClassName: string;
     panelClassName: string;
+    floatingPanelClassName?: string;
   }) =>
     modifierControls.length ? (
       <div ref={settingsDropdownRef} className={wrapperClassName}>
         <button
+          ref={settingsButtonRef}
           type="button"
           aria-expanded={isSettingsOpen}
           onClick={() => {
@@ -7074,6 +7279,7 @@ function ExerciseLibraryCard({
                     }
                   : undefined,
               );
+              if (isGridView) updateGridSettingsPanelPosition();
             }
             setIsSettingsOpen((current) => !current);
           }}
@@ -7083,7 +7289,22 @@ function ExerciseLibraryCard({
           {renderSettingsChevron(isSettingsOpen)}
         </button>
 
-        {isSettingsOpen ? (
+        {isSettingsOpen && isGridView && floatingPanelClassName
+          ? typeof document !== "undefined" && gridSettingsPanelStyle
+            ? createPortal(
+                <div
+                  ref={settingsFloatingPanelRef}
+                  style={gridSettingsPanelStyle}
+                  data-exercise-library-floating-menu="true"
+                  className={floatingPanelClassName}
+                >
+                  {settingsPanelHeader}
+                  {settingsControls}
+                </div>,
+                document.body,
+              )
+            : null
+          : isSettingsOpen ? (
           <div className={panelClassName}>
             {settingsPanelHeader}
             {settingsControls}
@@ -7102,64 +7323,9 @@ function ExerciseLibraryCard({
     wrapperClassName: "relative z-[140] mt-1.5 sm:mt-2",
     panelClassName:
       "absolute left-0 right-0 top-full z-[940] mt-1.5 max-h-[210px] overflow-y-auto overscroll-contain rounded-2xl border border-cyan-100/35 bg-slate-950/98 p-2.5 shadow-[0_24px_76px_rgba(0,0,0,0.78),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-200/14 backdrop-blur-2xl [scrollbar-color:rgba(34,211,238,0.42)_transparent] [scrollbar-width:thin]",
+    floatingPanelClassName:
+      "fixed overflow-y-auto overscroll-contain rounded-2xl border border-cyan-100/35 bg-slate-950/98 p-2.5 shadow-[0_28px_86px_rgba(0,0,0,0.82),0_0_38px_rgba(34,211,238,0.20),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-200/14 backdrop-blur-2xl [scrollbar-color:rgba(34,211,238,0.42)_transparent] [scrollbar-width:thin]",
   });
-  const gridDetailsDropdown = (
-    <div
-      ref={gridDetailsDropdownRef}
-      className="relative mt-1.5 w-full max-w-none sm:mt-2"
-    >
-      <button
-        type="button"
-        aria-controls={gridDetailsPanelId}
-        aria-expanded={isGridDetailsOpen}
-        onClick={() => {
-          if (isGridDetailsOpen) {
-            onToggleExerciseDetails(null);
-          } else {
-            announceExerciseLibraryDropdownOpen(gridDetailsDropdownId);
-            onToggleExerciseDetails(exercise.id);
-            setIsSettingsOpen(false);
-          }
-          closeMovementDetailsAccordion();
-        }}
-        className={settingsButtonClass}
-      >
-        <span>Details & Settings</span>
-        {renderSettingsChevron(isGridDetailsOpen)}
-      </button>
-
-      {isGridDetailsOpen ? (
-        <div
-          id={gridDetailsPanelId}
-          className="mt-2 w-full max-w-none overflow-visible rounded-2xl border border-cyan-100/24 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.94))] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_12px_34px_rgba(0,0,0,0.34)] ring-1 ring-cyan-200/10"
-        >
-          <div className="w-full max-w-none">
-            <MuscleIntelligenceBlock
-              muscles={muscleIntelligence}
-              compact
-              showSourceBadge={false}
-            />
-
-            <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100/60">
-                  Movement Intelligence
-                </p>
-                <span className="shrink-0 whitespace-nowrap rounded-full border border-cyan-200/12 bg-cyan-300/[0.07] px-1.5 py-px text-[7px] font-black uppercase leading-4 tracking-[0.1em] text-cyan-100/50">
-                  Mapped
-                </span>
-              </div>
-              <MovementArchitectureChips
-                chips={movementArchitectureChips}
-                compact
-                classificationChipClass={categoryTheme.pillClass}
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
   const movementDetails = (
     <div className="group mt-2.5 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.055] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_40px_rgba(8,145,178,0.12)] backdrop-blur-2xl">
       <button
@@ -7226,6 +7392,81 @@ function ExerciseLibraryCard({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+  const gridDetailsPanelContent = (
+    <div className="grid gap-2 sm:grid-cols-[minmax(0,0.95fr)_minmax(0,1.15fr)]">
+      <div className="min-w-0">
+        <MuscleIntelligenceBlock
+          muscles={muscleIntelligence}
+          compact
+          showSourceBadge={false}
+        />
+      </div>
+
+      <div className="min-w-0 space-y-2">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100/60">
+              Movement Intelligence
+            </p>
+            <span className="shrink-0 whitespace-nowrap rounded-full border border-cyan-200/12 bg-cyan-300/[0.07] px-1.5 py-px text-[7px] font-black uppercase leading-4 tracking-[0.1em] text-cyan-100/50">
+              Mapped
+            </span>
+          </div>
+          <MovementArchitectureChips
+            chips={movementArchitectureChips}
+            compact
+            classificationChipClass={categoryTheme.pillClass}
+          />
+        </div>
+
+        <div className="[&>div]:mt-0">{movementDetails}</div>
+      </div>
+    </div>
+  );
+  const gridDetailsDropdown = (
+    <div
+      ref={gridDetailsDropdownRef}
+      className="relative mt-1.5 w-full max-w-none sm:mt-2"
+    >
+      <button
+        ref={gridDetailsButtonRef}
+        type="button"
+        aria-controls={gridDetailsPanelId}
+        aria-expanded={isGridDetailsOpen}
+        onClick={() => {
+          if (isGridDetailsOpen) {
+            onToggleExerciseDetails(null);
+          } else {
+            announceExerciseLibraryDropdownOpen(gridDetailsDropdownId);
+            updateGridDetailsPanelPosition();
+            onToggleExerciseDetails(exercise.id);
+            setIsSettingsOpen(false);
+          }
+          closeMovementDetailsAccordion();
+        }}
+        className={settingsButtonClass}
+      >
+        <span>Details</span>
+        {renderSettingsChevron(isGridDetailsOpen)}
+      </button>
+
+      {typeof document !== "undefined" &&
+      isGridDetailsOpen &&
+      gridDetailsPanelStyle
+        ? createPortal(
+            <div
+              ref={gridDetailsFloatingPanelRef}
+              style={gridDetailsPanelStyle}
+              data-exercise-library-floating-menu="true"
+              className="fixed overflow-y-auto overscroll-contain rounded-2xl border border-cyan-100/24 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.14),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-3 shadow-[0_30px_92px_rgba(0,0,0,0.82),0_0_40px_rgba(34,211,238,0.13),inset_0_1px_0_rgba(255,255,255,0.14)] ring-1 ring-cyan-200/10 backdrop-blur-2xl [scrollbar-color:rgba(34,211,238,0.36)_transparent] [scrollbar-width:thin]"
+            >
+              <div id={gridDetailsPanelId}>{gridDetailsPanelContent}</div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
   const goalSelectorBlock = (
@@ -8537,21 +8778,21 @@ export default function ExerciseLibraryPage() {
           type="button"
           aria-label={label}
           aria-expanded={open}
-          onClick={() => {
-            if (!open) announceExerciseLibraryDropdownOpen(dropdownId);
-            setOpen((prev) => !prev);
-          }}
-          className={`flex min-h-[46px] w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left shadow-xl transition hover:scale-[1.01] md:min-h-[40px] md:rounded-xl md:px-2.5 md:py-1.5 min-[1100px]:min-h-[46px] min-[1100px]:rounded-2xl min-[1100px]:px-3 min-[1100px]:py-2.5 ${accentClasses[accent].trigger}`}
+        onClick={() => {
+          if (!open) announceExerciseLibraryDropdownOpen(dropdownId);
+          setOpen((prev) => !prev);
+        }}
+          className={`flex min-h-[42px] w-full items-center justify-between rounded-xl border px-2.5 py-1.5 text-left shadow-xl transition hover:scale-[1.01] md:min-h-[40px] md:px-2.5 md:py-1.5 min-[1100px]:min-h-[46px] min-[1100px]:rounded-2xl min-[1100px]:px-3 min-[1100px]:py-2.5 ${accentClasses[accent].trigger}`}
         >
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] opacity-70 md:text-[9px] md:tracking-[0.14em] min-[1100px]:text-[10px] min-[1100px]:tracking-[0.18em]">
+            <p className="text-[8px] font-black uppercase tracking-[0.12em] opacity-70 md:text-[9px] md:tracking-[0.14em] min-[1100px]:text-[10px] min-[1100px]:tracking-[0.18em]">
               {label}
             </p>
-            <p className="mt-0.5 text-sm font-black text-white md:text-[13px] md:leading-4 min-[1100px]:text-sm">
+            <p className="mt-0.5 truncate text-xs font-black leading-4 text-white md:text-[13px] md:leading-4 min-[1100px]:text-sm">
               {selectedOption?.label || value}
             </p>
             {(selectedOption?.group || selectedOption?.helper) ? (
-              <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white/45 md:text-[9px] md:leading-3 md:tracking-[0.1em] min-[1100px]:text-[10px] min-[1100px]:tracking-[0.12em]">
+              <p className="mt-0.5 hidden text-[10px] font-bold uppercase tracking-[0.12em] text-white/45 md:block md:text-[9px] md:leading-3 md:tracking-[0.1em] min-[1100px]:text-[10px] min-[1100px]:tracking-[0.12em]">
                 {[selectedOption.group, selectedOption.helper]
                   .filter(Boolean)
                   .join(" / ")}
@@ -8561,7 +8802,7 @@ export default function ExerciseLibraryPage() {
 
           <span
             aria-hidden="true"
-            className={`relative ml-3 flex h-7 w-7 items-center justify-center rounded-full border text-sm font-black text-transparent transition after:absolute after:content-['v'] md:ml-2 md:h-6 md:w-6 min-[1100px]:ml-3 min-[1100px]:h-7 min-[1100px]:w-7 ${accentClasses[accent].arrow} ${
+            className={`relative ml-2 flex h-5 w-5 items-center justify-center rounded-full border text-sm font-black text-transparent transition after:absolute after:content-['v'] md:h-6 md:w-6 min-[1100px]:ml-3 min-[1100px]:h-7 min-[1100px]:w-7 ${accentClasses[accent].arrow} ${
               open ? accentClasses[accent].arrowOpen : ""
             }`}
           >
@@ -8636,7 +8877,7 @@ export default function ExerciseLibraryPage() {
   }) => (
     <div
       aria-label="Level"
-      className="grid min-h-[46px] grid-cols-3 overflow-hidden rounded-2xl shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl md:min-h-[40px] md:rounded-xl min-[1100px]:min-h-[46px] min-[1100px]:rounded-2xl"
+      className="grid min-h-[42px] grid-cols-3 overflow-hidden rounded-xl shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl md:min-h-[40px] min-[1100px]:min-h-[46px] min-[1100px]:rounded-2xl"
     >
         {levelSegments.map((segment, index) => {
           const isActive = value === segment.value;
@@ -8659,14 +8900,14 @@ export default function ExerciseLibraryPage() {
                   ? `Clear level filter (${count} available)`
                   : `Filter ${segment.label} (${count} available)`
               }
-              className={`min-w-0 border-y border-l px-1 py-1.5 text-[9px] font-black uppercase leading-3 tracking-[0.04em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 sm:px-1.5 sm:text-[10px] md:py-1 md:text-[9px] min-[1100px]:py-1.5 min-[1100px]:text-[10px] ${segment.focusRing} ${
+              className={`min-w-0 border-y border-l px-0.5 py-1 text-[8px] font-black uppercase leading-3 tracking-[0.02em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 sm:px-1.5 sm:text-[10px] md:py-1 md:text-[9px] min-[1100px]:py-1.5 min-[1100px]:text-[10px] ${segment.focusRing} ${
                 isActive ? segment.active : segment.tone
               } ${radiusClass} ${
                 index === levelSegments.length - 1 ? "border-r" : ""
               }`}
             >
               <span className="block truncate">{segment.label}</span>
-              <span className="mt-0.5 block truncate text-[8px] font-black leading-3 opacity-70 sm:text-[9px] md:text-[8px] min-[1100px]:text-[9px]">
+              <span className="mt-0.5 block truncate text-[7px] font-black leading-3 opacity-70 sm:text-[9px] md:text-[8px] min-[1100px]:text-[9px]">
                 {count} available
               </span>
             </button>
@@ -8723,9 +8964,9 @@ export default function ExerciseLibraryPage() {
           </div>
         </section>
 
-        <section className="relative z-30 overflow-visible rounded-[30px] border border-white/15 bg-white/[0.055] p-4 shadow-[0_18px_58px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl backdrop-saturate-150 md:p-3 min-[1100px]:p-4">
-          <div className="grid gap-2.5 md:grid-cols-[minmax(0,1fr)_auto] md:items-end min-[1100px]:grid-cols-[1fr_auto_auto] min-[1100px]:items-start">
-            <div className="md:col-span-2 min-[1100px]:col-span-1">
+        <section className="relative z-30 overflow-visible rounded-[24px] border border-white/15 bg-white/[0.055] p-2.5 shadow-[0_18px_58px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl backdrop-saturate-150 sm:rounded-[30px] sm:p-4 md:p-3 min-[1100px]:p-4">
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-end min-[1100px]:grid-cols-[1fr_auto_auto] min-[1100px]:items-start">
+            <div className="col-span-2 md:col-span-2 min-[1100px]:col-span-1">
               <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300">
                 Movement Filters
               </p>
@@ -8737,14 +8978,14 @@ export default function ExerciseLibraryPage() {
               />
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-2.5 md:flex md:min-h-[40px] md:min-w-[12rem] md:items-center md:gap-2.5 md:justify-self-start md:px-3 md:py-1.5 min-[1100px]:block min-[1100px]:px-4 min-[1100px]:py-2.5">
-              <p className="text-xs text-slate-400 md:text-[10px] md:font-bold md:uppercase md:leading-none md:tracking-[0.12em] min-[1100px]:text-xs min-[1100px]:font-normal min-[1100px]:normal-case min-[1100px]:tracking-normal">
+            <div className="flex min-h-[42px] items-center gap-2 rounded-xl border border-white/10 bg-slate-950/50 px-2.5 py-1.5 md:min-h-[40px] md:min-w-[12rem] md:gap-2.5 md:justify-self-start md:px-3 md:py-1.5 min-[1100px]:block min-[1100px]:rounded-2xl min-[1100px]:px-4 min-[1100px]:py-2.5">
+              <p className="text-[9px] font-bold uppercase leading-none tracking-[0.1em] text-slate-400 md:text-[10px] md:leading-none md:tracking-[0.12em] min-[1100px]:text-xs min-[1100px]:font-normal min-[1100px]:normal-case min-[1100px]:tracking-normal">
                 Showing
               </p>
-              <p className="mt-1 text-2xl font-black text-cyan-300 md:mt-0 md:text-xl md:leading-none min-[1100px]:mt-1 min-[1100px]:text-2xl">
+              <p className="text-xl font-black leading-none text-cyan-300 md:text-xl min-[1100px]:mt-1 min-[1100px]:text-2xl">
                 {focusedExercises.length}
               </p>
-              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 md:mt-0 md:text-[9px] md:leading-none md:tracking-[0.1em] min-[1100px]:mt-1 min-[1100px]:text-[10px] min-[1100px]:tracking-[0.14em]">
+              <p className="hidden text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 min-[390px]:block md:text-[9px] md:leading-none md:tracking-[0.1em] min-[1100px]:mt-1 min-[1100px]:text-[10px] min-[1100px]:tracking-[0.14em]">
                 Core cards
               </p>
             </div>
@@ -8752,9 +8993,14 @@ export default function ExerciseLibraryPage() {
             <button
               type="button"
               onClick={() => setShowAddForm((prev) => !prev)}
-              className="min-h-[44px] rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-sm font-black text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950 md:min-h-[40px] md:justify-self-end md:rounded-xl md:px-3.5 md:py-2 md:text-xs min-[1100px]:min-h-[44px] min-[1100px]:rounded-2xl min-[1100px]:px-5 min-[1100px]:py-3 min-[1100px]:text-sm"
+              className="min-h-[42px] rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950 md:min-h-[40px] md:justify-self-end md:px-3.5 md:py-2 min-[1100px]:min-h-[44px] min-[1100px]:rounded-2xl min-[1100px]:px-5 min-[1100px]:py-3 min-[1100px]:text-sm"
             >
-              {showAddForm ? "Close Form" : "+ Add Exercise"}
+              <span className="min-[1100px]:hidden">
+                {showAddForm ? "Close" : "+ Add"}
+              </span>
+              <span className="hidden min-[1100px]:inline">
+                {showAddForm ? "Close Form" : "+ Add Exercise"}
+              </span>
             </button>
           </div>
 
@@ -8811,7 +9057,7 @@ export default function ExerciseLibraryPage() {
             </div>
           ) : null}
 
-          <div className="mt-2.5 grid gap-2.5 md:grid-cols-3 md:gap-2 min-[1100px]:grid-cols-4 min-[1100px]:gap-2.5">
+          <div className="mt-2 grid grid-cols-2 gap-2 md:mt-2.5 md:grid-cols-3 min-[1100px]:grid-cols-4 min-[1100px]:gap-2.5">
               <FilterMenu
                 label="Movement Type"
                 value={movementTypeFilter}
@@ -8850,8 +9096,8 @@ export default function ExerciseLibraryPage() {
 
           </div>
 
-          <div className="mt-3 flex flex-col gap-2 border-t border-white/10 pt-2.5 sm:flex-row sm:items-center md:flex-nowrap">
-            <div className="rounded-2xl border border-cyan-300/15 bg-slate-950/55 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+          <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-stretch gap-1.5 border-t border-white/10 pt-2 sm:gap-2 md:flex md:flex-nowrap md:items-center md:pt-2.5">
+            <div className="rounded-xl border border-cyan-300/15 bg-slate-950/55 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:p-1 md:rounded-2xl">
               <div className="grid grid-cols-2 gap-1">
                 {(["detail", "grid"] as ExerciseLibraryViewMode[]).map(
                   (mode) => (
@@ -8861,7 +9107,7 @@ export default function ExerciseLibraryPage() {
                       aria-label={viewModeLabels[mode]}
                       title={viewModeLabels[mode]}
                       onClick={() => setViewMode(mode)}
-                      className={`flex min-h-[40px] min-w-[42px] items-center justify-center rounded-xl px-3 py-2 text-xs font-black uppercase tracking-[0.12em] transition ${
+                      className={`flex min-h-[38px] min-w-[36px] items-center justify-center rounded-lg px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] transition sm:min-w-[42px] sm:rounded-xl sm:px-3 sm:py-2 ${
                         viewMode === mode
                           ? "bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.22)]"
                           : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
@@ -8874,7 +9120,7 @@ export default function ExerciseLibraryPage() {
               </div>
             </div>
 
-            <div className="w-full sm:max-w-[15rem]">
+            <div className="min-w-0 md:w-full md:max-w-[15rem]">
               <FilterMenu
                 label="Sort"
                 value={sortMode}
@@ -8888,13 +9134,13 @@ export default function ExerciseLibraryPage() {
             <button
               type="button"
               onClick={resetFilters}
-              className="min-h-[42px] rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white sm:min-w-[116px]"
+              className="min-h-[42px] rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white sm:min-w-[116px] sm:rounded-2xl sm:px-5 sm:py-3 sm:text-sm"
             >
               Clear
             </button>
           </div>
 
-          <div className="-mx-4 -mb-4 mt-3 box-border overflow-hidden rounded-b-[30px] border-t border-white/10 bg-white/10 md:-mx-3 md:-mb-3 min-[1100px]:-mx-4 min-[1100px]:-mb-4">
+          <div className="-mx-2.5 -mb-2.5 mt-2 box-border overflow-hidden rounded-b-[24px] border-t border-white/10 bg-white/10 sm:-mx-4 sm:-mb-4 sm:mt-3 sm:rounded-b-[30px] md:-mx-3 md:-mb-3 min-[1100px]:-mx-4 min-[1100px]:-mb-4">
             <div className="box-border flex w-full flex-wrap gap-px">
               {bodyOptions.map((body) => {
                 const isActive =
@@ -8909,7 +9155,7 @@ export default function ExerciseLibraryPage() {
                     type="button"
                     aria-pressed={isActive}
                     onClick={() => toggleBodyFilter(body)}
-                    className={`flex min-h-[48px] min-w-0 flex-[1_1_7.25rem] items-center justify-center px-2.5 py-2.5 text-center text-[10px] font-black uppercase leading-[1.12] tracking-[0.07em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 focus:ring-white/30 sm:min-h-[52px] sm:px-3 sm:text-[11px] ${
+                    className={`flex min-h-[38px] min-w-0 flex-[1_1_5.75rem] items-center justify-center px-1.5 py-1.5 text-center text-[8px] font-black uppercase leading-[1.08] tracking-[0.04em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 focus:ring-white/30 sm:min-h-[52px] sm:flex-[1_1_7.25rem] sm:px-3 sm:py-2.5 sm:text-[11px] sm:tracking-[0.07em] ${
                       isActive
                         ? bodyTheme.tabClass
                         : `bg-[linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.76))] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${bodyTheme.tabHoverClass}`
@@ -8924,8 +9170,9 @@ export default function ExerciseLibraryPage() {
             </div>
           </div>
         </section>
+      </section>
 
-        <section className="relative z-0 space-y-7 overflow-visible">
+      <section className="exercise-library-slider-shelf relative z-0 space-y-5 overflow-visible pb-6 sm:space-y-4 sm:pb-8">
           {paginatedExerciseSections.map((section) => (
             (() => {
               const sectionTheme =
@@ -8934,8 +9181,8 @@ export default function ExerciseLibraryPage() {
                   : getCategoryTheme(section.label);
 
               return (
-                <div key={section.key} className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2">
+                <div key={section.key} className="space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-1.5">
                     <div>
                       <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${sectionTheme.pillClass}`}>
                         {section.label}
@@ -8948,38 +9195,47 @@ export default function ExerciseLibraryPage() {
                   </div>
 
                   <div
-                    className={`relative z-0 overflow-visible ${
-                      viewMode === "grid"
-                        ? "columns-1 gap-2 overflow-visible sm:columns-2 sm:gap-3 md:columns-3 lg:columns-4"
-                        : "columns-1 gap-4 overflow-visible sm:columns-2 lg:columns-3"
-                    }`}
+                    className="exercise-library-card-slider relative z-0"
+                    aria-label={`${section.label} exercises`}
+                    role="list"
                   >
                     {section.exercises.map((exercise) => {
                       const metadata = getMetadataForExercise(exercise);
                       const suggestions = getMovementSuggestions(exercise, metadata);
 
                       return (
-                        <ExerciseLibraryCard
+                        <div
                           key={exercise.id}
-                          exercise={exercise}
-                          metadata={metadata}
-                          suggestions={suggestions}
-                          planAddToParam={planAddToParam}
-                          savedExerciseStats={savedExerciseStats}
-                          viewMode={viewMode}
-                          searchedEquipmentModifierId={searchedEquipmentModifierId}
-                          isFavorite={favoriteExerciseIds.has(exercise.id)}
-                          onToggleFavorite={toggleFavoriteExercise}
-                          onAddToPlan={addExerciseToPlanBuilder}
-                          onDeleteCustom={deleteCustomExercise}
-                          onAddStats={openStatsMenu}
-                          isExerciseDetailsOpen={
-                            activeExerciseDetailsCardId === exercise.id
-                          }
-                          onToggleExerciseDetails={setActiveExerciseDetailsCardId}
-                          isMovementDetailsOpen={openMovementDetailsId === exercise.id}
-                          onToggleMovementDetails={setOpenMovementDetailsId}
-                        />
+                          className={`exercise-library-card-slide ${
+                            viewMode === "grid"
+                              ? "exercise-library-card-slide--grid"
+                              : "exercise-library-card-slide--detail"
+                          }`}
+                          role="listitem"
+                        >
+                          <ExerciseLibraryCard
+                            exercise={exercise}
+                            metadata={metadata}
+                            suggestions={suggestions}
+                            planAddToParam={planAddToParam}
+                            savedExerciseStats={savedExerciseStats}
+                            viewMode={viewMode}
+                            searchedEquipmentModifierId={searchedEquipmentModifierId}
+                            isFavorite={favoriteExerciseIds.has(exercise.id)}
+                            onToggleFavorite={toggleFavoriteExercise}
+                            onAddToPlan={addExerciseToPlanBuilder}
+                            onDeleteCustom={deleteCustomExercise}
+                            onAddStats={openStatsMenu}
+                            isExerciseDetailsOpen={
+                              activeExerciseDetailsCardId === exercise.id
+                            }
+                            onToggleExerciseDetails={setActiveExerciseDetailsCardId}
+                            isMovementDetailsOpen={
+                              openMovementDetailsId === exercise.id
+                            }
+                            onToggleMovementDetails={setOpenMovementDetailsId}
+                          />
+                        </div>
                       );
                     })}
                   </div>
@@ -8987,7 +9243,6 @@ export default function ExerciseLibraryPage() {
               );
             })()
           ))}
-        </section>
 
         {focusedExercises.length > exercisesPerPage && (
           <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
