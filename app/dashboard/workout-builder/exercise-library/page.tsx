@@ -1,6 +1,9 @@
 "use client";
 
 import {
+  Children,
+  cloneElement,
+  isValidElement,
   useEffect,
   useId,
   useMemo,
@@ -8,13 +11,20 @@ import {
   useState,
   type CSSProperties,
   type Dispatch,
+  type FocusEvent,
   type MouseEvent,
+  type ReactElement,
   type ReactNode,
   type SetStateAction,
 } from "react";
 import { createPortal } from "react-dom";
+import Body, {
+  type ExtendedBodyPart,
+  type Slug,
+} from "react-muscle-highlighter";
 import { useRouter } from "next/navigation";
 import { loadWorkoutLogEntriesWithFallback } from "@/lib/data/workoutPersistence";
+import { supabase } from "@/lib/supabaseClient";
 import {
   readWorkoutBuilderSelectedExercises,
   writeWorkoutBuilderSelectedExercises,
@@ -50,6 +60,7 @@ import {
 } from "@/lib/training/movementTaxonomy";
 import { createExerciseVariation } from "@/lib/training/movementGeneration";
 import { ROUTES } from "@/lib/routes";
+import type { MuscleSlug } from "@/components/anatomy/exerciseMuscleMap";
 import type {
   CoreMovementId,
   ExerciseCatalogItem,
@@ -62,7 +73,9 @@ import type {
 
 type Exercise = {
   id: string;
+  customExerciseId?: string;
   name: string;
+  exerciseName?: string;
   body: string;
   muscles: string;
   pattern: string;
@@ -75,8 +88,46 @@ type Exercise = {
   coreMovementPattern?: CoreMovementId | string;
   semanticVariationId?: string;
   semanticVariationName?: string;
+  semanticVariation?: string;
   generatedTitle?: string;
   selectedModifierIds?: ExerciseModifierId[];
+  settings?: Record<string, string>;
+  variationModifiers?: string[];
+  primaryMuscles?: string[];
+  secondaryMuscles?: string[];
+  coachingCue?: string;
+  imageUrl?: string;
+};
+
+type PrivateExerciseDraft = {
+  name: string;
+  coreMovementPattern: CoreMovementId | "";
+  semanticVariationId: string;
+  modifierIds: ExerciseModifierId[];
+  goal: string;
+  difficulty: string;
+  primaryMuscles: string;
+  secondaryMuscles: string;
+  cue: string;
+  image: string;
+};
+
+type ExerciseLibraryProfileSummary = {
+  avatarUrl: string | null;
+  bio: string;
+  displayName: string;
+  email: string;
+  primaryGoal: string;
+  trainingLevel: string;
+};
+
+const defaultExerciseLibraryProfileSummary: ExerciseLibraryProfileSummary = {
+  avatarUrl: null,
+  bio: "Add profile details",
+  displayName: "Athlete",
+  email: "",
+  primaryGoal: "No goal set",
+  trainingLevel: "",
 };
 
 type ExerciseLibraryViewMode = "detail" | "grid";
@@ -602,7 +653,24 @@ function SearchInputWithSuggestions({
   }, [dropdownId, open]);
 
   return (
-    <div>
+    <div className="relative">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-3 top-1/2 z-10 mt-1 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/18 bg-cyan-300/10 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.14)] min-[1100px]:mt-1.5 min-[1100px]:h-8 min-[1100px]:w-8"
+      >
+        <svg
+          className="h-3.5 w-3.5 min-[1100px]:h-4 min-[1100px]:w-4"
+          fill="none"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2.4"
+          viewBox="0 0 24 24"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+      </div>
       <input
         ref={inputRef}
         placeholder="Search core movement, muscle, pattern, goal, equipment, or level..."
@@ -612,7 +680,7 @@ function SearchInputWithSuggestions({
           onChange(event.target.value);
           if (!open) openPanel();
         }}
-        className="mt-2 min-h-[42px] w-full rounded-xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-300 md:min-h-[40px] md:px-3 md:py-2 min-[1100px]:mt-3 min-[1100px]:min-h-[44px] min-[1100px]:rounded-2xl min-[1100px]:px-4 min-[1100px]:py-3 min-[1100px]:text-base"
+        className="mt-2 min-h-[44px] w-full rounded-2xl border border-cyan-100/18 bg-[radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.94),rgba(2,6,23,0.82))] px-3 py-2 pl-12 text-sm font-semibold text-white shadow-[0_16px_42px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.12)] outline-none ring-1 ring-white/[0.035] backdrop-blur-2xl placeholder:text-slate-500 transition focus:border-cyan-200/60 focus:bg-slate-950/90 focus:shadow-[0_20px_58px_rgba(0,0,0,0.38),0_0_36px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] focus:ring-2 focus:ring-cyan-200/18 md:min-h-[42px] md:px-3 md:py-2 md:pl-12 min-[1100px]:mt-3 min-[1100px]:min-h-[48px] min-[1100px]:rounded-[22px] min-[1100px]:px-4 min-[1100px]:py-3 min-[1100px]:pl-14 min-[1100px]:text-base"
         aria-label="Search Exercise Library"
         aria-expanded={open}
       />
@@ -1396,17 +1464,22 @@ const movementTypeFilterOptions: FilterMenuOption[] = [
   })),
 ];
 
-// Internal migration marker: system exercises now come from the normalized
-// catalog service, converted back to the current Exercise shape for this page.
-const normalizedSystemExercises =
-  getExerciseCatalogWithLegacyFallback() as Exercise[];
-
 const normalizedMetadataByExerciseId = new Map(
   normalizedCatalog.items.map((item) => [item.legacyExerciseId, item]),
 );
 
+// Internal migration marker: system exercises now come from the normalized
+// catalog service, converted back to the current Exercise shape for this page.
+// Drop unmapped legacy fallbacks so placeholder cards do not leak into results.
+const normalizedSystemExercises = (
+  getExerciseCatalogWithLegacyFallback() as Exercise[]
+).filter((exercise) => normalizedMetadataByExerciseId.has(exercise.id));
+
 const defaultImage =
   "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=900";
+
+const myExercisesSectionLabel = "My Exercises";
+const myExercisesSectionKey = myExercisesSectionLabel.toLowerCase();
 
 type BuilderSelectableExercise = Pick<
   Exercise,
@@ -2624,6 +2697,143 @@ const getFallbackThirdControl = (
   };
 };
 
+type PrivateExerciseModifierControl = CardModifierControlDefinition & {
+  options: ExerciseModifier[];
+};
+
+const emptyPrivateExerciseDraft = (): PrivateExerciseDraft => ({
+  name: "",
+  coreMovementPattern: "",
+  semanticVariationId: "",
+  modifierIds: [],
+  goal: "Hypertrophy",
+  difficulty: "Beginner",
+  primaryMuscles: "",
+  secondaryMuscles: "",
+  cue: "",
+  image: "",
+});
+
+const titleCase = (value: string) =>
+  value
+    .split(/[\s-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+const getPrivateExerciseMetadataForCoreMovement = (
+  coreMovementId?: CoreMovementId | "",
+) =>
+  coreMovementId
+    ? normalizedCatalog.items.find((item) => item.coreMovementId === coreMovementId) ||
+      null
+    : null;
+
+const getPrivateExerciseControlOptionSource = (
+  metadata: NormalizedExerciseCatalogItem | null,
+) => {
+  const compatibleOptions = new Map(
+    getCompatibleModifierGroups(metadata)
+      .flatMap((group) => group.modifiers)
+      .map((modifier) => [modifier.id, modifier]),
+  );
+  const allOptions = new Map(
+    Object.values(EXERCISE_MODIFIER_BY_ID).map((modifier) => [
+      modifier.id,
+      modifier,
+    ]),
+  );
+
+  return { allOptions, compatibleOptions };
+};
+
+const getPrivateExerciseOptionsForControl = (
+  control: CardModifierControlDefinition,
+  metadata: NormalizedExerciseCatalogItem | null,
+) => {
+  const { allOptions, compatibleOptions } =
+    getPrivateExerciseControlOptionSource(metadata);
+
+  if (isRangeOfMotionControl(control)) return getStandardRangeOfMotionOptions();
+
+  const categoryOptions = control.categories.flatMap((categoryId) =>
+    Array.from(allOptions.values()).filter(
+      (modifier) => modifier.categoryId === categoryId,
+    ),
+  );
+  const sourceById = control.optionIds ? allOptions : compatibleOptions;
+  const orderedOptions = control.optionIds
+    ? control.optionIds
+        .map((modifierId) => sourceById.get(modifierId))
+        .filter((modifier): modifier is ExerciseModifier => Boolean(modifier))
+    : categoryOptions;
+  const normalizedOptions = hasRangeOfMotionControlCategory(control)
+    ? [
+        ...orderedOptions.filter(
+          (modifier) => modifier.categoryId !== "range-of-motion",
+        ),
+        ...getStandardRangeOfMotionOptions(),
+      ]
+    : orderedOptions;
+
+  return dedupeModifierOptionsByDisplayLabel(normalizedOptions);
+};
+
+const getPrivateExerciseModifierControls = (
+  coreMovementId: CoreMovementId | "",
+  metadata: NormalizedExerciseCatalogItem | null,
+): PrivateExerciseModifierControl[] => {
+  if (!coreMovementId) return [];
+
+  const controlDefinitions =
+    cardModifierControlPresets[coreMovementId] || [
+      defaultEquipmentControl,
+      defaultPositionControl,
+      getFallbackThirdControl(coreMovementId),
+    ];
+
+  return controlDefinitions
+    .filter((control) => !control.categories.includes("execution-style"))
+    .map((control) => ({
+      ...control,
+      options: getPrivateExerciseOptionsForControl(control, metadata),
+    }))
+    .filter((control) => control.options.length > 0);
+};
+
+const getPrivateExerciseDefaultModifierIds = (
+  coreMovementId: CoreMovementId,
+  controls: PrivateExerciseModifierControl[],
+) => {
+  const coreMovement = CORE_MOVEMENT_BY_ID[coreMovementId];
+  const defaultIds = new Set<ExerciseModifierId>(
+    coreMovement?.defaultModifierIds || [],
+  );
+
+  controls.forEach((control) => {
+    if (
+      control.categories.includes("apparatus") &&
+      !Array.from(defaultIds).some(
+        (modifierId) => getModifierCategoryId(modifierId) === "apparatus",
+      )
+    ) {
+      const bodyweightOption =
+        control.options.find((option) => option.id === "apparatus:bodyweight") ||
+        control.options[0];
+      if (bodyweightOption) defaultIds.add(bodyweightOption.id);
+    }
+
+    if (
+      isRangeOfMotionControl(control) &&
+      control.options.some((option) => option.id === defaultRangeOfMotionModifierId)
+    ) {
+      defaultIds.add(defaultRangeOfMotionModifierId);
+    }
+  });
+
+  return normalizeModifierIdsForCoreMovement(coreMovementId, Array.from(defaultIds));
+};
+
 const getGeneratedVariationName = (
   exercise: Exercise,
   metadata: NormalizedExerciseCatalogItem | null,
@@ -3421,6 +3631,42 @@ const categoryThemeFallback: CategoryTheme = {
 };
 
 const categoryThemes: Record<string, CategoryTheme> = {
+  favorites: {
+    surfaceClass:
+      "bg-[linear-gradient(135deg,rgba(113,63,18,0.36),rgba(15,23,42,0.76),rgba(2,6,23,0.92))]",
+    cardClass:
+      "border-yellow-200/28 shadow-[0_18px_58px_rgba(0,0,0,0.40),0_0_34px_rgba(250,204,21,0.14),inset_0_1px_0_rgba(255,255,255,0.18)]",
+    overlayClass:
+      "bg-[radial-gradient(circle_at_18%_0%,rgba(250,204,21,0.20),transparent_34%),linear-gradient(120deg,rgba(250,204,21,0.11)_0%,rgba(255,255,255,0.04)_42%,transparent_74%)]",
+    accentClass:
+      "bg-gradient-to-r from-transparent via-yellow-200/75 to-transparent",
+    pillClass:
+      "border-yellow-200/34 bg-yellow-300/16 text-yellow-100 shadow-[0_0_22px_rgba(250,204,21,0.16)]",
+    hoverClass:
+      "hover:border-yellow-100/44 hover:shadow-[0_26px_86px_rgba(0,0,0,0.52),0_0_42px_rgba(250,204,21,0.18),inset_0_1px_0_rgba(255,255,255,0.22)]",
+    tabClass:
+      "bg-[linear-gradient(135deg,rgba(250,204,21,0.98),rgba(245,158,11,0.78))] text-slate-950 shadow-[0_0_30px_rgba(250,204,21,0.28),inset_0_1px_0_rgba(255,255,255,0.40)] ring-1 ring-yellow-100/70",
+    tabHoverClass:
+      "hover:bg-[linear-gradient(135deg,rgba(250,204,21,0.18),rgba(15,23,42,0.88))] hover:text-yellow-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-yellow-200/35",
+  },
+  [myExercisesSectionKey]: {
+    surfaceClass:
+      "bg-[linear-gradient(135deg,rgba(8,47,73,0.36),rgba(15,23,42,0.78),rgba(2,6,23,0.92))]",
+    cardClass:
+      "border-cyan-200/24 shadow-[0_18px_58px_rgba(0,0,0,0.40),0_0_34px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.18)]",
+    overlayClass:
+      "bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_86%_12%,rgba(250,204,21,0.12),transparent_30%),linear-gradient(120deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.035)_42%,transparent_74%)]",
+    accentClass:
+      "bg-gradient-to-r from-cyan-300/15 via-cyan-200/75 to-yellow-200/45",
+    pillClass:
+      "border-cyan-200/34 bg-cyan-300/15 text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.16)]",
+    hoverClass:
+      "hover:border-cyan-100/42 hover:shadow-[0_26px_86px_rgba(0,0,0,0.52),0_0_42px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.22)]",
+    tabClass:
+      "bg-[linear-gradient(135deg,rgba(34,211,238,0.96),rgba(250,204,21,0.72))] text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.26),inset_0_1px_0_rgba(255,255,255,0.40)] ring-1 ring-cyan-100/65",
+    tabHoverClass:
+      "hover:bg-[linear-gradient(135deg,rgba(34,211,238,0.18),rgba(15,23,42,0.88))] hover:text-cyan-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-cyan-200/35",
+  },
   "lower body compound": {
     surfaceClass:
       "bg-[linear-gradient(135deg,rgba(6,78,59,0.34),rgba(15,23,42,0.76),rgba(2,6,23,0.92))]",
@@ -3612,6 +3858,176 @@ const getCategoryTheme = (category?: string | null): CategoryTheme =>
       ] || categoryThemeFallback
     : categoryThemeFallback;
 
+type ExerciseLibraryThemeCssVariables = CSSProperties & Record<string, string>;
+
+const categoryThemeCssPresets = {
+  slate: {
+    accent: "rgba(148, 163, 184, 0.78)",
+    accentStrong: "rgba(226, 232, 240, 0.92)",
+    accentSoft: "rgba(148, 163, 184, 0.12)",
+    border: "rgba(203, 213, 225, 0.22)",
+    glow: "rgba(148, 163, 184, 0.16)",
+    panel: "rgba(15, 23, 42, 0.94)",
+    panelSoft: "rgba(148, 163, 184, 0.075)",
+    text: "rgb(226, 232, 240)",
+    track: "rgba(15, 23, 42, 0.74)",
+  },
+  emerald: {
+    accent: "rgba(52, 211, 153, 0.82)",
+    accentStrong: "rgba(110, 231, 183, 0.96)",
+    accentSoft: "rgba(16, 185, 129, 0.14)",
+    border: "rgba(110, 231, 183, 0.34)",
+    glow: "rgba(16, 185, 129, 0.24)",
+    panel: "rgba(6, 78, 59, 0.34)",
+    panelSoft: "rgba(16, 185, 129, 0.075)",
+    text: "rgb(209, 250, 229)",
+    track: "rgba(6, 78, 59, 0.38)",
+  },
+  lime: {
+    accent: "rgba(190, 242, 100, 0.82)",
+    accentStrong: "rgba(217, 249, 157, 0.96)",
+    accentSoft: "rgba(132, 204, 22, 0.14)",
+    border: "rgba(217, 249, 157, 0.34)",
+    glow: "rgba(190, 242, 100, 0.22)",
+    panel: "rgba(63, 98, 18, 0.34)",
+    panelSoft: "rgba(132, 204, 22, 0.075)",
+    text: "rgb(236, 252, 203)",
+    track: "rgba(63, 98, 18, 0.38)",
+  },
+  cyan: {
+    accent: "rgba(34, 211, 238, 0.82)",
+    accentStrong: "rgba(103, 232, 249, 0.96)",
+    accentSoft: "rgba(34, 211, 238, 0.14)",
+    border: "rgba(103, 232, 249, 0.34)",
+    glow: "rgba(34, 211, 238, 0.24)",
+    panel: "rgba(8, 47, 73, 0.34)",
+    panelSoft: "rgba(34, 211, 238, 0.075)",
+    text: "rgb(207, 250, 254)",
+    track: "rgba(8, 47, 73, 0.42)",
+  },
+  violet: {
+    accent: "rgba(167, 139, 250, 0.82)",
+    accentStrong: "rgba(196, 181, 253, 0.96)",
+    accentSoft: "rgba(139, 92, 246, 0.14)",
+    border: "rgba(196, 181, 253, 0.34)",
+    glow: "rgba(167, 139, 250, 0.24)",
+    panel: "rgba(76, 29, 149, 0.34)",
+    panelSoft: "rgba(139, 92, 246, 0.075)",
+    text: "rgb(237, 233, 254)",
+    track: "rgba(76, 29, 149, 0.40)",
+  },
+  amber: {
+    accent: "rgba(251, 191, 36, 0.82)",
+    accentStrong: "rgba(253, 224, 71, 0.96)",
+    accentSoft: "rgba(245, 158, 11, 0.14)",
+    border: "rgba(253, 224, 71, 0.34)",
+    glow: "rgba(251, 191, 36, 0.24)",
+    panel: "rgba(113, 63, 18, 0.34)",
+    panelSoft: "rgba(245, 158, 11, 0.075)",
+    text: "rgb(254, 243, 199)",
+    track: "rgba(113, 63, 18, 0.40)",
+  },
+  rose: {
+    accent: "rgba(251, 113, 133, 0.82)",
+    accentStrong: "rgba(253, 164, 175, 0.96)",
+    accentSoft: "rgba(244, 63, 94, 0.14)",
+    border: "rgba(253, 164, 175, 0.34)",
+    glow: "rgba(251, 113, 133, 0.24)",
+    panel: "rgba(159, 18, 57, 0.30)",
+    panelSoft: "rgba(244, 63, 94, 0.075)",
+    text: "rgb(255, 228, 230)",
+    track: "rgba(159, 18, 57, 0.38)",
+  },
+  orange: {
+    accent: "rgba(251, 146, 60, 0.82)",
+    accentStrong: "rgba(253, 186, 116, 0.96)",
+    accentSoft: "rgba(249, 115, 22, 0.14)",
+    border: "rgba(253, 186, 116, 0.36)",
+    glow: "rgba(251, 146, 60, 0.24)",
+    panel: "rgba(154, 52, 18, 0.34)",
+    panelSoft: "rgba(249, 115, 22, 0.075)",
+    text: "rgb(255, 237, 213)",
+    track: "rgba(154, 52, 18, 0.40)",
+  },
+  teal: {
+    accent: "rgba(45, 212, 191, 0.82)",
+    accentStrong: "rgba(94, 234, 212, 0.96)",
+    accentSoft: "rgba(20, 184, 166, 0.14)",
+    border: "rgba(94, 234, 212, 0.34)",
+    glow: "rgba(45, 212, 191, 0.24)",
+    panel: "rgba(15, 118, 110, 0.32)",
+    panelSoft: "rgba(20, 184, 166, 0.075)",
+    text: "rgb(204, 251, 241)",
+    track: "rgba(15, 118, 110, 0.38)",
+  },
+  sky: {
+    accent: "rgba(125, 211, 252, 0.82)",
+    accentStrong: "rgba(186, 230, 253, 0.96)",
+    accentSoft: "rgba(14, 165, 233, 0.12)",
+    border: "rgba(186, 230, 253, 0.30)",
+    glow: "rgba(125, 211, 252, 0.20)",
+    panel: "rgba(14, 116, 144, 0.24)",
+    panelSoft: "rgba(14, 165, 233, 0.065)",
+    text: "rgb(224, 242, 254)",
+    track: "rgba(14, 116, 144, 0.34)",
+  },
+  integrated: {
+    accent: "rgba(250, 204, 21, 0.80)",
+    accentStrong: "rgba(196, 181, 253, 0.96)",
+    accentSoft: "rgba(250, 204, 21, 0.12)",
+    border: "rgba(253, 224, 71, 0.34)",
+    glow: "rgba(250, 204, 21, 0.24)",
+    panel: "rgba(76, 29, 149, 0.26)",
+    panelSoft: "rgba(167, 139, 250, 0.075)",
+    text: "rgb(254, 249, 195)",
+    track: "rgba(76, 29, 149, 0.34)",
+  },
+};
+
+const getCategoryThemeCssVariables = (
+  theme: CategoryTheme,
+): ExerciseLibraryThemeCssVariables => {
+  const signature = `${theme.surfaceClass} ${theme.cardClass} ${theme.pillClass} ${theme.tabClass}`.toLowerCase();
+  const preset =
+    signature.includes("yellow") && signature.includes("violet")
+      ? categoryThemeCssPresets.integrated
+      : signature.includes("cyan") && signature.includes("yellow")
+        ? categoryThemeCssPresets.cyan
+      : signature.includes("lime")
+        ? categoryThemeCssPresets.lime
+        : signature.includes("emerald")
+          ? categoryThemeCssPresets.emerald
+          : signature.includes("violet")
+            ? categoryThemeCssPresets.violet
+            : signature.includes("amber") || signature.includes("yellow")
+              ? categoryThemeCssPresets.amber
+              : signature.includes("rose")
+                ? categoryThemeCssPresets.rose
+                : signature.includes("orange")
+                  ? categoryThemeCssPresets.orange
+                  : signature.includes("teal")
+                    ? categoryThemeCssPresets.teal
+                    : signature.includes("sky")
+                      ? categoryThemeCssPresets.sky
+                      : signature.includes("cyan")
+                        ? categoryThemeCssPresets.cyan
+                        : categoryThemeCssPresets.slate;
+
+  return {
+    "--exercise-theme-accent": preset.accent,
+    "--exercise-theme-accent-strong": preset.accentStrong,
+    "--exercise-theme-accent-soft": preset.accentSoft,
+    "--exercise-theme-border": preset.border,
+    "--exercise-theme-glow": preset.glow,
+    "--exercise-theme-panel": preset.panel,
+    "--exercise-theme-panel-soft": preset.panelSoft,
+    "--exercise-theme-text": preset.text,
+    "--exercise-theme-scrollbar-track": preset.track,
+    "--exercise-theme-scrollbar-thumb": preset.accent,
+    "--exercise-theme-scrollbar-thumb-hover": preset.accentStrong,
+  } as ExerciseLibraryThemeCssVariables;
+};
+
 const getBodyRegionTheme = (region?: string | null): CategoryTheme => {
   const normalizedRegion = region?.trim().toLowerCase() || "";
   if (!normalizedRegion || normalizedRegion === "all") return categoryThemeFallback;
@@ -3647,6 +4063,247 @@ const getBodyRegionTheme = (region?: string | null): CategoryTheme => {
   return categoryThemeFallback;
 };
 
+type BodyRegionLayer = "Upper" | "Lower" | "Core";
+
+const bodyRegionLayerConfigs: Array<{
+  id: BodyRegionLayer;
+  title: string;
+  helper: string;
+  pattern: RegExp;
+  theme: CategoryTheme;
+}> = [
+  {
+    id: "Upper",
+    title: "Upper",
+    helper: "Chest, back, shoulders, arms",
+    pattern:
+      /(upper|chest|pec|shoulder|delt|back|lat|trap|rhomboid|arm|bicep|tricep|wrist|forearm|rotator|cuff|neck|cervical)/i,
+    theme: getCategoryTheme("Upper Push"),
+  },
+  {
+    id: "Lower",
+    title: "Lower",
+    helper: "Quads, glutes, hips, calves",
+    pattern:
+      /(lower|leg|quad|hamstring|glute|hip|adductor|abductor|calf|tibialis|knee|ankle|posterior chain)/i,
+    theme: getCategoryTheme("Lower Body Compound"),
+  },
+  {
+    id: "Core",
+    title: "Core",
+    helper: "Abs, obliques, anti-movement",
+    pattern:
+      /(core|abs|oblique|anti|rotation|extension|lateral flexion|trunk|mobility|bracing)/i,
+    theme: getCategoryTheme("Core"),
+  },
+];
+
+const getBodyRegionLayerForLabel = (label: string): BodyRegionLayer | null => {
+  const normalizedLabel = label.trim();
+  if (!normalizedLabel || normalizedLabel.toLowerCase() === "all") return null;
+
+  return (
+    bodyRegionLayerConfigs.find((config) =>
+      config.pattern.test(normalizedLabel),
+    )?.id || null
+  );
+};
+
+type ExerciseBodyFigureGender = "male" | "female";
+
+const exerciseAnatomyColors = [
+  "#34d399",
+  "#67e8f9",
+  "#a78bfa",
+  "#fb7185",
+  "#facc15",
+];
+
+const exerciseAnatomyBodySlugs: MuscleSlug[] = [
+  "chest",
+  "deltoids",
+  "biceps",
+  "triceps",
+  "forearm",
+  "abs",
+  "obliques",
+  "quadriceps",
+  "hamstring",
+  "gluteal",
+  "calves",
+  "trapezius",
+  "upper-back",
+  "lower-back",
+  "adductors",
+  "hip-flexors",
+  "tibialis",
+];
+
+const exerciseAnatomySlugLayer: Record<MuscleSlug, BodyRegionLayer> = {
+  chest: "Upper",
+  deltoids: "Upper",
+  biceps: "Upper",
+  triceps: "Upper",
+  forearm: "Upper",
+  abs: "Core",
+  obliques: "Core",
+  quadriceps: "Lower",
+  hamstring: "Lower",
+  gluteal: "Lower",
+  calves: "Lower",
+  trapezius: "Upper",
+  "upper-back": "Upper",
+  "lower-back": "Core",
+  adductors: "Lower",
+  "hip-flexors": "Lower",
+  tibialis: "Lower",
+};
+
+const exerciseAnatomySlugBodyCandidates: Record<MuscleSlug, string[]> = {
+  chest: ["Chest"],
+  deltoids: [
+    "Shoulders",
+    "Lateral Delts",
+    "Middle Deltoids",
+    "Delts",
+    "Upper Back / Shoulders",
+  ],
+  biceps: ["Arms"],
+  triceps: ["Arms"],
+  forearm: ["Forearms", "Arms"],
+  abs: ["Core", "Abs"],
+  obliques: ["Core", "Obliques"],
+  quadriceps: ["Legs", "Quads", "Quadriceps"],
+  hamstring: ["Hamstrings", "Posterior Chain"],
+  gluteal: [
+    "Glutes",
+    "Glute Bridge",
+    "Hip Thrust / Bridge",
+    "Hips / Glutes",
+    "Posterior Chain",
+  ],
+  calves: ["Calves", "Lower Legs"],
+  trapezius: ["Back", "Upper Back / Shoulders"],
+  "upper-back": ["Back", "Upper Back / Shoulders"],
+  "lower-back": ["Core", "Posterior Chain", "Back"],
+  adductors: ["Hips / Adductors", "Hips"],
+  "hip-flexors": ["Hips", "Core"],
+  tibialis: ["Lower Legs"],
+};
+
+const exerciseAnatomySlugThemeCategory: Record<MuscleSlug, string> = {
+  chest: "Upper Push",
+  deltoids: "Upper Push",
+  biceps: "Arm Isolation",
+  triceps: "Arm Isolation",
+  forearm: "Arm Isolation",
+  abs: "Core",
+  obliques: "Core",
+  quadriceps: "Lower Body Isolation",
+  hamstring: "Lower Body Compound",
+  gluteal: "Lower Body Compound",
+  calves: "Lower Body Isolation",
+  trapezius: "Upper Pull",
+  "upper-back": "Upper Pull",
+  "lower-back": "Core",
+  adductors: "Lower Body Isolation",
+  "hip-flexors": "Lower Body Isolation",
+  tibialis: "Lower Body Isolation",
+};
+
+const exerciseAnatomyRegionVisuals: Record<
+  string,
+  {
+    baseFill: string;
+    contextFill: string;
+    selectedFill: string;
+    stroke: string;
+    glow: string;
+  }
+> = {
+  "Lower Body Compound": {
+    baseFill: "rgba(6, 78, 59, 0.36)",
+    contextFill: "rgba(16, 185, 129, 0.42)",
+    selectedFill: "rgba(52, 211, 153, 0.88)",
+    stroke: "rgba(110, 231, 183, 0.72)",
+    glow: "rgba(16, 185, 129, 0.28)",
+  },
+  "Lower Body Isolation": {
+    baseFill: "rgba(63, 98, 18, 0.36)",
+    contextFill: "rgba(132, 204, 22, 0.40)",
+    selectedFill: "rgba(190, 242, 100, 0.86)",
+    stroke: "rgba(217, 249, 157, 0.72)",
+    glow: "rgba(190, 242, 100, 0.24)",
+  },
+  "Upper Push": {
+    baseFill: "rgba(8, 47, 73, 0.38)",
+    contextFill: "rgba(34, 211, 238, 0.40)",
+    selectedFill: "rgba(103, 232, 249, 0.88)",
+    stroke: "rgba(165, 243, 252, 0.72)",
+    glow: "rgba(34, 211, 238, 0.28)",
+  },
+  "Upper Pull": {
+    baseFill: "rgba(76, 29, 149, 0.36)",
+    contextFill: "rgba(139, 92, 246, 0.40)",
+    selectedFill: "rgba(196, 181, 253, 0.88)",
+    stroke: "rgba(221, 214, 254, 0.72)",
+    glow: "rgba(167, 139, 250, 0.28)",
+  },
+  "Arm Isolation": {
+    baseFill: "rgba(113, 63, 18, 0.34)",
+    contextFill: "rgba(245, 158, 11, 0.40)",
+    selectedFill: "rgba(251, 191, 36, 0.88)",
+    stroke: "rgba(253, 224, 71, 0.70)",
+    glow: "rgba(251, 191, 36, 0.26)",
+  },
+  Core: {
+    baseFill: "rgba(159, 18, 57, 0.32)",
+    contextFill: "rgba(244, 63, 94, 0.40)",
+    selectedFill: "rgba(251, 113, 133, 0.88)",
+    stroke: "rgba(253, 164, 175, 0.72)",
+    glow: "rgba(251, 113, 133, 0.28)",
+  },
+};
+
+const exerciseAnatomyFallbackVisual = {
+  baseFill: "rgba(30, 41, 59, 0.72)",
+  contextFill: "rgba(148, 163, 184, 0.28)",
+  selectedFill: "rgba(226, 232, 240, 0.82)",
+  stroke: "rgba(226, 232, 240, 0.56)",
+  glow: "rgba(148, 163, 184, 0.20)",
+};
+
+const getExerciseAnatomySlugVisual = (slug: MuscleSlug) =>
+  exerciseAnatomyRegionVisuals[exerciseAnatomySlugThemeCategory[slug]] ||
+  exerciseAnatomyFallbackVisual;
+
+const normalizeBodySelectorValue = (value: string) =>
+  value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
+
+const resolveAnatomySlugBodyOption = (
+  slug: MuscleSlug,
+  bodyOptions: string[],
+) => {
+  const candidates = exerciseAnatomySlugBodyCandidates[slug] || [];
+  const normalizedCandidates = candidates.map(normalizeBodySelectorValue);
+  const usableOptions = bodyOptions.filter((option) => option !== "All");
+
+  return (
+    usableOptions.find((option) =>
+      normalizedCandidates.includes(normalizeBodySelectorValue(option)),
+    ) ||
+    usableOptions.find((option) => {
+      const normalizedOption = normalizeBodySelectorValue(option);
+      return normalizedCandidates.some(
+        (candidate) =>
+          normalizedOption.includes(candidate) ||
+          candidate.includes(normalizedOption),
+      );
+    }) ||
+    null
+  );
+};
+
 const getSemanticPatternLabel = (patternId: SemanticMovementPatternId) =>
   SEMANTIC_MOVEMENT_PATTERN_BY_ID[patternId]?.label || labelize(patternId);
 
@@ -3675,6 +4332,44 @@ const getSemanticPatternCategoryLabel = (
 
 const getMappedPatternCategoryLabel = (patternId: MovementPatternId) =>
   getMovementPatternCategoryLabel(MOVEMENT_PATTERN_CATEGORY_BY_ID[patternId]);
+
+const exerciseMatchesBodyRegionLayer = (
+  exercise: Exercise,
+  metadata: NormalizedExerciseCatalogItem | null,
+  layer: BodyRegionLayer | null,
+) => {
+  if (!layer) return true;
+
+  const layerConfig = bodyRegionLayerConfigs.find(
+    (config) => config.id === layer,
+  );
+  if (!layerConfig) return true;
+
+  const coreMovement =
+    metadata?.coreMovementId && CORE_MOVEMENT_BY_ID[metadata.coreMovementId]
+      ? CORE_MOVEMENT_BY_ID[metadata.coreMovementId]
+      : null;
+  const movementCategory = metadata
+    ? getMappedPatternCategoryLabel(metadata.movementPatternId)
+    : "";
+  const valuesToMatch = [
+    exercise.body,
+    exercise.muscles,
+    exercise.pattern,
+    exercise.goal,
+    ...getExerciseVolumeBodyLabels(exercise, metadata),
+    metadata?.coreMovementLabel || "",
+    metadata?.movementPatternLabel || "",
+    metadata?.familyLabel || "",
+    metadata?.apparatus || "",
+    movementCategory,
+    coreMovement?.bodyRegion || "",
+    ...(coreMovement?.primaryMuscles || []),
+    ...(coreMovement?.secondaryMuscles || []),
+  ];
+
+  return valuesToMatch.some((value) => layerConfig.pattern.test(value));
+};
 
 const getCardClassificationLabel = (
   metadata: NormalizedExerciseCatalogItem | null,
@@ -4100,6 +4795,7 @@ const getMovementArchitectureChips = (
 
 type SemanticVariationOption =
   NormalizedExerciseCatalogItem["semanticVariations"][number];
+type SpotlightShift = "center" | "left" | "right";
 
 const uniqueModifierIds = (modifierIds: ExerciseModifierId[]) =>
   Array.from(new Set(modifierIds));
@@ -4342,17 +5038,118 @@ const applySemanticVariationModifierPreset = (
   ]);
 };
 
+type SemanticVariationStatsSummary = {
+  hasStats: boolean;
+  lastLoggedLabel: string;
+  lifetimeSets: number;
+  lifetimeSetsLabel: string;
+};
+
+const emptySemanticVariationStatsSummary: SemanticVariationStatsSummary = {
+  hasStats: false,
+  lastLoggedLabel: "No recent logs",
+  lifetimeSets: 0,
+  lifetimeSetsLabel: "0 sets",
+};
+
+const semanticVariationMenuGroupOrder = [
+  "Common",
+  "Strength",
+  "Machine",
+  "Cable / Band",
+  "Bodyweight",
+  "Athletic",
+  "Mobility / Rehab",
+  "All Variations",
+] as const;
+
+const getSemanticVariationModifierLabels = (
+  variation: SemanticVariationOption,
+) =>
+  uniqueModifierIds([
+    ...(variation.modifierIds || []),
+    ...(variation.definingModifierIds || []),
+  ])
+    .map((modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId]?.label || "")
+    .filter(Boolean);
+
+const getSemanticVariationEquipmentSummary = (
+  variation: SemanticVariationOption,
+) => {
+  const equipmentLabels = uniqueModifierIds([
+    ...(variation.modifierIds || []),
+    ...(variation.definingModifierIds || []),
+  ])
+    .filter((modifierId) => getModifierCategoryId(modifierId) === "apparatus")
+    .map((modifierId) => EXERCISE_MODIFIER_BY_ID[modifierId]?.label || "")
+    .filter(Boolean);
+
+  return equipmentLabels.slice(0, 2).join(" / ") || "Flexible setup";
+};
+
+const getSemanticVariationMenuGroup = (
+  variation: SemanticVariationOption,
+  index: number,
+) => {
+  const tokenText = [
+    variation.name,
+    ...(variation.aliases || []),
+    ...getSemanticVariationModifierLabels(variation),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  if (index < 4) return "Common";
+  if (/\b(machine|smith|pec deck|leg press|hack squat)\b/.test(tokenText)) {
+    return "Machine";
+  }
+  if (/\b(cable|band|resistance band)\b/.test(tokenText)) {
+    return "Cable / Band";
+  }
+  if (/\b(bodyweight|air squat|push-up|pull-up|plank)\b/.test(tokenText)) {
+    return "Bodyweight";
+  }
+  if (/\b(jump|plyometric|sprint|throw|slam|swing|athletic)\b/.test(tokenText)) {
+    return "Athletic";
+  }
+  if (/\b(mobility|rehab|stretch|pancake|jefferson|controlled)\b/.test(tokenText)) {
+    return "Mobility / Rehab";
+  }
+  if (/\b(barbell|dumbbell|kettlebell|trap bar|landmine|weight plate|ez bar)\b/.test(tokenText)) {
+    return "Strength";
+  }
+
+  return "All Variations";
+};
+
+const getSemanticVariationSearchText = (variation: SemanticVariationOption) =>
+  [
+    variation.name,
+    ...(variation.aliases || []),
+    ...getSemanticVariationModifierLabels(variation),
+  ]
+    .join(" ")
+    .toLowerCase();
+
 function SemanticVariationSelect({
   options,
   value,
   onChange,
   onOpenChange,
+  onAddNewVariation,
+  coreMovementLabel,
+  statsByVariationId = {},
+  themeStyle,
   compact = false,
 }: {
   options: SemanticVariationOption[];
   value: string;
   onChange: (variation: SemanticVariationOption) => void;
   onOpenChange?: (open: boolean) => void;
+  onAddNewVariation?: () => void;
+  coreMovementLabel?: string;
+  statsByVariationId?: Record<string, SemanticVariationStatsSummary>;
+  themeStyle?: ExerciseLibraryThemeCssVariables;
   compact?: boolean;
 }) {
   const dropdownId = useId();
@@ -4361,10 +5158,45 @@ function SemanticVariationSelect({
   const lockedMenuWidthRef = useRef<number | null>(null);
   const [open, setOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const selectedVariation =
     options.find((variation) => variation.id === value) || null;
   const displayValue = selectedVariation?.name || "Select variation";
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const groupedOptions = useMemo(() => {
+    const groups = new Map<string, SemanticVariationOption[]>();
+
+    options
+      .filter((variation) =>
+        normalizedSearchQuery
+          ? getSemanticVariationSearchText(variation).includes(
+              normalizedSearchQuery,
+            )
+          : true,
+      )
+      .forEach((variation) => {
+        const originalIndex = options.findIndex(
+          (option) => option.id === variation.id,
+        );
+        const groupLabel = getSemanticVariationMenuGroup(
+          variation,
+          originalIndex >= 0 ? originalIndex : 999,
+        );
+
+        groups.set(groupLabel, [...(groups.get(groupLabel) || []), variation]);
+      });
+
+    return Array.from(groups.entries()).sort(
+      ([leftLabel], [rightLabel]) =>
+        semanticVariationMenuGroupOrder.indexOf(
+          leftLabel as (typeof semanticVariationMenuGroupOrder)[number],
+        ) -
+          semanticVariationMenuGroupOrder.indexOf(
+            rightLabel as (typeof semanticVariationMenuGroupOrder)[number],
+          ) || leftLabel.localeCompare(rightLabel),
+    );
+  }, [normalizedSearchQuery, options]);
 
   const updateMenuPosition = () => {
     const button = buttonRef.current;
@@ -4374,8 +5206,11 @@ function SemanticVariationSelect({
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     const margin = 12;
+    const preferredMinWidth = compact ? 360 : 440;
+    const preferredMaxWidth = compact ? 460 : 520;
     const measuredMenuWidth = Math.min(
-      Math.max(rect.width, compact ? 220 : 280),
+      Math.max(rect.width, preferredMinWidth),
+      preferredMaxWidth,
       viewportWidth - margin * 2,
     );
     const menuWidth = lockedMenuWidthRef.current ?? measuredMenuWidth;
@@ -4384,7 +5219,7 @@ function SemanticVariationSelect({
       Math.max(margin, rect.left),
       Math.max(margin, viewportWidth - menuWidth - margin),
     );
-    const maxMenuHeight = Math.min(360, viewportHeight - margin * 2);
+    const maxMenuHeight = Math.min(520, viewportHeight - margin * 2);
     const belowTop = rect.bottom + 8;
     const availableBelow = viewportHeight - belowTop - margin;
     const availableAbove = rect.top - margin - 8;
@@ -4413,6 +5248,7 @@ function SemanticVariationSelect({
     if (!open) {
       lockedMenuWidthRef.current = null;
       setMenuStyle(null);
+      setSearchQuery("");
       return;
     }
 
@@ -4485,8 +5321,12 @@ function SemanticVariationSelect({
 
   const selectVariation = (variation: SemanticVariationOption) => {
     onChange(variation);
+    setSearchQuery("");
     setOpen(false);
   };
+  const menuMaxHeight =
+    typeof menuStyle?.maxHeight === "number" ? menuStyle.maxHeight : 420;
+  const optionListMaxHeight = Math.max(172, menuMaxHeight - 188);
 
   return (
     <div className={compact ? "mt-1" : "mt-1.5"}>
@@ -4502,7 +5342,7 @@ function SemanticVariationSelect({
           }
           setOpen((current) => !current);
         }}
-        className={`group/semantic flex max-w-full items-center gap-1.5 rounded-full border border-yellow-200/20 bg-yellow-300/[0.075] text-left font-black text-yellow-100/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_22px_rgba(250,204,21,0.08)] outline-none transition hover:border-yellow-200/35 hover:bg-yellow-300/[0.12] ${
+        className={`exercise-library-themed-semantic-trigger group/semantic flex max-w-full items-center gap-1.5 rounded-full border border-yellow-200/20 bg-yellow-300/[0.075] text-left font-black text-yellow-100/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_0_22px_rgba(250,204,21,0.08)] outline-none transition hover:border-yellow-200/35 hover:bg-yellow-300/[0.12] ${
           compact
             ? "px-2.5 py-1 text-[10px] leading-4 sm:text-[11px]"
             : "px-3.5 py-1.5 text-[13px] leading-5 sm:text-sm"
@@ -4526,40 +5366,130 @@ function SemanticVariationSelect({
         ? createPortal(
             <div
               ref={menuRef}
-              style={menuStyle}
+              style={{ ...menuStyle, ...themeStyle }}
               data-exercise-library-floating-menu="true"
-              className="fixed overflow-hidden rounded-2xl border border-yellow-100/20 bg-[radial-gradient(circle_at_12%_0%,rgba(250,204,21,0.18),transparent_35%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-1.5 shadow-[0_26px_70px_rgba(0,0,0,0.68),0_0_34px_rgba(250,204,21,0.10),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl"
+              className="exercise-library-themed-floating-panel fixed overflow-hidden rounded-2xl border border-yellow-100/20 bg-[radial-gradient(circle_at_12%_0%,rgba(250,204,21,0.18),transparent_35%),radial-gradient(circle_at_88%_6%,rgba(34,211,238,0.12),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.985),rgba(2,6,23,0.965))] p-2 shadow-[0_30px_92px_rgba(0,0,0,0.78),0_0_42px_rgba(250,204,21,0.13),inset_0_1px_0_rgba(255,255,255,0.15)] ring-1 ring-yellow-100/10 backdrop-blur-2xl"
             >
+              <div className="border-b border-yellow-100/12 px-2 pb-2.5 pt-1">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-100/58">
+                      Semantic Variations
+                    </p>
+                    <p className="mt-1 truncate text-sm font-black text-white">
+                      {coreMovementLabel || "Exercise Type"}
+                    </p>
+                  </div>
+                  {selectedVariation ? (
+                    <span className="shrink-0 rounded-xl border border-yellow-100/18 bg-yellow-300/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-yellow-100/70">
+                      Selected
+                    </span>
+                  ) : null}
+                </div>
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  data-no-drag-scroll="true"
+                  placeholder="Search variations"
+                  className="mt-2.5 min-h-10 w-full rounded-xl border border-white/10 bg-slate-950/72 px-3 py-2 text-sm font-bold text-white outline-none placeholder:text-slate-500 focus:border-yellow-200/45 focus:bg-slate-950/90"
+                />
+              </div>
+
               <div
                 role="listbox"
                 aria-label="Semantic exercise variations"
-                style={{ maxHeight: menuStyle.maxHeight }}
-                className="overflow-y-auto pr-1 [scrollbar-color:rgba(250,204,21,0.32)_transparent] [scrollbar-width:thin]"
+                style={{ maxHeight: optionListMaxHeight }}
+                  className="exercise-library-themed-scrollbar mt-2 overflow-y-auto pr-1 [scrollbar-color:rgba(250,204,21,0.32)_transparent] [scrollbar-width:thin]"
               >
-                {options.map((variation) => {
-                  const isSelected = variation.id === value;
+                {groupedOptions.length ? (
+                  groupedOptions.map(([groupLabel, groupOptions]) => (
+                    <div key={groupLabel} className="mb-2 last:mb-0">
+                      <p className="mb-1.5 px-2 text-[8px] font-black uppercase tracking-[0.18em] text-yellow-100/42">
+                        {groupLabel}
+                      </p>
+                      <div className="space-y-1.5">
+                        {groupOptions.map((variation) => {
+                          const isSelected = variation.id === value;
+                          const optionStats =
+                            statsByVariationId[variation.id] ||
+                            emptySemanticVariationStatsSummary;
+                          const setupLabel =
+                            getSemanticVariationEquipmentSummary(variation);
 
-                  return (
-                    <button
-                      key={variation.id}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      onClick={() => selectVariation(variation)}
-                      className={`mb-1 flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left text-sm font-black transition ${
-                        isSelected
-                          ? "border-yellow-200 bg-yellow-300 text-slate-950 shadow-[0_0_24px_rgba(250,204,21,0.22)]"
-                          : "border-white/10 bg-white/[0.045] text-yellow-100/85 hover:border-yellow-200/35 hover:bg-yellow-300/12 hover:text-yellow-50"
-                      }`}
-                    >
-                      <span className="min-w-0 whitespace-normal leading-5">
-                        {variation.name}
-                      </span>
-                      {isSelected ? <span>Selected</span> : null}
-                    </button>
-                  );
-                })}
+                          return (
+                            <button
+                              key={variation.id}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              onClick={() => selectVariation(variation)}
+                              className={`flex w-full items-start justify-between gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
+                                isSelected
+                                  ? "exercise-library-themed-option-selected border-yellow-200 bg-yellow-300 text-slate-950 shadow-[0_0_28px_rgba(250,204,21,0.26)]"
+                                  : "border-white/10 bg-white/[0.045] text-yellow-100/88 hover:border-yellow-200/35 hover:bg-yellow-300/12 hover:text-yellow-50"
+                              }`}
+                            >
+                              <span className="min-w-0">
+                                <span className="block text-sm font-black leading-5">
+                                  {variation.name}
+                                </span>
+                                <span
+                                  className={`mt-1 block text-[10px] font-bold leading-4 ${
+                                    isSelected
+                                      ? "text-slate-700"
+                                      : "text-slate-400"
+                                  }`}
+                                >
+                                  {setupLabel}
+                                </span>
+                              </span>
+                              <span className="shrink-0 text-right">
+                                <span
+                                  className={`block whitespace-nowrap text-[10px] font-black uppercase tracking-[0.08em] ${
+                                    isSelected
+                                      ? "text-slate-900"
+                                      : optionStats.hasStats
+                                        ? "text-emerald-200"
+                                        : "text-white/42"
+                                  }`}
+                                >
+                                  {optionStats.lifetimeSetsLabel}
+                                </span>
+                                <span
+                                  className={`mt-1 block whitespace-nowrap text-[9px] font-bold ${
+                                    isSelected
+                                      ? "text-slate-700"
+                                      : "text-white/36"
+                                  }`}
+                                >
+                                  Last: {optionStats.lastLoggedLabel}
+                                </span>
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-sm font-bold text-slate-400">
+                    No matching variations.
+                  </p>
+                )}
               </div>
+
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setOpen(false);
+                  setSearchQuery("");
+                  onAddNewVariation?.();
+                }}
+                className="mt-2 flex min-h-11 w-full items-center justify-center rounded-xl border border-emerald-200/22 bg-emerald-300/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-100 transition hover:border-emerald-100/48 hover:bg-emerald-300 hover:text-slate-950"
+              >
+                + Add New Variation
+              </button>
             </div>,
             document.body,
           )
@@ -4572,10 +5502,12 @@ function MovementArchitectureChips({
   chips,
   compact = false,
   classificationChipClass,
+  onChipSelect,
 }: {
   chips: MovementArchitectureChip[];
   compact?: boolean;
   classificationChipClass?: string;
+  onChipSelect?: (chip: MovementArchitectureChip) => void;
 }) {
   const visibleChips = compact ? chips.slice(0, 4) : chips;
   const hiddenCount = chips.length - visibleChips.length;
@@ -4587,19 +5519,30 @@ function MovementArchitectureChips({
       }`}
       aria-label="Movement architecture tags"
     >
-      {visibleChips.map((chip) => (
-        <span
-          key={chip.key}
-          className={`max-w-full rounded-full border px-2.5 py-1 text-[9px] font-black uppercase leading-4 tracking-[0.08em] ${
+      {visibleChips.map((chip) => {
+        const chipClassName = `exercise-library-themed-chip max-w-full rounded-full border px-2.5 py-1 text-[9px] font-black uppercase leading-4 tracking-[0.08em] transition ${
             chip.tone === "classification" && classificationChipClass
               ? classificationChipClass
               : movementArchitectureChipClasses[chip.tone]
-          }`}
-          title={chip.label}
-        >
-          {chip.label}
-        </span>
-      ))}
+          }`;
+
+        return onChipSelect && chip.tone !== "fallback" ? (
+          <button
+            key={chip.key}
+            type="button"
+            aria-label={`Filter by ${chip.label}`}
+            onClick={() => onChipSelect(chip)}
+            className={`${chipClassName} cursor-pointer hover:-translate-y-0.5 hover:border-white/35 focus:outline-none focus:ring-2 focus:ring-cyan-100/30`}
+            title={`Filter by ${chip.label}`}
+          >
+            {chip.label}
+          </button>
+        ) : (
+          <span key={chip.key} className={chipClassName} title={chip.label}>
+            {chip.label}
+          </span>
+        );
+      })}
 
       {hiddenCount > 0 ? (
         <span className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-[9px] font-black uppercase leading-4 tracking-[0.08em] text-slate-400">
@@ -4661,10 +5604,106 @@ const splitMuscleText = (muscles: string) =>
       .map((muscle) => muscle.trim()),
   );
 
+const getExerciseMappingSearchText = (
+  exercise: Exercise,
+  metadata: NormalizedExerciseCatalogItem | null,
+) =>
+  [
+    exercise.id,
+    exercise.name,
+    exercise.exerciseName,
+    exercise.generatedTitle,
+    exercise.semanticVariationName,
+    exercise.semanticVariation,
+    exercise.body,
+    exercise.muscles,
+    exercise.pattern,
+    exercise.coreMovementPattern,
+    metadata?.coreMovementId,
+    metadata?.coreMovementLabel,
+    metadata?.movementPatternLabel,
+    metadata?.familyLabel,
+    ...(metadata?.semanticVariationNames || []),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+const getExerciseMuscleMappingOverride = (
+  exercise: Exercise,
+  metadata: NormalizedExerciseCatalogItem | null,
+): Omit<MuscleIntelligence, "source"> | null => {
+  const mappingText = getExerciseMappingSearchText(exercise, metadata);
+  const coreMovementId = metadata?.coreMovementId || exercise.coreMovementPattern;
+  const isHipThrustBridge =
+    coreMovementId === "hip-thrust-bridge" ||
+    /\b(hip thrust|glute bridge|glute drive|glute extension|pull through|pull-through)\b/.test(
+      mappingText,
+    );
+
+  if (isHipThrustBridge) {
+    return {
+      primary: ["Glutes"],
+      secondary: ["Hamstrings", "Core", "Adductors"],
+      stabilizers: [],
+    };
+  }
+
+  const isLateralRaise =
+    /\b(lateral raise|side raise|lateral delt|middle delt|middle deltoid)\b/.test(
+      mappingText,
+    );
+
+  if (isLateralRaise) {
+    return {
+      primary: ["Lateral Delts", "Middle Deltoids"],
+      secondary: ["Front Delts", "Upper Traps", "Rotator Cuff"],
+      stabilizers: ["Shoulder Stabilizers"],
+    };
+  }
+
+  return null;
+};
+
+const getExerciseVolumeBodyLabels = (
+  exercise: Exercise,
+  metadata: NormalizedExerciseCatalogItem | null = getMetadataForExercise(exercise),
+) => {
+  const override = getExerciseMuscleMappingOverride(exercise, metadata);
+  const labels = [
+    exercise.body,
+    ...(override?.primary || []),
+    ...(override?.secondary || []),
+    ...(override?.stabilizers || []),
+    ...splitMuscleText(exercise.muscles || "").slice(0, 6),
+  ];
+  const mappingText = getExerciseMappingSearchText(exercise, metadata);
+
+  if (override?.primary.some((muscle) => /delt|deltoid/i.test(muscle))) {
+    labels.push("Shoulders");
+  }
+  if (/\bglute|hip thrust|bridge|pull through|pull-through\b/.test(mappingText)) {
+    labels.push("Glutes");
+  }
+
+  return getUniqueMuscleLabels(labels).filter(Boolean);
+};
+
 const getExerciseMuscleIntelligence = (
   exercise: Exercise,
   metadata: NormalizedExerciseCatalogItem | null,
 ): MuscleIntelligence => {
+  const override = getExerciseMuscleMappingOverride(exercise, metadata);
+
+  if (override) {
+    return {
+      primary: getUniqueMuscleLabels(override.primary),
+      secondary: getUniqueMuscleLabels(override.secondary),
+      stabilizers: getUniqueMuscleLabels(override.stabilizers),
+      source: "movement",
+    };
+  }
+
   if (!exercise.custom) {
     const migration = mapLegacyExerciseToExerciseSystem(
       toBuilderCatalogExercise(exercise),
@@ -4707,11 +5746,17 @@ const getExerciseMuscleIntelligence = (
 function MuscleIntelligenceBlock({
   muscles,
   compact = false,
+  latestSetInsight,
+  onMuscleSelect,
   showSourceBadge = true,
+  weeklySetsByMuscleLabel,
 }: {
   muscles: MuscleIntelligence;
   compact?: boolean;
+  latestSetInsight?: LatestSetInsight | null;
+  onMuscleSelect?: (muscle: string) => void;
   showSourceBadge?: boolean;
+  weeklySetsByMuscleLabel?: Map<string, number>;
 }) {
   if (
     !muscles.primary.length &&
@@ -4724,6 +5769,7 @@ function MuscleIntelligenceBlock({
   const muscleRows = [
     {
       label: "Primary",
+      items: muscles.primary,
       value: muscles.primary.join(" • "),
       tone:
         "border-cyan-200/20 bg-cyan-300/10 text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]",
@@ -4731,6 +5777,7 @@ function MuscleIntelligenceBlock({
     },
     {
       label: "Secondary",
+      items: muscles.secondary,
       value: muscles.secondary.join(" • "),
       tone:
         "border-violet-200/20 bg-violet-300/10 text-violet-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]",
@@ -4738,6 +5785,7 @@ function MuscleIntelligenceBlock({
     },
     {
       label: "Stabilizers",
+      items: muscles.stabilizers,
       value: muscles.stabilizers.join(" • "),
       tone:
         "border-emerald-200/20 bg-emerald-300/10 text-emerald-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]",
@@ -4747,7 +5795,7 @@ function MuscleIntelligenceBlock({
 
   return (
     <div
-      className={`rounded-2xl border border-cyan-100/15 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.74))] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_12px_34px_rgba(0,0,0,0.22)] backdrop-blur-xl ${
+      className={`exercise-library-themed-intelligence rounded-2xl border border-cyan-100/15 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.74))] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_12px_34px_rgba(0,0,0,0.22)] backdrop-blur-xl ${
         compact ? "mt-1.5 p-2" : "mt-2.5 p-3"
       }`}
     >
@@ -4774,7 +5822,7 @@ function MuscleIntelligenceBlock({
         {muscleRows.map((row) => (
           <div
             key={row.label}
-            className={`rounded-xl border ${row.tone} ${
+            className={`exercise-library-themed-intelligence-tile rounded-xl border ${row.tone} ${
               compact ? "px-2 py-1.5" : "px-3 py-2"
             }`}
           >
@@ -4785,13 +5833,84 @@ function MuscleIntelligenceBlock({
             >
               {row.label}
             </p>
-            <p
-              className={`mt-0.5 font-black leading-snug ${
-                compact ? "text-[10px]" : "text-sm"
-              }`}
-            >
-              {row.value}
-            </p>
+            {onMuscleSelect ? (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {row.items.map((muscle) => {
+                  const muscleWeeklySets = weeklySetsByMuscleLabel
+                    ? getWeeklySetsForVolumeLabel(weeklySetsByMuscleLabel, muscle)
+                    : 0;
+                  const isLatestMusclePulse = Boolean(
+                    latestSetInsight?.bodyLabels.some(
+                      (label) =>
+                        normalizeBodySelectorValue(label) ===
+                        normalizeBodySelectorValue(muscle),
+                    ),
+                  );
+                  const muscleWeeklyGoal = getWeeklySetGoalForMuscle();
+                  const muscleStatusId = getWeeklySetGoalStatusId(
+                    muscleWeeklySets,
+                    muscleWeeklyGoal,
+                  );
+                  const muscleTheme = getBodyRegionTheme(muscle);
+                  const muscleStyle = {
+                    ...getCategoryThemeCssVariables(muscleTheme),
+                    "--exercise-chip-volume-progress": `${getWeeklySetGoalFillPercent(
+                      muscleWeeklySets,
+                      muscleWeeklyGoal,
+                    )}%`,
+                  } as ExerciseLibraryThemeCssVariables;
+
+                  return (
+                    <button
+                      key={`${row.label}-${muscle}`}
+                      type="button"
+                      aria-label={`Filter by ${muscle}, ${Math.max(
+                        0,
+                        Math.round(muscleWeeklySets),
+                      )} of ${muscleWeeklyGoal} weekly sets`}
+                      onClick={() => onMuscleSelect(muscle)}
+                      style={muscleStyle}
+                      className={`exercise-library-themed-chip exercise-library-volume-chip rounded-lg border border-white/10 bg-white/[0.05] px-2 py-1 font-black leading-snug text-white transition hover:-translate-y-0.5 hover:border-cyan-100/30 hover:bg-cyan-300/12 focus:outline-none focus:ring-2 focus:ring-cyan-100/30 ${
+                        isLatestMusclePulse ? "exercise-library-volume-pulse" : ""
+                      } ${
+                        compact ? "text-[9px]" : "text-xs"
+                      }`}
+                      title={`${muscle}: ${Math.max(
+                        0,
+                        Math.round(muscleWeeklySets),
+                      )} of ${muscleWeeklyGoal} weekly sets, ${weeklyVolumeStatusConfig[muscleStatusId].label}`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="exercise-library-volume-chip__fill"
+                      />
+                      <span className="exercise-library-volume-chip__content">
+                        <span>{muscle}</span>
+                        {isLatestMusclePulse ? (
+                          <span className="exercise-library-volume-added-chip">
+                            {latestSetInsight?.pulseLabel}
+                          </span>
+                        ) : null}
+                        <span className="exercise-library-volume-chip__stat">
+                          <WeeklySetGoalBadge
+                            completedSets={muscleWeeklySets}
+                            goalSets={muscleWeeklyGoal}
+                          />
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p
+                className={`mt-0.5 font-black leading-snug ${
+                  compact ? "text-[10px]" : "text-sm"
+                }`}
+              >
+                {row.value}
+              </p>
+            )}
           </div>
         ))}
       </div>
@@ -4809,6 +5928,29 @@ const parseStatNumber = (value: string | number | undefined) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const getStatCompletedReps = (stat: LocalExerciseStatEntry) =>
+  parseStatNumber(stat.reps) * parseStatNumber(stat.sets);
+
+const isStatWithinTrailingSevenDays = (stat: LocalExerciseStatEntry) => {
+  const statTime = getStatTime(stat);
+  if (!statTime) return false;
+
+  return statTime >= Date.now() - 7 * 24 * 60 * 60 * 1000;
+};
+
+const getWeeklyVolumeForStats = (stats: LocalExerciseStatEntry[]) =>
+  stats.reduce(
+    (summary, stat) => {
+      if (!isStatWithinTrailingSevenDays(stat)) return summary;
+
+      return {
+        reps: summary.reps + getStatCompletedReps(stat),
+        sets: summary.sets + parseStatNumber(stat.sets),
+      };
+    },
+    { reps: 0, sets: 0 },
+  );
+
 const formatMetric = (value: number) =>
   value > 0 ? value.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "--";
 
@@ -4817,28 +5959,61 @@ const getStatVolume = (stat: LocalExerciseStatEntry) =>
   parseStatNumber(stat.reps) *
   parseStatNumber(stat.sets);
 
-const getRecentExerciseStats = (
+const getExerciseStatHistory = (
   stats: LocalExerciseStatEntry[],
   exercise: Exercise,
   variationName: string,
+  metadata?: NormalizedExerciseCatalogItem | null,
+  semanticVariationId?: string,
 ) => {
   const normalizedNames = new Set(
-    [exercise.name, variationName]
+    [
+      exercise.name,
+      exercise.semanticVariationName,
+      exercise.generatedTitle,
+      variationName,
+      ...(metadata?.semanticVariationNames || []),
+    ]
       .filter(Boolean)
-      .map((name) => name.trim().toLowerCase()),
+      .map((name) => normalizeStatMatchValue(name)),
   );
 
   return stats
     .filter((stat) => {
-      const statName = stat.exerciseName?.trim().toLowerCase();
+      const statName = normalizeStatMatchValue(stat.exerciseName);
+      const statSemanticVariationId =
+        typeof stat.semanticVariationId === "string"
+          ? stat.semanticVariationId
+          : "";
+      const statSemanticName = normalizeStatMatchValue(stat.semanticVariationName);
+      const statGeneratedTitle = normalizeStatMatchValue(stat.generatedTitle);
+
       return (
         stat.exerciseId === exercise.id ||
+        (semanticVariationId &&
+          statSemanticVariationId === semanticVariationId) ||
+        (statSemanticName ? normalizedNames.has(statSemanticName) : false) ||
+        (statGeneratedTitle ? normalizedNames.has(statGeneratedTitle) : false) ||
         (statName ? normalizedNames.has(statName) : false)
       );
     })
-    .sort((a, b) => getStatTime(b) - getStatTime(a))
-    .slice(0, 3);
+    .sort((a, b) => getStatTime(b) - getStatTime(a));
 };
+
+const getRecentExerciseStats = (
+  stats: LocalExerciseStatEntry[],
+  exercise: Exercise,
+  variationName: string,
+  metadata?: NormalizedExerciseCatalogItem | null,
+  semanticVariationId?: string,
+) =>
+  getExerciseStatHistory(
+    stats,
+    exercise,
+    variationName,
+    metadata,
+    semanticVariationId,
+  ).slice(0, 3);
 
 const getFocusedExerciseCards = (exercises: Exercise[]) => {
   const seenCoreMovements = new Set<string>();
@@ -4921,7 +6096,10 @@ const getExerciseCoreMovementSortTitle = (exercise: Exercise) => {
 const getExerciseCategorySectionLabel = (exercise: Exercise) => {
   const metadata = getMetadataForExercise(exercise);
 
-  return getCardClassificationLabel(metadata) || (exercise.custom ? "Custom" : "Other");
+  return (
+    getCardClassificationLabel(metadata) ||
+    (exercise.custom ? myExercisesSectionLabel : "")
+  );
 };
 
 const getCategorySortRank = (label: string) => {
@@ -4975,6 +6153,164 @@ const getExerciseLoggedCount = (
   stats: LocalExerciseStatEntry[],
   exercise: Exercise,
 ) => getExerciseStatMatchesForSort(stats, exercise).length;
+
+const sumLoggedSets = (stats: LocalExerciseStatEntry[]) =>
+  stats.reduce((total, stat) => total + parseStatNumber(stat.sets), 0);
+
+const normalizeStatMatchValue = (value?: string | null) =>
+  value?.trim().toLowerCase() || "";
+const normalizeFilterCompareValue = (value?: string | null) =>
+  value?.trim().toLowerCase().replace(/\s+/g, " ") || "";
+
+const getLifetimeSetsComplete = (
+  stats: LocalExerciseStatEntry[],
+  exercise: Exercise,
+  metadata: NormalizedExerciseCatalogItem | null,
+  semanticVariationName: string,
+  semanticVariationId?: string,
+) => {
+  const exactExerciseStats = stats.filter(
+    (stat) => stat.exerciseId === exercise.id,
+  );
+
+  if (exactExerciseStats.length > 0) return sumLoggedSets(exactExerciseStats);
+
+  const semanticNames = new Set(
+    [
+      semanticVariationName,
+      exercise.semanticVariationName,
+      exercise.generatedTitle,
+      exercise.name,
+      ...(metadata?.semanticVariationNames || []),
+    ]
+      .map(normalizeStatMatchValue)
+      .filter(Boolean),
+  );
+  const coreMovementIds = new Set(
+    [metadata?.coreMovementId, exercise.coreMovementPattern]
+      .map((value) => (typeof value === "string" ? value : ""))
+      .filter(Boolean),
+  );
+  const coreMovementNames = new Set(
+    [
+      metadata?.coreMovementLabel,
+      metadata?.movementPatternLabel,
+      exercise.pattern,
+    ]
+      .map(normalizeStatMatchValue)
+      .filter(Boolean),
+  );
+  const fallbackStats = stats.filter((stat) => {
+    const statSemanticVariationId =
+      typeof stat.semanticVariationId === "string"
+        ? stat.semanticVariationId
+        : "";
+    const statCoreMovementPattern =
+      typeof stat.coreMovementPattern === "string"
+        ? stat.coreMovementPattern
+        : "";
+    const statExerciseName = normalizeStatMatchValue(stat.exerciseName);
+    const statSemanticName = normalizeStatMatchValue(stat.semanticVariationName);
+    const statGeneratedTitle = normalizeStatMatchValue(stat.generatedTitle);
+    const statPattern = normalizeStatMatchValue(stat.pattern);
+
+    return (
+      (semanticVariationId &&
+        statSemanticVariationId === semanticVariationId) ||
+      (statSemanticName && semanticNames.has(statSemanticName)) ||
+      (statGeneratedTitle && semanticNames.has(statGeneratedTitle)) ||
+      (statExerciseName && semanticNames.has(statExerciseName)) ||
+      (statCoreMovementPattern &&
+        coreMovementIds.has(statCoreMovementPattern)) ||
+      (statPattern && coreMovementNames.has(statPattern))
+    );
+  });
+
+  return sumLoggedSets(fallbackStats);
+};
+
+const formatLifetimeSetsComplete = (sets: number) => {
+  const roundedSets = Math.max(0, Math.round(sets));
+  const formatted =
+    roundedSets >= 1000
+      ? new Intl.NumberFormat(undefined, {
+          maximumFractionDigits: 1,
+          notation: "compact",
+        })
+          .format(roundedSets)
+          .replace("K", "k")
+      : roundedSets.toLocaleString();
+
+  return `${formatted} ${roundedSets === 1 ? "Set" : "Sets"}`;
+};
+
+const formatSemanticVariationLastLoggedLabel = (
+  stats: LocalExerciseStatEntry[],
+) => {
+  const latestTime = stats.reduce(
+    (latest, stat) => Math.max(latest, getStatTime(stat)),
+    0,
+  );
+
+  if (!latestTime) return "No recent logs";
+
+  return new Date(latestTime).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+  });
+};
+
+const getSemanticVariationStatsSummary = (
+  stats: LocalExerciseStatEntry[],
+  exercise: Exercise,
+  variation: SemanticVariationOption,
+) => {
+  const variationName = normalizeStatMatchValue(variation.name);
+  const variationAliases = new Set(
+    [variation.name, ...(variation.aliases || [])]
+      .map(normalizeStatMatchValue)
+      .filter(Boolean),
+  );
+  const exerciseImpliesVariation = [
+    exercise.semanticVariationName,
+    exercise.semanticVariation,
+    exercise.generatedTitle,
+    exercise.name,
+  ]
+    .map(normalizeStatMatchValue)
+    .some((name) => Boolean(name) && name === variationName);
+  const idMatches = stats.filter(
+    (stat) => stat.semanticVariationId === variation.id,
+  );
+  const nameMatches = idMatches.length
+    ? idMatches
+    : stats.filter((stat) => {
+        const statExerciseName = normalizeStatMatchValue(stat.exerciseName);
+        const statSemanticName = normalizeStatMatchValue(
+          stat.semanticVariationName,
+        );
+        const statGeneratedTitle = normalizeStatMatchValue(stat.generatedTitle);
+        const exactExerciseMatch =
+          exerciseImpliesVariation && stat.exerciseId === exercise.id;
+
+        return (
+          exactExerciseMatch ||
+          (statSemanticName && variationAliases.has(statSemanticName)) ||
+          (statGeneratedTitle && variationAliases.has(statGeneratedTitle)) ||
+          (statExerciseName && variationAliases.has(statExerciseName))
+        );
+      });
+  const lifetimeSets = sumLoggedSets(nameMatches);
+
+  if (!nameMatches.length) return emptySemanticVariationStatsSummary;
+
+  return {
+    hasStats: true,
+    lastLoggedLabel: formatSemanticVariationLastLoggedLabel(nameMatches),
+    lifetimeSets,
+    lifetimeSetsLabel: formatLifetimeSetsComplete(lifetimeSets),
+  };
+};
 
 const sortExercisesForLibrary = (
   exercises: Exercise[],
@@ -5066,12 +6402,27 @@ const groupExercisesIntoSections = (
 ) => {
   const sections = new Map<string, { label: string; exercises: Exercise[] }>();
 
+  if (sortMode === "category" && favoriteExerciseIds.size > 0) {
+    const favoriteExercises = exercises.filter((exercise) =>
+      favoriteExerciseIds.has(exercise.id),
+    );
+
+    if (favoriteExercises.length > 0) {
+      sections.set("favorites", {
+        label: "Favorites",
+        exercises: favoriteExercises,
+      });
+    }
+  }
+
   exercises.forEach((exercise) => {
     const label = getExerciseSectionLabel(
       exercise,
       sortMode,
       favoriteExerciseIds,
     );
+    if (!label.trim()) return;
+
     const key = label.toLowerCase();
     const section = sections.get(key) || { label, exercises: [] };
 
@@ -5087,62 +6438,1507 @@ const groupExercisesIntoSections = (
 
 type ExerciseLibrarySection = ReturnType<typeof groupExercisesIntoSections>[number];
 
+const defaultOpenExerciseSectionKey = "lower body compound";
+
+const getDefaultActiveExerciseSectionKey = (
+  sections: ExerciseLibrarySection[],
+) => {
+  const favoriteSection = sections.find((section) => section.key === "favorites");
+  const lowerBodyCompoundSection = sections.find(
+    (section) => section.key === defaultOpenExerciseSectionKey,
+  );
+  const firstContentSection =
+    sections.find((section) => section.key !== "favorites") || favoriteSection;
+
+  return (
+    lowerBodyCompoundSection?.key ||
+    firstContentSection?.key ||
+    favoriteSection?.key ||
+    null
+  );
+};
+
+const getFirstVisibleExerciseSectionKey = (
+  sections: ExerciseLibrarySection[],
+) => sections[0]?.key || null;
+
+const getExerciseCoreMovementDisplayName = (exercise: Exercise) => {
+  const metadata = getMetadataForExercise(exercise);
+  const coreMovementPattern =
+    typeof exercise.coreMovementPattern === "string" ? exercise.coreMovementPattern : "";
+
+  return (
+    metadata?.coreMovementLabel ||
+    metadata?.movementPatternLabel ||
+    (coreMovementPattern
+      ? CORE_MOVEMENT_BY_ID[coreMovementPattern as CoreMovementId]?.label ||
+        labelize(coreMovementPattern)
+      : "") ||
+    exercise.pattern ||
+    exercise.name
+  );
+};
+
+const normalizeExerciseCoreMovementTabKey = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "movement";
+
+const getExerciseCoreMovementTabKey = (exercise: Exercise) => {
+  const metadata = getMetadataForExercise(exercise);
+  const coreMovementPattern =
+    metadata?.coreMovementId ||
+    (typeof exercise.coreMovementPattern === "string"
+      ? exercise.coreMovementPattern
+      : "");
+
+  return normalizeExerciseCoreMovementTabKey(
+    coreMovementPattern || getExerciseCoreMovementDisplayName(exercise),
+  );
+};
+
+const getExerciseSectionCoreMovementTabs = (
+  section: ExerciseLibrarySection,
+) => {
+  const coreMovementTabs: Array<{ key: string; label: string }> = [];
+  const seenCoreMovements = new Set<string>();
+
+  section.exercises.forEach((exercise) => {
+    const coreMovementName = getExerciseCoreMovementDisplayName(exercise).trim();
+    const coreMovementKey = getExerciseCoreMovementTabKey(exercise);
+
+    if (!coreMovementName || seenCoreMovements.has(coreMovementKey)) return;
+
+    seenCoreMovements.add(coreMovementKey);
+    coreMovementTabs.push({
+      key: coreMovementKey,
+      label: coreMovementName,
+    });
+  });
+
+  return coreMovementTabs;
+};
+
+type WeeklySetsSummary = {
+  bodyRepsByLabel: Map<string, number>;
+  bodySetsByLabel: Map<string, number>;
+  coreMovementSetsByKey: Map<string, number>;
+  exerciseRepsById: Map<string, number>;
+  exerciseSetsById: Map<string, number>;
+  lastTrainedByLabel: Map<string, number>;
+  lastTrainedByLayer: Map<BodyRegionLayer, number>;
+  layerSetsById: Map<BodyRegionLayer, number>;
+  sectionSetsByKey: Map<string, number>;
+};
+
+const createExerciseStatLookup = (exercises: Exercise[]) => {
+  const byId = new Map<string, Exercise>();
+  const byName = new Map<string, Exercise>();
+
+  exercises.forEach((exercise) => {
+    byId.set(exercise.id, exercise);
+    [
+      exercise.name,
+      exercise.exerciseName,
+      exercise.generatedTitle,
+      exercise.semanticVariationName,
+      exercise.semanticVariation,
+    ]
+      .map(normalizeStatMatchValue)
+      .filter(Boolean)
+      .forEach((name) => {
+        if (!byName.has(name)) byName.set(name, exercise);
+      });
+  });
+
+  return { byId, byName };
+};
+
+const resolveStatExercise = (
+  stat: LocalExerciseStatEntry,
+  lookup: ReturnType<typeof createExerciseStatLookup>,
+) => {
+  const byIdMatch = lookup.byId.get(stat.exerciseId);
+  if (byIdMatch) return byIdMatch;
+
+  return (
+    lookup.byName.get(normalizeStatMatchValue(stat.exerciseName)) ||
+    lookup.byName.get(normalizeStatMatchValue(stat.generatedTitle)) ||
+    lookup.byName.get(normalizeStatMatchValue(stat.semanticVariationName)) ||
+    null
+  );
+};
+
+const defaultWeeklySetGoalsBySectionLabel: Record<string, number> = {
+  "arm isolation": 20,
+  athletic: 16,
+  "cervical isolation": 8,
+  core: 24,
+  favorites: 24,
+  integrated: 16,
+  "lower body compound": 40,
+  "lower body isolation": 24,
+  mobility: 14,
+  "my exercises": 20,
+  "upper pull": 32,
+  "upper push": 32,
+};
+
+const defaultWeeklySetGoalsByRegionLayer: Record<BodyRegionLayer, number> = {
+  Core: 24,
+  Lower: 64,
+  Upper: 64,
+};
+
+const defaultBodyPartWeeklySetGoal = 12;
+const defaultCoreMovementWeeklySetGoal = 12;
+const defaultExerciseWeeklySetGoal = 12;
+const defaultMuscleWeeklySetGoal = 12;
+const allBodyRegionWeeklySetGoal = Object.values(
+  defaultWeeklySetGoalsByRegionLayer,
+).reduce((total, goal) => total + goal, 0);
+
+const normalizeWeeklySetGoalLabel = (label: string) =>
+  label.trim().toLowerCase() === "integrated movement"
+    ? "integrated"
+    : label.trim().toLowerCase();
+
+const getWeeklySetGoalForSection = (label: string) =>
+  defaultWeeklySetGoalsBySectionLabel[normalizeWeeklySetGoalLabel(label)] || 20;
+
+const getWeeklySetGoalForRegionLayer = (layer: BodyRegionLayer | null) =>
+  layer ? defaultWeeklySetGoalsByRegionLayer[layer] : allBodyRegionWeeklySetGoal;
+
+const getWeeklySetGoalForBodyPart = (body: string) =>
+  normalizeBodySelectorValue(body) === "all"
+    ? allBodyRegionWeeklySetGoal
+    : defaultBodyPartWeeklySetGoal;
+
+const getWeeklySetGoalForCoreMovement = () => defaultCoreMovementWeeklySetGoal;
+
+const getWeeklySetGoalForExercise = () => defaultExerciseWeeklySetGoal;
+
+const getWeeklySetGoalForMuscle = () => defaultMuscleWeeklySetGoal;
+
+type WeeklyVolumeStatusId =
+  | "undertrained"
+  | "almost-there"
+  | "trained"
+  | "risk";
+
+const weeklyVolumeStatusConfig: Record<
+  WeeklyVolumeStatusId,
+  { dotClass: string; label: string; ringClass: string }
+> = {
+  undertrained: {
+    dotClass: "bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.55)]",
+    label: "Undertrained",
+    ringClass: "ring-rose-300/35",
+  },
+  "almost-there": {
+    dotClass: "bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.55)]",
+    label: "Almost there",
+    ringClass: "ring-amber-200/35",
+  },
+  trained: {
+    dotClass: "bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.55)]",
+    label: "Trained",
+    ringClass: "ring-emerald-200/35",
+  },
+  risk: {
+    dotClass: "bg-fuchsia-300 shadow-[0_0_12px_rgba(240,171,252,0.58)]",
+    label: "Risk of overtraining",
+    ringClass: "ring-fuchsia-200/35",
+  },
+};
+
+const getWeeklyVolumeStatusId = (sets: number): WeeklyVolumeStatusId => {
+  const roundedSets = Math.max(0, Math.round(sets));
+  if (roundedSets <= 3) return "undertrained";
+  if (roundedSets <= 7) return "almost-there";
+  if (roundedSets <= 18) return "trained";
+  return "risk";
+};
+
+const getWeeklyVolumeStatus = (sets: number) =>
+  weeklyVolumeStatusConfig[getWeeklyVolumeStatusId(sets)];
+
+const getWeeklyVolumeProgressPercent = (sets: number) =>
+  Math.min(100, Math.max(0, (Math.max(0, sets) / 18) * 100));
+
+const getWeeklySetGoalProgressPercent = (sets: number, goal: number) => {
+  const safeGoal = Math.max(1, goal);
+  return Math.max(0, (Math.max(0, sets) / safeGoal) * 100);
+};
+
+const getWeeklySetGoalFillPercent = (sets: number, goal: number) =>
+  Math.min(100, getWeeklySetGoalProgressPercent(sets, goal));
+
+const getWeeklySetGoalStatusId = (
+  sets: number,
+  goal: number,
+): WeeklyVolumeStatusId => {
+  const progressPercent = getWeeklySetGoalProgressPercent(sets, goal);
+  if (progressPercent <= 40) return "undertrained";
+  if (progressPercent <= 74) return "almost-there";
+  if (progressPercent <= 110) return "trained";
+  return "risk";
+};
+
+function VolumeStatusIndicator({
+  className = "",
+  sets,
+  statusId,
+}: {
+  className?: string;
+  sets: number;
+  statusId?: WeeklyVolumeStatusId;
+}) {
+  const status = statusId
+    ? weeklyVolumeStatusConfig[statusId]
+    : getWeeklyVolumeStatus(sets);
+
+  return (
+    <span
+      aria-label={status.label}
+      className={`inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-black/25 ring-1 ${status.ringClass} ${className}`}
+      title={status.label}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${status.dotClass}`} />
+    </span>
+  );
+}
+
+function WeeklySetGoalBadge({
+  className = "",
+  completedSets,
+  completedReps = 0,
+  goalSets,
+  showReps = false,
+}: {
+  className?: string;
+  completedSets: number;
+  completedReps?: number;
+  goalSets: number;
+  showReps?: boolean;
+}) {
+  const roundedCompletedSets = Math.max(0, Math.round(completedSets));
+  const roundedCompletedReps = Math.max(0, Math.round(completedReps));
+  const roundedGoalSets = Math.max(1, Math.round(goalSets));
+  const statusId = getWeeklySetGoalStatusId(roundedCompletedSets, roundedGoalSets);
+  const status = weeklyVolumeStatusConfig[statusId];
+  const repsLabel =
+    showReps && roundedCompletedReps > 0
+      ? ` - ${roundedCompletedReps.toLocaleString()} reps`
+      : "";
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 ${className}`}
+      title={`${status.label}: ${roundedCompletedSets} of ${roundedGoalSets} weekly sets${repsLabel}`}
+    >
+      <VolumeStatusIndicator
+        sets={roundedCompletedSets}
+        statusId={statusId}
+      />
+      <span>
+        {roundedCompletedSets} / {roundedGoalSets} sets
+        {repsLabel}
+      </span>
+    </span>
+  );
+}
+
+const formatLastTrainedBadge = (time: number) => {
+  if (!time) return "fresh";
+
+  const elapsedDays = Math.floor((Date.now() - time) / (24 * 60 * 60 * 1000));
+
+  if (elapsedDays <= 0) return "today";
+  if (elapsedDays === 1) return "1d ago";
+  return `${elapsedDays}d ago`;
+};
+
+const getBodyTrainingSignal = (
+  weeklySets: number,
+  lastTrainedTime: number,
+  weeklyGoal = defaultBodyPartWeeklySetGoal,
+) => {
+  const progressPercent = getWeeklySetGoalProgressPercent(weeklySets, weeklyGoal);
+  if (progressPercent >= 75 && progressPercent <= 110) {
+    return "Balanced this week";
+  }
+  if (progressPercent > 110) return "Above weekly target";
+  if (weeklySets > 0) {
+    return `${Math.max(0, Math.round(weeklySets))} / ${weeklyGoal} sets logged`;
+  }
+  if (lastTrainedTime) return "Needs attention";
+  return "Fresh area";
+};
+
+const getBodyPartButtonSizeClass = (body: string) => {
+  const normalizedBody = normalizeBodySelectorValue(body);
+  if (
+    /\b(full body|legs?|glutes?|hips glutes|back|upper back|chest|shoulders?|posterior chain)\b/.test(
+      normalizedBody,
+    )
+  ) {
+    return "exercise-library-body-volume-button--large";
+  }
+
+  if (/\b(forearms?|calves?|neck|cervical|wrists?|tibialis|mobility)\b/.test(normalizedBody)) {
+    return "exercise-library-body-volume-button--small";
+  }
+
+  return "exercise-library-body-volume-button--medium";
+};
+
+const buildWeeklySetsSummary = (
+  stats: LocalExerciseStatEntry[],
+  exercises: Exercise[],
+): WeeklySetsSummary => {
+  const lookup = createExerciseStatLookup(exercises);
+  const cutoffTime = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const summary: WeeklySetsSummary = {
+    bodyRepsByLabel: new Map(),
+    bodySetsByLabel: new Map(),
+    coreMovementSetsByKey: new Map(),
+    exerciseRepsById: new Map(),
+    exerciseSetsById: new Map(),
+    lastTrainedByLabel: new Map(),
+    lastTrainedByLayer: new Map(),
+    layerSetsById: new Map(),
+    sectionSetsByKey: new Map(),
+  };
+  const addToMap = (map: Map<string, number>, key: string, sets: number) => {
+    if (!key || sets <= 0) return;
+    map.set(key, (map.get(key) || 0) + sets);
+  };
+  const addLatestToMap = <T extends string>(
+    map: Map<T, number>,
+    key: T,
+    time: number,
+  ) => {
+    if (!key || !time) return;
+    map.set(key, Math.max(map.get(key) || 0, time));
+  };
+
+  stats.forEach((stat) => {
+    const statTime = getStatTime(stat);
+    if (!statTime) return;
+
+    const sets = parseStatNumber(stat.sets);
+    if (sets <= 0) return;
+    const completedReps = getStatCompletedReps(stat);
+
+    const exercise = resolveStatExercise(stat, lookup);
+    if (!exercise) return;
+
+    const metadata = getMetadataForExercise(exercise);
+    const bodyLabels = getExerciseVolumeBodyLabels(exercise, metadata);
+
+    bodyLabels.forEach((label) =>
+      addLatestToMap(summary.lastTrainedByLabel, label, statTime),
+    );
+    bodyRegionLayerConfigs.forEach((layerConfig) => {
+      if (!exerciseMatchesBodyRegionLayer(exercise, metadata, layerConfig.id)) {
+        return;
+      }
+
+      addLatestToMap(summary.lastTrainedByLayer, layerConfig.id, statTime);
+      if (statTime >= cutoffTime) {
+        const currentLayerSets = summary.layerSetsById.get(layerConfig.id) || 0;
+        summary.layerSetsById.set(layerConfig.id, currentLayerSets + sets);
+      }
+    });
+
+    if (statTime < cutoffTime) return;
+
+    addToMap(summary.exerciseSetsById, exercise.id, sets);
+    addToMap(summary.exerciseRepsById, exercise.id, completedReps);
+    bodyLabels.forEach((label) =>
+      addToMap(summary.bodySetsByLabel, label, sets),
+    );
+    bodyLabels.forEach((label) =>
+      addToMap(summary.bodyRepsByLabel, label, completedReps),
+    );
+    addToMap(
+      summary.sectionSetsByKey,
+      getExerciseCategorySectionLabel(exercise).toLowerCase(),
+      sets,
+    );
+    addToMap(
+      summary.coreMovementSetsByKey,
+      getExerciseCoreMovementTabKey(exercise),
+      sets,
+    );
+  });
+
+  return summary;
+};
+
+const getWeeklySetsForExercises = (
+  exercises: Exercise[],
+  exerciseSetsById: Map<string, number>,
+) =>
+  exercises.reduce(
+    (total, exercise) => total + (exerciseSetsById.get(exercise.id) || 0),
+    0,
+  );
+
+const getWeeklySetsForVolumeLabel = (
+  volumeMap: Map<string, number>,
+  label: string,
+) => {
+  const directValue = volumeMap.get(label);
+  if (typeof directValue === "number") return directValue;
+
+  const normalizedLabel = normalizeBodySelectorValue(label);
+  const matchedEntry = Array.from(volumeMap.entries()).find(
+    ([key]) => normalizeBodySelectorValue(key) === normalizedLabel,
+  );
+
+  return matchedEntry?.[1] || 0;
+};
+
+type LatestSetInsight = {
+  addedReps: number;
+  addedSets: number;
+  bodyLabels: string[];
+  coreMovementKey: string;
+  exerciseId: string;
+  exerciseName: string;
+  goalLine: string;
+  id: string;
+  latestLine: string;
+  layerIds: BodyRegionLayer[];
+  primaryBodyLabel: string;
+  pulseLabel: string;
+  remainingLine: string;
+  sectionKey: string;
+  sectionLabel: string;
+  summaryLine: string;
+  timestamp: number;
+};
+
+const chooseLatestSetInsightBodyLabel = (labels: string[], fallback: string) => {
+  const preferredPatterns = [
+    /\bglutes?\b/i,
+    /\blateral delts?\b/i,
+    /\bmiddle deltoids?\b/i,
+    /\bshoulders?\b/i,
+  ];
+
+  return (
+    preferredPatterns
+      .map((pattern) => labels.find((label) => pattern.test(label)))
+      .find(Boolean) ||
+    labels[0] ||
+    fallback
+  );
+};
+
+const buildLatestSetInsight = ({
+  exercise,
+  previousWeeklySetsSummary,
+  stat,
+}: {
+  exercise: Exercise;
+  previousWeeklySetsSummary: WeeklySetsSummary;
+  stat: LocalExerciseStatEntry;
+}): LatestSetInsight => {
+  const metadata = getMetadataForExercise(exercise);
+  const addedSets = parseStatNumber(stat.sets);
+  const repsPerSet = parseStatNumber(stat.reps);
+  const addedReps = getStatCompletedReps(stat);
+  const weight = parseStatNumber(stat.weight);
+  const bodyLabels = getExerciseVolumeBodyLabels(exercise, metadata);
+  const primaryBodyLabel = chooseLatestSetInsightBodyLabel(
+    bodyLabels,
+    exercise.body,
+  );
+  const previousPrimaryBodySets = getWeeklySetsForVolumeLabel(
+    previousWeeklySetsSummary.bodySetsByLabel,
+    primaryBodyLabel,
+  );
+  const nextPrimaryBodySets = previousPrimaryBodySets + addedSets;
+  const bodyWeeklyGoal = getWeeklySetGoalForBodyPart(primaryBodyLabel);
+  const remainingSets = Math.max(
+    0,
+    Math.ceil(bodyWeeklyGoal - nextPrimaryBodySets),
+  );
+  const sectionLabel = getExerciseCategorySectionLabel(exercise) || "Exercise";
+  const sectionKey = sectionLabel.toLowerCase();
+  const layerIds = Array.from(
+    new Set(
+      bodyLabels
+        .map((label) => getBodyRegionLayerForLabel(label))
+        .filter((layer): layer is BodyRegionLayer => Boolean(layer)),
+    ),
+  );
+  const weightLabel = weight > 0 ? ` - ${formatMetric(weight)} lb` : "";
+
+  return {
+    addedReps,
+    addedSets,
+    bodyLabels,
+    coreMovementKey: getExerciseCoreMovementTabKey(exercise),
+    exerciseId: exercise.id,
+    exerciseName: stat.generatedTitle || exercise.generatedTitle || exercise.name,
+    goalLine: `${primaryBodyLabel}: ${Math.max(
+      0,
+      Math.round(nextPrimaryBodySets),
+    )} / ${bodyWeeklyGoal} weekly sets`,
+    id: `${exercise.id}-${stat.date}-${addedSets}-${addedReps}`,
+    latestLine: `Latest: ${Math.max(0, Math.round(addedSets))} ${
+      Math.round(addedSets) === 1 ? "set" : "sets"
+    } - ${Math.max(0, Math.round(repsPerSet)) || "--"} reps${weightLabel}`,
+    layerIds,
+    primaryBodyLabel,
+    pulseLabel: `+${Math.max(0, Math.round(addedSets))} ${
+      Math.round(addedSets) === 1 ? "set" : "sets"
+    }${addedReps > 0 ? ` / +${Math.round(addedReps)} reps` : ""}`,
+    remainingLine:
+      remainingSets > 0
+        ? `${remainingSets} ${remainingSets === 1 ? "set" : "sets"} away from weekly goal`
+        : "Weekly goal reached",
+    sectionKey,
+    sectionLabel,
+    summaryLine: `+${Math.max(0, Math.round(addedSets))} ${
+      Math.round(addedSets) === 1 ? "set" : "sets"
+    } added to ${primaryBodyLabel} this week`,
+    timestamp: Date.now(),
+  };
+};
+
+function ExerciseBodyAnatomySelector({
+  activeLayer,
+  bodyOptions,
+  latestSetInsight,
+  onBodySelect,
+  onLayerSelect,
+  selectedBodies,
+  weeklySetsSummary,
+}: {
+  activeLayer: BodyRegionLayer | null;
+  bodyOptions: string[];
+  latestSetInsight?: LatestSetInsight | null;
+  onBodySelect: (body: string, layer: BodyRegionLayer) => void;
+  onLayerSelect: (layer: BodyRegionLayer) => void;
+  selectedBodies: string[];
+  weeklySetsSummary: WeeklySetsSummary;
+}) {
+  const [gender, setGender] = useState<ExerciseBodyFigureGender>("male");
+  const selectedBodySet = useMemo(
+    () => new Set(selectedBodies.map(normalizeBodySelectorValue)),
+    [selectedBodies],
+  );
+  const hasSelectedBodies = selectedBodySet.size > 0;
+  const latestBodySet = useMemo(
+    () =>
+      new Set(
+        (latestSetInsight?.bodyLabels || []).map(normalizeBodySelectorValue),
+      ),
+    [latestSetInsight],
+  );
+  const selectedBodyLabels = selectedBodies.length
+    ? selectedBodies.join(" / ")
+    : activeLayer || "All regions";
+  const activeLayerWeeklySets = activeLayer
+    ? weeklySetsSummary.layerSetsById.get(activeLayer) || 0
+    : Array.from(weeklySetsSummary.exerciseSetsById.values()).reduce(
+        (total, sets) => total + sets,
+        0,
+      );
+  const activeLayerWeeklyGoal = getWeeklySetGoalForRegionLayer(activeLayer);
+  const activeLayerTheme =
+    bodyRegionLayerConfigs.find((config) => config.id === activeLayer)?.theme ||
+    getCategoryTheme("Integrated");
+  const activeLayerVolumeStyle = {
+    ...getCategoryThemeCssVariables(activeLayerTheme),
+    "--exercise-layer-volume-progress": `${getWeeklySetGoalFillPercent(
+      activeLayerWeeklySets,
+      activeLayerWeeklyGoal,
+    )}%`,
+  } as ExerciseLibraryThemeCssVariables;
+  const activeLayerLastTrained = activeLayer
+    ? weeklySetsSummary.lastTrainedByLayer.get(activeLayer) || 0
+    : Math.max(0, ...Array.from(weeklySetsSummary.lastTrainedByLayer.values()));
+
+  const bodyData = useMemo<readonly ExtendedBodyPart[]>(() => {
+    return exerciseAnatomyBodySlugs.map((slug) => {
+      const layer = exerciseAnatomySlugLayer[slug];
+      const bodyOption = resolveAnatomySlugBodyOption(slug, bodyOptions);
+      const visual = getExerciseAnatomySlugVisual(slug);
+      const isSelected = Boolean(
+        bodyOption &&
+          selectedBodySet.has(normalizeBodySelectorValue(bodyOption)),
+      );
+      const isLatestPulse = Boolean(
+        bodyOption && latestBodySet.has(normalizeBodySelectorValue(bodyOption)),
+      );
+      const isInActiveLayer = !activeLayer || layer === activeLayer;
+      const isLayerContext = Boolean(activeLayer && layer === activeLayer);
+      const shouldLiftLayer = isLayerContext && !hasSelectedBodies;
+      const fill = isSelected
+        ? visual.selectedFill
+        : isLatestPulse
+          ? visual.contextFill
+        : shouldLiftLayer
+          ? visual.contextFill
+          : isInActiveLayer
+            ? visual.baseFill
+            : "rgba(15, 23, 42, 0.58)";
+
+      return {
+        slug: slug as Slug,
+        color: fill,
+        styles: {
+          fill,
+          opacity: isSelected || isLatestPulse ? 1 : isInActiveLayer ? (hasSelectedBodies ? 0.58 : 0.92) : 0.24,
+          stroke: isSelected
+            ? "#ffffff"
+            : isLatestPulse
+              ? visual.stroke
+            : shouldLiftLayer
+              ? visual.stroke
+              : isInActiveLayer
+                ? "rgba(226,232,240,0.34)"
+              : "rgba(255,255,255,0.16)",
+          strokeWidth: isSelected ? 2.15 : isLatestPulse ? 1.8 : shouldLiftLayer ? 1.45 : 0.72,
+          filter: isLatestPulse
+            ? `drop-shadow(0 0 12px ${visual.glow})`
+            : undefined,
+        },
+      };
+    });
+  }, [activeLayer, bodyOptions, hasSelectedBodies, latestBodySet, selectedBodySet]);
+
+  const handleBodyPartPress = (part: ExtendedBodyPart) => {
+    if (!part.slug) return;
+
+    const slug = part.slug as MuscleSlug;
+    if (!exerciseAnatomyBodySlugs.includes(slug)) return;
+
+    const layer = exerciseAnatomySlugLayer[slug];
+    const bodyOption = resolveAnatomySlugBodyOption(slug, bodyOptions);
+
+    if (bodyOption) {
+      onBodySelect(bodyOption, layer);
+      return;
+    }
+
+    onLayerSelect(layer);
+  };
+
+  return (
+    <div className="grid gap-3 border-b border-cyan-100/10 p-2.5 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
+      <div className="relative overflow-hidden rounded-[24px] border border-cyan-100/14 bg-[radial-gradient(circle_at_50%_12%,rgba(34,211,238,0.18),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.76))] p-3 shadow-[0_18px_44px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.10)]">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_44%,rgba(16,185,129,0.12),transparent_50%)]" />
+        <div className="relative z-10 flex items-center justify-between gap-2">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200/80">
+              Anatomy Select
+            </p>
+            <p className="mt-1 text-xs font-black text-white">
+              {selectedBodyLabels}
+            </p>
+          </div>
+          <div className="flex rounded-xl border border-white/10 bg-slate-950/42 p-0.5">
+            {(["male", "female"] as ExerciseBodyFigureGender[]).map((item) => (
+              <button
+                key={item}
+                type="button"
+                aria-pressed={gender === item}
+                onClick={() => setGender(item)}
+                className={`rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] transition ${
+                  gender === item
+                    ? "bg-emerald-300 text-slate-950"
+                    : "text-slate-400 hover:bg-emerald-300/10 hover:text-emerald-100"
+                }`}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative z-10 mt-3 grid min-h-[248px] gap-2 rounded-[22px] border border-white/10 bg-slate-950/42 p-2 min-[520px]:grid-cols-2">
+          {(["front", "back"] as const).map((figureSide) => (
+            <div
+              key={figureSide}
+              className="exercise-library-anatomy-figure relative flex min-h-[232px] items-center justify-center overflow-hidden rounded-[18px] border border-white/10 bg-[radial-gradient(circle_at_50%_24%,rgba(255,255,255,0.08),transparent_34%),rgba(2,6,23,0.36)]"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <span className="pointer-events-none absolute left-2 top-2 rounded-lg border border-white/10 bg-slate-950/54 px-2 py-1 text-[8px] font-black uppercase tracking-[0.14em] text-slate-300">
+                {figureSide}
+              </span>
+              <Body
+                data={bodyData}
+                side={figureSide}
+                gender={gender}
+                scale={0.72}
+                colors={exerciseAnatomyColors}
+                defaultFill="#1e293b"
+                defaultStroke="rgba(255,255,255,0.18)"
+                defaultStrokeWidth={0.6}
+                border="rgba(255,255,255,0.24)"
+                hiddenParts={["hair"]}
+                onBodyPartPress={handleBodyPartPress}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid content-start gap-2 rounded-[24px] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-200/75">
+              Primary body layer
+            </p>
+            <p className="mt-1 text-xs font-bold text-slate-400">
+              Tap the figure or choose a training layer.
+            </p>
+          </div>
+          <div
+            style={activeLayerVolumeStyle}
+            className="exercise-library-layer-volume-card relative overflow-hidden rounded-xl border border-cyan-100/14 bg-cyan-300/10 px-2.5 py-1.5 text-right"
+          >
+            <span
+              aria-hidden="true"
+              className="exercise-library-layer-volume-card__fill"
+            />
+            <p className="relative z-10 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+              <WeeklySetGoalBadge
+                completedSets={activeLayerWeeklySets}
+                goalSets={activeLayerWeeklyGoal}
+              />
+            </p>
+            <p className="relative z-10 mt-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-slate-400">
+              {formatLastTrainedBadge(activeLayerLastTrained)}
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-[18px] border border-white/10 bg-slate-950/38 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/75">
+            Training signal
+          </p>
+          <p className="mt-1 text-sm font-black text-white">
+            {getBodyTrainingSignal(
+              activeLayerWeeklySets,
+              activeLayerLastTrained,
+              activeLayerWeeklyGoal,
+            )}
+          </p>
+          <p className="mt-1 text-[10px] font-bold text-slate-400">
+            Uses logged sets from the trailing 7 days and your latest matching
+            stat entry.
+          </p>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-3">
+          {bodyRegionLayerConfigs.map((layerConfig) => {
+            const isActiveLayer = activeLayer === layerConfig.id;
+            const isLatestLayerPulse = Boolean(
+              latestSetInsight?.layerIds.includes(layerConfig.id),
+            );
+            const layerWeeklySets =
+              weeklySetsSummary.layerSetsById.get(layerConfig.id) || 0;
+            const layerWeeklyGoal = getWeeklySetGoalForRegionLayer(
+              layerConfig.id,
+            );
+            const layerStatusId = getWeeklySetGoalStatusId(
+              layerWeeklySets,
+              layerWeeklyGoal,
+            );
+            const layerVolumeStyle = {
+              ...getCategoryThemeCssVariables(layerConfig.theme),
+              "--exercise-layer-volume-progress": `${getWeeklySetGoalFillPercent(
+                layerWeeklySets,
+                layerWeeklyGoal,
+              )}%`,
+            } as ExerciseLibraryThemeCssVariables;
+            const layerLastTrained =
+              weeklySetsSummary.lastTrainedByLayer.get(layerConfig.id) || 0;
+
+            return (
+              <button
+                key={layerConfig.id}
+                type="button"
+                aria-pressed={isActiveLayer}
+                onClick={() => onLayerSelect(layerConfig.id)}
+                style={layerVolumeStyle}
+                title={`${layerConfig.title}: ${Math.max(
+                  0,
+                  Math.round(layerWeeklySets),
+                )} of ${layerWeeklyGoal} weekly sets, ${weeklyVolumeStatusConfig[layerStatusId].label}`}
+                className={`exercise-library-layer-volume-card relative min-h-[78px] overflow-hidden rounded-[18px] border px-3 py-2 text-left transition duration-200 focus:outline-none focus:ring-2 focus:ring-white/25 ${
+                  isLatestLayerPulse ? "exercise-library-volume-pulse" : ""
+                } ${
+                  isActiveLayer
+                    ? `${layerConfig.theme.tabClass} scale-[1.01]`
+                    : `${layerConfig.theme.pillClass} opacity-[0.78] hover:-translate-y-0.5 hover:opacity-100`
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="exercise-library-layer-volume-card__fill"
+                />
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute inset-0 ${layerConfig.theme.overlayClass} ${
+                    isActiveLayer ? "opacity-55" : "opacity-25"
+                  }`}
+                />
+                <span className="relative z-10 block">
+                  <span className="block text-sm font-black uppercase tracking-[0.16em]">
+                    {layerConfig.title}
+                  </span>
+                  <span className="mt-1 block text-[9px] font-bold uppercase tracking-[0.08em] opacity-72">
+                    {layerConfig.helper}
+                  </span>
+                  <span className="mt-2 inline-flex rounded-lg border border-current/20 bg-black/15 px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em]">
+                    <WeeklySetGoalBadge
+                      completedSets={layerWeeklySets}
+                      goalSets={layerWeeklyGoal}
+                    />
+                  </span>
+                  <span className="ml-1 mt-2 inline-flex rounded-lg border border-current/20 bg-black/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em]">
+                    {formatLastTrainedBadge(layerLastTrained)}
+                  </span>
+                  {isLatestLayerPulse ? (
+                    <span className="ml-1 mt-2 inline-flex rounded-lg border border-white/20 bg-white/15 px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em]">
+                      {latestSetInsight?.pulseLabel}
+                    </span>
+                  ) : null}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+const getExerciseSectionTheme = (
+  section: ExerciseLibrarySection | undefined,
+  sortMode: ExerciseLibrarySortMode,
+) => {
+  if (!section) return categoryThemeFallback;
+  return sortMode === "body"
+    ? getBodyRegionTheme(section.label)
+    : getCategoryTheme(section.label);
+};
+
+const exerciseLibraryPageSelectorFallbackTheme: CategoryTheme = {
+  surfaceClass:
+    "bg-[linear-gradient(135deg,rgba(8,47,73,0.42),rgba(15,23,42,0.78),rgba(2,6,23,0.92))]",
+  cardClass:
+    "border-cyan-200/22 shadow-[0_18px_58px_rgba(0,0,0,0.38),0_0_30px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.16)]",
+  overlayClass:
+    "bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_16%,rgba(250,204,21,0.12),transparent_30%),linear-gradient(120deg,rgba(255,255,255,0.10)_0%,rgba(255,255,255,0.035)_42%,transparent_74%)]",
+  accentClass:
+    "bg-gradient-to-r from-cyan-300/20 via-cyan-200/80 to-yellow-200/45",
+  pillClass:
+    "border-cyan-200/32 bg-cyan-300/14 text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.15)]",
+  hoverClass:
+    "hover:border-cyan-100/34 hover:shadow-[0_26px_86px_rgba(0,0,0,0.50),0_0_36px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.20)]",
+  tabClass:
+    "bg-[linear-gradient(135deg,rgba(34,211,238,0.94),rgba(250,204,21,0.72))] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.22),inset_0_1px_0_rgba(255,255,255,0.36)] ring-1 ring-cyan-100/55",
+  tabHoverClass:
+    "hover:bg-[linear-gradient(135deg,rgba(34,211,238,0.16),rgba(15,23,42,0.88))] hover:text-cyan-50 focus:ring-cyan-200/35",
+};
+
+const getExercisePageSelectorTheme = (sectionTheme: CategoryTheme) =>
+  sectionTheme === categoryThemeFallback
+    ? exerciseLibraryPageSelectorFallbackTheme
+    : sectionTheme;
+
+function ExerciseLibraryResultsPageSelector({
+  activeSectionKey,
+  activeSectionLabel,
+  currentPage,
+  latestSetInsight,
+  onPageChange,
+  onSectionSelect,
+  placement,
+  sections,
+  sectionTheme,
+  weeklySetsBySectionKey,
+  sortMode,
+  totalPages,
+}: {
+  activeSectionKey: string | null;
+  activeSectionLabel: string;
+  currentPage: number;
+  latestSetInsight?: LatestSetInsight | null;
+  onPageChange: (page: number) => void;
+  onSectionSelect: (sectionKey: string) => void;
+  placement: "top" | "bottom";
+  sections: ExerciseLibrarySection[];
+  sectionTheme: CategoryTheme;
+  weeklySetsBySectionKey: Map<string, number>;
+  sortMode: ExerciseLibrarySortMode;
+  totalPages: number;
+}) {
+  if (totalPages <= 1 && sections.length <= 1) return null;
+
+  const progressPercent = Math.min(
+    100,
+    Math.max(0, (currentPage / Math.max(totalPages, 1)) * 100),
+  );
+  const showPageControls = totalPages > 1;
+  const activeSectionWeeklySets = activeSectionKey
+    ? weeklySetsBySectionKey.get(activeSectionKey) || 0
+    : 0;
+  const activeSectionWeeklyGoal =
+    getWeeklySetGoalForSection(activeSectionLabel);
+  const activeSectionGoalStyle = {
+    ...getCategoryThemeCssVariables(sectionTheme),
+    "--exercise-category-goal-progress": `${getWeeklySetGoalFillPercent(
+      activeSectionWeeklySets,
+      activeSectionWeeklyGoal,
+    )}%`,
+  } as ExerciseLibraryThemeCssVariables;
+  const showSectionRail = placement === "top" && sections.length > 0;
+  const goToPage = (page: number) => {
+    onPageChange(Math.min(Math.max(page, 1), totalPages));
+  };
+
+  return (
+    <nav
+      aria-label={`${placement === "top" ? "Top" : "Bottom"} Exercise Library page navigation`}
+      className={`relative overflow-hidden rounded-[26px] border p-2.5 backdrop-blur-2xl backdrop-saturate-150 sm:p-3 ${sectionTheme.surfaceClass} ${sectionTheme.cardClass}`}
+    >
+      <div className={`pointer-events-none absolute inset-0 ${sectionTheme.overlayClass} opacity-60`} />
+      <div className={`pointer-events-none absolute inset-x-0 top-0 h-px ${sectionTheme.accentClass}`} />
+
+      <div className="relative z-10 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+            {placement === "top" ? "Browsing pages" : "More pages"}
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <span className={`inline-flex rounded-xl border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${sectionTheme.pillClass}`}>
+              {activeSectionLabel}
+            </span>
+            <span
+              style={activeSectionGoalStyle}
+              className="relative inline-flex overflow-hidden rounded-xl border border-cyan-200/18 bg-cyan-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100"
+            >
+              <span
+                aria-hidden="true"
+                className="exercise-library-page-section-tab__goal-fill"
+              />
+              <WeeklySetGoalBadge
+                className="relative z-10"
+                completedSets={activeSectionWeeklySets}
+                goalSets={activeSectionWeeklyGoal}
+              />
+            </span>
+            <span className="text-xs font-black text-white">
+              Page {currentPage} of {totalPages}
+            </span>
+          </div>
+        </div>
+
+        {showPageControls ? (
+          <div className="flex min-w-0 items-center gap-1.5">
+            <button
+              type="button"
+              aria-label="Previous Exercise Library page"
+              disabled={currentPage <= 1}
+              onClick={() => goToPage(currentPage - 1)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-slate-950/48 text-sm font-black text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition hover:-translate-y-0.5 hover:border-white/28 hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-35"
+            >
+              <span aria-hidden="true">{"<"}</span>
+            </button>
+
+            <div className="flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-full border border-white/10 bg-slate-950/45 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {Array.from({ length: totalPages }, (_, pageIndex) => {
+                const page = pageIndex + 1;
+                const isCurrentPage = page === currentPage;
+
+                return (
+                  <button
+                    key={page}
+                    type="button"
+                    aria-current={isCurrentPage ? "page" : undefined}
+                    aria-label={`Go to Exercise Library page ${page}`}
+                    onClick={() => goToPage(page)}
+                    className={`flex h-8 min-w-8 items-center justify-center rounded-full border px-2 text-[10px] font-black uppercase tracking-[0.08em] transition duration-200 ${
+                      isCurrentPage
+                        ? `${sectionTheme.pillClass} scale-105 text-white`
+                        : "border-white/8 bg-white/[0.04] text-slate-400 hover:border-white/20 hover:bg-white/[0.075] hover:text-white"
+                    }`}
+                  >
+                    <span className="hidden md:inline">Page&nbsp;</span>
+                    {page}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              aria-label="Next Exercise Library page"
+              disabled={currentPage >= totalPages}
+              onClick={() => goToPage(currentPage + 1)}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-slate-950/48 text-sm font-black text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition hover:-translate-y-0.5 hover:border-white/28 hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-35"
+            >
+              <span aria-hidden="true">{">"}</span>
+            </button>
+          </div>
+        ) : null}
+      </div>
+
+      {showSectionRail ? (
+        <div className="exercise-library-page-section-tab-rail relative z-10 mt-2 flex gap-1.5 overflow-x-auto rounded-[18px] border border-white/10 bg-slate-950/38 px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {sections.map((section) => {
+            const pillTheme = getExerciseSectionTheme(section, sortMode);
+            const isActive = section.key === activeSectionKey;
+            const isLatestSectionPulse =
+              latestSetInsight?.sectionKey === section.key;
+            const weeklySets = weeklySetsBySectionKey.get(section.key) || 0;
+            const weeklyGoal = getWeeklySetGoalForSection(section.label);
+            const goalFillPercent = getWeeklySetGoalFillPercent(
+              weeklySets,
+              weeklyGoal,
+            );
+            const goalStatusId = getWeeklySetGoalStatusId(
+              weeklySets,
+              weeklyGoal,
+            );
+            const sectionTabStyle = {
+              ...getCategoryThemeCssVariables(pillTheme),
+              "--exercise-category-goal-progress": `${goalFillPercent}%`,
+            } as ExerciseLibraryThemeCssVariables;
+
+            return (
+              <button
+                key={section.key}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => onSectionSelect(section.key)}
+                style={sectionTabStyle}
+                title={`${section.label}: ${Math.max(0, Math.round(weeklySets))} of ${weeklyGoal} weekly sets, ${weeklyVolumeStatusConfig[goalStatusId].label}`}
+                className={`exercise-library-page-section-tab ${
+                  isActive ? "exercise-library-page-section-tab--active" : ""
+                } ${
+                  isLatestSectionPulse ? "exercise-library-volume-pulse" : ""
+                } group/tile flex min-h-[44px] shrink-0 items-center justify-between gap-2 border px-2.5 py-1.5 text-left transition duration-200 ${
+                  isActive
+                    ? `${pillTheme.tabClass} w-[14.5rem] scale-[1.015]`
+                    : `${pillTheme.pillClass} w-[12rem] opacity-[0.82] hover:-translate-y-0.5 hover:opacity-100 sm:w-[12.75rem]`
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="exercise-library-page-section-tab__goal-fill"
+                />
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute inset-0 ${pillTheme.overlayClass} ${
+                    isActive ? "opacity-70" : "opacity-30"
+                  }`}
+                />
+                <span className="relative z-10 min-w-0">
+                  <span className="block truncate text-[9px] font-black uppercase leading-3 tracking-[0.14em] sm:text-[10px]">
+                    {section.label}
+                  </span>
+                  <span className="mt-1 block truncate text-[8px] font-black uppercase tracking-[0.08em] opacity-72">
+                    {section.exercises.length} cards
+                    <span className="opacity-50"> - </span>
+                    <WeeklySetGoalBadge
+                      completedSets={weeklySets}
+                      goalSets={weeklyGoal}
+                    />
+                    {isLatestSectionPulse ? (
+                      <>
+                        <span className="opacity-50"> - </span>
+                        <span className="exercise-library-volume-added-chip">
+                          {latestSetInsight?.pulseLabel}
+                        </span>
+                      </>
+                    ) : null}
+                  </span>
+                </span>
+                <span className="relative z-10 flex w-12 shrink-0 flex-col items-end gap-1">
+                  <span className="h-1 w-full overflow-hidden rounded-full border border-current/15 bg-black/20">
+                    <span
+                      className="block h-full rounded-full bg-current opacity-80 transition-all duration-300"
+                      style={{ width: `${goalFillPercent}%` }}
+                    />
+                  </span>
+                  <span className="text-[7px] font-black uppercase tracking-[0.08em] opacity-70">
+                    {isActive ? "Open" : "Tap"}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      <div className="relative z-10 mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+        <div
+          className={`h-full rounded-full ${sectionTheme.accentClass} transition-all duration-300 ease-out`}
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+    </nav>
+  );
+}
+
 function ExerciseCategoryShelf({
   children,
+  coreMovementWeeklySetsByKey,
+  isOpen,
+  latestSetInsight,
+  onToggle,
   section,
   sectionTheme,
+  weeklySets,
 }: {
   children: ReactNode;
+  coreMovementWeeklySetsByKey: Map<string, number>;
+  isOpen: boolean;
+  latestSetInsight?: LatestSetInsight | null;
+  onToggle: () => void;
   section: ExerciseLibrarySection;
   sectionTheme: CategoryTheme;
+  weeklySets: number;
 }) {
   const sliderRef = useRef<HTMLDivElement | null>(null);
+  const pendingCoreMovementTabKeyRef = useRef<string | null>(null);
+  const shelfDragStateRef = useRef({
+    hasDragged: false,
+    isDragging: false,
+    isPointerDown: false,
+    scrollLeft: 0,
+    startX: 0,
+    startY: 0,
+  });
+  const shouldPreventShelfClickRef = useRef(false);
+  const centeredCardKeyRef = useRef<string | null>(null);
+  const centerScrollTimerRef = useRef<number | null>(null);
+  const coreMovementTabs = getExerciseSectionCoreMovementTabs(section);
+  const coreMovementTabSignature = coreMovementTabs
+    .map((tab) => tab.key)
+    .join("|");
+  const [activeCoreMovementTabKey, setActiveCoreMovementTabKey] = useState<
+    string | null
+  >(coreMovementTabs[0]?.key ?? null);
   const [scrollState, setScrollState] = useState({
     canScrollLeft: false,
     canScrollRight: false,
+    clientWidth: 0,
+    currentPage: 1,
     isOverflowing: false,
+    maxScrollLeft: 0,
+    progressPercent: 100,
+    scrollLeft: 0,
+    scrollWidth: 0,
+    totalPages: 1,
   });
+  const [spotlightCardKey, setSpotlightCardKey] = useState<string | null>(null);
+  const [spotlightShift, setSpotlightShift] =
+    useState<SpotlightShift>("center");
 
   const updateScrollState = () => {
     const slider = sliderRef.current;
     if (!slider) return;
 
-    const maxScrollLeft = slider.scrollWidth - slider.clientWidth;
+    const scrollLeft = Math.round(slider.scrollLeft);
+    const scrollWidth = Math.round(slider.scrollWidth);
+    const clientWidth = Math.round(slider.clientWidth);
+    const maxScrollLeft = Math.max(0, scrollWidth - clientWidth);
+    const snapPositions = getShelfSnapPositions();
+    const cardsPerPage = getShelfCardsPerPage();
+    const nearestSnapIndex = getNearestShelfSnapIndex(scrollLeft);
+    const totalPages = snapPositions.length
+      ? Math.max(1, Math.ceil(snapPositions.length / cardsPerPage))
+      : maxScrollLeft > 4
+        ? Math.max(1, Math.ceil(scrollWidth / Math.max(clientWidth, 1)))
+        : 1;
+    const currentPage = snapPositions.length
+      ? Math.min(totalPages, Math.floor(nearestSnapIndex / cardsPerPage) + 1)
+      : totalPages > 1 && maxScrollLeft > 0
+        ? Math.min(
+            totalPages,
+            Math.max(
+              1,
+              Math.round((scrollLeft / maxScrollLeft) * (totalPages - 1)) + 1,
+            ),
+          )
+        : 1;
+    const progressPercent =
+      totalPages > 1
+        ? ((currentPage - 1) / Math.max(totalPages - 1, 1)) * 100
+        : 100;
     const nextState = {
-      canScrollLeft: slider.scrollLeft > 4,
-      canScrollRight: slider.scrollLeft < maxScrollLeft - 4,
+      canScrollLeft: scrollLeft > 4,
+      canScrollRight: scrollLeft < maxScrollLeft - 4,
+      clientWidth,
+      currentPage,
       isOverflowing: maxScrollLeft > 4,
+      maxScrollLeft,
+      progressPercent,
+      scrollLeft,
+      scrollWidth,
+      totalPages,
     };
 
     setScrollState((currentState) =>
       currentState.canScrollLeft === nextState.canScrollLeft &&
       currentState.canScrollRight === nextState.canScrollRight &&
-      currentState.isOverflowing === nextState.isOverflowing
+      currentState.clientWidth === nextState.clientWidth &&
+      currentState.currentPage === nextState.currentPage &&
+      currentState.isOverflowing === nextState.isOverflowing &&
+      currentState.maxScrollLeft === nextState.maxScrollLeft &&
+      currentState.progressPercent === nextState.progressPercent &&
+      currentState.scrollLeft === nextState.scrollLeft &&
+      currentState.scrollWidth === nextState.scrollWidth &&
+      currentState.totalPages === nextState.totalPages
         ? currentState
         : nextState,
     );
   };
 
-  useEffect(() => {
+  const getShelfCards = () => {
+    const slider = sliderRef.current;
+    if (!slider) return [];
+
+    return Array.from(
+      slider.querySelectorAll<HTMLElement>(".exercise-library-card-slide"),
+    );
+  };
+
+  const getShelfSnapPositions = () => {
+    const slider = sliderRef.current;
+    if (!slider) return [];
+
+    const maxScrollLeft = Math.max(0, slider.scrollWidth - slider.clientWidth);
+    const positions = getShelfCards().map((card) => {
+      const desiredLeft =
+        card.offsetLeft + card.offsetWidth / 2 - slider.clientWidth / 2;
+      return Math.min(Math.max(desiredLeft, 0), maxScrollLeft);
+    });
+
+    return positions.filter(
+      (position, index) =>
+        index === 0 || Math.abs(position - positions[index - 1]) > 2,
+    );
+  };
+
+  const getNearestShelfSnapIndex = (scrollLeft: number) => {
+    const positions = getShelfSnapPositions();
+    if (!positions.length) return 0;
+
+    return positions.reduce((nearestIndex, position, index) => {
+      const nearestDistance = Math.abs(positions[nearestIndex] - scrollLeft);
+      const distance = Math.abs(position - scrollLeft);
+      return distance < nearestDistance ? index : nearestIndex;
+    }, 0);
+  };
+
+  const getShelfCardsPerPage = () => {
+    const slider = sliderRef.current;
+    const positions = getShelfSnapPositions();
+    if (!slider || positions.length <= 1) return 1;
+
+    const cardStep = Math.max(1, positions[1] - positions[0]);
+    return Math.max(1, Math.floor(slider.clientWidth / cardStep));
+  };
+
+  const scrollShelfToSnapIndex = (
+    snapIndex: number,
+    behavior: ScrollBehavior = "smooth",
+  ) => {
+    const slider = sliderRef.current;
+    const positions = getShelfSnapPositions();
+    if (!slider || !positions.length) return;
+
+    const clampedIndex = Math.min(
+      Math.max(snapIndex, 0),
+      positions.length - 1,
+    );
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    slider.scrollTo({
+      behavior: prefersReducedMotion ? "auto" : behavior,
+      left: positions[clampedIndex],
+    });
+    window.setTimeout(
+      () => {
+        updateScrollState();
+        updateActiveCoreMovementTabFromScroll();
+      },
+      prefersReducedMotion || behavior === "auto" ? 0 : 260,
+    );
+  };
+
+  const settleShelfToNearestSnap = () => {
     const slider = sliderRef.current;
     if (!slider) return;
 
-    updateScrollState();
+    scrollShelfToSnapIndex(getNearestShelfSnapIndex(slider.scrollLeft));
+  };
 
-    const handleScroll = () => updateScrollState();
+  const updateActiveCoreMovementTabFromScroll = () => {
+    const slider = sliderRef.current;
+    if (!slider) return;
+
+    const cards = getShelfCards();
+    if (!cards.length) {
+      setActiveCoreMovementTabKey(null);
+      return;
+    }
+
+    const sliderRect = slider.getBoundingClientRect();
+    const computedStyle = window.getComputedStyle(slider);
+    const paddingLeft = Number.parseFloat(computedStyle.paddingLeft) || 0;
+    const paddingRight = Number.parseFloat(computedStyle.paddingRight) || 0;
+    const visibleLeft = sliderRect.left + paddingLeft;
+    const visibleRight = sliderRect.right - paddingRight;
+    const firstVisibleCard =
+      cards.find((card) => {
+        const cardRect = card.getBoundingClientRect();
+        return cardRect.right > visibleLeft && cardRect.left < visibleRight;
+      }) || cards[0];
+    const nextCoreMovementTabKey =
+      firstVisibleCard.dataset.coreMovementTab || coreMovementTabs[0]?.key || null;
+
+    setActiveCoreMovementTabKey((currentTabKey) =>
+      currentTabKey === nextCoreMovementTabKey
+        ? currentTabKey
+        : nextCoreMovementTabKey,
+    );
+  };
+
+  const scrollShelfCardIntoView = (
+    card: HTMLElement,
+    behavior: ScrollBehavior = "smooth",
+    options: { cardKey?: string; force?: boolean } = {},
+  ) => {
+    const slider = sliderRef.current;
+    if (!slider) return;
+
+    const dragState = shelfDragStateRef.current;
+    if (dragState.isPointerDown || dragState.isDragging) return;
+
+    const maxScrollLeft = Math.max(0, slider.scrollWidth - slider.clientWidth);
+    const targetLeft = Math.min(
+      Math.max(
+        card.offsetLeft + card.offsetWidth / 2 - slider.clientWidth / 2,
+        0,
+      ),
+      maxScrollLeft,
+    );
+    const distance = Math.abs(slider.scrollLeft - targetLeft);
+    const cardKey = options.cardKey || card.dataset.cardKey || "";
+
+    if (distance < 4) {
+      updateScrollState();
+      updateActiveCoreMovementTabFromScroll();
+      return;
+    }
+
+    if (
+      cardKey &&
+      !options.force &&
+      centeredCardKeyRef.current === cardKey &&
+      centerScrollTimerRef.current !== null
+    ) {
+      return;
+    }
+
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (cardKey) centeredCardKeyRef.current = cardKey;
+    if (centerScrollTimerRef.current !== null) {
+      window.clearTimeout(centerScrollTimerRef.current);
+      centerScrollTimerRef.current = null;
+    }
+
+    slider.scrollTo({
+      behavior: prefersReducedMotion ? "auto" : behavior,
+      left: targetLeft,
+    });
+    centerScrollTimerRef.current = window.setTimeout(
+      () => {
+        centerScrollTimerRef.current = null;
+        updateScrollState();
+        updateActiveCoreMovementTabFromScroll();
+      },
+      prefersReducedMotion || behavior === "auto" ? 0 : 320,
+    );
+  };
+
+  useEffect(
+    () => () => {
+      if (centerScrollTimerRef.current !== null) {
+        window.clearTimeout(centerScrollTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isOpen) {
+      setActiveCoreMovementTabKey(null);
+      setSpotlightCardKey(null);
+      setSpotlightShift("center");
+      setScrollState({
+        canScrollLeft: false,
+        canScrollRight: false,
+        clientWidth: 0,
+        currentPage: 1,
+        isOverflowing: false,
+        maxScrollLeft: 0,
+        progressPercent: 100,
+        scrollLeft: 0,
+        scrollWidth: 0,
+        totalPages: 1,
+      });
+      return;
+    }
+
+    const slider = sliderRef.current;
+    if (!slider) return;
+
+    slider.scrollTo({ left: 0 });
+    updateScrollState();
+    updateActiveCoreMovementTabFromScroll();
+
+    const handleScroll = () => {
+      updateScrollState();
+      updateActiveCoreMovementTabFromScroll();
+    };
     slider.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleScroll);
 
-    const animationFrame = window.requestAnimationFrame(updateScrollState);
+    const animationFrame = window.requestAnimationFrame(() => {
+      updateScrollState();
+      updateActiveCoreMovementTabFromScroll();
+    });
     const resizeObserver =
       typeof ResizeObserver !== "undefined"
-        ? new ResizeObserver(updateScrollState)
+        ? new ResizeObserver(handleScroll)
         : null;
 
     resizeObserver?.observe(slider);
-    Array.from(slider.children).forEach((child) =>
-      resizeObserver?.observe(child),
-    );
+    getShelfCards().forEach((card) => resizeObserver?.observe(card));
 
     return () => {
       slider.removeEventListener("scroll", handleScroll);
@@ -5150,129 +7946,710 @@ function ExerciseCategoryShelf({
       window.cancelAnimationFrame(animationFrame);
       resizeObserver?.disconnect();
     };
-  }, [section.exercises.length]);
+  }, [isOpen, section.exercises.length]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    setActiveCoreMovementTabKey((currentTabKey) =>
+      currentTabKey &&
+      coreMovementTabs.some((tab) => tab.key === currentTabKey)
+        ? currentTabKey
+        : coreMovementTabs[0]?.key ?? null,
+    );
+  }, [coreMovementTabSignature, isOpen]);
 
   const scrollShelf = (direction: "left" | "right") => {
     const slider = sliderRef.current;
     if (!slider) return;
 
-    const firstCard = slider.querySelector<HTMLElement>(
-      ".exercise-library-card-slide",
+    const positions = getShelfSnapPositions();
+    if (positions.length <= 1) {
+      updateScrollState();
+      updateActiveCoreMovementTabFromScroll();
+      return;
+    }
+
+    const currentIndex = getNearestShelfSnapIndex(slider.scrollLeft);
+    const cardStep = getShelfCardsPerPage();
+    const targetIndex =
+      direction === "right"
+        ? Math.min(currentIndex + cardStep, positions.length - 1)
+        : Math.max(currentIndex - cardStep, 0);
+
+    scrollShelfToSnapIndex(targetIndex);
+  };
+  const scrollShelfToPage = (page: number) => {
+    const positions = getShelfSnapPositions();
+    const cardsPerPage = getShelfCardsPerPage();
+    const targetPage = Math.min(
+      Math.max(page, 1),
+      Math.max(scrollState.totalPages, 1),
     );
-    const computedStyle = window.getComputedStyle(slider);
-    const rowGap =
-      Number.parseFloat(computedStyle.columnGap) ||
-      Number.parseFloat(computedStyle.gap) ||
-      12;
-    const cardWidth =
-      firstCard?.getBoundingClientRect().width || slider.clientWidth * 0.78;
-    const cardsPerClick =
-      window.innerWidth >= 1024 ? 3 : window.innerWidth >= 768 ? 2 : 1;
-    const scrollAmount =
-      (cardWidth + rowGap) * cardsPerClick * (direction === "right" ? 1 : -1);
+    const targetIndex = positions.length
+      ? (targetPage - 1) * cardsPerPage
+      : 0;
 
-    slider.scrollBy({
-      behavior: "smooth",
-      left: scrollAmount,
-    });
-
-    window.setTimeout(updateScrollState, 260);
+    scrollShelfToSnapIndex(targetIndex);
   };
 
-  const showLeftControl =
-    scrollState.isOverflowing && scrollState.canScrollLeft;
-  const showRightControl =
-    scrollState.isOverflowing && scrollState.canScrollRight;
+  const scrollToCoreMovementTabCard = (coreMovementTabKey: string) => {
+    const slider = sliderRef.current;
+    if (!slider) return;
+
+    const targetCard = Array.from(
+      slider.querySelectorAll<HTMLElement>(".exercise-library-card-slide"),
+    ).find((card) => card.dataset.coreMovementTab === coreMovementTabKey);
+
+    if (!targetCard) return;
+
+    setActiveCoreMovementTabKey(coreMovementTabKey);
+    targetCard.focus({ preventScroll: true });
+    scrollShelfCardIntoView(targetCard, "smooth", {
+      cardKey: targetCard.dataset.cardKey,
+      force: true,
+    });
+  };
+
+  const scrollToCoreMovementTab = (coreMovementTabKey: string) => {
+    if (!isOpen) {
+      pendingCoreMovementTabKeyRef.current = coreMovementTabKey;
+      onToggle();
+      return;
+    }
+
+    scrollToCoreMovementTabCard(coreMovementTabKey);
+  };
+
+  const setSpotlightFromTarget = (
+    target: EventTarget | null,
+    trigger: "click" | "focus" | "hover",
+  ) => {
+    const dragState = shelfDragStateRef.current;
+    if (dragState.isPointerDown || dragState.isDragging) return;
+
+    if (typeof window !== "undefined") {
+      const canHover = window.matchMedia("(hover: hover) and (pointer: fine)")
+        .matches;
+      if (trigger === "hover" && !canHover) return;
+    }
+
+    const slider = sliderRef.current;
+    const targetElement = target instanceof Element ? target : null;
+    const card = targetElement?.closest<HTMLElement>(
+      ".exercise-library-card-slide",
+    );
+    const cardKey = card?.dataset.cardKey;
+
+    if (!slider || !card || !cardKey) return;
+
+    const sliderRect = slider.getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const sliderCenter = sliderRect.left + sliderRect.width / 2;
+    const cardCenter = cardRect.left + cardRect.width / 2;
+    const centerDelta = cardCenter - sliderCenter;
+    const nextShift =
+      centerDelta < -32 ? "right" : centerDelta > 32 ? "left" : "center";
+
+    setSpotlightCardKey((currentKey) =>
+      currentKey === cardKey ? currentKey : cardKey,
+    );
+    setSpotlightShift((currentShift) =>
+      currentShift === nextShift ? currentShift : nextShift,
+    );
+
+    const shouldCenterCard =
+      trigger !== "hover" || cardKey !== spotlightCardKey;
+    if (shouldCenterCard) {
+      scrollShelfCardIntoView(card, "smooth", {
+        cardKey,
+        force: trigger !== "hover",
+      });
+    }
+  };
+
+  const clearSpotlight = () => {
+    setSpotlightCardKey(null);
+    setSpotlightShift("center");
+  };
+
+  useEffect(() => {
+    if (!isOpen || !pendingCoreMovementTabKeyRef.current) return;
+
+    const pendingCoreMovementTabKey = pendingCoreMovementTabKeyRef.current;
+    pendingCoreMovementTabKeyRef.current = null;
+    const timer = window.setTimeout(() => {
+      scrollToCoreMovementTabCard(pendingCoreMovementTabKey);
+    }, 120);
+
+    return () => window.clearTimeout(timer);
+  }, [coreMovementTabSignature, isOpen]);
+
+  const stopShelfDrag = () => {
+    const slider = sliderRef.current;
+    const dragState = shelfDragStateRef.current;
+    const shouldSuppressClick = dragState.hasDragged;
+
+    dragState.hasDragged = false;
+    dragState.isDragging = false;
+    dragState.isPointerDown = false;
+    slider?.classList.remove("exercise-library-card-scroll-viewport--dragging");
+
+    if (shouldSuppressClick) {
+      shouldPreventShelfClickRef.current = true;
+      settleShelfToNearestSnap();
+      window.setTimeout(() => {
+        shouldPreventShelfClickRef.current = false;
+      }, 0);
+    }
+  };
+
+  const handleShelfMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+
+    const slider = sliderRef.current;
+    const target = event.target instanceof Element ? event.target : null;
+    const noDragTarget = target?.closest(
+      "input,select,textarea,[data-no-drag-scroll='true']",
+    );
+    if (!slider || noDragTarget) return;
+
+    shelfDragStateRef.current = {
+      hasDragged: false,
+      isDragging: false,
+      isPointerDown: true,
+      scrollLeft: slider.scrollLeft,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+  };
+
+  const handleShelfMouseMove = (event: MouseEvent<HTMLDivElement>) => {
+    const slider = sliderRef.current;
+    const dragState = shelfDragStateRef.current;
+    if (!slider || !dragState.isPointerDown) return;
+
+    const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+    const isHorizontalDrag = Math.abs(deltaX) >= Math.max(8, Math.abs(deltaY));
+
+    if (!dragState.isDragging && !isHorizontalDrag) return;
+
+    if (!dragState.isDragging) {
+      dragState.isDragging = true;
+      dragState.hasDragged = true;
+      slider.classList.add("exercise-library-card-scroll-viewport--dragging");
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    slider.scrollLeft = dragState.scrollLeft - deltaX;
+    updateScrollState();
+  };
+
+  const handleShelfClickCapture = (event: MouseEvent<HTMLDivElement>) => {
+    if (!shouldPreventShelfClickRef.current) {
+      setSpotlightFromTarget(event.target, "click");
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+  };
+  const handleShelfMouseOverCapture = (event: MouseEvent<HTMLDivElement>) => {
+    setSpotlightFromTarget(event.target, "hover");
+  };
+  const handleShelfFocusCapture = (event: FocusEvent<HTMLDivElement>) => {
+    setSpotlightFromTarget(event.target, "focus");
+  };
+  const handleShelfMouseLeave = () => {
+    stopShelfDrag();
+    clearSpotlight();
+  };
+
+  const hasShelfScrollControls = isOpen;
+  const showLeftControl = hasShelfScrollControls;
+  const showRightControl = hasShelfScrollControls;
+  const leftControlDisabled =
+    !hasShelfScrollControls || !scrollState.canScrollLeft;
+  const rightControlDisabled =
+    !hasShelfScrollControls || !scrollState.canScrollRight;
+  const showPageSelector = isOpen && scrollState.totalPages > 1;
+  const weeklyGoal = getWeeklySetGoalForSection(section.label);
+  const isLatestSectionPulse = latestSetInsight?.sectionKey === section.key;
+  const weeklyGoalFillPercent = Math.min(
+    100,
+    getWeeklySetGoalProgressPercent(weeklySets, weeklyGoal),
+  );
+  const weeklyGoalStatusId = getWeeklySetGoalStatusId(weeklySets, weeklyGoal);
+  const sectionThemeCssVars = {
+    ...getCategoryThemeCssVariables(sectionTheme),
+    "--exercise-category-goal-progress": `${weeklyGoalFillPercent}%`,
+  } as ExerciseLibraryThemeCssVariables;
+  const renderedChildren = Children.map(children, (child) => {
+    if (
+      !isValidElement<{
+        className?: string;
+        "data-card-key"?: string;
+        "data-spotlight-shift"?: SpotlightShift;
+      }>(child)
+    ) {
+      return child;
+    }
+
+    const cardKey = child.props["data-card-key"];
+    const isSpotlightCard =
+      Boolean(cardKey) && cardKey === spotlightCardKey;
+    const childClassName = child.props.className || "";
+
+    return cloneElement(
+      child as ReactElement<{
+        className?: string;
+        "data-card-key"?: string;
+        "data-spotlight-shift"?: SpotlightShift;
+      }>,
+      {
+        className: `${childClassName} ${
+          isSpotlightCard ? "exercise-library-card-slide--spotlight" : ""
+        }`.trim(),
+        "data-spotlight-shift": isSpotlightCard ? spotlightShift : undefined,
+      },
+    );
+  });
 
   return (
     <div
-      className={`relative overflow-hidden rounded-[26px] border p-2.5 backdrop-blur-2xl backdrop-saturate-150 sm:p-3 ${sectionTheme.surfaceClass} ${sectionTheme.cardClass}`}
+      style={sectionThemeCssVars}
+      className={`relative w-full min-w-0 max-w-full overflow-visible rounded-[26px] border p-2.5 backdrop-blur-2xl backdrop-saturate-150 transition duration-200 ease-out sm:p-3 ${sectionTheme.surfaceClass} ${sectionTheme.cardClass} ${
+        isLatestSectionPulse ? "exercise-library-volume-pulse" : ""
+      } ${
+        isOpen
+          ? `${sectionTheme.hoverClass} z-[900] scale-[1.005]`
+          : "opacity-[0.92] hover:opacity-100"
+      }`}
     >
       <div className={`pointer-events-none absolute inset-0 z-0 ${sectionTheme.overlayClass} opacity-70`} />
       <div className={`pointer-events-none absolute inset-x-0 top-0 z-[1] h-px ${sectionTheme.accentClass}`} />
 
-      <div className="relative z-10 space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-1.5">
-          <div>
-            <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.18em] ${sectionTheme.pillClass}`}>
-              {section.label}
+      <div className="relative z-10 min-w-0 space-y-2">
+        <button
+          type="button"
+          aria-expanded={isOpen}
+          onClick={onToggle}
+          title={`${section.label}: ${Math.max(0, Math.round(weeklySets))} of ${weeklyGoal} weekly sets, ${weeklyVolumeStatusConfig[weeklyGoalStatusId].label}`}
+          className={`group/category-heading relative flex min-h-[44px] w-full items-center justify-between gap-3 overflow-hidden rounded-[18px] border px-3 py-2 text-left shadow-[0_12px_30px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.11)] transition duration-[240ms] ease-out focus:outline-none focus:ring-2 focus:ring-white/20 sm:min-h-[48px] sm:px-3.5 ${
+            isOpen
+              ? "scale-[1.006] border-white/28 bg-white/[0.105] shadow-[0_20px_58px_rgba(0,0,0,0.34),0_0_34px_rgba(255,255,255,0.075),inset_0_1px_0_rgba(255,255,255,0.20)]"
+              : "border-white/10 bg-white/[0.045] hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.075] hover:shadow-[0_18px_48px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.15)]"
+          }`}
+        >
+          <span
+            aria-hidden="true"
+            className={`absolute inset-0 ${sectionTheme.overlayClass} transition-opacity duration-[240ms] ${
+              isOpen
+                ? "opacity-[0.85]"
+                : "opacity-[0.42] group-hover/category-heading:opacity-[0.65]"
+            }`}
+          />
+          <span
+            aria-hidden="true"
+            className="exercise-library-category-heading__goal-fill"
+          />
+          <span
+            aria-hidden="true"
+            className={`absolute inset-x-0 top-0 h-px ${sectionTheme.accentClass} transition-opacity duration-[240ms] ${
+              isOpen ? "opacity-100" : "opacity-60 group-hover/category-heading:opacity-90"
+            }`}
+          />
+          <span
+            aria-hidden="true"
+            className={`absolute inset-y-0 -left-1/3 w-1/3 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/18 to-transparent transition duration-[260ms] ease-out ${
+              isOpen
+                ? "translate-x-[430%] opacity-70"
+                : "translate-x-0 opacity-0 group-hover/category-heading:translate-x-[430%] group-hover/category-heading:opacity-[0.45]"
+            }`}
+          />
+
+          <span className="relative z-10 flex min-w-0 items-center gap-3">
+            <span
+              aria-hidden="true"
+              className={`h-8 w-1.5 shrink-0 rounded-full ${sectionTheme.accentClass} shadow-[0_0_18px_rgba(255,255,255,0.12)] transition duration-[240ms] ${
+                isOpen ? "opacity-100" : "opacity-[0.65] group-hover/category-heading:opacity-90"
+              }`}
+            />
+            <span className="min-w-0">
+              <span
+                className={`block max-w-full truncate text-xs font-black uppercase leading-tight tracking-[0.13em] transition duration-[240ms] sm:text-sm ${
+                  isOpen
+                    ? "scale-[1.01] text-white"
+                    : "text-slate-100 group-hover/category-heading:text-white"
+                }`}
+              >
+                {section.label}
+              </span>
+              <span className="mt-0.5 inline-flex rounded-lg border border-cyan-100/16 bg-cyan-300/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/80">
+                <WeeklySetGoalBadge
+                  completedSets={weeklySets}
+                  goalSets={weeklyGoal}
+                />
+                {isLatestSectionPulse ? (
+                  <span className="ml-1 exercise-library-volume-added-chip">
+                    {latestSetInsight?.pulseLabel}
+                  </span>
+                ) : null}
+              </span>
+              <span
+                className={`mt-1 block h-px w-24 max-w-full ${sectionTheme.accentClass} transition duration-[240ms] ${
+                  isOpen
+                    ? "opacity-100"
+                    : "opacity-[0.55] group-hover/category-heading:opacity-[0.85]"
+                }`}
+              />
             </span>
-            <div className={`mt-1.5 h-px w-16 ${sectionTheme.accentClass}`} />
-          </div>
-          <span className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${sectionTheme.pillClass}`}>
-            {section.exercises.length}
           </span>
-        </div>
 
-        <div className="exercise-library-shelf-window">
+          <span className="relative z-10 flex shrink-0 items-center gap-2">
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] transition duration-[240ms] ${
+                isOpen
+                  ? `${sectionTheme.pillClass} scale-105`
+                  : `${sectionTheme.pillClass} opacity-[0.88] group-hover/category-heading:opacity-100`
+              }`}
+            >
+              {section.exercises.length}
+            </span>
+            {isOpen ? (
+              <span
+                aria-hidden="true"
+                className={`flex h-7 w-7 items-center justify-center rounded-full border ${sectionTheme.pillClass}`}
+              >
+                <span className="h-2.5 w-2.5 rounded-full bg-current shadow-[0_0_16px_currentColor]" />
+              </span>
+            ) : (
+              <span
+                aria-hidden="true"
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-white/12 bg-slate-950/48 text-[10px] font-black text-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition duration-[240ms] group-hover/category-heading:border-white/24 group-hover/category-heading:bg-white/[0.08] group-hover/category-heading:text-white"
+              >
+                v
+              </span>
+            )}
+          </span>
+        </button>
+
+        {coreMovementTabs.length > 0 ? (
           <div
-            ref={sliderRef}
-            className="exercise-library-card-slider relative z-0"
-            aria-label={`${section.label} exercises`}
-            role="list"
+            className={`relative z-[45] -mt-1 overflow-visible rounded-2xl border px-2 py-1.5 shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.10)] transition duration-200 ${
+              isOpen
+                ? "border-white/16 bg-slate-950/42"
+                : "border-white/8 bg-slate-950/28 opacity-85"
+            }`}
           >
-            {children}
+            <div
+              aria-label={`${section.label} core movement shortcuts`}
+              className="exercise-library-core-tab-rail"
+              role="tablist"
+            >
+              {coreMovementTabs.map((tab) => {
+                const isActiveTab = activeCoreMovementTabKey === tab.key;
+                const isLatestCoreTabPulse =
+                  latestSetInsight?.coreMovementKey === tab.key;
+                const tabWeeklySets =
+                  coreMovementWeeklySetsByKey.get(tab.key) || 0;
+                const tabWeeklyGoal = getWeeklySetGoalForCoreMovement();
+                const tabStatusId = getWeeklySetGoalStatusId(
+                  tabWeeklySets,
+                  tabWeeklyGoal,
+                );
+                const tabVolumeStyle = {
+                  ...getCategoryThemeCssVariables(sectionTheme),
+                  "--exercise-core-tab-volume-progress": `${getWeeklySetGoalFillPercent(
+                    tabWeeklySets,
+                    tabWeeklyGoal,
+                  )}%`,
+                } as ExerciseLibraryThemeCssVariables;
+
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    aria-selected={isActiveTab}
+                    style={tabVolumeStyle}
+                    className={`exercise-library-core-tab ${
+                      isLatestCoreTabPulse ? "exercise-library-volume-pulse" : ""
+                    } ${
+                      isActiveTab
+                        ? `exercise-library-core-tab--active ${sectionTheme.pillClass}`
+                        : `border-white/10 bg-white/[0.045] text-white/58 ${sectionTheme.tabHoverClass}`
+                    }`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      scrollToCoreMovementTab(tab.key);
+                    }}
+                    role="tab"
+                    title={`Jump to ${tab.label}: ${Math.max(
+                      0,
+                      Math.round(tabWeeklySets),
+                    )} of ${tabWeeklyGoal} weekly sets, ${weeklyVolumeStatusConfig[tabStatusId].label}`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="exercise-library-core-tab__fill"
+                    />
+                    <span className="exercise-library-core-tab__content">
+                      {tab.label}
+                      <span className="exercise-library-core-tab__stat">
+                        <WeeklySetGoalBadge
+                          completedSets={tabWeeklySets}
+                          goalSets={tabWeeklyGoal}
+                        />
+                        {isLatestCoreTabPulse ? (
+                          <span className="exercise-library-volume-added-chip">
+                            {latestSetInsight?.pulseLabel}
+                          </span>
+                        ) : null}
+                      </span>
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className={`exercise-library-core-tab__underline ${sectionTheme.accentClass}`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
           </div>
+        ) : null}
 
-          <div
-            aria-hidden="true"
-            className={`exercise-library-shelf-fade exercise-library-shelf-fade--left ${
-              showLeftControl ? "exercise-library-shelf-fade--visible" : ""
-            }`}
-          />
-          <div
-            aria-hidden="true"
-            className={`exercise-library-shelf-fade exercise-library-shelf-fade--right ${
-              showRightControl ? "exercise-library-shelf-fade--visible" : ""
-            }`}
-          />
+        {isOpen ? (
+          <div className="min-h-0 min-w-0 overflow-visible">
+            <div
+              className="exercise-library-shelf-window"
+            >
+              {showPageSelector ? (
+                <div className="mb-2 rounded-2xl border border-white/10 bg-slate-950/48 p-2 shadow-[0_12px_34px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+                        {section.label}
+                      </p>
+                      <p className="mt-0.5 text-xs font-black text-white">
+                        Page {scrollState.currentPage} of {scrollState.totalPages}
+                      </p>
+                    </div>
 
-          <button
-            type="button"
-            aria-label={`Scroll ${section.label} exercises left`}
-            className={`exercise-library-shelf-arrow exercise-library-shelf-arrow--left ${
-              showLeftControl ? "exercise-library-shelf-arrow--visible" : ""
-            }`}
-            disabled={!showLeftControl}
-            onClick={() => scrollShelf("left")}
-          >
-            <svg
-              aria-hidden="true"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2.4"
-              viewBox="0 0 24 24"
-            >
-              <path d="m15 18-6-6 6-6" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            aria-label={`Scroll ${section.label} exercises right`}
-            className={`exercise-library-shelf-arrow exercise-library-shelf-arrow--right ${
-              showRightControl ? "exercise-library-shelf-arrow--visible" : ""
-            }`}
-            disabled={!showRightControl}
-            onClick={() => scrollShelf("right")}
-          >
-            <svg
-              aria-hidden="true"
-              className="h-5 w-5"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2.4"
-              viewBox="0 0 24 24"
-            >
-              <path d="m9 18 6-6-6-6" />
-            </svg>
-          </button>
-        </div>
+                    <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+                      <button
+                        type="button"
+                        aria-label={`Previous ${section.label} page`}
+                        disabled={scrollState.currentPage <= 1}
+                        onClick={() => scrollShelfToPage(scrollState.currentPage - 1)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-xs font-black text-slate-200 transition hover:border-white/24 hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        {"<"}
+                      </button>
+
+                      <div className="flex min-w-0 max-w-full gap-1 overflow-x-auto rounded-full border border-white/10 bg-white/[0.035] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {Array.from(
+                          { length: scrollState.totalPages },
+                          (_, pageIndex) => {
+                            const page = pageIndex + 1;
+                            const isCurrentPage =
+                              page === scrollState.currentPage;
+
+                            return (
+                              <button
+                                key={page}
+                                type="button"
+                                aria-current={isCurrentPage ? "page" : undefined}
+                                aria-label={`Go to ${section.label} page ${page}`}
+                                onClick={() => scrollShelfToPage(page)}
+                                className={`flex h-7 min-w-7 items-center justify-center rounded-full border px-2 text-[9px] font-black uppercase tracking-[0.08em] transition ${
+                                  isCurrentPage
+                                    ? `${sectionTheme.pillClass} scale-105`
+                                    : "border-white/8 bg-slate-950/46 text-slate-400 hover:border-white/18 hover:bg-white/[0.06] hover:text-white"
+                                }`}
+                              >
+                                <span className="hidden sm:inline">Page&nbsp;</span>
+                                {page}
+                              </button>
+                            );
+                          },
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        aria-label={`Next ${section.label} page`}
+                        disabled={scrollState.currentPage >= scrollState.totalPages}
+                        onClick={() => scrollShelfToPage(scrollState.currentPage + 1)}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-xs font-black text-slate-200 transition hover:border-white/24 hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        {">"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                    <div
+                      className={`h-full rounded-full ${sectionTheme.accentClass} transition-all duration-300 ease-out`}
+                      style={{ width: `${scrollState.progressPercent}%` }}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
+              <div
+                ref={sliderRef}
+                className="exercise-library-card-scroll-viewport exercise-library-themed-scrollbar relative z-20 w-full overflow-x-scroll overflow-y-visible"
+                data-client-width={scrollState.clientWidth}
+                data-max-scroll-left={scrollState.maxScrollLeft}
+                data-scroll-left={scrollState.scrollLeft}
+                data-scroll-width={scrollState.scrollWidth}
+                aria-label={`${section.label} exercises`}
+                onClickCapture={handleShelfClickCapture}
+                onFocusCapture={handleShelfFocusCapture}
+                onMouseDownCapture={handleShelfMouseDown}
+                onMouseLeave={handleShelfMouseLeave}
+                onMouseMoveCapture={handleShelfMouseMove}
+                onMouseOverCapture={handleShelfMouseOverCapture}
+                onMouseUpCapture={stopShelfDrag}
+                onDragStart={(event) => event.preventDefault()}
+                role="region"
+              >
+                <div
+                  className="exercise-library-card-track"
+                  data-selected-card={spotlightCardKey ? "true" : undefined}
+                  role="list"
+                >
+                  {renderedChildren}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                aria-label={`Scroll ${section.label} exercises left`}
+                className={`exercise-library-shelf-arrow exercise-library-shelf-arrow--left ${
+                  showLeftControl ? "exercise-library-shelf-arrow--visible" : ""
+                }`}
+                disabled={leftControlDisabled}
+                onClick={() => scrollShelf("left")}
+              >
+                <svg
+                  aria-hidden="true"
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.4"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                aria-label={`Scroll ${section.label} exercises right`}
+                className={`exercise-library-shelf-arrow exercise-library-shelf-arrow--right ${
+                  showRightControl ? "exercise-library-shelf-arrow--visible" : ""
+                }`}
+                disabled={rightControlDisabled}
+                onClick={() => scrollShelf("right")}
+              >
+                <svg
+                  aria-hidden="true"
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.4"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="m9 18 6-6-6-6" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
+    </div>
+  );
+}
+
+function CreateExerciseEmptyCard({ onCreate }: { onCreate: () => void }) {
+  return (
+    <article className="exercise-library-themed-card group/create-exercise flex min-h-[360px] flex-col overflow-hidden rounded-[28px] border border-cyan-200/22 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_86%_12%,rgba(250,204,21,0.15),transparent_30%),linear-gradient(145deg,rgba(15,23,42,0.94),rgba(2,6,23,0.90))] p-4 shadow-[0_24px_78px_rgba(0,0,0,0.48),0_0_34px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] transition duration-200 hover:-translate-y-1 hover:border-cyan-100/45 hover:shadow-[0_30px_96px_rgba(0,0,0,0.58),0_0_46px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.22)]">
+      <button
+        type="button"
+        onClick={onCreate}
+        className="flex h-full min-h-[328px] flex-col items-center justify-center rounded-[24px] border border-dashed border-cyan-100/24 bg-white/[0.045] px-4 py-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition group-hover/create-exercise:bg-white/[0.07]"
+      >
+        <span
+          aria-hidden="true"
+          className="flex h-16 w-16 items-center justify-center rounded-3xl border border-cyan-100/30 bg-cyan-300/14 text-4xl font-black leading-none text-cyan-50 shadow-[0_0_34px_rgba(34,211,238,0.22),inset_0_1px_0_rgba(255,255,255,0.18)]"
+        >
+          +
+        </span>
+        <span className="mt-5 text-xl font-black uppercase tracking-[0.08em] text-white">
+          Create an Exercise
+        </span>
+        <span className="mt-3 max-w-[18rem] text-sm font-semibold leading-6 text-slate-300">
+          Create your own movement variation, coaching cue, and settings.
+        </span>
+        <span className="mt-6 rounded-2xl border border-emerald-200/25 bg-emerald-300/16 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-emerald-100 shadow-[0_0_24px_rgba(16,185,129,0.14)] transition group-hover/create-exercise:border-emerald-100/55 group-hover/create-exercise:bg-emerald-300 group-hover/create-exercise:text-slate-950">
+          Create Exercise
+        </span>
+      </button>
+    </article>
+  );
+}
+
+const getExerciseCardCategoryTabLabel = (section: ExerciseLibrarySection) => {
+  if (section.key === "favorites") {
+    return { full: "Favorite", short: "Fav" };
+  }
+
+  if (section.key === myExercisesSectionKey) {
+    return { full: "My Exercise", short: "Mine" };
+  }
+
+  const abbreviations: Record<string, string> = {
+    "Lower Body Compound": "Lower Body",
+    "Lower Body Isolation": "Lower Iso",
+    "Upper Push": "Push",
+    "Upper Pull": "Pull",
+    "Arm Isolation": "Arms",
+    "Cervical Isolation": "Cervical",
+  };
+
+  return {
+    full: section.label,
+    short: abbreviations[section.label] || section.label,
+  };
+};
+
+function ExerciseCardCategoryTab({
+  section,
+  sectionTheme,
+}: {
+  section: ExerciseLibrarySection;
+  sectionTheme: CategoryTheme;
+}) {
+  const label = getExerciseCardCategoryTabLabel(section);
+
+  return (
+    <div className="exercise-library-card-category-tab pointer-events-none absolute left-2 top-2 z-[70] sm:left-3 sm:top-3">
+      <div className={`exercise-library-card-category-tab__pill border ${sectionTheme.pillClass}`}>
+        <span className="hidden max-w-[8.5rem] truncate sm:inline">
+          {label.full}
+        </span>
+        <span className="max-w-[5rem] truncate sm:hidden">{label.short}</span>
+      </div>
+      <div
+        aria-hidden="true"
+        className={`exercise-library-card-category-tab__rail ${sectionTheme.accentClass}`}
+      />
     </div>
   );
 }
@@ -5423,7 +8800,7 @@ function ModifierRail({
         {label}
       </p>
       <div className="relative mt-2">
-        <div className="flex snap-x gap-1.5 overflow-x-auto overflow-y-hidden pb-1 pr-1 [-webkit-overflow-scrolling:touch] [scrollbar-color:rgba(34,211,238,0.38)_transparent] [scrollbar-width:thin]">
+        <div className="exercise-library-themed-scrollbar flex snap-x gap-1.5 overflow-x-auto overflow-y-hidden pb-1 pr-1 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]">
           {modifiers.map((modifier) => {
             const isSelected = selectedModifierIds.includes(modifier.id);
 
@@ -5434,7 +8811,7 @@ function ModifierRail({
                 onClick={() => onToggleModifier(modifier)}
                 className={`min-h-[36px] shrink-0 snap-start whitespace-nowrap rounded-full border px-3 py-1.5 text-[11px] font-black transition ${
                   isSelected
-                    ? "border-emerald-300 bg-emerald-300 text-slate-950"
+                    ? "exercise-library-themed-option-selected border-emerald-300 bg-emerald-300 text-slate-950"
                     : "border-white/10 bg-white/[0.045] text-slate-300 hover:border-cyan-300/40 hover:text-white"
                 }`}
               >
@@ -5458,6 +8835,7 @@ function LabeledModifierSelect({
   parentDropdownId,
   keepOpenDropdownIds,
   accent,
+  themeStyle,
   size = "detail",
 }: {
   label: string;
@@ -5469,6 +8847,7 @@ function LabeledModifierSelect({
   parentDropdownId?: string;
   keepOpenDropdownIds?: string[];
   accent: "cyan" | "emerald" | "yellow" | "violet";
+  themeStyle?: ExerciseLibraryThemeCssVariables;
   size?: "detail" | "grid";
 }) {
   if (!options.length) return null;
@@ -5502,6 +8881,7 @@ function LabeledModifierSelect({
         parentDropdownId={parentDropdownId}
         keepOpenDropdownIds={keepOpenDropdownIds}
         accent={accent}
+        themeStyle={themeStyle}
         size={size}
         showInlineLabel={false}
       />
@@ -5566,6 +8946,7 @@ function DetailVariationSelect({
   accent = "cyan",
   size = "detail",
   className = "",
+  themeStyle,
   onOpenChange,
   parentDropdownId,
   keepOpenDropdownIds,
@@ -5579,6 +8960,7 @@ function DetailVariationSelect({
   accent?: "cyan" | "emerald" | "yellow" | "violet";
   size?: "detail" | "grid";
   className?: string;
+  themeStyle?: ExerciseLibraryThemeCssVariables;
   onOpenChange?: (open: boolean) => void;
   parentDropdownId?: string;
   keepOpenDropdownIds?: string[];
@@ -5604,11 +8986,9 @@ function DetailVariationSelect({
     fallback.trim().toLowerCase() === "default" || !fallback.trim()
       ? label
       : fallback.trim();
-  const normalizeOptionLabel = (optionLabel: string) =>
-    optionLabel.trim().toLowerCase();
-  const fallbackOptionKey = normalizeOptionLabel(fallbackOptionLabel);
+  const fallbackOptionKey = normalizeFilterCompareValue(fallbackOptionLabel);
   const fallbackMatchesOption = displayOptions.some(
-    (option) => normalizeOptionLabel(getModifierOptionLabel(option)) === fallbackOptionKey,
+    (option) => normalizeFilterCompareValue(getModifierOptionLabel(option)) === fallbackOptionKey,
   );
   const accentClasses = {
     cyan: {
@@ -5852,7 +9232,7 @@ function DetailVariationSelect({
           updateDropdownMenuPosition();
           setDropdownOpen(true);
         }}
-        className={`group/control flex w-full min-w-0 items-center justify-between gap-2 border text-left outline-none backdrop-blur-2xl transition ${
+        className={`exercise-library-themed-select group/control flex w-full min-w-0 items-center justify-between gap-2 border text-left outline-none backdrop-blur-2xl transition ${
           isGrid
             ? "min-h-[34px] rounded-full px-2.5 py-1.5"
             : "min-h-[42px] rounded-full px-3 py-2"
@@ -5902,9 +9282,9 @@ function DetailVariationSelect({
         ? createPortal(
             <div
               ref={dropdownMenuRef}
-              style={dropdownMenuStyle}
+              style={{ ...dropdownMenuStyle, ...themeStyle }}
               data-exercise-library-floating-menu="true"
-              className={`fixed overflow-hidden border ${accentClasses[accent].panel} p-1.5 backdrop-blur-2xl ${
+              className={`exercise-library-themed-floating-panel fixed overflow-hidden border ${accentClasses[accent].panel} p-1.5 backdrop-blur-2xl ${
                 isGrid ? "rounded-xl" : "rounded-2xl"
               }`}
             >
@@ -5912,7 +9292,7 @@ function DetailVariationSelect({
             role="listbox"
             aria-label={label}
             style={{ maxHeight: dropdownMenuStyle.maxHeight }}
-            className={`overflow-y-auto pr-1 ${accentClasses[accent].scrollbar} [scrollbar-width:thin]`}
+            className={`exercise-library-themed-scrollbar overflow-y-auto pr-1 ${accentClasses[accent].scrollbar} [scrollbar-width:thin]`}
           >
             {!value && !fallbackMatchesOption ? (
               <button
@@ -5927,7 +9307,7 @@ function DetailVariationSelect({
                     : "min-h-[40px] rounded-xl px-3 py-2 text-sm"
                 } ${
                   !value
-                    ? `${accentClasses[accent].selected} ${accentClasses[accent].glow}`
+                    ? `exercise-library-themed-option-selected ${accentClasses[accent].selected} ${accentClasses[accent].glow}`
                     : `border-white/10 bg-white/[0.045] text-slate-300 ${accentClasses[accent].hover}`
                 }`}
               >
@@ -5941,7 +9321,7 @@ function DetailVariationSelect({
             {displayOptions.map((modifier) => {
               const modifierLabel = getModifierOptionLabel(modifier);
               const matchesFallback =
-                normalizeOptionLabel(modifierLabel) === fallbackOptionKey;
+                normalizeFilterCompareValue(modifierLabel) === fallbackOptionKey;
               const isSelected = modifier.id === value || (!value && matchesFallback);
 
               return (
@@ -5958,7 +9338,7 @@ function DetailVariationSelect({
                       : "min-h-[40px] rounded-xl px-3 py-2 text-sm"
                   } ${
                     isSelected
-                      ? `${accentClasses[accent].selected} ${accentClasses[accent].glow}`
+                      ? `exercise-library-themed-option-selected ${accentClasses[accent].selected} ${accentClasses[accent].glow}`
                       : `border-white/10 bg-white/[0.045] text-slate-300 ${accentClasses[accent].hover}`
                   }`}
                 >
@@ -5984,6 +9364,8 @@ function MovementMetadataPanel({
   setSelectedModifierIds,
   movementArchitectureChips,
   classificationChipClass,
+  onChipSelect,
+  themeStyle,
   customizeSettingsModifierIds = [],
   customizeSettingsFallbackLabels = [],
   customizeSettingsCategoryIds = [],
@@ -5993,6 +9375,8 @@ function MovementMetadataPanel({
   setSelectedModifierIds: Dispatch<SetStateAction<ExerciseModifierId[]>>;
   movementArchitectureChips: MovementArchitectureChip[];
   classificationChipClass?: string;
+  onChipSelect?: (chip: MovementArchitectureChip) => void;
+  themeStyle?: ExerciseLibraryThemeCssVariables;
   customizeSettingsModifierIds?: ExerciseModifierId[];
   customizeSettingsFallbackLabels?: string[];
   customizeSettingsCategoryIds?: ExerciseModifierCategoryId[];
@@ -6231,7 +9615,7 @@ function MovementMetadataPanel({
   }, [isModifierPanelOpen, modifierPanelId]);
 
   return (
-    <div className="mt-3 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] p-3 backdrop-blur-2xl">
+    <div className="exercise-library-themed-intelligence mt-3 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.06] p-3 backdrop-blur-2xl">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-200">
@@ -6248,9 +9632,10 @@ function MovementMetadataPanel({
           <MovementArchitectureChips
             chips={movementArchitectureChips}
             classificationChipClass={classificationChipClass}
+            onChipSelect={onChipSelect}
           />
 
-          <div className="rounded-2xl border border-cyan-200/25 bg-[linear-gradient(135deg,rgba(34,211,238,0.22),rgba(16,185,129,0.12))] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_34px_rgba(8,145,178,0.16)]">
+          <div className="exercise-library-themed-panel rounded-2xl border border-cyan-200/25 bg-[linear-gradient(135deg,rgba(34,211,238,0.22),rgba(16,185,129,0.12))] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.16),0_12px_34px_rgba(8,145,178,0.16)]">
             <p className="text-[8px] font-black uppercase leading-3 tracking-[0.16em] text-cyan-100/75">
               Variation Coverage
             </p>
@@ -6297,13 +9682,13 @@ function MovementMetadataPanel({
                     <div
                       ref={modifierPopoverRef}
                       id={modifierPanelId}
-                      style={modifierPopoverStyle}
-                      className="fixed max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-[26px] border border-cyan-100/15 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(16,185,129,0.13),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.94))] shadow-[0_30px_100px_rgba(0,0,0,0.72),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl sm:max-w-[calc(100vw-2rem)]"
+                      style={{ ...modifierPopoverStyle, ...themeStyle }}
+                      className="exercise-library-themed-floating-panel fixed max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-[26px] border border-cyan-100/15 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(16,185,129,0.13),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.94))] shadow-[0_30px_100px_rgba(0,0,0,0.72),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl sm:max-w-[calc(100vw-2rem)]"
                     >
                       <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/45 to-transparent" />
                       <div
                         style={{ maxHeight: modifierPopoverStyle.maxHeight }}
-                        className="relative overflow-y-auto overflow-x-hidden overscroll-contain p-4 [scrollbar-gutter:stable] sm:p-5"
+                        className="exercise-library-themed-scrollbar relative overflow-y-auto overflow-x-hidden overscroll-contain p-4 [scrollbar-gutter:stable] sm:p-5"
                       >
                         <div className="space-y-4">
                           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-white/10 pb-3">
@@ -6348,27 +9733,168 @@ function MovementMetadataPanel({
   );
 }
 
+function LatestSetInsightLine({
+  compact = false,
+  insight,
+}: {
+  compact?: boolean;
+  insight: LatestSetInsight;
+}) {
+  return (
+    <div
+      className={`exercise-library-latest-insight mt-2 rounded-xl border border-emerald-200/18 bg-emerald-300/10 text-emerald-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] ${
+        compact ? "px-2 py-1.5" : "px-3 py-2"
+      }`}
+    >
+      <p
+        className={`font-black leading-snug ${
+          compact ? "text-[10px]" : "text-xs"
+        }`}
+      >
+        {insight.latestLine}
+      </p>
+      <p
+        className={`mt-0.5 font-bold leading-snug text-emerald-100/76 ${
+          compact ? "text-[9px]" : "text-[11px]"
+        }`}
+      >
+        {insight.summaryLine} · {insight.goalLine} · {insight.remainingLine}
+      </p>
+    </div>
+  );
+}
+
 function RecentStatsStrip({
   stats,
   compact = false,
+  latestInsight,
 }: {
   stats: LocalExerciseStatEntry[];
   compact?: boolean;
+  latestInsight?: LatestSetInsight | null;
 }) {
+  const [view, setView] = useState<"recent" | "best">("recent");
   const latest = stats[0];
-  const bestReps = stats.reduce(
-    (best, stat) => Math.max(best, parseStatNumber(stat.reps)),
-    0,
+  const recentStats = stats.slice(0, 3);
+  const bestLoadStat = stats.reduce<LocalExerciseStatEntry | null>(
+    (best, stat) =>
+      !best || parseStatNumber(stat.weight) > parseStatNumber(best.weight)
+        ? stat
+        : best,
+    null,
   );
-  const recentVolume = stats.reduce(
-    (total, stat) => total + getStatVolume(stat),
-    0,
+  const bestRepsStat = stats.reduce<LocalExerciseStatEntry | null>(
+    (best, stat) =>
+      !best || parseStatNumber(stat.reps) > parseStatNumber(best.reps)
+        ? stat
+        : best,
+    null,
+  );
+  const bestVolumeStat = stats.reduce<LocalExerciseStatEntry | null>(
+    (best, stat) =>
+      !best || getStatVolume(stat) > getStatVolume(best) ? stat : best,
+    null,
+  );
+  const hasBestStats =
+    Boolean(bestLoadStat && parseStatNumber(bestLoadStat.weight) > 0) ||
+    Boolean(bestRepsStat && parseStatNumber(bestRepsStat.reps) > 0) ||
+    Boolean(bestVolumeStat && getStatVolume(bestVolumeStat) > 0);
+  const recentCells = latest
+    ? [
+        {
+          label: "Last Load",
+          value: latest.weight || "--",
+          detail: `${latest.reps || "--"} reps x ${latest.sets || "--"} sets`,
+        },
+        {
+          label: "Last Reps",
+          value: latest.reps || "--",
+          detail: `${latest.sets || "--"} sets`,
+        },
+        {
+          label: "Recent Volume",
+          value: formatMetric(
+            recentStats.reduce((total, stat) => total + getStatVolume(stat), 0),
+          ),
+          detail: "last 3 entries",
+        },
+      ]
+    : [];
+  const bestCells = hasBestStats
+    ? [
+        {
+          label: "Best Load",
+          value:
+            bestLoadStat && parseStatNumber(bestLoadStat.weight) > 0
+              ? bestLoadStat.weight
+              : "--",
+          detail: bestLoadStat
+            ? `${bestLoadStat.reps || "--"} reps`
+            : "No load yet",
+        },
+        {
+          label: "Best Reps",
+          value:
+            bestRepsStat && parseStatNumber(bestRepsStat.reps) > 0
+              ? formatMetric(parseStatNumber(bestRepsStat.reps))
+              : "--",
+          detail: bestRepsStat
+            ? `${bestRepsStat.weight || "--"} load`
+            : "No reps yet",
+        },
+        {
+          label: "Best Volume",
+          value:
+            bestVolumeStat && getStatVolume(bestVolumeStat) > 0
+              ? formatMetric(getStatVolume(bestVolumeStat))
+              : "--",
+          detail: bestVolumeStat
+            ? new Date(bestVolumeStat.date).toLocaleDateString()
+            : "No volume yet",
+        },
+      ]
+    : [];
+  const activeCells = view === "recent" ? recentCells : bestCells;
+  const activeDate =
+    view === "recent" && latest
+      ? new Date(latest.date).toLocaleDateString()
+      : view === "best" && bestVolumeStat
+        ? "Best"
+        : "";
+  const containerClass = `exercise-library-themed-stats rounded-2xl border border-emerald-300/15 bg-[linear-gradient(135deg,rgba(16,185,129,0.13),rgba(34,211,238,0.06))] shadow-[inset_0_1px_0_rgba(255,255,255,0.10)${
+    compact ? "" : ",0_10px_30px_rgba(16,185,129,0.08)"
+  }] ${compact ? "mt-3 px-3 py-2.5" : "mt-2.5 p-3"}`;
+  const toggle = (
+    <div
+      aria-label="Stats view"
+      className="grid grid-cols-2 rounded-xl border border-white/10 bg-slate-950/42 p-0.5"
+    >
+      {(["recent", "best"] as const).map((option) => {
+        const isActive = view === option;
+
+        return (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={isActive}
+            onClick={() => setView(option)}
+            className={`rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-[0.11em] transition ${
+              isActive
+                ? "exercise-library-themed-toggle-active bg-emerald-300 text-slate-950 shadow-[0_0_18px_rgba(16,185,129,0.22)]"
+                : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
+            }`}
+          >
+            {option}
+          </button>
+        );
+      })}
+    </div>
   );
 
   if (!latest) {
     return (
       <div
-        className={`rounded-2xl border border-emerald-300/12 bg-[linear-gradient(135deg,rgba(16,185,129,0.08),rgba(34,211,238,0.045))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${
+        className={`exercise-library-themed-stats rounded-2xl border border-emerald-300/12 bg-[linear-gradient(135deg,rgba(16,185,129,0.08),rgba(34,211,238,0.045))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${
           compact ? "mt-2 px-3 py-2.5" : "mt-2.5 px-3.5 py-3"
         }`}
       >
@@ -6376,83 +9902,101 @@ function RecentStatsStrip({
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
             Recent Stats
           </p>
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/30">
-            Empty
-          </p>
+          {toggle}
         </div>
+        {latestInsight ? (
+          <LatestSetInsightLine compact insight={latestInsight} />
+        ) : null}
         <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-400">
-          No recent stats yet. Log this movement to build history.
+          {view === "best"
+            ? "No best stats yet"
+            : "No recent stats yet. Log this movement to build history."}
         </p>
       </div>
     );
   }
 
-  const cells = [
-    {
-      label: "Last Load",
-      value: latest.weight || "--",
-      detail: `${latest.reps || "--"} reps x ${latest.sets || "--"} sets`,
-    },
-    {
-      label: "Best Reps",
-      value: formatMetric(bestReps),
-      detail: "from recent entries",
-    },
-    {
-      label: "Recent Volume",
-      value: formatMetric(recentVolume),
-      detail: "last 3 entries",
-    },
-  ];
-
   if (compact) {
     return (
-      <div className="mt-3 rounded-2xl border border-emerald-300/15 bg-[linear-gradient(135deg,rgba(16,185,129,0.13),rgba(34,211,238,0.06))] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
+      <div className={containerClass}>
         <div className="flex items-center justify-between gap-3">
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
-            Recent
+            {view === "recent" ? "Recent" : "Best"}
+          </p>
+          {toggle}
+        </div>
+        {latestInsight ? (
+          <LatestSetInsightLine compact insight={latestInsight} />
+        ) : null}
+        {view === "best" && !hasBestStats ? (
+          <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-400">
+            No best stats yet
+          </p>
+        ) : (
+          <p className="mt-1 break-words text-xs font-black leading-5 text-white transition-opacity duration-200">
+            {view === "recent"
+              ? `${latest.weight || "--"} load / ${latest.reps || "--"} reps / ${
+                  latest.sets || "--"
+                } sets`
+              : `${bestCells[0]?.value || "--"} load / ${
+                  bestCells[1]?.value || "--"
+                } best reps`}
+          </p>
+        )}
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/30">
+            {activeDate}
           </p>
           <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
-            {new Date(latest.date).toLocaleDateString()}
+            {stats.length} logs
           </p>
         </div>
-        <p className="mt-1 break-words text-xs font-black leading-5 text-white">
-          {latest.weight || "--"} load / {latest.reps || "--"} reps /{" "}
-          {latest.sets || "--"} sets
-        </p>
       </div>
     );
   }
 
   return (
-    <div className="mt-2.5 rounded-2xl border border-emerald-300/15 bg-[linear-gradient(135deg,rgba(16,185,129,0.13),rgba(34,211,238,0.06))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.10),0_10px_30px_rgba(16,185,129,0.08)]">
+    <div className={containerClass}>
       <div className="flex items-center justify-between gap-3">
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
-          Recent Stats
+          {view === "recent" ? "Recent Stats" : "Best Stats"}
         </p>
-        <p className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
-          {new Date(latest.date).toLocaleDateString()}
-        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          {activeDate ? (
+            <p className="hidden text-[10px] font-bold uppercase tracking-[0.12em] text-white/35 sm:block">
+              {activeDate}
+            </p>
+          ) : null}
+          {toggle}
+        </div>
       </div>
 
-      <div className="mt-2.5 grid grid-cols-3 gap-1.5">
-        {cells.map((cell) => (
-          <div
-            key={cell.label}
-            className="min-w-0 rounded-xl border border-white/10 bg-slate-950/35 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-          >
-            <p className="break-words text-[8px] font-black uppercase leading-[11px] tracking-[0.06em] text-white/35">
-              {cell.label}
-            </p>
-            <p className="mt-1 break-words text-sm font-black leading-4 text-white">
-              {cell.value}
-            </p>
-            <p className="mt-0.5 break-words text-[9px] font-semibold leading-3 text-slate-400">
-              {cell.detail}
-            </p>
-          </div>
-        ))}
-      </div>
+      {latestInsight ? <LatestSetInsightLine insight={latestInsight} /> : null}
+
+      {view === "best" && !hasBestStats ? (
+        <p className="mt-2.5 rounded-xl border border-white/10 bg-slate-950/35 px-3 py-3 text-xs font-semibold text-slate-400">
+          No best stats yet
+        </p>
+      ) : (
+        <div className="mt-2.5 grid grid-cols-3 gap-1.5 transition-opacity duration-200">
+          {activeCells.map((cell) => (
+            <div
+              key={`${view}-${cell.label}`}
+              className="exercise-library-themed-stat-tile min-w-0 rounded-xl border border-white/10 bg-slate-950/35 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+            >
+              <p className="break-words text-[8px] font-black uppercase leading-[11px] tracking-[0.06em] text-white/35">
+                {cell.label}
+              </p>
+              <p className="mt-1 break-words text-sm font-black leading-4 text-white">
+                {cell.value}
+              </p>
+              <p className="mt-0.5 break-words text-[9px] font-semibold leading-3 text-slate-400">
+                {cell.detail}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -6467,7 +10011,7 @@ function MovementSuggestionList({
   empty: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/35 p-3">
+    <div className="exercise-library-themed-panel rounded-2xl border border-white/10 bg-slate-950/35 p-3">
       <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/45">
         {title}
       </p>
@@ -6477,7 +10021,7 @@ function MovementSuggestionList({
           {suggestions.map((suggestion) => (
             <div
               key={`${title}-${suggestion.id}`}
-              className="rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2"
+              className="exercise-library-themed-stat-tile rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2"
             >
               <p className="text-xs font-black text-white">
                 {suggestion.name}
@@ -6505,7 +10049,7 @@ function MovementSuggestionsPanel({
   onToggle: () => void;
 }) {
   return (
-    <div className="group mt-3 rounded-2xl border border-white/10 bg-slate-950/45">
+    <div className="exercise-library-themed-panel group mt-3 rounded-2xl border border-white/10 bg-slate-950/45">
       <button
         type="button"
         aria-expanded={isOpen}
@@ -6553,7 +10097,7 @@ function MovementProgressPanel({
   onToggle: () => void;
 }) {
   return (
-    <div className="group mt-3 rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.07]">
+    <div className="exercise-library-themed-panel group mt-3 rounded-2xl border border-emerald-300/15 bg-emerald-400/[0.07]">
       <button
         type="button"
         aria-expanded={isOpen}
@@ -6598,8 +10142,11 @@ function MovementProgressPanel({
 
 function ExerciseLibraryCard({
   exercise,
+  cardInstanceId,
+  sectionTheme,
   metadata,
   suggestions,
+  latestSetInsight,
   planAddToParam,
   savedExerciseStats,
   viewMode,
@@ -6609,14 +10156,23 @@ function ExerciseLibraryCard({
   onAddToPlan,
   onDeleteCustom,
   onAddStats,
+  onCreateVariation,
+  onBodyFilterSelect,
+  onDifficultyFilterSelect,
+  onMovementChipSelect,
+  onMuscleSelect,
+  weeklySetsByMuscleLabel,
   isExerciseDetailsOpen,
   onToggleExerciseDetails,
   isMovementDetailsOpen,
   onToggleMovementDetails,
 }: {
   exercise: Exercise;
+  cardInstanceId: string;
+  sectionTheme: CategoryTheme;
   metadata: NormalizedExerciseCatalogItem | null;
   suggestions: ReturnType<typeof getMovementSuggestions>;
+  latestSetInsight?: LatestSetInsight | null;
   planAddToParam: string;
   savedExerciseStats: LocalExerciseStatEntry[];
   viewMode: ExerciseLibraryViewMode;
@@ -6630,10 +10186,16 @@ function ExerciseLibraryCard({
     mode: ExerciseStatsMenuMode,
     anchorElement?: HTMLElement | null,
   ) => void;
+  onCreateVariation: (coreMovementId?: CoreMovementId | string) => void;
+  onBodyFilterSelect: (body: string) => void;
+  onDifficultyFilterSelect: (level: string) => void;
+  onMovementChipSelect: (chip: MovementArchitectureChip) => void;
+  onMuscleSelect: (muscle: string) => void;
+  weeklySetsByMuscleLabel: Map<string, number>;
   isExerciseDetailsOpen: boolean;
   onToggleExerciseDetails: (exerciseId: string | null) => void;
   isMovementDetailsOpen: boolean;
-  onToggleMovementDetails: (exerciseId: string | null) => void;
+  onToggleMovementDetails: (cardInstanceId: string | null) => void;
 }) {
   const [selectedModifierIds, setSelectedModifierIds] = useState<
     ExerciseModifierId[]
@@ -6655,11 +10217,17 @@ function ExerciseLibraryCard({
   const settingsDropdownRef = useRef<HTMLDivElement | null>(null);
   const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
   const settingsFloatingPanelRef = useRef<HTMLDivElement | null>(null);
+  const movementDetailsDropdownRef = useRef<HTMLDivElement | null>(null);
+  const movementDetailsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const movementDetailsFloatingPanelRef = useRef<HTMLDivElement | null>(null);
   const lockedGridDetailsPanelWidthRef = useRef<number | null>(null);
   const lockedGridSettingsPanelWidthRef = useRef<number | null>(null);
+  const lockedMovementDetailsPanelWidthRef = useRef<number | null>(null);
   const [gridDetailsPanelStyle, setGridDetailsPanelStyle] =
     useState<CSSProperties | null>(null);
   const [gridSettingsPanelStyle, setGridSettingsPanelStyle] =
+    useState<CSSProperties | null>(null);
+  const [movementDetailsPanelStyle, setMovementDetailsPanelStyle] =
     useState<CSSProperties | null>(null);
   const [explicitSemanticVariationId, setExplicitSemanticVariationId] =
     useState("");
@@ -6684,7 +10252,8 @@ function ExerciseLibraryCard({
   );
   const activeSemanticVariationName = selectedSemanticVariation?.name || "";
   const cardClassificationLabel = getCardClassificationLabel(metadata);
-  const categoryTheme = getCategoryTheme(cardClassificationLabel);
+  const categoryTheme = sectionTheme || getCategoryTheme(cardClassificationLabel);
+  const categoryThemeStyle = getCategoryThemeCssVariables(categoryTheme);
   const difficultyTheme = getDifficultyTheme(exercise.level);
   const activeExerciseName = activeSemanticVariationName || variationName;
   const patternLabel = metadata?.movementPatternLabel || exercise.pattern;
@@ -6702,10 +10271,54 @@ function ExerciseLibraryCard({
     selectedModifierIds,
   });
   const goalLabel = getSelectedGoalLabel(exercise, selectedModifierIds, metadata);
-  const recentStats = getRecentExerciseStats(
+  const selectedSemanticVariationId =
+    selectedSemanticVariation?.id || exercise.semanticVariationId;
+  const exerciseStatHistory = getExerciseStatHistory(
     savedExerciseStats,
     exercise,
     activeExerciseName,
+    metadata,
+    selectedSemanticVariationId,
+  );
+  const weeklyExerciseVolume = getWeeklyVolumeForStats(exerciseStatHistory);
+  const weeklyExerciseGoal = getWeeklySetGoalForExercise();
+  const weeklyExerciseStatusId = getWeeklySetGoalStatusId(
+    weeklyExerciseVolume.sets,
+    weeklyExerciseGoal,
+  );
+  const cardLatestSetInsight =
+    latestSetInsight?.exerciseId === exercise.id ? latestSetInsight : null;
+  const cardVolumeStyle = {
+    ...categoryThemeStyle,
+    "--exercise-card-volume-progress": `${getWeeklySetGoalFillPercent(
+      weeklyExerciseVolume.sets,
+      weeklyExerciseGoal,
+    )}%`,
+  } as ExerciseLibraryThemeCssVariables;
+  const lifetimeSetsComplete = getLifetimeSetsComplete(
+    savedExerciseStats,
+    exercise,
+    metadata,
+    activeExerciseName,
+    selectedSemanticVariationId,
+  );
+  const lifetimeSetsCompleteLabel =
+    formatLifetimeSetsComplete(lifetimeSetsComplete);
+  const weeklyExerciseVolumePill = (
+    <span
+      className={`rounded-full border px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] sm:px-2 sm:text-[8px] ${categoryTheme.pillClass}`}
+      title={`${cardTitle}: ${Math.max(
+        0,
+        Math.round(weeklyExerciseVolume.sets),
+      )} of ${weeklyExerciseGoal} weekly sets, ${weeklyVolumeStatusConfig[weeklyExerciseStatusId].label}`}
+    >
+      <WeeklySetGoalBadge
+        completedSets={weeklyExerciseVolume.sets}
+        completedReps={weeklyExerciseVolume.reps}
+        goalSets={weeklyExerciseGoal}
+        showReps
+      />
+    </span>
   );
   const movementArchitectureChips = getMovementArchitectureChips(
     exercise,
@@ -6716,7 +10329,20 @@ function ExerciseLibraryCard({
   const isGridView = viewMode === "grid";
   const isGridDetailsOpen = isGridView && isExerciseDetailsOpen;
   const isDetailExerciseDetailsOpen = !isGridView && isExerciseDetailsOpen;
-  const latestGridStat = recentStats[0];
+  const semanticVariationStatsById = useMemo(
+    () =>
+      Object.fromEntries(
+        semanticVariationOptions.map((variation) => [
+          variation.id,
+          getSemanticVariationStatsSummary(
+            savedExerciseStats,
+            exercise,
+            variation,
+          ),
+        ]),
+      ) as Record<string, SemanticVariationStatsSummary>,
+    [exercise, savedExerciseStats, semanticVariationOptions],
+  );
   const compatibleModifierGroups = getCompatibleModifierGroups(metadata);
   const coreMovementId = metadata?.coreMovementId || null;
   const rawGoalModifierGroup = compatibleModifierGroups.find(
@@ -6984,10 +10610,9 @@ function ExerciseLibraryCard({
     searchedEquipmentOptionKey,
   ]);
 
-  const gridDetailsDropdownId = `details-${exercise.id.replace(
-    /[^a-zA-Z0-9_-]/g,
-    "-",
-  )}`;
+  const safeExerciseDomId = exercise.id.replace(/[^a-zA-Z0-9_-]/g, "-");
+  const safeCardInstanceDomId = cardInstanceId.replace(/[^a-zA-Z0-9_-]/g, "-");
+  const gridDetailsDropdownId = `details-${safeExerciseDomId}`;
   const gridDetailsPanelId = `details-panel-${exercise.id.replace(
     /[^a-zA-Z0-9_-]/g,
     "-",
@@ -7000,10 +10625,7 @@ function ExerciseLibraryCard({
     /[^a-zA-Z0-9_-]/g,
     "-",
   )}`;
-  const movementDetailsPanelId = `movement-details-${exercise.id.replace(
-    /[^a-zA-Z0-9_-]/g,
-    "-",
-  )}`;
+  const movementDetailsPanelId = `movement-details-${safeCardInstanceDomId}`;
   const dropdownEventKeepsPanelOpen = (
     detail: ExerciseLibraryDropdownOpenDetail | undefined,
     panelId: string,
@@ -7102,6 +10724,17 @@ function ExerciseLibraryCard({
       setStyle: setGridDetailsPanelStyle,
       lockedWidthRef: lockedGridDetailsPanelWidthRef,
       zIndex: 2147483010,
+    });
+  const updateMovementDetailsPanelPosition = () =>
+    updateGridFloatingPanelPosition({
+      anchor: movementDetailsButtonRef.current,
+      maxHeight: 560,
+      maxWidth: 740,
+      minHeight: 260,
+      preferredWidth: 640,
+      setStyle: setMovementDetailsPanelStyle,
+      lockedWidthRef: lockedMovementDetailsPanelWidthRef,
+      zIndex: 2147483005,
     });
 
   useEffect(() => {
@@ -7288,6 +10921,76 @@ function ExerciseLibraryCard({
     settingsDropdownId,
   ]);
   useEffect(() => {
+    if (!isMovementDetailsOpen || isGridView) return;
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (
+        target instanceof Node &&
+        movementDetailsDropdownRef.current &&
+        !movementDetailsDropdownRef.current.contains(target) &&
+        !movementDetailsFloatingPanelRef.current?.contains(target) &&
+        !(
+          target instanceof Element &&
+          target.closest('[data-exercise-library-floating-menu="true"]')
+        )
+      ) {
+        onToggleMovementDetails(null);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onToggleMovementDetails(null);
+    };
+    let animationFrame: number | null = null;
+    const scheduleMovementDetailsPositionUpdate = (
+      event?: Event,
+      unlockWidth = false,
+    ) => {
+      const target = event?.target;
+      if (
+        target instanceof Node &&
+        movementDetailsFloatingPanelRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      if (unlockWidth) lockedMovementDetailsPanelWidthRef.current = null;
+      if (animationFrame !== null) return;
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updateMovementDetailsPanelPosition();
+      });
+    };
+    const handleMovementDetailsResize = () =>
+      scheduleMovementDetailsPositionUpdate(undefined, true);
+
+    updateMovementDetailsPanelPosition();
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener(
+      "scroll",
+      scheduleMovementDetailsPositionUpdate,
+      true,
+    );
+    window.addEventListener("resize", handleMovementDetailsResize);
+
+    return () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener(
+        "scroll",
+        scheduleMovementDetailsPositionUpdate,
+        true,
+      );
+      window.removeEventListener("resize", handleMovementDetailsResize);
+    };
+  }, [isGridView, isMovementDetailsOpen, onToggleMovementDetails]);
+  useEffect(() => {
     if (isSettingsOpen && isGridView) return;
 
     lockedGridSettingsPanelWidthRef.current = null;
@@ -7302,6 +11005,8 @@ function ExerciseLibraryCard({
   useEffect(() => {
     if (!isMovementDetailsOpen) {
       setActiveMovementDetailsSubPanel(null);
+      lockedMovementDetailsPanelWidthRef.current = null;
+      setMovementDetailsPanelStyle(null);
     }
   }, [isMovementDetailsOpen]);
 
@@ -7332,8 +11037,9 @@ function ExerciseLibraryCard({
           }
         : undefined,
     );
+    if (!isGridView) updateMovementDetailsPanelPosition();
     setActiveMovementDetailsSubPanel(null);
-    onToggleMovementDetails(exercise.id);
+    onToggleMovementDetails(cardInstanceId);
   };
   const handleDetailExerciseDetailsToggle = () => {
     if (isDetailExerciseDetailsOpen) {
@@ -7374,7 +11080,7 @@ function ExerciseLibraryCard({
         <button
           type="button"
           onClick={() => onAddToPlan(exercise)}
-          className="min-h-[48px] rounded-2xl border border-cyan-300/25 bg-cyan-400/15 px-4 py-3 text-sm font-black text-cyan-200 transition hover:bg-cyan-400 hover:text-slate-950"
+          className="exercise-library-themed-action min-h-[48px] rounded-2xl border border-cyan-300/25 bg-cyan-400/15 px-4 py-3 text-sm font-black text-cyan-200 transition hover:bg-cyan-400 hover:text-slate-950"
         >
           Add to Plan
         </button>
@@ -7383,7 +11089,7 @@ function ExerciseLibraryCard({
       {!exercise.custom ? (
         <a
           href={ROUTES.workoutBuilder.exerciseDemo}
-          className="flex min-h-[48px] items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
+          className="exercise-library-themed-action flex min-h-[48px] items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center text-sm font-black text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
         >
           View Demo
         </a>
@@ -7392,7 +11098,7 @@ function ExerciseLibraryCard({
       <button
         type="button"
         onClick={handleAddStats}
-        className="min-h-[48px] rounded-2xl border border-yellow-300/30 bg-yellow-400/15 px-4 py-3 text-sm font-black text-yellow-300 transition hover:bg-yellow-400 hover:text-slate-950"
+        className="exercise-library-themed-action min-h-[48px] rounded-2xl border border-yellow-300/30 bg-yellow-400/15 px-4 py-3 text-sm font-black text-yellow-300 transition hover:bg-yellow-400 hover:text-slate-950"
       >
         Add Stats
       </button>
@@ -7428,12 +11134,13 @@ function ExerciseLibraryCard({
           parentDropdownId={settingsDropdownId}
           keepOpenDropdownIds={[settingsDropdownId, gridDetailsDropdownId]}
           accent={control.accent}
+          themeStyle={categoryThemeStyle}
           size={isGridView ? "grid" : "detail"}
         />
       ))}
     </div>
   ) : null;
-  const settingsButtonClass = `flex w-full items-center justify-between border border-cyan-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.16),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.70))] text-left font-black uppercase text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_26px_rgba(0,0,0,0.24)] transition hover:border-cyan-100/45 hover:bg-cyan-300/10 ${
+  const settingsButtonClass = `exercise-library-themed-control flex w-full items-center justify-between border border-cyan-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.16),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.70))] text-left font-black uppercase text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_10px_26px_rgba(0,0,0,0.24)] transition hover:border-cyan-100/45 hover:bg-cyan-300/10 ${
     isGridView
       ? "min-h-[34px] rounded-xl px-2.5 py-1.5 text-[9px] tracking-[0.08em] sm:text-[10px]"
       : "min-h-[42px] rounded-2xl px-3.5 py-2 text-[11px] tracking-[0.12em]"
@@ -7441,7 +11148,7 @@ function ExerciseLibraryCard({
   const renderSettingsChevron = (open: boolean) => (
     <span
       aria-hidden="true"
-      className={`flex items-center justify-center rounded-full border border-cyan-200/20 bg-cyan-300/10 text-cyan-100 transition ${
+      className={`exercise-library-themed-chevron flex items-center justify-center rounded-full border border-cyan-200/20 bg-cyan-300/10 text-cyan-100 transition ${
         isGridView ? "h-5 w-5 text-[10px]" : "h-6 w-6 text-xs"
       } ${
         open
@@ -7505,7 +11212,7 @@ function ExerciseLibraryCard({
             ? createPortal(
                 <div
                   ref={settingsFloatingPanelRef}
-                  style={gridSettingsPanelStyle}
+                  style={{ ...gridSettingsPanelStyle, ...categoryThemeStyle }}
                   data-exercise-library-floating-menu="true"
                   className={floatingPanelClassName}
                 >
@@ -7527,23 +11234,69 @@ function ExerciseLibraryCard({
     label: "Customize Settings",
     wrapperClassName: "relative mt-3",
     panelClassName:
-      "relative z-[80] mt-2.5 rounded-2xl border border-cyan-100/30 bg-slate-950/95 p-2.5 shadow-[0_24px_74px_rgba(0,0,0,0.72),0_0_34px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-200/10 backdrop-blur-2xl",
+      "exercise-library-themed-panel relative z-[80] mt-2.5 rounded-2xl border border-cyan-100/30 bg-slate-950/95 p-2.5 shadow-[0_24px_74px_rgba(0,0,0,0.72),0_0_34px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-200/10 backdrop-blur-2xl",
   });
   const gridSettingsDropdown = renderExerciseSettingsDropdown({
     label: "Customize Settings",
     wrapperClassName: "relative z-[140] mt-1.5 sm:mt-2",
     panelClassName:
-      "absolute left-0 right-0 top-full z-[940] mt-1.5 max-h-[210px] overflow-y-auto overscroll-contain rounded-2xl border border-cyan-100/35 bg-slate-950/98 p-2.5 shadow-[0_24px_76px_rgba(0,0,0,0.78),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-200/14 backdrop-blur-2xl [scrollbar-color:rgba(34,211,238,0.42)_transparent] [scrollbar-width:thin]",
+      "exercise-library-themed-panel exercise-library-themed-scrollbar absolute left-0 right-0 top-full z-[940] mt-1.5 max-h-[210px] overflow-y-auto overscroll-contain rounded-2xl border border-cyan-100/35 bg-slate-950/98 p-2.5 shadow-[0_24px_76px_rgba(0,0,0,0.78),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-200/14 backdrop-blur-2xl [scrollbar-color:rgba(34,211,238,0.42)_transparent] [scrollbar-width:thin]",
     floatingPanelClassName:
-      "fixed overflow-y-auto overscroll-contain rounded-2xl border border-cyan-100/35 bg-slate-950/98 p-2.5 shadow-[0_28px_86px_rgba(0,0,0,0.82),0_0_38px_rgba(34,211,238,0.20),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-200/14 backdrop-blur-2xl [scrollbar-color:rgba(34,211,238,0.42)_transparent] [scrollbar-width:thin]",
+      "exercise-library-themed-floating-panel exercise-library-themed-scrollbar fixed overflow-y-auto overscroll-contain rounded-2xl border border-cyan-100/35 bg-slate-950/98 p-2.5 shadow-[0_28px_86px_rgba(0,0,0,0.82),0_0_38px_rgba(34,211,238,0.20),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-200/14 backdrop-blur-2xl [scrollbar-color:rgba(34,211,238,0.42)_transparent] [scrollbar-width:thin]",
   });
+  const movementDetailsPanelContent = (
+    <div className="[&>div:first-child]:mt-0">
+      <MovementMetadataPanel
+        metadata={metadata}
+        selectedModifierIds={selectedModifierIds}
+        setSelectedModifierIds={setSelectedModifierIds}
+        movementArchitectureChips={movementArchitectureChips}
+        classificationChipClass={categoryTheme.pillClass}
+        onChipSelect={onMovementChipSelect}
+        themeStyle={categoryThemeStyle}
+        customizeSettingsModifierIds={customizeSettingsModifierIds}
+        customizeSettingsFallbackLabels={customizeSettingsFallbackLabels}
+        customizeSettingsCategoryIds={customizeSettingsCategoryIds}
+      />
+
+      <MovementSuggestionsPanel
+        suggestions={suggestions}
+        isOpen={activeMovementDetailsSubPanel === "similar"}
+        onToggle={() => toggleMovementDetailsSubPanel("similar")}
+      />
+
+      <MovementProgressPanel
+        suggestions={suggestions}
+        isOpen={activeMovementDetailsSubPanel === "progress"}
+        onToggle={() => toggleMovementDetailsSubPanel("progress")}
+      />
+
+      <div className="exercise-library-themed-panel mt-3 rounded-2xl border border-emerald-300/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(16,185,129,0.05))] p-4 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-200/80 drop-shadow-[0_0_8px_rgba(16,185,129,0.35)]">
+          Coaching Cue
+        </p>
+
+        <p className="mt-2 text-sm leading-5 text-emerald-100/80 drop-shadow-[0_0_10px_rgba(16,185,129,0.25)]">
+          {exercise.cue}
+        </p>
+      </div>
+    </div>
+  );
   const movementDetails = (
-    <div className="group mt-2.5 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.055] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_40px_rgba(8,145,178,0.12)] backdrop-blur-2xl">
+    <div
+      ref={movementDetailsDropdownRef}
+      className="exercise-library-themed-panel group mt-2.5 rounded-2xl border border-cyan-300/15 bg-cyan-400/[0.055] shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_40px_rgba(8,145,178,0.12)] backdrop-blur-2xl"
+    >
       <button
+        ref={movementDetailsButtonRef}
         type="button"
         aria-controls={movementDetailsPanelId}
         aria-expanded={isMovementDetailsOpen}
-        onClick={handleMovementDetailsToggle}
+        aria-haspopup="dialog"
+        onClick={(event) => {
+          event.stopPropagation();
+          handleMovementDetailsToggle();
+        }}
         className="flex min-h-[48px] w-full cursor-pointer items-center justify-between gap-3 px-4 py-3 text-left"
       >
         <span className="min-w-0">
@@ -7556,7 +11309,7 @@ function ExerciseLibraryCard({
         </span>
         <span
           aria-hidden="true"
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-100/15 bg-white/[0.06] text-sm font-black text-cyan-100 transition ${
+          className={`exercise-library-themed-chevron flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-100/15 bg-white/[0.06] text-sm font-black text-cyan-100 transition ${
             isMovementDetailsOpen ? "rotate-180 border-cyan-200/30" : ""
           }`}
         >
@@ -7564,45 +11317,49 @@ function ExerciseLibraryCard({
         </span>
       </button>
 
-      {isMovementDetailsOpen ? (
-        <div
-          id={movementDetailsPanelId}
-          className="border-t border-white/10 p-3 [&>div:first-child]:mt-0"
-        >
-          <MovementMetadataPanel
-            metadata={metadata}
-            selectedModifierIds={selectedModifierIds}
-            setSelectedModifierIds={setSelectedModifierIds}
-            movementArchitectureChips={movementArchitectureChips}
-            classificationChipClass={categoryTheme.pillClass}
-            customizeSettingsModifierIds={customizeSettingsModifierIds}
-            customizeSettingsFallbackLabels={customizeSettingsFallbackLabels}
-            customizeSettingsCategoryIds={customizeSettingsCategoryIds}
-          />
-
-          <MovementSuggestionsPanel
-            suggestions={suggestions}
-            isOpen={activeMovementDetailsSubPanel === "similar"}
-            onToggle={() => toggleMovementDetailsSubPanel("similar")}
-          />
-
-          <MovementProgressPanel
-            suggestions={suggestions}
-            isOpen={activeMovementDetailsSubPanel === "progress"}
-            onToggle={() => toggleMovementDetailsSubPanel("progress")}
-          />
-
-          <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(16,185,129,0.05))] p-4 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-200/80 drop-shadow-[0_0_8px_rgba(16,185,129,0.35)]">
-              Coaching Cue
-            </p>
-
-            <p className="mt-2 text-sm leading-5 text-emerald-100/80 drop-shadow-[0_0_10px_rgba(16,185,129,0.25)]">
-              {exercise.cue}
-            </p>
-          </div>
-        </div>
-      ) : null}
+      {typeof document !== "undefined" &&
+      isMovementDetailsOpen &&
+      !isGridView &&
+      movementDetailsPanelStyle
+        ? createPortal(
+            <div
+              ref={movementDetailsFloatingPanelRef}
+              id={movementDetailsPanelId}
+              role="dialog"
+              aria-label={`${cardTitle} movement details`}
+              style={{ ...movementDetailsPanelStyle, ...categoryThemeStyle }}
+              data-exercise-library-floating-menu="true"
+              className="exercise-library-themed-floating-panel exercise-library-themed-scrollbar fixed overflow-y-auto overscroll-contain rounded-2xl border border-cyan-100/24 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.16),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.985),rgba(2,6,23,0.965))] p-3 shadow-[0_30px_92px_rgba(0,0,0,0.84),0_0_42px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.14)] ring-1 ring-cyan-200/12 backdrop-blur-2xl [scrollbar-color:rgba(34,211,238,0.36)_transparent] [scrollbar-width:thin]"
+            >
+              <div className="mb-3 flex items-start justify-between gap-3 border-b border-cyan-100/14 pb-3">
+                <div className="min-w-0">
+                  <p className="truncate text-base font-black leading-6 text-white drop-shadow-[0_0_14px_rgba(255,255,255,0.28)]">
+                    {cardTitle}
+                  </p>
+                  {coreMovementLabel ? (
+                    <p className="mt-1 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100/65">
+                      Core Movement:{" "}
+                      <span className="text-cyan-50">{coreMovementLabel}</span>
+                    </p>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  aria-label={`Close ${cardTitle} movement details`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onToggleMovementDetails(null);
+                  }}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-cyan-100/18 bg-white/[0.06] text-xs font-black text-cyan-100 transition hover:border-cyan-100/42 hover:bg-cyan-300/12 hover:text-white"
+                >
+                  X
+                </button>
+              </div>
+              {movementDetailsPanelContent}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
   const gridDetailsPanelContent = (
@@ -7611,12 +11368,15 @@ function ExerciseLibraryCard({
         <MuscleIntelligenceBlock
           muscles={muscleIntelligence}
           compact
+          latestSetInsight={cardLatestSetInsight}
+          onMuscleSelect={onMuscleSelect}
           showSourceBadge={false}
+          weeklySetsByMuscleLabel={weeklySetsByMuscleLabel}
         />
       </div>
 
       <div className="min-w-0 space-y-2">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+        <div className="exercise-library-themed-panel rounded-2xl border border-white/10 bg-white/[0.035] p-2">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100/60">
               Movement Intelligence
@@ -7629,10 +11389,9 @@ function ExerciseLibraryCard({
             chips={movementArchitectureChips}
             compact
             classificationChipClass={categoryTheme.pillClass}
+            onChipSelect={onMovementChipSelect}
           />
         </div>
-
-        <div className="[&>div]:mt-0">{movementDetails}</div>
       </div>
     </div>
   );
@@ -7669,9 +11428,9 @@ function ExerciseLibraryCard({
         ? createPortal(
             <div
               ref={gridDetailsFloatingPanelRef}
-              style={gridDetailsPanelStyle}
+              style={{ ...gridDetailsPanelStyle, ...categoryThemeStyle }}
               data-exercise-library-floating-menu="true"
-              className="fixed overflow-y-auto overscroll-contain rounded-2xl border border-cyan-100/24 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.14),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-3 shadow-[0_30px_92px_rgba(0,0,0,0.82),0_0_40px_rgba(34,211,238,0.13),inset_0_1px_0_rgba(255,255,255,0.14)] ring-1 ring-cyan-200/10 backdrop-blur-2xl [scrollbar-color:rgba(34,211,238,0.36)_transparent] [scrollbar-width:thin]"
+              className="exercise-library-themed-floating-panel exercise-library-themed-scrollbar fixed overflow-y-auto overscroll-contain rounded-2xl border border-cyan-100/24 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.14),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-3 shadow-[0_30px_92px_rgba(0,0,0,0.82),0_0_40px_rgba(34,211,238,0.13),inset_0_1px_0_rgba(255,255,255,0.14)] ring-1 ring-cyan-200/10 backdrop-blur-2xl [scrollbar-color:rgba(34,211,238,0.36)_transparent] [scrollbar-width:thin]"
             >
               <div id={gridDetailsPanelId}>{gridDetailsPanelContent}</div>
             </div>,
@@ -7692,6 +11451,7 @@ function ExerciseLibraryCard({
           setModifierForCategory("training-intent", modifierId)
         }
         accent="yellow"
+        themeStyle={categoryThemeStyle}
         size={isGridView ? "grid" : "detail"}
       />
       <GoalTrainingTips goalLabel={goalLabel} compact={isGridView} />
@@ -7713,9 +11473,14 @@ function ExerciseLibraryCard({
       {isDetailExerciseDetailsOpen ? (
         <div
           id={detailExerciseDetailsPanelId}
-          className="mt-2.5 w-full max-w-none rounded-2xl border border-cyan-100/18 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.92))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_16px_46px_rgba(0,0,0,0.34)] ring-1 ring-cyan-200/10"
+          className="exercise-library-themed-panel mt-2.5 w-full max-w-none rounded-2xl border border-cyan-100/18 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.92))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_16px_46px_rgba(0,0,0,0.34)] ring-1 ring-cyan-200/10"
         >
-          <MuscleIntelligenceBlock muscles={muscleIntelligence} />
+          <MuscleIntelligenceBlock
+            muscles={muscleIntelligence}
+            latestSetInsight={cardLatestSetInsight}
+            onMuscleSelect={onMuscleSelect}
+            weeklySetsByMuscleLabel={weeklySetsByMuscleLabel}
+          />
           {movementDetails}
           {goalSelectorBlock}
         </div>
@@ -7726,7 +11491,10 @@ function ExerciseLibraryCard({
   if (isGridView) {
     return (
       <article
-        className={`group relative mb-2 inline-block w-full break-inside-avoid self-start overflow-visible rounded-2xl border backdrop-blur-2xl backdrop-saturate-150 transition sm:mb-3 ${categoryTheme.surfaceClass} ${categoryTheme.cardClass} ${categoryTheme.hoverClass} ${
+        style={cardVolumeStyle}
+        className={`exercise-library-themed-card group relative mb-2 inline-block w-full break-inside-avoid self-start overflow-visible rounded-2xl border backdrop-blur-2xl backdrop-saturate-150 transition sm:mb-3 ${categoryTheme.surfaceClass} ${categoryTheme.cardClass} ${categoryTheme.hoverClass} ${
+          cardLatestSetInsight ? "exercise-library-volume-pulse" : ""
+        } ${
           isVariationDropdownOpen ||
           isSemanticDropdownOpen ||
           isGridDetailsOpen ||
@@ -7736,6 +11504,10 @@ function ExerciseLibraryCard({
         }`}
       >
         <div className={`pointer-events-none absolute inset-0 z-0 rounded-2xl ${categoryTheme.overlayClass} opacity-70`} />
+        <div
+          aria-hidden="true"
+          className="exercise-library-card-volume-fill rounded-2xl"
+        />
         <div className={`pointer-events-none absolute inset-x-0 top-0 z-[12] h-px ${categoryTheme.accentClass}`} />
         <FavoriteButton
           isFavorite={isFavorite}
@@ -7749,16 +11521,62 @@ function ExerciseLibraryCard({
             alt={cardTitle}
             className="h-full w-full object-cover opacity-78 transition duration-500 group-hover:scale-105 group-hover:opacity-95"
           />
-          <div className={`absolute bottom-1 left-1 max-w-[calc(100%-0.5rem)] truncate rounded-full border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.08em] backdrop-blur-xl sm:bottom-2 sm:left-2 sm:px-2.5 sm:py-1 sm:text-[9px] sm:tracking-[0.12em] ${categoryTheme.pillClass}`}>
-            {exercise.body}
-          </div>
         </div>
 
         <div className="relative z-10 p-2 sm:p-3">
+          <div className="mb-1.5 flex flex-wrap items-center gap-1 sm:mb-2 sm:gap-1.5">
+            <button
+              type="button"
+              aria-label={`Filter body region ${exercise.body}`}
+              onClick={() => onBodyFilterSelect(exercise.body)}
+              className={`rounded-full border px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-100/30 sm:px-2 sm:text-[8px] ${categoryTheme.pillClass}`}
+              title={`Filter by ${exercise.body}`}
+            >
+              {exercise.body}
+            </button>
+
+            <button
+              type="button"
+              aria-label="Lifetime Sets Complete"
+              className={`rounded-full border px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-yellow-100/30 sm:px-2 sm:text-[8px] ${categoryTheme.pillClass}`}
+              title="Open stats for Lifetime Sets Complete"
+              onClick={(event) =>
+                onAddStats(exercise, "grid", event.currentTarget)
+              }
+            >
+              {lifetimeSetsCompleteLabel}
+            </button>
+
+            {weeklyExerciseVolumePill}
+
+            <button
+              type="button"
+              aria-label={`Filter difficulty ${exercise.level}`}
+              onClick={() => onDifficultyFilterSelect(exercise.level)}
+              className={`rounded-full border px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white/30 sm:px-2 sm:text-[8px] ${difficultyTheme.pill}`}
+              title={`Filter by ${exercise.level}`}
+            >
+              {exercise.level}
+            </button>
+          </div>
+
           {coreMovementLabel ? (
             <p className="mb-1 text-[8px] font-black uppercase leading-3 tracking-[0.1em] text-cyan-100/70 sm:text-[9px]">
               Core Movement:{" "}
-              <span className="text-cyan-50">{coreMovementLabel}</span>
+              <button
+                type="button"
+                className="text-cyan-50 underline decoration-cyan-200/0 underline-offset-2 transition hover:decoration-cyan-200/70 focus:outline-none focus:ring-2 focus:ring-cyan-100/30"
+                onClick={() =>
+                  onMovementChipSelect({
+                    key: `core-${coreMovementLabel}`,
+                    label: coreMovementLabel,
+                    tone: "movement",
+                  })
+                }
+                title={`Filter by ${coreMovementLabel}`}
+              >
+                {coreMovementLabel}
+              </button>
             </p>
           ) : null}
 
@@ -7770,6 +11588,12 @@ function ExerciseLibraryCard({
             value={selectedSemanticVariation?.id || ""}
             onChange={handleSemanticVariationChange}
             onOpenChange={setIsSemanticDropdownOpen}
+            onAddNewVariation={() =>
+              onCreateVariation(metadata?.coreMovementId || exercise.coreMovementPattern)
+            }
+            coreMovementLabel={coreMovementLabel}
+            statsByVariationId={semanticVariationStatsById}
+            themeStyle={categoryThemeStyle}
             compact
           />
 
@@ -7777,31 +11601,17 @@ function ExerciseLibraryCard({
           {gridDetailsDropdown}
           {goalSelectorBlock}
 
-          <div className="mt-1.5 rounded-lg border border-cyan-100/15 bg-[linear-gradient(135deg,rgba(34,211,238,0.11),rgba(16,185,129,0.075))] px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl sm:mt-2 sm:rounded-xl sm:px-2.5 sm:py-2">
-            <div className="hidden items-center justify-between gap-2 sm:flex">
-              <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100/70 sm:text-[8px]">
-                Recent Stats
-              </p>
-              {latestGridStat ? (
-                <p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/35 sm:text-[8px]">
-                  {new Date(latestGridStat.date).toLocaleDateString()}
-                </p>
-              ) : null}
-            </div>
-            <p className="truncate text-[10px] font-black leading-4 text-slate-100 sm:mt-1 sm:break-words sm:text-[11px]">
-              {latestGridStat
-                ? `${latestGridStat.weight || "--"} load / ${
-                    latestGridStat.reps || "--"
-                  } reps / ${latestGridStat.sets || "--"} sets`
-                : "No stats yet"}
-            </p>
-          </div>
+          <RecentStatsStrip
+            stats={exerciseStatHistory}
+            compact
+            latestInsight={cardLatestSetInsight}
+          />
 
           <div className="mt-1.5 grid grid-cols-2 gap-1 sm:mt-2 sm:gap-1.5">
             {!exercise.custom ? (
               <a
                 href={ROUTES.workoutBuilder.exerciseDemo}
-                className="flex min-h-[40px] items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-1.5 py-2 text-center text-[9px] font-black uppercase tracking-[0.08em] text-cyan-200 transition hover:bg-cyan-400 hover:text-slate-950 sm:min-h-[38px] sm:rounded-xl sm:px-3 sm:text-[10px] sm:tracking-[0.12em]"
+                className="exercise-library-themed-action flex min-h-[40px] items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-400/10 px-1.5 py-2 text-center text-[9px] font-black uppercase tracking-[0.08em] text-cyan-200 transition hover:bg-cyan-400 hover:text-slate-950 sm:min-h-[38px] sm:rounded-xl sm:px-3 sm:text-[10px] sm:tracking-[0.12em]"
               >
                 View Demo
               </a>
@@ -7818,7 +11628,7 @@ function ExerciseLibraryCard({
             <button
               type="button"
               onClick={handleAddStats}
-              className="min-h-[40px] rounded-lg border border-yellow-300/30 bg-yellow-400/15 px-1.5 py-2 text-[9px] font-black uppercase tracking-[0.08em] text-yellow-300 transition hover:bg-yellow-400 hover:text-slate-950 sm:min-h-[38px] sm:rounded-xl sm:px-3 sm:text-[10px] sm:tracking-[0.12em]"
+              className="exercise-library-themed-action min-h-[40px] rounded-lg border border-yellow-300/30 bg-yellow-400/15 px-1.5 py-2 text-[9px] font-black uppercase tracking-[0.08em] text-yellow-300 transition hover:bg-yellow-400 hover:text-slate-950 sm:min-h-[38px] sm:rounded-xl sm:px-3 sm:text-[10px] sm:tracking-[0.12em]"
             >
               Add Stats
             </button>
@@ -7830,7 +11640,10 @@ function ExerciseLibraryCard({
 
   return (
     <article
-      className={`group relative mb-4 inline-block w-full break-inside-avoid self-start overflow-visible rounded-[30px] border backdrop-blur-2xl backdrop-saturate-150 transition ${categoryTheme.surfaceClass} ${categoryTheme.cardClass} ${categoryTheme.hoverClass} ${
+      style={cardVolumeStyle}
+      className={`exercise-library-themed-card group relative mb-4 inline-block w-full break-inside-avoid self-start overflow-visible rounded-[30px] border backdrop-blur-2xl backdrop-saturate-150 transition ${categoryTheme.surfaceClass} ${categoryTheme.cardClass} ${categoryTheme.hoverClass} ${
+        cardLatestSetInsight ? "exercise-library-volume-pulse" : ""
+      } ${
         isVariationDropdownOpen ||
         isSemanticDropdownOpen ||
         isGridDetailsOpen ||
@@ -7841,6 +11654,10 @@ function ExerciseLibraryCard({
       }`}
     >
       <div className={`pointer-events-none absolute inset-0 z-0 rounded-[30px] ${categoryTheme.overlayClass} opacity-70`} />
+      <div
+        aria-hidden="true"
+        className="exercise-library-card-volume-fill rounded-[30px]"
+      />
       <div className={`pointer-events-none absolute inset-x-0 top-0 z-[12] h-px ${categoryTheme.accentClass}`} />
       <FavoriteButton
         isFavorite={isFavorite}
@@ -7861,25 +11678,58 @@ function ExerciseLibraryCard({
 
       <div className="relative z-10 p-5">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${categoryTheme.pillClass}`}>
+          <button
+            type="button"
+            aria-label={`Filter body region ${exercise.body}`}
+            onClick={() => onBodyFilterSelect(exercise.body)}
+            className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-cyan-100/30 ${categoryTheme.pillClass}`}
+            title={`Filter by ${exercise.body}`}
+          >
             {exercise.body}
-          </span>
+          </button>
 
-          {cardClassificationLabel ? (
-            <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${categoryTheme.pillClass}`}>
-              {cardClassificationLabel}
-            </span>
-          ) : null}
+          <button
+            type="button"
+            aria-label="Lifetime Sets Complete"
+            className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-yellow-100/30 ${categoryTheme.pillClass}`}
+            title="Open stats for Lifetime Sets Complete"
+            onClick={(event) =>
+              onAddStats(exercise, "detail", event.currentTarget)
+            }
+          >
+            {lifetimeSetsCompleteLabel}
+          </button>
 
-          <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${difficultyTheme.pill}`}>
+          {weeklyExerciseVolumePill}
+
+          <button
+            type="button"
+            aria-label={`Filter difficulty ${exercise.level}`}
+            onClick={() => onDifficultyFilterSelect(exercise.level)}
+            className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.14em] transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white/30 ${difficultyTheme.pill}`}
+            title={`Filter by ${exercise.level}`}
+          >
             {exercise.level}
-          </span>
+          </button>
         </div>
 
         {coreMovementLabel ? (
           <p className="mt-3.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/70">
             Core Movement:{" "}
-            <span className="text-cyan-50">{coreMovementLabel}</span>
+            <button
+              type="button"
+              className="text-cyan-50 underline decoration-cyan-200/0 underline-offset-2 transition hover:decoration-cyan-200/70 focus:outline-none focus:ring-2 focus:ring-cyan-100/30"
+              onClick={() =>
+                onMovementChipSelect({
+                  key: `core-${coreMovementLabel}`,
+                  label: coreMovementLabel,
+                  tone: "movement",
+                })
+              }
+              title={`Filter by ${coreMovementLabel}`}
+            >
+              {coreMovementLabel}
+            </button>
           </p>
         ) : null}
 
@@ -7891,13 +11741,22 @@ function ExerciseLibraryCard({
           value={selectedSemanticVariation?.id || ""}
           onChange={handleSemanticVariationChange}
           onOpenChange={setIsSemanticDropdownOpen}
+          onAddNewVariation={() =>
+            onCreateVariation(metadata?.coreMovementId || exercise.coreMovementPattern)
+          }
+          coreMovementLabel={coreMovementLabel}
+          statsByVariationId={semanticVariationStatsById}
+          themeStyle={categoryThemeStyle}
         />
         {settingsDropdown}
         {detailExerciseDetails}
       </div>
 
       <div className="relative z-10 px-5 pb-5 pt-3">
-        <RecentStatsStrip stats={recentStats} />
+        <RecentStatsStrip
+          stats={exerciseStatHistory}
+          latestInsight={cardLatestSetInsight}
+        />
 
         {actionButtons}
       </div>
@@ -7915,6 +11774,8 @@ export default function ExerciseLibraryPage() {
     useState<ExerciseLibrarySortMode>(defaultExerciseLibrarySortMode);
   const exerciseSectionsPerPage = 4;
   const [bodyFilters, setBodyFilters] = useState<string[]>([]);
+  const [bodyRegionLayer, setBodyRegionLayer] =
+    useState<BodyRegionLayer | null>(null);
   const [goalFilter, setGoalFilter] = useState("All");
   const [levelFilter, setLevelFilter] = useState("All");
   const [movementTypeFilter, setMovementTypeFilter] = useState("All");
@@ -7923,7 +11784,7 @@ export default function ExerciseLibraryPage() {
   const [planAddToParam, setPlanAddToParam] = useState("");
   const [activeExerciseDetailsCardId, setActiveExerciseDetailsCardId] =
     useState<string | null>(null);
-  const [openMovementDetailsId, setOpenMovementDetailsId] = useState<
+  const [activeMovementDetailsPopupId, setActiveMovementDetailsPopupId] = useState<
     string | null
   >(null);
   const [favoriteExerciseIds, setFavoriteExerciseIds] = useState<Set<string>>(
@@ -7932,6 +11793,7 @@ export default function ExerciseLibraryPage() {
 
   const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  const addExerciseFormRef = useRef<HTMLDivElement | null>(null);
   const [statsExercise, setStatsExercise] = useState<Exercise | null>(null);
   const [statsMenuMode, setStatsMenuMode] =
     useState<ExerciseStatsMenuMode>("detail");
@@ -7946,18 +11808,60 @@ export default function ExerciseLibraryPage() {
   const [savedExerciseStats, setSavedExerciseStats] = useState<
     LocalExerciseStatEntry[]
   >([]);
+  const [profileSummary, setProfileSummary] =
+    useState<ExerciseLibraryProfileSummary>(
+      defaultExerciseLibraryProfileSummary,
+    );
+  const [latestSetInsight, setLatestSetInsight] =
+    useState<LatestSetInsight | null>(null);
 
-  const [newExercise, setNewExercise] = useState({
-    name: "",
-    body: "",
-    muscles: "",
-    pattern: "",
-    goal: "Stability",
-    equipment: "",
-    level: "",
-    image: "",
-    cue: "",
-  });
+  const [newExercise, setNewExercise] = useState<PrivateExerciseDraft>(
+    emptyPrivateExerciseDraft,
+  );
+  const privateExerciseCoreOptions = useMemo(
+    () =>
+      [...normalizedCatalog.filterOptions.coreMovements].sort((left, right) =>
+        left.label.localeCompare(right.label),
+      ),
+    [],
+  );
+  const privateExerciseMetadata = useMemo(
+    () =>
+      getPrivateExerciseMetadataForCoreMovement(
+        newExercise.coreMovementPattern,
+      ),
+    [newExercise.coreMovementPattern],
+  );
+  const privateExerciseSettingControls = useMemo(
+    () =>
+      getPrivateExerciseModifierControls(
+        newExercise.coreMovementPattern,
+        privateExerciseMetadata,
+      ),
+    [newExercise.coreMovementPattern, privateExerciseMetadata],
+  );
+  const privateExerciseEquipmentOptions = useMemo(() => {
+    const equipmentControl = privateExerciseSettingControls.find((control) =>
+      control.categories.includes("apparatus"),
+    );
+
+    return (
+      equipmentControl?.options ||
+      getPrivateExerciseOptionsForControl(
+        defaultEquipmentControl,
+        privateExerciseMetadata,
+      )
+    );
+  }, [privateExerciseSettingControls, privateExerciseMetadata]);
+  const privateExerciseSemanticVariationOptions =
+    privateExerciseMetadata?.semanticVariations || [];
+  const privateExerciseSelectedSemanticVariation =
+    privateExerciseSemanticVariationOptions.find(
+      (variation) => variation.id === newExercise.semanticVariationId,
+    ) || null;
+  const privateExerciseSelectedEquipmentModifierId =
+    getSelectedModifiersByCategory(newExercise.modifierIds, "apparatus")[0]
+      ?.id || "";
 
   useEffect(() => {
     setCustomExercises(readCustomExercises<Exercise>());
@@ -7967,6 +11871,77 @@ export default function ExerciseLibraryPage() {
   useEffect(() => {
     writeCustomExercises(customExercises);
   }, [customExercises]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadProfileSummary = async () => {
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const user = authData.user;
+
+        if (!user || !isActive) {
+          if (isActive) {
+            setProfileSummary(defaultExerciseLibraryProfileSummary);
+          }
+          return;
+        }
+
+        const [{ data: profile }, { data: savedBio }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("full_name, avatar_url")
+            .eq("id", user.id)
+            .single(),
+          supabase.from("client_bios").select("*").eq("id", user.id).single(),
+        ]);
+
+        if (!isActive) return;
+
+        const fullName =
+          profile?.full_name ||
+          user.user_metadata?.full_name ||
+          user.user_metadata?.name ||
+          "";
+        const firstName =
+          savedBio?.preferred_name ||
+          fullName.trim().split(/\s+/)[0] ||
+          "";
+        const emailPrefix = user.email?.split("@")[0] || "";
+        const displayName = firstName || fullName || emailPrefix || "Athlete";
+        const primaryGoal = savedBio?.primary_goal || "No goal set";
+        const bioParts = [
+          savedBio?.age ? `Age ${savedBio.age}` : "",
+          savedBio?.training_experience || "",
+          savedBio?.location || "",
+          savedBio?.nutrition_focus ? `Focus: ${savedBio.nutrition_focus}` : "",
+        ].filter(Boolean);
+
+        setProfileSummary({
+          avatarUrl:
+            profile?.avatar_url ||
+            user.user_metadata?.avatar_url ||
+            user.user_metadata?.picture ||
+            null,
+          bio: bioParts.length ? bioParts.join(" / ") : "Add profile details",
+          displayName,
+          email: user.email || "",
+          primaryGoal,
+          trainingLevel: savedBio?.training_experience || "",
+        });
+      } catch {
+        if (isActive) {
+          setProfileSummary(defaultExerciseLibraryProfileSummary);
+        }
+      }
+    };
+
+    void loadProfileSummary();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   const toggleFavoriteExercise = (exerciseId: string) => {
     setFavoriteExerciseIds((current) => {
@@ -8011,9 +11986,25 @@ export default function ExerciseLibraryPage() {
     setPlanAddToParam(params.get("addTo") || "");
   }, []);
 
+  useEffect(() => {
+    if (!latestSetInsight) return;
+
+    const timer = window.setTimeout(() => {
+      setLatestSetInsight((currentInsight) =>
+        currentInsight?.id === latestSetInsight.id ? null : currentInsight,
+      );
+    }, 6200);
+
+    return () => window.clearTimeout(timer);
+  }, [latestSetInsight]);
+
   const allExercises: Exercise[] = useMemo(() => {
     return [...normalizedSystemExercises, ...customExercises];
   }, [customExercises]);
+  const weeklySetsSummary = useMemo(
+    () => buildWeeklySetsSummary(savedExerciseStats, allExercises),
+    [savedExerciseStats, allExercises],
+  );
 
   const apparatusOptions = useMemo(() => {
     const equipmentCounts = normalizedCatalog.filterOptions.apparatus.reduce(
@@ -8035,10 +12026,46 @@ export default function ExerciseLibraryPage() {
     });
   }, []);
 
-  const bodyOptions = useMemo(
-    () => reorderBodyRegionOptions(getUniqueOptions(allExercises, "body")),
-    [allExercises],
-  );
+  const bodyOptions = useMemo(() => {
+    const baseBodyOptions = getUniqueOptions(allExercises, "body");
+    const mappedMuscleBodyOptions = allExercises.flatMap((exercise) => {
+      const metadata = getMetadataForExercise(exercise);
+      return getExerciseMuscleMappingOverride(exercise, metadata)
+        ? getExerciseVolumeBodyLabels(exercise, metadata)
+        : [];
+    });
+    const mergedOptions = [
+      "All",
+      ...Array.from(
+        new Set([
+          ...baseBodyOptions.filter((option) => option !== "All"),
+          ...mappedMuscleBodyOptions,
+        ]),
+      ).sort(),
+    ];
+
+    return reorderBodyRegionOptions(mergedOptions);
+  }, [allExercises]);
+  const bodyOptionsByLayer = useMemo(() => {
+    const grouped = new Map<BodyRegionLayer, string[]>();
+
+    bodyRegionLayerConfigs.forEach((config) => grouped.set(config.id, []));
+    bodyOptions
+      .filter((body) => body !== "All")
+      .forEach((body) => {
+        const layer = getBodyRegionLayerForLabel(body);
+        if (!layer) return;
+        grouped.set(layer, [...(grouped.get(layer) || []), body]);
+      });
+
+    return grouped;
+  }, [bodyOptions]);
+  const visibleBodyOptions = useMemo(() => {
+    if (!bodyRegionLayer) return bodyOptions;
+    const layerOptions = bodyOptionsByLayer.get(bodyRegionLayer) || [];
+
+    return layerOptions.length ? ["All", ...layerOptions] : bodyOptions;
+  }, [bodyOptions, bodyOptionsByLayer, bodyRegionLayer]);
 
   const goalOptions = useMemo(() => {
     const goalCounts = allExercises.reduce<Map<string, number>>(
@@ -8225,8 +12252,21 @@ export default function ExerciseLibraryPage() {
           tags: normalizedSearchTokens,
         });
 
+      const exerciseBodyLabels = getExerciseVolumeBodyLabels(exercise, metadata);
       const matchesBody =
-        bodyFilters.length === 0 || bodyFilters.includes(exercise.body);
+        bodyFilters.length === 0 ||
+        bodyFilters.some((bodyFilter) =>
+          exerciseBodyLabels.some(
+            (label) =>
+              normalizeFilterCompareValue(label) ===
+              normalizeFilterCompareValue(bodyFilter),
+          ),
+        );
+      const matchesBodyRegionLayer = exerciseMatchesBodyRegionLayer(
+        exercise,
+        metadata,
+        bodyRegionLayer,
+      );
 
       const matchesGoal = goalFilter === "All" || exercise.goal === goalFilter;
 
@@ -8250,6 +12290,7 @@ export default function ExerciseLibraryPage() {
 
       return (
         matchesSearch &&
+        matchesBodyRegionLayer &&
         matchesBody &&
         matchesGoal &&
         matchesMovementType &&
@@ -8261,6 +12302,7 @@ export default function ExerciseLibraryPage() {
     allExercises,
     search,
     searchedModifierIds,
+    bodyRegionLayer,
     bodyFilters,
     goalFilter,
     movementTypeFilter,
@@ -8281,6 +12323,15 @@ export default function ExerciseLibraryPage() {
     [filtered],
   );
   const favoriteCount = favoriteExerciseIds.size;
+  const hasActiveExerciseFilters =
+    Boolean(search.trim()) ||
+    Boolean(bodyRegionLayer) ||
+    bodyFilters.length > 0 ||
+    goalFilter !== "All" ||
+    levelFilter !== "All" ||
+    movementTypeFilter !== "All" ||
+    apparatusFilter !== "All" ||
+    loadBehaviorFilter !== "All";
 
   const sortOptions = useMemo<FilterMenuOption[]>(() => {
     const hasStats = savedExerciseStats.length > 0;
@@ -8361,15 +12412,39 @@ export default function ExerciseLibraryPage() {
     [levelAvailabilityBase],
   );
 
-  const exerciseSections = useMemo(
-    () =>
-      groupExercisesIntoSections(
-        sortedFocusedExercises,
-        sortMode,
-        favoriteExerciseIds,
-      ),
-    [sortedFocusedExercises, sortMode, favoriteExerciseIds],
-  );
+  const exerciseSections = useMemo(() => {
+    const sections = groupExercisesIntoSections(
+      sortedFocusedExercises,
+      sortMode,
+      favoriteExerciseIds,
+    );
+    const shouldShowCreateExerciseEmptyState =
+      sortMode === defaultExerciseLibrarySortMode &&
+      !hasActiveExerciseFilters &&
+      customExercises.length === 0 &&
+      !sections.some((section) => section.key === myExercisesSectionKey);
+
+    return shouldShowCreateExerciseEmptyState
+      ? [
+          ...sections,
+          {
+            key: myExercisesSectionKey,
+            label: myExercisesSectionLabel,
+            exercises: [],
+          },
+        ]
+      : sections;
+  }, [
+    sortedFocusedExercises,
+    sortMode,
+    favoriteExerciseIds,
+    hasActiveExerciseFilters,
+    customExercises.length,
+  ]);
+  const hasUserSelectedExerciseSectionRef = useRef(false);
+  const [activeExerciseSectionKey, setActiveExerciseSectionKey] = useState<
+    string | null
+  >(() => getDefaultActiveExerciseSectionKey(exerciseSections));
 
   const totalPages = Math.ceil(exerciseSections.length / exerciseSectionsPerPage);
 
@@ -8380,13 +12455,93 @@ export default function ExerciseLibraryPage() {
       startIndex + exerciseSectionsPerPage,
     );
   }, [currentPage, exerciseSections, exerciseSectionsPerPage]);
+  const weeklySetsBySectionKey = useMemo(() => {
+    const sectionSets = new Map<string, number>();
+
+    exerciseSections.forEach((section) => {
+      sectionSets.set(
+        section.key,
+        getWeeklySetsForExercises(
+          section.exercises,
+          weeklySetsSummary.exerciseSetsById,
+        ),
+      );
+    });
+
+    return sectionSets;
+  }, [exerciseSections, weeklySetsSummary.exerciseSetsById]);
+  const activeExerciseSectionForCurrentPage =
+    paginatedExerciseSections.find(
+      (section) => section.key === activeExerciseSectionKey,
+    ) ||
+    paginatedExerciseSections[0] ||
+    exerciseSections[0];
+  const activeExerciseSectionTheme = getExerciseSectionTheme(
+    activeExerciseSectionForCurrentPage,
+    sortMode,
+  );
+  const activeExercisePageSelectorTheme = getExercisePageSelectorTheme(
+    activeExerciseSectionTheme,
+  );
+
+  useEffect(() => {
+    setActiveExerciseSectionKey((currentKey) => {
+      if (!paginatedExerciseSections.length) return null;
+
+      const currentKeyIsVisible =
+        Boolean(currentKey) &&
+        paginatedExerciseSections.some((section) => section.key === currentKey);
+      const visibleLowerBodyCompoundSection = paginatedExerciseSections.find(
+        (section) => section.key === defaultOpenExerciseSectionKey,
+      );
+      const desiredKey =
+        sortMode === defaultExerciseLibrarySortMode
+          ? hasActiveExerciseFilters
+            ? visibleLowerBodyCompoundSection?.key ||
+              getFirstVisibleExerciseSectionKey(paginatedExerciseSections)
+            : getDefaultActiveExerciseSectionKey(paginatedExerciseSections)
+          : getFirstVisibleExerciseSectionKey(paginatedExerciseSections);
+
+      if (
+        currentKeyIsVisible &&
+        ((!hasActiveExerciseFilters &&
+          hasUserSelectedExerciseSectionRef.current) ||
+          currentKey === desiredKey)
+      ) {
+        return currentKey;
+      }
+
+      return desiredKey;
+    });
+  }, [hasActiveExerciseFilters, paginatedExerciseSections, sortMode]);
+
+  const toggleExerciseSection = (sectionKey: string) => {
+    hasUserSelectedExerciseSectionRef.current = true;
+    setActiveExerciseSectionKey((currentKey) => {
+      if (currentKey === sectionKey) return currentKey;
+      return sectionKey;
+    });
+  };
+
+  const selectExerciseSectionFromNavigator = (sectionKey: string) => {
+    const sectionIndex = exerciseSections.findIndex(
+      (section) => section.key === sectionKey,
+    );
+
+    if (sectionIndex >= 0) {
+      setCurrentPage(Math.floor(sectionIndex / exerciseSectionsPerPage) + 1);
+    }
+
+    toggleExerciseSection(sectionKey);
+  };
 
   useEffect(() => {
     setCurrentPage(1);
     setActiveExerciseDetailsCardId(null);
-    setOpenMovementDetailsId(null);
+    setActiveMovementDetailsPopupId(null);
   }, [
     search,
+    bodyRegionLayer,
     bodyFilters,
     goalFilter,
     levelFilter,
@@ -8398,69 +12553,350 @@ export default function ExerciseLibraryPage() {
 
   useEffect(() => {
     setActiveExerciseDetailsCardId(null);
-    setOpenMovementDetailsId(null);
+    setActiveMovementDetailsPopupId(null);
   }, [currentPage, viewMode]);
 
   useEffect(() => {
-    setOpenMovementDetailsId(null);
+    setActiveMovementDetailsPopupId(null);
   }, [activeExerciseDetailsCardId]);
 
   const resetFilters = () => {
     setSearch("");
     setBodyFilters([]);
+    setBodyRegionLayer(null);
     setGoalFilter("All");
     setLevelFilter("All");
     setMovementTypeFilter("All");
     setApparatusFilter("All");
     setLoadBehaviorFilter("All");
     setSortMode(defaultExerciseLibrarySortMode);
+    setCurrentPage(1);
+    setActiveExerciseDetailsCardId(null);
+    setActiveMovementDetailsPopupId(null);
+    hasUserSelectedExerciseSectionRef.current = false;
+    setActiveExerciseSectionKey(defaultOpenExerciseSectionKey);
+  };
+  const getLayerForSelectedBodyFilters = (filters: string[]) => {
+    const selectedLayers = Array.from(
+      new Set(
+        filters
+          .map((filter) => getBodyRegionLayerForLabel(filter))
+          .filter((layer): layer is BodyRegionLayer => Boolean(layer)),
+      ),
+    );
+
+    return selectedLayers.length === 1 ? selectedLayers[0] : null;
   };
 
   const toggleBodyFilter = (body: string) => {
     if (body === "All") {
       setBodyFilters([]);
+      setBodyRegionLayer(null);
       return;
     }
 
-    setBodyFilters((currentFilters) =>
-      currentFilters.includes(body)
+    setBodyFilters((currentFilters) => {
+      const nextFilters = currentFilters.includes(body)
         ? currentFilters.filter((activeBody) => activeBody !== body)
-        : [...currentFilters, body],
+        : [...currentFilters, body];
+
+      setBodyRegionLayer(getLayerForSelectedBodyFilters(nextFilters));
+      return nextFilters;
+    });
+  };
+  const selectBodyRegionLayer = (layer: BodyRegionLayer) => {
+    setBodyRegionLayer((currentLayer) => {
+      const nextLayer = currentLayer === layer ? null : layer;
+
+      if (!nextLayer) {
+        setBodyFilters([]);
+        return null;
+      }
+
+      if (nextLayer) {
+        const allowedBodies = new Set(bodyOptionsByLayer.get(nextLayer) || []);
+        setBodyFilters((currentFilters) =>
+          currentFilters.filter((body) => allowedBodies.has(body)),
+        );
+      }
+
+      return nextLayer;
+    });
+  };
+  const toggleAnatomyBodyFilter = (body: string, layer: BodyRegionLayer) => {
+    setBodyFilters((currentFilters) => {
+      const nextFilters = currentFilters.includes(body)
+        ? currentFilters.filter((activeBody) => activeBody !== body)
+        : [...currentFilters, body];
+
+      setBodyRegionLayer(
+        nextFilters.length ? getLayerForSelectedBodyFilters(nextFilters) : null,
+      );
+      return nextFilters;
+    });
+  };
+  const toggleDifficultyFilter = (level: string) => {
+    setLevelFilter((currentLevel) => (currentLevel === level ? "All" : level));
+  };
+  const toggleEquipmentFilter = (equipment: string) => {
+    setApparatusFilter((currentEquipment) =>
+      normalizeFilterCompareValue(currentEquipment) === normalizeFilterCompareValue(equipment)
+        ? "All"
+        : equipment,
     );
+  };
+  const filterByMuscleLabel = (muscle: string) => {
+    const exactBodyMatch = bodyOptions.find(
+      (body) => normalizeFilterCompareValue(body) === normalizeFilterCompareValue(muscle),
+    );
+
+    if (exactBodyMatch) {
+      toggleBodyFilter(exactBodyMatch);
+      return;
+    }
+
+    setSearch(muscle);
+  };
+  const handleArchitectureChipSelect = (chip: MovementArchitectureChip) => {
+    if (chip.tone === "equipment") {
+      toggleEquipmentFilter(chip.label);
+      return;
+    }
+
+    if (chip.tone === "classification") {
+      const matchingSection = exerciseSections.find(
+        (section) =>
+          normalizeFilterCompareValue(section.label) === normalizeFilterCompareValue(chip.label),
+      );
+      if (matchingSection) {
+        setSortMode(defaultExerciseLibrarySortMode);
+        selectExerciseSectionFromNavigator(matchingSection.key);
+        return;
+      }
+    }
+
+    const matchingMovementType = movementTypeOptions.find(
+      (option) =>
+        normalizeFilterCompareValue(option.label) === normalizeFilterCompareValue(chip.label) ||
+        option.coreMovementIds.some(
+          (coreMovementId) =>
+            normalizeFilterCompareValue(CORE_MOVEMENT_BY_ID[coreMovementId]?.label || "") ===
+            normalizeFilterCompareValue(chip.label),
+        ) ||
+        option.movementPatternIds.some(
+          (movementPatternId) =>
+            normalizeFilterCompareValue(
+              MOVEMENT_PATTERN_BY_ID[movementPatternId]?.label || "",
+            ) === normalizeFilterCompareValue(chip.label),
+        ),
+    );
+
+    if (matchingMovementType) {
+      setMovementTypeFilter((currentMovementType) =>
+        currentMovementType === matchingMovementType.value
+          ? "All"
+          : matchingMovementType.value,
+      );
+      return;
+    }
+
+    setSearch(chip.label);
+  };
+
+  const updatePrivateExerciseCoreMovement = (coreMovementId: string) => {
+    const nextCoreMovementId = coreMovementId as CoreMovementId | "";
+    const nextMetadata =
+      getPrivateExerciseMetadataForCoreMovement(nextCoreMovementId);
+    const nextControls = getPrivateExerciseModifierControls(
+      nextCoreMovementId,
+      nextMetadata,
+    );
+    const coreMovement =
+      nextCoreMovementId ? CORE_MOVEMENT_BY_ID[nextCoreMovementId] : null;
+    const nextGoal =
+      coreMovement?.defaultIntentIds?.[0]
+        ? titleCase(coreMovement.defaultIntentIds[0])
+        : "Hypertrophy";
+    const nextDifficulty = coreMovement?.defaultLevel
+      ? titleCase(coreMovement.defaultLevel)
+      : "Beginner";
+
+    setNewExercise((prev) => ({
+      ...prev,
+      coreMovementPattern: nextCoreMovementId,
+      semanticVariationId: "",
+      modifierIds: nextCoreMovementId
+        ? getPrivateExerciseDefaultModifierIds(nextCoreMovementId, nextControls)
+        : [],
+      goal: nextGoal,
+      difficulty: nextDifficulty,
+      primaryMuscles:
+        prev.primaryMuscles ||
+        coreMovement?.primaryMuscles.join(" • ") ||
+        "",
+      secondaryMuscles:
+        prev.secondaryMuscles ||
+        coreMovement?.secondaryMuscles.join(" • ") ||
+        "",
+      cue: prev.cue || coreMovement?.defaultCue || "",
+    }));
+  };
+
+  const updatePrivateExerciseEquipment = (modifierId: string) => {
+    setNewExercise((prev) => ({
+      ...prev,
+      modifierIds: normalizeModifierIdsForCoreMovement(
+        prev.coreMovementPattern || undefined,
+        [
+          ...prev.modifierIds.filter(
+            (id) => getModifierCategoryId(id) !== "apparatus",
+          ),
+          ...(modifierId ? [modifierId as ExerciseModifierId] : []),
+        ],
+      ),
+    }));
+  };
+
+  const updatePrivateExerciseSemanticVariation = (variationId: string) => {
+    const variation = privateExerciseSemanticVariationOptions.find(
+      (option) => option.id === variationId,
+    );
+
+    setNewExercise((prev) => {
+      const semanticFreeModifierIds = prev.coreMovementPattern
+        ? [
+            ...getPrivateExerciseDefaultModifierIds(
+              prev.coreMovementPattern,
+              privateExerciseSettingControls,
+            ).filter((id) => getModifierCategoryId(id) !== "apparatus"),
+            ...prev.modifierIds.filter(
+              (id) => getModifierCategoryId(id) === "apparatus",
+            ),
+          ]
+        : prev.modifierIds;
+
+      return {
+        ...prev,
+        semanticVariationId: variationId,
+        name: prev.name.trim() || variation?.name || prev.name,
+        modifierIds: variation
+          ? normalizeModifierIdsForCoreMovement(
+              prev.coreMovementPattern || undefined,
+              applySemanticVariationModifierPreset(prev.modifierIds, variation),
+            )
+          : normalizeModifierIdsForCoreMovement(
+              prev.coreMovementPattern || undefined,
+              semanticFreeModifierIds,
+            ),
+      };
+    });
+  };
+
+  const openCreateExerciseForm = (coreMovementId?: CoreMovementId | string) => {
+    const nextCoreMovementId =
+      coreMovementId && CORE_MOVEMENT_BY_ID[coreMovementId as CoreMovementId]
+        ? (coreMovementId as CoreMovementId)
+        : "";
+
+    if (nextCoreMovementId) {
+      const nextMetadata =
+        getPrivateExerciseMetadataForCoreMovement(nextCoreMovementId);
+      const nextControls = getPrivateExerciseModifierControls(
+        nextCoreMovementId,
+        nextMetadata,
+      );
+      const coreMovement = CORE_MOVEMENT_BY_ID[nextCoreMovementId];
+
+      setNewExercise((prev) => ({
+        ...prev,
+        coreMovementPattern: nextCoreMovementId,
+        semanticVariationId: "",
+        modifierIds: getPrivateExerciseDefaultModifierIds(
+          nextCoreMovementId,
+          nextControls,
+        ),
+        goal: coreMovement?.defaultIntentIds?.[0]
+          ? titleCase(coreMovement.defaultIntentIds[0])
+          : prev.goal || "Hypertrophy",
+        difficulty: coreMovement?.defaultLevel
+          ? titleCase(coreMovement.defaultLevel)
+          : prev.difficulty || "Beginner",
+        primaryMuscles:
+          coreMovement?.primaryMuscles.join(" â€¢ ") ||
+          prev.primaryMuscles ||
+          "",
+        secondaryMuscles:
+          coreMovement?.secondaryMuscles.join(" â€¢ ") ||
+          prev.secondaryMuscles ||
+          "",
+        cue: prev.cue || coreMovement?.defaultCue || "",
+      }));
+    }
+
+    setShowAddForm(true);
+    window.setTimeout(() => {
+      addExerciseFormRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 50);
   };
 
   const addExercise = () => {
-    if (!newExercise.name.trim()) return;
+    if (!newExercise.name.trim() || !newExercise.coreMovementPattern) return;
+
+    const coreMovement = CORE_MOVEMENT_BY_ID[newExercise.coreMovementPattern];
+    const selectedEquipment =
+      getSelectedModifiersByCategory(newExercise.modifierIds, "apparatus")[0]
+        ?.label ||
+      "Bodyweight";
+    const primaryMuscles = newExercise.primaryMuscles
+      .split(/[•,]/)
+      .map((muscle) => muscle.trim())
+      .filter(Boolean);
+    const secondaryMuscles = newExercise.secondaryMuscles
+      .split(/[•,]/)
+      .map((muscle) => muscle.trim())
+      .filter(Boolean);
+    const customExerciseId = `custom-${Date.now()}`;
 
     const exercise: Exercise = {
-      id: `custom-${Date.now()}`,
+      id: customExerciseId,
+      customExerciseId,
       name: newExercise.name.trim(),
-      body: newExercise.body.trim() || "General",
-      muscles: newExercise.muscles.trim() || "General",
-      pattern: newExercise.pattern.trim() || "General",
-      goal: newExercise.goal.trim() || "Stability",
-      equipment: newExercise.equipment.trim() || "Bodyweight",
-      level: newExercise.level.trim() || "Beginner",
+      exerciseName: newExercise.name.trim(),
+      body: coreMovement?.bodyRegion || "General",
+      muscles:
+        [...primaryMuscles, ...secondaryMuscles].join(" • ") ||
+        coreMovement?.primaryMuscles.join(" • ") ||
+        "General",
+      pattern: coreMovement?.label || "General",
+      goal: newExercise.goal.trim() || "Hypertrophy",
+      equipment: selectedEquipment,
+      level: newExercise.difficulty.trim() || "Beginner",
       image: newExercise.image.trim() || defaultImage,
       cue:
         newExercise.cue.trim() ||
+        coreMovement?.defaultCue ||
         "Move with control, own the position, and make every rep count.",
       custom: true,
+      coreMovementPattern: newExercise.coreMovementPattern,
+      semanticVariationId: privateExerciseSelectedSemanticVariation?.id,
+      semanticVariationName: privateExerciseSelectedSemanticVariation?.name,
+      semanticVariation: privateExerciseSelectedSemanticVariation?.name || "",
+      generatedTitle: newExercise.name.trim(),
+      selectedModifierIds: newExercise.modifierIds,
+      primaryMuscles,
+      secondaryMuscles,
+      coachingCue:
+        newExercise.cue.trim() ||
+        coreMovement?.defaultCue ||
+        "Move with control, own the position, and make every rep count.",
+      imageUrl: newExercise.image.trim() || defaultImage,
     };
 
     setCustomExercises((prev) => [exercise, ...prev]);
-
-    setNewExercise({
-      name: "",
-      body: "",
-      muscles: "",
-      pattern: "",
-      goal: "Stability",
-      equipment: "",
-      level: "",
-      image: "",
-      cue: "",
-    });
+    setNewExercise(emptyPrivateExerciseDraft());
 
     setShowAddForm(false);
   };
@@ -8628,9 +13064,20 @@ export default function ExerciseLibraryPage() {
       source: "exercise-library",
     };
 
-    prependExerciseStats(newStat);
+    try {
+      prependExerciseStats(newStat);
+    } catch {
+      return;
+    }
+
+    const nextLatestSetInsight = buildLatestSetInsight({
+      exercise: statsExercise,
+      previousWeeklySetsSummary: weeklySetsSummary,
+      stat: newStat,
+    });
 
     setSavedExerciseStats((prev) => [newStat, ...prev]);
+    setLatestSetInsight(nextLatestSetInsight);
     setStatWeight("");
     setStatReps("");
     setStatSets("");
@@ -8774,7 +13221,8 @@ export default function ExerciseLibraryPage() {
 
     const accentClasses = {
       cyan: {
-        trigger: "border-cyan-300/30 bg-cyan-400/10 text-cyan-200",
+        trigger:
+          "border-cyan-200/24 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.16),transparent_34%),linear-gradient(135deg,rgba(8,47,73,0.42),rgba(15,23,42,0.84))] text-cyan-100 hover:border-cyan-100/48 hover:bg-cyan-300/12 hover:shadow-[0_18px_42px_rgba(0,0,0,0.32),0_0_26px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.16)] focus-visible:ring-cyan-200/30",
         panel:
           "border-cyan-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] shadow-[0_24px_80px_rgba(0,0,0,0.72),0_0_34px_rgba(34,211,238,0.12)]",
         selected: "bg-cyan-300 text-slate-950",
@@ -8785,7 +13233,8 @@ export default function ExerciseLibraryPage() {
         arrowOpen: "rotate-180 border-cyan-200/50 bg-cyan-300/20",
       },
       emerald: {
-        trigger: "border-emerald-300/30 bg-emerald-400/10 text-emerald-200",
+        trigger:
+          "border-emerald-200/24 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.16),transparent_34%),linear-gradient(135deg,rgba(6,78,59,0.42),rgba(15,23,42,0.84))] text-emerald-100 hover:border-emerald-100/48 hover:bg-emerald-300/12 hover:shadow-[0_18px_42px_rgba(0,0,0,0.32),0_0_26px_rgba(16,185,129,0.14),inset_0_1px_0_rgba(255,255,255,0.16)] focus-visible:ring-emerald-200/30",
         panel:
           "border-emerald-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] shadow-[0_24px_80px_rgba(0,0,0,0.72),0_0_34px_rgba(16,185,129,0.12)]",
         selected: "bg-emerald-300 text-slate-950",
@@ -8796,7 +13245,8 @@ export default function ExerciseLibraryPage() {
         arrowOpen: "rotate-180 border-emerald-200/50 bg-emerald-300/20",
       },
       blue: {
-        trigger: "border-blue-300/30 bg-blue-400/10 text-blue-200",
+        trigger:
+          "border-sky-200/24 bg-[radial-gradient(circle_at_12%_0%,rgba(56,189,248,0.16),transparent_34%),linear-gradient(135deg,rgba(12,74,110,0.42),rgba(15,23,42,0.84))] text-sky-100 hover:border-sky-100/48 hover:bg-sky-300/12 hover:shadow-[0_18px_42px_rgba(0,0,0,0.32),0_0_26px_rgba(56,189,248,0.14),inset_0_1px_0_rgba(255,255,255,0.16)] focus-visible:ring-sky-200/30",
         panel:
           "border-sky-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(56,189,248,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] shadow-[0_24px_80px_rgba(0,0,0,0.72),0_0_34px_rgba(56,189,248,0.12)]",
         selected: "bg-sky-300 text-slate-950",
@@ -8807,7 +13257,8 @@ export default function ExerciseLibraryPage() {
         arrowOpen: "rotate-180 border-sky-200/50 bg-sky-300/20",
       },
       violet: {
-        trigger: "border-violet-300/30 bg-violet-400/10 text-violet-200",
+        trigger:
+          "border-violet-200/24 bg-[radial-gradient(circle_at_12%_0%,rgba(167,139,250,0.16),transparent_34%),linear-gradient(135deg,rgba(76,29,149,0.42),rgba(15,23,42,0.84))] text-violet-100 hover:border-violet-100/48 hover:bg-violet-300/12 hover:shadow-[0_18px_42px_rgba(0,0,0,0.32),0_0_26px_rgba(167,139,250,0.14),inset_0_1px_0_rgba(255,255,255,0.16)] focus-visible:ring-violet-200/30",
         panel:
           "border-violet-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(167,139,250,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] shadow-[0_24px_80px_rgba(0,0,0,0.72),0_0_34px_rgba(167,139,250,0.12)]",
         selected: "bg-violet-300 text-slate-950",
@@ -8999,10 +13450,11 @@ export default function ExerciseLibraryPage() {
           if (!open) announceExerciseLibraryDropdownOpen(dropdownId);
           setOpen((prev) => !prev);
         }}
-          className={`flex min-h-[42px] w-full items-center justify-between rounded-xl border px-2.5 py-1.5 text-left shadow-xl transition hover:scale-[1.01] md:min-h-[40px] md:px-2.5 md:py-1.5 min-[1100px]:min-h-[46px] min-[1100px]:rounded-2xl min-[1100px]:px-3 min-[1100px]:py-2.5 ${accentClasses[accent].trigger}`}
+          className={`group/filter-control flex min-h-[42px] w-full items-center justify-between rounded-2xl border px-2.5 py-1.5 text-left shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.12)] outline-none ring-1 ring-white/[0.03] backdrop-blur-2xl transition duration-200 hover:-translate-y-0.5 md:min-h-[40px] md:px-2.5 md:py-1.5 min-[1100px]:min-h-[46px] min-[1100px]:rounded-[22px] min-[1100px]:px-3.5 min-[1100px]:py-2.5 ${accentClasses[accent].trigger}`}
         >
-          <div>
-            <p className="text-[8px] font-black uppercase tracking-[0.12em] opacity-70 md:text-[9px] md:tracking-[0.14em] min-[1100px]:text-[10px] min-[1100px]:tracking-[0.18em]">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.12em] opacity-70 md:text-[9px] md:tracking-[0.14em] min-[1100px]:text-[10px] min-[1100px]:tracking-[0.18em]">
+              <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70 shadow-[0_0_10px_currentColor]" />
               {label}
             </p>
             <p className="mt-0.5 truncate text-xs font-black leading-4 text-white md:text-[13px] md:leading-4 min-[1100px]:text-sm">
@@ -9094,7 +13546,7 @@ export default function ExerciseLibraryPage() {
   }) => (
     <div
       aria-label="Level"
-      className="grid min-h-[42px] grid-cols-3 overflow-hidden rounded-xl shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl md:min-h-[40px] min-[1100px]:min-h-[46px] min-[1100px]:rounded-2xl"
+      className="grid min-h-[42px] grid-cols-3 overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.74))] p-0.5 shadow-[0_14px_38px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] ring-1 ring-white/[0.035] backdrop-blur-2xl md:min-h-[40px] min-[1100px]:min-h-[46px] min-[1100px]:rounded-[22px]"
     >
         {levelSegments.map((segment, index) => {
           const isActive = value === segment.value;
@@ -9117,11 +13569,9 @@ export default function ExerciseLibraryPage() {
                   ? `Clear level filter (${count} available)`
                   : `Filter ${segment.label} (${count} available)`
               }
-              className={`min-w-0 border-y border-l px-0.5 py-1 text-[8px] font-black uppercase leading-3 tracking-[0.02em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 sm:px-1.5 sm:text-[10px] md:py-1 md:text-[9px] min-[1100px]:py-1.5 min-[1100px]:text-[10px] ${segment.focusRing} ${
+              className={`min-w-0 border px-0.5 py-1 text-[8px] font-black uppercase leading-3 tracking-[0.02em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 sm:px-1.5 sm:text-[10px] md:py-1 md:text-[9px] min-[1100px]:py-1.5 min-[1100px]:text-[10px] ${segment.focusRing} ${
                 isActive ? segment.active : segment.tone
-              } ${radiusClass} ${
-                index === levelSegments.length - 1 ? "border-r" : ""
-              }`}
+              } ${radiusClass}`}
             >
               <span className="block truncate">{segment.label}</span>
               <span className="mt-0.5 block truncate text-[7px] font-black leading-3 opacity-70 sm:text-[9px] md:text-[8px] min-[1100px]:text-[9px]">
@@ -9133,8 +13583,22 @@ export default function ExerciseLibraryPage() {
     </div>
   );
 
+  const privateExerciseFieldClass =
+    "min-h-[46px] w-full rounded-[16px] border border-white/10 bg-slate-950/70 px-3.5 py-2.5 text-sm font-bold text-white outline-none placeholder:text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition focus:border-emerald-300/70 focus:bg-slate-950/90";
+  const privateExerciseLabelClass =
+    "grid gap-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/60";
+  const privateExerciseSectionClass =
+    "rounded-[24px] border border-white/10 bg-white/[0.035] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:p-4";
+  const activeRenderedExerciseSectionKey = paginatedExerciseSections.some(
+    (section) => section.key === activeExerciseSectionKey,
+  )
+    ? activeExerciseSectionKey
+    : activeExerciseSectionForCurrentPage?.key;
+  const profileInitial =
+    profileSummary.displayName.trim().charAt(0).toUpperCase() || "A";
+
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
+    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
       <section className="mx-auto w-full max-w-[1240px] space-y-6 px-3 py-6 sm:px-4 sm:py-8">
         <section className="overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_18%_8%,rgba(34,211,238,0.2),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(16,185,129,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-4 shadow-2xl sm:rounded-[42px] sm:p-6 lg:p-8">
           <p className="text-[11px] font-black uppercase tracking-[0.3em] text-cyan-300">
@@ -9154,6 +13618,40 @@ export default function ExerciseLibraryPage() {
               </div>
 
             <div className="rounded-[28px] border border-cyan-300/20 bg-cyan-400/10 p-5 flex flex-col justify-between">
+              <div className="mb-4 rounded-[24px] border border-white/12 bg-[radial-gradient(circle_at_10%_0%,rgba(250,204,21,0.16),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.70),rgba(2,6,23,0.50))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_34px_rgba(0,0,0,0.18)]">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-yellow-200/80">
+                      Training Profile
+                    </p>
+                    <h2 className="mt-1 truncate text-lg font-black leading-6 text-white">
+                      {profileSummary.displayName}
+                    </h2>
+                    <p className="mt-1 text-[11px] font-bold leading-4 text-cyan-100/78">
+                      Primary Goal: {profileSummary.primaryGoal}
+                    </p>
+                    <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-slate-300">
+                      Bio: {profileSummary.bio}
+                    </p>
+                    {profileSummary.trainingLevel ? (
+                      <p className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-200/80">
+                        {profileSummary.trainingLevel}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-cyan-100/20 bg-slate-950/60 text-xl font-black text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)]">
+                    {profileSummary.avatarUrl ? (
+                      <img
+                        src={profileSummary.avatarUrl}
+                        alt={`${profileSummary.displayName} avatar`}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      profileInitial
+                    )}
+                  </div>
+                </div>
+              </div>
               <div>
                 <p className="text-sm text-slate-300">Library Count</p>
                 <p className="mt-2 text-3xl font-black text-white sm:text-4xl">
@@ -9181,10 +13679,11 @@ export default function ExerciseLibraryPage() {
           </div>
         </section>
 
-        <section className="relative z-30 overflow-visible rounded-[24px] border border-white/15 bg-white/[0.055] p-2.5 shadow-[0_18px_58px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl backdrop-saturate-150 sm:rounded-[30px] sm:p-4 md:p-3 min-[1100px]:p-4">
+        <section className="relative z-30 overflow-visible rounded-[26px] border border-cyan-100/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_34%),radial-gradient(circle_at_86%_14%,rgba(16,185,129,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.78))] p-2.5 shadow-[0_24px_80px_rgba(0,0,0,0.42),0_0_46px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-white/[0.045] backdrop-blur-2xl backdrop-saturate-150 sm:rounded-[32px] sm:p-4 md:p-3 min-[1100px]:p-4">
+          <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
           <div className="grid grid-cols-2 gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-end min-[1100px]:grid-cols-[1fr_auto_auto] min-[1100px]:items-start">
             <div className="col-span-2 md:col-span-2 min-[1100px]:col-span-1">
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300">
+              <p className="inline-flex rounded-full border border-emerald-200/16 bg-emerald-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200 shadow-[0_0_18px_rgba(16,185,129,0.10)]">
                 Movement Filters
               </p>
 
@@ -9195,7 +13694,7 @@ export default function ExerciseLibraryPage() {
               />
             </div>
 
-            <div className="flex min-h-[42px] items-center gap-2 rounded-xl border border-white/10 bg-slate-950/50 px-2.5 py-1.5 md:min-h-[40px] md:min-w-[12rem] md:gap-2.5 md:justify-self-start md:px-3 md:py-1.5 min-[1100px]:block min-[1100px]:rounded-2xl min-[1100px]:px-4 min-[1100px]:py-2.5">
+            <div className="flex min-h-[42px] items-center gap-2 rounded-2xl border border-cyan-100/14 bg-[linear-gradient(135deg,rgba(15,23,42,0.88),rgba(8,47,73,0.42))] px-2.5 py-1.5 shadow-[0_14px_34px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] ring-1 ring-white/[0.035] md:min-h-[40px] md:min-w-[12rem] md:justify-self-start md:gap-2.5 md:px-3 md:py-1.5 min-[1100px]:block min-[1100px]:rounded-[22px] min-[1100px]:px-4 min-[1100px]:py-2.5">
               <p className="text-[9px] font-bold uppercase leading-none tracking-[0.1em] text-slate-400 md:text-[10px] md:leading-none md:tracking-[0.12em] min-[1100px]:text-xs min-[1100px]:font-normal min-[1100px]:normal-case min-[1100px]:tracking-normal">
                 Showing
               </p>
@@ -9210,7 +13709,7 @@ export default function ExerciseLibraryPage() {
             <button
               type="button"
               onClick={() => setShowAddForm((prev) => !prev)}
-              className="min-h-[42px] rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-300 transition hover:bg-emerald-400 hover:text-slate-950 md:min-h-[40px] md:justify-self-end md:px-3.5 md:py-2 min-[1100px]:min-h-[44px] min-[1100px]:rounded-2xl min-[1100px]:px-5 min-[1100px]:py-3 min-[1100px]:text-sm"
+              className="min-h-[42px] rounded-2xl border border-emerald-200/24 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.20),transparent_34%),linear-gradient(135deg,rgba(6,78,59,0.52),rgba(15,23,42,0.82))] px-3 py-2 text-xs font-black text-emerald-100 shadow-[0_14px_34px_rgba(0,0,0,0.28),0_0_22px_rgba(16,185,129,0.10),inset_0_1px_0_rgba(255,255,255,0.14)] ring-1 ring-white/[0.035] transition hover:-translate-y-0.5 hover:border-emerald-100/55 hover:bg-emerald-400 hover:text-slate-950 md:min-h-[40px] md:justify-self-end md:px-3.5 md:py-2 min-[1100px]:min-h-[44px] min-[1100px]:rounded-[22px] min-[1100px]:px-5 min-[1100px]:py-3 min-[1100px]:text-sm"
             >
               <span className="min-[1100px]:hidden">
                 {showAddForm ? "Close" : "+ Add"}
@@ -9222,46 +13721,275 @@ export default function ExerciseLibraryPage() {
           </div>
 
           {showAddForm && (
-            <div className="mt-6 rounded-[28px] border border-emerald-300/20 bg-slate-950/50 p-5">
-              <p className="text-lg font-black text-white">
-                Add Private Exercise
-              </p>
-              <p className="mt-1 text-sm text-slate-400">
-                This saves to your browser only, so it is only visible to you on
-                this device.
-              </p>
+            <div
+              ref={addExerciseFormRef}
+              className="mt-6 overflow-hidden rounded-[30px] border border-emerald-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.18),transparent_32%),radial-gradient(circle_at_92%_10%,rgba(34,211,238,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.90),rgba(2,6,23,0.82))] p-3 shadow-[0_22px_70px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.14)] sm:p-5"
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="inline-flex rounded-lg border border-emerald-200/22 bg-emerald-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-emerald-100">
+                    Private Exercise
+                  </p>
+                  <h2 className="mt-3 text-2xl font-black text-white">
+                    Add Private Exercise
+                  </h2>
+                  <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
+                    Build a custom card using the current movement-engine
+                    structure without forcing a semantic variation.
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-cyan-200/14 bg-cyan-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                  Core first
+                </div>
+              </div>
 
-              <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {[
-                  ["name", "Exercise Name"],
-                  ["body", "Body Part"],
-                  ["muscles", "Smaller Muscles, use • between each"],
-                  ["pattern", "Pattern"],
-                  ["goal", "Goal"],
-                  ["equipment", "Equipment"],
-                  ["level", "Level"],
-                  ["image", "Image URL"],
-                  ["cue", "Coaching Cue"],
-                ].map(([key, label]) => (
+              <div className="mt-5 grid gap-3 xl:grid-cols-[1.05fr_1fr]">
+                <section className={privateExerciseSectionClass}>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">
+                        01 Identity
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-slate-400">
+                        Name the card and choose an exercise type.
+                      </p>
+                    </div>
+                    <span className="rounded-xl border border-emerald-200/18 bg-emerald-300/10 px-2 py-1 text-[9px] font-black uppercase text-emerald-100">
+                      Custom
+                    </span>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className={`${privateExerciseLabelClass} sm:col-span-2`}>
+                      Exercise Name
                   <input
-                    key={key}
-                    placeholder={label}
-                    value={newExercise[key as keyof typeof newExercise]}
-                    onChange={(e) =>
+                    placeholder="Exercise Name"
+                    value={newExercise.name}
+                    onChange={(event) =>
                       setNewExercise((prev) => ({
                         ...prev,
-                        [key]: e.target.value,
+                        name: event.target.value,
                       }))
                     }
-                    className="min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-4 text-sm text-white outline-none placeholder:text-slate-500 focus:border-emerald-300"
+                        className={privateExerciseFieldClass}
                   />
-                ))}
+                </label>
+
+                    <label className={`${privateExerciseLabelClass} sm:col-span-2`}>
+                      Semantic Variation / Exercise Type
+                  <select
+                    value={newExercise.semanticVariationId}
+                    onChange={(event) =>
+                      updatePrivateExerciseSemanticVariation(event.target.value)
+                    }
+                    disabled={!newExercise.coreMovementPattern}
+                        className={`${privateExerciseFieldClass} disabled:cursor-not-allowed disabled:opacity-55`}
+                  >
+                        <option value="">
+                          {newExercise.coreMovementPattern
+                            ? "N/A - custom/private variation"
+                            : "Select core movement first"}
+                        </option>
+                    {privateExerciseSemanticVariationOptions.map((variation) => (
+                      <option key={variation.id} value={variation.id}>
+                        {variation.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                  </div>
+                </section>
+
+                <section className={privateExerciseSectionClass}>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">
+                        02 Movement Architecture
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-slate-400">
+                        Pick the core pattern, default load, goal, and level.
+                      </p>
+                    </div>
+                    <span className="rounded-xl border border-cyan-200/18 bg-cyan-300/10 px-2 py-1 text-[9px] font-black uppercase text-cyan-100">
+                      Engine
+                    </span>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className={`${privateExerciseLabelClass} sm:col-span-2`}>
+                      Core Movement Pattern
+                      <select
+                        value={newExercise.coreMovementPattern}
+                        onChange={(event) =>
+                          updatePrivateExerciseCoreMovement(event.target.value)
+                        }
+                        className={privateExerciseFieldClass}
+                      >
+                        <option value="">Select core movement</option>
+                        {privateExerciseCoreOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className={privateExerciseLabelClass}>
+                      Primary Equipment
+                  <select
+                    value={privateExerciseSelectedEquipmentModifierId}
+                    onChange={(event) =>
+                      updatePrivateExerciseEquipment(event.target.value)
+                    }
+                    disabled={
+                      !newExercise.coreMovementPattern ||
+                      privateExerciseEquipmentOptions.length === 0
+                    }
+                        className={`${privateExerciseFieldClass} focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-55`}
+                  >
+                    <option value="">Select equipment</option>
+                    {privateExerciseEquipmentOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {getControlModifierDisplayLabel("Equipment", option)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                    <label className={privateExerciseLabelClass}>
+                      Primary Goal
+                  <select
+                    value={newExercise.goal}
+                    onChange={(event) =>
+                      setNewExercise((prev) => ({
+                        ...prev,
+                        goal: event.target.value,
+                      }))
+                    }
+                        className={`${privateExerciseFieldClass} focus:border-yellow-300`}
+                  >
+                    {baseGoals.map((goal) => (
+                      <option key={goal} value={goal}>
+                        {goal}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                    <label className={privateExerciseLabelClass}>
+                      Difficulty
+                  <select
+                    value={newExercise.difficulty}
+                    onChange={(event) =>
+                      setNewExercise((prev) => ({
+                        ...prev,
+                        difficulty: event.target.value,
+                      }))
+                    }
+                        className={`${privateExerciseFieldClass} focus:border-yellow-300`}
+                  >
+                    {difficultyOrder.map((difficulty) => (
+                      <option key={difficulty} value={difficulty}>
+                        {difficulty}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                  </div>
+                </section>
+
+                <section className={privateExerciseSectionClass}>
+                  <div className="mb-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-200">
+                      03 Muscles
+                    </p>
+                    <p className="mt-1 text-xs font-bold text-slate-400">
+                      These power search, filters, and weekly set rollups.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className={privateExerciseLabelClass}>
+                      Primary Muscles
+                  <input
+                    placeholder="Pecs | Triceps"
+                    value={newExercise.primaryMuscles}
+                    onChange={(event) =>
+                      setNewExercise((prev) => ({
+                        ...prev,
+                        primaryMuscles: event.target.value,
+                      }))
+                    }
+                        className={`${privateExerciseFieldClass} focus:border-violet-300`}
+                  />
+                </label>
+
+                    <label className={privateExerciseLabelClass}>
+                      Secondary Muscles
+                  <input
+                    placeholder="Shoulders | Core"
+                    value={newExercise.secondaryMuscles}
+                    onChange={(event) =>
+                      setNewExercise((prev) => ({
+                        ...prev,
+                        secondaryMuscles: event.target.value,
+                      }))
+                    }
+                        className={`${privateExerciseFieldClass} focus:border-violet-300`}
+                  />
+                </label>
+                  </div>
+                </section>
+
+                <section className={privateExerciseSectionClass}>
+                  <div className="mb-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-200">
+                      04 Coaching / Media
+                    </p>
+                    <p className="mt-1 text-xs font-bold text-slate-400">
+                      Add the cue and optional image used by the private card.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3">
+                    <label className={privateExerciseLabelClass}>
+                      Image URL
+                  <input
+                    placeholder="Image URL"
+                    value={newExercise.image}
+                    onChange={(event) =>
+                      setNewExercise((prev) => ({
+                        ...prev,
+                        image: event.target.value,
+                      }))
+                    }
+                        className={`${privateExerciseFieldClass} focus:border-cyan-300`}
+                  />
+                </label>
+
+                    <label className={privateExerciseLabelClass}>
+                      Coaching Cue
+                <textarea
+                  placeholder="Move with control, own the position, and make every rep count."
+                  value={newExercise.cue}
+                  onChange={(event) =>
+                    setNewExercise((prev) => ({
+                      ...prev,
+                      cue: event.target.value,
+                    }))
+                  }
+                        className={`${privateExerciseFieldClass} min-h-[96px] resize-y`}
+                />
+              </label>
+                  </div>
+                </section>
               </div>
 
               <button
                 type="button"
                 onClick={addExercise}
-                className="mt-5 min-h-[48px] rounded-2xl bg-emerald-400 px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-300"
+                disabled={!newExercise.name.trim() || !newExercise.coreMovementPattern}
+                className="mt-4 min-h-[48px] w-full rounded-[18px] border border-emerald-100/30 bg-[linear-gradient(135deg,rgba(52,211,153,0.98),rgba(34,211,238,0.76))] px-5 py-3 text-sm font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_18px_42px_rgba(16,185,129,0.18),inset_0_1px_0_rgba(255,255,255,0.38)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_58px_rgba(16,185,129,0.24)] disabled:cursor-not-allowed disabled:translate-y-0 disabled:border-slate-600 disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none sm:w-auto"
               >
                 Save Exercise
               </button>
@@ -9274,7 +14002,7 @@ export default function ExerciseLibraryPage() {
             </div>
           ) : null}
 
-          <div className="mt-2 grid grid-cols-2 gap-2 md:mt-2.5 md:grid-cols-3 min-[1100px]:grid-cols-4 min-[1100px]:gap-2.5">
+          <div className="mt-2 grid grid-cols-2 gap-2 rounded-[22px] border border-white/10 bg-white/[0.035] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] md:mt-2.5 md:grid-cols-3 min-[1100px]:grid-cols-4 min-[1100px]:gap-2.5 min-[1100px]:rounded-[26px] min-[1100px]:p-2">
               <FilterMenu
                 label="Movement Type"
                 value={movementTypeFilter}
@@ -9313,8 +14041,8 @@ export default function ExerciseLibraryPage() {
 
           </div>
 
-          <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-stretch gap-1.5 border-t border-white/10 pt-2 sm:gap-2 md:flex md:flex-nowrap md:items-center md:pt-2.5">
-            <div className="rounded-xl border border-cyan-300/15 bg-slate-950/55 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:p-1 md:rounded-2xl">
+          <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-stretch gap-1.5 rounded-[22px] border border-cyan-100/12 bg-[linear-gradient(135deg,rgba(15,23,42,0.76),rgba(2,6,23,0.56))] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] sm:gap-2 md:flex md:flex-nowrap md:items-center md:p-2">
+            <div className="rounded-2xl border border-cyan-300/16 bg-slate-950/55 p-0.5 shadow-[0_12px_30px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.10)] sm:p-1">
               <div className="grid grid-cols-2 gap-1">
                 {(["detail", "grid"] as ExerciseLibraryViewMode[]).map(
                   (mode) => (
@@ -9326,8 +14054,8 @@ export default function ExerciseLibraryPage() {
                       onClick={() => setViewMode(mode)}
                       className={`flex min-h-[38px] min-w-[36px] items-center justify-center rounded-lg px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] transition sm:min-w-[42px] sm:rounded-xl sm:px-3 sm:py-2 ${
                         viewMode === mode
-                          ? "bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.22)]"
-                          : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
+                          ? "bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.26)]"
+                          : "text-slate-400 hover:bg-cyan-300/10 hover:text-cyan-50"
                       }`}
                     >
                       <ViewModeIcon mode={mode} />
@@ -9351,35 +14079,104 @@ export default function ExerciseLibraryPage() {
             <button
               type="button"
               onClick={resetFilters}
-              className="min-h-[42px] rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white sm:min-w-[116px] sm:rounded-2xl sm:px-5 sm:py-3 sm:text-sm"
+              className="min-h-[42px] rounded-2xl border border-white/12 bg-white/[0.045] px-3 py-2 text-xs font-black text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-cyan-200/40 hover:bg-cyan-300/10 hover:text-white sm:min-w-[116px] sm:px-5 sm:py-3 sm:text-sm"
             >
               Clear
             </button>
           </div>
 
-          <div className="-mx-2.5 -mb-2.5 mt-2 box-border overflow-hidden rounded-b-[24px] border-t border-white/10 bg-white/10 sm:-mx-4 sm:-mb-4 sm:mt-3 sm:rounded-b-[30px] md:-mx-3 md:-mb-3 min-[1100px]:-mx-4 min-[1100px]:-mb-4">
+          <div className="-mx-2.5 -mb-2.5 mt-2 box-border overflow-hidden rounded-b-[26px] border-t border-cyan-100/14 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.08),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.70),rgba(2,6,23,0.76))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:-mx-4 sm:-mb-4 sm:mt-3 sm:rounded-b-[32px] md:-mx-3 md:-mb-3 min-[1100px]:-mx-4 min-[1100px]:-mb-4">
+            <ExerciseBodyAnatomySelector
+              activeLayer={bodyRegionLayer}
+              bodyOptions={bodyOptions}
+              latestSetInsight={latestSetInsight}
+              selectedBodies={bodyFilters}
+              weeklySetsSummary={weeklySetsSummary}
+              onBodySelect={toggleAnatomyBodyFilter}
+              onLayerSelect={selectBodyRegionLayer}
+            />
             <div className="box-border flex w-full flex-wrap gap-px">
-              {bodyOptions.map((body) => {
+              {visibleBodyOptions.map((body) => {
                 const isActive =
                   body === "All"
                     ? bodyFilters.length === 0
                     : bodyFilters.includes(body);
                 const bodyTheme = getBodyRegionTheme(body);
+                const weeklySets =
+                  body === "All"
+                    ? Array.from(weeklySetsSummary.exerciseSetsById.values()).reduce(
+                        (total, sets) => total + sets,
+                        0,
+                      )
+                    : getWeeklySetsForVolumeLabel(
+                        weeklySetsSummary.bodySetsByLabel,
+                        body,
+                      );
+                const isLatestBodyPulse = Boolean(
+                  latestSetInsight?.bodyLabels.some(
+                    (label) =>
+                      normalizeBodySelectorValue(label) ===
+                      normalizeBodySelectorValue(body),
+                  ),
+                );
+                const bodyWeeklyGoal = getWeeklySetGoalForBodyPart(body);
+                const bodyVolumeStatusId = getWeeklySetGoalStatusId(
+                  weeklySets,
+                  bodyWeeklyGoal,
+                );
+                const bodyVolumeStyle = {
+                  ...getCategoryThemeCssVariables(bodyTheme),
+                  "--exercise-body-volume-progress": `${getWeeklySetGoalFillPercent(
+                    weeklySets,
+                    bodyWeeklyGoal,
+                  )}%`,
+                } as ExerciseLibraryThemeCssVariables;
+                const bodyVolumeStatus =
+                  weeklyVolumeStatusConfig[bodyVolumeStatusId];
 
                 return (
                   <button
                     key={body}
                     type="button"
                     aria-pressed={isActive}
-                    onClick={() => toggleBodyFilter(body)}
-                    className={`flex min-h-[38px] min-w-0 flex-[1_1_5.75rem] items-center justify-center px-1.5 py-1.5 text-center text-[8px] font-black uppercase leading-[1.08] tracking-[0.04em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 focus:ring-white/30 sm:min-h-[52px] sm:flex-[1_1_7.25rem] sm:px-3 sm:py-2.5 sm:text-[11px] sm:tracking-[0.07em] ${
+                    aria-label={`${isActive ? "Remove" : "Add"} ${body} body filter, ${Math.max(
+                      0,
+                      Math.round(weeklySets),
+                    )} of ${bodyWeeklyGoal} weekly sets, ${bodyVolumeStatus.label}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      toggleBodyFilter(body);
+                    }}
+                    style={bodyVolumeStyle}
+                    title={`${body}: ${Math.max(
+                      0,
+                      Math.round(weeklySets),
+                    )} of ${bodyWeeklyGoal} weekly sets, ${bodyVolumeStatus.label}`}
+                    className={`exercise-library-body-volume-button ${getBodyPartButtonSizeClass(body)} relative min-w-0 px-2 py-2 text-center text-[8px] font-black uppercase leading-[1.08] tracking-[0.04em] transition duration-200 focus:relative focus:z-10 focus:outline-none focus:ring-2 focus:ring-white/30 sm:px-3 sm:py-2.5 sm:text-[11px] sm:tracking-[0.07em] ${
+                      isLatestBodyPulse ? "exercise-library-volume-pulse" : ""
+                    } ${
                       isActive
                         ? bodyTheme.tabClass
-                        : `bg-[linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.76))] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${bodyTheme.tabHoverClass}`
+                        : `bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.74))] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.055)] ${bodyTheme.tabHoverClass}`
                     }`}
                   >
-                    <span className="block max-w-full whitespace-normal break-normal [hyphens:none] [overflow-wrap:normal] [text-wrap:balance]">
-                      {body}
+                    <span
+                      aria-hidden="true"
+                      className="exercise-library-body-volume-button__fill"
+                    />
+                    <span className="relative z-10 flex max-w-full items-center justify-center gap-1.5 whitespace-normal break-normal [hyphens:none] [overflow-wrap:normal] [text-wrap:balance]">
+                      <span>{body}</span>
+                    </span>
+                    <span className="relative z-10 mt-1 block text-[7px] font-black uppercase leading-3 tracking-[0.08em] opacity-85 sm:text-[8px]">
+                      <WeeklySetGoalBadge
+                        completedSets={weeklySets}
+                        goalSets={bodyWeeklyGoal}
+                      />
+                      {isLatestBodyPulse ? (
+                        <span className="ml-1 exercise-library-volume-added-chip">
+                          {latestSetInsight?.pulseLabel}
+                        </span>
+                      ) : null}
                     </span>
                   </button>
                 );
@@ -9387,25 +14184,93 @@ export default function ExerciseLibraryPage() {
             </div>
           </div>
         </section>
+
+        {latestSetInsight ? (
+          <div className="exercise-library-volume-pulse rounded-[24px] border border-emerald-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.72))] px-4 py-3 shadow-[0_18px_52px_rgba(0,0,0,0.32),0_0_34px_rgba(16,185,129,0.12),inset_0_1px_0_rgba(255,255,255,0.12)]">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-200/80">
+                  Latest set insight
+                </p>
+                <p className="mt-1 line-clamp-2 text-sm font-black text-white">
+                  {latestSetInsight.exerciseName} · {latestSetInsight.latestLine}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-slate-300">
+                  {latestSetInsight.summaryLine} · {latestSetInsight.remainingLine}
+                </p>
+              </div>
+              <span className="rounded-2xl border border-emerald-100/24 bg-emerald-300/14 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-100">
+                {latestSetInsight.pulseLabel}
+              </span>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <section className="exercise-library-slider-shelf relative z-0 space-y-5 overflow-visible pb-6 sm:space-y-4 sm:pb-8">
-          {paginatedExerciseSections.map((section) => (
+        <ExerciseLibraryResultsPageSelector
+          activeSectionKey={activeExerciseSectionKey}
+          activeSectionLabel={
+            activeExerciseSectionForCurrentPage?.label || "Exercise Library"
+          }
+          currentPage={currentPage}
+          latestSetInsight={latestSetInsight}
+          onPageChange={setCurrentPage}
+          onSectionSelect={selectExerciseSectionFromNavigator}
+          placement="top"
+          sections={paginatedExerciseSections}
+          sectionTheme={activeExercisePageSelectorTheme}
+          weeklySetsBySectionKey={weeklySetsBySectionKey}
+          sortMode={sortMode}
+          totalPages={totalPages}
+        />
+
+          {paginatedExerciseSections
+            .filter(
+              (section) =>
+                section.key === activeRenderedExerciseSectionKey,
+            )
+            .map((section) => (
             (() => {
-              const sectionTheme =
-                sortMode === "body"
-                  ? getBodyRegionTheme(section.label)
-                  : getCategoryTheme(section.label);
+              const sectionTheme = getExerciseSectionTheme(section, sortMode);
 
               return (
                 <ExerciseCategoryShelf
                   key={section.key}
+                  isOpen={activeExerciseSectionKey === section.key}
+                  latestSetInsight={latestSetInsight}
+                  onToggle={() => toggleExerciseSection(section.key)}
                   section={section}
                   sectionTheme={sectionTheme}
+                  weeklySets={weeklySetsBySectionKey.get(section.key) || 0}
+                  coreMovementWeeklySetsByKey={
+                    weeklySetsSummary.coreMovementSetsByKey
+                  }
                 >
-                  {section.exercises.map((exercise) => {
+                  {section.key === myExercisesSectionKey &&
+                  section.exercises.length === 0 ? (
+                    <div
+                      className={`exercise-library-card-slide ${
+                        viewMode === "grid"
+                          ? "exercise-library-card-slide--grid"
+                          : "exercise-library-card-slide--detail"
+                      }`}
+                      data-card-key={`${section.key}:create`}
+                      role="listitem"
+                      tabIndex={-1}
+                    >
+                      <ExerciseCardCategoryTab
+                        section={section}
+                        sectionTheme={sectionTheme}
+                      />
+                      <CreateExerciseEmptyCard onCreate={openCreateExerciseForm} />
+                    </div>
+                  ) : (
+                    section.exercises.map((exercise) => {
                     const metadata = getMetadataForExercise(exercise);
                     const suggestions = getMovementSuggestions(exercise, metadata);
+                    const cardInstanceId = `${section.key}:${exercise.id}`;
+                    const coreMovementTabKey = getExerciseCoreMovementTabKey(exercise);
 
                     return (
                       <div
@@ -9415,12 +14280,22 @@ export default function ExerciseLibraryPage() {
                             ? "exercise-library-card-slide--grid"
                             : "exercise-library-card-slide--detail"
                         }`}
+                        data-card-key={cardInstanceId}
+                        data-core-movement-tab={coreMovementTabKey}
                         role="listitem"
+                        tabIndex={-1}
                       >
+                        <ExerciseCardCategoryTab
+                          section={section}
+                          sectionTheme={sectionTheme}
+                        />
                         <ExerciseLibraryCard
                           exercise={exercise}
+                          cardInstanceId={cardInstanceId}
+                          sectionTheme={sectionTheme}
                           metadata={metadata}
                           suggestions={suggestions}
+                          latestSetInsight={latestSetInsight}
                           planAddToParam={planAddToParam}
                           savedExerciseStats={savedExerciseStats}
                           viewMode={viewMode}
@@ -9430,61 +14305,48 @@ export default function ExerciseLibraryPage() {
                           onAddToPlan={addExerciseToPlanBuilder}
                           onDeleteCustom={deleteCustomExercise}
                           onAddStats={openStatsMenu}
+                          onCreateVariation={openCreateExerciseForm}
+                          onBodyFilterSelect={toggleBodyFilter}
+                          onDifficultyFilterSelect={toggleDifficultyFilter}
+                          onMovementChipSelect={handleArchitectureChipSelect}
+                          onMuscleSelect={filterByMuscleLabel}
+                          weeklySetsByMuscleLabel={
+                            weeklySetsSummary.bodySetsByLabel
+                          }
                           isExerciseDetailsOpen={
                             activeExerciseDetailsCardId === exercise.id
                           }
                           onToggleExerciseDetails={setActiveExerciseDetailsCardId}
                           isMovementDetailsOpen={
-                            openMovementDetailsId === exercise.id
+                            activeMovementDetailsPopupId === cardInstanceId
                           }
-                          onToggleMovementDetails={setOpenMovementDetailsId}
+                          onToggleMovementDetails={setActiveMovementDetailsPopupId}
                         />
                       </div>
                     );
-                  })}
+                    })
+                  )}
                 </ExerciseCategoryShelf>
               );
             })()
           ))}
 
-        {exerciseSections.length > exerciseSectionsPerPage && (
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
-            <button
-              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-              disabled={currentPage === 1}
-              className="min-h-[44px] rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:text-white disabled:opacity-40"
-            >
-              ←
-            </button>
-
-            {Array.from({ length: totalPages }).map((_, i) => {
-              const page = i + 1;
-              return (
-                <button
-                  key={page}
-                  onClick={() => setCurrentPage(page)}
-                  className={`h-11 w-11 rounded-xl text-sm font-bold ${
-                    currentPage === page
-                      ? "bg-cyan-400 text-black"
-                      : "bg-white/5 text-slate-400 hover:text-white"
-                  }`}
-                >
-                  {page}
-                </button>
-              );
-            })}
-
-            <button
-              onClick={() =>
-                setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-              }
-              disabled={currentPage === totalPages}
-              className="min-h-[44px] rounded-xl border border-white/10 px-4 py-2 text-sm text-slate-300 hover:text-white disabled:opacity-40"
-            >
-              →
-            </button>
-          </div>
-        )}
+        <ExerciseLibraryResultsPageSelector
+          activeSectionKey={activeExerciseSectionKey}
+          activeSectionLabel={
+            activeExerciseSectionForCurrentPage?.label || "Exercise Library"
+          }
+          currentPage={currentPage}
+          latestSetInsight={latestSetInsight}
+          onPageChange={setCurrentPage}
+          onSectionSelect={selectExerciseSectionFromNavigator}
+          placement="bottom"
+          sections={paginatedExerciseSections}
+          sectionTheme={activeExercisePageSelectorTheme}
+          weeklySetsBySectionKey={weeklySetsBySectionKey}
+          sortMode={sortMode}
+          totalPages={totalPages}
+        />
 
         {focusedExercises.length === 0 && (
           <section className="rounded-[28px] border border-white/10 bg-white/[0.05] p-6 text-center shadow-2xl sm:rounded-[34px] sm:p-10">
