@@ -4,6 +4,7 @@ import {
   Children,
   cloneElement,
   isValidElement,
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -12,7 +13,9 @@ import {
   type CSSProperties,
   type Dispatch,
   type FocusEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactElement,
   type ReactNode,
   type SetStateAction,
@@ -97,6 +100,15 @@ type Exercise = {
   secondaryMuscles?: string[];
   coachingCue?: string;
   imageUrl?: string;
+};
+
+type WorkoutBuilderPreviewSlot = "Warm-Up" | "Main" | "Accessory" | "Cooldown";
+
+type DraftWorkoutPreviewItem = {
+  exercise: Exercise;
+  id: string;
+  slot: WorkoutBuilderPreviewSlot;
+  source?: string;
 };
 
 type PrivateExerciseDraft = {
@@ -337,7 +349,7 @@ function FavoriteButton({
         event.stopPropagation();
         onToggle();
       }}
-      className={`absolute right-2 top-2 z-[35] flex items-center justify-center rounded-full border backdrop-blur-xl transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-yellow-200/40 ${
+      className={`relative z-[35] flex shrink-0 items-center justify-center rounded-full border backdrop-blur-xl transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-yellow-200/40 ${
         compact ? "h-8 w-8" : "h-10 w-10"
       } ${
         isFavorite
@@ -4051,8 +4063,8 @@ const getBodyRegionTheme = (region?: string | null): CategoryTheme => {
   const normalizedRegion = region?.trim().toLowerCase() || "";
   if (!normalizedRegion || normalizedRegion === "all") return categoryThemeFallback;
 
-  if (/(neck|cervical)/.test(normalizedRegion)) {
-    return getCategoryTheme("Cervical Isolation");
+  if (/(neck|cervical|trap)/.test(normalizedRegion)) {
+    return getCategoryTheme("Upper Pull");
   }
   if (/(athletic|power|plyo|jump|sprint|throw|carry|crawl|full body)/.test(normalizedRegion)) {
     return getCategoryTheme("Athletic");
@@ -4082,7 +4094,7 @@ const getBodyRegionTheme = (region?: string | null): CategoryTheme => {
   return categoryThemeFallback;
 };
 
-type BodyRegionLayer = "Upper" | "Lower" | "Core";
+type BodyRegionLayer = "Upper" | "Lower" | "Core" | "Athletic";
 
 const bodyRegionLayerConfigs: Array<{
   id: BodyRegionLayer;
@@ -4115,6 +4127,14 @@ const bodyRegionLayerConfigs: Array<{
       /(core|abs|oblique|anti|rotation|extension|lateral flexion|trunk|mobility|bracing)/i,
     theme: getCategoryTheme("Core"),
   },
+  {
+    id: "Athletic",
+    title: "Athletic",
+    helper: "Carries, crawls, jumps, sprints, throws",
+    pattern:
+      /(athletic|full body|integrated|carry|carries|crawl|jump|sprint|throw|power|conditioning|plyo|explosive)/i,
+    theme: getCategoryTheme("Athletic"),
+  },
 ];
 
 const getBodyRegionLayerForLabel = (label: string): BodyRegionLayer | null => {
@@ -4129,6 +4149,7 @@ const getBodyRegionLayerForLabel = (label: string): BodyRegionLayer | null => {
 };
 
 type ExerciseBodyFigureGender = "male" | "female";
+type ExerciseAnatomySlug = MuscleSlug | "neck";
 
 const exerciseAnatomyColors = [
   "#34d399",
@@ -4138,7 +4159,8 @@ const exerciseAnatomyColors = [
   "#facc15",
 ];
 
-const exerciseAnatomyBodySlugs: MuscleSlug[] = [
+const exerciseAnatomyBodySlugs: ExerciseAnatomySlug[] = [
+  "neck",
   "chest",
   "deltoids",
   "biceps",
@@ -4158,7 +4180,8 @@ const exerciseAnatomyBodySlugs: MuscleSlug[] = [
   "tibialis",
 ];
 
-const exerciseAnatomySlugLayer: Record<MuscleSlug, BodyRegionLayer> = {
+const exerciseAnatomySlugLayer: Record<ExerciseAnatomySlug, BodyRegionLayer> = {
+  neck: "Upper",
   chest: "Upper",
   deltoids: "Upper",
   biceps: "Upper",
@@ -4178,56 +4201,63 @@ const exerciseAnatomySlugLayer: Record<MuscleSlug, BodyRegionLayer> = {
   tibialis: "Lower",
 };
 
-const exerciseAnatomySlugBodyCandidates: Record<MuscleSlug, string[]> = {
-  chest: ["Chest"],
+const exerciseAnatomySlugBodyCandidates: Record<ExerciseAnatomySlug, string[]> = {
+  neck: ["Neck", "Cervical Flexors", "Cervical Extensors"],
+  chest: ["Chest", "Upper Chest", "Mid Chest", "Lower Chest"],
   deltoids: [
     "Shoulders",
+    "Front Delts",
+    "Side Delts",
+    "Rear Delts",
     "Lateral Delts",
     "Middle Deltoids",
     "Delts",
+    "Rotator Cuff",
     "Upper Back / Shoulders",
   ],
   biceps: ["Arms"],
   triceps: ["Arms"],
   forearm: ["Forearms", "Arms"],
-  abs: ["Core", "Abs"],
-  obliques: ["Core", "Obliques"],
-  quadriceps: ["Legs", "Quads", "Quadriceps"],
-  hamstring: ["Hamstrings", "Posterior Chain"],
+  abs: ["Core", "Abs", "Deep Core", "Anti-Extension"],
+  obliques: ["Core", "Obliques", "Anti-Rotation", "Anti-Lateral Flexion"],
+  quadriceps: ["Legs", "Quads", "Quadriceps", "Knee Extension", "Sissy Squat"],
+  hamstring: ["Hamstrings", "Posterior Chain", "Knee Flexion", "Hinge Pattern"],
   gluteal: [
     "Glutes",
+    "Glutes / Hips",
     "Glute Bridge",
     "Hip Thrust / Bridge",
     "Hips / Glutes",
     "Posterior Chain",
   ],
   calves: ["Calves", "Lower Legs"],
-  trapezius: ["Back", "Upper Back / Shoulders"],
-  "upper-back": ["Back", "Upper Back / Shoulders"],
-  "lower-back": ["Core", "Posterior Chain", "Back"],
-  adductors: ["Hips / Adductors", "Hips"],
+  trapezius: ["Upper Traps", "Mid Traps", "Lower Traps", "Traps", "Back"],
+  "upper-back": ["Back", "Upper Back", "Mid Back", "Lats", "Rhomboids"],
+  "lower-back": ["Lower Back", "Spinal Erectors", "Posterior Chain", "Back"],
+  adductors: ["Adductors", "Hips / Adductors", "Hips"],
   "hip-flexors": ["Hips", "Core"],
   tibialis: ["Lower Legs"],
 };
 
-const exerciseAnatomySlugThemeCategory: Record<MuscleSlug, string> = {
-  chest: "Upper Push",
-  deltoids: "Upper Push",
-  biceps: "Arm Isolation",
-  triceps: "Arm Isolation",
-  forearm: "Arm Isolation",
+const exerciseAnatomySlugThemeCategory: Record<ExerciseAnatomySlug, string> = {
+  neck: "Neck/Traps",
+  chest: "Chest",
+  deltoids: "Shoulders",
+  biceps: "Arms",
+  triceps: "Arms",
+  forearm: "Arms",
   abs: "Core",
   obliques: "Core",
-  quadriceps: "Lower Body Isolation",
-  hamstring: "Lower Body Compound",
-  gluteal: "Lower Body Compound",
-  calves: "Lower Body Isolation",
-  trapezius: "Upper Pull",
-  "upper-back": "Upper Pull",
-  "lower-back": "Core",
-  adductors: "Lower Body Isolation",
-  "hip-flexors": "Lower Body Isolation",
-  tibialis: "Lower Body Isolation",
+  quadriceps: "Quads",
+  hamstring: "Hamstrings",
+  gluteal: "Glutes/Hips",
+  calves: "Calves/Tibialis",
+  trapezius: "Neck/Traps",
+  "upper-back": "Back",
+  "lower-back": "Back",
+  adductors: "Glutes/Hips",
+  "hip-flexors": "Glutes/Hips",
+  tibialis: "Calves/Tibialis",
 };
 
 const exerciseAnatomyRegionVisuals: Record<
@@ -4240,6 +4270,76 @@ const exerciseAnatomyRegionVisuals: Record<
     glow: string;
   }
 > = {
+  "Neck/Traps": {
+    baseFill: "rgba(76, 29, 149, 0.40)",
+    contextFill: "rgba(139, 92, 246, 0.44)",
+    selectedFill: "rgba(196, 181, 253, 0.9)",
+    stroke: "rgba(221, 214, 254, 0.76)",
+    glow: "rgba(167, 139, 250, 0.30)",
+  },
+  Chest: {
+    baseFill: "rgba(159, 18, 57, 0.36)",
+    contextFill: "rgba(244, 63, 94, 0.42)",
+    selectedFill: "rgba(251, 113, 133, 0.9)",
+    stroke: "rgba(253, 164, 175, 0.76)",
+    glow: "rgba(251, 113, 133, 0.30)",
+  },
+  Shoulders: {
+    baseFill: "rgba(120, 53, 15, 0.36)",
+    contextFill: "rgba(245, 158, 11, 0.42)",
+    selectedFill: "rgba(251, 191, 36, 0.9)",
+    stroke: "rgba(253, 224, 71, 0.76)",
+    glow: "rgba(251, 191, 36, 0.30)",
+  },
+  Back: {
+    baseFill: "rgba(30, 64, 175, 0.36)",
+    contextFill: "rgba(59, 130, 246, 0.42)",
+    selectedFill: "rgba(96, 165, 250, 0.9)",
+    stroke: "rgba(191, 219, 254, 0.76)",
+    glow: "rgba(59, 130, 246, 0.30)",
+  },
+  Arms: {
+    baseFill: "rgba(88, 28, 135, 0.36)",
+    contextFill: "rgba(168, 85, 247, 0.42)",
+    selectedFill: "rgba(216, 180, 254, 0.9)",
+    stroke: "rgba(233, 213, 255, 0.76)",
+    glow: "rgba(168, 85, 247, 0.30)",
+  },
+  "Glutes/Hips": {
+    baseFill: "rgba(6, 78, 59, 0.36)",
+    contextFill: "rgba(16, 185, 129, 0.44)",
+    selectedFill: "rgba(52, 211, 153, 0.9)",
+    stroke: "rgba(110, 231, 183, 0.76)",
+    glow: "rgba(16, 185, 129, 0.30)",
+  },
+  Quads: {
+    baseFill: "rgba(113, 63, 18, 0.36)",
+    contextFill: "rgba(234, 179, 8, 0.44)",
+    selectedFill: "rgba(250, 204, 21, 0.9)",
+    stroke: "rgba(254, 240, 138, 0.76)",
+    glow: "rgba(250, 204, 21, 0.30)",
+  },
+  Hamstrings: {
+    baseFill: "rgba(6, 95, 70, 0.36)",
+    contextFill: "rgba(5, 150, 105, 0.44)",
+    selectedFill: "rgba(110, 231, 183, 0.9)",
+    stroke: "rgba(167, 243, 208, 0.76)",
+    glow: "rgba(16, 185, 129, 0.30)",
+  },
+  "Calves/Tibialis": {
+    baseFill: "rgba(8, 47, 73, 0.38)",
+    contextFill: "rgba(34, 211, 238, 0.42)",
+    selectedFill: "rgba(103, 232, 249, 0.9)",
+    stroke: "rgba(165, 243, 252, 0.76)",
+    glow: "rgba(34, 211, 238, 0.30)",
+  },
+  Athletic: {
+    baseFill: "rgba(124, 45, 18, 0.36)",
+    contextFill: "rgba(249, 115, 22, 0.42)",
+    selectedFill: "rgba(251, 146, 60, 0.9)",
+    stroke: "rgba(254, 215, 170, 0.76)",
+    glow: "rgba(249, 115, 22, 0.30)",
+  },
   "Lower Body Compound": {
     baseFill: "rgba(6, 78, 59, 0.36)",
     contextFill: "rgba(16, 185, 129, 0.42)",
@@ -4292,7 +4392,7 @@ const exerciseAnatomyFallbackVisual = {
   glow: "rgba(148, 163, 184, 0.20)",
 };
 
-const getExerciseAnatomySlugVisual = (slug: MuscleSlug) =>
+const getExerciseAnatomySlugVisual = (slug: ExerciseAnatomySlug) =>
   exerciseAnatomyRegionVisuals[exerciseAnatomySlugThemeCategory[slug]] ||
   exerciseAnatomyFallbackVisual;
 
@@ -4300,7 +4400,7 @@ const normalizeBodySelectorValue = (value: string) =>
   value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
 
 const resolveAnatomySlugBodyOption = (
-  slug: MuscleSlug,
+  slug: ExerciseAnatomySlug,
   bodyOptions: string[],
 ) => {
   const candidates = exerciseAnatomySlugBodyCandidates[slug] || [];
@@ -4323,30 +4423,793 @@ const resolveAnatomySlugBodyOption = (
   );
 };
 
-const exerciseAnatomyIndicatorPositions: Record<
-  MuscleSlug,
-  { back: CSSProperties; front: CSSProperties }
-> = {
-  chest: { front: { left: "50%", top: "31%" }, back: { left: "50%", top: "33%" } },
-  deltoids: { front: { left: "34%", top: "29%" }, back: { left: "66%", top: "30%" } },
-  biceps: { front: { left: "27%", top: "39%" }, back: { left: "73%", top: "39%" } },
-  triceps: { front: { left: "72%", top: "40%" }, back: { left: "28%", top: "40%" } },
-  forearm: { front: { left: "25%", top: "51%" }, back: { left: "75%", top: "51%" } },
-  abs: { front: { left: "50%", top: "45%" }, back: { left: "50%", top: "46%" } },
-  obliques: { front: { left: "38%", top: "47%" }, back: { left: "62%", top: "47%" } },
-  quadriceps: { front: { left: "45%", top: "67%" }, back: { left: "55%", top: "67%" } },
-  hamstring: { front: { left: "55%", top: "70%" }, back: { left: "45%", top: "70%" } },
-  gluteal: { front: { left: "50%", top: "59%" }, back: { left: "50%", top: "56%" } },
-  calves: { front: { left: "43%", top: "84%" }, back: { left: "57%", top: "82%" } },
-  trapezius: { front: { left: "50%", top: "24%" }, back: { left: "50%", top: "25%" } },
-  "upper-back": { front: { left: "60%", top: "34%" }, back: { left: "50%", top: "36%" } },
-  "lower-back": { front: { left: "50%", top: "51%" }, back: { left: "50%", top: "49%" } },
-  adductors: { front: { left: "54%", top: "68%" }, back: { left: "46%", top: "68%" } },
-  "hip-flexors": { front: { left: "42%", top: "57%" }, back: { left: "58%", top: "58%" } },
-  tibialis: { front: { left: "56%", top: "81%" }, back: { left: "44%", top: "84%" } },
+type MuscleRegion = {
+  colorGroup: string;
+  filters: string[];
+  id: string;
+  label: string;
+  parentRegion: string;
+  patterns: string[];
+  recommendation: string;
+  side?: "front" | "back" | "both";
+  topExercises: string[];
+  treePath: string[];
 };
 
-const getAnatomyRegionDescription = (label: string, slug?: MuscleSlug) => {
+const MUSCLE_REGION_MAP: Record<string, MuscleRegion> = {
+  neck: {
+    id: "neck",
+    label: "Neck",
+    side: "both",
+    parentRegion: "Neck",
+    treePath: ["Upper Body", "Neck / Traps", "Neck"],
+    patterns: ["Mobility"],
+    filters: ["Neck", "Cervical", "Mobility"],
+    topExercises: ["Neck CARs", "Chin Tuck", "Cervical Isometric"],
+    colorGroup: "Neck/Traps",
+    recommendation: "Use gentle mobility and isometrics to build neck control without chasing fatigue.",
+  },
+  "cervical-flexors": {
+    id: "cervical-flexors",
+    label: "Cervical Flexors",
+    side: "front",
+    parentRegion: "Neck",
+    treePath: ["Upper Body", "Neck / Traps", "Neck", "Cervical Flexors"],
+    patterns: ["Mobility"],
+    filters: ["Cervical Flexors", "Neck", "Chin Tuck", "Mobility"],
+    topExercises: ["Chin Tuck", "Supine Neck Flexion", "Cervical Isometric"],
+    colorGroup: "Neck/Traps",
+    recommendation: "Train gentle chin-tuck and flexion control before adding intensity.",
+  },
+  "cervical-extensors": {
+    id: "cervical-extensors",
+    label: "Cervical Extensors",
+    side: "back",
+    parentRegion: "Neck",
+    treePath: ["Upper Body", "Neck / Traps", "Neck", "Cervical Extensors"],
+    patterns: ["Mobility"],
+    filters: ["Cervical Extensors", "Neck", "Cervical", "Mobility"],
+    topExercises: ["Neck CARs", "Prone Neck Extension", "Cervical Isometric"],
+    colorGroup: "Neck/Traps",
+    recommendation: "Keep extension work slow and controlled so the traps do not take over.",
+  },
+  "upper-traps": {
+    id: "upper-traps",
+    label: "Upper Traps",
+    side: "both",
+    parentRegion: "Traps",
+    treePath: ["Upper Body", "Back", "Traps", "Upper Traps"],
+    patterns: ["Carry", "Row", "Mobility"],
+    filters: ["Upper Traps", "Traps", "Carry", "Row", "Shoulder Stability"],
+    topExercises: ["Farmer Carry", "Trap Raise", "Shrug"],
+    colorGroup: "Neck/Traps",
+    recommendation: "Build trap capacity with loaded carries, controlled shrugs, and upper-back rows.",
+  },
+  "mid-traps": {
+    id: "mid-traps",
+    label: "Mid Traps",
+    side: "back",
+    parentRegion: "Traps",
+    treePath: ["Upper Body", "Neck / Traps", "Mid Traps"],
+    patterns: ["Row", "Scapular Retraction"],
+    filters: ["Mid Traps", "Traps", "Upper Back", "Row", "Scapular Retraction"],
+    topExercises: ["Chest Supported Row", "Prone Trap Raise", "Face Pull"],
+    colorGroup: "Neck/Traps",
+    recommendation: "Use rows and trap raises that emphasize shoulder-blade control.",
+  },
+  "lower-traps": {
+    id: "lower-traps",
+    label: "Lower Traps",
+    side: "back",
+    parentRegion: "Traps",
+    treePath: ["Upper Body", "Neck / Traps", "Lower Traps"],
+    patterns: ["Shoulder Stability", "Scapular Depression"],
+    filters: ["Lower Traps", "Traps", "Y Raise", "Shoulder Stability"],
+    topExercises: ["Prone Y Raise", "Cable Y Raise", "Wall Slide"],
+    colorGroup: "Neck/Traps",
+    recommendation: "Use low-load Y-raise and wall-slide work for cleaner scapular control.",
+  },
+  chest: {
+    id: "chest",
+    label: "Chest",
+    side: "front",
+    parentRegion: "Upper Body",
+    treePath: ["Upper Body", "Chest"],
+    patterns: ["Chest Press", "Chest Fly", "Push-Up"],
+    filters: ["Chest", "Chest Press", "Chest Fly", "Push-Up"],
+    topExercises: ["Bench Press", "Push-Up", "Dumbbell Fly"],
+    colorGroup: "Chest",
+    recommendation: "Build pressing and fly volume while keeping shoulders packed.",
+  },
+  "upper-chest": {
+    id: "upper-chest",
+    label: "Upper Chest",
+    side: "front",
+    parentRegion: "Chest",
+    treePath: ["Upper Body", "Chest", "Upper Chest"],
+    patterns: ["Chest Press", "Chest Fly"],
+    filters: ["Upper Chest", "Chest", "Incline", "Low-to-High"],
+    topExercises: ["Incline Dumbbell Press", "Incline Push-Up", "Low-to-High Cable Fly"],
+    colorGroup: "Chest",
+    recommendation: "Add incline pressing or low-to-high fly volume.",
+  },
+  "mid-chest": {
+    id: "mid-chest",
+    label: "Mid Chest",
+    side: "front",
+    parentRegion: "Chest",
+    patterns: ["Chest Press", "Chest Fly"],
+    treePath: ["Upper Body", "Chest", "Mid Chest"],
+    filters: ["Mid Chest", "Chest", "Flat", "Push-Up"],
+    topExercises: ["Bench Press", "Push-Up", "Dumbbell Fly"],
+    colorGroup: "Chest",
+    recommendation: "Flat pressing and fly work fit this region cleanly.",
+  },
+  "lower-chest": {
+    id: "lower-chest",
+    label: "Lower Chest",
+    side: "front",
+    parentRegion: "Chest",
+    treePath: ["Upper Body", "Chest", "Lower Chest"],
+    patterns: ["Chest Press", "Chest Fly"],
+    filters: ["Lower Chest", "Chest", "Decline", "Dip", "High-to-Low"],
+    topExercises: ["Decline Push-Up", "Decline Press", "High-to-Low Cable Fly"],
+    colorGroup: "Chest",
+    recommendation: "Use decline or high-to-low lines if this area is under target.",
+  },
+  "serratus-anterior": {
+    id: "serratus-anterior",
+    label: "Serratus Anterior",
+    side: "front",
+    parentRegion: "Chest",
+    treePath: ["Upper Body", "Chest", "Serratus Anterior"],
+    patterns: ["Scapular Protraction", "Push-Up"],
+    filters: ["Serratus", "Serratus Anterior", "Push-Up", "Scapular"],
+    topExercises: ["Push-Up Plus", "Serratus Wall Slide", "Bear Crawl"],
+    colorGroup: "Chest",
+    recommendation: "Use protraction-focused work to improve shoulder blade control.",
+  },
+  shoulders: {
+    id: "shoulders",
+    label: "Shoulders",
+    side: "both",
+    parentRegion: "Upper Body",
+    treePath: ["Upper Body", "Shoulders"],
+    patterns: ["Shoulder Press", "Shoulder Abduction", "Rear Delt"],
+    filters: ["Shoulders", "Delts", "Shoulder Press", "Lateral Raise", "Rear Delt"],
+    topExercises: ["Shoulder Press", "Lateral Raise", "Reverse Fly"],
+    colorGroup: "Shoulders",
+    recommendation: "Pair pressing with lateral or rear-delt work for complete shoulder volume.",
+  },
+  "front-delts": {
+    id: "front-delts",
+    label: "Front Delts",
+    side: "front",
+    parentRegion: "Shoulders",
+    treePath: ["Upper Body", "Shoulders", "Front Delts"],
+    patterns: ["Shoulder Press", "Chest Press"],
+    filters: ["Shoulders", "Front Delts", "Shoulder Press", "Front Raise"],
+    topExercises: ["Shoulder Press", "Front Raise", "Incline Press"],
+    colorGroup: "Shoulders",
+    recommendation: "Pressing already loads this area; add direct work only if it is fresh.",
+  },
+  "side-delts": {
+    id: "side-delts",
+    label: "Side Delts",
+    side: "both",
+    parentRegion: "Shoulders",
+    treePath: ["Upper Body", "Shoulders", "Side Delts"],
+    patterns: ["Shoulder Abduction"],
+    filters: ["Side Delts", "Lateral Delts", "Shoulders", "Lateral Raise", "Shoulder Abduction"],
+    topExercises: ["Lateral Raise", "Cable Lateral Raise", "Upright Row"],
+    colorGroup: "Shoulders",
+    recommendation: "Lateral-raise patterns are the cleanest direct signal.",
+  },
+  "rear-delts": {
+    id: "rear-delts",
+    label: "Rear Delts",
+    side: "back",
+    parentRegion: "Shoulders",
+    treePath: ["Upper Body", "Shoulders", "Rear Delts"],
+    patterns: ["Row", "Shoulder Abduction"],
+    filters: ["Rear Delts", "Shoulders", "Upper Back", "Pull"],
+    topExercises: ["Rear Delt Fly", "Face Pull", "Chest Supported Row"],
+    colorGroup: "Shoulders",
+    recommendation: "Rear-delt and upper-back work help restore push/pull balance.",
+  },
+  "rotator-cuff": {
+    id: "rotator-cuff",
+    label: "Rotator Cuff",
+    side: "both",
+    parentRegion: "Shoulders",
+    treePath: ["Upper Body", "Shoulders", "Rotator Cuff"],
+    patterns: ["External Rotation", "Shoulder Stability"],
+    filters: ["Rotator Cuff", "External Rotation", "Shoulders", "Stability"],
+    topExercises: ["Cable External Rotation", "Band External Rotation", "Face Pull"],
+    colorGroup: "Shoulders",
+    recommendation: "Use low-load stability work and keep it smooth.",
+  },
+  back: {
+    id: "back",
+    label: "Back",
+    side: "back",
+    parentRegion: "Upper Body",
+    treePath: ["Upper Body", "Back"],
+    patterns: ["Row", "Vertical Pull", "Pullover"],
+    filters: ["Back", "Row", "Vertical Pull", "Pullover"],
+    topExercises: ["Chest Supported Row", "Lat Pulldown", "Pullover"],
+    colorGroup: "Back",
+    recommendation: "Balance rows and vertical pulls for a stronger upper-back signal.",
+  },
+  lats: {
+    id: "lats",
+    label: "Lats",
+    side: "back",
+    parentRegion: "Back",
+    treePath: ["Upper Body", "Back", "Lats"],
+    patterns: ["Vertical Pull", "Pullover", "Row"],
+    filters: ["Lats", "Back", "Vertical Pull", "Pullover"],
+    topExercises: ["Pull-Up", "Lat Pulldown", "Straight Arm Pulldown"],
+    colorGroup: "Back",
+    recommendation: "Vertical pulling and pullovers are the cleanest lat path.",
+  },
+  "upper-back": {
+    id: "upper-back",
+    label: "Upper Back",
+    side: "back",
+    parentRegion: "Back",
+    treePath: ["Upper Body", "Back", "Upper Back"],
+    patterns: ["Row", "Vertical Pull"],
+    filters: ["Back", "Upper Back", "Traps", "Rear Delts", "Row"],
+    topExercises: ["Chest Supported Row", "Seal Row", "Face Pull"],
+    colorGroup: "Back",
+    recommendation: "Rows and rear-delt work help keep this area balanced.",
+  },
+  "mid-back": {
+    id: "mid-back",
+    label: "Mid Back",
+    side: "back",
+    parentRegion: "Back",
+    treePath: ["Upper Body", "Back", "Mid Back"],
+    patterns: ["Row"],
+    filters: ["Back", "Mid Back", "Row"],
+    topExercises: ["Seated Row", "Chest Supported Row", "One-Arm Row"],
+    colorGroup: "Back",
+    recommendation: "Rows are the strongest fit when mid-back volume is low.",
+  },
+  "lower-back": {
+    id: "lower-back",
+    label: "Lower Back",
+    side: "back",
+    parentRegion: "Back",
+    treePath: ["Upper Body", "Back", "Lower Back"],
+    patterns: ["Hinge", "Anti-Extension"],
+    filters: ["Lower Back", "Back", "Posterior Chain", "Hinge"],
+    topExercises: ["Romanian Deadlift", "Back Extension", "Bird Dog"],
+    colorGroup: "Back",
+    recommendation: "Choose controlled hinge or trunk-stability work before chasing fatigue.",
+  },
+  rhomboids: {
+    id: "rhomboids",
+    label: "Rhomboids",
+    side: "back",
+    parentRegion: "Back",
+    treePath: ["Upper Body", "Back", "Rhomboids"],
+    patterns: ["Row", "Scapular Retraction"],
+    filters: ["Rhomboids", "Upper Back", "Row", "Scapular Retraction"],
+    topExercises: ["Chest Supported Row", "Cable Row", "Face Pull"],
+    colorGroup: "Back",
+    recommendation: "Rows with strong shoulder-blade squeeze are the cleanest fit.",
+  },
+  "spinal-erectors": {
+    id: "spinal-erectors",
+    label: "Spinal Erectors",
+    side: "back",
+    parentRegion: "Back",
+    treePath: ["Upper Body", "Back", "Spinal Erectors"],
+    patterns: ["Hinge", "Anti-Extension"],
+    filters: ["Spinal Erectors", "Lower Back", "Hinge", "Posterior Chain"],
+    topExercises: ["Back Extension", "Romanian Deadlift", "Good Morning"],
+    colorGroup: "Back",
+    recommendation: "Hinge and extension work should stay controlled and braced.",
+  },
+  arms: {
+    id: "arms",
+    label: "Arms",
+    side: "both",
+    parentRegion: "Upper Body",
+    treePath: ["Upper Body", "Arms"],
+    patterns: ["Curl", "Triceps Extension", "Wrist Flexion", "Wrist Extension"],
+    filters: ["Arms", "Biceps", "Triceps", "Forearms", "Curl", "Triceps Extension"],
+    topExercises: ["Curl", "Triceps Pressdown", "Hammer Curl"],
+    colorGroup: "Arms",
+    recommendation: "Use direct arm work as a clear accessory signal.",
+  },
+  biceps: {
+    id: "biceps",
+    label: "Biceps",
+    side: "front",
+    parentRegion: "Arms",
+    treePath: ["Upper Body", "Arms", "Biceps"],
+    patterns: ["Curl"],
+    filters: ["Biceps", "Arms", "Curl"],
+    topExercises: ["Dumbbell Curl", "Hammer Curl", "Cable Curl"],
+    colorGroup: "Arms",
+    recommendation: "Curl variations give the cleanest biceps volume.",
+  },
+  triceps: {
+    id: "triceps",
+    label: "Triceps",
+    side: "both",
+    parentRegion: "Arms",
+    treePath: ["Upper Body", "Arms", "Triceps"],
+    patterns: ["Triceps Extension", "Chest Press"],
+    filters: ["Triceps", "Arms", "Triceps Extension", "Pressdown"],
+    topExercises: ["Triceps Pressdown", "Overhead Triceps Extension", "Close-Grip Push-Up"],
+    colorGroup: "Arms",
+    recommendation: "Extensions and pressing both count, so watch total fatigue.",
+  },
+  forearms: {
+    id: "forearms",
+    label: "Forearms",
+    side: "both",
+    parentRegion: "Arms",
+    treePath: ["Upper Body", "Arms", "Forearms"],
+    patterns: ["Wrist Flexion", "Wrist Extension", "Wrist Rotation", "Carry"],
+    filters: ["Forearms", "Grip", "Wrist Flexion", "Wrist Extension", "Carry"],
+    topExercises: ["Farmer Carry", "Wrist Curl", "Reverse Curl"],
+    colorGroup: "Arms",
+    recommendation: "Grip and wrist work can round out pulling volume.",
+  },
+  "wrist-flexors": {
+    id: "wrist-flexors",
+    label: "Wrist Flexors",
+    side: "front",
+    parentRegion: "Forearms",
+    treePath: ["Upper Body", "Arms", "Forearms", "Wrist Flexors"],
+    patterns: ["Wrist Flexion", "Grip"],
+    filters: ["Wrist Flexors", "Forearms", "Grip", "Wrist Flexion"],
+    topExercises: ["Wrist Curl", "Farmer Carry", "Towel Grip Hold"],
+    colorGroup: "Arms",
+    recommendation: "Grip and wrist-flexion work support pulling and carries.",
+  },
+  "wrist-extensors": {
+    id: "wrist-extensors",
+    label: "Wrist Extensors",
+    side: "back",
+    parentRegion: "Forearms",
+    treePath: ["Upper Body", "Arms", "Forearms", "Wrist Extensors"],
+    patterns: ["Wrist Extension", "Grip"],
+    filters: ["Wrist Extensors", "Forearms", "Reverse Curl", "Wrist Extension"],
+    topExercises: ["Reverse Curl", "Wrist Extension", "Farmer Carry"],
+    colorGroup: "Arms",
+    recommendation: "Use reverse curls and wrist extension to balance grip-heavy work.",
+  },
+  core: {
+    id: "core",
+    label: "Core",
+    side: "front",
+    parentRegion: "Trunk",
+    treePath: ["Core"],
+    patterns: ["Rotation", "Anti-Rotation", "Flexion", "Anti-Extension", "Anti-Lateral Flexion"],
+    filters: ["Core", "Abs", "Obliques", "Anti-Rotation", "Anti-Extension"],
+    topExercises: ["Plank", "Pallof Press", "Dead Bug"],
+    colorGroup: "Core",
+    recommendation: "Core work is a low-friction way to add useful volume.",
+  },
+  "upper-abs": {
+    id: "upper-abs",
+    label: "Upper Abs",
+    side: "front",
+    parentRegion: "Core",
+    treePath: ["Core", "Abs", "Upper Abs"],
+    patterns: ["Flexion"],
+    filters: ["Upper Abs", "Abs", "Core", "Crunch"],
+    topExercises: ["Crunch", "Cable Crunch", "Dead Bug"],
+    colorGroup: "Core",
+    recommendation: "Flexion work is the most direct upper-ab signal.",
+  },
+  "lower-abs": {
+    id: "lower-abs",
+    label: "Lower Abs",
+    side: "front",
+    parentRegion: "Core",
+    treePath: ["Core", "Abs", "Lower Abs"],
+    patterns: ["Flexion", "Anti-Extension"],
+    filters: ["Lower Abs", "Abs", "Core", "Leg Raise"],
+    topExercises: ["Leg Raise", "Reverse Crunch", "Dead Bug"],
+    colorGroup: "Core",
+    recommendation: "Control pelvis position before adding longer-lever drills.",
+  },
+  obliques: {
+    id: "obliques",
+    label: "Obliques",
+    side: "front",
+    parentRegion: "Core",
+    treePath: ["Core", "Obliques"],
+    patterns: ["Rotation", "Anti-Rotation", "Anti-Lateral Flexion"],
+    filters: ["Obliques", "Rotation", "Anti-Rotation", "Side Plank"],
+    topExercises: ["Pallof Press", "Side Plank", "Cable Woodchop"],
+    colorGroup: "Core",
+    recommendation: "Rotation control is the cleanest oblique path.",
+  },
+  "deep-core": {
+    id: "deep-core",
+    label: "Deep Core",
+    side: "front",
+    parentRegion: "Core",
+    treePath: ["Core", "Deep Core"],
+    patterns: ["Bracing", "Anti-Extension"],
+    filters: ["Deep Core", "Core", "Bracing", "Trunk"],
+    topExercises: ["Dead Bug", "Bird Dog", "Plank"],
+    colorGroup: "Core",
+    recommendation: "Use bracing drills that stay quiet and repeatable.",
+  },
+  "anti-rotation-core": {
+    id: "anti-rotation-core",
+    label: "Anti-Rotation Core",
+    side: "both",
+    parentRegion: "Core",
+    treePath: ["Core", "Anti-Rotation"],
+    patterns: ["Anti-Rotation"],
+    filters: ["Anti-Rotation", "Core", "Pallof"],
+    topExercises: ["Pallof Press", "Cable Hold", "Bear Plank Row"],
+    colorGroup: "Core",
+    recommendation: "Anti-rotation work is a great low-fatigue balance choice.",
+  },
+  "anti-extension-core": {
+    id: "anti-extension-core",
+    label: "Anti-Extension Core",
+    side: "front",
+    parentRegion: "Core",
+    treePath: ["Core", "Anti-Extension"],
+    patterns: ["Anti-Extension"],
+    filters: ["Anti-Extension", "Core", "Plank"],
+    topExercises: ["Plank", "Dead Bug", "Ab Wheel"],
+    colorGroup: "Core",
+    recommendation: "Keep ribs and pelvis stacked as the weekly target climbs.",
+  },
+  "anti-lateral-flexion-core": {
+    id: "anti-lateral-flexion-core",
+    label: "Anti-Lateral Flexion Core",
+    side: "both",
+    parentRegion: "Core",
+    treePath: ["Core", "Anti-Lateral Flexion"],
+    patterns: ["Anti-Lateral Flexion"],
+    filters: ["Anti-Lateral Flexion", "Core", "Side Plank", "Carry"],
+    topExercises: ["Side Plank", "Suitcase Carry", "Offset March"],
+    colorGroup: "Core",
+    recommendation: "Side planks and suitcase carries build anti-tilt capacity.",
+  },
+  "glute-max": {
+    id: "glute-max",
+    label: "Glute Max",
+    side: "back",
+    parentRegion: "Glutes / Hips",
+    treePath: ["Lower Body", "Glutes / Hips", "Glute Max"],
+    patterns: ["Hip Thrust / Bridge", "Hinge", "Squat", "Lunge"],
+    filters: ["Glutes", "Glute Max", "Hip Thrust", "Hinge"],
+    topExercises: ["Hip Thrust", "Glute Bridge", "Romanian Deadlift"],
+    colorGroup: "Glutes/Hips",
+    recommendation: "Hip thrust or bridge patterns are the strongest glute signal.",
+  },
+  "glute-med": {
+    id: "glute-med",
+    label: "Glute Med",
+    side: "both",
+    parentRegion: "Glutes / Hips",
+    treePath: ["Lower Body", "Glutes / Hips", "Glute Med"],
+    patterns: ["Hip Abduction", "Lunge"],
+    filters: ["Glute Med", "Glutes", "Hip Abduction", "Lateral"],
+    topExercises: ["Hip Abduction", "Lateral Band Walk", "Side-Lying Abduction"],
+    colorGroup: "Glutes/Hips",
+    recommendation: "Use abduction and lateral lower-body work for hip control.",
+  },
+  "hip-flexors": {
+    id: "hip-flexors",
+    label: "Hip Flexors",
+    side: "front",
+    parentRegion: "Glutes / Hips",
+    treePath: ["Lower Body", "Glutes / Hips", "Hip Flexors"],
+    patterns: ["Hip Flexion", "Core"],
+    filters: ["Hip Flexors", "Hips", "Core"],
+    topExercises: ["Hanging Knee Raise", "March", "Dead Bug"],
+    colorGroup: "Glutes/Hips",
+    recommendation: "Keep hip-flexor work crisp and controlled.",
+  },
+  adductors: {
+    id: "adductors",
+    label: "Adductors",
+    side: "front",
+    parentRegion: "Glutes / Hips",
+    treePath: ["Lower Body", "Glutes / Hips", "Adductors"],
+    patterns: ["Hip Adduction", "Lunge"],
+    filters: ["Adductors", "Hip Adduction", "Hips", "Copenhagen"],
+    topExercises: ["Hip Adduction", "Copenhagen Plank", "Cossack Squat"],
+    colorGroup: "Glutes/Hips",
+    recommendation: "Adduction and lateral lower-body patterns fit here.",
+  },
+  abductors: {
+    id: "abductors",
+    label: "Abductors",
+    side: "both",
+    parentRegion: "Glutes / Hips",
+    treePath: ["Lower Body", "Glutes / Hips", "Abductors"],
+    patterns: ["Hip Abduction"],
+    filters: ["Abductors", "Hip Abduction", "Hips", "Glutes"],
+    topExercises: ["Hip Abduction", "Lateral Band Walk", "Side-Lying Abduction"],
+    colorGroup: "Glutes/Hips",
+    recommendation: "Hip-abduction work is the cleanest direct option.",
+  },
+  quads: {
+    id: "quads",
+    label: "Quads",
+    side: "front",
+    parentRegion: "Lower Body",
+    treePath: ["Lower Body", "Quads"],
+    patterns: ["Squat", "Knee Extension", "Lunge", "Step-Up"],
+    filters: ["Quads", "Knee Extension", "Squat", "Lunge"],
+    topExercises: ["Leg Extension", "Sissy Squat", "Goblet Squat"],
+    colorGroup: "Quads",
+    recommendation: "Knee-dominant work will move this volume fastest.",
+  },
+  "rectus-femoris": {
+    id: "rectus-femoris",
+    label: "Rectus Femoris",
+    side: "front",
+    parentRegion: "Quads",
+    treePath: ["Lower Body", "Quads", "Rectus Femoris"],
+    patterns: ["Knee Extension", "Squat"],
+    filters: ["Rectus Femoris", "Quads", "Knee Extension", "Hip Flexion"],
+    topExercises: ["Leg Extension", "Split Squat", "Reverse Nordic"],
+    colorGroup: "Quads",
+    recommendation: "Knee extension and long-range quad work are the clearest fit.",
+  },
+  "vastus-lateralis": {
+    id: "vastus-lateralis",
+    label: "Vastus Lateralis",
+    side: "front",
+    parentRegion: "Quads",
+    treePath: ["Lower Body", "Quads", "Vastus Lateralis"],
+    patterns: ["Squat", "Knee Extension", "Lunge"],
+    filters: ["Vastus Lateralis", "Quads", "Squat", "Knee Extension"],
+    topExercises: ["Leg Extension", "Leg Press", "Goblet Squat"],
+    colorGroup: "Quads",
+    recommendation: "Use stable squat and extension work to build outer-quad volume.",
+  },
+  "vastus-medialis": {
+    id: "vastus-medialis",
+    label: "Vastus Medialis",
+    side: "front",
+    parentRegion: "Quads",
+    treePath: ["Lower Body", "Quads", "Vastus Medialis"],
+    patterns: ["Knee Extension", "Squat", "Step-Up"],
+    filters: ["VMO", "Vastus Medialis", "Quads", "Knee Extension", "Sissy Squat"],
+    topExercises: ["Terminal Knee Extension", "Sissy Squat", "Heel-Elevated Squat"],
+    colorGroup: "Quads",
+    recommendation: "Heel-elevated and terminal knee-extension work bias the VMO signal.",
+  },
+  "knee-extension": {
+    id: "knee-extension",
+    label: "Knee Extension",
+    side: "front",
+    parentRegion: "Quads",
+    treePath: ["Lower Body", "Quads", "Knee Extension"],
+    patterns: ["Knee Extension"],
+    filters: ["Knee Extension", "Leg Extension", "Quads", "Quad Isolation"],
+    topExercises: ["Leg Extension", "Sissy Squat", "Terminal Knee Extension"],
+    colorGroup: "Quads",
+    recommendation: "Use knee-extension semantics for direct quad isolation.",
+  },
+  "sissy-squat": {
+    id: "sissy-squat",
+    label: "Sissy Squat",
+    side: "front",
+    parentRegion: "Quads",
+    treePath: ["Lower Body", "Quads", "Sissy Squat"],
+    patterns: ["Knee Extension"],
+    filters: ["Sissy Squat", "Knee Extension", "Bodyweight", "Quad Isolation"],
+    topExercises: ["Assisted Sissy Squat", "Leg Extension", "Terminal Knee Extension"],
+    colorGroup: "Quads",
+    recommendation: "Treat this as knee-extension volume with a bodyweight skill demand.",
+  },
+  hamstrings: {
+    id: "hamstrings",
+    label: "Hamstrings",
+    side: "back",
+    parentRegion: "Lower Body",
+    treePath: ["Lower Body", "Hamstrings"],
+    patterns: ["Hinge", "Knee Flexion"],
+    filters: ["Hamstrings", "Hinge", "Knee Flexion"],
+    topExercises: ["Romanian Deadlift", "Hamstring Curl", "Nordic Curl"],
+    colorGroup: "Hamstrings",
+    recommendation: "Pair hinge and knee-flexion work for complete hamstring coverage.",
+  },
+  calves: {
+    id: "calves",
+    label: "Calves",
+    side: "both",
+    parentRegion: "Lower Body",
+    treePath: ["Lower Body", "Calves"],
+    patterns: ["Calf Raise"],
+    filters: ["Calves", "Calf Raise", "Lower Legs"],
+    topExercises: ["Standing Calf Raise", "Seated Calf Raise", "Single-Leg Calf Raise"],
+    colorGroup: "Calves/Tibialis",
+    recommendation: "Calf-raise work is direct, readable volume.",
+  },
+  "tibialis-anterior": {
+    id: "tibialis-anterior",
+    label: "Tibialis Anterior",
+    side: "front",
+    parentRegion: "Lower Body",
+    treePath: ["Lower Body", "Calves", "Tibialis Anterior"],
+    patterns: ["Mobility"],
+    filters: ["Tibialis", "Ankle", "Shin", "Mobility"],
+    topExercises: ["Tibialis Raise", "Toe Raise", "Ankle Dorsiflexion Drill"],
+    colorGroup: "Calves/Tibialis",
+    recommendation: "Tibialis raises are a clean way to balance ankle work.",
+  },
+  carries: {
+    id: "carries",
+    label: "Carries",
+    side: "both",
+    parentRegion: "Athletic / Full Body",
+    patterns: ["Carry", "Row"],
+    treePath: ["Athletic / Full Body", "Carries"],
+    filters: ["Carry", "Carries", "Loaded Carry"],
+    topExercises: ["Farmer Carry", "Suitcase Carry", "Rack Carry"],
+    colorGroup: "Athletic",
+    recommendation: "Carries build useful trunk, grip, and upper-back capacity.",
+  },
+  crawls: {
+    id: "crawls",
+    label: "Crawls",
+    side: "both",
+    parentRegion: "Athletic / Full Body",
+    treePath: ["Athletic / Full Body", "Crawls"],
+    patterns: ["Crawl", "Integrated Movement"],
+    filters: ["Crawl", "Crawls", "Bear Crawl", "Integrated Movement"],
+    topExercises: ["Bear Crawl", "Lateral Crawl", "Crab Reach"],
+    colorGroup: "Athletic",
+    recommendation: "Crawls are a strong full-body coordination signal.",
+  },
+  jumps: {
+    id: "jumps",
+    label: "Jumps",
+    side: "both",
+    parentRegion: "Athletic / Full Body",
+    treePath: ["Athletic / Full Body", "Jumps"],
+    patterns: ["Jump", "Plyometric"],
+    filters: ["Jump", "Jumps", "Plyometric", "Power"],
+    topExercises: ["Jump Squat", "Box Jump", "Broad Jump"],
+    colorGroup: "Athletic",
+    recommendation: "Keep jump work crisp and stop before quality drops.",
+  },
+  sprints: {
+    id: "sprints",
+    label: "Sprints",
+    side: "both",
+    parentRegion: "Athletic / Full Body",
+    treePath: ["Athletic / Full Body", "Sprints"],
+    patterns: ["Sprint", "Conditioning"],
+    filters: ["Sprint", "Sprints", "Conditioning", "Athletic"],
+    topExercises: ["Sprint", "Hill Sprint", "Prowler Push"],
+    colorGroup: "Athletic",
+    recommendation: "Sprint volume should stay high quality and recovery-aware.",
+  },
+  throws: {
+    id: "throws",
+    label: "Throws",
+    side: "both",
+    parentRegion: "Athletic / Full Body",
+    treePath: ["Athletic / Full Body", "Throws"],
+    patterns: ["Throw", "Power"],
+    filters: ["Throw", "Throws", "Medicine Ball", "Power"],
+    topExercises: ["Medicine Ball Slam", "Rotational Throw", "Chest Pass"],
+    colorGroup: "Athletic",
+    recommendation: "Throws fit best as fast, powerful reps rather than fatigue work.",
+  },
+  "integrated-movement": {
+    id: "integrated-movement",
+    label: "Integrated Movement",
+    side: "both",
+    parentRegion: "Athletic / Full Body",
+    treePath: ["Athletic / Full Body", "Integrated Movement"],
+    patterns: ["Integrated Movement", "Full Body"],
+    filters: ["Integrated", "Integrated Movement", "Full Body"],
+    topExercises: ["Turkish Get-Up", "Clean", "Medicine Ball Slam"],
+    colorGroup: "Athletic",
+    recommendation: "Integrated work is a useful bridge between strength and coordination.",
+  },
+};
+
+const getMuscleFiberInfo = (label: string): MuscleRegion | null => {
+  const normalizedLabel = normalizeBodySelectorValue(label);
+  const directEntry = Object.values(MUSCLE_REGION_MAP).find(
+    (region) =>
+      normalizeBodySelectorValue(region.id) === normalizedLabel ||
+      normalizeBodySelectorValue(region.label) === normalizedLabel,
+  );
+
+  if (directEntry) return directEntry;
+
+  return (
+    Object.values(MUSCLE_REGION_MAP).find((info) => {
+      const normalizedKey = normalizeBodySelectorValue(info.label);
+      const normalizedParent = normalizeBodySelectorValue(info.parentRegion);
+
+      return (
+        normalizedKey.includes(normalizedLabel) ||
+        normalizedLabel.includes(normalizedKey) ||
+        normalizedParent === normalizedLabel ||
+        info.filters.some(
+          (filter) =>
+            normalizeBodySelectorValue(filter) === normalizedLabel,
+        )
+      );
+    }) || null
+  );
+};
+
+const exerciseAnatomySlugMuscleRegionIds: Record<ExerciseAnatomySlug, string[]> = {
+  neck: ["neck", "cervical-flexors", "cervical-extensors"],
+  chest: ["upper-chest", "mid-chest", "lower-chest", "serratus-anterior"],
+  deltoids: ["front-delts", "side-delts", "rear-delts", "rotator-cuff"],
+  biceps: ["biceps"],
+  triceps: ["triceps"],
+  forearm: ["forearms", "wrist-flexors", "wrist-extensors"],
+  abs: ["upper-abs", "lower-abs", "deep-core", "anti-extension-core"],
+  obliques: ["obliques", "anti-rotation-core", "anti-lateral-flexion-core"],
+  quadriceps: ["quads", "rectus-femoris", "vastus-lateralis", "vastus-medialis", "knee-extension", "sissy-squat"],
+  hamstring: ["hamstrings"],
+  gluteal: ["glute-max", "glute-med"],
+  calves: ["calves"],
+  trapezius: ["upper-traps", "mid-traps", "lower-traps"],
+  "upper-back": ["lats", "upper-back", "mid-back", "rhomboids"],
+  "lower-back": ["lower-back", "spinal-erectors"],
+  adductors: ["adductors"],
+  "hip-flexors": ["hip-flexors", "abductors"],
+  tibialis: ["tibialis-anterior"],
+};
+
+const getMuscleRegionForSlug = (
+  slug: ExerciseAnatomySlug,
+  regionId?: string | null,
+) => {
+  const regionFromId = regionId ? MUSCLE_REGION_MAP[regionId] : null;
+  if (regionFromId) return regionFromId;
+
+  const fallbackRegionId = exerciseAnatomySlugMuscleRegionIds[slug]?.[0];
+  return fallbackRegionId ? MUSCLE_REGION_MAP[fallbackRegionId] || null : null;
+};
+
+const getMuscleRegionIdForSvgPath = (
+  slug: ExerciseAnatomySlug,
+  figureSide: string | null,
+  pathIndex: number,
+) => {
+  const regionIds = exerciseAnatomySlugMuscleRegionIds[slug] || [];
+  if (!regionIds.length) return null;
+
+  const sidePreferredRegion = regionIds.find((regionId) => {
+    const region = MUSCLE_REGION_MAP[regionId];
+    return (
+      region?.side &&
+      region.side !== "both" &&
+      figureSide &&
+      region.side === figureSide
+    );
+  });
+
+  return regionIds[pathIndex % regionIds.length] || sidePreferredRegion || regionIds[0];
+};
+
+const getMuscleRegionLabelsForSlug = (slug: ExerciseAnatomySlug) =>
+  (exerciseAnatomySlugMuscleRegionIds[slug] || [])
+    .map((regionId) => MUSCLE_REGION_MAP[regionId]?.label)
+    .filter((label): label is string => Boolean(label));
+
+const getAnatomyRegionDescription = (label: string, slug?: ExerciseAnatomySlug) => {
   const normalizedLabel = normalizeBodySelectorValue(label);
   const normalizedSlug = slug ? normalizeBodySelectorValue(slug) : "";
 
@@ -4383,6 +5246,275 @@ const getAnatomyRegionDescription = (label: string, slug?: MuscleSlug) => {
 
   return "A movement-relevant training region used for filtering and volume tracking.";
 };
+
+type AnatomyTreeNode = {
+  aliases?: string[];
+  children?: AnatomyTreeNode[];
+  exerciseBadges?: string[];
+  filters?: string[];
+  id: string;
+  label: string;
+  layer?: BodyRegionLayer;
+  patterns?: string[];
+};
+
+const anatomyTreeNodes: AnatomyTreeNode[] = [
+  {
+    id: "all-regions",
+    label: "All Regions",
+    aliases: ["All"],
+    children: [
+      {
+        id: "upper-body",
+        label: "Upper Body",
+        layer: "Upper",
+        aliases: ["Neck", "Traps", "Chest", "Back", "Shoulders", "Arms"],
+        children: [
+          {
+            id: "neck-traps",
+            label: "Neck / Traps",
+            layer: "Upper",
+            aliases: ["Neck", "Cervical", "Traps", "Upper Traps", "Shoulder Stability"],
+            children: [
+              { id: "neck-tree", label: "Neck", layer: "Upper", aliases: ["Neck", "Cervical", "Mobility"] },
+              { id: "cervical-flexors", label: "Cervical Flexors", layer: "Upper", aliases: ["Neck", "Cervical Flexors", "Chin Tuck"] },
+              { id: "cervical-extensors", label: "Cervical Extensors", layer: "Upper", aliases: ["Neck", "Cervical Extensors", "Neck Extension"] },
+              { id: "upper-traps", label: "Upper Traps", layer: "Upper", aliases: ["Traps", "Upper Traps", "Carry", "Row", "Shrug"] },
+              { id: "mid-traps", label: "Mid Traps", layer: "Upper", aliases: ["Traps", "Mid Traps", "Upper Back", "Row", "Scapular Retraction"] },
+              { id: "lower-traps", label: "Lower Traps", layer: "Upper", aliases: ["Traps", "Lower Traps", "Y Raise", "Shoulder Stability"] },
+            ],
+          },
+          {
+            id: "chest",
+            label: "Chest",
+            layer: "Upper",
+            aliases: ["Chest Press", "Chest Fly", "Push-Up", "Pecs", "Serratus"],
+            children: [
+              { id: "upper-chest", label: "Upper Chest", layer: "Upper", aliases: ["Chest", "Incline", "Chest Press"] },
+              { id: "mid-chest", label: "Mid Chest", layer: "Upper", aliases: ["Chest", "Chest Press", "Push-Up"] },
+              { id: "lower-chest", label: "Lower Chest", layer: "Upper", aliases: ["Chest", "Decline", "Dip"] },
+              { id: "serratus-anterior", label: "Serratus Anterior", layer: "Upper", aliases: ["Serratus", "Scapular Protraction", "Push-Up Plus"] },
+            ],
+          },
+          {
+            id: "back",
+            label: "Back",
+            layer: "Upper",
+            aliases: ["Row", "Vertical Pull", "Pullover", "Lats", "Upper Back", "Rhomboids", "Spinal Erectors"],
+            children: [
+              { id: "lats", label: "Lats", layer: "Upper", aliases: ["Back", "Vertical Pull", "Pulldown", "Pull-Up"] },
+              { id: "upper-back", label: "Upper Back", layer: "Upper", aliases: ["Back", "Row", "Traps", "Rhomboids"] },
+              { id: "mid-back", label: "Mid Back", layer: "Upper", aliases: ["Back", "Row"] },
+              { id: "lower-back-tree", label: "Lower Back", layer: "Upper", aliases: ["Back", "Posterior Chain", "Hinge"] },
+              { id: "rhomboids", label: "Rhomboids", layer: "Upper", aliases: ["Back", "Upper Back", "Row", "Scapular Retraction"] },
+              { id: "spinal-erectors", label: "Spinal Erectors", layer: "Upper", aliases: ["Lower Back", "Back", "Hinge", "Posterior Chain"] },
+            ],
+          },
+          {
+            id: "shoulders",
+            label: "Shoulders",
+            layer: "Upper",
+            aliases: ["Shoulder Press", "Shoulder Abduction", "Rear Delt", "Lateral Raise"],
+            children: [
+              { id: "front-delts", label: "Front Delts", layer: "Upper", aliases: ["Shoulders", "Shoulder Press", "Front Raise"] },
+              { id: "side-delts", label: "Side Delts", layer: "Upper", aliases: ["Shoulders", "Lateral Delts", "Lateral Raise", "Shoulder Abduction"] },
+              { id: "rear-delts", label: "Rear Delts", layer: "Upper", aliases: ["Shoulders", "Rear Delt", "Reverse Fly"] },
+              { id: "rotator-cuff", label: "Rotator Cuff", layer: "Upper", aliases: ["Shoulders", "Rotator Cuff", "External Rotation"] },
+            ],
+          },
+          {
+            id: "arms",
+            label: "Arms",
+            layer: "Upper",
+            aliases: ["Curl", "Triceps Extension", "Wrist Flexion", "Wrist Extension", "Wrist Rotation"],
+            children: [
+              { id: "biceps", label: "Biceps", layer: "Upper", aliases: ["Arms", "Curl"] },
+              { id: "triceps", label: "Triceps", layer: "Upper", aliases: ["Arms", "Triceps Extension", "Pressdown"] },
+              { id: "forearms", label: "Forearms", layer: "Upper", aliases: ["Arms", "Forearms", "Wrist Flexion", "Wrist Extension", "Grip"] },
+              { id: "wrist-flexors", label: "Wrist Flexors", layer: "Upper", aliases: ["Forearms", "Grip", "Wrist Flexion"] },
+              { id: "wrist-extensors", label: "Wrist Extensors", layer: "Upper", aliases: ["Forearms", "Reverse Curl", "Wrist Extension"] },
+            ],
+          },
+        ],
+      },
+      {
+        id: "lower-body",
+        label: "Lower Body",
+        layer: "Lower",
+        aliases: ["Quads", "Hamstrings", "Glutes", "Hips", "Calves"],
+        children: [
+          {
+            id: "quads",
+            label: "Quads",
+            layer: "Lower",
+            aliases: ["Squat", "Knee Extension", "Lunge", "Step-Up", "Quadriceps"],
+            children: [
+              { id: "knee-extension", label: "Knee Extension", layer: "Lower", aliases: ["Quads", "Leg Extension", "Quad Isolation"] },
+              { id: "sissy-squat", label: "Sissy Squat", layer: "Lower", aliases: ["Knee Extension", "Quad Isolation", "Bodyweight", "Sissy Squat"] },
+              { id: "squat-pattern", label: "Squat Pattern", layer: "Lower", aliases: ["Quads", "Squat", "Goblet Squat", "Back Squat"] },
+              { id: "rectus-femoris", label: "Rectus Femoris", layer: "Lower", aliases: ["Quads", "Knee Extension", "Hip Flexion"] },
+              { id: "vastus-lateralis", label: "Vastus Lateralis", layer: "Lower", aliases: ["Quads", "Knee Extension", "Squat"] },
+              { id: "vastus-medialis", label: "Vastus Medialis", layer: "Lower", aliases: ["VMO", "Quads", "Knee Extension", "Sissy Squat"] },
+            ],
+          },
+          {
+            id: "hamstrings",
+            label: "Hamstrings",
+            layer: "Lower",
+            aliases: ["Hinge", "Knee Flexion", "Romanian Deadlift", "Leg Curl"],
+            children: [
+              { id: "knee-flexion", label: "Knee Flexion", layer: "Lower", aliases: ["Hamstrings", "Leg Curl", "Knee Flexion"] },
+              { id: "hinge-pattern", label: "Hinge Pattern", layer: "Lower", aliases: ["Hamstrings", "Hinge", "Deadlift", "RDL"] },
+            ],
+          },
+          {
+            id: "glutes-hips",
+            label: "Glutes / Hips",
+            layer: "Lower",
+            aliases: ["Hip Thrust", "Glute Bridge", "Hinge", "Hip Abduction", "Hip Adduction"],
+            children: [
+              { id: "glute-max", label: "Glute Max", layer: "Lower", aliases: ["Glutes", "Hip Thrust", "Glute Bridge", "Pull Through"] },
+              { id: "glute-med", label: "Glute Med", layer: "Lower", aliases: ["Glutes", "Hip Abduction", "Abductors", "Lateral"] },
+              { id: "hip-flexors", label: "Hip Flexors", layer: "Lower", aliases: ["Hips", "Hip Flexors"] },
+              { id: "abductors", label: "Abductors", layer: "Lower", aliases: ["Hips", "Hip Abduction", "Abductors"] },
+              { id: "adductors", label: "Adductors", layer: "Lower", aliases: ["Hips", "Hip Adduction", "Adductors"] },
+            ],
+          },
+          {
+            id: "calves",
+            label: "Calves",
+            layer: "Lower",
+            aliases: ["Calves", "Calf Raise", "Lower Legs", "Tibialis"],
+            children: [
+              { id: "tibialis-anterior", label: "Tibialis Anterior", layer: "Lower", aliases: ["Tibialis", "Ankle", "Shin", "Mobility"] },
+            ],
+          },
+        ],
+      },
+      {
+        id: "core-tree",
+        label: "Core",
+        layer: "Core",
+        aliases: ["Abs", "Obliques", "Anti-Rotation", "Anti-Extension", "Anti-Lateral Flexion"],
+        children: [
+          { id: "abs", label: "Abs", layer: "Core", aliases: ["Core", "Abs", "Flexion"] },
+          { id: "upper-abs", label: "Upper Abs", layer: "Core", aliases: ["Abs", "Crunch", "Flexion"] },
+          { id: "lower-abs", label: "Lower Abs", layer: "Core", aliases: ["Abs", "Leg Raise", "Anti-Extension"] },
+          { id: "obliques", label: "Obliques", layer: "Core", aliases: ["Core", "Obliques", "Rotation"] },
+          { id: "deep-core", label: "Deep Core", layer: "Core", aliases: ["Core", "Bracing", "Trunk"] },
+          { id: "anti-rotation", label: "Anti-Rotation Core", layer: "Core", aliases: ["Core", "Anti-Rotation", "Pallof"] },
+          { id: "anti-extension", label: "Anti-Extension Core", layer: "Core", aliases: ["Core", "Anti-Extension", "Plank"] },
+          { id: "anti-lateral-flexion", label: "Anti-Lateral Flexion Core", layer: "Core", aliases: ["Core", "Anti-Lateral Flexion", "Side Plank"] },
+        ],
+      },
+      {
+        id: "athletic-full-body",
+        label: "Athletic / Full Body",
+        layer: "Athletic",
+        aliases: ["Carry", "Crawl", "Jump", "Sprint", "Throw", "Integrated Movement"],
+        children: [
+          { id: "carries", label: "Carries", layer: "Athletic", aliases: ["Carry", "Carries", "Loaded Carry"] },
+          { id: "crawls", label: "Crawls", layer: "Athletic", aliases: ["Crawl", "Crawls", "Bear Crawl"] },
+          { id: "jumps", label: "Jumps", layer: "Athletic", aliases: ["Jump", "Jumps", "Plyometric"] },
+          { id: "sprints", label: "Sprints", layer: "Athletic", aliases: ["Sprint", "Sprints", "Conditioning"] },
+          { id: "throws", label: "Throws", layer: "Athletic", aliases: ["Throw", "Throws", "Medicine Ball"] },
+          { id: "integrated-movement", label: "Integrated Movement", layer: "Athletic", aliases: ["Integrated", "Integrated Movement", "Full Body"] },
+        ],
+      },
+    ],
+  },
+];
+
+const flattenAnatomyTreeNodes = (nodes: AnatomyTreeNode[]): AnatomyTreeNode[] =>
+  nodes.flatMap((node) => [
+    node,
+    ...(node.children ? flattenAnatomyTreeNodes(node.children) : []),
+  ]);
+
+const flatAnatomyTreeNodes = flattenAnatomyTreeNodes(anatomyTreeNodes);
+
+const getAnatomyTreeFilterAliases = (label: string) => {
+  const normalizedLabel = normalizeBodySelectorValue(label);
+  const node = flatAnatomyTreeNodes.find(
+    (item) => normalizeBodySelectorValue(item.label) === normalizedLabel,
+  );
+
+  return Array.from(new Set([label, ...(node?.aliases || [])]));
+};
+
+const findAnatomyTreeNodePath = (
+  label: string,
+  nodes: AnatomyTreeNode[] = anatomyTreeNodes,
+  path: AnatomyTreeNode[] = [],
+  allowAliasMatch = false,
+): AnatomyTreeNode[] => {
+  const normalizedLabel = normalizeBodySelectorValue(label);
+
+  for (const node of nodes) {
+    const currentPath = [...path, node];
+    const aliases = getAnatomyTreeFilterAliases(node.label);
+    const matchesNode =
+      normalizeBodySelectorValue(node.label) === normalizedLabel ||
+      (allowAliasMatch &&
+        aliases.some(
+          (alias) => normalizeBodySelectorValue(alias) === normalizedLabel,
+        ));
+
+    if (matchesNode) return currentPath;
+
+    if (node.children?.length) {
+      const childPath = findAnatomyTreeNodePath(
+        label,
+        node.children,
+        currentPath,
+        allowAliasMatch,
+      );
+
+      if (childPath.length) return childPath;
+    }
+  }
+
+  return path.length || allowAliasMatch
+    ? []
+    : findAnatomyTreeNodePath(label, anatomyTreeNodes, [], true);
+};
+
+const findAnatomyTreeNodePathById = (
+  nodeId: string,
+  nodes: AnatomyTreeNode[] = anatomyTreeNodes,
+  path: AnatomyTreeNode[] = [],
+): AnatomyTreeNode[] => {
+  for (const node of nodes) {
+    const currentPath = [...path, node];
+    if (node.id === nodeId) return currentPath;
+
+    if (node.children?.length) {
+      const childPath = findAnatomyTreeNodePathById(
+        nodeId,
+        node.children,
+        currentPath,
+      );
+
+      if (childPath.length) return childPath;
+    }
+  }
+
+  return [];
+};
+
+const getAnatomyRootNodeIdForLayer = (layer: BodyRegionLayer | null) => {
+  if (layer === "Lower") return "lower-body";
+  if (layer === "Core") return "core-tree";
+  if (layer === "Athletic") return "athletic-full-body";
+  return "upper-body";
+};
+
+const getAnatomyRootNodeFromPath = (path: AnatomyTreeNode[]) =>
+  path.find((node) =>
+    ["upper-body", "lower-body", "core-tree", "athletic-full-body"].includes(
+      node.id,
+    ),
+  ) || null;
 
 const getPopularExercisesForBodyRegion = (
   label: string,
@@ -4464,6 +5596,386 @@ const getPopularExercisesForBodyRegion = (
     ).values(),
   ).slice(0, 4);
 };
+
+const getMuscleFiberExerciseSuggestions = (
+  label: string,
+  exercises: Exercise[],
+) => {
+  const muscleInfo = getMuscleFiberInfo(label);
+  const suggestedFromMap =
+    muscleInfo?.topExercises
+      .map((targetTitle) => {
+        const normalizedTarget = normalizeFilterCompareValue(targetTitle);
+        const exercise = exercises.find((candidate) => {
+          const normalizedTitle = normalizeFilterCompareValue(
+            getExerciseSortTitle(candidate),
+          );
+          const normalizedName = normalizeFilterCompareValue(candidate.name);
+
+          return (
+            normalizedTitle === normalizedTarget ||
+            normalizedName === normalizedTarget ||
+            normalizedTitle.includes(normalizedTarget) ||
+            normalizedTarget.includes(normalizedTitle)
+          );
+        });
+
+        return exercise
+          ? { exercise, title: getExerciseSortTitle(exercise) }
+          : null;
+      })
+      .filter(
+        (entry): entry is { exercise: Exercise; title: string } =>
+          Boolean(entry),
+      ) || [];
+  const suggestedByRegion = getPopularExercisesForBodyRegion(label, exercises);
+
+  return Array.from(
+    new Map(
+      [...suggestedFromMap, ...suggestedByRegion].map((entry) => [
+        entry.exercise.id,
+        entry,
+      ]),
+    ).values(),
+  ).slice(0, 4);
+};
+
+type SelectedRecommendationAction = {
+  caution?: boolean;
+  description: string;
+  exerciseNames: string[];
+  label: string;
+  mode: "suggested-focus" | "recommended-exercises" | "recovery";
+  targetRoute?: string;
+  title: string;
+};
+
+type SkillPointSummary = {
+  level: number;
+  pointBreakdown: string[];
+  points: number;
+  progressToNextLevel: number;
+  pointsToNextLevel: number;
+};
+
+const getSkillPointsForNode = ({
+  hasBestPerformance = false,
+  lastTrainedTime = 0,
+  weeklyGoal,
+  weeklyReps = 0,
+  weeklySets,
+  weightVolume = 0,
+}: {
+  hasBestPerformance?: boolean;
+  lastTrainedTime?: number;
+  weeklyGoal: number;
+  weeklyReps?: number;
+  weeklySets: number;
+  weightVolume?: number;
+}): SkillPointSummary => {
+  const setPoints = Math.max(0, Math.floor(weeklySets));
+  const repBonus = Math.floor(Math.max(0, weeklyReps) / 10);
+  const volumeBonus = Math.floor(Math.max(0, weightVolume) / 1000);
+  const prBonus = hasBestPerformance ? 5 : 0;
+  const goalBonus = weeklyGoal > 0 && weeklySets >= weeklyGoal ? 10 : 0;
+  const streakBonus =
+    lastTrainedTime > 0 && Date.now() - lastTrainedTime <= 7 * 24 * 60 * 60 * 1000
+      ? 3
+      : 0;
+  const points = setPoints + repBonus + volumeBonus + prBonus + goalBonus + streakBonus;
+  const remainder = points % 25;
+  const progressToNextLevel = (points % 25) / 25;
+
+  return {
+    level: Math.floor(points / 25) + 1,
+    pointBreakdown: [
+      `${setPoints} set pts`,
+      repBonus ? `${repBonus} rep bonus` : "",
+      volumeBonus ? `${volumeBonus} volume bonus` : "",
+      prBonus ? "+5 best performance" : "",
+      goalBonus ? "+10 weekly goal" : "",
+      streakBonus ? "+3 recent training" : "",
+    ].filter(Boolean),
+    points,
+    progressToNextLevel,
+    pointsToNextLevel: remainder === 0 ? (points > 0 ? 25 : 25) : 25 - remainder,
+  };
+};
+
+const getRecoveryExerciseNamesForBodyPart = (selectedBodyPart: string) => {
+  const normalized = normalizeFilterCompareValue(selectedBodyPart);
+
+  if (/(core|abs|oblique|rotation|extension)/.test(normalized)) {
+    return [
+      "Breathing Drill",
+      "Dead Bug Regression",
+      "Thoracic Mobility",
+      "Light Walking",
+    ];
+  }
+  if (/(quad|knee|sissy)/.test(normalized)) {
+    return [
+      "Quad Mobility",
+      "Assisted Bodyweight Range Work",
+      "Glute Bridge",
+      "Hamstring Curl",
+    ];
+  }
+  if (/(chest|shoulder|delt|press)/.test(normalized)) {
+    return [
+      "Shoulder CARs",
+      "Band External Rotation",
+      "Thoracic Mobility",
+      "Easy Row",
+    ];
+  }
+  if (/(back|lat|trap|row|pull)/.test(normalized)) {
+    return [
+      "T-Spine Rotation",
+      "Scapular CARs",
+      "Light Pulldown Technique",
+      "Chest Mobility",
+    ];
+  }
+  if (/(glute|hip|hamstring|hinge)/.test(normalized)) {
+    return [
+      "Hip CARs",
+      "Glute Activation",
+      "Hamstring Mobility",
+      "Easy Split Squat Range",
+    ];
+  }
+
+  return [
+    "Mobility Flow",
+    "Low-Load Technique",
+    "Alternate Ready Area",
+  ];
+};
+
+type HolisticExerciseRecommendationInput = {
+  bodyPartStats: {
+    cooldownHours: number;
+    weeklyGoal: number;
+    weeklySets: number;
+    zoneId: string;
+  };
+  goal: string;
+  injuryFlags?: boolean;
+  lowerWeeklySets?: number;
+  openRootRegion?: string | null;
+  recentExercises?: string[];
+  selectedBodyPart?: string | null;
+  totalWeeklyGoal: number;
+  totalWeeklySets: number;
+  upperWeeklySets?: number;
+};
+
+type HolisticExerciseRecommendations = {
+  description: string;
+  exerciseNames: string[];
+  focusChip: string;
+  title: string;
+};
+
+function getHolisticExerciseRecommendations({
+  bodyPartStats,
+  goal,
+  injuryFlags,
+  lowerWeeklySets = 0,
+  openRootRegion,
+  selectedBodyPart,
+  totalWeeklyGoal,
+  totalWeeklySets,
+  upperWeeklySets = 0,
+}: HolisticExerciseRecommendationInput): HolisticExerciseRecommendations {
+  const totalProgress =
+    totalWeeklyGoal > 0 ? (totalWeeklySets / totalWeeklyGoal) * 100 : 0;
+  const normalizedSelected = normalizeFilterCompareValue(selectedBodyPart || "");
+  const normalizedRoot = normalizeFilterCompareValue(openRootRegion || "");
+  const isSelectedTooHot =
+    bodyPartStats.zoneId === "hot" ||
+    bodyPartStats.zoneId === "too-hot" ||
+    bodyPartStats.cooldownHours > 0 ||
+    bodyPartStats.weeklySets >= bodyPartStats.weeklyGoal ||
+    Boolean(injuryFlags);
+
+  if (isSelectedTooHot && selectedBodyPart) {
+    return {
+      description:
+        "Choose recovery work or a ready alternate area instead of stacking more hard sets here.",
+      exerciseNames: getRecoveryExerciseNamesForBodyPart(selectedBodyPart),
+      focusChip: "Recovery Signal",
+      title: "This area is running hot.",
+    };
+  }
+
+  if (totalProgress < 35) {
+    return {
+      description:
+        "You have not logged much total weekly volume yet. Start with compound movements that cover more muscle and unlock more skill-tree points.",
+      exerciseNames: [
+        "Goblet Squat",
+        "Push-Up",
+        "Bent Over Row",
+        "Romanian Deadlift",
+        "Farmer Carry",
+        "Pallof Press",
+      ],
+      focusChip: "Compound Base Focus",
+      title: "Build the base first.",
+    };
+  }
+
+  if (upperWeeklySets >= Math.max(8, lowerWeeklySets * 1.6) && lowerWeeklySets < 24) {
+    return {
+      description:
+        "Upper-body work is outpacing lower-body volume. A lower compound anchor helps keep the full tree balanced.",
+      exerciseNames: ["Goblet Squat", "Romanian Deadlift", "Reverse Lunge", "Farmer Carry"],
+      focusChip: "Lower Body Balance",
+      title: "Balance the tree.",
+    };
+  }
+
+  if (selectedBodyPart && bodyPartStats.weeklySets < bodyPartStats.weeklyGoal * 0.55) {
+    if (/(chest|pec|upper chest|mid chest|lower chest)/.test(normalizedSelected)) {
+      return {
+        description:
+          "Your total volume is building, so pair focused chest work with one pull for balance.",
+        exerciseNames: ["Push-Up", "Dumbbell Bench Press", "Chest Fly", "Row"],
+        focusChip: "Holistic Recommendation",
+        title: "Add targeted work.",
+      };
+    }
+    if (/(quad|knee|squat|leg)/.test(normalizedSelected)) {
+      return {
+        description:
+          "Bring quads up with one pattern-specific move and one broader lower-body anchor.",
+        exerciseNames: ["Goblet Squat", "Leg Extension", "Sissy Squat", "Glute Bridge"],
+        focusChip: "Holistic Recommendation",
+        title: "Add targeted work.",
+      };
+    }
+    if (/(back|lat|row|pull|trap)/.test(normalizedSelected)) {
+      return {
+        description:
+          "Use a pull pattern plus a compound support move to keep the week balanced.",
+        exerciseNames: ["Lat Pulldown", "Chest Supported Row", "Farmer Carry", "Push-Up"],
+        focusChip: "Holistic Recommendation",
+        title: "Add targeted work.",
+      };
+    }
+  }
+
+  if (/(lower)/.test(normalizedRoot)) {
+    return {
+      description:
+        "Lower-body compound work gives the biggest return for skill points and weekly balance.",
+      exerciseNames: ["Goblet Squat", "Romanian Deadlift", "Reverse Lunge", "Step-Up"],
+      focusChip: "Lower Compound Focus",
+      title: "Anchor the week.",
+    };
+  }
+
+  if (/(upper)/.test(normalizedRoot)) {
+    return {
+      description:
+        "Balance push and pull work so the upper-body branch gains points evenly.",
+      exerciseNames: ["Push-Up", "Chest Supported Row", "Shoulder Press", "Face Pull"],
+      focusChip: "Push/Pull Balance",
+      title: "Balance the upper tree.",
+    };
+  }
+
+  if (/(core)/.test(normalizedRoot)) {
+    return {
+      description:
+        "Core points climb fastest with anti-rotation, anti-extension, and carryover stability work.",
+      exerciseNames: ["Pallof Press", "Dead Bug", "Side Plank", "Farmer Carry"],
+      focusChip: "Core Stability",
+      title: "Build trunk control.",
+    };
+  }
+
+  return {
+    description:
+      `Your ${goal || "training"} volume is solid. Add focused work for the selected region without crowding recovery.`,
+    exerciseNames: ["Goblet Squat", "Push-Up", "Row", "Pallof Press"],
+    focusChip: "Holistic Recommendation",
+    title: "Add useful volume.",
+  };
+}
+
+function getSelectedRecommendationAction({
+  cooldownHours,
+  exerciseNames,
+  injuryFlag,
+  momentumZone,
+  painFlag,
+  selectedBodyPart,
+  suggestedFocus,
+  weeklyGoal,
+  weeklySets,
+}: {
+  cooldownHours: number;
+  exerciseNames?: string[];
+  injuryFlag?: boolean;
+  momentumZone: string;
+  painFlag?: boolean;
+  selectedBodyPart: string | null;
+  suggestedFocus: string;
+  weeklyGoal: number;
+  weeklySets: number;
+}): SelectedRecommendationAction {
+  const hasSpecificSelection =
+    Boolean(selectedBodyPart) &&
+    normalizeFilterCompareValue(selectedBodyPart) !==
+      normalizeFilterCompareValue("All Regions") &&
+    normalizeFilterCompareValue(selectedBodyPart) !==
+      normalizeFilterCompareValue("All");
+  const isRecoveryState =
+    hasSpecificSelection &&
+    (momentumZone === "hot" ||
+      momentumZone === "too-hot" ||
+      cooldownHours > 0 ||
+      weeklySets >= weeklyGoal ||
+      Boolean(painFlag) ||
+      Boolean(injuryFlag));
+
+  if (!hasSpecificSelection) {
+    return {
+      description: "Start with the area most ready for useful volume today.",
+      exerciseNames: suggestedFocus ? [suggestedFocus] : [],
+      label: "VIEW SUGGESTED FOCUS",
+      mode: "suggested-focus",
+      title: "Suggested Focus",
+    };
+  }
+
+  if (isRecoveryState) {
+    return {
+      caution: true,
+      description:
+        "This area is running hot. Choose recovery work or train an alternate ready area.",
+      exerciseNames: getRecoveryExerciseNamesForBodyPart(
+        selectedBodyPart || suggestedFocus,
+      ),
+      label: "OPEN RECOVERY OPTIONS",
+      mode: "recovery",
+      targetRoute: ROUTES.dashboard.recovery,
+      title: "Recovery Signal",
+    };
+  }
+
+  return {
+    description:
+      "These match the selected muscle, movement pattern, and current training signal.",
+    exerciseNames: exerciseNames || [],
+    label: "VIEW RECOMMENDED EXERCISES",
+    mode: "recommended-exercises",
+    title: "Recommended Exercises",
+  };
+}
 
 const getSemanticPatternLabel = (patternId: SemanticMovementPatternId) =>
   SEMANTIC_MOVEMENT_PATTERN_BY_ID[patternId]?.label || labelize(patternId);
@@ -6636,6 +8148,12 @@ const getExerciseLoggedCount = (
 const sumLoggedSets = (stats: LocalExerciseStatEntry[]) =>
   stats.reduce((total, stat) => total + parseStatNumber(stat.sets), 0);
 
+const sumLoggedReps = (stats: LocalExerciseStatEntry[]) =>
+  stats.reduce((total, stat) => total + getStatCompletedReps(stat), 0);
+
+const sumLoggedWeightVolume = (stats: LocalExerciseStatEntry[]) =>
+  stats.reduce((total, stat) => total + getStatVolume(stat), 0);
+
 const normalizeStatMatchValue = (value?: string | null) =>
   value?.trim().toLowerCase() || "";
 const normalizeFilterCompareValue = (value?: string | null) =>
@@ -7074,12 +8592,32 @@ const defaultWeeklySetGoalsBySectionLabel: Record<string, number> = {
 };
 
 const defaultWeeklySetGoalsByRegionLayer: Record<BodyRegionLayer, number> = {
+  Athletic: 16,
   Core: 24,
   Lower: 64,
   Upper: 64,
 };
 
 const defaultBodyPartWeeklySetGoal = 12;
+const defaultWeeklySetGoalsByBodyPartMatcher: Array<{
+  goal: number;
+  pattern: RegExp;
+}> = [
+  { pattern: /\b(chest|pecs?|pectorals?)\b/, goal: 16 },
+  { pattern: /\b(back|lats?|traps?|trapezius|rhomboids?|rows?|pull)\b/, goal: 18 },
+  { pattern: /\b(shoulders?|delts?|deltoids?|rotator cuff)\b/, goal: 14 },
+  { pattern: /\b(biceps?)\b/, goal: 10 },
+  { pattern: /\b(triceps?)\b/, goal: 10 },
+  {
+    pattern:
+      /\b(core|abs?|obliques?|anti rotation|anti extension|anti lateral|trunk)\b/,
+    goal: 12,
+  },
+  { pattern: /\b(quads?|quadriceps|knee extension)\b/, goal: 16 },
+  { pattern: /\b(hamstrings?|knee flexion)\b/, goal: 14 },
+  { pattern: /\b(glutes?|gluteal|hip thrust|bridge|hip extension)\b/, goal: 16 },
+  { pattern: /\b(calves?|calf)\b/, goal: 12 },
+];
 const defaultCoreMovementWeeklySetGoal = 12;
 const defaultExerciseWeeklySetGoal = 12;
 const defaultMuscleWeeklySetGoal = 12;
@@ -7098,10 +8636,16 @@ const getWeeklySetGoalForSection = (label: string) =>
 const getWeeklySetGoalForRegionLayer = (layer: BodyRegionLayer | null) =>
   layer ? defaultWeeklySetGoalsByRegionLayer[layer] : allBodyRegionWeeklySetGoal;
 
-const getWeeklySetGoalForBodyPart = (body: string) =>
-  normalizeBodySelectorValue(body) === "all"
-    ? allBodyRegionWeeklySetGoal
-    : defaultBodyPartWeeklySetGoal;
+const getWeeklySetGoalForBodyPart = (body: string) => {
+  const normalizedBody = normalizeBodySelectorValue(body);
+  if (normalizedBody === "all") return allBodyRegionWeeklySetGoal;
+
+  return (
+    defaultWeeklySetGoalsByBodyPartMatcher.find(({ pattern }) =>
+      pattern.test(normalizedBody),
+    )?.goal || defaultBodyPartWeeklySetGoal
+  );
+};
 
 const getWeeklySetGoalForCoreMovement = () => defaultCoreMovementWeeklySetGoal;
 
@@ -7228,6 +8772,17 @@ function WeightVolumeStat({
       ? `${volumeLabel} / ${targetLabel} volume`
       : `${volumeLabel} volume`
     : "No loaded range yet";
+  const valueLabel = safeVolume > 0
+    ? targetLabel
+      ? `${volumeLabel} / ${targetLabel}`
+      : volumeLabel
+    : "Not logged yet";
+  const helperLabel =
+    comparisonLabel && safeVolume > 0
+      ? comparisonLabel
+      : safeVolume > 0
+        ? "Loaded range logged"
+        : "No prior loaded range";
 
   return (
     <span
@@ -7238,9 +8793,15 @@ function WeightVolumeStat({
           : `Weight volume: ${displayLabel}`
       }
     >
-      <span className="text-[var(--exercise-theme-text)]">Weight Volume</span>
-      <span>{displayLabel}</span>
-      {comparisonLabel && safeVolume > 0 ? <span>{comparisonLabel}</span> : null}
+      <span className="exercise-library-weight-volume-stat__label">
+        Weight Volume
+      </span>
+      <span className="exercise-library-weight-volume-stat__value">
+        {valueLabel}
+      </span>
+      <span className="exercise-library-weight-volume-stat__helper">
+        {helperLabel}
+      </span>
     </span>
   );
 }
@@ -7418,6 +8979,287 @@ function WeeklySetGoalBadge({
   );
 }
 
+type BodyPartVolumeStatus = "fresh" | "productive" | "high" | "maxed";
+
+type BodyPartVolumeSummary = {
+  cooldownHours: number;
+  cooldownPercent: number;
+  recentSessionSets: number;
+  status: BodyPartVolumeStatus;
+  volumePercent: number;
+  weeklySets: number;
+  weeklyTarget: number;
+  weightVolume: number;
+};
+
+const getBodyPartVolumeStatus = (volumePercent: number): BodyPartVolumeStatus => {
+  if (volumePercent <= 40) return "fresh";
+  if (volumePercent <= 70) return "productive";
+  if (volumePercent <= 90) return "high";
+  return "maxed";
+};
+
+const bodyPartVolumeStatusLabels: Record<BodyPartVolumeStatus, string> = {
+  fresh: "Fresh",
+  productive: "Productive",
+  high: "High fatigue",
+  maxed: "Maxed",
+};
+
+const getCooldownHoursRemaining = ({
+  lastTrainedTime,
+  recentSessionSets,
+  weeklyTarget,
+}: {
+  lastTrainedTime: number;
+  recentSessionSets: number;
+  weeklyTarget: number;
+}) => {
+  if (!lastTrainedTime || recentSessionSets <= 0) return 0;
+
+  const initialCooldownHours = getCooldownHoursFromSessionDose(
+    recentSessionSets,
+    weeklyTarget,
+  );
+  const elapsedHours = Math.max(0, (Date.now() - lastTrainedTime) / (60 * 60 * 1000));
+
+  return Math.max(0, initialCooldownHours - elapsedHours);
+};
+
+const formatVolumeRingCooldownLabel = (cooldownHours: number) => {
+  if (cooldownHours <= 0) return "Ready";
+
+  const roundedHours = Math.ceil(cooldownHours);
+  const days = Math.floor(roundedHours / 24);
+  const hours = roundedHours % 24;
+
+  if (days > 0 && hours > 0) return `${days}d ${hours}h cooldown`;
+  if (days > 0) return `${days}d cooldown`;
+  return `${roundedHours}h cooldown`;
+};
+
+function VolumeRing({
+  className = "",
+  cooldownHours,
+  isActive,
+  label,
+  onClick,
+  onFocus,
+  onMouseEnter,
+  onMouseLeave,
+  percent,
+  showLabel = true,
+  size = "standard",
+  style,
+  title,
+  weeklySets,
+  weeklyTarget,
+}: {
+  className?: string;
+  cooldownHours: number;
+  isActive: boolean;
+  label: string;
+  onClick: () => void;
+  onFocus?: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  percent: number;
+  showLabel?: boolean;
+  size?: "standard" | "compact";
+  style?: CSSProperties;
+  title?: string;
+  weeklySets: number;
+  weeklyTarget: number;
+}) {
+  const safePercent = Math.min(100, Math.max(0, percent));
+  const status = getBodyPartVolumeStatus(safePercent);
+  const radius = size === "compact" ? 18 : 26;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference - (safePercent / 100) * circumference;
+  const roundedSets = Math.max(0, Math.round(weeklySets));
+  const roundedPercent = Math.round(safePercent);
+  const cooldownLabel = formatVolumeRingCooldownLabel(cooldownHours);
+  const accessibleLabel = `${label}. Weekly Volume: ${roundedSets} of ${weeklyTarget} sets, ${roundedPercent} percent. ${bodyPartVolumeStatusLabels[status]}. ${cooldownLabel}.`;
+
+  return (
+    <button
+      type="button"
+      aria-label={accessibleLabel}
+      aria-pressed={isActive}
+      className={`exercise-library-volume-ring exercise-library-volume-ring--${size} ${className}`}
+      data-volume-status={status}
+      onClick={onClick}
+      onFocus={onFocus}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      style={style}
+      title={title || accessibleLabel}
+    >
+      <span className="exercise-library-volume-ring__halo" aria-hidden="true" />
+      <span className="exercise-library-volume-ring__svg-shell" aria-hidden="true">
+        <svg
+          className="exercise-library-volume-ring__svg"
+          viewBox="0 0 72 72"
+          focusable="false"
+        >
+          <circle
+            className="exercise-library-volume-ring__track"
+            cx="36"
+            cy="36"
+            r={radius}
+          />
+          <circle
+            className="exercise-library-volume-ring__progress"
+            cx="36"
+            cy="36"
+            r={radius}
+            strokeDasharray={circumference}
+            strokeDashoffset={dashOffset}
+            transform="rotate(-90 36 36)"
+          />
+        </svg>
+        <span className="exercise-library-volume-ring__center">
+          <span>{size === "compact" ? roundedPercent : roundedSets}</span>
+          <span>{size === "compact" ? "%" : "sets"}</span>
+        </span>
+      </span>
+      {showLabel ? (
+        <>
+          <span className="exercise-library-volume-ring__label">{label}</span>
+          <span className="exercise-library-volume-ring__meta">
+            {roundedSets}/{weeklyTarget} sets
+          </span>
+        </>
+      ) : null}
+      {cooldownHours > 0 ? (
+        <span className="exercise-library-volume-ring__cooldown">
+          {cooldownLabel}
+        </span>
+      ) : showLabel ? (
+        <span className="exercise-library-volume-ring__ready">Ready</span>
+      ) : null}
+    </button>
+  );
+}
+
+const getMomentumHeatStatus = (percent: number) => {
+  const safePercent = Math.max(0, percent);
+  if (safePercent <= 20) {
+    return { id: "ice", label: "Ice Cold", recommendation: "Fresh area ready to train." };
+  }
+  if (safePercent <= 45) {
+    return { id: "building", label: "Building", recommendation: "Good place to add quality volume." };
+  }
+  if (safePercent <= 75) {
+    return { id: "productive", label: "Productive Heat", recommendation: "Productive weekly stimulus." };
+  }
+  if (safePercent <= 90) {
+    return { id: "hot", label: "Hot", recommendation: "Consider lower-fatigue choices." };
+  }
+  return { id: "too-hot", label: "Too Hot", recommendation: "Recovery or alternate area recommended." };
+};
+
+function AnatomyTreeMomentumRing({
+  percent,
+  sets,
+}: {
+  percent: number;
+  sets: number;
+}) {
+  const safePercent = Math.min(100, Math.max(0, percent));
+  const heatStatus = getMomentumHeatStatus(safePercent);
+  const radius = 15;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference - (safePercent / 100) * circumference;
+
+  return (
+    <span
+      className="exercise-library-anatomy-tree-ring"
+      data-heat={heatStatus.id}
+      title={`${heatStatus.label}: ${Math.round(safePercent)}%`}
+    >
+      <svg viewBox="0 0 42 42" aria-hidden="true" focusable="false">
+        <circle cx="21" cy="21" r={radius} className="exercise-library-anatomy-tree-ring__track" />
+        <circle
+          cx="21"
+          cy="21"
+          r={radius}
+          className="exercise-library-anatomy-tree-ring__progress"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+          transform="rotate(-90 21 21)"
+        />
+      </svg>
+      <span className="exercise-library-anatomy-tree-ring__text">
+        {heatStatus.id === "too-hot" ? "!" : Math.round(sets)}
+      </span>
+    </span>
+  );
+}
+
+function SelectedBodyPartMomentumMeter({
+  percent,
+  title,
+}: {
+  percent: number;
+  title: string;
+}) {
+  const safePercent = Math.min(100, Math.max(0, percent));
+  const heatStatus = getMomentumHeatStatus(safePercent);
+  const radius = 44;
+  const circumference = 2 * Math.PI * radius;
+  const dashOffset = circumference - (safePercent / 100) * circumference;
+
+  return (
+    <div
+      className="exercise-library-selected-momentum-meter"
+      data-heat={heatStatus.id}
+      title={`${title}: ${Math.round(safePercent)}% momentum, ${heatStatus.label}`}
+    >
+      <svg viewBox="0 0 112 112" aria-hidden="true" focusable="false">
+        <defs>
+          <linearGradient id="selected-momentum-gradient" x1="16" y1="16" x2="96" y2="96">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.92" />
+            <stop offset="55%" stopColor="currentColor" stopOpacity="0.72" />
+            <stop offset="100%" stopColor="white" stopOpacity="0.9" />
+          </linearGradient>
+        </defs>
+        <circle
+          cx="56"
+          cy="56"
+          r={radius}
+          className="exercise-library-selected-momentum-meter__track"
+        />
+        <circle
+          cx="56"
+          cy="56"
+          r={radius}
+          className="exercise-library-selected-momentum-meter__progress"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashOffset}
+        />
+      </svg>
+      <div className="exercise-library-selected-momentum-meter__center">
+        <span>{Math.round(safePercent)}%</span>
+        <span>{heatStatus.label}</span>
+      </div>
+      {heatStatus.id === "too-hot" ? (
+        <span className="exercise-library-selected-momentum-meter__flame" aria-hidden="true">
+          !
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+const momentumZoneLegend = [
+  { id: "ice", label: "Ice Cold", range: "0-20%" },
+  { id: "building", label: "Building", range: "21-45%" },
+  { id: "productive", label: "Productive Heat", range: "46-75%" },
+  { id: "hot", label: "Hot", range: "76-90%" },
+  { id: "too-hot", label: "Too Hot", range: "91%+" },
+];
+
 const formatLastTrainedBadge = (time: number) => {
   if (!time) return "fresh";
 
@@ -7496,23 +9338,6 @@ const getTrainingStreakLabel = (stats: LocalExerciseStatEntry[]) => {
   }
 
   return `${streakDays} ${streakDays === 1 ? "day" : "days"} streak`;
-};
-
-const getBodyPartButtonSizeClass = (body: string) => {
-  const normalizedBody = normalizeBodySelectorValue(body);
-  if (
-    /\b(full body|legs?|glutes?|hips glutes|back|upper back|chest|shoulders?|posterior chain)\b/.test(
-      normalizedBody,
-    )
-  ) {
-    return "exercise-library-body-volume-button--large";
-  }
-
-  if (/\b(forearms?|calves?|neck|cervical|wrists?|tibialis|mobility)\b/.test(normalizedBody)) {
-    return "exercise-library-body-volume-button--small";
-  }
-
-  return "exercise-library-body-volume-button--medium";
 };
 
 const buildWeeklySetsSummary = (
@@ -7874,35 +9699,67 @@ function ExerciseBodyAnatomySelector({
   activeLayer,
   bodyOptions,
   exercises,
+  getBodyPartVolume,
   latestSetInsight,
+  onClearBodySelection,
   onBodySelect,
   onLayerSelect,
+  onAddWorkoutItems,
   onPopularExerciseSelect,
   preferredWeightUnit,
+  primaryGoal,
   selectedBodies,
+  suggestedFocus,
   weeklyVolumeRangeLabel,
   weeklySetsSummary,
 }: {
   activeLayer: BodyRegionLayer | null;
   bodyOptions: string[];
   exercises: Exercise[];
+  getBodyPartVolume: (bodyPart: string) => BodyPartVolumeSummary;
   latestSetInsight?: LatestSetInsight | null;
+  onClearBodySelection: () => void;
   onBodySelect: (body: string, layer: BodyRegionLayer) => void;
   onLayerSelect: (layer: BodyRegionLayer) => void;
+  onAddWorkoutItems: (exercises: Exercise[], source?: string) => void;
   onPopularExerciseSelect: (exercise: Exercise) => void;
   preferredWeightUnit: WeightUnit;
+  primaryGoal?: string;
   selectedBodies: string[];
+  suggestedFocus: string;
   weeklyVolumeRangeLabel: string;
   weeklySetsSummary: WeeklySetsSummary;
 }) {
+  const router = useRouter();
   const [gender, setGender] = useState<ExerciseBodyFigureGender>("male");
+  const [showAnatomyLegend, setShowAnatomyLegend] = useState(true);
   const anatomySelectorRef = useRef<HTMLDivElement | null>(null);
+  const latestAnatomyPointerPositionRef = useRef<{ x: number; y: number } | null>(
+    null,
+  );
+  const latestAnatomyMuscleRegionRef = useRef<{
+    regionId: string;
+    slug: ExerciseAnatomySlug;
+  } | null>(null);
   const [activeAnatomyPopup, setActiveAnatomyPopup] = useState<{
     bodyOption: string;
     layer: BodyRegionLayer;
+    muscleRegionId?: string;
     pinned: boolean;
-    slug: MuscleSlug;
+    position: { x: number; y: number };
+    slug: ExerciseAnatomySlug;
   } | null>(null);
+  const [openTreeNodes, setOpenTreeNodes] = useState<Set<string>>(
+    () =>
+      new Set([
+        "all-regions",
+        getAnatomyRootNodeIdForLayer(activeLayer),
+      ]),
+  );
+  const [openRootRegion, setOpenRootRegion] = useState<string>(
+    () => getAnatomyRootNodeIdForLayer(activeLayer),
+  );
+  const rootRegionNodes = anatomyTreeNodes[0]?.children || [];
   const selectedBodySet = useMemo(
     () => new Set(selectedBodies.map(normalizeBodySelectorValue)),
     [selectedBodies],
@@ -7918,6 +9775,34 @@ function ExerciseBodyAnatomySelector({
   const selectedBodyLabels = selectedBodies.length
     ? selectedBodies.join(" / ")
     : activeLayer || "All regions";
+  useEffect(() => {
+    if (!activeLayer) return;
+
+    const rootId = getAnatomyRootNodeIdForLayer(activeLayer);
+
+    setOpenRootRegion(rootId);
+    setOpenTreeNodes((current) => new Set([...current, "all-regions", rootId]));
+  }, [activeLayer]);
+  useEffect(() => {
+    const selectedBody = selectedBodies[0];
+    if (!selectedBody) return;
+
+    const selectedPath = findAnatomyTreeNodePath(selectedBody);
+    if (!selectedPath.length) return;
+
+    const selectedRoot = getAnatomyRootNodeFromPath(selectedPath);
+    if (selectedRoot) setOpenRootRegion(selectedRoot.id);
+
+    setOpenTreeNodes(
+      (current) =>
+        new Set([
+          ...current,
+          ...selectedPath
+            .filter((node) => node.children?.length)
+            .map((node) => node.id),
+        ]),
+    );
+  }, [selectedBodies]);
   const activeLayerWeeklySets = activeLayer
     ? weeklySetsSummary.layerSetsById.get(activeLayer) || 0
     : Array.from(weeklySetsSummary.exerciseSetsById.values()).reduce(
@@ -7990,15 +9875,48 @@ function ExerciseBodyAnatomySelector({
     };
   }, [activeAnatomyPopup]);
 
-  const showAnatomyPopup = (slug: MuscleSlug, pinned = false) => {
+  const getAnatomyPopupPosition = (
+    event?: ReactPointerEvent<HTMLElement>,
+  ) => {
+    const rect = anatomySelectorRef.current?.getBoundingClientRect();
+    const fallback = latestAnatomyPointerPositionRef.current || {
+      x: 12,
+      y: 12,
+    };
+
+    if (!rect || !event) return fallback;
+
+    const preferredX = event.clientX - rect.left + 14;
+    const preferredY = event.clientY - rect.top + 14;
+    const x = Math.min(Math.max(preferredX, 12), Math.max(12, rect.width - 356));
+    const y = Math.min(Math.max(preferredY, 12), Math.max(12, rect.height - 390));
+    const position = { x, y };
+
+    latestAnatomyPointerPositionRef.current = position;
+
+    return position;
+  };
+
+  const showAnatomyPopup = (
+    slug: ExerciseAnatomySlug,
+    pinned = false,
+    event?: ReactPointerEvent<HTMLElement>,
+    regionId?: string | null,
+  ) => {
     const layer = exerciseAnatomySlugLayer[slug];
+    const muscleRegion = getMuscleRegionForSlug(slug, regionId);
     const bodyOption =
-      resolveAnatomySlugBodyOption(slug, bodyOptions) || labelize(slug);
+      muscleRegion?.label ||
+      resolveAnatomySlugBodyOption(slug, bodyOptions) ||
+      labelize(slug);
+    const position = getAnatomyPopupPosition(event);
 
     setActiveAnatomyPopup({
       bodyOption,
       layer,
+      muscleRegionId: muscleRegion?.id,
       pinned,
+      position,
       slug,
     });
   };
@@ -8009,11 +9927,18 @@ function ExerciseBodyAnatomySelector({
     );
   };
 
-  const selectAnatomySlug = (slug: MuscleSlug) => {
+  const selectAnatomySlug = (slug: ExerciseAnatomySlug, regionId?: string | null) => {
+    const resolvedRegionId =
+      regionId ||
+      (latestAnatomyMuscleRegionRef.current?.slug === slug
+        ? latestAnatomyMuscleRegionRef.current.regionId
+        : null);
     const layer = exerciseAnatomySlugLayer[slug];
-    const bodyOption = resolveAnatomySlugBodyOption(slug, bodyOptions);
+    const muscleRegion = getMuscleRegionForSlug(slug, resolvedRegionId);
+    const bodyOption =
+      muscleRegion?.label || resolveAnatomySlugBodyOption(slug, bodyOptions);
 
-    showAnatomyPopup(slug, true);
+    showAnatomyPopup(slug, true, undefined, muscleRegion?.id);
 
     if (bodyOption) {
       onBodySelect(bodyOption, layer);
@@ -8026,18 +9951,9 @@ function ExerciseBodyAnatomySelector({
   const anatomyPopupTheme =
     activeAnatomyPopup &&
     getBodyRegionTheme(activeAnatomyPopup.bodyOption || activeAnatomyPopup.layer);
-  const anatomyPopupWeeklySets = activeAnatomyPopup
-    ? getWeeklySetsForVolumeLabel(
-        weeklySetsSummary.bodySetsByLabel,
-        activeAnatomyPopup.bodyOption,
-      ) ||
-      weeklySetsSummary.layerSetsById.get(activeAnatomyPopup.layer) ||
-      0
-    : 0;
-  const anatomyPopupWeeklyGoal = activeAnatomyPopup
-    ? getWeeklySetGoalForBodyPart(activeAnatomyPopup.bodyOption) ||
-      getWeeklySetGoalForRegionLayer(activeAnatomyPopup.layer)
-    : defaultBodyPartWeeklySetGoal;
+  const anatomyPopupVolume = activeAnatomyPopup
+    ? getBodyPartVolume(activeAnatomyPopup.bodyOption)
+    : null;
   const anatomyPopupLastTrained = activeAnatomyPopup
     ? getLastTrainedForVolumeLabel(
         weeklySetsSummary.lastTrainedByLabel,
@@ -8046,43 +9962,52 @@ function ExerciseBodyAnatomySelector({
       weeklySetsSummary.lastTrainedByLayer.get(activeAnatomyPopup.layer) ||
       0
     : 0;
-  const anatomyPopupLatestSessionSets = activeAnatomyPopup
-    ? getWeeklySetsForVolumeLabel(
-        weeklySetsSummary.latestSessionSetsByLabel,
-        activeAnatomyPopup.bodyOption,
-      ) ||
-      weeklySetsSummary.latestSessionSetsByLayer.get(activeAnatomyPopup.layer) ||
-      0
-    : 0;
-  const anatomyPopupCooldownSummary = getCooldownCounterSummary({
-    lastTrainedTime: anatomyPopupLastTrained,
-    sessionSetsCompleted: anatomyPopupLatestSessionSets,
-    weeklySetGoal: anatomyPopupWeeklyGoal,
-  });
+  const anatomyPopupFiberInfo = activeAnatomyPopup
+    ? activeAnatomyPopup.muscleRegionId
+      ? MUSCLE_REGION_MAP[activeAnatomyPopup.muscleRegionId] ||
+        getMuscleFiberInfo(activeAnatomyPopup.bodyOption)
+      : getMuscleFiberInfo(activeAnatomyPopup.bodyOption)
+    : null;
   const anatomyPopupPopularExercises = activeAnatomyPopup
-    ? getPopularExercisesForBodyRegion(activeAnatomyPopup.bodyOption, exercises)
+    ? getMuscleFiberExerciseSuggestions(activeAnatomyPopup.bodyOption, exercises)
     : [];
+  const anatomyPopupHeatStatus = getMomentumHeatStatus(
+    anatomyPopupVolume?.volumePercent || 0,
+  );
   const anatomyPopupStyle =
+    activeAnatomyPopup &&
     anatomyPopupTheme &&
     ({
       ...getCategoryThemeCssVariables(anatomyPopupTheme),
+      left: activeAnatomyPopup.position.x,
+      top: activeAnatomyPopup.position.y,
       "--exercise-layer-volume-progress": `${getWeeklySetGoalFillPercent(
-        anatomyPopupWeeklySets,
-        anatomyPopupWeeklyGoal,
+        anatomyPopupVolume?.weeklySets || 0,
+        anatomyPopupVolume?.weeklyTarget || defaultBodyPartWeeklySetGoal,
       )}%`,
-    } as ExerciseLibraryThemeCssVariables);
+    } as CSSProperties);
 
   const bodyData = useMemo<readonly ExtendedBodyPart[]>(() => {
     return exerciseAnatomyBodySlugs.map((slug) => {
       const layer = exerciseAnatomySlugLayer[slug];
       const bodyOption = resolveAnatomySlugBodyOption(slug, bodyOptions);
+      const anatomyCandidates = Array.from(
+        new Set([
+          ...(exerciseAnatomySlugBodyCandidates[slug] || []),
+          ...getMuscleRegionLabelsForSlug(slug),
+          bodyOption || labelize(slug),
+        ]),
+      );
       const visual = getExerciseAnatomySlugVisual(slug);
       const isSelected = Boolean(
-        bodyOption &&
-          selectedBodySet.has(normalizeBodySelectorValue(bodyOption)),
+        anatomyCandidates.some((candidate) =>
+          selectedBodySet.has(normalizeBodySelectorValue(candidate)),
+        ),
       );
       const isLatestPulse = Boolean(
-        bodyOption && latestBodySet.has(normalizeBodySelectorValue(bodyOption)),
+        anatomyCandidates.some((candidate) =>
+          latestBodySet.has(normalizeBodySelectorValue(candidate)),
+        ),
       );
       const isInActiveLayer = !activeLayer || layer === activeLayer;
       const isLayerContext = Boolean(activeLayer && layer === activeLayer);
@@ -8113,7 +10038,9 @@ function ExerciseBodyAnatomySelector({
                 ? "rgba(226,232,240,0.34)"
               : "rgba(255,255,255,0.16)",
           strokeWidth: isSelected ? 2.15 : isLatestPulse ? 1.8 : shouldLiftLayer ? 1.45 : 0.72,
-          filter: isLatestPulse
+          filter: isSelected
+            ? `drop-shadow(0 0 18px ${visual.glow}) drop-shadow(0 0 7px ${visual.stroke})`
+            : isLatestPulse
             ? `drop-shadow(0 0 12px ${visual.glow})`
             : undefined,
         },
@@ -8121,136 +10048,1144 @@ function ExerciseBodyAnatomySelector({
     });
   }, [activeLayer, bodyOptions, hasSelectedBodies, latestBodySet, selectedBodySet]);
 
+  useEffect(() => {
+    const root = anatomySelectorRef.current;
+    if (!root) return;
+
+    root
+      .querySelectorAll<SVGPathElement>(".exercise-library-anatomy-figure-stage path[id]")
+      .forEach((path) => {
+        const slug = path.id as ExerciseAnatomySlug;
+        if (!exerciseAnatomyBodySlugs.includes(slug)) return;
+
+        const stage = path.closest<HTMLElement>(
+          ".exercise-library-anatomy-figure-stage",
+        );
+        const figureSide = stage?.dataset.figureSide || null;
+        const siblingPaths = stage
+          ? Array.from(stage.querySelectorAll<SVGPathElement>(`path[id="${slug}"]`))
+          : [];
+        const pathIndex = Math.max(0, siblingPaths.indexOf(path));
+        const muscleRegionId = getMuscleRegionIdForSvgPath(
+          slug,
+          figureSide,
+          pathIndex,
+        );
+        const muscleRegion = getMuscleRegionForSlug(slug, muscleRegionId);
+        const bodyOption =
+          muscleRegion?.label ||
+          resolveAnatomySlugBodyOption(slug, bodyOptions) ||
+          labelize(slug);
+        if (muscleRegionId) path.dataset.muscleId = muscleRegionId;
+        if (muscleRegion?.colorGroup) path.dataset.colorGroup = muscleRegion.colorGroup;
+        path.dataset.selectedMuscle = selectedBodySet.has(
+          normalizeBodySelectorValue(bodyOption),
+        )
+          ? "true"
+          : "false";
+        path.setAttribute("tabindex", "0");
+        path.setAttribute("role", "button");
+        path.setAttribute("aria-label", `${bodyOption} muscle region`);
+      });
+  }, [bodyData, bodyOptions, gender, selectedBodySet]);
+
   const handleBodyPartPress = (part: ExtendedBodyPart) => {
     if (!part.slug) return;
 
-    const slug = part.slug as MuscleSlug;
+    const slug = part.slug as ExerciseAnatomySlug;
     if (!exerciseAnatomyBodySlugs.includes(slug)) return;
 
     selectAnatomySlug(slug);
   };
 
+  const handleAnatomyStageKeyDown = (
+    event: ReactKeyboardEvent<HTMLDivElement>,
+  ) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const path = target.closest("path[id]");
+    const slug = path?.id as ExerciseAnatomySlug | undefined;
+    if (!path || !slug || !exerciseAnatomyBodySlugs.includes(slug)) return;
+
+    event.preventDefault();
+    selectAnatomySlug(slug, path?.getAttribute("data-muscle-id"));
+  };
+
+  const handleAnatomyStageFocus = (event: FocusEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const path = target.closest("path[id]");
+    const slug = path?.id as ExerciseAnatomySlug | undefined;
+    if (!path || !slug || !exerciseAnatomyBodySlugs.includes(slug)) return;
+
+    showAnatomyPopup(slug, false, undefined, path?.getAttribute("data-muscle-id"));
+  };
+
+  const handleAnatomyStagePointer = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const path = target.closest("path[id]");
+    const slug = path?.id as ExerciseAnatomySlug | undefined;
+    if (!path || !slug || !exerciseAnatomyBodySlugs.includes(slug)) return;
+
+    const muscleRegionId = path.getAttribute("data-muscle-id");
+    if (muscleRegionId) {
+      latestAnatomyMuscleRegionRef.current = {
+        regionId: muscleRegionId,
+        slug,
+      };
+    }
+
+    showAnatomyPopup(slug, false, event, muscleRegionId);
+  };
+
+  const resolveTreeNodeVolumeLabel = (node: AnatomyTreeNode) => {
+    const aliases = getAnatomyTreeFilterAliases(node.label);
+    const usableOptions = bodyOptions.filter((option) => option !== "All");
+
+    return (
+      usableOptions.find((option) =>
+        aliases.some(
+          (alias) =>
+            normalizeFilterCompareValue(option) ===
+            normalizeFilterCompareValue(alias),
+        ),
+      ) ||
+      usableOptions.find((option) => {
+        const normalizedOption = normalizeFilterCompareValue(option);
+        return aliases.some((alias) => {
+          const normalizedAlias = normalizeFilterCompareValue(alias);
+          return (
+            normalizedOption.includes(normalizedAlias) ||
+            normalizedAlias.includes(normalizedOption)
+          );
+        });
+      }) ||
+      node.aliases?.[0] ||
+      node.label
+    );
+  };
+
+  const getTreeNodeVolumeSummary = (node: AnatomyTreeNode) => {
+    if (node.id === "all-regions") {
+      return getBodyPartVolume("All");
+    }
+
+    if (
+      node.layer &&
+      ["upper-body", "lower-body", "core-tree", "athletic-full-body"].includes(
+        node.id,
+      )
+    ) {
+      const weeklySets = weeklySetsSummary.layerSetsById.get(node.layer) || 0;
+      const weeklyTarget = getWeeklySetGoalForRegionLayer(node.layer);
+      const volumePercent = Math.min(
+        100,
+        (Math.max(0, weeklySets) / Math.max(1, weeklyTarget)) * 100,
+      );
+      const lastTrainedTime =
+        weeklySetsSummary.lastTrainedByLayer.get(node.layer) || 0;
+      const recentSessionSets =
+        weeklySetsSummary.latestSessionSetsByLayer.get(node.layer) || 0;
+      const cooldownHours = getCooldownHoursRemaining({
+        lastTrainedTime,
+        recentSessionSets,
+        weeklyTarget,
+      });
+
+      return {
+        cooldownHours,
+        cooldownPercent: Math.min((cooldownHours / 48) * 100, 100),
+        recentSessionSets,
+        status: getBodyPartVolumeStatus(volumePercent),
+        volumePercent,
+        weeklySets,
+        weeklyTarget,
+        weightVolume:
+          weeklySetsSummary.layerWeightVolumeById.get(node.layer) || 0,
+      };
+    }
+
+    return getBodyPartVolume(resolveTreeNodeVolumeLabel(node));
+  };
+
+  const getTreeNodeExerciseMatches = (node: AnatomyTreeNode) => {
+    if (node.id === "all-regions") return exercises;
+
+    if (
+      node.layer &&
+      ["upper-body", "lower-body", "core-tree", "athletic-full-body"].includes(
+        node.id,
+      )
+    ) {
+      return exercises.filter((exercise) =>
+        exerciseMatchesBodyRegionLayer(
+          exercise,
+          getMetadataForExercise(exercise),
+          node.layer || null,
+        ),
+      );
+    }
+
+    const aliases = Array.from(
+      new Set([
+        node.label,
+        ...(node.aliases || []),
+        ...(node.patterns || []),
+        ...(node.filters || []),
+      ]),
+    ).map(normalizeFilterCompareValue);
+
+    return exercises.filter((exercise) => {
+      const metadata = getMetadataForExercise(exercise);
+      const bodyLabels = getExerciseVolumeBodyLabels(exercise, metadata).map(
+        normalizeFilterCompareValue,
+      );
+      const searchText = normalizeFilterCompareValue(
+        [
+          getExerciseSortTitle(exercise),
+          exercise.name,
+          exercise.body,
+          exercise.muscles,
+          metadata?.coreMovementLabel || "",
+          metadata?.movementPatternLabel || "",
+        ].join(" "),
+      );
+
+      return aliases.some(
+        (alias) =>
+          bodyLabels.some(
+            (bodyLabel) =>
+              bodyLabel === alias ||
+              bodyLabel.includes(alias) ||
+              alias.includes(bodyLabel),
+          ) || searchText.includes(alias),
+      );
+    });
+  };
+
+  const getTreeNodeWeeklyReps = (node: AnatomyTreeNode) =>
+    getTreeNodeExerciseMatches(node).reduce(
+      (total, exercise) =>
+        total + (weeklySetsSummary.exerciseRepsById.get(exercise.id) || 0),
+      0,
+    );
+
+  const getTreeNodeLastTrained = (node: AnatomyTreeNode) => {
+    if (node.layer) {
+      const layerLastTrained =
+        weeklySetsSummary.lastTrainedByLayer.get(node.layer) || 0;
+      if (layerLastTrained) return layerLastTrained;
+    }
+
+    return (
+      getLastTrainedForVolumeLabel(
+        weeklySetsSummary.lastTrainedByLabel,
+        resolveTreeNodeVolumeLabel(node),
+      ) || 0
+    );
+  };
+
+  const getTreeNodeSkillPointsSummary = (node: AnatomyTreeNode) => {
+    const volume = getTreeNodeVolumeSummary(node);
+
+    return getSkillPointsForNode({
+      lastTrainedTime: getTreeNodeLastTrained(node),
+      weeklyGoal: volume.weeklyTarget,
+      weeklyReps: getTreeNodeWeeklyReps(node),
+      weeklySets: volume.weeklySets,
+      weightVolume: volume.weightVolume,
+    });
+  };
+
+  const getRecommendedExerciseMatches = (names: string[]) => {
+    const matches = names
+      .map((name) => {
+        const normalizedName = normalizeFilterCompareValue(name);
+
+        return exercises.find((exercise) => {
+          const title = normalizeFilterCompareValue(getExerciseSortTitle(exercise));
+          const rawName = normalizeFilterCompareValue(exercise.name);
+
+          return (
+            title === normalizedName ||
+            rawName === normalizedName ||
+            title.includes(normalizedName) ||
+            normalizedName.includes(title) ||
+            rawName.includes(normalizedName) ||
+            normalizedName.includes(rawName)
+          );
+        });
+      })
+      .filter((exercise): exercise is Exercise => Boolean(exercise));
+
+    return Array.from(new Map(matches.map((exercise) => [exercise.id, exercise])).values());
+  };
+
+  const findSelectedTreeNode = () => {
+    const selectedBody = selectedBodies[0];
+    if (selectedBody) {
+      const normalizedSelected = normalizeBodySelectorValue(selectedBody);
+
+      return (
+        flatAnatomyTreeNodes.find(
+          (node) => normalizeBodySelectorValue(node.label) === normalizedSelected,
+        ) ||
+        flatAnatomyTreeNodes.find((node) =>
+          getAnatomyTreeFilterAliases(node.label).some(
+            (alias) => normalizeBodySelectorValue(alias) === normalizedSelected,
+          ),
+        ) ||
+        null
+      );
+    }
+
+    if (activeLayer === "Upper") {
+      return flatAnatomyTreeNodes.find((node) => node.id === "upper-body") || null;
+    }
+    if (activeLayer === "Lower") {
+      return flatAnatomyTreeNodes.find((node) => node.id === "lower-body") || null;
+    }
+    if (activeLayer === "Core") {
+      return flatAnatomyTreeNodes.find((node) => node.id === "core-tree") || null;
+    }
+    if (activeLayer === "Athletic") {
+      return (
+        flatAnatomyTreeNodes.find((node) => node.id === "athletic-full-body") ||
+        null
+      );
+    }
+
+    return flatAnatomyTreeNodes.find((node) => node.id === "all-regions") || null;
+  };
+
+  const selectedTreeNode = findSelectedTreeNode();
+  const selectedTreeVolume = selectedTreeNode
+    ? getTreeNodeVolumeSummary(selectedTreeNode)
+    : getBodyPartVolume("All");
+  const selectedTreeTheme = getBodyRegionTheme(
+    selectedTreeNode?.label || activeLayer || "Integrated",
+  );
+  const selectedTreeHeatStatus = getMomentumHeatStatus(
+    selectedTreeVolume.volumePercent,
+  );
+  const selectedTreeWeightVolumeLabel = formatWeightMetric(
+    selectedTreeVolume.weightVolume,
+    preferredWeightUnit,
+    { compact: true, volume: true },
+  );
+  const selectedTreeLastTrained = selectedTreeNode?.layer
+    ? weeklySetsSummary.lastTrainedByLayer.get(selectedTreeNode.layer) ||
+      getLastTrainedForVolumeLabel(
+        weeklySetsSummary.lastTrainedByLabel,
+        resolveTreeNodeVolumeLabel(selectedTreeNode),
+      )
+    : 0;
+  const selectedTreeCooldownLabel = formatVolumeRingCooldownLabel(
+    selectedTreeVolume.cooldownHours,
+  );
+  const selectedTreePercent = Math.round(
+    Math.min(100, Math.max(0, selectedTreeVolume.volumePercent)),
+  );
+  const selectedTreeLabel = selectedTreeNode?.label || "All Regions";
+  const selectedPopularExercises = selectedTreeNode
+    ? getPopularExercisesForBodyRegion(
+        resolveTreeNodeVolumeLabel(selectedTreeNode),
+        exercises,
+      )
+    : [];
+  const openRootNode =
+    rootRegionNodes.find((node) => node.id === openRootRegion) ||
+    rootRegionNodes[0] ||
+    null;
+  const totalWeeklySets = Array.from(
+    weeklySetsSummary.exerciseSetsById.values(),
+  ).reduce((total, sets) => total + sets, 0);
+  const upperWeeklySets = weeklySetsSummary.layerSetsById.get("Upper") || 0;
+  const lowerWeeklySets = weeklySetsSummary.layerSetsById.get("Lower") || 0;
+  const holisticRecommendation = getHolisticExerciseRecommendations({
+    bodyPartStats: {
+      cooldownHours: selectedTreeVolume.cooldownHours,
+      weeklyGoal: selectedTreeVolume.weeklyTarget,
+      weeklySets: selectedTreeVolume.weeklySets,
+      zoneId: selectedTreeHeatStatus.id,
+    },
+    goal: primaryGoal || suggestedFocus,
+    lowerWeeklySets,
+    openRootRegion: openRootNode?.label || null,
+    selectedBodyPart: selectedBodies[0] || selectedTreeNode?.label || null,
+    totalWeeklyGoal: allBodyRegionWeeklySetGoal,
+    totalWeeklySets,
+    upperWeeklySets,
+  });
+  const holisticExerciseMatches = getRecommendedExerciseMatches(
+    holisticRecommendation.exerciseNames,
+  );
+  const selectedRecommendationAction = getSelectedRecommendationAction({
+    cooldownHours: selectedTreeVolume.cooldownHours,
+    exerciseNames:
+      holisticRecommendation.exerciseNames.length > 0
+        ? holisticRecommendation.exerciseNames
+        : selectedPopularExercises.map((entry) => entry.title),
+    momentumZone: selectedTreeHeatStatus.id,
+    selectedBodyPart: selectedBodies[0] || null,
+    suggestedFocus,
+    weeklyGoal: selectedTreeVolume.weeklyTarget,
+    weeklySets: selectedTreeVolume.weeklySets,
+  });
+  const recommendationButtonClass =
+    selectedRecommendationAction.mode === "recovery"
+      ? "border-amber-200/40 bg-[radial-gradient(circle_at_12%_0%,rgba(251,146,60,0.26),transparent_38%),linear-gradient(135deg,rgba(127,29,29,0.36),rgba(15,23,42,0.84))] text-amber-100 shadow-[0_0_30px_rgba(251,146,60,0.18)] hover:border-amber-100/70 hover:bg-amber-300/18"
+      : selectedRecommendationAction.mode === "suggested-focus"
+        ? "border-cyan-200/40 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.24),transparent_38%),linear-gradient(135deg,rgba(8,47,73,0.42),rgba(15,23,42,0.84))] text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.18)] hover:border-cyan-100/70 hover:bg-cyan-300/18"
+        : "border-[var(--exercise-theme-border)] bg-[var(--exercise-theme-accent-soft)] text-white shadow-[0_0_28px_var(--exercise-theme-glow)] hover:bg-[var(--exercise-theme-accent)] hover:text-slate-950";
+  const getTreeNodeExerciseBadges = (node: AnatomyTreeNode) => {
+    if (node.id === "all-regions") {
+      return ["All exercises", `${exercises.length} exercises`];
+    }
+
+    const matchingExercises = getTreeNodeExerciseMatches(node);
+    const suggestedTitles = getMuscleFiberExerciseSuggestions(
+      resolveTreeNodeVolumeLabel(node),
+      exercises,
+    )
+      .map((entry) => entry.title)
+      .slice(0, 3);
+
+    return uniqueCompactLabels(
+      [
+        ...(node.exerciseBadges || []),
+        ...(node.patterns || []).slice(0, 2),
+        ...suggestedTitles,
+        matchingExercises.length
+          ? `${matchingExercises.length} exercises`
+          : "",
+      ],
+      5,
+    );
+  };
+
+  const getTreeNodeWorkoutSuggestions = (node: AnatomyTreeNode) => {
+    const directSuggestions = getMuscleFiberExerciseSuggestions(
+      resolveTreeNodeVolumeLabel(node),
+      exercises,
+    ).map((entry) => entry.exercise);
+    const matchingExercises = getTreeNodeExerciseMatches(node);
+
+    return Array.from(
+      new Map(
+        [...directSuggestions, ...matchingExercises]
+          .slice(0, 5)
+          .map((exercise) => [exercise.id, exercise]),
+      ).values(),
+    ).slice(0, 3);
+  };
+  const toggleTreeNodeOpen = (nodeId: string) => {
+    const nodePath = findAnatomyTreeNodePathById(nodeId);
+    const siblingIds = nodePath.length >= 2 ? nodePath[nodePath.length - 2].children?.map((node) => node.id) || [] : [];
+    const rootNode = getAnatomyRootNodeFromPath(nodePath);
+
+    setOpenTreeNodes((current) => {
+      const next = new Set(current);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        siblingIds.forEach((siblingId) => {
+          if (siblingId !== nodeId) next.delete(siblingId);
+        });
+        next.add(nodeId);
+      }
+      next.add("all-regions");
+      if (rootNode) next.add(rootNode.id);
+      return next;
+    });
+  };
+
+  const selectTreeNode = (node: AnatomyTreeNode) => {
+    const nodePath = findAnatomyTreeNodePathById(node.id);
+    const rootNode = getAnatomyRootNodeFromPath(nodePath);
+
+    if (rootNode) {
+      setOpenRootRegion(rootNode.id);
+      setOpenTreeNodes((current) => {
+        const next = new Set(current);
+        next.add("all-regions");
+        next.add(rootNode.id);
+        nodePath.forEach((pathNode, index) => {
+          const parentNode = index > 0 ? nodePath[index - 1] : null;
+          parentNode?.children?.forEach((sibling) => {
+            if (sibling.id !== pathNode.id) next.delete(sibling.id);
+          });
+          if (pathNode.children?.length) next.add(pathNode.id);
+        });
+        return next;
+      });
+    }
+
+    if (node.children?.length) {
+      setOpenTreeNodes((current) => new Set([...current, node.id]));
+    }
+
+    if (node.id === "all-regions") {
+      onClearBodySelection();
+      return;
+    }
+
+    if (
+      node.layer &&
+      ["upper-body", "lower-body", "core-tree", "athletic-full-body"].includes(
+        node.id,
+      )
+    ) {
+      onLayerSelect(node.layer);
+      return;
+    }
+
+    onBodySelect(node.label, node.layer || activeLayer || "Upper");
+  };
+
+  const selectFocusLabel = (focusLabel: string) => {
+    const fallbackNodeId = /lower/i.test(focusLabel)
+      ? "lower-body"
+      : /(upper|push|pull|arm|chest|back|shoulder|neck|trap)/i.test(focusLabel)
+        ? "upper-body"
+        : /core/i.test(focusLabel)
+          ? "core-tree"
+          : /(athletic|full body|carry|crawl|jump|sprint|throw|integrated)/i.test(focusLabel)
+            ? "athletic-full-body"
+            : "";
+    const treePath =
+      findAnatomyTreeNodePath(focusLabel, anatomyTreeNodes, [], true) ||
+      [];
+    const fallbackNode = fallbackNodeId
+      ? flatAnatomyTreeNodes.find((node) => node.id === fallbackNodeId) || null
+      : null;
+    const targetNode = treePath[treePath.length - 1] || fallbackNode;
+
+    if (targetNode) {
+      setOpenTreeNodes((current) => {
+        const next = new Set(current);
+        next.add("all-regions");
+        treePath.forEach((node) => next.add(node.id));
+        if (fallbackNode) next.add(fallbackNode.id);
+        return next;
+      });
+      const rootNode =
+        getAnatomyRootNodeFromPath(treePath) ||
+        (fallbackNode
+          ? getAnatomyRootNodeFromPath(findAnatomyTreeNodePathById(fallbackNode.id))
+          : null);
+      if (rootNode) setOpenRootRegion(rootNode.id);
+      selectTreeNode(targetNode);
+      window.setTimeout(() => {
+        anatomySelectorRef.current
+          ?.querySelector(".exercise-library-anatomy-tree-scroll")
+          ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 80);
+      return;
+    }
+
+    const layer = getBodyRegionLayerForLabel(focusLabel) || activeLayer || "Upper";
+    onBodySelect(focusLabel, layer);
+  };
+
+  const handleRecommendationAction = () => {
+    if (selectedRecommendationAction.mode === "recovery") {
+      if (selectedRecommendationAction.targetRoute) {
+        router.push(selectedRecommendationAction.targetRoute);
+        return;
+      }
+
+      onBodySelect("Mobility", "Athletic");
+      window.setTimeout(() => {
+        document
+          .querySelector<HTMLElement>("[data-exercise-id]")
+          ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 160);
+      return;
+    }
+
+    if (selectedRecommendationAction.mode === "suggested-focus") {
+      selectFocusLabel(suggestedFocus);
+      return;
+    }
+
+    if (selectedTreeNode) {
+      selectTreeNode(selectedTreeNode);
+    }
+
+    if (holisticExerciseMatches[0]) {
+      window.setTimeout(
+        () => onPopularExerciseSelect(holisticExerciseMatches[0]),
+        120,
+      );
+      return;
+    }
+
+    if (selectedPopularExercises[0]?.exercise) {
+      window.setTimeout(
+        () => onPopularExerciseSelect(selectedPopularExercises[0].exercise),
+        120,
+      );
+      return;
+    }
+
+    window.setTimeout(() => {
+      document
+        .querySelector<HTMLElement>("[data-exercise-id]")
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }, 160);
+  };
+
+  const openRootSkillRegion = (node: AnatomyTreeNode) => {
+    setOpenRootRegion(node.id);
+    setOpenTreeNodes(new Set(["all-regions", node.id]));
+    selectTreeNode(node);
+  };
+
+  const renderRootSkillCard = (node: AnatomyTreeNode): ReactNode => {
+    const volume = getTreeNodeVolumeSummary(node);
+    const heatStatus = getMomentumHeatStatus(volume.volumePercent);
+    const skill = getTreeNodeSkillPointsSummary(node);
+    const nodeTheme = getBodyRegionTheme(node.label || node.layer);
+    const nodeStyle = {
+      ...getCategoryThemeCssVariables(nodeTheme),
+      "--skill-next-level-progress": `${Math.round(
+        skill.progressToNextLevel * 100,
+      )}%`,
+    } as ExerciseLibraryThemeCssVariables;
+    const isOpen = openRootRegion === node.id;
+
+    return (
+      <button
+        key={node.id}
+        type="button"
+        aria-expanded={isOpen}
+        aria-pressed={isOpen}
+        onClick={() => openRootSkillRegion(node)}
+        style={nodeStyle}
+        className={`exercise-library-skill-root-card group relative min-h-[178px] overflow-hidden rounded-[28px] border p-4 text-left transition duration-200 hover:-translate-y-1 ${
+          isOpen
+            ? "border-[var(--exercise-theme-border)] bg-[radial-gradient(circle_at_20%_0%,var(--exercise-theme-accent-soft),transparent_42%),linear-gradient(135deg,rgba(15,23,42,0.94),rgba(15,23,42,0.72))] shadow-[0_0_34px_var(--exercise-theme-glow),0_24px_70px_rgba(0,0,0,0.36)]"
+            : "border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.88),rgba(15,23,42,0.46))] shadow-[0_18px_48px_rgba(0,0,0,0.26)] hover:border-[var(--exercise-theme-border)] hover:bg-white/[0.06]"
+        }`}
+        title={`${node.label}: Level ${skill.level}, ${skill.points} points`}
+      >
+        <span className="pointer-events-none absolute inset-x-5 top-0 h-px rounded-full bg-[var(--exercise-theme-accent)] opacity-70" />
+        <span className="pointer-events-none absolute -right-10 -top-12 h-32 w-32 rounded-full bg-[var(--exercise-theme-accent-soft)] blur-2xl transition group-hover:opacity-90" />
+        <span className="relative z-10 flex items-start justify-between gap-3">
+          <span className="min-w-0">
+            <span className="block text-[10px] font-black uppercase tracking-[0.2em] text-[var(--exercise-theme-text)]">
+              Level {skill.level}
+            </span>
+            <span className="mt-1 block text-lg font-black text-white">
+              {node.label}
+            </span>
+            <span className="mt-2 block text-xs font-bold text-slate-300">
+              {Math.max(0, Math.round(volume.weeklySets))} / {volume.weeklyTarget} sets
+            </span>
+          </span>
+          <AnatomyTreeMomentumRing
+            percent={volume.volumePercent}
+            sets={volume.weeklySets}
+          />
+        </span>
+        <span className="relative z-10 mt-4 flex flex-wrap items-center gap-2">
+          <span className="rounded-xl border border-white/10 bg-white/[0.055] px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-white">
+            {skill.points} Skill Points
+          </span>
+          <span
+            className="rounded-xl border border-white/10 bg-white/[0.045] px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-slate-300"
+            title={skill.pointBreakdown.join(" - ") || "No logged points yet"}
+          >
+            +{skill.points} pts this week
+          </span>
+        </span>
+        <span className="relative z-10 mt-4 block">
+          <span className="flex items-center justify-between text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">
+            <span>{heatStatus.label}</span>
+            <span>{skill.pointsToNextLevel} pts to next</span>
+          </span>
+          <span className="mt-2 block h-2 overflow-hidden rounded-full border border-white/10 bg-slate-950/70">
+            <span
+              className="block h-full rounded-full bg-[linear-gradient(90deg,var(--exercise-theme-accent),rgba(255,255,255,0.78))] shadow-[0_0_18px_var(--exercise-theme-glow)] transition-[width] duration-500"
+              style={{ width: `${Math.max(4, skill.progressToNextLevel * 100)}%` }}
+            />
+          </span>
+        </span>
+        <span className="relative z-10 mt-4 flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-[var(--exercise-theme-text)]">
+          <span>{isOpen ? "Branch open" : "Expand branch"}</span>
+          <span className="rounded-xl border border-white/10 bg-white/[0.05] px-2 py-1">
+            {isOpen ? "-" : "+"}
+          </span>
+        </span>
+      </button>
+    );
+  };
+
+  const renderTreeNode = (node: AnatomyTreeNode, depth = 0): ReactNode => {
+    const isOpen = openTreeNodes.has(node.id);
+    const hasChildren = Boolean(node.children?.length);
+    const volume = getTreeNodeVolumeSummary(node);
+    const heatStatus = getMomentumHeatStatus(volume.volumePercent);
+    const skill = getTreeNodeSkillPointsSummary(node);
+    const isSelected =
+      selectedTreeNode?.id === node.id ||
+      (node.layer && !selectedBodies.length && activeLayer === node.layer);
+    const exerciseBadges = getTreeNodeExerciseBadges(node);
+    const workoutSuggestions = getTreeNodeWorkoutSuggestions(node);
+    const nodeTheme = getBodyRegionTheme(node.label || node.layer);
+    const nodeStyle = getCategoryThemeCssVariables(nodeTheme);
+    const row = (
+      <div
+        key={node.id}
+        className={`exercise-library-anatomy-tree-row-wrap ${
+          depth > 0 ? "exercise-library-anatomy-tree-row-wrap--child" : ""
+        }`}
+        style={{ "--tree-depth": depth } as CSSProperties}
+      >
+        <div
+          style={nodeStyle}
+          data-selected={isSelected ? "true" : "false"}
+          className="exercise-library-anatomy-tree-row group flex w-full items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-left transition hover:border-[var(--exercise-theme-border)] hover:bg-white/[0.08]"
+        >
+          <button
+            type="button"
+            aria-expanded={hasChildren ? isOpen : undefined}
+            aria-pressed={isSelected}
+            onClick={() => selectTreeNode(node)}
+            className="flex min-w-0 flex-1 items-center gap-3 text-left"
+            title={`${node.label}: ${Math.max(0, Math.round(volume.weeklySets))} / ${
+              volume.weeklyTarget
+            } sets, ${heatStatus.label}`}
+          >
+            <span
+              aria-hidden="true"
+              className="exercise-library-anatomy-tree-node-dot"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-black text-white">
+                {node.label}
+              </span>
+              <span className="mt-0.5 block truncate text-[9px] font-bold uppercase tracking-[0.08em] text-slate-400">
+                {Math.max(0, Math.round(volume.weeklySets))} / {volume.weeklyTarget} sets - {heatStatus.label}
+              </span>
+              <span className="mt-1 block text-[9px] font-black uppercase tracking-[0.08em] text-[var(--exercise-theme-text)]">
+                Level {skill.level} - {skill.points} pts
+              </span>
+              {exerciseBadges.length ? (
+                <span className="exercise-library-anatomy-tree-badges">
+                  {exerciseBadges.map((badge) => (
+                    <span key={badge}>{badge}</span>
+                  ))}
+                </span>
+              ) : null}
+            </span>
+          </button>
+          <span className="hidden shrink-0 rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-300 sm:inline-flex">
+            {formatVolumeRingCooldownLabel(volume.cooldownHours)}
+          </span>
+          <AnatomyTreeMomentumRing
+            percent={volume.volumePercent}
+            sets={volume.weeklySets}
+          />
+          {workoutSuggestions.length ? (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onAddWorkoutItems(workoutSuggestions, node.label);
+              }}
+              className="hidden shrink-0 rounded-xl border border-[var(--exercise-theme-border)] bg-[var(--exercise-theme-accent-soft)] px-2.5 py-2 text-[9px] font-black uppercase tracking-[0.08em] text-white transition hover:bg-[var(--exercise-theme-accent)] hover:text-slate-950 sm:inline-flex"
+              title={`Add ${node.label} recommendations to workout preview`}
+            >
+              + Add
+            </button>
+          ) : null}
+          {hasChildren ? (
+            <button
+              type="button"
+              aria-label={`${isOpen ? "Collapse" : "Expand"} ${node.label}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleTreeNodeOpen(node.id);
+              }}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-xs font-black text-slate-300 transition hover:bg-white/[0.10] hover:text-white"
+            >
+              {isOpen ? "-" : "+"}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
+
+    return (
+      <div key={node.id} className="exercise-library-anatomy-tree-node">
+        {row}
+        {hasChildren && isOpen ? (
+          <div className="exercise-library-anatomy-tree-children">
+            {node.children?.map((child) => renderTreeNode(child, depth + 1))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   return (
     <div
       ref={anatomySelectorRef}
-      className="relative grid gap-3 overflow-visible border-b border-cyan-100/10 p-2.5 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]"
+      className="relative overflow-visible border-b border-cyan-100/10 p-3"
     >
-      <div className="relative overflow-hidden rounded-[24px] border border-cyan-100/14 bg-[radial-gradient(circle_at_50%_12%,rgba(34,211,238,0.18),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.76))] p-3 shadow-[0_18px_44px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.10)]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)] xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+      <div className="exercise-library-movement-panel relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/60 p-2 shadow-[0_0_40px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl sm:p-3">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_44%,rgba(16,185,129,0.12),transparent_50%)]" />
-        <div className="relative z-10 flex items-center justify-between gap-2">
+        <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200/80">
-              Anatomy Select
+              Anatomy View
             </p>
             <p className="mt-1 text-xs font-black text-white">
               {selectedBodyLabels}
             </p>
           </div>
-          <div className="flex rounded-xl border border-white/10 bg-slate-950/42 p-0.5">
-            {(["male", "female"] as ExerciseBodyFigureGender[]).map((item) => (
-              <button
-                key={item}
-                type="button"
-                aria-pressed={gender === item}
-                onClick={() => setGender(item)}
-                className={`rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] transition ${
-                  gender === item
-                    ? "bg-emerald-300 text-slate-950"
-                    : "text-slate-400 hover:bg-emerald-300/10 hover:text-emerald-100"
-                }`}
-              >
-                {item}
-              </button>
-            ))}
+          <div className="flex flex-wrap justify-end gap-1.5">
+            <div className="flex rounded-xl border border-white/10 bg-slate-950/42 p-0.5">
+              {(["male", "female"] as ExerciseBodyFigureGender[]).map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  aria-pressed={gender === item}
+                  onClick={() => setGender(item)}
+                  className={`rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] transition ${
+                    gender === item
+                      ? "bg-emerald-300 text-slate-950"
+                      : "text-slate-400 hover:bg-emerald-300/10 hover:text-emerald-100"
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onClearBodySelection();
+                setActiveAnatomyPopup(null);
+              }}
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-[10px] font-black text-cyan-100 transition hover:border-cyan-100/30 hover:bg-cyan-300/12"
+              title="Reset anatomy view"
+              aria-label="Reset anatomy view"
+            >
+              R
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAnatomyLegend((current) => !current)}
+              className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-[10px] font-black text-yellow-100 transition hover:border-yellow-100/30 hover:bg-yellow-300/12"
+              title="Toggle momentum legend"
+              aria-label="Toggle momentum legend"
+            >
+              L
+            </button>
           </div>
         </div>
 
-        <div className="relative z-10 mt-3 grid min-h-[248px] gap-2 rounded-[22px] border border-white/10 bg-slate-950/42 p-2 min-[520px]:grid-cols-2">
+        <div className="exercise-library-anatomy-figure-row relative z-10 mt-3 flex min-h-[520px] items-center justify-start gap-1 overflow-hidden rounded-[22px] bg-slate-950/18 p-0 ring-1 ring-white/5 md:min-h-[720px] md:-translate-x-5 xl:min-h-[820px] xl:-translate-x-9 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {(["front", "back"] as const).map((figureSide) => (
             <div
               key={figureSide}
-              className="exercise-library-anatomy-figure relative flex min-h-[232px] items-center justify-center overflow-hidden rounded-[18px] border border-white/10 bg-[radial-gradient(circle_at_50%_24%,rgba(255,255,255,0.08),transparent_34%),rgba(2,6,23,0.36)]"
+              className="exercise-library-anatomy-figure exercise-library-movement-anatomy-figure relative flex min-h-[520px] min-w-[12.75rem] items-center justify-center overflow-visible rounded-2xl bg-white/[0.018] md:min-h-[700px] md:min-w-[14.25rem] xl:min-h-[820px] xl:min-w-[15.5rem]"
               onClick={(event) => event.stopPropagation()}
             >
-              <span className="pointer-events-none absolute left-2 top-2 rounded-lg border border-white/10 bg-slate-950/54 px-2 py-1 text-[8px] font-black uppercase tracking-[0.14em] text-slate-300">
+              <span className="pointer-events-none absolute left-2 top-2 z-30 rounded-lg border border-white/10 bg-slate-950/54 px-2 py-1 text-[8px] font-black uppercase tracking-[0.14em] text-slate-300">
                 {figureSide}
               </span>
-              <Body
-                data={bodyData}
-                side={figureSide}
-                gender={gender}
-                scale={0.72}
-                colors={exerciseAnatomyColors}
-                defaultFill="#1e293b"
-                defaultStroke="rgba(255,255,255,0.18)"
-                defaultStrokeWidth={0.6}
-                border="rgba(255,255,255,0.24)"
-                hiddenParts={["hair"]}
-                onBodyPartPress={handleBodyPartPress}
-              />
-              {exerciseAnatomyBodySlugs.map((slug) => {
-                const layer = exerciseAnatomySlugLayer[slug];
-                const bodyOption =
-                  resolveAnatomySlugBodyOption(slug, bodyOptions) ||
-                  labelize(slug);
-                const isLayerVisible = !activeLayer || activeLayer === layer;
-                const weeklySets =
-                  getWeeklySetsForVolumeLabel(
-                    weeklySetsSummary.bodySetsByLabel,
-                    bodyOption,
-                  ) ||
-                  weeklySetsSummary.layerSetsById.get(layer) ||
-                  0;
-                const weeklyGoal = getWeeklySetGoalForBodyPart(bodyOption);
-                const statusId = getWeeklySetGoalStatusId(
-                  weeklySets,
-                  weeklyGoal,
-                );
-                const indicatorTheme = getBodyRegionTheme(bodyOption);
-                const indicatorStyle = {
-                  ...exerciseAnatomyIndicatorPositions[slug][figureSide],
-                  ...getCategoryThemeCssVariables(indicatorTheme),
-                } as CSSProperties;
-                const isSelected =
-                  selectedBodySet.has(normalizeBodySelectorValue(bodyOption)) ||
-                  activeAnatomyPopup?.slug === slug;
-
-                return (
-                  <button
-                    key={`${figureSide}-${slug}`}
-                    type="button"
-                    aria-pressed={isSelected}
-                    aria-label={`${bodyOption} anatomy region, ${Math.max(
-                      0,
-                      Math.round(weeklySets),
-                    )} of ${weeklyGoal} sets`}
-                    data-volume-status={statusId}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      selectAnatomySlug(slug);
-                    }}
-                    onFocus={() => showAnatomyPopup(slug)}
-                    onMouseEnter={() => showAnatomyPopup(slug)}
-                    onMouseLeave={closeUnpinnedAnatomyPopup}
-                    style={indicatorStyle}
-                    title={`${bodyOption}: ${Math.max(
-                      0,
-                      Math.round(weeklySets),
-                    )} / ${weeklyGoal} sets`}
-                    className={`exercise-library-anatomy-indicator ${
-                      isSelected ? "exercise-library-anatomy-indicator--active" : ""
-                    } ${isLayerVisible ? "" : "opacity-35"}`}
-                  >
-                    <span className="sr-only">{bodyOption}</span>
-                  </button>
-                );
-              })}
+              <div
+                className="exercise-library-anatomy-figure-stage relative flex h-[700px] w-[212px] origin-center scale-[1.12] items-center justify-center md:h-[760px] md:w-[228px] md:scale-[1.18] xl:h-[820px] xl:w-[246px] xl:scale-[1.22] 2xl:h-[900px] 2xl:w-[270px] 2xl:scale-[1.28]"
+                data-figure-side={figureSide}
+                onFocus={handleAnatomyStageFocus}
+                onKeyDown={handleAnatomyStageKeyDown}
+                onPointerDown={handleAnatomyStagePointer}
+                onPointerMove={handleAnatomyStagePointer}
+                onPointerLeave={closeUnpinnedAnatomyPopup}
+              >
+                <Body
+                  data={bodyData}
+                  side={figureSide}
+                  gender={gender}
+                  scale={1}
+                  colors={exerciseAnatomyColors}
+                  defaultFill="#1e293b"
+                  defaultStroke="rgba(255,255,255,0.18)"
+                  defaultStrokeWidth={0.6}
+                  border="rgba(255,255,255,0.24)"
+                  hiddenParts={["hair"]}
+                  onBodyPartPress={handleBodyPartPress}
+                />
+              </div>
             </div>
           ))}
         </div>
+
+        {showAnatomyLegend ? (
+          <div className="relative z-10 mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+            {momentumZoneLegend.map((zone) => (
+              <button
+                key={zone.id}
+                type="button"
+                className="exercise-library-momentum-legend-item"
+                data-heat={zone.id}
+                title={`${zone.label}: ${zone.range}`}
+              >
+                <span aria-hidden="true" />
+                <span>{zone.label}</span>
+                <small>{zone.range}</small>
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
-      <div className="grid content-start gap-2 rounded-[24px] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+      <div
+        style={getCategoryThemeCssVariables(selectedTreeTheme)}
+        className="relative min-w-0"
+      >
+          <div className="exercise-library-movement-panel relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/70 p-4 shadow-[0_0_35px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[9px] font-black uppercase tracking-[0.22em] text-[var(--exercise-theme-text)]">
+                  Selected Body Part
+                </p>
+                <h3 className="mt-1 truncate text-xl font-black text-white">
+                  {selectedTreeLabel}
+                </h3>
+              </div>
+              <span className="rounded-2xl border border-white/10 bg-white/[0.055] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] text-slate-300">
+                {selectedTreeHeatStatus.label}
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-[auto_1fr] md:items-center">
+              <SelectedBodyPartMomentumMeter
+                percent={selectedTreeVolume.volumePercent}
+                title={selectedTreeLabel}
+              />
+              <div className="min-w-0">
+                <p className="text-3xl font-black leading-none text-white">
+                  {selectedTreePercent}%
+                </p>
+                <p className="mt-2 text-sm font-black text-white">
+                  {selectedTreeLabel}
+                </p>
+                <p className="mt-1 text-xs font-semibold text-slate-400">
+                  {Math.max(0, Math.round(selectedTreeVolume.weeklySets))} /{" "}
+                  {selectedTreeVolume.weeklyTarget} sets this week
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3 md:grid-cols-1 min-[1480px]:grid-cols-3">
+                  {[
+                    {
+                      label: "Weight Volume",
+                      value: selectedTreeWeightVolumeLabel || "No load volume yet",
+                    },
+                    {
+                      label: "Last Trained",
+                      value: formatTrainingRecencyLabel(selectedTreeLastTrained || 0),
+                    },
+                    {
+                      label: "Cooldown",
+                      value: selectedTreeCooldownLabel,
+                    },
+                  ].map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                    >
+                      <p className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                        {stat.label}
+                      </p>
+                      <p className="mt-1 text-sm font-black text-white">
+                        {stat.value}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-3 rounded-[22px] border border-white/10 bg-[radial-gradient(circle_at_12%_0%,var(--exercise-theme-accent-soft),transparent_42%),rgba(255,255,255,0.045)] p-3">
+              <p className="inline-flex rounded-xl border border-white/10 bg-white/[0.055] px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-[var(--exercise-theme-text)]">
+                {holisticRecommendation.focusChip}
+              </p>
+              <p className="mt-1 text-sm font-black text-white">
+                {selectedRecommendationAction.mode === "recovery"
+                  ? selectedRecommendationAction.title
+                  : holisticRecommendation.title}
+              </p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
+                {selectedRecommendationAction.mode === "recovery"
+                  ? selectedRecommendationAction.description
+                  : holisticRecommendation.description}
+              </p>
+              {selectedRecommendationAction.exerciseNames.length ? (
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                  {selectedRecommendationAction.exerciseNames
+                    .slice(0, 4)
+                    .map((title) => {
+                      const match =
+                        holisticExerciseMatches.find(
+                          (exercise) =>
+                            normalizeFilterCompareValue(
+                              getExerciseSortTitle(exercise),
+                            ) === normalizeFilterCompareValue(title),
+                        ) ||
+                        selectedPopularExercises.find(
+                          (entry) => entry.title === title,
+                        )?.exercise ||
+                        null;
+
+                      return match ? (
+                        <span
+                          key={title}
+                          className="inline-flex items-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.055] text-[9px] font-black uppercase tracking-[0.08em] text-slate-200"
+                        >
+                          <button
+                            type="button"
+                            onClick={() => onPopularExerciseSelect(match)}
+                            className="px-2 py-1.5 transition hover:bg-[var(--exercise-theme-accent-soft)]"
+                            title={`View ${title}`}
+                          >
+                            {title}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onAddWorkoutItems([match], title)}
+                            className="border-l border-white/10 px-2 py-1.5 text-[var(--exercise-theme-text)] transition hover:bg-[var(--exercise-theme-accent)] hover:text-slate-950"
+                            title={`Add ${title} to workout preview`}
+                          >
+                            + Add
+                          </button>
+                        </span>
+                      ) : (
+                        <span
+                          key={title}
+                          className="rounded-xl border border-white/10 bg-white/[0.045] px-2 py-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-slate-300"
+                        >
+                          {title}
+                        </span>
+                      );
+                    })}
+                </div>
+              ) : null}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {holisticExerciseMatches.length ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onAddWorkoutItems(
+                        holisticExerciseMatches,
+                        holisticRecommendation.focusChip,
+                      )
+                    }
+                    className="rounded-xl border border-emerald-200/25 bg-emerald-300/12 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-100 transition hover:bg-emerald-300 hover:text-slate-950"
+                  >
+                    Add All Recommended
+                  </button>
+                ) : null}
+                {holisticExerciseMatches[0] ? (
+                  <button
+                    type="button"
+                    onClick={() => onPopularExerciseSelect(holisticExerciseMatches[0])}
+                    className="rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-slate-200 transition hover:border-[var(--exercise-theme-border)] hover:bg-[var(--exercise-theme-accent-soft)]"
+                  >
+                    View Exercise
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleRecommendationAction}
+              className={`mt-3 w-full rounded-2xl border px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] transition hover:-translate-y-0.5 ${recommendationButtonClass}`}
+            >
+              {selectedRecommendationAction.label}
+            </button>
+          </div>
+      </div>
+      </div>
+
+      <div
+        style={getCategoryThemeCssVariables(selectedTreeTheme)}
+        className="mt-4 min-w-0"
+      >
+          <div className="exercise-library-movement-panel relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/60 p-4 shadow-[0_0_40px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.11),transparent_34%),radial-gradient(circle_at_92%_10%,rgba(250,204,21,0.08),transparent_30%)]" />
+            <div className="relative z-10">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-200/80">
+                    Anatomy Skill Tree
+                  </p>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
+                    Pick one root branch, earn points from logged volume, then add smart recommendations to a workout.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenRootRegion("upper-body");
+                    setOpenTreeNodes(new Set(["all-regions", "upper-body"]));
+                    onClearBodySelection();
+                  }}
+                  className="shrink-0 rounded-2xl border border-cyan-100/20 bg-cyan-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-100/45 hover:bg-cyan-300 hover:text-slate-950"
+                >
+                  All Regions
+                </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {rootRegionNodes.map((node) => renderRootSkillCard(node))}
+              </div>
+
+              <div className="exercise-library-anatomy-tree-scroll mt-4 max-h-[560px] overflow-y-auto pr-2">
+                {openRootNode ? (
+                  <div
+                    style={getCategoryThemeCssVariables(
+                      getBodyRegionTheme(openRootNode.label),
+                    )}
+                    className="rounded-[24px] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                  >
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[var(--exercise-theme-text)]">
+                          Open Branch
+                        </p>
+                        <p className="mt-1 text-sm font-black text-white">
+                          {openRootNode.label}
+                        </p>
+                      </div>
+                      <span className="rounded-xl border border-white/10 bg-white/[0.055] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] text-slate-300">
+                        Single-open branch
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      {openRootNode.children?.map((node) => renderTreeNode(node))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+
+      <div className="hidden content-start gap-2 rounded-[24px] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <p className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-200/75">
@@ -8411,10 +11346,13 @@ function ExerciseBodyAnatomySelector({
         </div>
 
       </div>
-      {activeAnatomyPopup && anatomyPopupTheme && anatomyPopupStyle ? (
+      {activeAnatomyPopup &&
+      anatomyPopupTheme &&
+      anatomyPopupStyle &&
+      anatomyPopupVolume ? (
         <div
           style={anatomyPopupStyle}
-          className="exercise-library-anatomy-popup absolute left-3 right-3 top-3 z-[120] max-h-[min(28rem,calc(100vh-2rem))] overflow-y-auto rounded-[24px] border border-white/14 bg-[radial-gradient(circle_at_12%_0%,var(--exercise-theme-accent-soft),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-3 shadow-[0_28px_88px_rgba(0,0,0,0.72),0_0_38px_var(--exercise-theme-glow),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl sm:left-auto sm:w-[22rem]"
+          className="exercise-library-anatomy-popup exercise-library-muscle-fiber-popup absolute z-[120] max-h-[min(28rem,calc(100vh-2rem))] w-[min(17.5rem,calc(100%-1.5rem))] overflow-y-auto rounded-[24px] border border-white/14 bg-[radial-gradient(circle_at_12%_0%,var(--exercise-theme-accent-soft),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-3 shadow-[0_28px_88px_rgba(0,0,0,0.72),0_0_38px_var(--exercise-theme-glow),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl sm:w-[22rem]"
           role="dialog"
           aria-label={`${activeAnatomyPopup.bodyOption} anatomy insight`}
         >
@@ -8428,7 +11366,13 @@ function ExerciseBodyAnatomySelector({
                 {activeAnatomyPopup.bodyOption}
               </h3>
               <p className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
-                {activeAnatomyPopup.layer} body layer
+                {anatomyPopupFiberInfo?.parentRegion ||
+                  `${activeAnatomyPopup.layer} body layer`}
+                {anatomyPopupFiberInfo?.treePath.length
+                  ? ` - ${anatomyPopupFiberInfo.treePath
+                      .slice(0, -1)
+                      .join(" / ")}`
+                  : ""}
               </p>
             </div>
             <button
@@ -8442,38 +11386,70 @@ function ExerciseBodyAnatomySelector({
           </div>
 
           <p className="mt-3 text-xs font-semibold leading-5 text-slate-300">
-            {getAnatomyRegionDescription(
-              activeAnatomyPopup.bodyOption,
-              activeAnatomyPopup.slug,
-            )}
+            {anatomyPopupFiberInfo?.recommendation ||
+              getAnatomyRegionDescription(
+                activeAnatomyPopup.bodyOption,
+                activeAnatomyPopup.slug,
+              )}
           </p>
 
-          <div className="exercise-library-layer-volume-card relative mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.045] p-3">
-            <span
-              aria-hidden="true"
-              className="exercise-library-layer-volume-card__fill"
-            />
-            <div className="relative z-10 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[10px] font-black uppercase tracking-[0.12em] text-white">
-                <WeeklySetGoalBadge
-                  completedSets={anatomyPopupWeeklySets}
-                  goalSets={anatomyPopupWeeklyGoal}
-                  rangeLabel={weeklyVolumeRangeLabel}
-                />
+          {anatomyPopupFiberInfo?.patterns.length ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {anatomyPopupFiberInfo.patterns.slice(0, 4).map((pattern) => (
+                <span
+                  key={pattern}
+                  className="rounded-lg border border-white/10 bg-white/[0.055] px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-300"
+                >
+                  {pattern}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.045] p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <VolumeRing
+                className="max-w-[9.5rem]"
+                cooldownHours={anatomyPopupVolume.cooldownHours}
+                isActive={selectedBodySet.has(
+                  normalizeBodySelectorValue(activeAnatomyPopup.bodyOption),
+                )}
+                label={activeAnatomyPopup.bodyOption}
+                onClick={() =>
+                  onBodySelect(
+                    activeAnatomyPopup.bodyOption,
+                    activeAnatomyPopup.layer,
+                  )
+                }
+                percent={anatomyPopupVolume.volumePercent}
+                showLabel={false}
+                size="compact"
+                weeklySets={anatomyPopupVolume.weeklySets}
+                weeklyTarget={anatomyPopupVolume.weeklyTarget}
+              />
+              <span className="min-w-[7rem] text-[10px] font-black uppercase tracking-[0.12em] text-white">
+                {Math.max(0, Math.round(anatomyPopupVolume.weeklySets))} /{" "}
+                {anatomyPopupVolume.weeklyTarget} sets
+                <span className="mt-1 block text-[9px] text-slate-400">
+                  {weeklyVolumeRangeLabel}
+                </span>
+                <span className="mt-1 block text-[9px] text-[var(--exercise-theme-text)]">
+                  Momentum: {Math.round(anatomyPopupVolume.volumePercent)}%{" "}
+                  {anatomyPopupHeatStatus.label}
+                </span>
+                <span className="mt-1 block text-[9px] text-[var(--exercise-theme-text)]">
+                  {formatVolumeRingCooldownLabel(anatomyPopupVolume.cooldownHours)}
+                </span>
               </span>
               <span className="rounded-xl border border-white/10 bg-black/18 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-300">
                 {formatTrainingRecencyLabel(anatomyPopupLastTrained)}
               </span>
-              <CooldownCounterBar
-                className="basis-full"
-                summary={anatomyPopupCooldownSummary}
-              />
             </div>
           </div>
 
           <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
             <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
-              Popular
+              Top exercises
             </p>
             {anatomyPopupPopularExercises.length ? (
               <div className="mt-2 flex flex-wrap gap-1.5">
@@ -8540,6 +11516,7 @@ const getExercisePageSelectorTheme = (sectionTheme: CategoryTheme) =>
 
 type TrainingIntelligenceStatCard = {
   detail?: string;
+  imageUrl?: string;
   weightVolume?: number;
   weightVolumeComparisonLabel?: string;
   weightVolumeTarget?: number;
@@ -8553,6 +11530,18 @@ type TrainingIntelligenceStatCard = {
   title?: string;
   value: string;
   label: string;
+};
+
+type TrainingPanelMetricCard = {
+  detail?: string;
+  helper: string;
+  id: string;
+  imageUrl?: string;
+  label: string;
+  onClick?: () => void;
+  statusId?: WeeklyVolumeStatusId;
+  theme: CategoryTheme;
+  value: string;
 };
 
 type TrainingIntelligenceShortcut = {
@@ -8569,6 +11558,7 @@ type TrainingIntelligenceShortcut = {
 type TrainingLogicInsight = {
   detail: string;
   eyebrow: string;
+  imageUrl?: string;
   id: string;
   onClick?: () => void;
   statusId?: WeeklyVolumeStatusId;
@@ -8577,6 +11567,22 @@ type TrainingLogicInsight = {
 };
 
 type TrainingLogicPanelId = "goal" | "stats" | "insights";
+type TrainingStatsTabId =
+  | "overview"
+  | "recent"
+  | "weekly"
+  | "best"
+  | "lifetime"
+  | "categories";
+type TrainingInsightsTabId =
+  | "focus"
+  | "recovery"
+  | "balance"
+  | "forecast"
+  | "recommendations";
+
+const getExerciseVisualUrl = (exercise?: Exercise | null) =>
+  exercise?.image || exercise?.imageUrl || "";
 
 function TrainingLogicDropdownSection({
   accent,
@@ -8642,18 +11648,23 @@ function TrainingLogicDropdownSection({
 }
 
 function TrainingIntelligenceHeader({
+  bestMetricCards,
+  categoryMetricCards,
   currentFocusLabel,
   goalLogic,
   insights,
   lastTrainedLabel,
   latestSetInsight,
+  lifetimeMetricCards,
   onPreferredWeightUnitChange,
   preferredWeightUnit,
   profileSummary,
+  recentMetricCards,
   sectionTheme,
   shortcuts,
   statCards,
   trainingStreakLabel,
+  weeklyMetricCards,
   weeklyGoalSets,
   weeklyWeightVolumeComparisonLabel,
   weeklyVolumeRangeLabel,
@@ -8661,18 +11672,23 @@ function TrainingIntelligenceHeader({
   weeklyReps,
   weeklySets,
 }: {
+  bestMetricCards: TrainingPanelMetricCard[];
+  categoryMetricCards: TrainingPanelMetricCard[];
   currentFocusLabel: string;
   goalLogic: GoalLogicSummary;
   insights: TrainingLogicInsight[];
   lastTrainedLabel: string;
   latestSetInsight?: LatestSetInsight | null;
+  lifetimeMetricCards: TrainingPanelMetricCard[];
   onPreferredWeightUnitChange: (unit: WeightUnit) => void;
   preferredWeightUnit: WeightUnit;
   profileSummary: ExerciseLibraryProfileSummary;
+  recentMetricCards: TrainingPanelMetricCard[];
   sectionTheme: CategoryTheme;
   shortcuts: TrainingIntelligenceShortcut[];
   statCards: TrainingIntelligenceStatCard[];
   trainingStreakLabel: string;
+  weeklyMetricCards: TrainingPanelMetricCard[];
   weeklyGoalSets: number;
   weeklyWeightVolumeComparisonLabel: string;
   weeklyVolumeRangeLabel: string;
@@ -8693,6 +11709,10 @@ function TrainingIntelligenceHeader({
   const roundedWeeklyReps = Math.max(0, Math.round(weeklyReps));
   const [activeTrainingPanel, setActiveTrainingPanel] =
     useState<TrainingLogicPanelId>("goal");
+  const [activeStatsTab, setActiveStatsTab] =
+    useState<TrainingStatsTabId>("overview");
+  const [activeInsightsTab, setActiveInsightsTab] =
+    useState<TrainingInsightsTabId>("focus");
   const openTrainingPanel = (panelId: TrainingLogicPanelId) => {
     setActiveTrainingPanel((current) =>
       current === panelId ? current : panelId,
@@ -8717,6 +11737,240 @@ function TrainingIntelligenceHeader({
       `${card.id} ${card.label}`,
     ),
   );
+  const statsTabs: Array<{ id: TrainingStatsTabId; label: string }> = [
+    { id: "overview", label: "Overview" },
+    { id: "recent", label: "Recent" },
+    { id: "weekly", label: "Weekly" },
+    { id: "best", label: "Best" },
+    { id: "lifetime", label: "Lifetime" },
+    { id: "categories", label: "Categories" },
+  ];
+  const insightsTabs: Array<{ id: TrainingInsightsTabId; label: string }> = [
+    { id: "focus", label: "Focus" },
+    { id: "recovery", label: "Recovery" },
+    { id: "balance", label: "Balance" },
+    { id: "forecast", label: "Forecast" },
+    { id: "recommendations", label: "Recommendations" },
+  ];
+  const renderTrainingTabRow = <TabId extends string>({
+    activeTab,
+    ariaLabel,
+    onChange,
+    tabs,
+  }: {
+    activeTab: TabId;
+    ariaLabel: string;
+    onChange: (tab: TabId) => void;
+    tabs: Array<{ id: TabId; label: string }>;
+  }) => (
+    <div
+      aria-label={ariaLabel}
+      className="exercise-library-training-tab-row flex max-w-full flex-nowrap gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-slate-950/34 p-1"
+    >
+      {tabs.map((tab) => {
+        const isActive = activeTab === tab.id;
+
+        return (
+          <button
+            key={tab.id}
+            type="button"
+            aria-pressed={isActive}
+            onClick={() => onChange(tab.id)}
+            className={`min-h-[34px] shrink-0 rounded-xl border px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] transition ${
+              isActive
+                ? "border-cyan-100/50 bg-cyan-300 text-slate-950 shadow-[0_0_22px_rgba(34,211,238,0.22)]"
+                : "border-white/10 bg-white/[0.04] text-slate-300 hover:border-cyan-100/28 hover:bg-cyan-300/10 hover:text-white"
+            }`}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+  const renderMetricCard = (card: TrainingPanelMetricCard) => {
+    const cardStyle = getCategoryThemeCssVariables(card.theme);
+    const content = (
+      <>
+        {card.imageUrl ? (
+          <>
+            <img
+              src={card.imageUrl}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover opacity-20"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 bg-gradient-to-br from-slate-950/92 via-slate-950/76 to-slate-950/96"
+            />
+          </>
+        ) : null}
+        <span className="relative z-10 flex items-start justify-between gap-2">
+          <span className="min-w-0">
+            <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-400">
+              {card.label}
+            </span>
+            <span className="mt-1 block truncate text-base font-black text-white">
+              {card.value}
+            </span>
+          </span>
+          {card.statusId ? (
+            <VolumeStatusIndicator sets={0} statusId={card.statusId} />
+          ) : null}
+        </span>
+        <span className="relative z-10 mt-1 block line-clamp-2 text-[10px] font-semibold leading-4 text-slate-400">
+          {card.helper}
+        </span>
+        {card.detail ? (
+          <span className="relative z-10 mt-2 block truncate text-[9px] font-black uppercase tracking-[0.1em] text-[var(--exercise-theme-text)]">
+            {card.detail}
+          </span>
+        ) : null}
+      </>
+    );
+    const className =
+      "relative min-h-[116px] overflow-hidden rounded-2xl border border-white/10 bg-slate-950/42 p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition hover:-translate-y-0.5 hover:border-white/24 hover:bg-white/[0.07]";
+
+    return card.onClick ? (
+      <button
+        key={card.id}
+        type="button"
+        onClick={card.onClick}
+        style={cardStyle}
+        className={`${className} cursor-pointer`}
+        title={card.label}
+      >
+        {content}
+      </button>
+    ) : (
+      <div key={card.id} style={cardStyle} className={className} title={card.label}>
+        {content}
+      </div>
+    );
+  };
+  const renderInsightCard = (insight: TrainingLogicInsight) => {
+    const insightStyle = getCategoryThemeCssVariables(insight.theme);
+    const content = (
+      <>
+        {insight.imageUrl ? (
+          <>
+            <img
+              src={insight.imageUrl}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover opacity-20"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 bg-gradient-to-br from-slate-950/92 via-slate-950/76 to-slate-950/96"
+            />
+          </>
+        ) : null}
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-2 left-0 w-1 rounded-full bg-[var(--exercise-theme-accent)] shadow-[0_0_18px_var(--exercise-theme-glow)]"
+        />
+        <span className="relative z-10 flex items-center gap-2 text-[8px] font-black uppercase tracking-[0.14em] text-[var(--exercise-theme-text)]">
+          {insight.statusId ? (
+            <VolumeStatusIndicator sets={0} statusId={insight.statusId} />
+          ) : null}
+          {insight.eyebrow}
+        </span>
+        <span className="relative z-10 mt-1 block text-sm font-black text-white">
+          {insight.title}
+        </span>
+        <span className="relative z-10 mt-1 block text-[11px] font-semibold leading-4 text-slate-400">
+          {insight.detail}
+        </span>
+      </>
+    );
+    const className =
+      "relative min-h-[112px] overflow-hidden rounded-2xl border border-white/10 bg-white/[0.045] py-2.5 pl-3.5 pr-3 text-left transition hover:-translate-y-0.5 hover:border-[var(--exercise-theme-border)] hover:bg-[var(--exercise-theme-accent-soft)]";
+
+    return insight.onClick ? (
+      <button
+        key={insight.id}
+        type="button"
+        onClick={insight.onClick}
+        style={insightStyle}
+        className={`${className} cursor-pointer`}
+      >
+        {content}
+      </button>
+    ) : (
+      <div key={insight.id} style={insightStyle} className={className}>
+        {content}
+      </div>
+    );
+  };
+  const focusInsights =
+    insights.filter((insight) =>
+      /focus|undertrained|suggested|starting|attention/i.test(
+        `${insight.eyebrow} ${insight.title}`,
+      ),
+    ) || [];
+  const recoveryInsights = insights.filter((insight) =>
+    /recovery|cooldown|above target|risk|fatigue/i.test(
+      `${insight.eyebrow} ${insight.title} ${insight.detail}`,
+    ),
+  );
+  const balanceInsights = insights.filter((insight) =>
+    /balance|category|almost|trained zone/i.test(
+      `${insight.eyebrow} ${insight.title} ${insight.detail}`,
+    ),
+  );
+  const recommendationCards: TrainingPanelMetricCard[] = shortcuts
+    .filter((shortcut) => !shortcut.disabled)
+    .slice(0, 5)
+    .map((shortcut) => ({
+      helper: shortcut.helper || "Open this library focus.",
+      id: `recommendation-${shortcut.id}`,
+      label: "Recommendation",
+      onClick: shortcut.onClick,
+      theme: shortcut.theme,
+      value: shortcut.label,
+    }));
+  const suggestedMetricCards: TrainingPanelMetricCard[] = recommendationCards.length
+    ? [
+        {
+          ...recommendationCards[0],
+          id: `suggested-${recommendationCards[0].id}`,
+          label: "Suggested Next Move",
+        },
+      ]
+    : [
+        {
+          helper: "Open a section or log a set to sharpen the next suggestion.",
+          id: "suggested-empty",
+          label: "Suggested Next Move",
+          theme: sectionTheme,
+          value: currentFocusLabel,
+        },
+      ];
+  const forecastCards: TrainingPanelMetricCard[] = [
+    {
+      helper: "Based on recent logged sets, reps, and load.",
+      id: "forecast-load-capacity",
+      label: "Future Load Capacity",
+      theme: getCategoryTheme("Upper Pull"),
+      value: goalLogic.futureLoadCapacityLabel,
+    },
+    {
+      helper: "Projected weekly completion from current pace.",
+      id: "forecast-volume",
+      label: "Volume Forecast",
+      theme: sectionTheme,
+      value: goalLogic.forecastLabel,
+    },
+    {
+      helper: "Training stimulus estimate from logged weekly volume.",
+      id: "forecast-stimulus",
+      label: "Training Stimulus",
+      theme: getCategoryTheme("Lower Body Compound"),
+      value: goalLogic.stimulusLabel,
+    },
+  ];
   const renderTrainingStatCard = (card: TrainingIntelligenceStatCard) => {
     const cardStyle = {
       ...getCategoryThemeCssVariables(card.theme),
@@ -8728,6 +11982,20 @@ function TrainingIntelligenceHeader({
     } as ExerciseLibraryThemeCssVariables;
     const content = (
       <>
+        {card.imageUrl ? (
+          <>
+            <img
+              src={card.imageUrl}
+              alt=""
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full object-cover opacity-20"
+            />
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 bg-gradient-to-br from-slate-950/92 via-slate-950/76 to-slate-950/96"
+            />
+          </>
+        ) : null}
         {typeof card.progressPercent === "number" ? (
           <span
             aria-hidden="true"
@@ -8925,7 +12193,126 @@ function TrainingIntelligenceHeader({
           status={`${roundedWeeklySets}/${weeklyGoalSets}`}
           title="Stats"
         >
-          <div className="grid gap-3 xl:grid-cols-[0.8fr_1.2fr]">
+          <div className="max-w-full overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.04] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[var(--exercise-theme-text)]">
+              Stats
+            </p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
+              Weekly volume, recent logs, best performance, and body/category summaries.
+            </p>
+            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+              {weeklyVolumeRangeLabel} / Updated today
+            </p>
+
+            <div className="mt-3">
+              {renderTrainingTabRow({
+                activeTab: activeStatsTab,
+                ariaLabel: "Stats sections",
+                onChange: setActiveStatsTab,
+                tabs: statsTabs,
+              })}
+            </div>
+
+            <div className="mt-3">
+              {activeStatsTab === "overview" ? (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {statCards.slice(0, 6).map(renderTrainingStatCard)}
+                </div>
+              ) : null}
+
+              {activeStatsTab === "recent" ? (
+                recentMetricCards.length ? (
+                  <div className="flex max-w-full flex-nowrap gap-3 overflow-x-auto pb-2">
+                    {recentMetricCards.map(renderMetricCard)}
+                  </div>
+                ) : (
+                  <p className="rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-slate-400">
+                    No recent exercise logs yet.
+                  </p>
+                )
+              ) : null}
+
+              {activeStatsTab === "weekly" ? (
+                <div className="grid gap-3 lg:grid-cols-[0.75fr_1.25fr]">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
+                    <p className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      Weekly Volume
+                    </p>
+                    <p className="mt-1 text-xl font-black text-white">
+                      {roundedWeeklySets} / {weeklyGoalSets} sets
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-slate-400">
+                      {roundedWeeklyReps.toLocaleString()} reps / {weeklyGoalProgressPercent}% complete
+                    </p>
+                    <WeightVolumeStat
+                      className="mt-3"
+                      comparisonLabel={weeklyWeightVolumeComparisonLabel}
+                      volume={weeklyWeightVolume}
+                      weightUnit={preferredWeightUnit}
+                    />
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {weeklyMetricCards.map(renderMetricCard)}
+                  </div>
+                </div>
+              ) : null}
+
+              {activeStatsTab === "best" ? (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  {bestMetricCards.map(renderMetricCard)}
+                </div>
+              ) : null}
+
+              {activeStatsTab === "lifetime" ? (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  {lifetimeMetricCards.map(renderMetricCard)}
+                </div>
+              ) : null}
+
+              {activeStatsTab === "categories" ? (
+                <div className="flex max-w-full flex-nowrap gap-3 overflow-x-auto pb-2">
+                  {categoryMetricCards.length
+                    ? categoryMetricCards.map(renderMetricCard)
+                    : bodyVolumeCards.map((card) =>
+                        renderMetricCard({
+                          detail: card.detail,
+                          helper: card.helper,
+                          id: `category-fallback-${card.id}`,
+                          label: card.label,
+                          onClick: card.onClick,
+                          statusId: card.statusId,
+                          theme: card.theme,
+                          value: card.value,
+                        }),
+                      )}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.045] p-1">
+              <p className="px-2 pb-1 pt-1 text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                Preferred Weight Unit
+              </p>
+              <div className="grid grid-cols-2 gap-1">
+                {(["lbs", "kg"] as WeightUnit[]).map((unit) => (
+                  <button
+                    key={unit}
+                    type="button"
+                    aria-pressed={preferredWeightUnit === unit}
+                    onClick={() => onPreferredWeightUnitChange(unit)}
+                    className={`rounded-xl px-2 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] transition ${
+                      preferredWeightUnit === unit
+                        ? "bg-cyan-300 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.24)]"
+                        : "text-slate-400 hover:bg-white/[0.07] hover:text-white"
+                    }`}
+                  >
+                    {unit === "lbs" ? "Pounds / lbs" : "Kilograms / kg"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="hidden">
             <div className="rounded-[22px] border border-white/10 bg-white/[0.045] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
               <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
                 Weekly Summary
@@ -9003,13 +12390,13 @@ function TrainingIntelligenceHeader({
               {statCards.map(renderTrainingStatCard)}
             </div>
           </div>
-          {bestPerformanceCard ? (
+          {false && bestPerformanceCard ? (
             <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
-              Best recent performance: {bestPerformanceCard.value} ·{" "}
-              {bestPerformanceCard.helper}
+              Best recent performance: {bestPerformanceCard?.value} ·{" "}
+              {bestPerformanceCard?.helper}
             </p>
           ) : null}
-          {bodyVolumeCards.length ? (
+          {false && bodyVolumeCards.length ? (
             <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
               Body/category volume summaries are represented in the stat tiles
               above.
@@ -9026,7 +12413,85 @@ function TrainingIntelligenceHeader({
           status={currentFocusLabel}
           title="Insights"
         >
-          <div className="grid gap-3 xl:grid-cols-[1fr_1fr]">
+          <div className="max-w-full overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.04] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-[var(--exercise-theme-text)]">
+              Insights
+            </p>
+            <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
+              Forecasts, recovery signals, balance checks, and next useful moves.
+            </p>
+            <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+              {weeklyVolumeRangeLabel} / Updated today
+            </p>
+
+            <div className="mt-3">
+              {renderTrainingTabRow({
+                activeTab: activeInsightsTab,
+                ariaLabel: "Insight sections",
+                onChange: setActiveInsightsTab,
+                tabs: insightsTabs,
+              })}
+            </div>
+
+            <div className="mt-3">
+              {activeInsightsTab === "focus" ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(focusInsights.length ? focusInsights : insights.slice(0, 2)).map(
+                    renderInsightCard,
+                  )}
+                  {suggestedMetricCards.map(renderMetricCard)}
+                </div>
+              ) : null}
+
+              {activeInsightsTab === "recovery" ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(recoveryInsights.length ? recoveryInsights : insights.slice(0, 1)).map(
+                    renderInsightCard,
+                  )}
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3">
+                    <p className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      Recovery / Cooldown
+                    </p>
+                    <p className="mt-1 text-sm font-black text-white">
+                      {goalLogic.recoveryRiskLabel}
+                    </p>
+                    <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-400">
+                      Uses logged weekly volume only. No medical claims.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
+              {activeInsightsTab === "balance" ? (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {(balanceInsights.length ? balanceInsights : insights.slice(0, 2)).map(
+                    renderInsightCard,
+                  )}
+                  {categoryMetricCards.slice(0, 3).map(renderMetricCard)}
+                </div>
+              ) : null}
+
+              {activeInsightsTab === "forecast" ? (
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {forecastCards.map(renderMetricCard)}
+                </div>
+              ) : null}
+
+              {activeInsightsTab === "recommendations" ? (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {recommendationCards.length ? (
+                    recommendationCards.map(renderMetricCard)
+                  ) : (
+                    <p className="rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-slate-400">
+                      Log more sets to unlock specific recommendations.
+                    </p>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="hidden">
             <div className="grid gap-2">
               {[
                 ["Future Load Capacity", goalLogic.futureLoadCapacityLabel],
@@ -9100,7 +12565,7 @@ function TrainingIntelligenceHeader({
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="hidden">
             {shortcuts.map((shortcut) => {
               const shortcutStyle = getCategoryThemeCssVariables(shortcut.theme);
 
@@ -9675,44 +13140,39 @@ function ActiveFilterStatusPanel({
   bodyRegionLayer,
   matchingCount,
   onClear,
+  onSortChange,
   sectionTheme,
+  sortMode,
+  sortOptions,
 }: {
   activeFilterChips: string[];
   bodyRegionLayer: BodyRegionLayer | null;
   matchingCount: number;
   onClear: () => void;
+  onSortChange: (mode: ExerciseLibrarySortMode) => void;
   sectionTheme: CategoryTheme;
+  sortMode: ExerciseLibrarySortMode;
+  sortOptions: FilterMenuOption[];
 }) {
   const hasActiveFilters = activeFilterChips.length > 0;
   const layerLabel = bodyRegionLayer || "All regions";
+  const sortLabel = sortModeLabels[sortMode] || "Category Order";
   const statusStyle = getCategoryThemeCssVariables(sectionTheme);
 
   return (
     <div
       style={statusStyle}
-      className="exercise-library-active-filter-status relative overflow-hidden border-y border-cyan-100/12 bg-slate-950/42 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:px-4"
+      className="exercise-library-active-filter-status sticky bottom-0 z-[40] overflow-hidden border-y border-cyan-100/12 bg-slate-950/52 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl sm:px-4"
     >
       <div
         aria-hidden="true"
         className={`pointer-events-none absolute inset-0 ${sectionTheme.overlayClass} opacity-35`}
       />
-      <div className="relative z-10 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="min-w-0">
+      <div className="relative z-10 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto_minmax(14rem,0.72fr)] xl:items-center">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[var(--exercise-theme-text)]">
             Active Filter Status
           </p>
-          <p className="mt-1 text-sm font-black text-white">
-            {matchingCount.toLocaleString()} matching cards
-            <span className="text-slate-500"> · </span>
-            {layerLabel}
-          </p>
-          <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-400">
-            Body selector filters first, then movement, equipment, goal,
-            difficulty, search, and sort refine the visible shelves.
-          </p>
-        </div>
-
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 lg:justify-end">
           {hasActiveFilters ? (
             activeFilterChips.map((chip) => (
               <button
@@ -9731,13 +13191,47 @@ function ActiveFilterStatusPanel({
               No active filters
             </span>
           )}
+        </div>
+
+        <div className="min-w-0 text-left xl:text-center">
+          <p className="text-sm font-black text-white">
+            {matchingCount.toLocaleString()} matching exercises
+          </p>
+          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
+            {layerLabel} - Sorted by: {sortLabel}
+          </p>
+        </div>
+
+        <div className="flex min-w-0 flex-wrap items-center gap-2 xl:justify-end">
+          <label className="min-w-[10rem] flex-1 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2">
+            <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+              Sort
+            </span>
+            <select
+              value={sortMode}
+              onChange={(event) =>
+                onSortChange(event.target.value as ExerciseLibrarySortMode)
+              }
+              className="mt-1 w-full bg-transparent text-xs font-black uppercase tracking-[0.08em] text-white outline-none"
+            >
+              {sortOptions.map((option) => (
+                <option
+                  key={option.value}
+                  value={option.value}
+                  className="bg-slate-950 text-white"
+                >
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
 
           <button
             type="button"
             onClick={onClear}
-            className="rounded-xl border border-cyan-100/18 bg-cyan-300/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/45 hover:bg-cyan-300 hover:text-slate-950"
+            className="min-h-[3.25rem] rounded-2xl border border-cyan-100/18 bg-cyan-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/45 hover:bg-cyan-300 hover:text-slate-950"
           >
-            Clear All
+            Clear Filters
           </button>
         </div>
       </div>
@@ -9905,7 +13399,7 @@ function ExerciseLibraryResultsPageSelector({
       </div>
 
       {showSectionRail ? (
-        <div className="exercise-library-page-section-tab-rail relative z-10 mt-2 flex gap-1.5 overflow-x-auto rounded-[18px] border border-white/10 bg-slate-950/38 px-2 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="exercise-library-page-section-tab-rail relative z-10 mt-3 flex gap-3 overflow-x-auto rounded-[24px] border border-white/10 bg-slate-950/42 px-3 py-3 shadow-[0_14px_42px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.10)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {sections.map((section) => {
             const pillTheme = getExerciseSectionTheme(section, sortMode);
             const isActive = section.key === activeSectionKey;
@@ -9944,13 +13438,15 @@ function ExerciseLibraryResultsPageSelector({
                   weightVolumeLabel ? ` - Weight volume: ${weightVolumeLabel}` : ""
                 }, ${weeklyVolumeStatusConfig[goalStatusId].label}`}
                 className={`exercise-library-page-section-tab ${
-                  isActive ? "exercise-library-page-section-tab--active" : ""
+                  isActive
+                    ? "exercise-library-page-section-tab--active"
+                    : "exercise-library-page-section-tab--inactive"
                 } ${
                   isLatestSectionPulse ? "exercise-library-volume-pulse" : ""
-                } group/tile flex min-h-[44px] shrink-0 items-center justify-between gap-2 border px-2.5 py-1.5 text-left transition duration-200 ${
+                } group/tile flex min-h-[60px] shrink-0 items-center justify-between gap-4 border px-5 py-3 text-left transition duration-200 sm:min-h-[68px] sm:px-6 sm:py-4 ${
                   isActive
-                    ? `${pillTheme.tabClass} w-[14.5rem] scale-[1.015]`
-                    : `${pillTheme.pillClass} w-[12rem] opacity-[0.82] hover:-translate-y-0.5 hover:opacity-100 sm:w-[12.75rem]`
+                    ? "w-[17.5rem] scale-[1.015] border-cyan-300/40 bg-cyan-300/10 text-white shadow-[0_0_28px_rgba(34,211,238,0.18)] sm:w-[19rem]"
+                    : "w-[15rem] border-white/10 bg-white/[0.04] text-slate-100 opacity-[0.88] hover:-translate-y-0.5 hover:border-cyan-200/24 hover:bg-cyan-300/10 hover:opacity-100 sm:w-[16.25rem]"
                 }`}
               >
                 <span
@@ -9964,10 +13460,10 @@ function ExerciseLibraryResultsPageSelector({
                   }`}
                 />
                 <span className="relative z-10 min-w-0">
-                  <span className="block truncate text-[9px] font-black uppercase leading-3 tracking-[0.14em] sm:text-[10px]">
+                  <span className="block truncate text-[13px] font-black uppercase leading-5 tracking-[0.18em]">
                     {section.label}
                   </span>
-                  <span className="mt-1 block truncate text-[8px] font-black uppercase tracking-[0.08em] opacity-72">
+                  <span className="mt-1.5 block truncate text-[9px] font-black uppercase tracking-[0.1em] opacity-78 sm:text-[10px]">
                     {section.exercises.length} cards
                     <span className="opacity-50"> - </span>
                     <WeeklySetGoalBadge
@@ -9988,14 +13484,14 @@ function ExerciseLibraryResultsPageSelector({
                     ) : null}
                   </span>
                 </span>
-                <span className="relative z-10 flex w-12 shrink-0 flex-col items-end gap-1">
-                  <span className="h-1 w-full overflow-hidden rounded-full border border-current/15 bg-black/20">
+                <span className="relative z-10 flex w-14 shrink-0 flex-col items-end gap-1.5">
+                  <span className="h-1.5 w-full overflow-hidden rounded-full border border-current/15 bg-black/20">
                     <span
                       className="exercise-library-page-section-tab__mini-fill block h-full rounded-full opacity-80 transition-all duration-300"
                       style={{ width: `${goalFillPercent}%` }}
                     />
                   </span>
-                  <span className="text-[7px] font-black uppercase tracking-[0.08em] opacity-70">
+                  <span className="text-[8px] font-black uppercase tracking-[0.08em] opacity-74">
                     {isActive ? "Open" : "Tap"}
                   </span>
                 </span>
@@ -10019,10 +13515,12 @@ function ExerciseCategoryShelf({
   children,
   coreMovementWeeklySetsByKey,
   coreMovementWeeklyWeightVolumeByKey,
+  favoriteExerciseIds,
   isOpen,
   latestSetInsight,
   onToggle,
   preferredWeightUnit,
+  savedExerciseStats,
   section,
   sectionTheme,
   weeklySets,
@@ -10032,10 +13530,12 @@ function ExerciseCategoryShelf({
   children: ReactNode;
   coreMovementWeeklySetsByKey: Map<string, number>;
   coreMovementWeeklyWeightVolumeByKey: Map<string, number>;
+  favoriteExerciseIds: Set<string>;
   isOpen: boolean;
   latestSetInsight?: LatestSetInsight | null;
   onToggle: () => void;
   preferredWeightUnit: WeightUnit;
+  savedExerciseStats: LocalExerciseStatEntry[];
   section: ExerciseLibrarySection;
   sectionTheme: CategoryTheme;
   weeklySets: number;
@@ -10055,6 +13555,8 @@ function ExerciseCategoryShelf({
   const shouldPreventShelfClickRef = useRef(false);
   const centeredCardKeyRef = useRef<string | null>(null);
   const centerScrollTimerRef = useRef<number | null>(null);
+  const hoverSelectTimeoutRef = useRef<number | null>(null);
+  const pendingSpotlightCardKeyRef = useRef<string | null>(null);
   const coreMovementTabs = getExerciseSectionCoreMovementTabs(section);
   const coreMovementTabSignature = coreMovementTabs
     .map((tab) => tab.key)
@@ -10317,6 +13819,9 @@ function ExerciseCategoryShelf({
       if (centerScrollTimerRef.current !== null) {
         window.clearTimeout(centerScrollTimerRef.current);
       }
+      if (hoverSelectTimeoutRef.current !== null) {
+        window.clearTimeout(hoverSelectTimeoutRef.current);
+      }
     },
     [],
   );
@@ -10448,27 +13953,29 @@ function ExerciseCategoryShelf({
     scrollToCoreMovementTabCard(coreMovementTabKey);
   };
 
-  const setSpotlightFromTarget = (
-    target: EventTarget | null,
-    trigger: "click" | "focus" | "hover",
-  ) => {
-    const dragState = shelfDragStateRef.current;
-    if (dragState.isPointerDown || dragState.isDragging) return;
-
-    if (typeof window !== "undefined") {
-      const canHover = window.matchMedia("(hover: hover) and (pointer: fine)")
-        .matches;
-      if (trigger === "hover" && !canHover) return;
+  const cancelScheduledSpotlight = () => {
+    if (hoverSelectTimeoutRef.current !== null) {
+      window.clearTimeout(hoverSelectTimeoutRef.current);
+      hoverSelectTimeoutRef.current = null;
     }
+    pendingSpotlightCardKeyRef.current = null;
+  };
 
-    const slider = sliderRef.current;
+  const getSpotlightCardFromTarget = (target: EventTarget | null) => {
     const targetElement = target instanceof Element ? target : null;
-    const card = targetElement?.closest<HTMLElement>(
+    return targetElement?.closest<HTMLElement>(
       ".exercise-library-card-slide",
-    );
-    const cardKey = card?.dataset.cardKey;
+    ) || null;
+  };
 
-    if (!slider || !card || !cardKey) return;
+  const applySpotlightCard = (
+    card: HTMLElement,
+    options: { center?: boolean; force?: boolean } = {},
+  ) => {
+    const slider = sliderRef.current;
+    const cardKey = card.dataset.cardKey;
+
+    if (!slider || !cardKey) return;
 
     const sliderRect = slider.getBoundingClientRect();
     const cardRect = card.getBoundingClientRect();
@@ -10485,17 +13992,54 @@ function ExerciseCategoryShelf({
       currentShift === nextShift ? currentShift : nextShift,
     );
 
-    const shouldCenterCard =
-      trigger !== "hover" || cardKey !== spotlightCardKey;
-    if (shouldCenterCard) {
+    if (options.center) {
       scrollShelfCardIntoView(card, "smooth", {
         cardKey,
-        force: trigger !== "hover",
+        force: options.force ?? true,
       });
     }
   };
 
+  const setSpotlightFromTarget = (
+    target: EventTarget | null,
+    trigger: "click" | "focus" | "hover",
+  ) => {
+    const dragState = shelfDragStateRef.current;
+    if (dragState.isPointerDown || dragState.isDragging) return;
+
+    if (typeof window !== "undefined") {
+      const canHover = window.matchMedia("(hover: hover) and (pointer: fine)")
+        .matches;
+      if (trigger === "hover" && !canHover) return;
+    }
+
+    const card = getSpotlightCardFromTarget(target);
+    const cardKey = card?.dataset.cardKey;
+
+    if (!card || !cardKey) return;
+
+    if (trigger === "click") {
+      cancelScheduledSpotlight();
+      applySpotlightCard(card, { center: true, force: true });
+      return;
+    }
+
+    cancelScheduledSpotlight();
+    pendingSpotlightCardKeyRef.current = cardKey;
+    hoverSelectTimeoutRef.current = window.setTimeout(
+      () => {
+        if (pendingSpotlightCardKeyRef.current !== cardKey) return;
+
+        hoverSelectTimeoutRef.current = null;
+        pendingSpotlightCardKeyRef.current = null;
+        applySpotlightCard(card, { center: false });
+      },
+      trigger === "focus" ? 180 : 220,
+    );
+  };
+
   const clearSpotlight = () => {
+    cancelScheduledSpotlight();
     setSpotlightCardKey(null);
     setSpotlightShift("center");
   };
@@ -10533,6 +14077,7 @@ function ExerciseCategoryShelf({
 
   const handleShelfMouseDown = (event: MouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
+    cancelScheduledSpotlight();
 
     const slider = sliderRef.current;
     const target = event.target instanceof Element ? event.target : null;
@@ -10565,6 +14110,7 @@ function ExerciseCategoryShelf({
     if (!dragState.isDragging) {
       dragState.isDragging = true;
       dragState.hasDragged = true;
+      cancelScheduledSpotlight();
       slider.classList.add("exercise-library-card-scroll-viewport--dragging");
     }
 
@@ -10614,6 +14160,38 @@ function ExerciseCategoryShelf({
     preferredWeightUnit,
     { compact: true, volume: true },
   );
+  const categoryLifetimeVolume = useMemo(
+    () =>
+      section.exercises.reduce((total, exercise) => {
+        const exerciseMetadata = getMetadataForExercise(exercise);
+        const history = getExerciseStatHistory(
+          savedExerciseStats,
+          exercise,
+          exercise.name,
+          exerciseMetadata,
+          exercise.semanticVariationId,
+        );
+
+        return total + sumLoggedWeightVolume(history);
+      }, 0),
+    [savedExerciseStats, section.exercises],
+  );
+  const categoryLifetimeVolumeLabel =
+    formatWeightMetric(categoryLifetimeVolume, preferredWeightUnit, {
+      compact: true,
+      volume: true,
+    }) || `0 ${preferredWeightUnit === "kg" ? "kg" : "lb"}`;
+  const favoriteVariationLabels = getSectionFavoriteVariationLabels(
+    section,
+    favoriteExerciseIds,
+  );
+  const mostTrainedExerciseLabel = getMostTrainedExerciseLabelForSection(
+    section,
+    savedExerciseStats,
+  );
+  const recommendedNextMove =
+    getRecommendedNextMoveForSection(section.label, weeklySets, weeklyGoal) ||
+    "Open a movement tab and choose the cleanest next variation.";
   const sectionThemeCssVars = {
     ...getCategoryThemeCssVariables(sectionTheme),
     "--exercise-category-goal-progress": `${weeklyGoalFillPercent}%`,
@@ -10664,120 +14242,185 @@ function ExerciseCategoryShelf({
       <div className={`pointer-events-none absolute inset-x-0 top-0 z-[1] h-px ${sectionTheme.accentClass}`} />
 
       <div className="relative z-10 min-w-0 space-y-2">
-        <button
-          type="button"
-          aria-expanded={isOpen}
-          onClick={onToggle}
-          title={`${section.label}. Set volume, ${weeklyVolumeRangeLabel}: ${Math.max(
-            0,
-            Math.round(weeklySets),
-          )} of ${weeklyGoal} sets${
-            weeklyWeightVolumeLabel
-              ? ` - Weight volume: ${weeklyWeightVolumeLabel}`
-              : ""
-          }, ${weeklyVolumeStatusConfig[weeklyGoalStatusId].label}`}
-          className={`group/category-heading relative flex min-h-[44px] w-full items-center justify-between gap-3 overflow-hidden rounded-[18px] border px-3 py-2 text-left shadow-[0_12px_30px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.11)] transition duration-[240ms] ease-out focus:outline-none focus:ring-2 focus:ring-white/20 sm:min-h-[48px] sm:px-3.5 ${
-            isOpen
-              ? "scale-[1.006] border-white/28 bg-white/[0.105] shadow-[0_20px_58px_rgba(0,0,0,0.34),0_0_34px_rgba(255,255,255,0.075),inset_0_1px_0_rgba(255,255,255,0.20)]"
-              : "border-white/10 bg-white/[0.045] hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.075] hover:shadow-[0_18px_48px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.15)]"
-          }`}
+        <div
+          className="exercise-library-category-heading-shell group/category-shell"
+          data-open={isOpen ? "true" : undefined}
         >
-          <span
-            aria-hidden="true"
-            className={`absolute inset-0 ${sectionTheme.overlayClass} transition-opacity duration-[240ms] ${
+          <button
+            type="button"
+            aria-expanded={isOpen}
+            onClick={onToggle}
+            title={`${section.label}. Set volume, ${weeklyVolumeRangeLabel}: ${Math.max(
+              0,
+              Math.round(weeklySets),
+            )} of ${weeklyGoal} sets${
+              weeklyWeightVolumeLabel
+                ? ` - Weight volume: ${weeklyWeightVolumeLabel}`
+                : ""
+            }, ${weeklyVolumeStatusConfig[weeklyGoalStatusId].label}`}
+            className={`group/category-heading relative flex min-h-[44px] w-full items-center justify-between gap-3 overflow-hidden rounded-[18px] border px-3 py-2 text-left shadow-[0_12px_30px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.11)] transition duration-[240ms] ease-out focus:outline-none focus:ring-2 focus:ring-white/20 sm:min-h-[48px] sm:px-3.5 ${
               isOpen
-                ? "opacity-[0.85]"
-                : "opacity-[0.42] group-hover/category-heading:opacity-[0.65]"
+                ? "scale-[1.006] border-white/28 bg-white/[0.105] shadow-[0_20px_58px_rgba(0,0,0,0.34),0_0_34px_rgba(255,255,255,0.075),inset_0_1px_0_rgba(255,255,255,0.20)]"
+                : "border-white/10 bg-white/[0.045] hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.075] hover:shadow-[0_18px_48px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.15)]"
             }`}
-          />
-          <span
-            aria-hidden="true"
-            className="exercise-library-category-heading__goal-fill"
-          />
-          <span
-            aria-hidden="true"
-            className={`absolute inset-x-0 top-0 h-px ${sectionTheme.accentClass} transition-opacity duration-[240ms] ${
-              isOpen ? "opacity-100" : "opacity-60 group-hover/category-heading:opacity-90"
-            }`}
-          />
-          <span
-            aria-hidden="true"
-            className={`absolute inset-y-0 -left-1/3 w-1/3 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/18 to-transparent transition duration-[260ms] ease-out ${
-              isOpen
-                ? "translate-x-[430%] opacity-70"
-                : "translate-x-0 opacity-0 group-hover/category-heading:translate-x-[430%] group-hover/category-heading:opacity-[0.45]"
-            }`}
-          />
-
-          <span className="relative z-10 flex min-w-0 items-center gap-3">
+          >
             <span
               aria-hidden="true"
-              className={`h-8 w-1.5 shrink-0 rounded-full ${sectionTheme.accentClass} shadow-[0_0_18px_rgba(255,255,255,0.12)] transition duration-[240ms] ${
-                isOpen ? "opacity-100" : "opacity-[0.65] group-hover/category-heading:opacity-90"
+              className={`absolute inset-0 ${sectionTheme.overlayClass} transition-opacity duration-[240ms] ${
+                isOpen
+                  ? "opacity-[0.85]"
+                  : "opacity-[0.42] group-hover/category-heading:opacity-[0.65]"
               }`}
             />
-            <span className="min-w-0">
+            <span
+              aria-hidden="true"
+              className="exercise-library-category-heading__goal-fill"
+            />
+            <span
+              aria-hidden="true"
+              className={`absolute inset-x-0 top-0 h-px ${sectionTheme.accentClass} transition-opacity duration-[240ms] ${
+                isOpen ? "opacity-100" : "opacity-60 group-hover/category-heading:opacity-90"
+              }`}
+            />
+            <span
+              aria-hidden="true"
+              className={`absolute inset-y-0 -left-1/3 w-1/3 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/18 to-transparent transition duration-[260ms] ease-out ${
+                isOpen
+                  ? "translate-x-[430%] opacity-70"
+                  : "translate-x-0 opacity-0 group-hover/category-heading:translate-x-[430%] group-hover/category-heading:opacity-[0.45]"
+              }`}
+            />
+
+            <span className="relative z-10 flex min-w-0 items-center gap-3">
               <span
-                className={`block max-w-full truncate text-xs font-black uppercase leading-tight tracking-[0.13em] transition duration-[240ms] sm:text-sm ${
-                  isOpen
-                    ? "scale-[1.01] text-white"
-                    : "text-slate-100 group-hover/category-heading:text-white"
-                }`}
-              >
-                {section.label}
-              </span>
-              <span className="mt-0.5 inline-flex rounded-lg border border-cyan-100/16 bg-cyan-300/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/80">
-                <WeeklySetGoalBadge
-                  completedSets={weeklySets}
-                  completedWeightVolume={weeklyWeightVolume}
-                  goalSets={weeklyGoal}
-                  rangeLabel={weeklyVolumeRangeLabel}
-                  showWeightVolume={Boolean(weeklyWeightVolumeLabel)}
-                  weightUnit={preferredWeightUnit}
-                />
-                {isLatestSectionPulse ? (
-                  <span className="ml-1 exercise-library-volume-added-chip">
-                    {latestSetInsight?.pulseLabel}
-                  </span>
-                ) : null}
-              </span>
-              <span
-                className={`mt-1 block h-px w-24 max-w-full ${sectionTheme.accentClass} transition duration-[240ms] ${
-                  isOpen
-                    ? "opacity-100"
-                    : "opacity-[0.55] group-hover/category-heading:opacity-[0.85]"
+                aria-hidden="true"
+                className={`h-8 w-1.5 shrink-0 rounded-full ${sectionTheme.accentClass} shadow-[0_0_18px_rgba(255,255,255,0.12)] transition duration-[240ms] ${
+                  isOpen ? "opacity-100" : "opacity-[0.65] group-hover/category-heading:opacity-90"
                 }`}
               />
+              <span className="min-w-0">
+                <span
+                  className={`block max-w-full truncate text-xs font-black uppercase leading-tight tracking-[0.13em] transition duration-[240ms] sm:text-sm ${
+                    isOpen
+                      ? "scale-[1.01] text-white"
+                      : "text-slate-100 group-hover/category-heading:text-white"
+                  }`}
+                >
+                  {section.label}
+                </span>
+                <span className="mt-0.5 inline-flex rounded-lg border border-cyan-100/16 bg-cyan-300/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/80">
+                  <WeeklySetGoalBadge
+                    completedSets={weeklySets}
+                    completedWeightVolume={weeklyWeightVolume}
+                    goalSets={weeklyGoal}
+                    rangeLabel={weeklyVolumeRangeLabel}
+                    showWeightVolume={Boolean(weeklyWeightVolumeLabel)}
+                    weightUnit={preferredWeightUnit}
+                  />
+                  {isLatestSectionPulse ? (
+                    <span className="ml-1 exercise-library-volume-added-chip">
+                      {latestSetInsight?.pulseLabel}
+                    </span>
+                  ) : null}
+                </span>
+                <span
+                  className={`mt-1 block h-px w-24 max-w-full ${sectionTheme.accentClass} transition duration-[240ms] ${
+                    isOpen
+                      ? "opacity-100"
+                      : "opacity-[0.55] group-hover/category-heading:opacity-[0.85]"
+                  }`}
+                />
+              </span>
             </span>
-          </span>
 
-          <span className="relative z-10 flex shrink-0 items-center gap-2">
-            <span
-              className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] transition duration-[240ms] ${
-                isOpen
-                  ? `${sectionTheme.pillClass} scale-105`
-                  : `${sectionTheme.pillClass} opacity-[0.88] group-hover/category-heading:opacity-100`
-              }`}
-            >
-              {section.exercises.length}
+            <span className="relative z-10 flex shrink-0 items-center gap-2">
+              <span
+                className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] transition duration-[240ms] ${
+                  isOpen
+                    ? `${sectionTheme.pillClass} scale-105`
+                    : `${sectionTheme.pillClass} opacity-[0.88] group-hover/category-heading:opacity-100`
+                }`}
+              >
+                {section.exercises.length}
+              </span>
+              {isOpen ? (
+                <span
+                  aria-hidden="true"
+                  className={`flex h-7 w-7 items-center justify-center rounded-full border ${sectionTheme.pillClass}`}
+                >
+                  <span className="h-2.5 w-2.5 rounded-full bg-current shadow-[0_0_16px_currentColor]" />
+                </span>
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="flex h-7 w-7 items-center justify-center rounded-full border border-white/12 bg-slate-950/48 text-[10px] font-black text-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition duration-[240ms] group-hover/category-heading:border-white/24 group-hover/category-heading:bg-white/[0.08] group-hover/category-heading:text-white"
+                >
+                  v
+                </span>
+              )}
             </span>
-            {isOpen ? (
-              <span
-                aria-hidden="true"
-                className={`flex h-7 w-7 items-center justify-center rounded-full border ${sectionTheme.pillClass}`}
-              >
-                <span className="h-2.5 w-2.5 rounded-full bg-current shadow-[0_0_16px_currentColor]" />
-              </span>
-            ) : (
-              <span
-                aria-hidden="true"
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-white/12 bg-slate-950/48 text-[10px] font-black text-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition duration-[240ms] group-hover/category-heading:border-white/24 group-hover/category-heading:bg-white/[0.08] group-hover/category-heading:text-white"
-              >
-                v
-              </span>
-            )}
-          </span>
-        </button>
+          </button>
+
+          <div className="exercise-library-category-expanded-summary">
+            <div className="grid gap-2 text-[10px] font-bold text-slate-300 sm:grid-cols-3">
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                <span className="block text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                  Exercises
+                </span>
+                <span className="mt-1 block text-sm font-black text-white">
+                  {section.exercises.length}
+                </span>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                <span className="block text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                  Weekly Sets
+                </span>
+                <span className="mt-1 block text-sm font-black text-white">
+                  {Math.max(0, Math.round(weeklySets))} / {weeklyGoal}
+                </span>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                <span className="block text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                  Lifetime Volume
+                </span>
+                <span className="mt-1 block truncate text-sm font-black text-white">
+                  {categoryLifetimeVolumeLabel}
+                </span>
+              </div>
+            </div>
+            <div className="mt-2 grid gap-2 text-[10px] font-semibold text-slate-300 sm:grid-cols-[1.15fr_0.85fr]">
+              <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
+                <span className="block text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                  Favorite Variations
+                </span>
+                <span className="mt-1 flex flex-wrap gap-1">
+                  {favoriteVariationLabels.map((variation) => (
+                    <span
+                      key={variation}
+                      className="rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[9px] font-black text-slate-100"
+                    >
+                      {variation}
+                    </span>
+                  ))}
+                </span>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
+                <span className="block text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                  Most Trained
+                </span>
+                <span className="mt-1 block text-[11px] font-black leading-tight text-white">
+                  {mostTrainedExerciseLabel}
+                </span>
+                <span className="mt-2 block text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                  Recommended Next
+                </span>
+                <span className="mt-1 block text-[10px] font-semibold leading-tight text-slate-300">
+                  {recommendedNextMove}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {coreMovementTabs.length > 0 ? (
           <div
@@ -11086,6 +14729,167 @@ const getExerciseCardCategoryTabLabel = (section: ExerciseLibrarySection) => {
     short: abbreviations[section.label] || section.label,
   };
 };
+
+const categoryFavoriteVariationFallbacks: Record<string, string[]> = {
+  "Lower Body Compound": [
+    "Goblet Squat",
+    "Conventional Deadlift",
+    "Glute Bridge",
+    "Reverse Lunge",
+    "Step-Up",
+  ],
+  "Lower Body Isolation": [
+    "Leg Extension",
+    "Hamstring Curl",
+    "Calf Raise",
+    "Hip Abduction",
+  ],
+  "Upper Push": [
+    "Push-Up",
+    "Incline Dumbbell Press",
+    "Shoulder Press",
+    "Lateral Raise",
+  ],
+  "Upper Pull": [
+    "Pull-Up",
+    "Lat Pulldown",
+    "Chest Supported Row",
+    "Face Pull",
+  ],
+  "Arm Isolation": [
+    "Dumbbell Curl",
+    "Triceps Pressdown",
+    "Hammer Curl",
+    "Wrist Curl",
+  ],
+  Core: ["Pallof Press", "Side Plank", "Dead Bug", "Cable Woodchop"],
+  Athletic: ["Farmer Carry", "Box Jump", "Sprint", "Medicine Ball Throw"],
+  Mobility: ["Hip CARs", "T-Spine Rotation", "Ankle Mobility", "Neck CARs"],
+  "Cervical Isolation": ["Neck CARs", "Chin Tuck", "Cervical Isometric"],
+  Integrated: ["Turkish Get-Up", "Bear Crawl", "Loaded Carry", "Crawl"],
+  Favorites: ["Star a variation to pin it here"],
+  "My Exercises": ["Create a private variation to pin it here"],
+};
+
+const getExerciseDisplayVariationName = (exercise: Exercise) =>
+  exercise.generatedTitle ||
+  exercise.semanticVariationName ||
+  exercise.semanticVariation ||
+  exercise.exerciseName ||
+  exercise.name;
+
+function uniqueCompactLabels(labels: string[], limit = 5) {
+  const seen = new Set<string>();
+
+  return labels
+    .map((label) => label.trim())
+    .filter(Boolean)
+    .filter((label) => {
+      const key = label.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit);
+}
+
+function getCategoryFavoriteVariationFallbacks(
+  categoryLabel: string,
+  exercises: Exercise[] = [],
+) {
+  const fallback =
+    categoryFavoriteVariationFallbacks[categoryLabel] ||
+    exercises.map(getExerciseDisplayVariationName);
+
+  return uniqueCompactLabels(fallback, 5);
+}
+
+function getSectionFavoriteVariationLabels(
+  section: ExerciseLibrarySection,
+  favoriteExerciseIds: Set<string>,
+) {
+  const favoritedVariations = section.exercises
+    .filter((exercise) => favoriteExerciseIds.has(exercise.id))
+    .map(getExerciseDisplayVariationName);
+  const labels = favoritedVariations.length
+    ? favoritedVariations
+    : getCategoryFavoriteVariationFallbacks(section.label, section.exercises);
+
+  return labels.length ? labels : ["No favorite variations yet"];
+}
+
+function getExerciseFavoriteVariationLabels({
+  categoryLabel,
+  exercise,
+  isFavorite,
+  semanticVariationOptions,
+}: {
+  categoryLabel: string;
+  exercise: Exercise;
+  isFavorite: boolean;
+  semanticVariationOptions: SemanticVariationOption[];
+}) {
+  const semanticVariationLabels = semanticVariationOptions
+    .map((variation) => variation.name)
+    .filter((label) => label && label.toLowerCase() !== "n/a");
+  const labels = [
+    ...(isFavorite ? [getExerciseDisplayVariationName(exercise)] : []),
+    ...semanticVariationLabels,
+  ];
+  const resolvedLabels = labels.length
+    ? labels
+    : getCategoryFavoriteVariationFallbacks(categoryLabel, [exercise]);
+
+  return resolvedLabels.length
+    ? uniqueCompactLabels(resolvedLabels, 5)
+    : ["No favorite variations yet"];
+}
+
+function getMostTrainedExerciseLabelForSection(
+  section: ExerciseLibrarySection,
+  savedExerciseStats: LocalExerciseStatEntry[],
+) {
+  const ranked = section.exercises
+    .map((exercise) => {
+      const metadata = getMetadataForExercise(exercise);
+      const history = getExerciseStatHistory(
+        savedExerciseStats,
+        exercise,
+        exercise.name,
+        metadata,
+        exercise.semanticVariationId,
+      );
+
+      return {
+        exercise,
+        sets: sumLoggedSets(history),
+      };
+    })
+    .sort((left, right) => right.sets - left.sets);
+  const top = ranked[0];
+
+  if (!top || top.sets <= 0) return "No logged sets yet";
+
+  return `${getExerciseDisplayVariationName(top.exercise)} (${Math.round(
+    top.sets,
+  ).toLocaleString()} sets)`;
+}
+
+function getRecommendedNextMoveForSection(
+  categoryLabel: string,
+  weeklySets: number,
+  weeklyGoal: number,
+) {
+  const remainingSets = Math.max(0, weeklyGoal - weeklySets);
+  if (remainingSets <= 0) {
+    return "Weekly target is complete. Consider recovery, mobility, or a lighter variation.";
+  }
+
+  const fallback = getCategoryFavoriteVariationFallbacks(categoryLabel)[0];
+  return fallback
+    ? `${Math.ceil(remainingSets)} sets left - ${fallback} is a clean next move.`
+    : `${Math.ceil(remainingSets)} sets left toward this weekly target.`;
+}
 
 function ExerciseCardCategoryTab({
   section,
@@ -12429,13 +16233,303 @@ function StatMiniCard({
   );
 }
 
+type RecentStatsDashboardCard = {
+  categoryLabel: string;
+  exercise: Exercise | null;
+  exerciseId: string;
+  exerciseName: string;
+  latestTime: number;
+  lifetimeReps: number;
+  lifetimeSets: number;
+  lifetimeVolume: number;
+  movementPatternLabel: string;
+  weeklyGoal: number;
+  weeklySets: number;
+};
+
+const buildRecentStatsDashboardCards = (
+  stats: LocalExerciseStatEntry[],
+  exercises: Exercise[],
+): RecentStatsDashboardCard[] => {
+  if (!stats.length) return [];
+
+  const lookup = createExerciseStatLookup(exercises);
+  const groupedStats = new Map<
+    string,
+    { exercise: Exercise | null; stats: LocalExerciseStatEntry[] }
+  >();
+
+  stats.forEach((stat) => {
+    const exercise = resolveStatExercise(stat, lookup);
+    const fallbackName =
+      stat.generatedTitle ||
+      stat.semanticVariationName ||
+      stat.exerciseName ||
+      "Logged Exercise";
+    const key =
+      exercise?.id ||
+      normalizeStatMatchValue(
+        `${stat.exerciseId || ""}:${fallbackName}:${stat.coreMovementPattern || ""}`,
+      ) ||
+      `${stat.date}-${groupedStats.size}`;
+    const existing = groupedStats.get(key);
+
+    if (existing) {
+      existing.stats.push(stat);
+      return;
+    }
+
+    groupedStats.set(key, { exercise, stats: [stat] });
+  });
+
+  return Array.from(groupedStats.entries())
+    .map(([key, entry]) => {
+      const { exercise } = entry;
+      const title =
+        (exercise && getExerciseSortTitle(exercise)) ||
+        entry.stats[0]?.generatedTitle ||
+        entry.stats[0]?.semanticVariationName ||
+        entry.stats[0]?.exerciseName ||
+        "Logged Exercise";
+      const movementPatternLabel =
+        (exercise && getExerciseCoreMovementSortTitle(exercise)) ||
+        entry.stats[0]?.pattern ||
+        entry.stats[0]?.coreMovementPattern ||
+        "Movement Pattern";
+      const categoryLabel =
+        (exercise && getExerciseCategorySectionLabel(exercise)) ||
+        entry.stats[0]?.body ||
+        "Other";
+      const weeklyStats = entry.stats.filter(isStatWithinTrailingSevenDays);
+      const weeklyGoal = exercise
+        ? getWeeklySetGoalForBodyPart(exercise.body)
+        : defaultExerciseWeeklySetGoal;
+
+      return {
+        categoryLabel,
+        exercise,
+        exerciseId: exercise?.id || key,
+        exerciseName: title,
+        latestTime: entry.stats.reduce(
+          (latest, stat) => Math.max(latest, getStatTime(stat)),
+          0,
+        ),
+        lifetimeReps: sumLoggedReps(entry.stats),
+        lifetimeSets: sumLoggedSets(entry.stats),
+        lifetimeVolume: sumLoggedWeightVolume(entry.stats),
+        movementPatternLabel,
+        weeklyGoal,
+        weeklySets: sumLoggedSets(weeklyStats),
+      };
+    })
+    .sort((left, right) => right.latestTime - left.latestTime);
+};
+
+function RecentStatsDashboardCarousel({
+  exercises,
+  onExerciseSelect,
+  preferredWeightUnit,
+  stats,
+}: {
+  exercises: Exercise[];
+  onExerciseSelect?: (exercise: Exercise) => void;
+  preferredWeightUnit: WeightUnit;
+  stats: LocalExerciseStatEntry[];
+}) {
+  const cards = useMemo(
+    () => buildRecentStatsDashboardCards(stats, exercises),
+    [exercises, stats],
+  );
+  const categories = useMemo(
+    () => [
+      "All",
+      ...Array.from(new Set(cards.map((card) => card.categoryLabel))).sort(),
+    ],
+    [cards],
+  );
+  const [activeCategory, setActiveCategory] = useState("All");
+
+  useEffect(() => {
+    if (
+      activeCategory !== "All" &&
+      !categories.some((category) => category === activeCategory)
+    ) {
+      setActiveCategory("All");
+    }
+  }, [activeCategory, categories]);
+
+  const visibleCards =
+    activeCategory === "All"
+      ? cards
+      : cards.filter((card) => card.categoryLabel === activeCategory);
+
+  return (
+    <section className="exercise-library-recent-stats-dashboard max-w-full overflow-hidden rounded-3xl border border-white/10 bg-slate-950/60 p-4 shadow-[0_18px_52px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.10)]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-emerald-300">
+            Recent Stats
+          </p>
+          <p className="mt-1 text-[11px] font-semibold text-slate-400">
+            Core movement stats grouped by exercise history.
+          </p>
+        </div>
+        <span className="shrink-0 rounded-xl border border-white/10 bg-white/[0.055] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-300">
+          {cards.length} cards
+        </span>
+      </div>
+
+      <div className="exercise-library-recent-stats-category-row mt-3 flex max-w-full flex-nowrap gap-2 overflow-x-auto pb-2 pl-1 pr-2">
+        {categories.map((category) => {
+          const isActive = activeCategory === category;
+
+          return (
+            <button
+              key={category}
+              type="button"
+              aria-pressed={isActive}
+              onClick={() => setActiveCategory(category)}
+              className={`min-h-[34px] shrink-0 rounded-xl border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] transition ${
+                isActive
+                  ? "border-emerald-200/60 bg-emerald-300 text-slate-950 shadow-[0_0_22px_rgba(16,185,129,0.20)]"
+                  : "border-white/10 bg-white/[0.055] text-slate-300 hover:border-emerald-200/35 hover:bg-emerald-300/10 hover:text-white"
+              }`}
+            >
+              {category}
+            </button>
+          );
+        })}
+      </div>
+
+      {visibleCards.length ? (
+        <div className="exercise-library-recent-stats-card-row mt-1 flex max-w-full flex-nowrap gap-3 overflow-x-auto pb-2 pl-1 pr-2">
+          {visibleCards.map((card) => {
+            const lifetimeVolumeLabel =
+              formatWeightMetric(card.lifetimeVolume || 0, preferredWeightUnit, {
+                volume: true,
+              }) || `0 ${preferredWeightUnit === "kg" ? "kg" : "lb"}`;
+            const content = (
+              <div className="min-w-[220px] max-w-[240px] shrink-0 rounded-2xl border border-white/10 bg-white/[0.06] p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                <h4 className="truncate text-sm font-black text-white">
+                  {card.exerciseName}
+                </h4>
+                <p className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.12em] text-emerald-200/80">
+                  {card.categoryLabel} / {card.movementPatternLabel}
+                </p>
+                <dl className="mt-2 grid gap-1 text-xs font-bold leading-tight text-slate-300">
+                  {[
+                    ["Lifetime Volume", lifetimeVolumeLabel],
+                    ["Lifetime Sets", Math.max(0, Math.round(card.lifetimeSets)).toLocaleString()],
+                    ["Lifetime Reps", Math.max(0, Math.round(card.lifetimeReps)).toLocaleString()],
+                    ["Weekly Sets", Math.max(0, Math.round(card.weeklySets)).toLocaleString()],
+                    ["Weekly Goal", Math.max(0, Math.round(card.weeklyGoal)).toLocaleString()],
+                  ].map(([label, value]) => (
+                    <div key={label} className="flex items-center justify-between gap-3">
+                      <dt className="text-slate-500">{label}</dt>
+                      <dd className="min-w-[4.5rem] truncate text-right font-black text-white">
+                        {value}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            );
+
+            return card.exercise && onExerciseSelect ? (
+              <button
+                key={card.exerciseId}
+                type="button"
+                onClick={() => card.exercise && onExerciseSelect(card.exercise)}
+                className="shrink-0 text-left transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-200/30"
+                title={`Open ${card.exerciseName}`}
+              >
+                {content}
+              </button>
+            ) : (
+              <div key={card.exerciseId} className="shrink-0">
+                {content}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-semibold text-slate-300">
+          No recent stats saved yet.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function RecentStatsSummaryCard({
+  categoryLabel,
+  exerciseName,
+  lifetimeReps,
+  lifetimeSets,
+  lifetimeVolume,
+  movementPatternLabel,
+  preferredWeightUnit,
+  weeklyGoal,
+  weeklySets,
+}: {
+  categoryLabel?: string;
+  exerciseName: string;
+  lifetimeReps: number;
+  lifetimeSets: number;
+  lifetimeVolume: number;
+  movementPatternLabel: string;
+  preferredWeightUnit: WeightUnit;
+  weeklyGoal: number;
+  weeklySets: number;
+}) {
+  const lifetimeVolumeLabel =
+    formatWeightMetric(Math.max(0, lifetimeVolume), preferredWeightUnit, {
+      volume: true,
+    }) || `0 ${preferredWeightUnit === "kg" ? "kg" : "lb"}`;
+  const subtitle =
+    categoryLabel && movementPatternLabel && categoryLabel !== movementPatternLabel
+      ? `${categoryLabel} / ${movementPatternLabel}`
+      : movementPatternLabel || categoryLabel || "Movement Pattern";
+
+  return (
+    <div className="min-w-[220px] max-w-[240px] shrink-0 snap-start rounded-2xl border border-white/10 bg-white/[0.06] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+      <h4 className="truncate text-sm font-black text-white">{exerciseName}</h4>
+      <p className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.12em] text-emerald-200/80">
+        {subtitle}
+      </p>
+      <dl className="mt-2 grid gap-1 text-xs font-bold leading-tight text-slate-300">
+        {[
+          ["Lifetime Volume", lifetimeVolumeLabel],
+          ["Lifetime Sets", Math.max(0, Math.round(lifetimeSets)).toLocaleString()],
+          ["Lifetime Reps", Math.max(0, Math.round(lifetimeReps)).toLocaleString()],
+          ["Weekly Sets", Math.max(0, Math.round(weeklySets)).toLocaleString()],
+          ["Weekly Goal", Math.max(0, Math.round(weeklyGoal)).toLocaleString()],
+        ].map(([label, value]) => (
+          <div key={label} className="flex items-center justify-between gap-3">
+            <dt className="text-slate-500">{label}</dt>
+            <dd className="min-w-[4.5rem] truncate text-right font-black text-white">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 function RecentStatsStrip({
+  categoryLabel = "Category",
+  exerciseName = "Exercise",
+  favoriteVariationLabels = [],
+  movementPatternLabel = "Movement Pattern",
   stats,
   compact = false,
   latestInsight,
   preferredWeightUnit = "lbs",
   weeklyVolumeRangeLabel = formatWeeklyVolumeRangeLabel(),
 }: {
+  categoryLabel?: string;
+  exerciseName?: string;
+  favoriteVariationLabels?: string[];
+  movementPatternLabel?: string;
   stats: LocalExerciseStatEntry[];
   compact?: boolean;
   latestInsight?: LatestSetInsight | null;
@@ -12443,6 +16537,7 @@ function RecentStatsStrip({
   weeklyVolumeRangeLabel?: string;
 }) {
   const [view, setView] = useState<RecentStatsView>("recent");
+  const [isPinnedOpen, setIsPinnedOpen] = useState(false);
   const latest = stats[0];
   const recentStats = stats.slice(0, 3);
   const bestLoadStat = stats.reduce<LocalExerciseStatEntry | null>(
@@ -12483,6 +16578,9 @@ function RecentStatsStrip({
     0,
   );
   const weeklyGoal = getWeeklySetGoalForExercise();
+  const lifetimeVolume = sumLoggedWeightVolume(stats);
+  const lifetimeSets = sumLoggedSets(stats);
+  const lifetimeReps = sumLoggedReps(stats);
   const hasBestStats =
     Boolean(bestLoadStat && parseStatNumber(bestLoadStat.weight) > 0) ||
     Boolean(bestRepsStat && parseStatNumber(bestRepsStat.reps) > 0) ||
@@ -12654,22 +16752,27 @@ function RecentStatsStrip({
         : view === "volume"
           ? "No weekly volume yet"
           : "No recent stats yet. Log this movement to build history.";
-  const containerClass = `exercise-library-themed-stats rounded-2xl border border-emerald-300/15 bg-[linear-gradient(135deg,rgba(16,185,129,0.13),rgba(34,211,238,0.06))] shadow-[inset_0_1px_0_rgba(255,255,255,0.10)${
+  const containerClass = `exercise-library-themed-stats max-w-full overflow-hidden rounded-3xl border border-white/10 bg-slate-950/60 shadow-[0_14px_38px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.10)${
     compact ? "" : ",0_10px_30px_rgba(16,185,129,0.08)"
-  }] ${compact ? "mt-3 px-3 py-2.5" : "mt-2.5 p-3"}`;
+  }] ${compact ? "mt-3 p-3" : "mt-2.5 p-4"}`;
+  const statsHeaderSummary = `Recent Stats - ${Math.max(
+    0,
+    Math.round(weeklyVolume.sets),
+  )} sets - ${
+    formatWeightMetric(lifetimeVolume, preferredWeightUnit, {
+      compact: true,
+      volume: true,
+    }) || `0 ${preferredWeightUnit === "kg" ? "kg" : "lb"}`
+  }`;
+  const favoriteVariations = uniqueCompactLabels(favoriteVariationLabels, 5);
   const toggle = (
     <div
       aria-label="Stats view"
-      className="exercise-library-recent-stats-tabs exercise-library-themed-scrollbar flex min-w-0 max-w-[min(100%,15rem)] flex-nowrap gap-1 overflow-x-auto rounded-xl border border-white/10 bg-slate-950/42 p-0.5"
+      className="exercise-library-recent-stats-tabs exercise-library-themed-scrollbar flex min-w-0 max-w-full flex-nowrap gap-1 overflow-x-auto rounded-xl border border-white/10 bg-slate-950/42 p-0.5"
     >
-      {(["recent", "best", "volume", "history"] as RecentStatsView[]).map((option) => {
+      {(["recent", "best", "volume"] as RecentStatsView[]).map((option) => {
         const isActive = view === option;
-        const label =
-          compact && option === "history"
-            ? "Hist"
-            : option === "volume"
-              ? "Volume"
-              : titleCase(option);
+        const label = option === "volume" ? "Volume" : titleCase(option);
 
         return (
           <button
@@ -12733,12 +16836,21 @@ function RecentStatsStrip({
 
   if (compact) {
     return (
-      <div className={containerClass}>
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
-            {statsViewLabel}
-          </p>
-          {toggle}
+      <div
+        className={`${containerClass} exercise-library-card-tab-expander`}
+        data-pinned={isPinnedOpen ? "true" : undefined}
+      >
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <button
+            type="button"
+            aria-expanded={isPinnedOpen}
+            onClick={() => setIsPinnedOpen((current) => !current)}
+            className="min-w-0 flex-1 text-left text-[10px] font-black uppercase tracking-[0.12em] text-emerald-200 transition hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-200/30"
+            title="Expand Recent Stats"
+          >
+            <span className="block truncate">{statsHeaderSummary}</span>
+          </button>
+          <div className="min-w-0">{toggle}</div>
         </div>
         {latestInsight ? (
           <LatestSetInsightLine
@@ -12747,45 +16859,84 @@ function RecentStatsStrip({
             preferredWeightUnit={preferredWeightUnit}
           />
         ) : null}
-        {(view === "best" && !hasBestStats) ||
-        (view === "history" && historyCells.length === 0) ||
-        (view === "recent" && recentCells.length === 0) ? (
-          <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-400">
-            {emptyStatsMessage}
-          </p>
-        ) : (
-          <MiniPanelScroller ariaLabel={`${statsViewLabel} stats`} className="mt-2">
-            {activeCells.map((cell) => (
-              <StatMiniCard
-                key={`${view}-${cell.label}`}
-                cell={cell}
-                compact
+        <div className="exercise-library-card-tab-expanded-content">
+          {(view === "best" && !hasBestStats) ||
+          (view === "history" && historyCells.length === 0) ||
+          (view === "recent" && recentCells.length === 0) ? (
+            <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-400">
+              {emptyStatsMessage}
+            </p>
+          ) : (
+            <MiniPanelScroller ariaLabel={`${statsViewLabel} stats`} className="mt-2 max-w-full">
+              <RecentStatsSummaryCard
+                categoryLabel={categoryLabel}
+                exerciseName={exerciseName}
+                lifetimeReps={lifetimeReps}
+                lifetimeSets={lifetimeSets}
+                lifetimeVolume={lifetimeVolume}
+                movementPatternLabel={movementPatternLabel}
                 preferredWeightUnit={preferredWeightUnit}
+                weeklyGoal={weeklyGoal}
+                weeklySets={weeklyVolume.sets}
               />
-            ))}
-          </MiniPanelScroller>
-        )}
-        <div className="mt-1 flex items-center justify-between gap-2">
-          <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/30">
-            {activeDate}
-          </p>
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
-            {stats.length} logs
-          </p>
+              {activeCells.map((cell) => (
+                <StatMiniCard
+                  key={`${view}-${cell.label}`}
+                  cell={cell}
+                  compact
+                  preferredWeightUnit={preferredWeightUnit}
+                />
+              ))}
+            </MiniPanelScroller>
+          )}
+          {favoriteVariations.length ? (
+            <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
+              <p className="text-[8px] font-black uppercase tracking-[0.12em] text-white/35">
+                Favorite Variations
+              </p>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {favoriteVariations.map((variation) => (
+                  <span
+                    key={variation}
+                    className="rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[9px] font-black text-slate-100"
+                  >
+                    {variation}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="mt-1 flex items-center justify-between gap-2">
+            <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/30">
+              {activeDate}
+            </p>
+            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">
+              {stats.length} logs
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={containerClass}>
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
-          {statsViewLabel} Stats
-        </p>
-        <div className="flex shrink-0 items-center gap-2">
+    <div
+      className={`${containerClass} exercise-library-card-tab-expander`}
+      data-pinned={isPinnedOpen ? "true" : undefined}
+    >
+      <div className="flex min-w-0 items-center justify-between gap-3">
+        <button
+          type="button"
+          aria-expanded={isPinnedOpen}
+          onClick={() => setIsPinnedOpen((current) => !current)}
+          className="shrink-0 text-left text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200 transition hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-200/30"
+          title="Expand Recent Stats"
+        >
+          Recent Stats
+        </button>
+        <div className="flex min-w-0 items-center gap-2">
           {activeDate ? (
-            <p className="hidden text-[10px] font-bold uppercase tracking-[0.12em] text-white/35 sm:block">
+            <p className="hidden shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-white/35 sm:block">
               {activeDate}
             </p>
           ) : null}
@@ -12800,23 +16951,53 @@ function RecentStatsStrip({
         />
       ) : null}
 
-      {(view === "best" && !hasBestStats) ||
-      (view === "history" && historyCells.length === 0) ||
-      (view === "recent" && recentCells.length === 0) ? (
-        <p className="mt-2.5 rounded-xl border border-white/10 bg-slate-950/35 px-3 py-3 text-xs font-semibold text-slate-400">
-          {emptyStatsMessage}
-        </p>
-      ) : (
-        <MiniPanelScroller ariaLabel={`${statsViewLabel} stats`} className="mt-2.5">
-          {activeCells.map((cell) => (
-            <StatMiniCard
-              key={`${view}-${cell.label}`}
-              cell={cell}
+      <div className="exercise-library-card-tab-expanded-content">
+        {(view === "best" && !hasBestStats) ||
+        (view === "history" && historyCells.length === 0) ||
+        (view === "recent" && recentCells.length === 0) ? (
+          <p className="mt-2.5 rounded-xl border border-white/10 bg-slate-950/35 px-3 py-3 text-xs font-semibold text-slate-400">
+            {emptyStatsMessage}
+          </p>
+        ) : (
+          <MiniPanelScroller ariaLabel={`${statsViewLabel} stats`} className="mt-2.5 max-w-full">
+            <RecentStatsSummaryCard
+              categoryLabel={categoryLabel}
+              exerciseName={exerciseName}
+              lifetimeReps={lifetimeReps}
+              lifetimeSets={lifetimeSets}
+              lifetimeVolume={lifetimeVolume}
+              movementPatternLabel={movementPatternLabel}
               preferredWeightUnit={preferredWeightUnit}
+              weeklyGoal={weeklyGoal}
+              weeklySets={weeklyVolume.sets}
             />
-          ))}
-        </MiniPanelScroller>
-      )}
+            {activeCells.map((cell) => (
+              <StatMiniCard
+                key={`${view}-${cell.label}`}
+                cell={cell}
+                preferredWeightUnit={preferredWeightUnit}
+              />
+            ))}
+          </MiniPanelScroller>
+        )}
+        {favoriteVariations.length ? (
+          <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
+            <p className="text-[8px] font-black uppercase tracking-[0.12em] text-white/35">
+              Favorite Variations
+            </p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {favoriteVariations.map((variation) => (
+                <span
+                  key={variation}
+                  className="rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-[9px] font-black text-slate-100"
+                >
+                  {variation}
+                </span>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -13226,6 +17407,12 @@ function ExerciseLibraryCard({
     selectedModifierIds,
   });
   const goalLabel = getSelectedGoalLabel(exercise, selectedModifierIds, metadata);
+  const favoriteVariationLabels = getExerciseFavoriteVariationLabels({
+    categoryLabel: cardClassificationLabel,
+    exercise,
+    isFavorite,
+    semanticVariationOptions,
+  });
   const selectedSemanticVariationId =
     selectedSemanticVariation?.id || exercise.semanticVariationId;
   const exerciseStatHistory = getExerciseStatHistory(
@@ -14468,12 +18655,6 @@ function ExerciseLibraryCard({
           className="exercise-library-card-volume-fill rounded-2xl"
         />
         <div className={`pointer-events-none absolute inset-x-0 top-0 z-[12] h-px ${categoryTheme.accentClass}`} />
-        <FavoriteButton
-          isFavorite={isFavorite}
-          onToggle={() => onToggleFavorite(exercise.id)}
-          compact
-        />
-
         <div className="relative z-10 h-16 overflow-hidden rounded-t-2xl bg-slate-950/70 sm:h-24">
           <img
             src={exercise.image || defaultImage}
@@ -14483,7 +18664,39 @@ function ExerciseLibraryCard({
         </div>
 
         <div className="relative z-10 p-2 sm:p-3">
-          <div className="mb-1.5 flex flex-wrap items-center gap-1 sm:mb-2 sm:gap-1.5">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h2 className="truncate text-sm font-black leading-4 tracking-wide text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.34)] sm:text-base sm:leading-tight">
+                {cardTitle}
+              </h2>
+              {coreMovementLabel ? (
+                <p className="mt-1 truncate text-[8px] font-black uppercase leading-3 tracking-[0.1em] text-cyan-100/70 sm:text-[9px]">
+                  Core Movement:{" "}
+                  <button
+                    type="button"
+                    className="text-cyan-50 underline decoration-cyan-200/0 underline-offset-2 transition hover:decoration-cyan-200/70 focus:outline-none focus:ring-2 focus:ring-cyan-100/30"
+                    onClick={() =>
+                      onMovementChipSelect({
+                        key: `core-${coreMovementLabel}`,
+                        label: coreMovementLabel,
+                        tone: "movement",
+                      })
+                    }
+                    title={`Filter by ${coreMovementLabel}`}
+                  >
+                    {coreMovementLabel}
+                  </button>
+                </p>
+              ) : null}
+            </div>
+            <FavoriteButton
+              isFavorite={isFavorite}
+              onToggle={() => onToggleFavorite(exercise.id)}
+              compact
+            />
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-1 sm:gap-1.5">
             <button
               type="button"
               aria-label={`Filter body region ${exercise.body}`}
@@ -14519,29 +18732,6 @@ function ExerciseLibraryCard({
             </button>
           </div>
 
-          {coreMovementLabel ? (
-            <p className="mb-1 text-[8px] font-black uppercase leading-3 tracking-[0.1em] text-cyan-100/70 sm:text-[9px]">
-              Core Movement:{" "}
-              <button
-                type="button"
-                className="text-cyan-50 underline decoration-cyan-200/0 underline-offset-2 transition hover:decoration-cyan-200/70 focus:outline-none focus:ring-2 focus:ring-cyan-100/30"
-                onClick={() =>
-                  onMovementChipSelect({
-                    key: `core-${coreMovementLabel}`,
-                    label: coreMovementLabel,
-                    tone: "movement",
-                  })
-                }
-                title={`Filter by ${coreMovementLabel}`}
-              >
-                {coreMovementLabel}
-              </button>
-            </p>
-          ) : null}
-
-          <h2 className="line-clamp-2 text-sm font-black leading-4 tracking-wide text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.34)] sm:text-base sm:leading-tight">
-            {cardTitle}
-          </h2>
           <SemanticVariationSelect
             options={semanticVariationOptions}
             value={selectedSemanticVariation?.id || ""}
@@ -14562,6 +18752,12 @@ function ExerciseLibraryCard({
 
           <RecentStatsStrip
             stats={exerciseStatHistory}
+            categoryLabel={cardClassificationLabel}
+            exerciseName={cardTitle}
+            favoriteVariationLabels={favoriteVariationLabels}
+            movementPatternLabel={
+              coreMovementLabel || exercise.pattern || cardClassificationLabel
+            }
             compact
             latestInsight={cardLatestSetInsight}
             preferredWeightUnit={preferredWeightUnit}
@@ -14620,11 +18816,6 @@ function ExerciseLibraryCard({
         className="exercise-library-card-volume-fill rounded-[30px]"
       />
       <div className={`pointer-events-none absolute inset-x-0 top-0 z-[12] h-px ${categoryTheme.accentClass}`} />
-      <FavoriteButton
-        isFavorite={isFavorite}
-        onToggle={() => onToggleFavorite(exercise.id)}
-      />
-
       <div
         className={`relative z-10 overflow-hidden rounded-t-[30px] bg-slate-950/60 ${
           isGridView ? "h-32" : "h-44"
@@ -14638,7 +18829,38 @@ function ExerciseLibraryCard({
       </div>
 
       <div className="relative z-10 p-5">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-xl font-extrabold leading-7 tracking-wide text-white drop-shadow-[0_0_14px_rgba(255,255,255,0.42)]">
+              {cardTitle}
+            </h2>
+            {coreMovementLabel ? (
+              <p className="mt-1.5 truncate text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/70">
+                Core Movement:{" "}
+                <button
+                  type="button"
+                  className="text-cyan-50 underline decoration-cyan-200/0 underline-offset-2 transition hover:decoration-cyan-200/70 focus:outline-none focus:ring-2 focus:ring-cyan-100/30"
+                  onClick={() =>
+                    onMovementChipSelect({
+                      key: `core-${coreMovementLabel}`,
+                      label: coreMovementLabel,
+                      tone: "movement",
+                    })
+                  }
+                  title={`Filter by ${coreMovementLabel}`}
+                >
+                  {coreMovementLabel}
+                </button>
+              </p>
+            ) : null}
+          </div>
+          <FavoriteButton
+            isFavorite={isFavorite}
+            onToggle={() => onToggleFavorite(exercise.id)}
+          />
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <button
             type="button"
             aria-label={`Filter body region ${exercise.body}`}
@@ -14674,29 +18896,6 @@ function ExerciseLibraryCard({
           </button>
         </div>
 
-        {coreMovementLabel ? (
-          <p className="mt-3.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/70">
-            Core Movement:{" "}
-            <button
-              type="button"
-              className="text-cyan-50 underline decoration-cyan-200/0 underline-offset-2 transition hover:decoration-cyan-200/70 focus:outline-none focus:ring-2 focus:ring-cyan-100/30"
-              onClick={() =>
-                onMovementChipSelect({
-                  key: `core-${coreMovementLabel}`,
-                  label: coreMovementLabel,
-                  tone: "movement",
-                })
-              }
-              title={`Filter by ${coreMovementLabel}`}
-            >
-              {coreMovementLabel}
-            </button>
-          </p>
-        ) : null}
-
-        <h2 className={`${coreMovementLabel ? "mt-1.5" : "mt-3.5"} text-xl font-extrabold leading-7 tracking-wide text-white drop-shadow-[0_0_14px_rgba(255,255,255,0.42)]`}>
-          {cardTitle}
-        </h2>
         <SemanticVariationSelect
           options={semanticVariationOptions}
           value={selectedSemanticVariation?.id || ""}
@@ -14716,6 +18915,12 @@ function ExerciseLibraryCard({
       <div className="relative z-10 px-5 pb-5 pt-3">
         <RecentStatsStrip
           stats={exerciseStatHistory}
+          categoryLabel={cardClassificationLabel}
+          exerciseName={cardTitle}
+          favoriteVariationLabels={favoriteVariationLabels}
+          movementPatternLabel={
+            coreMovementLabel || exercise.pattern || cardClassificationLabel
+          }
           latestInsight={cardLatestSetInsight}
           preferredWeightUnit={preferredWeightUnit}
           weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
@@ -14724,6 +18929,133 @@ function ExerciseLibraryCard({
         {actionButtons}
       </div>
     </article>
+  );
+}
+
+function WorkoutBuilderPreviewOverlay({
+  items,
+  onClose,
+  onOpenFullBuilder,
+  onRemove,
+}: {
+  items: DraftWorkoutPreviewItem[];
+  onClose: () => void;
+  onOpenFullBuilder: () => void;
+  onRemove: (itemId: string) => void;
+}) {
+  const slots: WorkoutBuilderPreviewSlot[] = [
+    "Warm-Up",
+    "Main",
+    "Accessory",
+    "Cooldown",
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-[2147483000] flex items-end justify-end bg-slate-950/56 p-3 backdrop-blur-sm sm:p-5"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Workout Builder Preview"
+    >
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default"
+        onClick={onClose}
+        aria-label="Close workout builder preview"
+      />
+      <section className="relative z-10 max-h-[min(780px,calc(100vh-2rem))] w-full max-w-xl overflow-hidden rounded-[32px] border border-cyan-100/18 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.16),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.94))] shadow-[0_32px_120px_rgba(0,0,0,0.72),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-2xl">
+        <div className="flex items-start justify-between gap-3 border-b border-white/10 p-5">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200/80">
+              Workout Builder Preview
+            </p>
+            <h3 className="mt-1 text-xl font-black text-white">
+              Draft from skill-tree recommendations
+            </h3>
+            <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
+              Add recommendations here first, then open the full builder when the draft feels right.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] text-sm font-black text-slate-200 transition hover:bg-white/12 hover:text-white"
+          >
+            X
+          </button>
+        </div>
+
+        <div className="max-h-[min(560px,calc(100vh-14rem))] overflow-y-auto p-5">
+          {slots.map((slot) => {
+            const slotItems = items.filter((item) => item.slot === slot);
+
+            return (
+              <div
+                key={slot}
+                className="mb-3 rounded-[24px] border border-white/10 bg-white/[0.035] p-3 last:mb-0"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/80">
+                    {slot}
+                  </p>
+                  <span className="rounded-xl border border-white/10 bg-white/[0.055] px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-slate-400">
+                    {slotItems.length} item{slotItems.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+                <div className="mt-2 grid gap-2">
+                  {slotItems.length ? (
+                    slotItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/44 px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-white">
+                            {getExerciseSortTitle(item.exercise)}
+                          </p>
+                          <p className="mt-0.5 truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+                            {item.source || item.exercise.pattern || "Recommended"}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => onRemove(item.id)}
+                          className="shrink-0 rounded-xl border border-white/10 bg-white/[0.045] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-slate-300 transition hover:border-rose-200/35 hover:bg-rose-400/12 hover:text-rose-100"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-3 py-2 text-xs font-semibold text-slate-500">
+                      No {slot.toLowerCase()} exercises added yet.
+                    </p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-col gap-2 border-t border-white/10 p-5 sm:flex-row">
+          <button
+            type="button"
+            onClick={onOpenFullBuilder}
+            disabled={!items.length}
+            className="min-h-[46px] flex-1 rounded-2xl border border-cyan-100/28 bg-cyan-300/14 px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-300 hover:text-slate-950 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.04] disabled:text-slate-500"
+          >
+            Open Full Workout Builder
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="min-h-[46px] rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 transition hover:bg-white/10 hover:text-white"
+          >
+            Keep Browsing
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -14736,7 +19068,11 @@ export default function ExerciseLibraryPage() {
   const [sortMode, setSortMode] =
     useState<ExerciseLibrarySortMode>(defaultExerciseLibrarySortMode);
   const exerciseSectionsPerPage = 4;
-  const [bodyFilters, setBodyFilters] = useState<string[]>([]);
+  const [selectedBodyPart, setSelectedBodyPart] = useState<string | null>(null);
+  const bodyFilters = useMemo(
+    () => (selectedBodyPart ? [selectedBodyPart] : []),
+    [selectedBodyPart],
+  );
   const [bodyRegionLayer, setBodyRegionLayer] =
     useState<BodyRegionLayer | null>(null);
   const [goalFilter, setGoalFilter] = useState("All");
@@ -14781,6 +19117,10 @@ export default function ExerciseLibraryPage() {
     );
   const [latestSetInsight, setLatestSetInsight] =
     useState<LatestSetInsight | null>(null);
+  const [isWorkoutOverlayOpen, setIsWorkoutOverlayOpen] = useState(false);
+  const [draftWorkoutItems, setDraftWorkoutItems] = useState<
+    DraftWorkoutPreviewItem[]
+  >([]);
 
   const [newExercise, setNewExercise] = useState<PrivateExerciseDraft>(
     emptyPrivateExerciseDraft,
@@ -15070,6 +19410,70 @@ export default function ExerciseLibraryPage() {
 
     return layerOptions.length ? ["All", ...layerOptions] : bodyOptions;
   }, [bodyOptions, bodyOptionsByLayer, bodyRegionLayer]);
+  const getBodyPartVolume = useCallback(
+    (bodyPart: string): BodyPartVolumeSummary => {
+      const isAllBody = bodyPart === "All";
+      const weeklySets = isAllBody
+        ? Array.from(weeklySetsSummary.exerciseSetsById.values()).reduce(
+            (total, sets) => total + sets,
+            0,
+          )
+        : getWeeklySetsForVolumeLabel(
+            weeklySetsSummary.bodySetsByLabel,
+            bodyPart,
+          );
+      const weightVolume = isAllBody
+        ? Array.from(weeklySetsSummary.exerciseWeightVolumeById.values()).reduce(
+            (total, volume) => total + volume,
+            0,
+          )
+        : getWeeklySetsForVolumeLabel(
+            weeklySetsSummary.bodyWeightVolumeByLabel,
+            bodyPart,
+          );
+      const recentSessionSets = isAllBody
+        ? Math.max(
+            0,
+            ...Array.from(weeklySetsSummary.latestSessionSetsByLabel.values()),
+          )
+        : getWeeklySetsForVolumeLabel(
+            weeklySetsSummary.latestSessionSetsByLabel,
+            bodyPart,
+          );
+      const lastTrainedTime = isAllBody
+        ? Math.max(
+            0,
+            ...Array.from(weeklySetsSummary.lastTrainedByLabel.values()),
+          )
+        : getLastTrainedForVolumeLabel(
+            weeklySetsSummary.lastTrainedByLabel,
+            bodyPart,
+          );
+      const weeklyTarget = getWeeklySetGoalForBodyPart(bodyPart);
+      const volumePercent = Math.min(
+        (Math.max(0, weeklySets) / Math.max(1, weeklyTarget)) * 100,
+        100,
+      );
+      const cooldownHours = getCooldownHoursRemaining({
+        lastTrainedTime,
+        recentSessionSets,
+        weeklyTarget,
+      });
+      const cooldownPercent = Math.min((cooldownHours / 48) * 100, 100);
+
+      return {
+        cooldownHours,
+        cooldownPercent,
+        recentSessionSets,
+        status: getBodyPartVolumeStatus(volumePercent),
+        volumePercent,
+        weeklySets,
+        weeklyTarget,
+        weightVolume,
+      };
+    },
+    [weeklySetsSummary],
+  );
 
   const goalOptions = useMemo(() => {
     const goalCounts = allExercises.reduce<Map<string, number>>(
@@ -15259,13 +19663,38 @@ export default function ExerciseLibraryPage() {
       const exerciseBodyLabels = getExerciseVolumeBodyLabels(exercise, metadata);
       const matchesBody =
         bodyFilters.length === 0 ||
-        bodyFilters.some((bodyFilter) =>
-          exerciseBodyLabels.some(
-            (label) =>
-              normalizeFilterCompareValue(label) ===
-              normalizeFilterCompareValue(bodyFilter),
-          ),
-        );
+        bodyFilters.some((bodyFilter) => {
+          const aliases = getAnatomyTreeFilterAliases(bodyFilter);
+          const normalizedAliases = aliases.map(normalizeFilterCompareValue);
+          const textToMatch = [
+            exercise.name,
+            exercise.body,
+            exercise.muscles,
+            exercise.pattern,
+            exercise.goal,
+            exercise.equipment,
+            getExerciseSortTitle(exercise),
+            getExerciseCoreMovementSortTitle(exercise),
+            metadata?.coreMovementLabel || "",
+            metadata?.movementPatternLabel || "",
+            metadata?.familyLabel || "",
+            metadata?.apparatus || "",
+            ...(metadata?.semanticVariationNames || []),
+            ...getApparatusFilterLabelsForMetadata(metadata),
+            ...exerciseBodyLabels,
+          ]
+            .filter(Boolean)
+            .map(normalizeFilterCompareValue);
+
+          return normalizedAliases.some((alias) =>
+            textToMatch.some(
+              (value) =>
+                value === alias ||
+                value.includes(alias) ||
+                alias.includes(value),
+            ),
+          );
+        });
       const matchesBodyRegionLayer = exerciseMatchesBodyRegionLayer(
         exercise,
         metadata,
@@ -15581,7 +20010,7 @@ export default function ExerciseLibraryPage() {
 
   const resetFilters = () => {
     setSearch("");
-    setBodyFilters([]);
+    setSelectedBodyPart(null);
     setBodyRegionLayer(null);
     setGoalFilter("All");
     setLevelFilter("All");
@@ -15595,64 +20024,39 @@ export default function ExerciseLibraryPage() {
     hasUserSelectedExerciseSectionRef.current = false;
     setActiveExerciseSectionKey(defaultOpenExerciseSectionKey);
   };
-  const getLayerForSelectedBodyFilters = (filters: string[]) => {
-    const selectedLayers = Array.from(
-      new Set(
-        filters
-          .map((filter) => getBodyRegionLayerForLabel(filter))
-          .filter((layer): layer is BodyRegionLayer => Boolean(layer)),
-      ),
-    );
-
-    return selectedLayers.length === 1 ? selectedLayers[0] : null;
-  };
-
   const toggleBodyFilter = (body: string) => {
     if (body === "All") {
-      setBodyFilters([]);
+      setSelectedBodyPart(null);
       setBodyRegionLayer(null);
       return;
     }
 
-    setBodyFilters((currentFilters) => {
-      const nextFilters = currentFilters.includes(body)
-        ? currentFilters.filter((activeBody) => activeBody !== body)
-        : [...currentFilters, body];
-
-      setBodyRegionLayer(getLayerForSelectedBodyFilters(nextFilters));
-      return nextFilters;
-    });
+    const nextBody = selectedBodyPart === body ? null : body;
+    setSelectedBodyPart(nextBody);
+    setBodyRegionLayer(
+      nextBody ? getBodyRegionLayerForLabel(nextBody) : null,
+    );
   };
   const selectBodyRegionLayer = (layer: BodyRegionLayer) => {
-    setBodyRegionLayer((currentLayer) => {
-      const nextLayer = currentLayer === layer ? null : layer;
+    setBodyRegionLayer(layer);
+    const allowedBodies = new Set(bodyOptionsByLayer.get(layer) || []);
+    if (selectedBodyPart && !allowedBodies.has(selectedBodyPart)) {
+      const selectedAliases = getAnatomyTreeFilterAliases(selectedBodyPart);
+      const isStillRelated = selectedAliases.some((alias) =>
+        bodyRegionLayerConfigs
+          .find((config) => config.id === layer)
+          ?.pattern.test(alias),
+      );
 
-      if (!nextLayer) {
-        setBodyFilters([]);
-        return null;
-      }
-
-      if (nextLayer) {
-        const allowedBodies = new Set(bodyOptionsByLayer.get(nextLayer) || []);
-        setBodyFilters((currentFilters) =>
-          currentFilters.filter((body) => allowedBodies.has(body)),
-        );
-      }
-
-      return nextLayer;
-    });
+      if (!isStillRelated) setSelectedBodyPart(null);
+    }
   };
   const toggleAnatomyBodyFilter = (body: string, layer: BodyRegionLayer) => {
-    setBodyFilters((currentFilters) => {
-      const nextFilters = currentFilters.includes(body)
-        ? currentFilters.filter((activeBody) => activeBody !== body)
-        : [...currentFilters, body];
-
-      setBodyRegionLayer(
-        nextFilters.length ? getLayerForSelectedBodyFilters(nextFilters) : null,
-      );
-      return nextFilters;
-    });
+    const nextBody = selectedBodyPart === body ? null : body;
+    setSelectedBodyPart(nextBody);
+    setBodyRegionLayer(
+      nextBody ? getBodyRegionLayerForLabel(nextBody) || layer : null,
+    );
   };
   const toggleDifficultyFilter = (level: string) => {
     setLevelFilter((currentLevel) => (currentLevel === level ? "All" : level));
@@ -15804,8 +20208,8 @@ export default function ExerciseLibraryPage() {
   const focusBodyVolumeFilter = (body: string) => {
     if (!body || body === "All") return;
 
-    setBodyFilters([body]);
-    setBodyRegionLayer(getLayerForSelectedBodyFilters([body]));
+    setSelectedBodyPart(body);
+    setBodyRegionLayer(getBodyRegionLayerForLabel(body));
   };
 
   const navigateToExerciseSectionKey = (sectionKey: string) => {
@@ -16048,6 +20452,89 @@ export default function ExerciseLibraryPage() {
         planAddToParam,
       )}`,
     );
+  };
+
+  const getDraftWorkoutSlotForExercise = (
+    exercise: Exercise,
+    index: number,
+  ): WorkoutBuilderPreviewSlot => {
+    const searchText = normalizeFilterCompareValue(
+      [
+        exercise.name,
+        exercise.pattern,
+        exercise.body,
+        exercise.muscles,
+        exercise.goal,
+      ].join(" "),
+    );
+
+    if (/(mobility|cars|warm|activation|breathing|technique)/.test(searchText)) {
+      return "Warm-Up";
+    }
+    if (/(cooldown|recovery|stretch|walking)/.test(searchText)) {
+      return "Cooldown";
+    }
+    if (index === 0 || /(squat|hinge|press|row|pull|carry|lunge)/.test(searchText)) {
+      return "Main";
+    }
+
+    return "Accessory";
+  };
+
+  const addExercisesToDraftWorkoutPreview = (
+    incomingExercises: Exercise[],
+    source = "Skill Tree",
+  ) => {
+    const uniqueIncoming = Array.from(
+      new Map(incomingExercises.map((exercise) => [exercise.id, exercise])).values(),
+    );
+
+    setDraftWorkoutItems((current) => {
+      const existingIds = new Set(current.map((item) => item.exercise.id));
+      const additions = uniqueIncoming
+        .filter((exercise) => !existingIds.has(exercise.id))
+        .map((exercise, index) => ({
+          exercise,
+          id: exercise.id,
+          slot: getDraftWorkoutSlotForExercise(
+            exercise,
+            current.length + index,
+          ),
+          source,
+        }));
+
+      return [...current, ...additions];
+    });
+    setIsWorkoutOverlayOpen(true);
+  };
+
+  const removeDraftWorkoutItem = (itemId: string) => {
+    setDraftWorkoutItems((current) =>
+      current.filter((item) => item.id !== itemId),
+    );
+  };
+
+  const openDraftWorkoutInBuilder = () => {
+    const existingExercises = readWorkoutBuilderSelectedExercises();
+    const existingNames = new Set(
+      existingExercises.map((exercise) =>
+        normalizeFilterCompareValue(exercise.name),
+      ),
+    );
+    const additions = draftWorkoutItems
+      .map((item) => toBuilderCatalogExercise(item.exercise))
+      .filter((exercise) => {
+        const normalizedName = normalizeFilterCompareValue(exercise.name);
+        if (existingNames.has(normalizedName)) return false;
+        existingNames.add(normalizedName);
+        return true;
+      });
+
+    writeWorkoutBuilderSelectedExercises([
+      ...existingExercises.map(toBuilderCatalogExercise),
+      ...additions,
+    ]);
+    router.push(ROUTES.workoutBuilder.home);
   };
 
   const updateStatsMenuPosition = (mode: ExerciseStatsMenuMode = statsMenuMode) => {
@@ -16619,8 +21106,8 @@ export default function ExerciseLibraryPage() {
           : null}
 
         {open && !widePanel && (
-          <div className={`exercise-library-filter-menu-panel absolute left-0 right-0 z-[9999] mt-2 overflow-hidden rounded-[24px] border p-2 backdrop-blur-xl ${accentClasses[accent].panel}`}>
-            <div className={`max-h-72 overflow-y-auto pr-1 ${accentClasses[accent].scrollbar} [scrollbar-width:thin]`}>
+          <div className={`exercise-library-filter-menu-panel absolute left-0 top-full z-[9999] mt-2 w-[min(20rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] overflow-hidden rounded-[24px] border p-2 shadow-2xl backdrop-blur-xl ${accentClasses[accent].panel}`}>
+            <div className={`max-h-[360px] overflow-y-auto overscroll-contain pr-1 ${accentClasses[accent].scrollbar} [scrollbar-width:thin]`}>
               {normalizedOptions.map((option) => (
                 <button
                   key={option.value}
@@ -16741,6 +21228,10 @@ export default function ExerciseLibraryPage() {
   ).filter(
     ([label, sets]) => label !== "All" && Math.max(0, Math.round(sets)) > 0,
   ).length;
+  const weeklyCompletionPercent = getWeeklySetGoalProgressPercent(
+    weeklyTotalSets,
+    allBodyRegionWeeklySetGoal,
+  );
   const latestTrainingRecord = useMemo(() => {
     const latestStat = savedExerciseStats.reduce<LocalExerciseStatEntry | null>(
       (latest, stat) =>
@@ -16903,6 +21394,223 @@ export default function ExerciseLibraryPage() {
     focusedExercises,
     undertrainedBodyTarget,
   ]);
+  const findExerciseForBodyLabel = (body: string) => {
+    const normalizedTarget = normalizeBodySelectorValue(body);
+
+    return (
+      focusedExercises.find((exercise) => {
+        const metadata = getMetadataForExercise(exercise);
+
+        return getExerciseVolumeBodyLabels(exercise, metadata).some(
+          (label) => normalizeBodySelectorValue(label) === normalizedTarget,
+        );
+      }) || null
+    );
+  };
+  const recentMetricCards: TrainingPanelMetricCard[] = savedExerciseStats
+    .slice()
+    .sort((left, right) => getStatTime(right) - getStatTime(left))
+    .slice(0, 8)
+    .map((stat, index) => {
+      const exercise = resolveStatExercise(stat, exerciseStatLookup);
+      const exerciseName =
+        exercise?.generatedTitle ||
+        exercise?.name ||
+        stat.generatedTitle ||
+        stat.exerciseName ||
+        "Logged exercise";
+      const movementPattern =
+        exercise ? getExerciseCoreMovementSortTitle(exercise) : stat.pattern || "Movement Pattern";
+      const weightLabel =
+        formatWeightMetric(parseStatNumber(stat.weight), preferredWeightUnit) ||
+        "Bodyweight";
+
+      return {
+        detail: new Date(stat.date).toLocaleDateString(),
+        helper: `${Math.max(0, Math.round(parseStatNumber(stat.sets)))} sets / ${Math.max(
+          0,
+          Math.round(parseStatNumber(stat.reps)),
+        )} reps / ${weightLabel}`,
+        id: `recent-stat-${stat.date}-${index}`,
+        imageUrl: getExerciseVisualUrl(exercise),
+        label: movementPattern,
+        onClick: exercise ? () => navigateToExerciseCard(exercise) : undefined,
+        theme: exercise ? getCategoryTheme(getExerciseCategorySectionLabel(exercise)) : activeExerciseSectionTheme,
+        value: exerciseName,
+      };
+    });
+  const prWeightStat = savedExerciseStats.reduce<LocalExerciseStatEntry | null>(
+    (best, stat) =>
+      !best || parseStatNumber(stat.weight) > parseStatNumber(best.weight)
+        ? stat
+        : best,
+    null,
+  );
+  const prRepsStat = savedExerciseStats.reduce<LocalExerciseStatEntry | null>(
+    (best, stat) =>
+      !best || parseStatNumber(stat.reps) > parseStatNumber(best.reps)
+        ? stat
+        : best,
+    null,
+  );
+  const bestEstimatedOneRepMaxStat =
+    savedExerciseStats.reduce<LocalExerciseStatEntry | null>(
+      (best, stat) =>
+        !best || getEstimatedOneRepMax(stat) > getEstimatedOneRepMax(best)
+          ? stat
+          : best,
+      null,
+    );
+  const bestDateStat = savedExerciseStats.reduce<LocalExerciseStatEntry | null>(
+    (latest, stat) =>
+      !latest || getStatTime(stat) > getStatTime(latest) ? stat : latest,
+    null,
+  );
+  const bestStatsImageExercise = bestRecentTrainingRecord.exercise || null;
+  const bestMetricCards: TrainingPanelMetricCard[] = [
+    {
+      helper: prWeightStat ? "Heaviest logged load" : "Not logged yet.",
+      id: "best-pr-weight",
+      imageUrl: getExerciseVisualUrl(bestStatsImageExercise),
+      label: "PR Weight",
+      theme: getCategoryTheme("Upper Pull"),
+      value:
+        prWeightStat && parseStatNumber(prWeightStat.weight) > 0
+          ? formatWeightMetric(parseStatNumber(prWeightStat.weight), preferredWeightUnit) || "0 lb"
+          : "Not logged yet",
+    },
+    {
+      helper: prRepsStat ? "Highest reps in a logged entry" : "Not logged yet.",
+      id: "best-pr-reps",
+      imageUrl: getExerciseVisualUrl(bestStatsImageExercise),
+      label: "PR Reps",
+      theme: getCategoryTheme("Upper Push"),
+      value:
+        prRepsStat && parseStatNumber(prRepsStat.reps) > 0
+          ? Math.max(0, Math.round(parseStatNumber(prRepsStat.reps))).toLocaleString()
+          : "Not logged yet",
+    },
+    {
+      helper: bestEstimatedOneRepMaxStat
+        ? "Estimated from logged load and reps"
+        : "Needs loaded reps",
+      id: "best-estimated-1rm",
+      imageUrl: getExerciseVisualUrl(bestStatsImageExercise),
+      label: "Estimated 1RM",
+      theme: getCategoryTheme("Integrated"),
+      value:
+        bestEstimatedOneRepMaxStat &&
+        getEstimatedOneRepMax(bestEstimatedOneRepMaxStat) > 0
+          ? formatWeightMetric(
+              getEstimatedOneRepMax(bestEstimatedOneRepMaxStat),
+              preferredWeightUnit,
+            ) || "0 lb"
+          : "Not logged yet",
+    },
+    {
+      helper: "Most recent logged performance date",
+      id: "best-date",
+      imageUrl: getExerciseVisualUrl(bestStatsImageExercise),
+      label: "Best Date",
+      theme: getCategoryTheme("Athletic"),
+      value: bestDateStat ? new Date(bestDateStat.date).toLocaleDateString() : "Not logged yet",
+    },
+  ];
+  const lifetimeMetricCards: TrainingPanelMetricCard[] = [
+    {
+      helper: "All logged loaded work",
+      id: "lifetime-volume",
+      label: "Lifetime Volume",
+      theme: getCategoryTheme("Upper Pull"),
+      value:
+        formatWeightMetric(
+          savedExerciseStats.reduce((total, stat) => total + getStatVolume(stat), 0),
+          preferredWeightUnit,
+          { volume: true },
+        ) || "0 lb",
+    },
+    {
+      helper: "All saved sets",
+      id: "lifetime-sets",
+      label: "Lifetime Sets",
+      theme: getCategoryTheme("Lower Body Compound"),
+      value: sumLoggedSets(savedExerciseStats).toLocaleString(),
+    },
+    {
+      helper: "All saved reps",
+      id: "lifetime-reps",
+      label: "Lifetime Reps",
+      theme: getCategoryTheme("Upper Push"),
+      value: sumLoggedReps(savedExerciseStats).toLocaleString(),
+    },
+    {
+      helper: "Logged stat entries",
+      id: "total-sessions",
+      label: "Total Sessions",
+      theme: getCategoryTheme("Integrated"),
+      value: savedExerciseStats.length.toLocaleString(),
+    },
+  ];
+  const weeklyMetricCards: TrainingPanelMetricCard[] = [
+    {
+      helper: "Weekly completed sets",
+      id: "weekly-sets",
+      label: "Weekly Sets",
+      statusId: getWeeklySetGoalStatusId(weeklyTotalSets, allBodyRegionWeeklySetGoal),
+      theme: activeExerciseSectionTheme,
+      value: Math.max(0, Math.round(weeklyTotalSets)).toLocaleString(),
+    },
+    {
+      helper: "Default weekly set target",
+      id: "weekly-goal",
+      label: "Weekly Goal",
+      theme: getCategoryTheme("Core"),
+      value: allBodyRegionWeeklySetGoal.toLocaleString(),
+    },
+    {
+      helper: "Logged sets, reps, and load",
+      id: "weekly-volume",
+      label: "Weekly Volume",
+      theme: getCategoryTheme("Upper Pull"),
+      value: weeklyTotalWeightVolumeLabel || "No load volume yet",
+    },
+    {
+      helper: "Weekly goal completion",
+      id: "weekly-completion",
+      label: "Completion %",
+      statusId: getWeeklySetGoalStatusId(weeklyTotalSets, allBodyRegionWeeklySetGoal),
+      theme: getCategoryTheme("Mobility"),
+      value: `${Math.round(weeklyCompletionPercent)}%`,
+    },
+  ];
+  const categoryMetricCards: TrainingPanelMetricCard[] = [
+    ...trainingCategoryVolumeRows.slice(0, 6).map((row) => ({
+      detail: `${Math.max(0, Math.round(row.sets))} / ${row.goal} sets`,
+      helper: weeklyVolumeStatusConfig[row.statusId].label,
+      id: `category-summary-${row.key}`,
+      imageUrl: getExerciseVisualUrl(row.section.exercises[0]),
+      label: "Category",
+      onClick: () => navigateToExerciseSectionKey(row.key),
+      statusId: row.statusId,
+      theme: row.theme,
+      value: row.label,
+    })),
+    ...trainingBodyVolumeRows.slice(0, 6).map((row) => {
+      const exercise = findExerciseForBodyLabel(row.body);
+
+      return {
+        detail: `${Math.max(0, Math.round(row.sets))} / ${row.goal} sets`,
+        helper: getBodyTrainingSignal(row.sets, row.lastTrainedTime, row.goal),
+        id: `body-summary-${row.body}`,
+        imageUrl: getExerciseVisualUrl(exercise),
+        label: "Body Area",
+        onClick: () => focusBodyVolumeFilter(row.body),
+        statusId: row.statusId,
+        theme: row.theme,
+        value: row.body,
+      };
+    }),
+  ];
   const activeTrainingFilterChips = useMemo(() => {
     const chips: string[] = [];
     const movementTypeLabel =
@@ -16979,10 +21687,6 @@ export default function ExerciseLibraryPage() {
     : 0;
   const lastTrainedLabel = formatTrainingRecencyLabel(lastTrainedTime);
   const trainingStreakLabel = getTrainingStreakLabel(savedExerciseStats);
-  const weeklyCompletionPercent = getWeeklySetGoalProgressPercent(
-    weeklyTotalSets,
-    allBodyRegionWeeklySetGoal,
-  );
   const currentFocusLabel =
     undertrainedBodyTarget?.body ||
     undertrainedCategoryTarget?.label ||
@@ -17075,6 +21779,7 @@ export default function ExerciseLibraryPage() {
         : "",
       helper: latestTrainingLine,
       id: "most-recent-workout",
+      imageUrl: getExerciseVisualUrl(latestTrainingRecord.exercise),
       onClick: latestTrainingRecord.exercise
         ? () => navigateToExerciseCard(latestTrainingRecord.exercise)
         : undefined,
@@ -17085,6 +21790,7 @@ export default function ExerciseLibraryPage() {
     {
       helper: bestRecentLiftLine,
       id: "best-recent-lift",
+      imageUrl: getExerciseVisualUrl(bestRecentTrainingRecord.exercise),
       onClick: bestRecentTrainingRecord.exercise
         ? () => navigateToExerciseCard(bestRecentTrainingRecord.exercise)
         : undefined,
@@ -17265,6 +21971,9 @@ export default function ExerciseLibraryPage() {
           remainingSets === 1 ? "set" : "sets"
         } from its weekly target.`,
         eyebrow: "Next focus",
+        imageUrl: getExerciseVisualUrl(
+          findExerciseForBodyLabel(undertrainedBodyTarget.body),
+        ),
         id: "undertrained-body-insight",
         onClick: () => focusBodyVolumeFilter(undertrainedBodyTarget.body),
         statusId: undertrainedBodyTarget.statusId,
@@ -17280,6 +21989,9 @@ export default function ExerciseLibraryPage() {
           Math.round(undertrainedCategoryTarget.sets),
         )} / ${undertrainedCategoryTarget.goal} sets. Opening that shelf is the cleanest balance move.`,
         eyebrow: "Category balance",
+        imageUrl: getExerciseVisualUrl(
+          undertrainedCategoryTarget.section.exercises[0],
+        ),
         id: "undertrained-category-insight",
         onClick: () => navigateToExerciseSectionKey(undertrainedCategoryTarget.key),
         statusId: undertrainedCategoryTarget.statusId,
@@ -17295,6 +22007,9 @@ export default function ExerciseLibraryPage() {
           Math.round(almostThereBodyTarget.sets),
         )} / ${almostThereBodyTarget.goal} sets.`,
         eyebrow: "Near goal",
+        imageUrl: getExerciseVisualUrl(
+          findExerciseForBodyLabel(almostThereBodyTarget.body),
+        ),
         id: "almost-there-body-insight",
         onClick: () => focusBodyVolumeFilter(almostThereBodyTarget.body),
         statusId: almostThereBodyTarget.statusId,
@@ -17309,6 +22024,11 @@ export default function ExerciseLibraryPage() {
       trainingLogicInsights.push({
         detail: `${recoveryLabel} is above the default weekly target, so a lower-fatigue or alternate area may fit better next.`,
         eyebrow: "Recovery signal",
+        imageUrl: getExerciseVisualUrl(
+          needsRecoveryBodyTarget
+            ? findExerciseForBodyLabel(needsRecoveryBodyTarget.body)
+            : needsRecoveryCategoryTarget?.section.exercises[0],
+        ),
         id: "recovery-signal-insight",
         onClick: needsRecoveryBodyTarget
           ? () => focusBodyVolumeFilter(needsRecoveryBodyTarget.body)
@@ -17332,6 +22052,7 @@ export default function ExerciseLibraryPage() {
           suggestedExerciseTarget,
         )} is a useful card to inspect next.`,
         eyebrow: "Suggested card",
+        imageUrl: getExerciseVisualUrl(suggestedExerciseTarget),
         id: "suggested-exercise-insight",
         onClick: () => navigateToExerciseCard(suggestedExerciseTarget),
         theme: activeExerciseSectionTheme,
@@ -17444,18 +22165,23 @@ export default function ExerciseLibraryPage() {
         </section>
 
         <TrainingIntelligenceHeader
+          bestMetricCards={bestMetricCards}
+          categoryMetricCards={categoryMetricCards}
           currentFocusLabel={currentFocusLabel}
           goalLogic={goalLogicSummary}
           insights={renderedTrainingLogicInsights}
           lastTrainedLabel={lastTrainedLabel}
           latestSetInsight={latestSetInsight}
+          lifetimeMetricCards={lifetimeMetricCards}
           onPreferredWeightUnitChange={updatePreferredWeightUnit}
           preferredWeightUnit={preferredWeightUnit}
           profileSummary={profileSummary}
+          recentMetricCards={recentMetricCards}
           sectionTheme={activeExerciseSectionTheme}
           shortcuts={trainingShortcuts}
           statCards={trainingStatCards}
           trainingStreakLabel={trainingStreakLabel}
+          weeklyMetricCards={weeklyMetricCards}
           weeklyGoalSets={allBodyRegionWeeklySetGoal}
           weeklyWeightVolumeComparisonLabel={weeklyWeightVolumeComparisonLabel}
           weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
@@ -17898,76 +22624,36 @@ export default function ExerciseLibraryPage() {
               activeLayer={bodyRegionLayer}
               bodyOptions={bodyOptions}
               exercises={allExercises}
+              getBodyPartVolume={getBodyPartVolume}
               latestSetInsight={latestSetInsight}
               selectedBodies={bodyFilters}
               preferredWeightUnit={preferredWeightUnit}
+              suggestedFocus={currentFocusLabel}
               weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
               weeklySetsSummary={weeklySetsSummary}
+              onClearBodySelection={() => {
+                setSelectedBodyPart(null);
+                setBodyRegionLayer(null);
+              }}
+              onAddWorkoutItems={addExercisesToDraftWorkoutPreview}
               onBodySelect={toggleAnatomyBodyFilter}
               onLayerSelect={selectBodyRegionLayer}
               onPopularExerciseSelect={navigateToExerciseCard}
+              primaryGoal={profileSummary.primaryGoal}
             />
-            <div className="box-border flex w-full flex-wrap gap-px">
+            <div className="hidden">
               {visibleBodyOptions.map((body) => {
                 const isActive =
                   body === "All"
                     ? bodyFilters.length === 0
                     : bodyFilters.includes(body);
                 const bodyTheme = getBodyRegionTheme(body);
-                const weeklySets =
-                  body === "All"
-                    ? Array.from(weeklySetsSummary.exerciseSetsById.values()).reduce(
-                        (total, sets) => total + sets,
-                        0,
-                      )
-                    : getWeeklySetsForVolumeLabel(
-                        weeklySetsSummary.bodySetsByLabel,
-                        body,
-                      );
-                const weeklyWeightVolume =
-                  body === "All"
-                    ? Array.from(
-                        weeklySetsSummary.exerciseWeightVolumeById.values(),
-                      ).reduce((total, volume) => total + volume, 0)
-                    : getWeeklySetsForVolumeLabel(
-                        weeklySetsSummary.bodyWeightVolumeByLabel,
-                        body,
-                      );
+                const bodyVolume = getBodyPartVolume(body);
                 const weeklyWeightVolumeLabel = formatWeightMetric(
-                  weeklyWeightVolume,
+                  bodyVolume.weightVolume,
                   preferredWeightUnit,
                   { compact: true, volume: true },
                 );
-                const lastTrainedTime =
-                  body === "All"
-                    ? Math.max(
-                        0,
-                        ...Array.from(
-                          weeklySetsSummary.lastTrainedByLabel.values(),
-                        ),
-                      )
-                    : getLastTrainedForVolumeLabel(
-                        weeklySetsSummary.lastTrainedByLabel,
-                        body,
-                      );
-                const latestSessionSets =
-                  body === "All"
-                    ? Math.max(
-                        0,
-                        ...Array.from(
-                          weeklySetsSummary.latestSessionSetsByLabel.values(),
-                        ),
-                      )
-                    : getWeeklySetsForVolumeLabel(
-                        weeklySetsSummary.latestSessionSetsByLabel,
-                        body,
-                      );
-                const bodyWeeklyGoal = getWeeklySetGoalForBodyPart(body);
-                const cooldownSummary = getCooldownCounterSummary({
-                  lastTrainedTime,
-                  sessionSetsCompleted: latestSessionSets,
-                  weeklySetGoal: bodyWeeklyGoal,
-                });
                 const isLatestBodyPulse = Boolean(
                   latestSetInsight?.bodyLabels.some(
                     (label) =>
@@ -17975,81 +22661,35 @@ export default function ExerciseLibraryPage() {
                       normalizeBodySelectorValue(body),
                   ),
                 );
-                const bodyVolumeStatusId = getWeeklySetGoalStatusId(
-                  weeklySets,
-                  bodyWeeklyGoal,
-                );
                 const bodyVolumeStyle = {
                   ...getCategoryThemeCssVariables(bodyTheme),
-                  "--exercise-body-volume-progress": `${getWeeklySetGoalFillPercent(
-                    weeklySets,
-                    bodyWeeklyGoal,
-                  )}%`,
                 } as ExerciseLibraryThemeCssVariables;
-                const bodyVolumeStatus =
-                  weeklyVolumeStatusConfig[bodyVolumeStatusId];
 
                 return (
-                  <button
+                  <VolumeRing
                     key={body}
-                    type="button"
-                    aria-pressed={isActive}
-                    aria-label={`${isActive ? "Remove" : "Add"} ${body} body filter, weekly volume ${weeklyVolumeRangeLabel}, ${Math.max(
-                      0,
-                      Math.round(weeklySets),
-                    )} of ${bodyWeeklyGoal} sets${
-                      weeklyWeightVolumeLabel
-                        ? `, weight volume ${weeklyWeightVolumeLabel}`
-                        : ""
-                    }, ${bodyVolumeStatus.label}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      toggleBodyFilter(body);
-                    }}
+                    className={`${
+                      isLatestBodyPulse ? "exercise-library-volume-pulse" : ""
+                    }`}
+                    cooldownHours={bodyVolume.cooldownHours}
+                    isActive={isActive}
+                    label={body}
+                    onClick={() => toggleBodyFilter(body)}
+                    percent={bodyVolume.volumePercent}
                     style={bodyVolumeStyle}
                     title={`${body}. Weekly Volume, ${weeklyVolumeRangeLabel}: ${Math.max(
                       0,
-                      Math.round(weeklySets),
-                    )} of ${bodyWeeklyGoal} sets${
+                      Math.round(bodyVolume.weeklySets),
+                    )} of ${bodyVolume.weeklyTarget} sets${
                       weeklyWeightVolumeLabel
                         ? ` - Weight volume: ${weeklyWeightVolumeLabel}`
                         : ""
-                    }, ${bodyVolumeStatus.label}. Cooldown: ${cooldownSummary.label}`}
-                    className={`exercise-library-body-volume-button ${getBodyPartButtonSizeClass(body)} relative min-w-0 px-2 py-2 text-center text-[8px] font-black uppercase leading-[1.08] tracking-[0.04em] transition duration-200 focus:relative focus:z-10 focus:outline-none focus:ring-2 focus:ring-white/30 sm:px-3 sm:py-2.5 sm:text-[11px] sm:tracking-[0.07em] ${
-                      isLatestBodyPulse ? "exercise-library-volume-pulse" : ""
-                    } ${
-                      isActive
-                        ? bodyTheme.tabClass
-                        : `bg-[linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.74))] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.055)] ${bodyTheme.tabHoverClass}`
-                    }`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="exercise-library-body-volume-button__fill"
-                    />
-                    <span className="relative z-10 flex max-w-full items-center justify-center gap-1.5 whitespace-normal break-normal [hyphens:none] [overflow-wrap:normal] [text-wrap:balance]">
-                      <span>{body}</span>
-                    </span>
-                    <span className="relative z-10 mt-1 block text-[7px] font-black uppercase leading-3 tracking-[0.08em] opacity-85 sm:text-[8px]">
-                      <WeeklySetGoalBadge
-                        completedSets={weeklySets}
-                        completedWeightVolume={weeklyWeightVolume}
-                        goalSets={bodyWeeklyGoal}
-                        rangeLabel={weeklyVolumeRangeLabel}
-                        showWeightVolume={Boolean(weeklyWeightVolumeLabel)}
-                        weightUnit={preferredWeightUnit}
-                      />
-                      {isLatestBodyPulse ? (
-                        <span className="ml-1 exercise-library-volume-added-chip">
-                          {latestSetInsight?.pulseLabel}
-                        </span>
-                      ) : null}
-                    </span>
-                    <CooldownCounterBar
-                      className="relative z-10 mt-1"
-                      summary={cooldownSummary}
-                    />
-                  </button>
+                    } - ${bodyPartVolumeStatusLabels[bodyVolume.status]} - ${formatVolumeRingCooldownLabel(
+                      bodyVolume.cooldownHours,
+                    )}`}
+                    weeklySets={bodyVolume.weeklySets}
+                    weeklyTarget={bodyVolume.weeklyTarget}
+                  />
                 );
               })}
             </div>
@@ -18058,7 +22698,10 @@ export default function ExerciseLibraryPage() {
               bodyRegionLayer={bodyRegionLayer}
               matchingCount={focusedExercises.length}
               onClear={resetFilters}
+              onSortChange={setSortMode}
               sectionTheme={activeExerciseSectionTheme}
+              sortMode={sortMode}
+              sortOptions={sortOptions}
             />
           </div>
         </section>
@@ -18147,6 +22790,8 @@ export default function ExerciseLibraryPage() {
                   coreMovementWeeklyWeightVolumeByKey={
                     weeklySetsSummary.coreMovementWeightVolumeByKey
                   }
+                  favoriteExerciseIds={favoriteExerciseIds}
+                  savedExerciseStats={savedExerciseStats}
                 >
                   {section.key === myExercisesSectionKey &&
                   section.exercises.length === 0 ? (
@@ -18407,50 +23052,12 @@ export default function ExerciseLibraryPage() {
                 </div>
 
                 <div className="border-t border-white/10 bg-white/[0.055] p-4 shadow-[inset_1px_0_0_rgba(255,255,255,0.08)] backdrop-blur-xl lg:border-l lg:border-t-0">
-                  <div className="mb-4 rounded-2xl border border-emerald-300/15 bg-emerald-400/10 p-3">
-                    <p className="text-xs font-black uppercase text-emerald-300">
-                      Recent Stats
-                    </p>
-
-                    <div className="mt-2 space-y-2">
-                      {savedExerciseStats
-                        .filter((stat) => stat.exerciseId === statsExercise.id)
-                        .slice(0, 3).length > 0 ? (
-                        savedExerciseStats
-                          .filter(
-                            (stat) => stat.exerciseId === statsExercise.id,
-                          )
-                          .slice(0, 3)
-                          .map((stat, index) => (
-                            <div
-                              key={`${stat.date}-${index}`}
-                              className="rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
-                            >
-                              <p className="text-base font-extrabold tracking-wide text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.35)]">
-                                <span className="text-white">
-                                  {formatWeightMetric(
-                                    parseStatNumber(stat.weight),
-                                    preferredWeightUnit,
-                                  ) || "--"}
-                                </span>
-                                <span className="mx-2 text-white/30">×</span>
-                                <span className="text-white">{stat.reps}</span>
-                                <span className="mx-2 text-white/30">×</span>
-                                <span className="text-white">{stat.sets}</span>
-                              </p>
-
-                              <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/50">
-                                {new Date(stat.date).toLocaleDateString()}
-                              </p>
-                            </div>
-                          ))
-                      ) : (
-                        <p className="text-sm text-slate-300">
-                          No recent stats saved yet.
-                        </p>
-                      )}
-                    </div>
-                  </div>
+                  <RecentStatsDashboardCarousel
+                    exercises={allExercises}
+                    onExerciseSelect={navigateToExerciseCard}
+                    preferredWeightUnit={preferredWeightUnit}
+                    stats={savedExerciseStats}
+                  />
 
                   <div className="mt-4 rounded-[28px] border border-yellow-200/15 bg-[radial-gradient(circle_at_12%_0%,rgba(250,204,21,0.16),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.82))] p-4 shadow-[0_18px_52px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.16),inset_0_0_32px_rgba(250,204,21,0.055)] backdrop-blur-xl">
                     <div className="flex items-start justify-between gap-3">
@@ -18528,6 +23135,15 @@ export default function ExerciseLibraryPage() {
           </div>
         </div>
       )}
+
+      {isWorkoutOverlayOpen ? (
+        <WorkoutBuilderPreviewOverlay
+          items={draftWorkoutItems}
+          onClose={() => setIsWorkoutOverlayOpen(false)}
+          onOpenFullBuilder={openDraftWorkoutInBuilder}
+          onRemove={removeDraftWorkoutItem}
+        />
+      ) : null}
     </main>
   );
 }
