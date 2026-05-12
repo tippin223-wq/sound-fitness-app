@@ -24,6 +24,175 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.exercise-library-page-theme {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.18), transparent 30%),
+    radial-gradient(circle at 86% 8%, rgba(250, 204, 21, 0.12), transparent 28%),
+    radial-gradient(circle at 50% 102%, rgba(16, 185, 129, 0.10), transparent 36%),
+    linear-gradient(180deg, #020617 0%, #07111f 50%, #020617 100%);
+}
+
+.exercise-library-page-theme::before {
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.34) 0 1px, transparent 1.4px)
+      0 0 / 64px 64px,
+    radial-gradient(circle, rgba(103, 232, 249, 0.26) 0 1px, transparent 1.5px)
+      18px 22px / 92px 92px,
+    radial-gradient(circle at 50% 36%, rgba(255, 255, 255, 0.06), transparent 46%);
+  content: "";
+  inset: 0;
+  opacity: 0.42;
+  pointer-events: none;
+  position: fixed;
+  z-index: -1;
+}
+
+.exercise-library-page-theme::after {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(34, 211, 238, 0.10), transparent 18%),
+    radial-gradient(circle at 78% 30%, rgba(167, 139, 250, 0.10), transparent 20%),
+    radial-gradient(circle at 48% 78%, rgba(16, 185, 129, 0.08), transparent 22%);
+  content: "";
+  filter: blur(18px);
+  inset: 0;
+  opacity: 0.78;
+  pointer-events: none;
+  position: fixed;
+  transform: translateZ(0);
+  z-index: -1;
+}
+
+.exercise-library-page-theme--ocean-water {
+  background:
+    radial-gradient(ellipse at 18% -4%, rgba(56, 189, 248, 0.32), transparent 34%),
+    radial-gradient(ellipse at 88% 12%, rgba(45, 212, 191, 0.24), transparent 32%),
+    radial-gradient(ellipse at 50% 112%, rgba(14, 165, 233, 0.20), transparent 42%),
+    linear-gradient(180deg, #031525 0%, #062033 45%, #020817 100%);
+}
+
+.exercise-library-page-theme--ocean-water::before {
+  background:
+    repeating-radial-gradient(ellipse at 50% -20%, rgba(125, 211, 252, 0.18) 0 2px, transparent 2px 18px),
+    linear-gradient(115deg, transparent 0%, rgba(45, 212, 191, 0.07) 45%, transparent 72%);
+  opacity: 0.44;
+}
+
+.exercise-library-page-theme--ocean-water::after {
+  background:
+    radial-gradient(circle at 20% 70%, rgba(56, 189, 248, 0.14), transparent 28%),
+    radial-gradient(circle at 82% 32%, rgba(20, 184, 166, 0.18), transparent 30%);
+  filter: blur(22px);
+}
+
+.exercise-library-page-theme--neon-gym {
+  background:
+    radial-gradient(circle at 14% 0%, rgba(236, 72, 153, 0.30), transparent 32%),
+    radial-gradient(circle at 84% 10%, rgba(34, 211, 238, 0.26), transparent 32%),
+    radial-gradient(circle at 50% 100%, rgba(250, 204, 21, 0.18), transparent 36%),
+    linear-gradient(180deg, #070719 0%, #150b24 52%, #020617 100%);
+}
+
+.exercise-library-page-theme--neon-gym::before {
+  background:
+    linear-gradient(rgba(236, 72, 153, 0.12) 1px, transparent 1px) 0 0 / 48px 48px,
+    linear-gradient(90deg, rgba(34, 211, 238, 0.12) 1px, transparent 1px) 0 0 / 48px 48px,
+    radial-gradient(circle at 50% 18%, rgba(255, 255, 255, 0.08), transparent 38%);
+  opacity: 0.38;
+}
+
+.exercise-library-page-theme--neon-gym::after {
+  background:
+    radial-gradient(circle at 12% 72%, rgba(236, 72, 153, 0.17), transparent 28%),
+    radial-gradient(circle at 86% 38%, rgba(34, 211, 238, 0.18), transparent 30%);
+}
+
+.exercise-library-page-theme--minimal-dark {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(148, 163, 184, 0.16), transparent 34%),
+    radial-gradient(circle at 18% 72%, rgba(51, 65, 85, 0.18), transparent 34%),
+    linear-gradient(180deg, #020617 0%, #0b1120 58%, #020617 100%);
+}
+
+.exercise-library-page-theme--minimal-dark::before {
+  opacity: 0.18;
+}
+
+.exercise-library-page-theme--emerald-performance {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(16, 185, 129, 0.34), transparent 34%),
+    radial-gradient(circle at 88% 10%, rgba(34, 211, 238, 0.17), transparent 32%),
+    radial-gradient(circle at 50% 104%, rgba(132, 204, 22, 0.12), transparent 36%),
+    linear-gradient(180deg, #02130f 0%, #05251c 48%, #020617 100%);
+}
+
+.exercise-library-page-theme--emerald-performance::before {
+  background:
+    linear-gradient(120deg, transparent 0 44%, rgba(16, 185, 129, 0.08) 45% 46%, transparent 47%),
+    radial-gradient(circle, rgba(110, 231, 183, 0.26) 0 1px, transparent 1.4px) 0 0 / 78px 78px;
+  opacity: 0.38;
+}
+
+.exercise-library-page-theme--space-glass {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.24), transparent 30%),
+    radial-gradient(circle at 86% 8%, rgba(250, 204, 21, 0.16), transparent 28%),
+    radial-gradient(circle at 50% 102%, rgba(167, 139, 250, 0.14), transparent 36%),
+    linear-gradient(180deg, #020617 0%, #07111f 50%, #020617 100%);
+}
+
+.exercise-library-page-theme
+  :is(
+    .exercise-library-training-intelligence,
+    .exercise-library-widget-dock,
+    .exercise-library-active-filter-status,
+    .exercise-library-create-panel,
+    .exercise-library-filter-command-center,
+    .exercise-library-filter-menu-panel,
+    .exercise-library-anatomy-popup,
+    .exercise-library-themed-floating-panel,
+    .exercise-library-themed-panel,
+    .exercise-library-themed-stats,
+    .exercise-library-themed-intelligence,
+    .exercise-library-widget-card,
+    .exercise-library-training-stat-card,
+    .exercise-library-layer-volume-card
+  ) {
+  background:
+    radial-gradient(
+      circle at 12% 0%,
+      var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.12)),
+      transparent 36%
+    ),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.52), rgba(2, 6, 23, 0.34)) !important;
+  backdrop-filter: blur(18px) saturate(150%);
+}
+
+.exercise-library-page-theme
+  :is(
+    .exercise-library-training-intelligence,
+    .exercise-library-widget-dock,
+    .exercise-library-create-panel,
+    .exercise-library-filter-command-center,
+    .exercise-library-filter-menu-panel,
+    .exercise-library-anatomy-popup
+  ) {
+  background:
+    radial-gradient(
+      circle at 15% 0%,
+      var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.16)),
+      transparent 38%
+    ),
+    radial-gradient(circle at 90% 12%, rgba(255, 255, 255, 0.07), transparent 30%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.58), rgba(2, 6, 23, 0.40)) !important;
+}
+
+.exercise-library-filter-menu-panel {
+  background:
+    radial-gradient(circle at 14% 0%, rgba(34, 211, 238, 0.14), transparent 36%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.64), rgba(2, 6, 23, 0.46)) !important;
+  backdrop-filter: blur(20px) saturate(155%);
+}
 /* ===== Glass with Soft Tint ===== */
 
 ::-webkit-scrollbar {
@@ -360,6 +529,364 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.24);
 }
 
+.exercise-library-training-intelligence {
+  isolation: isolate;
+}
+
+.exercise-library-training-intelligence::before {
+  background:
+    radial-gradient(
+      circle at 12% 0%,
+      var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.16)),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 88% 12%,
+      var(--exercise-theme-glow, rgba(250, 204, 21, 0.12)),
+      transparent 32%
+    );
+  content: "";
+  inset: 0;
+  opacity: 0.82;
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+}
+
+.exercise-library-training-intelligence__weekly-fill {
+  background:
+    linear-gradient(
+      90deg,
+      var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.2)),
+      var(--exercise-theme-accent, rgba(34, 211, 238, 0.78)),
+      var(--exercise-theme-accent-strong, rgba(103, 232, 249, 0.92))
+    );
+  box-shadow:
+    0 0 24px var(--exercise-theme-glow, rgba(34, 211, 238, 0.2)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  width: var(--training-intelligence-progress, 0%);
+}
+
+.exercise-library-training-stat-card {
+  isolation: isolate;
+}
+
+.exercise-library-training-stat-card:focus-visible,
+.exercise-library-training-shortcut:focus-visible {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.18),
+    0 0 28px var(--exercise-theme-glow, rgba(34, 211, 238, 0.18));
+  outline: none;
+}
+
+.exercise-library-training-stat-card__fill,
+.exercise-library-training-shortcut__fill {
+  background:
+    linear-gradient(
+      90deg,
+      var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.16)),
+      var(--exercise-theme-accent, rgba(34, 211, 238, 0.46))
+    );
+  bottom: 0;
+  box-shadow:
+    0 0 22px var(--exercise-theme-glow, rgba(34, 211, 238, 0.16)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  left: 0;
+  opacity: 0.56;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transition:
+    opacity 180ms ease,
+    width 320ms ease;
+  z-index: 0;
+}
+
+.exercise-library-training-stat-card__fill {
+  width: var(--training-stat-progress, 0%);
+}
+
+.exercise-library-training-shortcut__fill {
+  opacity: 0;
+  width: 100%;
+}
+
+.exercise-library-training-shortcut:hover .exercise-library-training-shortcut__fill,
+.exercise-library-training-shortcut:focus-visible
+  .exercise-library-training-shortcut__fill {
+  opacity: 0.42;
+}
+
+.exercise-library-training-dropdown {
+  backdrop-filter: blur(18px) saturate(150%);
+  isolation: isolate;
+  overflow: hidden;
+  position: relative;
+  transition:
+    border-color 180ms ease,
+    box-shadow 220ms ease,
+    transform 180ms ease;
+}
+
+.exercise-library-training-dropdown::before {
+  background:
+    radial-gradient(
+      circle at 12% 0%,
+      var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.16)),
+      transparent 36%
+    ),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.06), transparent 46%);
+  border-radius: inherit;
+  content: "";
+  inset: 0;
+  opacity: 0.42;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity 220ms ease;
+  z-index: 0;
+}
+
+.exercise-library-training-dropdown[data-open="true"] {
+  border-color: var(--exercise-theme-border, rgba(103, 232, 249, 0.30));
+  box-shadow:
+    0 22px 70px rgba(0, 0, 0, 0.34),
+    0 0 34px var(--exercise-theme-glow, rgba(34, 211, 238, 0.16)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.exercise-library-training-dropdown[data-open="true"]::before {
+  opacity: 0.72;
+}
+
+.exercise-library-training-dropdown__trigger,
+.exercise-library-training-dropdown__content {
+  position: relative;
+  z-index: 2;
+}
+
+.exercise-library-training-dropdown__chevron {
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 220ms ease;
+}
+
+.exercise-library-training-dropdown[data-open="true"]
+  .exercise-library-training-dropdown__chevron {
+  background: var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.18));
+  border-color: var(--exercise-theme-border, rgba(103, 232, 249, 0.34));
+  box-shadow: 0 0 24px var(--exercise-theme-glow, rgba(34, 211, 238, 0.18));
+  transform: rotate(180deg);
+}
+
+.exercise-library-training-dropdown__content {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-0.25rem);
+  transition:
+    grid-template-rows 240ms ease,
+    opacity 180ms ease,
+    transform 220ms ease;
+}
+
+.exercise-library-training-dropdown__content > div {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.exercise-library-training-dropdown[data-open="true"]
+  .exercise-library-training-dropdown__content {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.exercise-library-training-dropdown__accent {
+  bottom: 0;
+  height: 2px;
+  left: 1rem;
+  opacity: 0.42;
+  pointer-events: none;
+  position: absolute;
+  right: 1rem;
+  transform: scaleX(0.42);
+  transform-origin: left center;
+  transition:
+    opacity 220ms ease,
+    transform 240ms ease;
+  z-index: 1;
+}
+
+.exercise-library-training-dropdown[data-open="true"]
+  .exercise-library-training-dropdown__accent {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+.exercise-library-goal-engine,
+.exercise-library-logic-chip,
+.exercise-library-logic-pill,
+.exercise-library-active-filter-status,
+.exercise-library-create-panel,
+.exercise-library-create-section {
+  position: relative;
+}
+
+.exercise-library-goal-engine::before,
+.exercise-library-logic-chip::before,
+.exercise-library-logic-pill::before,
+.exercise-library-create-panel::before,
+.exercise-library-create-section::before {
+  background:
+    radial-gradient(
+      circle at 12% 0%,
+      var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.16)),
+      transparent 38%
+    ),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.055), transparent 42%);
+  border-radius: inherit;
+  content: "";
+  inset: 0;
+  opacity: 0.58;
+  pointer-events: none;
+  position: absolute;
+}
+
+.exercise-library-goal-engine > *,
+.exercise-library-logic-chip > *,
+.exercise-library-logic-pill > *,
+.exercise-library-create-panel > *,
+.exercise-library-create-section > * {
+  position: relative;
+  z-index: 1;
+}
+
+.exercise-library-logic-chip,
+.exercise-library-logic-pill,
+.exercise-library-create-section {
+  box-shadow:
+    0 0 22px var(--exercise-theme-glow, rgba(34, 211, 238, 0.09)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+.exercise-library-logic-chip:hover,
+.exercise-library-logic-pill:hover,
+.exercise-library-logic-chip:focus-visible,
+.exercise-library-logic-pill:focus-visible {
+  border-color: var(--exercise-theme-border, rgba(103, 232, 249, 0.38));
+  box-shadow:
+    0 0 28px var(--exercise-theme-glow, rgba(34, 211, 238, 0.18)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.exercise-library-create-panel {
+  animation: exercise-library-create-panel-reveal 220ms ease-out both;
+  border-radius: 1.875rem;
+  isolation: isolate;
+}
+
+.exercise-library-create-panel::after {
+  background:
+    linear-gradient(
+      105deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.16) 38%,
+      transparent 68%
+    );
+  content: "";
+  height: 180%;
+  left: -46%;
+  opacity: 0.42;
+  pointer-events: none;
+  position: absolute;
+  top: -38%;
+  transform: rotate(10deg);
+  width: 36%;
+}
+
+@keyframes exercise-library-create-panel-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-0.45rem) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.exercise-library-weight-volume-stat {
+  align-items: center;
+  background: rgba(2, 6, 23, 0.44);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
+  box-shadow:
+    0 0 18px var(--exercise-theme-glow, rgba(34, 211, 238, 0.10)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  color: rgb(226, 232, 240);
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  max-width: 100%;
+  padding: 0.32rem 0.62rem;
+  text-transform: uppercase;
+}
+
+.exercise-library-cooldown-counter {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.36rem;
+  min-width: min(100%, 8.5rem);
+  vertical-align: middle;
+}
+
+.exercise-library-cooldown-counter__track {
+  background: rgba(2, 6, 23, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  flex: 1 1 auto;
+  height: 0.42rem;
+  min-width: 2.8rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.exercise-library-cooldown-counter__fill {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(248, 113, 113, 0.82),
+      rgba(250, 204, 21, 0.68),
+      var(--exercise-theme-accent, rgba(34, 211, 238, 0.68))
+    );
+  border-radius: inherit;
+  bottom: 0;
+  box-shadow: 0 0 16px var(--exercise-theme-glow, rgba(34, 211, 238, 0.18));
+  left: 0;
+  position: absolute;
+  top: 0;
+  transition: width 360ms ease;
+  width: var(--exercise-cooldown-progress, 0%);
+}
+
+.exercise-library-cooldown-counter[data-ready="true"]
+  .exercise-library-cooldown-counter__fill {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.42), rgba(110, 231, 183, 0.58));
+}
+
+.exercise-library-cooldown-counter__text {
+  color: rgb(207, 250, 254);
+  flex: 0 0 auto;
+  font-size: 0.46rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
 .exercise-library-page-section-tab:hover::before,
 .exercise-library-page-section-tab:focus-visible::before,
 .exercise-library-page-section-tab--active::before {
@@ -367,9 +894,50 @@ body {
   transform: translateX(0);
 }
 
+.exercise-library-anatomy-figure {
+  isolation: isolate;
+  position: relative;
+}
+
+.exercise-library-anatomy-figure::before {
+  animation: exercise-library-anatomy-breathing-glow 5.8s ease-in-out infinite;
+  background:
+    radial-gradient(
+      circle at 50% 30%,
+      var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.14)),
+      transparent 44%
+    ),
+    radial-gradient(circle at 50% 70%, rgba(255, 255, 255, 0.045), transparent 48%);
+  border-radius: 999px;
+  content: "";
+  inset: 4% 12%;
+  opacity: 0.76;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
+}
+
+.exercise-library-anatomy-figure::after {
+  animation: exercise-library-anatomy-scanline 4.8s linear infinite;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(103, 232, 249, 0.12) 48%,
+    transparent 54%
+  );
+  content: "";
+  inset: 0;
+  opacity: 0.48;
+  pointer-events: none;
+  position: absolute;
+  z-index: 1;
+}
+
 .exercise-library-anatomy-figure svg {
   filter: drop-shadow(0 20px 32px rgba(0, 0, 0, 0.34));
   max-height: 13.5rem;
+  position: relative;
+  z-index: 2;
 }
 
 .exercise-library-anatomy-figure svg path {
@@ -385,6 +953,113 @@ body {
   filter:
     drop-shadow(0 0 8px currentColor)
     drop-shadow(0 0 14px rgba(255, 255, 255, 0.16));
+}
+
+.exercise-library-anatomy-indicator {
+  align-items: center;
+  background: color-mix(in srgb, var(--exercise-theme-accent, rgba(34, 211, 238, 0.9)) 58%, rgba(2, 6, 23, 0.75));
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 2px var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.10)),
+    0 0 12px var(--exercise-theme-glow, rgba(34, 211, 238, 0.18)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.30);
+  cursor: pointer;
+  display: inline-flex;
+  height: 0.6rem;
+  justify-content: center;
+  opacity: 0.28;
+  position: absolute;
+  transform: translate(-50%, -50%) scale(0.82);
+  transition:
+    border-color 170ms ease,
+    box-shadow 170ms ease,
+    opacity 170ms ease,
+    transform 170ms ease;
+  width: 0.6rem;
+  z-index: 18;
+}
+
+.exercise-library-anatomy-indicator::before {
+  animation: exercise-library-anatomy-indicator-pulse 2.6s ease-in-out infinite;
+  border: 1px solid var(--exercise-theme-accent, rgba(34, 211, 238, 0.62));
+  border-radius: inherit;
+  content: "";
+  inset: -0.34rem;
+  opacity: 0.16;
+  position: absolute;
+}
+
+.exercise-library-anatomy-indicator:hover,
+.exercise-library-anatomy-indicator:focus-visible,
+.exercise-library-anatomy-indicator--active {
+  border-color: rgba(255, 255, 255, 0.9);
+  box-shadow:
+    0 0 0 5px var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.24)),
+    0 0 26px var(--exercise-theme-glow, rgba(34, 211, 238, 0.42)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.64);
+  opacity: 1;
+  outline: none;
+  transform: translate(-50%, -50%) scale(1.18);
+}
+
+.exercise-library-anatomy-indicator[data-volume-status="undertrained"] {
+  background: rgb(251, 113, 133);
+  opacity: 0.46;
+}
+
+.exercise-library-anatomy-indicator[data-volume-status="almost-there"] {
+  background: rgb(252, 211, 77);
+  opacity: 0.38;
+}
+
+.exercise-library-anatomy-indicator[data-volume-status="trained"] {
+  background: rgb(110, 231, 183);
+  opacity: 0.30;
+}
+
+.exercise-library-anatomy-indicator[data-volume-status="risk"] {
+  background: rgb(240, 171, 252);
+  opacity: 0.58;
+}
+
+.exercise-library-anatomy-popup {
+  scrollbar-color:
+    var(--exercise-theme-scrollbar-thumb, rgba(34, 211, 238, 0.58))
+    rgba(2, 6, 23, 0.5);
+}
+
+@keyframes exercise-library-anatomy-indicator-pulse {
+  0%,
+  100% {
+    opacity: 0.16;
+    transform: scale(0.78);
+  }
+  50% {
+    opacity: 0.46;
+    transform: scale(1.16);
+  }
+}
+
+@keyframes exercise-library-anatomy-breathing-glow {
+  0%,
+  100% {
+    opacity: 0.48;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 0.86;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes exercise-library-anatomy-scanline {
+  0% {
+    transform: translateY(-52%);
+  }
+  100% {
+    transform: translateY(52%);
+  }
 }
 
 .exercise-library-body-volume-button {
@@ -761,6 +1436,125 @@ body {
   opacity: 0.48;
 }
 
+.exercise-library-widget-card {
+  isolation: isolate;
+  position: relative;
+}
+
+.exercise-library-widget-card__fill {
+  background:
+    linear-gradient(
+      90deg,
+      var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.16)),
+      var(--exercise-theme-accent, rgba(34, 211, 238, 0.46))
+    );
+  bottom: 0;
+  box-shadow:
+    0 0 24px var(--exercise-theme-glow, rgba(34, 211, 238, 0.18)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  left: 0;
+  opacity: 0.62;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transition:
+    opacity 180ms ease,
+    width 340ms ease;
+  width: var(--training-stat-progress, 0%);
+  z-index: 0;
+}
+
+.exercise-library-widget-card > *:not(.exercise-library-widget-card__fill) {
+  position: relative;
+  z-index: 1;
+}
+
+.exercise-library-page-section-tab__goal-fill,
+.exercise-library-category-heading__goal-fill,
+.exercise-library-page-section-tab__mini-fill,
+.exercise-library-training-intelligence__weekly-fill,
+.exercise-library-training-stat-card__fill,
+.exercise-library-training-shortcut__fill,
+.exercise-library-widget-card__fill,
+.exercise-library-layer-volume-card__fill,
+.exercise-library-volume-chip__fill,
+.exercise-library-card-volume-fill,
+.exercise-library-core-tab__fill {
+  background:
+    linear-gradient(
+      105deg,
+      color-mix(in srgb, var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.20)) 82%, transparent),
+      var(--exercise-theme-accent, rgba(34, 211, 238, 0.58)),
+      var(--exercise-theme-accent-strong, rgba(103, 232, 249, 0.82)),
+      var(--exercise-theme-accent, rgba(34, 211, 238, 0.58))
+    );
+  background-size: 220% 100%;
+  overflow: hidden;
+}
+
+.exercise-library-training-intelligence__weekly-fill {
+  position: relative;
+}
+
+.exercise-library-page-section-tab__mini-fill {
+  position: relative;
+}
+
+.exercise-library-page-section-tab__goal-fill::after,
+.exercise-library-category-heading__goal-fill::after,
+.exercise-library-page-section-tab__mini-fill::after,
+.exercise-library-training-intelligence__weekly-fill::after,
+.exercise-library-training-stat-card__fill::after,
+.exercise-library-training-shortcut__fill::after,
+.exercise-library-widget-card__fill::after,
+.exercise-library-layer-volume-card__fill::after,
+.exercise-library-volume-chip__fill::after,
+.exercise-library-core-tab__fill::after {
+  animation: exercise-library-liquid-shimmer 3.8s linear infinite;
+  background:
+    radial-gradient(ellipse at 12% 50%, rgba(255, 255, 255, 0.32), transparent 28%),
+    radial-gradient(ellipse at 42% 35%, rgba(255, 255, 255, 0.18), transparent 24%),
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  content: "";
+  inset: -35% -18%;
+  opacity: 0.44;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-18%);
+}
+
+.exercise-library-card-volume-fill {
+  background-size: 100% 220%;
+}
+
+.exercise-library-card-volume-fill::before {
+  animation: exercise-library-liquid-wave 4.8s ease-in-out infinite;
+  background:
+    radial-gradient(50% 100% at 18% 100%, rgba(255, 255, 255, 0.34), transparent 58%),
+    radial-gradient(48% 100% at 52% 100%, rgba(255, 255, 255, 0.20), transparent 62%),
+    radial-gradient(50% 100% at 86% 100%, rgba(255, 255, 255, 0.28), transparent 58%);
+  content: "";
+  height: 1.1rem;
+  left: -12%;
+  opacity: 0.62;
+  pointer-events: none;
+  position: absolute;
+  right: -12%;
+  top: -0.65rem;
+}
+
+.exercise-library-card-volume-fill::after {
+  animation: exercise-library-liquid-shimmer 4.2s linear infinite;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.20), transparent),
+    radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.18), transparent 32%);
+  content: "";
+  inset: 0;
+  opacity: 0.36;
+  pointer-events: none;
+  position: absolute;
+}
+
 .exercise-library-volume-pulse {
   animation: exercise-library-volume-pulse 1.25s ease-out 0s 2;
 }
@@ -783,6 +1577,107 @@ body {
   line-height: 1;
   padding: 0.18rem 0.34rem;
   text-transform: uppercase;
+}
+
+.exercise-library-recent-stats-tabs {
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.exercise-library-recent-stats-tabs::-webkit-scrollbar {
+  display: none;
+  height: 0;
+  width: 0;
+}
+
+.exercise-library-mini-scroller {
+  --mini-scroller-arrow-size: 1.8rem;
+  min-width: 0;
+}
+
+.exercise-library-mini-scroller__viewport {
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  padding-bottom: 0.35rem;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  touch-action: pan-x pan-y;
+}
+
+.exercise-library-mini-scroller__track {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.5rem;
+  min-width: max-content;
+  padding-inline: 0.15rem;
+  width: max-content;
+}
+
+.exercise-library-mini-scroller__arrow {
+  align-items: center;
+  background:
+    radial-gradient(
+      circle at 35% 20%,
+      var(--exercise-theme-accent-soft, rgba(34, 211, 238, 0.14)),
+      transparent 42%
+    ),
+    rgba(2, 6, 23, 0.86);
+  border: 1px solid var(--exercise-theme-border, rgba(103, 232, 249, 0.22));
+  border-radius: 999px;
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.34),
+    0 0 18px var(--exercise-theme-glow, rgba(34, 211, 238, 0.12)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  color: var(--exercise-theme-text, rgb(207, 250, 254));
+  display: none;
+  font-size: 0.82rem;
+  font-weight: 900;
+  height: var(--mini-scroller-arrow-size);
+  justify-content: center;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+  width: var(--mini-scroller-arrow-size);
+  z-index: 8;
+}
+
+.exercise-library-mini-scroller__arrow:hover,
+.exercise-library-mini-scroller__arrow:focus-visible {
+  background:
+    radial-gradient(
+      circle at 35% 20%,
+      var(--exercise-theme-accent, rgba(34, 211, 238, 0.24)),
+      transparent 44%
+    ),
+    rgba(15, 23, 42, 0.94);
+  border-color: var(--exercise-theme-accent-strong, rgba(103, 232, 249, 0.55));
+  outline: none;
+  transform: translateY(-50%) scale(1.04);
+}
+
+.exercise-library-mini-scroller__arrow--left {
+  left: -0.35rem;
+}
+
+.exercise-library-mini-scroller__arrow--right {
+  right: -0.35rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .exercise-library-mini-scroller__arrow {
+    display: flex;
+    opacity: 0.72;
+  }
 }
 
 @keyframes exercise-library-volume-pulse {
@@ -814,6 +1709,114 @@ body {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes exercise-library-liquid-shimmer {
+  0% {
+    transform: translateX(-22%);
+  }
+  100% {
+    transform: translateX(22%);
+  }
+}
+
+@keyframes exercise-library-liquid-wave {
+  0%,
+  100% {
+    transform: translateX(-4%) scaleY(0.92);
+  }
+  50% {
+    transform: translateX(4%) scaleY(1.08);
+  }
+}
+
+.exercise-library-volume-status-indicator span {
+  animation: exercise-library-status-calm 2.8s ease-in-out infinite;
+}
+
+.exercise-library-volume-status-indicator[data-volume-status="undertrained"] span {
+  animation-name: exercise-library-status-undertrained;
+}
+
+.exercise-library-volume-status-indicator[data-volume-status="almost-there"] span {
+  animation-name: exercise-library-status-almost;
+}
+
+.exercise-library-volume-status-indicator[data-volume-status="trained"] span {
+  animation-name: exercise-library-status-trained;
+}
+
+.exercise-library-volume-status-indicator[data-volume-status="risk"] span {
+  animation-name: exercise-library-status-risk;
+  animation-duration: 1.75s;
+}
+
+@keyframes exercise-library-status-calm {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes exercise-library-status-undertrained {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(251, 113, 133, 0.42);
+    opacity: 0.7;
+    transform: scale(0.82);
+  }
+  50% {
+    box-shadow:
+      0 0 14px rgba(251, 113, 133, 0.82),
+      0 0 24px rgba(251, 113, 133, 0.28);
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
+@keyframes exercise-library-status-almost {
+  0%,
+  100% {
+    box-shadow: 0 0 8px rgba(252, 211, 77, 0.38);
+    transform: scale(0.9);
+  }
+  50% {
+    box-shadow:
+      0 0 14px rgba(252, 211, 77, 0.72),
+      0 0 22px rgba(252, 211, 77, 0.24);
+    transform: scale(1.12);
+  }
+}
+
+@keyframes exercise-library-status-trained {
+  0%,
+  100% {
+    box-shadow: 0 0 9px rgba(110, 231, 183, 0.38);
+    opacity: 0.84;
+  }
+  50% {
+    box-shadow: 0 0 18px rgba(110, 231, 183, 0.64);
+    opacity: 1;
+  }
+}
+
+@keyframes exercise-library-status-risk {
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(240, 171, 252, 0.52);
+    transform: scale(0.86);
+  }
+  50% {
+    box-shadow:
+      0 0 18px rgba(240, 171, 252, 0.90),
+      0 0 30px rgba(251, 113, 133, 0.38);
+    transform: scale(1.2);
   }
 }
 
@@ -932,20 +1935,23 @@ body {
 
 .exercise-library-card-category-tab__pill {
   align-items: center;
-  border-radius: 999px 999px 999px 0.45rem;
+  border-radius: 0.85rem 0.85rem 0.55rem 0.55rem;
   display: inline-flex;
-  font-size: 0.56rem;
+  font-size: clamp(0.48rem, 1.45vw, 0.62rem);
   font-weight: 900;
-  letter-spacing: 0.12em;
+  justify-content: center;
+  letter-spacing: 0.1em;
   line-height: 1;
-  max-width: min(11rem, calc(100vw - 3rem));
+  max-width: none;
   min-height: 1.45rem;
+  min-width: 0;
   overflow: hidden;
   padding: 0.38rem 0.62rem 0.36rem;
   pointer-events: none;
   position: relative;
   text-transform: uppercase;
   user-select: none;
+  width: 100%;
 }
 
 .exercise-library-card-category-tab__pill::after {
@@ -969,14 +1975,14 @@ body {
 .exercise-library-card-category-tab__rail {
   border-radius: 999px;
   height: 2px;
-  margin-left: 0.16rem;
+  margin-inline: auto;
   margin-top: 0.18rem;
   opacity: 0.72;
   pointer-events: none;
   transition:
     opacity 180ms ease,
     width 180ms ease;
-  width: 2.35rem;
+  width: 74%;
 }
 
 .exercise-library-card-slide:hover .exercise-library-card-category-tab,
@@ -999,7 +2005,7 @@ body {
 .exercise-library-card-slide:focus-within
   .exercise-library-card-category-tab__rail {
   opacity: 1;
-  width: 3.25rem;
+  width: 92%;
 }
 
 .exercise-library-shelf-arrow {
@@ -1229,7 +2235,28 @@ body {
   .exercise-library-card-category-tab__pill,
   .exercise-library-card-category-tab__pill::after,
   .exercise-library-card-category-tab__rail,
-  .exercise-library-shelf-arrow {
+  .exercise-library-shelf-arrow,
+  .exercise-library-create-panel,
+  .exercise-library-create-panel::after,
+  .exercise-library-cooldown-counter__fill,
+  .exercise-library-anatomy-indicator,
+  .exercise-library-anatomy-indicator::before,
+  .exercise-library-anatomy-figure::before,
+  .exercise-library-anatomy-figure::after,
+  .exercise-library-volume-status-indicator span,
+  .exercise-library-page-section-tab__goal-fill::after,
+  .exercise-library-category-heading__goal-fill::after,
+  .exercise-library-page-section-tab__mini-fill::after,
+  .exercise-library-training-intelligence__weekly-fill::after,
+  .exercise-library-training-stat-card__fill::after,
+  .exercise-library-training-shortcut__fill::after,
+  .exercise-library-widget-card__fill::after,
+  .exercise-library-layer-volume-card__fill::after,
+  .exercise-library-volume-chip__fill::after,
+  .exercise-library-core-tab__fill::after,
+  .exercise-library-card-volume-fill::before,
+  .exercise-library-card-volume-fill::after {
+    animation: none;
     transition: none;
   }
 

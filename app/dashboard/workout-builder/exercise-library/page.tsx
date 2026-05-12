@@ -115,23 +115,36 @@ type PrivateExerciseDraft = {
 type ExerciseLibraryProfileSummary = {
   avatarUrl: string | null;
   bio: string;
+  currentFocus: string;
   displayName: string;
   email: string;
+  preferredTrainingStyle: string;
   primaryGoal: string;
+  secondaryGoal: string;
   trainingLevel: string;
 };
 
 const defaultExerciseLibraryProfileSummary: ExerciseLibraryProfileSummary = {
   avatarUrl: null,
   bio: "Add profile details",
+  currentFocus: "Add profile details",
   displayName: "Athlete",
   email: "",
+  preferredTrainingStyle: "Add profile details",
   primaryGoal: "No goal set",
+  secondaryGoal: "Add profile details",
   trainingLevel: "",
 };
 
 type ExerciseLibraryViewMode = "detail" | "grid";
 type ExerciseStatsMenuMode = "detail" | "grid";
+type WeightUnit = "lbs" | "kg";
+type ExerciseLibraryUiThemeId =
+  | "space-glass"
+  | "ocean-water"
+  | "neon-gym"
+  | "minimal-dark"
+  | "emerald-performance";
 type ExerciseLibrarySortMode =
   | "category"
   | "alpha"
@@ -1507,11 +1520,17 @@ const toBuilderCatalogExercise = (
 const baseGoals = [
   "Strength",
   "Hypertrophy",
+  "Fat Loss",
   "Stability",
   "Mobility",
+  "Athletic Performance",
+  "Conditioning",
+  "Rehab / Return to Training",
   "Recovery",
   "Power",
-  "Conditioning",
+  "General Fitness",
+  "Endurance",
+  "Skill / Technique",
 ];
 
 const getUniqueOptions = (items: Exercise[], key: keyof Exercise) => {
@@ -4304,6 +4323,148 @@ const resolveAnatomySlugBodyOption = (
   );
 };
 
+const exerciseAnatomyIndicatorPositions: Record<
+  MuscleSlug,
+  { back: CSSProperties; front: CSSProperties }
+> = {
+  chest: { front: { left: "50%", top: "31%" }, back: { left: "50%", top: "33%" } },
+  deltoids: { front: { left: "34%", top: "29%" }, back: { left: "66%", top: "30%" } },
+  biceps: { front: { left: "27%", top: "39%" }, back: { left: "73%", top: "39%" } },
+  triceps: { front: { left: "72%", top: "40%" }, back: { left: "28%", top: "40%" } },
+  forearm: { front: { left: "25%", top: "51%" }, back: { left: "75%", top: "51%" } },
+  abs: { front: { left: "50%", top: "45%" }, back: { left: "50%", top: "46%" } },
+  obliques: { front: { left: "38%", top: "47%" }, back: { left: "62%", top: "47%" } },
+  quadriceps: { front: { left: "45%", top: "67%" }, back: { left: "55%", top: "67%" } },
+  hamstring: { front: { left: "55%", top: "70%" }, back: { left: "45%", top: "70%" } },
+  gluteal: { front: { left: "50%", top: "59%" }, back: { left: "50%", top: "56%" } },
+  calves: { front: { left: "43%", top: "84%" }, back: { left: "57%", top: "82%" } },
+  trapezius: { front: { left: "50%", top: "24%" }, back: { left: "50%", top: "25%" } },
+  "upper-back": { front: { left: "60%", top: "34%" }, back: { left: "50%", top: "36%" } },
+  "lower-back": { front: { left: "50%", top: "51%" }, back: { left: "50%", top: "49%" } },
+  adductors: { front: { left: "54%", top: "68%" }, back: { left: "46%", top: "68%" } },
+  "hip-flexors": { front: { left: "42%", top: "57%" }, back: { left: "58%", top: "58%" } },
+  tibialis: { front: { left: "56%", top: "81%" }, back: { left: "44%", top: "84%" } },
+};
+
+const getAnatomyRegionDescription = (label: string, slug?: MuscleSlug) => {
+  const normalizedLabel = normalizeBodySelectorValue(label);
+  const normalizedSlug = slug ? normalizeBodySelectorValue(slug) : "";
+
+  if (/(glute|hip thrust|bridge)/.test(normalizedLabel + " " + normalizedSlug)) {
+    return "Primary hip extension and pelvic stability muscles.";
+  }
+  if (/(delt|shoulder)/.test(normalizedLabel + " " + normalizedSlug)) {
+    return "Shoulder abduction, pressing, and arm positioning.";
+  }
+  if (/(chest|pec)/.test(normalizedLabel)) {
+    return "Horizontal pressing, fly patterns, and upper-body force transfer.";
+  }
+  if (/(lat|back|trap|rhomboid)/.test(normalizedLabel + " " + normalizedSlug)) {
+    return "Pulling strength, scapular control, and posture support.";
+  }
+  if (/(quad|knee)/.test(normalizedLabel)) {
+    return "Knee extension strength for squats, lunges, and step patterns.";
+  }
+  if (/(hamstring|posterior chain)/.test(normalizedLabel)) {
+    return "Hip hinge support, knee flexion, and posterior-chain control.";
+  }
+  if (/(core|abs|oblique|trunk)/.test(normalizedLabel)) {
+    return "Trunk stiffness, bracing, rotation control, and transfer strength.";
+  }
+  if (/(arm|bicep|tricep|forearm|wrist)/.test(normalizedLabel)) {
+    return "Arm strength, elbow control, grip support, and accessory volume.";
+  }
+  if (/(calf|tibialis|ankle|lower leg)/.test(normalizedLabel)) {
+    return "Lower-leg strength for gait, jumping, bracing, and ankle control.";
+  }
+  if (/(adductor|abductor|hip)/.test(normalizedLabel)) {
+    return "Hip positioning, pelvic control, and lower-body stability.";
+  }
+
+  return "A movement-relevant training region used for filtering and volume tracking.";
+};
+
+const getPopularExercisesForBodyRegion = (
+  label: string,
+  exercises: Exercise[],
+) => {
+  const normalizedLabel = normalizeBodySelectorValue(label);
+  if (!normalizedLabel) return [];
+
+  const scoredExercises = exercises
+    .map((exercise) => {
+      const metadata = getMetadataForExercise(exercise);
+      const bodyLabels = getExerciseVolumeBodyLabels(exercise, metadata);
+      const normalizedBodyLabels = bodyLabels.map(normalizeBodySelectorValue);
+      const title = getExerciseSortTitle(exercise);
+      const searchText = normalizeBodySelectorValue(
+        [
+          title,
+          exercise.name,
+          exercise.body,
+          exercise.muscles,
+          metadata?.coreMovementLabel || "",
+          metadata?.movementPatternLabel || "",
+        ].join(" "),
+      );
+      let score = 0;
+
+      if (normalizedBodyLabels.includes(normalizedLabel)) score += 40;
+      if (
+        normalizedBodyLabels.some(
+          (bodyLabel) =>
+            bodyLabel.includes(normalizedLabel) ||
+            normalizedLabel.includes(bodyLabel),
+        )
+      ) {
+        score += 18;
+      }
+      if (searchText.includes(normalizedLabel)) score += 8;
+      if (
+        /glute/.test(normalizedLabel) &&
+        /\b(hip thrust|glute bridge|bridge|pull through|lunge)\b/.test(searchText)
+      ) {
+        score += 18;
+      }
+      if (
+        /(delt|shoulder)/.test(normalizedLabel) &&
+        /\b(lateral raise|shoulder press|reverse fly|upright row)\b/.test(
+          searchText,
+        )
+      ) {
+        score += 18;
+      }
+      if (
+        /(chest|pec)/.test(normalizedLabel) &&
+        /\b(chest press|chest fly|push up|push-up)\b/.test(searchText)
+      ) {
+        score += 18;
+      }
+      if (
+        /(back|lat)/.test(normalizedLabel) &&
+        /\b(row|vertical pull|pullover|pulldown)\b/.test(searchText)
+      ) {
+        score += 18;
+      }
+
+      return { exercise, score, title };
+    })
+    .filter((entry) => entry.score > 0)
+    .sort(
+      (left, right) =>
+        right.score - left.score || left.title.localeCompare(right.title),
+    );
+
+  return Array.from(
+    new Map(
+      scoredExercises.map((entry) => [
+        entry.exercise.id,
+        { exercise: entry.exercise, title: entry.title },
+      ]),
+    ).values(),
+  ).slice(0, 4);
+};
+
 const getSemanticPatternLabel = (patternId: SemanticMovementPatternId) =>
   SEMANTIC_MOVEMENT_PATTERN_BY_ID[patternId]?.label || labelize(patternId);
 
@@ -5928,6 +6089,124 @@ const parseStatNumber = (value: string | number | undefined) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const exerciseLibraryPreferredWeightUnitStorageKey =
+  "soundFitness.exerciseLibrary.preferredWeightUnit";
+const exerciseLibraryUiThemeStorageKey =
+  "soundFitness.exerciseLibrary.uiTheme";
+const kilogramsPerPound = 0.45359237;
+
+const exerciseLibraryUiThemeConfigs: Record<
+  ExerciseLibraryUiThemeId,
+  { helper: string; label: string; mood: string }
+> = {
+  "space-glass": {
+    helper: "Cosmic glass, star glow, category neon",
+    label: "Space Glass",
+    mood: "Cosmic",
+  },
+  "ocean-water": {
+    helper: "Blue water light with liquid volume fills",
+    label: "Ocean / Water",
+    mood: "Fluid",
+  },
+  "neon-gym": {
+    helper: "Higher contrast glow for a night-gym console",
+    label: "Neon Gym",
+    mood: "Electric",
+  },
+  "minimal-dark": {
+    helper: "Quieter dark panels with restrained shimmer",
+    label: "Minimal Dark",
+    mood: "Focused",
+  },
+  "emerald-performance": {
+    helper: "Emerald training lab with performance accents",
+    label: "Emerald Performance",
+    mood: "Performance",
+  },
+};
+
+const exerciseLibraryUiThemeOptions = Object.entries(
+  exerciseLibraryUiThemeConfigs,
+).map(([id, config]) => ({
+  id: id as ExerciseLibraryUiThemeId,
+  ...config,
+}));
+
+const normalizeWeightUnit = (value?: string | null): WeightUnit =>
+  value === "kg" ? "kg" : "lbs";
+
+const normalizeExerciseLibraryUiTheme = (
+  value?: string | null,
+): ExerciseLibraryUiThemeId =>
+  value && value in exerciseLibraryUiThemeConfigs
+    ? (value as ExerciseLibraryUiThemeId)
+    : "space-glass";
+
+const readExerciseLibraryPreferredWeightUnit = (): WeightUnit => {
+  if (typeof window === "undefined") return "lbs";
+  return normalizeWeightUnit(
+    window.localStorage.getItem(exerciseLibraryPreferredWeightUnitStorageKey),
+  );
+};
+
+const writeExerciseLibraryPreferredWeightUnit = (unit: WeightUnit) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(
+    exerciseLibraryPreferredWeightUnitStorageKey,
+    unit,
+  );
+};
+
+const readExerciseLibraryUiTheme = (): ExerciseLibraryUiThemeId => {
+  if (typeof window === "undefined") return "space-glass";
+  return normalizeExerciseLibraryUiTheme(
+    window.localStorage.getItem(exerciseLibraryUiThemeStorageKey),
+  );
+};
+
+const writeExerciseLibraryUiTheme = (themeId: ExerciseLibraryUiThemeId) => {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(exerciseLibraryUiThemeStorageKey, themeId);
+};
+
+const convertPoundsToPreferredUnit = (valueInPounds: number, unit: WeightUnit) =>
+  unit === "kg" ? valueInPounds * kilogramsPerPound : valueInPounds;
+
+const formatWeightMetric = (
+  valueInPounds: number,
+  unit: WeightUnit,
+  options: { compact?: boolean; volume?: boolean } = {},
+) => {
+  if (valueInPounds <= 0) return "";
+
+  const convertedValue = convertPoundsToPreferredUnit(valueInPounds, unit);
+  const formatted = new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: unit === "kg" && !options.volume ? 1 : 0,
+    notation: options.compact ? "compact" : "standard",
+  }).format(convertedValue);
+  const displayUnit = unit === "lbs" ? "lb" : "kg";
+
+  return `${formatted} ${displayUnit}`;
+};
+
+const formatWeeklyVolumeRangeLabel = (date = new Date()) => {
+  const startDate = new Date(date);
+  startDate.setDate(startDate.getDate() - 6);
+
+  const sameMonth = startDate.getMonth() === date.getMonth();
+  const startLabel = startDate.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  const endLabel = date.toLocaleDateString(undefined, {
+    month: sameMonth ? undefined : "short",
+    day: "numeric",
+  });
+
+  return `Trailing 7 days: ${startLabel}-${endLabel}`;
+};
+
 const getStatCompletedReps = (stat: LocalExerciseStatEntry) =>
   parseStatNumber(stat.reps) * parseStatNumber(stat.sets);
 
@@ -5946,9 +6225,10 @@ const getWeeklyVolumeForStats = (stats: LocalExerciseStatEntry[]) =>
       return {
         reps: summary.reps + getStatCompletedReps(stat),
         sets: summary.sets + parseStatNumber(stat.sets),
+        weightVolume: summary.weightVolume + getStatVolume(stat),
       };
     },
-    { reps: 0, sets: 0 },
+    { reps: 0, sets: 0, weightVolume: 0 },
   );
 
 const formatMetric = (value: number) =>
@@ -5958,6 +6238,205 @@ const getStatVolume = (stat: LocalExerciseStatEntry) =>
   parseStatNumber(stat.weight) *
   parseStatNumber(stat.reps) *
   parseStatNumber(stat.sets);
+
+const getEstimatedOneRepMax = (stat: LocalExerciseStatEntry) => {
+  const weight = parseStatNumber(stat.weight);
+  const reps = parseStatNumber(stat.reps);
+
+  if (weight <= 0 || reps <= 0) return 0;
+  return weight * (1 + reps / 30);
+};
+
+type GoalLogicSummary = {
+  emphasisLabel: string;
+  forecastLabel: string;
+  futureLoadCapacityLabel: string;
+  goalCue: string;
+  primaryGoalLabel: string;
+  recoveryRiskLabel: string;
+  stimulusLabel: string;
+};
+
+const normalizeGoalLogicKey = (goal?: string | null) =>
+  normalizeFilterCompareValue(goal || "General Fitness");
+
+const goalLogicCopy: Record<
+  string,
+  { emphasisLabel: string; goalCue: string }
+> = {
+  strength: {
+    emphasisLabel: "Load progression",
+    goalCue:
+      "Prioritizes heavier quality sets, best-load trends, and longer-rest readiness.",
+  },
+  hypertrophy: {
+    emphasisLabel: "Muscle volume",
+    goalCue:
+      "Prioritizes weekly set volume, muscle coverage, and repeatable growth stimulus.",
+  },
+  "fat loss": {
+    emphasisLabel: "Consistency density",
+    goalCue:
+      "Prioritizes training consistency, total reps, and conditioning-friendly density.",
+  },
+  mobility: {
+    emphasisLabel: "ROM frequency",
+    goalCue:
+      "Prioritizes repeat exposure, controlled range, and low-friction consistency.",
+  },
+  "athletic performance": {
+    emphasisLabel: "Quality power",
+    goalCue:
+      "Prioritizes explosive intent, clean reps, and balanced athletic categories.",
+  },
+  conditioning: {
+    emphasisLabel: "Work capacity",
+    goalCue:
+      "Prioritizes repeatable output, density, and total weekly movement volume.",
+  },
+  "rehab return to training": {
+    emphasisLabel: "Controlled progression",
+    goalCue:
+      "Prioritizes gradual loading, controlled volume, and consistent exposure.",
+  },
+  stability: {
+    emphasisLabel: "Control under load",
+    goalCue:
+      "Prioritizes bracing, positional control, and stable repeatable patterns.",
+  },
+  power: {
+    emphasisLabel: "Explosive quality",
+    goalCue:
+      "Prioritizes quality reps, load intent, and crisp low-fatigue power practice.",
+  },
+  "general fitness": {
+    emphasisLabel: "Balanced training",
+    goalCue:
+      "Prioritizes broad weekly coverage, consistency, and sustainable progression.",
+  },
+  endurance: {
+    emphasisLabel: "Repeatable reps",
+    goalCue:
+      "Prioritizes total reps, frequency, and durable work capacity.",
+  },
+  "skill technique": {
+    emphasisLabel: "Movement quality",
+    goalCue:
+      "Prioritizes clean reps, practice frequency, and technique consistency.",
+  },
+  recovery: {
+    emphasisLabel: "Low fatigue consistency",
+    goalCue:
+      "Prioritizes fresh areas, controlled volume, and lower-fatigue movement choices.",
+  },
+};
+
+const getGoalLogicCopy = (goal?: string | null) =>
+  goalLogicCopy[normalizeGoalLogicKey(goal)] ||
+  goalLogicCopy["general fitness"];
+
+const isStatWithinPreviousTrailingSevenDays = (
+  stat: LocalExerciseStatEntry,
+) => {
+  const statTime = getStatTime(stat);
+  if (!statTime) return false;
+
+  const trailingSevenStart = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const previousSevenStart = Date.now() - 14 * 24 * 60 * 60 * 1000;
+
+  return statTime >= previousSevenStart && statTime < trailingSevenStart;
+};
+
+const getPreviousTrailingSevenDayWeightVolumeForStats = (
+  stats: LocalExerciseStatEntry[],
+) =>
+  stats
+    .filter(isStatWithinPreviousTrailingSevenDays)
+    .reduce((total, stat) => total + getStatVolume(stat), 0);
+
+const formatWeightVolumeComparison = (
+  currentVolume: number,
+  previousVolume: number,
+) => {
+  if (currentVolume <= 0) return "No load volume yet";
+  if (previousVolume <= 0) return "No prior loaded range";
+
+  const percentChange = ((currentVolume - previousVolume) / previousVolume) * 100;
+  const roundedChange = Math.round(percentChange);
+  const prefix = roundedChange > 0 ? "+" : "";
+
+  return `${prefix}${roundedChange}% vs prior 7 days`;
+};
+
+const getFutureLoadCapacityLabel = (
+  stats: LocalExerciseStatEntry[],
+  unit: WeightUnit,
+) => {
+  const loadedStats = stats
+    .filter((stat) => parseStatNumber(stat.weight) > 0)
+    .sort((left, right) => getStatTime(right) - getStatTime(left));
+
+  if (loadedStats.length < 2) return "Future load: needs more data";
+
+  const recentLoadedStats = loadedStats.slice(0, 5);
+  const latestWeight = parseStatNumber(recentLoadedStats[0].weight);
+  const bestEstimatedLoad = Math.max(
+    ...recentLoadedStats.map(getEstimatedOneRepMax),
+  );
+  const estimate = Math.max(latestWeight, bestEstimatedLoad * 0.82);
+  const displayEstimate = formatWeightMetric(estimate, unit);
+
+  return displayEstimate
+    ? `Estimated next working load: ${displayEstimate}`
+    : "Future load: needs more data";
+};
+
+const getVolumeForecastLabel = (
+  stats: LocalExerciseStatEntry[],
+  weeklySets: number,
+  weeklyGoalSets: number,
+) => {
+  const weeklyStats = stats.filter(isStatWithinTrailingSevenDays);
+  if (!weeklyStats.length) return "Forecast: log sets to project the week";
+
+  const oldestTime = Math.min(...weeklyStats.map(getStatTime).filter(Boolean));
+  const daysSpanned = Math.min(
+    7,
+    Math.max(1, Math.ceil((Date.now() - oldestTime) / (24 * 60 * 60 * 1000)) + 1),
+  );
+  const projectedSets = (Math.max(0, weeklySets) / daysSpanned) * 7;
+  const projectedPercent = Math.round(
+    getWeeklySetGoalProgressPercent(projectedSets, weeklyGoalSets),
+  );
+
+  return `At this pace: estimated ${projectedPercent}% of weekly volume`;
+};
+
+const getGoalStimulusLabel = (
+  goal: string,
+  weeklySets: number,
+  weeklyGoalSets: number,
+) => {
+  const progress = getWeeklySetGoalProgressPercent(weeklySets, weeklyGoalSets);
+  const normalizedGoal = normalizeGoalLogicKey(goal);
+
+  if (progress >= 111) return "Training stimulus: high, watch overreach";
+  if (progress >= 75) {
+    return normalizedGoal.includes("hypertrophy")
+      ? "Muscle-growth stimulus: high this range"
+      : "Training stimulus: on target";
+  }
+  if (progress >= 41) return "Training stimulus: building";
+  return "Training stimulus: under target";
+};
+
+const getRecoveryRiskLabel = (weeklySets: number, weeklyGoalSets: number) => {
+  const progress = getWeeklySetGoalProgressPercent(weeklySets, weeklyGoalSets);
+
+  if (progress > 110) return "Recovery signal: above target";
+  if (progress >= 75) return "Recovery signal: balanced";
+  return "Recovery signal: room to build";
+};
 
 const getExerciseStatHistory = (
   stats: LocalExerciseStatEntry[],
@@ -6524,13 +7003,21 @@ const getExerciseSectionCoreMovementTabs = (
 type WeeklySetsSummary = {
   bodyRepsByLabel: Map<string, number>;
   bodySetsByLabel: Map<string, number>;
+  bodyWeightVolumeByLabel: Map<string, number>;
   coreMovementSetsByKey: Map<string, number>;
+  coreMovementWeightVolumeByKey: Map<string, number>;
   exerciseRepsById: Map<string, number>;
   exerciseSetsById: Map<string, number>;
+  exerciseWeightVolumeById: Map<string, number>;
+  latestSessionSetsByLabel: Map<string, number>;
+  latestSessionSetsByLayer: Map<BodyRegionLayer, number>;
+  latestSessionSetsBySectionKey: Map<string, number>;
   lastTrainedByLabel: Map<string, number>;
   lastTrainedByLayer: Map<BodyRegionLayer, number>;
   layerSetsById: Map<BodyRegionLayer, number>;
+  layerWeightVolumeById: Map<BodyRegionLayer, number>;
   sectionSetsByKey: Map<string, number>;
+  sectionWeightVolumeByKey: Map<string, number>;
 };
 
 const createExerciseStatLookup = (exercises: Exercise[]) => {
@@ -6696,17 +7183,176 @@ function VolumeStatusIndicator({
   sets: number;
   statusId?: WeeklyVolumeStatusId;
 }) {
-  const status = statusId
-    ? weeklyVolumeStatusConfig[statusId]
-    : getWeeklyVolumeStatus(sets);
+  const resolvedStatusId = statusId || getWeeklyVolumeStatusId(sets);
+  const status = weeklyVolumeStatusConfig[resolvedStatusId];
 
   return (
     <span
       aria-label={status.label}
-      className={`inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-black/25 ring-1 ${status.ringClass} ${className}`}
+      data-volume-status={resolvedStatusId}
+      className={`exercise-library-volume-status-indicator inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-black/25 ring-1 ${status.ringClass} ${className}`}
       title={status.label}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${status.dotClass}`} />
+    </span>
+  );
+}
+
+function WeightVolumeStat({
+  className = "",
+  comparisonLabel = "",
+  targetVolume = 0,
+  volume,
+  weightUnit,
+}: {
+  className?: string;
+  comparisonLabel?: string;
+  targetVolume?: number;
+  volume: number;
+  weightUnit: WeightUnit;
+}) {
+  const safeVolume = Math.max(0, volume);
+  const hasTarget = targetVolume > 0;
+  const volumeLabel = formatWeightMetric(safeVolume, weightUnit, {
+    compact: true,
+    volume: true,
+  });
+  const targetLabel =
+    hasTarget &&
+    formatWeightMetric(targetVolume, weightUnit, {
+      compact: true,
+      volume: true,
+    });
+  const displayLabel = safeVolume > 0
+    ? targetLabel
+      ? `${volumeLabel} / ${targetLabel} volume`
+      : `${volumeLabel} volume`
+    : "No loaded range yet";
+
+  return (
+    <span
+      className={`exercise-library-weight-volume-stat ${className}`}
+      title={
+        comparisonLabel
+          ? `Weight volume: ${displayLabel}. ${comparisonLabel}`
+          : `Weight volume: ${displayLabel}`
+      }
+    >
+      <span className="text-[var(--exercise-theme-text)]">Weight Volume</span>
+      <span>{displayLabel}</span>
+      {comparisonLabel && safeVolume > 0 ? <span>{comparisonLabel}</span> : null}
+    </span>
+  );
+}
+
+type CooldownCounterSummary = {
+  detail: string;
+  fillPercent: number;
+  label: string;
+  remainingMs: number;
+  sessionSets: number;
+  totalHours: number;
+};
+
+const getCooldownHoursFromSessionDose = (
+  sessionSetsCompleted: number,
+  weeklySetGoal: number,
+) => {
+  const safeGoal = Math.max(1, weeklySetGoal);
+  const sessionVolumeRatio = Math.max(0, sessionSetsCompleted) / safeGoal;
+  return Math.min(48, Math.max(0, (sessionVolumeRatio / 0.5) * 48));
+};
+
+const formatCooldownRemainingLabel = (remainingMs: number) => {
+  if (remainingMs <= 0) return "Ready";
+
+  const remainingHours = Math.max(1, Math.ceil(remainingMs / (60 * 60 * 1000)));
+  const days = Math.floor(remainingHours / 24);
+  const hours = remainingHours % 24;
+
+  if (days > 0 && hours > 0) return `Cooldown: ${days}d ${hours}h left`;
+  if (days > 0) return `Cooldown: ${days}d left`;
+  return `Cooldown: ${remainingHours}h left`;
+};
+
+const getCooldownCounterSummary = ({
+  lastTrainedTime,
+  sessionSetsCompleted,
+  weeklySetGoal,
+}: {
+  lastTrainedTime: number;
+  sessionSetsCompleted: number;
+  weeklySetGoal: number;
+}): CooldownCounterSummary => {
+  const safeSessionSets = Math.max(0, sessionSetsCompleted);
+  const cooldownHours = getCooldownHoursFromSessionDose(
+    safeSessionSets,
+    weeklySetGoal,
+  );
+
+  if (!lastTrainedTime || safeSessionSets <= 0 || cooldownHours <= 0) {
+    return {
+      detail: "No recent sets",
+      fillPercent: 0,
+      label: "Ready",
+      remainingMs: 0,
+      sessionSets: safeSessionSets,
+      totalHours: 0,
+    };
+  }
+
+  const cooldownMs = cooldownHours * 60 * 60 * 1000;
+  const elapsedMs = Math.max(0, Date.now() - lastTrainedTime);
+  const remainingMs = Math.max(0, cooldownMs - elapsedMs);
+  const fillPercent =
+    cooldownMs > 0 ? Math.min(100, (remainingMs / cooldownMs) * 100) : 0;
+  const label =
+    remainingMs <= 0
+      ? "Ready"
+      : elapsedMs < 12 * 60 * 60 * 1000
+        ? "Trained today"
+        : formatCooldownRemainingLabel(remainingMs);
+
+  return {
+    detail:
+      remainingMs <= 0
+        ? "Cooldown complete"
+        : formatCooldownRemainingLabel(remainingMs),
+    fillPercent,
+    label,
+    remainingMs,
+    sessionSets: safeSessionSets,
+    totalHours: cooldownHours,
+  };
+};
+
+function CooldownCounterBar({
+  className = "",
+  summary,
+}: {
+  className?: string;
+  summary: CooldownCounterSummary;
+}) {
+  const cooldownStyle = {
+    "--exercise-cooldown-progress": `${summary.fillPercent}%`,
+  } as ExerciseLibraryThemeCssVariables;
+
+  return (
+    <span
+      className={`exercise-library-cooldown-counter ${className}`}
+      data-ready={summary.remainingMs <= 0 ? "true" : "false"}
+      style={cooldownStyle}
+      title={`2-Day Cooldown Counter. Latest session dose: ${Math.max(
+        0,
+        Math.round(summary.sessionSets),
+      )} sets. ${summary.detail}`}
+    >
+      <span aria-hidden="true" className="exercise-library-cooldown-counter__track">
+        <span className="exercise-library-cooldown-counter__fill" />
+      </span>
+      <span className="exercise-library-cooldown-counter__text">
+        {summary.label}
+      </span>
     </span>
   );
 }
@@ -6715,29 +7361,45 @@ function WeeklySetGoalBadge({
   className = "",
   completedSets,
   completedReps = 0,
+  completedWeightVolume = 0,
   goalSets,
+  rangeLabel = formatWeeklyVolumeRangeLabel(),
   showReps = false,
+  showWeightVolume = false,
+  weightUnit = "lbs",
 }: {
   className?: string;
   completedSets: number;
   completedReps?: number;
+  completedWeightVolume?: number;
   goalSets: number;
+  rangeLabel?: string;
   showReps?: boolean;
+  showWeightVolume?: boolean;
+  weightUnit?: WeightUnit;
 }) {
   const roundedCompletedSets = Math.max(0, Math.round(completedSets));
   const roundedCompletedReps = Math.max(0, Math.round(completedReps));
   const roundedGoalSets = Math.max(1, Math.round(goalSets));
   const statusId = getWeeklySetGoalStatusId(roundedCompletedSets, roundedGoalSets);
   const status = weeklyVolumeStatusConfig[statusId];
+  const weightVolumeLabel = formatWeightMetric(
+    completedWeightVolume,
+    weightUnit,
+    { compact: true, volume: true },
+  );
   const repsLabel =
     showReps && roundedCompletedReps > 0
       ? ` - ${roundedCompletedReps.toLocaleString()} reps`
       : "";
+  const shouldShowWeightVolume = showWeightVolume && Boolean(weightVolumeLabel);
 
   return (
     <span
       className={`inline-flex items-center gap-1 ${className}`}
-      title={`${status.label}: ${roundedCompletedSets} of ${roundedGoalSets} weekly sets${repsLabel}`}
+      title={`${status.label}. Set volume, ${rangeLabel}: ${roundedCompletedSets} of ${roundedGoalSets} sets${repsLabel}${
+        weightVolumeLabel ? ` - Weight volume: ${weightVolumeLabel}` : ""
+      }`}
     >
       <VolumeStatusIndicator
         sets={roundedCompletedSets}
@@ -6747,6 +7409,11 @@ function WeeklySetGoalBadge({
         {roundedCompletedSets} / {roundedGoalSets} sets
         {repsLabel}
       </span>
+      {shouldShowWeightVolume ? (
+        <span className="text-[0.92em] opacity-80">
+          {weightVolumeLabel} volume
+        </span>
+      ) : null}
     </span>
   );
 }
@@ -6778,6 +7445,59 @@ const getBodyTrainingSignal = (
   return "Fresh area";
 };
 
+const getLastTrainedForVolumeLabel = (
+  lastTrainedMap: Map<string, number>,
+  label: string,
+) => {
+  const directValue = lastTrainedMap.get(label);
+  if (typeof directValue === "number") return directValue;
+
+  const normalizedLabel = normalizeBodySelectorValue(label);
+  for (const [mapLabel, value] of lastTrainedMap.entries()) {
+    if (normalizeBodySelectorValue(mapLabel) === normalizedLabel) return value;
+  }
+
+  return 0;
+};
+
+const formatTrainingRecencyLabel = (time: number) => {
+  if (!time) return "No recent training logged";
+
+  const elapsedDays = Math.floor((Date.now() - time) / (24 * 60 * 60 * 1000));
+  if (elapsedDays <= 0) return "Last trained today";
+  if (elapsedDays === 1) return "Last trained yesterday";
+  return `Last trained ${elapsedDays}d ago`;
+};
+
+const getTrainingDayKey = (time: number) => {
+  const date = new Date(time);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+};
+
+const getTrainingStreakLabel = (stats: LocalExerciseStatEntry[]) => {
+  const trainedDays = new Set(
+    stats
+      .map(getStatTime)
+      .filter(Boolean)
+      .map(getTrainingDayKey),
+  );
+
+  if (!trainedDays.size) return "No recent training logged";
+
+  const latestTrainingDay = Math.max(...Array.from(trainedDays));
+  const oneDay = 24 * 60 * 60 * 1000;
+  let streakDays = 0;
+  let cursor = latestTrainingDay;
+
+  while (trainedDays.has(cursor)) {
+    streakDays += 1;
+    cursor -= oneDay;
+  }
+
+  return `${streakDays} ${streakDays === 1 ? "day" : "days"} streak`;
+};
+
 const getBodyPartButtonSizeClass = (body: string) => {
   const normalizedBody = normalizeBodySelectorValue(body);
   if (
@@ -6801,20 +7521,53 @@ const buildWeeklySetsSummary = (
 ): WeeklySetsSummary => {
   const lookup = createExerciseStatLookup(exercises);
   const cutoffTime = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  type LatestSessionDose = { latestTime: number; sessionKey: number; sets: number };
   const summary: WeeklySetsSummary = {
     bodyRepsByLabel: new Map(),
     bodySetsByLabel: new Map(),
+    bodyWeightVolumeByLabel: new Map(),
     coreMovementSetsByKey: new Map(),
+    coreMovementWeightVolumeByKey: new Map(),
     exerciseRepsById: new Map(),
     exerciseSetsById: new Map(),
+    exerciseWeightVolumeById: new Map(),
+    latestSessionSetsByLabel: new Map(),
+    latestSessionSetsByLayer: new Map(),
+    latestSessionSetsBySectionKey: new Map(),
     lastTrainedByLabel: new Map(),
     lastTrainedByLayer: new Map(),
     layerSetsById: new Map(),
+    layerWeightVolumeById: new Map(),
     sectionSetsByKey: new Map(),
+    sectionWeightVolumeByKey: new Map(),
   };
+  const latestSessionDoseByLabel = new Map<string, LatestSessionDose>();
+  const latestSessionDoseByLayer = new Map<BodyRegionLayer, LatestSessionDose>();
+  const latestSessionDoseBySectionKey = new Map<string, LatestSessionDose>();
   const addToMap = (map: Map<string, number>, key: string, sets: number) => {
     if (!key || sets <= 0) return;
     map.set(key, (map.get(key) || 0) + sets);
+  };
+  const addLatestSessionDose = <T extends string>(
+    map: Map<T, LatestSessionDose>,
+    key: T,
+    time: number,
+    sets: number,
+  ) => {
+    if (!key || !time || sets <= 0) return;
+
+    const sessionKey = getTrainingDayKey(time);
+    const current = map.get(key);
+
+    if (!current || sessionKey > current.sessionKey) {
+      map.set(key, { latestTime: time, sessionKey, sets });
+      return;
+    }
+
+    if (sessionKey === current.sessionKey) {
+      current.sets += sets;
+      current.latestTime = Math.max(current.latestTime, time);
+    }
   };
   const addLatestToMap = <T extends string>(
     map: Map<T, number>,
@@ -6832,48 +7585,92 @@ const buildWeeklySetsSummary = (
     const sets = parseStatNumber(stat.sets);
     if (sets <= 0) return;
     const completedReps = getStatCompletedReps(stat);
+    const completedWeightVolume = getStatVolume(stat);
 
     const exercise = resolveStatExercise(stat, lookup);
     if (!exercise) return;
 
     const metadata = getMetadataForExercise(exercise);
     const bodyLabels = getExerciseVolumeBodyLabels(exercise, metadata);
+    const sectionKey = getExerciseCategorySectionLabel(exercise).toLowerCase();
 
-    bodyLabels.forEach((label) =>
-      addLatestToMap(summary.lastTrainedByLabel, label, statTime),
-    );
+    bodyLabels.forEach((label) => {
+      addLatestToMap(summary.lastTrainedByLabel, label, statTime);
+      addLatestSessionDose(latestSessionDoseByLabel, label, statTime, sets);
+    });
     bodyRegionLayerConfigs.forEach((layerConfig) => {
       if (!exerciseMatchesBodyRegionLayer(exercise, metadata, layerConfig.id)) {
         return;
       }
 
       addLatestToMap(summary.lastTrainedByLayer, layerConfig.id, statTime);
+      addLatestSessionDose(
+        latestSessionDoseByLayer,
+        layerConfig.id,
+        statTime,
+        sets,
+      );
       if (statTime >= cutoffTime) {
         const currentLayerSets = summary.layerSetsById.get(layerConfig.id) || 0;
         summary.layerSetsById.set(layerConfig.id, currentLayerSets + sets);
+        const currentLayerWeightVolume =
+          summary.layerWeightVolumeById.get(layerConfig.id) || 0;
+        summary.layerWeightVolumeById.set(
+          layerConfig.id,
+          currentLayerWeightVolume + completedWeightVolume,
+        );
       }
     });
+    addLatestSessionDose(latestSessionDoseBySectionKey, sectionKey, statTime, sets);
 
     if (statTime < cutoffTime) return;
 
     addToMap(summary.exerciseSetsById, exercise.id, sets);
     addToMap(summary.exerciseRepsById, exercise.id, completedReps);
+    addToMap(
+      summary.exerciseWeightVolumeById,
+      exercise.id,
+      completedWeightVolume,
+    );
     bodyLabels.forEach((label) =>
       addToMap(summary.bodySetsByLabel, label, sets),
     );
     bodyLabels.forEach((label) =>
       addToMap(summary.bodyRepsByLabel, label, completedReps),
     );
+    bodyLabels.forEach((label) =>
+      addToMap(summary.bodyWeightVolumeByLabel, label, completedWeightVolume),
+    );
     addToMap(
       summary.sectionSetsByKey,
-      getExerciseCategorySectionLabel(exercise).toLowerCase(),
+      sectionKey,
       sets,
+    );
+    addToMap(
+      summary.sectionWeightVolumeByKey,
+      sectionKey,
+      completedWeightVolume,
     );
     addToMap(
       summary.coreMovementSetsByKey,
       getExerciseCoreMovementTabKey(exercise),
       sets,
     );
+    addToMap(
+      summary.coreMovementWeightVolumeByKey,
+      getExerciseCoreMovementTabKey(exercise),
+      completedWeightVolume,
+    );
+  });
+
+  latestSessionDoseByLabel.forEach((dose, key) => {
+    summary.latestSessionSetsByLabel.set(key, dose.sets);
+  });
+  latestSessionDoseByLayer.forEach((dose, key) => {
+    summary.latestSessionSetsByLayer.set(key, dose.sets);
+  });
+  latestSessionDoseBySectionKey.forEach((dose, key) => {
+    summary.latestSessionSetsBySectionKey.set(key, dose.sets);
   });
 
   return summary;
@@ -6885,6 +7682,16 @@ const getWeeklySetsForExercises = (
 ) =>
   exercises.reduce(
     (total, exercise) => total + (exerciseSetsById.get(exercise.id) || 0),
+    0,
+  );
+
+const getWeeklyWeightVolumeForExercises = (
+  exercises: Exercise[],
+  exerciseWeightVolumeById: Map<string, number>,
+) =>
+  exercises.reduce(
+    (total, exercise) =>
+      total + (exerciseWeightVolumeById.get(exercise.id) || 0),
     0,
   );
 
@@ -6906,13 +7713,17 @@ const getWeeklySetsForVolumeLabel = (
 type LatestSetInsight = {
   addedReps: number;
   addedSets: number;
+  achievementLine: string;
   bodyLabels: string[];
   coreMovementKey: string;
   exerciseId: string;
   exerciseName: string;
   goalLine: string;
   id: string;
+  lastTrainedLine: string;
   latestLine: string;
+  latestWeightPounds: number;
+  latestWeightVolumePounds: number;
   layerIds: BodyRegionLayer[];
   primaryBodyLabel: string;
   pulseLabel: string;
@@ -6942,10 +7753,12 @@ const chooseLatestSetInsightBodyLabel = (labels: string[], fallback: string) => 
 
 const buildLatestSetInsight = ({
   exercise,
+  previousStats,
   previousWeeklySetsSummary,
   stat,
 }: {
   exercise: Exercise;
+  previousStats: LocalExerciseStatEntry[];
   previousWeeklySetsSummary: WeeklySetsSummary;
   stat: LocalExerciseStatEntry;
 }): LatestSetInsight => {
@@ -6971,6 +7784,24 @@ const buildLatestSetInsight = ({
   );
   const sectionLabel = getExerciseCategorySectionLabel(exercise) || "Exercise";
   const sectionKey = sectionLabel.toLowerCase();
+  const previousExerciseStats = getExerciseStatHistory(
+    previousStats,
+    exercise,
+    stat.generatedTitle ||
+      stat.semanticVariationName ||
+      exercise.generatedTitle ||
+      exercise.name,
+    metadata,
+    stat.semanticVariationId || exercise.semanticVariationId,
+  ).filter(isStatWithinTrailingSevenDays);
+  const previousBestVolume = previousExerciseStats.reduce(
+    (bestVolume, previousStat) =>
+      Math.max(bestVolume, getStatVolume(previousStat)),
+    0,
+  );
+  const newStatVolume = getStatVolume(stat);
+  const isNewBestVolumeThisWeek =
+    newStatVolume > 0 && newStatVolume > previousBestVolume;
   const layerIds = Array.from(
     new Set(
       bodyLabels
@@ -6978,23 +7809,26 @@ const buildLatestSetInsight = ({
         .filter((layer): layer is BodyRegionLayer => Boolean(layer)),
     ),
   );
-  const weightLabel = weight > 0 ? ` - ${formatMetric(weight)} lb` : "";
 
   return {
     addedReps,
     addedSets,
+    achievementLine: isNewBestVolumeThisWeek ? "New best volume this week" : "",
     bodyLabels,
     coreMovementKey: getExerciseCoreMovementTabKey(exercise),
     exerciseId: exercise.id,
     exerciseName: stat.generatedTitle || exercise.generatedTitle || exercise.name,
-    goalLine: `${primaryBodyLabel}: ${Math.max(
+    goalLine: `Trailing 7 days - ${primaryBodyLabel}: ${Math.max(
       0,
       Math.round(nextPrimaryBodySets),
     )} / ${bodyWeeklyGoal} weekly sets`,
     id: `${exercise.id}-${stat.date}-${addedSets}-${addedReps}`,
+    lastTrainedLine: "Last trained today",
     latestLine: `Latest: ${Math.max(0, Math.round(addedSets))} ${
       Math.round(addedSets) === 1 ? "set" : "sets"
-    } - ${Math.max(0, Math.round(repsPerSet)) || "--"} reps${weightLabel}`,
+    } - ${Math.max(0, Math.round(repsPerSet)) || "--"} reps`,
+    latestWeightPounds: weight,
+    latestWeightVolumePounds: newStatVolume,
     layerIds,
     primaryBodyLabel,
     pulseLabel: `+${Math.max(0, Math.round(addedSets))} ${
@@ -7008,29 +7842,67 @@ const buildLatestSetInsight = ({
     sectionLabel,
     summaryLine: `+${Math.max(0, Math.round(addedSets))} ${
       Math.round(addedSets) === 1 ? "set" : "sets"
-    } added to ${primaryBodyLabel} this week`,
+    } added to ${primaryBodyLabel} in trailing 7 days`,
     timestamp: Date.now(),
   };
+};
+
+const formatLatestSetInsightDisplayLine = (
+  insight: LatestSetInsight,
+  preferredWeightUnit: WeightUnit,
+) => {
+  const loadLabel = formatWeightMetric(
+    insight.latestWeightPounds,
+    preferredWeightUnit,
+  );
+  const volumeLabel = formatWeightMetric(
+    insight.latestWeightVolumePounds,
+    preferredWeightUnit,
+    { compact: true, volume: true },
+  );
+
+  return [
+    insight.latestLine,
+    loadLabel ? `Load: ${loadLabel}` : "",
+    volumeLabel ? `Weight volume: ${volumeLabel}` : "",
+  ]
+    .filter(Boolean)
+    .join(" - ");
 };
 
 function ExerciseBodyAnatomySelector({
   activeLayer,
   bodyOptions,
+  exercises,
   latestSetInsight,
   onBodySelect,
   onLayerSelect,
+  onPopularExerciseSelect,
+  preferredWeightUnit,
   selectedBodies,
+  weeklyVolumeRangeLabel,
   weeklySetsSummary,
 }: {
   activeLayer: BodyRegionLayer | null;
   bodyOptions: string[];
+  exercises: Exercise[];
   latestSetInsight?: LatestSetInsight | null;
   onBodySelect: (body: string, layer: BodyRegionLayer) => void;
   onLayerSelect: (layer: BodyRegionLayer) => void;
+  onPopularExerciseSelect: (exercise: Exercise) => void;
+  preferredWeightUnit: WeightUnit;
   selectedBodies: string[];
+  weeklyVolumeRangeLabel: string;
   weeklySetsSummary: WeeklySetsSummary;
 }) {
   const [gender, setGender] = useState<ExerciseBodyFigureGender>("male");
+  const anatomySelectorRef = useRef<HTMLDivElement | null>(null);
+  const [activeAnatomyPopup, setActiveAnatomyPopup] = useState<{
+    bodyOption: string;
+    layer: BodyRegionLayer;
+    pinned: boolean;
+    slug: MuscleSlug;
+  } | null>(null);
   const selectedBodySet = useMemo(
     () => new Set(selectedBodies.map(normalizeBodySelectorValue)),
     [selectedBodies],
@@ -7052,6 +7924,17 @@ function ExerciseBodyAnatomySelector({
         (total, sets) => total + sets,
         0,
       );
+  const activeLayerWeightVolume = activeLayer
+    ? weeklySetsSummary.layerWeightVolumeById.get(activeLayer) || 0
+    : Array.from(weeklySetsSummary.exerciseWeightVolumeById.values()).reduce(
+        (total, volume) => total + volume,
+        0,
+      );
+  const activeLayerWeightVolumeLabel = formatWeightMetric(
+    activeLayerWeightVolume,
+    preferredWeightUnit,
+    { compact: true, volume: true },
+  );
   const activeLayerWeeklyGoal = getWeeklySetGoalForRegionLayer(activeLayer);
   const activeLayerTheme =
     bodyRegionLayerConfigs.find((config) => config.id === activeLayer)?.theme ||
@@ -7066,6 +7949,128 @@ function ExerciseBodyAnatomySelector({
   const activeLayerLastTrained = activeLayer
     ? weeklySetsSummary.lastTrainedByLayer.get(activeLayer) || 0
     : Math.max(0, ...Array.from(weeklySetsSummary.lastTrainedByLayer.values()));
+  const activeLayerLatestSessionSets = activeLayer
+    ? weeklySetsSummary.latestSessionSetsByLayer.get(activeLayer) || 0
+    : Math.max(
+        0,
+        ...Array.from(weeklySetsSummary.latestSessionSetsByLayer.values()),
+      );
+  const activeLayerCooldownSummary = getCooldownCounterSummary({
+    lastTrainedTime: activeLayerLastTrained,
+    sessionSetsCompleted: activeLayerLatestSessionSets,
+    weeklySetGoal: activeLayerWeeklyGoal,
+  });
+
+  useEffect(() => {
+    if (!activeAnatomyPopup) return;
+
+    const handleDocumentPointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        anatomySelectorRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      setActiveAnatomyPopup(null);
+    };
+    const handleDocumentKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setActiveAnatomyPopup(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handleDocumentPointerDown);
+    document.addEventListener("keydown", handleDocumentKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handleDocumentPointerDown);
+      document.removeEventListener("keydown", handleDocumentKeyDown);
+    };
+  }, [activeAnatomyPopup]);
+
+  const showAnatomyPopup = (slug: MuscleSlug, pinned = false) => {
+    const layer = exerciseAnatomySlugLayer[slug];
+    const bodyOption =
+      resolveAnatomySlugBodyOption(slug, bodyOptions) || labelize(slug);
+
+    setActiveAnatomyPopup({
+      bodyOption,
+      layer,
+      pinned,
+      slug,
+    });
+  };
+
+  const closeUnpinnedAnatomyPopup = () => {
+    setActiveAnatomyPopup((current) =>
+      current && !current.pinned ? null : current,
+    );
+  };
+
+  const selectAnatomySlug = (slug: MuscleSlug) => {
+    const layer = exerciseAnatomySlugLayer[slug];
+    const bodyOption = resolveAnatomySlugBodyOption(slug, bodyOptions);
+
+    showAnatomyPopup(slug, true);
+
+    if (bodyOption) {
+      onBodySelect(bodyOption, layer);
+      return;
+    }
+
+    onLayerSelect(layer);
+  };
+
+  const anatomyPopupTheme =
+    activeAnatomyPopup &&
+    getBodyRegionTheme(activeAnatomyPopup.bodyOption || activeAnatomyPopup.layer);
+  const anatomyPopupWeeklySets = activeAnatomyPopup
+    ? getWeeklySetsForVolumeLabel(
+        weeklySetsSummary.bodySetsByLabel,
+        activeAnatomyPopup.bodyOption,
+      ) ||
+      weeklySetsSummary.layerSetsById.get(activeAnatomyPopup.layer) ||
+      0
+    : 0;
+  const anatomyPopupWeeklyGoal = activeAnatomyPopup
+    ? getWeeklySetGoalForBodyPart(activeAnatomyPopup.bodyOption) ||
+      getWeeklySetGoalForRegionLayer(activeAnatomyPopup.layer)
+    : defaultBodyPartWeeklySetGoal;
+  const anatomyPopupLastTrained = activeAnatomyPopup
+    ? getLastTrainedForVolumeLabel(
+        weeklySetsSummary.lastTrainedByLabel,
+        activeAnatomyPopup.bodyOption,
+      ) ||
+      weeklySetsSummary.lastTrainedByLayer.get(activeAnatomyPopup.layer) ||
+      0
+    : 0;
+  const anatomyPopupLatestSessionSets = activeAnatomyPopup
+    ? getWeeklySetsForVolumeLabel(
+        weeklySetsSummary.latestSessionSetsByLabel,
+        activeAnatomyPopup.bodyOption,
+      ) ||
+      weeklySetsSummary.latestSessionSetsByLayer.get(activeAnatomyPopup.layer) ||
+      0
+    : 0;
+  const anatomyPopupCooldownSummary = getCooldownCounterSummary({
+    lastTrainedTime: anatomyPopupLastTrained,
+    sessionSetsCompleted: anatomyPopupLatestSessionSets,
+    weeklySetGoal: anatomyPopupWeeklyGoal,
+  });
+  const anatomyPopupPopularExercises = activeAnatomyPopup
+    ? getPopularExercisesForBodyRegion(activeAnatomyPopup.bodyOption, exercises)
+    : [];
+  const anatomyPopupStyle =
+    anatomyPopupTheme &&
+    ({
+      ...getCategoryThemeCssVariables(anatomyPopupTheme),
+      "--exercise-layer-volume-progress": `${getWeeklySetGoalFillPercent(
+        anatomyPopupWeeklySets,
+        anatomyPopupWeeklyGoal,
+      )}%`,
+    } as ExerciseLibraryThemeCssVariables);
 
   const bodyData = useMemo<readonly ExtendedBodyPart[]>(() => {
     return exerciseAnatomyBodySlugs.map((slug) => {
@@ -7122,19 +8127,14 @@ function ExerciseBodyAnatomySelector({
     const slug = part.slug as MuscleSlug;
     if (!exerciseAnatomyBodySlugs.includes(slug)) return;
 
-    const layer = exerciseAnatomySlugLayer[slug];
-    const bodyOption = resolveAnatomySlugBodyOption(slug, bodyOptions);
-
-    if (bodyOption) {
-      onBodySelect(bodyOption, layer);
-      return;
-    }
-
-    onLayerSelect(layer);
+    selectAnatomySlug(slug);
   };
 
   return (
-    <div className="grid gap-3 border-b border-cyan-100/10 p-2.5 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
+    <div
+      ref={anatomySelectorRef}
+      className="relative grid gap-3 overflow-visible border-b border-cyan-100/10 p-2.5 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]"
+    >
       <div className="relative overflow-hidden rounded-[24px] border border-cyan-100/14 bg-[radial-gradient(circle_at_50%_12%,rgba(34,211,238,0.18),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.76))] p-3 shadow-[0_18px_44px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.10)]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_44%,rgba(16,185,129,0.12),transparent_50%)]" />
         <div className="relative z-10 flex items-center justify-between gap-2">
@@ -7188,6 +8188,63 @@ function ExerciseBodyAnatomySelector({
                 hiddenParts={["hair"]}
                 onBodyPartPress={handleBodyPartPress}
               />
+              {exerciseAnatomyBodySlugs.map((slug) => {
+                const layer = exerciseAnatomySlugLayer[slug];
+                const bodyOption =
+                  resolveAnatomySlugBodyOption(slug, bodyOptions) ||
+                  labelize(slug);
+                const isLayerVisible = !activeLayer || activeLayer === layer;
+                const weeklySets =
+                  getWeeklySetsForVolumeLabel(
+                    weeklySetsSummary.bodySetsByLabel,
+                    bodyOption,
+                  ) ||
+                  weeklySetsSummary.layerSetsById.get(layer) ||
+                  0;
+                const weeklyGoal = getWeeklySetGoalForBodyPart(bodyOption);
+                const statusId = getWeeklySetGoalStatusId(
+                  weeklySets,
+                  weeklyGoal,
+                );
+                const indicatorTheme = getBodyRegionTheme(bodyOption);
+                const indicatorStyle = {
+                  ...exerciseAnatomyIndicatorPositions[slug][figureSide],
+                  ...getCategoryThemeCssVariables(indicatorTheme),
+                } as CSSProperties;
+                const isSelected =
+                  selectedBodySet.has(normalizeBodySelectorValue(bodyOption)) ||
+                  activeAnatomyPopup?.slug === slug;
+
+                return (
+                  <button
+                    key={`${figureSide}-${slug}`}
+                    type="button"
+                    aria-pressed={isSelected}
+                    aria-label={`${bodyOption} anatomy region, ${Math.max(
+                      0,
+                      Math.round(weeklySets),
+                    )} of ${weeklyGoal} sets`}
+                    data-volume-status={statusId}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      selectAnatomySlug(slug);
+                    }}
+                    onFocus={() => showAnatomyPopup(slug)}
+                    onMouseEnter={() => showAnatomyPopup(slug)}
+                    onMouseLeave={closeUnpinnedAnatomyPopup}
+                    style={indicatorStyle}
+                    title={`${bodyOption}: ${Math.max(
+                      0,
+                      Math.round(weeklySets),
+                    )} / ${weeklyGoal} sets`}
+                    className={`exercise-library-anatomy-indicator ${
+                      isSelected ? "exercise-library-anatomy-indicator--active" : ""
+                    } ${isLayerVisible ? "" : "opacity-35"}`}
+                  >
+                    <span className="sr-only">{bodyOption}</span>
+                  </button>
+                );
+              })}
             </div>
           ))}
         </div>
@@ -7214,12 +8271,20 @@ function ExerciseBodyAnatomySelector({
             <p className="relative z-10 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
               <WeeklySetGoalBadge
                 completedSets={activeLayerWeeklySets}
+                completedWeightVolume={activeLayerWeightVolume}
                 goalSets={activeLayerWeeklyGoal}
+                rangeLabel={weeklyVolumeRangeLabel}
+                showWeightVolume={Boolean(activeLayerWeightVolumeLabel)}
+                weightUnit={preferredWeightUnit}
               />
             </p>
             <p className="relative z-10 mt-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-slate-400">
               {formatLastTrainedBadge(activeLayerLastTrained)}
             </p>
+            <CooldownCounterBar
+              className="relative z-10 mt-1 justify-end"
+              summary={activeLayerCooldownSummary}
+            />
           </div>
         </div>
 
@@ -7235,8 +8300,7 @@ function ExerciseBodyAnatomySelector({
             )}
           </p>
           <p className="mt-1 text-[10px] font-bold text-slate-400">
-            Uses logged sets from the trailing 7 days and your latest matching
-            stat entry.
+            Uses logged set volume and weight volume from {weeklyVolumeRangeLabel}.
           </p>
         </div>
 
@@ -7248,9 +8312,25 @@ function ExerciseBodyAnatomySelector({
             );
             const layerWeeklySets =
               weeklySetsSummary.layerSetsById.get(layerConfig.id) || 0;
+            const layerWeightVolume =
+              weeklySetsSummary.layerWeightVolumeById.get(layerConfig.id) || 0;
+            const layerWeightVolumeLabel = formatWeightMetric(
+              layerWeightVolume,
+              preferredWeightUnit,
+              { compact: true, volume: true },
+            );
             const layerWeeklyGoal = getWeeklySetGoalForRegionLayer(
               layerConfig.id,
             );
+            const layerLastTrained =
+              weeklySetsSummary.lastTrainedByLayer.get(layerConfig.id) || 0;
+            const layerLatestSessionSets =
+              weeklySetsSummary.latestSessionSetsByLayer.get(layerConfig.id) || 0;
+            const layerCooldownSummary = getCooldownCounterSummary({
+              lastTrainedTime: layerLastTrained,
+              sessionSetsCompleted: layerLatestSessionSets,
+              weeklySetGoal: layerWeeklyGoal,
+            });
             const layerStatusId = getWeeklySetGoalStatusId(
               layerWeeklySets,
               layerWeeklyGoal,
@@ -7262,9 +8342,6 @@ function ExerciseBodyAnatomySelector({
                 layerWeeklyGoal,
               )}%`,
             } as ExerciseLibraryThemeCssVariables;
-            const layerLastTrained =
-              weeklySetsSummary.lastTrainedByLayer.get(layerConfig.id) || 0;
-
             return (
               <button
                 key={layerConfig.id}
@@ -7272,10 +8349,14 @@ function ExerciseBodyAnatomySelector({
                 aria-pressed={isActiveLayer}
                 onClick={() => onLayerSelect(layerConfig.id)}
                 style={layerVolumeStyle}
-                title={`${layerConfig.title}: ${Math.max(
+                title={`${layerConfig.title}. Set volume, ${weeklyVolumeRangeLabel}: ${Math.max(
                   0,
                   Math.round(layerWeeklySets),
-                )} of ${layerWeeklyGoal} weekly sets, ${weeklyVolumeStatusConfig[layerStatusId].label}`}
+                )} of ${layerWeeklyGoal} sets${
+                  layerWeightVolumeLabel
+                    ? ` - Weight volume: ${layerWeightVolumeLabel}`
+                    : ""
+                }, ${weeklyVolumeStatusConfig[layerStatusId].label}`}
                 className={`exercise-library-layer-volume-card relative min-h-[78px] overflow-hidden rounded-[18px] border px-3 py-2 text-left transition duration-200 focus:outline-none focus:ring-2 focus:ring-white/25 ${
                   isLatestLayerPulse ? "exercise-library-volume-pulse" : ""
                 } ${
@@ -7304,12 +8385,20 @@ function ExerciseBodyAnatomySelector({
                   <span className="mt-2 inline-flex rounded-lg border border-current/20 bg-black/15 px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em]">
                     <WeeklySetGoalBadge
                       completedSets={layerWeeklySets}
+                      completedWeightVolume={layerWeightVolume}
                       goalSets={layerWeeklyGoal}
+                      rangeLabel={weeklyVolumeRangeLabel}
+                      showWeightVolume={Boolean(layerWeightVolumeLabel)}
+                      weightUnit={preferredWeightUnit}
                     />
                   </span>
                   <span className="ml-1 mt-2 inline-flex rounded-lg border border-current/20 bg-black/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em]">
                     {formatLastTrainedBadge(layerLastTrained)}
                   </span>
+                  <CooldownCounterBar
+                    className="mt-2"
+                    summary={layerCooldownSummary}
+                  />
                   {isLatestLayerPulse ? (
                     <span className="ml-1 mt-2 inline-flex rounded-lg border border-white/20 bg-white/15 px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em]">
                       {latestSetInsight?.pulseLabel}
@@ -7322,6 +8411,95 @@ function ExerciseBodyAnatomySelector({
         </div>
 
       </div>
+      {activeAnatomyPopup && anatomyPopupTheme && anatomyPopupStyle ? (
+        <div
+          style={anatomyPopupStyle}
+          className="exercise-library-anatomy-popup absolute left-3 right-3 top-3 z-[120] max-h-[min(28rem,calc(100vh-2rem))] overflow-y-auto rounded-[24px] border border-white/14 bg-[radial-gradient(circle_at_12%_0%,var(--exercise-theme-accent-soft),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-3 shadow-[0_28px_88px_rgba(0,0,0,0.72),0_0_38px_var(--exercise-theme-glow),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl sm:left-auto sm:w-[22rem]"
+          role="dialog"
+          aria-label={`${activeAnatomyPopup.bodyOption} anatomy insight`}
+        >
+          <div className={`pointer-events-none absolute inset-x-4 top-0 h-px ${anatomyPopupTheme.accentClass}`} />
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[var(--exercise-theme-text)]">
+                Muscle insight
+              </p>
+              <h3 className="mt-1 text-lg font-black leading-6 text-white">
+                {activeAnatomyPopup.bodyOption}
+              </h3>
+              <p className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
+                {activeAnatomyPopup.layer} body layer
+              </p>
+            </div>
+            <button
+              type="button"
+              aria-label="Close muscle insight"
+              onClick={() => setActiveAnatomyPopup(null)}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] text-xs font-black text-slate-300 transition hover:border-white/24 hover:bg-white/[0.12] hover:text-white"
+            >
+              X
+            </button>
+          </div>
+
+          <p className="mt-3 text-xs font-semibold leading-5 text-slate-300">
+            {getAnatomyRegionDescription(
+              activeAnatomyPopup.bodyOption,
+              activeAnatomyPopup.slug,
+            )}
+          </p>
+
+          <div className="exercise-library-layer-volume-card relative mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.045] p-3">
+            <span
+              aria-hidden="true"
+              className="exercise-library-layer-volume-card__fill"
+            />
+            <div className="relative z-10 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.12em] text-white">
+                <WeeklySetGoalBadge
+                  completedSets={anatomyPopupWeeklySets}
+                  goalSets={anatomyPopupWeeklyGoal}
+                  rangeLabel={weeklyVolumeRangeLabel}
+                />
+              </span>
+              <span className="rounded-xl border border-white/10 bg-black/18 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-300">
+                {formatTrainingRecencyLabel(anatomyPopupLastTrained)}
+              </span>
+              <CooldownCounterBar
+                className="basis-full"
+                summary={anatomyPopupCooldownSummary}
+              />
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+              Popular
+            </p>
+            {anatomyPopupPopularExercises.length ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {anatomyPopupPopularExercises.map(({ exercise, title }) => (
+                  <button
+                    key={exercise.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveAnatomyPopup(null);
+                      onPopularExerciseSelect(exercise);
+                    }}
+                    className={`exercise-library-logic-pill rounded-xl border px-2 py-1 text-left text-[9px] font-black uppercase tracking-[0.08em] transition hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-white/25 ${anatomyPopupTheme.pillClass}`}
+                    title={`Open ${title}`}
+                  >
+                    {title}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-xs font-semibold text-slate-400">
+                No mapped popular exercises yet.
+              </p>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -7360,6 +8538,1213 @@ const getExercisePageSelectorTheme = (sectionTheme: CategoryTheme) =>
     ? exerciseLibraryPageSelectorFallbackTheme
     : sectionTheme;
 
+type TrainingIntelligenceStatCard = {
+  detail?: string;
+  weightVolume?: number;
+  weightVolumeComparisonLabel?: string;
+  weightVolumeTarget?: number;
+  helper: string;
+  id: string;
+  onClick?: () => void;
+  progressPercent?: number;
+  pulse?: boolean;
+  statusId?: WeeklyVolumeStatusId;
+  theme: CategoryTheme;
+  title?: string;
+  value: string;
+  label: string;
+};
+
+type TrainingIntelligenceShortcut = {
+  active?: boolean;
+  disabled?: boolean;
+  helper?: string;
+  id: string;
+  label: string;
+  onClick: () => void;
+  theme: CategoryTheme;
+  title?: string;
+};
+
+type TrainingLogicInsight = {
+  detail: string;
+  eyebrow: string;
+  id: string;
+  onClick?: () => void;
+  statusId?: WeeklyVolumeStatusId;
+  theme: CategoryTheme;
+  title: string;
+};
+
+type TrainingLogicPanelId = "goal" | "stats" | "insights";
+
+function TrainingLogicDropdownSection({
+  accent,
+  children,
+  helper,
+  id,
+  isOpen,
+  onOpen,
+  status,
+  title,
+}: {
+  accent: string;
+  children: ReactNode;
+  helper: string;
+  id: TrainingLogicPanelId;
+  isOpen: boolean;
+  onOpen: (id: TrainingLogicPanelId) => void;
+  status: string;
+  title: string;
+}) {
+  return (
+    <article
+      className="exercise-library-training-dropdown rounded-[24px] border border-white/10 bg-slate-950/34 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
+      data-open={isOpen ? "true" : "false"}
+    >
+      <button
+        type="button"
+        aria-expanded={isOpen}
+        onClick={() => {
+          if (!isOpen) onOpen(id);
+        }}
+        className="exercise-library-training-dropdown__trigger flex w-full items-center justify-between gap-3 rounded-[24px] px-3 py-3 text-left transition hover:border-[var(--exercise-theme-border)] focus:outline-none focus:ring-2 focus:ring-white/18 sm:px-4"
+      >
+        <span className="min-w-0">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--exercise-theme-text)]">
+              {title}
+            </span>
+            <span className="rounded-xl border border-white/10 bg-white/[0.055] px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-slate-300">
+              {status}
+            </span>
+          </span>
+          <span className="mt-1 block text-xs font-semibold leading-5 text-slate-400">
+            {helper}
+          </span>
+        </span>
+        <span
+          aria-hidden="true"
+          className="exercise-library-training-dropdown__chevron flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] text-sm font-black text-[var(--exercise-theme-text)]"
+        >
+          v
+        </span>
+      </button>
+      <div className="exercise-library-training-dropdown__content">
+        <div className="px-3 pb-3 sm:px-4 sm:pb-4">{children}</div>
+      </div>
+      <div
+        aria-hidden="true"
+        className={`exercise-library-training-dropdown__accent ${accent}`}
+      />
+    </article>
+  );
+}
+
+function TrainingIntelligenceHeader({
+  currentFocusLabel,
+  goalLogic,
+  insights,
+  lastTrainedLabel,
+  latestSetInsight,
+  onPreferredWeightUnitChange,
+  preferredWeightUnit,
+  profileSummary,
+  sectionTheme,
+  shortcuts,
+  statCards,
+  trainingStreakLabel,
+  weeklyGoalSets,
+  weeklyWeightVolumeComparisonLabel,
+  weeklyVolumeRangeLabel,
+  weeklyWeightVolume,
+  weeklyReps,
+  weeklySets,
+}: {
+  currentFocusLabel: string;
+  goalLogic: GoalLogicSummary;
+  insights: TrainingLogicInsight[];
+  lastTrainedLabel: string;
+  latestSetInsight?: LatestSetInsight | null;
+  onPreferredWeightUnitChange: (unit: WeightUnit) => void;
+  preferredWeightUnit: WeightUnit;
+  profileSummary: ExerciseLibraryProfileSummary;
+  sectionTheme: CategoryTheme;
+  shortcuts: TrainingIntelligenceShortcut[];
+  statCards: TrainingIntelligenceStatCard[];
+  trainingStreakLabel: string;
+  weeklyGoalSets: number;
+  weeklyWeightVolumeComparisonLabel: string;
+  weeklyVolumeRangeLabel: string;
+  weeklyWeightVolume: number;
+  weeklyReps: number;
+  weeklySets: number;
+}) {
+  const headerThemeStyle = {
+    ...getCategoryThemeCssVariables(sectionTheme),
+    "--training-intelligence-progress": `${getWeeklySetGoalFillPercent(
+      weeklySets,
+      weeklyGoalSets,
+    )}%`,
+  } as ExerciseLibraryThemeCssVariables;
+  const weeklyStatusId = getWeeklySetGoalStatusId(weeklySets, weeklyGoalSets);
+  const weeklyStatus = weeklyVolumeStatusConfig[weeklyStatusId];
+  const roundedWeeklySets = Math.max(0, Math.round(weeklySets));
+  const roundedWeeklyReps = Math.max(0, Math.round(weeklyReps));
+  const [activeTrainingPanel, setActiveTrainingPanel] =
+    useState<TrainingLogicPanelId>("goal");
+  const openTrainingPanel = (panelId: TrainingLogicPanelId) => {
+    setActiveTrainingPanel((current) =>
+      current === panelId ? current : panelId,
+    );
+  };
+  const weeklyGoalProgressPercent = Math.round(
+    getWeeklySetGoalFillPercent(weeklySets, weeklyGoalSets),
+  );
+  const secondaryGoalLabel =
+    profileSummary.secondaryGoal &&
+    !/add profile details|no goal set/i.test(profileSummary.secondaryGoal)
+      ? profileSummary.secondaryGoal
+      : "";
+  const bestPerformanceCard =
+    statCards.find((card) =>
+      /best|performance|load/i.test(
+        `${card.id} ${card.label} ${card.helper} ${card.value}`,
+      ),
+    ) || null;
+  const bodyVolumeCards = statCards.filter((card) =>
+    /body|volume|muscle|category|undertrained|highest/i.test(
+      `${card.id} ${card.label}`,
+    ),
+  );
+  const renderTrainingStatCard = (card: TrainingIntelligenceStatCard) => {
+    const cardStyle = {
+      ...getCategoryThemeCssVariables(card.theme),
+      "--training-stat-progress": `${
+        typeof card.progressPercent === "number"
+          ? Math.min(100, Math.max(0, card.progressPercent))
+          : 0
+      }%`,
+    } as ExerciseLibraryThemeCssVariables;
+    const content = (
+      <>
+        {typeof card.progressPercent === "number" ? (
+          <span
+            aria-hidden="true"
+            className="exercise-library-training-stat-card__fill"
+          />
+        ) : null}
+        <span className="relative z-10 flex items-start justify-between gap-2">
+          <span className="min-w-0">
+            <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-400">
+              {card.label}
+            </span>
+            <span className="mt-1 block truncate text-sm font-black text-white">
+              {card.value}
+            </span>
+            {typeof card.weightVolume === "number" ? (
+              <WeightVolumeStat
+                className="mt-2"
+                comparisonLabel={card.weightVolumeComparisonLabel}
+                targetVolume={card.weightVolumeTarget}
+                volume={card.weightVolume}
+                weightUnit={preferredWeightUnit}
+              />
+            ) : null}
+            <span className="mt-1 block line-clamp-2 text-[10px] font-semibold leading-4 text-slate-400">
+              {card.helper}
+            </span>
+          </span>
+          {card.statusId ? (
+            <VolumeStatusIndicator sets={0} statusId={card.statusId} />
+          ) : null}
+        </span>
+        {card.detail ? (
+          <span className="relative z-10 mt-2 block truncate text-[9px] font-black uppercase tracking-[0.1em] text-[var(--exercise-theme-text)]">
+            {card.detail}
+          </span>
+        ) : null}
+        {card.pulse ? (
+          <span className="exercise-library-volume-added-chip relative z-10 mt-2 inline-flex">
+            Updated
+          </span>
+        ) : null}
+      </>
+    );
+    const className = `exercise-library-training-stat-card relative min-h-[116px] overflow-hidden rounded-[20px] border border-white/10 bg-slate-950/42 p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition hover:-translate-y-0.5 hover:border-white/22 hover:bg-white/[0.07] ${card.pulse ? "exercise-library-volume-pulse" : ""}`;
+
+    return card.onClick ? (
+      <button
+        key={card.id}
+        type="button"
+        onClick={card.onClick}
+        style={cardStyle}
+        title={card.title || card.label}
+        className={`${className} cursor-pointer`}
+      >
+        {content}
+      </button>
+    ) : (
+      <div
+        key={card.id}
+        style={cardStyle}
+        title={card.title || card.label}
+        className={className}
+      >
+        {content}
+      </div>
+    );
+  };
+  return (
+    <section
+      style={headerThemeStyle}
+      className={`exercise-library-training-intelligence relative overflow-hidden rounded-[30px] border p-3 shadow-[0_28px_90px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl backdrop-saturate-150 sm:p-4 lg:p-5 ${sectionTheme.surfaceClass} ${sectionTheme.cardClass}`}
+    >
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-0 ${sectionTheme.overlayClass} opacity-70`}
+      />
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-x-0 top-0 h-px ${sectionTheme.accentClass}`}
+      />
+
+      <div className="relative z-10 grid gap-3">
+        <TrainingLogicDropdownSection
+          accent={sectionTheme.accentClass}
+          helper="Primary training target, weekly progress, and goal-specific direction."
+          id="goal"
+          isOpen={activeTrainingPanel === "goal"}
+          onOpen={openTrainingPanel}
+          status={`${weeklyGoalProgressPercent}%`}
+          title="Goal"
+        >
+          <div className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="exercise-library-goal-engine rounded-[22px] border border-white/10 bg-white/[0.045] p-3">
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[var(--exercise-theme-text)]">
+                Primary Goal
+              </p>
+              <h2 className="mt-1 text-2xl font-black leading-7 text-white">
+                {goalLogic.primaryGoalLabel}
+              </h2>
+              {secondaryGoalLabel ? (
+                <p className="mt-1 text-xs font-black uppercase tracking-[0.12em] text-slate-300">
+                  Secondary: {secondaryGoalLabel}
+                </p>
+              ) : null}
+              <p className="mt-3 text-xs font-semibold leading-5 text-slate-300">
+                {goalLogic.goalCue}
+              </p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div className="exercise-library-logic-chip rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2">
+                  <p className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Suggested Focus
+                  </p>
+                  <p className="mt-0.5 text-[11px] font-black leading-4 text-white">
+                    {currentFocusLabel}
+                  </p>
+                </div>
+                <div className="exercise-library-logic-chip rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2">
+                  <p className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Guidance
+                  </p>
+                  <p className="mt-0.5 text-[11px] font-black leading-4 text-white">
+                    {goalLogic.emphasisLabel}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <a
+                  href={ROUTES.dashboard.profile}
+                  className="exercise-library-logic-pill rounded-2xl border border-cyan-100/22 bg-cyan-300/12 px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/50 hover:bg-cyan-300 hover:text-slate-950"
+                >
+                  Edit Preferences
+                </a>
+                <a
+                  href={ROUTES.dashboard.progressGoals}
+                  className="exercise-library-logic-pill rounded-2xl border border-emerald-100/20 bg-emerald-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100 transition hover:-translate-y-0.5 hover:border-emerald-100/45 hover:bg-emerald-300 hover:text-slate-950"
+                >
+                  Edit Goals
+                </a>
+              </div>
+            </div>
+
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                    Weekly Goal Progress
+                  </p>
+                  <p className="mt-1 text-lg font-black text-white">
+                    {roundedWeeklySets} / {weeklyGoalSets} sets
+                  </p>
+                </div>
+                <span
+                  className={`inline-flex items-center gap-2 rounded-2xl border border-white/12 bg-white/[0.06] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-100 ring-1 ${weeklyStatus.ringClass}`}
+                  title={weeklyStatus.label}
+                >
+                  <VolumeStatusIndicator
+                    sets={roundedWeeklySets}
+                    statusId={weeklyStatusId}
+                  />
+                  {weeklyStatus.label}
+                </span>
+              </div>
+              <div className="mt-3 h-2.5 overflow-hidden rounded-full border border-white/10 bg-black/24">
+                <div className="exercise-library-training-intelligence__weekly-fill h-full rounded-full transition-all duration-500 ease-out" />
+              </div>
+              <div className="mt-3 grid gap-2">
+                {[
+                  ["Stimulus", goalLogic.stimulusLabel],
+                  ["Forecast", goalLogic.forecastLabel],
+                  ["Recovery", goalLogic.recoveryRiskLabel],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="exercise-library-logic-chip rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2"
+                  >
+                    <p className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      {label}
+                    </p>
+                    <p className="mt-0.5 text-[11px] font-black leading-4 text-white">
+                      {value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </TrainingLogicDropdownSection>
+
+        <TrainingLogicDropdownSection
+          accent={sectionTheme.accentClass}
+          helper="Weekly volume, recent logs, best performance, and body/category summaries."
+          id="stats"
+          isOpen={activeTrainingPanel === "stats"}
+          onOpen={openTrainingPanel}
+          status={`${roundedWeeklySets}/${weeklyGoalSets}`}
+          title="Stats"
+        >
+          <div className="grid gap-3 xl:grid-cols-[0.8fr_1.2fr]">
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.045] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                Weekly Summary
+              </p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <div className="exercise-library-logic-chip rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2">
+                  <p className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Sets
+                  </p>
+                  <p className="mt-0.5 text-sm font-black text-white">
+                    {roundedWeeklySets} / {weeklyGoalSets}
+                  </p>
+                </div>
+                <div className="exercise-library-logic-chip rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2">
+                  <p className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Reps
+                  </p>
+                  <p className="mt-0.5 text-sm font-black text-white">
+                    {roundedWeeklyReps.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <WeightVolumeStat
+                className="mt-3"
+                comparisonLabel={weeklyWeightVolumeComparisonLabel}
+                volume={weeklyWeightVolume}
+                weightUnit={preferredWeightUnit}
+              />
+              <p className="mt-2 text-xs font-semibold text-slate-400">
+                {weeklyVolumeRangeLabel} · {lastTrainedLabel}
+              </p>
+              {latestSetInsight ? (
+                <div className="mt-3 rounded-2xl border border-emerald-200/18 bg-emerald-300/10 px-3 py-2 text-xs font-bold text-emerald-50">
+                  <p className="font-black uppercase tracking-[0.12em]">
+                    Most Recent Set
+                  </p>
+                  <p className="mt-1 line-clamp-2">
+                    {latestSetInsight.exerciseName} -{" "}
+                    {formatLatestSetInsightDisplayLine(
+                      latestSetInsight,
+                      preferredWeightUnit,
+                    )}
+                  </p>
+                </div>
+              ) : (
+                <p className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2 text-xs font-semibold text-slate-400">
+                  No recent workout logged yet.
+                </p>
+              )}
+              <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.045] p-1">
+                <p className="px-2 pb-1 pt-1 text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                  Preferred Weight Unit
+                </p>
+                <div className="grid grid-cols-2 gap-1">
+                  {(["lbs", "kg"] as WeightUnit[]).map((unit) => (
+                    <button
+                      key={unit}
+                      type="button"
+                      aria-pressed={preferredWeightUnit === unit}
+                      onClick={() => onPreferredWeightUnitChange(unit)}
+                      className={`rounded-xl px-2 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] transition ${
+                        preferredWeightUnit === unit
+                          ? "bg-cyan-300 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.24)]"
+                          : "text-slate-400 hover:bg-white/[0.07] hover:text-white"
+                      }`}
+                    >
+                      {unit === "lbs" ? "Pounds / lbs" : "Kilograms / kg"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {statCards.map(renderTrainingStatCard)}
+            </div>
+          </div>
+          {bestPerformanceCard ? (
+            <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+              Best recent performance: {bestPerformanceCard.value} ·{" "}
+              {bestPerformanceCard.helper}
+            </p>
+          ) : null}
+          {bodyVolumeCards.length ? (
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500">
+              Body/category volume summaries are represented in the stat tiles
+              above.
+            </p>
+          ) : null}
+        </TrainingLogicDropdownSection>
+
+        <TrainingLogicDropdownSection
+          accent={sectionTheme.accentClass}
+          helper="Forecasts, recovery signals, undertrained areas, and next useful moves."
+          id="insights"
+          isOpen={activeTrainingPanel === "insights"}
+          onOpen={openTrainingPanel}
+          status={currentFocusLabel}
+          title="Insights"
+        >
+          <div className="grid gap-3 xl:grid-cols-[1fr_1fr]">
+            <div className="grid gap-2">
+              {[
+                ["Future Load Capacity", goalLogic.futureLoadCapacityLabel],
+                ["Training Stimulus", goalLogic.stimulusLabel],
+                ["Recovery / Cooldown", goalLogic.recoveryRiskLabel],
+                ["Suggested Next Focus", currentFocusLabel],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="exercise-library-logic-chip rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2"
+                >
+                  <p className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    {label}
+                  </p>
+                  <p className="mt-0.5 text-[11px] font-black leading-4 text-white">
+                    {value}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-2">
+              {insights.map((insight) => {
+                const insightStyle = getCategoryThemeCssVariables(insight.theme);
+                const content = (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-y-2 left-0 w-1 rounded-full bg-[var(--exercise-theme-accent)] shadow-[0_0_18px_var(--exercise-theme-glow)]"
+                    />
+                    <span className="flex items-center gap-2 text-[8px] font-black uppercase tracking-[0.14em] text-[var(--exercise-theme-text)]">
+                      {insight.statusId ? (
+                        <VolumeStatusIndicator
+                          sets={0}
+                          statusId={insight.statusId}
+                        />
+                      ) : null}
+                      {insight.eyebrow}
+                    </span>
+                    <span className="mt-1 block text-sm font-black text-white">
+                      {insight.title}
+                    </span>
+                    <span className="mt-1 block text-[11px] font-semibold leading-4 text-slate-400">
+                      {insight.detail}
+                    </span>
+                  </>
+                );
+                const className =
+                  "relative rounded-2xl border border-white/10 bg-white/[0.045] py-2.5 pl-3.5 pr-3 text-left transition hover:-translate-y-0.5 hover:border-[var(--exercise-theme-border)] hover:bg-[var(--exercise-theme-accent-soft)]";
+
+                return insight.onClick ? (
+                  <button
+                    key={insight.id}
+                    type="button"
+                    onClick={insight.onClick}
+                    style={insightStyle}
+                    className={`${className} cursor-pointer`}
+                  >
+                    {content}
+                  </button>
+                ) : (
+                  <div
+                    key={insight.id}
+                    style={insightStyle}
+                    className={className}
+                  >
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {shortcuts.map((shortcut) => {
+              const shortcutStyle = getCategoryThemeCssVariables(shortcut.theme);
+
+              return (
+                <button
+                  key={shortcut.id}
+                  type="button"
+                  disabled={shortcut.disabled}
+                  onClick={shortcut.onClick}
+                  style={shortcutStyle}
+                  title={shortcut.title || shortcut.helper || shortcut.label}
+                  className={`exercise-library-training-shortcut relative min-h-[34px] overflow-hidden rounded-xl border px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] transition ${
+                    shortcut.active
+                      ? "border-[var(--exercise-theme-border)] bg-[var(--exercise-theme-accent-soft)] text-[var(--exercise-theme-text)] shadow-[0_0_22px_var(--exercise-theme-glow)]"
+                      : "border-white/10 bg-white/[0.045] text-slate-300 hover:-translate-y-0.5 hover:border-[var(--exercise-theme-border)] hover:text-white"
+                  } disabled:cursor-not-allowed disabled:opacity-35`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="exercise-library-training-shortcut__fill"
+                  />
+                  <span className="relative z-10">{shortcut.label}</span>
+                </button>
+              );
+            })}
+            <a
+              href={ROUTES.dashboard.stats}
+              className="exercise-library-logic-pill rounded-xl border border-cyan-100/18 bg-cyan-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:-translate-y-0.5 hover:bg-cyan-300 hover:text-slate-950"
+            >
+              Open Stats Dashboard
+            </a>
+          </div>
+        </TrainingLogicDropdownSection>
+      </div>
+
+      <div className="hidden">
+        <div className="exercise-library-goal-engine rounded-[24px] border border-white/10 bg-slate-950/38 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.11)]">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[var(--exercise-theme-text)]">
+                Goal Logic Engine
+              </p>
+              <h2 className="mt-1 text-2xl font-black leading-7 text-white">
+                {goalLogic.primaryGoalLabel}
+              </h2>
+              <p className="mt-2 text-xs font-semibold leading-5 text-slate-300">
+                {goalLogic.goalCue}
+              </p>
+            </div>
+            <a
+              href={ROUTES.dashboard.stats}
+              className="exercise-library-logic-pill rounded-2xl border border-cyan-100/22 bg-cyan-300/12 px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/50 hover:bg-cyan-300 hover:text-slate-950"
+            >
+              View Stats
+            </a>
+          </div>
+
+          <div className="mt-3 grid gap-2">
+            {[
+              ["Emphasis", goalLogic.emphasisLabel],
+              ["Status", trainingStreakLabel],
+              ["Next focus", currentFocusLabel],
+              ["Load capacity", goalLogic.futureLoadCapacityLabel],
+              ["Stimulus", goalLogic.stimulusLabel],
+              ["Forecast", goalLogic.forecastLabel],
+              ["Recovery", goalLogic.recoveryRiskLabel],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="exercise-library-logic-chip rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2"
+              >
+                <p className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                  {label}
+                </p>
+                <p className="mt-0.5 text-[11px] font-black leading-4 text-white">
+                  {value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.045] p-1">
+            <p className="px-2 pb-1 pt-1 text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+              Preferred Weight Unit
+            </p>
+            <div className="grid grid-cols-2 gap-1">
+              {(["lbs", "kg"] as WeightUnit[]).map((unit) => (
+                <button
+                  key={unit}
+                  type="button"
+                  aria-pressed={preferredWeightUnit === unit}
+                  onClick={() => onPreferredWeightUnitChange(unit)}
+                  className={`rounded-xl px-2 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] transition ${
+                    preferredWeightUnit === unit
+                      ? "bg-cyan-300 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.24)]"
+                      : "text-slate-400 hover:bg-white/[0.07] hover:text-white"
+                  }`}
+                >
+                  {unit === "lbs" ? "Pounds / lbs" : "Kilograms / kg"}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          <div className="rounded-[24px] border border-white/10 bg-slate-950/36 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.11)]">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                  Weekly Volume Command
+                </p>
+                <h3 className="mt-1 text-lg font-black text-white">
+                  {roundedWeeklySets} / {weeklyGoalSets} sets
+                </h3>
+                <p className="mt-1 text-xs font-semibold text-slate-400">
+                  {weeklyVolumeRangeLabel} - {roundedWeeklyReps.toLocaleString()} reps
+                  logged - {lastTrainedLabel}
+                </p>
+                <WeightVolumeStat
+                  className="mt-2"
+                  comparisonLabel={weeklyWeightVolumeComparisonLabel}
+                  volume={weeklyWeightVolume}
+                  weightUnit={preferredWeightUnit}
+                />
+              </div>
+              <span
+                className={`inline-flex items-center gap-2 rounded-2xl border border-white/12 bg-white/[0.06] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-100 ring-1 ${weeklyStatus.ringClass}`}
+                title={weeklyStatus.label}
+              >
+                <VolumeStatusIndicator
+                  sets={roundedWeeklySets}
+                  statusId={weeklyStatusId}
+                />
+                {weeklyStatus.label}
+              </span>
+            </div>
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full border border-white/10 bg-black/24">
+              <div className="exercise-library-training-intelligence__weekly-fill h-full rounded-full transition-all duration-500 ease-out" />
+            </div>
+            {latestSetInsight ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-200/18 bg-emerald-300/10 px-3 py-2 text-xs font-bold text-emerald-50">
+                <span className="font-black uppercase tracking-[0.12em]">
+                  Latest:
+                </span>
+                <span className="min-w-0 truncate">
+                  {latestSetInsight.exerciseName} -{" "}
+                  {formatLatestSetInsightDisplayLine(
+                    latestSetInsight,
+                    preferredWeightUnit,
+                  )}
+                </span>
+                <span className="exercise-library-volume-added-chip">
+                  {latestSetInsight.pulseLabel}
+                </span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+            {statCards.map((card) => {
+              const cardStyle = {
+                ...getCategoryThemeCssVariables(card.theme),
+                "--training-stat-progress": `${
+                  typeof card.progressPercent === "number"
+                    ? Math.min(100, Math.max(0, card.progressPercent))
+                    : 0
+                }%`,
+              } as ExerciseLibraryThemeCssVariables;
+              const content = (
+                <>
+                  {typeof card.progressPercent === "number" ? (
+                    <span
+                      aria-hidden="true"
+                      className="exercise-library-training-stat-card__fill"
+                    />
+                  ) : null}
+                  <span className="relative z-10 flex items-start justify-between gap-2">
+                    <span className="min-w-0">
+                      <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-400">
+                        {card.label}
+                      </span>
+                      <span className="mt-1 block truncate text-sm font-black text-white">
+                        {card.value}
+                      </span>
+                      {typeof card.weightVolume === "number" ? (
+                        <WeightVolumeStat
+                          className="mt-2"
+                          comparisonLabel={card.weightVolumeComparisonLabel}
+                          targetVolume={card.weightVolumeTarget}
+                          volume={card.weightVolume}
+                          weightUnit={preferredWeightUnit}
+                        />
+                      ) : null}
+                      <span className="mt-1 block line-clamp-2 text-[10px] font-semibold leading-4 text-slate-400">
+                        {card.helper}
+                      </span>
+                    </span>
+                    {card.statusId ? (
+                      <VolumeStatusIndicator sets={0} statusId={card.statusId} />
+                    ) : null}
+                  </span>
+                  {card.detail ? (
+                    <span className="relative z-10 mt-2 block truncate text-[9px] font-black uppercase tracking-[0.1em] text-[var(--exercise-theme-text)]">
+                      {card.detail}
+                    </span>
+                  ) : null}
+                  {card.pulse ? (
+                    <span className="exercise-library-volume-added-chip relative z-10 mt-2 inline-flex">
+                      Updated
+                    </span>
+                  ) : null}
+                </>
+              );
+              const className = `exercise-library-training-stat-card relative min-h-[116px] overflow-hidden rounded-[20px] border border-white/10 bg-slate-950/42 p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition hover:-translate-y-0.5 hover:border-white/22 hover:bg-white/[0.07] ${card.pulse ? "exercise-library-volume-pulse" : ""}`;
+
+              return card.onClick ? (
+                <button
+                  key={card.id}
+                  type="button"
+                  onClick={card.onClick}
+                  style={cardStyle}
+                  title={card.title || card.label}
+                  className={`${className} cursor-pointer`}
+                >
+                  {content}
+                </button>
+              ) : (
+                <div
+                  key={card.id}
+                  style={cardStyle}
+                  title={card.title || card.label}
+                  className={className}
+                >
+                  {content}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          <div className="rounded-[24px] border border-white/10 bg-slate-950/38 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.11)]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                  Quick Navigation
+                </p>
+                <p className="mt-1 text-xs font-bold text-slate-400">
+                  Jump to the next useful shelf.
+                </p>
+              </div>
+              <span className={`rounded-xl border px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] ${sectionTheme.pillClass}`}>
+                {currentFocusLabel}
+              </span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {shortcuts.map((shortcut) => {
+                const shortcutStyle = getCategoryThemeCssVariables(
+                  shortcut.theme,
+                );
+
+                return (
+                  <button
+                    key={shortcut.id}
+                    type="button"
+                    disabled={shortcut.disabled}
+                    onClick={shortcut.onClick}
+                    style={shortcutStyle}
+                    title={shortcut.title || shortcut.helper || shortcut.label}
+                    className={`exercise-library-training-shortcut relative min-h-[34px] overflow-hidden rounded-xl border px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] transition ${
+                      shortcut.active
+                        ? "border-[var(--exercise-theme-border)] bg-[var(--exercise-theme-accent-soft)] text-[var(--exercise-theme-text)] shadow-[0_0_22px_var(--exercise-theme-glow)]"
+                        : "border-white/10 bg-white/[0.045] text-slate-300 hover:-translate-y-0.5 hover:border-[var(--exercise-theme-border)] hover:text-white"
+                    } disabled:cursor-not-allowed disabled:opacity-35`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="exercise-library-training-shortcut__fill"
+                    />
+                    <span className="relative z-10">{shortcut.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-white/10 bg-slate-950/38 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.11)]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                  Coach Insight
+                </p>
+                <p className="mt-1 text-xs font-bold text-slate-400">
+                  Based on logged weekly volume.
+                </p>
+              </div>
+              <span className="rounded-xl border border-white/10 bg-white/[0.055] px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-slate-300">
+                Live logic
+              </span>
+            </div>
+
+            <div className="mt-3 grid gap-2">
+              {insights.map((insight) => {
+                const insightStyle = getCategoryThemeCssVariables(insight.theme);
+                const content = (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-y-2 left-0 w-1 rounded-full bg-[var(--exercise-theme-accent)] shadow-[0_0_18px_var(--exercise-theme-glow)]"
+                    />
+                    <span className="flex items-center gap-2 text-[8px] font-black uppercase tracking-[0.14em] text-[var(--exercise-theme-text)]">
+                      {insight.statusId ? (
+                        <VolumeStatusIndicator
+                          sets={0}
+                          statusId={insight.statusId}
+                        />
+                      ) : null}
+                      {insight.eyebrow}
+                    </span>
+                    <span className="mt-1 block text-sm font-black text-white">
+                      {insight.title}
+                    </span>
+                    <span className="mt-1 block text-[11px] font-semibold leading-4 text-slate-400">
+                      {insight.detail}
+                    </span>
+                  </>
+                );
+                const className =
+                  "relative rounded-2xl border border-white/10 bg-white/[0.045] py-2.5 pl-3.5 pr-3 text-left transition hover:-translate-y-0.5 hover:border-[var(--exercise-theme-border)] hover:bg-[var(--exercise-theme-accent-soft)]";
+
+                return insight.onClick ? (
+                  <button
+                    key={insight.id}
+                    type="button"
+                    onClick={insight.onClick}
+                    style={insightStyle}
+                    className={`${className} cursor-pointer`}
+                  >
+                    {content}
+                  </button>
+                ) : (
+                  <div
+                    key={insight.id}
+                    style={insightStyle}
+                    className={className}
+                  >
+                    {content}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <a
+            href={ROUTES.dashboard.stats}
+            className="exercise-library-logic-chip rounded-[24px] border border-white/10 bg-slate-950/34 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition hover:-translate-y-0.5 hover:border-cyan-100/30 hover:bg-cyan-300/10"
+          >
+            <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+              Training Analytics
+            </p>
+            <p className="mt-1 text-sm font-black text-white">
+              Open Stats Dashboard
+            </p>
+            <p className="mt-1 text-[10px] font-semibold text-slate-400">
+              Review logs, history, and progress trends.
+            </p>
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ExerciseLibraryWidgetDock({
+  bodyBalanceLabel,
+  currentFocusLabel,
+  latestTrainingExerciseName,
+  latestTrainingLine,
+  onCreateExercise,
+  onThemeChange,
+  sectionTheme,
+  shortcuts,
+  themeId,
+  preferredWeightUnit,
+  weeklyGoalSets,
+  weeklyMuscleGroupsHit,
+  weeklyWeightVolume,
+  weeklyWeightVolumeComparisonLabel,
+  weeklyVolumeRangeLabel,
+  weeklySets,
+}: {
+  bodyBalanceLabel: string;
+  currentFocusLabel: string;
+  latestTrainingExerciseName: string;
+  latestTrainingLine: string;
+  onCreateExercise: () => void;
+  onThemeChange: (themeId: ExerciseLibraryUiThemeId) => void;
+  sectionTheme: CategoryTheme;
+  shortcuts: TrainingIntelligenceShortcut[];
+  themeId: ExerciseLibraryUiThemeId;
+  preferredWeightUnit: WeightUnit;
+  weeklyGoalSets: number;
+  weeklyMuscleGroupsHit: number;
+  weeklyWeightVolume: number;
+  weeklyWeightVolumeComparisonLabel: string;
+  weeklyVolumeRangeLabel: string;
+  weeklySets: number;
+}) {
+  const widgetStyle = {
+    ...getCategoryThemeCssVariables(sectionTheme),
+    "--training-stat-progress": `${getWeeklySetGoalFillPercent(
+      weeklySets,
+      weeklyGoalSets,
+    )}%`,
+  } as ExerciseLibraryThemeCssVariables;
+  const weeklyStatusId = getWeeklySetGoalStatusId(weeklySets, weeklyGoalSets);
+  const primaryQuickActions: TrainingIntelligenceShortcut[] = [
+    ...shortcuts.filter((shortcut) =>
+      ["favorites", "recent", "undertrained", "my-exercises"].includes(
+        shortcut.id,
+      ),
+    ),
+    {
+      disabled: false,
+      helper: "Start a private movement",
+      id: "widget-create-exercise",
+      label: "Create Exercise",
+      onClick: onCreateExercise,
+      theme: getCategoryTheme("Integrated"),
+    },
+  ].slice(0, 5);
+
+  return (
+    <section
+      style={widgetStyle}
+      className="exercise-library-widget-dock relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/42 p-2.5 shadow-[0_24px_80px_rgba(0,0,0,0.38),0_0_34px_var(--exercise-theme-glow),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl backdrop-saturate-150 sm:p-3"
+    >
+      <div className={`pointer-events-none absolute inset-0 ${sectionTheme.overlayClass} opacity-45`} />
+      <div className={`pointer-events-none absolute inset-x-4 top-0 h-px ${sectionTheme.accentClass}`} />
+
+      <div className="relative z-10 flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-[1.08fr_0.95fr_0.95fr_0.95fr_1.35fr_1.1fr] lg:overflow-visible lg:pb-0">
+        <div className="exercise-library-widget-card min-w-[14rem] overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.045] p-3 lg:min-w-0">
+          <span
+            aria-hidden="true"
+            className="exercise-library-widget-card__fill"
+          />
+          <div className="relative z-10">
+            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+              Weekly Volume Summary
+            </p>
+            <p className="mt-1 text-xl font-black text-white">
+              {Math.max(0, Math.round(weeklySets))} / {weeklyGoalSets} sets
+            </p>
+            <WeightVolumeStat
+              className="mt-2"
+              comparisonLabel={weeklyWeightVolumeComparisonLabel}
+              volume={weeklyWeightVolume}
+              weightUnit={preferredWeightUnit}
+            />
+            <p className="mt-1 text-[10px] font-semibold text-slate-400">
+              {weeklyVolumeRangeLabel}
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            primaryQuickActions.find((action) => action.id === "undertrained")
+              ?.onClick()
+          }
+          className="exercise-library-widget-card min-w-[12rem] rounded-[22px] border border-white/10 bg-white/[0.04] p-3 text-left transition hover:-translate-y-0.5 hover:border-[var(--exercise-theme-border)] hover:bg-white/[0.07] lg:min-w-0"
+        >
+          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+            Suggested Focus
+          </p>
+          <p className="mt-1 line-clamp-2 text-base font-black text-white">
+            {currentFocusLabel}
+          </p>
+          <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-400">
+            Best next area from live weekly volume.
+          </p>
+        </button>
+
+        <div className="exercise-library-widget-card min-w-[12rem] rounded-[22px] border border-white/10 bg-white/[0.04] p-3 lg:min-w-0">
+          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+            Recent Training
+          </p>
+          <p className="mt-1 line-clamp-2 text-base font-black text-white">
+            {latestTrainingExerciseName || "No recent workout"}
+          </p>
+          <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-400">
+            {latestTrainingLine}
+          </p>
+        </div>
+
+        <div className="exercise-library-widget-card min-w-[12rem] rounded-[22px] border border-white/10 bg-white/[0.04] p-3 lg:min-w-0">
+          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+            Body Balance
+          </p>
+          <p className="mt-1 text-base font-black text-white">
+            {weeklyMuscleGroupsHit} groups hit
+          </p>
+          <p className="mt-1 flex items-center gap-2 text-[10px] font-semibold leading-4 text-slate-400">
+            <VolumeStatusIndicator sets={weeklySets} statusId={weeklyStatusId} />
+            {bodyBalanceLabel}
+          </p>
+        </div>
+
+        <div className="exercise-library-widget-card min-w-[18rem] rounded-[22px] border border-white/10 bg-white/[0.04] p-3 lg:min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+                Theme Selector
+              </p>
+              <p className="mt-1 text-xs font-bold text-slate-400">
+                {exerciseLibraryUiThemeConfigs[themeId].helper}
+              </p>
+            </div>
+            <span className="rounded-xl border border-white/10 bg-white/[0.06] px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-[var(--exercise-theme-text)]">
+              {exerciseLibraryUiThemeConfigs[themeId].mood}
+            </span>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            {exerciseLibraryUiThemeOptions.map((theme) => (
+              <button
+                key={theme.id}
+                type="button"
+                aria-pressed={themeId === theme.id}
+                onClick={() => onThemeChange(theme.id)}
+                className={`rounded-xl border px-2 py-1.5 text-[8px] font-black uppercase tracking-[0.08em] transition ${
+                  themeId === theme.id
+                    ? "border-cyan-100/40 bg-cyan-300 text-slate-950 shadow-[0_0_22px_rgba(34,211,238,0.24)]"
+                    : "border-white/10 bg-white/[0.04] text-slate-300 hover:border-white/22 hover:bg-white/[0.08] hover:text-white"
+                }`}
+                title={theme.helper}
+              >
+                {theme.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="exercise-library-widget-card min-w-[12rem] rounded-[22px] border border-white/10 bg-white/[0.04] p-3 lg:min-w-0">
+          <p className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
+            Quick Actions
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {primaryQuickActions.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                disabled={action.disabled}
+                onClick={action.onClick}
+                className={`rounded-xl border px-2 py-1.5 text-[8px] font-black uppercase tracking-[0.08em] transition disabled:cursor-not-allowed disabled:opacity-35 ${action.theme.pillClass}`}
+                title={action.helper || action.label}
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function ActiveFilterStatusPanel({
+  activeFilterChips,
+  bodyRegionLayer,
+  matchingCount,
+  onClear,
+  sectionTheme,
+}: {
+  activeFilterChips: string[];
+  bodyRegionLayer: BodyRegionLayer | null;
+  matchingCount: number;
+  onClear: () => void;
+  sectionTheme: CategoryTheme;
+}) {
+  const hasActiveFilters = activeFilterChips.length > 0;
+  const layerLabel = bodyRegionLayer || "All regions";
+  const statusStyle = getCategoryThemeCssVariables(sectionTheme);
+
+  return (
+    <div
+      style={statusStyle}
+      className="exercise-library-active-filter-status relative overflow-hidden border-y border-cyan-100/12 bg-slate-950/42 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:px-4"
+    >
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute inset-0 ${sectionTheme.overlayClass} opacity-35`}
+      />
+      <div className="relative z-10 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[var(--exercise-theme-text)]">
+            Active Filter Status
+          </p>
+          <p className="mt-1 text-sm font-black text-white">
+            {matchingCount.toLocaleString()} matching cards
+            <span className="text-slate-500"> · </span>
+            {layerLabel}
+          </p>
+          <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-400">
+            Body selector filters first, then movement, equipment, goal,
+            difficulty, search, and sort refine the visible shelves.
+          </p>
+        </div>
+
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 lg:justify-end">
+          {hasActiveFilters ? (
+            activeFilterChips.map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                onClick={onClear}
+                title={`Clear filters including ${chip}`}
+                className="exercise-library-logic-pill rounded-xl border border-white/10 bg-white/[0.055] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-slate-200 transition hover:-translate-y-0.5 hover:border-[var(--exercise-theme-border)] hover:bg-[var(--exercise-theme-accent-soft)] hover:text-white"
+              >
+                {chip}
+                <span className="ml-1 text-[var(--exercise-theme-text)]">x</span>
+              </button>
+            ))
+          ) : (
+            <span className="exercise-library-logic-chip rounded-xl border border-white/10 bg-white/[0.045] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-slate-400">
+              No active filters
+            </span>
+          )}
+
+          <button
+            type="button"
+            onClick={onClear}
+            className="rounded-xl border border-cyan-100/18 bg-cyan-300/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/45 hover:bg-cyan-300 hover:text-slate-950"
+          >
+            Clear All
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ExerciseLibraryResultsPageSelector({
   activeSectionKey,
   activeSectionLabel,
@@ -7368,9 +9753,12 @@ function ExerciseLibraryResultsPageSelector({
   onPageChange,
   onSectionSelect,
   placement,
+  preferredWeightUnit,
   sections,
   sectionTheme,
   weeklySetsBySectionKey,
+  weeklyVolumeRangeLabel,
+  weeklyWeightVolumeBySectionKey,
   sortMode,
   totalPages,
 }: {
@@ -7381,9 +9769,12 @@ function ExerciseLibraryResultsPageSelector({
   onPageChange: (page: number) => void;
   onSectionSelect: (sectionKey: string) => void;
   placement: "top" | "bottom";
+  preferredWeightUnit: WeightUnit;
   sections: ExerciseLibrarySection[];
   sectionTheme: CategoryTheme;
   weeklySetsBySectionKey: Map<string, number>;
+  weeklyVolumeRangeLabel: string;
+  weeklyWeightVolumeBySectionKey: Map<string, number>;
   sortMode: ExerciseLibrarySortMode;
   totalPages: number;
 }) {
@@ -7397,6 +9788,14 @@ function ExerciseLibraryResultsPageSelector({
   const activeSectionWeeklySets = activeSectionKey
     ? weeklySetsBySectionKey.get(activeSectionKey) || 0
     : 0;
+  const activeSectionWeightVolume = activeSectionKey
+    ? weeklyWeightVolumeBySectionKey.get(activeSectionKey) || 0
+    : 0;
+  const activeSectionWeightVolumeLabel = formatWeightMetric(
+    activeSectionWeightVolume,
+    preferredWeightUnit,
+    { compact: true, volume: true },
+  );
   const activeSectionWeeklyGoal =
     getWeeklySetGoalForSection(activeSectionLabel);
   const activeSectionGoalStyle = {
@@ -7439,8 +9838,15 @@ function ExerciseLibraryResultsPageSelector({
               <WeeklySetGoalBadge
                 className="relative z-10"
                 completedSets={activeSectionWeeklySets}
+                completedWeightVolume={activeSectionWeightVolume}
                 goalSets={activeSectionWeeklyGoal}
+                rangeLabel={weeklyVolumeRangeLabel}
+                showWeightVolume={Boolean(activeSectionWeightVolumeLabel)}
+                weightUnit={preferredWeightUnit}
               />
+            </span>
+            <span className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+              {weeklyVolumeRangeLabel}
             </span>
             <span className="text-xs font-black text-white">
               Page {currentPage} of {totalPages}
@@ -7506,6 +9912,13 @@ function ExerciseLibraryResultsPageSelector({
             const isLatestSectionPulse =
               latestSetInsight?.sectionKey === section.key;
             const weeklySets = weeklySetsBySectionKey.get(section.key) || 0;
+            const weightVolume =
+              weeklyWeightVolumeBySectionKey.get(section.key) || 0;
+            const weightVolumeLabel = formatWeightMetric(
+              weightVolume,
+              preferredWeightUnit,
+              { compact: true, volume: true },
+            );
             const weeklyGoal = getWeeklySetGoalForSection(section.label);
             const goalFillPercent = getWeeklySetGoalFillPercent(
               weeklySets,
@@ -7527,7 +9940,9 @@ function ExerciseLibraryResultsPageSelector({
                 aria-pressed={isActive}
                 onClick={() => onSectionSelect(section.key)}
                 style={sectionTabStyle}
-                title={`${section.label}: ${Math.max(0, Math.round(weeklySets))} of ${weeklyGoal} weekly sets, ${weeklyVolumeStatusConfig[goalStatusId].label}`}
+                title={`${section.label}. Set volume, ${weeklyVolumeRangeLabel}: ${Math.max(0, Math.round(weeklySets))} of ${weeklyGoal} sets${
+                  weightVolumeLabel ? ` - Weight volume: ${weightVolumeLabel}` : ""
+                }, ${weeklyVolumeStatusConfig[goalStatusId].label}`}
                 className={`exercise-library-page-section-tab ${
                   isActive ? "exercise-library-page-section-tab--active" : ""
                 } ${
@@ -7557,7 +9972,11 @@ function ExerciseLibraryResultsPageSelector({
                     <span className="opacity-50"> - </span>
                     <WeeklySetGoalBadge
                       completedSets={weeklySets}
+                      completedWeightVolume={weightVolume}
                       goalSets={weeklyGoal}
+                      rangeLabel={weeklyVolumeRangeLabel}
+                      showWeightVolume={Boolean(weightVolumeLabel)}
+                      weightUnit={preferredWeightUnit}
                     />
                     {isLatestSectionPulse ? (
                       <>
@@ -7572,7 +9991,7 @@ function ExerciseLibraryResultsPageSelector({
                 <span className="relative z-10 flex w-12 shrink-0 flex-col items-end gap-1">
                   <span className="h-1 w-full overflow-hidden rounded-full border border-current/15 bg-black/20">
                     <span
-                      className="block h-full rounded-full bg-current opacity-80 transition-all duration-300"
+                      className="exercise-library-page-section-tab__mini-fill block h-full rounded-full opacity-80 transition-all duration-300"
                       style={{ width: `${goalFillPercent}%` }}
                     />
                   </span>
@@ -7599,21 +10018,29 @@ function ExerciseLibraryResultsPageSelector({
 function ExerciseCategoryShelf({
   children,
   coreMovementWeeklySetsByKey,
+  coreMovementWeeklyWeightVolumeByKey,
   isOpen,
   latestSetInsight,
   onToggle,
+  preferredWeightUnit,
   section,
   sectionTheme,
   weeklySets,
+  weeklyVolumeRangeLabel,
+  weeklyWeightVolume,
 }: {
   children: ReactNode;
   coreMovementWeeklySetsByKey: Map<string, number>;
+  coreMovementWeeklyWeightVolumeByKey: Map<string, number>;
   isOpen: boolean;
   latestSetInsight?: LatestSetInsight | null;
   onToggle: () => void;
+  preferredWeightUnit: WeightUnit;
   section: ExerciseLibrarySection;
   sectionTheme: CategoryTheme;
   weeklySets: number;
+  weeklyVolumeRangeLabel: string;
+  weeklyWeightVolume: number;
 }) {
   const sliderRef = useRef<HTMLDivElement | null>(null);
   const pendingCoreMovementTabKeyRef = useRef<string | null>(null);
@@ -8182,6 +10609,11 @@ function ExerciseCategoryShelf({
     getWeeklySetGoalProgressPercent(weeklySets, weeklyGoal),
   );
   const weeklyGoalStatusId = getWeeklySetGoalStatusId(weeklySets, weeklyGoal);
+  const weeklyWeightVolumeLabel = formatWeightMetric(
+    weeklyWeightVolume,
+    preferredWeightUnit,
+    { compact: true, volume: true },
+  );
   const sectionThemeCssVars = {
     ...getCategoryThemeCssVariables(sectionTheme),
     "--exercise-category-goal-progress": `${weeklyGoalFillPercent}%`,
@@ -8236,7 +10668,14 @@ function ExerciseCategoryShelf({
           type="button"
           aria-expanded={isOpen}
           onClick={onToggle}
-          title={`${section.label}: ${Math.max(0, Math.round(weeklySets))} of ${weeklyGoal} weekly sets, ${weeklyVolumeStatusConfig[weeklyGoalStatusId].label}`}
+          title={`${section.label}. Set volume, ${weeklyVolumeRangeLabel}: ${Math.max(
+            0,
+            Math.round(weeklySets),
+          )} of ${weeklyGoal} sets${
+            weeklyWeightVolumeLabel
+              ? ` - Weight volume: ${weeklyWeightVolumeLabel}`
+              : ""
+          }, ${weeklyVolumeStatusConfig[weeklyGoalStatusId].label}`}
           className={`group/category-heading relative flex min-h-[44px] w-full items-center justify-between gap-3 overflow-hidden rounded-[18px] border px-3 py-2 text-left shadow-[0_12px_30px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.11)] transition duration-[240ms] ease-out focus:outline-none focus:ring-2 focus:ring-white/20 sm:min-h-[48px] sm:px-3.5 ${
             isOpen
               ? "scale-[1.006] border-white/28 bg-white/[0.105] shadow-[0_20px_58px_rgba(0,0,0,0.34),0_0_34px_rgba(255,255,255,0.075),inset_0_1px_0_rgba(255,255,255,0.20)]"
@@ -8290,7 +10729,11 @@ function ExerciseCategoryShelf({
               <span className="mt-0.5 inline-flex rounded-lg border border-cyan-100/16 bg-cyan-300/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/80">
                 <WeeklySetGoalBadge
                   completedSets={weeklySets}
+                  completedWeightVolume={weeklyWeightVolume}
                   goalSets={weeklyGoal}
+                  rangeLabel={weeklyVolumeRangeLabel}
+                  showWeightVolume={Boolean(weeklyWeightVolumeLabel)}
+                  weightUnit={preferredWeightUnit}
                 />
                 {isLatestSectionPulse ? (
                   <span className="ml-1 exercise-library-volume-added-chip">
@@ -8355,6 +10798,13 @@ function ExerciseCategoryShelf({
                   latestSetInsight?.coreMovementKey === tab.key;
                 const tabWeeklySets =
                   coreMovementWeeklySetsByKey.get(tab.key) || 0;
+                const tabWeeklyWeightVolume =
+                  coreMovementWeeklyWeightVolumeByKey.get(tab.key) || 0;
+                const tabWeeklyWeightVolumeLabel = formatWeightMetric(
+                  tabWeeklyWeightVolume,
+                  preferredWeightUnit,
+                  { compact: true, volume: true },
+                );
                 const tabWeeklyGoal = getWeeklySetGoalForCoreMovement();
                 const tabStatusId = getWeeklySetGoalStatusId(
                   tabWeeklySets,
@@ -8386,10 +10836,14 @@ function ExerciseCategoryShelf({
                       scrollToCoreMovementTab(tab.key);
                     }}
                     role="tab"
-                    title={`Jump to ${tab.label}: ${Math.max(
+                    title={`Jump to ${tab.label}. Set volume, ${weeklyVolumeRangeLabel}: ${Math.max(
                       0,
                       Math.round(tabWeeklySets),
-                    )} of ${tabWeeklyGoal} weekly sets, ${weeklyVolumeStatusConfig[tabStatusId].label}`}
+                    )} of ${tabWeeklyGoal} sets${
+                      tabWeeklyWeightVolumeLabel
+                        ? ` - Weight volume: ${tabWeeklyWeightVolumeLabel}`
+                        : ""
+                    }, ${weeklyVolumeStatusConfig[tabStatusId].label}`}
                   >
                     <span
                       aria-hidden="true"
@@ -8400,7 +10854,11 @@ function ExerciseCategoryShelf({
                       <span className="exercise-library-core-tab__stat">
                         <WeeklySetGoalBadge
                           completedSets={tabWeeklySets}
+                          completedWeightVolume={tabWeeklyWeightVolume}
                           goalSets={tabWeeklyGoal}
+                          rangeLabel={weeklyVolumeRangeLabel}
+                          showWeightVolume={Boolean(tabWeeklyWeightVolumeLabel)}
+                          weightUnit={preferredWeightUnit}
                         />
                         {isLatestCoreTabPulse ? (
                           <span className="exercise-library-volume-added-chip">
@@ -8639,12 +11097,11 @@ function ExerciseCardCategoryTab({
   const label = getExerciseCardCategoryTabLabel(section);
 
   return (
-    <div className="exercise-library-card-category-tab pointer-events-none absolute left-2 top-2 z-[70] sm:left-3 sm:top-3">
+    <div className="exercise-library-card-category-tab pointer-events-none absolute left-2 right-2 top-2 z-[70] sm:left-3 sm:right-3 sm:top-3">
       <div className={`exercise-library-card-category-tab__pill border ${sectionTheme.pillClass}`}>
-        <span className="hidden max-w-[8.5rem] truncate sm:inline">
-          {label.full}
+        <span className="min-w-0 flex-1 truncate text-center">
+          {label.full || label.short}
         </span>
-        <span className="max-w-[5rem] truncate sm:hidden">{label.short}</span>
       </div>
       <div
         aria-hidden="true"
@@ -8704,11 +11161,13 @@ const levelRank = (level?: string) => {
 };
 
 type MovementSuggestion = {
+  equipment: string;
   id: string;
+  level: string;
   name: string;
   reason: string;
-  level: string;
-  equipment: string;
+  reasonBadges?: string[];
+  score?: number;
 };
 
 const dedupeSuggestions = (suggestions: MovementSuggestion[]) => {
@@ -8724,12 +11183,16 @@ const dedupeSuggestions = (suggestions: MovementSuggestion[]) => {
 const toSuggestion = (
   item: NormalizedExerciseCatalogItem,
   reason: string,
+  reasonBadges: string[] = [reason],
+  score = 0,
 ): MovementSuggestion => ({
+  equipment: item.legacyExercise.equipment,
   id: item.legacyExerciseId,
+  level: item.legacyExercise.level,
   name: item.legacyExerciseName,
   reason,
-  level: item.legacyExercise.level,
-  equipment: item.legacyExercise.equipment,
+  reasonBadges,
+  score,
 });
 
 const getMovementSuggestions = (
@@ -8739,6 +11202,66 @@ const getMovementSuggestions = (
   const otherItems = normalizedCatalog.items.filter(
     (item) => item.legacyExerciseId !== exercise.id,
   );
+  const currentPrimaryMuscles = new Set(
+    getExerciseMuscleIntelligence(exercise, metadata).primary.map(
+      normalizeFilterCompareValue,
+    ),
+  );
+  const currentModifierIds = new Set(metadata?.modifierIds || []);
+  const scoreCandidate = (item: NormalizedExerciseCatalogItem) => {
+    const candidateExercise = item.legacyExercise as Exercise;
+    const candidateMuscles = getExerciseMuscleIntelligence(
+      candidateExercise,
+      item,
+    );
+    const reasonBadges: string[] = [];
+    let score = 0;
+
+    if (metadata && item.coreMovementId === metadata.coreMovementId) {
+      score += 36;
+      reasonBadges.push("Same core");
+    } else if (metadata && item.movementPatternId === metadata.movementPatternId) {
+      score += 24;
+      reasonBadges.push("Same pattern");
+    }
+
+    if (
+      candidateMuscles.primary.some((muscle) =>
+        currentPrimaryMuscles.has(normalizeFilterCompareValue(muscle)),
+      )
+    ) {
+      score += 22;
+      reasonBadges.push("Same muscles");
+    }
+
+    if (
+      normalizeEquipmentLabel(candidateExercise.equipment) ===
+      normalizeEquipmentLabel(exercise.equipment)
+    ) {
+      score += 14;
+      reasonBadges.push("Equipment match");
+    }
+
+    if (candidateExercise.level === exercise.level) {
+      score += 8;
+      reasonBadges.push("Difficulty match");
+    }
+
+    if (candidateExercise.goal === exercise.goal) {
+      score += 8;
+      reasonBadges.push("Goal match");
+    }
+
+    const compatibleModifierCount = item.modifierIds.filter((modifierId) =>
+      currentModifierIds.has(modifierId),
+    ).length;
+    if (compatibleModifierCount > 0) {
+      score += Math.min(12, compatibleModifierCount * 3);
+      reasonBadges.push("Compatible modifiers");
+    }
+
+    return { reasonBadges, score };
+  };
   const sameCore = metadata
     ? otherItems.filter(
         (item) => item.coreMovementId === metadata.coreMovementId,
@@ -8756,23 +11279,60 @@ const getMovementSuggestions = (
       item.legacyExercise.body === exercise.body ||
       item.legacyExercise.equipment === exercise.equipment,
   );
-  const substitutions = dedupeSuggestions([
-    ...sameCore.map((item) => toSuggestion(item, "Same core movement")),
-    ...samePattern.map((item) => toSuggestion(item, "Same movement pattern")),
-    ...sameRegionOrEquipment.map((item) =>
-      toSuggestion(item, "Same region/equipment"),
-    ),
-  ]).slice(0, 3);
+  const substitutions = dedupeSuggestions(
+    otherItems
+      .map((item) => {
+        const { reasonBadges, score } = scoreCandidate(item);
+        const fallbackReason = sameCore.includes(item)
+          ? "Same core movement"
+          : samePattern.includes(item)
+            ? "Same movement pattern"
+            : sameRegionOrEquipment.includes(item)
+              ? "Same region/equipment"
+              : "";
+
+        return score > 0 || fallbackReason
+          ? toSuggestion(
+              item,
+              reasonBadges[0] || fallbackReason,
+              reasonBadges.length ? reasonBadges : [fallbackReason],
+              score,
+            )
+          : null;
+      })
+      .filter((suggestion): suggestion is MovementSuggestion =>
+        Boolean(suggestion),
+      )
+      .sort((left, right) => (right.score || 0) - (left.score || 0)),
+  ).slice(0, 8);
   const currentRank = levelRank(exercise.level);
   const progressionPool = sameCore.length ? sameCore : samePattern;
   const progressions = progressionPool
     .filter((item) => levelRank(item.legacyExercise.level) > currentRank)
-    .map((item) => toSuggestion(item, "Higher skill/load option"))
-    .slice(0, 2);
+    .map((item) => {
+      const { reasonBadges, score } = scoreCandidate(item);
+      return toSuggestion(
+        item,
+        "Higher skill/load option",
+        ["Harder option", ...reasonBadges].slice(0, 3),
+        score + 10,
+      );
+    })
+    .sort((left, right) => (right.score || 0) - (left.score || 0))
+    .slice(0, 6);
   const regressions = progressionPool
     .filter((item) => levelRank(item.legacyExercise.level) < currentRank)
-    .map((item) => toSuggestion(item, "Lower complexity option"))
-    .slice(0, 2);
+    .map((item) => {
+      const { reasonBadges, score } = scoreCandidate(item);
+      return toSuggestion(
+        item,
+        "Lower complexity option",
+        ["Easier option", ...reasonBadges].slice(0, 3),
+        score + 10,
+      );
+    })
+    .sort((left, right) => (right.score || 0) - (left.score || 0))
+    .slice(0, 6);
 
   return { substitutions, progressions, regressions };
 };
@@ -9736,9 +12296,11 @@ function MovementMetadataPanel({
 function LatestSetInsightLine({
   compact = false,
   insight,
+  preferredWeightUnit = "lbs",
 }: {
   compact?: boolean;
   insight: LatestSetInsight;
+  preferredWeightUnit?: WeightUnit;
 }) {
   return (
     <div
@@ -9751,14 +12313,117 @@ function LatestSetInsightLine({
           compact ? "text-[10px]" : "text-xs"
         }`}
       >
-        {insight.latestLine}
+        {formatLatestSetInsightDisplayLine(insight, preferredWeightUnit)}
       </p>
       <p
         className={`mt-0.5 font-bold leading-snug text-emerald-100/76 ${
           compact ? "text-[9px]" : "text-[11px]"
         }`}
       >
-        {insight.summaryLine} · {insight.goalLine} · {insight.remainingLine}
+        {[
+          insight.summaryLine,
+          insight.goalLine,
+          insight.lastTrainedLine,
+          insight.achievementLine,
+          insight.remainingLine,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+      </p>
+    </div>
+  );
+}
+
+function MiniPanelScroller({
+  ariaLabel,
+  children,
+  className = "",
+}: {
+  ariaLabel: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollByDirection = (direction: "left" | "right") => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+
+    scroller.scrollBy({
+      behavior: "smooth",
+      left: scroller.clientWidth * (direction === "right" ? 0.78 : -0.78),
+    });
+  };
+
+  return (
+    <div className={`exercise-library-mini-scroller relative ${className}`}>
+      <button
+        type="button"
+        aria-label={`Scroll ${ariaLabel} left`}
+        onClick={() => scrollByDirection("left")}
+        className="exercise-library-mini-scroller__arrow exercise-library-mini-scroller__arrow--left"
+      >
+        <span aria-hidden="true">{"<"}</span>
+      </button>
+      <div
+        ref={scrollRef}
+        aria-label={ariaLabel}
+        className="exercise-library-themed-scrollbar exercise-library-mini-scroller__viewport"
+      >
+        <div className="exercise-library-mini-scroller__track">{children}</div>
+      </div>
+      <button
+        type="button"
+        aria-label={`Scroll ${ariaLabel} right`}
+        onClick={() => scrollByDirection("right")}
+        className="exercise-library-mini-scroller__arrow exercise-library-mini-scroller__arrow--right"
+      >
+        <span aria-hidden="true">{">"}</span>
+      </button>
+    </div>
+  );
+}
+
+type RecentStatsView = "recent" | "best" | "volume" | "history";
+
+function StatMiniCard({
+  cell,
+  compact = false,
+  preferredWeightUnit,
+}: {
+  cell: {
+    detail: string;
+    label: string;
+    value: string | number;
+    weightVolume?: number;
+    weightVolumeComparisonLabel?: string;
+    weightVolumeTarget?: number;
+  };
+  compact?: boolean;
+  preferredWeightUnit: WeightUnit;
+}) {
+  return (
+    <div
+      className={`exercise-library-themed-stat-tile min-w-0 shrink-0 snap-start rounded-xl border border-white/10 bg-slate-950/35 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${
+        compact ? "w-[9.5rem] px-2 py-2" : "w-[10.75rem] px-2.5 py-2.5"
+      }`}
+    >
+      <p className="break-words text-[8px] font-black uppercase leading-[11px] tracking-[0.06em] text-white/35">
+        {cell.label}
+      </p>
+      <p className="mt-1 break-words text-sm font-black leading-4 text-white">
+        {cell.value}
+      </p>
+      {typeof cell.weightVolume === "number" ? (
+        <WeightVolumeStat
+          className="mt-1.5"
+          comparisonLabel={cell.weightVolumeComparisonLabel}
+          targetVolume={cell.weightVolumeTarget}
+          volume={cell.weightVolume}
+          weightUnit={preferredWeightUnit}
+        />
+      ) : null}
+      <p className="mt-0.5 break-words text-[9px] font-semibold leading-3 text-slate-400">
+        {cell.detail}
       </p>
     </div>
   );
@@ -9768,12 +12433,16 @@ function RecentStatsStrip({
   stats,
   compact = false,
   latestInsight,
+  preferredWeightUnit = "lbs",
+  weeklyVolumeRangeLabel = formatWeeklyVolumeRangeLabel(),
 }: {
   stats: LocalExerciseStatEntry[];
   compact?: boolean;
   latestInsight?: LatestSetInsight | null;
+  preferredWeightUnit?: WeightUnit;
+  weeklyVolumeRangeLabel?: string;
 }) {
-  const [view, setView] = useState<"recent" | "best">("recent");
+  const [view, setView] = useState<RecentStatsView>("recent");
   const latest = stats[0];
   const recentStats = stats.slice(0, 3);
   const bestLoadStat = stats.reduce<LocalExerciseStatEntry | null>(
@@ -9795,15 +12464,40 @@ function RecentStatsStrip({
       !best || getStatVolume(stat) > getStatVolume(best) ? stat : best,
     null,
   );
+  const bestEstimatedOneRepMaxStat = stats.reduce<LocalExerciseStatEntry | null>(
+    (best, stat) =>
+      !best || getEstimatedOneRepMax(stat) > getEstimatedOneRepMax(best)
+        ? stat
+        : best,
+    null,
+  );
+  const weeklyVolume = getWeeklyVolumeForStats(stats);
+  const previousWeeklyWeightVolume =
+    getPreviousTrailingSevenDayWeightVolumeForStats(stats);
+  const weeklyWeightVolumeComparisonLabel = formatWeightVolumeComparison(
+    weeklyVolume.weightVolume,
+    previousWeeklyWeightVolume,
+  );
+  const recentWeightVolume = recentStats.reduce(
+    (total, stat) => total + getStatVolume(stat),
+    0,
+  );
+  const weeklyGoal = getWeeklySetGoalForExercise();
   const hasBestStats =
     Boolean(bestLoadStat && parseStatNumber(bestLoadStat.weight) > 0) ||
     Boolean(bestRepsStat && parseStatNumber(bestRepsStat.reps) > 0) ||
-    Boolean(bestVolumeStat && getStatVolume(bestVolumeStat) > 0);
+    Boolean(bestVolumeStat && getStatVolume(bestVolumeStat) > 0) ||
+    Boolean(
+      bestEstimatedOneRepMaxStat &&
+        getEstimatedOneRepMax(bestEstimatedOneRepMaxStat) > 0,
+    );
   const recentCells = latest
     ? [
         {
           label: "Last Load",
-          value: latest.weight || "--",
+          value:
+            formatWeightMetric(parseStatNumber(latest.weight), preferredWeightUnit) ||
+            "--",
           detail: `${latest.reps || "--"} reps x ${latest.sets || "--"} sets`,
         },
         {
@@ -9812,11 +12506,15 @@ function RecentStatsStrip({
           detail: `${latest.sets || "--"} sets`,
         },
         {
-          label: "Recent Volume",
-          value: formatMetric(
-            recentStats.reduce((total, stat) => total + getStatVolume(stat), 0),
-          ),
+          label: "Recent Weight Volume",
+          value:
+            formatWeightMetric(
+              recentWeightVolume,
+              preferredWeightUnit,
+              { compact: true, volume: true },
+            ) || "--",
           detail: "last 3 entries",
+          weightVolume: recentWeightVolume,
         },
       ]
     : [];
@@ -9826,7 +12524,10 @@ function RecentStatsStrip({
           label: "Best Load",
           value:
             bestLoadStat && parseStatNumber(bestLoadStat.weight) > 0
-              ? bestLoadStat.weight
+              ? formatWeightMetric(
+                  parseStatNumber(bestLoadStat.weight),
+                  preferredWeightUnit,
+                )
               : "--",
           detail: bestLoadStat
             ? `${bestLoadStat.reps || "--"} reps`
@@ -9839,38 +12540,136 @@ function RecentStatsStrip({
               ? formatMetric(parseStatNumber(bestRepsStat.reps))
               : "--",
           detail: bestRepsStat
-            ? `${bestRepsStat.weight || "--"} load`
+            ? `${formatWeightMetric(
+                parseStatNumber(bestRepsStat.weight),
+                preferredWeightUnit,
+              ) || "--"} load`
             : "No reps yet",
         },
         {
-          label: "Best Volume",
+          label: "Best Weight Volume",
           value:
             bestVolumeStat && getStatVolume(bestVolumeStat) > 0
-              ? formatMetric(getStatVolume(bestVolumeStat))
+              ? formatWeightMetric(
+                  getStatVolume(bestVolumeStat),
+                  preferredWeightUnit,
+                  { compact: true, volume: true },
+                )
               : "--",
           detail: bestVolumeStat
             ? new Date(bestVolumeStat.date).toLocaleDateString()
             : "No volume yet",
+          weightVolume: bestVolumeStat
+            ? getStatVolume(bestVolumeStat)
+            : 0,
+        },
+        {
+          label: "Est. 1RM",
+          value:
+            bestEstimatedOneRepMaxStat &&
+            getEstimatedOneRepMax(bestEstimatedOneRepMaxStat) > 0
+              ? formatWeightMetric(
+                  getEstimatedOneRepMax(bestEstimatedOneRepMaxStat),
+                  preferredWeightUnit,
+                )
+              : "--",
+          detail: bestEstimatedOneRepMaxStat
+            ? `${formatWeightMetric(
+                parseStatNumber(bestEstimatedOneRepMaxStat.weight),
+                preferredWeightUnit,
+              ) || "--"} x ${
+                bestEstimatedOneRepMaxStat.reps || "--"
+              }`
+            : "No estimate yet",
         },
       ]
     : [];
-  const activeCells = view === "recent" ? recentCells : bestCells;
+  const volumeCells = [
+    {
+      label: "Set Volume",
+      value: `${Math.max(0, Math.round(weeklyVolume.sets))}`,
+      detail: `${Math.max(0, Math.round(weeklyVolume.sets))} / ${weeklyGoal} sets`,
+    },
+    {
+      label: "Weekly Reps",
+      value: formatMetric(weeklyVolume.reps),
+      detail: weeklyVolumeRangeLabel,
+    },
+    {
+      label: "Weight Volume",
+      value:
+        formatWeightMetric(weeklyVolume.weightVolume, preferredWeightUnit, {
+          compact: true,
+          volume: true,
+        }) || "--",
+      detail: weeklyVolume.weightVolume > 0 ? weeklyVolumeRangeLabel : "No load volume yet",
+      weightVolumeComparisonLabel: weeklyWeightVolumeComparisonLabel,
+      weightVolumeTarget: previousWeeklyWeightVolume,
+      weightVolume: weeklyVolume.weightVolume,
+    },
+    {
+      label: "Goal Progress",
+      value: `${Math.round(
+        getWeeklySetGoalFillPercent(weeklyVolume.sets, weeklyGoal),
+      )}%`,
+      detail: "weekly target",
+    },
+  ];
+  const historyCells = stats.slice(0, 8).map((stat) => ({
+    label: new Date(stat.date).toLocaleDateString(),
+    value: `${stat.sets || "--"} x ${stat.reps || "--"}`,
+    detail: `${formatWeightMetric(parseStatNumber(stat.weight), preferredWeightUnit) || "--"} load`,
+  }));
+  const activeCells =
+    view === "recent"
+      ? recentCells
+      : view === "best"
+        ? bestCells
+        : view === "volume"
+          ? volumeCells
+          : historyCells;
   const activeDate =
     view === "recent" && latest
       ? new Date(latest.date).toLocaleDateString()
       : view === "best" && bestVolumeStat
         ? "Best"
+        : view === "volume"
+          ? weeklyVolumeRangeLabel
+          : view === "history"
+            ? `${stats.length} logs`
         : "";
+  const statsViewLabel =
+    view === "recent"
+      ? "Recent"
+      : view === "best"
+        ? "Best"
+        : view === "volume"
+          ? "Volume"
+          : "History";
+  const emptyStatsMessage =
+    view === "best"
+      ? "No best stats yet"
+      : view === "history"
+        ? "No history yet"
+        : view === "volume"
+          ? "No weekly volume yet"
+          : "No recent stats yet. Log this movement to build history.";
   const containerClass = `exercise-library-themed-stats rounded-2xl border border-emerald-300/15 bg-[linear-gradient(135deg,rgba(16,185,129,0.13),rgba(34,211,238,0.06))] shadow-[inset_0_1px_0_rgba(255,255,255,0.10)${
     compact ? "" : ",0_10px_30px_rgba(16,185,129,0.08)"
   }] ${compact ? "mt-3 px-3 py-2.5" : "mt-2.5 p-3"}`;
   const toggle = (
     <div
       aria-label="Stats view"
-      className="grid grid-cols-2 rounded-xl border border-white/10 bg-slate-950/42 p-0.5"
+      className="exercise-library-recent-stats-tabs exercise-library-themed-scrollbar flex min-w-0 max-w-[min(100%,15rem)] flex-nowrap gap-1 overflow-x-auto rounded-xl border border-white/10 bg-slate-950/42 p-0.5"
     >
-      {(["recent", "best"] as const).map((option) => {
+      {(["recent", "best", "volume", "history"] as RecentStatsView[]).map((option) => {
         const isActive = view === option;
+        const label =
+          compact && option === "history"
+            ? "Hist"
+            : option === "volume"
+              ? "Volume"
+              : titleCase(option);
 
         return (
           <button
@@ -9878,13 +12677,14 @@ function RecentStatsStrip({
             type="button"
             aria-pressed={isActive}
             onClick={() => setView(option)}
-            className={`rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-[0.11em] transition ${
+            className={`min-w-[3.25rem] max-w-[4.75rem] shrink-0 truncate rounded-lg px-2 py-1 text-center text-[8px] font-black uppercase tracking-[0.08em] transition ${
               isActive
                 ? "exercise-library-themed-toggle-active bg-emerald-300 text-slate-950 shadow-[0_0_18px_rgba(16,185,129,0.22)]"
                 : "text-slate-400 hover:bg-white/[0.06] hover:text-white"
             }`}
+            title={titleCase(option)}
           >
-            {option}
+            {label}
           </button>
         );
       })}
@@ -9905,13 +12705,28 @@ function RecentStatsStrip({
           {toggle}
         </div>
         {latestInsight ? (
-          <LatestSetInsightLine compact insight={latestInsight} />
+          <LatestSetInsightLine
+            compact
+            insight={latestInsight}
+            preferredWeightUnit={preferredWeightUnit}
+          />
         ) : null}
-        <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-400">
-          {view === "best"
-            ? "No best stats yet"
-            : "No recent stats yet. Log this movement to build history."}
-        </p>
+        {activeCells.length ? (
+          <MiniPanelScroller ariaLabel={`${statsViewLabel} stats`} className="mt-2">
+            {activeCells.map((cell) => (
+              <StatMiniCard
+                key={`${view}-${cell.label}`}
+                cell={cell}
+                compact
+                preferredWeightUnit={preferredWeightUnit}
+              />
+            ))}
+          </MiniPanelScroller>
+        ) : (
+          <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-400">
+            {emptyStatsMessage}
+          </p>
+        )}
       </div>
     );
   }
@@ -9921,27 +12736,34 @@ function RecentStatsStrip({
       <div className={containerClass}>
         <div className="flex items-center justify-between gap-3">
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
-            {view === "recent" ? "Recent" : "Best"}
+            {statsViewLabel}
           </p>
           {toggle}
         </div>
         {latestInsight ? (
-          <LatestSetInsightLine compact insight={latestInsight} />
+          <LatestSetInsightLine
+            compact
+            insight={latestInsight}
+            preferredWeightUnit={preferredWeightUnit}
+          />
         ) : null}
-        {view === "best" && !hasBestStats ? (
+        {(view === "best" && !hasBestStats) ||
+        (view === "history" && historyCells.length === 0) ||
+        (view === "recent" && recentCells.length === 0) ? (
           <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-400">
-            No best stats yet
+            {emptyStatsMessage}
           </p>
         ) : (
-          <p className="mt-1 break-words text-xs font-black leading-5 text-white transition-opacity duration-200">
-            {view === "recent"
-              ? `${latest.weight || "--"} load / ${latest.reps || "--"} reps / ${
-                  latest.sets || "--"
-                } sets`
-              : `${bestCells[0]?.value || "--"} load / ${
-                  bestCells[1]?.value || "--"
-                } best reps`}
-          </p>
+          <MiniPanelScroller ariaLabel={`${statsViewLabel} stats`} className="mt-2">
+            {activeCells.map((cell) => (
+              <StatMiniCard
+                key={`${view}-${cell.label}`}
+                cell={cell}
+                compact
+                preferredWeightUnit={preferredWeightUnit}
+              />
+            ))}
+          </MiniPanelScroller>
         )}
         <div className="mt-1 flex items-center justify-between gap-2">
           <p className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/30">
@@ -9959,7 +12781,7 @@ function RecentStatsStrip({
     <div className={containerClass}>
       <div className="flex items-center justify-between gap-3">
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">
-          {view === "recent" ? "Recent Stats" : "Best Stats"}
+          {statsViewLabel} Stats
         </p>
         <div className="flex shrink-0 items-center gap-2">
           {activeDate ? (
@@ -9971,31 +12793,29 @@ function RecentStatsStrip({
         </div>
       </div>
 
-      {latestInsight ? <LatestSetInsightLine insight={latestInsight} /> : null}
+      {latestInsight ? (
+        <LatestSetInsightLine
+          insight={latestInsight}
+          preferredWeightUnit={preferredWeightUnit}
+        />
+      ) : null}
 
-      {view === "best" && !hasBestStats ? (
+      {(view === "best" && !hasBestStats) ||
+      (view === "history" && historyCells.length === 0) ||
+      (view === "recent" && recentCells.length === 0) ? (
         <p className="mt-2.5 rounded-xl border border-white/10 bg-slate-950/35 px-3 py-3 text-xs font-semibold text-slate-400">
-          No best stats yet
+          {emptyStatsMessage}
         </p>
       ) : (
-        <div className="mt-2.5 grid grid-cols-3 gap-1.5 transition-opacity duration-200">
+        <MiniPanelScroller ariaLabel={`${statsViewLabel} stats`} className="mt-2.5">
           {activeCells.map((cell) => (
-            <div
+            <StatMiniCard
               key={`${view}-${cell.label}`}
-              className="exercise-library-themed-stat-tile min-w-0 rounded-xl border border-white/10 bg-slate-950/35 px-2 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-            >
-              <p className="break-words text-[8px] font-black uppercase leading-[11px] tracking-[0.06em] text-white/35">
-                {cell.label}
-              </p>
-              <p className="mt-1 break-words text-sm font-black leading-4 text-white">
-                {cell.value}
-              </p>
-              <p className="mt-0.5 break-words text-[9px] font-semibold leading-3 text-slate-400">
-                {cell.detail}
-              </p>
-            </div>
+              cell={cell}
+              preferredWeightUnit={preferredWeightUnit}
+            />
           ))}
-        </div>
+        </MiniPanelScroller>
       )}
     </div>
   );
@@ -10005,10 +12825,12 @@ function MovementSuggestionList({
   title,
   suggestions,
   empty,
+  onSelectSuggestion,
 }: {
   title: string;
   suggestions: MovementSuggestion[];
   empty: string;
+  onSelectSuggestion: (suggestion: MovementSuggestion) => void;
 }) {
   return (
     <div className="exercise-library-themed-panel rounded-2xl border border-white/10 bg-slate-950/35 p-3">
@@ -10017,21 +12839,41 @@ function MovementSuggestionList({
       </p>
 
       {suggestions.length ? (
-        <div className="mt-2 space-y-2">
+        <MiniPanelScroller ariaLabel={`${title} exercise matches`} className="mt-2">
           {suggestions.map((suggestion) => (
-            <div
+            <button
               key={`${title}-${suggestion.id}`}
-              className="exercise-library-themed-stat-tile rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2"
+              type="button"
+              onClick={() => onSelectSuggestion(suggestion)}
+              className="exercise-library-themed-stat-tile min-h-[112px] w-[13.5rem] shrink-0 snap-start rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2 text-left transition hover:-translate-y-0.5 hover:border-cyan-100/28 hover:bg-cyan-300/10 focus:outline-none focus:ring-2 focus:ring-cyan-100/28"
             >
               <p className="text-xs font-black text-white">
                 {suggestion.name}
               </p>
-              <p className="mt-1 text-[11px] font-bold text-cyan-100/75">
-                {suggestion.reason} - {suggestion.equipment}
+              <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-cyan-100/60">
+                {suggestion.equipment} · {suggestion.level}
               </p>
-            </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {(suggestion.reasonBadges?.length
+                  ? suggestion.reasonBadges
+                  : [suggestion.reason]
+                ).map((reason) => (
+                  <span
+                    key={`${suggestion.id}-${reason}`}
+                    className="rounded-lg border border-cyan-100/14 bg-cyan-300/10 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.06em] text-cyan-100/76"
+                  >
+                    {reason}
+                  </span>
+                ))}
+              </div>
+              {typeof suggestion.score === "number" && suggestion.score > 0 ? (
+                <p className="mt-2 text-[9px] font-black uppercase tracking-[0.1em] text-white/35">
+                  Match {Math.min(99, Math.round(suggestion.score))}%
+                </p>
+              ) : null}
+            </button>
           ))}
-        </div>
+        </MiniPanelScroller>
       ) : (
         <p className="mt-2 text-xs leading-5 text-slate-400">{empty}</p>
       )}
@@ -10042,10 +12884,12 @@ function MovementSuggestionList({
 function MovementSuggestionsPanel({
   suggestions,
   isOpen,
+  onSelectSuggestion,
   onToggle,
 }: {
   suggestions: ReturnType<typeof getMovementSuggestions>;
   isOpen: boolean;
+  onSelectSuggestion: (suggestion: MovementSuggestion) => void;
   onToggle: () => void;
 }) {
   return (
@@ -10080,6 +12924,7 @@ function MovementSuggestionsPanel({
             title="Best Matches"
             suggestions={suggestions.substitutions}
             empty="No close substitutions found yet."
+            onSelectSuggestion={onSelectSuggestion}
           />
         </div>
       ) : null}
@@ -10090,10 +12935,12 @@ function MovementSuggestionsPanel({
 function MovementProgressPanel({
   suggestions,
   isOpen,
+  onSelectSuggestion,
   onToggle,
 }: {
   suggestions: ReturnType<typeof getMovementSuggestions>;
   isOpen: boolean;
+  onSelectSuggestion: (suggestion: MovementSuggestion) => void;
   onToggle: () => void;
 }) {
   return (
@@ -10128,14 +12975,116 @@ function MovementProgressPanel({
             title="Progress"
             suggestions={suggestions.progressions}
             empty="No clear progression mapped yet."
+            onSelectSuggestion={onSelectSuggestion}
           />
           <MovementSuggestionList
             title="Regress"
             suggestions={suggestions.regressions}
             empty="No simpler regression mapped yet."
+            onSelectSuggestion={onSelectSuggestion}
           />
         </div>
       ) : null}
+    </div>
+  );
+}
+
+type CoachingCueCard = {
+  label: string;
+  text: string;
+};
+
+const splitCueTextIntoCards = (cue: string): CoachingCueCard[] => {
+  const parts = cue
+    .split(/\s*(?:\n+|;|\s+\|\s+)\s*/g)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length <= 1) return cue.trim() ? [{ label: "Cue", text: cue.trim() }] : [];
+
+  return parts.map((text, index) => ({
+    label: `Cue ${index + 1}`,
+    text,
+  }));
+};
+
+const getCoachingCueCards = (
+  exercise: Exercise,
+  metadata: NormalizedExerciseCatalogItem | null,
+) => {
+  const coreMovement = metadata?.coreMovementId
+    ? CORE_MOVEMENT_BY_ID[metadata.coreMovementId]
+    : null;
+  const cueCandidates: CoachingCueCard[] = [
+    ...splitCueTextIntoCards(exercise.cue || ""),
+    ...(exercise.coachingCue && exercise.coachingCue !== exercise.cue
+      ? splitCueTextIntoCards(exercise.coachingCue).map((cue) => ({
+          ...cue,
+          label: cue.label === "Cue" ? "Coaching Cue" : cue.label,
+        }))
+      : []),
+    ...(coreMovement?.defaultCue && coreMovement.defaultCue !== exercise.cue
+      ? [{ label: "Setup Cue", text: coreMovement.defaultCue }]
+      : []),
+  ];
+  const seen = new Set<string>();
+
+  return cueCandidates.filter((cue) => {
+    const key = normalizeFilterCompareValue(cue.text);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
+
+function CoachingCueScroller({ cues }: { cues: CoachingCueCard[] }) {
+  if (cues.length <= 1) {
+    return (
+      <div className="exercise-library-themed-panel mt-3 rounded-2xl border border-emerald-300/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(16,185,129,0.05))] p-4 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-200/80 drop-shadow-[0_0_8px_rgba(16,185,129,0.35)]">
+          Coaching Cue
+        </p>
+        <p className="mt-2 text-sm leading-5 text-emerald-100/80 drop-shadow-[0_0_10px_rgba(16,185,129,0.25)]">
+          {cues[0]?.text || "No coaching cue mapped yet."}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="exercise-library-themed-panel mt-3 rounded-2xl border border-emerald-300/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(16,185,129,0.05))] p-3 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-200/80 drop-shadow-[0_0_8px_rgba(16,185,129,0.35)]">
+          Coaching Cues
+        </p>
+        <span className="rounded-full border border-emerald-100/14 bg-emerald-300/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-emerald-100/65">
+          {cues.length} cues
+        </span>
+      </div>
+      <MiniPanelScroller ariaLabel="Coaching cues">
+        {cues.map((cue) => (
+          <div
+            key={`${cue.label}-${cue.text}`}
+            className="exercise-library-themed-stat-tile min-h-[104px] w-[15rem] shrink-0 snap-start rounded-xl border border-emerald-100/12 bg-emerald-300/10 px-3 py-2"
+          >
+            <p className="text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100/58">
+              {cue.label}
+            </p>
+            <p className="mt-2 text-sm font-semibold leading-5 text-emerald-50/86">
+              {cue.text}
+            </p>
+          </div>
+        ))}
+      </MiniPanelScroller>
+      <div className="mt-2 flex justify-center gap-1">
+        {cues.map((cue) => (
+          <span
+            key={`dot-${cue.label}-${cue.text}`}
+            aria-hidden="true"
+            className="h-1.5 w-1.5 rounded-full bg-emerald-200/45"
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -10148,8 +13097,10 @@ function ExerciseLibraryCard({
   suggestions,
   latestSetInsight,
   planAddToParam,
+  preferredWeightUnit,
   savedExerciseStats,
   viewMode,
+  weeklyVolumeRangeLabel,
   searchedEquipmentModifierId,
   isFavorite,
   onToggleFavorite,
@@ -10161,6 +13112,7 @@ function ExerciseLibraryCard({
   onDifficultyFilterSelect,
   onMovementChipSelect,
   onMuscleSelect,
+  onSuggestionSelect,
   weeklySetsByMuscleLabel,
   isExerciseDetailsOpen,
   onToggleExerciseDetails,
@@ -10174,8 +13126,10 @@ function ExerciseLibraryCard({
   suggestions: ReturnType<typeof getMovementSuggestions>;
   latestSetInsight?: LatestSetInsight | null;
   planAddToParam: string;
+  preferredWeightUnit: WeightUnit;
   savedExerciseStats: LocalExerciseStatEntry[];
   viewMode: ExerciseLibraryViewMode;
+  weeklyVolumeRangeLabel: string;
   searchedEquipmentModifierId: ExerciseModifierId | null;
   isFavorite: boolean;
   onToggleFavorite: (exerciseId: string) => void;
@@ -10191,6 +13145,7 @@ function ExerciseLibraryCard({
   onDifficultyFilterSelect: (level: string) => void;
   onMovementChipSelect: (chip: MovementArchitectureChip) => void;
   onMuscleSelect: (muscle: string) => void;
+  onSuggestionSelect: (suggestion: MovementSuggestion) => void;
   weeklySetsByMuscleLabel: Map<string, number>;
   isExerciseDetailsOpen: boolean;
   onToggleExerciseDetails: (exerciseId: string | null) => void;
@@ -10281,6 +13236,11 @@ function ExerciseLibraryCard({
     selectedSemanticVariationId,
   );
   const weeklyExerciseVolume = getWeeklyVolumeForStats(exerciseStatHistory);
+  const weeklyExerciseWeightVolumeLabel = formatWeightMetric(
+    weeklyExerciseVolume.weightVolume,
+    preferredWeightUnit,
+    { compact: true, volume: true },
+  );
   const weeklyExerciseGoal = getWeeklySetGoalForExercise();
   const weeklyExerciseStatusId = getWeeklySetGoalStatusId(
     weeklyExerciseVolume.sets,
@@ -10315,8 +13275,12 @@ function ExerciseLibraryCard({
       <WeeklySetGoalBadge
         completedSets={weeklyExerciseVolume.sets}
         completedReps={weeklyExerciseVolume.reps}
+        completedWeightVolume={weeklyExerciseVolume.weightVolume}
         goalSets={weeklyExerciseGoal}
+        rangeLabel={weeklyVolumeRangeLabel}
         showReps
+        showWeightVolume={Boolean(weeklyExerciseWeightVolumeLabel)}
+        weightUnit={preferredWeightUnit}
       />
     </span>
   );
@@ -10326,6 +13290,7 @@ function ExerciseLibraryCard({
     selectedModifierIds,
   );
   const muscleIntelligence = getExerciseMuscleIntelligence(exercise, metadata);
+  const coachingCueCards = getCoachingCueCards(exercise, metadata);
   const isGridView = viewMode === "grid";
   const isGridDetailsOpen = isGridView && isExerciseDetailsOpen;
   const isDetailExerciseDetailsOpen = !isGridView && isExerciseDetailsOpen;
@@ -11262,24 +14227,18 @@ function ExerciseLibraryCard({
       <MovementSuggestionsPanel
         suggestions={suggestions}
         isOpen={activeMovementDetailsSubPanel === "similar"}
+        onSelectSuggestion={onSuggestionSelect}
         onToggle={() => toggleMovementDetailsSubPanel("similar")}
       />
 
       <MovementProgressPanel
         suggestions={suggestions}
         isOpen={activeMovementDetailsSubPanel === "progress"}
+        onSelectSuggestion={onSuggestionSelect}
         onToggle={() => toggleMovementDetailsSubPanel("progress")}
       />
 
-      <div className="exercise-library-themed-panel mt-3 rounded-2xl border border-emerald-300/20 bg-[linear-gradient(135deg,rgba(16,185,129,0.18),rgba(16,185,129,0.05))] p-4 backdrop-blur-2xl shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
-        <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-200/80 drop-shadow-[0_0_8px_rgba(16,185,129,0.35)]">
-          Coaching Cue
-        </p>
-
-        <p className="mt-2 text-sm leading-5 text-emerald-100/80 drop-shadow-[0_0_10px_rgba(16,185,129,0.25)]">
-          {exercise.cue}
-        </p>
-      </div>
+      <CoachingCueScroller cues={coachingCueCards} />
     </div>
   );
   const movementDetails = (
@@ -11605,6 +14564,8 @@ function ExerciseLibraryCard({
             stats={exerciseStatHistory}
             compact
             latestInsight={cardLatestSetInsight}
+            preferredWeightUnit={preferredWeightUnit}
+            weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
           />
 
           <div className="mt-1.5 grid grid-cols-2 gap-1 sm:mt-2 sm:gap-1.5">
@@ -11756,6 +14717,8 @@ function ExerciseLibraryCard({
         <RecentStatsStrip
           stats={exerciseStatHistory}
           latestInsight={cardLatestSetInsight}
+          preferredWeightUnit={preferredWeightUnit}
+          weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
         />
 
         {actionButtons}
@@ -11808,6 +14771,10 @@ export default function ExerciseLibraryPage() {
   const [savedExerciseStats, setSavedExerciseStats] = useState<
     LocalExerciseStatEntry[]
   >([]);
+  const [preferredWeightUnit, setPreferredWeightUnit] =
+    useState<WeightUnit>("lbs");
+  const [uiThemeId, setUiThemeId] =
+    useState<ExerciseLibraryUiThemeId>("space-glass");
   const [profileSummary, setProfileSummary] =
     useState<ExerciseLibraryProfileSummary>(
       defaultExerciseLibraryProfileSummary,
@@ -11866,11 +14833,25 @@ export default function ExerciseLibraryPage() {
   useEffect(() => {
     setCustomExercises(readCustomExercises<Exercise>());
     setFavoriteExerciseIds(new Set(readExerciseLibraryFavoriteIds()));
+    setPreferredWeightUnit(readExerciseLibraryPreferredWeightUnit());
+    setUiThemeId(readExerciseLibraryUiTheme());
   }, []);
 
   useEffect(() => {
     writeCustomExercises(customExercises);
   }, [customExercises]);
+
+  const updatePreferredWeightUnit = (unit: WeightUnit) => {
+    setPreferredWeightUnit(unit);
+    writeExerciseLibraryPreferredWeightUnit(unit);
+  };
+
+  const updateExerciseLibraryUiTheme = (
+    nextThemeId: ExerciseLibraryUiThemeId,
+  ) => {
+    setUiThemeId(nextThemeId);
+    writeExerciseLibraryUiTheme(nextThemeId);
+  };
 
   useEffect(() => {
     let isActive = true;
@@ -11910,6 +14891,18 @@ export default function ExerciseLibraryPage() {
         const emailPrefix = user.email?.split("@")[0] || "";
         const displayName = firstName || fullName || emailPrefix || "Athlete";
         const primaryGoal = savedBio?.primary_goal || "No goal set";
+        const secondaryGoal =
+          savedBio?.motivation ||
+          savedBio?.nutrition_focus ||
+          savedBio?.notes ||
+          "Add profile details";
+        const currentFocus =
+          savedBio?.nutrition_focus ||
+          savedBio?.motivation ||
+          savedBio?.primary_goal ||
+          "Add profile details";
+        const preferredTrainingStyle =
+          savedBio?.coaching_style || "Add profile details";
         const bioParts = [
           savedBio?.age ? `Age ${savedBio.age}` : "",
           savedBio?.training_experience || "",
@@ -11924,9 +14917,12 @@ export default function ExerciseLibraryPage() {
             user.user_metadata?.picture ||
             null,
           bio: bioParts.length ? bioParts.join(" / ") : "Add profile details",
+          currentFocus,
           displayName,
           email: user.email || "",
+          preferredTrainingStyle,
           primaryGoal,
+          secondaryGoal,
           trainingLevel: savedBio?.training_experience || "",
         });
       } catch {
@@ -12004,6 +15000,14 @@ export default function ExerciseLibraryPage() {
   const weeklySetsSummary = useMemo(
     () => buildWeeklySetsSummary(savedExerciseStats, allExercises),
     [savedExerciseStats, allExercises],
+  );
+  const weeklyVolumeRangeLabel = useMemo(
+    () => formatWeeklyVolumeRangeLabel(),
+    [],
+  );
+  const exerciseStatLookup = useMemo(
+    () => createExerciseStatLookup(allExercises),
+    [allExercises],
   );
 
   const apparatusOptions = useMemo(() => {
@@ -12470,6 +15474,21 @@ export default function ExerciseLibraryPage() {
 
     return sectionSets;
   }, [exerciseSections, weeklySetsSummary.exerciseSetsById]);
+  const weeklyWeightVolumeBySectionKey = useMemo(() => {
+    const sectionWeightVolume = new Map<string, number>();
+
+    exerciseSections.forEach((section) => {
+      sectionWeightVolume.set(
+        section.key,
+        getWeeklyWeightVolumeForExercises(
+          section.exercises,
+          weeklySetsSummary.exerciseWeightVolumeById,
+        ),
+      );
+    });
+
+    return sectionWeightVolume;
+  }, [exerciseSections, weeklySetsSummary.exerciseWeightVolumeById]);
   const activeExerciseSectionForCurrentPage =
     paginatedExerciseSections.find(
       (section) => section.key === activeExerciseSectionKey,
@@ -12701,6 +15720,103 @@ export default function ExerciseLibraryPage() {
     }
 
     setSearch(chip.label);
+  };
+  const handleSuggestionSelect = (suggestion: MovementSuggestion) => {
+    const scrollToSuggestionCard = () => {
+      const safeExerciseId = suggestion.id
+        .replace(/\\/g, "\\\\")
+        .replace(/"/g, '\\"');
+      const target = document.querySelector<HTMLElement>(
+        `[data-exercise-id="${safeExerciseId}"]`,
+      );
+
+      if (!target) return;
+
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    };
+    const matchingSectionIndex = exerciseSections.findIndex((section) =>
+      section.exercises.some((exercise) => exercise.id === suggestion.id),
+    );
+
+    if (matchingSectionIndex >= 0) {
+      const matchingSection = exerciseSections[matchingSectionIndex];
+
+      setSortMode(defaultExerciseLibrarySortMode);
+      setCurrentPage(
+        Math.floor(matchingSectionIndex / exerciseSectionsPerPage) + 1,
+      );
+      hasUserSelectedExerciseSectionRef.current = true;
+      setActiveExerciseSectionKey(matchingSection.key);
+      window.setTimeout(scrollToSuggestionCard, 180);
+      return;
+    }
+
+    setSearch(suggestion.name);
+    setCurrentPage(1);
+    window.setTimeout(scrollToSuggestionCard, 240);
+  };
+
+  const scrollToExerciseCardById = (exerciseId: string) => {
+    const safeExerciseId = exerciseId.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const target = document.querySelector<HTMLElement>(
+      `[data-exercise-id="${safeExerciseId}"]`,
+    );
+
+    if (!target) return false;
+
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+    return true;
+  };
+
+  const navigateToExerciseCard = (exercise: Exercise | null) => {
+    if (!exercise) return;
+
+    const matchingSectionIndex = exerciseSections.findIndex((section) =>
+      section.exercises.some((sectionExercise) => sectionExercise.id === exercise.id),
+    );
+
+    if (matchingSectionIndex >= 0) {
+      const matchingSection = exerciseSections[matchingSectionIndex];
+      setCurrentPage(
+        Math.floor(matchingSectionIndex / exerciseSectionsPerPage) + 1,
+      );
+      hasUserSelectedExerciseSectionRef.current = true;
+      setActiveExerciseSectionKey(matchingSection.key);
+      window.setTimeout(() => scrollToExerciseCardById(exercise.id), 180);
+      return;
+    }
+
+    setSearch(getExerciseSortTitle(exercise) || exercise.name);
+    setCurrentPage(1);
+    window.setTimeout(() => scrollToExerciseCardById(exercise.id), 240);
+  };
+
+  const focusBodyVolumeFilter = (body: string) => {
+    if (!body || body === "All") return;
+
+    setBodyFilters([body]);
+    setBodyRegionLayer(getLayerForSelectedBodyFilters([body]));
+  };
+
+  const navigateToExerciseSectionKey = (sectionKey: string) => {
+    const matchingSection = exerciseSections.find(
+      (section) => section.key === sectionKey,
+    );
+
+    if (!matchingSection) return;
+
+    setSortMode(defaultExerciseLibrarySortMode);
+    selectExerciseSectionFromNavigator(matchingSection.key);
   };
 
   const updatePrivateExerciseCoreMovement = (coreMovementId: string) => {
@@ -13045,6 +16161,15 @@ export default function ExerciseLibraryPage() {
     ) {
       return;
     }
+    const enteredWeight = parseStatNumber(statWeight);
+    const savedWeightInPounds =
+      preferredWeightUnit === "kg"
+        ? enteredWeight / kilogramsPerPound
+        : enteredWeight;
+    const savedWeightValue =
+      savedWeightInPounds > 0
+        ? String(Math.round(savedWeightInPounds * 10) / 10)
+        : statWeight.trim();
 
     const newStat: LocalExerciseStatEntry = {
       exerciseId: statsExercise.id,
@@ -13057,7 +16182,7 @@ export default function ExerciseLibraryPage() {
       semanticVariationName: statsExercise.semanticVariationName,
       generatedTitle: statsExercise.generatedTitle,
       selectedModifierIds: statsExercise.selectedModifierIds,
-      weight: statWeight.trim(),
+      weight: savedWeightValue,
       reps: statReps.trim(),
       sets: statSets.trim(),
       date: new Date().toISOString(),
@@ -13072,6 +16197,7 @@ export default function ExerciseLibraryPage() {
 
     const nextLatestSetInsight = buildLatestSetInsight({
       exercise: statsExercise,
+      previousStats: savedExerciseStats,
       previousWeeklySetsSummary: weeklySetsSummary,
       stat: newStat,
     });
@@ -13484,7 +16610,7 @@ export default function ExerciseLibraryPage() {
               <div
                 ref={panelRef}
                 style={panelStyle}
-                className={`fixed overflow-hidden rounded-[26px] border p-2 backdrop-blur-xl ${accentClasses[accent].panel}`}
+                className={`exercise-library-filter-menu-panel fixed overflow-hidden rounded-[26px] border p-2 backdrop-blur-xl ${accentClasses[accent].panel}`}
               >
                 {optionList}
               </div>,
@@ -13493,7 +16619,7 @@ export default function ExerciseLibraryPage() {
           : null}
 
         {open && !widePanel && (
-          <div className={`absolute left-0 right-0 z-[9999] mt-2 overflow-hidden rounded-[24px] border p-2 backdrop-blur-xl ${accentClasses[accent].panel}`}>
+          <div className={`exercise-library-filter-menu-panel absolute left-0 right-0 z-[9999] mt-2 overflow-hidden rounded-[24px] border p-2 backdrop-blur-xl ${accentClasses[accent].panel}`}>
             <div className={`max-h-72 overflow-y-auto pr-1 ${accentClasses[accent].scrollbar} [scrollbar-width:thin]`}>
               {normalizedOptions.map((option) => (
                 <button
@@ -13588,7 +16714,633 @@ export default function ExerciseLibraryPage() {
   const privateExerciseLabelClass =
     "grid gap-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-white/60";
   const privateExerciseSectionClass =
-    "rounded-[24px] border border-white/10 bg-white/[0.035] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:p-4";
+    "exercise-library-create-section rounded-[24px] border border-white/10 bg-white/[0.035] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:p-4";
+  const weeklyTotalSets = Array.from(
+    weeklySetsSummary.exerciseSetsById.values(),
+  ).reduce((total, sets) => total + sets, 0);
+  const weeklyTotalReps = Array.from(
+    weeklySetsSummary.exerciseRepsById.values(),
+  ).reduce((total, reps) => total + reps, 0);
+  const weeklyTotalWeightVolume = Array.from(
+    weeklySetsSummary.exerciseWeightVolumeById.values(),
+  ).reduce((total, volume) => total + volume, 0);
+  const weeklyTotalWeightVolumeLabel = formatWeightMetric(
+    weeklyTotalWeightVolume,
+    preferredWeightUnit,
+    { compact: true, volume: true },
+  );
+  const previousWeeklyTotalWeightVolume =
+    getPreviousTrailingSevenDayWeightVolumeForStats(savedExerciseStats);
+  const weeklyWeightVolumeComparisonLabel = formatWeightVolumeComparison(
+    weeklyTotalWeightVolume,
+    previousWeeklyTotalWeightVolume,
+  );
+  const weeklyExercisesTrained = weeklySetsSummary.exerciseSetsById.size;
+  const weeklyMuscleGroupsHit = Array.from(
+    weeklySetsSummary.bodySetsByLabel.entries(),
+  ).filter(
+    ([label, sets]) => label !== "All" && Math.max(0, Math.round(sets)) > 0,
+  ).length;
+  const latestTrainingRecord = useMemo(() => {
+    const latestStat = savedExerciseStats.reduce<LocalExerciseStatEntry | null>(
+      (latest, stat) =>
+        !latest || getStatTime(stat) > getStatTime(latest) ? stat : latest,
+      null,
+    );
+
+    return {
+      exercise: latestStat
+        ? resolveStatExercise(latestStat, exerciseStatLookup)
+        : null,
+      stat: latestStat,
+    };
+  }, [exerciseStatLookup, savedExerciseStats]);
+  const bestRecentTrainingRecord = useMemo(() => {
+    const bestStat = savedExerciseStats
+      .filter(isStatWithinTrailingSevenDays)
+      .reduce<LocalExerciseStatEntry | null>((best, stat) => {
+        if (!best) return stat;
+
+        const statVolume = getStatVolume(stat);
+        const bestVolume = getStatVolume(best);
+        if (statVolume !== bestVolume) {
+          return statVolume > bestVolume ? stat : best;
+        }
+
+        return getEstimatedOneRepMax(stat) > getEstimatedOneRepMax(best)
+          ? stat
+          : best;
+      }, null);
+
+    return {
+      exercise: bestStat ? resolveStatExercise(bestStat, exerciseStatLookup) : null,
+      stat: bestStat,
+    };
+  }, [exerciseStatLookup, savedExerciseStats]);
+  const trainingBodyVolumeRows = useMemo(() => {
+    return bodyOptions
+      .filter((body) => body !== "All")
+      .map((body) => {
+        const sets = getWeeklySetsForVolumeLabel(
+          weeklySetsSummary.bodySetsByLabel,
+          body,
+        );
+        const weightVolume = getWeeklySetsForVolumeLabel(
+          weeklySetsSummary.bodyWeightVolumeByLabel,
+          body,
+        );
+        const goal = getWeeklySetGoalForBodyPart(body);
+        const progress = getWeeklySetGoalProgressPercent(sets, goal);
+        const statusId = getWeeklySetGoalStatusId(sets, goal);
+        const lastTrainedTime = getLastTrainedForVolumeLabel(
+          weeklySetsSummary.lastTrainedByLabel,
+          body,
+        );
+
+        return {
+          body,
+          goal,
+          lastTrainedTime,
+          progress,
+          sets,
+          statusId,
+          theme: getBodyRegionTheme(body),
+          weightVolume,
+        };
+      })
+      .sort(
+        (left, right) =>
+          left.progress - right.progress ||
+          left.sets - right.sets ||
+          left.body.localeCompare(right.body),
+      );
+  }, [
+    bodyOptions,
+    weeklySetsSummary.bodySetsByLabel,
+    weeklySetsSummary.bodyWeightVolumeByLabel,
+    weeklySetsSummary.lastTrainedByLabel,
+  ]);
+  const undertrainedBodyTarget =
+    trainingBodyVolumeRows.find((row) => row.statusId === "undertrained") ||
+    null;
+  const almostThereBodyTarget =
+    trainingBodyVolumeRows.find((row) => row.statusId === "almost-there") ||
+    null;
+  const trainedBodyTarget =
+    trainingBodyVolumeRows.find((row) => row.statusId === "trained") || null;
+  const needsRecoveryBodyTarget =
+    trainingBodyVolumeRows.find((row) => row.statusId === "risk") || null;
+  const highestVolumeBodyTarget =
+    [...trainingBodyVolumeRows].sort(
+      (left, right) =>
+        right.sets - left.sets || left.body.localeCompare(right.body),
+    )[0] || null;
+  const trainingCategoryVolumeRows = useMemo(() => {
+    return exerciseSections
+      .map((section) => {
+        const sets = weeklySetsBySectionKey.get(section.key) || 0;
+        const weightVolume = weeklyWeightVolumeBySectionKey.get(section.key) || 0;
+        const goal = getWeeklySetGoalForSection(section.label);
+
+        return {
+          goal,
+          key: section.key,
+          label: section.label,
+          progress: getWeeklySetGoalProgressPercent(sets, goal),
+          section,
+          sets,
+          statusId: getWeeklySetGoalStatusId(sets, goal),
+          theme: getExerciseSectionTheme(section, sortMode),
+          weightVolume,
+        };
+      })
+      .filter((row) => row.section.exercises.length > 0)
+      .sort(
+        (left, right) =>
+          left.progress - right.progress ||
+          left.sets - right.sets ||
+          left.label.localeCompare(right.label),
+      );
+  }, [
+    exerciseSections,
+    sortMode,
+    weeklySetsBySectionKey,
+    weeklyWeightVolumeBySectionKey,
+  ]);
+  const undertrainedCategoryTarget =
+    trainingCategoryVolumeRows.find(
+      (row) => row.statusId === "undertrained",
+    ) || null;
+  const almostThereCategoryTarget =
+    trainingCategoryVolumeRows.find(
+      (row) => row.statusId === "almost-there",
+    ) || null;
+  const needsRecoveryCategoryTarget =
+    trainingCategoryVolumeRows.find((row) => row.statusId === "risk") || null;
+  const suggestedExerciseTarget = useMemo(() => {
+    if (undertrainedBodyTarget) {
+      const normalizedTarget = normalizeBodySelectorValue(
+        undertrainedBodyTarget.body,
+      );
+      const bodyMatchedExercise = focusedExercises.find((exercise) => {
+        const metadata = getMetadataForExercise(exercise);
+
+        return getExerciseVolumeBodyLabels(exercise, metadata).some(
+          (label) => normalizeBodySelectorValue(label) === normalizedTarget,
+        );
+      });
+
+      if (bodyMatchedExercise) return bodyMatchedExercise;
+    }
+
+    return (
+      activeExerciseSectionForCurrentPage?.exercises[0] ||
+      focusedExercises[0] ||
+      null
+    );
+  }, [
+    activeExerciseSectionForCurrentPage,
+    focusedExercises,
+    undertrainedBodyTarget,
+  ]);
+  const activeTrainingFilterChips = useMemo(() => {
+    const chips: string[] = [];
+    const movementTypeLabel =
+      movementTypeOptionByValue.get(movementTypeFilter)?.label ||
+      movementTypeFilter;
+
+    if (search.trim()) chips.push(`Search: ${search.trim()}`);
+    if (bodyRegionLayer) chips.push(`${bodyRegionLayer} region`);
+    if (bodyFilters.length) {
+      chips.push(
+        bodyFilters.length <= 2
+          ? `Body: ${bodyFilters.join(", ")}`
+          : `Body: ${bodyFilters.slice(0, 2).join(", ")} +${bodyFilters.length - 2}`,
+      );
+    }
+    if (movementTypeFilter !== "All") chips.push(`Movement: ${movementTypeLabel}`);
+    if (apparatusFilter !== "All") chips.push(`Equipment: ${apparatusFilter}`);
+    if (goalFilter !== "All") chips.push(`Goal: ${goalFilter}`);
+    if (levelFilter !== "All") chips.push(`Level: ${levelFilter}`);
+    if (loadBehaviorFilter !== "All") {
+      chips.push(`Load: ${loadBehaviorFilter}`);
+    }
+    chips.push(
+      sortMode === defaultExerciseLibrarySortMode
+        ? "Sort: Category Order"
+        : `Sort: ${sortModeLabels[sortMode]}`,
+    );
+
+    return chips;
+  }, [
+    apparatusFilter,
+    bodyFilters,
+    bodyRegionLayer,
+    goalFilter,
+    levelFilter,
+    loadBehaviorFilter,
+    movementTypeFilter,
+    search,
+    sortMode,
+  ]);
+  const latestTrainingExerciseName =
+    latestTrainingRecord.exercise?.generatedTitle ||
+    latestTrainingRecord.exercise?.name ||
+    latestTrainingRecord.stat?.generatedTitle ||
+    latestTrainingRecord.stat?.exerciseName ||
+    "";
+  const latestTrainingLine = latestTrainingRecord.stat
+    ? `${Math.max(0, Math.round(parseStatNumber(latestTrainingRecord.stat.sets)))} sets / ${Math.max(
+        0,
+        Math.round(parseStatNumber(latestTrainingRecord.stat.reps)),
+      )} reps`
+    : "No recent training logged";
+  const bestRecentExerciseName =
+    bestRecentTrainingRecord.exercise?.generatedTitle ||
+    bestRecentTrainingRecord.exercise?.name ||
+    bestRecentTrainingRecord.stat?.generatedTitle ||
+    bestRecentTrainingRecord.stat?.exerciseName ||
+    "";
+  const bestRecentLiftLine = bestRecentTrainingRecord.stat
+    ? `${Math.max(0, Math.round(parseStatNumber(bestRecentTrainingRecord.stat.sets)))} x ${Math.max(
+        0,
+        Math.round(parseStatNumber(bestRecentTrainingRecord.stat.reps)),
+      )}${
+        parseStatNumber(bestRecentTrainingRecord.stat.weight) > 0
+          ? ` @ ${formatWeightMetric(
+              parseStatNumber(bestRecentTrainingRecord.stat.weight),
+              preferredWeightUnit,
+            )}`
+          : ""
+      }`
+    : "No best stats yet";
+  const lastTrainedTime = latestTrainingRecord.stat
+    ? getStatTime(latestTrainingRecord.stat)
+    : 0;
+  const lastTrainedLabel = formatTrainingRecencyLabel(lastTrainedTime);
+  const trainingStreakLabel = getTrainingStreakLabel(savedExerciseStats);
+  const weeklyCompletionPercent = getWeeklySetGoalProgressPercent(
+    weeklyTotalSets,
+    allBodyRegionWeeklySetGoal,
+  );
+  const currentFocusLabel =
+    undertrainedBodyTarget?.body ||
+    undertrainedCategoryTarget?.label ||
+    activeExerciseSectionForCurrentPage?.label ||
+    "Exercise Library";
+  const goalLogicBase = getGoalLogicCopy(profileSummary.primaryGoal);
+  const goalLogicSummary: GoalLogicSummary = {
+    emphasisLabel: goalLogicBase.emphasisLabel,
+    forecastLabel: getVolumeForecastLabel(
+      savedExerciseStats,
+      weeklyTotalSets,
+      allBodyRegionWeeklySetGoal,
+    ),
+    futureLoadCapacityLabel: getFutureLoadCapacityLabel(
+      savedExerciseStats,
+      preferredWeightUnit,
+    ),
+    goalCue: goalLogicBase.goalCue,
+    primaryGoalLabel: profileSummary.primaryGoal || "General Fitness",
+    recoveryRiskLabel: getRecoveryRiskLabel(
+      weeklyTotalSets,
+      allBodyRegionWeeklySetGoal,
+    ),
+    stimulusLabel: getGoalStimulusLabel(
+      profileSummary.primaryGoal,
+      weeklyTotalSets,
+      allBodyRegionWeeklySetGoal,
+    ),
+  };
+  const trainingStatCards: TrainingIntelligenceStatCard[] = [
+    {
+      detail: `${Math.round(weeklyCompletionPercent)}% complete`,
+      helper: weeklyVolumeRangeLabel,
+      id: "sets-this-week",
+      progressPercent: getWeeklySetGoalFillPercent(
+        weeklyTotalSets,
+        allBodyRegionWeeklySetGoal,
+      ),
+      pulse: Boolean(latestSetInsight),
+      statusId: getWeeklySetGoalStatusId(
+        weeklyTotalSets,
+        allBodyRegionWeeklySetGoal,
+      ),
+      theme: activeExerciseSectionTheme,
+      value: weeklyTotalSets.toLocaleString(undefined, {
+        maximumFractionDigits: 0,
+      }),
+      label: "Sets this week",
+    },
+    {
+      helper: weeklyTotalWeightVolumeLabel
+        ? weeklyWeightVolumeComparisonLabel
+        : "No load volume yet",
+      id: "weight-volume-this-week",
+      pulse: Boolean(latestSetInsight),
+      theme: getCategoryTheme("Upper Pull"),
+      value: weeklyTotalWeightVolumeLabel || "--",
+      weightVolumeComparisonLabel: weeklyWeightVolumeComparisonLabel,
+      weightVolumeTarget: previousWeeklyTotalWeightVolume,
+      weightVolume: weeklyTotalWeightVolume,
+      label: "Weight volume",
+    },
+    {
+      helper: "Completed reps from logged sets",
+      id: "reps-this-week",
+      pulse: Boolean(latestSetInsight),
+      theme: getCategoryTheme("Upper Push"),
+      value: weeklyTotalReps.toLocaleString(undefined, {
+        maximumFractionDigits: 0,
+      }),
+      label: "Reps this week",
+    },
+    {
+      helper: "Unique exercise cards with logs",
+      id: "exercises-trained",
+      theme: getCategoryTheme("Integrated"),
+      value: weeklyExercisesTrained.toLocaleString(),
+      label: "Exercises trained",
+    },
+    {
+      helper: "Body regions with weekly sets",
+      id: "muscle-groups-hit",
+      theme: getCategoryTheme("Mobility"),
+      value: weeklyMuscleGroupsHit.toLocaleString(),
+      label: "Muscle groups hit",
+    },
+    {
+      detail: latestTrainingRecord.stat
+        ? formatTrainingRecencyLabel(getStatTime(latestTrainingRecord.stat))
+        : "",
+      helper: latestTrainingLine,
+      id: "most-recent-workout",
+      onClick: latestTrainingRecord.exercise
+        ? () => navigateToExerciseCard(latestTrainingRecord.exercise)
+        : undefined,
+      theme: getCategoryTheme("Athletic"),
+      value: latestTrainingExerciseName || "No recent workout",
+      label: "Most recent workout",
+    },
+    {
+      helper: bestRecentLiftLine,
+      id: "best-recent-lift",
+      onClick: bestRecentTrainingRecord.exercise
+        ? () => navigateToExerciseCard(bestRecentTrainingRecord.exercise)
+        : undefined,
+      theme: getCategoryTheme("Upper Pull"),
+      value: bestRecentExerciseName || "No best stats yet",
+      label: "Best recent lift",
+    },
+    {
+      detail: `${Math.max(0, Math.round(weeklyTotalSets))} / ${allBodyRegionWeeklySetGoal} sets`,
+      helper: "Default weekly set target",
+      id: "weekly-goal-completion",
+      progressPercent: getWeeklySetGoalFillPercent(
+        weeklyTotalSets,
+        allBodyRegionWeeklySetGoal,
+      ),
+      statusId: getWeeklySetGoalStatusId(
+        weeklyTotalSets,
+        allBodyRegionWeeklySetGoal,
+      ),
+      theme: getCategoryTheme("Core"),
+      value: `${Math.round(weeklyCompletionPercent)}%`,
+      label: "Weekly goal",
+    },
+    {
+      detail: undertrainedBodyTarget
+        ? `${Math.max(0, Math.round(undertrainedBodyTarget.sets))} / ${
+            undertrainedBodyTarget.goal
+          } sets${
+            undertrainedBodyTarget.weightVolume
+              ? ` - ${formatWeightMetric(
+                  undertrainedBodyTarget.weightVolume,
+                  preferredWeightUnit,
+                  { compact: true, volume: true },
+                )}`
+              : ""
+          }`
+        : "No target yet",
+      helper: undertrainedBodyTarget
+        ? getBodyTrainingSignal(
+            undertrainedBodyTarget.sets,
+            undertrainedBodyTarget.lastTrainedTime,
+            undertrainedBodyTarget.goal,
+          )
+        : "Log sets to unlock focus",
+      id: "undertrained-body",
+      onClick: undertrainedBodyTarget
+        ? () => focusBodyVolumeFilter(undertrainedBodyTarget.body)
+        : undefined,
+      statusId: undertrainedBodyTarget?.statusId,
+      theme: undertrainedBodyTarget?.theme || getCategoryTheme("Core"),
+      value: undertrainedBodyTarget?.body || "No data yet",
+      label: "Undertrained",
+    },
+    {
+      detail: highestVolumeBodyTarget
+        ? `${Math.max(0, Math.round(highestVolumeBodyTarget.sets))} / ${
+            highestVolumeBodyTarget.goal
+          } sets${
+            highestVolumeBodyTarget.weightVolume
+              ? ` - ${formatWeightMetric(
+                  highestVolumeBodyTarget.weightVolume,
+                  preferredWeightUnit,
+                  { compact: true, volume: true },
+                )}`
+              : ""
+          }`
+        : "No data yet",
+      helper: highestVolumeBodyTarget
+        ? `${formatTrainingRecencyLabel(highestVolumeBodyTarget.lastTrainedTime)}`
+        : "Highest volume body part appears after logs",
+      id: "highest-volume-body",
+      onClick: highestVolumeBodyTarget
+        ? () => focusBodyVolumeFilter(highestVolumeBodyTarget.body)
+        : undefined,
+      statusId: highestVolumeBodyTarget?.statusId,
+      theme: highestVolumeBodyTarget?.theme || getCategoryTheme("Lower Body Compound"),
+      value: highestVolumeBodyTarget?.body || "No data yet",
+      label: "Highest volume",
+    },
+  ];
+  const trainingShortcuts: TrainingIntelligenceShortcut[] = [
+    {
+      disabled: !exerciseSections.some((section) => section.key === "favorites"),
+      helper: "Open favorite cards",
+      id: "favorites",
+      label: "Favorites",
+      onClick: () => navigateToExerciseSectionKey("favorites"),
+      theme: getCategoryTheme("Favorites"),
+    },
+    {
+      disabled: !latestTrainingRecord.exercise,
+      helper: "Jump to the latest logged exercise",
+      id: "recent",
+      label: "Recent",
+      onClick: () => navigateToExerciseCard(latestTrainingRecord.exercise),
+      theme: getCategoryTheme("Athletic"),
+    },
+    {
+      disabled: !bestRecentTrainingRecord.exercise,
+      helper: "Jump to the strongest recent logged exercise",
+      id: "best",
+      label: "Best",
+      onClick: () => navigateToExerciseCard(bestRecentTrainingRecord.exercise),
+      theme: getCategoryTheme("Upper Pull"),
+    },
+    {
+      disabled: !undertrainedBodyTarget,
+      helper: undertrainedBodyTarget?.body,
+      id: "undertrained",
+      label: "Undertrained",
+      onClick: () =>
+        undertrainedBodyTarget && focusBodyVolumeFilter(undertrainedBodyTarget.body),
+      theme: undertrainedBodyTarget?.theme || getCategoryTheme("Core"),
+    },
+    {
+      disabled: !almostThereBodyTarget,
+      helper: almostThereBodyTarget?.body,
+      id: "almost-there",
+      label: "Almost There",
+      onClick: () =>
+        almostThereBodyTarget && focusBodyVolumeFilter(almostThereBodyTarget.body),
+      theme: almostThereBodyTarget?.theme || getCategoryTheme("Arm Isolation"),
+    },
+    {
+      disabled: !trainedBodyTarget,
+      helper: trainedBodyTarget?.body,
+      id: "trained",
+      label: "Trained",
+      onClick: () => trainedBodyTarget && focusBodyVolumeFilter(trainedBodyTarget.body),
+      theme: trainedBodyTarget?.theme || getCategoryTheme("Lower Body Compound"),
+    },
+    {
+      disabled: !needsRecoveryBodyTarget,
+      helper: needsRecoveryBodyTarget?.body,
+      id: "needs-recovery",
+      label: "Needs Recovery",
+      onClick: () =>
+        needsRecoveryBodyTarget && focusBodyVolumeFilter(needsRecoveryBodyTarget.body),
+      theme: needsRecoveryBodyTarget?.theme || getCategoryTheme("Upper Pull"),
+    },
+    {
+      disabled: !exerciseSections.some(
+        (section) => section.key === myExercisesSectionKey,
+      ),
+      helper: "Open private exercises",
+      id: "my-exercises",
+      label: "My Exercises",
+      onClick: () => navigateToExerciseSectionKey(myExercisesSectionKey),
+      theme: getCategoryTheme(myExercisesSectionLabel),
+    },
+    {
+      helper: "Open the private exercise form",
+      id: "create-exercise",
+      label: "Create Exercise",
+      onClick: () => openCreateExerciseForm(),
+      theme: getCategoryTheme("Integrated"),
+    },
+  ];
+  const trainingLogicInsights: TrainingLogicInsight[] = [];
+
+  if (savedExerciseStats.length === 0) {
+    trainingLogicInsights.push({
+      detail:
+        "No recent training is logged yet. Add a set and the library will start pointing to the freshest next focus.",
+      eyebrow: "Starting point",
+      id: "empty-training-log",
+      theme: getCategoryTheme("Integrated"),
+      title: "Log a set to unlock live guidance",
+    });
+  } else {
+    if (undertrainedBodyTarget) {
+      const remainingSets = Math.max(
+        0,
+        Math.ceil(undertrainedBodyTarget.goal - undertrainedBodyTarget.sets),
+      );
+      trainingLogicInsights.push({
+        detail: `${undertrainedBodyTarget.body} is ${remainingSets} ${
+          remainingSets === 1 ? "set" : "sets"
+        } from its weekly target.`,
+        eyebrow: "Next focus",
+        id: "undertrained-body-insight",
+        onClick: () => focusBodyVolumeFilter(undertrainedBodyTarget.body),
+        statusId: undertrainedBodyTarget.statusId,
+        theme: undertrainedBodyTarget.theme,
+        title: `${undertrainedBodyTarget.body} needs attention`,
+      });
+    }
+
+    if (undertrainedCategoryTarget) {
+      trainingLogicInsights.push({
+        detail: `${undertrainedCategoryTarget.label} is at ${Math.max(
+          0,
+          Math.round(undertrainedCategoryTarget.sets),
+        )} / ${undertrainedCategoryTarget.goal} sets. Opening that shelf is the cleanest balance move.`,
+        eyebrow: "Category balance",
+        id: "undertrained-category-insight",
+        onClick: () => navigateToExerciseSectionKey(undertrainedCategoryTarget.key),
+        statusId: undertrainedCategoryTarget.statusId,
+        theme: undertrainedCategoryTarget.theme,
+        title: `${undertrainedCategoryTarget.label} is under target`,
+      });
+    }
+
+    if (almostThereBodyTarget) {
+      trainingLogicInsights.push({
+        detail: `${almostThereBodyTarget.body} is close to the trained zone with ${Math.max(
+          0,
+          Math.round(almostThereBodyTarget.sets),
+        )} / ${almostThereBodyTarget.goal} sets.`,
+        eyebrow: "Near goal",
+        id: "almost-there-body-insight",
+        onClick: () => focusBodyVolumeFilter(almostThereBodyTarget.body),
+        statusId: almostThereBodyTarget.statusId,
+        theme: almostThereBodyTarget.theme,
+        title: `${almostThereBodyTarget.body} is almost there`,
+      });
+    }
+
+    if (needsRecoveryBodyTarget || needsRecoveryCategoryTarget) {
+      const recoveryLabel =
+        needsRecoveryBodyTarget?.body || needsRecoveryCategoryTarget?.label || "";
+      trainingLogicInsights.push({
+        detail: `${recoveryLabel} is above the default weekly target, so a lower-fatigue or alternate area may fit better next.`,
+        eyebrow: "Recovery signal",
+        id: "recovery-signal-insight",
+        onClick: needsRecoveryBodyTarget
+          ? () => focusBodyVolumeFilter(needsRecoveryBodyTarget.body)
+          : needsRecoveryCategoryTarget
+            ? () => navigateToExerciseSectionKey(needsRecoveryCategoryTarget.key)
+            : undefined,
+        statusId:
+          needsRecoveryBodyTarget?.statusId ||
+          needsRecoveryCategoryTarget?.statusId,
+        theme:
+          needsRecoveryBodyTarget?.theme ||
+          needsRecoveryCategoryTarget?.theme ||
+          getCategoryTheme("Mobility"),
+        title: `${recoveryLabel} may need recovery`,
+      });
+    }
+
+    if (suggestedExerciseTarget) {
+      trainingLogicInsights.push({
+        detail: `Based on the visible library state, ${getExerciseSortTitle(
+          suggestedExerciseTarget,
+        )} is a useful card to inspect next.`,
+        eyebrow: "Suggested card",
+        id: "suggested-exercise-insight",
+        onClick: () => navigateToExerciseCard(suggestedExerciseTarget),
+        theme: activeExerciseSectionTheme,
+        title: getExerciseSortTitle(suggestedExerciseTarget),
+      });
+    }
+  }
+
+  const renderedTrainingLogicInsights = trainingLogicInsights.slice(0, 4);
   const activeRenderedExerciseSectionKey = paginatedExerciseSections.some(
     (section) => section.key === activeExerciseSectionKey,
   )
@@ -13598,7 +17350,10 @@ export default function ExerciseLibraryPage() {
     profileSummary.displayName.trim().charAt(0).toUpperCase() || "A";
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
+    <main
+      data-ui-theme={uiThemeId}
+      className={`exercise-library-page-theme exercise-library-page-theme--${uiThemeId} relative isolate min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white`}
+    >
       <section className="mx-auto w-full max-w-[1240px] space-y-6 px-3 py-6 sm:px-4 sm:py-8">
         <section className="overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_18%_8%,rgba(34,211,238,0.2),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(16,185,129,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-4 shadow-2xl sm:rounded-[42px] sm:p-6 lg:p-8">
           <p className="text-[11px] font-black uppercase tracking-[0.3em] text-cyan-300">
@@ -13615,29 +17370,38 @@ export default function ExerciseLibraryPage() {
                   Start from the core movement pattern, then use compatible
                   modifiers to shape the variation you want to train.
                 </p>
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                  <a
+                    href={ROUTES.dashboard.stats}
+                    className="exercise-library-logic-pill inline-flex min-h-[44px] items-center rounded-2xl border border-cyan-100/24 bg-cyan-300/12 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.12)] transition hover:-translate-y-0.5 hover:border-cyan-100/55 hover:bg-cyan-300 hover:text-slate-950"
+                  >
+                    Training Analytics
+                  </a>
+                  <span className="rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">
+                    {weeklyVolumeRangeLabel}
+                  </span>
+                </div>
               </div>
 
             <div className="rounded-[28px] border border-cyan-300/20 bg-cyan-400/10 p-5 flex flex-col justify-between">
-              <div className="mb-4 rounded-[24px] border border-white/12 bg-[radial-gradient(circle_at_10%_0%,rgba(250,204,21,0.16),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.70),rgba(2,6,23,0.50))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_34px_rgba(0,0,0,0.18)]">
+              <div className="exercise-library-goal-engine mb-4 rounded-[24px] border border-white/12 bg-[radial-gradient(circle_at_10%_0%,rgba(250,204,21,0.16),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.70),rgba(2,6,23,0.50))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_34px_rgba(0,0,0,0.18)]">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-[9px] font-black uppercase tracking-[0.18em] text-yellow-200/80">
-                      Training Profile
+                      Goal Command
                     </p>
                     <h2 className="mt-1 truncate text-lg font-black leading-6 text-white">
-                      {profileSummary.displayName}
+                      {goalLogicSummary.primaryGoalLabel}
                     </h2>
                     <p className="mt-1 text-[11px] font-bold leading-4 text-cyan-100/78">
-                      Primary Goal: {profileSummary.primaryGoal}
+                      {goalLogicSummary.emphasisLabel}
                     </p>
                     <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-slate-300">
-                      Bio: {profileSummary.bio}
+                      {goalLogicSummary.stimulusLabel}
                     </p>
-                    {profileSummary.trainingLevel ? (
-                      <p className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-200/80">
-                        {profileSummary.trainingLevel}
-                      </p>
-                    ) : null}
+                    <p className="mt-1 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-200/80">
+                      {profileSummary.displayName} · {goalLogicSummary.recoveryRiskLabel}
+                    </p>
                   </div>
                   <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-cyan-100/20 bg-slate-950/60 text-xl font-black text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)]">
                     {profileSummary.avatarUrl ? (
@@ -13679,7 +17443,51 @@ export default function ExerciseLibraryPage() {
           </div>
         </section>
 
-        <section className="relative z-30 overflow-visible rounded-[26px] border border-cyan-100/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_34%),radial-gradient(circle_at_86%_14%,rgba(16,185,129,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.78))] p-2.5 shadow-[0_24px_80px_rgba(0,0,0,0.42),0_0_46px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-white/[0.045] backdrop-blur-2xl backdrop-saturate-150 sm:rounded-[32px] sm:p-4 md:p-3 min-[1100px]:p-4">
+        <TrainingIntelligenceHeader
+          currentFocusLabel={currentFocusLabel}
+          goalLogic={goalLogicSummary}
+          insights={renderedTrainingLogicInsights}
+          lastTrainedLabel={lastTrainedLabel}
+          latestSetInsight={latestSetInsight}
+          onPreferredWeightUnitChange={updatePreferredWeightUnit}
+          preferredWeightUnit={preferredWeightUnit}
+          profileSummary={profileSummary}
+          sectionTheme={activeExerciseSectionTheme}
+          shortcuts={trainingShortcuts}
+          statCards={trainingStatCards}
+          trainingStreakLabel={trainingStreakLabel}
+          weeklyGoalSets={allBodyRegionWeeklySetGoal}
+          weeklyWeightVolumeComparisonLabel={weeklyWeightVolumeComparisonLabel}
+          weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
+          weeklyWeightVolume={weeklyTotalWeightVolume}
+          weeklyReps={weeklyTotalReps}
+          weeklySets={weeklyTotalSets}
+        />
+
+        <ExerciseLibraryWidgetDock
+          bodyBalanceLabel={
+            highestVolumeBodyTarget
+              ? `${highestVolumeBodyTarget.body} leads this range`
+              : "Log sets to compare regions"
+          }
+          currentFocusLabel={currentFocusLabel}
+          latestTrainingExerciseName={latestTrainingExerciseName}
+          latestTrainingLine={latestTrainingLine}
+          onCreateExercise={openCreateExerciseForm}
+          onThemeChange={updateExerciseLibraryUiTheme}
+          sectionTheme={activeExerciseSectionTheme}
+          shortcuts={trainingShortcuts}
+          themeId={uiThemeId}
+          preferredWeightUnit={preferredWeightUnit}
+          weeklyGoalSets={allBodyRegionWeeklySetGoal}
+          weeklyMuscleGroupsHit={weeklyMuscleGroupsHit}
+          weeklyWeightVolume={weeklyTotalWeightVolume}
+          weeklyWeightVolumeComparisonLabel={weeklyWeightVolumeComparisonLabel}
+          weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
+          weeklySets={weeklyTotalSets}
+        />
+
+        <section className="exercise-library-filter-command-center relative z-30 overflow-visible rounded-[26px] border border-cyan-100/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_34%),radial-gradient(circle_at_86%_14%,rgba(16,185,129,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.78))] p-2.5 shadow-[0_24px_80px_rgba(0,0,0,0.42),0_0_46px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-white/[0.045] backdrop-blur-2xl backdrop-saturate-150 sm:rounded-[32px] sm:p-4 md:p-3 min-[1100px]:p-4">
           <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
           <div className="grid grid-cols-2 gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-end min-[1100px]:grid-cols-[1fr_auto_auto] min-[1100px]:items-start">
             <div className="col-span-2 md:col-span-2 min-[1100px]:col-span-1">
@@ -13723,7 +17531,7 @@ export default function ExerciseLibraryPage() {
           {showAddForm && (
             <div
               ref={addExerciseFormRef}
-              className="mt-6 overflow-hidden rounded-[30px] border border-emerald-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.18),transparent_32%),radial-gradient(circle_at_92%_10%,rgba(34,211,238,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.90),rgba(2,6,23,0.82))] p-3 shadow-[0_22px_70px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.14)] sm:p-5"
+              className="exercise-library-create-panel mt-6 overflow-hidden rounded-[30px] border border-emerald-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.18),transparent_32%),radial-gradient(circle_at_92%_10%,rgba(34,211,238,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.90),rgba(2,6,23,0.82))] p-3 shadow-[0_22px_70px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.14)] sm:p-5"
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
@@ -14089,11 +17897,15 @@ export default function ExerciseLibraryPage() {
             <ExerciseBodyAnatomySelector
               activeLayer={bodyRegionLayer}
               bodyOptions={bodyOptions}
+              exercises={allExercises}
               latestSetInsight={latestSetInsight}
               selectedBodies={bodyFilters}
+              preferredWeightUnit={preferredWeightUnit}
+              weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
               weeklySetsSummary={weeklySetsSummary}
               onBodySelect={toggleAnatomyBodyFilter}
               onLayerSelect={selectBodyRegionLayer}
+              onPopularExerciseSelect={navigateToExerciseCard}
             />
             <div className="box-border flex w-full flex-wrap gap-px">
               {visibleBodyOptions.map((body) => {
@@ -14112,6 +17924,50 @@ export default function ExerciseLibraryPage() {
                         weeklySetsSummary.bodySetsByLabel,
                         body,
                       );
+                const weeklyWeightVolume =
+                  body === "All"
+                    ? Array.from(
+                        weeklySetsSummary.exerciseWeightVolumeById.values(),
+                      ).reduce((total, volume) => total + volume, 0)
+                    : getWeeklySetsForVolumeLabel(
+                        weeklySetsSummary.bodyWeightVolumeByLabel,
+                        body,
+                      );
+                const weeklyWeightVolumeLabel = formatWeightMetric(
+                  weeklyWeightVolume,
+                  preferredWeightUnit,
+                  { compact: true, volume: true },
+                );
+                const lastTrainedTime =
+                  body === "All"
+                    ? Math.max(
+                        0,
+                        ...Array.from(
+                          weeklySetsSummary.lastTrainedByLabel.values(),
+                        ),
+                      )
+                    : getLastTrainedForVolumeLabel(
+                        weeklySetsSummary.lastTrainedByLabel,
+                        body,
+                      );
+                const latestSessionSets =
+                  body === "All"
+                    ? Math.max(
+                        0,
+                        ...Array.from(
+                          weeklySetsSummary.latestSessionSetsByLabel.values(),
+                        ),
+                      )
+                    : getWeeklySetsForVolumeLabel(
+                        weeklySetsSummary.latestSessionSetsByLabel,
+                        body,
+                      );
+                const bodyWeeklyGoal = getWeeklySetGoalForBodyPart(body);
+                const cooldownSummary = getCooldownCounterSummary({
+                  lastTrainedTime,
+                  sessionSetsCompleted: latestSessionSets,
+                  weeklySetGoal: bodyWeeklyGoal,
+                });
                 const isLatestBodyPulse = Boolean(
                   latestSetInsight?.bodyLabels.some(
                     (label) =>
@@ -14119,7 +17975,6 @@ export default function ExerciseLibraryPage() {
                       normalizeBodySelectorValue(body),
                   ),
                 );
-                const bodyWeeklyGoal = getWeeklySetGoalForBodyPart(body);
                 const bodyVolumeStatusId = getWeeklySetGoalStatusId(
                   weeklySets,
                   bodyWeeklyGoal,
@@ -14139,19 +17994,27 @@ export default function ExerciseLibraryPage() {
                     key={body}
                     type="button"
                     aria-pressed={isActive}
-                    aria-label={`${isActive ? "Remove" : "Add"} ${body} body filter, ${Math.max(
+                    aria-label={`${isActive ? "Remove" : "Add"} ${body} body filter, weekly volume ${weeklyVolumeRangeLabel}, ${Math.max(
                       0,
                       Math.round(weeklySets),
-                    )} of ${bodyWeeklyGoal} weekly sets, ${bodyVolumeStatus.label}`}
+                    )} of ${bodyWeeklyGoal} sets${
+                      weeklyWeightVolumeLabel
+                        ? `, weight volume ${weeklyWeightVolumeLabel}`
+                        : ""
+                    }, ${bodyVolumeStatus.label}`}
                     onClick={(event) => {
                       event.stopPropagation();
                       toggleBodyFilter(body);
                     }}
                     style={bodyVolumeStyle}
-                    title={`${body}: ${Math.max(
+                    title={`${body}. Weekly Volume, ${weeklyVolumeRangeLabel}: ${Math.max(
                       0,
                       Math.round(weeklySets),
-                    )} of ${bodyWeeklyGoal} weekly sets, ${bodyVolumeStatus.label}`}
+                    )} of ${bodyWeeklyGoal} sets${
+                      weeklyWeightVolumeLabel
+                        ? ` - Weight volume: ${weeklyWeightVolumeLabel}`
+                        : ""
+                    }, ${bodyVolumeStatus.label}. Cooldown: ${cooldownSummary.label}`}
                     className={`exercise-library-body-volume-button ${getBodyPartButtonSizeClass(body)} relative min-w-0 px-2 py-2 text-center text-[8px] font-black uppercase leading-[1.08] tracking-[0.04em] transition duration-200 focus:relative focus:z-10 focus:outline-none focus:ring-2 focus:ring-white/30 sm:px-3 sm:py-2.5 sm:text-[11px] sm:tracking-[0.07em] ${
                       isLatestBodyPulse ? "exercise-library-volume-pulse" : ""
                     } ${
@@ -14170,7 +18033,11 @@ export default function ExerciseLibraryPage() {
                     <span className="relative z-10 mt-1 block text-[7px] font-black uppercase leading-3 tracking-[0.08em] opacity-85 sm:text-[8px]">
                       <WeeklySetGoalBadge
                         completedSets={weeklySets}
+                        completedWeightVolume={weeklyWeightVolume}
                         goalSets={bodyWeeklyGoal}
+                        rangeLabel={weeklyVolumeRangeLabel}
+                        showWeightVolume={Boolean(weeklyWeightVolumeLabel)}
+                        weightUnit={preferredWeightUnit}
                       />
                       {isLatestBodyPulse ? (
                         <span className="ml-1 exercise-library-volume-added-chip">
@@ -14178,10 +18045,21 @@ export default function ExerciseLibraryPage() {
                         </span>
                       ) : null}
                     </span>
+                    <CooldownCounterBar
+                      className="relative z-10 mt-1"
+                      summary={cooldownSummary}
+                    />
                   </button>
                 );
               })}
             </div>
+            <ActiveFilterStatusPanel
+              activeFilterChips={activeTrainingFilterChips}
+              bodyRegionLayer={bodyRegionLayer}
+              matchingCount={focusedExercises.length}
+              onClear={resetFilters}
+              sectionTheme={activeExerciseSectionTheme}
+            />
           </div>
         </section>
 
@@ -14193,10 +18071,22 @@ export default function ExerciseLibraryPage() {
                   Latest set insight
                 </p>
                 <p className="mt-1 line-clamp-2 text-sm font-black text-white">
-                  {latestSetInsight.exerciseName} · {latestSetInsight.latestLine}
+                  {latestSetInsight.exerciseName} -{" "}
+                  {formatLatestSetInsightDisplayLine(
+                    latestSetInsight,
+                    preferredWeightUnit,
+                  )}
                 </p>
                 <p className="mt-1 text-xs font-semibold text-slate-300">
-                  {latestSetInsight.summaryLine} · {latestSetInsight.remainingLine}
+                  {[
+                    latestSetInsight.summaryLine,
+                    latestSetInsight.goalLine,
+                    latestSetInsight.lastTrainedLine,
+                    latestSetInsight.achievementLine,
+                    latestSetInsight.remainingLine,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </p>
               </div>
               <span className="rounded-2xl border border-emerald-100/24 bg-emerald-300/14 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-100">
@@ -14218,9 +18108,12 @@ export default function ExerciseLibraryPage() {
           onPageChange={setCurrentPage}
           onSectionSelect={selectExerciseSectionFromNavigator}
           placement="top"
+          preferredWeightUnit={preferredWeightUnit}
           sections={paginatedExerciseSections}
           sectionTheme={activeExercisePageSelectorTheme}
           weeklySetsBySectionKey={weeklySetsBySectionKey}
+          weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
+          weeklyWeightVolumeBySectionKey={weeklyWeightVolumeBySectionKey}
           sortMode={sortMode}
           totalPages={totalPages}
         />
@@ -14240,11 +18133,19 @@ export default function ExerciseLibraryPage() {
                   isOpen={activeExerciseSectionKey === section.key}
                   latestSetInsight={latestSetInsight}
                   onToggle={() => toggleExerciseSection(section.key)}
+                  preferredWeightUnit={preferredWeightUnit}
                   section={section}
                   sectionTheme={sectionTheme}
                   weeklySets={weeklySetsBySectionKey.get(section.key) || 0}
+                  weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
+                  weeklyWeightVolume={
+                    weeklyWeightVolumeBySectionKey.get(section.key) || 0
+                  }
                   coreMovementWeeklySetsByKey={
                     weeklySetsSummary.coreMovementSetsByKey
+                  }
+                  coreMovementWeeklyWeightVolumeByKey={
+                    weeklySetsSummary.coreMovementWeightVolumeByKey
                   }
                 >
                   {section.key === myExercisesSectionKey &&
@@ -14282,6 +18183,7 @@ export default function ExerciseLibraryPage() {
                         }`}
                         data-card-key={cardInstanceId}
                         data-core-movement-tab={coreMovementTabKey}
+                        data-exercise-id={exercise.id}
                         role="listitem"
                         tabIndex={-1}
                       >
@@ -14297,8 +18199,10 @@ export default function ExerciseLibraryPage() {
                           suggestions={suggestions}
                           latestSetInsight={latestSetInsight}
                           planAddToParam={planAddToParam}
+                          preferredWeightUnit={preferredWeightUnit}
                           savedExerciseStats={savedExerciseStats}
                           viewMode={viewMode}
+                          weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
                           searchedEquipmentModifierId={searchedEquipmentModifierId}
                           isFavorite={favoriteExerciseIds.has(exercise.id)}
                           onToggleFavorite={toggleFavoriteExercise}
@@ -14310,6 +18214,7 @@ export default function ExerciseLibraryPage() {
                           onDifficultyFilterSelect={toggleDifficultyFilter}
                           onMovementChipSelect={handleArchitectureChipSelect}
                           onMuscleSelect={filterByMuscleLabel}
+                          onSuggestionSelect={handleSuggestionSelect}
                           weeklySetsByMuscleLabel={
                             weeklySetsSummary.bodySetsByLabel
                           }
@@ -14341,9 +18246,12 @@ export default function ExerciseLibraryPage() {
           onPageChange={setCurrentPage}
           onSectionSelect={selectExerciseSectionFromNavigator}
           placement="bottom"
+          preferredWeightUnit={preferredWeightUnit}
           sections={paginatedExerciseSections}
           sectionTheme={activeExercisePageSelectorTheme}
           weeklySetsBySectionKey={weeklySetsBySectionKey}
+          weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
+          weeklyWeightVolumeBySectionKey={weeklyWeightVolumeBySectionKey}
           sortMode={sortMode}
           totalPages={totalPages}
         />
@@ -14395,14 +18303,17 @@ export default function ExerciseLibraryPage() {
 
             <div className="mt-4 rounded-[24px] border border-yellow-200/15 bg-[linear-gradient(135deg,rgba(255,255,255,0.105),rgba(255,255,255,0.045))] p-3 shadow-[0_14px_38px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-xl">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/70">
-                Weight × Reps × Sets
+                Weight x Reps x Sets
+                <span className="ml-2 rounded-lg border border-yellow-200/20 bg-yellow-300/10 px-2 py-0.5 text-yellow-100">
+                  {preferredWeightUnit}
+                </span>
               </p>
 
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <input
                   value={statWeight}
                   onChange={(e) => setStatWeight(e.target.value)}
-                  placeholder="Weight"
+                  placeholder={`Weight (${preferredWeightUnit})`}
                   className="min-h-[46px] min-w-0 rounded-2xl border border-white/12 bg-slate-950/45 px-3 py-2 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] outline-none transition placeholder:text-white/35 focus:border-yellow-200/45 focus:bg-white/[0.10]"
                 />
 
@@ -14517,7 +18428,10 @@ export default function ExerciseLibraryPage() {
                             >
                               <p className="text-base font-extrabold tracking-wide text-white drop-shadow-[0_0_12px_rgba(255,255,255,0.35)]">
                                 <span className="text-white">
-                                  {stat.weight}
+                                  {formatWeightMetric(
+                                    parseStatNumber(stat.weight),
+                                    preferredWeightUnit,
+                                  ) || "--"}
                                 </span>
                                 <span className="mx-2 text-white/30">×</span>
                                 <span className="text-white">{stat.reps}</span>
@@ -14542,7 +18456,10 @@ export default function ExerciseLibraryPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/80 drop-shadow-[0_0_10px_rgba(255,255,255,0.25)]">
-                          Weight × Reps × Sets
+                          Weight x Reps x Sets
+                          <span className="ml-2 rounded-lg border border-yellow-200/20 bg-yellow-300/10 px-2 py-0.5 text-yellow-100">
+                            {preferredWeightUnit}
+                          </span>
                         </p>
                         <p className="mt-1 text-xs text-white/40">
                           Quick set tracking
@@ -14562,7 +18479,7 @@ export default function ExerciseLibraryPage() {
                       <input
                         value={statWeight}
                         onChange={(e) => setStatWeight(e.target.value)}
-                        placeholder="Weight"
+                        placeholder={`Weight (${preferredWeightUnit})`}
                         className="min-h-[50px] rounded-2xl border border-white/12 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.055))] px-3.5 py-3 text-sm font-bold text-white shadow-[0_10px_28px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl outline-none transition placeholder:text-white/35 hover:border-yellow-200/25 hover:bg-white/[0.12] focus:border-yellow-200/45 focus:bg-white/[0.14] focus:shadow-[0_14px_34px_rgba(0,0,0,0.28),0_0_0_3px_rgba(250,204,21,0.08),inset_0_1px_0_rgba(255,255,255,0.18)]"
                       />
 
