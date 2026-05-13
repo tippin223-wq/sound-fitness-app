@@ -4,10 +4,12 @@ type ValueOf<T> = T[keyof T];
 
 export const PUBLIC_ROUTES = {
   home: route("/"),
+  start: route("/start"),
 } as const;
 
 export const AUTH_ROUTES = {
   login: route("/login"),
+  signup: route("/signup"),
   forgotPassword: route("/forgot-password"),
   resetPasswordSent: route("/reset-password-sent"),
   updatePassword: route("/update-password"),
@@ -24,6 +26,12 @@ export const ONBOARDING_ROUTES = {
 export const DASHBOARD_ROUTES = {
   home: route("/dashboard"),
   coachMessaging: route("/dashboard/coach-messaging"),
+  goals: route("/dashboard/goals"),
+  plan: route("/dashboard/plan"),
+  phases: route("/dashboard/phases"),
+  exerciseLibrary: route("/dashboard/exercise-library"),
+  mobility: route("/dashboard/mobility"),
+  performance: route("/dashboard/performance"),
   myPlan: route("/dashboard/my-plan"),
   createMyPlan: route("/dashboard/my-plan/create"),
   payments: route("/dashboard/payments"),
@@ -46,6 +54,7 @@ export const DASHBOARD_ROUTES = {
   social: route("/dashboard/social"),
   socialPost: route("/dashboard/social/post"),
   stats: route("/dashboard/stats"),
+  calendar: route("/dashboard/calendar"),
   trainingCalendar: route("/dashboard/training-calendar"),
   videoReview: route("/dashboard/video-review"),
 } as const;
@@ -58,6 +67,18 @@ export const NUTRITION_ROUTES = {
   mealPrep: route("/dashboard/nutrition/meal-prep"),
   recipes: route("/dashboard/nutrition/recipes"),
   chickenRiceBowl: route("/dashboard/nutrition/recipes/chicken-rice-bowl"),
+} as const;
+
+export const NUTRITION_PORTAL_ROUTES = {
+  home: route("/nutrition"),
+  journey: route("/nutrition/journey"),
+  meals: route("/nutrition/meals"),
+  mealBuilder: route("/nutrition/meals/builder"),
+  macros: route("/nutrition/macros"),
+  hydration: route("/nutrition/hydration"),
+  recipes: route("/nutrition/recipes"),
+  grocery: route("/nutrition/grocery"),
+  library: route("/nutrition/library"),
 } as const;
 
 export const WORKOUT_BUILDER_ROUTES = {
@@ -102,6 +123,7 @@ export const ROUTES = {
   dashboard: DASHBOARD_ROUTES,
   member: MEMBER_ROUTES,
   nutrition: NUTRITION_ROUTES,
+  nutritionPortal: NUTRITION_PORTAL_ROUTES,
   workoutBuilder: WORKOUT_BUILDER_ROUTES,
   admin: ADMIN_ROUTES,
   coach: COACH_ROUTES,
@@ -113,6 +135,7 @@ export type AppRoute =
   | ValueOf<typeof ONBOARDING_ROUTES>
   | ValueOf<typeof DASHBOARD_ROUTES>
   | ValueOf<typeof NUTRITION_ROUTES>
+  | ValueOf<typeof NUTRITION_PORTAL_ROUTES>
   | ValueOf<typeof WORKOUT_BUILDER_ROUTES>
   | ValueOf<typeof ADMIN_ROUTES>
   | ValueOf<typeof COACH_ROUTES>;

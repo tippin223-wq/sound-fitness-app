@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import TrainingJourneyNavigator from "@/components/dashboard/TrainingJourneyNavigator";
 import {
   hasWorkoutBuilderSelectedExercises,
   readWorkoutBuilderSelectedExerciseNames,
@@ -28,6 +29,38 @@ const exerciseOptions: ExerciseCatalogItem[] =
   getExerciseCatalogWithLegacyFallback();
 const defaultSelectedExerciseNames = ["Goblet Squat", "DB Romanian Deadlift"];
 
+const safeJsonParse = (value: string | null): unknown => {
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+const readLocal = (key: string) =>
+  typeof window === "undefined"
+    ? null
+    : safeJsonParse(window.localStorage.getItem(key));
+
+const getString = (
+  source: Record<string, unknown>,
+  keys: string[],
+  fallback: string,
+) => {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) return value;
+    if (typeof value === "number") return String(value);
+  }
+  return fallback;
+};
+
 type PlanAddToContext = {
   planId: string;
   dayId: string;
@@ -38,7 +71,12 @@ type PlanAddToContext = {
   isResolved: boolean;
 };
 
-type TemplateSectionId = "warmUp" | "main" | "coolDown";
+type TemplateSectionId =
+  | "warmUp"
+  | "main"
+  | "accessories"
+  | "coreConditioning"
+  | "coolDown";
 
 type TemplateSlot = {
   id: string;
@@ -71,6 +109,14 @@ type PlanWeekRow = {
     focus: string;
     assignments: number;
   }>;
+};
+
+type BuilderContext = {
+  currentFocus: string;
+  favoriteCount: number;
+  goal: string;
+  readinessWarning: string;
+  suggestedFocus: string;
 };
 
 const resolveCatalogExerciseNames = (names: string[]) => {
@@ -179,11 +225,27 @@ const createTemplateSections = (exerciseNames: string[] = []): TemplateSection[]
     },
     {
       id: "main",
-      title: "Main Workout",
-      helper: "Primary work, accessories, and the core training dose.",
+      title: "Main Lift / Pattern",
+      helper: "Primary pattern, strength anchor, or most important work.",
       accent: "text-cyan-300",
       border: "border-cyan-300/20",
       slots: mainSlots,
+    },
+    {
+      id: "accessories",
+      title: "Accessories",
+      helper: "Target muscles, volume gaps, and supportive movement patterns.",
+      accent: "text-amber-300",
+      border: "border-amber-300/20",
+      slots: [{ id: "accessory-primary", label: "Accessory slot", exercise: "" }],
+    },
+    {
+      id: "coreConditioning",
+      title: "Core / Conditioning",
+      helper: "Core, carries, conditioning, or athletic finishers.",
+      accent: "text-fuchsia-300",
+      border: "border-fuchsia-300/20",
+      slots: [{ id: "core-conditioning", label: "Core or finisher", exercise: "" }],
     },
     {
       id: "coolDown",
@@ -203,6 +265,81 @@ const getExerciseNamesFromSections = (sections: TemplateSection[]) =>
 
 const getExerciseImageIsUrl = (exercise: ExerciseCatalogItem | undefined) =>
   Boolean(exercise?.image && /^https?:\/\//i.test(exercise.image));
+
+const readBuilderContext = (): BuilderContext => {
+  const profile = asRecord(readLocal("soundFitnessProfile"));
+  const goals = asRecord(readLocal("soundFitnessGoals"));
+  const favorites = readLocal("soundFitnessFavorites");
+  const stats = readLocal("soundFitnessExerciseStats");
+  const entries = Array.isArray(stats) ? stats : Object.values(asRecord(stats));
+  const hotEntry = entries.find((entry) => {
+    const record = asRecord(entry);
+    const sets = Number(record.weeklySets ?? record.sets ?? 0);
+    const goal = Number(record.weeklyGoal ?? record.goal ?? 12);
+    return Number.isFinite(sets) && goal > 0 && sets >= goal;
+  });
+  const primaryGoal = getString(
+    goals,
+    ["primaryGoal"],
+    getString(profile, ["primaryGoal", "goalMode"], "General Health"),
+  );
+
+  return {
+    currentFocus: getString(goals, ["secondaryGoal"], "Build base compounds"),
+    favoriteCount: Array.isArray(favorites) ? favorites.length : 0,
+    goal: primaryGoal,
+    readinessWarning: hotEntry ? "Recovery warning active" : "Ready to build",
+    suggestedFocus:
+      primaryGoal === "Strength"
+        ? "Main lift quality"
+        : primaryGoal === "Recovery"
+          ? "Recovery-safe movement"
+          : "Balanced full-body session",
+  };
+};
+
+const writeDraftWorkout = ({
+  sections,
+  selectedExercises,
+  title,
+}: {
+  sections: TemplateSection[];
+  selectedExercises: ExerciseCatalogItem[];
+  title: string;
+}) => {
+  if (typeof window === "undefined") return;
+
+  window.localStorage.setItem(
+    "soundFitnessDraftWorkout",
+    JSON.stringify({
+      exercises: selectedExercises.map((exercise) => ({
+        body: exercise.body,
+        equipment: exercise.equipment,
+        goal: exercise.goal,
+        id: exercise.id,
+        muscles: exercise.muscles,
+        name: exercise.name,
+        pattern: exercise.pattern,
+      })),
+      sections,
+      title,
+      updatedAt: new Date().toISOString(),
+    }),
+  );
+};
+
+const appendSavedWorkout = (template: LocalWorkoutBuilderTemplate) => {
+  if (typeof window === "undefined") return;
+
+  const current = readLocal("soundFitnessSavedWorkouts");
+  const saved = Array.isArray(current) ? current : [];
+  const next = [
+    template,
+    ...saved.filter((item) => asRecord(item).id !== template.id),
+  ].slice(0, 25);
+
+  window.localStorage.setItem("soundFitnessSavedWorkouts", JSON.stringify(next));
+};
 
 export default function WorkoutBuilderPage() {
   const router = useRouter();
@@ -227,6 +364,9 @@ export default function WorkoutBuilderPage() {
   const [exerciseSearch, setExerciseSearch] = useState("");
   const [exerciseBodyFilter, setExerciseBodyFilter] = useState("All");
   const [exerciseGoalFilter, setExerciseGoalFilter] = useState("All");
+  const [builderContext, setBuilderContext] = useState<BuilderContext>(() =>
+    readBuilderContext(),
+  );
 
   useEffect(() => {
     let isActive = true;
@@ -241,6 +381,7 @@ export default function WorkoutBuilderPage() {
     };
 
     loadSavedTemplates();
+    setBuilderContext(readBuilderContext());
 
     const initialNames = hasWorkoutBuilderSelectedExercises()
       ? readWorkoutBuilderSelectedExerciseNames()
@@ -282,6 +423,10 @@ export default function WorkoutBuilderPage() {
     () => getCatalogExercisesByName(selected),
     [selected],
   );
+
+  useEffect(() => {
+    writeDraftWorkout({ sections: templateSections, selectedExercises, title });
+  }, [selectedExercises, templateSections, title]);
 
   const exerciseBodyOptions = useMemo(
     () => [
@@ -370,7 +515,11 @@ export default function WorkoutBuilderPage() {
                       ? "Warm-up slot"
                       : section.id === "coolDown"
                         ? "Recovery slot"
-                        : "Main slot",
+                        : section.id === "accessories"
+                          ? "Accessory slot"
+                          : section.id === "coreConditioning"
+                            ? "Core or conditioning"
+                            : "Main slot",
                   exercise: "",
                 },
               ],
@@ -472,6 +621,7 @@ export default function WorkoutBuilderPage() {
         buildCurrentTemplate(),
       );
       const savedTemplate = result.data;
+      appendSavedWorkout(savedTemplate);
       const sourceLabel = getTemplateSourceLabel(result);
       let statusMessage = result.error
         ? `${savedTemplate.title} saved locally. Supabase sync can retry later.`
@@ -566,6 +716,14 @@ export default function WorkoutBuilderPage() {
         .find((section) => section.id === activeSlot.sectionId)
         ?.slots.find((slot) => slot.id === activeSlot.slotId)?.label
     : null;
+  const estimatedDuration = Math.max(20, selectedExercises.length * 8 + 12);
+  const estimatedSets = selectedExercises.length * 3;
+  const selectedPatterns = Array.from(
+    new Set(selectedExercises.map((exercise) => exercise.pattern)),
+  );
+  const bodyPartsHit = Array.from(
+    new Set(selectedExercises.map((exercise) => exercise.body)),
+  );
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.14),transparent_32%),radial-gradient(circle_at_88%_12%,rgba(16,185,129,0.13),transparent_34%),linear-gradient(180deg,#020617_0%,#0f172a_48%,#020617_100%)] text-white">
@@ -692,7 +850,7 @@ export default function WorkoutBuilderPage() {
             </div>
 
             <Link
-              href={ROUTES.workoutBuilder.exerciseLibrary}
+              href={ROUTES.dashboard.exerciseLibrary}
               className="mt-5 inline-flex min-h-[44px] items-center justify-center rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm font-black text-emerald-200 transition hover:bg-emerald-400 hover:text-slate-950"
             >
               Open Full Exercise Library
@@ -702,19 +860,19 @@ export default function WorkoutBuilderPage() {
       ) : null}
 
       <section className="mx-auto w-full max-w-[1240px] space-y-6 px-4 py-8">
+        <TrainingJourneyNavigator currentStep="workout-builder" variant="full" />
+
         <section className="rounded-[40px] border border-white/10 bg-[radial-gradient(circle_at_18%_8%,rgba(34,211,238,0.18),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(16,185,129,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-6 shadow-2xl lg:p-8">
           <div className="grid gap-6 lg:grid-cols-[1fr_320px] lg:items-start">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.3em] text-cyan-300">
-                Workout Builder
+                Session Composer
               </p>
               <h1 className="mt-4 text-4xl font-black leading-tight lg:text-5xl">
-                Build, start, or assign workouts.
+                🛠 Workout Builder
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300">
-                Shape warm-up, main work, and cool-down in a horizontal session
-                slider. Save it as a template, start it now, or attach it to a
-                weekly plan day.
+                Build sessions from your libraries, goals, and readiness.
               </p>
             </div>
 
@@ -733,6 +891,29 @@ export default function WorkoutBuilderPage() {
                 {templateSourceLabel}
               </p>
             </aside>
+          </div>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+            {[
+              ["Selected Goal", builderContext.goal],
+              ["Current Focus", builderContext.currentFocus],
+              ["Draft Count", `${selectedExercises.length} exercises`],
+              ["Duration", `${estimatedDuration} min`],
+              ["Readiness", builderContext.readinessWarning],
+              ["Suggested", builderContext.suggestedFocus],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-2xl border border-white/10 bg-slate-950/50 p-3"
+              >
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  {label}
+                </p>
+                <p className="mt-2 truncate text-sm font-black text-white">
+                  {value}
+                </p>
+              </div>
+            ))}
           </div>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-end">
@@ -840,7 +1021,7 @@ export default function WorkoutBuilderPage() {
                   Clear
                 </button>
                 <Link
-                  href={ROUTES.workoutBuilder.exerciseLibrary}
+                  href={ROUTES.dashboard.exerciseLibrary}
                   className="min-h-[40px] rounded-full border border-cyan-300/20 bg-cyan-400/10 px-4 py-2 text-xs font-black text-cyan-200 transition hover:bg-cyan-400 hover:text-slate-950"
                 >
                   Exercise Library
@@ -988,6 +1169,64 @@ export default function WorkoutBuilderPage() {
             </div>
           </div>
 
+          <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_0.8fr]">
+            <section className="rounded-[30px] border border-amber-300/20 bg-amber-300/10 p-5">
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-200">
+                Smart Add Panel
+              </p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {[
+                  "Build base compounds",
+                  "Target selected muscle",
+                  "Recovery-safe",
+                  "Strength focus",
+                  "Hypertrophy focus",
+                  "Mobility focus",
+                ].map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className="rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3 text-left text-sm font-black text-white transition hover:border-amber-200/40 hover:bg-amber-300/10"
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-4 text-sm leading-6 text-slate-300">
+                Recommendations are shaped by {builderContext.goal}, favorites
+                ({builderContext.favoriteCount}), readiness, equipment, and recent stats.
+              </p>
+            </section>
+
+            <section className="rounded-[30px] border border-cyan-300/20 bg-cyan-300/10 p-5">
+              <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-200">
+                Workout Summary
+              </p>
+              <div className="mt-4 grid gap-2">
+                {[
+                  ["Total Exercises", String(selectedExercises.length)],
+                  ["Estimated Sets", String(estimatedSets)],
+                  ["Estimated Reps", `${estimatedSets * 10}`],
+                  ["Body Parts Hit", bodyPartsHit.join(", ") || "None yet"],
+                  ["Movement Patterns", selectedPatterns.join(", ") || "None yet"],
+                  ["Recovery Risk", builderContext.readinessWarning],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3"
+                  >
+                    <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
+                      {label}
+                    </span>
+                    <span className="min-w-0 truncate text-right text-sm font-bold text-white">
+                      {value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
           {templateStatus ? (
             <p className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-bold text-cyan-100">
               {templateStatus}
@@ -1036,7 +1275,7 @@ export default function WorkoutBuilderPage() {
                 Save Template
               </button>
               <Link
-                href={ROUTES.dashboard.myPlan}
+                href={ROUTES.dashboard.plan}
                 className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black text-slate-200 transition hover:border-cyan-300/40"
               >
                 View Plans
@@ -1062,7 +1301,7 @@ export default function WorkoutBuilderPage() {
               </h2>
             </div>
             <Link
-              href={ROUTES.dashboard.myPlan}
+              href={ROUTES.dashboard.plan}
               className="w-fit rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-black text-slate-200 transition hover:border-emerald-300/40"
             >
               Open My Plan

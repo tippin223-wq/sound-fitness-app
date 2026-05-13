@@ -182,19 +182,19 @@ export default function HomePage() {
           </div>
 
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <a
-              href="#booking"
+            <Link
+              href="/onboarding"
               className="rounded-xl bg-sky-500 px-8 py-4 text-center text-sm font-black uppercase tracking-[0.16em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400"
             >
-              Request Your Session →
-            </a>
+              Start Free Assessment
+            </Link>
 
-            <a
-              href="#services"
+            <Link
+              href="/login"
               className="rounded-xl border border-white/15 bg-white/[0.03] px-8 py-4 text-center text-sm font-black uppercase tracking-[0.16em] text-white transition hover:border-sky-400/50 hover:bg-sky-500/10"
             >
-              View Services
-            </a>
+              Log In
+            </Link>
           </div>
 
           <div className="mt-7 flex items-center gap-4">

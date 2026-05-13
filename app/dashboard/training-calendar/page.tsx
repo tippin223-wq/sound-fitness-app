@@ -95,11 +95,10 @@ export default function WorkoutCalendarPage() {
                     Workout Planning
                   </div>
                   <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
-                    Training Calendar
+                    📅 Calendar
                   </h1>
                   <p className="mt-3 max-w-2xl text-base text-slate-300">
-                    Plan the week, stay consistent, and keep workouts aligned
-                    with recovery and momentum.
+                    Schedule, complete, recover, and reflect.
                   </p>
                 </div>
 

@@ -1,3 +1,5 @@
+import TrainingJourneyNavigator from "@/components/dashboard/TrainingJourneyNavigator";
+
 const workoutSnapshot = [
   { label: "Streak", value: "6 days", sub: "Keep it alive" },
   { label: "This Week", value: "3/4", sub: "One workout left" },
@@ -89,7 +91,9 @@ const goals = [
 export default function DashboardProgressPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.14),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <TrainingJourneyNavigator currentStep="progress" variant="full" />
+
         <section className="overflow-hidden rounded-[36px] border border-white/10 bg-white/[0.05] shadow-2xl shadow-black/20 backdrop-blur">
           <div className="grid gap-6 p-6 lg:grid-cols-[1.1fr_0.9fr] lg:p-8">
             <div>

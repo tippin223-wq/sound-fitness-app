@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import TrainingJourneyNavigator from "@/components/dashboard/TrainingJourneyNavigator";
 import {
   readActiveWorkoutBuilderSessionTemplate,
   type LocalWorkoutBuilderSessionTemplate,
@@ -296,7 +297,7 @@ export default function SessionsPage() {
     },
     {
       title: "Exercise Library",
-      href: ROUTES.workoutBuilder.exerciseLibrary,
+      href: ROUTES.dashboard.exerciseLibrary,
       detail: "Browse normalized exercises, add stats, or choose movements.",
     },
     {
@@ -337,6 +338,8 @@ export default function SessionsPage() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
       <section className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <TrainingJourneyNavigator currentStep="sessions" variant="full" />
+
         <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_20%_10%,rgba(34,211,238,0.18),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-5 shadow-2xl sm:rounded-[40px] sm:p-6 lg:p-8">
           <div className="grid gap-6 xl:grid-cols-[1fr_390px] xl:items-end">
             <div>
@@ -360,7 +363,7 @@ export default function SessionsPage() {
                   Start / Resume Workout
                 </Link>
                 <Link
-                  href={ROUTES.workoutBuilder.exerciseLibrary}
+                  href={ROUTES.dashboard.exerciseLibrary}
                   className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-center text-sm font-black uppercase tracking-[0.14em] text-slate-200 transition hover:border-cyan-300/40 hover:bg-cyan-400/10"
                 >
                   Start From Library

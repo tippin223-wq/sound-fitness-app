@@ -148,7 +148,7 @@ const siteMap: PageNode[] = [
       ),
       route(
         "Exercise Library",
-        ROUTES.workoutBuilder.exerciseLibrary,
+        ROUTES.dashboard.exerciseLibrary,
         "Member App",
         "Canonical",
         "Canonical normalized exercise catalog, custom exercises, Add Stats, and builder selection path.",
@@ -276,8 +276,8 @@ const siteMap: PageNode[] = [
         "Payments and packages.",
       ),
       route(
-        "Training Calendar",
-        ROUTES.dashboard.trainingCalendar,
+        "Calendar",
+        ROUTES.dashboard.calendar,
         "Member App",
         "Active Secondary",
         "Calendar view for training and sessions.",

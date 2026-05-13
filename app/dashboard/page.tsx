@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import DashboardCalendar, {
+  type DashboardCalendarItem,
+} from "@/components/dashboard/DashboardCalendar";
+import DashboardCharts from "@/components/dashboard/DashboardCharts";
 import {
   loadWorkoutLogEntriesWithFallback,
   loadWorkoutTemplatesWithFallback,
@@ -88,6 +92,11 @@ const groupWorkoutDates = (entries: LocalExerciseStatEntry[]) =>
         .filter(Boolean),
     ),
   );
+
+const toLoggedNumber = (value: string | number | null | undefined) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 const memberAreaCards = [
   {
@@ -316,7 +325,15 @@ export default function UserHomeDashboardPage() {
     );
     const latest = sortedStats[0];
     const totalSets = exerciseStats.reduce(
-      (sum, stat) => sum + Number(stat.sets || 0),
+      (sum, stat) => sum + toLoggedNumber(stat.sets),
+      0,
+    );
+    const totalVolume = exerciseStats.reduce(
+      (sum, stat) =>
+        sum +
+        toLoggedNumber(stat.weight) *
+          toLoggedNumber(stat.reps) *
+          toLoggedNumber(stat.sets),
       0,
     );
     const workoutSessionEntries = exerciseStats.filter(
@@ -343,6 +360,7 @@ export default function UserHomeDashboardPage() {
       completedWorkouts: workoutDates.length,
       workoutsThisWeek,
       totalSets,
+      totalVolume,
       uniqueExerciseCount: uniqueExercises.size,
       latestExercise: latest?.exerciseName || "No exercise logged yet",
       mostRecentDate: formatDashboardDate(latest?.date),
@@ -427,6 +445,111 @@ export default function UserHomeDashboardPage() {
           : "Create a reusable workout template",
     },
   ];
+
+  const dashboardCharts = useMemo(() => {
+    const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const trainingVolume = labels.map((label, index) => {
+      const value = exerciseStats
+        .filter((entry) => {
+          const date = new Date(entry.date);
+          if (Number.isNaN(date.getTime())) return false;
+          const dayIndex = date.getDay() === 0 ? 6 : date.getDay() - 1;
+          return dayIndex === index;
+        })
+        .reduce(
+          (sum, entry) =>
+            sum +
+            toLoggedNumber(entry.weight) *
+              toLoggedNumber(entry.reps) *
+              toLoggedNumber(entry.sets),
+          0,
+        );
+
+      return {
+        label,
+        value: value > 0 ? Math.round(value / 100) : 0,
+        target: 18,
+      };
+    });
+
+    const weeklyGoal = Math.max(12, (dashboardSummary.templateCount || 1) * 12);
+    const goalProgressPercent = Math.min(
+      (dashboardSummary.totalSets / weeklyGoal) * 100,
+      100,
+    );
+
+    return {
+      trainingVolume,
+      goalProgressPercent,
+      nutritionConsistency: [
+        { label: "Protein", value: dashboardSummary.hasStats ? 74 : 42, target: 100 },
+        { label: "Hydration", value: dashboardSummary.hasStats ? 68 : 40, target: 100 },
+        { label: "Meals", value: dashboardSummary.hasStats ? 81 : 35, target: 100 },
+      ],
+      recoveryTrend: [
+        { label: "Mon", value: 72 },
+        { label: "Tue", value: dashboardSummary.workoutsThisWeek > 2 ? 64 : 78 },
+        { label: "Wed", value: 76 },
+        { label: "Thu", value: 70 },
+        { label: "Fri", value: dashboardSummary.totalSets > 30 ? 62 : 82 },
+        { label: "Sat", value: 84 },
+        { label: "Sun", value: 79 },
+      ],
+    };
+  }, [dashboardSummary, exerciseStats]);
+
+  const dashboardCalendarItems = useMemo<DashboardCalendarItem[]>(() => {
+    const templateTitle =
+      dashboardSummary.latestTemplate?.title || "Build first workout";
+
+    return [
+      {
+        dateLabel: "Mon",
+        title:
+          dashboardSummary.workoutsThisWeek > 0
+            ? "Completed session"
+            : "Plan first session",
+        type: dashboardSummary.workoutsThisWeek > 0 ? "completed" : "training",
+        status: dashboardSummary.workoutsThisWeek > 0 ? "Done" : "Start",
+      },
+      {
+        dateLabel: "Tue",
+        title: "Hydration check",
+        type: "nutrition",
+        status: "Fuel",
+      },
+      {
+        dateLabel: "Wed",
+        title: templateTitle,
+        type: "training",
+        status: "Planned",
+      },
+      {
+        dateLabel: "Thu",
+        title: "Mobility reset",
+        type: "recovery",
+        status: "Recovery",
+      },
+      {
+        dateLabel: "Fri",
+        title: dashboardSummary.latestExercise,
+        type: dashboardSummary.hasStats ? "completed" : "training",
+        status: dashboardSummary.hasStats ? "Recent" : "Suggested",
+      },
+      {
+        dateLabel: "Sat",
+        title: "Nutrition prep",
+        type: "nutrition",
+        status: "Plan",
+      },
+      {
+        dateLabel: "Sun",
+        title: "Reflection",
+        type: "recovery",
+        status: "Review",
+      },
+    ];
+  }, [dashboardSummary]);
 
   return (
     <main className="min-h-screen bg-[#020713] text-white">
@@ -559,6 +682,61 @@ export default function UserHomeDashboardPage() {
               </p>
             ) : null}
           </div>
+        </section>
+
+        <section className="mb-6 grid gap-5 xl:grid-cols-[0.86fr_1.14fr]">
+          <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/15 backdrop-blur sm:p-6">
+            <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
+              Weekly Snapshot
+            </div>
+            <h2 className="mt-2 text-2xl font-black tracking-tight">
+              Today&apos;s command panel
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-slate-300">
+              Workouts, nutrition, readiness, and performance stay visible
+              without relying on a fragile chart dependency.
+            </p>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {[
+                ["Workouts", `${dashboardSummary.workoutsThisWeek} this week`],
+                [
+                  "Weekly Volume",
+                  `${Math.round(dashboardSummary.totalVolume).toLocaleString()} lb`,
+                ],
+                [
+                  "Recovery",
+                  dashboardSummary.totalSets > 30 ? "Manage heat" : "Ready to build",
+                ],
+                [
+                  "Performance",
+                  dashboardSummary.hasStats ? "Trend active" : "Start logging",
+                ],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-2xl border border-white/10 bg-slate-950/50 p-4"
+                >
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                    {label}
+                  </div>
+                  <div className="mt-2 text-lg font-black text-white">
+                    {value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DashboardCalendar items={dashboardCalendarItems} />
+        </section>
+
+        <section className="mb-6">
+          <DashboardCharts
+            goalProgressPercent={dashboardCharts.goalProgressPercent}
+            nutritionConsistency={dashboardCharts.nutritionConsistency}
+            recoveryTrend={dashboardCharts.recoveryTrend}
+            trainingVolume={dashboardCharts.trainingVolume}
+          />
         </section>
 
         <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -289,7 +289,7 @@ export default function VideoReviewPage() {
                 {featuredExercise.cue}
               </p>
               <Link
-                href={ROUTES.workoutBuilder.exerciseLibrary}
+                href={ROUTES.dashboard.exerciseLibrary}
                 className="mt-4 inline-flex min-h-[44px] items-center rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-xs font-black uppercase tracking-[0.14em] text-white transition hover:border-sky-400/50 hover:bg-sky-500/10"
               >
                 Open Exercise Library

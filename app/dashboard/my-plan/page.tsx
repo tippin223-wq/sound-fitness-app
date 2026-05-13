@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import TrainingJourneyNavigator from "@/components/dashboard/TrainingJourneyNavigator";
 import { loadWorkoutTemplatesWithFallback } from "@/lib/data/workoutPersistence";
 import {
   writeActiveWorkoutBuilderSessionTemplate,
@@ -28,7 +29,73 @@ type PlanMessage = {
   text: string;
 };
 
+type PlanProfileSnapshot = {
+  activeGoal: string;
+  goalMode: string;
+  sessionsTarget: string;
+  preferredSplit: string;
+  recoveryWarnings: number;
+  calendarItems: number;
+};
+
 const PLANNING_HORIZON_WEEKS = 4;
+
+const safeJsonParse = (value: string | null): unknown => {
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+};
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+
+const getString = (
+  source: Record<string, unknown>,
+  keys: string[],
+  fallback: string,
+) => {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) return value;
+    if (typeof value === "number") return String(value);
+  }
+  return fallback;
+};
+
+const readLocal = (key: string) =>
+  typeof window === "undefined"
+    ? null
+    : safeJsonParse(window.localStorage.getItem(key));
+
+const readPlanProfileSnapshot = (): PlanProfileSnapshot => {
+  const profile = asRecord(readLocal("soundFitnessProfile"));
+  const goals = asRecord(readLocal("soundFitnessGoals"));
+  const calendar = readLocal("soundFitnessCalendar");
+  const stats = readLocal("soundFitnessExerciseStats");
+  const statEntries = Array.isArray(stats)
+    ? stats
+    : Object.values(asRecord(stats));
+  const recoveryWarnings = statEntries.filter((entry) => {
+    const record = asRecord(entry);
+    const weeklySets = Number(record.weeklySets ?? record.sets ?? 0);
+    const weeklyGoal = Number(record.weeklyGoal ?? record.goal ?? 12);
+    return Number.isFinite(weeklySets) && weeklyGoal > 0 && weeklySets >= weeklyGoal;
+  }).length;
+
+  return {
+    activeGoal: getString(goals, ["primaryGoal"], getString(profile, ["primaryGoal", "goalMode"], "General Health")),
+    goalMode: getString(goals, ["goalMode"], getString(profile, ["goalMode"], "General Health")),
+    sessionsTarget: getString(goals, ["targetWeeklySessions"], getString(profile, ["sessionsPerWeek"], "4")),
+    preferredSplit: getString(profile, ["preferredSplit", "split"], "Custom weekly structure"),
+    recoveryWarnings,
+    calendarItems: Array.isArray(calendar) ? calendar.length : 0,
+  };
+};
 
 const formatPlanDate = (value?: string) => {
   if (!value) return "Not scheduled";
@@ -217,6 +284,9 @@ export default function MyPlanPage() {
   >([]);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
   const [planMessage, setPlanMessage] = useState<PlanMessage | null>(null);
+  const [planProfile, setPlanProfile] = useState<PlanProfileSnapshot>(() =>
+    readPlanProfileSnapshot(),
+  );
 
   function refreshPlans(options: { expandPlanId?: string } = {}) {
     const storedPlans = readWorkoutPlans();
@@ -246,6 +316,7 @@ export default function MyPlanPage() {
     let isActive = true;
 
     refreshPlans();
+    setPlanProfile(readPlanProfileSnapshot());
 
     const loadTemplates = async () => {
       const result = await loadWorkoutTemplatesWithFallback();
@@ -462,6 +533,8 @@ export default function MyPlanPage() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
       <section className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <TrainingJourneyNavigator currentStep="my-plan" variant="full" />
+
         <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_18%_8%,rgba(34,211,238,0.18),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(16,185,129,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-5 shadow-2xl sm:rounded-[40px] sm:p-6 lg:p-8">
           <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
@@ -469,11 +542,10 @@ export default function MyPlanPage() {
                 My Plan
               </p>
               <h1 className="mt-4 max-w-3xl text-3xl font-black leading-tight sm:text-5xl">
-                Weekly training timeline.
+                🗂 My Plan
               </h1>
               <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-                Plan the week, review each day as a timeline row, duplicate
-                forward, and start assigned workouts directly from the plan.
+                Turn workouts into a realistic weekly training structure.
               </p>
             </div>
 
@@ -496,6 +568,28 @@ export default function MyPlanPage() {
                 Build Template
               </Link>
             </div>
+          </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+            {[
+              ["Active Goal", planProfile.activeGoal],
+              ["Weekly Target", `${planProfile.sessionsTarget} sessions`],
+              ["Current Split", planProfile.preferredSplit],
+              ["Assigned", `${planSummary.assignments} workouts`],
+              ["Recovery Balance", planProfile.recoveryWarnings > 0 ? `${planProfile.recoveryWarnings} warnings` : "Balanced"],
+              ["Next Planned", activePlan?.days.find((day) => day.assignments.length > 0)?.dayOfWeek || "Open"],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-2xl border border-white/10 bg-slate-950/50 p-3"
+              >
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  {label}
+                </p>
+                <p className="mt-2 truncate text-sm font-black text-white">
+                  {value}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -908,6 +1002,18 @@ export default function MyPlanPage() {
                       className="min-h-[44px] rounded-2xl bg-emerald-400 px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-950 transition hover:bg-emerald-300"
                     >
                       Open Builder
+                    </Link>
+                    <Link
+                      href={ROUTES.dashboard.calendar}
+                      className="min-h-[44px] rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-300 hover:text-slate-950"
+                    >
+                      Open Calendar
+                    </Link>
+                    <Link
+                      href={ROUTES.dashboard.phases}
+                      className="min-h-[44px] rounded-2xl border border-amber-300/20 bg-amber-400/10 px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-amber-100 transition hover:bg-amber-300 hover:text-slate-950"
+                    >
+                      Open Periodized Plan
                     </Link>
                     <Link
                       href={ROUTES.dashboard.createMyPlan}

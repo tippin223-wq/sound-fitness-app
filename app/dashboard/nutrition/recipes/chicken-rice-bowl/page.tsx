@@ -30,13 +30,13 @@ export default function ClientSiteMapPage() {
           name: "Video Review",
           url: "/dashboard/video-review",
           status: "Built",
-          connectsTo: ["Training Calendar", "Exercise Library", "Coach Messaging"],
+          connectsTo: ["Calendar", "Exercise Library", "Coach Messaging"],
           purpose:
             "Form-check hub. Connects exercise videos to workouts, sessions, and coach notes.",
         },
         {
-          name: "Training Calendar",
-          url: "/dashboard/training-calendar",
+          name: "Calendar",
+          url: "/dashboard/calendar",
           status: "Built",
           connectsTo: ["Workout Detail", "Booking", "Progress"],
           purpose:
@@ -52,7 +52,7 @@ export default function ClientSiteMapPage() {
         },
         {
           name: "Exercise Library",
-          url: "/dashboard/workout-builder/exercise-library",
+          url: "/dashboard/exercise-library",
           status: "Built",
           connectsTo: ["Exercise Demo"],
           purpose:
@@ -212,7 +212,7 @@ export default function ClientSiteMapPage() {
           name: "Booking",
           url: "/dashboard/sessions/booking",
           status: "Built",
-          connectsTo: ["Confirmation", "Training Calendar"],
+          connectsTo: ["Confirmation", "Calendar"],
           purpose: "Book or request a session time.",
         },
         {
