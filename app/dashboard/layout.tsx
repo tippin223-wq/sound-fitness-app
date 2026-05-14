@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
+import { ProfileProvider } from "@/components/profile/ProfileProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { ROUTES } from "@/lib/routes";
 
@@ -66,9 +67,9 @@ export default function DashboardLayout({
   if (loading) return null;
 
   return (
-    <>
+    <ProfileProvider>
       <AppHeader />
       {children}
-    </>
+    </ProfileProvider>
   );
 }

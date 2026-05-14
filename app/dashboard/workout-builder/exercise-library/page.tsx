@@ -63,7 +63,12 @@ import {
 } from "@/lib/training/movementTaxonomy";
 import { createExerciseVariation } from "@/lib/training/movementGeneration";
 import { ROUTES } from "@/lib/routes";
+import { useProfile } from "@/components/profile/ProfileProvider";
 import type { MuscleSlug } from "@/components/anatomy/exerciseMuscleMap";
+import {
+  getBodyModelFromProfile,
+  getBodyModelLabel,
+} from "@/lib/anatomy/bodyModel";
 import type {
   CoreMovementId,
   ExerciseCatalogItem,
@@ -9731,7 +9736,8 @@ function ExerciseBodyAnatomySelector({
   weeklySetsSummary: WeeklySetsSummary;
 }) {
   const router = useRouter();
-  const [gender, setGender] = useState<ExerciseBodyFigureGender>("male");
+  const { profile } = useProfile();
+  const gender: ExerciseBodyFigureGender = getBodyModelFromProfile(profile);
   const [showAnatomyLegend, setShowAnatomyLegend] = useState(true);
   const anatomySelectorRef = useRef<HTMLDivElement | null>(null);
   const latestAnatomyPointerPositionRef = useRef<{ x: number; y: number } | null>(
@@ -10856,23 +10862,9 @@ function ExerciseBodyAnatomySelector({
             </p>
           </div>
           <div className="flex flex-wrap justify-end gap-1.5">
-            <div className="flex rounded-xl border border-white/10 bg-slate-950/42 p-0.5">
-              {(["male", "female"] as ExerciseBodyFigureGender[]).map((item) => (
-                <button
-                  key={item}
-                  type="button"
-                  aria-pressed={gender === item}
-                  onClick={() => setGender(item)}
-                  className={`rounded-lg px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] transition ${
-                    gender === item
-                      ? "bg-emerald-300 text-slate-950"
-                      : "text-slate-400 hover:bg-emerald-300/10 hover:text-emerald-100"
-                  }`}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
+            <span className="rounded-xl border border-emerald-300/20 bg-emerald-300/10 px-3 py-2 text-[8px] font-black uppercase tracking-[0.1em] text-emerald-100">
+              {getBodyModelLabel(gender)} model
+            </span>
             <button
               type="button"
               onClick={() => {

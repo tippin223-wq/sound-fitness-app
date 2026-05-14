@@ -129,8 +129,8 @@ export const trainingJourneySteps: JourneyItem[] = [
     label: "Progress",
     shortLabel: "Progress",
     subtitle: "Adapt",
-    requestedHref: "/dashboard/progress",
-    href: ROUTES.dashboard.progress,
+    requestedHref: "/dashboard/stats",
+    href: ROUTES.dashboard.stats,
     available: true,
   },
 ];
@@ -209,7 +209,7 @@ function JourneyNode({
     <div className="flex min-w-[154px] flex-1 items-center gap-3">
       <NodeShell
         available={step.available}
-        className={`group relative flex w-full flex-col overflow-hidden rounded-2xl border transition ${
+        className={`group relative flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl border transition hover:-translate-y-0.5 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/55 ${
           compact ? "min-h-[82px] p-3" : "min-h-[112px] p-4"
         } ${
           isActive
@@ -322,7 +322,7 @@ export default function TrainingJourneyNavigator({
         </div>
       </div>
 
-      <div className="mt-4 flex gap-3 overflow-x-auto pb-2 2xl:overflow-visible">
+      <div className="mt-4 flex gap-3 overflow-x-auto scroll-smooth overscroll-x-contain px-1 pb-2 [scrollbar-color:rgba(34,211,238,0.35)_transparent] [scrollbar-width:thin]">
         {trainingJourneySteps.map((step, index) => (
           <JourneyNode
             key={step.id}

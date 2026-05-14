@@ -3,13 +3,20 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { useProfile } from "@/components/profile/ProfileProvider";
 import { ROUTES } from "@/lib/routes";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  asRecord,
+  getProfileInitials,
+  readSoundFitnessPoints,
+} from "@/lib/profile-storage";
 
 type ProtectedHeaderRole = "member" | "admin" | "coach";
 type Accent = "amber" | "cyan" | "emerald" | "fuchsia" | "orange" | "sky" | "violet";
 
 type MenuItem = {
+  activeHrefs?: string[];
   accent?: Accent;
   badge?: string;
   disabled?: boolean;
@@ -31,9 +38,10 @@ const soon = "Coming Soon";
 const dashboardItems: MenuItem[] = [
   {
     emoji: "📅",
-    label: "Sessions",
-    href: ROUTES.dashboard.sessions,
-    helper: "Workout dashboard, active sessions, and history.",
+    label: "Workout",
+    href: ROUTES.dashboard.home,
+    activeHrefs: [ROUTES.dashboard.home, ROUTES.dashboard.sessions],
+    helper: "Workout dashboard, sessions, and training command center.",
     accent: "cyan",
     badge: "Primary",
   },
@@ -41,24 +49,27 @@ const dashboardItems: MenuItem[] = [
     emoji: "🥗",
     label: "Nutrition",
     href: ROUTES.nutritionPortal.home,
+    activeHrefs: [ROUTES.nutritionPortal.home, ROUTES.nutrition.home],
     helper: "Fuel dashboard, meals, macros, hydration, and grocery.",
     accent: "emerald",
   },
   {
     emoji: "⚡",
     label: "Performance",
-    href: ROUTES.dashboard.performance,
+    href: "/performance",
+    activeHrefs: [ROUTES.dashboard.performance, "/performance"],
     helper: "Power, sprint, agility, carries, and conditioning.",
     accent: "orange",
   },
   {
     emoji: "🩹",
     label: "Recovery",
-    href: ROUTES.dashboard.recovery,
+    href: "/recovery",
+    activeHrefs: [ROUTES.dashboard.recovery, "/recovery"],
     helper: "Cooldowns, mobility, soreness, and readiness support.",
     accent: "sky",
   },
-  // TODO: Add Learning Dashboard when a dedicated /dashboard/learning route exists.
+  // TODO: Replace with /learning or /dashboard/learning when a dedicated Learning Dashboard route exists.
   {
     emoji: "🎓",
     label: "Learning",
@@ -67,7 +78,7 @@ const dashboardItems: MenuItem[] = [
     accent: "violet",
     badge: soon,
   },
-  // TODO: Add SoundWorld / Games Dashboard when a clear route exists.
+  // TODO: Replace with /soundworld when a dedicated SoundWorld Dashboard route exists.
   {
     emoji: "🎮",
     label: "SoundWorld",
@@ -83,46 +94,42 @@ const hubItems: MenuItem[] = [
     emoji: "📊",
     label: "Stats",
     href: ROUTES.dashboard.stats,
-    helper: "Training numbers, weekly volume, PRs, trends, and history.",
+    helper: "Progress, PRs, and training trends.",
     accent: "cyan",
   },
   {
     emoji: "🎯",
     label: "Goals",
     href: ROUTES.dashboard.goals,
-    helper: "Desired outcomes and app-wide training direction.",
+    helper: "Outcomes and training direction.",
     accent: "amber",
   },
-  // TODO: Add Insights when a dedicated /dashboard/insights route exists.
   {
     emoji: "🧠",
     label: "Insights",
-    disabled: true,
-    helper: "Future cross-page coach intelligence and next actions.",
+    href: ROUTES.dashboard.insights,
+    helper: "Coach intelligence and next actions.",
     accent: "violet",
-    badge: soon,
   },
   {
     emoji: "🗂",
     label: "Plan",
     href: ROUTES.dashboard.plan,
-    helper: "Weekly structure, templates, and plan-to-calendar flow.",
+    helper: "Weekly structure and templates.",
     accent: "sky",
   },
-  // TODO: Add Achievements when /dashboard/achievements exists.
   {
     emoji: "🏆",
     label: "Achievements",
-    disabled: true,
-    helper: "Future milestones, badges, and progress wins.",
+    href: ROUTES.dashboard.achievements,
+    helper: "Milestones, badges, and wins.",
     accent: "orange",
-    badge: soon,
   },
   {
     emoji: "💬",
     label: "Messages",
     href: ROUTES.dashboard.coachMessaging,
-    helper: "Coach messaging, questions, and training context.",
+    helper: "Coach messages and questions.",
     accent: "emerald",
   },
 ];
@@ -135,14 +142,12 @@ const accountItems: MenuItem[] = [
     helper: "Training identity, goals, body metrics, and avatar.",
     accent: "cyan",
   },
-  // TODO: Add Settings link when /dashboard/settings exists.
   {
     emoji: "⚙️",
     label: "Settings",
-    disabled: true,
-    helper: "Future app-level preferences.",
+    href: ROUTES.dashboard.settings,
+    helper: "App preferences and account controls.",
     accent: "violet",
-    badge: soon,
   },
   {
     emoji: "💳",
@@ -151,14 +156,12 @@ const accountItems: MenuItem[] = [
     helper: "Payments and invoice history.",
     accent: "amber",
   },
-  // TODO: Add Help link when /dashboard/help or /dashboard/support exists.
   {
     emoji: "💬",
     label: "Help",
-    disabled: true,
-    helper: "Future help and support center.",
+    href: ROUTES.dashboard.help,
+    helper: "Support, FAQs, and app guidance.",
     accent: "emerald",
-    badge: soon,
   },
 ];
 
@@ -226,119 +229,27 @@ const ROOT_ROUTES = [
 const userRoutePrefixes = [
   ROUTES.dashboard.stats,
   ROUTES.dashboard.goals,
+  ROUTES.dashboard.insights,
   ROUTES.dashboard.plan,
+  ROUTES.dashboard.achievements,
   ROUTES.dashboard.coachMessaging,
   ROUTES.dashboard.profile,
+  ROUTES.dashboard.settings,
   ROUTES.dashboard.payments,
-  "/dashboard/settings",
+  ROUTES.dashboard.help,
   "/dashboard/billing",
-  "/dashboard/help",
   "/dashboard/support",
 ];
 
-function safeJsonParse(value: string | null): unknown {
-  if (!value) return null;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function readNumber(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
-function readSoundPoints() {
-  if (typeof window === "undefined") return 0;
-  let direct: unknown = null;
-  let profile: Record<string, unknown> = {};
-
-  try {
-    direct = safeJsonParse(window.localStorage.getItem("soundFitnessPoints"));
-    profile = asRecord(
-      safeJsonParse(window.localStorage.getItem("soundFitnessProfile")),
-    );
-  } catch {
-    return 0;
-  }
-
-  const directRecord = asRecord(direct);
-  const candidates = [
-    readNumber(direct),
-    readNumber(directRecord.points),
-    readNumber(directRecord.total),
-    readNumber(directRecord.available),
-    readNumber(profile.soundPoints),
-  ];
-  return Math.max(0, Math.round(candidates.find((item) => item !== null) ?? 0));
-}
-
-function getInitials(name: string, email: string) {
-  const source = name.trim() || email.split("@")[0] || "Member";
-  const words = source
-    .replace(/[_-]+/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
-  const initials =
-    words.length >= 2 ? `${words[0][0]}${words[1][0]}` : source.slice(0, 2);
-  return initials.toUpperCase();
-}
-
-function createFallbackProfile(email = ""): UserProfile {
-  return {
-    displayName: email ? email.split("@")[0] : "Member",
-    email,
-    initials: getInitials("Member", email),
-    profileImage: "",
-  };
-}
-
-function readStoredProfile(email: string): UserProfile {
-  if (typeof window === "undefined") {
-    return createFallbackProfile(email);
-  }
-
-  let profile: Record<string, unknown> = {};
-
-  try {
-    profile = asRecord(
-      safeJsonParse(window.localStorage.getItem("soundFitnessProfile")),
-    );
-  } catch {
-    return createFallbackProfile(email);
-  }
-
-  const displayName =
-    typeof profile.displayName === "string" && profile.displayName.trim()
-      ? profile.displayName.trim()
-      : email
-        ? email.split("@")[0]
-        : "Member";
-  const profileImage =
-    typeof profile.profileImage === "string" ? profile.profileImage : "";
-
-  return {
-    displayName,
-    email,
-    initials: getInitials(displayName, email),
-    profileImage,
-  };
-}
-
 function formatPoints(points: number) {
   return new Intl.NumberFormat("en-US").format(points);
+}
+
+function readHeaderText(...values: unknown[]) {
+  const found = values.find(
+    (value) => typeof value === "string" && value.trim().length > 0,
+  );
+  return typeof found === "string" ? found.trim() : "";
 }
 
 function isActivePath(pathname: string, href: string) {
@@ -348,7 +259,10 @@ function isActivePath(pathname: string, href: string) {
 }
 
 function isMenuItemActive(pathname: string, item: MenuItem) {
-  return Boolean(item.href && isActivePath(pathname, item.href));
+  const hrefs = [item.href, ...(item.activeHrefs || [])].filter(
+    (href): href is string => Boolean(href),
+  );
+  return hrefs.some((href) => isActivePath(pathname, href));
 }
 
 function isUserMenuActive(pathname: string) {
@@ -418,7 +332,7 @@ function MenuItemCard({
   onNavigate?: () => void;
 }) {
   const accent = accentStyles[item.accent || "cyan"];
-  const className = `group block min-h-[70px] rounded-2xl border p-3 text-left transition duration-200 ${
+  const className = `group block min-h-[82px] rounded-2xl border p-4 text-left transition duration-200 ${
     active
       ? `${accent.border} ${accent.bg} ${accent.glow}`
       : item.disabled
@@ -428,16 +342,16 @@ function MenuItemCard({
   const content = (
     <>
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-black text-white">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2.5 text-sm font-black leading-tight text-white">
             <span
               className={`h-2.5 w-2.5 shrink-0 rounded-full ${accent.dot} shadow-[0_0_12px_currentColor]`}
             />
             {item.emoji ? <span aria-hidden="true">{item.emoji}</span> : null}
-            <span className="truncate">{item.label}</span>
+            <span className="min-w-0 leading-tight">{item.label}</span>
           </div>
           {item.helper ? (
-            <p className="mt-1 text-xs leading-5 text-slate-500">
+            <p className="mt-2 text-xs leading-5 text-slate-400">
               {item.helper}
             </p>
           ) : null}
@@ -484,9 +398,11 @@ function MenuSection({
 }) {
   return (
     <section className="rounded-[26px] border border-white/10 bg-white/[0.028] p-3">
-      <p className="px-1 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
-        {title}
-      </p>
+      {title ? (
+        <p className="px-1 pb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+          {title}
+        </p>
+      ) : null}
       <div className="grid gap-2 md:grid-cols-2">
         {items.map((item) => (
           <MenuItemCard
@@ -512,27 +428,18 @@ function DashboardsDropdown({
 }) {
   return (
     <div
-      className={`absolute right-0 top-full z-50 mt-2 w-[min(92vw,700px)] rounded-[28px] border border-white/10 bg-slate-950/97 p-4 opacity-0 shadow-[0_22px_58px_rgba(0,0,0,0.62)] ring-1 ring-white/[0.035] backdrop-blur-2xl transition-all duration-200 ${
+      className={`absolute right-0 top-full z-50 mt-2 w-[min(92vw,700px)] rounded-[28px] border border-white/10 bg-slate-950/97 p-3 opacity-0 shadow-[0_22px_58px_rgba(0,0,0,0.62)] ring-1 ring-white/[0.035] backdrop-blur-2xl transition-all duration-200 ${
         open
           ? "visible translate-y-0 scale-100 opacity-100"
           : "invisible translate-y-2 scale-[0.985] group-hover:visible group-hover:translate-y-0 group-hover:scale-100 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:scale-100 group-focus-within:opacity-100"
       }`}
     >
-      <div className="rounded-[24px] border border-sky-300/25 bg-sky-300/10 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-sky-100">
-          🧭 Dashboards
-        </p>
-        <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400">
-          Pick the command center for today’s work: sessions, nutrition,
-          performance, recovery, learning, or future SoundWorld systems.
-        </p>
-      </div>
-      <div className="mt-3">
+      <div className="mt-0">
         <MenuSection
           items={dashboardItems}
           onNavigate={onNavigate}
           pathname={pathname}
-          title="Dashboards"
+          title=""
         />
       </div>
     </div>
@@ -558,7 +465,7 @@ function UserDropdown({
 }) {
   return (
     <div
-      className={`absolute right-0 top-full z-50 mt-2 max-h-[78vh] w-[min(92vw,640px)] overflow-y-auto rounded-[28px] border border-white/10 bg-slate-950/97 p-4 opacity-0 shadow-[0_22px_58px_rgba(0,0,0,0.62)] ring-1 ring-white/[0.035] backdrop-blur-2xl transition-all duration-200 ${
+      className={`absolute right-0 top-full z-50 mt-2 max-h-[78vh] w-[min(94vw,760px)] overflow-y-auto rounded-[28px] border border-white/10 bg-slate-950/97 p-4 opacity-0 shadow-[0_22px_58px_rgba(0,0,0,0.62)] ring-1 ring-white/[0.035] backdrop-blur-2xl transition-all duration-200 ${
         open
           ? "visible translate-y-0 scale-100 opacity-100"
           : "invisible translate-y-2 scale-[0.985]"
@@ -584,7 +491,7 @@ function UserDropdown({
         </div>
       </div>
 
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
+      <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1.35fr)_minmax(240px,0.9fr)]">
         <MenuSection
           items={hubItems}
           onNavigate={onNavigate}
@@ -663,8 +570,8 @@ function MobileDrawer({
             {
               emoji: "🏋️",
               label: "Workout",
-              href: ROUTES.dashboard.sessions,
-              helper: "Start, resume, or manage today’s workout.",
+              href: ROUTES.dashboard.home,
+              helper: "Open the workout dashboard and session tools.",
               accent: "cyan",
             },
           ]}
@@ -677,12 +584,6 @@ function MobileDrawer({
           onNavigate={onClose}
           pathname={pathname}
           title="Dashboards"
-        />
-        <MenuSection
-          items={hubItems}
-          onNavigate={onClose}
-          pathname={pathname}
-          title="My Hub"
         />
         <MenuSection
           items={accountItems}
@@ -729,13 +630,17 @@ export default function ProtectedHeader({
 }: {
   role: ProtectedHeaderRole;
 }) {
+  const { profile } = useProfile();
   const router = useRouter();
   const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [openMenu, setOpenMenu] = useState<"dashboards" | "mobile" | "user" | null>(null);
-  const [profile, setProfile] = useState<UserProfile>(() => createFallbackProfile(""));
+  const [authUser, setAuthUser] = useState({
+    avatarUrl: "",
+    email: "",
+    name: "",
+  });
   const [soundPoints, setSoundPoints] = useState(0);
-  const [userEmail, setUserEmail] = useState("");
 
   const config =
     role === "member"
@@ -775,6 +680,24 @@ export default function ProtectedHeader({
   const dashboardsActive =
     isActivePath(pathname, ROUTES.dashboard.home) || isDashboardMenuActive(pathname);
   const userActive = isUserMenuActive(pathname);
+  const profileRecord = asRecord(profile);
+  const profileEmail = readHeaderText(profileRecord.email);
+  const displayName =
+    readHeaderText(
+      profileRecord.displayName,
+      profileRecord.username,
+      profileRecord.fullName,
+      profileEmail ? profileEmail.split("@")[0] : "",
+      authUser.email ? authUser.email.split("@")[0] : "",
+    ) || "Member";
+  const email = readHeaderText(profileEmail, authUser.email);
+  const avatar = readHeaderText(profileRecord.avatarUrl, profileRecord.profileImage);
+  const visibleProfile: UserProfile = {
+    displayName,
+    email,
+    initials: getProfileInitials(displayName, email),
+    profileImage: avatar,
+  };
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -813,52 +736,21 @@ export default function ProtectedHeader({
       const authAvatar =
         typeof metadata.avatar_url === "string" ? metadata.avatar_url : "";
 
-      setUserEmail(email);
-      setProfile((current) => {
-        const stored = readStoredProfile(email);
-        const displayName =
-          stored.displayName === "Member" && authName
-            ? authName
-            : stored.displayName;
-        const profileImage = stored.profileImage || authAvatar || current.profileImage;
-        return {
-          displayName,
-          email,
-          initials: getInitials(displayName, email),
-          profileImage,
-        };
-      });
+      setAuthUser({ avatarUrl: authAvatar, email, name: authName });
+      setSoundPoints(readSoundFitnessPoints());
     }
 
     loadUser();
   }, []);
 
   useEffect(() => {
-    const updateLocalProfile = () => {
-      setSoundPoints(readSoundPoints());
-      setProfile((current) => {
-        const stored = readStoredProfile(current.email || userEmail);
-        return {
-          ...stored,
-          email: current.email || stored.email,
-          initials: getInitials(stored.displayName, current.email || stored.email),
-        };
-      });
-    };
-
-    updateLocalProfile();
-    window.addEventListener("storage", updateLocalProfile);
-    window.addEventListener("focus", updateLocalProfile);
-    return () => {
-      window.removeEventListener("storage", updateLocalProfile);
-      window.removeEventListener("focus", updateLocalProfile);
-    };
-  }, [userEmail]);
+    setSoundPoints(readSoundFitnessPoints());
+  }, [profile]);
 
   async function signOut() {
     setOpenMenu(null);
     await supabase.auth.signOut();
-    setUserEmail("");
+    setAuthUser({ avatarUrl: "", email: "", name: "" });
     router.push(config.loginHref);
     router.refresh();
   }
@@ -896,9 +788,9 @@ export default function ProtectedHeader({
             <>
               <nav className="mr-auto hidden min-w-0 items-center gap-2 rounded-[24px] border border-white/10 bg-slate-950/54 p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_18px_52px_rgba(0,0,0,0.32)] xl:flex">
                 <Link
-                  aria-current={isActivePath(pathname, ROUTES.dashboard.sessions) ? "page" : undefined}
+                  aria-current={isMenuItemActive(pathname, dashboardItems[0]) ? "page" : undefined}
                   className="inline-flex min-h-[50px] items-center gap-2 rounded-[18px] border border-cyan-200/50 bg-gradient-to-r from-cyan-300 to-sky-400 px-5 py-2.5 text-[11px] font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_0_32px_rgba(34,211,238,0.28)] transition hover:-translate-y-0.5 hover:scale-[1.015] hover:from-cyan-200 hover:to-sky-300"
-                  href={ROUTES.dashboard.sessions}
+                  href={ROUTES.dashboard.home}
                 >
                   🏋️ Workout
                 </Link>
@@ -965,7 +857,7 @@ export default function ProtectedHeader({
               }
               type="button"
             >
-              <UserAvatar profile={profile} />
+              <UserAvatar profile={visibleProfile} />
               <span className="hidden sm:inline">Menu</span>
             </button>
 
@@ -974,9 +866,9 @@ export default function ProtectedHeader({
                 onClose={() => setOpenMenu(null)}
                 onSignOut={signOut}
                 pathname={pathname}
-                profile={profile}
+                profile={visibleProfile}
                 soundPoints={soundPoints}
-                userEmail={userEmail}
+                userEmail={authUser.email}
               />
             ) : null}
           </div>
@@ -994,10 +886,10 @@ export default function ProtectedHeader({
               }
               type="button"
             >
-              <UserAvatar profile={profile} />
+              <UserAvatar profile={visibleProfile} />
               <span className="hidden min-w-0 lg:block">
                 <span className="block max-w-[140px] truncate text-xs font-black uppercase tracking-[0.12em]">
-                  {profile.displayName || "Member"}
+                  {visibleProfile.displayName || "Member"}
                 </span>
                 <span className="mt-0.5 block text-[10px] font-bold text-amber-100/80">
                   ⭐ {formatPoints(soundPoints)} pts
@@ -1012,19 +904,14 @@ export default function ProtectedHeader({
                 onSignOut={signOut}
                 open={openMenu === "user"}
                 pathname={pathname}
-                profile={profile}
+                profile={visibleProfile}
                 soundPoints={soundPoints}
-                userEmail={userEmail}
+                userEmail={authUser.email}
               />
             ) : null}
           </div>
         </div>
       </div>
-      {role === "member" ? (
-        <div className="hidden border-t border-white/5 bg-white/[0.018] px-4 py-1.5 text-center text-[10px] font-black uppercase tracking-[0.18em] text-slate-500 xl:block">
-          🏋️ Workout • 🧭 Dashboards • 👤 User Menu
-        </div>
-      ) : null}
     </header>
   );
 }

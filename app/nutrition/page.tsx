@@ -83,10 +83,44 @@ export default function NutritionDashboardPage() {
         </div>
       </section>
 
+      <section className="overflow-hidden rounded-[34px] border border-cyan-300/20 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.2),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(251,191,36,0.13),transparent_30%),linear-gradient(135deg,rgba(8,47,73,0.34),rgba(2,6,23,0.9))] p-5 shadow-[0_28px_90px_rgba(34,211,238,0.08)] backdrop-blur-xl lg:p-6">
+        <div className="grid gap-5 lg:grid-cols-[1fr_0.38fr] lg:items-center">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.26em] text-cyan-200">
+              Step-by-step nutrition path
+            </p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight text-white">
+              Fuel Journey
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
+              Your step-by-step nutrition path for building consistency,
+              fueling workouts, and improving recovery.
+            </p>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+            <Link
+              href="/nutrition/journey"
+              className="rounded-3xl bg-cyan-300 px-5 py-4 text-center text-sm font-black uppercase tracking-[0.16em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
+            >
+              Continue Fuel Journey
+            </Link>
+            <div className="rounded-3xl border border-white/10 bg-slate-950/55 px-5 py-4">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                Next Stage
+              </p>
+              <p className="mt-1 text-sm font-black text-white">
+                {nextStage.title}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
         <ContentCard className="border-cyan-300/18 bg-cyan-300/8">
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200">
-            Training Journey
+            Current Fuel Stage
           </p>
           <h2 className="mt-3 text-2xl font-black text-white">
             {nextStage.title}

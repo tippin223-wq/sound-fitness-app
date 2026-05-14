@@ -5,14 +5,19 @@ import Body, {
   type ExtendedBodyPart,
   type Slug,
 } from "react-muscle-highlighter";
+import { useProfile } from "@/components/profile/ProfileProvider";
 import {
   calculateMuscleHeat,
   mockCompletedSets,
 } from "@/lib/training/calculateMuscleHeat";
 import type { MuscleSlug } from "@/components/anatomy/exerciseMuscleMap";
+import {
+  getBodyModelFromProfile,
+  getBodyModelLabel,
+  type BodyModel,
+} from "@/lib/anatomy/bodyModel";
 
 type BodyView = "front" | "back";
-type BodyGender = "male" | "female";
 
 const HEAT_COLORS = ["#22c55e", "#facc15", "#f97316", "#ff3b5c"];
 
@@ -39,10 +44,15 @@ function formatSlug(slug: string) {
   return slug.replaceAll("-", " ").replaceAll("_", " ");
 }
 
-export default function MuscleHeatMap() {
+export default function MuscleHeatMap({
+  bodyModel,
+}: {
+  bodyModel?: BodyModel;
+} = {}) {
+  const { profile } = useProfile();
   const [side, setSide] = useState<BodyView>("front");
-  const [gender, setGender] = useState<BodyGender>("male");
   const [selectedPart, setSelectedPart] = useState<MuscleSlug | null>(null);
+  const gender = bodyModel || getBodyModelFromProfile(profile);
 
   const heatResults = useMemo(() => {
     return calculateMuscleHeat({
@@ -113,23 +123,9 @@ export default function MuscleHeatMap() {
             </button>
           ))}
 
-          {(["male", "female"] as BodyGender[]).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => {
-                setGender(item);
-                setSelectedPart(null);
-              }}
-              className={`rounded-2xl px-4 py-2 text-xs font-black uppercase tracking-[0.16em] transition ${
-                gender === item
-                  ? "bg-emerald-400 text-slate-950 shadow-[0_0_24px_rgba(52,211,153,0.25)]"
-                  : "border border-white/10 bg-white/[0.04] text-slate-300 hover:border-emerald-300/40"
-              }`}
-            >
-              {item}
-            </button>
-          ))}
+          <span className="rounded-2xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-emerald-100">
+            {getBodyModelLabel(gender)} model
+          </span>
         </div>
       </div>
 

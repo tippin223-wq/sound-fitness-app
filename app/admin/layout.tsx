@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import ProtectedHeader from "@/components/ProtectedHeader";
+import { ProfileProvider } from "@/components/profile/ProfileProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { ROUTES } from "@/lib/routes";
 
@@ -54,9 +55,9 @@ export default function AdminLayout({
   if (pathname === ROUTES.admin.login) return <>{children}</>;
 
   return (
-    <>
+    <ProfileProvider>
       <ProtectedHeader role="admin" />
       {children}
-    </>
+    </ProfileProvider>
   );
 }

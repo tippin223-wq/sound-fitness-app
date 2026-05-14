@@ -149,6 +149,98 @@ const memberAreaCards = [
   },
 ] as const;
 
+const dashboardNavigationCards = [
+  {
+    title: "Workout Dashboard",
+    href: ROUTES.dashboard.sessions,
+    description: "Sessions, plans, builders, and training progression.",
+    icon: "🏋️",
+    tone: "cyan",
+    status: "Primary",
+  },
+  {
+    title: "Nutrition Dashboard",
+    href: ROUTES.nutritionPortal.home,
+    description: "Meals, hydration, grocery planning, and fuel tracking.",
+    icon: "🥗",
+    tone: "emerald",
+    status: "Ready",
+  },
+  {
+    title: "Performance Dashboard",
+    href: "/performance",
+    description: "Power, conditioning, capacity, and athletic development.",
+    icon: "⚡",
+    tone: "amber",
+    status: "Ready",
+  },
+  {
+    title: "Recovery Dashboard",
+    href: "/recovery",
+    description: "Readiness, mobility, soreness, and recovery support.",
+    icon: "🩹",
+    tone: "sky",
+    status: "Ready",
+  },
+  // TODO: Link to /learning when the Learning Dashboard route exists.
+  {
+    title: "Learning Dashboard",
+    href: null,
+    description: "Education, skill lessons, and guided learning paths.",
+    icon: "🎓",
+    tone: "violet",
+    status: "Coming Soon",
+  },
+  // TODO: Link to /soundworld when the SoundWorld Dashboard route exists.
+  {
+    title: "SoundWorld Dashboard",
+    href: null,
+    description: "Games, challenges, and future interactive training worlds.",
+    icon: "🎮",
+    tone: "fuchsia",
+    status: "Coming Soon",
+  },
+] as const;
+
+const dashboardToneStyles = {
+  amber: {
+    border: "hover:border-amber-300/45",
+    glow: "hover:shadow-[0_0_34px_rgba(251,191,36,0.13)]",
+    icon: "bg-amber-300/12 text-amber-100",
+    line: "bg-amber-300/60",
+  },
+  cyan: {
+    border: "hover:border-cyan-300/45",
+    glow: "hover:shadow-[0_0_34px_rgba(34,211,238,0.15)]",
+    icon: "bg-cyan-300/12 text-cyan-100",
+    line: "bg-cyan-300/70",
+  },
+  emerald: {
+    border: "hover:border-emerald-300/45",
+    glow: "hover:shadow-[0_0_34px_rgba(16,185,129,0.13)]",
+    icon: "bg-emerald-300/12 text-emerald-100",
+    line: "bg-emerald-300/60",
+  },
+  fuchsia: {
+    border: "hover:border-fuchsia-300/40",
+    glow: "hover:shadow-[0_0_34px_rgba(217,70,239,0.12)]",
+    icon: "bg-fuchsia-300/12 text-fuchsia-100",
+    line: "bg-fuchsia-300/50",
+  },
+  sky: {
+    border: "hover:border-sky-300/45",
+    glow: "hover:shadow-[0_0_34px_rgba(14,165,233,0.13)]",
+    icon: "bg-sky-300/12 text-sky-100",
+    line: "bg-sky-300/60",
+  },
+  violet: {
+    border: "hover:border-violet-300/40",
+    glow: "hover:shadow-[0_0_34px_rgba(139,92,246,0.12)]",
+    icon: "bg-violet-300/12 text-violet-100",
+    line: "bg-violet-300/50",
+  },
+} as const;
+
 export default function UserHomeDashboardPage() {
   const [firstName, setFirstName] = useState("Member");
   const [exerciseStats, setExerciseStats] = useState<LocalExerciseStatEntry[]>(
@@ -591,6 +683,82 @@ export default function UserHomeDashboardPage() {
           </div>
         </header>
 
+        <section className="mb-6 rounded-[32px] border border-white/10 bg-white/[0.035] p-5 shadow-2xl shadow-black/15 backdrop-blur sm:p-6">
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
+                Dashboards
+              </div>
+              <h2 className="mt-2 text-2xl font-black uppercase tracking-tight text-white">
+                Choose your command center
+              </h2>
+            </div>
+            <p className="max-w-xl text-sm leading-6 text-slate-400">
+              Jump into the major Sound Fitness dashboards without adding
+              another header menu.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {dashboardNavigationCards.map((card) => {
+              const tone = dashboardToneStyles[card.tone];
+              const cardContent = (
+                <>
+                  <span
+                    className={`absolute left-5 right-5 top-0 h-[2px] rounded-full ${tone.line}`}
+                  />
+                  <div className="flex items-start justify-between gap-3">
+                    <span
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-lg ${tone.icon}`}
+                      aria-hidden="true"
+                    >
+                      {card.icon}
+                    </span>
+                    <span
+                      className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                        card.href
+                          ? "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"
+                          : "border-white/10 bg-white/[0.04] text-slate-500"
+                      }`}
+                    >
+                      {card.status}
+                    </span>
+                  </div>
+                  <h3 className="mt-4 text-lg font-black tracking-tight text-white">
+                    {card.title}
+                  </h3>
+                  <p className="mt-2 min-h-[48px] text-sm leading-6 text-slate-400">
+                    {card.description}
+                  </p>
+                  <div className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-cyan-200 transition group-hover:translate-x-1">
+                    {card.href ? "Open Dashboard" : "Coming Soon"}
+                  </div>
+                </>
+              );
+              const className = `group relative overflow-hidden rounded-[26px] border border-white/10 bg-slate-950/42 p-5 text-left transition duration-300 ${tone.border} ${tone.glow}`;
+
+              return card.href ? (
+                <Link
+                  key={card.title}
+                  href={card.href}
+                  className={`${className} hover:-translate-y-1 hover:bg-white/[0.06] active:scale-[0.99]`}
+                >
+                  {cardContent}
+                </Link>
+              ) : (
+                <button
+                  key={card.title}
+                  type="button"
+                  disabled
+                  className={`${className} cursor-not-allowed opacity-70`}
+                >
+                  {cardContent}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         <section className="mb-6 grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-[28px] border border-sky-400/30 bg-white/[0.055] p-5 shadow-2xl shadow-black/25 backdrop-blur sm:rounded-[34px] sm:p-6 lg:p-8">
             <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-400">
@@ -631,56 +799,83 @@ export default function UserHomeDashboardPage() {
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-5 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[34px] sm:p-6">
+          <div className="rounded-[28px] border border-cyan-300/20 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.14),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.84),rgba(2,6,23,0.94))] p-5 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[34px] sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-300">
-                  Backup Status
+                  Add Stats
                 </div>
                 <h2 className="mt-2 text-2xl font-black tracking-tight">
-                  Account backup
+                  Add Stats
                 </h2>
               </div>
-              <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-emerald-200">
-                {statsSourceLabel}
+              <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                Import Center
               </span>
             </div>
 
             <p className="mt-3 text-sm leading-6 text-slate-300">
-              Workout logs and templates stay available in this browser, and
-              signed-in accounts can back them up for future sessions.
+              Upload, connect, or manually enter your fitness data across
+              workouts, nutrition, body metrics, recovery, and performance.
             </p>
 
-            <button
-              type="button"
-              onClick={syncLocalWorkoutData}
-              disabled={!canSyncWorkoutData || isSyncingWorkoutData}
-              className="mt-5 min-h-[48px] w-full rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-center text-sm font-black uppercase tracking-[0.14em] text-white transition hover:border-sky-400/50 hover:bg-sky-500/10 disabled:cursor-not-allowed disabled:opacity-45"
+            <div className="mt-5 grid gap-2 sm:grid-cols-2">
+              {[
+                ["Manual Entry", "/stats/add/manual"],
+                ["Upload Photo", "/stats/add/upload"],
+                ["Upload Screenshot", "/stats/add/upload"],
+                ["Upload Excel / CSV", "/stats/add/upload"],
+                ["Connect Wearable", "/stats/add/connect"],
+                ["AI Import Review", "/stats/import-review"],
+              ].map(([label, href]) => (
+                <Link
+                  key={label}
+                  href={href}
+                  className="min-h-[44px] rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-xs font-black uppercase tracking-[0.12em] text-white transition hover:border-cyan-300/40 hover:bg-cyan-300/10"
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {["Workout", "Nutrition", "Body", "Recovery", "Performance"].map(
+                (badge) => (
+                  <span
+                    key={badge}
+                    className="rounded-full border border-white/10 bg-slate-950/55 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400"
+                  >
+                    {badge}
+                  </span>
+                ),
+              )}
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  Last Import
+                </div>
+                <p className="mt-1 text-sm font-bold text-white">
+                  {lastSyncedLabel || "No import reviewed yet"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  Connected Apps
+                </div>
+                <p className="mt-1 text-sm font-bold text-white">
+                  Coming soon
+                </p>
+              </div>
+            </div>
+
+            <Link
+              href="/stats/add"
+              className="mt-5 block min-h-[48px] w-full rounded-2xl bg-cyan-300 px-5 py-4 text-center text-sm font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.18)] transition hover:bg-cyan-200"
             >
-              {isSyncingWorkoutData
-                  ? "Syncing..."
-                  : canSyncWorkoutData
-                    ? "Back up workout data"
-                    : "Sign in to sync"}
-            </button>
-
-            {syncStatusMessage ? (
-              <p className="mt-4 rounded-2xl border border-sky-300/20 bg-sky-400/10 px-4 py-3 text-sm font-semibold text-sky-100">
-                {syncStatusMessage}
-              </p>
-            ) : (
-              <p className="mt-4 rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3 text-sm text-slate-400">
-                {lastSyncedLabel
-                  ? `Last synced ${lastSyncedLabel}`
-                  : "No sync run from this browser yet."}
-              </p>
-            )}
-
-            {syncStatusMessage && lastSyncedLabel ? (
-              <p className="mt-3 text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
-                Last synced {lastSyncedLabel}
-              </p>
-            ) : null}
+              Open Import Center
+            </Link>
           </div>
         </section>
 
