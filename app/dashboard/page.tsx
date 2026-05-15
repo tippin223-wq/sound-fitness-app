@@ -124,6 +124,12 @@ const memberAreaCards = [
     label: "Progress",
   },
   {
+    title: "Goals",
+    href: ROUTES.dashboard.goals,
+    text: "Plan direction, goal timeline, priorities, and milestones.",
+    label: "Direction",
+  },
+  {
     title: "Video Review",
     href: ROUTES.dashboard.videoReview,
     text: "Submit form checks and link coach feedback to training.",
@@ -144,7 +150,7 @@ const memberAreaCards = [
   {
     title: "Profile",
     href: ROUTES.dashboard.profile,
-    text: "Personal details, goals, preferences, and account settings.",
+    text: "Personal details, body context, preferences, and account settings.",
     label: "Account",
   },
 ] as const;
@@ -182,23 +188,21 @@ const dashboardNavigationCards = [
     tone: "sky",
     status: "Ready",
   },
-  // TODO: Link to /learning when the Learning Dashboard route exists.
   {
     title: "Learning Dashboard",
-    href: null,
+    href: ROUTES.learning.home,
     description: "Education, skill lessons, and guided learning paths.",
     icon: "🎓",
     tone: "violet",
-    status: "Coming Soon",
+    status: "Ready",
   },
-  // TODO: Link to /soundworld when the SoundWorld Dashboard route exists.
   {
     title: "SoundWorld Dashboard",
-    href: null,
+    href: ROUTES.soundworld.home,
     description: "Games, challenges, and future interactive training worlds.",
     icon: "🎮",
     tone: "fuchsia",
-    status: "Coming Soon",
+    status: "Ready",
   },
 ] as const;
 
@@ -683,82 +687,6 @@ export default function UserHomeDashboardPage() {
           </div>
         </header>
 
-        <section className="mb-6 rounded-[32px] border border-white/10 bg-white/[0.035] p-5 shadow-2xl shadow-black/15 backdrop-blur sm:p-6">
-          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
-                Dashboards
-              </div>
-              <h2 className="mt-2 text-2xl font-black uppercase tracking-tight text-white">
-                Choose your command center
-              </h2>
-            </div>
-            <p className="max-w-xl text-sm leading-6 text-slate-400">
-              Jump into the major Sound Fitness dashboards without adding
-              another header menu.
-            </p>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {dashboardNavigationCards.map((card) => {
-              const tone = dashboardToneStyles[card.tone];
-              const cardContent = (
-                <>
-                  <span
-                    className={`absolute left-5 right-5 top-0 h-[2px] rounded-full ${tone.line}`}
-                  />
-                  <div className="flex items-start justify-between gap-3">
-                    <span
-                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-lg ${tone.icon}`}
-                      aria-hidden="true"
-                    >
-                      {card.icon}
-                    </span>
-                    <span
-                      className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
-                        card.href
-                          ? "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"
-                          : "border-white/10 bg-white/[0.04] text-slate-500"
-                      }`}
-                    >
-                      {card.status}
-                    </span>
-                  </div>
-                  <h3 className="mt-4 text-lg font-black tracking-tight text-white">
-                    {card.title}
-                  </h3>
-                  <p className="mt-2 min-h-[48px] text-sm leading-6 text-slate-400">
-                    {card.description}
-                  </p>
-                  <div className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-cyan-200 transition group-hover:translate-x-1">
-                    {card.href ? "Open Dashboard" : "Coming Soon"}
-                  </div>
-                </>
-              );
-              const className = `group relative overflow-hidden rounded-[26px] border border-white/10 bg-slate-950/42 p-5 text-left transition duration-300 ${tone.border} ${tone.glow}`;
-
-              return card.href ? (
-                <Link
-                  key={card.title}
-                  href={card.href}
-                  className={`${className} hover:-translate-y-1 hover:bg-white/[0.06] active:scale-[0.99]`}
-                >
-                  {cardContent}
-                </Link>
-              ) : (
-                <button
-                  key={card.title}
-                  type="button"
-                  disabled
-                  className={`${className} cursor-not-allowed opacity-70`}
-                >
-                  {cardContent}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
         <section className="mb-6 grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
           <div className="rounded-[28px] border border-sky-400/30 bg-white/[0.055] p-5 shadow-2xl shadow-black/25 backdrop-blur sm:rounded-[34px] sm:p-6 lg:p-8">
             <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-400">
@@ -923,6 +851,73 @@ export default function UserHomeDashboardPage() {
           </div>
 
           <DashboardCalendar items={dashboardCalendarItems} />
+        </section>
+
+        <section className="mb-6 rounded-[32px] border border-white/10 bg-white/[0.035] p-5 shadow-2xl shadow-black/15 backdrop-blur sm:p-6">
+          <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300">
+                Dashboards
+              </div>
+              <h2 className="mt-2 text-2xl font-black uppercase tracking-tight text-white">
+                Choose your command center
+              </h2>
+            </div>
+            <p className="max-w-xl text-sm leading-6 text-slate-400">
+              Jump into the major Sound Fitness dashboards without adding
+              another header menu.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {dashboardNavigationCards.map((card) => {
+              const tone = dashboardToneStyles[card.tone];
+              const cardContent = (
+                <>
+                  <span
+                    className={`absolute left-5 right-5 top-0 h-[2px] rounded-full ${tone.line}`}
+                  />
+                  <div className="flex items-start justify-between gap-3">
+                    <span
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 text-lg ${tone.icon}`}
+                      aria-hidden="true"
+                    >
+                      {card.icon}
+                    </span>
+                    <span
+                      className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                        card.href
+                          ? "border-cyan-300/20 bg-cyan-300/10 text-cyan-100"
+                          : "border-white/10 bg-white/[0.04] text-slate-500"
+                      }`}
+                    >
+                      {card.status}
+                    </span>
+                  </div>
+                  <h3 className="mt-4 text-lg font-black tracking-tight text-white">
+                    {card.title}
+                  </h3>
+                  <p className="mt-2 min-h-[48px] text-sm leading-6 text-slate-400">
+                    {card.description}
+                  </p>
+                  <div className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-cyan-200 transition group-hover:translate-x-1">
+                    {card.href ? "Open Dashboard" : "Coming Soon"}
+                  </div>
+                </>
+              );
+              const className = `group relative overflow-hidden rounded-[26px] border border-white/10 bg-slate-950/42 p-5 text-left transition duration-300 ${tone.border} ${tone.glow}`;
+
+              return (
+                <Link
+                  key={card.title}
+                  href={card.href}
+                  className={`${className} hover:-translate-y-1 hover:bg-white/[0.06] active:scale-[0.99]`}
+                >
+                  {cardContent}
+                </Link>
+              );
+            })}
+          </div>
         </section>
 
         <section className="mb-6">

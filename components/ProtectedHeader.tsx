@@ -69,23 +69,21 @@ const dashboardItems: MenuItem[] = [
     helper: "Cooldowns, mobility, soreness, and readiness support.",
     accent: "sky",
   },
-  // TODO: Replace with /learning or /dashboard/learning when a dedicated Learning Dashboard route exists.
   {
     emoji: "🎓",
     label: "Learning",
-    disabled: true,
-    helper: "Future lessons, references, and coaching education.",
+    href: ROUTES.learning.home,
+    activeHrefs: [ROUTES.learning.home],
+    helper: "Lessons, references, skill tracks, and coaching education.",
     accent: "violet",
-    badge: soon,
   },
-  // TODO: Replace with /soundworld when a dedicated SoundWorld Dashboard route exists.
   {
     emoji: "🎮",
     label: "SoundWorld",
-    disabled: true,
-    helper: "Future gamified training and community world.",
+    href: ROUTES.soundworld.home,
+    activeHrefs: [ROUTES.soundworld.home],
+    helper: "Quests, badges, rewards, and gamified training worlds.",
     accent: "fuchsia",
-    badge: soon,
   },
 ];
 
@@ -139,7 +137,7 @@ const accountItems: MenuItem[] = [
     emoji: "👤",
     label: "Profile",
     href: ROUTES.dashboard.profile,
-    helper: "Training identity, goals, body metrics, and avatar.",
+    helper: "Training identity, body metrics, preferences, and avatar.",
     accent: "cyan",
   },
   {

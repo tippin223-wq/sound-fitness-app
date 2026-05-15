@@ -1,6 +1,13 @@
 "use client";
 
-import { type ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CSSProperties,
+  type ChangeEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import { useProfile } from "@/components/profile/ProfileProvider";
 import { supabase } from "@/lib/supabaseClient";
@@ -54,19 +61,168 @@ function ImagePlusIcon({ className = "" }: { className?: string }) {
   );
 }
 
+type SelectorIconName =
+  | "activity"
+  | "arrow-up"
+  | "baby"
+  | "bandage"
+  | "bike"
+  | "briefcase"
+  | "brain"
+  | "building"
+  | "calendar-clock"
+  | "car"
+  | "clock"
+  | "circle"
+  | "circle-dot"
+  | "dumbbell"
+  | "footprints"
+  | "graduation-cap"
+  | "hammer"
+  | "heart-handshake"
+  | "heart-pulse"
+  | "home"
+  | "kettlebell"
+  | "more-horizontal"
+  | "moon"
+  | "panel-top"
+  | "plane"
+  | "runner"
+  | "settings"
+  | "shield"
+  | "shuffle"
+  | "sparkles"
+  | "square"
+  | "stretch"
+  | "trophy"
+  | "trees"
+  | "user"
+  | "users"
+  | "wallet"
+  | "waves";
+
+function SelectorIcon({
+  className = "h-5 w-5",
+  name,
+}: {
+  className?: string;
+  name: SelectorIconName;
+}) {
+  const iconProps = {
+    "aria-hidden": true,
+    className,
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    strokeWidth: "2",
+    viewBox: "0 0 24 24",
+  };
+
+  switch (name) {
+    case "activity":
+      return <svg {...iconProps}><path d="M22 12h-4l-3 8-6-16-3 8H2" /></svg>;
+    case "arrow-up":
+      return <svg {...iconProps}><path d="m12 19-7-7" /><path d="m12 19 7-7" /><path d="M12 19V5" /></svg>;
+    case "baby":
+      return <svg {...iconProps}><path d="M9 12h.01" /><path d="M15 12h.01" /><path d="M10 16c.5.4 1.2.6 2 .6s1.5-.2 2-.6" /><path d="M19 10a7 7 0 1 1-14 0" /><path d="M12 3c1.4 0 2.5 1 2.5 2.3 0 1.2-1 2.2-2.2 2.2H12" /></svg>;
+    case "bandage":
+      return <svg {...iconProps}><path d="m10 21 11-11a3 3 0 0 0-4-4L6 17a3 3 0 1 0 4 4Z" /><path d="m14 7 3 3" /><path d="m7 14 3 3" /><path d="M14.5 12.5h.01" /><path d="M11.5 15.5h.01" /></svg>;
+    case "bike":
+      return <svg {...iconProps}><circle cx="6" cy="17" r="3" /><circle cx="18" cy="17" r="3" /><path d="M6 17h4l3-7h3" /><path d="m10 17 4-4 4 4" /><path d="M9 7h3" /></svg>;
+    case "briefcase":
+      return <svg {...iconProps}><path d="M10 6V5a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v1" /><rect height="14" rx="2" width="18" x="3" y="6" /><path d="M3 12h18" /></svg>;
+    case "brain":
+      return <svg {...iconProps}><path d="M8 6a3 3 0 0 1 6-1 3 3 0 0 1 4 4 3 3 0 0 1 0 6 3 3 0 0 1-4 4 3 3 0 0 1-6-1 3 3 0 0 1-3-5 3 3 0 0 1 3-7Z" /><path d="M12 5v14" /><path d="M8 10h4" /><path d="M12 14h4" /></svg>;
+    case "building":
+      return <svg {...iconProps}><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18" /><path d="M4 22h16" /><path d="M9 6h.01" /><path d="M15 6h.01" /><path d="M9 10h.01" /><path d="M15 10h.01" /><path d="M9 14h.01" /><path d="M15 14h.01" /></svg>;
+    case "calendar-clock":
+      return <svg {...iconProps}><path d="M8 2v4" /><path d="M16 2v4" /><rect height="18" rx="2" width="18" x="3" y="4" /><path d="M3 10h18" /><circle cx="12" cy="15" r="3" /><path d="M12 13.5V15l1 1" /></svg>;
+    case "car":
+      return <svg {...iconProps}><path d="M5 17h14" /><path d="M6 17v2" /><path d="M18 17v2" /><path d="M4 13 6 7a2 2 0 0 1 2-1h8a2 2 0 0 1 2 1l2 6" /><path d="M4 13h16v4H4z" /><path d="M7 13v.01" /><path d="M17 13v.01" /></svg>;
+    case "clock":
+      return <svg {...iconProps}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>;
+    case "circle":
+      return <svg {...iconProps}><circle cx="12" cy="12" r="8" /></svg>;
+    case "circle-dot":
+      return <svg {...iconProps}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" /></svg>;
+    case "dumbbell":
+      return <svg {...iconProps}><path d="M6 7v10" /><path d="M18 7v10" /><path d="M3 9v6" /><path d="M21 9v6" /><path d="M6 12h12" /></svg>;
+    case "footprints":
+      return <svg {...iconProps}><path d="M8.5 11.5C7 11.5 6 10 6 8.5S7 5 8.5 5 11 6.5 11 8s-1 3.5-2.5 3.5Z" /><path d="M6 14c-1.2.8-2 2-2 3.5C4 19 5 20 6.5 20S9 19 9 17.5C9 16 7.6 14.8 6 14Z" /><path d="M16 10c-1.5 0-2.5-1.5-2.5-3S14.5 3.5 16 3.5 18.5 5 18.5 6.5 17.5 10 16 10Z" /><path d="M17.5 12.5c-1.6 0-3 1.2-3 3 0 1.5 1 2.5 2.5 2.5s2.5-1 2.5-2.5c0-1.4-.8-2.4-2-3Z" /></svg>;
+    case "graduation-cap":
+      return <svg {...iconProps}><path d="M22 10 12 5 2 10l10 5 10-5Z" /><path d="M6 12v5c3 2 9 2 12 0v-5" /><path d="M22 10v6" /></svg>;
+    case "hammer":
+      return <svg {...iconProps}><path d="m15 12-8.5 8.5a2 2 0 0 1-3-3L12 9" /><path d="m17 7 3 3" /><path d="m13 3 8 8" /><path d="M11 5 9 7l3 3 2-2" /></svg>;
+    case "heart-handshake":
+      return <svg {...iconProps}><path d="M19 14c1.5-1.5 2-4 .4-5.6a4 4 0 0 0-5.7 0L12 10l-1.7-1.6a4 4 0 0 0-5.7 0C3 10 3.5 12.5 5 14l7 7 7-7Z" /><path d="m8 14 2 2 4-4 2 2" /></svg>;
+    case "heart-pulse":
+      return <svg {...iconProps}><path d="M19 14c1.5-1.5 2-4 .4-5.6a4 4 0 0 0-5.7 0L12 10l-1.7-1.6a4 4 0 0 0-5.7 0C3 10 3.5 12.5 5 14l7 7 3-3" /><path d="M3 13h4l2-4 4 8 2-4h6" /></svg>;
+    case "home":
+      return <svg {...iconProps}><path d="m3 11 9-8 9 8" /><path d="M5 10v11h14V10" /><path d="M9 21v-6h6v6" /></svg>;
+    case "kettlebell":
+      return <svg {...iconProps}><path d="M8 10V8a4 4 0 0 1 8 0v2" /><path d="M7 10h10l2 9a2 2 0 0 1-2 3H7a2 2 0 0 1-2-3l2-9Z" /><path d="M10 8h4" /></svg>;
+    case "more-horizontal":
+      return <svg {...iconProps}><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" /></svg>;
+    case "moon":
+      return <svg {...iconProps}><path d="M21 14.5A8.5 8.5 0 0 1 9.5 3 7 7 0 1 0 21 14.5Z" /></svg>;
+    case "panel-top":
+      return <svg {...iconProps}><rect height="14" rx="2" width="18" x="3" y="5" /><path d="M3 10h18" /></svg>;
+    case "plane":
+      return <svg {...iconProps}><path d="M22 2 11 13" /><path d="m22 2-7 20-4-9-9-4 20-7Z" /></svg>;
+    case "runner":
+      return <svg {...iconProps}><circle cx="13" cy="4" r="2" /><path d="m7 21 3-6" /><path d="m17 21-4-6-4-2 2-5 4 2 3 4" /><path d="M5 10h4" /></svg>;
+    case "settings":
+      return <svg {...iconProps}><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7.1 4l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.9 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.7 1Z" /></svg>;
+    case "shield":
+      return <svg {...iconProps}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="M9 12l2 2 4-5" /></svg>;
+    case "shuffle":
+      return <svg {...iconProps}><path d="M16 3h5v5" /><path d="M4 20 21 3" /><path d="M21 16v5h-5" /><path d="m15 15 6 6" /><path d="m4 4 5 5" /></svg>;
+    case "sparkles":
+      return <svg {...iconProps}><path d="m12 3 1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3Z" /><path d="m19 15 .8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8L19 15Z" /></svg>;
+    case "square":
+      return <svg {...iconProps}><rect height="14" rx="2" width="14" x="5" y="5" /></svg>;
+    case "stretch":
+      return <svg {...iconProps}><path d="M4 12h16" /><path d="m7 8-3 4 3 4" /><path d="m17 8 3 4-3 4" /></svg>;
+    case "trophy":
+      return <svg {...iconProps}><path d="M8 21h8" /><path d="M12 17v4" /><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" /><path d="M5 5H3v3a4 4 0 0 0 4 4" /><path d="M19 5h2v3a4 4 0 0 1-4 4" /></svg>;
+    case "trees":
+      return <svg {...iconProps}><path d="M6 18h12" /><path d="M6 18V9l-3 5h6L6 9Z" /><path d="M16 18V6l-4 7h8l-4-7Z" /></svg>;
+    case "user":
+      return <svg {...iconProps}><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>;
+    case "users":
+      return <svg {...iconProps}><path d="M16 21a6 6 0 0 0-12 0" /><circle cx="10" cy="8" r="4" /><path d="M22 21a5 5 0 0 0-4-4.9" /><path d="M16 3.1a4 4 0 0 1 0 7.8" /></svg>;
+    case "wallet":
+      return <svg {...iconProps}><path d="M19 7V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7h-5a2 2 0 0 1 0-4h5Z" /><path d="M16 11h.01" /></svg>;
+    case "waves":
+      return <svg {...iconProps}><path d="M3 8c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2" /><path d="M3 14c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2" /><path d="M3 20c2 0 2-2 4-2s2 2 4 2 2-2 4-2 2 2 4 2 2-2 4-2" /></svg>;
+    default:
+      return <svg {...iconProps}><circle cx="12" cy="12" r="8" /></svg>;
+  }
+}
+
 type ProfileTab =
   | "overview"
-  | "goals"
-  | "body"
   | "readiness"
   | "measurements"
-  | "planDirection"
   | "training"
   | "recovery"
-  | "circumstances"
   | "nutrition"
   | "benchmarks"
   | "preferences";
+
+type ProfileCompletionSection = ProfileTab | "body" | "circumstances" | "goals" | "planDirection";
+
+type ProfileAccordionSection =
+  | "appCoachNotes"
+  | "measurements"
+  | "myBody"
+  | "planBuilder"
+  | "planDirection"
+  | "previousExperience"
+  | "specialCircumstances";
+
+type ProfileAccordionState = Record<ProfileAccordionSection, boolean>;
 
 type GoalMode =
   | "Build Muscle"
@@ -97,7 +253,7 @@ type BodyStatus = {
   sorenessLevel: number;
   sorenessStatus: StatusLevel;
   stressStatus: "Low" | "Moderate" | "High" | "Very High";
-  weightTrend: "Stable" | "Trending down" | "Trending up" | "Unknown";
+  weightTrend: "Gaining" | "Maintaining" | "Losing" | "Fluctuating" | "Not Sure";
 };
 
 type SpecialCircumstanceStatus = "active" | "improving" | "resolved" | "monitoring";
@@ -161,6 +317,26 @@ type AppPersonalization = {
 };
 
 type MeasurementUnit = "in" | "cm";
+type MetricColor =
+  | "amber"
+  | "blue"
+  | "cyan"
+  | "emerald"
+  | "green"
+  | "magenta"
+  | "orange"
+  | "purple"
+  | "rose"
+  | "steel"
+  | "teal"
+  | "violet";
+type ExerciseConfidence = {
+  cardioEquipment: string;
+  complexMovements: string;
+  freeWeights: string;
+  machines: string;
+  mobilityWork: string;
+};
 type CustomMeasurement = {
   id: string;
   label: string;
@@ -199,6 +375,8 @@ type BodyMeasurements = {
 };
 
 type SoundFitnessProfile = {
+  adaptivePlanningFactors: string[];
+  adaptivePlanningNotes: Record<string, string>;
   age: string;
   appPersonalization: AppPersonalization;
   avatarUrl?: string;
@@ -209,18 +387,31 @@ type SoundFitnessProfile = {
   bodyStatus: BodyStatus;
   birthday: string;
   city: string;
+  state: string;
   coachNotes: string;
   cardioPriority: number;
+  calorieGoalKnown: string;
+  currentProgram: string;
   currentWeight: string;
   displayName: string;
   email?: string;
   emergencyContactName: string;
   emergencyContactPhone: string;
   energyLevel: number;
+  availableEquipment: string[];
   equipment: string[];
+  consistencyHistory: string;
+  exerciseConfidence: ExerciseConfidence;
+  exerciseVarietyPreference: string;
+  exercisesToAvoid: string;
+  experienceLevel: string;
+  familiarityAreas: string[];
   fullName?: string;
   gender: BodyModel;
+  goalDeadline: string;
   goalMode: GoalMode;
+  planDirections: GoalMode[];
+  goalPriorityRanking: string;
   goalWeight: string;
   handle?: string;
   height: string;
@@ -232,12 +423,20 @@ type SoundFitnessProfile = {
   nutritionDirection: NutritionDirection;
   occupation: string;
   planDirectionNotes: string;
+  planFlexibilityPreference: string;
   phone: string;
   preferredDays: string[];
   preferredSplit: string;
+  preferredSplits: string[];
+  previousCoaching: string[];
   primaryGoal: string;
+  priorityExercises: string;
+  proteinConsistency: string;
   recoveryPreferences: string[];
+  recentConsistency: string;
   restingHeartRate: string;
+  roboCoachGuidanceLevel: string;
+  scheduleConsistency: string;
   secondaryGoal: string;
   sedentaryLevel: SedentaryLevel;
   sessionLength: string;
@@ -248,11 +447,17 @@ type SoundFitnessProfile = {
   waterGoal: string;
   trainingAge: string;
   trainingLocation: string;
+  trainingLocations: string[];
   trainingStyles: string[];
+  travelTrainingNotes: string;
+  bestTimeOfDay: string;
+  videoReviewInterest: string;
   waist: string;
   workoutIntensityPreference: string;
   cardioPreference: string;
+  cardioPreferences: string[];
   mobilityPreference: string;
+  mobilityPreferences: string[];
   mobilityPriority: number;
   userNotes: string;
   profileImage: string;
@@ -270,16 +475,21 @@ type ProfileAuthFallback = {
   email: string;
 };
 
+const profileOverviewSectionShellClass =
+  "relative z-0 overflow-visible rounded-[32px] border border-cyan-200/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.14),transparent_30%),radial-gradient(circle_at_88%_0%,rgba(217,70,239,0.10),transparent_32%),rgba(15,23,42,0.62)] shadow-[0_24px_80px_rgba(0,0,0,0.36),0_0_44px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl";
+const profileOverviewSectionGlowClass =
+  "pointer-events-none absolute inset-x-8 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-200/60 to-fuchsia-200/45";
+const profileOverviewSubsectionClass =
+  "relative z-0 overflow-visible rounded-[28px] border border-cyan-200/14 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_32%),radial-gradient(circle_at_88%_0%,rgba(217,70,239,0.08),transparent_30%),rgba(15,23,42,0.54)] p-4 shadow-[0_0_32px_rgba(34,211,238,0.06),inset_0_1px_0_rgba(255,255,255,0.08)]";
+const profileOverviewMetricCardClass =
+  "relative overflow-hidden rounded-[26px] border border-cyan-200/14 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_38%),rgba(15,23,42,0.58)] p-4 shadow-[0_18px_56px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)]";
+
 const tabs: Array<{ id: ProfileTab; label: string }> = [
   { id: "overview", label: "Overview" },
-  { id: "goals", label: "Goals" },
-  { id: "body", label: "My Body" },
   { id: "readiness", label: "Readiness" },
+  { id: "recovery", label: "Pain / Recovery Profile" },
   { id: "measurements", label: "Measurements" },
-  { id: "planDirection", label: "Plan Direction" },
   { id: "training", label: "Training" },
-  { id: "recovery", label: "Recovery" },
-  { id: "circumstances", label: "Special Circumstances" },
   { id: "nutrition", label: "Nutrition" },
   { id: "benchmarks", label: "Benchmarks" },
   { id: "preferences", label: "Preferences" },
@@ -367,29 +577,1587 @@ const goalCards: Array<{
   },
 ];
 
-const equipmentOptions = [
-  "Bodyweight",
-  "Dumbbells",
-  "Kettlebells",
-  "Barbell",
-  "Cables",
-  "Machines",
-  "Bands",
-  "Bench",
-  "Pull-Up Bar",
-  "Cardio Equipment",
-];
+const selectablePlanDirectionIds = goalCards
+  .filter((goal) => goal.id !== "Maintain")
+  .map((goal) => goal.id);
+
+const isSelectablePlanDirection = (value: unknown): value is GoalMode =>
+  typeof value === "string" &&
+  selectablePlanDirectionIds.includes(value as GoalMode);
+
+const goalVisualStyles: Record<
+  GoalMode,
+  {
+    hoverCard: string;
+    icon: string;
+    iconActive: string;
+    iconIdle: string;
+    selectedCard: string;
+    signalActive: string;
+    signalIdle: string;
+    statusActive: string;
+    statusIdle: string;
+    wash: string;
+  }
+> = {
+  "Build Muscle": {
+    hoverCard:
+      "hover:border-orange-200/48 hover:bg-orange-300/10 hover:shadow-[0_0_30px_rgba(251,146,60,0.18)] focus-visible:border-orange-200/50 focus-visible:shadow-[0_0_30px_rgba(251,146,60,0.18)]",
+    icon: "\u{1F4AA}",
+    iconActive:
+      "border-orange-100/45 bg-orange-300/18 text-orange-50 shadow-[0_0_26px_rgba(251,146,60,0.26)]",
+    iconIdle: "border-orange-200/18 bg-orange-300/8 text-orange-100",
+    selectedCard:
+      "border-orange-200/70 bg-[radial-gradient(circle_at_18%_0%,rgba(248,113,113,0.28),transparent_38%),radial-gradient(circle_at_88%_10%,rgba(251,146,60,0.22),transparent_34%),rgba(15,23,42,0.62)] shadow-[0_0_40px_rgba(251,146,60,0.24)]",
+    signalActive: "border-orange-100/40 bg-orange-300/18 text-orange-50",
+    signalIdle: "border-orange-200/18 bg-orange-300/8 text-orange-100",
+    statusActive: "border-orange-100/40 bg-orange-300/18 text-orange-50",
+    statusIdle: "border-white/10 bg-white/[0.04] text-orange-100/72 group-hover/card:text-orange-50",
+    wash: "from-red-500/34 via-orange-300/20 to-transparent",
+  },
+  "Lose Fat": {
+    hoverCard:
+      "hover:border-yellow-200/48 hover:bg-yellow-300/10 hover:shadow-[0_0_30px_rgba(250,204,21,0.18)] focus-visible:border-yellow-200/50 focus-visible:shadow-[0_0_30px_rgba(250,204,21,0.18)]",
+    icon: "\u{1F525}",
+    iconActive:
+      "border-yellow-100/45 bg-yellow-300/18 text-yellow-50 shadow-[0_0_26px_rgba(250,204,21,0.24)]",
+    iconIdle: "border-yellow-200/18 bg-yellow-300/8 text-yellow-100",
+    selectedCard:
+      "border-yellow-200/70 bg-[radial-gradient(circle_at_18%_0%,rgba(250,204,21,0.28),transparent_38%),radial-gradient(circle_at_88%_10%,rgba(251,191,36,0.20),transparent_34%),rgba(15,23,42,0.62)] shadow-[0_0_40px_rgba(250,204,21,0.22)]",
+    signalActive: "border-yellow-100/42 bg-yellow-300/18 text-yellow-50",
+    signalIdle: "border-yellow-200/18 bg-yellow-300/8 text-yellow-100",
+    statusActive: "border-yellow-100/42 bg-yellow-300/18 text-yellow-50",
+    statusIdle: "border-white/10 bg-white/[0.04] text-yellow-100/72 group-hover/card:text-yellow-50",
+    wash: "from-yellow-300/34 via-amber-300/20 to-transparent",
+  },
+  Maintain: {
+    hoverCard:
+      "hover:border-slate-200/34 hover:bg-white/[0.07] hover:shadow-[0_0_24px_rgba(148,163,184,0.14)] focus-visible:border-slate-200/40",
+    icon: "\u2696",
+    iconActive:
+      "border-slate-100/34 bg-slate-300/12 text-slate-50 shadow-[0_0_22px_rgba(148,163,184,0.18)]",
+    iconIdle: "border-white/12 bg-white/[0.055] text-slate-100",
+    selectedCard:
+      "border-slate-200/50 bg-[radial-gradient(circle_at_18%_0%,rgba(148,163,184,0.18),transparent_38%),rgba(15,23,42,0.62)] shadow-[0_0_30px_rgba(148,163,184,0.16)]",
+    signalActive: "border-slate-100/30 bg-slate-300/12 text-slate-50",
+    signalIdle: "border-white/10 bg-white/[0.055] text-slate-300",
+    statusActive: "border-slate-100/30 bg-slate-300/12 text-slate-50",
+    statusIdle: "border-white/10 bg-white/[0.04] text-slate-500 group-hover/card:text-slate-200",
+    wash: "from-slate-300/18 via-slate-400/10 to-transparent",
+  },
+  Strength: {
+    hoverCard:
+      "hover:border-blue-200/48 hover:bg-blue-300/10 hover:shadow-[0_0_30px_rgba(96,165,250,0.18)] focus-visible:border-blue-200/50 focus-visible:shadow-[0_0_30px_rgba(96,165,250,0.18)]",
+    icon: "\u{1F3CB}\uFE0F",
+    iconActive:
+      "border-blue-100/45 bg-blue-300/18 text-blue-50 shadow-[0_0_26px_rgba(96,165,250,0.26)]",
+    iconIdle: "border-blue-200/18 bg-blue-300/8 text-blue-100",
+    selectedCard:
+      "border-blue-200/70 bg-[radial-gradient(circle_at_18%_0%,rgba(59,130,246,0.28),transparent_38%),radial-gradient(circle_at_88%_10%,rgba(125,211,252,0.18),transparent_34%),rgba(15,23,42,0.62)] shadow-[0_0_40px_rgba(96,165,250,0.24)]",
+    signalActive: "border-blue-100/42 bg-blue-300/18 text-blue-50",
+    signalIdle: "border-blue-200/18 bg-blue-300/8 text-blue-100",
+    statusActive: "border-blue-100/42 bg-blue-300/18 text-blue-50",
+    statusIdle: "border-white/10 bg-white/[0.04] text-blue-100/72 group-hover/card:text-blue-50",
+    wash: "from-blue-400/34 via-cyan-300/18 to-transparent",
+  },
+  Mobility: {
+    hoverCard:
+      "hover:border-teal-200/48 hover:bg-teal-300/10 hover:shadow-[0_0_30px_rgba(45,212,191,0.18)] focus-visible:border-teal-200/50 focus-visible:shadow-[0_0_30px_rgba(45,212,191,0.18)]",
+    icon: "\u{1F9D8}",
+    iconActive:
+      "border-teal-100/45 bg-teal-300/18 text-teal-50 shadow-[0_0_26px_rgba(45,212,191,0.25)]",
+    iconIdle: "border-teal-200/18 bg-teal-300/8 text-teal-100",
+    selectedCard:
+      "border-teal-200/70 bg-[radial-gradient(circle_at_18%_0%,rgba(45,212,191,0.25),transparent_38%),radial-gradient(circle_at_88%_10%,rgba(74,222,128,0.18),transparent_34%),rgba(15,23,42,0.62)] shadow-[0_0_40px_rgba(45,212,191,0.22)]",
+    signalActive: "border-teal-100/42 bg-teal-300/18 text-teal-50",
+    signalIdle: "border-teal-200/18 bg-teal-300/8 text-teal-100",
+    statusActive: "border-teal-100/42 bg-teal-300/18 text-teal-50",
+    statusIdle: "border-white/10 bg-white/[0.04] text-teal-100/72 group-hover/card:text-teal-50",
+    wash: "from-emerald-300/30 via-teal-300/20 to-transparent",
+  },
+  Conditioning: {
+    hoverCard:
+      "hover:border-sky-200/48 hover:bg-sky-300/10 hover:shadow-[0_0_30px_rgba(56,189,248,0.18)] focus-visible:border-sky-200/50 focus-visible:shadow-[0_0_30px_rgba(56,189,248,0.18)]",
+    icon: "\u26A1",
+    iconActive:
+      "border-sky-100/45 bg-sky-300/18 text-sky-50 shadow-[0_0_26px_rgba(56,189,248,0.26)]",
+    iconIdle: "border-sky-200/18 bg-sky-300/8 text-sky-100",
+    selectedCard:
+      "border-sky-200/70 bg-[radial-gradient(circle_at_18%_0%,rgba(56,189,248,0.28),transparent_38%),radial-gradient(circle_at_88%_10%,rgba(34,211,238,0.18),transparent_34%),rgba(15,23,42,0.62)] shadow-[0_0_40px_rgba(56,189,248,0.22)]",
+    signalActive: "border-sky-100/42 bg-sky-300/18 text-sky-50",
+    signalIdle: "border-sky-200/18 bg-sky-300/8 text-sky-100",
+    statusActive: "border-sky-100/42 bg-sky-300/18 text-sky-50",
+    statusIdle: "border-white/10 bg-white/[0.04] text-sky-100/72 group-hover/card:text-sky-50",
+    wash: "from-cyan-300/34 via-sky-300/20 to-transparent",
+  },
+  Recovery: {
+    hoverCard:
+      "hover:border-violet-200/48 hover:bg-violet-300/10 hover:shadow-[0_0_30px_rgba(167,139,250,0.18)] focus-visible:border-violet-200/50 focus-visible:shadow-[0_0_30px_rgba(167,139,250,0.18)]",
+    icon: "\u272A",
+    iconActive:
+      "border-violet-100/45 bg-violet-300/18 text-violet-50 shadow-[0_0_26px_rgba(167,139,250,0.25)]",
+    iconIdle: "border-violet-200/18 bg-violet-300/8 text-violet-100",
+    selectedCard:
+      "border-violet-200/70 bg-[radial-gradient(circle_at_18%_0%,rgba(167,139,250,0.28),transparent_38%),radial-gradient(circle_at_88%_10%,rgba(217,70,239,0.16),transparent_34%),rgba(15,23,42,0.62)] shadow-[0_0_40px_rgba(167,139,250,0.22)]",
+    signalActive: "border-violet-100/42 bg-violet-300/18 text-violet-50",
+    signalIdle: "border-violet-200/18 bg-violet-300/8 text-violet-100",
+    statusActive: "border-violet-100/42 bg-violet-300/18 text-violet-50",
+    statusIdle: "border-white/10 bg-white/[0.04] text-violet-100/72 group-hover/card:text-violet-50",
+    wash: "from-violet-300/32 via-purple-300/18 to-transparent",
+  },
+  "General Health": {
+    hoverCard:
+      "hover:border-emerald-200/48 hover:bg-emerald-300/10 hover:shadow-[0_0_30px_rgba(52,211,153,0.18)] focus-visible:border-emerald-200/50 focus-visible:shadow-[0_0_30px_rgba(52,211,153,0.18)]",
+    icon: "\u{1F33F}",
+    iconActive:
+      "border-emerald-100/45 bg-emerald-300/18 text-emerald-50 shadow-[0_0_26px_rgba(52,211,153,0.24)]",
+    iconIdle: "border-emerald-200/18 bg-emerald-300/8 text-emerald-100",
+    selectedCard:
+      "border-emerald-200/70 bg-[radial-gradient(circle_at_18%_0%,rgba(52,211,153,0.26),transparent_38%),radial-gradient(circle_at_88%_10%,rgba(96,165,250,0.16),transparent_34%),rgba(15,23,42,0.62)] shadow-[0_0_40px_rgba(52,211,153,0.22)]",
+    signalActive: "border-emerald-100/42 bg-emerald-300/18 text-emerald-50",
+    signalIdle: "border-emerald-200/18 bg-emerald-300/8 text-emerald-100",
+    statusActive: "border-emerald-100/42 bg-emerald-300/18 text-emerald-50",
+    statusIdle: "border-white/10 bg-white/[0.04] text-emerald-100/72 group-hover/card:text-emerald-50",
+    wash: "from-emerald-300/32 via-blue-300/16 to-transparent",
+  },
+  Performance: {
+    hoverCard:
+      "hover:border-fuchsia-200/48 hover:bg-fuchsia-300/10 hover:shadow-[0_0_30px_rgba(217,70,239,0.18)] focus-visible:border-fuchsia-200/50 focus-visible:shadow-[0_0_30px_rgba(217,70,239,0.18)]",
+    icon: "\u{1F680}",
+    iconActive:
+      "border-fuchsia-100/45 bg-fuchsia-300/18 text-fuchsia-50 shadow-[0_0_26px_rgba(217,70,239,0.24)]",
+    iconIdle: "border-fuchsia-200/18 bg-fuchsia-300/8 text-fuchsia-100",
+    selectedCard:
+      "border-fuchsia-200/70 bg-[radial-gradient(circle_at_18%_0%,rgba(217,70,239,0.26),transparent_38%),radial-gradient(circle_at_88%_10%,rgba(251,146,60,0.20),transparent_34%),rgba(15,23,42,0.62)] shadow-[0_0_40px_rgba(217,70,239,0.22)]",
+    signalActive: "border-fuchsia-100/42 bg-fuchsia-300/18 text-fuchsia-50",
+    signalIdle: "border-fuchsia-200/18 bg-fuchsia-300/8 text-fuchsia-100",
+    statusActive: "border-fuchsia-100/42 bg-fuchsia-300/18 text-fuchsia-50",
+    statusIdle: "border-white/10 bg-white/[0.04] text-fuchsia-100/72 group-hover/card:text-fuchsia-50",
+    wash: "from-fuchsia-400/32 via-orange-300/18 to-transparent",
+  },
+};
+
+const planDirectionInsights: Record<GoalMode, string> = {
+  "Build Muscle": "Prioritize progressive overload, useful volume, and recovery support.",
+  "Lose Fat": "Keep strength anchors while using steps, conditioning, and nutrition consistency.",
+  Maintain: "Keep capacity, muscle, and mobility steady with repeatable sessions.",
+  Strength: "Prioritize compound skill, heavier loading, longer rest, and repeatable benchmarks.",
+  Mobility: "Add movement quality, joint prep, and range work around the main sessions.",
+  Conditioning: "Build aerobic capacity, intervals, and repeatable output without burying recovery.",
+  Recovery: "Lower training heat, protect pain-sensitive areas, and progress conservatively.",
+  "General Health": "Build a balanced base of strength, mobility, conditioning, and consistency.",
+  Performance: "Bias power, athletic patterns, conditioning quality, and performance testing.",
+};
+
+const getPlanDirectionLabel = (direction: GoalMode) =>
+  goalCards.find((goal) => goal.id === direction)?.label || direction;
+
+const getPlanDirectionComboInsight = (directions: GoalMode[]) => {
+  if (!directions.length) {
+    return "Choose up to 2 plan directions to unlock personalized programming insights.";
+  }
+
+  const primary = getPlanDirectionLabel(directions[0]).toLowerCase();
+  const secondary = directions[1]
+    ? getPlanDirectionLabel(directions[1]).toLowerCase()
+    : "";
+
+  if (!secondary) {
+    return `Your plan should bias ${primary} as the main programming filter.`;
+  }
+
+  return `Your plan should bias ${primary} while using ${secondary} to shape accessories, warmups, recovery, and conditioning choices.`;
+};
+
+const planDirectionScrollbarThemes: Record<
+  GoalMode,
+  { from: string; glow: string; to: string; via: string }
+> = {
+  "Build Muscle": {
+    from: "rgba(248,113,113,0.92)",
+    glow: "rgba(251,146,60,0.42)",
+    to: "rgba(251,146,60,0.86)",
+    via: "rgba(251,191,36,0.88)",
+  },
+  "Lose Fat": {
+    from: "rgba(250,204,21,0.94)",
+    glow: "rgba(250,204,21,0.40)",
+    to: "rgba(251,146,60,0.84)",
+    via: "rgba(251,191,36,0.90)",
+  },
+  Maintain: {
+    from: "rgba(148,163,184,0.72)",
+    glow: "rgba(148,163,184,0.28)",
+    to: "rgba(203,213,225,0.62)",
+    via: "rgba(226,232,240,0.72)",
+  },
+  Strength: {
+    from: "rgba(96,165,250,0.92)",
+    glow: "rgba(96,165,250,0.42)",
+    to: "rgba(34,211,238,0.80)",
+    via: "rgba(125,211,252,0.88)",
+  },
+  "General Health": {
+    from: "rgba(45,212,191,0.90)",
+    glow: "rgba(45,212,191,0.38)",
+    to: "rgba(134,239,172,0.76)",
+    via: "rgba(34,211,238,0.84)",
+  },
+  Mobility: {
+    from: "rgba(45,212,191,0.92)",
+    glow: "rgba(45,212,191,0.42)",
+    to: "rgba(74,222,128,0.78)",
+    via: "rgba(94,234,212,0.88)",
+  },
+  Recovery: {
+    from: "rgba(167,139,250,0.92)",
+    glow: "rgba(167,139,250,0.40)",
+    to: "rgba(217,70,239,0.76)",
+    via: "rgba(196,181,253,0.86)",
+  },
+  Conditioning: {
+    from: "rgba(52,211,153,0.90)",
+    glow: "rgba(52,211,153,0.38)",
+    to: "rgba(34,211,238,0.84)",
+    via: "rgba(125,211,252,0.86)",
+  },
+  Performance: {
+    from: "rgba(217,70,239,0.90)",
+    glow: "rgba(217,70,239,0.40)",
+    to: "rgba(251,146,60,0.78)",
+    via: "rgba(244,114,182,0.86)",
+  },
+};
+
+const getPlanDirectionScrollbarTheme = (directions: GoalMode[]) => {
+  const primary = directions[0]
+    ? planDirectionScrollbarThemes[directions[0]]
+    : planDirectionScrollbarThemes.Strength;
+  const secondary = directions[1]
+    ? planDirectionScrollbarThemes[directions[1]]
+    : planDirectionScrollbarThemes.Performance;
+
+  return {
+    from: primary.from,
+    glow: directions[1] ? secondary.glow : primary.glow,
+    to: secondary.to,
+    via: directions[1] ? secondary.via : primary.via,
+  };
+};
 
 const dayOptions = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-const splitOptions = [
-  "Full Body",
-  "Upper / Lower",
-  "Push / Pull / Legs",
-  "Body Part Split",
-  "Strength + Mobility",
-  "Performance",
-  "Custom",
+const usStateOptions = [
+  "Alabama",
+  "Alaska",
+  "Arizona",
+  "Arkansas",
+  "California",
+  "Colorado",
+  "Connecticut",
+  "Delaware",
+  "Florida",
+  "Georgia",
+  "Hawaii",
+  "Idaho",
+  "Illinois",
+  "Indiana",
+  "Iowa",
+  "Kansas",
+  "Kentucky",
+  "Louisiana",
+  "Maine",
+  "Maryland",
+  "Massachusetts",
+  "Michigan",
+  "Minnesota",
+  "Mississippi",
+  "Missouri",
+  "Montana",
+  "Nebraska",
+  "Nevada",
+  "New Hampshire",
+  "New Jersey",
+  "New Mexico",
+  "New York",
+  "North Carolina",
+  "North Dakota",
+  "Ohio",
+  "Oklahoma",
+  "Oregon",
+  "Pennsylvania",
+  "Rhode Island",
+  "South Carolina",
+  "South Dakota",
+  "Tennessee",
+  "Texas",
+  "Utah",
+  "Vermont",
+  "Virginia",
+  "Washington",
+  "West Virginia",
+  "Wisconsin",
+  "Wyoming",
+  "District of Columbia",
+];
+
+type PreferenceCardOption = {
+  accent: string;
+  helper: string;
+  id: string;
+  title: string;
+  visual: string;
+};
+
+type CompactOptionTone =
+  | "amber"
+  | "bodyweight"
+  | "cyan"
+  | "cyanSteel"
+  | "electric"
+  | "green"
+  | "indigoSteel"
+  | "lime"
+  | "orange"
+  | "purple"
+  | "redOrange"
+  | "rose"
+  | "steel"
+  | "tealViolet"
+  | "violetBlue"
+  | "warm";
+
+type CompactOptionCard = {
+  accent: string;
+  icon: string;
+  id: string;
+  tone: CompactOptionTone;
+  title: string;
+};
+
+const compactTrainingLocationOptions: CompactOptionCard[] = [
+  {
+    id: "gym",
+    title: "Gym",
+    tone: "steel",
+    icon: "🏋",
+    accent: "from-cyan-300/28 via-blue-500/14 to-slate-950",
+  },
+  {
+    id: "home",
+    title: "Home",
+    tone: "warm",
+    icon: "⌂",
+    accent: "from-emerald-300/25 via-teal-500/12 to-slate-950",
+  },
+  {
+    id: "apartment-gym",
+    title: "Apt Gym",
+    tone: "cyan",
+    icon: "▦",
+    accent: "from-sky-300/24 via-cyan-500/12 to-slate-950",
+  },
+  {
+    id: "outdoors",
+    title: "Outdoors",
+    tone: "green",
+    icon: "☀",
+    accent: "from-lime-300/24 via-emerald-500/12 to-slate-950",
+  },
+  {
+    id: "travel-hotel",
+    title: "Travel",
+    tone: "violetBlue",
+    icon: "✈",
+    accent: "from-orange-300/26 via-amber-500/12 to-slate-950",
+  },
+  {
+    id: "limited-space",
+    title: "Small Space",
+    tone: "amber",
+    icon: "□",
+    accent: "from-violet-300/24 via-fuchsia-500/12 to-slate-950",
+  },
+];
+
+const compactEquipmentOptions: CompactOptionCard[] = [
+  {
+    id: "bodyweight",
+    title: "Bodyweight",
+    tone: "bodyweight",
+    icon: "◎",
+    accent: "from-cyan-300/24 via-blue-500/12 to-slate-950",
+  },
+  {
+    id: "dumbbells",
+    title: "Dumbbells",
+    tone: "cyanSteel",
+    icon: "DB",
+    accent: "from-emerald-300/24 via-teal-500/12 to-slate-950",
+  },
+  {
+    id: "kettlebells",
+    title: "Kettlebells",
+    tone: "orange",
+    icon: "KB",
+    accent: "from-orange-300/24 via-amber-500/12 to-slate-950",
+  },
+  {
+    id: "barbell",
+    title: "Barbell",
+    tone: "electric",
+    icon: "BB",
+    accent: "from-slate-200/18 via-cyan-500/10 to-slate-950",
+  },
+  {
+    id: "machines",
+    title: "Machines",
+    tone: "indigoSteel",
+    icon: "⚙",
+    accent: "from-blue-300/24 via-indigo-500/12 to-slate-950",
+  },
+  {
+    id: "cable",
+    title: "Cable",
+    tone: "cyan",
+    icon: "⌁",
+    accent: "from-sky-300/24 via-cyan-500/12 to-slate-950",
+  },
+  {
+    id: "bands",
+    title: "Bands",
+    tone: "purple",
+    icon: "≈",
+    accent: "from-violet-300/24 via-fuchsia-500/12 to-slate-950",
+  },
+  {
+    id: "bench",
+    title: "Bench",
+    tone: "warm",
+    icon: "▭",
+    accent: "from-amber-300/22 via-orange-500/10 to-slate-950",
+  },
+  {
+    id: "pull-up-bar",
+    title: "Pull-Up",
+    tone: "lime",
+    icon: "↟",
+    accent: "from-lime-300/22 via-emerald-500/12 to-slate-950",
+  },
+  {
+    id: "cardio-equipment",
+    title: "Cardio",
+    tone: "redOrange",
+    icon: "♡",
+    accent: "from-rose-300/22 via-orange-500/12 to-slate-950",
+  },
+  {
+    id: "medicine-ball",
+    title: "Med Ball",
+    tone: "rose",
+    icon: "●",
+    accent: "from-pink-300/22 via-rose-500/10 to-slate-950",
+  },
+  {
+    id: "suspension-trainer",
+    title: "Suspension",
+    tone: "tealViolet",
+    icon: "⟂",
+    accent: "from-teal-300/22 via-cyan-500/10 to-slate-950",
+  },
+];
+
+const experienceLevelOptions: CompactOptionCard[] = [
+  {
+    id: "experience-beginner",
+    title: "Beginner",
+    tone: "cyan",
+    icon: "NEW",
+    accent: "from-cyan-300/30 via-sky-500/16 to-slate-950",
+  },
+  {
+    id: "experience-returning",
+    title: "Returning",
+    tone: "warm",
+    icon: "BACK",
+    accent: "from-amber-300/28 via-orange-500/14 to-slate-950",
+  },
+  {
+    id: "experience-intermediate",
+    title: "Intermediate",
+    tone: "electric",
+    icon: "INT",
+    accent: "from-blue-300/30 via-cyan-500/15 to-slate-950",
+  },
+  {
+    id: "experience-advanced",
+    title: "Advanced",
+    tone: "purple",
+    icon: "ADV",
+    accent: "from-violet-300/30 via-fuchsia-500/15 to-slate-950",
+  },
+  {
+    id: "experience-competitive",
+    title: "Competitive Athlete",
+    tone: "redOrange",
+    icon: "PRO",
+    accent: "from-red-300/30 via-orange-500/18 to-slate-950",
+  },
+];
+
+const consistencyHistoryOptions: CompactOptionCard[] = [
+  {
+    id: "consistency-brand-new",
+    title: "Brand New",
+    tone: "cyan",
+    icon: "0",
+    accent: "from-cyan-300/26 via-blue-500/12 to-slate-950",
+  },
+  {
+    id: "consistency-on-off",
+    title: "On/Off Training",
+    tone: "amber",
+    icon: "ON",
+    accent: "from-amber-300/28 via-stone-400/13 to-slate-950",
+  },
+  {
+    id: "consistency-some",
+    title: "Some Consistency",
+    tone: "green",
+    icon: "SOME",
+    accent: "from-emerald-300/27 via-teal-500/13 to-slate-950",
+  },
+  {
+    id: "consistency-one-year",
+    title: "Consistent for 1+ Years",
+    tone: "lime",
+    icon: "1Y+",
+    accent: "from-lime-300/26 via-emerald-500/13 to-slate-950",
+  },
+  {
+    id: "consistency-long-term",
+    title: "Long-Term Lifter",
+    tone: "steel",
+    icon: "LONG",
+    accent: "from-slate-200/24 via-blue-400/15 to-slate-950",
+  },
+];
+
+const familiarityAreaOptions: CompactOptionCard[] = [
+  {
+    id: "familiar-strength",
+    title: "Strength Training",
+    tone: "electric",
+    icon: "STR",
+    accent: "from-blue-300/30 via-cyan-500/14 to-slate-950",
+  },
+  {
+    id: "familiar-hypertrophy",
+    title: "Hypertrophy",
+    tone: "redOrange",
+    icon: "MUS",
+    accent: "from-red-300/28 via-orange-500/15 to-slate-950",
+  },
+  {
+    id: "familiar-olympic",
+    title: "Olympic Lifting",
+    tone: "cyanSteel",
+    icon: "OLY",
+    accent: "from-cyan-200/28 via-slate-300/13 to-slate-950",
+  },
+  {
+    id: "familiar-powerlifting",
+    title: "Powerlifting",
+    tone: "steel",
+    icon: "PL",
+    accent: "from-slate-200/26 via-blue-500/14 to-slate-950",
+  },
+  {
+    id: "familiar-calisthenics",
+    title: "Calisthenics",
+    tone: "bodyweight",
+    icon: "BW",
+    accent: "from-emerald-200/28 via-cyan-500/13 to-slate-950",
+  },
+  {
+    id: "familiar-sports",
+    title: "Sports Performance",
+    tone: "orange",
+    icon: "ATH",
+    accent: "from-orange-300/28 via-amber-500/14 to-slate-950",
+  },
+  {
+    id: "familiar-running",
+    title: "Running",
+    tone: "lime",
+    icon: "RUN",
+    accent: "from-lime-300/25 via-emerald-500/13 to-slate-950",
+  },
+  {
+    id: "familiar-mobility",
+    title: "Mobility/Yoga",
+    tone: "green",
+    icon: "MOB",
+    accent: "from-teal-300/27 via-emerald-500/13 to-slate-950",
+  },
+  {
+    id: "familiar-hiit",
+    title: "CrossFit/HIIT",
+    tone: "rose",
+    icon: "HIIT",
+    accent: "from-rose-300/28 via-orange-500/14 to-slate-950",
+  },
+  {
+    id: "familiar-rehab",
+    title: "Rehab/Correctives",
+    tone: "tealViolet",
+    icon: "FIX",
+    accent: "from-teal-300/26 via-violet-500/13 to-slate-950",
+  },
+];
+
+const previousCoachingOptions: CompactOptionCard[] = [
+  {
+    id: "coaching-self",
+    title: "Self-Taught",
+    tone: "warm",
+    icon: "SELF",
+    accent: "from-amber-300/27 via-orange-500/13 to-slate-950",
+  },
+  {
+    id: "coaching-online",
+    title: "Online Programs",
+    tone: "cyan",
+    icon: "APP",
+    accent: "from-cyan-300/27 via-blue-500/13 to-slate-950",
+  },
+  {
+    id: "coaching-trainer",
+    title: "Personal Trainer",
+    tone: "electric",
+    icon: "PT",
+    accent: "from-blue-300/29 via-cyan-500/14 to-slate-950",
+  },
+  {
+    id: "coaching-sports",
+    title: "Sports Coach",
+    tone: "orange",
+    icon: "COACH",
+    accent: "from-orange-300/29 via-red-500/14 to-slate-950",
+  },
+  {
+    id: "coaching-pt",
+    title: "Physical Therapy",
+    tone: "green",
+    icon: "PTx",
+    accent: "from-emerald-300/27 via-teal-500/13 to-slate-950",
+  },
+  {
+    id: "coaching-group",
+    title: "Group Fitness",
+    tone: "purple",
+    icon: "TEAM",
+    accent: "from-purple-300/28 via-fuchsia-500/14 to-slate-950",
+  },
+];
+
+type AdaptivePlanningFactorOption = CompactOptionCard & {
+  effect: string;
+  helper: string;
+  placeholder: string;
+};
+
+const adaptivePlanningFactorOptions: AdaptivePlanningFactorOption[] = [
+  {
+    id: "parenting-kids",
+    title: "Parenting / Kids",
+    tone: "warm",
+    icon: "KIDS",
+    accent: "from-amber-200/28 via-orange-300/14 to-slate-950",
+    helper: "Care windows, pickups, and kid routines that can shift training windows.",
+    placeholder: "Example: school pickup at 3 PM, toddler nap window...",
+    effect: "Can suggest shorter backups and flexible session timing.",
+  },
+  {
+    id: "pregnancy",
+    title: "Pregnancy",
+    tone: "rose",
+    icon: "PREG",
+    accent: "from-pink-300/30 via-rose-500/14 to-slate-950",
+    helper: "Coaching context for modifying intensity, recovery, and exercise selection.",
+    placeholder: "Example: trimester, provider guidance, movements to avoid...",
+    effect: "Can flag coach review and more conservative training defaults.",
+  },
+  {
+    id: "postpartum",
+    title: "Postpartum",
+    tone: "purple",
+    icon: "POST",
+    accent: "from-purple-300/30 via-fuchsia-500/16 to-slate-950",
+    helper: "Return-to-training context after birth, sleep disruption, and recovery demands.",
+    placeholder: "Example: 10 weeks postpartum, pelvic floor plan, sleep broken...",
+    effect: "Can bias toward progressive return and recovery spacing.",
+  },
+  {
+    id: "shift-work",
+    title: "Shift Work",
+    tone: "violetBlue",
+    icon: "SHIFT",
+    accent: "from-violet-300/30 via-blue-500/16 to-slate-950",
+    helper: "Rotating or night shifts that change energy and training windows.",
+    placeholder: "Example: night shift 3 days/week...",
+    effect: "Can adjust reminders, session timing, and intensity expectations.",
+  },
+  {
+    id: "long-commute",
+    title: "Long Commute",
+    tone: "steel",
+    icon: "COMM",
+    accent: "from-slate-300/30 via-blue-400/18 to-slate-950",
+    helper: "Commute load that reduces available training time.",
+    placeholder: "Example: 75 minutes each way on weekdays...",
+    effect: "Can prefer shorter sessions or fewer accessory blocks.",
+  },
+  {
+    id: "travel",
+    title: "Travel",
+    tone: "violetBlue",
+    icon: "TRVL",
+    accent: "from-violet-300/30 via-blue-500/16 to-slate-950",
+    helper: "Recurring travel that changes equipment, schedule, and training location.",
+    placeholder: "Example: travel twice/month, hotel gym only...",
+    effect: "Can swap in travel workouts and simplified planning.",
+  },
+  {
+    id: "manual-labor-job",
+    title: "Manual Labor Job",
+    tone: "orange",
+    icon: "LABR",
+    accent: "from-orange-300/30 via-black/24 to-slate-950",
+    helper: "Physically demanding work that adds fatigue outside training.",
+    placeholder: "Example: warehouse shifts, lifting all day...",
+    effect: "Can reduce extra volume and keep sessions repeatable.",
+  },
+  {
+    id: "school-college",
+    title: "School / College",
+    tone: "cyan",
+    icon: "SCHL",
+    accent: "from-cyan-200/30 via-sky-400/16 to-slate-950",
+    helper: "Class, study, and exam seasons that affect consistency.",
+    placeholder: "Example: exams every Friday, labs until 8 PM...",
+    effect: "Can simplify programming during heavy academic weeks.",
+  },
+  {
+    id: "sports-season",
+    title: "Sports Season",
+    tone: "redOrange",
+    icon: "GAME",
+    accent: "from-red-300/30 via-orange-500/16 to-slate-950",
+    helper: "Practice, games, tournaments, and sport fatigue that shape gym work.",
+    placeholder: "Example: soccer games Sat/Sun, practice Tue/Thu...",
+    effect: "Can reduce volume near practices and competitions.",
+  },
+  {
+    id: "caregiving",
+    title: "Caregiving",
+    tone: "green",
+    icon: "CARE",
+    accent: "from-emerald-200/30 via-teal-400/16 to-slate-950",
+    helper: "Care responsibilities that can interrupt blocks of training time.",
+    placeholder: "Example: caring for parent after work...",
+    effect: "Can prioritize flexible sessions and lower planning friction.",
+  },
+  {
+    id: "high-stress-work",
+    title: "High Stress Work",
+    tone: "redOrange",
+    icon: "WORK",
+    accent: "from-red-300/30 via-orange-500/16 to-slate-950",
+    helper: "Work stress periods that affect readiness and recovery capacity.",
+    placeholder: "Example: quarter-end deadlines, high-stress calls...",
+    effect: "Can shift toward maintenance or lower intensity blocks.",
+  },
+  {
+    id: "unpredictable-schedule",
+    title: "Unpredictable Schedule",
+    tone: "amber",
+    icon: "VAR",
+    accent: "from-amber-300/28 via-stone-300/14 to-slate-950",
+    helper: "Weeks that change quickly and need backup training options.",
+    placeholder: "Example: schedule changes daily, on-call work...",
+    effect: "Can create A/B/C session options and flexible day swapping.",
+  },
+  {
+    id: "multiple-jobs",
+    title: "Multiple Jobs",
+    tone: "indigoSteel",
+    icon: "2JOB",
+    accent: "from-slate-200/24 via-indigo-400/15 to-slate-950",
+    helper: "Multiple work commitments that can fragment availability.",
+    placeholder: "Example: day job plus weekend shifts...",
+    effect: "Can reduce weekly volume and emphasize repeatable minimums.",
+  },
+  {
+    id: "injury-flare-ups",
+    title: "Injury Flare-Ups",
+    tone: "rose",
+    icon: "FLR",
+    accent: "from-pink-300/30 via-rose-500/14 to-slate-950",
+    helper: "Self-reported flare-ups that may require exercise substitutions.",
+    placeholder: "Example: knee flare-up after running...",
+    effect: "Can prompt substitutions and coach review. Not medical advice.",
+  },
+  {
+    id: "sleep-disruption",
+    title: "Sleep Disruption",
+    tone: "purple",
+    icon: "SLEEP",
+    accent: "from-purple-300/30 via-fuchsia-500/16 to-slate-950",
+    helper: "Sleep interruptions that affect training readiness.",
+    placeholder: "Example: newborn sleep, insomnia, early wakeups...",
+    effect: "Can increase recovery spacing and lower intensity recommendations.",
+  },
+  {
+    id: "financial-constraints",
+    title: "Financial Constraints",
+    tone: "lime",
+    icon: "COST",
+    accent: "from-lime-200/28 via-emerald-500/14 to-slate-950",
+    helper: "Budget constraints that affect gym access, food choices, or equipment.",
+    placeholder: "Example: no gym membership, budget grocery plan...",
+    effect: "Can favor low-cost equipment and simple nutrition planning.",
+  },
+  {
+    id: "limited-equipment",
+    title: "Limited Equipment",
+    tone: "cyanSteel",
+    icon: "EQ",
+    accent: "from-cyan-200/30 via-slate-400/14 to-slate-950",
+    helper: "Limited tools available for training blocks.",
+    placeholder: "Example: bands and dumbbells only...",
+    effect: "Can substitute home workouts and low-equipment progressions.",
+  },
+  {
+    id: "religious-cultural-scheduling",
+    title: "Religious / Cultural Scheduling",
+    tone: "tealViolet",
+    icon: "TIME",
+    accent: "from-teal-200/28 via-violet-500/14 to-slate-950",
+    helper: "Observances, fasting windows, or scheduling patterns to respect.",
+    placeholder: "Example: fasting period, no training on certain days...",
+    effect: "Can adapt timing, intensity, and weekly layout respectfully.",
+  },
+  {
+    id: "other",
+    title: "Other",
+    tone: "steel",
+    icon: "MORE",
+    accent: "from-slate-300/30 via-blue-400/18 to-slate-950",
+    helper: "Anything else that should help the plan fit real life.",
+    placeholder: "Example: anything the app should plan around...",
+    effect: "Can add coach-visible context for future adaptive planning.",
+  },
+];
+
+const adaptivePlanningFactorCardLabels: Record<string, string> = {
+  caregiving: "Caregiving",
+  "financial-constraints": "Budget",
+  "high-stress-work": "High Stress",
+  "injury-flare-ups": "Flare-Ups",
+  "limited-equipment": "Limited Eq",
+  "long-commute": "Commute",
+  "manual-labor-job": "Labor Job",
+  "multiple-jobs": "Multi-Job",
+  "parenting-kids": "Kids",
+  "religious-cultural-scheduling": "Cultural Time",
+  "school-college": "School",
+  "sleep-disruption": "Sleep",
+  "sports-season": "Sports Season",
+  "unpredictable-schedule": "Variable",
+};
+
+const compactOptionIcons: Record<string, string> = {
+  "apartment-gym": "APT",
+  bands: "\u2248",
+  barbell: "BB",
+  bench: "\u25AD",
+  bodyweight: "BW",
+  cable: "\u223F",
+  "cardio-equipment": "\u2661",
+  dumbbells: "DB",
+  gym: "GYM",
+  home: "\u2302",
+  kettlebells: "KB",
+  "limited-space": "\u25A1",
+  machines: "\u2699",
+  "medicine-ball": "MB",
+  outdoors: "\u2600",
+  "pull-up-bar": "PU",
+  "suspension-trainer": "TRX",
+  "travel-hotel": "\u2708",
+};
+
+const boldCompactOptionVisuals: Record<
+  string,
+  { accent: string; icon: string; shortLabel?: string }
+> = {
+  "apartment-gym": {
+    accent: "from-cyan-300/34 via-sky-500/18 to-slate-950",
+    icon: "APT",
+    shortLabel: "Apt Gym",
+  },
+  bands: {
+    accent: "from-purple-300/34 via-fuchsia-500/16 to-slate-950",
+    icon: "BAND",
+  },
+  barbell: {
+    accent: "from-blue-300/34 via-cyan-500/17 to-slate-950",
+    icon: "BB",
+  },
+  bench: {
+    accent: "from-amber-300/28 via-orange-500/14 to-slate-950",
+    icon: "BNCH",
+  },
+  bodyweight: {
+    accent: "from-emerald-300/30 via-cyan-500/15 to-slate-950",
+    icon: "BW",
+  },
+  cable: {
+    accent: "from-cyan-300/32 via-blue-500/15 to-slate-950",
+    icon: "CBL",
+  },
+  "cardio-equipment": {
+    accent: "from-red-300/34 via-orange-500/18 to-slate-950",
+    icon: "CARD",
+    shortLabel: "Cardio",
+  },
+  dumbbells: {
+    accent: "from-cyan-200/36 via-slate-300/18 to-slate-950",
+    icon: "DB",
+  },
+  gym: {
+    accent: "from-sky-300/34 via-blue-500/18 to-slate-950",
+    icon: "GYM",
+  },
+  home: {
+    accent: "from-amber-300/34 via-orange-500/16 to-slate-950",
+    icon: "HOME",
+  },
+  kettlebells: {
+    accent: "from-orange-300/34 via-amber-500/16 to-slate-950",
+    icon: "KB",
+  },
+  "limited-space": {
+    accent: "from-yellow-300/32 via-stone-400/15 to-slate-950",
+    icon: "SM",
+    shortLabel: "Small Space",
+  },
+  machines: {
+    accent: "from-blue-300/30 via-indigo-500/16 to-slate-950",
+    icon: "MCH",
+  },
+  "medicine-ball": {
+    accent: "from-pink-300/28 via-rose-500/14 to-slate-950",
+    icon: "MED",
+    shortLabel: "Med Ball",
+  },
+  outdoors: {
+    accent: "from-emerald-300/34 via-teal-500/17 to-slate-950",
+    icon: "OUT",
+  },
+  "pull-up-bar": {
+    accent: "from-lime-300/30 via-emerald-500/15 to-slate-950",
+    icon: "PULL",
+    shortLabel: "Pull-Up",
+  },
+  "suspension-trainer": {
+    accent: "from-teal-300/34 via-cyan-500/16 to-slate-950",
+    icon: "TRX",
+    shortLabel: "Suspension",
+  },
+  "travel-hotel": {
+    accent: "from-violet-300/34 via-blue-500/18 to-slate-950",
+    icon: "TRVL",
+    shortLabel: "Travel",
+  },
+};
+
+const selectorCardShortLabels: Record<string, string> = {
+  ...adaptivePlanningFactorCardLabels,
+  "assisted-stretch": "Assisted",
+  "athletic-performance": "Athletic",
+  "body-part": "Body Split",
+  "coaching-group": "Group",
+  "coaching-online": "Online",
+  "coaching-pt": "PT",
+  "coaching-self": "Self",
+  "coaching-sports": "Coach",
+  "coaching-trainer": "Trainer",
+  "consistency-brand-new": "Brand New",
+  "consistency-long-term": "Long-Term",
+  "consistency-on-off": "On/Off",
+  "consistency-one-year": "1+ Years",
+  "consistency-some": "Some",
+  correctives: "Corrective",
+  "experience-advanced": "Advanced",
+  "experience-beginner": "Beginner",
+  "experience-competitive": "Athlete",
+  "experience-intermediate": "Mid-Level",
+  "experience-returning": "Returning",
+  "familiar-calisthenics": "Calisthenics",
+  "familiar-hiit": "HIIT",
+  "familiar-hypertrophy": "Hypertrophy",
+  "familiar-mobility": "Mobility",
+  "familiar-olympic": "Olympic",
+  "familiar-powerlifting": "Powerlift",
+  "familiar-rehab": "Corrective",
+  "familiar-running": "Running",
+  "familiar-sports": "Sports",
+  "familiar-strength": "Strength",
+  "full-body": "Full Body",
+  hiking: "Hiking",
+  "low-impact": "Low Impact",
+  "mobility-drills": "Mobility",
+  "pain-free-movement": "Pain-Free",
+  "push-pull-legs": "PPL",
+  "recovery-sessions": "Recovery",
+  "strength-mobility": "Strength+Mobility",
+  stretching: "Stretch",
+  "upper-lower": "Upper/Lower",
+  "warm-up-mobility": "Warm-Up",
+  "yoga-flow": "Yoga",
+};
+
+const preferenceCardTones: Record<string, CompactOptionTone> = {
+  "assisted-stretch": "rose",
+  "athletic-performance": "orange",
+  "body-part": "rose",
+  correctives: "amber",
+  cycling: "electric",
+  custom: "steel",
+  "full-body": "cyan",
+  hiking: "lime",
+  hiit: "redOrange",
+  "low-impact": "tealViolet",
+  "mobility-drills": "green",
+  "pain-free-movement": "tealViolet",
+  "push-pull-legs": "redOrange",
+  recovery: "violetBlue",
+  "recovery-sessions": "cyan",
+  rowing: "tealViolet",
+  running: "orange",
+  sports: "purple",
+  stretching: "cyan",
+  "strength-mobility": "green",
+  "upper-lower": "electric",
+  walking: "bodyweight",
+  "warm-up-mobility": "warm",
+  "yoga-flow": "violetBlue",
+};
+
+const selectorCardIconNames: Record<string, SelectorIconName> = {
+  "apartment-gym": "building",
+  "assisted-stretch": "heart-handshake",
+  "athletic-performance": "trophy",
+  bands: "stretch",
+  barbell: "activity",
+  bench: "panel-top",
+  bodyweight: "user",
+  "body-part": "circle-dot",
+  cable: "waves",
+  "cardio-equipment": "heart-pulse",
+  caregiving: "heart-handshake",
+  "coaching-group": "users",
+  "coaching-online": "activity",
+  "coaching-pt": "bandage",
+  "coaching-self": "user",
+  "coaching-sports": "trophy",
+  "coaching-trainer": "users",
+  "consistency-brand-new": "sparkles",
+  "consistency-long-term": "trophy",
+  "consistency-on-off": "shuffle",
+  "consistency-one-year": "calendar-clock",
+  "consistency-some": "activity",
+  correctives: "bandage",
+  cycling: "bike",
+  custom: "settings",
+  dumbbells: "dumbbell",
+  "experience-advanced": "activity",
+  "experience-beginner": "sparkles",
+  "experience-competitive": "trophy",
+  "experience-intermediate": "activity",
+  "experience-returning": "shuffle",
+  "familiar-calisthenics": "user",
+  "familiar-hiit": "heart-pulse",
+  "familiar-hypertrophy": "activity",
+  "familiar-mobility": "stretch",
+  "familiar-olympic": "activity",
+  "familiar-powerlifting": "dumbbell",
+  "familiar-rehab": "bandage",
+  "familiar-running": "runner",
+  "familiar-sports": "trophy",
+  "familiar-strength": "dumbbell",
+  "financial-constraints": "wallet",
+  "full-body": "user",
+  gym: "dumbbell",
+  hiit: "heart-pulse",
+  "high-stress-season": "brain",
+  hiking: "trees",
+  home: "home",
+  "high-stress-work": "brain",
+  "illness-return": "heart-pulse",
+  injury: "bandage",
+  "injury-flare-ups": "bandage",
+  kettlebells: "kettlebell",
+  "limited-equipment": "dumbbell",
+  "limited-space": "square",
+  "low-impact": "heart-handshake",
+  "long-commute": "car",
+  machines: "settings",
+  "manual-labor": "hammer",
+  "manual-labor-job": "hammer",
+  "medicine-ball": "circle",
+  "mobility-drills": "activity",
+  "multiple-jobs": "briefcase",
+  other: "more-horizontal",
+  outdoors: "trees",
+  "pain-flare": "bandage",
+  "pain-free-movement": "heart-pulse",
+  "parenting-kids": "baby",
+  postpartum: "baby",
+  pregnancy: "heart-pulse",
+  "pull-up-bar": "arrow-up",
+  "push-pull-legs": "shuffle",
+  "recovery-sessions": "moon",
+  "religious-cultural-scheduling": "calendar-clock",
+  rowing: "waves",
+  running: "runner",
+  "school-college": "graduation-cap",
+  "senior-support": "heart-handshake",
+  "shift-work": "clock",
+  "sleep-disruption": "moon",
+  "sport-season": "trophy",
+  sports: "trophy",
+  "sports-season": "trophy",
+  "surgery-history": "bandage",
+  stretching: "stretch",
+  "strength-mobility": "dumbbell",
+  "suspension-trainer": "waves",
+  travel: "plane",
+  "travel-hotel": "plane",
+  "unpredictable-schedule": "shuffle",
+  "upper-lower": "square",
+  walking: "footprints",
+  "warm-up-mobility": "clock",
+  "yoga-flow": "stretch",
+};
+
+type CompactOptionVisualStyle = {
+  activeCard: string;
+  check: string;
+  iconActive: string;
+  iconIdle: string;
+  idleCard: string;
+  line: string;
+  surface: string;
+};
+
+const compactOptionVisualStyles: Record<CompactOptionTone, CompactOptionVisualStyle> = {
+  amber: {
+    activeCard:
+      "border-amber-100/75 bg-amber-300/15 text-white shadow-[0_0_0_1px_rgba(253,230,138,0.28),0_0_32px_rgba(245,158,11,0.26),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-amber-50/80 bg-amber-100 text-slate-950 shadow-[0_0_16px_rgba(251,191,36,0.56)]",
+    iconActive:
+      "border-amber-100/58 bg-amber-300/20 text-amber-50 shadow-[0_0_24px_rgba(251,191,36,0.32)]",
+    iconIdle:
+      "border-amber-200/20 bg-amber-300/8 text-amber-100 group-hover:border-amber-100/38 group-hover:bg-amber-300/14 group-hover:text-white",
+    idleCard:
+      "border-amber-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-amber-200/42 hover:bg-amber-300/10 hover:shadow-[0_0_24px_rgba(245,158,11,0.16)]",
+    line: "from-transparent via-amber-300/75 to-transparent",
+    surface: "from-amber-300/32 via-stone-300/16 to-slate-950",
+  },
+  bodyweight: {
+    activeCard:
+      "border-emerald-100/75 bg-emerald-300/15 text-white shadow-[0_0_0_1px_rgba(167,243,208,0.28),0_0_32px_rgba(45,212,191,0.25),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-emerald-50/80 bg-emerald-100 text-slate-950 shadow-[0_0_16px_rgba(52,211,153,0.55)]",
+    iconActive:
+      "border-emerald-100/58 bg-emerald-300/20 text-emerald-50 shadow-[0_0_24px_rgba(52,211,153,0.3)]",
+    iconIdle:
+      "border-emerald-200/20 bg-emerald-300/8 text-emerald-100 group-hover:border-emerald-100/38 group-hover:bg-emerald-300/14 group-hover:text-white",
+    idleCard:
+      "border-emerald-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-emerald-200/42 hover:bg-emerald-300/10 hover:shadow-[0_0_24px_rgba(52,211,153,0.16)]",
+    line: "from-transparent via-emerald-300/75 to-transparent",
+    surface: "from-emerald-200/30 via-cyan-400/16 to-slate-950",
+  },
+  cyan: {
+    activeCard:
+      "border-cyan-100/75 bg-cyan-300/16 text-white shadow-[0_0_0_1px_rgba(103,232,249,0.3),0_0_34px_rgba(34,211,238,0.27),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-cyan-50/80 bg-cyan-100 text-slate-950 shadow-[0_0_16px_rgba(103,232,249,0.58)]",
+    iconActive:
+      "border-cyan-100/58 bg-cyan-300/20 text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.34)]",
+    iconIdle:
+      "border-cyan-200/20 bg-cyan-300/8 text-cyan-100 group-hover:border-cyan-100/38 group-hover:bg-cyan-300/14 group-hover:text-white",
+    idleCard:
+      "border-cyan-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-cyan-200/42 hover:bg-cyan-300/10 hover:shadow-[0_0_24px_rgba(34,211,238,0.17)]",
+    line: "from-transparent via-cyan-300/80 to-transparent",
+    surface: "from-cyan-200/32 via-sky-400/16 to-slate-950",
+  },
+  cyanSteel: {
+    activeCard:
+      "border-cyan-100/75 bg-cyan-300/14 text-white shadow-[0_0_0_1px_rgba(125,211,252,0.28),0_0_32px_rgba(14,165,233,0.23),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-cyan-50/80 bg-cyan-100 text-slate-950 shadow-[0_0_16px_rgba(125,211,252,0.54)]",
+    iconActive:
+      "border-cyan-100/58 bg-cyan-300/18 text-cyan-50 shadow-[0_0_24px_rgba(125,211,252,0.3)]",
+    iconIdle:
+      "border-cyan-200/20 bg-cyan-300/8 text-cyan-100 group-hover:border-cyan-100/38 group-hover:bg-cyan-300/14 group-hover:text-white",
+    idleCard:
+      "border-cyan-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-cyan-200/42 hover:bg-cyan-300/9 hover:shadow-[0_0_24px_rgba(125,211,252,0.15)]",
+    line: "from-transparent via-cyan-200/78 to-transparent",
+    surface: "from-cyan-200/32 via-slate-300/14 to-slate-950",
+  },
+  electric: {
+    activeCard:
+      "border-blue-100/75 bg-blue-300/16 text-white shadow-[0_0_0_1px_rgba(191,219,254,0.28),0_0_34px_rgba(59,130,246,0.3),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-blue-50/80 bg-blue-100 text-slate-950 shadow-[0_0_16px_rgba(96,165,250,0.58)]",
+    iconActive:
+      "border-blue-100/58 bg-blue-300/20 text-blue-50 shadow-[0_0_24px_rgba(59,130,246,0.34)]",
+    iconIdle:
+      "border-blue-200/20 bg-blue-300/8 text-blue-100 group-hover:border-blue-100/38 group-hover:bg-blue-300/14 group-hover:text-white",
+    idleCard:
+      "border-blue-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-blue-200/42 hover:bg-blue-300/10 hover:shadow-[0_0_24px_rgba(59,130,246,0.18)]",
+    line: "from-transparent via-blue-300/80 to-transparent",
+    surface: "from-blue-200/34 via-cyan-500/18 to-slate-950",
+  },
+  green: {
+    activeCard:
+      "border-emerald-100/75 bg-emerald-300/16 text-white shadow-[0_0_0_1px_rgba(167,243,208,0.28),0_0_34px_rgba(20,184,166,0.26),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-emerald-50/80 bg-emerald-100 text-slate-950 shadow-[0_0_16px_rgba(20,184,166,0.55)]",
+    iconActive:
+      "border-emerald-100/58 bg-emerald-300/20 text-emerald-50 shadow-[0_0_24px_rgba(20,184,166,0.3)]",
+    iconIdle:
+      "border-emerald-200/20 bg-emerald-300/8 text-emerald-100 group-hover:border-emerald-100/38 group-hover:bg-emerald-300/14 group-hover:text-white",
+    idleCard:
+      "border-emerald-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-emerald-200/42 hover:bg-emerald-300/10 hover:shadow-[0_0_24px_rgba(20,184,166,0.17)]",
+    line: "from-transparent via-emerald-300/78 to-transparent",
+    surface: "from-emerald-200/32 via-teal-400/17 to-slate-950",
+  },
+  indigoSteel: {
+    activeCard:
+      "border-indigo-100/75 bg-indigo-300/15 text-white shadow-[0_0_0_1px_rgba(199,210,254,0.28),0_0_32px_rgba(99,102,241,0.24),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-indigo-50/80 bg-indigo-100 text-slate-950 shadow-[0_0_16px_rgba(129,140,248,0.55)]",
+    iconActive:
+      "border-indigo-100/58 bg-indigo-300/20 text-indigo-50 shadow-[0_0_24px_rgba(99,102,241,0.3)]",
+    iconIdle:
+      "border-indigo-200/20 bg-indigo-300/8 text-indigo-100 group-hover:border-indigo-100/38 group-hover:bg-indigo-300/14 group-hover:text-white",
+    idleCard:
+      "border-indigo-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-indigo-200/42 hover:bg-indigo-300/10 hover:shadow-[0_0_24px_rgba(99,102,241,0.15)]",
+    line: "from-transparent via-indigo-300/75 to-transparent",
+    surface: "from-slate-200/28 via-indigo-400/17 to-slate-950",
+  },
+  lime: {
+    activeCard:
+      "border-lime-100/75 bg-lime-300/15 text-white shadow-[0_0_0_1px_rgba(217,249,157,0.28),0_0_30px_rgba(132,204,22,0.24),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-lime-50/80 bg-lime-100 text-slate-950 shadow-[0_0_16px_rgba(163,230,53,0.52)]",
+    iconActive:
+      "border-lime-100/58 bg-lime-300/20 text-lime-50 shadow-[0_0_24px_rgba(132,204,22,0.28)]",
+    iconIdle:
+      "border-lime-200/20 bg-lime-300/8 text-lime-100 group-hover:border-lime-100/38 group-hover:bg-lime-300/14 group-hover:text-white",
+    idleCard:
+      "border-lime-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-lime-200/42 hover:bg-lime-300/10 hover:shadow-[0_0_24px_rgba(132,204,22,0.14)]",
+    line: "from-transparent via-lime-300/72 to-transparent",
+    surface: "from-lime-200/30 via-emerald-500/15 to-slate-950",
+  },
+  orange: {
+    activeCard:
+      "border-orange-100/75 bg-orange-300/16 text-white shadow-[0_0_0_1px_rgba(254,215,170,0.28),0_0_32px_rgba(249,115,22,0.28),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-orange-50/80 bg-orange-100 text-slate-950 shadow-[0_0_16px_rgba(251,146,60,0.58)]",
+    iconActive:
+      "border-orange-100/58 bg-orange-300/20 text-orange-50 shadow-[0_0_24px_rgba(249,115,22,0.34)]",
+    iconIdle:
+      "border-orange-200/20 bg-orange-300/8 text-orange-100 group-hover:border-orange-100/38 group-hover:bg-orange-300/14 group-hover:text-white",
+    idleCard:
+      "border-orange-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-orange-200/42 hover:bg-orange-300/10 hover:shadow-[0_0_24px_rgba(249,115,22,0.17)]",
+    line: "from-transparent via-orange-300/78 to-transparent",
+    surface: "from-orange-300/34 via-black/24 to-slate-950",
+  },
+  purple: {
+    activeCard:
+      "border-purple-100/75 bg-purple-300/16 text-white shadow-[0_0_0_1px_rgba(233,213,255,0.28),0_0_32px_rgba(168,85,247,0.28),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-purple-50/80 bg-purple-100 text-slate-950 shadow-[0_0_16px_rgba(192,132,252,0.56)]",
+    iconActive:
+      "border-purple-100/58 bg-purple-300/20 text-purple-50 shadow-[0_0_24px_rgba(168,85,247,0.32)]",
+    iconIdle:
+      "border-purple-200/20 bg-purple-300/8 text-purple-100 group-hover:border-purple-100/38 group-hover:bg-purple-300/14 group-hover:text-white",
+    idleCard:
+      "border-purple-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-purple-200/42 hover:bg-purple-300/10 hover:shadow-[0_0_24px_rgba(168,85,247,0.17)]",
+    line: "from-transparent via-purple-300/78 to-transparent",
+    surface: "from-purple-300/32 via-fuchsia-500/17 to-slate-950",
+  },
+  redOrange: {
+    activeCard:
+      "border-red-100/75 bg-red-300/16 text-white shadow-[0_0_0_1px_rgba(254,202,202,0.28),0_0_34px_rgba(248,113,113,0.28),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-red-50/80 bg-red-100 text-slate-950 shadow-[0_0_16px_rgba(248,113,113,0.58)]",
+    iconActive:
+      "border-red-100/58 bg-red-300/20 text-red-50 shadow-[0_0_24px_rgba(248,113,113,0.34)]",
+    iconIdle:
+      "border-red-200/20 bg-red-300/8 text-red-100 group-hover:border-red-100/38 group-hover:bg-red-300/14 group-hover:text-white",
+    idleCard:
+      "border-red-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-red-200/42 hover:bg-red-300/10 hover:shadow-[0_0_24px_rgba(248,113,113,0.17)]",
+    line: "from-transparent via-red-300/78 to-transparent",
+    surface: "from-red-300/34 via-orange-500/18 to-slate-950",
+  },
+  rose: {
+    activeCard:
+      "border-rose-100/75 bg-rose-300/16 text-white shadow-[0_0_0_1px_rgba(255,228,230,0.28),0_0_32px_rgba(244,63,94,0.27),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-rose-50/80 bg-rose-100 text-slate-950 shadow-[0_0_16px_rgba(251,113,133,0.56)]",
+    iconActive:
+      "border-rose-100/58 bg-rose-300/20 text-rose-50 shadow-[0_0_24px_rgba(244,63,94,0.32)]",
+    iconIdle:
+      "border-rose-200/20 bg-rose-300/8 text-rose-100 group-hover:border-rose-100/38 group-hover:bg-rose-300/14 group-hover:text-white",
+    idleCard:
+      "border-rose-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-rose-200/42 hover:bg-rose-300/10 hover:shadow-[0_0_24px_rgba(244,63,94,0.16)]",
+    line: "from-transparent via-rose-300/78 to-transparent",
+    surface: "from-pink-300/32 via-rose-500/16 to-slate-950",
+  },
+  steel: {
+    activeCard:
+      "border-blue-100/75 bg-blue-300/15 text-white shadow-[0_0_0_1px_rgba(191,219,254,0.28),0_0_34px_rgba(59,130,246,0.27),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-blue-50/80 bg-blue-100 text-slate-950 shadow-[0_0_16px_rgba(96,165,250,0.56)]",
+    iconActive:
+      "border-blue-100/58 bg-blue-300/20 text-blue-50 shadow-[0_0_24px_rgba(96,165,250,0.32)]",
+    iconIdle:
+      "border-blue-200/20 bg-blue-300/8 text-blue-100 group-hover:border-blue-100/38 group-hover:bg-blue-300/14 group-hover:text-white",
+    idleCard:
+      "border-blue-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-blue-200/42 hover:bg-blue-300/10 hover:shadow-[0_0_24px_rgba(59,130,246,0.16)]",
+    line: "from-transparent via-blue-300/78 to-transparent",
+    surface: "from-slate-300/34 via-blue-400/18 to-slate-950",
+  },
+  tealViolet: {
+    activeCard:
+      "border-teal-100/75 bg-teal-300/15 text-white shadow-[0_0_0_1px_rgba(153,246,228,0.28),0_0_32px_rgba(45,212,191,0.24),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-teal-50/80 bg-teal-100 text-slate-950 shadow-[0_0_16px_rgba(45,212,191,0.54)]",
+    iconActive:
+      "border-teal-100/58 bg-teal-300/20 text-teal-50 shadow-[0_0_24px_rgba(45,212,191,0.3)]",
+    iconIdle:
+      "border-teal-200/20 bg-teal-300/8 text-teal-100 group-hover:border-teal-100/38 group-hover:bg-teal-300/14 group-hover:text-white",
+    idleCard:
+      "border-teal-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-teal-200/42 hover:bg-teal-300/10 hover:shadow-[0_0_24px_rgba(45,212,191,0.15)]",
+    line: "from-transparent via-teal-300/76 to-transparent",
+    surface: "from-teal-200/30 via-violet-500/16 to-slate-950",
+  },
+  violetBlue: {
+    activeCard:
+      "border-violet-100/75 bg-violet-300/16 text-white shadow-[0_0_0_1px_rgba(221,214,254,0.28),0_0_32px_rgba(139,92,246,0.28),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-violet-50/80 bg-violet-100 text-slate-950 shadow-[0_0_16px_rgba(167,139,250,0.56)]",
+    iconActive:
+      "border-violet-100/58 bg-violet-300/20 text-violet-50 shadow-[0_0_24px_rgba(139,92,246,0.32)]",
+    iconIdle:
+      "border-violet-200/20 bg-violet-300/8 text-violet-100 group-hover:border-violet-100/38 group-hover:bg-violet-300/14 group-hover:text-white",
+    idleCard:
+      "border-violet-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-violet-200/42 hover:bg-violet-300/10 hover:shadow-[0_0_24px_rgba(139,92,246,0.17)]",
+    line: "from-transparent via-violet-300/78 to-transparent",
+    surface: "from-violet-300/32 via-blue-500/17 to-slate-950",
+  },
+  warm: {
+    activeCard:
+      "border-orange-100/75 bg-orange-300/14 text-white shadow-[0_0_0_1px_rgba(254,215,170,0.28),0_0_30px_rgba(251,146,60,0.22),inset_0_1px_0_rgba(255,255,255,0.2)]",
+    check:
+      "border-orange-50/80 bg-orange-100 text-slate-950 shadow-[0_0_16px_rgba(251,146,60,0.52)]",
+    iconActive:
+      "border-orange-100/58 bg-orange-300/18 text-orange-50 shadow-[0_0_24px_rgba(251,146,60,0.28)]",
+    iconIdle:
+      "border-orange-200/20 bg-orange-300/8 text-orange-100 group-hover:border-orange-100/38 group-hover:bg-orange-300/14 group-hover:text-white",
+    idleCard:
+      "border-orange-200/12 bg-slate-950/62 text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] hover:border-orange-200/42 hover:bg-orange-300/10 hover:shadow-[0_0_24px_rgba(251,146,60,0.14)]",
+    line: "from-transparent via-orange-300/72 to-transparent",
+    surface: "from-amber-200/30 via-orange-300/15 to-slate-950",
+  },
+};
+
+const preferredSplitOptions: PreferenceCardOption[] = [
+  {
+    id: "full-body",
+    title: "Full Body",
+    helper: "Balanced sessions that touch the whole body each training day.",
+    visual: "ALL",
+    accent: "from-cyan-300/26 via-blue-500/12 to-slate-950",
+  },
+  {
+    id: "upper-lower",
+    title: "Upper / Lower",
+    helper: "Alternates upper-body and lower-body emphasis across the week.",
+    visual: "U/L",
+    accent: "from-blue-300/24 via-indigo-500/12 to-slate-950",
+  },
+  {
+    id: "push-pull-legs",
+    title: "Push / Pull / Legs",
+    helper: "Classic push, pull, and leg organization for higher frequency.",
+    visual: "PPL",
+    accent: "from-orange-300/24 via-red-500/12 to-slate-950",
+  },
+  {
+    id: "body-part",
+    title: "Body Part Split",
+    helper: "Dedicated focus days for specific muscle groups and accessories.",
+    visual: "SPLT",
+    accent: "from-pink-300/22 via-rose-500/12 to-slate-950",
+  },
+  {
+    id: "strength-mobility",
+    title: "Strength + Mobility",
+    helper: "Strength work paired with movement quality and joint preparation.",
+    visual: "S+M",
+    accent: "from-emerald-300/24 via-cyan-500/12 to-slate-950",
+  },
+  {
+    id: "athletic-performance",
+    title: "Athletic Performance",
+    helper: "Power, conditioning, speed, carries, and sport-ready training.",
+    visual: "ATH",
+    accent: "from-amber-300/26 via-orange-500/12 to-slate-950",
+  },
+  {
+    id: "custom",
+    title: "Custom",
+    helper: "Flexible organization that can adapt to your exact schedule.",
+    visual: "CUS",
+    accent: "from-slate-200/18 via-cyan-500/10 to-slate-950",
+  },
+];
+
+const cardioPreferenceOptions: PreferenceCardOption[] = [
+  {
+    id: "walking",
+    title: "Walking",
+    helper: "Low-friction aerobic work, steps, and repeatable movement.",
+    visual: "WALK",
+    accent: "from-emerald-300/24 via-lime-500/12 to-slate-950",
+  },
+  {
+    id: "running",
+    title: "Running",
+    helper: "Runs, intervals, tempo work, and aerobic conditioning.",
+    visual: "RUN",
+    accent: "from-orange-300/24 via-amber-500/12 to-slate-950",
+  },
+  {
+    id: "cycling",
+    title: "Cycling",
+    helper: "Bike sessions for conditioning, endurance, or low-impact rides.",
+    visual: "BIKE",
+    accent: "from-cyan-300/24 via-blue-500/12 to-slate-950",
+  },
+  {
+    id: "rowing",
+    title: "Rowing",
+    helper: "Full-body conditioning with repeatable output and low impact.",
+    visual: "ROW",
+    accent: "from-sky-300/24 via-teal-500/12 to-slate-950",
+  },
+  {
+    id: "hiit",
+    title: "HIIT",
+    helper: "Short, higher-intensity intervals with careful session spacing.",
+    visual: "HIIT",
+    accent: "from-rose-300/24 via-orange-500/12 to-slate-950",
+  },
+  {
+    id: "sports",
+    title: "Sports",
+    helper: "Cardio through sport, games, and athletic movement sessions.",
+    visual: "PLAY",
+    accent: "from-violet-300/24 via-fuchsia-500/12 to-slate-950",
+  },
+  {
+    id: "hiking",
+    title: "Hiking",
+    helper: "Longer outdoor efforts, elevation, and steady aerobic work.",
+    visual: "HIKE",
+    accent: "from-lime-300/24 via-emerald-500/12 to-slate-950",
+  },
+  {
+    id: "low-impact",
+    title: "Low Impact",
+    helper: "Joint-friendly conditioning using easier impact options.",
+    visual: "LOW",
+    accent: "from-teal-300/24 via-cyan-500/12 to-slate-950",
+  },
+];
+
+const mobilityPreferenceOptions: PreferenceCardOption[] = [
+  {
+    id: "stretching",
+    title: "Stretching",
+    helper: "Simple flexibility work and cooldown-friendly positions.",
+    visual: "STR",
+    accent: "from-cyan-300/24 via-blue-500/12 to-slate-950",
+  },
+  {
+    id: "yoga-flow",
+    title: "Yoga Flow",
+    helper: "Flow-based sessions for breathing, range, and control.",
+    visual: "FLOW",
+    accent: "from-violet-300/24 via-purple-500/12 to-slate-950",
+  },
+  {
+    id: "assisted-stretch",
+    title: "Assisted Stretch",
+    helper: "Partner, strap, or guided stretching support when available.",
+    visual: "AST",
+    accent: "from-pink-300/22 via-fuchsia-500/12 to-slate-950",
+  },
+  {
+    id: "mobility-drills",
+    title: "Mobility Drills",
+    helper: "Active range, joint prep, and repeatable movement drills.",
+    visual: "MOB",
+    accent: "from-emerald-300/24 via-teal-500/12 to-slate-950",
+  },
+  {
+    id: "correctives",
+    title: "Correctives",
+    helper: "Targeted exercises for movement quality and control.",
+    visual: "FIX",
+    accent: "from-amber-300/24 via-orange-500/12 to-slate-950",
+  },
+  {
+    id: "recovery-sessions",
+    title: "Recovery Sessions",
+    helper: "Light sessions that restore movement without adding heavy load.",
+    visual: "REC",
+    accent: "from-blue-300/24 via-cyan-500/12 to-slate-950",
+  },
+  {
+    id: "warm-up-mobility",
+    title: "Warm-Up Mobility",
+    helper: "Pre-session prep that matches the lifts or movements ahead.",
+    visual: "WARM",
+    accent: "from-orange-300/24 via-yellow-500/12 to-slate-950",
+  },
+  {
+    id: "pain-free-movement",
+    title: "Pain-Free Movement",
+    helper: "Movement options focused on comfort, confidence, and control.",
+    visual: "EASE",
+    accent: "from-rose-300/20 via-cyan-500/10 to-slate-950",
+  },
 ];
 
 const trainingStyleOptions = [
@@ -487,12 +2255,74 @@ const mobilityStatusOptions: BodyStatus["mobilityStatus"][] = [
   "Normal",
   "Improving",
 ];
-const weightTrendOptions: BodyStatus["weightTrend"][] = [
-  "Stable",
-  "Trending down",
-  "Trending up",
-  "Unknown",
+const weightTrendOptions: Array<{
+  accent: string;
+  active: string;
+  helper: string;
+  icon: string;
+  iconActive: string;
+  iconIdle: string;
+  value: BodyStatus["weightTrend"];
+}> = [
+  {
+    accent: "from-emerald-300/70 to-cyan-300/40",
+    active:
+      "border-emerald-200/50 bg-emerald-300/14 text-emerald-50 shadow-[0_0_24px_rgba(52,211,153,0.16)]",
+    helper: "Scale is moving up.",
+    icon: "\u2191",
+    iconActive: "border-emerald-100/42 bg-emerald-300/18 text-emerald-50",
+    iconIdle: "border-emerald-200/16 bg-emerald-300/8 text-emerald-100/72",
+    value: "Gaining",
+  },
+  {
+    accent: "from-cyan-300/70 to-blue-300/40",
+    active:
+      "border-cyan-200/50 bg-cyan-300/14 text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.16)]",
+    helper: "Scale is mostly steady.",
+    icon: "\u2022",
+    iconActive: "border-cyan-100/42 bg-cyan-300/18 text-cyan-50",
+    iconIdle: "border-cyan-200/16 bg-cyan-300/8 text-cyan-100/72",
+    value: "Maintaining",
+  },
+  {
+    accent: "from-orange-300/70 to-rose-300/40",
+    active:
+      "border-orange-200/50 bg-orange-300/14 text-orange-50 shadow-[0_0_24px_rgba(251,146,60,0.16)]",
+    helper: "Scale is moving down.",
+    icon: "\u2193",
+    iconActive: "border-orange-100/42 bg-orange-300/18 text-orange-50",
+    iconIdle: "border-orange-200/16 bg-orange-300/8 text-orange-100/72",
+    value: "Losing",
+  },
+  {
+    accent: "from-fuchsia-300/70 to-violet-300/40",
+    active:
+      "border-fuchsia-200/50 bg-fuchsia-300/14 text-fuchsia-50 shadow-[0_0_24px_rgba(217,70,239,0.16)]",
+    helper: "Scale moves up and down.",
+    icon: "\u2195",
+    iconActive: "border-fuchsia-100/42 bg-fuchsia-300/18 text-fuchsia-50",
+    iconIdle: "border-fuchsia-200/16 bg-fuchsia-300/8 text-fuchsia-100/72",
+    value: "Fluctuating",
+  },
+  {
+    accent: "from-slate-300/70 to-cyan-300/30",
+    active:
+      "border-slate-200/42 bg-white/[0.08] text-slate-50 shadow-[0_0_22px_rgba(148,163,184,0.14)]",
+    helper: "Not enough recent trend data.",
+    icon: "?",
+    iconActive: "border-slate-100/32 bg-slate-300/12 text-slate-50",
+    iconIdle: "border-white/12 bg-white/[0.05] text-slate-300",
+    value: "Not Sure",
+  },
 ];
+
+const normalizeWeightTrend = (value: unknown): BodyStatus["weightTrend"] => {
+  if (value === "Gaining" || value === "Trending up") return "Gaining";
+  if (value === "Maintaining" || value === "Stable") return "Maintaining";
+  if (value === "Losing" || value === "Trending down") return "Losing";
+  if (value === "Fluctuating") return "Fluctuating";
+  return "Not Sure";
+};
 
 const specialCircumstanceOptions = [
   {
@@ -586,16 +2416,135 @@ const genderOptions: Array<{ id: BodyModel; label: string; symbol: string }> = [
   { id: "female", label: "Female", symbol: "\u2640" },
 ];
 
-const occupationOptions = [
-  "",
-  "Desk worker",
-  "Trainer/Coach",
-  "Manual labor",
-  "Healthcare",
-  "Driver",
-  "Student",
-  "Other",
+type OccupationOption = {
+  accent: string;
+  description: string;
+  icon: SelectorIconName;
+  label: string;
+  value: string;
+};
+
+const occupationOptions: OccupationOption[] = [
+  {
+    accent: "cyan",
+    description: "Mostly seated work.",
+    icon: "briefcase",
+    label: "Desk Worker",
+    value: "Desk Worker",
+  },
+  {
+    accent: "emerald",
+    description: "Active coaching hours.",
+    icon: "dumbbell",
+    label: "Trainer / Coach",
+    value: "Trainer / Coach",
+  },
+  {
+    accent: "orange",
+    description: "Lifting or long shifts.",
+    icon: "hammer",
+    label: "Manual Labor",
+    value: "Manual Labor",
+  },
+  {
+    accent: "rose",
+    description: "Long standing shifts.",
+    icon: "heart-pulse",
+    label: "Healthcare",
+    value: "Healthcare",
+  },
+  {
+    accent: "blue",
+    description: "Routes and seated time.",
+    icon: "car",
+    label: "Driver",
+    value: "Driver",
+  },
+  {
+    accent: "violet",
+    description: "Classes and study blocks.",
+    icon: "graduation-cap",
+    label: "Student",
+    value: "Student",
+  },
+  {
+    accent: "amber",
+    description: "Classroom energy.",
+    icon: "graduation-cap",
+    label: "Teacher",
+    value: "Teacher",
+  },
+  {
+    accent: "purple",
+    description: "Variable shifts.",
+    icon: "users",
+    label: "Service Industry",
+    value: "Service Industry",
+  },
+  {
+    accent: "steel",
+    description: "Office or hybrid work.",
+    icon: "settings",
+    label: "Tech / Office",
+    value: "Tech / Office",
+  },
+  {
+    accent: "red",
+    description: "High-alert shifts.",
+    icon: "heart-pulse",
+    label: "First Responder",
+    value: "First Responder",
+  },
+  {
+    accent: "slate",
+    description: "Field readiness demands.",
+    icon: "shield",
+    label: "Military / Tactical",
+    value: "Military / Tactical",
+  },
+  {
+    accent: "lime",
+    description: "Practices and events.",
+    icon: "trophy",
+    label: "Athlete",
+    value: "Athlete",
+  },
+  {
+    accent: "teal",
+    description: "Care windows and home flow.",
+    icon: "home",
+    label: "Stay-at-Home Parent",
+    value: "Stay-at-Home Parent",
+  },
+  {
+    accent: "indigo",
+    description: "Flexible schedule.",
+    icon: "clock",
+    label: "Retired",
+    value: "Retired",
+  },
+  {
+    accent: "zinc",
+    description: "Custom work context.",
+    icon: "more-horizontal",
+    label: "Other",
+    value: "Other",
+  },
 ];
+
+const normalizeOccupationValue = (occupation: string) => {
+  const normalized = occupation.trim().toLowerCase();
+  const legacyMap: Record<string, string> = {
+    "desk worker": "Desk Worker",
+    "manual labor": "Manual Labor",
+    "trainer/coach": "Trainer / Coach",
+    "trainer / coach": "Trainer / Coach",
+  };
+  const mapped = legacyMap[normalized];
+  if (mapped) return mapped;
+  return occupationOptions.find((option) => option.value.toLowerCase() === normalized)
+    ?.value || occupation;
+};
 
 const sedentaryLevelOptions: SedentaryLevel[] = [
   "Low",
@@ -605,26 +2554,27 @@ const sedentaryLevelOptions: SedentaryLevel[] = [
 ];
 
 const measurementDefinitions: Array<{
+  color: MetricColor;
   key: keyof Omit<BodyMeasurements, "custom" | "lastUpdated" | "progressPhotoNote" | "progressPhotos" | "unit">;
   label: string;
   max: number;
   min: number;
   step?: number;
 }> = [
-  { key: "neck", label: "Neck", min: 8, max: 26, step: 0.25 },
-  { key: "shoulders", label: "Shoulders", min: 24, max: 72, step: 0.25 },
-  { key: "chest", label: "Chest", min: 24, max: 70, step: 0.25 },
-  { key: "waist", label: "Waist", min: 20, max: 70, step: 0.25 },
-  { key: "hips", label: "Hips", min: 24, max: 72, step: 0.25 },
-  { key: "leftArm", label: "Left Arm", min: 6, max: 30, step: 0.25 },
-  { key: "rightArm", label: "Right Arm", min: 6, max: 30, step: 0.25 },
-  { key: "leftThigh", label: "Left Thigh", min: 12, max: 40, step: 0.25 },
-  { key: "rightThigh", label: "Right Thigh", min: 12, max: 40, step: 0.25 },
-  { key: "leftCalf", label: "Left Calf", min: 8, max: 28, step: 0.25 },
-  { key: "rightCalf", label: "Right Calf", min: 8, max: 28, step: 0.25 },
-  { key: "forearm", label: "Forearm", min: 6, max: 20, step: 0.25 },
-  { key: "wrist", label: "Wrist", min: 4, max: 12, step: 0.1 },
-  { key: "ankle", label: "Ankle", min: 5, max: 16, step: 0.1 },
+  { key: "neck", label: "Neck", min: 8, max: 26, step: 0.25, color: "steel" },
+  { key: "shoulders", label: "Shoulders", min: 24, max: 72, step: 0.25, color: "purple" },
+  { key: "chest", label: "Chest", min: 24, max: 70, step: 0.25, color: "orange" },
+  { key: "waist", label: "Waist", min: 20, max: 70, step: 0.25, color: "teal" },
+  { key: "hips", label: "Hips", min: 24, max: 72, step: 0.25, color: "magenta" },
+  { key: "leftArm", label: "Left Arm", min: 6, max: 30, step: 0.25, color: "blue" },
+  { key: "rightArm", label: "Right Arm", min: 6, max: 30, step: 0.25, color: "blue" },
+  { key: "leftThigh", label: "Left Thigh", min: 12, max: 40, step: 0.25, color: "green" },
+  { key: "rightThigh", label: "Right Thigh", min: 12, max: 40, step: 0.25, color: "green" },
+  { key: "leftCalf", label: "Left Calf", min: 8, max: 28, step: 0.25, color: "cyan" },
+  { key: "rightCalf", label: "Right Calf", min: 8, max: 28, step: 0.25, color: "cyan" },
+  { key: "forearm", label: "Forearm", min: 6, max: 20, step: 0.25, color: "blue" },
+  { key: "wrist", label: "Wrist", min: 4, max: 12, step: 0.1, color: "steel" },
+  { key: "ankle", label: "Ankle", min: 5, max: 16, step: 0.1, color: "cyan" },
 ];
 
 const progressPhotoSlots: Array<{ id: string; label: string; shortLabel: string }> = [
@@ -648,6 +2598,127 @@ const progressPhotoSlots: Array<{ id: string; label: string; shortLabel: string 
 ];
 
 const fullBodyPhotoSlotIds = ["front", "side", "back"];
+
+const metricAccentStyles: Record<
+  MetricColor,
+  {
+    active: string;
+    fillShadow: string;
+    shell: string;
+    stepper: string;
+    thumbShadow: string;
+    value: string;
+  }
+> = {
+  amber: {
+    active: "from-amber-300 to-orange-300 text-amber-100",
+    fillShadow: "shadow-[0_0_20px_rgba(251,191,36,0.26)]",
+    shell:
+      "border-amber-200/18 bg-[radial-gradient(circle_at_12%_0%,rgba(251,191,36,0.12),transparent_34%),rgba(15,23,42,0.58)] hover:border-amber-200/30 hover:shadow-[0_0_26px_rgba(251,191,36,0.08)]",
+    stepper: "hover:border-amber-200/35 hover:bg-amber-300/10 hover:text-amber-100",
+    thumbShadow: "shadow-[0_0_20px_rgba(251,191,36,0.3)]",
+    value: "text-amber-100",
+  },
+  blue: {
+    active: "from-blue-300 to-cyan-300 text-blue-100",
+    fillShadow: "shadow-[0_0_20px_rgba(96,165,250,0.28)]",
+    shell:
+      "border-blue-200/18 bg-[radial-gradient(circle_at_12%_0%,rgba(96,165,250,0.13),transparent_34%),rgba(15,23,42,0.58)] hover:border-blue-200/32 hover:shadow-[0_0_26px_rgba(96,165,250,0.09)]",
+    stepper: "hover:border-blue-200/35 hover:bg-blue-300/10 hover:text-blue-100",
+    thumbShadow: "shadow-[0_0_20px_rgba(96,165,250,0.3)]",
+    value: "text-blue-100",
+  },
+  cyan: {
+    active: "from-cyan-300 to-blue-400 text-cyan-100",
+    fillShadow: "shadow-[0_0_20px_rgba(34,211,238,0.28)]",
+    shell:
+      "border-cyan-200/18 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.13),transparent_34%),rgba(15,23,42,0.58)] hover:border-cyan-200/32 hover:shadow-[0_0_26px_rgba(34,211,238,0.09)]",
+    stepper: "hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-100",
+    thumbShadow: "shadow-[0_0_20px_rgba(34,211,238,0.3)]",
+    value: "text-cyan-100",
+  },
+  emerald: {
+    active: "from-emerald-300 to-teal-400 text-emerald-100",
+    fillShadow: "shadow-[0_0_20px_rgba(52,211,153,0.28)]",
+    shell:
+      "border-emerald-200/18 bg-[radial-gradient(circle_at_12%_0%,rgba(52,211,153,0.13),transparent_34%),rgba(15,23,42,0.58)] hover:border-emerald-200/32 hover:shadow-[0_0_26px_rgba(52,211,153,0.09)]",
+    stepper: "hover:border-emerald-200/35 hover:bg-emerald-300/10 hover:text-emerald-100",
+    thumbShadow: "shadow-[0_0_20px_rgba(52,211,153,0.3)]",
+    value: "text-emerald-100",
+  },
+  green: {
+    active: "from-lime-300 to-emerald-400 text-lime-100",
+    fillShadow: "shadow-[0_0_20px_rgba(132,204,22,0.25)]",
+    shell:
+      "border-lime-200/18 bg-[radial-gradient(circle_at_12%_0%,rgba(132,204,22,0.12),transparent_34%),rgba(15,23,42,0.58)] hover:border-lime-200/30 hover:shadow-[0_0_26px_rgba(132,204,22,0.08)]",
+    stepper: "hover:border-lime-200/35 hover:bg-lime-300/10 hover:text-lime-100",
+    thumbShadow: "shadow-[0_0_20px_rgba(132,204,22,0.28)]",
+    value: "text-lime-100",
+  },
+  magenta: {
+    active: "from-fuchsia-300 to-pink-400 text-fuchsia-100",
+    fillShadow: "shadow-[0_0_20px_rgba(217,70,239,0.28)]",
+    shell:
+      "border-fuchsia-200/18 bg-[radial-gradient(circle_at_12%_0%,rgba(217,70,239,0.12),transparent_34%),rgba(15,23,42,0.58)] hover:border-fuchsia-200/30 hover:shadow-[0_0_26px_rgba(217,70,239,0.09)]",
+    stepper: "hover:border-fuchsia-200/35 hover:bg-fuchsia-300/10 hover:text-fuchsia-100",
+    thumbShadow: "shadow-[0_0_20px_rgba(217,70,239,0.3)]",
+    value: "text-fuchsia-100",
+  },
+  orange: {
+    active: "from-orange-300 to-red-400 text-orange-100",
+    fillShadow: "shadow-[0_0_20px_rgba(251,146,60,0.28)]",
+    shell:
+      "border-orange-200/18 bg-[radial-gradient(circle_at_12%_0%,rgba(251,146,60,0.13),transparent_34%),rgba(15,23,42,0.58)] hover:border-orange-200/32 hover:shadow-[0_0_26px_rgba(251,146,60,0.09)]",
+    stepper: "hover:border-orange-200/35 hover:bg-orange-300/10 hover:text-orange-100",
+    thumbShadow: "shadow-[0_0_20px_rgba(251,146,60,0.3)]",
+    value: "text-orange-100",
+  },
+  purple: {
+    active: "from-purple-300 to-violet-400 text-purple-100",
+    fillShadow: "shadow-[0_0_20px_rgba(168,85,247,0.28)]",
+    shell:
+      "border-purple-200/18 bg-[radial-gradient(circle_at_12%_0%,rgba(168,85,247,0.13),transparent_34%),rgba(15,23,42,0.58)] hover:border-purple-200/32 hover:shadow-[0_0_26px_rgba(168,85,247,0.09)]",
+    stepper: "hover:border-purple-200/35 hover:bg-purple-300/10 hover:text-purple-100",
+    thumbShadow: "shadow-[0_0_20px_rgba(168,85,247,0.3)]",
+    value: "text-purple-100",
+  },
+  rose: {
+    active: "from-rose-300 to-red-400 text-rose-100",
+    fillShadow: "shadow-[0_0_20px_rgba(244,63,94,0.28)]",
+    shell:
+      "border-rose-200/18 bg-[radial-gradient(circle_at_12%_0%,rgba(244,63,94,0.12),transparent_34%),rgba(15,23,42,0.58)] hover:border-rose-200/30 hover:shadow-[0_0_26px_rgba(244,63,94,0.08)]",
+    stepper: "hover:border-rose-200/35 hover:bg-rose-300/10 hover:text-rose-100",
+    thumbShadow: "shadow-[0_0_20px_rgba(244,63,94,0.3)]",
+    value: "text-rose-100",
+  },
+  steel: {
+    active: "from-slate-200 to-blue-300 text-slate-100",
+    fillShadow: "shadow-[0_0_20px_rgba(147,197,253,0.22)]",
+    shell:
+      "border-blue-200/16 bg-[radial-gradient(circle_at_12%_0%,rgba(147,197,253,0.12),transparent_34%),rgba(15,23,42,0.58)] hover:border-blue-200/28 hover:shadow-[0_0_24px_rgba(147,197,253,0.08)]",
+    stepper: "hover:border-blue-200/35 hover:bg-blue-300/10 hover:text-blue-100",
+    thumbShadow: "shadow-[0_0_20px_rgba(147,197,253,0.26)]",
+    value: "text-blue-100",
+  },
+  teal: {
+    active: "from-teal-300 to-cyan-400 text-teal-100",
+    fillShadow: "shadow-[0_0_20px_rgba(45,212,191,0.28)]",
+    shell:
+      "border-teal-200/18 bg-[radial-gradient(circle_at_12%_0%,rgba(45,212,191,0.13),transparent_34%),rgba(15,23,42,0.58)] hover:border-teal-200/32 hover:shadow-[0_0_26px_rgba(45,212,191,0.09)]",
+    stepper: "hover:border-teal-200/35 hover:bg-teal-300/10 hover:text-teal-100",
+    thumbShadow: "shadow-[0_0_20px_rgba(45,212,191,0.3)]",
+    value: "text-teal-100",
+  },
+  violet: {
+    active: "from-violet-300 to-fuchsia-400 text-violet-100",
+    fillShadow: "shadow-[0_0_20px_rgba(167,139,250,0.28)]",
+    shell:
+      "border-violet-200/18 bg-[radial-gradient(circle_at_12%_0%,rgba(167,139,250,0.13),transparent_34%),rgba(15,23,42,0.58)] hover:border-violet-200/32 hover:shadow-[0_0_26px_rgba(167,139,250,0.09)]",
+    stepper: "hover:border-violet-200/35 hover:bg-violet-300/10 hover:text-violet-100",
+    thumbShadow: "shadow-[0_0_20px_rgba(167,139,250,0.3)]",
+    value: "text-violet-100",
+  },
+};
 
 const measurementPhotoSlotByKey: Partial<
   Record<
@@ -798,6 +2869,8 @@ const defaultBenchmarks: Benchmark[] = [
 ];
 
 const defaultProfile: SoundFitnessProfile = {
+  adaptivePlanningFactors: [],
+  adaptivePlanningNotes: {},
   age: "",
   appPersonalization: {
     anatomyBackground: "Seattle",
@@ -827,19 +2900,38 @@ const defaultProfile: SoundFitnessProfile = {
     sorenessLevel: 0,
     sorenessStatus: "None",
     stressStatus: "Moderate",
-    weightTrend: "Unknown",
+    weightTrend: "Not Sure",
   },
   birthday: "",
   city: "",
+  state: "",
   coachNotes: "",
   cardioPriority: 5,
+  calorieGoalKnown: "",
+  currentProgram: "",
   currentWeight: "",
   displayName: "Member",
   emergencyContactName: "",
   emergencyContactPhone: "",
   energyLevel: 6,
+  availableEquipment: ["Bodyweight", "Dumbbells"],
   equipment: ["Bodyweight", "Dumbbells"],
+  consistencyHistory: "On/Off Training",
+  exerciseConfidence: {
+    cardioEquipment: "5",
+    complexMovements: "4",
+    freeWeights: "5",
+    machines: "5",
+    mobilityWork: "5",
+  },
+  exerciseVarietyPreference: "Moderate variety",
+  exercisesToAvoid: "",
+  experienceLevel: "Returning",
+  familiarityAreas: ["Strength Training"],
+  goalDeadline: "",
   goalMode: "Strength",
+  planDirections: [],
+  goalPriorityRanking: "Strength, recovery, consistency",
   goalWeight: "",
   height: "",
   hoursWorkedPerWeek: "40",
@@ -889,12 +2981,20 @@ const defaultProfile: SoundFitnessProfile = {
   },
   occupation: "",
   planDirectionNotes: "",
+  planFlexibilityPreference: "Flexible plan",
   phone: "",
   preferredDays: ["Mon", "Wed", "Fri", "Sat"],
   preferredSplit: "Strength + Mobility",
+  preferredSplits: ["Strength + Mobility"],
+  previousCoaching: ["Self-Taught"],
   primaryGoal: "Strength + Mobility Plan",
+  priorityExercises: "",
+  proteinConsistency: "Moderate",
   recoveryPreferences: ["Mobility", "Walking/cardio"],
+  recentConsistency: "Returning",
   restingHeartRate: "",
+  roboCoachGuidanceLevel: "Balanced guidance",
+  scheduleConsistency: "Mostly consistent",
   secondaryGoal: "",
   sedentaryLevel: "Moderate",
   sessionLength: "45 minutes",
@@ -905,11 +3005,17 @@ const defaultProfile: SoundFitnessProfile = {
   waterGoal: "",
   trainingAge: "Intermediate",
   trainingLocation: "Gym",
+  trainingLocations: ["Gym"],
   trainingStyles: ["Heavy Strength", "Mobility First"],
+  travelTrainingNotes: "",
+  bestTimeOfDay: "Evening",
+  videoReviewInterest: "Maybe later",
   waist: "",
   workoutIntensityPreference: "Moderate hard",
   cardioPreference: "Zone 2 plus short finishers",
+  cardioPreferences: ["Walking"],
   mobilityPreference: "Daily 8-12 minute resets",
+  mobilityPreferences: ["Mobility Drills"],
   mobilityPriority: 6,
   userNotes: "",
   profileImage: "",
@@ -927,6 +3033,21 @@ const safeNumber = (value: string) => {
 
 const clampNumber = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
+
+const normalizePlanDirections = (
+  directions: unknown,
+  fallbackGoalMode: unknown,
+): GoalMode[] => {
+  if (Array.isArray(directions)) {
+    return Array.from(
+      new Set(directions.filter(isSelectablePlanDirection)),
+    ).slice(0, 2);
+  }
+
+  if (isSelectablePlanDirection(fallbackGoalMode)) return [fallbackGoalMode];
+
+  return [];
+};
 
 const getSleepGoalHours = (value: string) => {
   const parsed = Number.parseFloat(value);
@@ -960,6 +3081,11 @@ type BirthdayParts = {
   day: string;
   month: string;
   year: string;
+};
+
+type BirthdaySelectOption = {
+  label: string;
+  value: string;
 };
 
 const birthdayMonthOptions = [
@@ -1149,7 +3275,7 @@ const calculateTrainingRisk = (
     62,
   );
   const age = getNumberFromProfileValue(
-    calculateAgeFromBirthday(profile.birthday) || profile.age,
+    calculateAgeFromBirthday(profile.birthday),
     0,
   );
   const hoursWorked = getNumberFromProfileValue(
@@ -1220,11 +3346,16 @@ const calculateTrainingRisk = (
     score += 8;
     factors.push("High work-hour demand");
   }
-  if (profile.occupation === "Manual labor") {
+  const occupation = normalizeOccupationValue(profile.occupation);
+  if (occupation === "Manual Labor") {
     score += 6;
     factors.push("Physical job load");
   }
-  if (profile.occupation === "Driver" || profile.occupation === "Desk worker") {
+  if (
+    occupation === "Driver" ||
+    occupation === "Desk Worker" ||
+    occupation === "Tech / Office"
+  ) {
     score += 4;
     factors.push("Extended seated work context");
   }
@@ -1299,37 +3430,37 @@ const getCompactRiskFactorLabel = (factor: string) => {
 const getTrainingRiskTone = (label: TrainingRiskAssessment["label"]) => {
   if (label === "Very High") {
     return {
-      bar: "from-rose-400 to-red-500",
-      border: "border-rose-200/35",
-      glow: "shadow-[0_0_34px_rgba(251,113,133,0.16)]",
-      softBg: "bg-rose-300/10",
-      text: "text-rose-100",
+      bar: "from-red-500 via-rose-600 to-red-900",
+      border: "border-red-200/42",
+      glow: "shadow-[0_0_38px_rgba(248,113,113,0.22)]",
+      softBg: "bg-red-400/12",
+      text: "text-red-100",
     };
   }
   if (label === "High") {
     return {
-      bar: "from-orange-300 to-rose-400",
-      border: "border-orange-200/35",
-      glow: "shadow-[0_0_34px_rgba(251,146,60,0.14)]",
-      softBg: "bg-orange-300/10",
+      bar: "from-orange-300 via-red-400 to-rose-500",
+      border: "border-orange-200/42",
+      glow: "shadow-[0_0_36px_rgba(251,146,60,0.2)]",
+      softBg: "bg-orange-300/12",
       text: "text-orange-100",
     };
   }
   if (label === "Moderate") {
     return {
-      bar: "from-amber-300 to-orange-300",
-      border: "border-amber-200/35",
-      glow: "shadow-[0_0_34px_rgba(251,191,36,0.12)]",
-      softBg: "bg-amber-300/10",
+      bar: "from-yellow-300 via-amber-300 to-orange-400",
+      border: "border-amber-200/42",
+      glow: "shadow-[0_0_34px_rgba(251,191,36,0.18)]",
+      softBg: "bg-amber-300/12",
       text: "text-amber-100",
     };
   }
 
   return {
-    bar: "from-emerald-300 to-cyan-300",
-    border: "border-emerald-200/35",
-    glow: "shadow-[0_0_34px_rgba(52,211,153,0.12)]",
-    softBg: "bg-emerald-300/10",
+    bar: "from-blue-300 via-emerald-300 to-teal-300",
+    border: "border-emerald-200/42",
+    glow: "shadow-[0_0_34px_rgba(52,211,153,0.18)]",
+    softBg: "bg-emerald-300/12",
     text: "text-emerald-100",
   };
 };
@@ -1373,6 +3504,136 @@ const calculateSectionCompletion = (sectionFields: unknown[]) => {
   return Math.round((completed / sectionFields.length) * 100);
 };
 
+const normalizeNotesRecord = (value: unknown) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.entries(value as Record<string, unknown>).reduce<Record<string, string>>(
+    (notes, [key, note]) => {
+      if (typeof note === "string") {
+        notes[key] = note;
+      }
+
+      return notes;
+    },
+    {},
+  );
+};
+
+const legacyPreferenceLabels: Record<string, string> = {
+  "Apartment Gym": "Apt Gym",
+  "Travel / Hotel": "Travel",
+  "Limited Equipment": "Small Space",
+  "Limited Space": "Small Space",
+  "Performance": "Athletic Performance",
+  "Zone 2 plus short finishers": "Walking",
+  "Intervals": "HIIT",
+  "Conditioning circuits": "HIIT",
+  "Walking only": "Walking",
+  "Daily 8-12 minute resets": "Mobility Drills",
+  "Warm-up only": "Warm-Up Mobility",
+  "Dedicated mobility days": "Mobility Drills",
+  "Recovery day mobility": "Recovery Sessions",
+};
+
+const legacyEquipmentLabels: Record<string, string> = {
+  "Cardio Equipment": "Cardio",
+  Cables: "Cable",
+  "Medicine Ball": "Med Ball",
+  "Pull-Up Bar": "Pull-Up",
+  "Suspension Trainer": "Suspension",
+};
+
+const cleanStringArray = (values: unknown[]) =>
+  values
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+const normalizePreferenceLabel = (value: string) => {
+  if (value === "None") return "";
+  return legacyPreferenceLabels[value] || value;
+};
+
+const normalizePreferenceSelection = (
+  arrayValue: unknown,
+  legacyValue: unknown,
+  fallback: string[],
+) => {
+  const hasArrayValue = Array.isArray(arrayValue);
+  const arrayValues = hasArrayValue ? cleanStringArray(arrayValue) : [];
+  const legacyValues = cleanStringArray([legacyValue]);
+  const source = hasArrayValue ? arrayValues : legacyValues;
+
+  if (!source.length) return hasArrayValue ? [] : fallback;
+
+  return Array.from(
+    new Set(
+      source
+        .map(normalizePreferenceLabel)
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+};
+
+const firstPreferenceValue = (values: string[], fallback: string) =>
+  values[0] || fallback;
+
+const normalizeEquipmentSelection = (
+  arrayValue: unknown,
+  fallback: string[],
+) => {
+  const hasArrayValue = Array.isArray(arrayValue);
+  const source = hasArrayValue ? cleanStringArray(arrayValue) : [];
+
+  if (!source.length) return hasArrayValue ? [] : fallback;
+
+  return Array.from(
+    new Set(source.map((value) => legacyEquipmentLabels[value] || value)),
+  );
+};
+
+const normalizeExerciseConfidence = (value: unknown): ExerciseConfidence => {
+  const source =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Partial<Record<keyof ExerciseConfidence, unknown>>)
+      : {};
+
+  return {
+    cardioEquipment: readProfileText(
+      source.cardioEquipment,
+      defaultProfile.exerciseConfidence.cardioEquipment,
+    ),
+    complexMovements: readProfileText(
+      source.complexMovements,
+      defaultProfile.exerciseConfidence.complexMovements,
+    ),
+    freeWeights: readProfileText(
+      source.freeWeights,
+      defaultProfile.exerciseConfidence.freeWeights,
+    ),
+    machines: readProfileText(
+      source.machines,
+      defaultProfile.exerciseConfidence.machines,
+    ),
+    mobilityWork: readProfileText(
+      source.mobilityWork,
+      defaultProfile.exerciseConfidence.mobilityWork,
+    ),
+  };
+};
+
+const getCompactOptionIcon = (option: CompactOptionCard) =>
+  compactOptionIcons[option.id] || option.icon;
+
+const getSelectorCardIcon = (id: string, fallback?: React.ReactNode) => {
+  const iconName = selectorCardIconNames[id];
+  if (iconName) return <SelectorIcon name={iconName} />;
+  return fallback || <SelectorIcon name="circle-dot" />;
+};
+
 const getCompletionTone = (percent: number) => {
   if (percent >= 80) {
     return {
@@ -1412,7 +3673,7 @@ const getCompletionTone = (percent: number) => {
 
 const getProfileTabCompletions = (
   profile: SoundFitnessProfile,
-): Record<ProfileTab, number> => {
+): Record<ProfileCompletionSection, number> => {
   const completeMeasurements = measurementDefinitions.map(
     (definition) => profile.measurements[definition.key],
   );
@@ -1438,7 +3699,6 @@ const getProfileTabCompletions = (
     circumstance.startDate,
     circumstance.notes,
   ]);
-
   return {
     overview: calculateSectionCompletion([
       profile.displayName,
@@ -1455,6 +3715,7 @@ const getProfileTabCompletions = (
       profile.userNotes,
     ]),
     goals: calculateSectionCompletion([
+      profile.planDirections,
       profile.goalMode,
       profile.primaryGoal,
       profile.secondaryGoal,
@@ -1468,7 +3729,7 @@ const getProfileTabCompletions = (
     ]),
     body: calculateSectionCompletion([
       profile.gender,
-      profile.birthday || profile.age,
+      profile.birthday,
       profile.occupation,
       profile.sedentaryLevel,
       profile.hoursWorkedPerWeek,
@@ -1496,15 +3757,32 @@ const getProfileTabCompletions = (
       profile.energyLevel,
       profile.bodyStatus.painArea,
       profile.bodyStatus.painNote,
+      profile.adaptivePlanningFactors,
+      profile.adaptivePlanningNotes,
+      profile.lifestyleConstraints.availableTrainingTimes,
+      profile.lifestyleConstraints.childcareConstraints,
+      profile.lifestyleConstraints.commuteTravel,
+      profile.lifestyleConstraints.preferredReminderStyle,
+      profile.lifestyleConstraints.sleepWindow,
+      profile.lifestyleConstraints.workSchedule,
+      profile.timeAvailability,
     ]),
     planDirection: calculateSectionCompletion([
+      profile.planDirections,
       profile.goalMode,
       profile.primaryGoal,
       profile.secondaryGoal,
       profile.bodyGoalMode,
-      profile.preferredSplit,
+      profile.goalDeadline,
+      profile.goalPriorityRanking,
+      profile.preferredSplits,
       profile.trainingStyles,
       profile.planDirectionNotes,
+      profile.experienceLevel,
+      profile.consistencyHistory,
+      profile.familiarityAreas,
+      profile.exerciseConfidence,
+      profile.previousCoaching,
       profile.sessionsPerWeek,
       profile.sessionLength,
     ]),
@@ -1518,22 +3796,32 @@ const getProfileTabCompletions = (
     training: calculateSectionCompletion([
       profile.sessionsPerWeek,
       profile.sessionLength,
-      profile.trainingLocation,
-      profile.equipment,
+      profile.trainingLocations,
+      profile.availableEquipment,
       profile.preferredDays,
-      profile.preferredSplit,
+      profile.preferredSplits,
       profile.trainingStyles,
-      profile.cardioPreference,
-      profile.mobilityPreference,
+      profile.cardioPreferences,
+      profile.mobilityPreferences,
+      profile.bestTimeOfDay,
+      profile.scheduleConsistency,
+      profile.exerciseVarietyPreference,
+      profile.planFlexibilityPreference,
+      profile.videoReviewInterest,
+      profile.roboCoachGuidanceLevel,
       profile.trainingIntensity,
-      profile.timeAvailability,
     ]),
     recovery: calculateSectionCompletion([
       profile.recoveryPreferences,
+      profile.bodyStatus.averageSleepHours,
+      profile.bodyStatus.energyStatus,
+      profile.bodyStatus.stressStatus,
       profile.bodyStatus.sorenessLevel,
       profile.bodyStatus.sorenessStatus,
       profile.bodyStatus.painLevel,
       profile.bodyStatus.painStatus,
+      profile.bodyStatus.sleepQuality,
+      profile.restingHeartRate,
       profile.bodyStatus.painArea,
       profile.bodyStatus.painNote,
       profile.bodyStatus.mobilityStatus,
@@ -1551,6 +3839,8 @@ const getProfileTabCompletions = (
       profile.nutritionDirection.proteinTarget,
       profile.nutritionDirection.calorieStyle,
       profile.nutritionDirection.dietPreferences,
+      profile.proteinConsistency,
+      profile.calorieGoalKnown,
       profile.nutritionDirection.mealPrepPreference,
       profile.nutritionDirection.eatingSchedule,
       profile.nutritionDirection.foodRestrictions,
@@ -1574,10 +3864,53 @@ const getProfileTabCompletions = (
 
 const mergeProfile = (saved: Partial<SoundFitnessProfile>): SoundFitnessProfile => {
   const gender = normalizeBodyModel(saved.gender || saved.bodyModel);
+  const trainingLocations = normalizePreferenceSelection(
+    saved.trainingLocations,
+    saved.trainingLocation,
+    defaultProfile.trainingLocations,
+  );
+  const preferredSplits = normalizePreferenceSelection(
+    saved.preferredSplits,
+    saved.preferredSplit,
+    defaultProfile.preferredSplits,
+  );
+  const cardioPreferences = normalizePreferenceSelection(
+    saved.cardioPreferences,
+    saved.cardioPreference,
+    defaultProfile.cardioPreferences,
+  );
+  const mobilityPreferences = normalizePreferenceSelection(
+    saved.mobilityPreferences,
+    saved.mobilityPreference,
+    defaultProfile.mobilityPreferences,
+  );
+  const availableEquipment = normalizeEquipmentSelection(
+    Array.isArray(saved.availableEquipment) ? saved.availableEquipment : saved.equipment,
+    defaultProfile.availableEquipment,
+  );
+  const familiarityAreas = Array.isArray(saved.familiarityAreas)
+    ? cleanStringArray(saved.familiarityAreas)
+    : defaultProfile.familiarityAreas;
+  const previousCoaching = Array.isArray(saved.previousCoaching)
+    ? cleanStringArray(saved.previousCoaching)
+    : defaultProfile.previousCoaching;
+  const adaptivePlanningFactors = Array.isArray(saved.adaptivePlanningFactors)
+    ? saved.adaptivePlanningFactors.filter(
+        (factor): factor is string => typeof factor === "string" && factor.length > 0,
+      )
+    : defaultProfile.adaptivePlanningFactors;
+  const adaptivePlanningNotes = normalizeNotesRecord(saved.adaptivePlanningNotes);
+  const planDirections = normalizePlanDirections(
+    saved.planDirections,
+    saved.goalMode,
+  );
 
   return {
     ...defaultProfile,
     ...saved,
+    adaptivePlanningFactors,
+    adaptivePlanningNotes,
+    age: calculateAgeFromBirthday(saved.birthday || "") || "",
     appPersonalization: {
       ...defaultProfile.appPersonalization,
       ...(saved.appPersonalization || {}),
@@ -1591,7 +3924,10 @@ const mergeProfile = (saved: Partial<SoundFitnessProfile>): SoundFitnessProfile 
         : defaultBenchmarks,
     bodyModel: gender,
     gender,
-    equipment: Array.isArray(saved.equipment) ? saved.equipment : defaultProfile.equipment,
+    availableEquipment,
+    equipment: availableEquipment,
+    exerciseConfidence: normalizeExerciseConfidence(saved.exerciseConfidence),
+    familiarityAreas,
     injuries: Array.isArray(saved.injuries) ? saved.injuries : [],
     lifestyleConstraints: {
       ...defaultProfile.lifestyleConstraints,
@@ -1623,16 +3959,41 @@ const mergeProfile = (saved: Partial<SoundFitnessProfile>): SoundFitnessProfile 
     bodyStatus: {
       ...defaultProfile.bodyStatus,
       ...(saved.bodyStatus || {}),
+      weightTrend: normalizeWeightTrend(saved.bodyStatus?.weightTrend),
     },
+    state: typeof saved.state === "string" ? saved.state : defaultProfile.state,
     preferredDays: Array.isArray(saved.preferredDays)
       ? saved.preferredDays
       : defaultProfile.preferredDays,
+    preferredSplit: firstPreferenceValue(
+      preferredSplits,
+      saved.preferredSplit || defaultProfile.preferredSplit,
+    ),
+    preferredSplits,
+    previousCoaching,
     recoveryPreferences: Array.isArray(saved.recoveryPreferences)
       ? saved.recoveryPreferences
       : defaultProfile.recoveryPreferences,
     specialCircumstances: Array.isArray(saved.specialCircumstances)
       ? saved.specialCircumstances
       : [],
+    cardioPreference: firstPreferenceValue(
+      cardioPreferences,
+      saved.cardioPreference || defaultProfile.cardioPreference,
+    ),
+    cardioPreferences,
+    mobilityPreference: firstPreferenceValue(
+      mobilityPreferences,
+      saved.mobilityPreference || defaultProfile.mobilityPreference,
+    ),
+    mobilityPreferences,
+    goalMode: planDirections[0] || defaultProfile.goalMode,
+    planDirections,
+    trainingLocation: firstPreferenceValue(
+      trainingLocations,
+      saved.trainingLocation || defaultProfile.trainingLocation,
+    ),
+    trainingLocations,
     trainingStyles: Array.isArray(saved.trainingStyles)
       ? saved.trainingStyles
       : defaultProfile.trainingStyles,
@@ -1773,12 +4134,14 @@ function InfoSelectField({
   label,
   onChange,
   options,
+  placeholder = "Select one",
   value,
 }: {
   helper: string;
   label: string;
   onChange: (value: string) => void;
   options: string[];
+  placeholder?: string;
   value: string;
 }) {
   return (
@@ -1794,11 +4157,501 @@ function InfoSelectField({
       >
         {options.map((option) => (
           <option key={option || "blank"} value={option}>
-            {option || "Select one"}
+            {option || placeholder}
           </option>
         ))}
       </select>
     </label>
+  );
+}
+
+function InfoSearchableSelectField({
+  helper,
+  label,
+  onChange,
+  options,
+  placeholder,
+  value,
+}: {
+  helper: string;
+  label: string;
+  onChange: (value: string) => void;
+  options: string[];
+  placeholder: string;
+  value: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectedLabel = options.find((option) => option === value) || value;
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredOptions = normalizedQuery
+    ? options.filter((option) => option.toLowerCase().includes(normalizedQuery))
+    : options;
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOnOutsidePress = (event: MouseEvent | TouchEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutsidePress);
+    document.addEventListener("touchstart", closeOnOutsidePress);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsidePress);
+      document.removeEventListener("touchstart", closeOnOutsidePress);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div
+      ref={rootRef}
+      className="relative z-0 block overflow-visible rounded-[24px] border border-white/10 bg-slate-950/52 p-4 transition focus-within:z-[140] hover:z-[140]"
+    >
+      <span className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-slate-300">
+        {label}
+        <InfoBubble label={label}>{helper}</InfoBubble>
+      </span>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => {
+          setOpen((current) => !current);
+          setQuery("");
+        }}
+        className={`mt-3 flex min-h-[46px] w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-bold outline-none transition ${
+          open
+            ? "border-cyan-200/50 bg-white/[0.075] text-white ring-2 ring-cyan-300/15"
+            : "border-white/10 bg-slate-950/72 text-white hover:border-cyan-200/32 hover:bg-white/[0.06]"
+        }`}
+      >
+        <span className={selectedLabel ? "truncate text-white" : "truncate text-slate-600"}>
+          {selectedLabel || placeholder}
+        </span>
+        <span
+          aria-hidden="true"
+          className={`text-xs text-cyan-100 transition ${open ? "rotate-180" : ""}`}
+        >
+          v
+        </span>
+      </button>
+
+      {open ? (
+        <div
+          role="listbox"
+          aria-label={label}
+          className="absolute left-4 right-4 top-[calc(100%+0.45rem)] z-[180] rounded-2xl border border-cyan-200/28 bg-slate-950/96 p-2 shadow-[0_22px_55px_rgba(0,0,0,0.55),0_0_28px_rgba(34,211,238,0.14)] backdrop-blur-xl"
+        >
+          <input
+            autoFocus
+            className="min-h-[42px] w-full rounded-xl border border-white/10 bg-slate-900/90 px-3 py-2 text-sm font-bold text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/45"
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search states"
+            type="search"
+            value={query}
+          />
+          <button
+            type="button"
+            role="option"
+            aria-selected={!value}
+            onClick={() => {
+              onChange("");
+              setOpen(false);
+              setQuery("");
+            }}
+            className={`mt-2 flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-black transition ${
+              !value
+                ? "bg-cyan-300/18 text-cyan-50 shadow-[inset_0_0_0_1px_rgba(103,232,249,0.18)]"
+                : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-300"
+            }`}
+          >
+            <span>{placeholder}</span>
+            {!value ? (
+              <span className="text-[10px] uppercase tracking-[0.12em] text-cyan-100">
+                Active
+              </span>
+            ) : null}
+          </button>
+          <div className="mt-1 max-h-56 overflow-y-auto pr-1 [scrollbar-color:rgba(34,211,238,0.45)_rgba(15,23,42,0.88)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/45 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-900">
+            {filteredOptions.length ? (
+              filteredOptions.map((option) => {
+                const active = option === value;
+
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    onClick={() => {
+                      onChange(option);
+                      setOpen(false);
+                      setQuery("");
+                    }}
+                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-black transition ${
+                      active
+                        ? "bg-cyan-300/18 text-cyan-50 shadow-[inset_0_0_0_1px_rgba(103,232,249,0.18)]"
+                        : "text-slate-200 hover:bg-white/[0.07] hover:text-white"
+                    }`}
+                  >
+                    <span>{option}</span>
+                    {active ? (
+                      <span className="text-[10px] uppercase tracking-[0.12em] text-cyan-100">
+                        Active
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })
+            ) : (
+              <p className="px-3 py-3 text-sm font-semibold text-slate-500">
+                No states match.
+              </p>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function PremiumBirthdaySelect({
+  ariaLabel,
+  label,
+  onChange,
+  options,
+  placeholder,
+  value,
+}: {
+  ariaLabel: string;
+  label: string;
+  onChange: (value: string) => void;
+  options: BirthdaySelectOption[];
+  placeholder: string;
+  value: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selected = options.find((option) => option.value === value);
+  const menuOptions = [{ label: placeholder, value: "" }, ...options];
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOnOutsidePress = (event: MouseEvent | TouchEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutsidePress);
+    document.addEventListener("touchstart", closeOnOutsidePress);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsidePress);
+      document.removeEventListener("touchstart", closeOnOutsidePress);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative z-[90] block min-w-0">
+      <span className="mb-1.5 block text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
+        {label}
+      </span>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-label={ariaLabel}
+        onClick={() => setOpen((current) => !current)}
+        className={`flex min-h-[46px] w-full items-center justify-between gap-2 rounded-2xl border px-3 py-2.5 text-left text-sm font-black outline-none transition ${
+          open
+            ? "border-cyan-200/55 bg-white/[0.075] text-white ring-2 ring-cyan-300/15"
+            : "border-blue-200/14 bg-slate-950/78 text-white hover:border-blue-200/32 hover:bg-white/[0.06]"
+        }`}
+      >
+        <span className={selected ? "truncate text-white" : "truncate text-slate-500"}>
+          {selected?.label || placeholder}
+        </span>
+        <span
+          aria-hidden="true"
+          className={`text-xs text-cyan-100 transition ${open ? "rotate-180" : ""}`}
+        >
+          v
+        </span>
+      </button>
+
+      {open ? (
+        <div
+          role="listbox"
+          aria-label={ariaLabel}
+          className="absolute left-0 right-0 top-[calc(100%+0.4rem)] z-[160] max-h-60 overflow-y-auto rounded-2xl border border-cyan-200/28 bg-slate-950/96 p-1.5 shadow-[0_22px_55px_rgba(0,0,0,0.55),0_0_28px_rgba(34,211,238,0.14)] backdrop-blur-xl [scrollbar-color:rgba(34,211,238,0.45)_rgba(15,23,42,0.88)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/45 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-900"
+        >
+          {menuOptions.map((option) => {
+            const active = option.value === value;
+
+            return (
+              <button
+                key={`${label}-${option.value || "empty"}`}
+                type="button"
+                role="option"
+                aria-selected={active}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-black transition ${
+                  active
+                    ? "bg-cyan-300/18 text-cyan-50 shadow-[inset_0_0_0_1px_rgba(103,232,249,0.18)]"
+                    : option.value
+                      ? "text-slate-200 hover:bg-white/[0.07] hover:text-white"
+                      : "text-slate-500 hover:bg-white/[0.04] hover:text-slate-300"
+                }`}
+              >
+                <span>{option.label}</span>
+                {active ? (
+                  <span className="text-[10px] text-cyan-100" aria-hidden="true">
+                    ✓
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function OccupationSelector({
+  helper,
+  onChange,
+  value,
+}: {
+  helper: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  const selectedValue = normalizeOccupationValue(value);
+  const optionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const accentStyles: Record<
+    string,
+    { active: string; glow: string; icon: string; idle: string; line: string }
+  > = {
+    amber: {
+      active: "border-amber-200/55 bg-amber-300/14 text-amber-50",
+      glow: "shadow-[0_0_26px_rgba(251,191,36,0.16)]",
+      icon: "border-amber-200/25 bg-amber-300/12 text-amber-100",
+      idle: "hover:border-amber-200/34 hover:bg-amber-300/8 hover:text-amber-50",
+      line: "from-amber-300/85 to-orange-300/50",
+    },
+    blue: {
+      active: "border-blue-200/55 bg-blue-300/14 text-blue-50",
+      glow: "shadow-[0_0_26px_rgba(96,165,250,0.16)]",
+      icon: "border-blue-200/25 bg-blue-300/12 text-blue-100",
+      idle: "hover:border-blue-200/34 hover:bg-blue-300/8 hover:text-blue-50",
+      line: "from-blue-300/85 to-cyan-300/50",
+    },
+    cyan: {
+      active: "border-cyan-200/55 bg-cyan-300/14 text-cyan-50",
+      glow: "shadow-[0_0_26px_rgba(34,211,238,0.16)]",
+      icon: "border-cyan-200/25 bg-cyan-300/12 text-cyan-100",
+      idle: "hover:border-cyan-200/34 hover:bg-cyan-300/8 hover:text-cyan-50",
+      line: "from-cyan-300/85 to-blue-300/50",
+    },
+    emerald: {
+      active: "border-emerald-200/55 bg-emerald-300/14 text-emerald-50",
+      glow: "shadow-[0_0_26px_rgba(52,211,153,0.16)]",
+      icon: "border-emerald-200/25 bg-emerald-300/12 text-emerald-100",
+      idle: "hover:border-emerald-200/34 hover:bg-emerald-300/8 hover:text-emerald-50",
+      line: "from-emerald-300/85 to-cyan-300/50",
+    },
+    indigo: {
+      active: "border-indigo-200/55 bg-indigo-300/14 text-indigo-50",
+      glow: "shadow-[0_0_26px_rgba(129,140,248,0.16)]",
+      icon: "border-indigo-200/25 bg-indigo-300/12 text-indigo-100",
+      idle: "hover:border-indigo-200/34 hover:bg-indigo-300/8 hover:text-indigo-50",
+      line: "from-indigo-300/85 to-blue-300/50",
+    },
+    lime: {
+      active: "border-lime-200/55 bg-lime-300/14 text-lime-50",
+      glow: "shadow-[0_0_26px_rgba(132,204,22,0.16)]",
+      icon: "border-lime-200/25 bg-lime-300/12 text-lime-100",
+      idle: "hover:border-lime-200/34 hover:bg-lime-300/8 hover:text-lime-50",
+      line: "from-lime-300/85 to-emerald-300/50",
+    },
+    orange: {
+      active: "border-orange-200/55 bg-orange-300/14 text-orange-50",
+      glow: "shadow-[0_0_26px_rgba(251,146,60,0.16)]",
+      icon: "border-orange-200/25 bg-orange-300/12 text-orange-100",
+      idle: "hover:border-orange-200/34 hover:bg-orange-300/8 hover:text-orange-50",
+      line: "from-orange-300/85 to-amber-300/50",
+    },
+    purple: {
+      active: "border-purple-200/55 bg-purple-300/14 text-purple-50",
+      glow: "shadow-[0_0_26px_rgba(168,85,247,0.16)]",
+      icon: "border-purple-200/25 bg-purple-300/12 text-purple-100",
+      idle: "hover:border-purple-200/34 hover:bg-purple-300/8 hover:text-purple-50",
+      line: "from-purple-300/85 to-fuchsia-300/50",
+    },
+    red: {
+      active: "border-red-200/55 bg-red-300/14 text-red-50",
+      glow: "shadow-[0_0_26px_rgba(248,113,113,0.16)]",
+      icon: "border-red-200/25 bg-red-300/12 text-red-100",
+      idle: "hover:border-red-200/34 hover:bg-red-300/8 hover:text-red-50",
+      line: "from-red-300/85 to-orange-300/50",
+    },
+    rose: {
+      active: "border-rose-200/55 bg-rose-300/14 text-rose-50",
+      glow: "shadow-[0_0_26px_rgba(251,113,133,0.16)]",
+      icon: "border-rose-200/25 bg-rose-300/12 text-rose-100",
+      idle: "hover:border-rose-200/34 hover:bg-rose-300/8 hover:text-rose-50",
+      line: "from-rose-300/85 to-pink-300/50",
+    },
+    slate: {
+      active: "border-slate-200/45 bg-slate-200/12 text-slate-50",
+      glow: "shadow-[0_0_26px_rgba(148,163,184,0.14)]",
+      icon: "border-slate-200/22 bg-slate-200/10 text-slate-100",
+      idle: "hover:border-slate-200/30 hover:bg-slate-200/8 hover:text-slate-50",
+      line: "from-slate-200/80 to-blue-300/45",
+    },
+    steel: {
+      active: "border-sky-200/50 bg-sky-300/12 text-sky-50",
+      glow: "shadow-[0_0_26px_rgba(125,211,252,0.14)]",
+      icon: "border-sky-200/22 bg-sky-300/10 text-sky-100",
+      idle: "hover:border-sky-200/30 hover:bg-sky-300/8 hover:text-sky-50",
+      line: "from-sky-300/80 to-slate-200/45",
+    },
+    teal: {
+      active: "border-teal-200/55 bg-teal-300/14 text-teal-50",
+      glow: "shadow-[0_0_26px_rgba(45,212,191,0.16)]",
+      icon: "border-teal-200/25 bg-teal-300/12 text-teal-100",
+      idle: "hover:border-teal-200/34 hover:bg-teal-300/8 hover:text-teal-50",
+      line: "from-teal-300/85 to-cyan-300/50",
+    },
+    violet: {
+      active: "border-violet-200/55 bg-violet-300/14 text-violet-50",
+      glow: "shadow-[0_0_26px_rgba(139,92,246,0.16)]",
+      icon: "border-violet-200/25 bg-violet-300/12 text-violet-100",
+      idle: "hover:border-violet-200/34 hover:bg-violet-300/8 hover:text-violet-50",
+      line: "from-violet-300/85 to-purple-300/50",
+    },
+    zinc: {
+      active: "border-zinc-200/42 bg-zinc-200/10 text-zinc-50",
+      glow: "shadow-[0_0_26px_rgba(212,212,216,0.12)]",
+      icon: "border-zinc-200/20 bg-zinc-200/8 text-zinc-100",
+      idle: "hover:border-zinc-200/28 hover:bg-zinc-200/7 hover:text-zinc-50",
+      line: "from-zinc-200/75 to-slate-300/45",
+    },
+  };
+
+  useEffect(() => {
+    optionRefs.current[selectedValue]?.scrollIntoView({
+      block: "nearest",
+    });
+  }, [selectedValue]);
+
+  return (
+    <div className="relative z-0 overflow-visible rounded-[22px] border border-white/10 bg-slate-950/52 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-50 hover:z-50">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-300">
+            Occupation
+          </p>
+          <InfoBubble label="Occupation">{helper}</InfoBubble>
+        </div>
+        <span className="rounded-full border border-cyan-200/18 bg-cyan-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">
+          Scroll
+        </span>
+      </div>
+
+      <div
+        role="listbox"
+        aria-label="Occupation"
+        className="max-h-[246px] space-y-1.5 overflow-y-auto pr-1 [scrollbar-color:rgba(34,211,238,0.42)_rgba(15,23,42,0.72)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/42 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/65"
+      >
+        {occupationOptions.map((option) => {
+          const active = selectedValue === option.value;
+          const style = accentStyles[option.accent] || accentStyles.cyan;
+
+          return (
+            <button
+              key={option.value}
+              ref={(node) => {
+                optionRefs.current[option.value] = node;
+              }}
+              type="button"
+              role="option"
+              aria-selected={active}
+              onClick={() => onChange(option.value)}
+              className={`group relative flex w-full items-center gap-3 overflow-hidden rounded-[18px] border px-2.5 py-2 text-left transition duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/28 active:translate-y-0 ${
+                active
+                  ? `${style.active} ${style.glow}`
+                  : `border-white/10 bg-white/[0.035] text-slate-300 ${style.idle}`
+              }`}
+            >
+              <span
+                aria-hidden="true"
+                className={`absolute inset-x-4 top-0 h-px bg-gradient-to-r ${style.line} transition ${
+                  active ? "opacity-95" : "opacity-35 group-hover:opacity-75"
+                }`}
+              />
+              <span
+                className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl border transition duration-200 ${
+                  active
+                    ? `${style.icon} scale-[1.03] ring-2 ring-white/10 shadow-[0_0_22px_rgba(255,255,255,0.10)]`
+                    : `${style.icon} group-hover:scale-[1.03] group-hover:shadow-[0_0_18px_rgba(255,255,255,0.08)]`
+                }`}
+              >
+                <SelectorIcon
+                  name={option.icon}
+                  className={`h-7 w-7 transition duration-200 ${
+                    active
+                      ? "drop-shadow-[0_0_10px_currentColor]"
+                      : "opacity-90 group-hover:opacity-100 group-hover:drop-shadow-[0_0_8px_currentColor]"
+                  }`}
+                />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-black leading-tight text-white">
+                  {option.label}
+                </span>
+                <span className="mt-0.5 block truncate text-[11px] font-semibold leading-4 text-slate-400 group-hover:text-slate-300">
+                  {option.description}
+                </span>
+              </span>
+              <span
+                className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[11px] font-black transition ${
+                  active
+                    ? "border-cyan-100/70 bg-cyan-100 text-slate-950"
+                    : "border-white/10 bg-slate-950/60 text-transparent group-hover:text-slate-500"
+                }`}
+                aria-hidden="true"
+              >
+                ✓
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -1824,6 +4677,352 @@ function Chip({
     >
       {children}
     </button>
+  );
+}
+
+function CompactSelectableCard({
+  accent,
+  ariaLabel,
+  className = "",
+  disabled = false,
+  icon,
+  label,
+  onClick,
+  selected,
+  title,
+  tone = "cyan",
+}: {
+  accent: string;
+  ariaLabel?: string;
+  className?: string;
+  disabled?: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+  selected: boolean;
+  title?: string;
+  tone?: CompactOptionTone;
+}) {
+  const toneStyle = compactOptionVisualStyles[tone];
+
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel || `Toggle ${label}`}
+      aria-pressed={selected}
+      disabled={disabled}
+      title={title}
+      onClick={onClick}
+      className={`group relative isolate aspect-square min-h-[86px] overflow-hidden rounded-[16px] border p-1.5 text-center transition-all duration-200 ease-out hover:-translate-y-0.5 hover:scale-[1.01] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 ${
+        selected ? toneStyle.activeCard : toneStyle.idleCard
+      } ${className}`}
+    >
+      <span
+        aria-hidden="true"
+        className={`absolute inset-0 bg-gradient-to-br ${accent || toneStyle.surface} transition-opacity duration-200 ${
+          selected ? "opacity-95" : "opacity-40 group-hover:opacity-68"
+        }`}
+      />
+      <span
+        aria-hidden="true"
+        className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),transparent_30%),linear-gradient(180deg,rgba(2,6,23,0.12),rgba(2,6,23,0.84))]"
+      />
+      <span
+        aria-hidden="true"
+        className={`absolute inset-x-3 top-1.5 h-px rounded-full bg-gradient-to-r ${toneStyle.line} transition-opacity duration-200 ${
+          selected ? "opacity-100" : "opacity-45"
+        }`}
+      />
+      <span
+        className={`absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full border text-[10px] font-black transition ${
+          selected
+            ? toneStyle.check
+            : "border-white/10 bg-slate-950/70 text-transparent"
+        }`}
+      >
+        {selected ? "\u2713" : ""}
+      </span>
+      <span className="relative flex h-full flex-col items-center justify-center gap-1.5">
+        <span
+          className={`grid min-h-10 min-w-10 max-w-full place-items-center rounded-[14px] border px-1.5 text-[13px] font-black uppercase leading-none tracking-[0.04em] transition duration-200 ${
+            selected ? toneStyle.iconActive : toneStyle.iconIdle
+          }`}
+        >
+          {icon}
+        </span>
+        <span className="max-w-full text-[11px] font-black uppercase leading-[1.05] tracking-[0.035em] text-white drop-shadow-[0_1px_6px_rgba(0,0,0,0.55)]">
+          {label}
+        </span>
+      </span>
+    </button>
+  );
+}
+
+function PreferenceCardGrid({
+  helper,
+  onToggle,
+  options,
+  selected,
+  title,
+}: {
+  helper: string;
+  onToggle: (value: string) => void;
+  options: PreferenceCardOption[];
+  selected: string[];
+  title: string;
+}) {
+  return (
+    <div className="rounded-[24px] border border-white/10 bg-slate-950/44 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+      <div className="flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-300">
+            {title}
+          </p>
+          <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+            {helper}
+          </p>
+        </div>
+        <span className="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">
+          Multi
+        </span>
+      </div>
+
+      <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8">
+        {options.map((option) => {
+          const active = selected.includes(option.title);
+
+          return (
+            <CompactSelectableCard
+              key={option.id}
+              aria-label={`Toggle ${option.title}`}
+              accent={option.accent}
+              icon={getSelectorCardIcon(option.id, option.visual)}
+              label={selectorCardShortLabels[option.id] || option.title}
+              onClick={() => onToggle(option.title)}
+              selected={active}
+              tone={preferenceCardTones[option.id] || "cyan"}
+              title={option.helper}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CompactMultiSelectGrid({
+  onToggle,
+  options,
+  selected,
+  title,
+  variant = "default",
+}: {
+  onToggle: (value: string) => void;
+  options: CompactOptionCard[];
+  selected: string[];
+  title: string;
+  variant?: "bold" | "default";
+}) {
+  const selectedValues = Array.isArray(selected) ? selected : [];
+  const isBold = variant === "bold";
+
+  return (
+    <div
+      className={`rounded-[22px] border border-white/10 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_18px_50px_rgba(0,0,0,0.18)] ${
+        isBold
+          ? "bg-[linear-gradient(180deg,rgba(15,23,42,0.62),rgba(2,6,23,0.48))]"
+          : "bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.1),transparent_34%),radial-gradient(circle_at_92%_0%,rgba(168,85,247,0.08),transparent_32%),rgba(15,23,42,0.38)]"
+      }`}
+    >
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-200">
+          {title}
+        </p>
+        <span className="rounded-full border border-white/10 bg-slate-950/70 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-slate-400">
+          {selectedValues.length ? `${selectedValues.length} selected` : "Multi-select"}
+        </span>
+      </div>
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
+        {options.map((option) => {
+          const active = selectedValues.includes(option.title);
+          const displayTitle = selectorCardShortLabels[option.id] || option.title;
+          const boldVisual = boldCompactOptionVisuals[option.id];
+          const surface = boldVisual?.accent || option.accent;
+          const visibleIcon = getSelectorCardIcon(
+            option.id,
+            isBold ? boldVisual?.icon || option.icon : getCompactOptionIcon(option),
+          );
+          const visibleTitle = isBold
+            ? boldVisual?.shortLabel || displayTitle
+            : displayTitle;
+
+          return (
+            <CompactSelectableCard
+              key={option.id}
+              aria-label={`Toggle ${option.title}`}
+              accent={surface}
+              icon={visibleIcon}
+              label={visibleTitle}
+              onClick={() => onToggle(option.title)}
+              selected={active}
+              title={option.title}
+              tone={option.tone}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CompactSingleSelectRow({
+  helper,
+  onSelect,
+  options,
+  selected,
+  title,
+}: {
+  helper?: string;
+  onSelect: (value: string) => void;
+  options: CompactOptionCard[];
+  selected: string;
+  title: string;
+}) {
+  return (
+    <div className="relative overflow-visible rounded-[22px] border border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.09),transparent_34%),radial-gradient(circle_at_92%_0%,rgba(249,115,22,0.07),transparent_32%),rgba(15,23,42,0.38)] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_18px_50px_rgba(0,0,0,0.18)]">
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-200">
+            {title}
+          </p>
+          {helper ? <InfoBubble label={title}>{helper}</InfoBubble> : null}
+        </div>
+        <span className="rounded-full border border-white/10 bg-slate-950/70 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-slate-400">
+          Single-select
+        </span>
+      </div>
+      <div className="flex max-w-full snap-x snap-mandatory gap-2 overflow-x-auto pb-2 pr-3 scroll-smooth [scrollbar-color:rgba(34,211,238,0.45)_rgba(15,23,42,0.62)] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/45 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/70">
+        {options.map((option) => {
+          const active = selected === option.title;
+          const visibleTitle = selectorCardShortLabels[option.id] || option.title;
+
+          return (
+            <CompactSelectableCard
+              key={option.id}
+              accent={option.accent}
+              className="w-[104px] shrink-0 snap-center sm:w-[112px]"
+              icon={getSelectorCardIcon(option.id, getCompactOptionIcon(option))}
+              label={visibleTitle}
+              onClick={() => onSelect(option.title)}
+              selected={active}
+              title={option.title}
+              tone={option.tone}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AdaptivePlanningFactorsGrid({
+  notes,
+  onNoteChange,
+  onToggle,
+  options,
+  selected,
+}: {
+  notes: Record<string, string>;
+  onNoteChange: (factor: string, note: string) => void;
+  onToggle: (value: string) => void;
+  options: AdaptivePlanningFactorOption[];
+  selected: string[];
+}) {
+  const selectedValues = Array.isArray(selected) ? selected : [];
+  const safeNotes = normalizeNotesRecord(notes);
+  const selectedOptions = options.filter((option) =>
+    selectedValues.includes(option.title),
+  );
+
+  return (
+    <div className="overflow-visible rounded-[24px] border border-white/10 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.1),transparent_34%),radial-gradient(circle_at_88%_4%,rgba(251,146,60,0.08),transparent_32%),rgba(15,23,42,0.42)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.09)]">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-black text-white">Adaptive Planning Factors</p>
+          <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-400">
+            Real-world responsibilities and lifestyle factors that may interrupt or modify training.
+          </p>
+          <p className="mt-2 text-xs font-bold text-cyan-100/75">
+            These factors help the app adapt your plan to real life.
+          </p>
+        </div>
+        <span className="rounded-full border border-cyan-200/22 bg-cyan-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
+          {selectedValues.length ? `${selectedValues.length} active` : "Optional"}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10">
+        {options.map((option) => {
+          const active = selectedValues.includes(option.title);
+
+          return (
+            <CompactSelectableCard
+              key={option.id}
+              aria-label={`Toggle ${option.title}`}
+              accent={option.accent}
+              icon={getSelectorCardIcon(option.id, option.icon)}
+              label={selectorCardShortLabels[option.id] || option.title}
+              onClick={() => onToggle(option.title)}
+              selected={active}
+              title={option.helper}
+              tone={option.tone}
+            />
+          );
+        })}
+      </div>
+
+      {selectedOptions.length ? (
+        <div className="mt-4 rounded-[22px] border border-white/10 bg-slate-950/54 p-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-300">
+              Selected Factor Details
+            </p>
+            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-400">
+              Notes optional
+            </span>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {selectedOptions.map((option) => (
+              <label
+                key={`note-${option.id}`}
+                className="block rounded-[18px] border border-white/10 bg-white/[0.035] p-3"
+              >
+                <span className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-black uppercase tracking-[0.12em] text-white">
+                    {option.title}
+                  </span>
+                  <span className="text-[10px] font-bold text-cyan-100/70">
+                    {option.effect}
+                  </span>
+                </span>
+                <textarea
+                  className="mt-2 min-h-[72px] w-full resize-none rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-2 text-sm font-semibold leading-5 text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/45 focus:bg-white/[0.06]"
+                  onChange={(event) => onNoteChange(option.title, event.target.value)}
+                  placeholder={option.placeholder}
+                  value={safeNotes[option.title] || ""}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* TODO: Wire adaptive rules after backend review: shorter sessions, maintenance mode, home substitutions, schedule backups, and simplified travel blocks. */}
+      <div className="mt-3 rounded-[18px] border border-emerald-200/14 bg-emerald-300/8 px-3 py-2 text-xs font-semibold leading-5 text-emerald-100/76">
+        Future planning effects: session length adjustments, maintenance weeks, home substitutions,
+        backup timing, and simplified programming during travel.
+      </div>
+    </div>
   );
 }
 
@@ -2022,12 +5221,14 @@ function MetricControl({
   compact = false,
   color = "cyan",
   defaultValue,
+  dense = false,
   helper,
   helperMode = "inline",
   label,
   max,
   min,
   onChange,
+  showArrowControls = false,
   showManualInput = true,
   showRangeMarkers = false,
   showSteppers = true,
@@ -2037,14 +5238,16 @@ function MetricControl({
   value,
 }: {
   compact?: boolean;
-  color?: "cyan" | "orange" | "emerald" | "rose" | "violet";
+  color?: MetricColor;
   defaultValue: number;
+  dense?: boolean;
   helper?: string;
   helperMode?: "inline" | "tooltip";
   label: string;
   max: number;
   min: number;
   onChange: (value: string) => void;
+  showArrowControls?: boolean;
   showManualInput?: boolean;
   showRangeMarkers?: boolean;
   showSteppers?: boolean;
@@ -2060,43 +5263,38 @@ function MetricControl({
   );
   const displayValue = value || formatProfileNumber(defaultValue, step);
   const percent = ((numericValue - min) / Math.max(1, max - min)) * 100;
-  const activeClass = {
-    cyan: "from-cyan-300 to-blue-400 text-cyan-100",
-    emerald: "from-emerald-300 to-teal-400 text-emerald-100",
-    orange: "from-orange-300 to-yellow-300 text-orange-100",
-    rose: "from-rose-300 to-red-400 text-rose-100",
-    violet: "from-violet-300 to-fuchsia-400 text-violet-100",
-  }[color];
-  const valueTextClass = {
-    cyan: "text-cyan-100",
-    emerald: "text-emerald-100",
-    orange: "text-orange-100",
-    rose: "text-rose-100",
-    violet: "text-violet-100",
-  }[color];
+  const accent = metricAccentStyles[color];
+  const activeClass = accent.active;
+  const valueTextClass = accent.value;
 
   const setNumericValue = (nextValue: number) => {
     onChange(formatProfileNumber(clampNumber(nextValue, min, max), step));
   };
   const TooltipComponent =
     tooltipVariant === "fixed" ? FloatingInfoBubble : InfoBubble;
+  const arrowButtonClass = `grid ${dense ? "h-8 w-8 rounded-lg text-xs" : "h-9 w-9 rounded-xl text-sm"} shrink-0 place-items-center border border-white/10 bg-white/[0.045] font-black text-slate-300 transition ${accent.stepper} disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-white/[0.045]`;
+  const stepperButtonClass = `grid ${dense ? "h-8 w-8 rounded-lg text-base" : "h-9 w-9 rounded-xl text-lg"} place-items-center border border-white/10 bg-white/[0.045] font-black text-slate-300 transition ${accent.stepper}`;
 
   return (
     <div
-      className={`relative z-0 flex h-full flex-col overflow-visible border border-white/10 bg-slate-950/58 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-50 hover:z-50 ${
-        compact ? "rounded-[22px] p-4" : "rounded-[26px] p-5"
+      className={`relative z-0 flex h-full flex-col overflow-visible border shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-50 hover:z-50 ${accent.shell} ${
+        compact ? (dense ? "rounded-[20px] p-3" : "rounded-[22px] p-4") : "rounded-[26px] p-5"
       }`}
     >
+      <span
+        aria-hidden="true"
+        className={`pointer-events-none absolute ${dense ? "inset-x-4" : "inset-x-5"} top-0 h-px rounded-full bg-gradient-to-r ${activeClass} opacity-70`}
+      />
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+          <p className={`${dense ? "text-[11px]" : "text-xs"} font-black uppercase tracking-[0.14em] text-slate-400`}>
             {label}
           </p>
-          <div className={`${compact ? "mt-1.5" : "mt-2"} flex items-end gap-2`}>
-            <span className={`${compact ? "text-3xl" : "text-4xl"} font-black ${valueTextClass}`}>
+          <div className={`${dense ? "mt-1" : compact ? "mt-1.5" : "mt-2"} flex items-end gap-2`}>
+            <span className={`${dense ? "text-2xl" : compact ? "text-3xl" : "text-4xl"} font-black ${valueTextClass}`}>
               {formatProfileNumber(numericValue, step)}
             </span>
-            <span className="pb-1 text-sm font-black uppercase tracking-[0.12em] text-slate-500">
+            <span className={`${dense ? "pb-0.5 text-xs" : "pb-1 text-sm"} font-black uppercase tracking-[0.12em] text-slate-500`}>
               {unit}
             </span>
           </div>
@@ -2111,7 +5309,7 @@ function MetricControl({
                 <button
                   type="button"
                   onClick={() => setNumericValue(numericValue - step)}
-                  className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[0.045] text-lg font-black text-slate-300 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-100"
+                  className={stepperButtonClass}
                   aria-label={`Decrease ${label}`}
                 >
                   -
@@ -2119,7 +5317,7 @@ function MetricControl({
                 <button
                   type="button"
                   onClick={() => setNumericValue(numericValue + step)}
-                  className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-white/[0.045] text-lg font-black text-slate-300 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-100"
+                  className={stepperButtonClass}
                   aria-label={`Increase ${label}`}
                 >
                   +
@@ -2130,31 +5328,63 @@ function MetricControl({
         ) : null}
       </div>
 
-      <div className={`relative ${compact ? "mt-4" : "mt-5"} h-5 rounded-full border border-white/10 bg-slate-950/80 p-1.5`}>
-        <span
-          className={`block h-full rounded-full bg-gradient-to-r ${activeClass} shadow-[0_0_18px_rgba(34,211,238,0.22)] transition-[width] duration-200 ease-out`}
-          style={{ width: `${percent}%` }}
-        />
-        <span
-          className={`pointer-events-none absolute top-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30 bg-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.25)] transition-[left] duration-200 ease-out ${valueTextClass}`}
-          style={{ left: `clamp(12px, ${percent}%, calc(100% - 12px))` }}
-        >
-          <span className="absolute inset-1 rounded-full bg-current" />
-        </span>
-        <input
-          aria-label={`${label} slider`}
-          className="absolute -inset-y-3 left-0 h-12 w-full cursor-pointer touch-pan-x opacity-0"
-          max={max}
-          min={min}
-          onChange={(event) => setNumericValue(Number(event.target.value))}
-          step={step}
-          type="range"
-          value={numericValue}
-        />
+      <div
+        className={`${dense ? "mt-3" : compact ? "mt-4" : "mt-5"} ${
+          showArrowControls
+            ? dense
+              ? "grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-1.5"
+              : "grid grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-center gap-2"
+            : ""
+        }`}
+      >
+        {showArrowControls ? (
+          <button
+            type="button"
+            aria-label={`Decrease ${label}`}
+            className={arrowButtonClass}
+            disabled={numericValue <= min}
+            onClick={() => setNumericValue(numericValue - step)}
+          >
+            &lt;
+          </button>
+        ) : null}
+        <div className={`relative min-w-0 rounded-full border border-white/10 bg-slate-950/80 ${dense ? "h-4 p-1" : "h-5 p-1.5"}`}>
+          <span
+            className={`block h-full rounded-full bg-gradient-to-r ${activeClass} ${accent.fillShadow} transition-[width] duration-200 ease-out`}
+            style={{ width: `${percent}%` }}
+          />
+          <span
+            className={`pointer-events-none absolute top-1/2 ${dense ? "h-5 w-5" : "h-6 w-6"} -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/30 bg-slate-950 ${accent.thumbShadow} transition-[left] duration-200 ease-out ${valueTextClass}`}
+            style={{ left: `clamp(12px, ${percent}%, calc(100% - 12px))` }}
+          >
+            <span className="absolute inset-1 rounded-full bg-current" />
+          </span>
+          <input
+            aria-label={`${label} slider`}
+            className={`absolute left-0 w-full cursor-pointer touch-pan-x opacity-0 ${dense ? "-inset-y-2 h-10" : "-inset-y-3 h-12"}`}
+            max={max}
+            min={min}
+            onChange={(event) => setNumericValue(Number(event.target.value))}
+            step={step}
+            type="range"
+            value={numericValue}
+          />
+        </div>
+        {showArrowControls ? (
+          <button
+            type="button"
+            aria-label={`Increase ${label}`}
+            className={arrowButtonClass}
+            disabled={numericValue >= max}
+            onClick={() => setNumericValue(numericValue + step)}
+          >
+            &gt;
+          </button>
+        ) : null}
       </div>
 
       {showRangeMarkers ? (
-        <div className="mt-2 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+        <div className={`${dense ? "mt-1.5 text-[9px]" : "mt-2 text-[10px]"} flex items-center justify-between font-black uppercase tracking-[0.1em] text-slate-500`}>
           <span>
             {formatProfileNumber(min, step)} {unit}
           </span>
@@ -2238,6 +5468,76 @@ function StatusSelector<T extends string>({
   );
 }
 
+function WeightTrendVerticalSelector({
+  onChange,
+  value,
+}: {
+  onChange: (value: BodyStatus["weightTrend"]) => void;
+  value: BodyStatus["weightTrend"];
+}) {
+  const selectedValue = normalizeWeightTrend(value);
+
+  return (
+    <div className="relative z-0 h-full overflow-visible rounded-[20px] border border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.09),transparent_34%),rgba(15,23,42,0.54)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-50 hover:z-50">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-300">
+            Weight Trend
+          </p>
+          <span className="mt-1 inline-flex max-w-full rounded-full border border-white/10 bg-slate-950/58 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-slate-400">
+            {selectedValue}
+          </span>
+        </div>
+        <InfoBubble label="Weight Trend">
+          Select the broad direction your body weight has been moving recently.
+        </InfoBubble>
+      </div>
+
+      <div className="relative mt-2 max-h-[188px] overflow-y-auto pr-1 scroll-smooth [scrollbar-color:rgba(34,211,238,0.42)_rgba(15,23,42,0.70)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/42 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/60">
+        <span
+          aria-hidden="true"
+          className="absolute bottom-2 left-[1rem] top-2 w-px bg-gradient-to-b from-emerald-300/35 via-cyan-300/22 to-slate-300/20"
+        />
+        <div className="relative grid gap-1.5">
+          {weightTrendOptions.map((option) => {
+            const active = selectedValue === option.value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => onChange(option.value)}
+                className={`group flex min-h-[34px] items-center gap-2 rounded-xl border px-2 py-1.5 text-left transition duration-200 hover:-translate-y-0.5 active:scale-[0.98] ${
+                  active
+                    ? option.active
+                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:border-cyan-200/25 hover:bg-cyan-300/10 hover:text-white"
+                }`}
+              >
+                <span
+                  className={`relative z-10 grid h-7 w-7 shrink-0 place-items-center rounded-lg border text-base font-black leading-none transition ${
+                    active ? option.iconActive : option.iconIdle
+                  }`}
+                >
+                  {option.icon}
+                </span>
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="block truncate text-[11px] font-black uppercase tracking-[0.08em]">
+                    {option.value}
+                  </span>
+                </span>
+                {active ? (
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current shadow-[0_0_12px_currentColor]" />
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Panel({
   children,
   className = "",
@@ -2255,25 +5555,28 @@ function Panel({
 }) {
   return (
     <section
-      className={`rounded-[28px] border border-white/10 bg-white/[0.055] p-5 shadow-[0_24px_80px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl ${className}`}
+      className={`${profileOverviewSectionShellClass} p-5 ${className}`}
     >
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          {eyebrow ? (
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200/80">
-              {eyebrow}
-            </p>
-          ) : null}
-          <h2 className="mt-1 text-2xl font-black text-white">{title}</h2>
-          {subtitle ? (
-            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">
-              {subtitle}
-            </p>
-          ) : null}
+      <span aria-hidden="true" className={profileOverviewSectionGlowClass} />
+      <div className="relative z-10">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            {eyebrow ? (
+              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200/80">
+                {eyebrow}
+              </p>
+            ) : null}
+            <h2 className="mt-1 text-2xl font-black text-white">{title}</h2>
+            {subtitle ? (
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
+          {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
         </div>
-        {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
+        {children}
       </div>
-      {children}
     </section>
   );
 }
@@ -2300,62 +5603,65 @@ function CollapsibleProfilePanel({
   const tone = getCompletionTone(completion);
 
   return (
-    <section className="rounded-[28px] border border-white/10 bg-white/[0.055] p-4 shadow-[0_24px_80px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl sm:p-5">
-      <div
-        role="button"
-        tabIndex={0}
-        aria-expanded={expanded}
-        onClick={onToggle}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            onToggle();
-          }
-        }}
-        className="group flex w-full items-start justify-between gap-4 rounded-[24px] border border-white/10 bg-slate-950/42 p-4 text-left transition hover:border-cyan-200/24 hover:bg-white/[0.055]"
-      >
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-2xl font-black text-white">{title}</p>
+    <section className={`${profileOverviewSectionShellClass} p-4 sm:p-5`}>
+      <span aria-hidden="true" className={profileOverviewSectionGlowClass} />
+      <div className="relative z-10">
+        <div
+          role="button"
+          tabIndex={0}
+          aria-expanded={expanded}
+          onClick={onToggle}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onToggle();
+            }
+          }}
+          className="group flex w-full items-start justify-between gap-4 rounded-[24px] border border-cyan-200/14 bg-slate-950/46 p-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-cyan-200/28 hover:bg-white/[0.055] hover:shadow-[0_0_26px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.08)]"
+        >
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-2xl font-black text-white">{title}</p>
+              <span
+                className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${tone.badge}`}
+              >
+                {completion}% complete
+              </span>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">
+              {subtitle}
+            </p>
+            {!expanded ? <div className="mt-3">{summary}</div> : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {headerAction ? (
+              <div
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+              >
+                {headerAction}
+              </div>
+            ) : null}
             <span
-              className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${tone.badge}`}
+              className={`grid h-10 w-10 place-items-center rounded-2xl border border-cyan-200/16 bg-cyan-300/8 text-lg font-black text-cyan-100 transition group-hover:border-cyan-200/35 group-hover:bg-cyan-300/12 ${
+                expanded ? "rotate-180" : ""
+              }`}
+              aria-hidden="true"
             >
-              {completion}% complete
+              v
             </span>
           </div>
-          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">
-            {subtitle}
-          </p>
-          {!expanded ? <div className="mt-3">{summary}</div> : null}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {headerAction ? (
-            <div
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-            >
-              {headerAction}
-            </div>
-          ) : null}
-          <span
-            className={`grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.045] text-lg font-black text-cyan-100 transition group-hover:border-cyan-200/35 group-hover:bg-cyan-300/10 ${
-              expanded ? "rotate-180" : ""
-            }`}
-            aria-hidden="true"
-          >
-            v
-          </span>
-        </div>
-      </div>
 
-      <div
-        className={`transition-all duration-300 ease-out ${
-          expanded
-            ? "mt-5 max-h-[7200px] overflow-visible opacity-100"
-            : "max-h-0 overflow-hidden opacity-0"
-        }`}
-      >
-        {children}
+        <div
+          className={`transition-all duration-300 ease-out ${
+            expanded
+              ? "mt-5 max-h-[7200px] overflow-visible opacity-100"
+              : "max-h-0 overflow-hidden opacity-0"
+          }`}
+        >
+          {children}
+        </div>
       </div>
     </section>
   );
@@ -2370,10 +5676,18 @@ export default function ClientProfilePage() {
   const [activeTab, setActiveTab] = useState<ProfileTab>("overview");
   const tabSliderRef = useRef<HTMLDivElement | null>(null);
   const tabButtonRefs = useRef<Partial<Record<ProfileTab, HTMLButtonElement | null>>>({});
-  const [profileSectionOpen, setProfileSectionOpen] = useState({
+  const [profileSectionOpen, setProfileSectionOpen] = useState<ProfileAccordionState>({
+    appCoachNotes: false,
     measurements: false,
     myBody: false,
+    planBuilder: false,
+    planDirection: false,
+    previousExperience: false,
+    specialCircumstances: false,
   });
+  const [heroReadinessDetailsOpen, setHeroReadinessDetailsOpen] = useState(false);
+  const [masterJourneyExpanded, setMasterJourneyExpanded] = useState(false);
+  const [openMasterJourney, setOpenMasterJourney] = useState<string | null>(null);
   const [authFallback, setAuthFallback] = useState<ProfileAuthFallback>({
     avatarUrl: "",
     displayName: "",
@@ -2381,12 +5695,11 @@ export default function ClientProfilePage() {
   });
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [planDirectionMessage, setPlanDirectionMessage] = useState("");
   const [profile, setProfile] = useState<SoundFitnessProfile>(defaultProfile);
   const [savedSnapshot, setSavedSnapshot] = useState(
     JSON.stringify(defaultProfile),
   );
-  const [activePlanDirectionInfo, setActivePlanDirectionInfo] =
-    useState<GoalMode | null>(null);
   const [isEditingIdentity, setIsEditingIdentity] = useState(false);
   const [identityNameDraft, setIdentityNameDraft] = useState("");
   const [identityHandleDraft, setIdentityHandleDraft] = useState("");
@@ -2398,6 +5711,10 @@ export default function ClientProfilePage() {
   const [customMeasurementsOpen, setCustomMeasurementsOpen] = useState(false);
   const measurementSliderRef = useRef<HTMLDivElement | null>(null);
   const measurementCardRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const goalCompassSliderRef = useRef<HTMLDivElement | null>(null);
+  const goalCompassCardRefs = useRef<Partial<Record<GoalMode, HTMLDivElement | null>>>({});
+  const goalCompassScrollTimerRef = useRef<number | null>(null);
+  const [goalCompassScrolling, setGoalCompassScrolling] = useState(false);
   const [activeMeasurementIndex, setActiveMeasurementIndex] = useState(0);
   const [photoMessage, setPhotoMessage] = useState("");
   const [photoViewerIndex, setPhotoViewerIndex] = useState<number | null>(null);
@@ -2408,6 +5725,23 @@ export default function ClientProfilePage() {
   const specialCircumstanceCardRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const [activeSpecialCircumstanceIndex, setActiveSpecialCircumstanceIndex] =
     useState(0);
+
+  const toggleProfileSection = (section: ProfileAccordionSection) => {
+    setProfileSectionOpen((current) => {
+      const next: ProfileAccordionState = {
+        appCoachNotes: false,
+        measurements: false,
+        myBody: false,
+        planBuilder: false,
+        planDirection: false,
+        previousExperience: false,
+        specialCircumstances: false,
+      };
+
+      next[section] = !current[section];
+      return next;
+    });
+  };
   const [specialCircumstanceScrollState, setSpecialCircumstanceScrollState] =
     useState({ canScrollLeft: false, canScrollRight: true });
 
@@ -2516,26 +5850,39 @@ export default function ClientProfilePage() {
   const activeLimitations = profile.injuries.filter((injury) => injury.painLevel > 0);
 
   const planSummary = useMemo(() => {
+    const planDirections = normalizePlanDirections(
+      profile.planDirections,
+      profile.goalMode,
+    );
+    const primaryDirection = planDirections[0] || profile.goalMode;
+    const secondaryDirection = planDirections[1];
+    const directionSummary = secondaryDirection
+      ? `${primaryDirection} primary with ${secondaryDirection} secondary`
+      : primaryDirection;
     const injuryText = activeLimitations.length
       ? `It should respect ${activeLimitations.map((item) => item.region).join(", ")} limitations.`
       : "No active limitation has been added yet.";
     const nutritionText =
-      profile.bodyGoalMode === "Cut" || profile.goalMode === "Lose Fat"
+      profile.bodyGoalMode === "Cut" || planDirections.includes("Lose Fat")
         ? "Nutrition should support a moderate deficit and protein consistency."
-        : profile.bodyGoalMode === "Bulk" || profile.goalMode === "Build Muscle"
+        : profile.bodyGoalMode === "Bulk" || planDirections.includes("Build Muscle")
           ? "Nutrition should support sufficient protein and steady training fuel."
           : "Nutrition should support consistency and recovery.";
     const specialText = profile.specialCircumstances.length
       ? `Special context to respect: ${profile.specialCircumstances.map((item) => item.label).join(", ")}.`
       : "";
+    const splitSummary = profile.preferredSplits.length
+      ? profile.preferredSplits.join(", ")
+      : profile.preferredSplit;
 
-    return `Based on this profile, the app should prioritize ${profile.primaryGoal || profile.goalMode}, ${profile.bodyGoalMode.toLowerCase()} body direction, ${profile.sessionsPerWeek || "4"} sessions per week, ${profile.preferredSplit}, and ${profile.trainingStyles.join(", ") || "balanced training"}. ${injuryText} ${nutritionText} ${specialText}`;
+    return `Based on this profile, the app should prioritize ${directionSummary}, ${profile.bodyGoalMode.toLowerCase()} body direction, ${profile.sessionsPerWeek || "4"} sessions per week, ${splitSummary}, and ${profile.trainingStyles.join(", ") || "balanced training"}. ${injuryText} ${nutritionText} ${specialText}`;
   }, [
     activeLimitations,
     profile.bodyGoalMode,
     profile.goalMode,
+    profile.planDirections,
     profile.preferredSplit,
-    profile.primaryGoal,
+    profile.preferredSplits,
     profile.sessionsPerWeek,
     profile.specialCircumstances,
     profile.trainingStyles,
@@ -2545,9 +5892,10 @@ export default function ClientProfilePage() {
     [profile],
   );
   const planReadiness = useMemo(() => {
-    const readinessSectionIds: ProfileTab[] = [
+    const readinessSectionIds: ProfileCompletionSection[] = [
       "overview",
       "goals",
+      "planDirection",
       "body",
       "measurements",
       "readiness",
@@ -2556,7 +5904,14 @@ export default function ClientProfilePage() {
     ];
     const sectionRows = readinessSectionIds.map((id) => ({
       id,
-      label: tabs.find((tab) => tab.id === id)?.label || id,
+      label:
+        id === "circumstances"
+          ? "Special Circumstances"
+          : id === "goals"
+            ? "Goals"
+          : id === "planDirection"
+            ? "Plan Direction"
+          : tabs.find((tab) => tab.id === id)?.label || id,
       percent: tabCompletions[id] || 0,
     }));
     const overall = Math.round(
@@ -2622,13 +5977,13 @@ export default function ClientProfilePage() {
   const planRiskTone = getTrainingRiskTone(planReadiness.risk.label);
   const heroReadinessChips = [
     {
-      className: `${planRiskTone.border} ${planRiskTone.softBg} ${planRiskTone.text}`,
+      className: `${planRiskTone.border} ${planRiskTone.softBg} ${planRiskTone.text} ${planRiskTone.glow}`,
       label: "Risk",
       value: `${planReadiness.risk.label} Risk`,
       wide: false,
     },
     {
-      className: "border-white/10 bg-white/[0.055] text-slate-200",
+      className: "border-blue-300/24 bg-blue-400/10 text-blue-100 shadow-[0_0_18px_rgba(59,130,246,0.1)]",
       label: "Sleep",
       value:
         profile.bodyStatus.averageSleepHours ||
@@ -2638,19 +5993,19 @@ export default function ClientProfilePage() {
       wide: false,
     },
     {
-      className: "border-emerald-200/20 bg-emerald-300/10 text-emerald-100",
+      className: "border-yellow-200/24 bg-yellow-300/10 text-yellow-100 shadow-[0_0_18px_rgba(250,204,21,0.1)]",
       label: "Energy",
       value: profile.bodyStatus.energyStatus,
       wide: false,
     },
     {
-      className: "border-violet-200/20 bg-violet-300/10 text-violet-100",
+      className: "border-amber-200/24 bg-orange-300/10 text-orange-100 shadow-[0_0_18px_rgba(251,146,60,0.1)]",
       label: "Stress",
       value: profile.bodyStatus.stressStatus,
       wide: false,
     },
     {
-      className: "border-orange-200/22 bg-orange-300/10 text-orange-100",
+      className: "border-fuchsia-200/24 bg-fuchsia-300/10 text-fuchsia-100 shadow-[0_0_18px_rgba(217,70,239,0.1)]",
       label: "Soreness",
       value:
         profile.bodyStatus.sorenessStatus !== "None"
@@ -2662,7 +6017,7 @@ export default function ClientProfilePage() {
       wide: false,
     },
     {
-      className: "border-rose-200/22 bg-rose-300/10 text-rose-100",
+      className: "border-red-200/24 bg-red-300/10 text-red-100 shadow-[0_0_18px_rgba(248,113,113,0.1)]",
       label: "Pain",
       value:
         profile.bodyStatus.painStatus !== "None"
@@ -2674,10 +6029,10 @@ export default function ClientProfilePage() {
       wide: false,
     },
     {
-      className: "border-cyan-200/18 bg-slate-950/58 text-slate-200",
-      label: "Recommendation",
-      value: planReadiness.risk.recommendation,
-      wide: true,
+      className: "border-teal-200/24 bg-teal-300/10 text-teal-100 shadow-[0_0_18px_rgba(45,212,191,0.1)]",
+      label: "Recovery",
+      value: planReadiness.readinessLabel,
+      wide: false,
     },
   ];
   const riskGaugeScore = clampNumber(planReadiness.risk.score, 0, 100);
@@ -2708,6 +6063,95 @@ export default function ClientProfilePage() {
         left: direction === "left" ? -320 : 320,
       });
     }, 40);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (goalCompassScrollTimerRef.current) {
+        window.clearTimeout(goalCompassScrollTimerRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const primaryPlanDirection = normalizePlanDirections(
+      profile.planDirections,
+      profile.goalMode,
+    )[0];
+    const activeCard = primaryPlanDirection
+      ? goalCompassCardRefs.current[primaryPlanDirection]
+      : null;
+    if (!goalCompassSliderRef.current || !activeCard) return;
+
+    const timeoutId = window.setTimeout(() => {
+      activeCard.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "center",
+      });
+    }, 80);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeTab, profile.goalMode, profile.planDirections]);
+
+  const markGoalCompassScrolling = () => {
+    setGoalCompassScrolling(true);
+    if (goalCompassScrollTimerRef.current) {
+      window.clearTimeout(goalCompassScrollTimerRef.current);
+    }
+    goalCompassScrollTimerRef.current = window.setTimeout(() => {
+      setGoalCompassScrolling(false);
+    }, 420);
+  };
+
+  const scrollGoalCompass = (direction: "left" | "right") => {
+    const slider = goalCompassSliderRef.current;
+    if (!slider) return;
+
+    const scrollAmount = Math.max(260, slider.clientWidth * 0.78);
+    markGoalCompassScrolling();
+    window.setTimeout(() => {
+      slider.scrollBy({
+        behavior: "smooth",
+        left: direction === "left" ? -scrollAmount : scrollAmount,
+      });
+    }, 40);
+  };
+
+  const togglePlanDirection = (direction: GoalMode) => {
+    setProfile((current) => {
+      const currentDirections = normalizePlanDirections(
+        current.planDirections,
+        current.goalMode,
+      );
+      const alreadySelected = currentDirections.includes(direction);
+      const nextDirections = alreadySelected
+        ? currentDirections.filter((item) => item !== direction)
+        : currentDirections.length >= 2
+          ? currentDirections
+          : [...currentDirections, direction];
+
+      if (!alreadySelected && currentDirections.length >= 2) {
+        setPlanDirectionMessage("Choose up to 2 priorities.");
+        return current;
+      }
+
+      setPlanDirectionMessage(
+        nextDirections.length
+          ? "Primary drives programming. Secondary modifies accessories, recovery, and cardio."
+          : "Choose up to 2 priorities.",
+      );
+
+      return {
+        ...current,
+        goalMode: nextDirections[0] || current.goalMode,
+        planDirections: nextDirections,
+        primaryGoal: nextDirections.length
+          ? `${nextDirections.join(" + ")} Plan`
+          : current.primaryGoal,
+        secondaryGoal: nextDirections[1] || current.secondaryGoal,
+      };
+    });
   };
 
   const setProfileField = <K extends keyof SoundFitnessProfile>(
@@ -3117,12 +6561,92 @@ export default function ClientProfilePage() {
   };
 
   const toggleProfileArray = (
-    key: "equipment" | "preferredDays" | "recoveryPreferences" | "trainingStyles",
+    key:
+      | "equipment"
+      | "familiarityAreas"
+      | "preferredDays"
+      | "previousCoaching"
+      | "recoveryPreferences"
+      | "trainingStyles",
     value: string,
   ) => {
     setProfile((current) => ({
       ...current,
       [key]: toggleArrayValue(current[key], value),
+    }));
+  };
+
+  const togglePreferenceSelection = (
+    arrayKey:
+      | "trainingLocations"
+      | "preferredSplits"
+      | "cardioPreferences"
+      | "mobilityPreferences",
+    legacyKey:
+      | "trainingLocation"
+      | "preferredSplit"
+      | "cardioPreference"
+      | "mobilityPreference",
+    value: string,
+  ) => {
+    setProfile((current) => {
+      const nextSelection = toggleArrayValue(current[arrayKey], value);
+
+      return {
+        ...current,
+        [arrayKey]: nextSelection,
+        [legacyKey]: firstPreferenceValue(nextSelection, ""),
+      };
+    });
+  };
+
+  const toggleEquipmentSelection = (value: string) => {
+    setProfile((current) => {
+      const currentEquipment = normalizeEquipmentSelection(
+        current.availableEquipment,
+        current.equipment,
+      );
+      const nextEquipment = toggleArrayValue(currentEquipment, value);
+
+      return {
+        ...current,
+        availableEquipment: nextEquipment,
+        equipment: nextEquipment,
+      };
+    });
+  };
+
+  const updateExerciseConfidence = (
+    key: keyof ExerciseConfidence,
+    value: string,
+  ) => {
+    setProfile((current) => ({
+      ...current,
+      exerciseConfidence: {
+        ...normalizeExerciseConfidence(current.exerciseConfidence),
+        [key]: value,
+      },
+    }));
+  };
+
+  const toggleAdaptivePlanningFactor = (value: string) => {
+    setProfile((current) => ({
+      ...current,
+      adaptivePlanningFactors: toggleArrayValue(
+        current.adaptivePlanningFactors || [],
+        value,
+      ),
+      adaptivePlanningNotes: normalizeNotesRecord(current.adaptivePlanningNotes),
+    }));
+  };
+
+  const updateAdaptivePlanningNote = (factor: string, note: string) => {
+    setProfile((current) => ({
+      ...current,
+      adaptivePlanningNotes: {
+        ...normalizeNotesRecord(current.adaptivePlanningNotes),
+        [factor]: note,
+      },
     }));
   };
 
@@ -3258,17 +6782,88 @@ export default function ClientProfilePage() {
     const gender = normalizeBodyModel(
       profile.gender || profile.bodyModel || stored.gender || stored.bodyModel,
     );
+    const trainingLocations = normalizePreferenceSelection(
+      profile.trainingLocations,
+      profile.trainingLocation,
+      defaultProfile.trainingLocations,
+    );
+    const preferredSplits = normalizePreferenceSelection(
+      profile.preferredSplits,
+      profile.preferredSplit,
+      defaultProfile.preferredSplits,
+    );
+    const cardioPreferences = normalizePreferenceSelection(
+      profile.cardioPreferences,
+      profile.cardioPreference,
+      defaultProfile.cardioPreferences,
+    );
+    const mobilityPreferences = normalizePreferenceSelection(
+      profile.mobilityPreferences,
+      profile.mobilityPreference,
+      defaultProfile.mobilityPreferences,
+    );
+    const availableEquipment = normalizeEquipmentSelection(
+      profile.availableEquipment,
+      profile.equipment,
+    );
+    const adaptivePlanningFactors = Array.isArray(profile.adaptivePlanningFactors)
+      ? profile.adaptivePlanningFactors
+      : [];
+    const adaptivePlanningNotes = normalizeNotesRecord(profile.adaptivePlanningNotes);
+    const planDirections = normalizePlanDirections(
+      profile.planDirections,
+      profile.goalMode,
+    );
+    const familiarityAreas = Array.isArray(profile.familiarityAreas)
+      ? cleanStringArray(profile.familiarityAreas)
+      : [];
+    const previousCoaching = Array.isArray(profile.previousCoaching)
+      ? cleanStringArray(profile.previousCoaching)
+      : [];
+    const exerciseConfidence = normalizeExerciseConfidence(profile.exerciseConfidence);
+    const age = calculateAgeFromBirthday(profile.birthday) || "";
     const updatedAt = new Date().toISOString();
     const nextProfile = {
       ...stored,
       ...profile,
+      adaptivePlanningFactors,
+      adaptivePlanningNotes,
+      age,
+      availableEquipment,
       avatarUrl: profileImage,
       bodyModel: gender,
+      cardioPreference: firstPreferenceValue(
+        cardioPreferences,
+        defaultProfile.cardioPreference,
+      ),
+      cardioPreferences,
       displayName,
       email,
+      equipment: availableEquipment,
+      exerciseConfidence,
+      familiarityAreas,
       fullName: displayName,
       gender,
+      mobilityPreference: firstPreferenceValue(
+        mobilityPreferences,
+        defaultProfile.mobilityPreference,
+      ),
+      mobilityPreferences,
+      goalMode: planDirections[0] || defaultProfile.goalMode,
+      planDirections,
+      primaryGoal: planDirections.length
+        ? `${planDirections.join(" + ")} Plan`
+        : profile.primaryGoal,
+      secondaryGoal: planDirections[1] || profile.secondaryGoal,
+      preferredSplit: firstPreferenceValue(preferredSplits, defaultProfile.preferredSplit),
+      preferredSplits,
+      previousCoaching,
       profileImage,
+      trainingLocation: firstPreferenceValue(
+        trainingLocations,
+        defaultProfile.trainingLocation,
+      ),
+      trainingLocations,
       updatedAt,
       username,
     };
@@ -3312,7 +6907,7 @@ export default function ClientProfilePage() {
 
   const resetChanges = () => {
     try {
-      setProfile(JSON.parse(savedSnapshot));
+      setProfile(mergeProfile(JSON.parse(savedSnapshot) as Partial<SoundFitnessProfile>));
       setMessage("Changes reset.");
       window.setTimeout(() => setMessage(""), 2000);
     } catch {
@@ -3331,164 +6926,303 @@ export default function ClientProfilePage() {
     window.setTimeout(() => setMessage(""), 2600);
   };
 
-  const renderHeroStatusCommandCenter = () => (
-    <aside className="rounded-[30px] border border-white/10 bg-slate-950/58 p-4 shadow-[0_22px_80px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.10)]">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/80">
-            Readiness Context
-          </p>
-          <p className="mt-1 text-lg font-black text-white">
-            Status Panel
-          </p>
-        </div>
-        <span className={`shrink-0 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${planReadinessTone.badge}`}>
-          {planReadiness.readinessLabel}
-        </span>
-      </div>
+  const renderHeroStatusCommandCenter = () => {
+    const detailReadinessChips = heroReadinessChips.filter(
+      (chip) => chip.label !== "Recommendation",
+    );
+    const compactReadinessChips = detailReadinessChips.filter(
+      (chip) => chip.label !== "Risk",
+    );
+    const compactFactors = planReadiness.risk.factors.slice(0, 4);
+    const recommendedNext = planReadiness.missing.includes("Recovery Readiness")
+      ? "Complete readiness check-in"
+      : planReadiness.recommended.label;
+    const painScore = getScaleValue(
+      profile.bodyStatus.painLevel,
+      profile.bodyStatus.painStatus,
+    );
+    const sorenessScore = getScaleValue(
+      profile.bodyStatus.sorenessLevel,
+      profile.bodyStatus.sorenessStatus,
+    );
+    const mobileSummaryPills = [
+      {
+        className: `border-cyan-200/24 bg-cyan-300/10 text-cyan-50 ${planReadinessTone.glow}`,
+        label: "Plan",
+        value: `${planReadiness.overall}% Ready`,
+      },
+      {
+        className: `${planRiskTone.border} ${planRiskTone.softBg} ${planRiskTone.text} ${planRiskTone.glow}`,
+        label: "Risk",
+        value: `${planReadiness.risk.label} Risk`,
+      },
+      {
+        className: "border-blue-300/24 bg-blue-400/10 text-blue-100",
+        label: "Sleep",
+        value:
+          profile.bodyStatus.averageSleepHours ||
+          profile.bodyStatus.hoursSlept ||
+          profile.sleepGoal ||
+          "Not set",
+      },
+      {
+        className: "border-yellow-200/24 bg-yellow-300/10 text-yellow-100",
+        label: "Energy",
+        value: profile.bodyStatus.energyStatus,
+      },
+      {
+        className: "border-red-200/24 bg-red-300/10 text-red-100",
+        label: "Pain/Soreness",
+        value: `${painScore}/10 / ${sorenessScore}/10`,
+      },
+    ];
 
-      <div className="mt-4 grid gap-3">
-        <div className="relative overflow-hidden rounded-[24px] border border-cyan-100/18 bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,0.22),transparent_42%),rgba(15,23,42,0.72)] p-4 shadow-[0_0_34px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]">
-          <div className="pointer-events-none absolute right-4 top-3 h-16 w-16 rounded-full bg-cyan-300/12 blur-2xl" />
-          <div className="relative flex items-center gap-4">
-            <div className="relative grid h-24 w-24 shrink-0 place-items-center rounded-full border border-cyan-100/20 bg-slate-950/80 p-2 shadow-[0_0_30px_rgba(34,211,238,0.16)]">
-              <div
-                className="absolute inset-2 rounded-full transition-[background] duration-700 ease-out"
-                style={{
-                  background: `conic-gradient(rgba(34,211,238,0.9) 0deg, rgba(251,191,36,0.9) ${Math.max(
-                    0,
-                    planReadiness.overall * 3.6 - 28,
-                  )}deg, rgba(34,211,238,0.9) ${planReadiness.overall * 3.6}deg, rgba(15,23,42,0.82) 0deg)`,
-                }}
-              />
-              <div className="absolute inset-5 rounded-full border border-white/10 bg-[radial-gradient(circle_at_50%_18%,rgba(255,255,255,0.08),transparent_42%),rgba(2,6,23,0.96)] shadow-[inset_0_0_22px_rgba(0,0,0,0.55)]" />
-              <div className="relative text-center">
-                <p className={`text-2xl font-black leading-none ${planReadinessTone.text}`}>
-                  {planReadiness.overall}
-                  <span className="text-sm text-slate-500">%</span>
-                </p>
-                <p className="mt-1 text-[7px] font-black uppercase tracking-[0.12em] text-slate-500">
-                  Ready
-                </p>
-              </div>
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-                Plan Ready
-              </p>
-              <p className="mt-1 text-sm font-black text-white">
-                {planReadiness.completed.length}/{planReadiness.sections.length} sections complete
-              </p>
-              <p className="mt-2 text-xs font-semibold leading-5 text-slate-400">
-                Next:{" "}
-                <span className="font-black text-cyan-100">
-                  {planReadiness.recommended.label}
-                </span>
-              </p>
-            </div>
+    return (
+      <aside className={`${profileOverviewSectionShellClass} overflow-hidden p-2.5 sm:p-4`}>
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-200/70 to-emerald-200/55"
+        />
+        <div className="flex items-center justify-between gap-3 xl:hidden">
+          <div className="min-w-0">
+            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/75">
+              Readiness
+            </p>
+            <p className="mt-0.5 truncate text-xs font-black text-white">
+              {planReadiness.readinessLabel}
+            </p>
           </div>
+          <button
+            type="button"
+            aria-expanded={heroReadinessDetailsOpen}
+            onClick={() => setHeroReadinessDetailsOpen((current) => !current)}
+            className="shrink-0 rounded-full border border-cyan-200/24 bg-cyan-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:bg-cyan-300/16"
+          >
+            {heroReadinessDetailsOpen ? "Hide details" : "View readiness details"}
+          </button>
         </div>
 
-        <div className="rounded-[24px] border border-cyan-100/16 bg-cyan-300/8 p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100/80">
-                Readiness Summary
-              </p>
-              <p className="mt-1 text-2xl font-black text-white">
-                {planReadiness.readinessScore}
-              </p>
-            </div>
-            <span className="rounded-full border border-cyan-100/20 bg-slate-950/58 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300">
-              Estimated
+        <div className="-mx-2 mt-2 flex max-w-[calc(100%+1rem)] gap-1.5 overflow-x-auto overscroll-x-contain px-2 pb-2 xl:hidden [scrollbar-color:rgba(34,211,238,0.42)_rgba(15,23,42,0.70)] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/42 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/60">
+          {mobileSummaryPills.map((pill) => (
+            <span
+              key={pill.label}
+              className={`inline-flex min-h-[28px] max-w-[220px] flex-none items-center rounded-full border px-2 py-1 text-[9px] font-black leading-none shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${pill.className}`}
+            >
+              <span className="shrink-0 text-slate-300/75">{pill.label}</span>
+              <span className="ml-1 truncate text-white">{pill.value}</span>
             </span>
-          </div>
+          ))}
+        </div>
 
-          <div className={`mt-3 rounded-[20px] border ${planRiskTone.border} bg-slate-950/54 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]`}>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-orange-100/80">
-                  Training Risk
+        <div
+          className={`grid xl:hidden transition-all duration-300 ease-out ${
+            heroReadinessDetailsOpen
+              ? "mt-2 grid-rows-[1fr] opacity-100"
+              : "grid-rows-[0fr] opacity-0"
+          }`}
+        >
+          <div className="overflow-hidden">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className={`relative overflow-hidden rounded-2xl border border-cyan-100/24 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.14),transparent_38%),rgba(15,23,42,0.58)] px-3 py-2 ${planReadinessTone.glow}`}>
+                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100/75">
+                  Plan Ready
                 </p>
-                <p className={`mt-1 text-sm font-black ${planRiskTone.text}`}>
-                  {planReadiness.risk.label}
-                </p>
-              </div>
-              <p className={`text-xl font-black ${planRiskTone.text}`}>
-                {planReadiness.risk.score}
-                <span className="text-xs text-slate-500">%</span>
-              </p>
-            </div>
-            <div className="relative mt-3 h-12">
-              <div
-                className="absolute inset-x-0 top-5 h-3 rounded-full shadow-[0_0_24px_rgba(251,146,60,0.14)]"
-                style={{
-                  background:
-                    "linear-gradient(90deg, rgba(34,211,238,0.92) 0%, rgba(16,185,129,0.9) 28%, rgba(250,204,21,0.92) 52%, rgba(251,146,60,0.94) 74%, rgba(244,63,94,0.96) 100%)",
-                }}
-              />
-              <div
-                className="absolute top-1 -translate-x-1/2 transition-[left] duration-500"
-                style={{ left: `${riskGaugeScore}%` }}
-              >
-                <span className="mx-auto block h-4 w-0.5 rounded-full bg-white shadow-[0_0_14px_rgba(255,255,255,0.7)]" />
-                <span className="mt-1 block h-0 w-0 border-x-[5px] border-t-[7px] border-x-transparent border-t-white drop-shadow-[0_0_8px_rgba(255,255,255,0.55)]" />
-              </div>
-              <div className="absolute inset-x-0 bottom-0 flex justify-between text-[7px] font-black uppercase tracking-[0.07em] text-slate-500">
-                <span>Low</span>
-                <span>Very High</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
-            {heroReadinessChips
-              .filter((chip) => chip.label !== "Risk" && chip.label !== "Recommendation")
-              .map((chip) => (
-                <div
-                  key={chip.label}
-                  className={`rounded-2xl border px-3 py-2 ${chip.className}`}
-                >
-                  <p className="text-[9px] font-black uppercase tracking-[0.12em] opacity-70">
-                    {chip.label}
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <p className={`text-lg font-black leading-none ${planReadinessTone.text}`}>
+                    {planReadiness.overall}%
                   </p>
-                  <p className="mt-1 break-words text-xs font-black leading-4">
-                    {chip.value}
+                  <p className="truncate text-[10px] font-black text-slate-300">
+                    {planReadiness.overall >= 80 ? "Ready" : "Building"}
                   </p>
                 </div>
-              ))}
-          </div>
-        </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-950/80">
+                  <span
+                    className={`block h-full rounded-full bg-gradient-to-r ${planReadinessTone.bar}`}
+                    style={{ width: `${planReadiness.overall}%` }}
+                  />
+                </div>
+              </div>
 
-        <div className="rounded-[24px] border border-orange-200/20 bg-orange-300/10 p-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-orange-100/80">
-            Recommended Next Step
-          </p>
-          <p className="mt-2 text-xs font-semibold leading-5 text-orange-50">
-            {planReadiness.risk.recommendation}
-          </p>
-          {planReadiness.risk.factors.length ? (
-            <div className="mt-3">
-              <p className="mb-1.5 text-[8px] font-black uppercase tracking-[0.14em] text-orange-100/70">
-                Factors
-              </p>
-              <div className="flex max-w-full flex-wrap gap-1 overflow-x-hidden">
-                {planReadiness.risk.factors.map((factor) => (
+              <div className={`relative overflow-hidden rounded-2xl border ${planRiskTone.border} bg-[radial-gradient(circle_at_12%_0%,rgba(251,146,60,0.12),transparent_38%),rgba(15,23,42,0.58)] px-3 py-2 ${planRiskTone.glow}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[9px] font-black uppercase tracking-[0.12em] text-orange-100/75">
+                    Risk
+                  </p>
+                  <p className={`text-sm font-black ${planRiskTone.text}`}>
+                    {planReadiness.risk.label}
+                    <span className="ml-1 text-[10px] text-slate-500">
+                      {planReadiness.risk.score}%
+                    </span>
+                  </p>
+                </div>
+                <div className={`relative mt-2 h-2 rounded-full bg-[linear-gradient(90deg,#60a5fa_0%,#34d399_26%,#facc15_52%,#fb923c_74%,#dc2626_100%)] ${planRiskTone.glow}`}>
+                  <span
+                    className="absolute top-1/2 h-3 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.75)] transition-[left] duration-500"
+                    style={{ left: `${riskGaugeScore}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="-mx-2 mt-2 flex max-w-[calc(100%+1rem)] gap-1.5 overflow-x-auto overscroll-x-contain px-2 pb-2 [scrollbar-color:rgba(34,211,238,0.42)_rgba(15,23,42,0.70)] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/42 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/60">
+              {detailReadinessChips.map((chip) => (
+                <span
+                  key={chip.label}
+                  className={`inline-flex min-h-[26px] max-w-[220px] flex-none items-center rounded-full border px-2 py-1 text-[9px] font-black leading-none ${chip.className}`}
+                >
+                  <span className="shrink-0 text-slate-300/75">{chip.label}</span>
+                  <span className="ml-1 truncate text-white">{chip.value}</span>
+                </span>
+              ))}
+            </div>
+
+            <div className="mt-2 rounded-2xl border border-emerald-200/20 bg-emerald-300/8 px-3 py-2 text-xs font-semibold leading-5 text-emerald-50/85">
+              <span className="font-black text-emerald-100">Recommendation:</span>{" "}
+              {planReadiness.risk.recommendation}
+              <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.1em] text-emerald-100/70">
+                Next: {recommendedNext}
+              </span>
+            </div>
+
+            {compactFactors.length ? (
+              <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {compactFactors.map((factor) => (
                   <span
                     key={factor}
                     title={factor}
-                    className={`inline-flex min-h-[19px] max-w-full items-center rounded-lg border ${planRiskTone.border} bg-slate-950/42 px-1.5 py-0.5 text-[8px] font-black leading-none ${planRiskTone.text}`}
+                    className={`inline-flex min-h-[22px] shrink-0 items-center rounded-full border ${planRiskTone.border} bg-slate-950/42 px-2 py-0.5 text-[8px] font-black leading-none ${planRiskTone.text}`}
                   >
                     {getCompactRiskFactorLabel(factor)}
                   </span>
                 ))}
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
-      </div>
-    </aside>
-  );
+
+        <div className="hidden xl:flex xl:items-center xl:justify-between xl:gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/80">
+              Readiness Context
+            </p>
+            <p className="mt-1 text-sm font-black text-white">
+              Compact status
+            </p>
+          </div>
+          <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.11em] ${planReadinessTone.badge}`}>
+            {planReadiness.readinessLabel}
+          </span>
+        </div>
+
+        <div className="mt-3 hidden gap-2 xl:grid xl:grid-cols-2">
+          <div className={`relative overflow-hidden rounded-2xl border border-cyan-100/24 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.16),transparent_38%),rgba(15,23,42,0.62)] px-3 py-2.5 ${planReadinessTone.glow}`}>
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-cyan-200/70 via-emerald-200/60 to-transparent"
+            />
+            <div className="flex items-center gap-3">
+              <div
+                className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full border border-cyan-100/20 bg-slate-950/78 shadow-[0_0_24px_rgba(34,211,238,0.18)]"
+                style={{
+                  background: `conic-gradient(rgba(34,211,238,0.95) 0deg, rgba(52,211,153,0.95) ${planReadiness.overall * 3.6}deg, rgba(15,23,42,0.9) 0deg)`,
+                }}
+              >
+                <span className="absolute inset-1.5 rounded-full bg-slate-950" />
+                <span className={`relative text-xs font-black ${planReadinessTone.text}`}>
+                  {planReadiness.overall}%
+                </span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100/75">
+                  Plan Ready
+                </p>
+                <p className="mt-1 truncate text-xs font-black text-white">
+                  {planReadiness.overall >= 80 ? "Profile lit up" : "Building context"}
+                </p>
+              </div>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-950/80">
+              <span
+                className={`block h-full rounded-full bg-gradient-to-r ${planReadinessTone.bar} shadow-[0_0_16px_rgba(34,211,238,0.22)] transition-[width] duration-500`}
+                style={{ width: `${planReadiness.overall}%` }}
+              />
+            </div>
+          </div>
+
+          <div className={`relative overflow-hidden rounded-2xl border ${planRiskTone.border} bg-[radial-gradient(circle_at_12%_0%,rgba(251,146,60,0.12),transparent_38%),rgba(15,23,42,0.62)] px-3 py-2.5 ${planRiskTone.glow}`}>
+            <span
+              aria-hidden="true"
+              className={`pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r ${planRiskTone.bar} opacity-80`}
+            />
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[9px] font-black uppercase tracking-[0.12em] text-orange-100/75">
+                Risk
+              </p>
+              <p className={`text-sm font-black ${planRiskTone.text}`}>
+                {planReadiness.risk.label}
+                <span className="ml-1 text-[10px] text-slate-500">
+                  {planReadiness.risk.score}%
+                </span>
+              </p>
+            </div>
+            <div className={`relative mt-2 h-3 rounded-full bg-[linear-gradient(90deg,#60a5fa_0%,#34d399_26%,#facc15_52%,#fb923c_74%,#dc2626_100%)] ${planRiskTone.glow}`}>
+              <span
+                className="absolute top-1/2 h-4 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.8)] transition-[left] duration-500"
+                style={{ left: `${riskGaugeScore}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 hidden max-w-full flex-wrap gap-1.5 overflow-hidden xl:flex">
+          {compactReadinessChips.map((chip) => (
+            <div
+              key={chip.label}
+              className={`inline-flex min-h-[28px] min-w-0 max-w-full flex-[1_1_150px] items-center rounded-full border px-2 py-1 text-[9px] font-black leading-none ${chip.className}`}
+            >
+              <span className="shrink-0 text-slate-300/80">{chip.label}</span>
+              <span className="ml-1 truncate text-white">{chip.value}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="relative mt-3 hidden overflow-hidden rounded-2xl border border-emerald-200/28 bg-[radial-gradient(circle_at_14%_0%,rgba(52,211,153,0.16),transparent_40%),rgba(15,23,42,0.62)] px-3 py-2.5 shadow-[0_0_24px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.08)] xl:block">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-emerald-300/70 via-cyan-300/60 to-transparent"
+          />
+          <p className="text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/80">
+            Recommendation
+          </p>
+          <p className="mt-1 text-xs font-black leading-5 text-cyan-50">
+            {planReadiness.risk.recommendation}
+          </p>
+          <p className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-100/65">
+            Next: {recommendedNext}
+          </p>
+        </div>
+
+        {compactFactors.length ? (
+          <div className="mt-2 hidden max-w-full flex-wrap gap-1.5 xl:flex">
+            {compactFactors.map((factor) => (
+              <span
+                key={factor}
+                title={factor}
+                className={`inline-flex min-h-[20px] items-center rounded-full border ${planRiskTone.border} bg-slate-950/42 px-2 py-0.5 text-[8px] font-black leading-none ${planRiskTone.text}`}
+              >
+                {getCompactRiskFactorLabel(factor)}
+              </span>
+            ))}
+            {planReadiness.risk.factors.length > compactFactors.length ? (
+              <span className="inline-flex min-h-[20px] items-center rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[8px] font-black leading-none text-slate-400">
+                +{planReadiness.risk.factors.length - compactFactors.length} more
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+      </aside>
+    );
+  };
 
   const renderHero = () => (
     <section className="relative overflow-hidden rounded-[36px] border border-white/10 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,146,60,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.94))] p-5 shadow-[0_34px_120px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.14)] sm:p-7">
@@ -3836,152 +7570,451 @@ export default function ClientProfilePage() {
     </section>
   );
 
-  const renderGoalCompass = () => (
-    <Panel
-      eyebrow="Goal Compass"
-      title="Choose the plan direction"
-      subtitle="These goal modes are training logic inputs, not app settings. They should shape volume, exercise selection, nutrition guidance, and recovery thresholds."
-    >
-      <div className="relative z-0 grid overflow-visible gap-x-4 gap-y-8 md:grid-cols-2 xl:grid-cols-4">
-        {goalCards.map((goal) => {
-          const isActive = profile.goalMode === goal.id;
-          const isInfoActive = activePlanDirectionInfo === goal.id;
-          const tooltipId = `plan-direction-${goal.id
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")}`;
-          const selectGoal = () => {
-            setActivePlanDirectionInfo(null);
-            setProfileField("goalMode", goal.id);
-            setProfileField("primaryGoal", `${goal.id} Plan`);
-          };
+  const renderGoalCompass = () => {
+    const selectedDirections = normalizePlanDirections(
+      profile.planDirections,
+      profile.goalMode,
+    );
+    const primaryDirection = selectedDirections[0];
+    const secondaryDirection = selectedDirections[1];
+    const scrollbarTheme = getPlanDirectionScrollbarTheme(selectedDirections);
+    const scrollbarStyle = {
+      "--plan-scroll-from": scrollbarTheme.from,
+      "--plan-scroll-glow": scrollbarTheme.glow,
+      "--plan-scroll-to": scrollbarTheme.to,
+      "--plan-scroll-via": scrollbarTheme.via,
+    } as CSSProperties;
+    const renderSummaryChip = (
+      direction: GoalMode,
+      priority: "Primary" | "Secondary",
+    ) => {
+      const goalStyle = goalVisualStyles[direction];
 
-          return (
-            <div
-              key={goal.id}
-              role="button"
-              tabIndex={0}
-              aria-pressed={isActive}
-              onClick={selectGoal}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  selectGoal();
-                }
-              }}
-              className={`group/card relative z-0 flex min-h-[168px] cursor-pointer flex-col overflow-visible rounded-[28px] border p-4 text-left transition duration-200 hover:z-[80] hover:-translate-y-1 hover:scale-[1.01] focus:z-[80] focus:outline-none focus-visible:-translate-y-1 focus-visible:scale-[1.01] active:scale-[0.99] ${
-                isActive
-                  ? "border-cyan-200/55 bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,0.24),transparent_42%),rgba(8,47,73,0.48)] shadow-[0_0_38px_rgba(34,211,238,0.2)]"
-                  : "border-white/10 bg-slate-950/48 hover:border-cyan-200/28 hover:bg-white/[0.065] hover:shadow-[0_0_26px_rgba(34,211,238,0.1)] focus-visible:border-cyan-200/40 focus-visible:shadow-[0_0_28px_rgba(34,211,238,0.14)]"
+      return (
+        <span
+          key={priority}
+          className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] ${
+            priority === "Primary"
+              ? goalStyle.signalActive
+              : goalStyle.signalIdle
+          }`}
+        >
+          {priority}: {getPlanDirectionLabel(direction)}
+        </span>
+      );
+    };
+    const renderInsightCard = (
+      direction: GoalMode,
+      priority: "Primary" | "Secondary",
+    ) => {
+      const goalStyle = goalVisualStyles[direction];
+
+      return (
+        <div
+          key={priority}
+          className="relative overflow-hidden rounded-[22px] border border-white/10 bg-slate-950/48 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+        >
+          <span
+            aria-hidden="true"
+            className={`pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r ${goalStyle.wash} opacity-80`}
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${
+                priority === "Primary"
+                  ? goalStyle.signalActive
+                  : goalStyle.signalIdle
               }`}
             >
-              <span
-                className={`pointer-events-none absolute inset-x-0 top-0 h-20 rounded-t-[28px] bg-gradient-to-br from-cyan-300/14 via-blue-300/8 to-transparent transition ${
-                  isActive
-                    ? "opacity-100"
-                    : "opacity-60 group-hover/card:opacity-100"
+              {priority}
+            </span>
+            <p className="text-sm font-black text-white">
+              {getPlanDirectionLabel(direction)}
+            </p>
+          </div>
+          <p className="mt-3 text-xs font-semibold leading-5 text-slate-300">
+            {planDirectionInsights[direction]}
+          </p>
+        </div>
+      );
+    };
+
+    return (
+    <CollapsibleProfilePanel
+      completion={tabCompletions.planDirection}
+      expanded={profileSectionOpen.planDirection}
+      onToggle={() => toggleProfileSection("planDirection")}
+      summary={
+        <div className="flex flex-wrap gap-2">
+          {primaryDirection ? renderSummaryChip(primaryDirection, "Primary") : null}
+          {secondaryDirection ? renderSummaryChip(secondaryDirection, "Secondary") : null}
+          {!selectedDirections.length ? (
+            <span className="rounded-full border border-white/10 bg-slate-950/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">
+              No direction selected
+            </span>
+          ) : null}
+        </div>
+      }
+      title="Plan Direction"
+      subtitle="Choose the direction you want your training to prioritize."
+    >
+      {/* TODO: Primary plan direction should drive main programming. */}
+      {/* TODO: Secondary plan direction should modify accessories, recovery, and cardio once robo-coach rules are ready. */}
+      <p className="mb-3 rounded-2xl border border-cyan-200/16 bg-cyan-300/8 px-4 py-3 text-xs font-semibold leading-5 text-cyan-50">
+        {planDirectionMessage ||
+          "Choose up to 2 priorities. The first selected card is Primary; the second is Secondary."}
+      </p>
+
+      <div className="mb-4 rounded-[24px] border border-white/10 bg-white/[0.035] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/80">
+            Selected Direction Insights
+          </p>
+          <span className="rounded-full border border-white/10 bg-slate-950/48 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+            {selectedDirections.length}/2 selected
+          </span>
+        </div>
+        {selectedDirections.length ? (
+          <>
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {primaryDirection ? renderInsightCard(primaryDirection, "Primary") : null}
+              {secondaryDirection ? renderInsightCard(secondaryDirection, "Secondary") : null}
+            </div>
+            <div className="mt-3 rounded-2xl border border-emerald-200/14 bg-emerald-300/8 p-3">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100/80">
+                Combo Insight
+              </p>
+              <p className="mt-2 text-xs font-semibold leading-5 text-slate-200">
+                {getPlanDirectionComboInsight(selectedDirections)}
+              </p>
+            </div>
+          </>
+        ) : (
+          <p className="mt-3 rounded-2xl border border-dashed border-white/12 bg-slate-950/36 p-3 text-xs font-semibold leading-5 text-slate-400">
+            Choose up to 2 plan directions to unlock personalized programming insights.
+          </p>
+        )}
+      </div>
+
+      <div className="mb-3 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          aria-label="Scroll Plan Direction left"
+          onClick={() => scrollGoalCompass("left")}
+          className="grid h-10 w-10 place-items-center rounded-2xl border border-cyan-200/18 bg-cyan-300/8 text-lg font-black text-cyan-100 transition hover:border-cyan-200/45 hover:bg-cyan-300/16 hover:shadow-[0_0_22px_rgba(34,211,238,0.14)]"
+        >
+          &lt;
+        </button>
+        <button
+          type="button"
+          aria-label="Scroll Plan Direction right"
+          onClick={() => scrollGoalCompass("right")}
+          className="grid h-10 w-10 place-items-center rounded-2xl border border-fuchsia-200/18 bg-fuchsia-300/8 text-lg font-black text-fuchsia-100 transition hover:border-fuchsia-200/45 hover:bg-fuchsia-300/16 hover:shadow-[0_0_22px_rgba(217,70,239,0.14)]"
+        >
+          &gt;
+        </button>
+      </div>
+
+      <div
+        ref={goalCompassSliderRef}
+        onScroll={markGoalCompassScrolling}
+        style={scrollbarStyle}
+        className={`flex max-w-full snap-x snap-mandatory gap-3 overflow-x-auto overflow-y-visible overscroll-x-contain scroll-smooth pb-5 pr-4 [scrollbar-color:var(--plan-scroll-via)_rgba(15,23,42,0.74)] [scrollbar-width:auto] [touch-action:pan-x] [&::-webkit-scrollbar]:h-3 [&::-webkit-scrollbar]:transition-all [&::-webkit-scrollbar]:duration-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:border-[3px] [&::-webkit-scrollbar-thumb]:border-slate-950/80 [&::-webkit-scrollbar-thumb]:bg-[linear-gradient(90deg,var(--plan-scroll-from),var(--plan-scroll-via),var(--plan-scroll-to))] [&::-webkit-scrollbar-thumb]:shadow-[0_0_18px_var(--plan-scroll-glow)] [&::-webkit-scrollbar-thumb]:transition-all [&::-webkit-scrollbar-thumb]:duration-300 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:border [&::-webkit-scrollbar-track]:border-white/10 [&::-webkit-scrollbar-track]:bg-slate-950/72 [&::-webkit-scrollbar-track]:shadow-[inset_0_1px_8px_rgba(255,255,255,0.09),inset_0_-1px_8px_rgba(0,0,0,0.24)] hover:[&::-webkit-scrollbar]:h-4 hover:[&::-webkit-scrollbar-thumb]:shadow-[0_0_30px_var(--plan-scroll-glow)] ${
+          goalCompassScrolling
+            ? "[&::-webkit-scrollbar]:h-4 [&::-webkit-scrollbar-thumb]:shadow-[0_0_34px_var(--plan-scroll-glow)] [&::-webkit-scrollbar-thumb]:animate-pulse"
+            : ""
+        }`}
+      >
+          {goalCards
+            .filter((goal) => goal.id !== "Maintain")
+            .map((goal) => {
+            const selectedIndex = selectedDirections.indexOf(goal.id);
+            const isActive = selectedIndex >= 0;
+            const isPrimary = selectedIndex === 0;
+            const isSecondary = selectedIndex === 1;
+            const displayLabel = goal.id === "Recovery" ? "Recovery" : goal.label;
+            const goalStyle = goalVisualStyles[goal.id];
+            const selectGoal = () => {
+              togglePlanDirection(goal.id);
+            };
+
+            return (
+              <div
+                key={goal.id}
+                ref={(node) => {
+                  goalCompassCardRefs.current[goal.id] = node;
+                }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isActive}
+                onClick={selectGoal}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    selectGoal();
+                  }
+                }}
+                className={`group/card relative z-0 flex min-h-[144px] w-[220px] shrink-0 snap-center cursor-pointer flex-col overflow-hidden rounded-[24px] border p-3.5 text-left transition duration-300 hover:z-[80] hover:-translate-y-1 focus:z-[80] focus:outline-none focus-visible:-translate-y-1 active:scale-[0.99] sm:w-[238px] ${
+                  isPrimary
+                    ? `${goalStyle.selectedCard} ring-2 ring-white/18 shadow-[0_0_52px_rgba(34,211,238,0.20)]`
+                    : isSecondary
+                      ? `${goalStyle.selectedCard} ring-1 ring-white/10 opacity-95`
+                    : `border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.055),transparent_34%),rgba(15,23,42,0.58)] shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] ${goalStyle.hoverCard}`
                 }`}
-              />
-              <div className="flex items-start justify-between gap-3">
+              >
                 <span
-                  className={`relative grid h-12 w-12 place-items-center rounded-2xl border text-xl transition duration-200 group-hover/card:scale-105 group-focus-visible/card:scale-105 ${
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r ${goalStyle.wash} opacity-90`}
+                />
+                <span
+                  className={`pointer-events-none absolute inset-x-0 top-0 h-20 rounded-t-[24px] bg-gradient-to-br ${goalStyle.wash} transition ${
                     isActive
-                      ? "border-cyan-100/35 bg-cyan-300/18 shadow-[0_0_22px_rgba(34,211,238,0.18)]"
-                      : "border-white/10 bg-white/[0.055]"
+                      ? "opacity-100"
+                      : "opacity-64 group-hover/card:opacity-100"
                   }`}
-                >
-                  {goal.icon}
-                </span>
-                <div className="relative flex items-center gap-2">
+                />
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-gradient-to-br ${goalStyle.wash} opacity-36 blur-2xl transition group-hover/card:opacity-70`}
+                />
+                <div className="flex items-start justify-between gap-3">
                   <span
-                    className={`inline-flex rounded-2xl border px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] ${
+                    className={`relative grid h-12 w-12 place-items-center rounded-2xl border text-xl transition duration-200 group-hover/card:scale-105 group-focus-visible/card:scale-105 ${
                       isActive
-                        ? "border-orange-100/35 bg-orange-300/16 text-orange-100"
-                        : "border-white/10 bg-white/[0.055] text-cyan-100"
+                        ? goalStyle.iconActive
+                        : goalStyle.iconIdle
                     }`}
                   >
-                    {goal.signal}
-                  </span>
-                  <span
-                    className="relative z-[90] inline-flex overflow-visible"
-                    onMouseEnter={() => setActivePlanDirectionInfo(goal.id)}
-                    onMouseLeave={() =>
-                      setActivePlanDirectionInfo((current) =>
-                        current === goal.id ? null : current,
-                      )
-                    }
-                  >
-                    <button
-                      type="button"
-                      aria-label={`${goal.label} plan direction details`}
-                      aria-describedby={isInfoActive ? tooltipId : undefined}
-                      aria-expanded={isInfoActive}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setActivePlanDirectionInfo(goal.id);
-                      }}
-                      onKeyDown={(event) => {
-                        event.stopPropagation();
-                      }}
-                      onFocus={() => setActivePlanDirectionInfo(goal.id)}
-                      onBlur={() =>
-                        setActivePlanDirectionInfo((current) =>
-                          current === goal.id ? null : current,
-                        )
-                      }
-                      className={`grid h-7 w-7 place-items-center rounded-full border text-[11px] font-black transition duration-200 hover:-translate-y-0.5 hover:scale-105 focus:outline-none focus-visible:-translate-y-0.5 focus-visible:scale-105 focus-visible:ring-2 focus-visible:ring-cyan-200/50 ${
-                        isInfoActive
-                          ? "border-cyan-100/45 bg-cyan-300 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.18)]"
-                          : "border-white/10 bg-slate-950/58 text-slate-400 hover:border-cyan-100/35 hover:text-cyan-100 focus-visible:border-cyan-100/35 focus-visible:text-cyan-100"
-                      }`}
-                    >
-                      i
-                    </button>
+                    {goalStyle.icon}
                     <span
-                      id={tooltipId}
-                      role="tooltip"
-                      className={`pointer-events-none absolute bottom-[calc(100%+0.65rem)] right-0 z-[160] w-72 max-w-[calc(100vw-2rem)] translate-y-2 scale-95 rounded-2xl border border-cyan-100/24 bg-slate-950/96 p-3 text-xs font-semibold leading-5 text-slate-300 opacity-0 shadow-[0_24px_70px_rgba(0,0,0,0.55),0_0_28px_rgba(34,211,238,0.16)] backdrop-blur-xl transition duration-200 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 ${
-                        isInfoActive
-                          ? "translate-y-0 scale-100 opacity-100"
-                          : ""
+                      aria-hidden="true"
+                      className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${goalStyle.wash} opacity-0 blur-xl transition group-hover/card:opacity-45`}
+                    />
+                  </span>
+                  <div className="relative z-[90] flex items-center gap-2">
+                    <span
+                      className={`inline-flex rounded-xl border px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] ${
+                        isActive
+                          ? goalStyle.signalActive
+                          : goalStyle.signalIdle
                       }`}
                     >
-                      <span className="absolute -bottom-1 right-3 h-2 w-2 rotate-45 border-b border-r border-cyan-100/24 bg-slate-950 sm:left-1/2 sm:right-auto sm:-translate-x-1/2" />
-                      <span className="block font-black text-cyan-100">
-                        {goal.description}
-                      </span>
-                      <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.1em] text-orange-200/90">
-                        {goal.effect}
-                      </span>
+                      {goal.signal}
                     </span>
-                  </span>
+                    <span
+                      onClick={(event) => event.stopPropagation()}
+                      onKeyDown={(event) => event.stopPropagation()}
+                    >
+                      <FloatingInfoBubble label={`${displayLabel} plan direction`}>
+                        <span className="block font-black text-cyan-100">
+                          {goal.description}
+                        </span>
+                        <span className="mt-1 block text-[10px] font-black uppercase tracking-[0.1em] text-orange-200/90">
+                          {goal.effect}
+                        </span>
+                      </FloatingInfoBubble>
+                    </span>
+                  </div>
                 </div>
+                <div className="relative mt-auto pt-5">
+                  <p className="text-base font-black leading-tight text-white">
+                    {displayLabel}
+                  </p>
+                  <p
+                    className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.11em] transition ${
+                      isActive
+                        ? goalStyle.statusActive
+                        : goalStyle.statusIdle
+                    }`}
+                  >
+                    {isPrimary ? "Primary" : isSecondary ? "Secondary" : "Select"}
+                  </p>
+                </div>
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute inset-x-4 bottom-0 h-px bg-gradient-to-r ${goalStyle.wash} opacity-70 transition group-hover/card:opacity-100`}
+                />
               </div>
-              <div className="relative mt-5">
-                <p className="text-lg font-black leading-tight text-white">
-                  {goal.label}
-                </p>
-                <p
-                  className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] transition ${
-                    isActive
-                      ? "border-cyan-100/35 bg-cyan-300/16 text-cyan-100"
-                      : "border-white/10 bg-white/[0.04] text-slate-500 group-hover/card:text-cyan-100"
-                  }`}
-                >
-                  {isActive ? "Active" : "Tap to select"}
-                </p>
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
-    </Panel>
-  );
+    </CollapsibleProfilePanel>
+    );
+  };
   /*
                   {isActive ? "✓ Active" : "Tap to select"}
   */
+  const renderPreviousExperience = () => {
+    const exerciseConfidence = normalizeExerciseConfidence(profile.exerciseConfidence);
+    const experienceCompletion = calculateSectionCompletion([
+      profile.experienceLevel,
+      profile.consistencyHistory,
+      profile.familiarityAreas,
+      exerciseConfidence,
+      profile.previousCoaching,
+    ]);
+    const confidenceItems: Array<{
+      color: MetricColor;
+      helper: string;
+      key: keyof ExerciseConfidence;
+      label: string;
+    }> = [
+      {
+        color: "blue",
+        helper: "How comfortable you feel loading, bracing, and progressing dumbbells or barbells.",
+        key: "freeWeights",
+        label: "Free Weights",
+      },
+      {
+        color: "steel",
+        helper: "How comfortable you feel setting up machines and adjusting range, seat, and load.",
+        key: "machines",
+        label: "Machines",
+      },
+      {
+        color: "cyan",
+        helper: "How comfortable you feel using treadmills, bikes, rowers, and similar cardio tools.",
+        key: "cardioEquipment",
+        label: "Cardio Equipment",
+      },
+      {
+        color: "teal",
+        helper: "How confident you feel with mobility drills, warmups, cooldowns, and recovery movement.",
+        key: "mobilityWork",
+        label: "Mobility Work",
+      },
+      {
+        color: "purple",
+        helper: "How ready you feel for technical lifts, explosive work, or higher-skill movement patterns.",
+        key: "complexMovements",
+        label: "Complex Movements",
+      },
+    ];
+    const familiaritySummary = profile.familiarityAreas.length
+      ? `${profile.familiarityAreas.slice(0, 2).join(" + ")}${
+          profile.familiarityAreas.length > 2
+            ? ` +${profile.familiarityAreas.length - 2}`
+            : ""
+        }`
+      : "Familiarity not set";
+    const coachingSummary = profile.previousCoaching.length
+      ? `${profile.previousCoaching.slice(0, 1).join("")}${
+          profile.previousCoaching.length > 1
+            ? ` +${profile.previousCoaching.length - 1}`
+            : ""
+        }`
+      : "Coaching not set";
+    const previousExperienceSummaryItems = [
+      profile.experienceLevel || "Experience not set",
+      profile.consistencyHistory || "Consistency not set",
+      familiaritySummary,
+      coachingSummary,
+    ];
+    const previousExperienceSummary = (
+      <div className="flex flex-wrap gap-2">
+        {previousExperienceSummaryItems.map((item) => (
+          <span
+            key={item}
+            className="rounded-full border border-fuchsia-200/18 bg-fuchsia-300/10 px-3 py-1.5 text-[11px] font-black text-fuchsia-50"
+          >
+            {item}
+          </span>
+        ))}
+      </div>
+    );
+
+    return (
+      <CollapsibleProfilePanel
+        completion={experienceCompletion}
+        expanded={profileSectionOpen.previousExperience}
+        onToggle={() => toggleProfileSection("previousExperience")}
+        summary={previousExperienceSummary}
+        title="Previous Experience"
+        subtitle="Your training background helps shape exercise selection, progression speed, volume, and coaching style."
+      >
+        <div className="space-y-4">
+          <div className="grid gap-4 xl:grid-cols-2">
+            <CompactSingleSelectRow
+              helper="Sets the starting complexity and how quickly the plan should progress."
+              onSelect={(value) => setProfileField("experienceLevel", value)}
+              options={experienceLevelOptions}
+              selected={profile.experienceLevel}
+              title="Overall Experience Level"
+            />
+            <CompactSingleSelectRow
+              helper="Consistency history helps the coach choose realistic ramp rates and recovery assumptions."
+              onSelect={(value) => setProfileField("consistencyHistory", value)}
+              options={consistencyHistoryOptions}
+              selected={profile.consistencyHistory}
+              title="Consistency History"
+            />
+          </div>
+
+          <CompactMultiSelectGrid
+            onToggle={(value) => toggleProfileArray("familiarityAreas", value)}
+            options={familiarityAreaOptions}
+            selected={profile.familiarityAreas}
+            title="Familiarity Areas"
+          />
+
+          <div className="rounded-[24px] border border-white/10 bg-[radial-gradient(circle_at_12%_0%,rgba(59,130,246,0.12),transparent_34%),radial-gradient(circle_at_88%_0%,rgba(168,85,247,0.10),transparent_30%),rgba(15,23,42,0.42)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-200">
+                  Exercise Confidence
+                </p>
+                <InfoBubble label="Exercise Confidence">
+                  Rate confidence from 0 to 10. This should guide coaching detail,
+                  substitutions, and technical progression later.
+                </InfoBubble>
+              </div>
+              <span className="rounded-full border border-white/10 bg-slate-950/70 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-400">
+                0-10 sliders
+              </span>
+            </div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              {confidenceItems.map((item) => (
+                <MetricControl
+                  key={item.key}
+                  compact
+                  color={item.color}
+                  defaultValue={Number(defaultProfile.exerciseConfidence[item.key]) || 5}
+                  helper={item.helper}
+                  helperMode="tooltip"
+                  label={item.label}
+                  max={10}
+                  min={0}
+                  onChange={(value) => updateExerciseConfidence(item.key, value)}
+                  showManualInput={false}
+                  showRangeMarkers
+                  step={1}
+                  unit="/10"
+                  value={exerciseConfidence[item.key]}
+                />
+              ))}
+            </div>
+          </div>
+
+          <CompactMultiSelectGrid
+            onToggle={(value) => toggleProfileArray("previousCoaching", value)}
+            options={previousCoachingOptions}
+            selected={profile.previousCoaching}
+            title="Previous Coaching"
+          />
+
+          {/* TODO: Feed previous experience into future robo-coach logic: advanced users can unlock more complex programming, beginners get simpler substitutions, consistency affects recovery assumptions, and experience modifies progression speed. */}
+          <div className="rounded-[20px] border border-emerald-200/16 bg-emerald-300/8 px-4 py-3 text-xs font-semibold leading-5 text-emerald-100/78">
+            Coach note: this is context for future programming logic. It does not auto-change the plan yet.
+          </div>
+        </div>
+      </CollapsibleProfilePanel>
+    );
+  };
+
   const renderGenderSelector = () => (
-    <div className="relative z-0 flex h-full flex-col gap-3 overflow-visible rounded-[24px] border border-white/10 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.10),transparent_34%),rgba(15,23,42,0.56)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-50 hover:z-50 sm:justify-between">
-      <div className="flex items-center gap-3">
+    <div className="relative z-0 flex self-start overflow-visible rounded-[22px] border border-white/10 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.10),transparent_34%),rgba(15,23,42,0.56)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-50 hover:z-50">
+      <div className="flex w-full flex-col gap-2">
+        <div className="flex items-center gap-2">
         <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100">
           Gender
         </p>
@@ -3996,15 +8029,25 @@ export default function ClientProfilePage() {
             option.id === "male"
               ? {
                   active:
-                    "border-cyan-100/38 bg-[radial-gradient(circle_at_25%_0%,rgba(34,211,238,0.30),transparent_44%),rgba(34,211,238,0.14)] text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.18)]",
-                  idle: "text-slate-400 hover:border-cyan-200/30 hover:bg-cyan-300/10 hover:text-cyan-100",
-                  symbol: "text-cyan-200",
+                    "border-cyan-100/55 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.38),transparent_48%),rgba(34,211,238,0.16)] shadow-[0_0_34px_rgba(34,211,238,0.26),inset_0_1px_0_rgba(255,255,255,0.12)]",
+                  iconActive:
+                    "border-cyan-100/45 bg-cyan-300/18 text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.34)]",
+                  iconIdle:
+                    "border-cyan-200/16 bg-cyan-300/8 text-cyan-200/78 group-hover:border-cyan-200/38 group-hover:text-cyan-100 group-hover:shadow-[0_0_18px_rgba(34,211,238,0.18)]",
+                  idle: "border-transparent bg-transparent hover:border-cyan-200/34 hover:bg-cyan-300/10",
+                  labelActive: "text-cyan-50",
+                  labelIdle: "text-slate-400 group-hover:text-cyan-100",
                 }
               : {
                   active:
-                    "border-fuchsia-100/34 bg-[radial-gradient(circle_at_25%_0%,rgba(217,70,239,0.24),transparent_44%),rgba(168,85,247,0.14)] text-fuchsia-50 shadow-[0_0_24px_rgba(217,70,239,0.16)]",
-                  idle: "text-slate-400 hover:border-fuchsia-200/28 hover:bg-fuchsia-300/10 hover:text-fuchsia-100",
-                  symbol: "text-fuchsia-200",
+                    "border-fuchsia-100/52 bg-[radial-gradient(circle_at_50%_0%,rgba(217,70,239,0.34),transparent_48%),rgba(168,85,247,0.16)] shadow-[0_0_34px_rgba(217,70,239,0.24),inset_0_1px_0_rgba(255,255,255,0.12)]",
+                  iconActive:
+                    "border-fuchsia-100/45 bg-fuchsia-300/18 text-fuchsia-50 shadow-[0_0_24px_rgba(217,70,239,0.30)]",
+                  iconIdle:
+                    "border-fuchsia-200/16 bg-fuchsia-300/8 text-fuchsia-200/78 group-hover:border-fuchsia-200/36 group-hover:text-fuchsia-100 group-hover:shadow-[0_0_18px_rgba(217,70,239,0.16)]",
+                  idle: "border-transparent bg-transparent hover:border-fuchsia-200/32 hover:bg-fuchsia-300/10",
+                  labelActive: "text-fuchsia-50",
+                  labelIdle: "text-slate-400 group-hover:text-fuchsia-100",
                 };
           return (
             <button
@@ -4012,23 +8055,26 @@ export default function ClientProfilePage() {
               type="button"
               aria-pressed={active}
               onClick={() => setGender(option.id)}
-              className={`flex min-h-[46px] flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-2 text-xs font-black uppercase tracking-[0.12em] transition duration-200 hover:-translate-y-0.5 active:scale-[0.98] sm:min-w-[112px] ${
+              className={`group flex min-h-[70px] flex-1 flex-col items-center justify-center gap-1.5 rounded-2xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] transition duration-200 hover:-translate-y-0.5 active:scale-[0.98] sm:min-w-[104px] ${
                 active
                   ? accent.active
                   : `border-transparent bg-transparent ${accent.idle}`
               }`}
             >
               <span
-                className={`text-base leading-none ${
-                  active ? accent.symbol : "text-slate-500"
+                className={`grid h-11 w-11 place-items-center rounded-2xl border text-[2rem] font-black leading-none transition duration-200 sm:h-12 sm:w-12 sm:text-[2.15rem] ${
+                  active ? accent.iconActive : accent.iconIdle
                 }`}
               >
                 {option.symbol}
               </span>
-              <span>{option.label}</span>
+              <span className={active ? accent.labelActive : accent.labelIdle}>
+                {option.label}
+              </span>
             </button>
           );
         })}
+      </div>
       </div>
     </div>
   );
@@ -4134,7 +8180,7 @@ export default function ClientProfilePage() {
 
   */
 
-  const renderBodyMetrics = () => {
+  const renderBodyMetrics = (options: { embedded?: boolean } = {}) => {
     const weightUnit =
       profile.appPersonalization.preferredUnitSystem === "kg" ? "kg" : "lb";
     const heightUnit =
@@ -4143,12 +8189,16 @@ export default function ClientProfilePage() {
       profile.appPersonalization.preferredUnitSystem === "kg" ? "L" : "oz";
     const waterDefault = waterUnit === "L" ? 2.5 : 80;
     const calculatedAge = calculateAgeFromBirthday(profile.birthday);
-    const displayedAge = calculatedAge || profile.age;
+    const displayedAge = calculatedAge;
+    const currentYear = new Date().getFullYear();
+    const birthdayYears = Array.from({ length: 121 }, (_, index) =>
+      String(currentYear - index),
+    );
     const updateBirthday = (birthday: string) => {
       const nextAge = calculateAgeFromBirthday(birthday);
       setProfile((current) => ({
         ...current,
-        age: nextAge || current.age,
+        age: nextAge,
         birthday,
       }));
     };
@@ -4159,6 +8209,14 @@ export default function ClientProfilePage() {
     const birthdayDays = Array.from({ length: birthdayDayCount }, (_, index) =>
       String(index + 1).padStart(2, "0"),
     );
+    const birthdayDayOptions = birthdayDays.map((day) => ({
+      label: String(Number.parseInt(day, 10)),
+      value: day,
+    }));
+    const birthdayYearOptions = birthdayYears.map((year) => ({
+      label: year,
+      value: year,
+    }));
     const updateBirthdayPart = (key: keyof BirthdayParts, rawValue: string) => {
       const value =
         key === "year"
@@ -4178,12 +8236,19 @@ export default function ClientProfilePage() {
 
       if (nextParts.year.length === 4 && nextParts.month && nextParts.day) {
         updateBirthday(`${nextParts.year}-${nextParts.month}-${nextParts.day}`);
+      } else {
+        setProfile((current) => ({
+          ...current,
+          age: "",
+          birthday: "",
+        }));
       }
     };
     const clearBirthday = () => {
       setBirthdayDraft({ day: "", month: "", year: "" });
       setProfile((current) => ({
         ...current,
+        age: "",
         birthday: "",
       }));
     };
@@ -4193,7 +8258,7 @@ export default function ClientProfilePage() {
         : "♂ Male";
     const bodySummaryItems = [
       genderSummary,
-      displayedAge ? `${displayedAge} yrs` : "Age not set",
+      displayedAge ? `${displayedAge} yrs` : "Birthday not set",
       profile.height ? `${profile.height} ${heightUnit}` : "Height not set",
       profile.currentWeight
         ? `${profile.currentWeight} ${weightUnit}`
@@ -4215,20 +8280,8 @@ export default function ClientProfilePage() {
       </div>
     );
 
-    return (
-      <CollapsibleProfilePanel
-        completion={tabCompletions.body}
-        expanded={profileSectionOpen.myBody}
-        onToggle={() =>
-          setProfileSectionOpen((current) => ({
-            measurements: false,
-            myBody: !current.myBody,
-          }))
-        }
-        summary={bodySummary}
-        title="My Body"
-        subtitle="Physical context that helps personalize training, recovery, nutrition, and recommendations."
-      >
+    const bodyMetricsContent = (
+      <>
         {/* TODO: Use these body and lifestyle inputs to tune workout recommendations, recovery prompts, nutrition targets, and equipment assumptions once shared recommendation logic is ready. */}
         <div className="relative z-0 overflow-visible rounded-[28px] border border-cyan-200/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.14),transparent_30%),rgba(15,23,42,0.62)] p-4 shadow-[0_0_44px_rgba(34,211,238,0.08)] md:p-5">
             <p className="mb-4 rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-xs font-semibold leading-5 text-slate-400">
@@ -4236,10 +8289,14 @@ export default function ClientProfilePage() {
             </p>
             <div className="mb-4 grid gap-4 lg:grid-cols-3">
               {renderGenderSelector()}
-              <div className="relative z-0 overflow-visible rounded-[24px] border border-white/10 bg-slate-950/52 p-4 transition focus-within:z-50 hover:z-50">
+              <div className="relative z-0 overflow-visible rounded-[24px] border border-blue-200/16 bg-[radial-gradient(circle_at_16%_0%,rgba(96,165,250,0.13),transparent_36%),rgba(15,23,42,0.58)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-50 hover:z-50 hover:border-blue-200/26 hover:shadow-[0_0_28px_rgba(96,165,250,0.08),inset_0_1px_0_rgba(255,255,255,0.08)]">
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-5 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-blue-300/70 to-cyan-300/50"
+                />
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-300">
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-blue-100">
                       Birthday
                     </p>
                     <InfoBubble label="Birthday">
@@ -4257,104 +8314,65 @@ export default function ClientProfilePage() {
                   ) : null}
                 </div>
 
-                <div className="mt-4 grid grid-cols-[1.1fr_0.8fr_1fr] gap-2">
-                  <label className="block">
-                    <span className="mb-1.5 block text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
-                      Month
-                    </span>
-                    <select
-                      aria-label="Birthday month"
-                      className="min-h-[48px] w-full rounded-2xl border border-white/10 bg-slate-950/78 px-3 py-3 text-sm font-black text-white outline-none transition hover:border-cyan-200/30 hover:bg-white/[0.06] focus:border-cyan-200/55 focus:bg-white/[0.075] focus:ring-2 focus:ring-cyan-300/15"
-                      onChange={(event) => updateBirthdayPart("month", event.target.value)}
-                      value={birthdayDraft.month}
-                    >
-                      <option value="">Month</option>
-                      {birthdayMonthOptions.map((month) => (
-                        <option key={month.value} value={month.value}>
-                          {month.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="mb-1.5 block text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
-                      Day
-                    </span>
-                    <select
-                      aria-label="Birthday day"
-                      className="min-h-[48px] w-full rounded-2xl border border-white/10 bg-slate-950/78 px-3 py-3 text-sm font-black text-white outline-none transition hover:border-cyan-200/30 hover:bg-white/[0.06] focus:border-cyan-200/55 focus:bg-white/[0.075] focus:ring-2 focus:ring-cyan-300/15"
-                      onChange={(event) => updateBirthdayPart("day", event.target.value)}
-                      value={birthdayDraft.day}
-                    >
-                      <option value="">Day</option>
-                      {birthdayDays.map((day) => (
-                        <option key={day} value={day}>
-                          {Number.parseInt(day, 10)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="mb-1.5 block text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
-                      Year
-                    </span>
-                    <input
-                      aria-label="Birthday year"
-                      className="min-h-[48px] w-full rounded-2xl border border-white/10 bg-slate-950/78 px-3 py-3 text-sm font-black text-white outline-none transition placeholder:text-slate-600 hover:border-cyan-200/30 hover:bg-white/[0.06] focus:border-cyan-200/55 focus:bg-white/[0.075] focus:ring-2 focus:ring-cyan-300/15"
-                      inputMode="numeric"
-                      maxLength={4}
-                      onChange={(event) => updateBirthdayPart("year", event.target.value)}
-                      placeholder="Year"
-                      type="text"
-                      value={birthdayDraft.year}
-                    />
-                  </label>
+                <div className="mt-3 grid grid-cols-[1.05fr_0.8fr_1fr] gap-2">
+                  <PremiumBirthdaySelect
+                    ariaLabel="Birthday month"
+                    label="Month"
+                    onChange={(value) => updateBirthdayPart("month", value)}
+                    options={birthdayMonthOptions}
+                    placeholder="Month"
+                    value={birthdayDraft.month}
+                  />
+                  <PremiumBirthdaySelect
+                    ariaLabel="Birthday day"
+                    label="Day"
+                    onChange={(value) => updateBirthdayPart("day", value)}
+                    options={birthdayDayOptions}
+                    placeholder="Day"
+                    value={birthdayDraft.day}
+                  />
+                  <PremiumBirthdaySelect
+                    ariaLabel="Birthday year"
+                    label="Year"
+                    onChange={(value) => updateBirthdayPart("year", value)}
+                    options={birthdayYearOptions}
+                    placeholder="Year"
+                    value={birthdayDraft.year}
+                  />
                 </div>
 
-                {profile.birthday ? (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-cyan-200/14 bg-cyan-300/8 p-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100/75">
-                        Birthday
-                      </p>
-                      <p className="mt-1 text-sm font-black text-white">
-                        {birthdayMonthOptions.find(
-                          (month) => month.value === birthdayDraft.month,
-                        )?.label || "Month"}{" "}
-                        {Number.parseInt(birthdayDraft.day, 10) || "--"},{" "}
-                        {birthdayDraft.year || "----"}
-                      </p>
+                <div className="mt-3 rounded-2xl border border-blue-200/14 bg-blue-300/8 p-3">
+                  {profile.birthday && displayedAge ? (
+                    <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-blue-100/75">
+                          Birthday
+                        </p>
+                        <p className="mt-1 text-sm font-black text-white">
+                          {birthdayMonthOptions.find(
+                            (month) => month.value === birthdayDraft.month,
+                          )?.label || "Month"}{" "}
+                          {Number.parseInt(birthdayDraft.day, 10) || "--"},{" "}
+                          {birthdayDraft.year || "----"}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl border border-cyan-200/18 bg-cyan-300/10 px-4 py-2 text-center">
+                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100/75">
+                          Age
+                        </p>
+                        <p className="text-2xl font-black text-white">{displayedAge}</p>
+                      </div>
                     </div>
-                    <div className="rounded-2xl border border-orange-200/14 bg-orange-300/8 p-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-orange-100/75">
-                        Age
-                      </p>
-                      <p className="mt-1 text-2xl font-black text-white">
-                        {displayedAge || "Not set"}
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
-                        Age fallback
-                      </p>
-                      <input
-                        className="min-h-[38px] w-24 rounded-xl border border-white/10 bg-slate-950/72 px-3 py-2 text-sm font-black text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/50 focus:bg-white/[0.07]"
-                        inputMode="numeric"
-                        onChange={(event) => setProfileField("age", event.target.value)}
-                        placeholder="Age"
-                        type="number"
-                        value={profile.age}
-                      />
-                    </div>
-                  </div>
-                )}
+                  ) : (
+                    <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">
+                      Add birthday to calculate age.
+                    </p>
+                  )}
+                </div>
               </div>
               <MetricControl
                 compact
-                color="violet"
+                color="steel"
                 defaultValue={heightUnit === "cm" ? 173 : 68}
                 helper="Height supports future estimates and exercise setup context."
                 helperMode="tooltip"
@@ -4362,6 +8380,7 @@ export default function ClientProfilePage() {
                 max={heightUnit === "cm" ? 220 : 86}
                 min={heightUnit === "cm" ? 120 : 48}
                 onChange={(value) => setProfileField("height", value)}
+                showArrowControls
                 showManualInput={false}
                 showRangeMarkers
                 showSteppers={false}
@@ -4395,6 +8414,7 @@ export default function ClientProfilePage() {
                   max={weightUnit === "kg" ? 220 : 480}
                   min={weightUnit === "kg" ? 35 : 80}
                   onChange={(value) => setProfileField("currentWeight", value)}
+                  showArrowControls
                   showManualInput={false}
                   showRangeMarkers
                   showSteppers={false}
@@ -4404,7 +8424,7 @@ export default function ClientProfilePage() {
                 />
                 <MetricControl
                   compact
-                  color="orange"
+                  color="emerald"
                   defaultValue={weightUnit === "kg" ? 79 : 175}
                   helper="Goal weight keeps body-direction recommendations grounded."
                   helperMode="tooltip"
@@ -4412,6 +8432,7 @@ export default function ClientProfilePage() {
                   max={weightUnit === "kg" ? 220 : 480}
                   min={weightUnit === "kg" ? 35 : 80}
                   onChange={(value) => setProfileField("goalWeight", value)}
+                  showArrowControls
                   showManualInput={false}
                   showRangeMarkers
                   showSteppers={false}
@@ -4425,7 +8446,7 @@ export default function ClientProfilePage() {
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <MetricControl
                 compact
-                color="orange"
+                color="amber"
                 defaultValue={18.5}
                 helper="Body-composition context."
                 helperMode="tooltip"
@@ -4433,6 +8454,7 @@ export default function ClientProfilePage() {
                 max={50}
                 min={5}
                 onChange={(value) => setProfileField("bodyFat", value)}
+                showArrowControls
                 showManualInput={false}
                 showRangeMarkers
                 showSteppers={false}
@@ -4442,7 +8464,7 @@ export default function ClientProfilePage() {
               />
               <MetricControl
                 compact
-                color="cyan"
+                color="teal"
                 defaultValue={34}
                 helper="Waist tracks direction over time."
                 helperMode="tooltip"
@@ -4450,6 +8472,7 @@ export default function ClientProfilePage() {
                 max={70}
                 min={20}
                 onChange={(value) => setProfileField("waist", value)}
+                showArrowControls
                 showManualInput={false}
                 showRangeMarkers
                 showSteppers={false}
@@ -4459,25 +8482,23 @@ export default function ClientProfilePage() {
               />
             </div>
 
-            <div className="mt-4 grid items-stretch gap-4 md:grid-cols-3">
-              <StatusSelector
-                helper="Shows whether body weight is stable, trending down, trending up, or unknown."
-                helperMode="tooltip"
-                label="Weight Trend"
+            <div className="mt-4 grid items-start gap-4 md:grid-cols-3">
+              <WeightTrendVerticalSelector
                 onChange={(value) => updateBodyStatus("weightTrend", value)}
-                options={weightTrendOptions}
                 value={profile.bodyStatus.weightTrend}
               />
               <MetricControl
                 compact
-                color="emerald"
+                color="purple"
                 defaultValue={8000}
+                dense
                 helper="Daily movement target."
                 helperMode="tooltip"
                 label="Steps Goal"
                 max={25000}
                 min={1000}
                 onChange={(value) => setProfileField("stepsGoal", value)}
+                showArrowControls
                 showManualInput={false}
                 showRangeMarkers
                 showSteppers={false}
@@ -4487,14 +8508,16 @@ export default function ClientProfilePage() {
               />
               <MetricControl
                 compact
-                color="cyan"
+                color="blue"
                 defaultValue={waterDefault}
+                dense
                 helper="Hydration target for recovery."
                 helperMode="tooltip"
                 label="Water Goal"
                 max={waterUnit === "L" ? 6 : 180}
                 min={waterUnit === "L" ? 0.5 : 20}
                 onChange={(value) => setProfileField("waterGoal", value)}
+                showArrowControls
                 showManualInput={false}
                 showRangeMarkers
                 showSteppers={false}
@@ -4504,18 +8527,16 @@ export default function ClientProfilePage() {
               />
             </div>
 
-            <div className="mt-4 grid gap-4 lg:grid-cols-3">
-              <InfoSelectField
+            <div className="mt-4 grid items-start gap-4 lg:grid-cols-3">
+              <OccupationSelector
                 helper="Occupation helps estimate daily fatigue, time constraints, and movement exposure."
-                label="Occupation"
                 onChange={(value) => setProfileField("occupation", value)}
-                options={occupationOptions}
                 value={profile.occupation}
               />
               <StatusSelector
-                helper="Sedentary level helps balance mobility, cardio, and recovery recommendations."
+                helper="Daily activity level helps balance mobility, cardio, and recovery recommendations."
                 helperMode="tooltip"
-                label="Sedentary Level"
+                label="Daily Activity Level"
                 onChange={(value) => setProfileField("sedentaryLevel", value)}
                 options={sedentaryLevelOptions}
                 value={profile.sedentaryLevel}
@@ -4530,6 +8551,7 @@ export default function ClientProfilePage() {
                 max={80}
                 min={0}
                 onChange={(value) => setProfileField("hoursWorkedPerWeek", value)}
+                showArrowControls
                 showManualInput={false}
                 showRangeMarkers
                 step={1}
@@ -4552,12 +8574,24 @@ export default function ClientProfilePage() {
                   Optional
                 </span>
               </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+                <InfoSearchableSelectField
+                  helper="State is optional and only used for broad weather, travel, and schedule-aware coaching context."
+                  label="State"
+                  onChange={(value) => setProfileField("state", value)}
+                  options={usStateOptions}
+                  placeholder="Select state"
+                  value={profile.state}
+                />
                 <InfoField
-                  helper="City is optional and can help future weather, travel, and schedule-aware suggestions."
+                  helper={
+                    profile.state
+                      ? `City stays optional and is scoped to ${profile.state} for broad planning context.`
+                      : "City stays optional. Choose a state first if you want the app to keep location context broad."
+                  }
                   label="City"
                   onChange={(value) => setProfileField("city", value)}
-                  placeholder="Seattle"
+                  placeholder={profile.state ? "City name" : "Select state first"}
                   value={profile.city}
                 />
                 <Field
@@ -4594,20 +8628,7 @@ export default function ClientProfilePage() {
             </p>
           </div>
 
-        <div className="mt-6 grid gap-5 lg:grid-cols-[0.7fr_1fr_0.9fr]">
-          <StatusSelector
-            label="Mobility Status"
-            onChange={(value) => updateBodyStatus("mobilityStatus", value)}
-            options={mobilityStatusOptions}
-            value={profile.bodyStatus.mobilityStatus}
-          />
-          <TextAreaField
-            label="Mobility Notes"
-            onChange={(value) => updateBodyStatus("mobilityNotes", value)}
-            placeholder="Restricted areas, improving ranges, warm-up needs..."
-            rows={4}
-            value={profile.bodyStatus.mobilityNotes}
-          />
+        <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,0.9fr)]">
           <div className="rounded-[24px] border border-orange-200/16 bg-orange-300/8 p-4">
             <div className="flex flex-wrap items-center gap-2">
               {(["Bulk", "Cut", "Maintain", "General Health"] as BodyGoalMode[]).map(
@@ -4628,6 +8649,21 @@ export default function ClientProfilePage() {
             </p>
           </div>
         </div>
+      </>
+    );
+
+    if (options.embedded) return bodyMetricsContent;
+
+    return (
+      <CollapsibleProfilePanel
+        completion={tabCompletions.body}
+        expanded={profileSectionOpen.myBody}
+        onToggle={() => toggleProfileSection("myBody")}
+        summary={bodySummary}
+        title="My Body"
+        subtitle="Physical context that helps personalize training, recovery, nutrition, and recommendations."
+      >
+        {bodyMetricsContent}
       </CollapsibleProfilePanel>
     );
   };
@@ -4671,111 +8707,15 @@ export default function ClientProfilePage() {
               should eventually adjust workout loading and recovery suggestions.
             </p>
           </div>
+          <AdaptivePlanningFactorsGrid
+            notes={profile.adaptivePlanningNotes}
+            onNoteChange={updateAdaptivePlanningNote}
+            onToggle={toggleAdaptivePlanningFactor}
+            options={adaptivePlanningFactorOptions}
+            selected={profile.adaptivePlanningFactors}
+          />
         </div>
 
-        <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          <MetricControl
-            color="violet"
-            defaultValue={7.5}
-            helper="Average sleep helps set recovery expectations for the week."
-            label="Average Sleep Per Night"
-            max={12}
-            min={3}
-            onChange={updateAverageSleep}
-            showManualInput={false}
-            showRangeMarkers
-            showSteppers={false}
-            step={0.25}
-            unit="hrs"
-            value={
-              profile.bodyStatus.averageSleepHours ||
-              profile.bodyStatus.hoursSlept ||
-              String(getSleepGoalHours(profile.sleepGoal))
-            }
-          />
-          <MetricControl
-            color="emerald"
-            defaultValue={62}
-            helper="Resting heart rate gives future recovery checks more context."
-            label="Resting Heart Rate"
-            max={120}
-            min={35}
-            onChange={(value) => setProfileField("restingHeartRate", value)}
-            showManualInput={false}
-            showRangeMarkers
-            showSteppers={false}
-            unit="bpm"
-            value={profile.restingHeartRate}
-          />
-          <StatusSelector
-            label="Sleep Quality"
-            onChange={(value) => updateBodyStatus("sleepQuality", value)}
-            options={sleepQualityOptions}
-            value={profile.bodyStatus.sleepQuality}
-          />
-          <StatusSelector
-            label="Stress Level"
-            onChange={updateStressStatus}
-            options={stressStatusOptions}
-            value={profile.bodyStatus.stressStatus}
-          />
-          <StatusSelector
-            label="Energy Level"
-            onChange={updateEnergyStatus}
-            options={energyStatusOptions}
-            value={profile.bodyStatus.energyStatus}
-          />
-          <AnimatedProfileSlider
-            color={
-              getScaleValue(
-                profile.bodyStatus.painLevel,
-                profile.bodyStatus.painStatus,
-              ) >= 6
-                ? "rose"
-                : "orange"
-            }
-            helper="Higher pain should bias the plan toward substitutions and recovery."
-            label="Pain / Discomfort Level"
-            max={10}
-            min={0}
-            onChange={updatePainLevel}
-            value={getScaleValue(
-              profile.bodyStatus.painLevel,
-              profile.bodyStatus.painStatus,
-            )}
-          />
-          <AnimatedProfileSlider
-            color={
-              getScaleValue(
-                profile.bodyStatus.sorenessLevel,
-                profile.bodyStatus.sorenessStatus,
-              ) >= 6
-                ? "rose"
-                : "cyan"
-            }
-            helper="Soreness helps decide whether to train, reduce load, or switch focus."
-            label="Soreness"
-            max={10}
-            min={0}
-            onChange={updateSorenessLevel}
-            value={getScaleValue(
-              profile.bodyStatus.sorenessLevel,
-              profile.bodyStatus.sorenessStatus,
-            )}
-          />
-          <Field
-            label="Pain Area"
-            onChange={(value) => updateBodyStatus("painArea", value)}
-            placeholder="Knee, shoulder, low back..."
-            value={profile.bodyStatus.painArea}
-          />
-          <Field
-            label="Pain / Discomfort Notes"
-            onChange={(value) => updateBodyStatus("painNote", value)}
-            placeholder="What changes it?"
-            value={profile.bodyStatus.painNote}
-          />
-        </div>
       </Panel>
     );
   };
@@ -4851,12 +8791,19 @@ export default function ClientProfilePage() {
         <div className="mt-5 flex gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {fullBodyPhotoSlots.map((slot) => {
             const photo = findPhotoForSlot(slot.id);
+            const slotColor: MetricColor =
+              slot.id === "front" ? "cyan" : slot.id === "side" ? "purple" : "orange";
+            const slotAccent = metricAccentStyles[slotColor];
 
             return (
               <div
                 key={slot.id}
-                className="group w-[220px] shrink-0 rounded-[24px] border border-white/10 bg-slate-950/50 p-3 transition hover:border-orange-200/28 hover:bg-orange-300/8"
+                className={`group relative w-[220px] shrink-0 overflow-hidden rounded-[24px] border p-3 transition ${slotAccent.shell}`}
               >
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute inset-x-5 top-0 h-px rounded-full bg-gradient-to-r ${slotAccent.active} opacity-70`}
+                />
                 <button
                   type="button"
                   disabled={!photo}
@@ -4871,10 +8818,14 @@ export default function ClientProfilePage() {
                     />
                   ) : (
                     <span className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.12),transparent_44%),rgba(15,23,42,0.72)] text-xs font-black uppercase tracking-[0.12em] text-slate-500">
-                      <ImagePlusIcon className="h-5 w-5 text-orange-100/55" />
+                      <ImagePlusIcon className={`h-5 w-5 ${slotAccent.value}`} />
                       Add photo
                     </span>
                   )}
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${slotAccent.active} opacity-0 transition duration-300 group-hover:opacity-15`}
+                  />
                   <span className="absolute left-2 top-2 rounded-full border border-white/12 bg-slate-950/78 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white backdrop-blur">
                     {slot.shortLabel}
                   </span>
@@ -4904,7 +8855,7 @@ export default function ClientProfilePage() {
                   ) : null}
                 </div>
 
-                <label className="mt-3 flex min-h-[40px] cursor-pointer items-center justify-center rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-100">
+                <label className={`mt-3 flex min-h-[40px] cursor-pointer items-center justify-center rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-300 transition ${slotAccent.stepper}`}>
                   {photo ? "Change" : "Upload"}
                   <input
                     accept="image/*"
@@ -4980,12 +8931,7 @@ export default function ClientProfilePage() {
           completion={tabCompletions.measurements}
           expanded={profileSectionOpen.measurements}
           headerAction={measurementUnitToggle}
-          onToggle={() =>
-            setProfileSectionOpen((current) => ({
-              myBody: false,
-              measurements: !current.measurements,
-            }))
-          }
+          onToggle={() => toggleProfileSection("measurements")}
           summary={measurementSummary}
           title="Body Measurements"
           subtitle="Track useful body measurements for body-composition context, progress trends, and future plan adjustments."
@@ -5054,6 +9000,7 @@ export default function ClientProfilePage() {
                   ? progressPhotoSlots.find((slot) => slot.id === photoSlotId)
                   : undefined;
                 const photo = photoSlot ? findPhotoForSlot(photoSlot.id) : undefined;
+                const measurementAccent = metricAccentStyles[definition.color];
 
                 return (
                   <div
@@ -5065,12 +9012,16 @@ export default function ClientProfilePage() {
                     onFocus={() => setActiveMeasurementIndex(index)}
                     className={`w-[280px] shrink-0 snap-center rounded-[28px] transition duration-200 sm:w-[320px] ${
                       isActive
-                        ? "scale-[1.01] shadow-[0_0_34px_rgba(34,211,238,0.16)]"
+                        ? `scale-[1.01] ${measurementAccent.thumbShadow}`
                         : "opacity-80 hover:opacity-100"
                       }`}
                   >
                     {photoSlot ? (
-                      <div className="mb-3 rounded-[24px] border border-white/10 bg-slate-950/52 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                      <div className={`relative mb-3 overflow-hidden rounded-[24px] border p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${measurementAccent.shell}`}>
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none absolute inset-x-5 top-0 h-px rounded-full bg-gradient-to-r ${measurementAccent.active} opacity-70`}
+                        />
                         <button
                           type="button"
                           disabled={!photo}
@@ -5085,10 +9036,14 @@ export default function ClientProfilePage() {
                             />
                           ) : (
                             <span className="flex h-full w-full flex-col items-center justify-center gap-2 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.14),transparent_44%),rgba(15,23,42,0.76)] text-center text-xs font-black uppercase tracking-[0.12em] text-slate-500">
-                              <ImagePlusIcon className="h-5 w-5 text-cyan-100/55" />
+                              <ImagePlusIcon className={`h-5 w-5 ${measurementAccent.value}`} />
                               Add photo
                             </span>
                           )}
+                          <span
+                            aria-hidden="true"
+                            className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${measurementAccent.active} opacity-0 transition duration-300 group-hover/photo:opacity-15`}
+                          />
                           <span className="absolute left-2 top-2 rounded-full border border-white/12 bg-slate-950/78 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-white backdrop-blur">
                             {photoSlot.shortLabel}
                           </span>
@@ -5113,7 +9068,7 @@ export default function ClientProfilePage() {
                           ) : null}
                         </div>
 
-                        <label className="mt-2 flex min-h-[38px] cursor-pointer items-center justify-center rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-300 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-100">
+                        <label className={`mt-2 flex min-h-[38px] cursor-pointer items-center justify-center rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-300 transition ${measurementAccent.stepper}`}>
                           {photo ? "Change Photo" : "Upload Photo"}
                           <input
                             accept="image/*"
@@ -5129,7 +9084,7 @@ export default function ClientProfilePage() {
 
                     <MetricControl
                       compact
-                      color={isPercent ? "orange" : isHeartRate ? "emerald" : "cyan"}
+                      color={isPercent ? "orange" : isHeartRate ? "emerald" : definition.color}
                       defaultValue={defaultValue}
                       helper="Trend placeholder: future check-ins can compare this against previous entries."
                       helperMode="tooltip"
@@ -5365,158 +9320,448 @@ export default function ClientProfilePage() {
     );
   };
 
-  const renderPlanInputs = () => (
-    <Panel
-      eyebrow="Plan Builder Inputs"
-      title="Tell the app what kind of plan to build"
-      subtitle="These inputs should become defaults for Builder and Plan pages."
-    >
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricControl
-          color="cyan"
-          defaultValue={4}
-          helper="Weekly frequency used by Builder, Plan, and Calendar defaults."
-          label="Training Days / Week"
-          max={7}
-          min={1}
-          onChange={(value) => setProfileField("sessionsPerWeek", value)}
-          unit="days"
-          value={profile.sessionsPerWeek}
-        />
-        <MetricControl
-          color="orange"
-          defaultValue={45}
-          helper="Session length shapes exercise count, warmups, and accessory volume."
-          label="Session Length"
-          max={120}
-          min={15}
-          onChange={(value) => setProfileField("sessionLength", `${value} minutes`)}
-          step={5}
-          unit="min"
-          value={profile.sessionLength}
-        />
-        <SelectField label="Training Location" onChange={(value) => setProfileField("trainingLocation", value)} options={["Home", "Gym", "Apartment Gym", "Outdoors", "Travel"]} value={profile.trainingLocation} />
-        <SelectField label="Preferred Split" onChange={(value) => setProfileField("preferredSplit", value)} options={splitOptions} value={profile.preferredSplit} />
-        <SelectField label="Cardio Preference" onChange={(value) => setProfileField("cardioPreference", value)} options={["None", "Zone 2 plus short finishers", "Intervals", "Conditioning circuits", "Walking only"]} value={profile.cardioPreference} />
-        <SelectField label="Mobility Preference" onChange={(value) => setProfileField("mobilityPreference", value)} options={["None", "Daily 8-12 minute resets", "Warm-up only", "Dedicated mobility days", "Recovery day mobility"]} value={profile.mobilityPreference} />
-        <AnimatedProfileSlider
-          color="orange"
-          helper={`${profile.workoutIntensityPreference}. Higher intensity needs more recovery space.`}
-          label="Training Intensity"
-          max={10}
-          min={1}
-          onChange={(value) => {
-            setProfileField("trainingIntensity", value);
-            setProfileField("workoutIntensityPreference", getTrainingIntensityLabel(value));
-          }}
-          value={profile.trainingIntensity}
-        />
-        <Field label="Member Type" onChange={(value) => setProfileField("memberType", value)} placeholder="Online Training Member" value={profile.memberType} />
-      </div>
-
-      <div className="mt-6 grid gap-5 lg:grid-cols-2">
-        <div>
-          <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-            Equipment
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {equipmentOptions.map((option) => (
-              <Chip
-                key={option}
-                active={profile.equipment.includes(option)}
-                onClick={() => toggleProfileArray("equipment", option)}
-              >
-                {option}
-              </Chip>
-            ))}
-          </div>
-        </div>
-        <div>
-          <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-            Preferred Days
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {dayOptions.map((option) => (
-              <Chip
-                key={option}
-                active={profile.preferredDays.includes(option)}
-                onClick={() => toggleProfileArray("preferredDays", option)}
-              >
-                {option}
-              </Chip>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-5 grid gap-4 md:grid-cols-3">
-        <AnimatedProfileSlider
-          color="cyan"
-          helper="How much conditioning should appear in default workouts."
-          label="Cardio Priority"
-          max={10}
-          min={0}
-          onChange={(value) => setProfileField("cardioPriority", value)}
-          value={profile.cardioPriority}
-        />
-        <AnimatedProfileSlider
-          color="violet"
-          helper="How strongly mobility should be baked into warmups and accessories."
-          label="Mobility Priority"
-          max={10}
-          min={0}
-          onChange={(value) => setProfileField("mobilityPriority", value)}
-          value={profile.mobilityPriority}
-        />
-        <AnimatedProfileSlider
-          color="emerald"
-          helper="How much the app should protect recovery when choosing volume."
-          label="Recovery Priority"
-          max={10}
-          min={0}
-          onChange={(value) => setProfileField("recoveryPriority", value)}
-          value={profile.recoveryPriority}
-        />
-      </div>
-    </Panel>
-  );
-
-  const renderTrainingStyle = () => (
-    <Panel
-      eyebrow="Training Style"
-      title="How this member likes to train"
-      subtitle="Style choices should influence exercise defaults, plan tone, intensity, and substitutions."
-    >
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {trainingStyleOptions.map((style) => (
-          <button
-            key={style.id}
-            type="button"
-            aria-pressed={profile.trainingStyles.includes(style.id)}
-            onClick={() => toggleProfileArray("trainingStyles", style.id)}
-            className={`rounded-[24px] border p-4 text-left transition hover:-translate-y-0.5 ${
-              profile.trainingStyles.includes(style.id)
-                ? "border-orange-200/40 bg-orange-300/12 text-white shadow-[0_0_28px_rgba(251,146,60,0.16)]"
-                : "border-white/10 bg-white/[0.045] text-slate-300 hover:border-orange-200/25"
-            }`}
+  const renderPlanInputs = () => {
+    const planBuilderCompletion = calculateSectionCompletion([
+      profile.sessionsPerWeek,
+      profile.preferredDays,
+      profile.sessionLength,
+      profile.bestTimeOfDay,
+      profile.scheduleConsistency,
+      profile.trainingLocations,
+      profile.availableEquipment,
+      profile.travelTrainingNotes,
+    ]);
+    const groupClass = profileOverviewSubsectionClass;
+    const groupHeadingClass =
+      "text-xs font-black uppercase tracking-[0.16em] text-cyan-100/80";
+    const summarizeCompactList = (
+      values: string[],
+      fallback: string,
+      countLabel: string,
+    ) => {
+      if (!values.length) return fallback;
+      if (values.length <= 2) return values.join(" + ");
+      return `${values.length} ${countLabel}`;
+    };
+    const planBuilderSummaryItems = [
+      profile.sessionsPerWeek
+        ? `${profile.sessionsPerWeek} days/week`
+        : "Schedule not set",
+      summarizeCompactList(profile.trainingLocations, "Locations not set", "locations"),
+      summarizeCompactList(profile.availableEquipment, "Equipment not set", "tools"),
+    ];
+    const planBuilderSummary = (
+      <div className="flex flex-wrap gap-2">
+        {planBuilderSummaryItems.map((item) => (
+          <span
+            key={item}
+            className="rounded-full border border-cyan-200/18 bg-cyan-300/10 px-3 py-1.5 text-[11px] font-black text-cyan-50"
           >
-            <p className="text-sm font-black">{style.id}</p>
-            <p className="mt-2 text-xs font-semibold leading-5 text-slate-400">
-              {style.description}
-            </p>
-          </button>
+            {item}
+          </span>
         ))}
       </div>
-    </Panel>
-  );
+    );
 
-  const renderRecoveryProfile = () => (
+    return (
+      <CollapsibleProfilePanel
+        completion={planBuilderCompletion}
+        expanded={profileSectionOpen.planBuilder}
+        onToggle={() => toggleProfileSection("planBuilder")}
+        summary={planBuilderSummary}
+        title="Training Setup"
+        subtitle="Schedule and environment details for smarter training plans."
+      >
+        <div className="space-y-5">
+          <Link
+            href={ROUTES.dashboard.goals}
+            className="flex flex-col gap-3 rounded-[24px] border border-amber-200/18 bg-amber-300/8 p-4 transition hover:border-amber-200/38 hover:bg-amber-300/12 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">
+                Goal editing moved
+              </p>
+              <p className="mt-1 text-sm font-semibold leading-6 text-slate-300">
+                Primary goal, timeline, priority, and motivation now live on the dedicated Goals page.
+              </p>
+            </div>
+            <span className="inline-flex shrink-0 items-center justify-center rounded-2xl border border-amber-200/24 bg-amber-300/12 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-amber-100">
+              Open Goals Page
+            </span>
+          </Link>
+
+          <section className={groupClass}>
+            <div className="mb-4">
+              <div>
+                <p className={groupHeadingClass}>Training Schedule</p>
+                <p className="mt-1 text-sm font-semibold text-slate-400">
+                  When and how you realistically train.
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricControl
+                compact
+                color="cyan"
+                defaultValue={4}
+                helper="Weekly frequency used by Builder, Plan, and Calendar defaults."
+                helperMode="tooltip"
+                label="Days Available"
+                max={7}
+                min={1}
+                onChange={(value) => setProfileField("sessionsPerWeek", value)}
+                showManualInput={false}
+                unit="days"
+                value={profile.sessionsPerWeek}
+              />
+              <MetricControl
+                compact
+                color="orange"
+                defaultValue={45}
+                helper="Session length shapes exercise count, warmups, and accessory volume."
+                helperMode="tooltip"
+                label="Session Length"
+                max={120}
+                min={15}
+                onChange={(value) => setProfileField("sessionLength", `${value} minutes`)}
+                showManualInput={false}
+                step={5}
+                unit="min"
+                value={profile.sessionLength}
+              />
+              <InfoSelectField
+                helper="Best time of day improves reminder timing and realistic session design."
+                label="Best Time of Day"
+                onChange={(value) => setProfileField("bestTimeOfDay", value)}
+                options={[...availableTimeOptions, "Varies"]}
+                value={profile.bestTimeOfDay}
+              />
+              <InfoSelectField
+                helper="Consistency helps decide whether the plan should be fixed, flexible, or auto-adjusting."
+                label="Schedule Consistency"
+                onChange={(value) => setProfileField("scheduleConsistency", value)}
+                options={[
+                  "Very consistent",
+                  "Mostly consistent",
+                  "Changes week to week",
+                  "Unpredictable",
+                ]}
+                value={profile.scheduleConsistency}
+              />
+            </div>
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                Preferred Training Days
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {dayOptions.map((option) => (
+                  <Chip
+                    key={option}
+                    active={profile.preferredDays.includes(option)}
+                    onClick={() => toggleProfileArray("preferredDays", option)}
+                  >
+                    {option}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className={groupClass}>
+            <div className="mb-4">
+              <p className={groupHeadingClass}>Training Environment</p>
+              <p className="mt-1 text-sm font-semibold text-slate-400">
+                Where and with what you train.
+              </p>
+            </div>
+            <div className="grid gap-3">
+              <CompactMultiSelectGrid
+                onToggle={(value) =>
+                  togglePreferenceSelection("trainingLocations", "trainingLocation", value)
+                }
+                options={compactTrainingLocationOptions}
+                selected={profile.trainingLocations}
+                title="Training Locations"
+                variant="bold"
+              />
+              <CompactMultiSelectGrid
+                onToggle={toggleEquipmentSelection}
+                options={compactEquipmentOptions}
+                selected={profile.availableEquipment}
+                title="Available Equipment"
+                variant="bold"
+              />
+            </div>
+            <div className="mt-3">
+              <TextAreaField
+                label="Travel / Home / Gym Notes"
+                onChange={(value) => setProfileField("travelTrainingNotes", value)}
+                placeholder="Busy gym, hotel weeks, limited space, outdoor access..."
+                rows={3}
+                value={profile.travelTrainingNotes}
+              />
+            </div>
+          </section>
+
+        </div>
+      </CollapsibleProfilePanel>
+    );
+  };
+
+  const renderTrainingStyle = () => {
+    const trainingStyleVisuals: Record<
+      string,
+      { accent: string; icon: SelectorIconName; label: string; tone: CompactOptionTone }
+    > = {
+      Athletic: {
+        accent: "from-orange-300/34 via-red-500/16 to-slate-950",
+        icon: "trophy",
+        label: "Athletic",
+        tone: "orange",
+      },
+      "Beginner Friendly": {
+        accent: "from-cyan-300/32 via-blue-500/15 to-slate-950",
+        icon: "sparkles",
+        label: "Beginner",
+        tone: "cyan",
+      },
+      Calisthenics: {
+        accent: "from-emerald-300/32 via-cyan-500/15 to-slate-950",
+        icon: "user",
+        label: "Bodyweight",
+        tone: "bodyweight",
+      },
+      Conditioning: {
+        accent: "from-red-300/32 via-orange-500/16 to-slate-950",
+        icon: "heart-pulse",
+        label: "Condition",
+        tone: "redOrange",
+      },
+      "Heavy Strength": {
+        accent: "from-blue-300/34 via-cyan-500/16 to-slate-950",
+        icon: "dumbbell",
+        label: "Strength",
+        tone: "electric",
+      },
+      "Low Impact": {
+        accent: "from-teal-300/30 via-cyan-500/14 to-slate-950",
+        icon: "heart-handshake",
+        label: "Low Impact",
+        tone: "tealViolet",
+      },
+      "Mobility First": {
+        accent: "from-emerald-300/32 via-teal-500/15 to-slate-950",
+        icon: "stretch",
+        label: "Mobility",
+        tone: "green",
+      },
+      "Muscle Building": {
+        accent: "from-red-300/32 via-orange-500/16 to-slate-950",
+        icon: "activity",
+        label: "Muscle",
+        tone: "redOrange",
+      },
+    };
+
+    return (
+      <Panel
+        eyebrow="Training Style"
+        title="How this member likes to train"
+        subtitle="Style choices should influence exercise defaults, plan tone, intensity, and substitutions."
+      >
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8">
+          {trainingStyleOptions.map((style) => {
+            const active = profile.trainingStyles.includes(style.id);
+            const visual = trainingStyleVisuals[style.id] || {
+              accent: "from-cyan-300/28 via-blue-500/14 to-slate-950",
+              icon: "activity" as SelectorIconName,
+              label: style.id,
+              tone: "cyan" as CompactOptionTone,
+            };
+
+            return (
+              <CompactSelectableCard
+                key={style.id}
+                accent={visual.accent}
+                icon={<SelectorIcon name={visual.icon} />}
+                label={visual.label}
+                onClick={() => toggleProfileArray("trainingStyles", style.id)}
+                selected={active}
+                title={style.description}
+                tone={visual.tone}
+              />
+            );
+          })}
+        </div>
+      </Panel>
+    );
+  };
+
+  const renderRecoveryProfile = () => {
+    const painScaleValue = getScaleValue(
+      profile.bodyStatus.painLevel,
+      profile.bodyStatus.painStatus,
+    );
+    const sorenessScaleValue = getScaleValue(
+      profile.bodyStatus.sorenessLevel,
+      profile.bodyStatus.sorenessStatus,
+    );
+
+    return (
     <Panel
       eyebrow="Injury / Recovery Profile"
       title="Limitations, pain signals, and recovery preferences"
       subtitle="This should shape Exercise Library recommendations, recovery warnings, and Builder substitutions."
     >
-      <div className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
+      <section className={profileOverviewSubsectionClass}>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/80">
+              Recovery Context
+            </p>
+            <p className="mt-1 text-sm font-semibold text-slate-400">
+              Readiness inputs, pain signals, and recovery notes.
+            </p>
+          </div>
+          <span className="rounded-full border border-orange-200/20 bg-orange-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-orange-100">
+            {planReadiness.readinessLabel}
+          </span>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricControl
+            compact
+            color="violet"
+            defaultValue={7.5}
+            helper="Average sleep helps set recovery expectations for the week."
+            helperMode="tooltip"
+            label="Sleep Average"
+            max={12}
+            min={3}
+            onChange={updateAverageSleep}
+            showManualInput={false}
+            showRangeMarkers
+            step={0.25}
+            unit="hrs"
+            value={
+              profile.bodyStatus.averageSleepHours ||
+              profile.bodyStatus.hoursSlept ||
+              String(getSleepGoalHours(profile.sleepGoal))
+            }
+          />
+          <StatusSelector
+            helper="Sleep quality helps interpret the recovery signal."
+            helperMode="tooltip"
+            label="Sleep Quality"
+            onChange={(value) => updateBodyStatus("sleepQuality", value)}
+            options={sleepQualityOptions}
+            value={profile.bodyStatus.sleepQuality}
+          />
+          <StatusSelector
+            helper="Stress changes readiness and recovery recommendations."
+            helperMode="tooltip"
+            label="Stress Level"
+            onChange={updateStressStatus}
+            options={stressStatusOptions}
+            value={profile.bodyStatus.stressStatus}
+          />
+          <StatusSelector
+            helper="Energy helps tune daily intensity expectations."
+            helperMode="tooltip"
+            label="Energy Level"
+            onChange={updateEnergyStatus}
+            options={energyStatusOptions}
+            value={profile.bodyStatus.energyStatus}
+          />
+          <MetricControl
+            compact
+            color="emerald"
+            defaultValue={62}
+            helper="Resting heart rate gives future recovery checks more context."
+            helperMode="tooltip"
+            label="Resting Heart Rate"
+            max={120}
+            min={35}
+            onChange={(value) => setProfileField("restingHeartRate", value)}
+            showManualInput={false}
+            showRangeMarkers
+            unit="bpm"
+            value={profile.restingHeartRate}
+          />
+          <StatusSelector
+            helper="Mobility status helps flag range restrictions or improving tolerance."
+            helperMode="tooltip"
+            label="Mobility Status"
+            onChange={(value) => updateBodyStatus("mobilityStatus", value)}
+            options={mobilityStatusOptions}
+            value={profile.bodyStatus.mobilityStatus}
+          />
+          <AnimatedProfileSlider
+            color={sorenessScaleValue >= 6 ? "rose" : "cyan"}
+            helper="Soreness helps decide whether to train, reduce load, or switch focus."
+            label="Soreness"
+            max={10}
+            min={0}
+            onChange={updateSorenessLevel}
+            value={sorenessScaleValue}
+          />
+          <AnimatedProfileSlider
+            color={painScaleValue >= 6 ? "rose" : "orange"}
+            helper="Higher pain should bias the plan toward substitutions and recovery."
+            label="Pain / Discomfort"
+            max={10}
+            min={0}
+            onChange={updatePainLevel}
+            value={painScaleValue}
+          />
+          <AnimatedProfileSlider
+            color="emerald"
+            helper="How much the app should protect recovery when choosing volume."
+            label="Recovery Priority"
+            max={10}
+            min={0}
+            onChange={(value) => setProfileField("recoveryPriority", value)}
+            value={profile.recoveryPriority}
+          />
+        </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          <Field
+            label="Pain Area"
+            onChange={(value) => updateBodyStatus("painArea", value)}
+            placeholder="Knee, shoulder, low back..."
+            value={profile.bodyStatus.painArea}
+          />
+          <TextAreaField
+            label="Pain / Discomfort Notes"
+            onChange={(value) => updateBodyStatus("painNote", value)}
+            placeholder="What changes it?"
+            rows={4}
+            value={profile.bodyStatus.painNote}
+          />
+          <TextAreaField
+            label="Mobility Notes"
+            onChange={(value) => updateBodyStatus("mobilityNotes", value)}
+            placeholder="Restricted areas, improving ranges, warm-up needs..."
+            rows={4}
+            value={profile.bodyStatus.mobilityNotes}
+          />
+        </div>
+
+        <div className="mt-4 rounded-[22px] border border-orange-200/18 bg-orange-300/8 p-4">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-orange-100/80">
+            Recovery Recommendation
+          </p>
+          <p className="mt-2 text-sm font-black leading-6 text-white">
+            Readiness {planReadiness.readinessScore} / Risk {planReadiness.risk.score}%
+          </p>
+          <p className="mt-2 text-xs font-semibold leading-5 text-slate-300">
+            {planReadiness.risk.recommendation}
+          </p>
+        </div>
+      </section>
+
+      <div className="mt-5 grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
         <div className="rounded-[26px] border border-white/10 bg-slate-950/44 p-4">
           <p className="mb-3 text-xs font-black uppercase tracking-[0.14em] text-slate-400">
             Body-region limitations
@@ -5597,13 +9842,39 @@ export default function ClientProfilePage() {
         </div>
       </div>
     </Panel>
-  );
+    );
+  };
 
-  const renderSpecialCircumstances = () => (
-    <Panel
-      eyebrow="Special Circumstances"
-      headerAction={
-        <div className="flex gap-2">
+  const renderSpecialCircumstances = () => {
+    const selectedCircumstances = profile.specialCircumstances;
+    const visibleSummaryCircumstances = selectedCircumstances.slice(0, 4);
+    const specialCircumstancesSummary = (
+      <div className="flex flex-wrap gap-2">
+        {visibleSummaryCircumstances.length ? (
+          <>
+            {visibleSummaryCircumstances.map((circumstance) => (
+              <span
+                key={circumstance.id}
+                className="rounded-full border border-orange-200/22 bg-orange-300/10 px-3 py-1.5 text-[11px] font-black text-orange-100"
+              >
+                {circumstance.label}
+              </span>
+            ))}
+            {selectedCircumstances.length > visibleSummaryCircumstances.length ? (
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-black text-slate-300">
+                +{selectedCircumstances.length - visibleSummaryCircumstances.length} more
+              </span>
+            ) : null}
+          </>
+        ) : (
+          <span className="rounded-full border border-slate-200/14 bg-white/[0.04] px-3 py-1.5 text-[11px] font-black text-slate-300">
+            None Apply
+          </span>
+        )}
+      </div>
+    );
+    const specialCircumstancesScrollControls = (
+      <div className="flex gap-2">
           <button
             type="button"
             aria-label="Scroll special circumstances left"
@@ -5630,9 +9901,21 @@ export default function ClientProfilePage() {
           >
             →
           </button>
-        </div>
+      </div>
+    );
+
+    return (
+    <CollapsibleProfilePanel
+      completion={tabCompletions.circumstances}
+      expanded={profileSectionOpen.specialCircumstances}
+      headerAction={
+        profileSectionOpen.specialCircumstances
+          ? specialCircumstancesScrollControls
+          : null
       }
-      title="Special Circumstances"
+      onToggle={() => toggleProfileSection("specialCircumstances")}
+      summary={specialCircumstancesSummary}
+      title={`Special Circumstances - ${selectedCircumstances.length} Selected`}
       subtitle="This helps personalize training recommendations. It is not medical diagnosis or treatment."
     >
       {/* TODO: Let these flags modify future recommendation rules: pregnancy-aware plans, injury substitutions, soreness/recovery bias, sleep/stress readiness, and travel equipment defaults. */}
@@ -5642,23 +9925,84 @@ export default function ClientProfilePage() {
           onScroll={updateActiveSpecialCircumstanceFromScroll}
           className="flex max-w-full snap-x snap-mandatory gap-4 overflow-x-auto overscroll-x-contain scroll-smooth px-1 pb-5 pt-1 [scrollbar-color:rgba(251,146,60,0.58)_rgba(15,23,42,0.78)] [scrollbar-width:thin] [touch-action:pan-x] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-orange-300/55 [&::-webkit-scrollbar-thumb]:shadow-[0_0_14px_rgba(251,146,60,0.35)] [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/70"
         >
+        <button
+          ref={(node) => {
+            specialCircumstanceCardRefs.current[0] = node;
+          }}
+          type="button"
+          aria-pressed={selectedCircumstances.length === 0}
+          onClick={() => {
+            setActiveSpecialCircumstanceIndex(0);
+            setProfile((current) => ({
+              ...current,
+              specialCircumstances: [],
+            }));
+          }}
+          className={`group relative flex min-h-[220px] w-[min(68vw,250px)] max-w-[calc(100vw-3rem)] flex-none snap-center flex-col overflow-hidden rounded-[28px] border p-4 text-left transition duration-200 hover:-translate-y-1 sm:w-[260px] ${
+            selectedCircumstances.length === 0
+              ? "border-slate-100/32 bg-white/[0.075] text-white shadow-[0_0_24px_rgba(148,163,184,0.12)]"
+              : activeSpecialCircumstanceIndex === 0
+                ? "border-slate-200/22 bg-white/[0.055] text-slate-100"
+                : "border-white/10 bg-slate-950/44 text-slate-300 hover:border-slate-200/24 hover:bg-white/[0.055]"
+          }`}
+        >
+          <span className="absolute inset-x-0 top-0 h-20 bg-gradient-to-br from-slate-200/18 via-slate-400/8 to-transparent opacity-80 transition group-hover:opacity-100" />
+          <span className="absolute -right-8 -top-8 h-24 w-24 rounded-full border border-white/10 bg-white/[0.025]" />
+          <div className="relative flex items-start justify-between gap-3">
+            <span
+              className={`grid h-12 w-12 place-items-center rounded-[20px] border text-[10px] font-black uppercase tracking-[0.12em] shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition group-hover:scale-105 ${
+                selectedCircumstances.length === 0
+                  ? "border-slate-100/32 bg-white/[0.10] text-slate-50 shadow-[0_0_18px_rgba(148,163,184,0.12)]"
+                  : "border-white/10 bg-slate-950/54 text-slate-400"
+              }`}
+              aria-hidden="true"
+            >
+              NONE
+            </span>
+            <span
+              className={`rounded-full border px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] ${
+                selectedCircumstances.length === 0
+                  ? "border-slate-100/30 bg-white/[0.12] text-slate-100"
+                  : "border-white/10 bg-white/[0.045] text-slate-500"
+              }`}
+            >
+              {selectedCircumstances.length === 0 ? "Active" : "Select"}
+            </span>
+          </div>
+          <p className="relative mt-4 text-base font-black leading-tight text-white">
+            None Apply
+          </p>
+          <p className="relative mt-2 text-xs font-semibold leading-5 text-slate-400">
+            No listed special circumstances currently apply.
+          </p>
+          <div
+            className={`relative mt-auto rounded-2xl border px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] transition ${
+              selectedCircumstances.length === 0
+                ? "border-slate-100/24 bg-white/[0.08] text-slate-100"
+                : "border-white/10 bg-white/[0.035] text-slate-500 group-hover:text-slate-200"
+            }`}
+          >
+            Clears selected context
+          </div>
+        </button>
         {specialCircumstanceOptions.map((circumstance, index) => {
+          const cardIndex = index + 1;
           const selectedItem = profile.specialCircumstances.find(
             (item) => item.id === circumstance.id,
           );
           const selected = Boolean(selectedItem);
-          const centered = activeSpecialCircumstanceIndex === index;
+          const centered = activeSpecialCircumstanceIndex === cardIndex;
 
           return (
             <button
               key={circumstance.id}
               ref={(node) => {
-                specialCircumstanceCardRefs.current[index] = node;
+                specialCircumstanceCardRefs.current[cardIndex] = node;
               }}
               type="button"
               aria-pressed={selected}
               onClick={() => {
-                setActiveSpecialCircumstanceIndex(index);
+                setActiveSpecialCircumstanceIndex(cardIndex);
                 toggleSpecialCircumstance(circumstance);
               }}
               className={`group relative flex min-h-[220px] w-[min(72vw,280px)] max-w-[calc(100vw-3rem)] flex-none snap-center flex-col overflow-hidden rounded-[28px] border p-4 text-left transition duration-200 hover:-translate-y-1 sm:w-[300px] ${
@@ -5788,54 +10132,157 @@ export default function ClientProfilePage() {
           </div>
         ) : (
           <div className="rounded-[24px] border border-dashed border-white/12 bg-white/[0.03] p-5 text-sm font-semibold leading-6 text-slate-400">
-            No special circumstances selected. Add one when life, health, sport,
-            travel, or recovery context should modify coaching recommendations.
+            None Apply is selected. Add a circumstance above if life, health,
+            sport, travel, or recovery context should modify coaching recommendations.
           </div>
         )}
       </div>
-    </Panel>
-  );
+    </CollapsibleProfilePanel>
+    );
+  };
 
-  const renderNutrition = () => (
-    <Panel
-      eyebrow="Nutrition Direction"
-      title="Nutrition inputs for future planning"
-      subtitle="This is not the full Nutrition page. It collects the direction the Nutrition page should adapt around later."
-    >
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <SelectField label="Nutrition Goal" onChange={(value) => updateNutrition("nutritionGoal", value)} options={["Build Muscle", "Lose Fat", "Maintain", "Performance", "General Health"]} value={profile.nutritionDirection.nutritionGoal} />
-        <SelectField label="Protein Target Mode" onChange={(value) => updateNutrition("proteinTargetMode", value as NutritionDirection["proteinTargetMode"])} options={["Auto estimate", "Manual"]} value={profile.nutritionDirection.proteinTargetMode} />
-        <Field label="Protein Target" onChange={(value) => updateNutrition("proteinTarget", value)} placeholder="Auto or grams/day" value={profile.nutritionDirection.proteinTarget} />
-        <SelectField label="Calorie Style" onChange={(value) => updateNutrition("calorieStyle", value)} options={["Track calories", "Hand portions", "Habit based", "No tracking"]} value={profile.nutritionDirection.calorieStyle} />
-        <Field label="Meal Prep Preference" onChange={(value) => updateNutrition("mealPrepPreference", value)} placeholder="Simple batch meals" value={profile.nutritionDirection.mealPrepPreference} />
-        <Field label="Eating Schedule" onChange={(value) => updateNutrition("eatingSchedule", value)} placeholder="3 meals, late dinner, etc." value={profile.nutritionDirection.eatingSchedule} />
-        <Field label="Food Restrictions" onChange={(value) => updateNutrition("foodRestrictions", value)} placeholder="Allergies, restrictions" value={profile.nutritionDirection.foodRestrictions} />
-      </div>
+  const renderNutrition = () => {
+    const waterUnit =
+      profile.appPersonalization.preferredUnitSystem === "kg" ? "L" : "oz";
 
-      <div className="mt-5">
-        <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-          Diet preferences
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {dietPreferenceOptions.map((option) => (
-            <Chip
-              key={option}
-              active={profile.nutritionDirection.dietPreferences.includes(option)}
-              onClick={() => toggleNutritionPreference(option)}
-            >
-              {option}
-            </Chip>
-          ))}
+    return (
+      <Panel
+        eyebrow="Nutrition Direction"
+        title="Nutrition inputs for future planning"
+        subtitle="This is not the full Nutrition page. It collects the direction the Nutrition page should adapt around later."
+      >
+        <div className="space-y-5">
+          <section className={profileOverviewSubsectionClass}>
+            <div className="mb-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/80">
+                Nutrition Context
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-400">
+                Fuel constraints, hydration, meal rhythm, and dietary limits.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <InfoSelectField
+                helper="Protein consistency helps estimate training support and meal planning needs."
+                label="Protein Consistency"
+                onChange={(value) => setProfileField("proteinConsistency", value)}
+                options={["Low", "Moderate", "High", "Very High"]}
+                value={profile.proteinConsistency}
+              />
+              <Field
+                label="Calorie Goal if Known"
+                onChange={(value) => setProfileField("calorieGoalKnown", value)}
+                placeholder="Example: 2400/day"
+                value={profile.calorieGoalKnown}
+              />
+              <MetricControl
+                compact
+                color="cyan"
+                defaultValue={waterUnit === "L" ? 2.5 : 80}
+                helper="Hydration target helps shape practical session and meal-planning defaults."
+                helperMode="tooltip"
+                label="Hydration Goal"
+                max={waterUnit === "L" ? 6 : 180}
+                min={waterUnit === "L" ? 0.5 : 20}
+                onChange={(value) => setProfileField("waterGoal", value)}
+                showManualInput={false}
+                step={waterUnit === "L" ? 0.25 : 4}
+                unit={waterUnit}
+                value={profile.waterGoal}
+              />
+              <InfoSelectField
+                helper="Meal prep style helps match plan complexity to real life."
+                label="Meal Prep Preference"
+                onChange={(value) => updateNutrition("mealPrepPreference", value)}
+                options={["Flexible", "Meal prep", "Cook daily", "Grab-and-go", "Minimal cooking"]}
+                value={profile.nutritionDirection.mealPrepPreference}
+              />
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <Field
+                label="Eating Schedule"
+                onChange={(value) => updateNutrition("eatingSchedule", value)}
+                placeholder="3 meals, late dinner, fasting window..."
+                value={profile.nutritionDirection.eatingSchedule}
+              />
+              <TextAreaField
+                label="Dietary Constraints"
+                onChange={(value) => updateNutrition("foodRestrictions", value)}
+                placeholder="Allergies, dislikes, budget constraints, eating schedule, cultural preferences..."
+                rows={4}
+                value={profile.nutritionDirection.foodRestrictions}
+              />
+            </div>
+          </section>
+
+          <section className={profileOverviewSubsectionClass}>
+            <div className="mb-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/80">
+                Nutrition Habits
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-400">
+                Goal direction, tracking style, and repeatable food preferences.
+              </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <SelectField
+                label="Nutrition Goal"
+                onChange={(value) => updateNutrition("nutritionGoal", value)}
+                options={["Build Muscle", "Lose Fat", "Maintain", "Performance", "General Health"]}
+                value={profile.nutritionDirection.nutritionGoal}
+              />
+              <SelectField
+                label="Protein Target Mode"
+                onChange={(value) =>
+                  updateNutrition("proteinTargetMode", value as NutritionDirection["proteinTargetMode"])
+                }
+                options={["Auto estimate", "Manual"]}
+                value={profile.nutritionDirection.proteinTargetMode}
+              />
+              <Field
+                label="Protein Target"
+                onChange={(value) => updateNutrition("proteinTarget", value)}
+                placeholder="Auto or grams/day"
+                value={profile.nutritionDirection.proteinTarget}
+              />
+              <SelectField
+                label="Fueling Preference"
+                onChange={(value) => updateNutrition("calorieStyle", value)}
+                options={["Track calories", "Hand portions", "Habit based", "No tracking"]}
+                value={profile.nutritionDirection.calorieStyle}
+              />
+            </div>
+
+            <div className="mt-5">
+              <p className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                Diet preferences
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {dietPreferenceOptions.map((option) => (
+                  <Chip
+                    key={option}
+                    active={profile.nutritionDirection.dietPreferences.includes(option)}
+                    onClick={() => toggleNutritionPreference(option)}
+                  >
+                    {option}
+                  </Chip>
+                ))}
+              </div>
+            </div>
+          </section>
         </div>
-      </div>
-    </Panel>
-  );
+      </Panel>
+    );
+  };
 
   const renderLifestyle = () => (
     <Panel
       eyebrow="Lifestyle Constraints"
-      title="Make the plan realistic"
-      subtitle="The best plan is the one the member can actually perform during a real week."
+      title="Real-world recovery and readiness constraints"
+      subtitle="Lifestyle context helps explain fatigue, availability, sleep rhythm, and plan friction."
     >
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <TextAreaField label="Work Schedule" onChange={(value) => updateLifestyle("workSchedule", value)} rows={3} value={profile.lifestyleConstraints.workSchedule} />
@@ -5862,7 +10309,7 @@ export default function ClientProfilePage() {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-4 md:grid-cols-3">
+      <div className="mt-5 max-w-xl">
         <AnimatedProfileSlider
           color="cyan"
           helper="Higher availability allows longer warmups, accessories, and mobility blocks."
@@ -5871,17 +10318,6 @@ export default function ClientProfilePage() {
           min={1}
           onChange={(value) => setProfileField("timeAvailability", value)}
           value={profile.timeAvailability}
-        />
-        <AnimatedProfileSlider
-          color="orange"
-          helper="The weekly adherence target future plans should be built around."
-          label="Weekly Consistency Goal"
-          max={100}
-          min={40}
-          onChange={(value) => setProfileField("weeklyConsistencyGoal", value)}
-          step={5}
-          unit="%"
-          value={profile.weeklyConsistencyGoal}
         />
       </div>
     </Panel>
@@ -5969,27 +10405,223 @@ export default function ClientProfilePage() {
     </Panel>
   );
 
-  const renderNotes = () => (
-    <Panel
-      eyebrow="Coach Notes / AI Notes"
-      title="What the app and coach should know"
-      subtitle="User notes are self-reported. Coach notes are a placeholder for future coach/admin visibility. AI notes summarize profile direction."
-    >
-      <div className="grid gap-4 lg:grid-cols-3">
-        <TextAreaField label="User Notes" onChange={(value) => setProfileField("userNotes", value)} placeholder="Things my coach/app should know." rows={8} value={profile.userNotes} />
-        <TextAreaField label="Coach Notes" onChange={(value) => setProfileField("coachNotes", value)} placeholder="Coach-visible notes later." rows={8} value={profile.coachNotes} />
-        <div className="rounded-[24px] border border-cyan-200/16 bg-cyan-300/8 p-4">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100">
-            AI Plan Notes
-          </p>
-          <p className="mt-3 text-sm font-semibold leading-6 text-slate-200">
-            {planSummary}
-          </p>
-          <TextAreaField label="Plan Direction Notes" onChange={(value) => setProfileField("planDirectionNotes", value)} placeholder="Extra direction for plan generation." rows={5} value={profile.planDirectionNotes} />
-        </div>
+  const renderNotes = ({
+    includeCoachingPreferences = false,
+  }: {
+    includeCoachingPreferences?: boolean;
+  } = {}) => {
+    const summarizeList = (values: string[], fallback: string) => {
+      if (!values.length) return fallback;
+      if (values.length <= 2) return values.join(" + ");
+      return `${values.slice(0, 2).join(" + ")} +${values.length - 2}`;
+    };
+    const notesCompletionFields = [
+      profile.sessionsPerWeek,
+      profile.trainingLocations,
+      profile.availableEquipment,
+      profile.userNotes,
+      profile.coachNotes,
+    ];
+    const coachingCompletionFields = [
+      profile.trainingIntensity,
+      profile.appPersonalization.coachingTone,
+      profile.exerciseVarietyPreference,
+      profile.planFlexibilityPreference,
+      profile.videoReviewInterest,
+      profile.roboCoachGuidanceLevel,
+      profile.cardioPriority,
+      profile.mobilityPriority,
+      profile.preferredSplits,
+      profile.cardioPreferences,
+      profile.mobilityPreferences,
+    ];
+    const notesCompletion = calculateSectionCompletion(
+      includeCoachingPreferences
+        ? [...notesCompletionFields, ...coachingCompletionFields]
+        : notesCompletionFields,
+    );
+    const notesSummaryItems = [
+      profile.sessionsPerWeek
+        ? `${profile.sessionsPerWeek} days/week`
+        : "Schedule not set",
+      summarizeList(profile.trainingLocations, "Locations not set"),
+      summarizeList(profile.availableEquipment, "Equipment not set"),
+      ...(includeCoachingPreferences
+        ? [
+            profile.appPersonalization.coachingTone || "Tone not set",
+            profile.planFlexibilityPreference || "Flexibility not set",
+          ]
+        : []),
+    ];
+    const notesSummary = (
+      <div className="flex flex-wrap gap-2">
+        {notesSummaryItems.map((item) => (
+          <span
+            key={item}
+            className="rounded-full border border-cyan-200/18 bg-cyan-300/10 px-3 py-1.5 text-[11px] font-black text-cyan-50"
+          >
+            {item}
+          </span>
+        ))}
       </div>
-    </Panel>
-  );
+    );
+
+    return (
+      <CollapsibleProfilePanel
+        completion={notesCompletion}
+        expanded={profileSectionOpen.appCoachNotes}
+        onToggle={() => toggleProfileSection("appCoachNotes")}
+        summary={notesSummary}
+        title="What the Coach and App Should Know"
+        subtitle="User notes are self-reported. Coach notes are a placeholder for future coach/admin visibility. AI notes summarize profile direction."
+      >
+        <div className="space-y-4">
+          {includeCoachingPreferences ? (
+          <section className={profileOverviewSubsectionClass}>
+            <div className="mb-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100/80">Coaching Preferences</p>
+              <p className="mt-1 text-sm font-semibold text-slate-400">
+                How strict, varied, intense, and hands-on the plan should feel.
+              </p>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              <AnimatedProfileSlider
+                color="orange"
+                helper={`${profile.workoutIntensityPreference}. Higher intensity changes session structure and progression pace.`}
+                label="Intensity Preference"
+                max={10}
+                min={1}
+                onChange={(value) => {
+                  setProfileField("trainingIntensity", value);
+                  setProfileField("workoutIntensityPreference", getTrainingIntensityLabel(value));
+                }}
+                value={profile.trainingIntensity}
+              />
+              <InfoSelectField
+                helper="Tone changes how plan instructions and robo-coach nudges are written."
+                label="Coaching Tone"
+                onChange={(value) => updatePersonalization("coachingTone", value)}
+                options={["Direct", "Encouraging", "Technical", "Simple", "Hype"]}
+                value={profile.appPersonalization.coachingTone}
+              />
+              <InfoSelectField
+                helper="Variety affects exercise rotation versus repeatable practice blocks."
+                label="Exercise Variety"
+                onChange={(value) => setProfileField("exerciseVarietyPreference", value)}
+                options={[
+                  "Low variety",
+                  "Moderate variety",
+                  "High variety",
+                  "Keep main lifts stable",
+                ]}
+                value={profile.exerciseVarietyPreference}
+              />
+              <InfoSelectField
+                helper="Flexible plans adapt around missed days. Strict plans preserve the original structure."
+                label="Strict vs Flexible"
+                onChange={(value) => setProfileField("planFlexibilityPreference", value)}
+                options={[
+                  "Strict plan",
+                  "Flexible plan",
+                  "Auto-adjust missed days",
+                  "Coach decides",
+                ]}
+                value={profile.planFlexibilityPreference}
+              />
+              <InfoSelectField
+                helper="Flags whether future plan flows should prompt video review."
+                label="Video Review Interest"
+                onChange={(value) => setProfileField("videoReviewInterest", value)}
+                options={["Yes", "Maybe later", "No", "Coach requested only"]}
+                value={profile.videoReviewInterest}
+              />
+              <InfoSelectField
+                helper="Sets how often the robo-coach should suggest adjustments."
+                label="Robo-Coach Guidance"
+                onChange={(value) => setProfileField("roboCoachGuidanceLevel", value)}
+                options={[
+                  "Light guidance",
+                  "Balanced guidance",
+                  "Detailed guidance",
+                  "High accountability",
+                ]}
+                value={profile.roboCoachGuidanceLevel}
+              />
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <AnimatedProfileSlider
+                color="cyan"
+                helper="How much conditioning should appear in default workouts."
+                label="Cardio Priority"
+                max={10}
+                min={0}
+                onChange={(value) => setProfileField("cardioPriority", value)}
+                value={profile.cardioPriority}
+              />
+              <AnimatedProfileSlider
+                color="violet"
+                helper="How strongly mobility should be baked into warmups and accessories."
+                label="Mobility Priority"
+                max={10}
+                min={0}
+                onChange={(value) => setProfileField("mobilityPriority", value)}
+                value={profile.mobilityPriority}
+              />
+            </div>
+            <div className="mt-5 grid gap-5 xl:grid-cols-2">
+              <PreferenceCardGrid
+                helper="Select every split style you want plans to consider."
+                onToggle={(value) =>
+                  togglePreferenceSelection("preferredSplits", "preferredSplit", value)
+                }
+                options={preferredSplitOptions}
+                selected={profile.preferredSplits}
+                title="Preferred Split"
+              />
+              <PreferenceCardGrid
+                helper="Pick the cardio modes you enjoy or can repeat consistently."
+                onToggle={(value) =>
+                  togglePreferenceSelection("cardioPreferences", "cardioPreference", value)
+                }
+                options={cardioPreferenceOptions}
+                selected={profile.cardioPreferences}
+                title="Cardio Preference"
+              />
+              <PreferenceCardGrid
+                helper="Choose mobility formats that fit your body and schedule."
+                onToggle={(value) =>
+                  togglePreferenceSelection("mobilityPreferences", "mobilityPreference", value)
+                }
+                options={mobilityPreferenceOptions}
+                selected={profile.mobilityPreferences}
+                title="Mobility Preference"
+              />
+            </div>
+          </section>
+          ) : null}
+
+          <div className="grid gap-4 lg:grid-cols-3">
+            <TextAreaField label="User Notes" onChange={(value) => setProfileField("userNotes", value)} placeholder="Things my coach/app should know." rows={8} value={profile.userNotes} />
+            <TextAreaField label="Coach Notes" onChange={(value) => setProfileField("coachNotes", value)} placeholder="Coach-visible notes later." rows={8} value={profile.coachNotes} />
+            <div className="rounded-[24px] border border-cyan-200/16 bg-cyan-300/8 p-4">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100">
+                AI Plan Notes
+              </p>
+              <p className="mt-3 text-sm font-semibold leading-6 text-slate-200">
+                {planSummary}
+              </p>
+              <Link
+                href={ROUTES.dashboard.goals}
+                className="mt-4 inline-flex min-h-[42px] items-center justify-center rounded-2xl border border-cyan-200/20 bg-cyan-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-200/40 hover:bg-cyan-300/16"
+              >
+                Edit Plan Direction
+              </Link>
+            </div>
+          </div>
+        </div>
+      </CollapsibleProfilePanel>
+    );
+  };
 
   const renderOverview = () => (
     <div className="space-y-5">
@@ -6010,8 +10642,12 @@ export default function ClientProfilePage() {
         ].map(([label, value]) => (
           <div
             key={label}
-            className="rounded-[26px] border border-white/10 bg-white/[0.055] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+            className={profileOverviewMetricCardClass}
           >
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/55 to-fuchsia-200/35"
+            />
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
               {label}
             </p>
@@ -6020,24 +10656,20 @@ export default function ClientProfilePage() {
         ))}
       </div>
       {renderGoalCompass()}
+      {renderPreviousExperience()}
       {renderBodyMetrics()}
-      {renderMeasurements()}
       {renderSpecialCircumstances()}
       {renderPlanInputs()}
-      {renderNotes()}
+      {renderNotes({ includeCoachingPreferences: true })}
     </div>
   );
 
   const renderActiveTab = () => {
     if (activeTab === "overview") return renderOverview();
-    if (activeTab === "goals") return <div className="space-y-5">{renderGoalCompass()}{renderBodyMetrics()}</div>;
-    if (activeTab === "body") return <div className="space-y-5">{renderBodyMetrics()}{renderRecoveryProfile()}</div>;
-    if (activeTab === "readiness") return renderReadinessSection();
+    if (activeTab === "readiness") return <div className="space-y-5">{renderReadinessSection()}{renderLifestyle()}</div>;
     if (activeTab === "measurements") return renderMeasurements();
-    if (activeTab === "planDirection") return <div className="space-y-5">{renderGoalCompass()}{renderNotes()}</div>;
-    if (activeTab === "training") return <div className="space-y-5">{renderPlanInputs()}{renderTrainingStyle()}{renderLifestyle()}</div>;
-    if (activeTab === "recovery") return <div className="space-y-5">{renderRecoveryProfile()}{renderSpecialCircumstances()}{renderLifestyle()}</div>;
-    if (activeTab === "circumstances") return renderSpecialCircumstances();
+    if (activeTab === "training") return <div className="space-y-5">{renderPlanInputs()}{renderTrainingStyle()}</div>;
+    if (activeTab === "recovery") return renderRecoveryProfile();
     if (activeTab === "nutrition") return renderNutrition();
     if (activeTab === "benchmarks") return renderBenchmarks();
     return <div className="space-y-5">{renderPersonalization()}{renderNotes()}</div>;
@@ -6046,7 +10678,9 @@ export default function ClientProfilePage() {
   const renderMasterJourneyMap = () => {
     const journeyRows: Array<{
       accent: string;
+      completion: number;
       description: string;
+      id: string;
       steps: Array<{
         href: string;
         label: string;
@@ -6056,45 +10690,82 @@ export default function ClientProfilePage() {
     }> = [
       {
         accent: "from-cyan-300 to-blue-400",
+        completion: Math.round(
+          (tabCompletions.overview +
+            tabCompletions.goals +
+            tabCompletions.training +
+            tabCompletions.planDirection) /
+            4,
+        ),
         description: "Build sessions from profile, goals, libraries, and plans.",
+        id: "training",
         title: "Training Journey",
         steps: [
-          // TODO: Replace with /dashboard/sessions/journey if that route is added.
-          { href: ROUTES.dashboard.sessions, label: "Session Setup", status: "Start" },
+          { href: ROUTES.dashboard.profile, label: "Profile", status: "Foundation" },
+          { href: ROUTES.dashboard.goals, label: "Goals", status: "Direction" },
+          { href: ROUTES.dashboard.sessions, label: "Sessions", status: "Start" },
           { href: ROUTES.dashboard.exerciseLibrary, label: "Exercise Library", status: "Tools" },
           { href: ROUTES.workoutBuilder.home, label: "Builder", status: "Create" },
-          { href: ROUTES.dashboard.plan, label: "Plan", status: "Organize" },
+          { href: ROUTES.dashboard.plan, label: "My Plan", status: "Organize" },
+          { href: ROUTES.dashboard.phases, label: "Periodized Plan", status: "Phase" },
+          { href: ROUTES.dashboard.calendar, label: "Calendar", status: "Schedule" },
           { href: ROUTES.dashboard.stats, label: "Progress", status: "Reflect" },
         ],
       },
       {
         accent: "from-emerald-300 to-teal-400",
+        completion: Math.round(
+          (tabCompletions.overview +
+            tabCompletions.goals +
+            tabCompletions.nutrition +
+            tabCompletions.measurements) /
+            4,
+        ),
         description: "Turn fuel decisions into meals, menus, and weekly nutrition plans.",
+        id: "fuel",
         title: "Fuel Journey",
         steps: [
+          { href: ROUTES.dashboard.profile, label: "Profile", status: "Foundation" },
+          { href: "/nutrition/goals", label: "Goals", status: "Fuel goal" },
           { href: ROUTES.nutritionPortal.home, label: "Fuel Dashboard", status: "Today" },
-          { href: ROUTES.nutritionPortal.grocery, label: "Shopping", status: "Stock" },
+          { href: ROUTES.nutritionPortal.grocery, label: "Shopping / My Fridge", status: "Stock" },
           { href: ROUTES.nutritionPortal.library, label: "Kitchen", status: "Library" },
-          { href: ROUTES.nutritionPortal.meals, label: "Menu", status: "Meals" },
-          { href: "/nutrition/meal-plan", label: "Meal Plan", status: "Week" },
+          { href: ROUTES.nutritionPortal.meals, label: "My Menu", status: "Meals" },
+          { href: "/nutrition/meal-plan", label: "My Plan", status: "Week" },
+          { href: "/nutrition/progress", label: "Progress", status: "Track" },
         ],
       },
       {
         accent: "from-orange-300 to-amber-300",
+        completion: Math.round(
+          (tabCompletions.benchmarks +
+            tabCompletions.training +
+            tabCompletions.readiness) /
+            3,
+        ),
         description: "Develop conditioning, athletic metrics, and performance trends.",
+        id: "performance",
         title: "Performance Pathway",
         steps: [
           // TODO: Split these into performance subroutes when /performance/journey exists.
           { href: "/performance", label: "Baseline", status: "Check" },
           { href: "/performance", label: "Cardio", status: "Engine" },
           { href: "/performance", label: "Conditioning", status: "Capacity" },
-          { href: "/performance", label: "Athletic Metrics", status: "Measure" },
+          { href: "/performance", label: "Metrics", status: "Measure" },
+          { href: "/performance", label: "Athletic Tests", status: "Test" },
           { href: ROUTES.dashboard.stats, label: "Progress", status: "Track" },
         ],
       },
       {
         accent: "from-violet-300 to-cyan-300",
+        completion: Math.round(
+          (tabCompletions.readiness +
+            tabCompletions.recovery +
+            tabCompletions.circumstances) /
+            3,
+        ),
         description: "Connect readiness, mobility, pain/soreness, and recovery planning.",
+        id: "recovery",
         title: "Recovery Roadmap",
         steps: [
           { href: ROUTES.dashboard.profile, label: "Readiness", status: "Profile" },
@@ -6102,6 +10773,7 @@ export default function ClientProfilePage() {
           { href: ROUTES.dashboard.painTracking, label: "Pain/Soreness", status: "Log" },
           { href: ROUTES.dashboard.profile, label: "Sleep/Stress", status: "Signals" },
           { href: "/recovery", label: "Recovery Plan", status: "Recover" },
+          { href: ROUTES.dashboard.stats, label: "Progress", status: "Track" },
         ],
       },
     ];
@@ -6119,93 +10791,248 @@ export default function ClientProfilePage() {
       },
     ];
 
+    const getJourneySummary = (row: (typeof journeyRows)[number]) => {
+      const completedCount = Math.min(
+        row.steps.length,
+        Math.floor((row.completion / 100) * row.steps.length),
+      );
+      const currentIndex = Math.min(completedCount, row.steps.length - 1);
+      const currentStep = row.steps[currentIndex]?.label || row.steps[0]?.label || "Profile";
+      const nextAction =
+        row.steps[Math.min(currentIndex + 1, row.steps.length - 1)]?.label ||
+        currentStep;
+
+      return { completedCount, currentIndex, currentStep, nextAction };
+    };
+
+    const overallJourneyCompletion = Math.round(
+      journeyRows.reduce((total, row) => total + row.completion, 0) /
+        Math.max(journeyRows.length, 1),
+    );
+    const currentJourney =
+      journeyRows.find((row) => row.id === openMasterJourney) ||
+      journeyRows.find((row) => row.completion < 100) ||
+      journeyRows[0];
+    const currentJourneySummary = getJourneySummary(currentJourney);
+
     return (
-      <Panel
-        eyebrow="Master Journey"
-        title="Master Training Journey"
-        subtitle="Profile and goals are the foundation. Training, fuel, performance, and recovery journeys build from there."
-      >
-        <div className="mx-auto grid max-w-2xl gap-3 sm:grid-cols-2">
-          {foundationItems.map((item, index) => (
-            <Link
-              key={item.label}
-              href={item.href}
-              className="group relative rounded-[26px] border border-cyan-200/22 bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,0.18),transparent_44%),rgba(15,23,42,0.68)] p-4 text-center shadow-[0_0_28px_rgba(34,211,238,0.08)] transition hover:-translate-y-1 hover:border-cyan-200/42 hover:bg-cyan-300/10"
-            >
-              {index === 0 ? (
-                <span className="pointer-events-none absolute -right-5 top-1/2 hidden h-px w-10 bg-gradient-to-r from-cyan-300/60 to-orange-300/60 sm:block" />
-              ) : null}
-              <span className="mx-auto grid h-10 w-10 place-items-center rounded-2xl border border-cyan-100/25 bg-cyan-300/14 text-sm font-black text-cyan-100">
-                {index + 1}
-              </span>
-              <p className="mt-3 text-lg font-black text-white">{item.label}</p>
-              <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
-                {item.status}
+      <section className={`${profileOverviewSectionShellClass} overflow-hidden`}>
+        <span aria-hidden="true" className={profileOverviewSectionGlowClass} />
+        <button
+          type="button"
+          aria-expanded={masterJourneyExpanded}
+          onClick={() => setMasterJourneyExpanded((current) => !current)}
+          className="group w-full p-5 text-left transition hover:bg-white/[0.035] sm:p-6"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200/70">
+                Master Journey
               </p>
-              <span className="mt-3 inline-flex rounded-full border border-cyan-100/25 bg-cyan-300/12 px-3 py-1 text-xs font-black text-cyan-100">
-                Start here
-              </span>
-            </Link>
-          ))}
-        </div>
-
-        <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-
-        <div className="space-y-5">
-          {journeyRows.map((row) => (
-            <section
-              key={row.title}
-              className="rounded-[28px] border border-white/10 bg-slate-950/50 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-            >
-              <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-                <div>
-                  <p className="text-lg font-black text-white">{row.title}</p>
-                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
-                    {row.description}
-                  </p>
-                </div>
-                <span
-                  className={`h-2 w-24 rounded-full bg-gradient-to-r ${row.accent} shadow-[0_0_18px_rgba(34,211,238,0.14)]`}
-                />
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <h2 className="text-2xl font-black text-white">
+                  Master Training Journey
+                </h2>
+                <span className="rounded-full border border-cyan-200/28 bg-cyan-300/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                  {overallJourneyCompletion}% complete
+                </span>
               </div>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">
+                Profile and goals are the foundation. Training, fuel, performance, and recovery journeys build from there.
+              </p>
+              <div className="mt-3 flex max-w-full flex-wrap gap-2">
+                <span className="rounded-full border border-emerald-200/20 bg-emerald-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-100">
+                  {overallJourneyCompletion}% Complete
+                </span>
+                <span className="rounded-full border border-cyan-200/20 bg-cyan-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">
+                  Current: {currentJourney.title}
+                </span>
+                <span className="rounded-full border border-orange-200/18 bg-orange-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-orange-100">
+                  Next: {currentJourneySummary.nextAction}
+                </span>
+              </div>
+            </div>
 
-              <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {row.steps.map((step, index) => (
-                  <div
-                    key={`${row.title}-${step.label}`}
-                    className="flex shrink-0 snap-start items-center gap-3"
+            <div className="flex shrink-0 items-center gap-3">
+              <span className="hidden h-2 w-24 rounded-full bg-gradient-to-r from-cyan-300 via-emerald-300 to-orange-300 shadow-[0_0_20px_rgba(34,211,238,0.16)] sm:block">
+                <span
+                  className="block h-full rounded-full bg-white/35 transition-[width] duration-500"
+                  style={{ width: `${overallJourneyCompletion}%` }}
+                />
+              </span>
+              <span
+                className={`grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.045] text-lg font-black text-slate-300 transition group-hover:border-cyan-200/35 group-hover:text-cyan-100 ${
+                  masterJourneyExpanded ? "rotate-90" : ""
+                }`}
+              >
+                &gt;
+              </span>
+            </div>
+          </div>
+        </button>
+
+        <div
+          className={`grid transition-all duration-300 ease-out ${
+            masterJourneyExpanded
+              ? "grid-rows-[1fr] opacity-100"
+              : "grid-rows-[0fr] opacity-0"
+          }`}
+        >
+          <div className="overflow-hidden">
+            <div className="border-t border-white/10 p-5 sm:p-6">
+              <div className="mx-auto grid max-w-2xl gap-3 sm:grid-cols-2">
+                {foundationItems.map((item, index) => (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className="group relative rounded-[26px] border border-cyan-200/22 bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,0.18),transparent_44%),rgba(15,23,42,0.68)] p-4 text-center shadow-[0_0_28px_rgba(34,211,238,0.08)] transition hover:-translate-y-1 hover:border-cyan-200/42 hover:bg-cyan-300/10"
                   >
-                    <Link
-                      href={step.href}
-                      className="group min-h-[128px] w-[190px] rounded-[24px] border border-white/10 bg-white/[0.045] p-4 transition hover:-translate-y-1 hover:border-cyan-200/30 hover:bg-cyan-300/10 active:scale-[0.98]"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span
-                          className={`grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br ${row.accent} text-xs font-black text-slate-950`}
-                        >
-                          {index + 1}
-                        </span>
-                        <span className="rounded-full border border-white/10 bg-slate-950/58 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-400 group-hover:text-cyan-100">
-                          {step.status}
-                        </span>
-                      </div>
-                      <p className="mt-4 text-sm font-black leading-tight text-white">
-                        {step.label}
-                      </p>
-                      <p className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
-                        Open
-                      </p>
-                    </Link>
-                    {index < row.steps.length - 1 ? (
-                      <span className="h-px w-10 shrink-0 bg-gradient-to-r from-white/18 to-cyan-300/30" />
+                    {index === 0 ? (
+                      <span className="pointer-events-none absolute -right-5 top-1/2 hidden h-px w-10 bg-gradient-to-r from-cyan-300/60 to-orange-300/60 sm:block" />
                     ) : null}
-                  </div>
+                    <span className="mx-auto grid h-10 w-10 place-items-center rounded-2xl border border-cyan-100/25 bg-cyan-300/14 text-sm font-black text-cyan-100">
+                      {index + 1}
+                    </span>
+                    <p className="mt-3 text-lg font-black text-white">{item.label}</p>
+                    <p className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                      {item.status}
+                    </p>
+                    <span className="mt-3 inline-flex rounded-full border border-cyan-100/25 bg-cyan-300/12 px-3 py-1 text-xs font-black text-cyan-100">
+                      Start here
+                    </span>
+                  </Link>
                 ))}
               </div>
-            </section>
-          ))}
+
+              <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+
+              <div className="space-y-5">
+                {journeyRows.map((row) => {
+                  const isOpen = openMasterJourney === row.id;
+                  const { completedCount, currentIndex, currentStep, nextAction } =
+                    getJourneySummary(row);
+
+                  return (
+                    <section
+                      key={row.id}
+                      className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                    >
+                      <button
+                        type="button"
+                        aria-expanded={isOpen}
+                        onClick={() =>
+                          setOpenMasterJourney((current) =>
+                            current === row.id ? null : row.id,
+                          )
+                        }
+                        className="group w-full p-4 text-left transition hover:bg-white/[0.035]"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <p className="text-lg font-black text-white">{row.title}</p>
+                              <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-slate-300">
+                                {row.completion}% complete
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
+                              {row.description}
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              <span className="rounded-full border border-cyan-200/20 bg-cyan-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">
+                                Current: {currentStep}
+                              </span>
+                              <span className="rounded-full border border-orange-200/18 bg-orange-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-orange-100">
+                                Next: {nextAction}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`hidden h-2 w-24 rounded-full bg-gradient-to-r ${row.accent} shadow-[0_0_18px_rgba(34,211,238,0.14)] sm:block`}
+                            />
+                            <span
+                              className={`grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/[0.045] text-lg font-black text-slate-300 transition group-hover:border-cyan-200/35 group-hover:text-cyan-100 ${
+                                isOpen ? "rotate-90" : ""
+                              }`}
+                            >
+                              &gt;
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+
+                <div
+                  className={`grid transition-all duration-300 ease-out ${
+                    isOpen
+                      ? "grid-rows-[1fr] opacity-100"
+                      : "grid-rows-[0fr] opacity-0"
+                  }`}
+                >
+                  <div className="overflow-hidden">
+                    <div className="border-t border-white/10 p-4 pt-5">
+                      <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                        {row.steps.map((step, index) => {
+                          const stepState =
+                            index < completedCount
+                              ? "Completed"
+                              : index === currentIndex
+                                ? "Active"
+                                : "Next";
+                          const isActive = stepState === "Active";
+                          const isComplete = stepState === "Completed";
+
+                          return (
+                            <div
+                              key={`${row.title}-${step.label}`}
+                              className="flex shrink-0 snap-start items-center gap-3"
+                            >
+                              <Link
+                                href={step.href}
+                                className={`group min-h-[128px] w-[190px] rounded-[24px] border p-4 transition hover:-translate-y-1 active:scale-[0.98] ${
+                                  isActive
+                                    ? "border-cyan-200/45 bg-cyan-300/14 shadow-[0_0_28px_rgba(34,211,238,0.16)]"
+                                    : isComplete
+                                      ? "border-emerald-200/35 bg-emerald-300/10 shadow-[0_0_22px_rgba(52,211,153,0.12)]"
+                                      : "border-white/10 bg-white/[0.045] hover:border-cyan-200/30 hover:bg-cyan-300/10"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <span
+                                    className={`grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br ${row.accent} text-xs font-black text-slate-950`}
+                                  >
+                                    {index + 1}
+                                  </span>
+                                  <span className="rounded-full border border-white/10 bg-slate-950/58 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-400 group-hover:text-cyan-100">
+                                    {stepState}
+                                  </span>
+                                </div>
+                                <p className="mt-4 text-sm font-black leading-tight text-white">
+                                  {step.label}
+                                </p>
+                                <p className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                                  {step.status}
+                                </p>
+                              </Link>
+                              {index < row.steps.length - 1 ? (
+                                <span className="h-px w-10 shrink-0 bg-gradient-to-r from-white/18 to-cyan-300/30" />
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                    </section>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
-      </Panel>
+      </section>
     );
   };
 
@@ -6218,7 +11045,7 @@ export default function ClientProfilePage() {
               Member Profile
             </p>
             <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">
-              Training identity, goals, and plan direction
+              Training identity and readiness context
             </h1>
           </div>
           <div className="flex flex-wrap gap-2">

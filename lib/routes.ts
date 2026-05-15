@@ -85,6 +85,14 @@ export const NUTRITION_PORTAL_ROUTES = {
   library: route("/nutrition/library"),
 } as const;
 
+export const LEARNING_ROUTES = {
+  home: route("/learning"),
+} as const;
+
+export const SOUNDWORLD_ROUTES = {
+  home: route("/soundworld"),
+} as const;
+
 export const WORKOUT_BUILDER_ROUTES = {
   home: route("/dashboard/workout-builder"),
   exerciseLibrary: route("/dashboard/workout-builder/exercise-library"),
@@ -128,6 +136,8 @@ export const ROUTES = {
   member: MEMBER_ROUTES,
   nutrition: NUTRITION_ROUTES,
   nutritionPortal: NUTRITION_PORTAL_ROUTES,
+  learning: LEARNING_ROUTES,
+  soundworld: SOUNDWORLD_ROUTES,
   workoutBuilder: WORKOUT_BUILDER_ROUTES,
   admin: ADMIN_ROUTES,
   coach: COACH_ROUTES,
@@ -140,6 +150,8 @@ export type AppRoute =
   | ValueOf<typeof DASHBOARD_ROUTES>
   | ValueOf<typeof NUTRITION_ROUTES>
   | ValueOf<typeof NUTRITION_PORTAL_ROUTES>
+  | ValueOf<typeof LEARNING_ROUTES>
+  | ValueOf<typeof SOUNDWORLD_ROUTES>
   | ValueOf<typeof WORKOUT_BUILDER_ROUTES>
   | ValueOf<typeof ADMIN_ROUTES>
   | ValueOf<typeof COACH_ROUTES>;

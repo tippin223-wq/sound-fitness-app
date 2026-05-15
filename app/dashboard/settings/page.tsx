@@ -5,7 +5,7 @@ export default function SettingsPage() {
     <UserMenuPlaceholderPage
       badge="Account"
       title="Settings"
-      description="App preferences and account controls belong here. Training identity, goals, and body profile stay on the Profile page."
+      description="App preferences and account controls belong here. Training identity and body profile stay on Profile; training goals live on Goals."
       sections={[
         {
           title: "Profile Preferences",

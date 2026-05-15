@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import TrainingJourneyNavigator from "@/components/dashboard/TrainingJourneyNavigator";
+import { writeSoundFitnessProfile } from "@/lib/profile-storage";
 import { ROUTES } from "@/lib/routes";
 
 type JsonObject = Record<string, unknown>;
@@ -21,6 +22,9 @@ type GoalState = {
   primaryGoal: GoalId;
   secondaryGoal: GoalId;
   constraintGoal: string;
+  goalDeadline: string;
+  goalMilestones: string;
+  goalPriorityRanking: string;
   currentWeight: string;
   goalWeight: string;
   targetWeeklySessions: string;
@@ -30,15 +34,23 @@ type GoalState = {
   targetSleep: string;
   benchmarkGoal: string;
   goalMode: string;
+  motivationFocus: string;
+  planDirectionNotes: string;
   updatedAt?: string;
 };
 
 type ProfileSnapshot = {
   displayName: string;
   primaryGoal: string;
+  secondaryGoal: string;
   goalMode: string;
+  goalDeadline: string;
+  goalMilestones: string;
+  goalPriorityRanking: string;
   currentWeight: string;
   goalWeight: string;
+  motivationFocus: string;
+  planDirectionNotes: string;
   sessionsPerWeek: string;
   sleepGoal: string;
   trainingAge: string;
@@ -66,6 +78,16 @@ const goalOptions: GoalId[] = [
   "Recovery",
   "Performance",
 ];
+
+const goalPriorityOptions = [
+  "Strength, recovery, consistency",
+  "Muscle, strength, recovery",
+  "Fat loss, steps, strength",
+  "Performance, conditioning, power",
+  "Mobility, pain-free movement, consistency",
+  "Balanced",
+  "Custom",
+] as const;
 
 const goalCards: Array<{
   id: GoalId;
@@ -185,6 +207,17 @@ const getString = (source: JsonObject, keys: string[], fallback = "") => {
   return fallback;
 };
 
+const normalizeGoalId = (value: string, fallback: GoalId): GoalId => {
+  const normalized = value.toLowerCase();
+  return (
+    goalOptions.find(
+      (goal) =>
+        goal.toLowerCase() === normalized ||
+        normalized.includes(goal.toLowerCase()),
+    ) || fallback
+  );
+};
+
 const readArrayLength = (key: string) => {
   const value = readLocal(key);
   return Array.isArray(value) ? value.length : 0;
@@ -210,20 +243,27 @@ const countWeeklySets = (rawStats: unknown) => {
 const defaultProfile = (): ProfileSnapshot => ({
   displayName: "Member",
   primaryGoal: "General Health",
+  secondaryGoal: "Strength",
   goalMode: "General Health",
+  goalDeadline: "",
+  goalMilestones: "",
+  goalPriorityRanking: "Strength, recovery, consistency",
   currentWeight: "",
   goalWeight: "",
+  motivationFocus: "",
+  planDirectionNotes: "",
   sessionsPerWeek: "4",
   sleepGoal: "7.5",
   trainingAge: "Not set",
 });
 
 const buildGoalsFromProfile = (profile: ProfileSnapshot): GoalState => ({
-  primaryGoal: goalOptions.includes(profile.primaryGoal as GoalId)
-    ? (profile.primaryGoal as GoalId)
-    : "General Health",
-  secondaryGoal: "Strength",
+  primaryGoal: normalizeGoalId(profile.primaryGoal, "General Health"),
+  secondaryGoal: normalizeGoalId(profile.secondaryGoal, "Strength"),
   constraintGoal: "Recovery-aware training",
+  goalDeadline: profile.goalDeadline,
+  goalMilestones: profile.goalMilestones,
+  goalPriorityRanking: profile.goalPriorityRanking || "Strength, recovery, consistency",
   currentWeight: profile.currentWeight,
   goalWeight: profile.goalWeight,
   targetWeeklySessions: profile.sessionsPerWeek || "4",
@@ -233,6 +273,8 @@ const buildGoalsFromProfile = (profile: ProfileSnapshot): GoalState => ({
   targetSleep: profile.sleepGoal || "7.5",
   benchmarkGoal: "Improve one key lift or movement standard this cycle.",
   goalMode: profile.goalMode || "General Health",
+  motivationFocus: profile.motivationFocus,
+  planDirectionNotes: profile.planDirectionNotes,
 });
 
 const getProfileSnapshot = (): ProfileSnapshot => {
@@ -242,9 +284,15 @@ const getProfileSnapshot = (): ProfileSnapshot => {
   return {
     displayName: getString(profile, ["displayName", "fullName", "name"], fallback.displayName),
     primaryGoal: getString(profile, ["primaryGoal", "goal", "goalMode"], fallback.primaryGoal),
+    secondaryGoal: getString(profile, ["secondaryGoal"], fallback.secondaryGoal),
     goalMode: getString(profile, ["goalMode", "mode"], fallback.goalMode),
+    goalDeadline: getString(profile, ["goalDeadline"], fallback.goalDeadline),
+    goalMilestones: getString(profile, ["goalMilestones"], fallback.goalMilestones),
+    goalPriorityRanking: getString(profile, ["goalPriorityRanking"], fallback.goalPriorityRanking),
     currentWeight: getString(profile, ["currentWeight", "weight"], fallback.currentWeight),
     goalWeight: getString(profile, ["goalWeight"], fallback.goalWeight),
+    motivationFocus: getString(profile, ["motivationFocus", "goalMotivation"], fallback.motivationFocus),
+    planDirectionNotes: getString(profile, ["planDirectionNotes"], fallback.planDirectionNotes),
     sessionsPerWeek: getString(profile, ["sessionsPerWeek", "weeklyTarget"], fallback.sessionsPerWeek),
     sleepGoal: getString(profile, ["sleepGoal"], fallback.sleepGoal),
     trainingAge: getString(profile, ["trainingAge", "trainingLevel"], fallback.trainingAge),
@@ -292,6 +340,56 @@ function Field({
         />
         {suffix ? <span className="text-xs font-bold text-slate-500">{suffix}</span> : null}
       </div>
+    </label>
+  );
+}
+
+function DateField({
+  label,
+  onChange,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  return (
+    <label className="block rounded-[24px] border border-white/10 bg-white/[0.045] p-4">
+      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+        {label}
+      </span>
+      <input
+        type="date"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="mt-3 min-h-[48px] w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-sm font-black text-white outline-none transition focus:border-cyan-300"
+      />
+    </label>
+  );
+}
+
+function TextAreaField({
+  label,
+  onChange,
+  placeholder,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  value: string;
+}) {
+  return (
+    <label className="block rounded-[24px] border border-white/10 bg-white/[0.045] p-4">
+      <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
+        {label}
+      </span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="mt-3 min-h-[112px] w-full resize-none bg-transparent text-sm font-semibold leading-6 text-white outline-none placeholder:text-slate-600"
+      />
     </label>
   );
 }
@@ -374,6 +472,49 @@ export default function GoalsPage() {
     Number(goals.goalWeight || 0) && Number(goals.currentWeight || 0)
       ? Number(goals.goalWeight) - Number(goals.currentWeight)
       : 0;
+  const goalCompletionItems = [
+    goals.primaryGoal,
+    goals.secondaryGoal,
+    goals.goalMode,
+    goals.goalPriorityRanking,
+    goals.goalDeadline,
+    goals.goalMilestones,
+    goals.motivationFocus || goals.planDirectionNotes,
+    goals.targetWeeklySessions,
+    goals.benchmarkGoal,
+  ];
+  const goalSetupCompletion = Math.round(
+    (goalCompletionItems.filter((item) => String(item || "").trim()).length /
+      goalCompletionItems.length) *
+      100,
+  );
+  const milestoneCount = goals.goalMilestones
+    .split(/\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean).length;
+  const deadlineDate = goals.goalDeadline
+    ? new Date(`${goals.goalDeadline}T00:00:00`)
+    : null;
+  const goalDeadlineLabel =
+    deadlineDate && !Number.isNaN(deadlineDate.getTime())
+      ? new Intl.DateTimeFormat("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }).format(deadlineDate)
+      : goals.goalDeadline || "Timeline open";
+  const recommendedNextStep = !goals.goalDeadline
+    ? "Set a realistic goal timeline so the plan can pace volume and progression."
+    : !goals.goalMilestones.trim()
+      ? "Add 2-3 milestones that turn the goal into visible weekly behaviors."
+      : coachInsight;
+  const goalPrioritySelectOptions =
+    goals.goalPriorityRanking &&
+    !goalPriorityOptions.includes(
+      goals.goalPriorityRanking as (typeof goalPriorityOptions)[number],
+    )
+      ? [goals.goalPriorityRanking, ...goalPriorityOptions]
+      : [...goalPriorityOptions];
 
   const updateGoal = <K extends keyof GoalState>(key: K, value: GoalState[K]) => {
     setGoals((current) => ({ ...current, [key]: value }));
@@ -388,6 +529,12 @@ export default function GoalsPage() {
       primaryGoal: goals.primaryGoal,
       secondaryGoal: goals.secondaryGoal,
       goalMode: goals.goalMode,
+      goalDeadline: goals.goalDeadline,
+      goalMilestones: goals.goalMilestones,
+      goalPriorityRanking: goals.goalPriorityRanking,
+      motivationFocus: goals.motivationFocus,
+      goalMotivation: goals.motivationFocus,
+      planDirectionNotes: goals.planDirectionNotes,
       currentWeight: goals.currentWeight,
       goalWeight: goals.goalWeight,
       sessionsPerWeek: goals.targetWeeklySessions,
@@ -395,7 +542,7 @@ export default function GoalsPage() {
     };
 
     window.localStorage.setItem("soundFitnessGoals", JSON.stringify(nextGoals));
-    window.localStorage.setItem("soundFitnessProfile", JSON.stringify(nextProfile));
+    writeSoundFitnessProfile(nextProfile);
     setGoals(nextGoals);
     setProfile(getProfileSnapshot());
     setSavedMessage("Goals saved and Profile plan direction updated.");
@@ -428,16 +575,25 @@ export default function GoalsPage() {
                 <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-black text-emerald-100">
                   {goals.targetWeeklySessions || 0} sessions / wk
                 </span>
+                <span className="rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs font-black text-sky-100">
+                  Timeline: {goalDeadlineLabel}
+                </span>
+                <span className="rounded-full border border-fuchsia-300/20 bg-fuchsia-300/10 px-3 py-1 text-xs font-black text-fuchsia-100">
+                  Goal setup {goalSetupCompletion}%
+                </span>
               </div>
             </div>
             <div className="rounded-[30px] border border-cyan-300/15 bg-slate-950/58 p-4">
               <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">
-                Coach Insight
+                Recommended Next Goal Step
               </p>
               <p className="mt-3 text-xl font-black leading-tight text-white">
-                {coachInsight}
+                {recommendedNextStep}
               </p>
               <div className="mt-5 grid gap-2 sm:grid-cols-2">
+                <TranslationCard label="Timeline" value={goalDeadlineLabel} />
+                <TranslationCard label="Goal Progress" value={`${goalSetupCompletion}% complete`} />
+                <TranslationCard label="Milestones" value={milestoneCount ? `${milestoneCount} milestone${milestoneCount === 1 ? "" : "s"} noted` : "Add milestones"} />
                 <TranslationCard label="Member" value={`${profile.displayName} · ${profile.trainingAge}`} />
                 <TranslationCard label="Weight Target" value={weightDelta ? `${weightDelta > 0 ? "Gain" : "Lose"} ${Math.abs(weightDelta).toLocaleString()} lb` : "Add body metrics"} />
                 <TranslationCard label="Weekly Momentum" value={`${weeklySets} / ${weeklyTarget} sets · ${completion}%`} />
@@ -451,9 +607,9 @@ export default function GoalsPage() {
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200">
-                Goal Compass
+                Plan Direction
               </p>
-              <h2 className="mt-2 text-2xl font-black">Pick the north star.</h2>
+              <h2 className="mt-2 text-2xl font-black">Choose the goal the plan should optimize for.</h2>
             </div>
             <button
               type="button"
@@ -524,6 +680,7 @@ export default function GoalsPage() {
                 />
               </label>
               <SelectField label="Goal Mode" value={goals.goalMode} options={["Bulk", "Cut", "Maintain", "Strength", "General Health", "Performance", "Recovery"]} onChange={(value) => updateGoal("goalMode", value)} />
+              <SelectField label="Goal Priorities" value={goals.goalPriorityRanking} options={goalPrioritySelectOptions} onChange={(value) => updateGoal("goalPriorityRanking", value)} />
             </div>
           </section>
 
@@ -551,6 +708,43 @@ export default function GoalsPage() {
               </label>
             </div>
           </section>
+        </section>
+
+        <section className="rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200">
+                Goal Timeline & Motivation
+              </p>
+              <h2 className="mt-2 text-2xl font-black">Milestones, focus, and progress live here.</h2>
+            </div>
+            <div className="min-w-[220px] rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+              <div className="flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                <span>Goal Progress</span>
+                <span className="text-cyan-100">{goalSetupCompletion}%</span>
+              </div>
+              <div className="mt-3 h-2 rounded-full bg-slate-900">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-emerald-300 to-amber-300"
+                  style={{ width: `${Math.min(goalSetupCompletion, 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="mt-5 grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+            <div className="grid gap-4">
+              <DateField label="Goal Timeline" value={goals.goalDeadline} onChange={(value) => updateGoal("goalDeadline", value)} />
+              <TranslationCard label="Timeline Summary" value={`${goalDeadlineLabel} - ${milestoneCount ? `${milestoneCount} milestone${milestoneCount === 1 ? "" : "s"}` : "milestones not set"}`} />
+              <TranslationCard label="Recommended Next Goal Step" value={recommendedNextStep} />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <TextAreaField label="Goal Milestones" value={goals.goalMilestones} onChange={(value) => updateGoal("goalMilestones", value)} placeholder="Example: First 4-week consistency streak, strength benchmark, measurement checkpoint..." />
+              <TextAreaField label="Motivation / Focus" value={goals.motivationFocus} onChange={(value) => updateGoal("motivationFocus", value)} placeholder="What should the coach and app keep you focused on?" />
+              <div className="md:col-span-2">
+                <TextAreaField label="Plan Direction Notes" value={goals.planDirectionNotes} onChange={(value) => updateGoal("planDirectionNotes", value)} placeholder="Extra guidance for plan generation, tradeoffs, or goal context." />
+              </div>
+            </div>
+          </div>
         </section>
 
         <section className="rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl">
