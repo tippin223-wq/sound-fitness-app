@@ -38,6 +38,7 @@ type SoundAchievementBadgeRowProps = {
   actionLabel?: string;
   className?: string;
   compact?: boolean;
+  controlsAlwaysVisible?: boolean;
   eyebrow?: string;
   items: AchievementBadgeItem[];
   title?: string;
@@ -389,6 +390,7 @@ export default function SoundAchievementBadgeRow({
   actionLabel = "View all",
   className = "",
   compact = false,
+  controlsAlwaysVisible = false,
   eyebrow,
   items,
   title,
@@ -429,7 +431,13 @@ export default function SoundAchievementBadgeRow({
                 {actionLabel}
               </Link>
             ) : null}
-            <div className="flex gap-2 opacity-70 transition delay-150 duration-300 sm:opacity-0 sm:group-hover/achievement-row:opacity-100 sm:group-focus-within/achievement-row:opacity-100">
+            <div
+              className={`flex gap-2 transition delay-150 duration-300 ${
+                controlsAlwaysVisible
+                  ? "opacity-100"
+                  : "opacity-70 sm:opacity-0 sm:group-hover/achievement-row:opacity-100 sm:group-focus-within/achievement-row:opacity-100"
+              }`}
+            >
               <button
                 type="button"
                 aria-label="Scroll achievements left"

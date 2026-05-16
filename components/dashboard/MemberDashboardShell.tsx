@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import { ProfileProvider } from "@/components/profile/ProfileProvider";
 import { ROUTES } from "@/lib/routes";
@@ -13,7 +13,9 @@ export default function MemberDashboardShell({
   children: ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [loading, setLoading] = useState(true);
+  const useEmbeddedHeader = pathname === ROUTES.dashboard.sessions;
 
   useEffect(() => {
     let isActive = true;
@@ -68,7 +70,7 @@ export default function MemberDashboardShell({
 
   return (
     <ProfileProvider>
-      <AppHeader />
+      {useEmbeddedHeader ? null : <AppHeader />}
       {children}
     </ProfileProvider>
   );

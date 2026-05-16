@@ -24,7 +24,7 @@ type FuelJourneyOrbitProps = {
   stages: FuelJourneyStage[];
 };
 
-const FUEL_JOURNEY_LAYER_SIZE = 5;
+const FUEL_JOURNEY_LAYER_SPACING = 265;
 
 const fuelJourneyOrbitStatusStyles: Record<
   FuelJourneyStageStatus,
@@ -68,43 +68,84 @@ const fuelJourneyOrbitStatusStyles: Record<
 };
 
 export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
+  const fuelJourneyRows = useMemo(
+    () =>
+      [
+        {
+          helper: "Fuel overview and dashboard command center",
+          label: "Fuel Dashboard Hero",
+          layerLabel: "Fuel Dashboard",
+          startIndex: 0,
+          stages: stages.slice(0, 1),
+          tone: "border-emerald-200/26 bg-emerald-300/10 text-emerald-100",
+        },
+        {
+          helper: "Meal structure, hydration, calories, protein",
+          label: "Daily Fuel Row",
+          layerLabel: "Daily Fuel",
+          startIndex: 1,
+          stages: stages.slice(1, 5),
+          tone: "border-cyan-200/26 bg-cyan-300/10 text-cyan-100",
+        },
+        {
+          helper: "Grocery, tracking, AI progress, libraries",
+          label: "Plan + Insight Row",
+          layerLabel: "Plan + Insight",
+          startIndex: 5,
+          stages: stages.slice(5),
+          tone: "border-amber-200/26 bg-amber-300/10 text-amber-100",
+        },
+      ]
+        .filter((row) => row.stages.length > 0)
+        .map((row, layer) => ({ ...row, layer })),
+    [stages],
+  );
+  const getStageRow = (index: number) =>
+    fuelJourneyRows.find(
+      (row) =>
+        index >= row.startIndex && index < row.startIndex + row.stages.length,
+    ) || fuelJourneyRows[0];
+  const getStageLayer = (index: number) => getStageRow(index)?.layer || 0;
+  const getStagePosition = (index: number) => {
+    const row = getStageRow(index);
+
+    return row ? index - row.startIndex : 0;
+  };
   const initialStageIndex = Math.max(
     0,
     stages.findIndex(
       (stage) => stage.status === "Current" || stage.status === "Next",
     ),
   );
-  const initialLayer = Math.floor(initialStageIndex / FUEL_JOURNEY_LAYER_SIZE);
+  const initialLayer = getStageLayer(initialStageIndex);
   const initialPositions = useMemo(() => {
-    const positions = [0, 0];
+    const positions = Array.from(
+      { length: Math.max(1, fuelJourneyRows.length) },
+      () => 0,
+    );
 
-    positions[initialLayer] = initialStageIndex % FUEL_JOURNEY_LAYER_SIZE;
+    positions[initialLayer] = getStagePosition(initialStageIndex);
 
     return positions;
-  }, [initialLayer, initialStageIndex]);
+  }, [fuelJourneyRows.length, initialLayer, initialStageIndex]);
   const [activeFuelLayer, setActiveFuelLayer] = useState(initialLayer);
   const [activeFuelPositions, setActiveFuelPositions] =
     useState(initialPositions);
-  const totalLayers = Math.max(
-    1,
-    Math.ceil(stages.length / FUEL_JOURNEY_LAYER_SIZE),
-  );
+  const totalLayers = Math.max(1, fuelJourneyRows.length);
+  const activeFuelRow = fuelJourneyRows[activeFuelLayer] || fuelJourneyRows[0];
   const activeFuelPosition = activeFuelPositions[activeFuelLayer] || 0;
   const activeFuelIndex = Math.min(
-    activeFuelLayer * FUEL_JOURNEY_LAYER_SIZE + activeFuelPosition,
-    Math.max(0, stages.length - 1),
+    (activeFuelRow?.startIndex || 0) + activeFuelPosition,
+    activeFuelRow
+      ? activeFuelRow.startIndex + activeFuelRow.stages.length - 1
+      : Math.max(0, stages.length - 1),
   );
-  const activeFuelStage = stages[activeFuelIndex] || stages[0];
-  const getStageLayer = (index: number) =>
-    Math.floor(index / FUEL_JOURNEY_LAYER_SIZE);
+  const activeFuelStage = stages[Math.min(
+    activeFuelIndex,
+    Math.max(0, stages.length - 1),
+  )] || stages[0];
   const getLayerSize = (layer: number) =>
-    Math.max(
-      1,
-      Math.min(
-        FUEL_JOURNEY_LAYER_SIZE,
-        stages.length - layer * FUEL_JOURNEY_LAYER_SIZE,
-      ),
-    );
+    Math.max(1, fuelJourneyRows[layer]?.stages.length || 1);
   const getOrbitDistance = (index: number) => {
     const stageLayer = getStageLayer(index);
     const layerSize = getLayerSize(stageLayer);
@@ -112,7 +153,7 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
       activeFuelPositions[stageLayer] || 0,
       layerSize - 1,
     );
-    const stagePosition = index % FUEL_JOURNEY_LAYER_SIZE;
+    const stagePosition = getStagePosition(index);
     const rawDistance = stagePosition - activePosition;
 
     if (rawDistance > layerSize / 2) {
@@ -125,7 +166,8 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
 
     return rawDistance;
   };
-  const getLayerOffset = (index: number) => getStageLayer(index) - activeFuelLayer;
+  const getLayerOffset = (index: number) =>
+    getStageLayer(index) - activeFuelLayer;
   const rotateFuelJourney = (direction: "left" | "right" | "up" | "down") => {
     if (!stages.length) return;
 
@@ -212,8 +254,8 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
           </p>
           <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">
             Left and right rotate the active fuel layer. Up and down move
-            between daily fuel systems and planning, tracking, and insight
-            systems.
+            between the fuel dashboard hero, daily fuel systems, and planning,
+            tracking, and insight systems.
           </p>
         </div>
         <div className="rounded-[22px] border border-white/10 bg-slate-950/58 p-3 lg:min-w-[260px]">
@@ -222,7 +264,7 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
               Active Layer
             </span>
             <span className="text-sm font-black uppercase tracking-[0.12em] text-cyan-100">
-              {activeFuelLayer === 0 ? "Daily Fuel" : "Plan + Insight"}
+              {activeFuelRow?.layerLabel || "Fuel Journey"}
             </span>
           </div>
           <p className="mt-2 text-xs font-bold text-slate-400">
@@ -267,36 +309,31 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
 
       <div
         aria-label="Fuel journey orbit selector"
-        className="relative z-10 h-[760px] w-full overflow-visible outline-none [perspective:1500px] focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[800px]"
+        className="relative z-10 h-[860px] w-full overflow-visible outline-none [perspective:1500px] focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[920px]"
         onKeyDown={handleKeyDown}
         tabIndex={0}
       >
-        {[
-          {
-            helper: "Overview, meals, hydration, calories, protein",
-            label: "Daily Fuel Row",
-            layer: 0,
-            tone: "border-cyan-200/26 bg-cyan-300/10 text-cyan-100",
-          },
-          {
-            helper: "Grocery, tracking, AI progress, libraries",
-            label: "Plan + Insight Row",
-            layer: 1,
-            tone: "border-amber-200/26 bg-amber-300/10 text-amber-100",
-          },
-        ].map((row) => {
+        {fuelJourneyRows.map((row) => {
           const isActiveRow = row.layer === activeFuelLayer;
+          const rowLayerOffset = row.layer - activeFuelLayer;
+          const rowCenterOffset =
+            -8 + rowLayerOffset * FUEL_JOURNEY_LAYER_SPACING;
+          const unclampedLabelOffset =
+            rowCenterOffset - (isActiveRow ? 262 : 220);
+          const labelOffset = Math.max(
+            -430,
+            Math.min(340, unclampedLabelOffset),
+          );
 
           return (
             <div
               aria-hidden="true"
-              className={`pointer-events-none absolute left-2 z-40 max-w-[174px] rounded-2xl border px-3 py-2 shadow-[0_16px_44px_rgba(0,0,0,0.30)] backdrop-blur sm:left-4 lg:left-[calc(50%-560px)] ${
-                row.layer === 0 ? "top-4 sm:top-8" : "bottom-4 sm:bottom-8"
-              } ${row.tone}`}
+              className={`pointer-events-none absolute left-1/2 top-1/2 z-40 w-[min(90%,420px)] rounded-2xl border px-3 py-2 text-center shadow-[0_16px_44px_rgba(0,0,0,0.30)] backdrop-blur ${row.tone}`}
               key={row.label}
               style={{
                 opacity: isActiveRow ? 1 : 0.78,
-                transition: "opacity 360ms ease",
+                transform: `translate(-50%, ${labelOffset}px)`,
+                transition: "opacity 360ms ease, transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1)",
               }}
             >
               <div className="text-[9px] font-black uppercase tracking-[0.16em]">
@@ -349,7 +386,8 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
                 ? slot.opacity
                 : Math.min(slot.opacity, 0.28);
           const layerBlur = isLayerLeadCard ? absLayerOffset * 0.35 : slot.blur + absLayerOffset * 1.1;
-          const layerY = slot.y + layerOffset * 335;
+          const layerY = slot.y + layerOffset * FUEL_JOURNEY_LAYER_SPACING;
+          const stageRow = getStageRow(index);
 
           return (
             <Link
@@ -417,12 +455,14 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
                 </h3>
                 <span
                   className={`mt-2 inline-flex rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] ${
-                    getStageLayer(index) === 0
-                      ? "border-cyan-200/24 bg-cyan-300/10 text-cyan-100"
-                      : "border-amber-200/24 bg-amber-300/10 text-amber-100"
+                    stageRow?.layerLabel === "Fuel Dashboard"
+                      ? "border-emerald-200/24 bg-emerald-300/10 text-emerald-100"
+                      : stageRow?.layerLabel === "Daily Fuel"
+                        ? "border-cyan-200/24 bg-cyan-300/10 text-cyan-100"
+                        : "border-amber-200/24 bg-amber-300/10 text-amber-100"
                   }`}
                 >
-                  {getStageLayer(index) === 0 ? "Daily Fuel" : "Plan + Insight"}
+                  {stageRow?.layerLabel || "Fuel Journey"}
                 </span>
                 <p
                   className={`mt-2 font-semibold ${
@@ -489,7 +529,7 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
               key={`${stage.title}-dot`}
               onClick={() => {
                 const targetLayer = getStageLayer(index);
-                const targetPosition = index % FUEL_JOURNEY_LAYER_SIZE;
+                const targetPosition = getStagePosition(index);
 
                 setActiveFuelLayer(targetLayer);
                 setActiveFuelPositions((currentPositions) => {
