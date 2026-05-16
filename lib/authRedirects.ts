@@ -34,7 +34,10 @@ function isAllowedForRole(role: AuthRole, pathname: string) {
   if (publicAuthPaths.has(pathname)) return false;
   if (role === "admin") return pathname.startsWith(ROUTES.admin.home);
   if (role === "coach") return pathname.startsWith(ROUTES.coach.home);
-  return pathname.startsWith(ROUTES.dashboard.home);
+  return (
+    pathname.startsWith(ROUTES.dashboard.home) ||
+    pathname.startsWith(ROUTES.performance.home)
+  );
 }
 
 export function getPostLoginRedirectPath(

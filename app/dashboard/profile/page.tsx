@@ -204,22 +204,29 @@ function SelectorIcon({
 type ProfileTab =
   | "overview"
   | "readiness"
-  | "measurements"
   | "training"
   | "recovery"
-  | "nutrition"
-  | "benchmarks"
-  | "preferences";
+  | "nutrition";
 
-type ProfileCompletionSection = ProfileTab | "body" | "circumstances" | "goals" | "planDirection";
+type ProfileCompletionSection =
+  | ProfileTab
+  | "benchmarks"
+  | "body"
+  | "circumstances"
+  | "goals"
+  | "measurements"
+  | "planDirection"
+  | "preferences";
 
 type ProfileAccordionSection =
   | "appCoachNotes"
+  | "benchmarks"
   | "measurements"
   | "myBody"
   | "planBuilder"
   | "planDirection"
   | "previousExperience"
+  | "readiness"
   | "specialCircumstances";
 
 type ProfileAccordionState = Record<ProfileAccordionSection, boolean>;
@@ -473,6 +480,7 @@ type ProfileAuthFallback = {
   avatarUrl: string;
   displayName: string;
   email: string;
+  memberSinceAt: string;
 };
 
 const profileOverviewSectionShellClass =
@@ -486,13 +494,10 @@ const profileOverviewMetricCardClass =
 
 const tabs: Array<{ id: ProfileTab; label: string }> = [
   { id: "overview", label: "Overview" },
-  { id: "readiness", label: "Readiness" },
+  { id: "readiness", label: "Training Readiness" },
   { id: "recovery", label: "Pain / Recovery Profile" },
-  { id: "measurements", label: "Measurements" },
   { id: "training", label: "Training" },
   { id: "nutrition", label: "Nutrition" },
-  { id: "benchmarks", label: "Benchmarks" },
-  { id: "preferences", label: "Preferences" },
 ];
 
 const goalCards: Array<{
@@ -3026,11 +3031,6 @@ const defaultProfile: SoundFitnessProfile = {
   weeklyConsistencyGoal: 80,
 };
 
-const safeNumber = (value: string) => {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
 const clampNumber = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
 
@@ -3710,7 +3710,6 @@ const getProfileTabCompletions = (
       profile.sessionsPerWeek,
       profile.sessionLength,
       profile.currentWeight,
-      profile.goalWeight,
       profile.profileImage,
       profile.userNotes,
     ]),
@@ -3720,6 +3719,7 @@ const getProfileTabCompletions = (
       profile.primaryGoal,
       profile.secondaryGoal,
       profile.bodyGoalMode,
+      profile.goalWeight,
       profile.sessionsPerWeek,
       profile.stepsGoal,
       profile.sleepGoal,
@@ -3735,12 +3735,9 @@ const getProfileTabCompletions = (
       profile.hoursWorkedPerWeek,
       profile.city,
       profile.currentWeight,
-      profile.goalWeight,
       profile.height,
       profile.bodyFat,
       profile.waist,
-      profile.stepsGoal,
-      profile.waterGoal,
       profile.bodyStatus.weightTrend,
     ]),
     readiness: calculateSectionCompletion([
@@ -3844,7 +3841,6 @@ const getProfileTabCompletions = (
       profile.nutritionDirection.mealPrepPreference,
       profile.nutritionDirection.eatingSchedule,
       profile.nutritionDirection.foodRestrictions,
-      profile.waterGoal,
     ]),
     benchmarks: calculateSectionCompletion(benchmarkFields),
     preferences: calculateSectionCompletion([
@@ -4011,6 +4007,18 @@ const formatSavedTime = (isoDate: string) => {
     hour: "numeric",
     minute: "2-digit",
     month: "short",
+  });
+};
+
+const formatMemberSince = (value: string) => {
+  if (!value) return "Pending";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString(undefined, {
+    month: "long",
+    year: "numeric",
   });
 };
 
@@ -4562,14 +4570,54 @@ function OccupationSelector({
     },
   };
 
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectedOption =
+    occupationOptions.find((option) => option.value === selectedValue) ||
+    occupationOptions[0];
+  const selectedStyle = accentStyles[selectedOption.accent] || accentStyles.cyan;
+
   useEffect(() => {
-    optionRefs.current[selectedValue]?.scrollIntoView({
-      block: "nearest",
-    });
-  }, [selectedValue]);
+    if (!open) return;
+
+    const closeOnOutsidePress = (event: MouseEvent | TouchEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutsidePress);
+    document.addEventListener("touchstart", closeOnOutsidePress);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsidePress);
+      document.removeEventListener("touchstart", closeOnOutsidePress);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const timeoutId = window.setTimeout(() => {
+      optionRefs.current[selectedValue]?.scrollIntoView({
+        block: "nearest",
+      });
+    }, 40);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [open, selectedValue]);
 
   return (
-    <div className="relative z-0 overflow-visible rounded-[22px] border border-white/10 bg-slate-950/52 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-50 hover:z-50">
+    <div
+      ref={rootRef}
+      className="relative z-0 overflow-visible rounded-[22px] border border-white/10 bg-slate-950/52 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-[120] hover:z-[120]"
+    >
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-300">
@@ -4578,14 +4626,54 @@ function OccupationSelector({
           <InfoBubble label="Occupation">{helper}</InfoBubble>
         </div>
         <span className="rounded-full border border-cyan-200/18 bg-cyan-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">
-          Scroll
+          Dropdown
         </span>
       </div>
 
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => setOpen((current) => !current)}
+        className={`group relative flex min-h-[66px] w-full items-center gap-3 overflow-hidden rounded-[18px] border px-3 py-2 text-left transition duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/28 active:translate-y-0 ${
+          `${selectedStyle.active} ${selectedStyle.glow}`
+        }`}
+      >
+        <span
+          aria-hidden="true"
+          className={`absolute inset-x-4 top-0 h-px bg-gradient-to-r ${selectedStyle.line} opacity-80`}
+        />
+        <span
+          className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl border transition duration-200 ${selectedStyle.icon} ring-2 ring-white/10 shadow-[0_0_20px_rgba(255,255,255,0.08)]`}
+        >
+          <SelectorIcon
+            name={selectedOption.icon}
+            className="h-7 w-7 drop-shadow-[0_0_9px_currentColor]"
+          />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-black leading-tight text-white">
+            {selectedOption.label}
+          </span>
+          <span className="mt-0.5 block truncate text-[11px] font-semibold leading-4 text-slate-300">
+            {selectedOption.description}
+          </span>
+        </span>
+        <span
+          aria-hidden="true"
+          className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/10 bg-slate-950/48 text-sm font-black text-cyan-100 transition ${
+            open ? "rotate-180" : ""
+          }`}
+        >
+          v
+        </span>
+      </button>
+
+      {open ? (
       <div
         role="listbox"
         aria-label="Occupation"
-        className="max-h-[246px] space-y-1.5 overflow-y-auto pr-1 [scrollbar-color:rgba(34,211,238,0.42)_rgba(15,23,42,0.72)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/42 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/65"
+        className="absolute left-3 right-3 top-[calc(100%+0.45rem)] z-[180] max-h-[268px] space-y-1.5 overflow-y-auto rounded-[20px] border border-cyan-200/24 bg-slate-950/96 p-2 shadow-[0_22px_55px_rgba(0,0,0,0.55),0_0_28px_rgba(34,211,238,0.14)] backdrop-blur-xl [scrollbar-color:rgba(34,211,238,0.42)_rgba(15,23,42,0.72)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/42 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/65"
       >
         {occupationOptions.map((option) => {
           const active = selectedValue === option.value;
@@ -4600,7 +4688,10 @@ function OccupationSelector({
               type="button"
               role="option"
               aria-selected={active}
-              onClick={() => onChange(option.value)}
+              onClick={() => {
+                onChange(option.value);
+                setOpen(false);
+              }}
               className={`group relative flex w-full items-center gap-3 overflow-hidden rounded-[18px] border px-2.5 py-2 text-left transition duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/28 active:translate-y-0 ${
                 active
                   ? `${style.active} ${style.glow}`
@@ -4651,6 +4742,7 @@ function OccupationSelector({
           );
         })}
       </div>
+      ) : null}
     </div>
   );
 }
@@ -5476,28 +5568,88 @@ function WeightTrendVerticalSelector({
   value: BodyStatus["weightTrend"];
 }) {
   const selectedValue = normalizeWeightTrend(value);
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selectedOption =
+    weightTrendOptions.find((option) => option.value === selectedValue) ||
+    weightTrendOptions[0];
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOnOutsidePress = (event: MouseEvent | TouchEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutsidePress);
+    document.addEventListener("touchstart", closeOnOutsidePress);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsidePress);
+      document.removeEventListener("touchstart", closeOnOutsidePress);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [open]);
 
   return (
-    <div className="relative z-0 h-full overflow-visible rounded-[20px] border border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.09),transparent_34%),rgba(15,23,42,0.54)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-50 hover:z-50">
+    <div
+      ref={rootRef}
+      className="relative z-0 h-full overflow-visible rounded-[20px] border border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.09),transparent_34%),rgba(15,23,42,0.54)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-[120] hover:z-[120]"
+    >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-300">
             Weight Trend
           </p>
-          <span className="mt-1 inline-flex max-w-full rounded-full border border-white/10 bg-slate-950/58 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-slate-400">
-            {selectedValue}
-          </span>
         </div>
         <InfoBubble label="Weight Trend">
           Select the broad direction your body weight has been moving recently.
         </InfoBubble>
       </div>
 
-      <div className="relative mt-2 max-h-[188px] overflow-y-auto pr-1 scroll-smooth [scrollbar-color:rgba(34,211,238,0.42)_rgba(15,23,42,0.70)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/42 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/60">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => setOpen((current) => !current)}
+        className={`mt-2 flex min-h-[52px] w-full items-center gap-2 rounded-2xl border px-2.5 py-2 text-left transition duration-200 hover:-translate-y-0.5 active:scale-[0.98] ${selectedOption.active}`}
+      >
+        <span
+          className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl border text-lg font-black leading-none transition ${selectedOption.iconActive}`}
+        >
+          {selectedOption.icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-xs font-black uppercase tracking-[0.1em] text-white">
+            {selectedOption.value}
+          </span>
+          <span className="mt-0.5 block truncate text-[10px] font-semibold text-slate-300">
+            {selectedOption.helper}
+          </span>
+        </span>
         <span
           aria-hidden="true"
-          className="absolute bottom-2 left-[1rem] top-2 w-px bg-gradient-to-b from-emerald-300/35 via-cyan-300/22 to-slate-300/20"
-        />
+          className={`grid h-7 w-7 shrink-0 place-items-center rounded-xl border border-white/10 bg-slate-950/48 text-xs font-black text-cyan-100 transition ${
+            open ? "rotate-180" : ""
+          }`}
+        >
+          v
+        </span>
+      </button>
+
+      {open ? (
+      <div
+        role="listbox"
+        aria-label="Weight Trend"
+        className="absolute left-3 right-3 top-[calc(100%+0.45rem)] z-[180] rounded-[20px] border border-cyan-200/24 bg-slate-950/96 p-2 shadow-[0_22px_55px_rgba(0,0,0,0.55),0_0_28px_rgba(34,211,238,0.14)] backdrop-blur-xl"
+      >
         <div className="relative grid gap-1.5">
           {weightTrendOptions.map((option) => {
             const active = selectedValue === option.value;
@@ -5506,8 +5658,13 @@ function WeightTrendVerticalSelector({
               <button
                 key={option.value}
                 type="button"
+                role="option"
+                aria-selected={active}
                 aria-pressed={active}
-                onClick={() => onChange(option.value)}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
                 className={`group flex min-h-[34px] items-center gap-2 rounded-xl border px-2 py-1.5 text-left transition duration-200 hover:-translate-y-0.5 active:scale-[0.98] ${
                   active
                     ? option.active
@@ -5534,6 +5691,7 @@ function WeightTrendVerticalSelector({
           })}
         </div>
       </div>
+      ) : null}
     </div>
   );
 }
@@ -5678,11 +5836,13 @@ export default function ClientProfilePage() {
   const tabButtonRefs = useRef<Partial<Record<ProfileTab, HTMLButtonElement | null>>>({});
   const [profileSectionOpen, setProfileSectionOpen] = useState<ProfileAccordionState>({
     appCoachNotes: false,
+    benchmarks: false,
     measurements: false,
     myBody: false,
     planBuilder: false,
     planDirection: false,
     previousExperience: false,
+    readiness: false,
     specialCircumstances: false,
   });
   const [heroReadinessDetailsOpen, setHeroReadinessDetailsOpen] = useState(false);
@@ -5692,6 +5852,7 @@ export default function ClientProfilePage() {
     avatarUrl: "",
     displayName: "",
     email: "",
+    memberSinceAt: "",
   });
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -5709,6 +5870,7 @@ export default function ClientProfilePage() {
   const [customMeasurementLabel, setCustomMeasurementLabel] = useState("");
   const [customMeasurementValue, setCustomMeasurementValue] = useState("");
   const [customMeasurementsOpen, setCustomMeasurementsOpen] = useState(false);
+  const [nonVariablesOpen, setNonVariablesOpen] = useState(false);
   const measurementSliderRef = useRef<HTMLDivElement | null>(null);
   const measurementCardRefs = useRef<Array<HTMLDivElement | null>>([]);
   const goalCompassSliderRef = useRef<HTMLDivElement | null>(null);
@@ -5730,11 +5892,13 @@ export default function ClientProfilePage() {
     setProfileSectionOpen((current) => {
       const next: ProfileAccordionState = {
         appCoachNotes: false,
+        benchmarks: false,
         measurements: false,
         myBody: false,
         planBuilder: false,
         planDirection: false,
         previousExperience: false,
+        readiness: false,
         specialCircumstances: false,
       };
 
@@ -5754,6 +5918,7 @@ export default function ClientProfilePage() {
         avatarUrl: "",
         displayName: "",
         email: "",
+        memberSinceAt: "",
       };
 
       const shared = asRecord(sharedProfile);
@@ -5766,6 +5931,7 @@ export default function ClientProfilePage() {
         const { data } = await supabase.auth.getUser();
         const metadata = asRecord(data.user?.user_metadata);
         const authEmail = data.user?.email || "";
+        const authCreatedAt = data.user?.created_at || "";
         const authName =
           readProfileText(metadata.full_name, metadata.name, authEmail.split("@")[0]) ||
           "";
@@ -5775,6 +5941,7 @@ export default function ClientProfilePage() {
           avatarUrl: authAvatar,
           displayName: authName,
           email: authEmail,
+          memberSinceAt: authCreatedAt,
         };
 
         if (authName && (!nextProfile.displayName || nextProfile.displayName === "Member")) {
@@ -5826,12 +5993,6 @@ export default function ClientProfilePage() {
     setBirthdayDraft(getBirthdayParts(profile.birthday));
   }, [profile.birthday]);
 
-  const goalDelta = useMemo(() => {
-    const current = safeNumber(profile.currentWeight);
-    const goal = safeNumber(profile.goalWeight);
-    if (!current || !goal) return null;
-    return Math.round((current - goal) * 10) / 10;
-  }, [profile.currentWeight, profile.goalWeight]);
   const identityDisplayName =
     readProfileText(profile.displayName, authFallback.displayName) || "Member";
   const identityHandle =
@@ -5842,6 +6003,17 @@ export default function ClientProfilePage() {
       .slice(0, 24) ||
     "member";
   const profileRecord = asRecord(profile);
+  const memberSinceLabel = formatMemberSince(
+    readProfileText(
+      profileRecord.memberSince,
+      profileRecord.memberSinceAt,
+      profileRecord.joinedAt,
+      profileRecord.signupTimestamp,
+      profileRecord.createdAt,
+      profileRecord.created_at,
+      authFallback.memberSinceAt,
+    ),
+  );
   const soundPointsValue = Number(
     profileRecord.soundPoints || profileRecord.points || 0,
   );
@@ -5895,7 +6067,6 @@ export default function ClientProfilePage() {
     const readinessSectionIds: ProfileCompletionSection[] = [
       "overview",
       "goals",
-      "planDirection",
       "body",
       "measurements",
       "readiness",
@@ -5909,6 +6080,10 @@ export default function ClientProfilePage() {
           ? "Special Circumstances"
           : id === "goals"
             ? "Goals"
+          : id === "measurements"
+            ? "Body Measurements"
+          : id === "preferences"
+            ? "Coach / App Preferences"
           : id === "planDirection"
             ? "Plan Direction"
           : tabs.find((tab) => tab.id === id)?.label || id,
@@ -7310,6 +7485,13 @@ export default function ClientProfilePage() {
                 <span className="rounded-full border border-cyan-200/24 bg-cyan-300/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-cyan-100">
                   {soundPoints} pts
                 </span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200/16 bg-slate-950/44 px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
+                  <span aria-hidden="true" className="text-cyan-100/80">
+                    ◷
+                  </span>
+                  <span>Member Since</span>
+                  <span className="text-cyan-100">{memberSinceLabel}</span>
+                </span>
                 <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-300">
                   {profile.trainingAge || "Training age not set"}
                 </span>
@@ -8081,9 +8263,9 @@ export default function ClientProfilePage() {
 
   /*
       {
-        href: ROUTES.workoutBuilder.home,
-        label: "🛠 Builder",
-        status: "Workouts",
+        href: ROUTES.dashboard.goals,
+        label: "Goals",
+        status: "Planning",
       },
       // Future canonical route: /dashboard/plan. Current safe member plan route is /dashboard/my-plan.
       {
@@ -8185,9 +8367,6 @@ export default function ClientProfilePage() {
       profile.appPersonalization.preferredUnitSystem === "kg" ? "kg" : "lb";
     const heightUnit =
       profile.appPersonalization.preferredUnitSystem === "kg" ? "cm" : "in";
-    const waterUnit =
-      profile.appPersonalization.preferredUnitSystem === "kg" ? "L" : "oz";
-    const waterDefault = waterUnit === "L" ? 2.5 : 80;
     const calculatedAge = calculateAgeFromBirthday(profile.birthday);
     const displayedAge = calculatedAge;
     const currentYear = new Date().getFullYear();
@@ -8263,9 +8442,6 @@ export default function ClientProfilePage() {
       profile.currentWeight
         ? `${profile.currentWeight} ${weightUnit}`
         : "Weight not set",
-      profile.goalWeight
-        ? `Goal ${profile.goalWeight} ${weightUnit}`
-        : "Goal not set",
     ];
     const bodySummary = (
       <div className="flex flex-wrap gap-2">
@@ -8279,6 +8455,173 @@ export default function ClientProfilePage() {
         ))}
       </div>
     );
+    const nonVariablesSummaryItems = [
+      genderSummary,
+      displayedAge ? `${displayedAge} yrs` : "Age not set",
+      profile.height ? `${profile.height} ${heightUnit}` : "Height not set",
+    ];
+    const nonVariablesContent = (
+      <div className="grid gap-4 lg:grid-cols-3">
+        {renderGenderSelector()}
+        <div className="relative z-0 overflow-visible rounded-[24px] border border-blue-200/16 bg-[radial-gradient(circle_at_16%_0%,rgba(96,165,250,0.13),transparent_36%),rgba(15,23,42,0.58)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-50 hover:z-50 hover:border-blue-200/26 hover:shadow-[0_0_28px_rgba(96,165,250,0.08),inset_0_1px_0_rgba(255,255,255,0.08)]">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-5 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-blue-300/70 to-cyan-300/50"
+          />
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-blue-100">
+                Birthday / Age
+              </p>
+              <InfoBubble label="Birthday">
+                Used to personalize recommendations and recovery estimates.
+              </InfoBubble>
+            </div>
+            {profile.birthday ? (
+              <button
+                type="button"
+                onClick={clearBirthday}
+                className="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400 transition hover:border-red-200/30 hover:bg-red-300/10 hover:text-red-100"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+
+          <div className="mt-3 grid grid-cols-[1.05fr_0.8fr_1fr] gap-2">
+            <PremiumBirthdaySelect
+              ariaLabel="Birthday month"
+              label="Month"
+              onChange={(value) => updateBirthdayPart("month", value)}
+              options={birthdayMonthOptions}
+              placeholder="Month"
+              value={birthdayDraft.month}
+            />
+            <PremiumBirthdaySelect
+              ariaLabel="Birthday day"
+              label="Day"
+              onChange={(value) => updateBirthdayPart("day", value)}
+              options={birthdayDayOptions}
+              placeholder="Day"
+              value={birthdayDraft.day}
+            />
+            <PremiumBirthdaySelect
+              ariaLabel="Birthday year"
+              label="Year"
+              onChange={(value) => updateBirthdayPart("year", value)}
+              options={birthdayYearOptions}
+              placeholder="Year"
+              value={birthdayDraft.year}
+            />
+          </div>
+
+          <div className="mt-3 rounded-2xl border border-blue-200/14 bg-blue-300/8 p-3">
+            {profile.birthday && displayedAge ? (
+              <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-blue-100/75">
+                    Birthday
+                  </p>
+                  <p className="mt-1 text-sm font-black text-white">
+                    {birthdayMonthOptions.find(
+                      (month) => month.value === birthdayDraft.month,
+                    )?.label || "Month"}{" "}
+                    {Number.parseInt(birthdayDraft.day, 10) || "--"},{" "}
+                    {birthdayDraft.year || "----"}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-cyan-200/18 bg-cyan-300/10 px-4 py-2 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100/75">
+                    Age
+                  </p>
+                  <p className="text-2xl font-black text-white">{displayedAge}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">
+                Add birthday to calculate age.
+              </p>
+            )}
+          </div>
+        </div>
+        <MetricControl
+          compact
+          color="steel"
+          defaultValue={heightUnit === "cm" ? 173 : 68}
+          helper="Height supports future estimates and exercise setup context."
+          helperMode="tooltip"
+          label="Height"
+          max={heightUnit === "cm" ? 220 : 86}
+          min={heightUnit === "cm" ? 120 : 48}
+          onChange={(value) => setProfileField("height", value)}
+          showArrowControls
+          showManualInput={false}
+          showRangeMarkers
+          showSteppers={false}
+          unit={heightUnit}
+          value={getHeightControlValue(profile.height, heightUnit)}
+        />
+      </div>
+    );
+    const nonVariablesAccordion = (
+      <section className="mt-4 overflow-hidden rounded-[24px] border border-cyan-200/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.10),transparent_34%),rgba(15,23,42,0.46)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+        <button
+          type="button"
+          aria-expanded={nonVariablesOpen}
+          onClick={() => setNonVariablesOpen((open) => !open)}
+          className="flex w-full flex-col gap-3 px-4 py-4 text-left transition hover:bg-cyan-300/[0.035] sm:flex-row sm:items-center sm:justify-between"
+        >
+          <span>
+            <span className="block text-xs font-black uppercase tracking-[0.18em] text-cyan-100">
+              Non-Variables
+            </span>
+            <span className="mt-1 block text-xs font-semibold leading-5 text-slate-400">
+              Stable body attributes used as supportive profile context.
+            </span>
+          </span>
+          <span className="flex shrink-0 items-center gap-2">
+            <span className="hidden flex-wrap justify-end gap-1.5 sm:flex">
+              {nonVariablesSummaryItems.map((item) => (
+                <span
+                  key={item}
+                  className="rounded-full border border-cyan-200/14 bg-cyan-300/8 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-cyan-50"
+                >
+                  {item}
+                </span>
+              ))}
+            </span>
+            <span
+              className={`grid h-9 w-9 place-items-center rounded-2xl border border-cyan-200/18 bg-slate-950/52 text-sm font-black text-cyan-100 transition duration-300 ${
+                nonVariablesOpen ? "rotate-180 border-cyan-100/42 bg-cyan-300/12" : ""
+              }`}
+            >
+              ∨
+            </span>
+          </span>
+        </button>
+        <div
+          className={`grid transition-all duration-300 ease-out ${
+            nonVariablesOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+          }`}
+        >
+          <div className="overflow-hidden">
+            <div className="border-t border-cyan-200/12 p-4">
+              <div className="mb-4 flex flex-wrap gap-1.5 sm:hidden">
+                {nonVariablesSummaryItems.map((item) => (
+                  <span
+                    key={item}
+                    className="rounded-full border border-cyan-200/14 bg-cyan-300/8 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-cyan-50"
+                  >
+                    {item}
+                  </span>
+                ))}
+              </div>
+              {nonVariablesContent}
+            </div>
+          </div>
+        </div>
+      </section>
+    );
 
     const bodyMetricsContent = (
       <>
@@ -8287,107 +8630,6 @@ export default function ClientProfilePage() {
             <p className="mb-4 rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-xs font-semibold leading-5 text-slate-400">
               Only share what you want used for coaching context.
             </p>
-            <div className="mb-4 grid gap-4 lg:grid-cols-3">
-              {renderGenderSelector()}
-              <div className="relative z-0 overflow-visible rounded-[24px] border border-blue-200/16 bg-[radial-gradient(circle_at_16%_0%,rgba(96,165,250,0.13),transparent_36%),rgba(15,23,42,0.58)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-50 hover:z-50 hover:border-blue-200/26 hover:shadow-[0_0_28px_rgba(96,165,250,0.08),inset_0_1px_0_rgba(255,255,255,0.08)]">
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-x-5 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-blue-300/70 to-cyan-300/50"
-                />
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-blue-100">
-                      Birthday
-                    </p>
-                    <InfoBubble label="Birthday">
-                      Used to personalize recommendations and recovery estimates.
-                    </InfoBubble>
-                  </div>
-                  {profile.birthday ? (
-                    <button
-                      type="button"
-                      onClick={clearBirthday}
-                      className="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400 transition hover:border-red-200/30 hover:bg-red-300/10 hover:text-red-100"
-                    >
-                      Clear
-                    </button>
-                  ) : null}
-                </div>
-
-                <div className="mt-3 grid grid-cols-[1.05fr_0.8fr_1fr] gap-2">
-                  <PremiumBirthdaySelect
-                    ariaLabel="Birthday month"
-                    label="Month"
-                    onChange={(value) => updateBirthdayPart("month", value)}
-                    options={birthdayMonthOptions}
-                    placeholder="Month"
-                    value={birthdayDraft.month}
-                  />
-                  <PremiumBirthdaySelect
-                    ariaLabel="Birthday day"
-                    label="Day"
-                    onChange={(value) => updateBirthdayPart("day", value)}
-                    options={birthdayDayOptions}
-                    placeholder="Day"
-                    value={birthdayDraft.day}
-                  />
-                  <PremiumBirthdaySelect
-                    ariaLabel="Birthday year"
-                    label="Year"
-                    onChange={(value) => updateBirthdayPart("year", value)}
-                    options={birthdayYearOptions}
-                    placeholder="Year"
-                    value={birthdayDraft.year}
-                  />
-                </div>
-
-                <div className="mt-3 rounded-2xl border border-blue-200/14 bg-blue-300/8 p-3">
-                  {profile.birthday && displayedAge ? (
-                    <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-blue-100/75">
-                          Birthday
-                        </p>
-                        <p className="mt-1 text-sm font-black text-white">
-                          {birthdayMonthOptions.find(
-                            (month) => month.value === birthdayDraft.month,
-                          )?.label || "Month"}{" "}
-                          {Number.parseInt(birthdayDraft.day, 10) || "--"},{" "}
-                          {birthdayDraft.year || "----"}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-cyan-200/18 bg-cyan-300/10 px-4 py-2 text-center">
-                        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100/75">
-                          Age
-                        </p>
-                        <p className="text-2xl font-black text-white">{displayedAge}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">
-                      Add birthday to calculate age.
-                    </p>
-                  )}
-                </div>
-              </div>
-              <MetricControl
-                compact
-                color="steel"
-                defaultValue={heightUnit === "cm" ? 173 : 68}
-                helper="Height supports future estimates and exercise setup context."
-                helperMode="tooltip"
-                label="Height"
-                max={heightUnit === "cm" ? 220 : 86}
-                min={heightUnit === "cm" ? 120 : 48}
-                onChange={(value) => setProfileField("height", value)}
-                showArrowControls
-                showManualInput={false}
-                showRangeMarkers
-                showSteppers={false}
-                unit={heightUnit}
-                value={getHeightControlValue(profile.height, heightUnit)}
-              />
-            </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="hidden">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/75">
@@ -8399,11 +8641,10 @@ export default function ClientProfilePage() {
                     : "Add weight"}
                 </p>
                 <p className="mt-2 text-sm font-semibold text-slate-400">
-                  Goal: {profile.goalWeight || "not set"} · Trend:{" "}
-                  {profile.bodyStatus.weightTrend}
+                  Trend: {profile.bodyStatus.weightTrend}
                 </p>
               </div>
-              <div className="grid gap-4 md:col-span-2 md:grid-cols-2">
+              <div className="grid max-w-xl gap-4 md:col-span-2">
                 <MetricControl
                   compact
                   color="cyan"
@@ -8421,24 +8662,6 @@ export default function ClientProfilePage() {
                   step={weightUnit === "kg" ? 0.5 : 1}
                   unit={weightUnit}
                   value={profile.currentWeight}
-                />
-                <MetricControl
-                  compact
-                  color="emerald"
-                  defaultValue={weightUnit === "kg" ? 79 : 175}
-                  helper="Goal weight keeps body-direction recommendations grounded."
-                  helperMode="tooltip"
-                  label="Goal Weight"
-                  max={weightUnit === "kg" ? 220 : 480}
-                  min={weightUnit === "kg" ? 35 : 80}
-                  onChange={(value) => setProfileField("goalWeight", value)}
-                  showArrowControls
-                  showManualInput={false}
-                  showRangeMarkers
-                  showSteppers={false}
-                  step={weightUnit === "kg" ? 0.5 : 1}
-                  unit={weightUnit}
-                  value={profile.goalWeight}
                 />
               </div>
             </div>
@@ -8482,48 +8705,10 @@ export default function ClientProfilePage() {
               />
             </div>
 
-            <div className="mt-4 grid items-start gap-4 md:grid-cols-3">
+            <div className="mt-4 grid max-w-xl items-start gap-4">
               <WeightTrendVerticalSelector
                 onChange={(value) => updateBodyStatus("weightTrend", value)}
                 value={profile.bodyStatus.weightTrend}
-              />
-              <MetricControl
-                compact
-                color="purple"
-                defaultValue={8000}
-                dense
-                helper="Daily movement target."
-                helperMode="tooltip"
-                label="Steps Goal"
-                max={25000}
-                min={1000}
-                onChange={(value) => setProfileField("stepsGoal", value)}
-                showArrowControls
-                showManualInput={false}
-                showRangeMarkers
-                showSteppers={false}
-                step={500}
-                unit="steps"
-                value={profile.stepsGoal}
-              />
-              <MetricControl
-                compact
-                color="blue"
-                defaultValue={waterDefault}
-                dense
-                helper="Hydration target for recovery."
-                helperMode="tooltip"
-                label="Water Goal"
-                max={waterUnit === "L" ? 6 : 180}
-                min={waterUnit === "L" ? 0.5 : 20}
-                onChange={(value) => setProfileField("waterGoal", value)}
-                showArrowControls
-                showManualInput={false}
-                showRangeMarkers
-                showSteppers={false}
-                step={waterUnit === "L" ? 0.25 : 4}
-                unit={waterUnit}
-                value={profile.waterGoal}
               />
             </div>
 
@@ -8617,38 +8802,10 @@ export default function ClientProfilePage() {
               </div>
             </div>
 
-            <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-xs font-semibold leading-5 text-slate-400">
-              {goalDelta === null
-                ? "Add current and goal weight to unlock body-weight direction."
-                : goalDelta > 0
-                  ? `Target change: lose ${Math.abs(goalDelta)} lb. Keep lifting volume recoverable.`
-                  : goalDelta < 0
-                    ? `Target change: gain ${Math.abs(goalDelta)} lb. Support training with fuel and sleep.`
-                    : "Target change: maintain body weight while tracking performance markers."}
-            </p>
+            {nonVariablesAccordion}
+
           </div>
 
-        <div className="mt-6 grid gap-5 lg:grid-cols-[minmax(0,0.9fr)]">
-          <div className="rounded-[24px] border border-orange-200/16 bg-orange-300/8 p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              {(["Bulk", "Cut", "Maintain", "General Health"] as BodyGoalMode[]).map(
-                (mode) => (
-                  <Chip
-                    key={mode}
-                    active={profile.bodyGoalMode === mode}
-                    onClick={() => setProfileField("bodyGoalMode", mode)}
-                  >
-                    {mode}
-                  </Chip>
-                ),
-              )}
-            </div>
-            <p className="mt-3 text-sm font-semibold leading-6 text-slate-300">
-              Current mode: {profile.bodyGoalMode}. This keeps body-composition
-              targets aligned with plan recommendations.
-            </p>
-          </div>
-        </div>
       </>
     );
 
@@ -8671,10 +8828,71 @@ export default function ClientProfilePage() {
   const renderReadinessSection = () => {
     const readinessScore = getEstimatedReadinessScore(profile);
     const readinessLabel = getReadinessLabel(readinessScore);
+    const sorenessSnapshot =
+      profile.bodyStatus.sorenessStatus !== "None"
+        ? profile.bodyStatus.sorenessStatus
+        : `${getScaleValue(
+            profile.bodyStatus.sorenessLevel,
+            profile.bodyStatus.sorenessStatus,
+          )}/10 soreness`;
+    const painSnapshot =
+      profile.bodyStatus.painStatus !== "None"
+        ? profile.bodyStatus.painStatus
+        : `${getScaleValue(
+            profile.bodyStatus.painLevel,
+            profile.bodyStatus.painStatus,
+          )}/10 pain`;
+    const readinessSummary = (
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          {
+            label: "Readiness Score",
+            value: `${readinessScore}/100`,
+            tone: "border-cyan-200/20 bg-cyan-300/10 text-cyan-50",
+          },
+          {
+            label: "Recovery Status",
+            value: readinessLabel,
+            tone: "border-emerald-200/20 bg-emerald-300/10 text-emerald-50",
+          },
+          {
+            label: "Fatigue / Stress",
+            value: `${profile.bodyStatus.energyStatus} energy / ${profile.bodyStatus.stressStatus} stress`,
+            tone: "border-orange-200/20 bg-orange-300/10 text-orange-50",
+          },
+          {
+            label: "Pain / Soreness",
+            value: `${painSnapshot} / ${sorenessSnapshot}`,
+            tone: "border-rose-200/20 bg-rose-300/10 text-rose-50",
+          },
+        ].map((item) => (
+          <div
+            key={item.label}
+            className={`min-w-0 rounded-2xl border px-3 py-2 ${item.tone}`}
+          >
+            <p className="text-[9px] font-black uppercase tracking-[0.12em] opacity-70">
+              {item.label}
+            </p>
+            <p className="mt-1 truncate text-sm font-black">{item.value}</p>
+          </div>
+        ))}
+        <div className="rounded-2xl border border-cyan-200/16 bg-white/[0.045] px-3 py-2 md:col-span-2 xl:col-span-4">
+          <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100/70">
+            Next Training Recommendation
+          </p>
+          <p className="mt-1 text-sm font-semibold leading-5 text-slate-200">
+            {planReadiness.risk.recommendation}
+          </p>
+        </div>
+      </div>
+    );
 
     return (
-      <Panel
-        eyebrow="Readiness"
+      <CollapsibleProfilePanel
+        completion={tabCompletions.readiness}
+        expanded={profileSectionOpen.readiness}
+        onToggle={() => toggleProfileSection("readiness")}
+        summary={readinessSummary}
         title="Readiness"
         subtitle="Daily and weekly wellness signals that help the app estimate training readiness."
       >
@@ -8716,7 +8934,7 @@ export default function ClientProfilePage() {
           />
         </div>
 
-      </Panel>
+      </CollapsibleProfilePanel>
     );
   };
 
@@ -9597,6 +9815,59 @@ export default function ClientProfilePage() {
     );
   };
 
+  const renderTrainingManagement = () => (
+    <Panel
+      eyebrow="Training"
+      title="Workout management"
+      subtitle="Build, schedule, and review workout-specific systems. Setup, style, frequency, and readiness inputs now live in Training Readiness."
+    >
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          {
+            href: ROUTES.dashboard.sessions,
+            icon: "▶",
+            label: "Sessions",
+            text: "Start or resume logged workout sessions.",
+          },
+          {
+            href: ROUTES.workoutBuilder.home,
+            icon: "＋",
+            label: "Builder",
+            text: "Create and manage workout templates.",
+          },
+          {
+            href: ROUTES.dashboard.myPlan,
+            icon: "📅",
+            label: "My Plan",
+            text: "Review weekly training structure.",
+          },
+          {
+            href: ROUTES.dashboard.trainingCalendar,
+            icon: "✓",
+            label: "Calendar",
+            text: "See upcoming training dates.",
+          },
+        ].map((item) => (
+          <Link
+            key={item.label}
+            href={item.href}
+            className="group rounded-[24px] border border-cyan-200/14 bg-slate-950/46 p-4 transition hover:-translate-y-0.5 hover:border-cyan-200/36 hover:bg-cyan-300/8"
+          >
+            <span className="grid h-10 w-10 place-items-center rounded-2xl border border-cyan-200/16 bg-cyan-300/10 text-lg text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.08)]">
+              {item.icon}
+            </span>
+            <p className="mt-3 text-sm font-black uppercase tracking-[0.12em] text-white">
+              {item.label}
+            </p>
+            <p className="mt-2 text-xs font-semibold leading-5 text-slate-400">
+              {item.text}
+            </p>
+          </Link>
+        ))}
+      </div>
+    </Panel>
+  );
+
   const renderRecoveryProfile = () => {
     const painScaleValue = getScaleValue(
       profile.bodyStatus.painLevel,
@@ -10142,9 +10413,6 @@ export default function ClientProfilePage() {
   };
 
   const renderNutrition = () => {
-    const waterUnit =
-      profile.appPersonalization.preferredUnitSystem === "kg" ? "L" : "oz";
-
     return (
       <Panel
         eyebrow="Nutrition Direction"
@@ -10175,21 +10443,6 @@ export default function ClientProfilePage() {
                 onChange={(value) => setProfileField("calorieGoalKnown", value)}
                 placeholder="Example: 2400/day"
                 value={profile.calorieGoalKnown}
-              />
-              <MetricControl
-                compact
-                color="cyan"
-                defaultValue={waterUnit === "L" ? 2.5 : 80}
-                helper="Hydration target helps shape practical session and meal-planning defaults."
-                helperMode="tooltip"
-                label="Hydration Goal"
-                max={waterUnit === "L" ? 6 : 180}
-                min={waterUnit === "L" ? 0.5 : 20}
-                onChange={(value) => setProfileField("waterGoal", value)}
-                showManualInput={false}
-                step={waterUnit === "L" ? 0.25 : 4}
-                unit={waterUnit}
-                value={profile.waterGoal}
               />
               <InfoSelectField
                 helper="Meal prep style helps match plan complexity to real life."
@@ -10323,45 +10576,135 @@ export default function ClientProfilePage() {
     </Panel>
   );
 
-  const renderBenchmarks = () => (
-    <Panel
-      eyebrow="Strength Benchmarks"
-      title="Movement anchors and performance targets"
-      subtitle="Benchmarks connect profile identity to movement patterns, Exercise Library recommendations, and Stats."
-    >
-      <div className="grid gap-3 xl:grid-cols-2">
-        {profile.benchmarks.map((benchmark) => (
+  const renderBenchmarks = () => {
+    const trackedBenchmarks = profile.benchmarks.filter((benchmark) =>
+      [benchmark.current, benchmark.goal, benchmark.dateTested].some(
+        isProfileFieldComplete,
+      ),
+    );
+    const getBenchmarkTime = (benchmark: Benchmark) => {
+      if (!benchmark.dateTested) return 0;
+      const date = new Date(`${benchmark.dateTested}T00:00:00`);
+      return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+    };
+    const latestBenchmark =
+      [...trackedBenchmarks].sort((a, b) => getBenchmarkTime(b) - getBenchmarkTime(a))[0] ||
+      trackedBenchmarks[0] ||
+      null;
+    const formatBenchmarkDate = (value: string) => {
+      if (!value) return "No date yet";
+      const date = new Date(`${value}T00:00:00`);
+      if (Number.isNaN(date.getTime())) return "No date yet";
+      return date.toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    };
+    const strengthBenchmarkIds = new Set([
+      "bench-press",
+      "squat",
+      "deadlift",
+      "overhead-press",
+      "pull-ups",
+      "push-ups",
+    ]);
+    const strengthTracked = trackedBenchmarks.filter((benchmark) =>
+      strengthBenchmarkIds.has(benchmark.id),
+    ).length;
+    const mobilityPerformanceTracked = trackedBenchmarks.filter((benchmark) =>
+      /mobility|conditioning|running|mile|performance/i.test(
+        `${benchmark.label} ${benchmark.linkedPattern}`,
+      ),
+    ).length;
+    const benchmarkSummary = (
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          {
+            label: "Latest Benchmark",
+            value: latestBenchmark
+              ? `${latestBenchmark.label}${latestBenchmark.current ? ` • ${latestBenchmark.current}` : ""}`
+              : "No benchmark entered",
+            tone: "border-cyan-200/20 bg-cyan-300/10 text-cyan-50",
+          },
+          {
+            label: "Strength Trend",
+            value: strengthTracked
+              ? `${strengthTracked}/${strengthBenchmarkIds.size} anchors logged`
+              : "Baseline building",
+            tone: "border-orange-200/20 bg-orange-300/10 text-orange-50",
+          },
+          {
+            label: "Mobility / Performance",
+            value: mobilityPerformanceTracked
+              ? `${mobilityPerformanceTracked} anchors active`
+              : "No trend yet",
+            tone: "border-violet-200/20 bg-violet-300/10 text-violet-50",
+          },
+          {
+            label: "Last Updated",
+            value: latestBenchmark
+              ? formatBenchmarkDate(latestBenchmark.dateTested)
+              : "No date yet",
+            tone: "border-emerald-200/20 bg-emerald-300/10 text-emerald-50",
+          },
+        ].map((item) => (
           <div
-            key={benchmark.id}
-            className="rounded-[24px] border border-white/10 bg-slate-950/44 p-4"
+            key={item.label}
+            className={`min-w-0 rounded-2xl border px-3 py-2 ${item.tone}`}
           >
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-base font-black text-white">{benchmark.label}</p>
-                <p className="mt-1 text-xs font-semibold text-cyan-100/70">
-                  {benchmark.linkedPattern}
-                </p>
-              </div>
-              <SelectField
-                label="Confidence"
-                onChange={(value) => updateBenchmark(benchmark.id, "confidence", value)}
-                options={["Low", "Medium", "High"]}
-                value={benchmark.confidence}
-              />
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
-              <Field label="Current" onChange={(value) => updateBenchmark(benchmark.id, "current", value)} value={benchmark.current} />
-              <Field label="Goal" onChange={(value) => updateBenchmark(benchmark.id, "goal", value)} value={benchmark.goal} />
-              <Field label="Date Tested" onChange={(value) => updateBenchmark(benchmark.id, "dateTested", value)} placeholder="YYYY-MM-DD" type="date" value={benchmark.dateTested} />
-            </div>
-            <p className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-xs font-semibold leading-5 text-slate-400">
-              Recommended focus: {benchmark.recommendedFocus}
+            <p className="text-[9px] font-black uppercase tracking-[0.12em] opacity-70">
+              {item.label}
             </p>
+            <p className="mt-1 truncate text-sm font-black">{item.value}</p>
           </div>
         ))}
       </div>
-    </Panel>
-  );
+    );
+
+    return (
+      <CollapsibleProfilePanel
+        completion={tabCompletions.benchmarks}
+        expanded={profileSectionOpen.benchmarks}
+        onToggle={() => toggleProfileSection("benchmarks")}
+        summary={benchmarkSummary}
+        title="Benchmarks"
+        subtitle="Benchmarks connect profile identity to movement patterns, Exercise Library recommendations, and Stats."
+      >
+        <div className="grid gap-3 xl:grid-cols-2">
+          {profile.benchmarks.map((benchmark) => (
+            <div
+              key={benchmark.id}
+              className="rounded-[24px] border border-white/10 bg-slate-950/44 p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-base font-black text-white">{benchmark.label}</p>
+                  <p className="mt-1 text-xs font-semibold text-cyan-100/70">
+                    {benchmark.linkedPattern}
+                  </p>
+                </div>
+                <SelectField
+                  label="Confidence"
+                  onChange={(value) => updateBenchmark(benchmark.id, "confidence", value)}
+                  options={["Low", "Medium", "High"]}
+                  value={benchmark.confidence}
+                />
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <Field label="Current" onChange={(value) => updateBenchmark(benchmark.id, "current", value)} value={benchmark.current} />
+                <Field label="Goal" onChange={(value) => updateBenchmark(benchmark.id, "goal", value)} value={benchmark.goal} />
+                <Field label="Date Tested" onChange={(value) => updateBenchmark(benchmark.id, "dateTested", value)} placeholder="YYYY-MM-DD" type="date" value={benchmark.dateTested} />
+              </div>
+              <p className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-xs font-semibold leading-5 text-slate-400">
+                Recommended focus: {benchmark.recommendedFocus}
+              </p>
+            </div>
+          ))}
+        </div>
+      </CollapsibleProfilePanel>
+    );
+  };
 
   const renderPersonalization = () => (
     <Panel
@@ -10655,24 +10998,60 @@ export default function ClientProfilePage() {
           </div>
         ))}
       </div>
-      {renderGoalCompass()}
-      {renderPreviousExperience()}
+      <div className="flex flex-col gap-3 rounded-[28px] border border-cyan-200/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.14),transparent_32%),rgba(15,23,42,0.58)] p-4 shadow-[0_0_36px_rgba(34,211,238,0.08)] sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-100">
+            Goals live on the Goals page
+          </p>
+          <p className="mt-1 text-sm font-semibold leading-6 text-slate-400">
+            Edit plan direction, goal weight, steps, and water targets from the dedicated goal workspace.
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Link
+            href="/goals"
+            className="inline-flex min-h-[42px] items-center justify-center rounded-2xl border border-cyan-200/26 bg-cyan-300/12 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-cyan-50 transition hover:-translate-y-0.5 hover:border-cyan-100/50 hover:bg-cyan-300/20"
+          >
+            Goals
+          </Link>
+          <Link
+            href="/stats"
+            className="inline-flex min-h-[42px] items-center justify-center rounded-2xl border border-emerald-200/24 bg-emerald-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-50 transition hover:-translate-y-0.5 hover:border-emerald-100/45 hover:bg-emerald-300/18"
+          >
+            Stats
+          </Link>
+        </div>
+      </div>
       {renderBodyMetrics()}
+      <div id="measurements" data-profile-section="body-measurements">
+        {renderMeasurements()}
+      </div>
+      {renderPreviousExperience()}
       {renderSpecialCircumstances()}
-      {renderPlanInputs()}
-      {renderNotes({ includeCoachingPreferences: true })}
     </div>
   );
 
   const renderActiveTab = () => {
     if (activeTab === "overview") return renderOverview();
-    if (activeTab === "readiness") return <div className="space-y-5">{renderReadinessSection()}{renderLifestyle()}</div>;
-    if (activeTab === "measurements") return renderMeasurements();
-    if (activeTab === "training") return <div className="space-y-5">{renderPlanInputs()}{renderTrainingStyle()}</div>;
+    if (activeTab === "readiness") {
+      return (
+        <div className="space-y-5">
+          {renderPlanInputs()}
+          {renderTrainingStyle()}
+          {renderReadinessSection()}
+          <div id="benchmarks" data-profile-section="benchmarks">
+            {renderBenchmarks()}
+          </div>
+          {renderNotes({ includeCoachingPreferences: true })}
+          {renderPersonalization()}
+          {renderLifestyle()}
+        </div>
+      );
+    }
+    if (activeTab === "training") return renderTrainingManagement();
     if (activeTab === "recovery") return renderRecoveryProfile();
     if (activeTab === "nutrition") return renderNutrition();
-    if (activeTab === "benchmarks") return renderBenchmarks();
-    return <div className="space-y-5">{renderPersonalization()}{renderNotes()}</div>;
+    return renderOverview();
   };
 
   const renderMasterJourneyMap = () => {
@@ -10690,13 +11069,12 @@ export default function ClientProfilePage() {
     }> = [
       {
         accent: "from-cyan-300 to-blue-400",
-        completion: Math.round(
-          (tabCompletions.overview +
-            tabCompletions.goals +
-            tabCompletions.training +
-            tabCompletions.planDirection) /
-            4,
-        ),
+      completion: Math.round(
+        (tabCompletions.overview +
+          tabCompletions.goals +
+            tabCompletions.training) /
+            3,
+      ),
         description: "Build sessions from profile, goals, libraries, and plans.",
         id: "training",
         title: "Training Journey",
@@ -10705,7 +11083,7 @@ export default function ClientProfilePage() {
           { href: ROUTES.dashboard.goals, label: "Goals", status: "Direction" },
           { href: ROUTES.dashboard.sessions, label: "Sessions", status: "Start" },
           { href: ROUTES.dashboard.exerciseLibrary, label: "Exercise Library", status: "Tools" },
-          { href: ROUTES.workoutBuilder.home, label: "Builder", status: "Create" },
+          { href: ROUTES.dashboard.goals, label: "Goal Planning", status: "Goals" },
           { href: ROUTES.dashboard.plan, label: "My Plan", status: "Organize" },
           { href: ROUTES.dashboard.phases, label: "Periodized Plan", status: "Phase" },
           { href: ROUTES.dashboard.calendar, label: "Calendar", status: "Schedule" },
@@ -11056,10 +11434,16 @@ export default function ClientProfilePage() {
               Dashboard
             </Link>
             <Link
-              href={ROUTES.workoutBuilder.home}
+              href="/goals"
               className="rounded-2xl border border-cyan-200/25 bg-cyan-300/12 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:bg-cyan-300 hover:text-slate-950"
             >
-              🛠 Builder
+              Goals
+            </Link>
+            <Link
+              href="/stats"
+              className="rounded-2xl border border-emerald-200/24 bg-emerald-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-emerald-100 transition hover:bg-emerald-300 hover:text-slate-950"
+            >
+              Stats
             </Link>
           </div>
         </div>

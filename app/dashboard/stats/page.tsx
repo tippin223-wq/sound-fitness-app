@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import TrainingJourneyNavigator from "@/components/dashboard/TrainingJourneyNavigator";
+import MasterTrainingJourney from "@/components/dashboard/MasterTrainingJourney";
 import { ROUTES } from "@/lib/routes";
 
 type StatsTabId =
@@ -795,6 +795,26 @@ const getLimitationCount = (profile: Record<string, unknown> | null) => {
 
   return 0;
 };
+
+const isJourneyValueComplete = (value: unknown) => {
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "number") return Number.isFinite(value) && value > 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return (
+      normalized.length > 0 &&
+      !normalized.includes("not set") &&
+      !normalized.includes("no active")
+    );
+  }
+  return Boolean(value);
+};
+
+const getJourneyCompletion = (...items: unknown[]) =>
+  Math.round(
+    (items.filter(isJourneyValueComplete).length / Math.max(items.length, 1)) *
+      100,
+  );
 
 const normalizeProfile = (rawProfile: unknown): ProfileSnapshot => {
   const profile = asRecord(rawProfile);
@@ -2267,6 +2287,49 @@ export default function StatsPage() {
       )
       .reduce((total, entry) => total + entry.sets, 0),
   };
+  const masterJourneyCompletions = useMemo(
+    () => ({
+      fuel: getJourneyCompletion(
+        snapshot.profile.goalMode,
+        snapshot.profile.currentWeight,
+        snapshot.profile.goalWeight,
+      ),
+      goals: getJourneyCompletion(
+        snapshot.profile.primaryGoal,
+        snapshot.profile.goalMode,
+        snapshot.profile.goalWeight,
+        snapshot.profile.planDirection,
+      ),
+      performance: getJourneyCompletion(
+        lifetime.sessionsCompleted,
+        lifetime.volume,
+        prStats.cards.length,
+        weekly.exercisesTrained,
+      ),
+      profile: getJourneyCompletion(
+        snapshot.profile.displayName,
+        snapshot.profile.memberType,
+        snapshot.profile.trainingAge,
+        snapshot.profile.currentWeight,
+        snapshot.profile.sessionsPerWeek,
+        snapshot.profile.equipment,
+      ),
+      recovery: getJourneyCompletion(
+        recovery.recommendations.length,
+        recovery.readyToTrain.length,
+        recovery.cooldowns.length,
+        snapshot.profile.limitationCount,
+      ),
+      training: getJourneyCompletion(
+        weekly.sets,
+        weekly.sessionsCompleted,
+        snapshot.profile.weeklySetGoal,
+        snapshot.profile.currentPlan,
+        snapshot.favorites,
+      ),
+    }),
+    [lifetime, prStats, recovery, snapshot.favorites, snapshot.profile, weekly],
+  );
   const handleHeroTabSelect = (tab: StatsTabId) => {
     setActiveTab(tab);
     window.requestAnimationFrame(() => {
@@ -2279,8 +2342,6 @@ export default function StatsPage() {
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_10%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(251,191,36,0.16),transparent_30%),radial-gradient(circle_at_50%_70%,rgba(59,130,246,0.12),transparent_38%),linear-gradient(180deg,#020617_0%,#0f172a_48%,#020617_100%)] text-white">
       <section className="mx-auto w-full max-w-[1440px] space-y-5 px-3 py-5 sm:px-5 lg:px-8">
-        <TrainingJourneyNavigator currentStep="progress" variant="full" />
-
         <StatsProfileHero
           activeTab={activeTab}
           bodyPartStats={bodyPartStats}
@@ -2361,6 +2422,8 @@ export default function StatsPage() {
             />
           ) : null}
         </div>
+
+        <MasterTrainingJourney completions={masterJourneyCompletions} />
       </section>
     </main>
   );

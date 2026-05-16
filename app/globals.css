@@ -220,6 +220,21 @@ body {
   );
 }
 
+.dashboard-calendar-card {
+  container-type: inline-size;
+}
+
+.dashboard-calendar-main {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 1240px) {
+  .dashboard-calendar-main {
+    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  }
+}
+
 .exercise-library-card-scroll-viewport {
   box-sizing: border-box;
   cursor: grab;
@@ -1491,9 +1506,89 @@ body {
 
 .exercise-library-anatomy-tree-children {
   animation: exercise-library-tree-branch-reveal 220ms ease-out both;
-  border-left: 1px solid color-mix(in srgb, var(--exercise-theme-accent) 18%, rgba(103, 232, 249, 0.12));
-  margin-left: 1.02rem;
-  padding-left: 0.35rem;
+  background:
+    radial-gradient(
+      circle at 14% 0%,
+      color-mix(in srgb, var(--exercise-theme-accent) 12%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.34), rgba(2, 6, 23, 0.18));
+  border: 1px solid color-mix(in srgb, var(--exercise-theme-accent) 16%, rgba(255, 255, 255, 0.08));
+  border-radius: 1.35rem;
+  display: flex;
+  flex-flow: row nowrap;
+  gap: 0.55rem;
+  margin: 0.48rem 0 0.16rem;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior-x: contain;
+  padding: 0.55rem 0.55rem 0.72rem;
+  scroll-behavior: smooth;
+  scroll-padding-inline: 0.55rem;
+  scroll-snap-type: x proximity;
+  scrollbar-color:
+    color-mix(in srgb, var(--exercise-theme-accent) 48%, rgba(34, 211, 238, 0.40))
+    rgba(15, 23, 42, 0.58);
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.exercise-library-anatomy-tree-children::-webkit-scrollbar {
+  height: 0.34rem;
+}
+
+.exercise-library-anatomy-tree-children::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.58);
+  border-radius: 999px;
+}
+
+.exercise-library-anatomy-tree-children::-webkit-scrollbar-thumb {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--exercise-theme-accent) 54%, rgba(34, 211, 238, 0.44)),
+      rgba(250, 204, 21, 0.36)
+    );
+  border-radius: 999px;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--exercise-theme-accent) 26%, transparent);
+}
+
+.exercise-library-anatomy-tree-children > .exercise-library-anatomy-tree-node {
+  flex: 0 0 clamp(13.5rem, 42vw, 18rem);
+  min-width: 0;
+  scroll-snap-align: start;
+}
+
+.exercise-library-anatomy-tree-children
+  > .exercise-library-anatomy-tree-node
+  > .exercise-library-anatomy-tree-row-wrap {
+  margin-top: 0;
+  padding-left: 0;
+}
+
+.exercise-library-anatomy-tree-children
+  > .exercise-library-anatomy-tree-node
+  > .exercise-library-anatomy-tree-row-wrap::before,
+.exercise-library-anatomy-tree-children
+  > .exercise-library-anatomy-tree-node
+  > .exercise-library-anatomy-tree-row-wrap::after {
+  display: none;
+}
+
+.exercise-library-anatomy-tree-children
+  > .exercise-library-anatomy-tree-node
+  > .exercise-library-anatomy-tree-row-wrap
+  .exercise-library-anatomy-tree-row {
+  min-height: 5.9rem;
+  padding: 0.66rem;
+}
+
+@media (max-width: 380px) {
+  .exercise-library-anatomy-tree-children
+    > .exercise-library-anatomy-tree-node {
+    flex-basis: min(17rem, 86vw);
+  }
 }
 
 .exercise-library-anatomy-tree-ring {

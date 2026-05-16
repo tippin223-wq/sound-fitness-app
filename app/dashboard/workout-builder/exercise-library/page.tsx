@@ -10825,7 +10825,12 @@ function ExerciseBodyAnatomySelector({
               }}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-xs font-black text-slate-300 transition hover:bg-white/[0.10] hover:text-white"
             >
-              {isOpen ? "-" : "+"}
+              <span
+                aria-hidden="true"
+                className={`transition-transform duration-200 ${isOpen ? "rotate-90" : ""}`}
+              >
+                &gt;
+              </span>
             </button>
           ) : null}
         </div>

@@ -37,13 +37,22 @@ const soon = "Coming Soon";
 
 const dashboardItems: MenuItem[] = [
   {
-    emoji: "📅",
-    label: "Workout",
+    emoji: "🧭",
+    label: "Dashboard",
     href: ROUTES.dashboard.home,
-    activeHrefs: [ROUTES.dashboard.home, ROUTES.dashboard.sessions],
-    helper: "Workout dashboard, sessions, and training command center.",
+    activeHrefs: [ROUTES.dashboard.home],
+    helper:
+      "Main app dashboard for training, recovery, nutrition, stats, and journey navigation.",
     accent: "cyan",
     badge: "Primary",
+  },
+  {
+    emoji: "▶️",
+    label: "Sessions",
+    href: ROUTES.dashboard.sessions,
+    activeHrefs: [ROUTES.dashboard.sessions],
+    helper: "Session dashboard, workout launch, templates, and training tools.",
+    accent: "cyan",
   },
   {
     emoji: "🥗",
@@ -56,9 +65,9 @@ const dashboardItems: MenuItem[] = [
   {
     emoji: "⚡",
     label: "Performance",
-    href: "/performance",
-    activeHrefs: [ROUTES.dashboard.performance, "/performance"],
-    helper: "Power, sprint, agility, carries, and conditioning.",
+    href: ROUTES.performance.home,
+    activeHrefs: [ROUTES.performance.home, ROUTES.dashboard.performance],
+    helper: "Cardio, athletic testing, strength metrics, speed, power, endurance, and PRs.",
     accent: "orange",
   },
   {
@@ -219,6 +228,7 @@ const accentStyles: Record<
 };
 
 const ROOT_ROUTES = [
+  ROUTES.performance.home,
   ROUTES.dashboard.home,
   ROUTES.admin.home,
   ROUTES.coach.home,
@@ -237,6 +247,7 @@ const userRoutePrefixes = [
   ROUTES.dashboard.help,
   "/dashboard/billing",
   "/dashboard/support",
+  ROUTES.performance.home,
 ];
 
 function formatPoints(points: number) {
@@ -566,10 +577,10 @@ function MobileDrawer({
         <MenuSection
           items={[
             {
-              emoji: "🏋️",
-              label: "Workout",
+              emoji: "▶️",
+              label: "Dashboard",
               href: ROUTES.dashboard.home,
-              helper: "Open the workout dashboard and session tools.",
+              helper: "Open the main dashboard and command center.",
               accent: "cyan",
             },
           ]}
@@ -790,7 +801,7 @@ export default function ProtectedHeader({
                   className="inline-flex min-h-[50px] items-center gap-2 rounded-[18px] border border-cyan-200/50 bg-gradient-to-r from-cyan-300 to-sky-400 px-5 py-2.5 text-[11px] font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_0_32px_rgba(34,211,238,0.28)] transition hover:-translate-y-0.5 hover:scale-[1.015] hover:from-cyan-200 hover:to-sky-300"
                   href={ROUTES.dashboard.home}
                 >
-                  🏋️ Workout
+                  🧭 Dashboard
                 </Link>
               </nav>
 
@@ -807,7 +818,7 @@ export default function ProtectedHeader({
                 >
                   <Link
                     className="inline-flex items-center gap-2 px-5 py-2.5"
-                    href={ROUTES.dashboard.home}
+                  href={ROUTES.dashboard.home}
                     onClick={() => setOpenMenu(null)}
                   >
                     🧭 Dashboards

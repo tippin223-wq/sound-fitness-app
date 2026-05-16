@@ -279,8 +279,8 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
   }
 
   return (
-    <section className="overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/15 backdrop-blur sm:p-5">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+    <section className="dashboard-calendar-card overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/15 backdrop-blur sm:p-5">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.24em] text-amber-300">
             Dashboard Calendar
@@ -343,71 +343,73 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="dashboard-calendar-main mt-6 grid gap-6">
         <div className="min-w-0">
           {view === "week" ? (
-            <div className="grid gap-3 md:grid-cols-7">
-              {weekDays.map((day) => {
-                const dayKey = toDateKey(day);
-                const dayEvents = eventsByDate[dayKey] || [];
-                const todayActive = isSameDate(day, activeToday);
-                const selected = isSameDate(day, activeSelectedDate);
+            <div className="-mx-1 overflow-x-auto overscroll-x-contain px-1 pb-3 scroll-smooth [scrollbar-color:rgba(34,211,238,0.48)_rgba(15,23,42,0.70)] [scrollbar-width:thin] [touch-action:pan-x] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/65">
+              <div className="grid min-w-[896px] grid-cols-7 gap-3">
+                {weekDays.map((day) => {
+                  const dayKey = toDateKey(day);
+                  const dayEvents = eventsByDate[dayKey] || [];
+                  const todayActive = isSameDate(day, activeToday);
+                  const selected = isSameDate(day, activeSelectedDate);
 
-                return (
-                  <button
-                    aria-pressed={selected}
-                    className={`min-h-[168px] rounded-3xl border p-3 text-left transition duration-300 hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-300/8 ${
-                      selected
-                        ? "border-cyan-300/40 bg-cyan-300/10 shadow-[0_0_28px_rgba(34,211,238,0.12)]"
-                        : todayActive
-                          ? "border-amber-300/35 bg-amber-300/8"
-                          : "border-white/10 bg-slate-950/55"
-                    }`}
-                    key={dayKey}
-                    disabled={!calendarReady}
-                    onClick={() => selectDay(day)}
-                    type="button"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="block text-sm font-black text-white">
-                          {longWeekdayFormatter.format(day).slice(0, 3)}
-                        </span>
-                        <span className="mt-1 block text-2xl font-black text-white">
-                          {day.getDate()}
-                        </span>
-                      </div>
-                      {todayActive ? (
-                        <span className="rounded-full border border-amber-300/30 bg-amber-300/12 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
-                          Today
-                        </span>
-                      ) : null}
-                    </div>
-
-                    <div className="mt-3 space-y-2">
-                      {dayEvents.length ? (
-                        dayEvents.slice(0, 3).map((event) => (
-                          <div
-                            className={`rounded-2xl border px-3 py-2 ${typeStyles[event.type]}`}
-                            key={`${event.dateKey}-${event.title}`}
-                          >
-                            <div className="text-xs font-black leading-tight">
-                              {event.title}
-                            </div>
-                            <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] opacity-70">
-                              {event.status || typeLabels[event.type]}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.025] px-3 py-2 text-xs font-bold text-slate-500">
-                          Open
+                  return (
+                    <button
+                      aria-pressed={selected}
+                      className={`min-h-[148px] min-w-0 rounded-3xl border p-3 text-left transition duration-300 hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-300/8 ${
+                        selected
+                          ? "border-cyan-300/40 bg-cyan-300/10 shadow-[0_0_28px_rgba(34,211,238,0.12)]"
+                          : todayActive
+                            ? "border-amber-300/35 bg-amber-300/8"
+                            : "border-white/10 bg-slate-950/55"
+                      }`}
+                      key={dayKey}
+                      disabled={!calendarReady}
+                      onClick={() => selectDay(day)}
+                      type="button"
+                    >
+                      <div className="flex min-w-0 items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <span className="block truncate text-xs font-black uppercase tracking-[0.12em] text-white">
+                            {longWeekdayFormatter.format(day).slice(0, 3)}
+                          </span>
+                          <span className="mt-1 block text-2xl font-black leading-none text-white">
+                            {day.getDate()}
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
+                        {todayActive ? (
+                          <span className="shrink-0 rounded-full border border-amber-300/30 bg-amber-300/12 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-amber-100">
+                            Today
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-3 space-y-1.5">
+                        {dayEvents.length ? (
+                          dayEvents.slice(0, 3).map((event) => (
+                            <div
+                              className={`rounded-xl border px-2.5 py-1.5 ${typeStyles[event.type]}`}
+                              key={`${event.dateKey}-${event.title}`}
+                            >
+                              <div className="truncate text-[11px] font-black leading-tight">
+                                {event.title}
+                              </div>
+                              <div className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-[0.1em] opacity-70">
+                                {event.status || typeLabels[event.type]}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="rounded-xl border border-white/10 bg-white/[0.025] px-2.5 py-1.5 text-[11px] font-bold text-slate-500">
+                            Open
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : (
             <div className="overflow-x-auto rounded-[28px] border border-white/10 bg-slate-950/35 p-3">
@@ -482,7 +484,7 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
           )}
         </div>
 
-        <aside className="rounded-[28px] border border-white/10 bg-slate-950/58 p-4">
+        <aside className="min-w-0 rounded-[28px] border border-white/10 bg-slate-950/58 p-4">
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">
             Selected Day
           </p>
@@ -495,23 +497,23 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
               : compactDateFormatter.format(activeSelectedDate)}
           </p>
 
-          <div className="mt-4 space-y-2">
+          <div className="mt-4 space-y-2.5">
             {selectedEvents.length ? (
               selectedEvents.map((event) => (
                 <div
                   className={`rounded-2xl border px-3 py-3 ${typeStyles[event.type]}`}
                   key={`${event.dateKey}-${event.title}-detail`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-black leading-tight">
+                  <div className="flex min-w-0 items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-black leading-tight">
                         {event.title}
                       </p>
                       <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] opacity-70">
                         {typeLabels[event.type]}
                       </p>
                     </div>
-                    <span className="rounded-full border border-current/20 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] opacity-80">
+                    <span className="shrink-0 rounded-full border border-current/20 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] opacity-80">
                       {event.status || "Set"}
                     </span>
                   </div>

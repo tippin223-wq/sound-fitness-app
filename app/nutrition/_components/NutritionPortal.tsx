@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import FuelJourneyOrbit from "./FuelJourneyOrbit";
 
 export type NutritionModuleId =
   | "meals"
@@ -854,84 +855,226 @@ export const coreModuleLinks: PortalLink[] = [
   { label: "Progress", href: "/nutrition/progress", helper: "Review adherence." },
 ];
 
-export const journeyStages = [
+type FuelJourneyStageStatus = "Complete" | "Current" | "Next" | "Unlocked" | "Locked";
+
+type FuelJourneyStage = {
+  helper: string;
+  href: string;
+  icon: string;
+  nextAction: string;
+  progress: number;
+  status: FuelJourneyStageStatus;
+  title: string;
+};
+
+export const journeyStages: FuelJourneyStage[] = [
   {
-    title: "Calorie Awareness",
-    helper: "Understand intake, hunger, and goal direction.",
-    status: "Unlocked",
-  },
-  {
-    title: "Protein Consistency",
-    helper: "Build a repeatable protein floor.",
-    status: "Unlocked",
+    title: "Fuel Overview",
+    helper: "See today's fuel status, quick actions, and the next nutrition move.",
+    href: "/nutrition",
+    icon: "🧭",
+    nextAction: "Review today's dashboard",
+    progress: 100,
+    status: "Complete",
   },
   {
     title: "Meal Structure",
-    helper: "Create reliable meal templates.",
+    helper: "Build repeatable meals, timing, and templates around training.",
+    href: "/nutrition/meals",
+    icon: "🍽️",
+    nextAction: "Build a repeatable meal",
+    progress: 68,
+    status: "Current",
+  },
+  {
+    title: "Hydration",
+    helper: "Track water, electrolytes, and hydration behavior around sessions.",
+    href: "/nutrition/hydration",
+    icon: "💧",
+    nextAction: "Add water target",
+    progress: 42,
     status: "Next",
   },
   {
-    title: "Hydration Mastery",
-    helper: "Tie water and electrolytes to readiness.",
+    title: "Calories",
+    helper: "Set energy targets and understand daily balance without clutter.",
+    href: "/nutrition/calories",
+    icon: "🔥",
+    nextAction: "Check calorie target",
+    progress: 34,
+    status: "Unlocked",
+  },
+  {
+    title: "Protein",
+    helper: "Create a consistent protein floor for muscle, recovery, and satiety.",
+    href: "/nutrition/macros",
+    icon: "🥩",
+    nextAction: "Review macros",
+    progress: 58,
+    status: "Unlocked",
+  },
+  {
+    title: "Grocery Planning",
+    helper: "Turn goals and meal templates into a practical shopping system.",
+    href: "/nutrition/grocery",
+    icon: "🛒",
+    nextAction: "Build grocery staples",
+    progress: 18,
     status: "Locked",
   },
   {
-    title: "Performance Fueling",
-    helper: "Fuel sessions and recovery windows.",
+    title: "Tracking",
+    helper: "Review meals, progress, consistency, streaks, and nutrition trends.",
+    href: "/nutrition/progress",
+    icon: "📊",
+    nextAction: "Review trends",
+    progress: 12,
     status: "Locked",
   },
   {
-    title: "Recovery Nutrition",
-    helper: "Support sleep, soreness, and adaptation.",
+    title: "AI + Progress",
+    helper: "Use insights and recommendations to choose the next best action.",
+    href: "/nutrition/insights",
+    icon: "🧠",
+    nextAction: "Open insights",
+    progress: 0,
     status: "Locked",
   },
   {
-    title: "Advanced Nutrition Strategy",
-    helper: "Periodize nutrition around phases.",
+    title: "Libraries",
+    helper: "Browse foods, recipes, supplements, and reusable nutrition references.",
+    href: "/nutrition/library",
+    icon: "📚",
+    nextAction: "Open library",
+    progress: 0,
     status: "Locked",
   },
 ];
 
+const fuelJourneyStatusStyles: Record<
+  FuelJourneyStageStatus,
+  {
+    badge: string;
+    card: string;
+    connector: string;
+    marker: string;
+  }
+> = {
+  Complete: {
+    badge: "border-emerald-300/25 bg-emerald-300/10 text-emerald-100",
+    card:
+      "border-emerald-300/30 bg-emerald-300/10 text-emerald-50 shadow-[0_0_24px_rgba(16,185,129,0.12)]",
+    connector: "from-emerald-300/55 to-cyan-300/24",
+    marker: "border-emerald-200/45 bg-emerald-300 text-slate-950",
+  },
+  Current: {
+    badge: "border-cyan-200/35 bg-cyan-300/14 text-cyan-50",
+    card:
+      "border-cyan-200/55 bg-cyan-300/14 text-cyan-50 shadow-[0_0_38px_rgba(34,211,238,0.24)] ring-1 ring-cyan-200/20",
+    connector: "from-cyan-300/70 to-amber-200/36",
+    marker:
+      "border-cyan-100/70 bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.34)]",
+  },
+  Next: {
+    badge: "border-amber-300/28 bg-amber-300/12 text-amber-100",
+    card:
+      "border-amber-300/30 bg-amber-300/9 text-amber-50 shadow-[0_0_24px_rgba(251,191,36,0.12)]",
+    connector: "from-amber-300/42 to-white/12",
+    marker: "border-amber-200/45 bg-amber-300/18 text-amber-100",
+  },
+  Unlocked: {
+    badge: "border-white/10 bg-white/[0.045] text-slate-300",
+    card:
+      "border-white/10 bg-slate-950/58 text-slate-300 hover:border-cyan-200/32 hover:bg-cyan-300/8 hover:text-white",
+    connector: "from-white/14 to-white/8",
+    marker: "border-white/12 bg-slate-950/72 text-slate-300",
+  },
+  Locked: {
+    badge: "border-white/10 bg-white/[0.03] text-slate-500",
+    card:
+      "border-white/10 bg-white/[0.025] text-slate-500 opacity-65 hover:opacity-85",
+    connector: "from-white/10 to-white/5",
+    marker: "border-white/10 bg-slate-950/70 text-slate-500",
+  },
+};
+
 export function NutritionPortalNav() {
+  const activeStage =
+    journeyStages.find((stage) => stage.status === "Current") ||
+    journeyStages.find((stage) => stage.status === "Next") ||
+    journeyStages[0];
+  const completedCount = journeyStages.filter(
+    (stage) => stage.status === "Complete",
+  ).length;
+  const overallProgress = Math.round(
+    journeyStages.reduce((total, stage) => total + stage.progress, 0) /
+      journeyStages.length,
+  );
+
   return (
-    <section className="rounded-[30px] border border-white/10 bg-slate-950/60 p-3 shadow-[0_0_55px_rgba(0,0,0,0.38)] backdrop-blur-xl">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <Link
-          href="/nutrition"
-          className="rounded-3xl border border-cyan-300/20 bg-cyan-300/10 px-4 py-3 text-sm font-black uppercase tracking-[0.18em] text-cyan-100 transition hover:border-cyan-200/50 hover:bg-cyan-300/15"
-        >
-          Fuel Portal
-        </Link>
-        <div className="flex gap-2 overflow-x-auto pb-1 xl:pb-0">
-          {nutritionPortalGroups.map((group) => (
-            <div className="group relative shrink-0" key={group.title}>
-              <button
-                type="button"
-                className="min-h-[44px] rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-black uppercase tracking-[0.14em] text-slate-300 transition hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-300/10 hover:text-white"
-              >
-                {group.title}
-              </button>
-              <div className="invisible absolute left-0 top-full z-40 mt-2 w-[min(88vw,360px)] translate-y-2 rounded-[24px] border border-white/10 bg-slate-950/95 p-3 opacity-0 shadow-2xl backdrop-blur-xl transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
-                <div className="grid gap-2">
-                  {group.links.map((link) => (
-                    <Link
-                      className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 transition hover:border-cyan-300/30 hover:bg-cyan-300/8"
-                      href={link.href}
-                      key={link.href}
-                    >
-                      <span className="text-sm font-black text-white">
-                        {link.label}
-                      </span>
-                      <span className="mt-1 block text-xs leading-5 text-slate-500">
-                        {link.helper}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
+    <section className="overflow-hidden rounded-[34px] border border-cyan-100/18 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_16%,rgba(251,191,36,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(2,6,23,0.62))] p-4 shadow-[0_26px_88px_rgba(0,0,0,0.36),0_0_42px_rgba(34,211,238,0.08)] backdrop-blur-xl sm:p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/nutrition"
+              className="rounded-full border border-cyan-200/24 bg-cyan-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100 transition hover:border-cyan-100/50 hover:bg-cyan-300/15"
+            >
+              Fuel Portal
+            </Link>
+            <span className="rounded-full border border-emerald-200/18 bg-emerald-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100">
+              {completedCount}/{journeyStages.length} complete
+            </span>
+          </div>
+          <h2 className="mt-3 text-2xl font-black uppercase tracking-tight text-white sm:text-3xl">
+            Fuel Journey
+          </h2>
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-300">
+            Build nutrition from daily fuel awareness into meals, hydration,
+            grocery planning, tracking, insights, and libraries.
+          </p>
         </div>
+
+        <div className="rounded-[24px] border border-white/10 bg-slate-950/55 p-4 lg:min-w-[250px]">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+              Journey Progress
+            </span>
+            <span className="text-lg font-black text-cyan-100">
+              {overallProgress}%
+            </span>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-950/80">
+            <span
+              className="block h-full rounded-full bg-gradient-to-r from-emerald-300 via-cyan-300 to-amber-300 shadow-[0_0_22px_rgba(34,211,238,0.24)]"
+              style={{ width: `${overallProgress}%` }}
+            />
+          </div>
+          <p className="mt-3 text-xs font-bold text-slate-400">
+            Current focus:{" "}
+            <span className="text-cyan-100">{activeStage.title}</span>
+          </p>
+        </div>
+      </div>
+
+      <FuelJourneyOrbit stages={journeyStages} />
+
+      <div className="mt-2 flex max-w-full gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <Link
+          href="/nutrition/journey"
+          className="shrink-0 rounded-full border border-cyan-200/24 bg-cyan-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.13em] text-cyan-100 transition hover:border-cyan-100/50 hover:bg-cyan-300/15"
+        >
+          Full Journey
+        </Link>
+        {nutritionPortalGroups.map((group) => (
+          <Link
+            className="shrink-0 rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-[10px] font-black uppercase tracking-[0.13em] text-slate-400 transition hover:border-cyan-200/30 hover:bg-cyan-300/10 hover:text-white"
+            href={group.links[0]?.href || "/nutrition"}
+            key={group.title}
+          >
+            {group.title}
+          </Link>
+        ))}
       </div>
     </section>
   );
