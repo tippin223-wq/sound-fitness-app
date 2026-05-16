@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
@@ -459,17 +460,54 @@ export default function SessionsPage() {
   ] = useState([1, 0]);
   const [activeHeroAchievementIndex, setActiveHeroAchievementIndex] =
     useState(0);
-  const trainingJourneyPointerStartRef = useRef<number | null>(null);
+  const trainingJourneyPointerStartRef = useRef<{
+    x: number;
+    y: number;
+  } | null>(null);
   const trainingJourneyPointerMovedRef = useRef(false);
   const trainingJourneyOrbitRef = useRef<HTMLDivElement | null>(null);
   const trainingJourneyWheelCaptureRef = useRef(false);
   const trainingJourneyWheelLockRef = useRef(0);
+  const sessionsDashboardPointerStartRef = useRef<number | null>(null);
+  const sessionsDashboardPointerMovedRef = useRef(false);
+  const heroAchievementPointerStartRef = useRef<number | null>(null);
+  const heroAchievementPointerMovedRef = useRef(false);
   const heroAchievementWheelLockRef = useRef(0);
+  const profileHubLayerWheelGestureRef = useRef(false);
+  const profileHubLayerWheelResetRef =
+    useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionsProfileHubRef = useRef<HTMLDivElement | null>(null);
+  const sessionsProfileHubOverlayRef = useRef<HTMLDivElement | null>(null);
+  const sessionsProfileLayerPointerStartRef = useRef<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const sessionsProfileLayerPointerMovedRef = useRef(false);
+  const sessionsHubOrbitPointerStartRef = useRef<number | null>(null);
+  const sessionsHubOrbitPointerMovedRef = useRef(false);
+  const sessionsAccountOrbitPointerStartRef = useRef<number | null>(null);
+  const sessionsAccountOrbitPointerMovedRef = useRef(false);
   const recentSessionsScrollRef = useRef<HTMLDivElement | null>(null);
+  const recentSessionsScrollDragRef = useRef({
+    isDragging: false,
+    moved: false,
+    scrollLeft: 0,
+    startX: 0,
+  });
   const [activeSessionsDashboardIndex, setActiveSessionsDashboardIndex] =
     useState(0);
+  const [
+    sessionsDashboardSlideDirection,
+    setSessionsDashboardSlideDirection,
+  ] = useState<"left" | "right">("right");
+  const [activeSessionsHubIndex, setActiveSessionsHubIndex] = useState(0);
+  const [activeSessionsAccountIndex, setActiveSessionsAccountIndex] =
+    useState(0);
+  const [activeSessionsProfileLayer, setActiveSessionsProfileLayer] =
+    useState(0);
   const [sessionsProfileHubOpen, setSessionsProfileHubOpen] = useState(false);
+  const [openSessionsProfileDetailKey, setOpenSessionsProfileDetailKey] =
+    useState<string | null>(null);
 
   useEffect(() => {
     let isActive = true;
@@ -754,6 +792,24 @@ export default function SessionsPage() {
       statusLabel: "Locked",
     },
   ];
+  const recentProfileHubAchievement =
+    [...workoutAchievements]
+      .reverse()
+      .find((achievement) => achievement.status === "completed") ||
+    workoutAchievements.find((achievement) => achievement.status === "active") ||
+    workoutAchievements[0];
+  const recentProfileHubAchievementProgress = Math.min(
+    100,
+    Math.max(
+      0,
+      recentProfileHubAchievement.progress ??
+        (recentProfileHubAchievement.status === "completed"
+          ? 100
+          : recentProfileHubAchievement.status === "locked"
+            ? 0
+            : 50),
+    ),
+  );
   const heroAchievementCount = workoutAchievements.length;
   const rotateHeroAchievement = (direction: "left" | "right") => {
     if (heroAchievementCount < 2) return;
@@ -763,6 +819,110 @@ export default function SessionsPage() {
         ? (currentIndex - 1 + heroAchievementCount) % heroAchievementCount
         : (currentIndex + 1) % heroAchievementCount,
     );
+  };
+  const startHorizontalOrbitDrag = (
+    event: ReactPointerEvent<HTMLElement>,
+    startRef: { current: number | null },
+    movedRef: { current: boolean },
+    stopPropagation = true,
+  ) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    if (stopPropagation) {
+      event.stopPropagation();
+    }
+    startRef.current = event.clientX;
+    movedRef.current = false;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const moveHorizontalOrbitDrag = (
+    event: ReactPointerEvent<HTMLElement>,
+    startRef: { current: number | null },
+    movedRef: { current: boolean },
+    rotate: (direction: "left" | "right") => void,
+    threshold = 72,
+  ) => {
+    const startX = startRef.current;
+    if (startX === null) return;
+
+    const deltaX = event.clientX - startX;
+    if (Math.abs(deltaX) < threshold) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    movedRef.current = true;
+    rotate(deltaX > 0 ? "left" : "right");
+    startRef.current = null;
+  };
+  const finishHorizontalOrbitDrag = (
+    event: ReactPointerEvent<HTMLElement>,
+    startRef: { current: number | null },
+  ) => {
+    startRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+  };
+  const startHorizontalScrollDrag = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    scrollRef: { current: HTMLDivElement | null },
+    dragRef: {
+      current: {
+        isDragging: boolean;
+        moved: boolean;
+        scrollLeft: number;
+        startX: number;
+      };
+    },
+  ) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    const node = scrollRef.current;
+    if (!node) return;
+
+    dragRef.current = {
+      isDragging: true,
+      moved: false,
+      scrollLeft: node.scrollLeft,
+      startX: event.clientX,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const moveHorizontalScrollDrag = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    scrollRef: { current: HTMLDivElement | null },
+    dragRef: {
+      current: {
+        isDragging: boolean;
+        moved: boolean;
+        scrollLeft: number;
+        startX: number;
+      };
+    },
+  ) => {
+    const node = scrollRef.current;
+    if (!node || !dragRef.current.isDragging) return;
+
+    const deltaX = event.clientX - dragRef.current.startX;
+    if (Math.abs(deltaX) < 3) return;
+
+    event.preventDefault();
+    dragRef.current.moved = true;
+    node.scrollLeft = dragRef.current.scrollLeft - deltaX;
+  };
+  const finishHorizontalScrollDrag = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    dragRef: {
+      current: {
+        isDragging: boolean;
+        moved: boolean;
+        scrollLeft: number;
+        startX: number;
+      };
+    },
+  ) => {
+    dragRef.current.isDragging = false;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
   };
   const getHeroAchievementOrbitDistance = (index: number) => {
     if (heroAchievementCount <= 1) return 0;
@@ -927,30 +1087,86 @@ export default function SessionsPage() {
   const handleTrainingJourneyPointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
-    trainingJourneyPointerStartRef.current = event.clientX;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    trainingJourneyPointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
     trainingJourneyPointerMovedRef.current = false;
     trainingJourneyWheelCaptureRef.current = true;
     event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
+  const handleTrainingJourneyPointerMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const start = trainingJourneyPointerStartRef.current;
+    if (!start) return;
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    const horizontalIntent = Math.abs(deltaX) > Math.abs(deltaY) * 1.1;
+    const primaryDelta = horizontalIntent ? deltaX : deltaY;
+    const movementThreshold = horizontalIntent ? 48 : 118;
+    if (Math.abs(primaryDelta) < movementThreshold) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    trainingJourneyPointerMovedRef.current = true;
+    rotateTrainingJourney(
+      horizontalIntent
+        ? deltaX > 0
+          ? "left"
+          : "right"
+        : deltaY > 0
+          ? "up"
+          : "down",
+    );
+    trainingJourneyPointerStartRef.current = horizontalIntent
+      ? {
+          x: event.clientX,
+          y: event.clientY,
+        }
+      : null;
+  };
   const handleTrainingJourneyPointerUp = (
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
-    const startX = trainingJourneyPointerStartRef.current;
+    const start = trainingJourneyPointerStartRef.current;
     trainingJourneyPointerStartRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
 
-    if (startX === null) {
+    if (!start) {
       return;
     }
 
-    const deltaX = event.clientX - startX;
+    if (trainingJourneyPointerMovedRef.current) {
+      return;
+    }
 
-    if (Math.abs(deltaX) < 44) {
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    const horizontalIntent = Math.abs(deltaX) > Math.abs(deltaY) * 1.1;
+    const primaryDelta = horizontalIntent ? deltaX : deltaY;
+
+    const releaseThreshold = horizontalIntent ? 36 : 92;
+    if (Math.abs(primaryDelta) < releaseThreshold) {
       return;
     }
 
     trainingJourneyPointerMovedRef.current = true;
-    rotateTrainingJourney(deltaX > 0 ? "left" : "right");
+    rotateTrainingJourney(
+      horizontalIntent
+        ? deltaX > 0
+          ? "left"
+          : "right"
+        : deltaY > 0
+          ? "up"
+          : "down",
+    );
   };
   const handleTrainingJourneyKeyDown = (
     event: ReactKeyboardEvent<HTMLDivElement>,
@@ -991,7 +1207,8 @@ export default function SessionsPage() {
       (typeof document !== "undefined" &&
         event.currentTarget.contains(document.activeElement));
 
-    if (Math.abs(primaryDelta) < 18) {
+    const wheelThreshold = horizontalIntent ? 18 : 46;
+    if (Math.abs(primaryDelta) < wheelThreshold) {
       if (captured) event.preventDefault();
       return;
     }
@@ -1019,7 +1236,8 @@ export default function SessionsPage() {
     if (atTop || atBottom || inactiveHorizontal) return;
 
     const now = Date.now();
-    if (now - trainingJourneyWheelLockRef.current < 360) return;
+    const wheelLockMs = horizontalIntent ? 360 : 820;
+    if (now - trainingJourneyWheelLockRef.current < wheelLockMs) return;
 
     trainingJourneyWheelLockRef.current = now;
     rotateTrainingJourney(direction);
@@ -1077,11 +1295,17 @@ export default function SessionsPage() {
   useEffect(() => {
     if (!sessionsProfileHubOpen) return;
 
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
     const handlePointerDown = (event: MouseEvent) => {
-      if (
-        sessionsProfileHubRef.current &&
-        !sessionsProfileHubRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+      const clickedProfileTrigger =
+        sessionsProfileHubRef.current?.contains(target) ?? false;
+      const clickedProfileOverlay =
+        sessionsProfileHubOverlayRef.current?.contains(target) ?? false;
+
+      if (!clickedProfileTrigger && !clickedProfileOverlay) {
         setSessionsProfileHubOpen(false);
       }
     };
@@ -1093,6 +1317,12 @@ export default function SessionsPage() {
     document.addEventListener("keydown", handleEscape);
 
     return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      profileHubLayerWheelGestureRef.current = false;
+      if (profileHubLayerWheelResetRef.current) {
+        clearTimeout(profileHubLayerWheelResetRef.current);
+        profileHubLayerWheelResetRef.current = null;
+      }
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
     };
@@ -1154,6 +1384,7 @@ export default function SessionsPage() {
       activeSessionsDashboardIndex % sessionsOrbitDashboardLinks.length
     ] || sessionsOrbitDashboardLinks[0];
   const rotateSessionsDashboardRail = (direction: "left" | "right") => {
+    setSessionsDashboardSlideDirection(direction);
     setActiveSessionsDashboardIndex((currentIndex) =>
       direction === "left"
         ? (currentIndex - 1 + sessionsOrbitDashboardLinks.length) %
@@ -1162,9 +1393,30 @@ export default function SessionsPage() {
     );
   };
   const scrollRecentSessions = (direction: "left" | "right") => {
-    recentSessionsScrollRef.current?.scrollBy({
+    const row = recentSessionsScrollRef.current;
+    if (!row) return;
+
+    const cards = Array.from(row.children).filter(
+      (child): child is HTMLElement => child instanceof HTMLElement,
+    );
+    if (!cards.length) return;
+
+    const currentIndex = cards.reduce((nearestIndex, card, index) => {
+      const currentDistance = Math.abs(card.offsetLeft - row.scrollLeft);
+      const nearestDistance = Math.abs(
+        cards[nearestIndex].offsetLeft - row.scrollLeft,
+      );
+
+      return currentDistance < nearestDistance ? index : nearestIndex;
+    }, 0);
+    const nextIndex =
+      direction === "left"
+        ? Math.max(0, currentIndex - 1)
+        : Math.min(cards.length - 1, currentIndex + 1);
+
+    row.scrollTo({
       behavior: "smooth",
-      left: direction === "left" ? -560 : 560,
+      left: cards[nextIndex].offsetLeft,
     });
   };
   const sessionsHubOrbitItems = [
@@ -1173,6 +1425,12 @@ export default function SessionsPage() {
       helper: "Progress, PRs, and training trends.",
       icon: "📈",
       label: "Stats",
+      references: [
+        `${workoutStats.loggedEntries} logged entries`,
+        `${workoutStats.totalSets} total sets`,
+        `Latest: ${workoutStats.latestExercise}`,
+      ],
+      stat: workoutStats.latestDate || "Ready to track",
       tone: "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
     },
     {
@@ -1180,6 +1438,12 @@ export default function SessionsPage() {
       helper: "Outcomes and training direction.",
       icon: "🎯",
       label: "Goals",
+      references: [
+        activePlan.primaryFocus,
+        activePlan.secondaryFocus,
+        activePlan.goal,
+      ],
+      stat: activePlan.phase,
       tone: "border-amber-200/26 bg-amber-300/10 text-amber-100",
     },
     {
@@ -1187,6 +1451,12 @@ export default function SessionsPage() {
       helper: "Coach intelligence and next actions.",
       icon: "🧠",
       label: "Insights",
+      references: [
+        currentWorkoutStage.title,
+        `${workoutJourneyProgress}% journey`,
+        activePlan.recovery,
+      ],
+      stat: currentWorkoutStage.status,
       tone: "border-violet-200/24 bg-violet-300/10 text-violet-100",
     },
     {
@@ -1194,6 +1464,12 @@ export default function SessionsPage() {
       helper: "Weekly structure and templates.",
       icon: "📅",
       label: "Plan",
+      references: [
+        activePlan.title,
+        activePlan.split,
+        activePlan.weeklyTarget,
+      ],
+      stat: activePlan.type,
       tone: "border-sky-200/24 bg-sky-300/10 text-sky-100",
     },
     {
@@ -1201,6 +1477,12 @@ export default function SessionsPage() {
       helper: "Milestones, badges, and wins.",
       icon: "🏆",
       label: "Achievements",
+      references: [
+        `${workoutRewardStats.soundPoints.toLocaleString()} points`,
+        `${workoutRewardStats.trainingStreak} day streak`,
+        `${workoutRewardStats.soundTokens.toLocaleString()} tokens`,
+      ],
+      stat: `${workoutRewardStats.workoutXp.toLocaleString()} XP`,
       tone: "border-orange-200/24 bg-orange-300/10 text-orange-100",
     },
     {
@@ -1208,15 +1490,48 @@ export default function SessionsPage() {
       helper: "Coach messages and questions.",
       icon: "💬",
       label: "Messages",
+      references: [
+        activePlan.rule,
+        activePlan.note,
+        "Coach context ready",
+      ],
+      stat: "Coach channel",
       tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
     },
   ] as const;
+  const rotateSessionsHubOrbit = (direction: "left" | "right") => {
+    setActiveSessionsHubIndex((currentIndex) =>
+      direction === "left"
+        ? (currentIndex - 1 + sessionsHubOrbitItems.length) %
+          sessionsHubOrbitItems.length
+        : (currentIndex + 1) % sessionsHubOrbitItems.length,
+    );
+  };
+  const getSessionsHubOrbitDistance = (index: number) => {
+    const rawDistance = index - activeSessionsHubIndex;
+
+    if (rawDistance > sessionsHubOrbitItems.length / 2) {
+      return rawDistance - sessionsHubOrbitItems.length;
+    }
+
+    if (rawDistance < -sessionsHubOrbitItems.length / 2) {
+      return rawDistance + sessionsHubOrbitItems.length;
+    }
+
+    return rawDistance;
+  };
   const sessionsAccountOrbitItems = [
     {
       href: ROUTES.dashboard.profile,
-      helper: "Training identity, body metrics, preferences, and avatar.",
+      helper: "Update profile, body metrics, preferences, and avatar.",
       icon: "👤",
-      label: "Profile",
+      label: "Edit Profile",
+      references: [
+        "Body metrics",
+        "Training readiness",
+        "Coach preferences",
+      ],
+      stat: "Profile sync",
       tone: "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
     },
     {
@@ -1224,6 +1539,12 @@ export default function SessionsPage() {
       helper: "App preferences and account controls.",
       icon: "⚙️",
       label: "Settings",
+      references: [
+        "Notifications",
+        "Display controls",
+        "Account security",
+      ],
+      stat: "Preferences",
       tone: "border-violet-200/24 bg-violet-300/10 text-violet-100",
     },
     {
@@ -1231,6 +1552,12 @@ export default function SessionsPage() {
       helper: "Payments and invoice history.",
       icon: "💳",
       label: "Billing",
+      references: [
+        active.name,
+        `${remaining} sessions left`,
+        active.price,
+      ],
+      stat: active.status,
       tone: "border-amber-200/24 bg-amber-300/10 text-amber-100",
     },
     {
@@ -1238,9 +1565,128 @@ export default function SessionsPage() {
       helper: "Support, FAQs, and app guidance.",
       icon: "💬",
       label: "Help",
+      references: [
+        "Support center",
+        "FAQs",
+        "App guidance",
+      ],
+      stat: "Support",
       tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
     },
+    {
+      action: "logout",
+      iconType: "logout",
+      href: ROUTES.auth.login,
+      helper: "Sign out and return to login.",
+      icon: "ðŸšª",
+      label: "Logout",
+      references: [
+        "Secure exit",
+        "Return to login",
+        "Profile remains saved",
+      ],
+      stat: "Account session",
+      tone: "border-red-200/24 bg-red-500/10 text-red-100",
+    },
   ] as const;
+  const rotateSessionsAccountOrbit = (direction: "left" | "right") => {
+    setActiveSessionsAccountIndex((currentIndex) =>
+      direction === "left"
+        ? (currentIndex - 1 + sessionsAccountOrbitItems.length) %
+          sessionsAccountOrbitItems.length
+        : (currentIndex + 1) % sessionsAccountOrbitItems.length,
+    );
+  };
+  const getSessionsAccountOrbitDistance = (index: number) => {
+    const rawDistance = index - activeSessionsAccountIndex;
+
+    if (rawDistance > sessionsAccountOrbitItems.length / 2) {
+      return rawDistance - sessionsAccountOrbitItems.length;
+    }
+
+    if (rawDistance < -sessionsAccountOrbitItems.length / 2) {
+      return rawDistance + sessionsAccountOrbitItems.length;
+    }
+
+    return rawDistance;
+  };
+  const rotateSessionsProfileLayer = (direction: "up" | "down") => {
+    setActiveSessionsProfileLayer((currentLayer) =>
+      direction === "up"
+        ? Math.max(0, currentLayer - 1)
+        : Math.min(2, currentLayer + 1),
+    );
+  };
+  const handleSessionsProfileLayerWheel = (
+    event: ReactWheelEvent<HTMLDivElement>,
+  ) => {
+    if (Math.abs(event.deltaY) < 40) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!profileHubLayerWheelGestureRef.current) {
+      profileHubLayerWheelGestureRef.current = true;
+      rotateSessionsProfileLayer(event.deltaY > 0 ? "down" : "up");
+    }
+
+    if (profileHubLayerWheelResetRef.current) {
+      clearTimeout(profileHubLayerWheelResetRef.current);
+    }
+
+    profileHubLayerWheelResetRef.current = setTimeout(() => {
+      profileHubLayerWheelGestureRef.current = false;
+      profileHubLayerWheelResetRef.current = null;
+    }, 240);
+  };
+  const handleSessionsProfileLayerPointerDown = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    const target = event.target as Element | null;
+    const startedInsideHorizontalOrbit = Boolean(
+      target?.closest("[data-profile-horizontal-orbit]"),
+    );
+    const startedInLeftVerticalZone =
+      typeof window !== "undefined" &&
+      event.clientX <= Math.min(220, window.innerWidth * 0.22);
+
+    sessionsProfileLayerPointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+    sessionsProfileLayerPointerMovedRef.current = false;
+    if (!startedInsideHorizontalOrbit || startedInLeftVerticalZone) {
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    }
+  };
+  const handleSessionsProfileLayerPointerMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const start = sessionsProfileLayerPointerStartRef.current;
+    if (!start) return;
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    if (Math.abs(deltaY) < 58 || Math.abs(deltaY) < Math.abs(deltaX) * 0.9) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    sessionsProfileLayerPointerMovedRef.current = true;
+    rotateSessionsProfileLayer(deltaY > 0 ? "up" : "down");
+    sessionsProfileLayerPointerStartRef.current = null;
+  };
+  const handleSessionsProfileLayerPointerEnd = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    sessionsProfileLayerPointerStartRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+  };
 
   async function signOutFromSessionsHub() {
     await supabase.auth.signOut();
@@ -1270,15 +1716,7 @@ export default function SessionsPage() {
             aria-hidden="true"
             className="pointer-events-none absolute left-1/2 top-8 h-[calc(100%-4rem)] w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-cyan-200/22 to-transparent"
           />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute left-1/2 top-1/2 h-[86%] w-[92%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/8 shadow-[0_0_120px_rgba(34,211,238,0.10)]"
-          />
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute left-1/2 top-1/2 h-[66%] w-[76%] -translate-x-1/2 -translate-y-1/2 rounded-full border-l border-r border-amber-200/10"
-          />
-          <div className="relative z-40 flex min-h-[84px] items-center gap-4 border-b border-cyan-100/18 bg-slate-950/70 px-3 py-3 shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10)] backdrop-blur-xl sm:px-4 sm:py-4">
+          <div className="relative z-[100] flex min-h-[84px] items-center gap-4 border-b border-cyan-100/18 bg-slate-950/70 px-3 py-3 shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10)] backdrop-blur-xl sm:px-4 sm:py-4">
             <Link
               aria-label="Open Sound Fitness dashboard"
               className="flex min-h-[62px] min-w-0 shrink-0 items-center gap-3 rounded-[24px] border border-transparent bg-transparent px-2.5 py-2 transition hover:border-cyan-100/24 hover:bg-cyan-300/8"
@@ -1308,12 +1746,41 @@ export default function SessionsPage() {
 
             <div
               aria-label="Dashboard selector"
-              className="flex w-[min(62vw,360px)] shrink-0 items-center gap-2 rounded-[28px] border border-transparent bg-transparent p-0 shadow-none backdrop-blur md:w-[380px] lg:w-[440px] xl:w-[490px]"
+              className="flex w-fit max-w-[calc(100vw-7.5rem)] shrink-0 cursor-grab select-none items-center gap-1.5 bg-transparent p-0 shadow-none [touch-action:pan-y] active:cursor-grabbing md:max-w-[min(56vw,520px)] lg:max-w-none"
+              onPointerCancel={(event) =>
+                finishHorizontalOrbitDrag(
+                  event,
+                  sessionsDashboardPointerStartRef,
+                )
+              }
+              onPointerDown={(event) =>
+                startHorizontalOrbitDrag(
+                  event,
+                  sessionsDashboardPointerStartRef,
+                  sessionsDashboardPointerMovedRef,
+                )
+              }
+              onPointerMove={(event) =>
+                moveHorizontalOrbitDrag(
+                  event,
+                  sessionsDashboardPointerStartRef,
+                  sessionsDashboardPointerMovedRef,
+                  rotateSessionsDashboardRail,
+                  58,
+                )
+              }
+              onPointerUp={(event) =>
+                finishHorizontalOrbitDrag(
+                  event,
+                  sessionsDashboardPointerStartRef,
+                )
+              }
             >
               <button
                 aria-label="Previous dashboard"
-                className="grid h-12 w-10 shrink-0 place-items-center rounded-2xl border border-cyan-200/14 bg-slate-950/58 text-xs font-black text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.10)] transition hover:-translate-x-0.5 hover:border-amber-200/42 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
+                className="grid h-11 w-9 shrink-0 place-items-center rounded-2xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:-translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
                 onClick={() => rotateSessionsDashboardRail("left")}
+                onPointerDown={(event) => event.stopPropagation()}
                 type="button"
               >
                 &lt;
@@ -1324,21 +1791,29 @@ export default function SessionsPage() {
                     ? "page"
                     : undefined
                 }
-                className={`flex min-h-[64px] min-w-0 flex-1 items-center gap-3 rounded-[24px] border px-4 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_26px_rgba(34,211,238,0.08)] transition hover:-translate-y-0.5 ${activeSessionsDashboardLink.tone} ${
-                  activeSessionsDashboardLink.href === ROUTES.dashboard.sessions
-                    ? "ring-2 ring-cyan-100/22"
-                    : ""
+                className={`flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-2.5 py-2 text-left text-cyan-50 shadow-none transition hover:-translate-y-0.5 hover:bg-white/[0.04] ${
+                  sessionsDashboardSlideDirection === "right"
+                    ? "animate-[sessions-dashboard-chip-slide-from-right_220ms_ease-out]"
+                    : "animate-[sessions-dashboard-chip-slide-from-left_220ms_ease-out]"
                 }`}
+                draggable={false}
                 href={activeSessionsDashboardLink.href}
-                key={activeSessionsDashboardLink.label}
+                key={`${activeSessionsDashboardLink.label}-${sessionsDashboardSlideDirection}`}
+                onClick={(event) => {
+                  if (sessionsDashboardPointerMovedRef.current) {
+                    event.preventDefault();
+                    sessionsDashboardPointerMovedRef.current = false;
+                  }
+                }}
+                onDragStart={(event) => event.preventDefault()}
               >
                 <span
                   aria-hidden="true"
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-current/22 bg-slate-950/18 text-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,255,255,0.06)]"
+                  className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border text-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,255,255,0.06)] ${activeSessionsDashboardLink.tone}`}
                 >
                   {activeSessionsDashboardLink.icon}
                 </span>
-                <span className="min-w-0 flex-1 whitespace-nowrap">
+                <span className="shrink-0 whitespace-nowrap">
                   <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
                     {activeSessionsDashboardLink.meta}
                   </span>
@@ -1346,7 +1821,7 @@ export default function SessionsPage() {
                     {activeSessionsDashboardLink.label}
                   </span>
                 </span>
-                <span className="shrink-0 rounded-2xl border border-current/20 bg-slate-950/18 px-3 py-2 text-right">
+                <span className={`shrink-0 rounded-2xl border px-3 py-2 text-right ${activeSessionsDashboardLink.tone}`}>
                   <span className="block text-[8px] font-black uppercase tracking-[0.1em] opacity-75">
                     ⚡ pts
                   </span>
@@ -1357,8 +1832,9 @@ export default function SessionsPage() {
               </Link>
               <button
                 aria-label="Next dashboard"
-                className="grid h-12 w-10 shrink-0 place-items-center rounded-2xl border border-cyan-200/14 bg-slate-950/58 text-xs font-black text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.10)] transition hover:translate-x-0.5 hover:border-amber-200/42 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
+                className="grid h-11 w-9 shrink-0 place-items-center rounded-2xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
                 onClick={() => rotateSessionsDashboardRail("right")}
+                onPointerDown={(event) => event.stopPropagation()}
                 type="button"
               >
                 &gt;
@@ -1373,10 +1849,10 @@ export default function SessionsPage() {
                 aria-expanded={sessionsProfileHubOpen}
                 aria-haspopup="menu"
                 aria-label="Open profile hub"
-                className={`flex min-h-[66px] items-center gap-3 rounded-[26px] border px-3 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_24px_rgba(34,211,238,0.08)] transition hover:-translate-y-0.5 ${
+                className={`flex min-h-[58px] items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-2 py-2 text-left shadow-none transition hover:-translate-y-0.5 ${
                   sessionsProfileHubOpen
-                    ? "border-cyan-100/44 bg-cyan-300/12 text-cyan-50 shadow-[0_0_34px_rgba(34,211,238,0.16)]"
-                    : "border-transparent bg-transparent text-slate-200 hover:border-amber-200/24 hover:bg-amber-300/8"
+                    ? "text-cyan-50"
+                    : "text-slate-200 hover:bg-white/[0.04]"
                 }`}
                 onClick={() => setSessionsProfileHubOpen((open) => !open)}
                 type="button"
@@ -1432,20 +1908,38 @@ export default function SessionsPage() {
                 </span>
               </button>
 
+              {sessionsProfileHubOpen && typeof document !== "undefined"
+                ? createPortal(
+                    <>
+                      <button
+                        aria-label="Close profile hub overlay"
+                        className="fixed inset-x-0 bottom-0 top-[84px] z-[80] cursor-default bg-black/85 backdrop-blur-[10px] transition before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.16),transparent_28%),radial-gradient(circle_at_78%_26%,rgba(250,204,21,0.10),transparent_24%)]"
+                        onClick={() => setSessionsProfileHubOpen(false)}
+                        type="button"
+                      />
+
               <div
-                className={`absolute right-0 top-full z-50 mt-3 w-[min(94vw,860px)] overflow-hidden rounded-[34px] border border-cyan-100/18 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_14%,rgba(250,204,21,0.14),transparent_30%),linear-gradient(135deg,rgba(2,6,23,0.98),rgba(15,23,42,0.96))] p-4 shadow-[0_32px_90px_rgba(0,0,0,0.68),0_0_62px_rgba(34,211,238,0.12)] ring-1 ring-white/[0.04] backdrop-blur-2xl transition-all duration-300 ${
+                className={`pointer-events-none fixed inset-x-0 bottom-0 top-[84px] z-[90] w-screen overflow-hidden bg-transparent px-0 pb-0 pt-0 transition-all duration-300 [perspective:1500px] [transform-style:preserve-3d] ${
                   sessionsProfileHubOpen
-                    ? "visible translate-y-0 scale-100 opacity-100"
-                    : "invisible translate-y-2 scale-[0.985] opacity-0"
+                    ? "visible scale-100 opacity-100"
+                    : "invisible scale-[0.985] opacity-0"
                 }`}
+                ref={sessionsProfileHubOverlayRef}
                 role="menu"
               >
-                <div className="relative overflow-hidden rounded-[28px] border border-amber-200/18 bg-white/[0.035] p-4">
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute left-1/2 top-1/2 h-[180px] w-[92%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/10 shadow-[0_0_70px_rgba(34,211,238,0.10)]"
-                  />
-                  <div className="relative z-10 flex items-center justify-between gap-4">
+                <button
+                  aria-label="Close profile hub"
+                  className="pointer-events-auto absolute right-4 top-4 z-40 grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-slate-950/70 text-sm font-black text-slate-200 shadow-[0_0_24px_rgba(0,0,0,0.24)] transition hover:border-red-200/35 hover:bg-red-500/12 hover:text-red-100"
+                  onClick={() => setSessionsProfileHubOpen(false)}
+                  type="button"
+                >
+                  X
+                </button>
+                <div className="hidden">
+                  <p className="relative z-20 text-[10px] font-black uppercase tracking-[0.22em] text-amber-100">
+                    Profile Row
+                  </p>
+                  <div className="relative z-10 mt-3 flex items-center justify-between gap-4 rounded-[28px] border border-cyan-100/20 bg-slate-950/58 p-4 shadow-[0_24px_64px_rgba(0,0,0,0.34)] [transform:translateZ(34px)]">
                     <div className="flex min-w-0 items-center gap-4">
                       <Image
                         alt="Profile"
@@ -1495,109 +1989,775 @@ export default function SessionsPage() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.85fr)]">
-                  <div className="relative min-h-[360px] overflow-hidden rounded-[30px] border border-cyan-200/12 bg-slate-950/42 p-4">
+                <div
+                  className="pointer-events-auto relative mt-0 h-[calc(100dvh-84px)] w-screen cursor-grab select-none overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none [perspective:1500px] [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing"
+                  onPointerCancel={handleSessionsProfileLayerPointerEnd}
+                  onPointerDown={handleSessionsProfileLayerPointerDown}
+                  onPointerMove={handleSessionsProfileLayerPointerMove}
+                  onPointerUp={handleSessionsProfileLayerPointerEnd}
+                  onWheel={handleSessionsProfileLayerWheel}
+                >
+                  <div className="absolute right-3 top-1/2 z-50 flex -translate-y-1/2 flex-col items-center gap-2">
+                    <button
+                      aria-label="Move profile hub layer up"
+                      className={`grid h-10 w-10 place-items-center rounded-full border text-lg font-black shadow-[0_0_24px_rgba(0,0,0,0.28)] transition active:scale-95 ${
+                        activeSessionsProfileLayer > 0
+                          ? "border-cyan-100/45 bg-cyan-300/18 text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.22)]"
+                          : "border-white/12 bg-slate-950/72 text-slate-500 opacity-60"
+                      }`}
+                      onClick={() => rotateSessionsProfileLayer("up")}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      type="button"
+                    >
+                      ^
+                    </button>
+                    <span className="rounded-full border border-white/10 bg-slate-950/72 px-2 py-1 text-[8px] font-black uppercase tracking-[0.16em] text-slate-300 [writing-mode:vertical-rl]">
+                      {["Profile", "My Hub", "Account"][activeSessionsProfileLayer]}
+                    </span>
+                    <button
+                      aria-label="Move profile hub layer down"
+                      className={`grid h-10 w-10 place-items-center rounded-full border text-lg font-black shadow-[0_0_24px_rgba(0,0,0,0.28)] transition active:scale-95 ${
+                        activeSessionsProfileLayer < 2
+                          ? "border-amber-100/45 bg-amber-300/18 text-amber-50 shadow-[0_0_24px_rgba(250,204,21,0.20)]"
+                          : "border-white/12 bg-slate-950/72 text-slate-500 opacity-60"
+                      }`}
+                      onClick={() => rotateSessionsProfileLayer("down")}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      type="button"
+                    >
+                      v
+                    </button>
+                  </div>
+                  <div
+                    className={`absolute inset-0 h-full overflow-hidden rounded-none border-0 bg-transparent p-4 shadow-none transition-all duration-500 [transform-style:preserve-3d] ${
+                      activeSessionsProfileLayer === 0
+                        ? "z-30 translate-y-0 scale-100 opacity-100 blur-0"
+                        : activeSessionsProfileLayer === 1
+                          ? "pointer-events-none z-10 -translate-y-[12%] scale-[0.9] opacity-40 blur-[1px]"
+                          : "pointer-events-none z-0 -translate-y-[64%] scale-[0.84] opacity-0 blur-sm"
+                    }`}
+                  >
                     <span
                       aria-hidden="true"
-                      className="pointer-events-none absolute left-1/2 top-1/2 h-[250px] w-[78%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/10 shadow-[0_0_74px_rgba(34,211,238,0.12)]"
+                      className="pointer-events-none absolute left-1/2 top-[35%] h-[210px] w-[min(86vw,1040px)] -translate-x-1/2 -translate-y-1/2 rounded-[42px] bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.13),rgba(15,23,42,0.16)_44%,transparent_72%)] blur-xl"
                     />
-                    <span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute left-1/2 top-1/2 h-[136px] w-[50%] -translate-x-1/2 -translate-y-1/2 rounded-full border-t border-amber-200/20"
-                    />
-                    <div className="absolute left-1/2 top-1/2 z-10 w-[170px] -translate-x-1/2 -translate-y-1/2 rounded-[28px] border border-amber-200/20 bg-[radial-gradient(circle_at_50%_0%,rgba(250,204,21,0.16),transparent_42%),rgba(15,23,42,0.88)] p-4 text-center shadow-[0_22px_56px_rgba(0,0,0,0.44)]">
-                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-amber-100">
-                        My Hub Orbit
-                      </p>
-                      <p className="mt-2 text-lg font-black text-white">
-                        Connected Systems
-                      </p>
-                      <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
-                        Progress, goals, coaching, and rewards.
-                      </p>
+                    <div className="absolute inset-x-0 top-[34%] z-20 flex -translate-y-1/2 justify-center px-6 [transform:translateY(-50%)_translateZ(58px)]">
+                      <div className="relative w-[min(90vw,1040px)]">
+                      <Link
+                        className="grid w-full gap-5 rounded-[32px] border border-cyan-100/22 bg-slate-950/76 p-6 text-left shadow-[0_28px_74px_rgba(0,0,0,0.44),0_0_34px_rgba(34,211,238,0.12)] transition hover:scale-[1.01] hover:border-cyan-100/40 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+                        href={ROUTES.dashboard.profile}
+                        onClick={(event) => {
+                          if (sessionsProfileLayerPointerMovedRef.current) {
+                            event.preventDefault();
+                            sessionsProfileLayerPointerMovedRef.current = false;
+                            return;
+                          }
+
+                          setSessionsProfileHubOpen(false);
+                        }}
+                        role="menuitem"
+                      >
+                        <div className="flex min-w-0 items-center gap-5">
+                          <Image
+                            alt="Profile"
+                            className="h-16 w-16 rounded-full border border-cyan-100/30 bg-slate-950 object-contain p-1 shadow-[0_0_28px_rgba(34,211,238,0.18)]"
+                            height={64}
+                            src="/sound-fitness-logo.png"
+                            width={64}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-100">
+                              Profile Reward Hub
+                            </p>
+                            <p className="mt-1 truncate text-xl font-black text-white">
+                              Joey Bell
+                            </p>
+                            <p className="mt-0.5 line-clamp-2 text-sm font-semibold text-slate-400">
+                              My Hub, rewards, and account controls.
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {[
+                                "Member since May 2026",
+                                `${workoutStats.loggedEntries} logs`,
+                                `Latest: ${workoutStats.latestExercise}`,
+                                activePlan.weeklyTarget,
+                              ].map((reference) => (
+                                <span
+                                  className="rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-slate-200"
+                                  key={reference}
+                                >
+                                  {reference}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid w-full shrink-0 gap-2 sm:grid-cols-2 md:w-[264px]">
+                          <div className="rounded-2xl border border-amber-200/22 bg-amber-300/10 px-4 py-3">
+                            <div className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/70">
+                              Sound Points
+                            </div>
+                            <div className="text-xl font-black text-white">
+                              {workoutRewardStats.soundPoints.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-cyan-200/18 bg-cyan-300/10 px-4 py-3">
+                            <div className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/70">
+                              Sound Tokens
+                            </div>
+                            <div className="flex items-center gap-2 text-xl font-black text-white">
+                              <Image
+                                alt=""
+                                aria-hidden="true"
+                                className="h-5 w-5 rounded-full object-contain"
+                                height={20}
+                                src="/sound-fitness-logo.png"
+                                width={20}
+                              />
+                              {workoutRewardStats.soundTokens.toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      </Link>
+                      <div
+                        aria-hidden={activeSessionsProfileLayer !== 0}
+                        className={`pointer-events-none absolute left-0 right-0 top-full mt-3 overflow-hidden transition-[max-height,opacity,transform] duration-[850ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                          activeSessionsProfileLayer === 0
+                            ? "max-h-44 translate-y-0 opacity-100"
+                            : "max-h-0 -translate-y-3 opacity-0"
+                        }`}
+                      >
+                        <div className="rounded-2xl border border-cyan-100/18 bg-slate-950/72 px-4 py-3 shadow-[0_18px_44px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/72">
+                              Recent Achievement
+                            </div>
+                            <div
+                              aria-hidden="true"
+                              className="text-[10px] font-black text-cyan-100"
+                            >
+                              v
+                            </div>
+                          </div>
+                          <div className="mt-3 flex items-center gap-3 border-t border-white/10 pt-3">
+                            <SoundLogoAchievementBadge
+                              compact
+                              item={recentProfileHubAchievement}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-[10px] font-black uppercase tracking-[0.12em] text-white">
+                                {recentProfileHubAchievement.label}
+                              </div>
+                              <div className="mt-1 truncate text-[10px] font-semibold text-slate-300">
+                                {recentProfileHubAchievement.meta}
+                              </div>
+                              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-950/70">
+                                <div
+                                  className="h-full rounded-full bg-cyan-200 shadow-[0_0_12px_rgba(103,232,249,0.45)]"
+                                  style={{
+                                    width: `${recentProfileHubAchievementProgress}%`,
+                                  }}
+                                />
+                              </div>
+                              <div className="mt-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">
+                                {recentProfileHubAchievement.statusLabel}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      </div>
                     </div>
+                  </div>
+                  <div
+                    className={`absolute inset-0 h-full cursor-grab select-none overflow-hidden rounded-none border-0 bg-transparent p-4 shadow-none transition-all duration-500 [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing ${
+                      activeSessionsProfileLayer === 1
+                        ? "z-30 translate-y-0 scale-100 opacity-100 blur-0"
+                        : activeSessionsProfileLayer < 1
+                          ? "pointer-events-none z-10 translate-y-[42%] scale-[0.9] opacity-40 blur-[1px]"
+                          : "pointer-events-none z-10 -translate-y-[42%] scale-[0.9] opacity-40 blur-[1px]"
+                    }`}
+                    data-profile-horizontal-orbit="true"
+                    onPointerCancel={(event) =>
+                      finishHorizontalOrbitDrag(
+                        event,
+                        sessionsHubOrbitPointerStartRef,
+                      )
+                    }
+                    onPointerDown={(event) =>
+                      startHorizontalOrbitDrag(
+                        event,
+                        sessionsHubOrbitPointerStartRef,
+                        sessionsHubOrbitPointerMovedRef,
+                        false,
+                      )
+                    }
+                    onPointerMove={(event) =>
+                      moveHorizontalOrbitDrag(
+                        event,
+                        sessionsHubOrbitPointerStartRef,
+                        sessionsHubOrbitPointerMovedRef,
+                        rotateSessionsHubOrbit,
+                        68,
+                      )
+                    }
+                    onPointerUp={(event) =>
+                      finishHorizontalOrbitDrag(
+                        event,
+                        sessionsHubOrbitPointerStartRef,
+                      )
+                    }
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-1/2 top-[55%] h-[230px] w-[min(88vw,1120px)] -translate-x-1/2 -translate-y-1/2 rounded-[46px] bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.11),rgba(99,102,241,0.08)_42%,transparent_74%)] blur-xl"
+                    />
                     {sessionsHubOrbitItems.map((item, index) => {
-                      const angle =
-                        (index / sessionsHubOrbitItems.length) * Math.PI * 2 -
-                        Math.PI / 2;
-                      const x = Math.cos(angle) * 244;
-                      const y = Math.sin(angle) * 116;
+                      const distance = getSessionsHubOrbitDistance(index);
+                      const absDistance = Math.abs(distance);
+                      const clampedDistance = Math.max(
+                        -3,
+                        Math.min(3, distance),
+                      );
+                      const isActive = distance === 0;
+                      const orbitXSlots = [0, 235, 375, 490];
+                      const x =
+                        Math.sign(clampedDistance) *
+                        orbitXSlots[
+                          Math.min(absDistance, orbitXSlots.length - 1)
+                        ];
+                      const y = absDistance * 18 + (absDistance > 1 ? 8 : 0);
+                      const scale = isActive
+                        ? 1.04
+                        : absDistance === 1
+                          ? 0.82
+                          : absDistance === 2
+                            ? 0.64
+                            : 0.52;
+                      const opacity = isActive
+                        ? 1
+                        : absDistance === 1
+                          ? 0.76
+                          : absDistance === 2
+                            ? 0.44
+                            : 0.24;
+                      const depth = isActive ? 64 : 28 - absDistance * 11;
+                      const rotateY = clampedDistance * -18;
+                      const zIndex = 40 - absDistance;
+                      const detailsKey = `hub-${item.label}`;
+                      const detailsOpen =
+                        openSessionsProfileDetailKey === detailsKey;
+                      const detailsId = `sessions-profile-hub-details-${item.label
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, "-")}`;
+                      const visibleReferences = item.references.slice(
+                        0,
+                        isActive ? 3 : 2,
+                      );
 
                       return (
-                        <Link
-                          className={`absolute z-20 w-[148px] rounded-[22px] border p-3 text-left shadow-[0_16px_38px_rgba(0,0,0,0.34)] backdrop-blur transition hover:-translate-y-1 hover:scale-[1.025] ${item.tone}`}
-                          href={item.href}
+                        <div
+                          aria-current={isActive ? "page" : undefined}
+                          className={`absolute left-1/2 top-[55%] cursor-pointer rounded-[28px] border text-left shadow-[0_18px_44px_rgba(0,0,0,0.38)] outline-none backdrop-blur transition-all duration-300 hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-cyan-100/50 ${
+                            isActive
+                              ? "w-[min(82vw,300px)] p-5 ring-2 ring-cyan-100/30"
+                              : "w-[180px] p-4"
+                          } ${item.tone}`}
                           key={item.label}
-                          onClick={() => setSessionsProfileHubOpen(false)}
+                          onClick={() => {
+                            if (
+                              sessionsHubOrbitPointerMovedRef.current ||
+                              sessionsProfileLayerPointerMovedRef.current
+                            ) {
+                              sessionsHubOrbitPointerMovedRef.current = false;
+                              sessionsProfileLayerPointerMovedRef.current = false;
+                              return;
+                            }
+
+                            if (!isActive) {
+                              setActiveSessionsHubIndex(index);
+                              return;
+                            }
+
+                            if ("action" in item && item.action === "logout") {
+                              void signOutFromSessionsHub();
+                              return;
+                            }
+
+                            setSessionsProfileHubOpen(false);
+                            router.push(item.href);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ") {
+                              return;
+                            }
+
+                            event.preventDefault();
+
+                            if (!isActive) {
+                              setActiveSessionsHubIndex(index);
+                              return;
+                            }
+
+                            if ("action" in item && item.action === "logout") {
+                              void signOutFromSessionsHub();
+                              return;
+                            }
+
+                            setSessionsProfileHubOpen(false);
+                            router.push(item.href);
+                          }}
                           role="menuitem"
                           style={{
-                            left: `calc(50% + ${x}px)`,
-                            top: `calc(50% + ${y}px)`,
-                            transform: "translate(-50%, -50%)",
+                            filter:
+                              absDistance > 2 ? "blur(1.5px)" : "none",
+                            opacity,
+                            transform: `translate(-50%, -50%) translateX(${x}px) translateY(${y}px) rotateY(${rotateY}deg) translateZ(${depth}px) scale(${scale})`,
+                            zIndex,
                           }}
+                          tabIndex={0}
                         >
-                          <div className="text-xl" aria-hidden="true">
-                            {item.icon}
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={`grid shrink-0 place-items-center rounded-2xl border border-white/12 bg-slate-950/42 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${
+                                isActive
+                                  ? "h-12 w-12 text-2xl"
+                                  : "h-10 w-10 text-xl"
+                              }`}
+                              aria-hidden="true"
+                            >
+                              {"iconType" in item &&
+                              item.iconType === "logout" ? (
+                                <svg
+                                  className={isActive ? "h-6 w-6" : "h-5 w-5"}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2.2"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path d="M10 17l5-5-5-5" />
+                                  <path d="M15 12H3" />
+                                  <path d="M21 5v14a2 2 0 0 1-2 2h-7" />
+                                  <path d="M12 3h7a2 2 0 0 1 2 2" />
+                                </svg>
+                              ) : (
+                                item.icon
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[10px] font-black uppercase tracking-[0.12em] text-white">
+                                {item.label}
+                              </div>
+                              <div className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.12em] text-current/80">
+                                {item.stat}
+                              </div>
+                            </div>
                           </div>
-                          <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-white">
-                            {item.label}
-                          </div>
-                          <div className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-slate-300">
+                          <div
+                            className={`mt-3 font-semibold text-slate-300 ${
+                              isActive
+                                ? "line-clamp-3 text-xs leading-5"
+                                : "line-clamp-2 text-[10px] leading-4"
+                            }`}
+                          >
                             {item.helper}
                           </div>
-                        </Link>
+                          <div className="mt-3">
+                            <button
+                              aria-controls={detailsId}
+                              aria-expanded={detailsOpen}
+                              className={`flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-950/34 font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-cyan-100/34 hover:bg-slate-950/52 ${
+                                isActive
+                                  ? "px-3 py-2 text-[9px]"
+                                  : "px-2.5 py-1.5 text-[8px]"
+                              }`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setOpenSessionsProfileDetailKey((openKey) =>
+                                  openKey === detailsKey ? null : detailsKey,
+                                );
+                              }}
+                              onKeyDown={(event) => event.stopPropagation()}
+                              onPointerDown={(event) => event.stopPropagation()}
+                              type="button"
+                            >
+                              <span>Details</span>
+                              <span
+                                aria-hidden="true"
+                                className={`text-[10px] transition ${
+                                  detailsOpen ? "rotate-180" : ""
+                                }`}
+                              >
+                                v
+                              </span>
+                            </button>
+                            <div
+                              className={`overflow-hidden transition-all duration-300 ${
+                                detailsOpen
+                                  ? "mt-2 max-h-44 opacity-100"
+                                  : "max-h-0 opacity-0"
+                              }`}
+                              id={detailsId}
+                            >
+                              <div className="grid gap-2">
+                                {visibleReferences.map((reference) => (
+                                  <span
+                                    className={`rounded-2xl border border-white/10 bg-slate-950/34 font-black text-slate-100 ${
+                                      isActive
+                                        ? "px-3 py-2 text-[10px]"
+                                        : "truncate px-2.5 py-1.5 text-[8px]"
+                                    }`}
+                                    key={reference}
+                                  >
+                                    {reference}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          {isActive ? (
+                            <button
+                              className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/36 px-3 py-2 text-center text-[9px] font-black uppercase tracking-[0.14em] text-white transition hover:border-cyan-100/34 hover:bg-cyan-300/10"
+                              onClick={(event) => {
+                                event.stopPropagation();
+
+                                if ("action" in item && item.action === "logout") {
+                                  void signOutFromSessionsHub();
+                                  return;
+                                }
+
+                                setSessionsProfileHubOpen(false);
+                                router.push(item.href);
+                              }}
+                              onPointerDown={(event) => event.stopPropagation()}
+                              type="button"
+                            >
+                              {"action" in item && item.action === "logout"
+                                ? "Log Out"
+                                : "Open Hub"}
+                            </button>
+                          ) : null}
+                        </div>
                       );
                     })}
+                    {activeSessionsProfileLayer === 1 ? (
+                      <div
+                        className="pointer-events-auto absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-2"
+                        style={{ top: "calc(55% + 180px)" }}
+                      >
+                        {sessionsHubOrbitItems.map((item, index) => (
+                          <button
+                            aria-label={`Show ${item.label}`}
+                            className={`h-2 rounded-full transition ${
+                              index === activeSessionsHubIndex
+                                ? "w-8 bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]"
+                                : "w-2 bg-slate-500/55 hover:bg-amber-200/75"
+                            }`}
+                            key={item.label}
+                            onClick={() => setActiveSessionsHubIndex(index)}
+                            type="button"
+                          />
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
 
-                  <div className="relative min-h-[360px] overflow-hidden rounded-[30px] border border-amber-200/12 bg-slate-950/42 p-4">
+                  <div
+                    className={`absolute inset-0 h-full cursor-grab select-none overflow-hidden rounded-none border-0 bg-transparent p-4 shadow-none transition-all duration-500 [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing ${
+                      activeSessionsProfileLayer === 2
+                        ? "z-30 translate-y-0 scale-100 opacity-100 blur-0"
+                        : activeSessionsProfileLayer === 1
+                          ? "pointer-events-none z-10 translate-y-[42%] scale-[0.9] opacity-40 blur-[1px]"
+                          : "pointer-events-none z-0 translate-y-[64%] scale-[0.84] opacity-0 blur-sm"
+                    }`}
+                    data-profile-horizontal-orbit="true"
+                    onPointerCancel={(event) =>
+                      finishHorizontalOrbitDrag(
+                        event,
+                        sessionsAccountOrbitPointerStartRef,
+                      )
+                    }
+                    onPointerDown={(event) =>
+                      startHorizontalOrbitDrag(
+                        event,
+                        sessionsAccountOrbitPointerStartRef,
+                        sessionsAccountOrbitPointerMovedRef,
+                        false,
+                      )
+                    }
+                    onPointerMove={(event) =>
+                      moveHorizontalOrbitDrag(
+                        event,
+                        sessionsAccountOrbitPointerStartRef,
+                        sessionsAccountOrbitPointerMovedRef,
+                        rotateSessionsAccountOrbit,
+                        68,
+                      )
+                    }
+                    onPointerUp={(event) =>
+                      finishHorizontalOrbitDrag(
+                        event,
+                        sessionsAccountOrbitPointerStartRef,
+                      )
+                    }
+                  >
                     <span
                       aria-hidden="true"
-                      className="pointer-events-none absolute left-1/2 top-[44%] h-[214px] w-[82%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-amber-200/10 shadow-[0_0_64px_rgba(250,204,21,0.10)]"
+                      className="pointer-events-none absolute left-1/2 top-[54%] h-[204px] w-[min(84vw,1000px)] -translate-x-1/2 -translate-y-1/2 rounded-[42px] bg-[radial-gradient(ellipse_at_center,rgba(250,204,21,0.10),rgba(34,211,238,0.07)_44%,transparent_74%)] blur-xl"
                     />
-                    <div className="absolute left-1/2 top-[44%] z-10 w-[148px] -translate-x-1/2 -translate-y-1/2 rounded-[26px] border border-cyan-200/18 bg-slate-950/78 p-4 text-center shadow-[0_20px_50px_rgba(0,0,0,0.40)]">
-                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-cyan-100">
-                        Account Orbit
-                      </p>
-                      <p className="mt-2 text-base font-black text-white">
-                        Member Controls
-                      </p>
-                    </div>
                     {sessionsAccountOrbitItems.map((item, index) => {
-                      const angle =
-                        (index / sessionsAccountOrbitItems.length) *
-                          Math.PI *
-                          2 -
-                        Math.PI / 2;
-                      const x = Math.cos(angle) * 136;
-                      const y = Math.sin(angle) * 92;
+                      const distance = getSessionsAccountOrbitDistance(index);
+                      const absDistance = Math.abs(distance);
+                      const clampedDistance = Math.max(
+                        -2,
+                        Math.min(2, distance),
+                      );
+                      const isActive = distance === 0;
+                      const orbitXSlots = [0, 232, 365];
+                      const x =
+                        Math.sign(clampedDistance) *
+                        orbitXSlots[
+                          Math.min(absDistance, orbitXSlots.length - 1)
+                        ];
+                      const y = absDistance * 18 + (absDistance > 1 ? 8 : 0);
+                      const scale = isActive
+                        ? 1.04
+                        : absDistance === 1
+                          ? 0.84
+                          : 0.66;
+                      const opacity = isActive
+                        ? 1
+                        : absDistance === 1
+                          ? 0.78
+                          : 0.38;
+                      const depth = isActive ? 58 : 26 - absDistance * 10;
+                      const rotateY = clampedDistance * -18;
+                      const zIndex = 40 - absDistance;
+                      const detailsKey = `account-${item.label}`;
+                      const detailsOpen =
+                        openSessionsProfileDetailKey === detailsKey;
+                      const detailsId = `sessions-profile-account-details-${item.label
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, "-")}`;
+                      const visibleReferences = item.references.slice(
+                        0,
+                        isActive ? 3 : 2,
+                      );
 
                       return (
-                        <Link
-                          className={`absolute z-20 w-[130px] rounded-[22px] border p-3 text-left shadow-[0_16px_38px_rgba(0,0,0,0.34)] backdrop-blur transition hover:-translate-y-1 hover:scale-[1.025] ${item.tone}`}
-                          href={item.href}
+                        <div
+                          aria-current={isActive ? "page" : undefined}
+                          className={`absolute left-1/2 top-[54%] cursor-pointer rounded-[28px] border text-left shadow-[0_18px_44px_rgba(0,0,0,0.38)] outline-none backdrop-blur transition-all duration-300 hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-amber-100/50 ${
+                            isActive
+                              ? "w-[min(82vw,294px)] p-5 ring-2 ring-amber-100/30"
+                              : "w-[176px] p-4"
+                          } ${item.tone}`}
                           key={item.label}
-                          onClick={() => setSessionsProfileHubOpen(false)}
+                          onClick={() => {
+                            if (
+                              sessionsAccountOrbitPointerMovedRef.current ||
+                              sessionsProfileLayerPointerMovedRef.current
+                            ) {
+                              sessionsAccountOrbitPointerMovedRef.current = false;
+                              sessionsProfileLayerPointerMovedRef.current = false;
+                              return;
+                            }
+
+                            if (!isActive) {
+                              setActiveSessionsAccountIndex(index);
+                              return;
+                            }
+
+                            if ("action" in item && item.action === "logout") {
+                              void signOutFromSessionsHub();
+                              return;
+                            }
+
+                            setSessionsProfileHubOpen(false);
+                            router.push(item.href);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key !== "Enter" && event.key !== " ") {
+                              return;
+                            }
+
+                            event.preventDefault();
+
+                            if (!isActive) {
+                              setActiveSessionsAccountIndex(index);
+                              return;
+                            }
+
+                            if ("action" in item && item.action === "logout") {
+                              void signOutFromSessionsHub();
+                              return;
+                            }
+
+                            setSessionsProfileHubOpen(false);
+                            router.push(item.href);
+                          }}
                           role="menuitem"
                           style={{
-                            left: `calc(50% + ${x}px)`,
-                            top: `calc(44% + ${y}px)`,
-                            transform: "translate(-50%, -50%)",
+                            filter:
+                              absDistance > 1 ? "blur(1.25px)" : "none",
+                            opacity,
+                            transform: `translate(-50%, -50%) translateX(${x}px) translateY(${y}px) rotateY(${rotateY}deg) translateZ(${depth}px) scale(${scale})`,
+                            zIndex,
                           }}
+                          tabIndex={0}
                         >
-                          <div className="text-lg" aria-hidden="true">
-                            {item.icon}
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={`grid shrink-0 place-items-center rounded-2xl border border-white/12 bg-slate-950/42 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${
+                                isActive
+                                  ? "h-12 w-12 text-2xl"
+                                  : "h-10 w-10 text-lg"
+                              }`}
+                              aria-hidden="true"
+                            >
+                              {"iconType" in item &&
+                              item.iconType === "logout" ? (
+                                <svg
+                                  className={isActive ? "h-6 w-6" : "h-5 w-5"}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth="2.2"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path d="M10 17l5-5-5-5" />
+                                  <path d="M15 12H3" />
+                                  <path d="M21 5v14a2 2 0 0 1-2 2h-7" />
+                                  <path d="M12 3h7a2 2 0 0 1 2 2" />
+                                </svg>
+                              ) : (
+                                item.icon
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[10px] font-black uppercase tracking-[0.12em] text-white">
+                                {item.label}
+                              </div>
+                              <div className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.12em] text-current/80">
+                                {item.stat}
+                              </div>
+                            </div>
                           </div>
-                          <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-white">
-                            {item.label}
-                          </div>
-                          <div className="mt-1 line-clamp-2 text-[9px] font-semibold leading-4 text-slate-300">
+                          <div
+                            className={`mt-3 font-semibold text-slate-300 ${
+                              isActive
+                                ? "line-clamp-3 text-xs leading-5"
+                                : "line-clamp-2 text-[10px] leading-4"
+                            }`}
+                          >
                             {item.helper}
                           </div>
-                        </Link>
+                          <div className="mt-3">
+                            <button
+                              aria-controls={detailsId}
+                              aria-expanded={detailsOpen}
+                              className={`flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-950/34 font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-100/34 hover:bg-slate-950/52 ${
+                                isActive
+                                  ? "px-3 py-2 text-[9px]"
+                                  : "px-2.5 py-1.5 text-[8px]"
+                              }`}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                setOpenSessionsProfileDetailKey((openKey) =>
+                                  openKey === detailsKey ? null : detailsKey,
+                                );
+                              }}
+                              onKeyDown={(event) => event.stopPropagation()}
+                              onPointerDown={(event) => event.stopPropagation()}
+                              type="button"
+                            >
+                              <span>Details</span>
+                              <span
+                                aria-hidden="true"
+                                className={`text-[10px] transition ${
+                                  detailsOpen ? "rotate-180" : ""
+                                }`}
+                              >
+                                v
+                              </span>
+                            </button>
+                            <div
+                              className={`overflow-hidden transition-all duration-300 ${
+                                detailsOpen
+                                  ? "mt-2 max-h-44 opacity-100"
+                                  : "max-h-0 opacity-0"
+                              }`}
+                              id={detailsId}
+                            >
+                              <div className="grid gap-2">
+                                {visibleReferences.map((reference) => (
+                                  <span
+                                    className={`rounded-2xl border border-white/10 bg-slate-950/34 font-black text-slate-100 ${
+                                      isActive
+                                        ? "px-3 py-2 text-[10px]"
+                                        : "truncate px-2.5 py-1.5 text-[8px]"
+                                    }`}
+                                    key={reference}
+                                  >
+                                    {reference}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          {isActive ? (
+                            <button
+                              className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/36 px-3 py-2 text-center text-[9px] font-black uppercase tracking-[0.14em] text-white transition hover:border-amber-100/34 hover:bg-amber-300/10"
+                              onClick={(event) => {
+                                event.stopPropagation();
+
+                                if ("action" in item && item.action === "logout") {
+                                  void signOutFromSessionsHub();
+                                  return;
+                                }
+
+                                setSessionsProfileHubOpen(false);
+                                router.push(item.href);
+                              }}
+                              onPointerDown={(event) => event.stopPropagation()}
+                              type="button"
+                            >
+                              {"action" in item && item.action === "logout"
+                                ? "Log Out"
+                                : item.label === "Edit Profile"
+                                  ? "Open Profile"
+                                  : "Open Account"}
+                            </button>
+                          ) : null}
+                        </div>
                       );
                     })}
-                    <div className="absolute inset-x-4 bottom-4 z-20 grid gap-2 sm:grid-cols-2">
+                    {activeSessionsProfileLayer === 2 ? (
+                    <div
+                      className="pointer-events-auto absolute left-1/2 z-30 flex -translate-x-1/2 items-center"
+                      style={{ top: "calc(54% + 176px)" }}
+                    >
+                      <div className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/34 px-3 py-2">
+                        {sessionsAccountOrbitItems.map((item, index) => (
+                          <button
+                            aria-label={`Show ${item.label}`}
+                            className={`h-2 rounded-full transition ${
+                              index === activeSessionsAccountIndex
+                                ? "w-8 bg-amber-200 shadow-[0_0_14px_rgba(253,230,138,0.58)]"
+                                : "w-2 bg-slate-500/55 hover:bg-cyan-200/75"
+                            }`}
+                            key={item.label}
+                            onClick={() => setActiveSessionsAccountIndex(index)}
+                            type="button"
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    ) : null}
+                    <div className="hidden">
                       <Link
                         className="rounded-2xl border border-cyan-200/22 bg-cyan-300/10 px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-300/16"
                         href={ROUTES.dashboard.profile}
@@ -1616,6 +2776,10 @@ export default function SessionsPage() {
                   </div>
                 </div>
               </div>
+                    </>,
+                    document.body,
+                  )
+                : null}
             </div>
           </div>
           <div className="relative z-10 py-0 [perspective:1600px]">
@@ -1624,14 +2788,6 @@ export default function SessionsPage() {
               className="relative overflow-visible rounded-[34px] transition-all duration-700 ease-out [transform-style:preserve-3d]"
               id="sessions-orbit-journey"
             >
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute left-1/2 top-[54%] h-[310px] w-[112%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/10 shadow-[0_0_88px_rgba(34,211,238,0.14)]"
-              />
-              <div
-                aria-hidden="true"
-                className="pointer-events-none absolute left-1/2 top-[56%] h-[142px] w-[86%] -translate-x-1/2 -translate-y-1/2 rounded-full border-t border-amber-200/18 opacity-90"
-              />
               <div
                 aria-hidden="true"
                 className="pointer-events-none absolute left-1/2 top-[48%] h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300/10 blur-3xl"
@@ -1658,7 +2814,9 @@ export default function SessionsPage() {
 
             <button
               aria-label="Previous training journey stage"
-              className="absolute left-1 top-[68%] z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/64 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-3 sm:h-14 sm:w-14 sm:text-3xl"
+              className={`absolute left-1 top-[68%] z-30 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/64 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-3 sm:h-14 sm:w-14 sm:text-3xl ${
+                isTrainingJourneyHeroActive ? "hidden" : "flex"
+              }`}
               onClick={() => rotateTrainingJourney("left")}
               type="button"
             >
@@ -1666,7 +2824,9 @@ export default function SessionsPage() {
             </button>
             <button
               aria-label="Next training journey stage"
-              className="absolute right-1 top-[68%] z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/64 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-3 sm:h-14 sm:w-14 sm:text-3xl"
+              className={`absolute right-1 top-[68%] z-30 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/64 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-3 sm:h-14 sm:w-14 sm:text-3xl ${
+                isTrainingJourneyHeroActive ? "hidden" : "flex"
+              }`}
               onClick={() => rotateTrainingJourney("right")}
               type="button"
             >
@@ -1675,12 +2835,23 @@ export default function SessionsPage() {
 
             <div
               aria-label="Training journey orbit selector"
-              className="relative z-10 h-[880px] w-full overflow-visible outline-none [perspective:1500px] focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[920px]"
+              className="relative z-10 h-[880px] w-full cursor-grab select-none overflow-visible outline-none [perspective:1500px] [touch-action:none] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[920px]"
+              onClickCapture={(event) => {
+                if (trainingJourneyPointerMovedRef.current) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  trainingJourneyPointerMovedRef.current = false;
+                }
+              }}
               onKeyDown={handleTrainingJourneyKeyDown}
-              onPointerCancel={() => {
+              onPointerCancel={(event) => {
                 trainingJourneyPointerStartRef.current = null;
+                if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture?.(event.pointerId);
+                }
               }}
               onPointerDown={handleTrainingJourneyPointerDown}
+              onPointerMove={handleTrainingJourneyPointerMove}
               onPointerUp={handleTrainingJourneyPointerUp}
               onWheel={handleTrainingJourneyWheel}
               onBlur={() => {
@@ -1692,19 +2863,10 @@ export default function SessionsPage() {
               ref={trainingJourneyOrbitRef}
               tabIndex={0}
             >
-              <div
-                aria-hidden="true"
-                className="absolute left-1/2 top-[52%] h-[240px] w-[92%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/12 shadow-[0_0_70px_rgba(34,211,238,0.12)]"
-              />
-              <div
-                aria-hidden="true"
-                className="absolute left-1/2 top-[55%] h-[116px] w-[74%] -translate-x-1/2 -translate-y-1/2 rounded-full border-t border-amber-200/20 opacity-80"
-              />
-
               <article
                 aria-current={isTrainingJourneyHeroActive ? "step" : undefined}
                 aria-label="Workout hero command center"
-                className={`absolute left-1/2 top-1/2 z-50 w-[min(96%,1500px)] overflow-hidden rounded-[34px] border bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.9),rgba(2,6,23,0.74))] p-4 text-left shadow-2xl backdrop-blur-xl transition-[border-color,background-color,box-shadow] duration-300 sm:p-5 lg:p-6 ${
+                className={`absolute left-1/2 top-1/2 z-50 w-[min(96%,1500px)] overflow-hidden rounded-[34px] border bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.9),rgba(2,6,23,0.74))] p-4 text-left shadow-2xl backdrop-blur-xl transition-[border-color,background-color,box-shadow] duration-300 [--sessions-hero-active-y:30px] sm:p-4 sm:[--sessions-hero-active-y:-38px] lg:p-5 lg:[--sessions-hero-active-y:-92px] ${
                   isTrainingJourneyHeroActive
                     ? "border-cyan-100/34 ring-2 ring-cyan-100/20 shadow-[0_34px_120px_rgba(0,0,0,0.50),0_0_52px_rgba(34,211,238,0.18)]"
                     : "border-cyan-200/14 shadow-[0_24px_70px_rgba(0,0,0,0.36)]"
@@ -1720,14 +2882,13 @@ export default function SessionsPage() {
                   pointerEvents: isTrainingJourneyHeroActive ? "auto" : "none",
                   transform: `translate(-50%, -50%) translateY(${
                     isTrainingJourneyHeroActive
-                      ? -118
-                      : trainingJourneyHeroOffset - 80
-                  }px) scale(${isTrainingJourneyHeroActive ? 1 : 0.58})`,
+                      ? "var(--sessions-hero-active-y)"
+                      : `${trainingJourneyHeroOffset - 80}px`
+                  }) scale(${isTrainingJourneyHeroActive ? 1 : 0.58})`,
                   transition:
                     "transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 360ms ease, filter 360ms ease",
                 }}
               >
-                <span className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-cyan-200/70 via-amber-200/35 to-transparent" />
                 <span
                   aria-hidden="true"
                   className="pointer-events-none absolute right-8 top-8 h-44 w-44 rounded-full bg-cyan-300/10 blur-3xl"
@@ -1740,7 +2901,7 @@ export default function SessionsPage() {
                   aria-hidden="true"
                   className="pointer-events-none absolute -right-16 bottom-8 h-52 w-52 rounded-full bg-amber-300/10 blur-3xl"
                 />
-                <div className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                <div className="relative z-10 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0 max-w-4xl">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full border border-cyan-200/24 bg-cyan-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
@@ -1754,16 +2915,16 @@ export default function SessionsPage() {
                       </span>
                     </div>
 
-                    <h1 className="mt-4 max-w-4xl text-3xl font-black leading-tight text-white sm:text-5xl">
+                    <h1 className="mt-3 max-w-4xl text-3xl font-black leading-tight text-white sm:text-5xl">
                       Everything you need to work out.
                     </h1>
-                    <p className="mt-4 max-w-3xl text-sm font-semibold leading-6 text-slate-300 sm:text-base">
+                    <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-slate-300 sm:text-base">
                       Start the logger, build sessions, follow the training
                       journey, collect workout achievements, and turn each
                       session into progress.
                     </p>
 
-                    <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                       <Link
                         href={ROUTES.dashboard.sessionWorkout}
                         className="min-h-[46px] rounded-2xl bg-cyan-300 px-5 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_0_32px_rgba(34,211,238,0.26)] transition hover:-translate-y-0.5 hover:bg-cyan-200"
@@ -1785,7 +2946,7 @@ export default function SessionsPage() {
                     </div>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2 xl:w-[380px] xl:grid-cols-1">
+                  <div className="grid gap-2 sm:grid-cols-2 xl:w-[380px] xl:grid-cols-1">
                     <div className="rounded-[24px] border border-white/10 bg-slate-950/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -1879,22 +3040,41 @@ export default function SessionsPage() {
                   </div>
                 </div>
 
-                <div className="relative z-10 -mx-4 mt-5 overflow-hidden border-y border-white/10 bg-[radial-gradient(circle_at_8%_0%,rgba(250,204,21,0.12),transparent_32%),radial-gradient(circle_at_92%_20%,rgba(34,211,238,0.10),transparent_34%),rgba(2,6,23,0.24)] py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:-mx-5 lg:-mx-6">
+                <div className="relative z-10 -mx-4 mt-4 overflow-hidden border-y border-white/10 bg-[radial-gradient(circle_at_8%_0%,rgba(250,204,21,0.12),transparent_32%),radial-gradient(circle_at_92%_20%,rgba(34,211,238,0.10),transparent_34%),rgba(2,6,23,0.24)] py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:-mx-4 lg:-mx-5">
                   <div
                     aria-label="Workout achievement orbit"
-                    className="relative z-10 h-[230px] overflow-hidden [perspective:1100px] sm:h-[246px]"
+                    className="relative z-10 h-[210px] cursor-grab select-none overflow-hidden [perspective:1100px] [touch-action:pan-y] active:cursor-grabbing sm:h-[226px]"
+                    onPointerCancel={(event) =>
+                      finishHorizontalOrbitDrag(
+                        event,
+                        heroAchievementPointerStartRef,
+                      )
+                    }
+                    onPointerDown={(event) =>
+                      startHorizontalOrbitDrag(
+                        event,
+                        heroAchievementPointerStartRef,
+                        heroAchievementPointerMovedRef,
+                      )
+                    }
+                    onPointerMove={(event) =>
+                      moveHorizontalOrbitDrag(
+                        event,
+                        heroAchievementPointerStartRef,
+                        heroAchievementPointerMovedRef,
+                        rotateHeroAchievement,
+                        58,
+                      )
+                    }
+                    onPointerUp={(event) =>
+                      finishHorizontalOrbitDrag(
+                        event,
+                        heroAchievementPointerStartRef,
+                      )
+                    }
                     onWheel={handleHeroAchievementWheel}
                     onWheelCapture={handleHeroAchievementWheel}
                   >
-                    <span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute left-1/2 top-1/2 h-[156px] w-[92%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/10 shadow-[0_0_58px_rgba(34,211,238,0.12)]"
-                    />
-                    <span
-                      aria-hidden="true"
-                      className="pointer-events-none absolute left-1/2 top-1/2 h-[72px] w-[68%] -translate-x-1/2 -translate-y-1/2 rounded-full border-t border-amber-200/20"
-                    />
-
                     <button
                       aria-label="Previous workout achievement"
                       className="absolute left-2 top-1/2 z-40 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100"
@@ -1941,6 +3121,12 @@ export default function SessionsPage() {
                           key={`${achievement.label}-hero-orbit`}
                           onClick={(event) => {
                             event.stopPropagation();
+                            if (heroAchievementPointerMovedRef.current) {
+                              event.preventDefault();
+                              heroAchievementPointerMovedRef.current = false;
+                              return;
+                            }
+
                             router.push(achievement.href || ROUTES.dashboard.achievements);
                           }}
                           onKeyDown={(event) => {
@@ -2182,7 +3368,6 @@ export default function SessionsPage() {
                           : "bg-slate-950/16"
                       }`}
                     />
-                    <span className="pointer-events-none absolute inset-x-4 top-0 h-px rounded-full bg-gradient-to-r from-cyan-200/70 via-amber-200/45 to-transparent" />
                     <div className="relative z-10">
                       <div className="flex items-start justify-between gap-3">
                         <span
@@ -2440,8 +3625,8 @@ export default function SessionsPage() {
           ))}
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-[32px] border border-white/10 bg-white/[0.05] p-5 shadow-2xl shadow-black/20 backdrop-blur sm:p-6">
+        <section className="grid min-w-0 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+          <div className="min-w-0 rounded-[32px] border border-white/10 bg-white/[0.05] p-5 shadow-2xl shadow-black/20 backdrop-blur sm:p-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.24em] text-yellow-300">
@@ -2514,7 +3699,7 @@ export default function SessionsPage() {
             </div>
           </div>
 
-          <div className="rounded-[32px] border border-white/10 bg-white/[0.05] p-5 shadow-2xl shadow-black/20 backdrop-blur sm:p-6">
+          <div className="min-w-0 overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.05] p-5 shadow-2xl shadow-black/20 backdrop-blur sm:p-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300">
@@ -2552,13 +3737,46 @@ export default function SessionsPage() {
             <div className="mt-5 max-w-full overflow-hidden">
               {recentWorkoutSummaries.length > 0 ? (
                 <div
-                  className="flex max-w-full gap-3 overflow-x-auto overscroll-x-contain pb-3 scroll-smooth [scrollbar-color:rgba(52,211,153,0.46)_rgba(15,23,42,0.42)] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-emerald-300/40 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/40"
+                  className="flex max-w-full snap-x snap-mandatory cursor-grab select-none gap-3 overflow-x-auto overscroll-x-contain pb-1 scroll-smooth [scrollbar-color:rgba(52,211,153,0.46)_rgba(15,23,42,0.42)] [scrollbar-width:thin] [touch-action:pan-y] active:cursor-grabbing [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-emerald-300/40 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/40"
+                  onClickCapture={(event) => {
+                    if (recentSessionsScrollDragRef.current.moved) {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      recentSessionsScrollDragRef.current.moved = false;
+                    }
+                  }}
+                  onPointerCancel={(event) =>
+                    finishHorizontalScrollDrag(
+                      event,
+                      recentSessionsScrollDragRef,
+                    )
+                  }
+                  onPointerDown={(event) =>
+                    startHorizontalScrollDrag(
+                      event,
+                      recentSessionsScrollRef,
+                      recentSessionsScrollDragRef,
+                    )
+                  }
+                  onPointerMove={(event) =>
+                    moveHorizontalScrollDrag(
+                      event,
+                      recentSessionsScrollRef,
+                      recentSessionsScrollDragRef,
+                    )
+                  }
+                  onPointerUp={(event) =>
+                    finishHorizontalScrollDrag(
+                      event,
+                      recentSessionsScrollDragRef,
+                    )
+                  }
                   ref={recentSessionsScrollRef}
                 >
                   {recentWorkoutSummaries.map((session) => (
                     <article
                       key={session.id}
-                      className="w-[min(88vw,520px)] shrink-0 overflow-hidden rounded-[26px] border border-emerald-200/14 bg-[radial-gradient(circle_at_0%_0%,rgba(16,185,129,0.11),transparent_34%),rgba(15,23,42,0.62)] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)]"
+                      className="min-w-full snap-start overflow-hidden rounded-[26px] border border-emerald-200/14 bg-[radial-gradient(circle_at_0%_0%,rgba(16,185,129,0.11),transparent_34%),rgba(15,23,42,0.62)] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)]"
                     >
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div className="min-w-0">
