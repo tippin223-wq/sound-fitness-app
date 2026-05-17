@@ -798,17 +798,42 @@ export default function UserHomeDashboardPage() {
   const handleCommandCenterPointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
     commandCenterPointerStartRef.current = event.clientX;
     commandCenterPointerMovedRef.current = false;
+    event.currentTarget.focus({ preventScroll: true });
     event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const handleCommandCenterPointerMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const startX = commandCenterPointerStartRef.current;
+    if (startX === null) return;
+
+    const deltaX = event.clientX - startX;
+    if (Math.abs(deltaX) < 72) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    commandCenterPointerMovedRef.current = true;
+    rotateCommandCenter(deltaX > 0 ? "left" : "right");
+    commandCenterPointerStartRef.current = event.clientX;
   };
   const handleCommandCenterPointerUp = (
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
     const startX = commandCenterPointerStartRef.current;
     commandCenterPointerStartRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
 
     if (startX === null) {
+      return;
+    }
+
+    if (commandCenterPointerMovedRef.current) {
       return;
     }
 
@@ -2462,12 +2487,23 @@ export default function UserHomeDashboardPage() {
 
           <div
             aria-label="Command center orbit selector"
-            className="relative z-10 h-[410px] w-full overflow-visible outline-none [perspective:1500px] focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[460px]"
+            className="relative z-10 h-[410px] w-full cursor-grab select-none overflow-visible outline-none [perspective:1500px] [touch-action:pan-y] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[460px]"
+            onClickCapture={(event) => {
+              if (commandCenterPointerMovedRef.current) {
+                event.preventDefault();
+                event.stopPropagation();
+                commandCenterPointerMovedRef.current = false;
+              }
+            }}
             onKeyDown={handleCommandCenterKeyDown}
-            onPointerCancel={() => {
+            onPointerCancel={(event) => {
               commandCenterPointerStartRef.current = null;
+              if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                event.currentTarget.releasePointerCapture?.(event.pointerId);
+              }
             }}
             onPointerDown={handleCommandCenterPointerDown}
+            onPointerMove={handleCommandCenterPointerMove}
             onPointerUp={handleCommandCenterPointerUp}
             tabIndex={0}
           >

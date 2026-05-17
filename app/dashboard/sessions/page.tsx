@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
@@ -334,27 +335,6 @@ const packages = [
   },
 ] as const;
 
-const upcomingSessions = [
-  {
-    date: "Apr 26",
-    type: "Video Review",
-    focus: "Workout Review",
-    status: "Upcoming",
-  },
-  {
-    date: "Apr 22",
-    type: "In-Home Strength",
-    focus: "Lower Body + Core",
-    status: "Completed",
-  },
-  {
-    date: "Apr 18",
-    type: "In-Home Strength",
-    focus: "Upper Body + Mobility",
-    status: "Completed",
-  },
-] as const;
-
 type WorkoutJourneyStageStatus =
   | "Complete"
   | "Current"
@@ -372,21 +352,151 @@ type WorkoutJourneyStage = {
   title: string;
 };
 
+type ExerciseLibraryPriorityTarget = {
+  completedSets: number;
+  focus: string;
+  goalSets: number;
+  label: string;
+  remainingSets: number;
+};
+
 const UPPER_TRAINING_JOURNEY_TITLES = new Set([
   "Insights",
   "Performance",
+  "Stats",
+  "Calendar",
+  "Appointments",
+  "Messages",
+  "Packages",
   "Achievements",
 ]);
 
-const TRAINING_JOURNEY_LAYER_SIZE = 5;
+const normalizeLoggedText = (value?: string) =>
+  (value || "").toLowerCase().replace(/[-_]/g, " ").trim();
+
+const exerciseLibraryPriorityGoals = [
+  {
+    focus: "Squat / hinge / lunge",
+    goalSets: 12,
+    label: "Lower Body Compound",
+    match: (entry: LocalExerciseStatEntry) => {
+      const body = normalizeLoggedText(entry.body);
+      const pattern = normalizeLoggedText(entry.pattern);
+      const corePattern = normalizeLoggedText(entry.coreMovementPattern);
+      const name = normalizeLoggedText(entry.exerciseName);
+
+      return (
+        [
+          body,
+          pattern,
+          corePattern,
+          name,
+        ].some((value) =>
+          /squat|hinge|lunge|deadlift|leg press|split squat|step up|hip thrust|glute bridge/.test(
+            value,
+          ),
+        ) ||
+        /leg|glute|hamstring|posterior chain|quad|lower/.test(body)
+      );
+    },
+  },
+  {
+    focus: "Press / chest / shoulders",
+    goalSets: 10,
+    label: "Upper Push",
+    match: (entry: LocalExerciseStatEntry) => {
+      const body = normalizeLoggedText(entry.body);
+      const pattern = normalizeLoggedText(entry.pattern);
+      const name = normalizeLoggedText(entry.exerciseName);
+
+      return (
+        /push|press/.test(pattern) ||
+        /chest|shoulder|tricep/.test(body) ||
+        /press|push up|push-up|bench|dip/.test(name)
+      );
+    },
+  },
+  {
+    focus: "Row / pull / back",
+    goalSets: 10,
+    label: "Upper Pull",
+    match: (entry: LocalExerciseStatEntry) => {
+      const body = normalizeLoggedText(entry.body);
+      const pattern = normalizeLoggedText(entry.pattern);
+      const name = normalizeLoggedText(entry.exerciseName);
+
+      return (
+        /pull|row/.test(pattern) ||
+        /back|lat|bicep|upper back/.test(body) ||
+        /row|pull up|pull-up|pulldown|curl/.test(name)
+      );
+    },
+  },
+  {
+    focus: "Brace / rotate / carry",
+    goalSets: 8,
+    label: "Core Stability",
+    match: (entry: LocalExerciseStatEntry) => {
+      const body = normalizeLoggedText(entry.body);
+      const pattern = normalizeLoggedText(entry.pattern);
+      const name = normalizeLoggedText(entry.exerciseName);
+
+      return (
+        /core|abs|trunk/.test(body) ||
+        /carry|rotation|anti rotation|brace/.test(pattern) ||
+        /plank|carry|pallof|crunch|dead bug|bird dog/.test(name)
+      );
+    },
+  },
+  {
+    focus: "Single-joint support",
+    goalSets: 6,
+    label: "Accessory Balance",
+    match: (entry: LocalExerciseStatEntry) => {
+      const pattern = normalizeLoggedText(entry.pattern);
+      const name = normalizeLoggedText(entry.exerciseName);
+
+      return /isolation|accessory|raise|curl|extension|abduction|adduction/.test(
+        `${pattern} ${name}`,
+      );
+    },
+  },
+];
+
 const TRAINING_JOURNEY_HERO_LAYER = -1;
 const TRAINING_JOURNEY_LAYER_SPACING = 520;
+const TRAINING_JOURNEY_HORIZONTAL_INPUT_DELAY_MS = 520;
+const TRAINING_JOURNEY_DEFAULT_CORE_TITLE = "My Plan";
+const SESSIONS_HERO_ACTIVE_SCALE = 0.76;
+const SESSIONS_HERO_PREVIEW_SCALE = 0.44;
+const TRAINING_JOURNEY_DROPDOWN_TITLES = [
+  "My Plan",
+  "Workout Builder",
+  "Exercise Library",
+  "Session History",
+] as const;
+const DEFAULT_SESSIONS_PROFILE_HUB_INDEX = 1;
+const DEFAULT_SESSIONS_ACCOUNT_INDEX = 0;
+const DEFAULT_SESSIONS_PROFILE_LAYER = 1;
+const PROFILE_HUB_HORIZONTAL_DRAG_THRESHOLD = 56;
+const PROFILE_HUB_HORIZONTAL_WHEEL_THRESHOLD = 42;
+const HERO_ACHIEVEMENT_VISIBLE_DISTANCE = 3;
+
+type TrainingJourneyDropdownTitle =
+  (typeof TRAINING_JOURNEY_DROPDOWN_TITLES)[number];
+
+const isTrainingJourneyDropdownTitle = (
+  title: string,
+): title is TrainingJourneyDropdownTitle =>
+  TRAINING_JOURNEY_DROPDOWN_TITLES.includes(
+    title as TrainingJourneyDropdownTitle,
+  );
 
 const heroAchievementOrbitSlots = [
   { blur: 0, opacity: 1, rotateY: 0, scale: 1, x: 0, y: 0, zIndex: 42 },
-  { blur: 0.2, opacity: 0.76, rotateY: -14, scale: 0.82, x: 280, y: 18, zIndex: 30 },
-  { blur: 1.1, opacity: 0.34, rotateY: -28, scale: 0.62, x: 455, y: 42, zIndex: 16 },
-  { blur: 2.1, opacity: 0.12, rotateY: -42, scale: 0.46, x: 610, y: 70, zIndex: 8 },
+  { blur: 0.2, opacity: 0.76, rotateY: -14, scale: 0.82, x: 225, y: 12, zIndex: 30 },
+  { blur: 1.1, opacity: 0.34, rotateY: -28, scale: 0.62, x: 360, y: 28, zIndex: 16 },
+  { blur: 2.1, opacity: 0.12, rotateY: -42, scale: 0.46, x: 480, y: 48, zIndex: 8 },
 ];
 
 const workoutJourneyStatusStyles: Record<
@@ -438,7 +548,6 @@ const workoutJourneyStatusStyles: Record<
 
 export default function SessionsPage() {
   const router = useRouter();
-  const [selectedPackage, setSelectedPackage] = useState("12 Session Pack");
   const [planMode, setPlanMode] = useState<PlanMode>("coach");
   const [savedTemplates, setSavedTemplates] = useState<
     LocalWorkoutBuilderTemplate[]
@@ -460,12 +569,19 @@ export default function SessionsPage() {
   ] = useState([1, 0]);
   const [activeHeroAchievementIndex, setActiveHeroAchievementIndex] =
     useState(0);
+  const [heroAchievementSlideDirection, setHeroAchievementSlideDirection] =
+    useState<"left" | "right">("right");
+  const [openTrainingJourneyDropdown, setOpenTrainingJourneyDropdown] =
+    useState<TrainingJourneyDropdownTitle | null>(null);
   const trainingJourneyPointerStartRef = useRef<{
     x: number;
     y: number;
   } | null>(null);
   const trainingJourneyPointerMovedRef = useRef(false);
   const trainingJourneyOrbitRef = useRef<HTMLDivElement | null>(null);
+  const trainingJourneyCardRefs = useRef<(HTMLElement | null)[]>([]);
+  const trainingJourneyRowTitleRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const trainingJourneyHorizontalInputLockRef = useRef(0);
   const trainingJourneyWheelCaptureRef = useRef(false);
   const trainingJourneyWheelLockRef = useRef(0);
   const sessionsDashboardPointerStartRef = useRef<number | null>(null);
@@ -473,11 +589,18 @@ export default function SessionsPage() {
   const heroAchievementPointerStartRef = useRef<number | null>(null);
   const heroAchievementPointerMovedRef = useRef(false);
   const heroAchievementWheelLockRef = useRef(0);
-  const profileHubLayerWheelGestureRef = useRef(false);
+  const profileHubLayerWheelDeltaRef = useRef(0);
+  const profileHubLayerWheelLockRef = useRef(0);
   const profileHubLayerWheelResetRef =
+    useRef<ReturnType<typeof setTimeout> | null>(null);
+  const profileHubHorizontalWheelDeltaRef = useRef(0);
+  const profileHubHorizontalWheelLockRef = useRef(0);
+  const profileHubHorizontalWheelResetRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionsProfileHubRef = useRef<HTMLDivElement | null>(null);
   const sessionsProfileHubOverlayRef = useRef<HTMLDivElement | null>(null);
+  const sessionsProfileLayerCardRefs = useRef<(HTMLElement | null)[]>([]);
+  const sessionsProfileRowTitleRefs = useRef<(HTMLDivElement | null)[]>([]);
   const sessionsProfileLayerPointerStartRef = useRef<{
     x: number;
     y: number;
@@ -496,18 +619,161 @@ export default function SessionsPage() {
   });
   const [activeSessionsDashboardIndex, setActiveSessionsDashboardIndex] =
     useState(0);
+  const [trainingJourneyCardHeights, setTrainingJourneyCardHeights] =
+    useState<number[]>([]);
+  const [trainingJourneyRowTitleHeights, setTrainingJourneyRowTitleHeights] =
+    useState<number[]>([]);
   const [
     sessionsDashboardSlideDirection,
     setSessionsDashboardSlideDirection,
   ] = useState<"left" | "right">("right");
-  const [activeSessionsHubIndex, setActiveSessionsHubIndex] = useState(0);
-  const [activeSessionsAccountIndex, setActiveSessionsAccountIndex] =
-    useState(0);
+  const [activeSessionsHubIndex, setActiveSessionsHubIndex] = useState(
+    DEFAULT_SESSIONS_PROFILE_HUB_INDEX,
+  );
+  const [activeSessionsAccountIndex, setActiveSessionsAccountIndex] = useState(
+    DEFAULT_SESSIONS_ACCOUNT_INDEX,
+  );
   const [activeSessionsProfileLayer, setActiveSessionsProfileLayer] =
+    useState(DEFAULT_SESSIONS_PROFILE_LAYER);
+  const activeSessionsProfileLayerRef = useRef(DEFAULT_SESSIONS_PROFILE_LAYER);
+  const [
+    sessionsProfileLayerCardHeights,
+    setSessionsProfileLayerCardHeights,
+  ] = useState<number[]>([]);
+  const [
+    sessionsProfileRowTitleHeights,
+    setSessionsProfileRowTitleHeights,
+  ] = useState<number[]>([]);
+  const [profileHubLayerMotionOffset, setProfileHubLayerMotionOffset] =
+    useState(0);
+  const [profileHubHorizontalMotionOffset, setProfileHubHorizontalMotionOffset] =
     useState(0);
   const [sessionsProfileHubOpen, setSessionsProfileHubOpen] = useState(false);
+  const [sessionsProfileHubMounted, setSessionsProfileHubMounted] =
+    useState(false);
+  const sessionsProfileHubFadeFrameRef = useRef<number | null>(null);
   const [openSessionsProfileDetailKey, setOpenSessionsProfileDetailKey] =
     useState<string | null>(null);
+
+  useEffect(() => {
+    activeSessionsProfileLayerRef.current = activeSessionsProfileLayer;
+  }, [activeSessionsProfileLayer]);
+
+  useEffect(() => {
+    if (sessionsProfileHubOpen) {
+      setSessionsProfileHubMounted(true);
+      return;
+    }
+
+    if (!sessionsProfileHubMounted) return;
+
+    const unmountTimer = setTimeout(() => {
+      setSessionsProfileHubMounted(false);
+    }, 420);
+
+    return () => {
+      clearTimeout(unmountTimer);
+    };
+  }, [sessionsProfileHubMounted, sessionsProfileHubOpen]);
+
+  useEffect(
+    () => () => {
+      if (sessionsProfileHubFadeFrameRef.current !== null) {
+        cancelAnimationFrame(sessionsProfileHubFadeFrameRef.current);
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    const previousRootOverflow = root.style.overflow;
+    const previousRootOverscrollBehavior = root.style.overscrollBehavior;
+    const previousRootHeight = root.style.height;
+    const previousBodyOverflow = body.style.overflow;
+    const previousBodyOverscrollBehavior = body.style.overscrollBehavior;
+    const previousBodyHeight = body.style.height;
+
+    root.style.overflow = "hidden";
+    root.style.overscrollBehavior = "none";
+    root.style.height = "100%";
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+    body.style.height = "100%";
+
+    return () => {
+      root.style.overflow = previousRootOverflow;
+      root.style.overscrollBehavior = previousRootOverscrollBehavior;
+      root.style.height = previousRootHeight;
+      body.style.overflow = previousBodyOverflow;
+      body.style.overscrollBehavior = previousBodyOverscrollBehavior;
+      body.style.height = previousBodyHeight;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sessionsProfileHubOpen) return;
+
+    let animationFrame = 0;
+    const arraysMatch = (left: number[], right: number[]) =>
+      left.length === right.length &&
+      left.every((value, index) => value === right[index]);
+    const updateMeasurements = () => {
+      const nextCardHeights = Array.from(
+        { length: 3 },
+        (_, layer) => sessionsProfileLayerCardRefs.current[layer]?.offsetHeight || 0,
+      );
+      const nextTitleHeights = Array.from(
+        { length: 3 },
+        (_, layer) => sessionsProfileRowTitleRefs.current[layer]?.offsetHeight || 0,
+      );
+
+      setSessionsProfileLayerCardHeights((currentHeights) =>
+        arraysMatch(currentHeights, nextCardHeights)
+          ? currentHeights
+          : nextCardHeights,
+      );
+      setSessionsProfileRowTitleHeights((currentHeights) =>
+        arraysMatch(currentHeights, nextTitleHeights)
+          ? currentHeights
+          : nextTitleHeights,
+      );
+    };
+    const scheduleMeasurements = () => {
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      animationFrame = window.requestAnimationFrame(updateMeasurements);
+    };
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(scheduleMeasurements)
+        : null;
+
+    scheduleMeasurements();
+    sessionsProfileLayerCardRefs.current.forEach((node) => {
+      if (node) observer?.observe(node);
+    });
+    sessionsProfileRowTitleRefs.current.forEach((node) => {
+      if (node) observer?.observe(node);
+    });
+    window.addEventListener("resize", scheduleMeasurements);
+
+    return () => {
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      observer?.disconnect();
+      window.removeEventListener("resize", scheduleMeasurements);
+    };
+  }, [
+    activeSessionsAccountIndex,
+    activeSessionsHubIndex,
+    activeSessionsProfileLayer,
+    openSessionsProfileDetailKey,
+    sessionsProfileHubOpen,
+  ]);
 
   useEffect(() => {
     let isActive = true;
@@ -535,8 +801,7 @@ export default function SessionsPage() {
   }, []);
 
   const activePlan = plans[planMode];
-  const active =
-    packages.find((pkg) => pkg.name === selectedPackage) || packages[1];
+  const active = packages[1];
   const remaining = active.total - active.used;
   const percentUsed = Math.round((active.used / active.total) * 100);
 
@@ -564,6 +829,40 @@ export default function SessionsPage() {
       latestExercise: sorted[0]?.exerciseName || "No workout logged yet",
       latestDate: formatDateTime(sorted[0]?.date),
     };
+  }, [workoutLogEntries]);
+
+  const exerciseLibraryPriorityTargets = useMemo<
+    ExerciseLibraryPriorityTarget[]
+  >(() => {
+    const workoutOnlyEntries = workoutLogEntries.filter(
+      (entry) => entry.source === "workout-session",
+    );
+    const entriesToMeasure =
+      workoutOnlyEntries.length > 0 ? workoutOnlyEntries : workoutLogEntries;
+
+    return exerciseLibraryPriorityGoals
+      .map((target) => {
+        const completedSets = entriesToMeasure.reduce(
+          (sum, entry) =>
+            target.match(entry) ? sum + parseLoggedNumber(entry.sets) : sum,
+          0,
+        );
+
+        return {
+          completedSets,
+          focus: target.focus,
+          goalSets: target.goalSets,
+          label: target.label,
+          remainingSets: Math.max(0, target.goalSets - completedSets),
+        };
+      })
+      .sort(
+        (left, right) =>
+          right.remainingSets - left.remainingSets ||
+          right.goalSets - left.goalSets ||
+          left.completedSets - right.completedSets,
+      )
+      .slice(0, 3);
   }, [workoutLogEntries]);
 
   const workoutRewardStats = useMemo(() => {
@@ -679,6 +978,51 @@ export default function SessionsPage() {
         status: hasLogs ? "Unlocked" : "Locked",
       },
       {
+        title: "Stats",
+        helper: "Logged entries, training totals, recent movement stats, and progress snapshots.",
+        href: ROUTES.dashboard.stats,
+        icon: "Stat",
+        nextAction: "Open stats",
+        progress: hasLogs ? 62 : 18,
+        status: hasLogs ? "Unlocked" : "Next",
+      },
+      {
+        title: "Calendar",
+        helper: "Training calendar, scheduled sessions, weekly planning, and upcoming commitments.",
+        href: ROUTES.dashboard.calendar,
+        icon: "Cal",
+        nextAction: "Open calendar",
+        progress: hasLogs ? 58 : 24,
+        status: "Unlocked",
+      },
+      {
+        title: "Appointments",
+        helper: "Booking requests, upcoming sessions, coach availability, and appointment flow.",
+        href: ROUTES.dashboard.sessionBooking,
+        icon: "Appt",
+        nextAction: "Book session",
+        progress: active.used > 0 ? 68 : 32,
+        status: "Unlocked",
+      },
+      {
+        title: "Messages",
+        helper: "Coach messages, questions, check-ins, feedback, and session follow-up threads.",
+        href: ROUTES.dashboard.coachMessaging,
+        icon: "Msg",
+        nextAction: "Open messages",
+        progress: hasLogs ? 54 : 26,
+        status: "Unlocked",
+      },
+      {
+        title: "Packages",
+        helper: "Session packages, remaining visits, payment status, and renewal planning.",
+        href: ROUTES.dashboard.payments,
+        icon: "Pkg",
+        nextAction: "View packages",
+        progress: percentUsed,
+        status: "Unlocked",
+      },
+      {
         title: "Achievements",
         helper: "Badges, milestones, streaks, Sound Points, and workout rewards.",
         href: ROUTES.dashboard.achievements,
@@ -689,7 +1033,9 @@ export default function SessionsPage() {
       },
     ];
   }, [
+    active.used,
     activeSessionTemplate,
+    percentUsed,
     savedTemplates.length,
     workoutRewardStats.trainingStreak,
     workoutStats.loggedEntries,
@@ -814,6 +1160,7 @@ export default function SessionsPage() {
   const rotateHeroAchievement = (direction: "left" | "right") => {
     if (heroAchievementCount < 2) return;
 
+    setHeroAchievementSlideDirection(direction);
     setActiveHeroAchievementIndex((currentIndex) =>
       direction === "left"
         ? (currentIndex - 1 + heroAchievementCount) % heroAchievementCount
@@ -841,27 +1188,44 @@ export default function SessionsPage() {
     movedRef: { current: boolean },
     rotate: (direction: "left" | "right") => void,
     threshold = 72,
+    setMotionOffset?: (offset: number) => void,
   ) => {
     const startX = startRef.current;
     if (startX === null) return;
 
     const deltaX = event.clientX - startX;
+    setMotionOffset?.(Math.max(-54, Math.min(54, deltaX * 0.38)));
     if (Math.abs(deltaX) < threshold) return;
 
     event.preventDefault();
     event.stopPropagation();
     movedRef.current = true;
+    setMotionOffset?.(0);
     rotate(deltaX > 0 ? "left" : "right");
     startRef.current = null;
   };
   const finishHorizontalOrbitDrag = (
     event: ReactPointerEvent<HTMLElement>,
     startRef: { current: number | null },
+    movedRef?: { current: boolean },
+    setMotionOffset?: (offset: number) => void,
   ) => {
     startRef.current = null;
+    setMotionOffset?.(0);
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture?.(event.pointerId);
     }
+
+    if (!movedRef) return;
+
+    if (movedRef.current) {
+      window.setTimeout(() => {
+        movedRef.current = false;
+      }, 0);
+      return;
+    }
+
+    movedRef.current = false;
   };
   const startHorizontalScrollDrag = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -994,9 +1358,47 @@ export default function SessionsPage() {
       upperTrainingJourneyStages,
     ],
   );
+  const trainingJourneyStageLayers = useMemo(
+    () =>
+      [
+        [...foundationTrainingJourneyStages, ...mainTrainingJourneyStages],
+        upperTrainingJourneyStages,
+      ].filter((layer) => layer.length > 0),
+    [
+      foundationTrainingJourneyStages,
+      mainTrainingJourneyStages,
+      upperTrainingJourneyStages,
+    ],
+  );
+  const trainingJourneyLayerStartIndexes = useMemo(() => {
+    let startIndex = 0;
+
+    return trainingJourneyStageLayers.map((layer) => {
+      const layerStartIndex = startIndex;
+
+      startIndex += layer.length;
+
+      return layerStartIndex;
+    });
+  }, [trainingJourneyStageLayers]);
+  const getTrainingJourneyLayerStart = (layer: number) =>
+    trainingJourneyLayerStartIndexes[layer] || 0;
+  const getTrainingJourneyLayer = (index: number) => {
+    for (
+      let layer = trainingJourneyLayerStartIndexes.length - 1;
+      layer >= 0;
+      layer -= 1
+    ) {
+      if (index >= trainingJourneyLayerStartIndexes[layer]) return layer;
+    }
+
+    return 0;
+  };
+  const getTrainingJourneyLayerSize = (layer: number) =>
+    Math.max(1, trainingJourneyStageLayers[layer]?.length || 0);
   const totalTrainingJourneyLayers = Math.max(
     1,
-    Math.ceil(combinedTrainingJourneyStages.length / TRAINING_JOURNEY_LAYER_SIZE),
+    trainingJourneyStageLayers.length,
   );
   const isTrainingJourneyHeroActive =
     activeTrainingJourneyLayer === TRAINING_JOURNEY_HERO_LAYER;
@@ -1012,28 +1414,104 @@ export default function SessionsPage() {
     activeTrainingJourneyLayer >= 0
       ? activeTrainingJourneyPositions[activeTrainingJourneyLayer] || 0
       : 0;
-  const activeTrainingJourneyIndex = activeTrainingJourneyLayer >= 0
-    ? Math.min(
-        activeTrainingJourneyLayer * TRAINING_JOURNEY_LAYER_SIZE +
-          activeTrainingJourneyPosition,
-        Math.max(0, combinedTrainingJourneyStages.length - 1),
-      )
-    : -1;
+  const activeTrainingJourneyIndex =
+    activeTrainingJourneyLayer >= 0
+      ? Math.min(
+          getTrainingJourneyLayerStart(activeTrainingJourneyLayer) +
+            activeTrainingJourneyPosition,
+          Math.max(0, combinedTrainingJourneyStages.length - 1),
+        )
+      : -1;
   const activeTrainingJourneyStage =
     combinedTrainingJourneyStages[activeTrainingJourneyIndex] ||
     combinedTrainingJourneyStages[0] ||
     workoutJourneyStages[0];
-  const getTrainingJourneyLayer = (index: number) =>
-    Math.floor(index / TRAINING_JOURNEY_LAYER_SIZE);
-  const getTrainingJourneyLayerSize = (layer: number) =>
-    Math.max(
-      1,
-      Math.min(
-        TRAINING_JOURNEY_LAYER_SIZE,
-        combinedTrainingJourneyStages.length -
-          layer * TRAINING_JOURNEY_LAYER_SIZE,
-      ),
+  useEffect(() => {
+    if (
+      openTrainingJourneyDropdown &&
+      activeTrainingJourneyStage?.title !== openTrainingJourneyDropdown
+    ) {
+      setOpenTrainingJourneyDropdown(null);
+    }
+  }, [activeTrainingJourneyStage?.title, openTrainingJourneyDropdown]);
+  const activeTrainingJourneyLayerLabel =
+    activeTrainingJourneyLayer === TRAINING_JOURNEY_HERO_LAYER
+      ? "Hero"
+      : activeTrainingJourneyLayer === 0
+        ? "Core Workout Flow"
+        : activeTrainingJourneyLayer === 1
+          ? "Systems"
+          : `Row ${activeTrainingJourneyLayer + 1}`;
+  const defaultTrainingJourneyCoreIndex =
+    combinedTrainingJourneyStages.findIndex(
+      (stage) => stage.title === TRAINING_JOURNEY_DEFAULT_CORE_TITLE,
     );
+  const defaultTrainingJourneyCoreLayer =
+    defaultTrainingJourneyCoreIndex >= 0
+      ? getTrainingJourneyLayer(defaultTrainingJourneyCoreIndex)
+      : 0;
+  const defaultTrainingJourneyCorePosition =
+    defaultTrainingJourneyCoreIndex >= 0
+      ? defaultTrainingJourneyCoreIndex -
+        getTrainingJourneyLayerStart(defaultTrainingJourneyCoreLayer)
+      : 1;
+  useEffect(() => {
+    let animationFrame = 0;
+    const arraysMatch = (left: number[], right: number[]) =>
+      left.length === right.length &&
+      left.every((value, index) => value === right[index]);
+    const updateMeasurements = () => {
+      const nextCardHeights = combinedTrainingJourneyStages.map(
+        (_, index) => trainingJourneyCardRefs.current[index]?.offsetHeight || 0,
+      );
+      const nextRowTitleHeights = Array.from(
+        { length: totalTrainingJourneyLayers },
+        (_, layer) => trainingJourneyRowTitleRefs.current[layer]?.offsetHeight || 0,
+      );
+
+      setTrainingJourneyCardHeights((currentHeights) =>
+        arraysMatch(currentHeights, nextCardHeights)
+          ? currentHeights
+          : nextCardHeights,
+      );
+      setTrainingJourneyRowTitleHeights((currentHeights) =>
+        arraysMatch(currentHeights, nextRowTitleHeights)
+          ? currentHeights
+          : nextRowTitleHeights,
+      );
+    };
+    const scheduleMeasurements = () => {
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      animationFrame = window.requestAnimationFrame(updateMeasurements);
+    };
+    const observer =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(scheduleMeasurements)
+        : null;
+
+    scheduleMeasurements();
+    trainingJourneyCardRefs.current
+      .slice(0, combinedTrainingJourneyStages.length)
+      .forEach((node) => {
+        if (node) observer?.observe(node);
+      });
+    trainingJourneyRowTitleRefs.current
+      .slice(0, totalTrainingJourneyLayers)
+      .forEach((node) => {
+        if (node) observer?.observe(node);
+      });
+    window.addEventListener("resize", scheduleMeasurements);
+
+    return () => {
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      observer?.disconnect();
+      window.removeEventListener("resize", scheduleMeasurements);
+    };
+  }, [combinedTrainingJourneyStages.length, totalTrainingJourneyLayers]);
   const getTrainingJourneyOrbitDistance = (index: number) => {
     const stageLayer = getTrainingJourneyLayer(index);
     const layerSize = getTrainingJourneyLayerSize(stageLayer);
@@ -1041,8 +1519,12 @@ export default function SessionsPage() {
       activeTrainingJourneyPositions[stageLayer] || 0,
       layerSize - 1,
     );
-    const stagePosition = index % TRAINING_JOURNEY_LAYER_SIZE;
+    const stagePosition = index - getTrainingJourneyLayerStart(stageLayer);
     const rawDistance = stagePosition - activePosition;
+    const halfLayer = layerSize / 2;
+
+    if (rawDistance > halfLayer) return rawDistance - layerSize;
+    if (rawDistance < -halfLayer) return rawDistance + layerSize;
 
     return rawDistance;
   };
@@ -1054,6 +1536,22 @@ export default function SessionsPage() {
     if (!combinedTrainingJourneyStages.length) return;
 
     if (direction === "up" || direction === "down") {
+      if (
+        direction === "down" &&
+        activeTrainingJourneyLayer === TRAINING_JOURNEY_HERO_LAYER
+      ) {
+        setActiveTrainingJourneyPositions((currentPositions) => {
+          const nextPositions = [...currentPositions];
+
+          nextPositions[defaultTrainingJourneyCoreLayer] =
+            defaultTrainingJourneyCorePosition;
+
+          return nextPositions;
+        });
+        setActiveTrainingJourneyLayer(defaultTrainingJourneyCoreLayer);
+        return;
+      }
+
       setActiveTrainingJourneyLayer((currentLayer) =>
         direction === "up"
           ? Math.max(TRAINING_JOURNEY_HERO_LAYER, currentLayer - 1)
@@ -1076,10 +1574,8 @@ export default function SessionsPage() {
           : currentPosition + 1;
       const nextPositions = [...currentPositions];
 
-      nextPositions[activeTrainingJourneyLayer] = Math.max(
-        0,
-        Math.min(layerSize - 1, nextPosition),
-      );
+      nextPositions[activeTrainingJourneyLayer] =
+        (nextPosition + layerSize) % layerSize;
 
       return nextPositions;
     });
@@ -1114,21 +1610,26 @@ export default function SessionsPage() {
     event.preventDefault();
     event.stopPropagation();
     trainingJourneyPointerMovedRef.current = true;
+    if (horizontalIntent) {
+      const now = Date.now();
+      if (now < trainingJourneyHorizontalInputLockRef.current) return;
+
+      trainingJourneyHorizontalInputLockRef.current =
+        now + TRAINING_JOURNEY_HORIZONTAL_INPUT_DELAY_MS;
+      rotateTrainingJourney(deltaX > 0 ? "left" : "right");
+      trainingJourneyPointerStartRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+      return;
+    }
+
     rotateTrainingJourney(
-      horizontalIntent
-        ? deltaX > 0
-          ? "left"
-          : "right"
-        : deltaY > 0
-          ? "up"
-          : "down",
+      deltaY > 0
+        ? "up"
+        : "down",
     );
-    trainingJourneyPointerStartRef.current = horizontalIntent
-      ? {
-          x: event.clientX,
-          y: event.clientY,
-        }
-      : null;
+    trainingJourneyPointerStartRef.current = null;
   };
   const handleTrainingJourneyPointerUp = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -1158,14 +1659,20 @@ export default function SessionsPage() {
     }
 
     trainingJourneyPointerMovedRef.current = true;
+    if (horizontalIntent) {
+      const now = Date.now();
+      if (now < trainingJourneyHorizontalInputLockRef.current) return;
+
+      trainingJourneyHorizontalInputLockRef.current =
+        now + TRAINING_JOURNEY_HORIZONTAL_INPUT_DELAY_MS;
+      rotateTrainingJourney(deltaX > 0 ? "left" : "right");
+      return;
+    }
+
     rotateTrainingJourney(
-      horizontalIntent
-        ? deltaX > 0
-          ? "left"
-          : "right"
-        : deltaY > 0
-          ? "up"
-          : "down",
+      deltaY > 0
+        ? "up"
+        : "down",
     );
   };
   const handleTrainingJourneyKeyDown = (
@@ -1236,7 +1743,16 @@ export default function SessionsPage() {
     if (atTop || atBottom || inactiveHorizontal) return;
 
     const now = Date.now();
-    const wheelLockMs = horizontalIntent ? 360 : 820;
+    if (horizontalIntent) {
+      if (now < trainingJourneyHorizontalInputLockRef.current) return;
+
+      trainingJourneyHorizontalInputLockRef.current =
+        now + TRAINING_JOURNEY_HORIZONTAL_INPUT_DELAY_MS;
+      rotateTrainingJourney(direction);
+      return;
+    }
+
+    const wheelLockMs = 820;
     if (now - trainingJourneyWheelLockRef.current < wheelLockMs) return;
 
     trainingJourneyWheelLockRef.current = now;
@@ -1253,14 +1769,7 @@ export default function SessionsPage() {
       const nextPositions = [...currentPositions];
 
       for (let layer = 0; layer < totalTrainingJourneyLayers; layer += 1) {
-        const layerSize = Math.max(
-          1,
-          Math.min(
-            TRAINING_JOURNEY_LAYER_SIZE,
-            combinedTrainingJourneyStages.length -
-              layer * TRAINING_JOURNEY_LAYER_SIZE,
-          ),
-        );
+        const layerSize = getTrainingJourneyLayerSize(layer);
 
         nextPositions[layer] = Math.min(
           nextPositions[layer] || 0,
@@ -1309,22 +1818,72 @@ export default function SessionsPage() {
         setSessionsProfileHubOpen(false);
       }
     };
-    const handleEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") setSessionsProfileHubOpen(false);
+    const handleProfileHubKeyDown = (event: globalThis.KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTypingTarget =
+        target instanceof HTMLElement &&
+        ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName);
+
+      if (event.key === "Escape") {
+        setSessionsProfileHubOpen(false);
+        return;
+      }
+
+      if (isTypingTarget) return;
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        rotateSessionsProfileLayer("up");
+        return;
+      }
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        event.stopPropagation();
+        rotateSessionsProfileLayer("down");
+        return;
+      }
+
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const direction = event.key === "ArrowLeft" ? "left" : "right";
+      const activeLayer = activeSessionsProfileLayerRef.current;
+
+      if (activeLayer === 1) {
+        rotateSessionsHubOrbit(direction);
+        return;
+      }
+
+      if (activeLayer === 2) {
+        rotateSessionsAccountOrbit(direction);
+      }
     };
 
     document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("keydown", handleProfileHubKeyDown);
 
     return () => {
       document.body.style.overflow = previousBodyOverflow;
-      profileHubLayerWheelGestureRef.current = false;
+      profileHubLayerWheelDeltaRef.current = 0;
+      profileHubLayerWheelLockRef.current = 0;
+      setProfileHubLayerMotionOffset(0);
       if (profileHubLayerWheelResetRef.current) {
         clearTimeout(profileHubLayerWheelResetRef.current);
         profileHubLayerWheelResetRef.current = null;
       }
+      profileHubHorizontalWheelDeltaRef.current = 0;
+      profileHubHorizontalWheelLockRef.current = 0;
+      setProfileHubHorizontalMotionOffset(0);
+      if (profileHubHorizontalWheelResetRef.current) {
+        clearTimeout(profileHubHorizontalWheelResetRef.current);
+        profileHubHorizontalWheelResetRef.current = null;
+      }
       document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("keydown", handleProfileHubKeyDown);
     };
   }, [sessionsProfileHubOpen]);
 
@@ -1420,6 +1979,20 @@ export default function SessionsPage() {
     });
   };
   const sessionsHubOrbitItems = [
+    {
+      href: ROUTES.dashboard.profile,
+      helper: "Update profile, body metrics, preferences, and avatar.",
+      iconType: "profile",
+      icon: "ðŸ‘¤",
+      label: "Update Profile",
+      references: [
+        "Body metrics",
+        "Training readiness",
+        "Coach preferences",
+      ],
+      stat: "Profile sync",
+      tone: "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
+    },
     {
       href: ROUTES.dashboard.stats,
       helper: "Progress, PRs, and training trends.",
@@ -1520,12 +2093,13 @@ export default function SessionsPage() {
 
     return rawDistance;
   };
-  const sessionsAccountOrbitItems = [
+  const sessionsAccountOrbitItems = ([
     {
       href: ROUTES.dashboard.profile,
       helper: "Update profile, body metrics, preferences, and avatar.",
+      iconType: "profile",
       icon: "👤",
-      label: "Edit Profile",
+      label: "Update Profile",
       references: [
         "Body metrics",
         "Training readiness",
@@ -1588,7 +2162,16 @@ export default function SessionsPage() {
       stat: "Account session",
       tone: "border-red-200/24 bg-red-500/10 text-red-100",
     },
-  ] as const;
+  ] as const).filter(
+    (item) => item.label !== "Update Profile" && item.label !== "Logout",
+  );
+  useEffect(() => {
+    setActiveSessionsAccountIndex((currentIndex) =>
+      currentIndex >= sessionsAccountOrbitItems.length
+        ? DEFAULT_SESSIONS_ACCOUNT_INDEX
+        : currentIndex,
+    );
+  }, [sessionsAccountOrbitItems.length]);
   const rotateSessionsAccountOrbit = (direction: "left" | "right") => {
     setActiveSessionsAccountIndex((currentIndex) =>
       direction === "left"
@@ -1611,33 +2194,111 @@ export default function SessionsPage() {
     return rawDistance;
   };
   const rotateSessionsProfileLayer = (direction: "up" | "down") => {
-    setActiveSessionsProfileLayer((currentLayer) =>
-      direction === "up"
+    setActiveSessionsProfileLayer((currentLayer) => {
+      const nextLayer = direction === "up"
         ? Math.max(0, currentLayer - 1)
-        : Math.min(2, currentLayer + 1),
-    );
+        : Math.min(2, currentLayer + 1);
+
+      activeSessionsProfileLayerRef.current = nextLayer;
+      return nextLayer;
+    });
   };
   const handleSessionsProfileLayerWheel = (
     event: ReactWheelEvent<HTMLDivElement>,
   ) => {
-    if (Math.abs(event.deltaY) < 40) return;
+    if (Math.abs(event.deltaY) < 2) return;
 
     event.preventDefault();
     event.stopPropagation();
 
-    if (!profileHubLayerWheelGestureRef.current) {
-      profileHubLayerWheelGestureRef.current = true;
-      rotateSessionsProfileLayer(event.deltaY > 0 ? "down" : "up");
+    const now = Date.now();
+    if (now < profileHubLayerWheelLockRef.current) {
+      return;
     }
+
+    profileHubLayerWheelDeltaRef.current += event.deltaY;
+    setProfileHubLayerMotionOffset(
+      Math.max(-52, Math.min(52, profileHubLayerWheelDeltaRef.current * -0.42)),
+    );
 
     if (profileHubLayerWheelResetRef.current) {
       clearTimeout(profileHubLayerWheelResetRef.current);
     }
 
     profileHubLayerWheelResetRef.current = setTimeout(() => {
-      profileHubLayerWheelGestureRef.current = false;
+      profileHubLayerWheelDeltaRef.current = 0;
+      setProfileHubLayerMotionOffset(0);
       profileHubLayerWheelResetRef.current = null;
-    }, 240);
+    }, 140);
+
+    if (Math.abs(profileHubLayerWheelDeltaRef.current) < 78) return;
+
+    const direction =
+      profileHubLayerWheelDeltaRef.current > 0 ? "down" : "up";
+    const atLayerEdge =
+      (direction === "up" && activeSessionsProfileLayer <= 0) ||
+      (direction === "down" && activeSessionsProfileLayer >= 2);
+
+    profileHubLayerWheelDeltaRef.current = 0;
+    profileHubLayerWheelLockRef.current = now + 460;
+    setProfileHubLayerMotionOffset(0);
+
+    if (!atLayerEdge) {
+      rotateSessionsProfileLayer(direction);
+    }
+  };
+  const handleSessionsProfileHorizontalWheel = (
+    event: ReactWheelEvent<HTMLDivElement>,
+    rotate: (direction: "left" | "right") => void,
+  ) => {
+    const horizontalIntent =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY) || event.shiftKey;
+
+    if (!horizontalIntent) return;
+
+    const primaryDelta =
+      event.shiftKey && Math.abs(event.deltaY) >= Math.abs(event.deltaX)
+        ? event.deltaY
+        : event.deltaX;
+
+    if (Math.abs(primaryDelta) < 2) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const now = Date.now();
+    profileHubHorizontalWheelDeltaRef.current += primaryDelta;
+    setProfileHubHorizontalMotionOffset(
+      Math.max(
+        -48,
+        Math.min(-profileHubHorizontalWheelDeltaRef.current * 0.34, 48),
+      ),
+    );
+
+    if (profileHubHorizontalWheelResetRef.current) {
+      clearTimeout(profileHubHorizontalWheelResetRef.current);
+    }
+
+    profileHubHorizontalWheelResetRef.current = setTimeout(() => {
+      profileHubHorizontalWheelDeltaRef.current = 0;
+      setProfileHubHorizontalMotionOffset(0);
+      profileHubHorizontalWheelResetRef.current = null;
+    }, 130);
+
+    if (now < profileHubHorizontalWheelLockRef.current) return;
+    if (
+      Math.abs(profileHubHorizontalWheelDeltaRef.current) <
+      PROFILE_HUB_HORIZONTAL_WHEEL_THRESHOLD
+    ) {
+      return;
+    }
+
+    const direction =
+      profileHubHorizontalWheelDeltaRef.current > 0 ? "right" : "left";
+    profileHubHorizontalWheelDeltaRef.current = 0;
+    profileHubHorizontalWheelLockRef.current = now + 360;
+    setProfileHubHorizontalMotionOffset(0);
+    rotate(direction);
   };
   const handleSessionsProfileLayerPointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -1669,28 +2330,93 @@ export default function SessionsPage() {
 
     const deltaX = event.clientX - start.x;
     const deltaY = event.clientY - start.y;
-    if (Math.abs(deltaY) < 58 || Math.abs(deltaY) < Math.abs(deltaX) * 0.9) {
+    const target = event.target as Element | null;
+    const movingInsideHorizontalOrbit = Boolean(
+      target?.closest("[data-profile-horizontal-orbit]"),
+    );
+    const movingInLeftVerticalZone =
+      typeof window !== "undefined" &&
+      event.clientX <= Math.min(220, window.innerWidth * 0.22);
+    const horizontalIntent = Math.abs(deltaX) > Math.abs(deltaY) * 1.1;
+
+    if (
+      movingInsideHorizontalOrbit &&
+      !movingInLeftVerticalZone &&
+      horizontalIntent
+    ) {
+      return;
+    }
+
+    if (movingInsideHorizontalOrbit) {
+      setProfileHubHorizontalMotionOffset(0);
+    }
+
+    setProfileHubLayerMotionOffset(Math.max(-52, Math.min(52, deltaY * 0.34)));
+    if (Math.abs(deltaY) < 72 || Math.abs(deltaY) < Math.abs(deltaX) * 1.1) {
       return;
     }
 
     event.preventDefault();
     event.stopPropagation();
     sessionsProfileLayerPointerMovedRef.current = true;
+    sessionsHubOrbitPointerStartRef.current = null;
+    sessionsAccountOrbitPointerStartRef.current = null;
     rotateSessionsProfileLayer(deltaY > 0 ? "up" : "down");
+    setProfileHubLayerMotionOffset(0);
     sessionsProfileLayerPointerStartRef.current = null;
   };
   const handleSessionsProfileLayerPointerEnd = (
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
     sessionsProfileLayerPointerStartRef.current = null;
+    setProfileHubLayerMotionOffset(0);
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture?.(event.pointerId);
     }
   };
 
+  const resetSessionsProfileHubDefaults = () => {
+    setActiveSessionsHubIndex(DEFAULT_SESSIONS_PROFILE_HUB_INDEX);
+    setActiveSessionsAccountIndex(DEFAULT_SESSIONS_ACCOUNT_INDEX);
+    setActiveSessionsProfileLayer(DEFAULT_SESSIONS_PROFILE_LAYER);
+    activeSessionsProfileLayerRef.current = DEFAULT_SESSIONS_PROFILE_LAYER;
+  };
+
+  const openSessionsProfileHub = () => {
+    resetSessionsProfileHubDefaults();
+    setSessionsProfileHubMounted(true);
+
+    if (sessionsProfileHubFadeFrameRef.current !== null) {
+      cancelAnimationFrame(sessionsProfileHubFadeFrameRef.current);
+    }
+
+    sessionsProfileHubFadeFrameRef.current = requestAnimationFrame(() => {
+      sessionsProfileHubFadeFrameRef.current = null;
+      setSessionsProfileHubOpen(true);
+    });
+  };
+
+  const closeSessionsProfileHub = () => {
+    if (sessionsProfileHubFadeFrameRef.current !== null) {
+      cancelAnimationFrame(sessionsProfileHubFadeFrameRef.current);
+      sessionsProfileHubFadeFrameRef.current = null;
+    }
+
+    setSessionsProfileHubOpen(false);
+  };
+
+  const toggleSessionsProfileHub = () => {
+    if (sessionsProfileHubOpen) {
+      closeSessionsProfileHub();
+      return;
+    }
+
+    openSessionsProfileHub();
+  };
+
   async function signOutFromSessionsHub() {
     await supabase.auth.signOut();
-    setSessionsProfileHubOpen(false);
+    closeSessionsProfileHub();
     router.push(ROUTES.auth.login);
     router.refresh();
   }
@@ -1707,15 +2433,59 @@ export default function SessionsPage() {
     setLauncherMessage(`${sessionTemplate.title} is ready in the workout logger.`);
     router.push(`${ROUTES.dashboard.sessionWorkout}?template=${template.id}`);
   }
+  const profileHubLayerMotionStyle = {
+    "--profile-hub-layer-offset": `${profileHubLayerMotionOffset}px`,
+  } as CSSProperties;
+  const getSessionsProfileRowTitleStyle = (
+    layer: number,
+    centerPercent: number,
+    fallbackCardHeight: number,
+  ) => {
+    const cardHeight =
+      sessionsProfileLayerCardHeights[layer] || fallbackCardHeight;
+    const titleHeight = sessionsProfileRowTitleHeights[layer] || 44;
+    const offset = Math.max(
+      116,
+      Math.min(330, cardHeight / 2 + titleHeight + 18),
+    );
+
+    return {
+      top: `calc(${centerPercent}% - ${offset}px)`,
+    } as CSSProperties;
+  };
+  const renderSessionsProfileRowTitle = (
+    layer: number,
+    label: string,
+    helper: string,
+    tone: string,
+    centerPercent: number,
+    fallbackCardHeight: number,
+  ) => (
+    <div
+      aria-hidden="true"
+      className={`pointer-events-none absolute left-1/2 z-40 w-[min(86vw,430px)] -translate-x-1/2 rounded-2xl border px-3 py-2 text-center shadow-[0_16px_44px_rgba(0,0,0,0.28)] backdrop-blur ${tone}`}
+      ref={(node) => {
+        sessionsProfileRowTitleRefs.current[layer] = node;
+      }}
+      style={getSessionsProfileRowTitleStyle(
+        layer,
+        centerPercent,
+        fallbackCardHeight,
+      )}
+    >
+      <div className="text-[9px] font-black uppercase tracking-[0.16em]">
+        {label}
+      </div>
+      <div className="mt-1 text-[10px] font-bold leading-4 text-slate-300">
+        {helper}
+      </div>
+    </div>
+  );
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
-      <section className="mx-auto w-full max-w-7xl space-y-6 px-4 pb-6 pt-0 sm:px-6 lg:px-8 lg:pb-8 lg:pt-0">
-        <section className="relative left-1/2 w-[100dvw] max-w-none -translate-x-1/2 overflow-visible rounded-none border-y border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.72))] p-0 shadow-[0_34px_120px_rgba(0,0,0,0.42),0_0_52px_rgba(34,211,238,0.10)] backdrop-blur-xl">
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute left-1/2 top-8 h-[calc(100%-4rem)] w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-cyan-200/22 to-transparent"
-          />
+    <main className="h-[100dvh] w-[100vw] overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
+      <section className="flex h-full w-full flex-col overflow-hidden p-0">
+        <section className="relative flex h-full w-full max-w-none flex-col overflow-hidden rounded-none border-y border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.72))] p-0 shadow-[0_34px_120px_rgba(0,0,0,0.42),0_0_52px_rgba(34,211,238,0.10)] backdrop-blur-xl">
           <div className="relative z-[100] flex min-h-[84px] items-center gap-4 border-b border-cyan-100/18 bg-slate-950/70 px-3 py-3 shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10)] backdrop-blur-xl sm:px-4 sm:py-4">
             <Link
               aria-label="Open Sound Fitness dashboard"
@@ -1751,6 +2521,7 @@ export default function SessionsPage() {
                 finishHorizontalOrbitDrag(
                   event,
                   sessionsDashboardPointerStartRef,
+                  sessionsDashboardPointerMovedRef,
                 )
               }
               onPointerDown={(event) =>
@@ -1773,6 +2544,7 @@ export default function SessionsPage() {
                 finishHorizontalOrbitDrag(
                   event,
                   sessionsDashboardPointerStartRef,
+                  sessionsDashboardPointerMovedRef,
                 )
               }
             >
@@ -1806,6 +2578,10 @@ export default function SessionsPage() {
                   }
                 }}
                 onDragStart={(event) => event.preventDefault()}
+                onPointerDown={(event) => {
+                  sessionsDashboardPointerMovedRef.current = false;
+                  event.stopPropagation();
+                }}
               >
                 <span
                   aria-hidden="true"
@@ -1854,7 +2630,7 @@ export default function SessionsPage() {
                     ? "text-cyan-50"
                     : "text-slate-200 hover:bg-white/[0.04]"
                 }`}
-                onClick={() => setSessionsProfileHubOpen((open) => !open)}
+                onClick={toggleSessionsProfileHub}
                 type="button"
               >
                 <Image
@@ -1872,17 +2648,25 @@ export default function SessionsPage() {
                     Profile Hub
                   </span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="rounded-2xl border border-amber-200/20 bg-amber-300/10 px-2.5 py-2">
-                    <span className="block text-[8px] font-black uppercase tracking-[0.12em] text-amber-100/70">
+                <span className="flex items-center gap-3">
+                  <span className="flex items-center gap-1.5">
+                    <span className="sr-only">
                       ⚡ Pts
                     </span>
-                    <span className="block text-sm font-black leading-none text-white">
+                    <svg
+                      aria-hidden="true"
+                      className="h-6 w-6 text-amber-200 drop-shadow-[0_0_12px_rgba(250,204,21,0.28)]"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M13.5 2 4.8 13.2h6.1L9.7 22 19.2 9.6h-6.4L13.5 2Z" />
+                    </svg>
+                    <span className="text-sm font-black leading-none text-white">
                       {workoutRewardStats.soundPoints.toLocaleString()}
                     </span>
                   </span>
-                  <span className="rounded-2xl border border-cyan-200/18 bg-cyan-300/10 px-2.5 py-2">
-                    <span className="flex items-center gap-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/70">
+                  <span className="flex items-center gap-1.5">
+                    <span className="sr-only">
                       <Image
                         alt=""
                         aria-hidden="true"
@@ -1893,52 +2677,58 @@ export default function SessionsPage() {
                       />
                       Tok
                     </span>
-                    <span className="block text-sm font-black leading-none text-white">
+                    <Image
+                      alt=""
+                      aria-hidden="true"
+                      className="h-6 w-6 rounded-full border border-cyan-200/24 bg-slate-950 object-contain p-0.5 shadow-[0_0_12px_rgba(34,211,238,0.20)]"
+                      height={24}
+                      src="/sound-fitness-logo.png"
+                      width={24}
+                    />
+                    <span className="text-sm font-black leading-none text-white">
                       {workoutRewardStats.soundTokens.toLocaleString()}
                     </span>
                   </span>
                 </span>
-                <span
-                  aria-hidden="true"
-                  className={`text-sm font-black text-cyan-100/70 transition ${
-                    sessionsProfileHubOpen ? "rotate-180" : ""
-                  }`}
-                >
-                  ▾
-                </span>
               </button>
 
-              {sessionsProfileHubOpen && typeof document !== "undefined"
+              {sessionsProfileHubMounted && typeof document !== "undefined"
                 ? createPortal(
                     <>
                       <button
                         aria-label="Close profile hub overlay"
-                        className="fixed inset-x-0 bottom-0 top-[84px] z-[80] cursor-default bg-black/85 backdrop-blur-[10px] transition before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.16),transparent_28%),radial-gradient(circle_at_78%_26%,rgba(250,204,21,0.10),transparent_24%)]"
-                        onClick={() => setSessionsProfileHubOpen(false)}
+                        className={`fixed inset-x-0 bottom-0 top-[84px] z-[80] cursor-default bg-black/85 backdrop-blur-[10px] transition-opacity duration-[420ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.16),transparent_28%),radial-gradient(circle_at_78%_26%,rgba(250,204,21,0.10),transparent_24%)] ${
+                          sessionsProfileHubOpen
+                            ? "pointer-events-auto opacity-100"
+                            : "pointer-events-none opacity-0"
+                        }`}
+                        onClick={closeSessionsProfileHub}
                         type="button"
                       />
 
               <div
-                className={`pointer-events-none fixed inset-x-0 bottom-0 top-[84px] z-[90] w-screen overflow-hidden bg-transparent px-0 pb-0 pt-0 transition-all duration-300 [perspective:1500px] [transform-style:preserve-3d] ${
+                aria-hidden={!sessionsProfileHubOpen}
+                className={`pointer-events-none fixed inset-x-0 bottom-0 top-[84px] z-[90] w-screen overflow-hidden bg-transparent px-0 pb-0 pt-0 transition-[opacity,transform,filter] duration-[420ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] [perspective:1500px] [transform-style:preserve-3d] ${
                   sessionsProfileHubOpen
-                    ? "visible scale-100 opacity-100"
-                    : "invisible scale-[0.985] opacity-0"
+                    ? "scale-100 opacity-100 blur-0"
+                    : "scale-[0.985] opacity-0 blur-sm"
                 }`}
                 ref={sessionsProfileHubOverlayRef}
                 role="menu"
               >
                 <button
                   aria-label="Close profile hub"
-                  className="pointer-events-auto absolute right-4 top-4 z-40 grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-slate-950/70 text-sm font-black text-slate-200 shadow-[0_0_24px_rgba(0,0,0,0.24)] transition hover:border-red-200/35 hover:bg-red-500/12 hover:text-red-100"
-                  onClick={() => setSessionsProfileHubOpen(false)}
+                  className={`absolute right-4 top-4 z-40 grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-slate-950/70 text-sm font-black text-slate-200 shadow-[0_0_24px_rgba(0,0,0,0.24)] transition hover:border-red-200/35 hover:bg-red-500/12 hover:text-red-100 ${
+                    sessionsProfileHubOpen
+                      ? "pointer-events-auto"
+                      : "pointer-events-none"
+                  }`}
+                  onClick={closeSessionsProfileHub}
                   type="button"
                 >
                   X
                 </button>
                 <div className="hidden">
-                  <p className="relative z-20 text-[10px] font-black uppercase tracking-[0.22em] text-amber-100">
-                    Profile Row
-                  </p>
                   <div className="relative z-10 mt-3 flex items-center justify-between gap-4 rounded-[28px] border border-cyan-100/20 bg-slate-950/58 p-4 shadow-[0_24px_64px_rgba(0,0,0,0.34)] [transform:translateZ(34px)]">
                     <div className="flex min-w-0 items-center gap-4">
                       <Image
@@ -1990,12 +2780,17 @@ export default function SessionsPage() {
                 </div>
 
                 <div
-                  className="pointer-events-auto relative mt-0 h-[calc(100dvh-84px)] w-screen cursor-grab select-none overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none [perspective:1500px] [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing"
+                  className={`relative mt-0 h-[calc(100dvh-84px)] w-screen cursor-grab select-none overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none [perspective:1500px] [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing ${
+                    sessionsProfileHubOpen
+                      ? "pointer-events-auto"
+                      : "pointer-events-none"
+                  }`}
                   onPointerCancel={handleSessionsProfileLayerPointerEnd}
                   onPointerDown={handleSessionsProfileLayerPointerDown}
                   onPointerMove={handleSessionsProfileLayerPointerMove}
                   onPointerUp={handleSessionsProfileLayerPointerEnd}
                   onWheel={handleSessionsProfileLayerWheel}
+                  style={profileHubLayerMotionStyle}
                 >
                   <div className="absolute right-3 top-1/2 z-50 flex -translate-y-1/2 flex-col items-center gap-2">
                     <button
@@ -2029,12 +2824,12 @@ export default function SessionsPage() {
                     </button>
                   </div>
                   <div
-                    className={`absolute inset-0 h-full overflow-hidden rounded-none border-0 bg-transparent p-4 shadow-none transition-all duration-500 [transform-style:preserve-3d] ${
+                    className={`absolute inset-0 h-full overflow-hidden rounded-none border-0 bg-transparent p-4 shadow-none transition-[transform,opacity,filter] duration-[560ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] [transform-style:preserve-3d] ${
                       activeSessionsProfileLayer === 0
-                        ? "z-30 translate-y-0 scale-100 opacity-100 blur-0"
+                        ? "z-30 translate-y-[var(--profile-hub-layer-offset)] scale-100 opacity-100 blur-0"
                         : activeSessionsProfileLayer === 1
-                          ? "pointer-events-none z-10 -translate-y-[12%] scale-[0.9] opacity-40 blur-[1px]"
-                          : "pointer-events-none z-0 -translate-y-[64%] scale-[0.84] opacity-0 blur-sm"
+                          ? "pointer-events-none z-20 translate-y-[calc(-10%+var(--profile-hub-layer-offset))] scale-[0.94] opacity-75 blur-0"
+                          : "pointer-events-none z-0 translate-y-[calc(-64%+var(--profile-hub-layer-offset))] scale-[0.84] opacity-0 blur-sm"
                     }`}
                   >
                     <span
@@ -2054,6 +2849,9 @@ export default function SessionsPage() {
                           }
 
                           setSessionsProfileHubOpen(false);
+                        }}
+                        ref={(node) => {
+                          sessionsProfileLayerCardRefs.current[0] = node;
                         }}
                         role="menuitem"
                       >
@@ -2170,18 +2968,26 @@ export default function SessionsPage() {
                     </div>
                   </div>
                   <div
-                    className={`absolute inset-0 h-full cursor-grab select-none overflow-hidden rounded-none border-0 bg-transparent p-4 shadow-none transition-all duration-500 [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing ${
+                    className={`absolute inset-0 h-full cursor-grab select-none overflow-hidden rounded-none border-0 bg-transparent p-4 shadow-none transition-[transform,opacity,filter] duration-[560ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing ${
                       activeSessionsProfileLayer === 1
-                        ? "z-30 translate-y-0 scale-100 opacity-100 blur-0"
+                        ? "z-30 translate-y-[var(--profile-hub-layer-offset)] scale-100 opacity-100 blur-0"
                         : activeSessionsProfileLayer < 1
-                          ? "pointer-events-none z-10 translate-y-[42%] scale-[0.9] opacity-40 blur-[1px]"
-                          : "pointer-events-none z-10 -translate-y-[42%] scale-[0.9] opacity-40 blur-[1px]"
+                          ? "pointer-events-none z-10 translate-y-[calc(42%+var(--profile-hub-layer-offset))] scale-[0.9] opacity-40 blur-[1px]"
+                          : "pointer-events-none z-10 translate-y-[calc(-54%+var(--profile-hub-layer-offset))] scale-[0.9] opacity-40 blur-[1px]"
                     }`}
                     data-profile-horizontal-orbit="true"
+                    onWheel={(event) =>
+                      handleSessionsProfileHorizontalWheel(
+                        event,
+                        rotateSessionsHubOrbit,
+                      )
+                    }
                     onPointerCancel={(event) =>
                       finishHorizontalOrbitDrag(
                         event,
                         sessionsHubOrbitPointerStartRef,
+                        sessionsHubOrbitPointerMovedRef,
+                        setProfileHubHorizontalMotionOffset,
                       )
                     }
                     onPointerDown={(event) =>
@@ -2198,16 +3004,27 @@ export default function SessionsPage() {
                         sessionsHubOrbitPointerStartRef,
                         sessionsHubOrbitPointerMovedRef,
                         rotateSessionsHubOrbit,
-                        68,
+                        PROFILE_HUB_HORIZONTAL_DRAG_THRESHOLD,
+                        setProfileHubHorizontalMotionOffset,
                       )
                     }
                     onPointerUp={(event) =>
                       finishHorizontalOrbitDrag(
                         event,
                         sessionsHubOrbitPointerStartRef,
+                        sessionsHubOrbitPointerMovedRef,
+                        setProfileHubHorizontalMotionOffset,
                       )
                     }
                   >
+                    {renderSessionsProfileRowTitle(
+                      1,
+                      "My Hub Row",
+                      "Stats, goals, plan, rewards, and messages.",
+                      "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
+                      55,
+                      324,
+                    )}
                     <span
                       aria-hidden="true"
                       className="pointer-events-none absolute left-1/2 top-[55%] h-[230px] w-[min(88vw,1120px)] -translate-x-1/2 -translate-y-1/2 rounded-[46px] bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.11),rgba(99,102,241,0.08)_42%,transparent_74%)] blur-xl"
@@ -2220,12 +3037,18 @@ export default function SessionsPage() {
                         Math.min(3, distance),
                       );
                       const isActive = distance === 0;
-                      const orbitXSlots = [0, 235, 375, 490];
+                      const orbitXSlots = [0, 252, 400, 520];
                       const x =
                         Math.sign(clampedDistance) *
                         orbitXSlots[
                           Math.min(absDistance, orbitXSlots.length - 1)
                         ];
+                      const horizontalMotionOffset =
+                        activeSessionsProfileLayer === 1
+                          ? profileHubHorizontalMotionOffset
+                          : 0;
+                      const isPreviewingHorizontalMotion =
+                        horizontalMotionOffset !== 0;
                       const y = absDistance * 18 + (absDistance > 1 ? 8 : 0);
                       const scale = isActive
                         ? 1.04
@@ -2258,10 +3081,14 @@ export default function SessionsPage() {
                       return (
                         <div
                           aria-current={isActive ? "page" : undefined}
-                          className={`absolute left-1/2 top-[55%] cursor-pointer rounded-[28px] border text-left shadow-[0_18px_44px_rgba(0,0,0,0.38)] outline-none backdrop-blur transition-all duration-300 hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-cyan-100/50 ${
+                          className={`absolute left-1/2 top-[55%] cursor-pointer rounded-[28px] border text-left shadow-[0_18px_44px_rgba(0,0,0,0.38)] outline-none backdrop-blur transition-[transform,opacity,filter,border-color,background-color,box-shadow,width,padding] will-change-[transform,opacity,filter,width] hover:border-white/25 focus-visible:ring-2 focus-visible:ring-cyan-100/50 ${
+                            isPreviewingHorizontalMotion
+                              ? "duration-100 ease-out"
+                              : "duration-[520ms] ease-[cubic-bezier(0.2,0.85,0.25,1)]"
+                          } ${
                             isActive
-                              ? "w-[min(82vw,300px)] p-5 ring-2 ring-cyan-100/30"
-                              : "w-[180px] p-4"
+                              ? "w-[min(84vw,324px)] p-5 ring-2 ring-cyan-100/30"
+                              : "w-[190px] p-4"
                           } ${item.tone}`}
                           key={item.label}
                           onClick={() => {
@@ -2307,12 +3134,17 @@ export default function SessionsPage() {
                             setSessionsProfileHubOpen(false);
                             router.push(item.href);
                           }}
+                          ref={(node) => {
+                            if (isActive) {
+                              sessionsProfileLayerCardRefs.current[1] = node;
+                            }
+                          }}
                           role="menuitem"
                           style={{
                             filter:
                               absDistance > 2 ? "blur(1.5px)" : "none",
                             opacity,
-                            transform: `translate(-50%, -50%) translateX(${x}px) translateY(${y}px) rotateY(${rotateY}deg) translateZ(${depth}px) scale(${scale})`,
+                            transform: `translate(-50%, -50%) translateX(${x + horizontalMotionOffset}px) translateY(${y}px) rotateY(${rotateY}deg) translateZ(${depth}px) scale(${scale})`,
                             zIndex,
                           }}
                           tabIndex={0}
@@ -2327,7 +3159,7 @@ export default function SessionsPage() {
                               aria-hidden="true"
                             >
                               {"iconType" in item &&
-                              item.iconType === "logout" ? (
+                              item.iconType === "profile" ? (
                                 <svg
                                   className={isActive ? "h-6 w-6" : "h-5 w-5"}
                                   fill="none"
@@ -2337,10 +3169,8 @@ export default function SessionsPage() {
                                   strokeWidth="2.2"
                                   viewBox="0 0 24 24"
                                 >
-                                  <path d="M10 17l5-5-5-5" />
-                                  <path d="M15 12H3" />
-                                  <path d="M21 5v14a2 2 0 0 1-2 2h-7" />
-                                  <path d="M12 3h7a2 2 0 0 1 2 2" />
+                                  <path d="M20 21a8 8 0 0 0-16 0" />
+                                  <circle cx="12" cy="7" r="4" />
                                 </svg>
                               ) : (
                                 item.icon
@@ -2368,10 +3198,14 @@ export default function SessionsPage() {
                             <button
                               aria-controls={detailsId}
                               aria-expanded={detailsOpen}
-                              className={`flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-950/34 font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-cyan-100/34 hover:bg-slate-950/52 ${
-                                isActive
-                                  ? "px-3 py-2 text-[9px]"
-                                  : "px-2.5 py-1.5 text-[8px]"
+                              className={`font-black uppercase tracking-[0.12em] text-slate-100 transition ${
+                                detailsOpen
+                                  ? "ml-auto flex h-7 w-7 items-center justify-center border-0 bg-transparent p-0 text-cyan-100 hover:text-white"
+                                  : `flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-950/34 hover:border-cyan-100/34 hover:bg-slate-950/52 ${
+                                      isActive
+                                        ? "px-3 py-2 text-[9px]"
+                                        : "px-2.5 py-1.5 text-[8px]"
+                                    }`
                               }`}
                               onClick={(event) => {
                                 event.stopPropagation();
@@ -2383,7 +3217,9 @@ export default function SessionsPage() {
                               onPointerDown={(event) => event.stopPropagation()}
                               type="button"
                             >
-                              <span>Details</span>
+                              <span className={detailsOpen ? "sr-only" : ""}>
+                                Details
+                              </span>
                               <span
                                 aria-hidden="true"
                                 className={`text-[10px] transition ${
@@ -2404,10 +3240,10 @@ export default function SessionsPage() {
                               <div className="grid gap-2">
                                 {visibleReferences.map((reference) => (
                                   <span
-                                    className={`rounded-2xl border border-white/10 bg-slate-950/34 font-black text-slate-100 ${
+                                    className={`border-0 bg-transparent font-black text-slate-100 ${
                                       isActive
-                                        ? "px-3 py-2 text-[10px]"
-                                        : "truncate px-2.5 py-1.5 text-[8px]"
+                                        ? "px-1 py-1 text-[10px]"
+                                        : "truncate px-1 py-0.5 text-[8px]"
                                     }`}
                                     key={reference}
                                   >
@@ -2436,6 +3272,8 @@ export default function SessionsPage() {
                             >
                               {"action" in item && item.action === "logout"
                                 ? "Log Out"
+                                : item.label === "Update Profile"
+                                  ? "Open Profile"
                                 : "Open Hub"}
                             </button>
                           ) : null}
@@ -2465,18 +3303,26 @@ export default function SessionsPage() {
                   </div>
 
                   <div
-                    className={`absolute inset-0 h-full cursor-grab select-none overflow-hidden rounded-none border-0 bg-transparent p-4 shadow-none transition-all duration-500 [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing ${
+                    className={`absolute inset-0 h-full cursor-grab select-none overflow-hidden rounded-none border-0 bg-transparent p-4 shadow-none transition-[transform,opacity,filter] duration-[560ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing ${
                       activeSessionsProfileLayer === 2
-                        ? "z-30 translate-y-0 scale-100 opacity-100 blur-0"
+                        ? "z-30 translate-y-[var(--profile-hub-layer-offset)] scale-100 opacity-100 blur-0"
                         : activeSessionsProfileLayer === 1
-                          ? "pointer-events-none z-10 translate-y-[42%] scale-[0.9] opacity-40 blur-[1px]"
-                          : "pointer-events-none z-0 translate-y-[64%] scale-[0.84] opacity-0 blur-sm"
+                          ? "pointer-events-none z-10 translate-y-[calc(56%+var(--profile-hub-layer-offset))] scale-[0.9] opacity-40 blur-[1px]"
+                          : "pointer-events-none z-0 translate-y-[calc(64%+var(--profile-hub-layer-offset))] scale-[0.84] opacity-0 blur-sm"
                     }`}
                     data-profile-horizontal-orbit="true"
+                    onWheel={(event) =>
+                      handleSessionsProfileHorizontalWheel(
+                        event,
+                        rotateSessionsAccountOrbit,
+                      )
+                    }
                     onPointerCancel={(event) =>
                       finishHorizontalOrbitDrag(
                         event,
                         sessionsAccountOrbitPointerStartRef,
+                        sessionsAccountOrbitPointerMovedRef,
+                        setProfileHubHorizontalMotionOffset,
                       )
                     }
                     onPointerDown={(event) =>
@@ -2493,16 +3339,27 @@ export default function SessionsPage() {
                         sessionsAccountOrbitPointerStartRef,
                         sessionsAccountOrbitPointerMovedRef,
                         rotateSessionsAccountOrbit,
-                        68,
+                        PROFILE_HUB_HORIZONTAL_DRAG_THRESHOLD,
+                        setProfileHubHorizontalMotionOffset,
                       )
                     }
                     onPointerUp={(event) =>
                       finishHorizontalOrbitDrag(
                         event,
                         sessionsAccountOrbitPointerStartRef,
+                        sessionsAccountOrbitPointerMovedRef,
+                        setProfileHubHorizontalMotionOffset,
                       )
                     }
                   >
+                    {renderSessionsProfileRowTitle(
+                      2,
+                      "Account Row",
+                      "Settings, billing, and help.",
+                      "border-amber-200/24 bg-amber-300/10 text-amber-100",
+                      54,
+                      316,
+                    )}
                     <span
                       aria-hidden="true"
                       className="pointer-events-none absolute left-1/2 top-[54%] h-[204px] w-[min(84vw,1000px)] -translate-x-1/2 -translate-y-1/2 rounded-[42px] bg-[radial-gradient(ellipse_at_center,rgba(250,204,21,0.10),rgba(34,211,238,0.07)_44%,transparent_74%)] blur-xl"
@@ -2515,12 +3372,18 @@ export default function SessionsPage() {
                         Math.min(2, distance),
                       );
                       const isActive = distance === 0;
-                      const orbitXSlots = [0, 232, 365];
+                      const orbitXSlots = [0, 250, 390];
                       const x =
                         Math.sign(clampedDistance) *
                         orbitXSlots[
                           Math.min(absDistance, orbitXSlots.length - 1)
                         ];
+                      const horizontalMotionOffset =
+                        activeSessionsProfileLayer === 2
+                          ? profileHubHorizontalMotionOffset
+                          : 0;
+                      const isPreviewingHorizontalMotion =
+                        horizontalMotionOffset !== 0;
                       const y = absDistance * 18 + (absDistance > 1 ? 8 : 0);
                       const scale = isActive
                         ? 1.04
@@ -2535,6 +3398,8 @@ export default function SessionsPage() {
                       const depth = isActive ? 58 : 26 - absDistance * 10;
                       const rotateY = clampedDistance * -18;
                       const zIndex = 40 - absDistance;
+                      const isLogout =
+                        "action" in item && item.action === "logout";
                       const detailsKey = `account-${item.label}`;
                       const detailsOpen =
                         openSessionsProfileDetailKey === detailsKey;
@@ -2549,10 +3414,14 @@ export default function SessionsPage() {
                       return (
                         <div
                           aria-current={isActive ? "page" : undefined}
-                          className={`absolute left-1/2 top-[54%] cursor-pointer rounded-[28px] border text-left shadow-[0_18px_44px_rgba(0,0,0,0.38)] outline-none backdrop-blur transition-all duration-300 hover:scale-[1.02] focus-visible:ring-2 focus-visible:ring-amber-100/50 ${
+                          className={`absolute left-1/2 top-[54%] cursor-pointer rounded-[28px] border text-left shadow-[0_18px_44px_rgba(0,0,0,0.38)] outline-none backdrop-blur transition-[transform,opacity,filter,border-color,background-color,box-shadow,width,padding] will-change-[transform,opacity,filter,width] hover:border-white/25 focus-visible:ring-2 focus-visible:ring-amber-100/50 ${
+                            isPreviewingHorizontalMotion
+                              ? "duration-100 ease-out"
+                              : "duration-[520ms] ease-[cubic-bezier(0.2,0.85,0.25,1)]"
+                          } ${
                             isActive
-                              ? "w-[min(82vw,294px)] p-5 ring-2 ring-amber-100/30"
-                              : "w-[176px] p-4"
+                              ? "w-[min(84vw,316px)] p-5 ring-2 ring-amber-100/30"
+                              : "w-[186px] p-4"
                           } ${item.tone}`}
                           key={item.label}
                           onClick={() => {
@@ -2598,12 +3467,17 @@ export default function SessionsPage() {
                             setSessionsProfileHubOpen(false);
                             router.push(item.href);
                           }}
+                          ref={(node) => {
+                            if (isActive) {
+                              sessionsProfileLayerCardRefs.current[2] = node;
+                            }
+                          }}
                           role="menuitem"
                           style={{
                             filter:
                               absDistance > 1 ? "blur(1.25px)" : "none",
                             opacity,
-                            transform: `translate(-50%, -50%) translateX(${x}px) translateY(${y}px) rotateY(${rotateY}deg) translateZ(${depth}px) scale(${scale})`,
+                            transform: `translate(-50%, -50%) translateX(${x + horizontalMotionOffset}px) translateY(${y}px) rotateY(${rotateY}deg) translateZ(${depth}px) scale(${scale})`,
                             zIndex,
                           }}
                           tabIndex={0}
@@ -2655,59 +3529,69 @@ export default function SessionsPage() {
                           >
                             {item.helper}
                           </div>
-                          <div className="mt-3">
-                            <button
-                              aria-controls={detailsId}
-                              aria-expanded={detailsOpen}
-                              className={`flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-950/34 font-black uppercase tracking-[0.12em] text-slate-100 transition hover:border-amber-100/34 hover:bg-slate-950/52 ${
-                                isActive
-                                  ? "px-3 py-2 text-[9px]"
-                                  : "px-2.5 py-1.5 text-[8px]"
-                              }`}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                setOpenSessionsProfileDetailKey((openKey) =>
-                                  openKey === detailsKey ? null : detailsKey,
-                                );
-                              }}
-                              onKeyDown={(event) => event.stopPropagation()}
-                              onPointerDown={(event) => event.stopPropagation()}
-                              type="button"
-                            >
-                              <span>Details</span>
-                              <span
-                                aria-hidden="true"
-                                className={`text-[10px] transition ${
-                                  detailsOpen ? "rotate-180" : ""
+                          {!isLogout ? (
+                            <div className="mt-3">
+                              <button
+                                aria-controls={detailsId}
+                                aria-expanded={detailsOpen}
+                                className={`font-black uppercase tracking-[0.12em] text-slate-100 transition ${
+                                  detailsOpen
+                                    ? "ml-auto flex h-7 w-7 items-center justify-center border-0 bg-transparent p-0 text-amber-100 hover:text-white"
+                                    : `flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-950/34 hover:border-amber-100/34 hover:bg-slate-950/52 ${
+                                        isActive
+                                          ? "px-3 py-2 text-[9px]"
+                                          : "px-2.5 py-1.5 text-[8px]"
+                                      }`
                                 }`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setOpenSessionsProfileDetailKey((openKey) =>
+                                    openKey === detailsKey ? null : detailsKey,
+                                  );
+                                }}
+                                onKeyDown={(event) => event.stopPropagation()}
+                                onPointerDown={(event) =>
+                                  event.stopPropagation()
+                                }
+                                type="button"
                               >
-                                v
-                              </span>
-                            </button>
-                            <div
-                              className={`overflow-hidden transition-all duration-300 ${
-                                detailsOpen
-                                  ? "mt-2 max-h-44 opacity-100"
-                                  : "max-h-0 opacity-0"
-                              }`}
-                              id={detailsId}
-                            >
-                              <div className="grid gap-2">
-                                {visibleReferences.map((reference) => (
-                                  <span
-                                    className={`rounded-2xl border border-white/10 bg-slate-950/34 font-black text-slate-100 ${
-                                      isActive
-                                        ? "px-3 py-2 text-[10px]"
-                                        : "truncate px-2.5 py-1.5 text-[8px]"
-                                    }`}
-                                    key={reference}
-                                  >
-                                    {reference}
-                                  </span>
-                                ))}
+                                <span className={detailsOpen ? "sr-only" : ""}>
+                                  Details
+                                </span>
+                                <span
+                                  aria-hidden="true"
+                                  className={`text-[10px] transition ${
+                                    detailsOpen ? "rotate-180" : ""
+                                  }`}
+                                >
+                                  v
+                                </span>
+                              </button>
+                              <div
+                                className={`overflow-hidden transition-all duration-300 ${
+                                  detailsOpen
+                                    ? "mt-2 max-h-44 opacity-100"
+                                    : "max-h-0 opacity-0"
+                                }`}
+                                id={detailsId}
+                              >
+                                <div className="grid gap-2">
+                                  {visibleReferences.map((reference) => (
+                                    <span
+                                      className={`border-0 bg-transparent font-black text-slate-100 ${
+                                        isActive
+                                          ? "px-1 py-1 text-[10px]"
+                                          : "truncate px-1 py-0.5 text-[8px]"
+                                      }`}
+                                      key={reference}
+                                    >
+                                      {reference}
+                                    </span>
+                                  ))}
+                                </div>
                               </div>
                             </div>
-                          </div>
+                          ) : null}
                           {isActive ? (
                             <button
                               className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/36 px-3 py-2 text-center text-[9px] font-black uppercase tracking-[0.14em] text-white transition hover:border-amber-100/34 hover:bg-amber-300/10"
@@ -2727,35 +3611,65 @@ export default function SessionsPage() {
                             >
                               {"action" in item && item.action === "logout"
                                 ? "Log Out"
-                                : item.label === "Edit Profile"
-                                  ? "Open Profile"
-                                  : "Open Account"}
+                                : "Open Account"}
                             </button>
                           ) : null}
                         </div>
                       );
                     })}
                     {activeSessionsProfileLayer === 2 ? (
-                    <div
-                      className="pointer-events-auto absolute left-1/2 z-30 flex -translate-x-1/2 items-center"
-                      style={{ top: "calc(54% + 176px)" }}
-                    >
-                      <div className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/34 px-3 py-2">
-                        {sessionsAccountOrbitItems.map((item, index) => (
+                      <>
+                        <div
+                          className="pointer-events-auto absolute left-1/2 z-30 flex w-[min(84vw,316px)] -translate-x-1/2"
+                          style={{ top: "calc(54% + 192px)" }}
+                        >
                           <button
-                            aria-label={`Show ${item.label}`}
-                            className={`h-2 rounded-full transition ${
-                              index === activeSessionsAccountIndex
-                                ? "w-8 bg-amber-200 shadow-[0_0_14px_rgba(253,230,138,0.58)]"
-                                : "w-2 bg-slate-500/55 hover:bg-cyan-200/75"
-                            }`}
-                            key={item.label}
-                            onClick={() => setActiveSessionsAccountIndex(index)}
+                            className="flex min-h-[50px] w-full items-center justify-center gap-3 rounded-2xl border border-red-300/24 bg-red-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-red-100 shadow-[0_18px_44px_rgba(0,0,0,0.26)] backdrop-blur transition hover:-translate-y-0.5 hover:border-red-200/45 hover:bg-red-500/16 active:scale-[0.98]"
+                            onClick={signOutFromSessionsHub}
+                            onPointerDown={(event) => event.stopPropagation()}
                             type="button"
-                          />
-                        ))}
-                      </div>
-                    </div>
+                          >
+                            <svg
+                              aria-hidden="true"
+                              className="h-4 w-4 shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2.2"
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M10 17l5-5-5-5" />
+                              <path d="M15 12H3" />
+                              <path d="M21 5v14a2 2 0 0 1-2 2h-7" />
+                              <path d="M12 3h7a2 2 0 0 1 2 2" />
+                            </svg>
+                            Log Out
+                          </button>
+                        </div>
+                        <div
+                          className="pointer-events-auto absolute left-1/2 z-30 flex -translate-x-1/2 items-center"
+                          style={{ top: "calc(54% + 258px)" }}
+                        >
+                          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/34 px-3 py-2">
+                            {sessionsAccountOrbitItems.map((item, index) => (
+                              <button
+                                aria-label={`Show ${item.label}`}
+                                className={`h-2 rounded-full transition ${
+                                  index === activeSessionsAccountIndex
+                                    ? "w-8 bg-amber-200 shadow-[0_0_14px_rgba(253,230,138,0.58)]"
+                                    : "w-2 bg-slate-500/55 hover:bg-cyan-200/75"
+                                }`}
+                                key={item.label}
+                                onClick={() =>
+                                  setActiveSessionsAccountIndex(index)
+                                }
+                                type="button"
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </>
                     ) : null}
                     <div className="hidden">
                       <Link
@@ -2763,7 +3677,7 @@ export default function SessionsPage() {
                         href={ROUTES.dashboard.profile}
                         onClick={() => setSessionsProfileHubOpen(false)}
                       >
-                        Edit Profile
+                        Update Profile
                       </Link>
                       <button
                         className="rounded-2xl border border-red-300/22 bg-red-500/10 px-4 py-3 text-left text-xs font-black uppercase tracking-[0.14em] text-red-100 transition hover:bg-red-500/16"
@@ -2782,10 +3696,10 @@ export default function SessionsPage() {
                 : null}
             </div>
           </div>
-          <div className="relative z-10 py-0 [perspective:1600px]">
+          <div className="relative z-10 min-h-0 flex-1 overflow-hidden py-0 [perspective:1600px]">
 
             <section
-              className="relative overflow-visible rounded-[34px] transition-all duration-700 ease-out [transform-style:preserve-3d]"
+              className="relative h-full min-h-0 overflow-visible rounded-[34px] transition-all duration-700 ease-out [transform-style:preserve-3d]"
               id="sessions-orbit-journey"
             >
               <div
@@ -2793,30 +3707,9 @@ export default function SessionsPage() {
                 className="pointer-events-none absolute left-1/2 top-[48%] h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-300/10 blur-3xl"
               />
 
-            {!isTrainingJourneyHeroActive ? (
-              <button
-                aria-label="Move training journey orbit up toward the hero command center"
-                className="absolute left-1/2 top-[154px] z-30 flex h-10 w-10 -translate-x-1/2 items-center justify-center rounded-full border border-amber-200/28 bg-slate-950/70 text-xl font-black text-amber-100 shadow-[0_0_30px_rgba(250,204,21,0.14)] backdrop-blur transition hover:-translate-y-0.5 hover:border-cyan-200/45 hover:bg-cyan-300/10 hover:text-cyan-50 active:scale-95 sm:h-12 sm:w-12 sm:text-2xl"
-                onClick={() => rotateTrainingJourney("up")}
-                type="button"
-              >
-                ^
-              </button>
-            ) : null}
-            <button
-              aria-label="Move training journey orbit down to core systems"
-              className="absolute bottom-[108px] left-1/2 z-30 flex h-10 w-10 -translate-x-1/2 items-center justify-center rounded-full border border-amber-200/28 bg-slate-950/70 text-xl font-black text-amber-100 shadow-[0_0_30px_rgba(250,204,21,0.14)] backdrop-blur transition hover:translate-y-0.5 hover:border-cyan-200/45 hover:bg-cyan-300/10 hover:text-cyan-50 active:scale-95 sm:h-12 sm:w-12 sm:text-2xl"
-              onClick={() => rotateTrainingJourney("down")}
-              type="button"
-            >
-              v
-            </button>
-
             <button
               aria-label="Previous training journey stage"
-              className={`absolute left-1 top-[68%] z-30 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/64 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-3 sm:h-14 sm:w-14 sm:text-3xl ${
-                isTrainingJourneyHeroActive ? "hidden" : "flex"
-              }`}
+              className="hidden"
               onClick={() => rotateTrainingJourney("left")}
               type="button"
             >
@@ -2824,18 +3717,60 @@ export default function SessionsPage() {
             </button>
             <button
               aria-label="Next training journey stage"
-              className={`absolute right-1 top-[68%] z-30 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/64 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-3 sm:h-14 sm:w-14 sm:text-3xl ${
-                isTrainingJourneyHeroActive ? "hidden" : "flex"
-              }`}
+              className="hidden"
               onClick={() => rotateTrainingJourney("right")}
               type="button"
             >
               ›
             </button>
 
+            <div className="absolute right-3 top-1/2 z-50 flex -translate-y-1/2 flex-col items-center gap-2 sm:right-5">
+              <button
+                aria-label="Move sessions journey row up"
+                className={`grid h-10 w-10 place-items-center rounded-full border text-lg font-black shadow-[0_0_24px_rgba(0,0,0,0.28)] transition active:scale-95 ${
+                  activeTrainingJourneyLayer > TRAINING_JOURNEY_HERO_LAYER
+                    ? "border-cyan-100/45 bg-cyan-300/18 text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.22)] hover:border-cyan-100/70 hover:bg-cyan-300/24"
+                    : "border-white/12 bg-slate-950/72 text-slate-500 opacity-60"
+                }`}
+                disabled={
+                  activeTrainingJourneyLayer <= TRAINING_JOURNEY_HERO_LAYER
+                }
+                onClick={(event) => {
+                  event.stopPropagation();
+                  rotateTrainingJourney("up");
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                ^
+              </button>
+              <span className="rounded-full border border-white/10 bg-slate-950/72 px-2 py-1 text-[8px] font-black uppercase tracking-[0.16em] text-slate-300 shadow-[0_0_20px_rgba(0,0,0,0.24)] backdrop-blur [writing-mode:vertical-rl]">
+                {activeTrainingJourneyLayerLabel}
+              </span>
+              <button
+                aria-label="Move sessions journey row down"
+                className={`grid h-10 w-10 place-items-center rounded-full border text-lg font-black shadow-[0_0_24px_rgba(0,0,0,0.28)] transition active:scale-95 ${
+                  activeTrainingJourneyLayer < totalTrainingJourneyLayers - 1
+                    ? "border-amber-100/45 bg-amber-300/18 text-amber-50 shadow-[0_0_24px_rgba(250,204,21,0.20)] hover:border-amber-100/70 hover:bg-amber-300/24"
+                    : "border-white/12 bg-slate-950/72 text-slate-500 opacity-60"
+                }`}
+                disabled={
+                  activeTrainingJourneyLayer >= totalTrainingJourneyLayers - 1
+                }
+                onClick={(event) => {
+                  event.stopPropagation();
+                  rotateTrainingJourney("down");
+                }}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                v
+              </button>
+            </div>
+
             <div
               aria-label="Training journey orbit selector"
-              className="relative z-10 h-[880px] w-full cursor-grab select-none overflow-visible outline-none [perspective:1500px] [touch-action:none] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[920px]"
+              className="relative z-10 h-full min-h-0 w-full cursor-grab select-none overflow-visible outline-none [perspective:1500px] [touch-action:none] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45"
               onClickCapture={(event) => {
                 if (trainingJourneyPointerMovedRef.current) {
                   event.preventDefault();
@@ -2866,7 +3801,7 @@ export default function SessionsPage() {
               <article
                 aria-current={isTrainingJourneyHeroActive ? "step" : undefined}
                 aria-label="Workout hero command center"
-                className={`absolute left-1/2 top-1/2 z-50 w-[min(96%,1500px)] overflow-hidden rounded-[34px] border bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.9),rgba(2,6,23,0.74))] p-4 text-left shadow-2xl backdrop-blur-xl transition-[border-color,background-color,box-shadow] duration-300 [--sessions-hero-active-y:30px] sm:p-4 sm:[--sessions-hero-active-y:-38px] lg:p-5 lg:[--sessions-hero-active-y:-92px] ${
+                className={`absolute left-1/2 top-1/2 z-50 w-[min(118.5vw,1736px)] overflow-hidden rounded-[34px] border bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.9),rgba(2,6,23,0.74))] p-3 text-left shadow-2xl backdrop-blur-xl transition-[border-color,background-color,box-shadow] duration-300 [--sessions-hero-active-y:44px] sm:p-4 sm:[--sessions-hero-active-y:-12px] lg:p-4 lg:[--sessions-hero-active-y:-60px] ${
                   isTrainingJourneyHeroActive
                     ? "border-cyan-100/34 ring-2 ring-cyan-100/20 shadow-[0_34px_120px_rgba(0,0,0,0.50),0_0_52px_rgba(34,211,238,0.18)]"
                     : "border-cyan-200/14 shadow-[0_24px_70px_rgba(0,0,0,0.36)]"
@@ -2884,7 +3819,11 @@ export default function SessionsPage() {
                     isTrainingJourneyHeroActive
                       ? "var(--sessions-hero-active-y)"
                       : `${trainingJourneyHeroOffset - 80}px`
-                  }) scale(${isTrainingJourneyHeroActive ? 1 : 0.58})`,
+                  }) scale(${
+                    isTrainingJourneyHeroActive
+                      ? SESSIONS_HERO_ACTIVE_SCALE
+                      : SESSIONS_HERO_PREVIEW_SCALE
+                  })`,
                   transition:
                     "transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 360ms ease, filter 360ms ease",
                 }}
@@ -2915,6 +3854,7 @@ export default function SessionsPage() {
                       </span>
                     </div>
 
+                    <div className="xl:mt-8">
                     <h1 className="mt-3 max-w-4xl text-3xl font-black leading-tight text-white sm:text-5xl">
                       Everything you need to work out.
                     </h1>
@@ -2924,7 +3864,38 @@ export default function SessionsPage() {
                       session into progress.
                     </p>
 
-                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                    <div className="mt-4 max-w-3xl rounded-[22px] border border-white/10 bg-slate-950/52 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                            Active Workout Source
+                          </p>
+                          <h2 className="mt-1 text-lg font-black text-white">
+                            {activeSessionTemplate?.title ||
+                              "Default workout logger"}
+                          </h2>
+                        </div>
+                        <span className="w-fit rounded-full border border-cyan-200/24 bg-cyan-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                          {activeSessionTemplate ? "Loaded" : "Ready"}
+                        </span>
+                      </div>
+                      <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-400">
+                        {activeSessionTemplate
+                          ? `${activeSessionTemplate.exercises.length} exercise${
+                              activeSessionTemplate.exercises.length === 1
+                                ? ""
+                                : "s"
+                            } loaded from your saved templates.`
+                          : "No saved template is active. The logger opens with the default workout fallback."}
+                      </p>
+                      {launcherMessage ? (
+                        <p className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-100">
+                          {launcherMessage}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                       <Link
                         href={ROUTES.dashboard.sessionWorkout}
                         className="min-h-[46px] rounded-2xl bg-cyan-300 px-5 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_0_32px_rgba(34,211,238,0.26)] transition hover:-translate-y-0.5 hover:bg-cyan-200"
@@ -2944,38 +3915,47 @@ export default function SessionsPage() {
                         Exercise Library
                       </Link>
                     </div>
+                    </div>
                   </div>
 
                   <div className="grid gap-2 sm:grid-cols-2 xl:w-[380px] xl:grid-cols-1">
                     <div className="rounded-[24px] border border-white/10 bg-slate-950/55 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
                       <div className="flex items-start justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-                            Active Workout Source
+                            Profile + Goals
                           </p>
                           <h2 className="mt-2 text-lg font-black text-white">
-                            {activeSessionTemplate?.title ||
-                              "Default workout logger"}
+                            {activePlan.primaryFocus}
                           </h2>
                         </div>
-                        <span className="rounded-full border border-cyan-200/24 bg-cyan-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
-                          {activeSessionTemplate ? "Loaded" : "Ready"}
+                        <span className="rounded-full border border-amber-200/24 bg-amber-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
+                          {activePlan.phase}
                         </span>
                       </div>
                       <p className="mt-2 line-clamp-2 text-xs font-semibold leading-5 text-slate-400">
-                        {activeSessionTemplate
-                          ? `${activeSessionTemplate.exercises.length} exercise${
-                              activeSessionTemplate.exercises.length === 1
-                                ? ""
-                                : "s"
-                            } loaded from your saved templates.`
-                          : "No saved template is active. The logger opens with the default workout fallback."}
+                        {activePlan.goal}
                       </p>
-                      {launcherMessage ? (
-                        <p className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold text-emerald-100">
-                          {launcherMessage}
-                        </p>
-                      ) : null}
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        {[
+                          ["Style", activePlan.split],
+                          ["Weekly", activePlan.weeklyTarget],
+                          ["Readiness", activePlan.recovery],
+                          ["Focus", activePlan.secondaryFocus],
+                        ].map(([label, value]) => (
+                          <div
+                            className="rounded-2xl border border-white/10 bg-slate-950/42 px-3 py-2"
+                            key={label}
+                          >
+                            <div className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                              {label}
+                            </div>
+                            <div className="mt-1 truncate text-[10px] font-black text-cyan-50">
+                              {value}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
                     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-2">
@@ -3040,14 +4020,15 @@ export default function SessionsPage() {
                   </div>
                 </div>
 
-                <div className="relative z-10 -mx-4 mt-4 overflow-hidden border-y border-white/10 bg-[radial-gradient(circle_at_8%_0%,rgba(250,204,21,0.12),transparent_32%),radial-gradient(circle_at_92%_20%,rgba(34,211,238,0.10),transparent_34%),rgba(2,6,23,0.24)] py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:-mx-4 lg:-mx-5">
+                <div className="relative z-10 -mx-3 mt-2 overflow-hidden py-1 before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(ellipse_at_8%_0%,rgba(250,204,21,0.12),transparent_32%),radial-gradient(ellipse_at_92%_20%,rgba(34,211,238,0.10),transparent_34%),radial-gradient(ellipse_at_50%_72%,rgba(2,6,23,0.34),transparent_72%)] before:[mask-image:linear-gradient(to_bottom,transparent_0%,black_42%,black_100%)] before:content-[''] sm:-mx-4 lg:-mx-4">
                   <div
                     aria-label="Workout achievement orbit"
-                    className="relative z-10 h-[210px] cursor-grab select-none overflow-hidden [perspective:1100px] [touch-action:pan-y] active:cursor-grabbing sm:h-[226px]"
+                    className="relative z-10 h-[148px] cursor-grab select-none overflow-hidden [perspective:1100px] [touch-action:pan-y] active:cursor-grabbing sm:h-[164px]"
                     onPointerCancel={(event) =>
                       finishHorizontalOrbitDrag(
                         event,
                         heroAchievementPointerStartRef,
+                        heroAchievementPointerMovedRef,
                       )
                     }
                     onPointerDown={(event) =>
@@ -3070,6 +4051,7 @@ export default function SessionsPage() {
                       finishHorizontalOrbitDrag(
                         event,
                         heroAchievementPointerStartRef,
+                        heroAchievementPointerMovedRef,
                       )
                     }
                     onWheel={handleHeroAchievementWheel}
@@ -3102,18 +4084,49 @@ export default function SessionsPage() {
                       const distance = getHeroAchievementOrbitDistance(index);
                       const absDistance = Math.abs(distance);
                       const direction = Math.sign(distance);
-                      const slot =
-                        heroAchievementOrbitSlots[
-                          Math.min(absDistance, heroAchievementOrbitSlots.length - 1)
-                        ];
+                      const slotIndex = Math.min(
+                        absDistance,
+                        heroAchievementOrbitSlots.length - 1,
+                      );
+                      const baseSlot = heroAchievementOrbitSlots[slotIndex];
+                      const shouldRestartOffEdge =
+                        absDistance > HERO_ACHIEVEMENT_VISIBLE_DISTANCE;
+                      const overflowDistance = Math.max(0, absDistance - slotIndex);
+                      const slot = overflowDistance
+                        ? {
+                            ...baseSlot,
+                            blur: baseSlot.blur + overflowDistance * 0.8,
+                            opacity: shouldRestartOffEdge
+                              ? 0
+                              : Math.max(
+                                  0,
+                                  baseSlot.opacity - overflowDistance * 0.08,
+                                ),
+                            rotateY: baseSlot.rotateY - overflowDistance * 8,
+                            scale: Math.max(
+                              0.26,
+                              baseSlot.scale - overflowDistance * 0.08,
+                            ),
+                            x: baseSlot.x + overflowDistance * 140,
+                            y: baseSlot.y + overflowDistance * 32,
+                            zIndex: Math.max(
+                              0,
+                              baseSlot.zIndex - overflowDistance * 4,
+                            ),
+                          }
+                        : baseSlot;
                       const isActiveAchievement =
                         index === activeHeroAchievementIndex;
+                      const resetDirection =
+                        heroAchievementSlideDirection === "right" ? 1 : -1;
+                      const isRestartingAcrossEdge =
+                        shouldRestartOffEdge && direction === resetDirection;
 
                       return (
                         <article
                           aria-current={isActiveAchievement ? "step" : undefined}
                           aria-label={`Open ${achievement.label} achievements`}
-                          className={`group/hero-achievement absolute left-1/2 top-1/2 flex min-h-[148px] w-[min(56vw,190px)] cursor-pointer flex-col items-center justify-center text-center transition duration-300 ${
+                          className={`group/hero-achievement absolute left-1/2 top-1/2 flex min-h-[128px] w-[min(52vw,170px)] cursor-pointer flex-col items-center justify-center text-center transition duration-300 ${
                             isActiveAchievement
                               ? "drop-shadow-[0_20px_44px_rgba(34,211,238,0.26)]"
                               : "hover:drop-shadow-[0_14px_34px_rgba(34,211,238,0.14)]"
@@ -3145,8 +4158,9 @@ export default function SessionsPage() {
                             }px) translateY(${slot.y}px) scale(${slot.scale}) rotateY(${
                               direction * slot.rotateY
                             }deg)`,
-                            transition:
-                              "transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 320ms ease, filter 320ms ease",
+                            transition: isRestartingAcrossEdge
+                              ? "opacity 180ms ease, filter 180ms ease"
+                              : "transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 320ms ease, filter 320ms ease",
                             zIndex: slot.zIndex,
                           }}
                           tabIndex={0}
@@ -3170,7 +4184,7 @@ export default function SessionsPage() {
                             />
                           </div>
                           <h3
-                            className={`relative z-10 mt-4 max-w-[170px] text-center font-black uppercase leading-tight tracking-[0.1em] ${
+                            className={`relative z-10 mt-2 max-w-[150px] text-center font-black uppercase leading-tight tracking-[0.1em] ${
                               isActiveAchievement
                                 ? "text-sm text-white drop-shadow-[0_0_16px_rgba(34,211,238,0.24)]"
                                 : "text-[10px] text-slate-300"
@@ -3188,13 +4202,13 @@ export default function SessionsPage() {
               {[
                 {
                   helper: "Profile + Goals, My Plan, Builder, Exercise Library, Session History",
-                  label: "Core Flow Row",
+                  label: "Core Workout Flow",
                   layer: 0,
                   tone: "border-cyan-200/26 bg-cyan-300/10 text-cyan-100",
                 },
                 {
-                  helper: "Insights, Performance, Achievements",
-                  label: "Upper Systems Row",
+                  helper: "Insights, Performance, Stats, Calendar, Appointments, Messages, Packages, Achievements",
+                  label: "Systems Row",
                   layer: 1,
                   tone: "border-amber-200/26 bg-amber-300/10 text-amber-100",
                 },
@@ -3208,8 +4222,27 @@ export default function SessionsPage() {
                   -8 +
                   rowLayerOffset * TRAINING_JOURNEY_LAYER_SPACING +
                   previewShift;
+                const rowLayerSize = getTrainingJourneyLayerSize(row.layer);
+                const rowActivePosition = Math.min(
+                  activeTrainingJourneyPositions[row.layer] || 0,
+                  rowLayerSize - 1,
+                );
+                const rowActiveIndex =
+                  getTrainingJourneyLayerStart(row.layer) + rowActivePosition;
+                const rowActiveCardHeight =
+                  trainingJourneyCardHeights[rowActiveIndex] || 304;
+                const rowTitleHeight =
+                  trainingJourneyRowTitleHeights[row.layer] || 44;
+                const activeRowLabelClearance = Math.max(
+                  236,
+                  Math.min(
+                    440,
+                    (rowActiveCardHeight * 1.04) / 2 + rowTitleHeight + 52,
+                  ),
+                );
                 const unclampedLabelOffset =
-                  rowCenterOffset - (isActiveRow ? 252 : 220);
+                  rowCenterOffset -
+                  (isActiveRow ? activeRowLabelClearance : 220);
                 const labelOffset = Math.max(
                   -560,
                   Math.min(360, unclampedLabelOffset),
@@ -3221,6 +4254,9 @@ export default function SessionsPage() {
                     aria-hidden="true"
                     className={`pointer-events-none absolute left-1/2 top-1/2 z-40 w-[min(90%,440px)] rounded-2xl border px-3 py-2 text-center shadow-[0_16px_44px_rgba(0,0,0,0.30)] backdrop-blur ${row.tone}`}
                     key={row.label}
+                    ref={(node) => {
+                      trainingJourneyRowTitleRefs.current[row.layer] = node;
+                    }}
                     style={{
                       opacity: isTrainingJourneyHeroActive
                         ? 0
@@ -3251,6 +4287,10 @@ export default function SessionsPage() {
                 const isComplete = stage.status === "Complete";
                 const isFoundation = stage.title === "Profile + Goals";
                 const isAchievements = stage.title === "Achievements";
+                const isMyPlan = stage.title === "My Plan";
+                const isWorkoutBuilder = stage.title === "Workout Builder";
+                const isExerciseLibrary = stage.title === "Exercise Library";
+                const isSessionHistory = stage.title === "Session History";
                 const isUpperSystem = UPPER_TRAINING_JOURNEY_TITLES.has(
                   stage.title,
                 );
@@ -3265,10 +4305,29 @@ export default function SessionsPage() {
                   { blur: 0.95, opacity: 0.34, rotateY: -30, scale: 0.5, x: 520, y: 106, zIndex: 18 },
                   { blur: 1.8, opacity: 0.16, rotateY: -40, scale: 0.38, x: 390, y: 150, zIndex: 10 },
                   { blur: 2.4, opacity: 0.08, rotateY: -50, scale: 0.32, x: 180, y: 180, zIndex: 6 },
+                  { blur: 3, opacity: 0.03, rotateY: -58, scale: 0.24, x: 72, y: 208, zIndex: 4 },
+                  { blur: 3.4, opacity: 0.012, rotateY: -64, scale: 0.2, x: 28, y: 224, zIndex: 3 },
+                  { blur: 3.8, opacity: 0, rotateY: -68, scale: 0.18, x: 0, y: 240, zIndex: 2 },
                 ];
                 const slot =
                   orbitSlots[Math.min(absDistance, orbitSlots.length - 1)];
                 const isActiveOrbit = index === activeTrainingJourneyIndex;
+                const dropdownTitle = isTrainingJourneyDropdownTitle(
+                  stage.title,
+                )
+                  ? stage.title
+                  : null;
+                const isDropdownOpen =
+                  isActiveOrbit &&
+                  dropdownTitle !== null &&
+                  openTrainingJourneyDropdown === dropdownTitle;
+                const myPlanSnapshotOpen = isMyPlan && isDropdownOpen;
+                const workoutBuilderDropdownOpen =
+                  isWorkoutBuilder && isDropdownOpen;
+                const exerciseLibraryDropdownOpen =
+                  isExerciseLibrary && isDropdownOpen;
+                const workoutLogDropdownOpen =
+                  isSessionHistory && isDropdownOpen;
                 const isLayerLeadCard = absDistance === 0;
                 const isFocusedLayer = absLayerOffset === 0;
                 const isLayerAboveActive = layerOffset < 0;
@@ -3317,12 +4376,40 @@ export default function SessionsPage() {
                   <article
                     aria-current={isCurrent ? "step" : undefined}
                     aria-label={`Open ${stage.title}`}
-                    className={`group absolute left-1/2 top-1/2 flex min-h-[304px] w-[270px] flex-col justify-between overflow-hidden rounded-[28px] border p-4 text-left shadow-2xl transition-[border-color,background-color,box-shadow] duration-300 sm:w-[340px] ${
-                      isActiveOrbit
+                    className={`group absolute left-1/2 top-1/2 flex flex-col justify-between overflow-hidden rounded-[28px] border text-left shadow-2xl transition-[border-color,background-color,box-shadow] duration-300 ${
+                      isMyPlan
+                        ? myPlanSnapshotOpen
+                          ? "w-[min(90vw,620px)] p-0"
+                          : "aspect-square w-[min(84vw,320px)] p-0"
+                        : isWorkoutBuilder
+                          ? workoutBuilderDropdownOpen
+                            ? "w-[min(90vw,620px)] p-0"
+                            : "aspect-square w-[min(84vw,320px)] p-0"
+                          : isExerciseLibrary
+                            ? exerciseLibraryDropdownOpen
+                              ? "w-[min(90vw,620px)] p-0"
+                              : "aspect-square w-[min(84vw,320px)] p-0"
+                            : isSessionHistory
+                              ? workoutLogDropdownOpen
+                                ? "w-[min(90vw,720px)] p-0"
+                                : "aspect-square w-[min(84vw,320px)] p-0"
+                              : "min-h-[304px] w-[270px] p-4 sm:w-[340px]"
+                    } ${
+                      isMyPlan ||
+                      isWorkoutBuilder ||
+                      isExerciseLibrary ||
+                      isSessionHistory
+                        ? "border-transparent bg-transparent shadow-none"
+                        : isActiveOrbit
                         ? `${styles.card} !border-cyan-100/75 !bg-slate-950/92 ring-2 ring-cyan-100/45 shadow-[0_30px_94px_rgba(0,0,0,0.58),0_0_48px_rgba(34,211,238,0.34)]`
                         : styles.card
                     } ${
-                      isLayerLeadCard && !isActiveOrbit
+                      isMyPlan ||
+                      isWorkoutBuilder ||
+                      isExerciseLibrary ||
+                      isSessionHistory
+                        ? ""
+                        : isLayerLeadCard && !isActiveOrbit
                         ? "ring-1 ring-white/15 shadow-[0_26px_78px_rgba(0,0,0,0.46),0_0_34px_rgba(34,211,238,0.18)]"
                         : ""
                     }`}
@@ -3341,6 +4428,9 @@ export default function SessionsPage() {
                         router.push(stage.href);
                       }
                     }}
+                    ref={(node) => {
+                      trainingJourneyCardRefs.current[index] = node;
+                    }}
                     role="link"
                     style={{
                       filter: `blur(${layerBlur}px)`,
@@ -3352,7 +4442,7 @@ export default function SessionsPage() {
                         direction * slot.rotateY
                       }deg)`,
                       transition:
-                        "transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 360ms ease, filter 360ms ease",
+                        "transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 360ms ease, filter 360ms ease, min-height 300ms ease",
                       zIndex: slot.zIndex - absLayerOffset * 14,
                     }}
                     tabIndex={0}
@@ -3361,13 +4451,742 @@ export default function SessionsPage() {
                     <span
                       aria-hidden="true"
                       className={`pointer-events-none absolute inset-0 ${
-                        isLayerLeadCard
+                        isMyPlan ||
+                        isWorkoutBuilder ||
+                        isExerciseLibrary ||
+                        isSessionHistory
+                          ? "bg-transparent"
+                          : isLayerLeadCard
                           ? isActiveOrbit
                             ? "bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),linear-gradient(180deg,rgba(2,6,23,0.88),rgba(2,6,23,0.72))]"
                             : "bg-slate-950/52"
                           : "bg-slate-950/16"
                       }`}
                     />
+                    {isMyPlan ? (
+                      <div className="relative z-10 flex h-full flex-col">
+                        {myPlanSnapshotOpen ? (
+                          <button
+                            aria-expanded={myPlanSnapshotOpen}
+                            className="flex w-full items-center justify-between gap-4 rounded-[24px] border border-emerald-300/38 bg-[radial-gradient(circle_at_18%_0%,rgba(52,211,153,0.26),transparent_38%),rgba(5,46,34,0.82)] p-4 text-left shadow-[0_20px_54px_rgba(0,0,0,0.40),0_0_26px_rgba(52,211,153,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-emerald-200/60 hover:bg-emerald-400/18"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              setOpenTrainingJourneyDropdown((currentTitle) =>
+                                currentTitle === "My Plan" ? null : "My Plan",
+                              );
+                            }}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            type="button"
+                          >
+                            <span className="min-w-0">
+                              <span className="block text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">
+                                Current Plan Snapshot
+                              </span>
+                              <span className="mt-2 block truncate text-2xl font-black text-white">
+                                {activePlan.title}
+                              </span>
+                              <span className="mt-1 block truncate text-xs font-semibold text-slate-400">
+                                {activePlan.type} - {activePlan.phase}
+                              </span>
+                            </span>
+                            <span
+                              aria-hidden="true"
+                              className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-emerald-100/28 bg-emerald-300 text-sm font-black text-slate-950 shadow-[0_0_18px_rgba(52,211,153,0.24)]"
+                            >
+                              ^
+                            </span>
+                          </button>
+                        ) : (
+                          <div className="relative flex h-full flex-col justify-between rounded-[28px] border border-emerald-300/32 bg-[radial-gradient(circle_at_20%_0%,rgba(52,211,153,0.22),transparent_38%),rgba(6,78,59,0.30)] p-5 shadow-[0_26px_70px_rgba(0,0,0,0.42),0_0_32px_rgba(52,211,153,0.14),inset_0_1px_0_rgba(255,255,255,0.07)]">
+                            <button
+                              aria-expanded={myPlanSnapshotOpen}
+                              aria-label="Expand current plan snapshot"
+                              className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-2xl border border-emerald-100/28 bg-emerald-300 text-sm font-black text-slate-950 shadow-[0_0_18px_rgba(52,211,153,0.24)]"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setOpenTrainingJourneyDropdown("My Plan");
+                              }}
+                              onPointerDown={(event) =>
+                                event.stopPropagation()
+                              }
+                              type="button"
+                            >
+                              v
+                            </button>
+
+                            <div className="pr-10">
+                              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">
+                                Current Plan Snapshot
+                              </p>
+                              <h3 className="mt-4 text-2xl font-black leading-tight text-white">
+                                {activePlan.title}
+                              </h3>
+                              <p className="mt-2 text-xs font-semibold leading-5 text-slate-400">
+                                {activePlan.type} - {activePlan.phase}
+                              </p>
+                            </div>
+
+                            <Link
+                              className="inline-flex min-h-[42px] items-center justify-center rounded-2xl bg-emerald-300 px-4 text-[10px] font-black uppercase tracking-[0.14em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-emerald-200"
+                              href={ROUTES.dashboard.myPlan}
+                              onClick={(event) => event.stopPropagation()}
+                              onPointerDown={(event) =>
+                                event.stopPropagation()
+                              }
+                            >
+                              My Plan Page
+                            </Link>
+                          </div>
+                        )}
+
+                        <div
+                          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                            myPlanSnapshotOpen
+                              ? "grid-rows-[1fr] opacity-100"
+                              : "grid-rows-[0fr] opacity-0"
+                          }`}
+                        >
+                          <div className="min-h-0 overflow-hidden">
+                            <div className="mt-4 rounded-[26px] border border-emerald-300/40 bg-[radial-gradient(circle_at_18%_0%,rgba(52,211,153,0.30),transparent_36%),linear-gradient(180deg,rgba(6,78,59,0.66),rgba(2,44,34,0.82))] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.44),0_0_34px_rgba(52,211,153,0.16),inset_0_1px_0_rgba(255,255,255,0.08)]">
+                              <div className="flex items-start justify-between gap-3">
+                                <span
+                                  className={`grid h-12 w-12 place-items-center rounded-2xl border text-xl ${styles.marker}`}
+                                  aria-hidden="true"
+                                >
+                                  {stage.icon}
+                                </span>
+                                <span
+                                  className={`rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${styles.badge}`}
+                                >
+                                  {stage.status}
+                                </span>
+                              </div>
+
+                              <h3 className="mt-4 text-xl font-black uppercase tracking-tight text-white drop-shadow-[0_0_14px_rgba(52,211,153,0.18)]">
+                                {stage.title}
+                              </h3>
+                              <span className="mt-2 inline-flex rounded-full border border-emerald-200/28 bg-emerald-300/14 px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-emerald-100">
+                                Core Workout Flow
+                              </span>
+                              <p className="mt-2 line-clamp-3 text-sm font-semibold leading-6 text-slate-100">
+                                {stage.helper}
+                              </p>
+
+                              <div className="mt-3 grid grid-cols-2 gap-2">
+                                {[
+                                  ["Plan", activePlan.type],
+                                  ["Phase", activePlan.phase],
+                                  ["Weekly", activePlan.weeklyTarget],
+                                  ["Focus", activePlan.primaryFocus],
+                                ].map(([label, value]) => (
+                                  <div
+                                    className="rounded-2xl border border-emerald-200/12 bg-emerald-950/36 p-3"
+                                    key={label}
+                                  >
+                                    <p className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                                      {label}
+                                    </p>
+                                    <p className="mt-1 truncate text-[10px] font-black text-emerald-50">
+                                      {value}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="mt-4">
+                                <div className="flex items-center justify-between gap-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
+                                  <span>{stage.progress}%</span>
+                                  <span>{stage.nextAction}</span>
+                                </div>
+                                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-950/80">
+                                  <span
+                                    className="block h-full rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.30)]"
+                                    style={{ width: `${stage.progress}%` }}
+                                  />
+                                </div>
+                              </div>
+
+                              <Link
+                                className="mt-4 inline-flex w-full items-center justify-center rounded-2xl border border-emerald-200/35 bg-emerald-300/14 px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-50 shadow-[0_0_24px_rgba(52,211,153,0.12)] transition hover:-translate-y-0.5 hover:bg-emerald-300/20"
+                                href={ROUTES.dashboard.myPlan}
+                                onClick={(event) => event.stopPropagation()}
+                                onPointerDown={(event) =>
+                                  event.stopPropagation()
+                                }
+                              >
+                                Open Plan
+                              </Link>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : isWorkoutBuilder ? (
+                      <div className="relative z-10 flex h-full flex-col">
+                        {workoutBuilderDropdownOpen ? (
+                          <button
+                            aria-expanded={workoutBuilderDropdownOpen}
+                            className="flex w-full items-center justify-between gap-4 rounded-[24px] border border-yellow-300/38 bg-[radial-gradient(circle_at_18%_0%,rgba(250,204,21,0.24),transparent_38%),rgba(66,48,5,0.82)] p-4 text-left shadow-[0_20px_54px_rgba(0,0,0,0.40),0_0_26px_rgba(250,204,21,0.13),inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-yellow-200/60 hover:bg-yellow-400/18"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              setOpenTrainingJourneyDropdown((currentTitle) =>
+                                currentTitle === "Workout Builder"
+                                  ? null
+                                  : "Workout Builder",
+                              );
+                            }}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            type="button"
+                          >
+                            <span className="min-w-0">
+                              <span className="block text-[10px] font-black uppercase tracking-[0.22em] text-yellow-300">
+                                Workout Builder
+                              </span>
+                              <span className="mt-2 block truncate text-2xl font-black text-white">
+                                Builder + saved templates
+                              </span>
+                              <span className="mt-1 block truncate text-xs font-semibold text-yellow-100/75">
+                                {savedTemplates.length} saved templates
+                              </span>
+                            </span>
+                            <span
+                              aria-hidden="true"
+                              className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-yellow-100/28 bg-yellow-300 text-sm font-black text-slate-950 shadow-[0_0_18px_rgba(250,204,21,0.24)]"
+                            >
+                              ^
+                            </span>
+                          </button>
+                        ) : (
+                          <div className="relative flex h-full flex-col justify-between rounded-[28px] border border-yellow-300/34 bg-[radial-gradient(circle_at_20%_0%,rgba(250,204,21,0.24),transparent_38%),rgba(66,48,5,0.36)] p-5 shadow-[0_26px_70px_rgba(0,0,0,0.42),0_0_32px_rgba(250,204,21,0.14),inset_0_1px_0_rgba(255,255,255,0.07)]">
+                            <button
+                              aria-expanded={workoutBuilderDropdownOpen}
+                              aria-label="Expand workout builder"
+                              className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-2xl border border-yellow-100/28 bg-yellow-300 text-sm font-black text-slate-950 shadow-[0_0_18px_rgba(250,204,21,0.24)]"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setOpenTrainingJourneyDropdown(
+                                  "Workout Builder",
+                                );
+                              }}
+                              onPointerDown={(event) =>
+                                event.stopPropagation()
+                              }
+                              type="button"
+                            >
+                              v
+                            </button>
+
+                            <div className="pr-10">
+                              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-yellow-300">
+                                Workout Builder
+                              </p>
+                              <h3 className="mt-4 text-2xl font-black leading-tight text-white">
+                                Builder + saved templates
+                              </h3>
+                              <p className="mt-2 text-xs font-semibold leading-5 text-yellow-100/75">
+                                {savedTemplates.length} saved templates
+                              </p>
+                            </div>
+
+                            <Link
+                              className="inline-flex min-h-[42px] items-center justify-center rounded-2xl bg-yellow-300 px-4 text-[10px] font-black uppercase tracking-[0.14em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-yellow-200"
+                              href={ROUTES.workoutBuilder.home}
+                              onClick={(event) => event.stopPropagation()}
+                              onPointerDown={(event) =>
+                                event.stopPropagation()
+                              }
+                            >
+                              Builder Page
+                            </Link>
+                          </div>
+                        )}
+
+                        <div
+                          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                            workoutBuilderDropdownOpen
+                              ? "grid-rows-[1fr] opacity-100"
+                              : "grid-rows-[0fr] opacity-0"
+                          }`}
+                        >
+                          <div className="min-h-0 overflow-hidden">
+                            <div className="mt-4 rounded-[26px] border border-yellow-300/40 bg-[radial-gradient(circle_at_18%_0%,rgba(250,204,21,0.28),transparent_36%),linear-gradient(180deg,rgba(92,65,6,0.66),rgba(45,31,2,0.84))] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.44),0_0_34px_rgba(250,204,21,0.14),inset_0_1px_0_rgba(255,255,255,0.08)]">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-300">
+                                    Builder Status
+                                  </p>
+                                  <h3 className="mt-2 text-xl font-black uppercase tracking-tight text-white">
+                                    Workout Builder
+                                  </h3>
+                                </div>
+                                <span className="rounded-full border border-yellow-300/22 bg-yellow-400/14 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-yellow-100">
+                                  {templateSourceLabel}
+                                </span>
+                              </div>
+
+                              <div className="mt-3 grid grid-cols-2 gap-2">
+                                {[
+                                  ["Templates", String(savedTemplates.length)],
+                                  [
+                                    "Active Source",
+                                    activeSessionTemplate?.title ||
+                                      "Quick Session",
+                                  ],
+                                  ["Logged Sets", String(workoutStats.totalSets)],
+                                  ["Readiness", activePlan.recovery],
+                                ].map(([label, value]) => (
+                                  <div
+                                    className="rounded-2xl border border-yellow-200/12 bg-yellow-950/34 p-3"
+                                    key={label}
+                                  >
+                                    <p className="text-[9px] font-black uppercase tracking-[0.14em] text-yellow-100/45">
+                                      {label}
+                                    </p>
+                                    <p className="mt-1 truncate text-sm font-black text-white">
+                                      {value}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+
+                              <div className="mt-4">
+                                <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-[0.12em] text-yellow-100/45">
+                                  <span>{stage.progress}%</span>
+                                  <span>Build Flow</span>
+                                </div>
+                                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-950/80">
+                                  <span
+                                    className="block h-full rounded-full bg-yellow-300 shadow-[0_0_16px_rgba(250,204,21,0.30)]"
+                                    style={{ width: `${stage.progress}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="mt-3 rounded-[26px] border border-yellow-300/34 bg-[radial-gradient(circle_at_84%_0%,rgba(250,204,21,0.22),transparent_34%),rgba(45,31,2,0.78)] p-4 shadow-[0_18px_54px_rgba(0,0,0,0.36),0_0_26px_rgba(250,204,21,0.12)]">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-yellow-300">
+                                  Saved Templates
+                                </p>
+                                <span className="rounded-full border border-yellow-300/22 bg-yellow-400/14 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-yellow-100">
+                                  {savedTemplates.length} saved
+                                </span>
+                              </div>
+
+                              <div className="mt-3 grid gap-3">
+                                {savedTemplates.length > 0 ? (
+                                  savedTemplates.slice(0, 3).map((template) => (
+                                    <div
+                                      className="rounded-[20px] border border-white/10 bg-slate-950/56 p-3"
+                                      key={`builder-template-${template.id}`}
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <h4 className="truncate text-sm font-black text-white">
+                                            {template.title}
+                                          </h4>
+                                          <p className="mt-1 text-[10px] font-semibold text-slate-500">
+                                            {template.exercises.length} exercise
+                                            {template.exercises.length === 1
+                                              ? ""
+                                              : "s"}
+                                          </p>
+                                        </div>
+                                        {activeSessionTemplate?.id ===
+                                        template.id ? (
+                                          <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2 py-1 text-[9px] font-black text-cyan-200">
+                                            Active
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                      <p className="mt-2 line-clamp-1 text-[10px] font-semibold text-slate-400">
+                                        {template.exercises
+                                          .slice(0, 3)
+                                          .map((exercise) => exercise.name)
+                                          .join(" / ")}
+                                        {template.exercises.length > 3
+                                          ? " / ..."
+                                          : ""}
+                                      </p>
+                                      <button
+                                        className="mt-3 min-h-[38px] w-full rounded-2xl bg-yellow-300 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-yellow-200"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          startTemplateWorkout(template);
+                                        }}
+                                        onPointerDown={(event) =>
+                                          event.stopPropagation()
+                                        }
+                                        type="button"
+                                      >
+                                        Start Template
+                                      </button>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="rounded-[20px] border border-dashed border-yellow-200/20 bg-slate-950/42 p-4 text-sm leading-6 text-yellow-100/70">
+                                    No saved templates yet.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : isExerciseLibrary ? (
+                      <div className="relative z-10 flex h-full flex-col">
+                        {exerciseLibraryDropdownOpen ? (
+                          <button
+                            aria-expanded={exerciseLibraryDropdownOpen}
+                            className="flex w-full items-center justify-between gap-4 rounded-[24px] border border-cyan-300/38 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.25),transparent_38%),rgba(8,47,73,0.82)] p-4 text-left shadow-[0_20px_54px_rgba(0,0,0,0.40),0_0_26px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-cyan-200/60 hover:bg-cyan-400/18"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              setOpenTrainingJourneyDropdown((currentTitle) =>
+                                currentTitle === "Exercise Library"
+                                  ? null
+                                  : "Exercise Library",
+                              );
+                            }}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            type="button"
+                          >
+                            <span className="min-w-0">
+                              <span className="block text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
+                                Exercise Library
+                              </span>
+                              <span className="mt-2 block truncate text-2xl font-black text-white">
+                                Urgent category targets
+                              </span>
+                              <span className="mt-1 block truncate text-xs font-semibold text-cyan-100/75">
+                                {workoutStats.totalSets} logged sets
+                              </span>
+                            </span>
+                            <span
+                              aria-hidden="true"
+                              className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-cyan-100/28 bg-cyan-300 text-sm font-black text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.24)]"
+                            >
+                              ^
+                            </span>
+                          </button>
+                        ) : (
+                          <div className="relative flex h-full flex-col justify-between rounded-[28px] border border-cyan-300/34 bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,0.24),transparent_38%),rgba(8,47,73,0.36)] p-5 shadow-[0_26px_70px_rgba(0,0,0,0.42),0_0_32px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.07)]">
+                            <button
+                              aria-expanded={exerciseLibraryDropdownOpen}
+                              aria-label="Expand exercise library"
+                              className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-2xl border border-cyan-100/28 bg-cyan-300 text-sm font-black text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.24)]"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setOpenTrainingJourneyDropdown(
+                                  "Exercise Library",
+                                );
+                              }}
+                              onPointerDown={(event) =>
+                                event.stopPropagation()
+                              }
+                              type="button"
+                            >
+                              v
+                            </button>
+
+                            <div className="pr-10">
+                              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
+                                Exercise Library
+                              </p>
+                              <h3 className="mt-4 text-2xl font-black leading-tight text-white">
+                                Urgent category targets
+                              </h3>
+                              <p className="mt-2 text-xs font-semibold leading-5 text-cyan-100/75">
+                                {workoutStats.totalSets} logged sets
+                              </p>
+                            </div>
+
+                            <Link
+                              className="inline-flex min-h-[42px] items-center justify-center rounded-2xl bg-cyan-300 px-4 text-[10px] font-black uppercase tracking-[0.14em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
+                              href={ROUTES.dashboard.exerciseLibrary}
+                              onClick={(event) => event.stopPropagation()}
+                              onPointerDown={(event) =>
+                                event.stopPropagation()
+                              }
+                            >
+                              Library Page
+                            </Link>
+                          </div>
+                        )}
+
+                        <div
+                          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                            exerciseLibraryDropdownOpen
+                              ? "grid-rows-[1fr] opacity-100"
+                              : "grid-rows-[0fr] opacity-0"
+                          }`}
+                        >
+                          <div className="min-h-0 overflow-hidden">
+                            <div className="mt-4 rounded-[26px] border border-cyan-300/40 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.30),transparent_36%),linear-gradient(180deg,rgba(8,47,73,0.68),rgba(3,26,43,0.84))] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.44),0_0_34px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.08)]">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
+                                    Exercise Library
+                                  </p>
+                                  <h3 className="mt-2 text-2xl font-black text-white">
+                                    Urgent category targets
+                                  </h3>
+                                  <p className="mt-2 max-w-[34rem] text-sm font-semibold leading-6 text-cyan-50/78">
+                                    The biggest set gaps from your current
+                                    training balance, ranked by what needs
+                                    attention first.
+                                  </p>
+                                </div>
+                                <span className="w-fit rounded-full border border-cyan-300/24 bg-cyan-400/14 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                                  {workoutStats.totalSets} logged sets
+                                </span>
+                              </div>
+
+                              <div className="mt-4 grid flex-1 gap-3">
+                                {exerciseLibraryPriorityTargets.map((target) => {
+                                  const percentComplete = Math.min(
+                                    100,
+                                    Math.round(
+                                      (target.completedSets /
+                                        target.goalSets) *
+                                        100,
+                                    ),
+                                  );
+                                  const isCovered =
+                                    target.remainingSets === 0;
+
+                                  return (
+                                    <div
+                                      className="rounded-[22px] border border-cyan-200/12 bg-slate-950/54 p-3"
+                                      key={target.label}
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <p className="text-sm font-black text-white">
+                                            {target.label}
+                                          </p>
+                                          <p className="mt-1 text-[10px] font-semibold text-cyan-100/50">
+                                            {target.focus}
+                                          </p>
+                                        </div>
+                                        <span
+                                          className={`shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${
+                                            isCovered
+                                              ? "border-emerald-300/24 bg-emerald-400/10 text-emerald-200"
+                                              : "border-yellow-300/24 bg-yellow-400/10 text-yellow-200"
+                                          }`}
+                                        >
+                                          {target.completedSets}/
+                                          {target.goalSets} sets
+                                        </span>
+                                      </div>
+
+                                      <div className="mt-3 flex items-center gap-3">
+                                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-950/80">
+                                          <span
+                                            className={`block h-full rounded-full ${
+                                              isCovered
+                                                ? "bg-emerald-300"
+                                                : "bg-cyan-300 shadow-[0_0_16px_rgba(34,211,238,0.34)]"
+                                            }`}
+                                            style={{
+                                              width: `${percentComplete}%`,
+                                            }}
+                                          />
+                                        </div>
+                                        <span className="w-16 text-right text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100/52">
+                                          {target.remainingSets} short
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : isSessionHistory ? (
+                      <div className="relative z-10 flex h-full flex-col">
+                        {workoutLogDropdownOpen ? (
+                          <button
+                            aria-expanded={workoutLogDropdownOpen}
+                            className="flex w-full items-center justify-between gap-4 rounded-[24px] border border-emerald-300/38 bg-[radial-gradient(circle_at_18%_0%,rgba(16,185,129,0.25),transparent_38%),rgba(6,78,59,0.82)] p-4 text-left shadow-[0_20px_54px_rgba(0,0,0,0.40),0_0_26px_rgba(16,185,129,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-emerald-200/60 hover:bg-emerald-400/18"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              setOpenTrainingJourneyDropdown((currentTitle) =>
+                                currentTitle === "Session History"
+                                  ? null
+                                  : "Session History",
+                              );
+                            }}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            type="button"
+                          >
+                            <span className="min-w-0">
+                              <span className="block text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">
+                                Recent Completed Sessions
+                              </span>
+                              <span className="mt-2 block truncate text-2xl font-black text-white">
+                                Workout log
+                              </span>
+                              <span className="mt-1 block truncate text-xs font-semibold text-emerald-100/75">
+                                {logSourceLabel}
+                              </span>
+                            </span>
+                            <span
+                              aria-hidden="true"
+                              className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-emerald-100/28 bg-emerald-300 text-sm font-black text-slate-950 shadow-[0_0_18px_rgba(16,185,129,0.24)]"
+                            >
+                              ^
+                            </span>
+                          </button>
+                        ) : (
+                          <div className="relative flex h-full flex-col justify-between rounded-[28px] border border-emerald-300/34 bg-[radial-gradient(circle_at_20%_0%,rgba(16,185,129,0.24),transparent_38%),rgba(6,78,59,0.36)] p-5 shadow-[0_26px_70px_rgba(0,0,0,0.42),0_0_32px_rgba(16,185,129,0.14),inset_0_1px_0_rgba(255,255,255,0.07)]">
+                            <button
+                              aria-expanded={workoutLogDropdownOpen}
+                              aria-label="Expand workout log"
+                              className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-2xl border border-emerald-100/28 bg-emerald-300 text-sm font-black text-slate-950 shadow-[0_0_18px_rgba(16,185,129,0.24)]"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setOpenTrainingJourneyDropdown(
+                                  "Session History",
+                                );
+                              }}
+                              onPointerDown={(event) =>
+                                event.stopPropagation()
+                              }
+                              type="button"
+                            >
+                              v
+                            </button>
+
+                            <div className="pr-10">
+                              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">
+                                Recent Completed Sessions
+                              </p>
+                              <h3 className="mt-4 text-2xl font-black leading-tight text-white">
+                                Workout log
+                              </h3>
+                              <p className="mt-2 text-xs font-semibold leading-5 text-emerald-100/75">
+                                {logSourceLabel}
+                              </p>
+                            </div>
+
+                            <Link
+                              className="inline-flex min-h-[42px] items-center justify-center rounded-2xl bg-emerald-300 px-4 text-[10px] font-black uppercase tracking-[0.14em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-emerald-200"
+                              href={ROUTES.dashboard.sessionHistory}
+                              onClick={(event) => event.stopPropagation()}
+                              onPointerDown={(event) =>
+                                event.stopPropagation()
+                              }
+                            >
+                              History Page
+                            </Link>
+                          </div>
+                        )}
+
+                        <div
+                          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
+                            workoutLogDropdownOpen
+                              ? "grid-rows-[1fr] opacity-100"
+                              : "grid-rows-[0fr] opacity-0"
+                          }`}
+                        >
+                          <div className="min-h-0 overflow-hidden">
+                            <div className="mt-4 rounded-[26px] border border-emerald-300/40 bg-[radial-gradient(circle_at_18%_0%,rgba(16,185,129,0.30),transparent_36%),linear-gradient(180deg,rgba(6,78,59,0.68),rgba(2,44,34,0.84))] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.44),0_0_34px_rgba(16,185,129,0.16),inset_0_1px_0_rgba(255,255,255,0.08)]">
+                              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">
+                                    Recent Completed Sessions
+                                  </p>
+                                  <h3 className="mt-2 text-2xl font-black text-white">
+                                    Workout log
+                                  </h3>
+                                </div>
+                                <span className="w-fit rounded-full border border-emerald-300/24 bg-emerald-400/14 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100">
+                                  {logSourceLabel}
+                                </span>
+                              </div>
+
+                              <div className="mt-4 overflow-hidden rounded-[24px] border border-emerald-200/12 bg-slate-950/54">
+                                {recentWorkoutSummaries.length > 0 ? (
+                                  <table className="w-full table-fixed text-left">
+                                    <thead className="border-b border-white/10 bg-white/[0.035]">
+                                      <tr>
+                                        {[
+                                          "Session",
+                                          "Latest",
+                                          "Sets",
+                                          "Load",
+                                        ].map((heading) => (
+                                          <th
+                                            className="px-3 py-3 text-[9px] font-black uppercase tracking-[0.16em] text-emerald-100/45"
+                                            key={heading}
+                                          >
+                                            {heading}
+                                          </th>
+                                        ))}
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-white/8">
+                                      {recentWorkoutSummaries
+                                        .slice(0, 4)
+                                        .map((session) => (
+                                          <tr
+                                            className="transition hover:bg-emerald-300/[0.06]"
+                                            key={`session-history-orbit-${session.id}`}
+                                          >
+                                            <td className="px-3 py-3 align-top">
+                                              <div className="truncate text-sm font-black text-white">
+                                                {session.title}
+                                              </div>
+                                              <div className="mt-1 truncate text-[10px] font-semibold text-emerald-100/45">
+                                                {formatDateTime(session.date)}
+                                              </div>
+                                            </td>
+                                            <td className="px-3 py-3 align-top">
+                                              <div className="truncate text-xs font-black text-emerald-50">
+                                                {session.latestExercise}
+                                              </div>
+                                              <div className="mt-1 truncate text-[10px] text-emerald-100/45">
+                                                {session.exerciseCount} movements
+                                              </div>
+                                            </td>
+                                            <td className="px-3 py-3 align-top text-sm font-black text-white">
+                                              {session.totalSets}
+                                            </td>
+                                            <td className="px-3 py-3 align-top text-sm font-black text-emerald-100">
+                                              {session.totalVolume
+                                                ? `${session.totalVolume.toLocaleString()} lb`
+                                                : session.topLoad
+                                                  ? `${formatCompactNumber(session.topLoad)} lb`
+                                                  : "Unweighted"}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                    </tbody>
+                                  </table>
+                                ) : (
+                                  <div className="p-5 text-sm leading-6 text-emerald-100/70">
+                                    No completed workout logs yet. Start the
+                                    workout logger, finish a session, and recent
+                                    activity will appear here.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                    <>
                     <div className="relative z-10">
                       <div className="flex items-start justify-between gap-3">
                         <span
@@ -3410,7 +5229,7 @@ export default function SessionsPage() {
                             : "border-cyan-200/24 bg-cyan-300/10 text-cyan-100"
                         }`}
                       >
-                        {isUpperSystem ? "Upper System" : "Core Flow"}
+                        {isUpperSystem ? "Upper System" : "Core Workout Flow"}
                       </span>
                       <p
                         className={`mt-2 font-semibold ${
@@ -3505,67 +5324,62 @@ export default function SessionsPage() {
                       </div>
 
                       {isActiveOrbit ? (
-                        <Link
+                        <button
                           className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-cyan-200/35 bg-cyan-300/14 px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.16)] transition hover:-translate-y-0.5 hover:bg-cyan-300/20 active:scale-[0.98]"
-                          href={stage.href}
-                          onClick={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            trainingJourneyPointerMovedRef.current = false;
+                            router.push(stage.href);
+                          }}
+                          onPointerDown={(event) => {
+                            event.stopPropagation();
+                            trainingJourneyPointerMovedRef.current = false;
+                          }}
+                          type="button"
                         >
                           Open Stage
                           <span aria-hidden="true">→</span>
-                        </Link>
+                        </button>
                       ) : null}
                     </div>
+                    </>
+                    )}
                   </article>
                 );
               })}
             </div>
 
-            <div className="relative z-10 mt-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center justify-center gap-2 lg:justify-start">
-                <button
-                  aria-label="Select Hero Command Center"
-                  className={`h-2.5 rounded-full transition-all duration-300 ${
-                    isTrainingJourneyHeroActive
-                      ? "w-8 bg-amber-200 shadow-[0_0_14px_rgba(250,204,21,0.55)]"
-                      : "w-2.5 bg-white/18 hover:bg-white/36"
-                  }`}
-                  onClick={() =>
-                    setActiveTrainingJourneyLayer(TRAINING_JOURNEY_HERO_LAYER)
-                  }
-                  type="button"
-                />
-                {combinedTrainingJourneyStages.map((stage, index) => {
-                  const isActive = index === activeTrainingJourneyIndex;
-
-                  return (
-                    <button
-                      aria-label={`Select ${stage.title}`}
-                      className={`h-2.5 rounded-full transition-all duration-300 ${
-                        isActive
-                          ? "w-8 bg-cyan-200 shadow-[0_0_14px_rgba(34,211,238,0.55)]"
-                          : "w-2.5 bg-white/18 hover:bg-white/36"
-                      }`}
-                      key={`${stage.title}-dot`}
-                      onClick={() => {
-                        const targetLayer = getTrainingJourneyLayer(index);
-                        const targetPosition =
-                          index % TRAINING_JOURNEY_LAYER_SIZE;
-
-                        setActiveTrainingJourneyLayer(targetLayer);
-                        setActiveTrainingJourneyPositions((currentPositions) => {
-                          const nextPositions = [...currentPositions];
-
-                          nextPositions[targetLayer] = targetPosition;
-
-                          return nextPositions;
-                        });
-                      }}
-                      type="button"
-                    />
-                  );
-                })}
+            <div
+              className={`pointer-events-none absolute bottom-9 left-1/2 z-50 w-[min(90vw,1320px)] -translate-x-1/2 transition duration-200 ease-out sm:bottom-10 ${
+                isTrainingJourneyHeroActive
+                  ? "translate-y-0 opacity-100"
+                  : "translate-y-2 opacity-0"
+              }`}
+            >
+              <div className="grid w-full gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  ["Logged Entries", String(workoutStats.loggedEntries)],
+                  ["Total Sets", String(workoutStats.totalSets)],
+                  ["Latest Movement", workoutStats.latestExercise],
+                  ["Last Logged", workoutStats.latestDate],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="min-h-[88px] min-w-0 rounded-[20px] border border-white/10 bg-slate-950/76 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.32)] backdrop-blur"
+                  >
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                      {label}
+                    </p>
+                    <p className="mt-1 break-words text-lg font-black tracking-tight text-white">
+                      {value}
+                    </p>
+                  </div>
+                ))}
               </div>
+            </div>
 
+            <div className="hidden">
               <div className="flex flex-col gap-3 rounded-[24px] border border-white/10 bg-white/[0.035] p-3 sm:flex-row sm:items-center sm:justify-between lg:min-w-[430px]">
                 <div className="min-w-0">
                   <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
@@ -3603,29 +5417,7 @@ export default function SessionsPage() {
 
           </div>
         </section>
-
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {[
-            ["Logged Entries", String(workoutStats.loggedEntries)],
-            ["Total Sets", String(workoutStats.totalSets)],
-            ["Latest Movement", workoutStats.latestExercise],
-            ["Last Logged", workoutStats.latestDate],
-          ].map(([label, value]) => (
-            <div
-              key={label}
-              className="rounded-[26px] border border-white/10 bg-white/[0.05] p-5 shadow-xl shadow-black/15 backdrop-blur"
-            >
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
-                {label}
-              </p>
-              <p className="mt-3 break-words text-2xl font-black tracking-tight text-white">
-                {value}
-              </p>
-            </div>
-          ))}
-        </section>
-
-        <section className="grid min-w-0 gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+        <section className="hidden">
           <div className="min-w-0 rounded-[32px] border border-white/10 bg-white/[0.05] p-5 shadow-2xl shadow-black/20 backdrop-blur sm:p-6">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -3928,7 +5720,7 @@ export default function SessionsPage() {
           </div>
         </section>
 
-        <section className="rounded-[32px] border border-white/10 bg-white/[0.04] p-5 shadow-2xl sm:p-6">
+        <section className="hidden">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.24em] text-emerald-300">
@@ -4040,144 +5832,6 @@ export default function SessionsPage() {
           </div>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-          <div className="rounded-[32px] border border-white/10 bg-white/[0.04] p-5 shadow-2xl sm:p-6">
-            <p className="text-[11px] font-black uppercase tracking-[0.24em] text-slate-400">
-              Secondary Session Tools
-            </p>
-            <h2 className="mt-3 text-2xl font-black">Booking and packages</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-400">
-              Session package details still live here, but the primary workout
-              flow now starts from the command center above.
-            </p>
-
-            <div className="mt-5 grid gap-4 sm:grid-cols-3">
-              <div className="rounded-[24px] border border-white/10 bg-slate-950/60 p-4">
-                <p className="text-sm text-slate-400">Active Package</p>
-                <p className="mt-2 text-xl font-bold text-sky-300">
-                  {active.name}
-                </p>
-              </div>
-              <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-500/10 p-4">
-                <p className="text-sm text-emerald-300">Remaining</p>
-                <p className="mt-2 text-3xl font-bold">{remaining}</p>
-              </div>
-              <div className="rounded-[24px] border border-white/10 bg-slate-950/60 p-4">
-                <p className="text-sm text-slate-400">Used</p>
-                <p className="mt-2 text-3xl font-bold">{active.used}</p>
-              </div>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {packages.map((pkg) => {
-                const remainingSessions = pkg.total - pkg.used;
-
-                return (
-                  <button
-                    key={pkg.name}
-                    onClick={() => setSelectedPackage(pkg.name)}
-                    className={`w-full rounded-[22px] border p-4 text-left transition ${
-                      selectedPackage === pkg.name
-                        ? "border-sky-400 bg-sky-500/15"
-                        : "border-white/10 bg-slate-950/60 hover:bg-white/10"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="text-base font-bold">{pkg.name}</h3>
-                        <p className="mt-1 text-sm text-slate-400">
-                          {pkg.used} used - {remainingSessions} remaining
-                        </p>
-                      </div>
-                      <p className="text-lg font-bold text-sky-300">
-                        {pkg.price}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="rounded-[32px] border border-sky-400/20 bg-sky-500/10 p-5 shadow-2xl sm:p-6">
-            <p className="text-[11px] uppercase tracking-[0.24em] text-sky-300">
-              Usage Progress
-            </p>
-            <h2 className="mt-3 text-2xl font-bold">
-              {active.used} of {active.total} sessions used
-            </h2>
-
-            <div className="mt-6 h-4 overflow-hidden rounded-full bg-slate-950/70">
-              <div
-                className="h-full rounded-full bg-sky-400 transition-all"
-                style={{ width: `${percentUsed}%` }}
-              />
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-2xl bg-slate-950/60 p-4">
-                <p className="text-sm text-slate-400">Purchased</p>
-                <p className="mt-2 text-2xl font-bold">{active.total}</p>
-              </div>
-              <div className="rounded-2xl bg-slate-950/60 p-4">
-                <p className="text-sm text-slate-400">Remaining</p>
-                <p className="mt-2 text-2xl font-bold text-emerald-300">
-                  {remaining}
-                </p>
-              </div>
-              <div className="rounded-2xl bg-slate-950/60 p-4">
-                <p className="text-sm text-slate-400">Used</p>
-                <p className="mt-2 text-2xl font-bold">{active.used}</p>
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <Link
-                href={ROUTES.dashboard.sessionBooking}
-                className="rounded-2xl bg-sky-500 px-5 py-4 text-center font-bold text-slate-950 hover:bg-sky-400"
-              >
-                Book Session
-              </Link>
-              <Link
-                href={ROUTES.dashboard.sessionNotes}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 text-center font-bold text-slate-200 hover:bg-white/10"
-              >
-                Session Notes
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-[32px] border border-white/10 bg-white/[0.04] p-5 shadow-2xl sm:p-6">
-          <p className="text-[11px] uppercase tracking-[0.24em] text-amber-300">
-            Timeline
-          </p>
-          <h2 className="mt-3 text-2xl font-bold">
-            Recent and upcoming appointments
-          </h2>
-
-          <div className="mt-5 space-y-3">
-            {upcomingSessions.map((session) => (
-              <div
-                key={`${session.date}-${session.focus}`}
-                className="grid gap-3 rounded-[24px] border border-white/10 bg-slate-950/60 p-4 md:grid-cols-4 md:items-center"
-              >
-                <p className="text-sm text-slate-400">{session.date}</p>
-                <p className="font-semibold">{session.type}</p>
-                <p className="text-sm text-slate-300">{session.focus}</p>
-                <span
-                  className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold ${
-                    session.status === "Completed"
-                      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
-                      : "border-sky-400/20 bg-sky-500/10 text-sky-300"
-                  }`}
-                >
-                  {session.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
       </section>
     </main>
   );

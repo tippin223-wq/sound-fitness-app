@@ -3107,6 +3107,30 @@ body {
 
 }
 
+@keyframes sessions-dashboard-chip-slide-from-right {
+  0% {
+    opacity: 0.2;
+    transform: translateX(1.1rem) scale(0.96);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes sessions-dashboard-chip-slide-from-left {
+  0% {
+    opacity: 0.2;
+    transform: translateX(-1.1rem) scale(0.96);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .exercise-library-card-scroll-viewport {
     scroll-behavior: auto;

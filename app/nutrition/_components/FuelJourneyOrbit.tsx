@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
+import {
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 type FuelJourneyStageStatus =
   | "Complete"
@@ -68,6 +75,11 @@ const fuelJourneyOrbitStatusStyles: Record<
 };
 
 export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
+  const fuelJourneyPointerStartRef = useRef<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const fuelJourneyPointerMovedRef = useRef(false);
   const fuelJourneyRows = useMemo(
     () =>
       [
@@ -217,6 +229,50 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
       rotateFuelJourney("down");
     }
   };
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    fuelJourneyPointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+    fuelJourneyPointerMovedRef.current = false;
+    event.currentTarget.focus({ preventScroll: true });
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const start = fuelJourneyPointerStartRef.current;
+    if (!start) return;
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    const horizontalIntent = Math.abs(deltaX) > Math.abs(deltaY) * 1.1;
+    const primaryDelta = horizontalIntent ? deltaX : deltaY;
+    if (Math.abs(primaryDelta) < 72) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    fuelJourneyPointerMovedRef.current = true;
+    rotateFuelJourney(
+      horizontalIntent
+        ? deltaX > 0
+          ? "left"
+          : "right"
+        : deltaY > 0
+          ? "up"
+          : "down",
+    );
+    fuelJourneyPointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+  };
+  const handlePointerEnd = (event: ReactPointerEvent<HTMLDivElement>) => {
+    fuelJourneyPointerStartRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+  };
 
   useEffect(() => {
     setActiveFuelLayer((currentLayer) => Math.min(currentLayer, totalLayers - 1));
@@ -309,8 +365,19 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
 
       <div
         aria-label="Fuel journey orbit selector"
-        className="relative z-10 h-[860px] w-full overflow-visible outline-none [perspective:1500px] focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[920px]"
+        className="relative z-10 h-[860px] w-full cursor-grab select-none overflow-visible outline-none [perspective:1500px] [touch-action:none] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[920px]"
+        onClickCapture={(event) => {
+          if (fuelJourneyPointerMovedRef.current) {
+            event.preventDefault();
+            event.stopPropagation();
+            fuelJourneyPointerMovedRef.current = false;
+          }
+        }}
         onKeyDown={handleKeyDown}
+        onPointerCancel={handlePointerEnd}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
         tabIndex={0}
       >
         {fuelJourneyRows.map((row) => {

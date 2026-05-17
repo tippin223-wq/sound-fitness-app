@@ -3,6 +3,8 @@
 import {
   type CSSProperties,
   type ChangeEvent,
+  type PointerEvent as ReactPointerEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -231,6 +233,20 @@ type ProfileAccordionSection =
 
 type ProfileAccordionState = Record<ProfileAccordionSection, boolean>;
 
+type ProfileOrbiterCard = {
+  accordion?: ProfileAccordionSection;
+  completion: number;
+  expandsToFullCard?: boolean;
+  helper: string;
+  icon: string;
+  label: string;
+  references: string[];
+  stat: string;
+  tab: ProfileTab;
+  targetId: string;
+  tone: string;
+};
+
 type GoalMode =
   | "Build Muscle"
   | "Lose Fat"
@@ -381,6 +397,16 @@ type BodyMeasurements = {
   wrist: string;
 };
 
+type BodyMetricHistoryPoint = {
+  bodyFat: string;
+  muscleMass: string;
+  savedAt: string;
+  source: string;
+  waist: string;
+  weight: string;
+  weightTrend: string;
+};
+
 type SoundFitnessProfile = {
   adaptivePlanningFactors: string[];
   adaptivePlanningNotes: Record<string, string>;
@@ -390,6 +416,8 @@ type SoundFitnessProfile = {
   benchmarks: Benchmark[];
   bodyModel: BodyModel;
   bodyFat: string;
+  bodyMetricHistory: BodyMetricHistoryPoint[];
+  bodyScanSource: string;
   bodyGoalMode: BodyGoalMode;
   bodyStatus: BodyStatus;
   birthday: string;
@@ -427,6 +455,7 @@ type SoundFitnessProfile = {
   lifestyleConstraints: LifestyleConstraints;
   measurements: BodyMeasurements;
   memberType: string;
+  muscleMass: string;
   nutritionDirection: NutritionDirection;
   occupation: string;
   planDirectionNotes: string;
@@ -499,6 +528,12 @@ const tabs: Array<{ id: ProfileTab; label: string }> = [
   { id: "training", label: "Training" },
   { id: "nutrition", label: "Nutrition" },
 ];
+const profileDetailTabs = tabs.filter((tab) => tab.id !== "training");
+const profileOrbiterCardStartRow = 1;
+const getProfileOrbiterRowForTab = (tabId: ProfileTab) => {
+  const cardRowIndex = tabs.findIndex((tab) => tab.id === tabId);
+  return profileOrbiterCardStartRow + Math.max(0, cardRowIndex);
+};
 
 const goalCards: Array<{
   description: string;
@@ -2890,6 +2925,8 @@ const defaultProfile: SoundFitnessProfile = {
   bodyModel: "male",
   gender: "male",
   bodyFat: "",
+  bodyMetricHistory: [],
+  bodyScanSource: "Manual Entry",
   bodyGoalMode: "Maintain",
   bodyStatus: {
     averageSleepHours: "",
@@ -2974,6 +3011,7 @@ const defaultProfile: SoundFitnessProfile = {
     wrist: "",
   },
   memberType: "Online Training Member",
+  muscleMass: "",
   nutritionDirection: {
     calorieStyle: "Habit based",
     dietPreferences: ["High protein", "Simple meals"],
@@ -3057,6 +3095,74 @@ const getSleepGoalHours = (value: string) => {
 const getNumberFromProfileValue = (value: string, fallback: number) => {
   const parsed = Number.parseFloat(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const normalizeBodyMetricHistory = (
+  history: unknown,
+): BodyMetricHistoryPoint[] => {
+  if (!Array.isArray(history)) return [];
+
+  return history
+    .map((item) => {
+      const record = asRecord(item);
+      const savedAt =
+        typeof record.savedAt === "string" && record.savedAt
+          ? record.savedAt
+          : typeof record.date === "string"
+            ? record.date
+            : "";
+      if (!savedAt) return null;
+
+      return {
+        bodyFat:
+          typeof record.bodyFat === "string" || typeof record.bodyFat === "number"
+            ? String(record.bodyFat)
+            : "",
+        muscleMass:
+          typeof record.muscleMass === "string" ||
+          typeof record.muscleMass === "number"
+            ? String(record.muscleMass)
+            : "",
+        savedAt,
+        source: typeof record.source === "string" ? record.source : "Manual Entry",
+        waist:
+          typeof record.waist === "string" || typeof record.waist === "number"
+            ? String(record.waist)
+            : "",
+        weight:
+          typeof record.weight === "string" || typeof record.weight === "number"
+            ? String(record.weight)
+            : "",
+        weightTrend:
+          typeof record.weightTrend === "string" ? record.weightTrend : "Not Sure",
+      };
+    })
+    .filter((item): item is BodyMetricHistoryPoint => Boolean(item))
+    .slice(-36);
+};
+
+const createBodyMetricHistoryPoint = (
+  profile: SoundFitnessProfile,
+  savedAt: string,
+) => {
+  const hasBodyMetric = [
+    profile.currentWeight,
+    profile.bodyFat,
+    profile.waist,
+    profile.muscleMass,
+  ].some((value) => typeof value === "string" && value.trim().length > 0);
+
+  if (!hasBodyMetric) return null;
+
+  return {
+    bodyFat: profile.bodyFat || "",
+    muscleMass: profile.muscleMass || "",
+    savedAt,
+    source: profile.bodyScanSource || "Manual Entry",
+    waist: profile.waist || "",
+    weight: profile.currentWeight || "",
+    weightTrend: profile.bodyStatus.weightTrend || "Not Sure",
+  };
 };
 
 const calculateAgeFromBirthday = (birthday: string) => {
@@ -3710,6 +3816,7 @@ const getProfileTabCompletions = (
       profile.sessionsPerWeek,
       profile.sessionLength,
       profile.currentWeight,
+      profile.muscleMass,
       profile.profileImage,
       profile.userNotes,
     ]),
@@ -3728,16 +3835,15 @@ const getProfileTabCompletions = (
       profile.nutritionDirection.proteinTarget,
     ]),
     body: calculateSectionCompletion([
-      profile.gender,
-      profile.birthday,
       profile.occupation,
       profile.sedentaryLevel,
       profile.hoursWorkedPerWeek,
       profile.city,
       profile.currentWeight,
-      profile.height,
+      profile.muscleMass,
       profile.bodyFat,
       profile.waist,
+      profile.bodyScanSource,
       profile.bodyStatus.weightTrend,
     ]),
     readiness: calculateSectionCompletion([
@@ -3919,6 +4025,7 @@ const mergeProfile = (saved: Partial<SoundFitnessProfile>): SoundFitnessProfile 
           }))
         : defaultBenchmarks,
     bodyModel: gender,
+    bodyMetricHistory: normalizeBodyMetricHistory(saved.bodyMetricHistory),
     gender,
     availableEquipment,
     equipment: availableEquipment,
@@ -4107,6 +4214,7 @@ function SelectField({
 
 function InfoField({
   helper,
+  inline = false,
   label,
   onChange,
   placeholder,
@@ -4114,6 +4222,7 @@ function InfoField({
   value,
 }: {
   helper: string;
+  inline?: boolean;
   label: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -4121,13 +4230,21 @@ function InfoField({
   value: string;
 }) {
   return (
-    <label className="relative z-0 block overflow-visible rounded-[24px] border border-white/10 bg-slate-950/52 p-4 transition focus-within:z-50 hover:z-50">
+    <label
+      className={
+        inline
+          ? "relative z-0 block overflow-visible transition focus-within:z-50 hover:z-50"
+          : "relative z-0 block overflow-visible rounded-[24px] border border-white/10 bg-slate-950/52 p-4 transition focus-within:z-50 hover:z-50"
+      }
+    >
       <span className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-slate-300">
         {label}
         <InfoBubble label={label}>{helper}</InfoBubble>
       </span>
       <input
-        className="mt-3 min-h-[46px] w-full rounded-2xl border border-white/10 bg-slate-950/72 px-4 py-3 text-sm font-bold text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/50 focus:bg-white/[0.07]"
+        className={`w-full rounded-2xl border border-white/10 bg-slate-950/72 text-sm font-bold text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/50 focus:bg-white/[0.07] ${
+          inline ? "mt-2 min-h-[42px] px-3 py-2.5" : "mt-3 min-h-[46px] px-4 py-3"
+        }`}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         type={type}
@@ -4175,6 +4292,7 @@ function InfoSelectField({
 
 function InfoSearchableSelectField({
   helper,
+  inline = false,
   label,
   onChange,
   options,
@@ -4182,6 +4300,7 @@ function InfoSearchableSelectField({
   value,
 }: {
   helper: string;
+  inline?: boolean;
   label: string;
   onChange: (value: string) => void;
   options: string[];
@@ -4224,7 +4343,11 @@ function InfoSearchableSelectField({
   return (
     <div
       ref={rootRef}
-      className="relative z-0 block overflow-visible rounded-[24px] border border-white/10 bg-slate-950/52 p-4 transition focus-within:z-[140] hover:z-[140]"
+      className={
+        inline
+          ? "relative z-0 block overflow-visible transition focus-within:z-[140] hover:z-[140]"
+          : "relative z-0 block overflow-visible rounded-[24px] border border-white/10 bg-slate-950/52 p-4 transition focus-within:z-[140] hover:z-[140]"
+      }
     >
       <span className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.12em] text-slate-300">
         {label}
@@ -4238,7 +4361,9 @@ function InfoSearchableSelectField({
           setOpen((current) => !current);
           setQuery("");
         }}
-        className={`mt-3 flex min-h-[46px] w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-bold outline-none transition ${
+        className={`flex w-full items-center justify-between gap-3 rounded-2xl border text-left text-sm font-bold outline-none transition ${
+          inline ? "mt-2 min-h-[42px] px-3 py-2.5" : "mt-3 min-h-[46px] px-4 py-3"
+        } ${
           open
             ? "border-cyan-200/50 bg-white/[0.075] text-white ring-2 ring-cyan-300/15"
             : "border-white/10 bg-slate-950/72 text-white hover:border-cyan-200/32 hover:bg-white/[0.06]"
@@ -4259,7 +4384,9 @@ function InfoSearchableSelectField({
         <div
           role="listbox"
           aria-label={label}
-          className="absolute left-4 right-4 top-[calc(100%+0.45rem)] z-[180] rounded-2xl border border-cyan-200/28 bg-slate-950/96 p-2 shadow-[0_22px_55px_rgba(0,0,0,0.55),0_0_28px_rgba(34,211,238,0.14)] backdrop-blur-xl"
+          className={`absolute top-[calc(100%+0.45rem)] z-[180] rounded-2xl border border-cyan-200/28 bg-slate-950/96 p-2 shadow-[0_22px_55px_rgba(0,0,0,0.55),0_0_28px_rgba(34,211,238,0.14)] backdrop-blur-xl ${
+            inline ? "left-0 right-0" : "left-4 right-4"
+          }`}
         >
           <input
             autoFocus
@@ -5601,11 +5728,11 @@ function WeightTrendVerticalSelector({
   return (
     <div
       ref={rootRef}
-      className="relative z-0 h-full overflow-visible rounded-[20px] border border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.09),transparent_34%),rgba(15,23,42,0.54)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-[120] hover:z-[120]"
+      className="relative z-0 overflow-visible rounded-[18px] border border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.09),transparent_34%),rgba(15,23,42,0.54)] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-[120] hover:z-[120]"
     >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-300">
+          <p className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-300">
             Weight Trend
           </p>
         </div>
@@ -5619,10 +5746,10 @@ function WeightTrendVerticalSelector({
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => setOpen((current) => !current)}
-        className={`mt-2 flex min-h-[52px] w-full items-center gap-2 rounded-2xl border px-2.5 py-2 text-left transition duration-200 hover:-translate-y-0.5 active:scale-[0.98] ${selectedOption.active}`}
+        className={`mt-2 flex min-h-[44px] w-full items-center gap-2 rounded-2xl border px-2.5 py-1.5 text-left transition duration-200 hover:-translate-y-0.5 active:scale-[0.98] ${selectedOption.active}`}
       >
         <span
-          className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl border text-lg font-black leading-none transition ${selectedOption.iconActive}`}
+          className={`grid h-7 w-7 shrink-0 place-items-center rounded-xl border text-base font-black leading-none transition ${selectedOption.iconActive}`}
         >
           {selectedOption.icon}
         </span>
@@ -5636,7 +5763,7 @@ function WeightTrendVerticalSelector({
         </span>
         <span
           aria-hidden="true"
-          className={`grid h-7 w-7 shrink-0 place-items-center rounded-xl border border-white/10 bg-slate-950/48 text-xs font-black text-cyan-100 transition ${
+          className={`grid h-6 w-6 shrink-0 place-items-center rounded-xl border border-white/10 bg-slate-950/48 text-[11px] font-black text-cyan-100 transition ${
             open ? "rotate-180" : ""
           }`}
         >
@@ -5845,6 +5972,125 @@ export default function ClientProfilePage() {
     readiness: false,
     specialCircumstances: false,
   });
+  const [activeProfileOrbiterIndices, setActiveProfileOrbiterIndices] =
+    useState<Record<string, number>>({});
+  const [activeProfileOrbiterRow, setActiveProfileOrbiterRow] = useState(0);
+  const [openProfileOrbiterDetails, setOpenProfileOrbiterDetails] =
+    useState<string | null>(null);
+  const [expandedProfileOrbiterCard, setExpandedProfileOrbiterCard] =
+    useState<string | null>(null);
+  const [activeBodyMetricOrbiterIndex, setActiveBodyMetricOrbiterIndex] =
+    useState(0);
+  const profileOrbiterPointerStartRef = useRef<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const profileOrbiterPointerMovedRef = useRef(false);
+  const profileOrbiterWheelLockRef = useRef(false);
+  const profileOrbiterRef = useRef<HTMLElement | null>(null);
+  const profileOrbiterViewportRef = useRef<HTMLDivElement | null>(null);
+  const profileHeroRowRef = useRef<HTMLElement | null>(null);
+  const shouldLetProfileOrbiterTargetScroll = (
+    target: EventTarget | null,
+    deltaY: number,
+  ) => {
+    if (!(target instanceof HTMLElement)) return false;
+
+    const scrollArea = target.closest<HTMLElement>(
+      "[data-profile-orbiter-scroll-area='true']",
+    );
+    if (!scrollArea) return false;
+
+    const overflow = scrollArea.scrollHeight - scrollArea.clientHeight;
+    if (overflow <= 2) return false;
+
+    if (deltaY < 0) return scrollArea.scrollTop > 2;
+    if (deltaY > 0) return scrollArea.scrollTop < overflow - 2;
+    return false;
+  };
+  const scrollProfileOrbiterIntoView = useCallback(
+    (behavior: ScrollBehavior = "smooth") => {
+      window.requestAnimationFrame(() => {
+        const orbiter = profileOrbiterRef.current;
+        if (!orbiter) return;
+
+        const rect = orbiter.getBoundingClientRect();
+        const topComfort = 104;
+        const bottomComfort = 112;
+        const lowerEdge = window.innerHeight - bottomComfort;
+        if (rect.top >= topComfort && rect.bottom <= lowerEdge) return;
+
+        const top =
+          rect.top < topComfort
+            ? rect.top + window.scrollY - topComfort
+            : rect.bottom + window.scrollY - lowerEdge;
+
+        window.scrollTo({
+          behavior,
+          top: Math.max(0, top),
+        });
+      });
+    },
+    [],
+  );
+  const scrollProfileOrbiterViewportToRow = useCallback(
+    (row: number, behavior: ScrollBehavior = "smooth") => {
+      window.requestAnimationFrame(() => {
+        const viewport = profileOrbiterViewportRef.current;
+        const target =
+          row === 0
+            ? profileHeroRowRef.current
+            : document.getElementById(`profile-orbiter-row-${row}`);
+        if (!viewport || !target) return;
+
+        const rowTop = target.offsetTop;
+        const centeredOffset = Math.max(
+          0,
+          (viewport.clientHeight - target.clientHeight) / 2,
+        );
+
+        viewport.scrollTo({
+          behavior,
+          top: Math.max(0, rowTop - centeredOffset),
+        });
+      });
+    },
+    [],
+  );
+  const scrollProfileHeroRowIntoView = useCallback(
+    (behavior: ScrollBehavior = "smooth") => {
+      window.requestAnimationFrame(() => {
+        profileOrbiterViewportRef.current?.scrollTo({
+          behavior,
+          top: 0,
+        });
+        const orbiter = profileOrbiterRef.current;
+        if (orbiter) {
+          const top = orbiter.getBoundingClientRect().top + window.scrollY - 96;
+          window.scrollTo({
+            behavior,
+            top: Math.max(0, top),
+          });
+        } else {
+          scrollProfileOrbiterIntoView(behavior);
+        }
+        profileHeroRowRef.current?.scrollTo({ top: 0, behavior });
+      });
+    },
+    [scrollProfileOrbiterIntoView],
+  );
+  const jumpProfileOrbiterToHero = useCallback(
+    (behavior: ScrollBehavior = "smooth") => {
+      profileOrbiterPointerStartRef.current = null;
+      profileOrbiterWheelLockRef.current = false;
+      setActiveProfileOrbiterRow(0);
+      setOpenProfileOrbiterDetails(null);
+      setExpandedProfileOrbiterCard(null);
+      scrollProfileHeroRowIntoView(behavior);
+      window.setTimeout(() => scrollProfileHeroRowIntoView("auto"), 90);
+    },
+    [scrollProfileHeroRowIntoView],
+  );
   const [heroReadinessDetailsOpen, setHeroReadinessDetailsOpen] = useState(false);
   const [masterJourneyExpanded, setMasterJourneyExpanded] = useState(false);
   const [openMasterJourney, setOpenMasterJourney] = useState<string | null>(null);
@@ -5870,7 +6116,6 @@ export default function ClientProfilePage() {
   const [customMeasurementLabel, setCustomMeasurementLabel] = useState("");
   const [customMeasurementValue, setCustomMeasurementValue] = useState("");
   const [customMeasurementsOpen, setCustomMeasurementsOpen] = useState(false);
-  const [nonVariablesOpen, setNonVariablesOpen] = useState(false);
   const measurementSliderRef = useRef<HTMLDivElement | null>(null);
   const measurementCardRefs = useRef<Array<HTMLDivElement | null>>([]);
   const goalCompassSliderRef = useRef<HTMLDivElement | null>(null);
@@ -6239,6 +6484,84 @@ export default function ClientProfilePage() {
       });
     }, 40);
   };
+
+  const openProfileOrbiterSection = useCallback(({
+    accordion,
+    tab,
+    targetId,
+  }: {
+    accordion?: ProfileAccordionSection;
+    tab: ProfileTab;
+    targetId: string;
+  }) => {
+    setActiveTab(tab);
+    setActiveProfileOrbiterRow(getProfileOrbiterRowForTab(tab));
+    if (accordion) {
+      setProfileSectionOpen(() => {
+        const next: ProfileAccordionState = {
+          appCoachNotes: false,
+          benchmarks: false,
+          measurements: false,
+          myBody: false,
+          planBuilder: false,
+          planDirection: false,
+          previousExperience: false,
+          readiness: false,
+          specialCircumstances: false,
+        };
+
+        next[accordion] = true;
+        return next;
+      });
+    }
+
+    window.setTimeout(() => {
+      document.getElementById(targetId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 120);
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+
+    const openProfileHashTarget = () => {
+      const hash = window.location.hash.replace(/^#/, "");
+      if (hash === "my-body") {
+        openProfileOrbiterSection({
+          accordion: "myBody",
+          tab: "overview",
+          targetId: "my-body",
+        });
+        return;
+      }
+
+      if (hash === "measurements") {
+        openProfileOrbiterSection({
+          accordion: "measurements",
+          tab: "overview",
+          targetId: "measurements",
+        });
+      }
+    };
+
+    openProfileHashTarget();
+    window.addEventListener("hashchange", openProfileHashTarget);
+    return () => window.removeEventListener("hashchange", openProfileHashTarget);
+  }, [loading, openProfileOrbiterSection]);
+
+  useEffect(() => {
+    if (activeProfileOrbiterRow !== 0) return;
+
+    scrollProfileHeroRowIntoView();
+  }, [activeProfileOrbiterRow, scrollProfileHeroRowIntoView]);
+
+  useEffect(() => {
+    if (loading) return;
+
+    jumpProfileOrbiterToHero("auto");
+  }, [jumpProfileOrbiterToHero, loading]);
 
   useEffect(() => {
     return () => {
@@ -6998,6 +7321,13 @@ export default function ClientProfilePage() {
     const exerciseConfidence = normalizeExerciseConfidence(profile.exerciseConfidence);
     const age = calculateAgeFromBirthday(profile.birthday) || "";
     const updatedAt = new Date().toISOString();
+    const bodyMetricHistory = normalizeBodyMetricHistory(
+      profile.bodyMetricHistory,
+    );
+    const bodyMetricSnapshot = createBodyMetricHistoryPoint(profile, updatedAt);
+    const nextBodyMetricHistory = bodyMetricSnapshot
+      ? [...bodyMetricHistory, bodyMetricSnapshot].slice(-36)
+      : bodyMetricHistory;
     const nextProfile = {
       ...stored,
       ...profile,
@@ -7006,6 +7336,7 @@ export default function ClientProfilePage() {
       age,
       availableEquipment,
       avatarUrl: profileImage,
+      bodyMetricHistory: nextBodyMetricHistory,
       bodyModel: gender,
       cardioPreference: firstPreferenceValue(
         cardioPreferences,
@@ -7153,11 +7484,7 @@ export default function ClientProfilePage() {
     ];
 
     return (
-      <aside className={`${profileOverviewSectionShellClass} overflow-hidden p-2.5 sm:p-4`}>
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-200/70 to-emerald-200/55"
-        />
+      <aside className="relative overflow-visible p-0">
         <div className="flex items-center justify-between gap-3 xl:hidden">
           <div className="min-w-0">
             <p className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/75">
@@ -7198,27 +7525,21 @@ export default function ClientProfilePage() {
         >
           <div className="overflow-hidden">
             <div className="grid gap-2 sm:grid-cols-2">
-              <div className={`relative overflow-hidden rounded-2xl border border-cyan-100/24 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.14),transparent_38%),rgba(15,23,42,0.58)] px-3 py-2 ${planReadinessTone.glow}`}>
+              <div className="relative min-w-0 px-1 py-1">
                 <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100/75">
                   Plan Ready
                 </p>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className={`text-lg font-black leading-none ${planReadinessTone.text}`}>
+                <div className="mt-1 flex items-center gap-2">
+                  <p className={`shrink-0 text-lg font-black leading-none ${planReadinessTone.text}`}>
                     {planReadiness.overall}%
                   </p>
-                  <p className="truncate text-[10px] font-black text-slate-300">
-                    {planReadiness.overall >= 80 ? "Ready" : "Building"}
+                  <p className="min-w-0 text-[10px] font-black leading-4 text-slate-300">
+                    {planReadiness.overall >= 80 ? "Ready to plan" : "Building context"}
                   </p>
-                </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-950/80">
-                  <span
-                    className={`block h-full rounded-full bg-gradient-to-r ${planReadinessTone.bar}`}
-                    style={{ width: `${planReadiness.overall}%` }}
-                  />
                 </div>
               </div>
 
-              <div className={`relative overflow-hidden rounded-2xl border ${planRiskTone.border} bg-[radial-gradient(circle_at_12%_0%,rgba(251,146,60,0.12),transparent_38%),rgba(15,23,42,0.58)] px-3 py-2 ${planRiskTone.glow}`}>
+              <div className="relative min-w-0 px-1 py-1">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[9px] font-black uppercase tracking-[0.12em] text-orange-100/75">
                     Risk
@@ -7290,20 +7611,16 @@ export default function ClientProfilePage() {
         </div>
 
         <div className="mt-3 hidden gap-2 xl:grid xl:grid-cols-2">
-          <div className={`relative overflow-hidden rounded-2xl border border-cyan-100/24 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.16),transparent_38%),rgba(15,23,42,0.62)] px-3 py-2.5 ${planReadinessTone.glow}`}>
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-cyan-200/70 via-emerald-200/60 to-transparent"
-            />
+          <div className="relative min-w-0 px-1 py-1">
             <div className="flex items-center gap-3">
               <div
-                className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full border border-cyan-100/20 bg-slate-950/78 shadow-[0_0_24px_rgba(34,211,238,0.18)]"
+                className="relative grid h-14 w-14 shrink-0 place-items-center rounded-full border border-cyan-100/20 bg-slate-950/78 shadow-[0_0_24px_rgba(34,211,238,0.18)]"
                 style={{
                   background: `conic-gradient(rgba(34,211,238,0.95) 0deg, rgba(52,211,153,0.95) ${planReadiness.overall * 3.6}deg, rgba(15,23,42,0.9) 0deg)`,
                 }}
               >
                 <span className="absolute inset-1.5 rounded-full bg-slate-950" />
-                <span className={`relative text-xs font-black ${planReadinessTone.text}`}>
+                <span className={`relative text-sm font-black ${planReadinessTone.text}`}>
                   {planReadiness.overall}%
                 </span>
               </div>
@@ -7311,24 +7628,17 @@ export default function ClientProfilePage() {
                 <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100/75">
                   Plan Ready
                 </p>
-                <p className="mt-1 truncate text-xs font-black text-white">
-                  {planReadiness.overall >= 80 ? "Profile lit up" : "Building context"}
+                <p className="mt-1 text-sm font-black leading-5 text-white">
+                  {planReadiness.overall >= 80 ? "Profile ready" : "Building context"}
+                </p>
+                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+                  {planReadiness.completed.length}/{planReadiness.sections.length} complete
                 </p>
               </div>
             </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-950/80">
-              <span
-                className={`block h-full rounded-full bg-gradient-to-r ${planReadinessTone.bar} shadow-[0_0_16px_rgba(34,211,238,0.22)] transition-[width] duration-500`}
-                style={{ width: `${planReadiness.overall}%` }}
-              />
-            </div>
           </div>
 
-          <div className={`relative overflow-hidden rounded-2xl border ${planRiskTone.border} bg-[radial-gradient(circle_at_12%_0%,rgba(251,146,60,0.12),transparent_38%),rgba(15,23,42,0.62)] px-3 py-2.5 ${planRiskTone.glow}`}>
-            <span
-              aria-hidden="true"
-              className={`pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r ${planRiskTone.bar} opacity-80`}
-            />
+          <div className="relative min-w-0 px-1 py-1">
             <div className="flex items-center justify-between gap-2">
               <p className="text-[9px] font-black uppercase tracking-[0.12em] text-orange-100/75">
                 Risk
@@ -7353,7 +7663,7 @@ export default function ClientProfilePage() {
           {compactReadinessChips.map((chip) => (
             <div
               key={chip.label}
-              className={`inline-flex min-h-[28px] min-w-0 max-w-full flex-[1_1_150px] items-center rounded-full border px-2 py-1 text-[9px] font-black leading-none ${chip.className}`}
+              className={`inline-flex min-h-[28px] w-fit max-w-[190px] flex-none items-center rounded-full border px-2.5 py-1 text-[9px] font-black leading-none ${chip.className}`}
             >
               <span className="shrink-0 text-slate-300/80">{chip.label}</span>
               <span className="ml-1 truncate text-white">{chip.value}</span>
@@ -7400,16 +7710,16 @@ export default function ClientProfilePage() {
   };
 
   const renderHero = () => (
-    <section className="relative overflow-hidden rounded-[36px] border border-white/10 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,146,60,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.94))] p-5 shadow-[0_34px_120px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.14)] sm:p-7">
+    <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,146,60,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.94))] p-4 shadow-[0_34px_120px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.14)] sm:p-5">
       <div className="pointer-events-none absolute right-[-10%] top-[-30%] h-72 w-72 rounded-full bg-cyan-300/10 blur-3xl" />
-      <div className="relative z-10 grid gap-5 xl:grid-cols-[minmax(0,1fr)_390px] xl:items-start">
+      <div className="relative z-10 grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px] xl:items-center">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.26em] text-cyan-200/80">
             Personal Command Center
           </p>
-          <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-center">
-            <div className="flex shrink-0 flex-col items-center gap-3">
-              <div className="relative h-28 w-28 overflow-hidden rounded-full border border-cyan-100/24 bg-cyan-300/12 shadow-[0_0_44px_rgba(34,211,238,0.2)]">
+          <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="flex shrink-0 flex-col items-center gap-2.5">
+              <div className="relative h-24 w-24 overflow-hidden rounded-full border border-cyan-100/24 bg-cyan-300/12 shadow-[0_0_44px_rgba(34,211,238,0.2)]">
                 {profile.profileImage ? (
                   <img
                     alt={`${identityDisplayName} profile`}
@@ -7537,13 +7847,13 @@ export default function ClientProfilePage() {
               ) : null}
             </div>
           </div>
-          <h1 className="mt-5 max-w-4xl text-4xl font-black tracking-tight text-white sm:text-5xl">
+          <h1 className="mt-4 max-w-4xl text-3xl font-black tracking-tight text-white sm:text-4xl">
             {profile.primaryGoal || "Goal not set"}
           </h1>
           <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-slate-300">
             Define the training identity that powers dashboard focus, workout generation, exercise recommendations, recovery thresholds, and nutrition direction.
           </p>
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="mt-4 flex flex-wrap gap-2">
             {[
               `Goal: ${profile.goalMode}`,
               `Mode: ${profile.bodyGoalMode}`,
@@ -7560,7 +7870,7 @@ export default function ClientProfilePage() {
             ))}
           </div>
         </div>
-        <div className="min-w-0 xl:self-start">
+        <div className="min-w-0 xl:self-center">
           {renderHeroStatusCommandCenter()}
         </div>
       </div>
@@ -8362,25 +8672,131 @@ export default function ClientProfilePage() {
 
   */
 
-  const renderBodyMetrics = (options: { embedded?: boolean } = {}) => {
-    const weightUnit =
-      profile.appPersonalization.preferredUnitSystem === "kg" ? "kg" : "lb";
+  const renderOccupationActivityControls = () => (
+    <div
+      id="occupation-activity"
+      className="grid items-start gap-3 lg:grid-cols-3"
+      data-profile-section="occupation-activity"
+    >
+      <OccupationSelector
+        helper="Occupation helps estimate daily fatigue, time constraints, and movement exposure."
+        onChange={(value) => setProfileField("occupation", value)}
+        value={profile.occupation}
+      />
+      <StatusSelector
+        helper="Daily activity level helps balance mobility, cardio, and recovery recommendations."
+        helperMode="tooltip"
+        label="Daily Activity Level"
+        onChange={(value) => setProfileField("sedentaryLevel", value)}
+        options={sedentaryLevelOptions}
+        value={profile.sedentaryLevel}
+      />
+      <MetricControl
+        compact
+        color="orange"
+        defaultValue={40}
+        helper="Work hours help estimate time pressure and non-training fatigue."
+        helperMode="tooltip"
+        label="Hours Worked / Week"
+        max={80}
+        min={0}
+        onChange={(value) => setProfileField("hoursWorkedPerWeek", value)}
+        showArrowControls
+        showManualInput={false}
+        showRangeMarkers
+        step={1}
+        unit="hrs"
+        value={profile.hoursWorkedPerWeek}
+      />
+    </div>
+  );
+
+  const renderContactInfoControls = () => (
+    <div
+      id="contact-info"
+      className="rounded-[24px] border border-white/10 bg-slate-950/42 p-4"
+      data-profile-section="contact-info"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-300">
+            Optional Contact Info
+          </p>
+          <InfoBubble label="Optional Contact Info">
+            Optional details for future coaching context and emergency contact workflows.
+          </InfoBubble>
+        </div>
+        <span className="rounded-full border border-cyan-200/18 bg-cyan-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
+          Optional
+        </span>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="relative z-0 overflow-visible rounded-[22px] border border-cyan-200/14 bg-slate-950/48 p-3 transition focus-within:z-[140] hover:z-[140] md:col-span-2 xl:col-span-2">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-black uppercase tracking-[0.12em] text-slate-300">
+              Location
+            </span>
+            <InfoBubble label="Location">
+              State and city stay optional and only provide broad schedule,
+              weather, and travel-aware coaching context.
+            </InfoBubble>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <InfoSearchableSelectField
+              inline
+              helper="State is optional and only used for broad weather, travel, and schedule-aware coaching context."
+              label="State"
+              onChange={(value) => setProfileField("state", value)}
+              options={usStateOptions}
+              placeholder="Select state"
+              value={profile.state}
+            />
+            <InfoField
+              inline
+              helper={
+                profile.state
+                  ? `City stays optional and is scoped to ${profile.state} for broad planning context.`
+                  : "City stays optional. Choose a state first if you want the app to keep location context broad."
+              }
+              label="City"
+              onChange={(value) => setProfileField("city", value)}
+              placeholder={profile.state ? "City name" : "Select state first"}
+              value={profile.city}
+            />
+          </div>
+        </div>
+        <Field
+          label="Phone"
+          onChange={(value) => setProfileField("phone", value)}
+          placeholder="Optional"
+          type="tel"
+          value={profile.phone}
+        />
+        <Field
+          label="Emergency Contact"
+          onChange={(value) => setProfileField("emergencyContactName", value)}
+          placeholder="Optional name"
+          value={profile.emergencyContactName}
+        />
+        <Field
+          label="Emergency Phone"
+          onChange={(value) => setProfileField("emergencyContactPhone", value)}
+          placeholder="Optional phone"
+          type="tel"
+          value={profile.emergencyContactPhone}
+        />
+      </div>
+    </div>
+  );
+
+  const renderVitalStatisticsControls = () => {
     const heightUnit =
       profile.appPersonalization.preferredUnitSystem === "kg" ? "cm" : "in";
     const calculatedAge = calculateAgeFromBirthday(profile.birthday);
-    const displayedAge = calculatedAge;
     const currentYear = new Date().getFullYear();
     const birthdayYears = Array.from({ length: 121 }, (_, index) =>
       String(currentYear - index),
     );
-    const updateBirthday = (birthday: string) => {
-      const nextAge = calculateAgeFromBirthday(birthday);
-      setProfile((current) => ({
-        ...current,
-        age: nextAge,
-        birthday,
-      }));
-    };
     const birthdayDayCount = getDaysInBirthdayMonth(
       birthdayDraft.month,
       birthdayDraft.year,
@@ -8396,6 +8812,14 @@ export default function ClientProfilePage() {
       label: year,
       value: year,
     }));
+    const updateBirthday = (birthday: string) => {
+      const nextAge = calculateAgeFromBirthday(birthday);
+      setProfile((current) => ({
+        ...current,
+        age: nextAge,
+        birthday,
+      }));
+    };
     const updateBirthdayPart = (key: keyof BirthdayParts, rawValue: string) => {
       const value =
         key === "year"
@@ -8431,37 +8855,13 @@ export default function ClientProfilePage() {
         birthday: "",
       }));
     };
-    const genderSummary =
-      normalizeBodyModel(profile.gender || profile.bodyModel) === "female"
-        ? "♀ Female"
-        : "♂ Male";
-    const bodySummaryItems = [
-      genderSummary,
-      displayedAge ? `${displayedAge} yrs` : "Birthday not set",
-      profile.height ? `${profile.height} ${heightUnit}` : "Height not set",
-      profile.currentWeight
-        ? `${profile.currentWeight} ${weightUnit}`
-        : "Weight not set",
-    ];
-    const bodySummary = (
-      <div className="flex flex-wrap gap-2">
-        {bodySummaryItems.map((item) => (
-          <span
-            key={item}
-            className="rounded-full border border-cyan-200/18 bg-cyan-300/10 px-3 py-1.5 text-[11px] font-black text-cyan-50"
-          >
-            {item}
-          </span>
-        ))}
-      </div>
-    );
-    const nonVariablesSummaryItems = [
-      genderSummary,
-      displayedAge ? `${displayedAge} yrs` : "Age not set",
-      profile.height ? `${profile.height} ${heightUnit}` : "Height not set",
-    ];
-    const nonVariablesContent = (
-      <div className="grid gap-4 lg:grid-cols-3">
+
+    return (
+      <div
+        id="vital-statistics"
+        className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)_minmax(220px,0.72fr)]"
+        data-profile-section="vital-statistics"
+      >
         {renderGenderSelector()}
         <div className="relative z-0 overflow-visible rounded-[24px] border border-blue-200/16 bg-[radial-gradient(circle_at_16%_0%,rgba(96,165,250,0.13),transparent_36%),rgba(15,23,42,0.58)] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition focus-within:z-50 hover:z-50 hover:border-blue-200/26 hover:shadow-[0_0_28px_rgba(96,165,250,0.08),inset_0_1px_0_rgba(255,255,255,0.08)]">
           <span
@@ -8516,7 +8916,7 @@ export default function ClientProfilePage() {
           </div>
 
           <div className="mt-3 rounded-2xl border border-blue-200/14 bg-blue-300/8 p-3">
-            {profile.birthday && displayedAge ? (
+            {profile.birthday && calculatedAge ? (
               <div className="grid gap-2 sm:grid-cols-[1fr_auto] sm:items-center">
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.14em] text-blue-100/75">
@@ -8534,7 +8934,7 @@ export default function ClientProfilePage() {
                   <p className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100/75">
                     Age
                   </p>
-                  <p className="text-2xl font-black text-white">{displayedAge}</p>
+                  <p className="text-2xl font-black text-white">{calculatedAge}</p>
                 </div>
               </div>
             ) : (
@@ -8548,7 +8948,7 @@ export default function ClientProfilePage() {
           compact
           color="steel"
           defaultValue={heightUnit === "cm" ? 173 : 68}
-          helper="Height supports future estimates and exercise setup context."
+          helper="Height supports estimates and exercise setup context."
           helperMode="tooltip"
           label="Height"
           max={heightUnit === "cm" ? 220 : 86}
@@ -8563,74 +8963,400 @@ export default function ClientProfilePage() {
         />
       </div>
     );
-    const nonVariablesAccordion = (
-      <section className="mt-4 overflow-hidden rounded-[24px] border border-cyan-200/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.10),transparent_34%),rgba(15,23,42,0.46)] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+  };
+
+  const renderBodyMetrics = (options: { embedded?: boolean } = {}) => {
+    const weightUnit =
+      profile.appPersonalization.preferredUnitSystem === "kg" ? "kg" : "lb";
+    const bodySummaryItems = [
+      profile.currentWeight
+        ? `${profile.currentWeight} ${weightUnit}`
+        : "Weight not set",
+      profile.waist ? `${profile.waist} in waist` : "Waist not set",
+      profile.muscleMass
+        ? `${profile.muscleMass} ${weightUnit} muscle`
+        : "Muscle mass not set",
+      profile.bodyFat ? `${profile.bodyFat}% body fat` : "Body fat not set",
+    ];
+    const bodySummary = (
+      <div className="flex flex-wrap gap-2">
+        {bodySummaryItems.map((item) => (
+          <span
+            key={item}
+            className="rounded-full border border-cyan-200/18 bg-cyan-300/10 px-3 py-1.5 text-[11px] font-black text-cyan-50"
+          >
+            {item}
+          </span>
+        ))}
+      </div>
+    );
+    const bodyMetricOrbiterItems = [
+      {
+        color: "cyan" as const,
+        defaultValue: weightUnit === "kg" ? 82 : 180,
+        helper: "Current body weight for nutrition and plan context.",
+        id: "currentWeight",
+        label: "Current Weight",
+        max: weightUnit === "kg" ? 220 : 480,
+        min: weightUnit === "kg" ? 35 : 80,
+        onChange: (value: string) => setProfileField("currentWeight", value),
+        step: weightUnit === "kg" ? 0.5 : 1,
+        tone: "border-cyan-200/20 bg-cyan-300/10 text-cyan-50",
+        unit: weightUnit,
+        value: profile.currentWeight,
+      },
+      {
+        color: "amber" as const,
+        defaultValue: 18.5,
+        helper: "Body-composition context.",
+        id: "bodyFat",
+        label: "Body Fat %",
+        max: 50,
+        min: 5,
+        onChange: (value: string) => setProfileField("bodyFat", value),
+        step: 0.5,
+        tone: "border-amber-200/20 bg-amber-300/10 text-amber-50",
+        unit: "%",
+        value: profile.bodyFat,
+      },
+      {
+        color: "teal" as const,
+        defaultValue: 34,
+        helper: "Waist tracks direction over time.",
+        id: "waist",
+        label: "Waist",
+        max: 70,
+        min: 20,
+        onChange: (value: string) => setProfileField("waist", value),
+        step: 0.25,
+        tone: "border-teal-200/20 bg-teal-300/10 text-teal-50",
+        unit: "in",
+        value: profile.waist,
+      },
+      {
+        color: "violet" as const,
+        defaultValue: weightUnit === "kg" ? 66 : 145,
+        helper: "Lean muscle mass from manual entry or future body scan imports.",
+        id: "muscleMass",
+        label: "Muscle Mass",
+        max: weightUnit === "kg" ? 140 : 310,
+        min: weightUnit === "kg" ? 20 : 45,
+        onChange: (value: string) => setProfileField("muscleMass", value),
+        step: weightUnit === "kg" ? 0.5 : 1,
+        tone: "border-violet-200/20 bg-violet-300/10 text-violet-50",
+        unit: weightUnit,
+        value: profile.muscleMass,
+      },
+    ];
+    const bodyMetricOrbiterCount = bodyMetricOrbiterItems.length;
+    const safeBodyMetricOrbiterIndex =
+      ((activeBodyMetricOrbiterIndex % bodyMetricOrbiterCount) +
+        bodyMetricOrbiterCount) %
+      bodyMetricOrbiterCount;
+    const activeBodyMetricItem =
+      bodyMetricOrbiterItems[safeBodyMetricOrbiterIndex];
+    const moveBodyMetricOrbiter = (direction: -1 | 1) => {
+      setActiveBodyMetricOrbiterIndex(
+        (current) =>
+          ((current + direction) % bodyMetricOrbiterCount +
+            bodyMetricOrbiterCount) %
+          bodyMetricOrbiterCount,
+      );
+    };
+    const renderBodyMetricPreview = (index: number, side: "previous" | "next") => {
+      const item = bodyMetricOrbiterItems[index];
+      const valueLabel = `${formatProfileNumber(
+        getNumberFromProfileValue(item.value, item.defaultValue),
+        item.step,
+      )} ${item.unit}`;
+
+      return (
         <button
           type="button"
-          aria-expanded={nonVariablesOpen}
-          onClick={() => setNonVariablesOpen((open) => !open)}
-          className="flex w-full flex-col gap-3 px-4 py-4 text-left transition hover:bg-cyan-300/[0.035] sm:flex-row sm:items-center sm:justify-between"
+          aria-label={`Show ${item.label}`}
+          onClick={() => setActiveBodyMetricOrbiterIndex(index)}
+          className={`hidden min-h-[92px] rounded-[20px] border px-3 py-2.5 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:-translate-y-0.5 hover:border-white/24 lg:block ${item.tone}`}
         >
-          <span>
-            <span className="block text-xs font-black uppercase tracking-[0.18em] text-cyan-100">
-              Non-Variables
-            </span>
-            <span className="mt-1 block text-xs font-semibold leading-5 text-slate-400">
-              Stable body attributes used as supportive profile context.
-            </span>
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
-            <span className="hidden flex-wrap justify-end gap-1.5 sm:flex">
-              {nonVariablesSummaryItems.map((item) => (
-                <span
-                  key={item}
-                  className="rounded-full border border-cyan-200/14 bg-cyan-300/8 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-cyan-50"
-                >
-                  {item}
-                </span>
-              ))}
-            </span>
-            <span
-              className={`grid h-9 w-9 place-items-center rounded-2xl border border-cyan-200/18 bg-slate-950/52 text-sm font-black text-cyan-100 transition duration-300 ${
-                nonVariablesOpen ? "rotate-180 border-cyan-100/42 bg-cyan-300/12" : ""
-              }`}
-            >
-              ∨
-            </span>
-          </span>
+          <p className="text-[9px] font-black uppercase tracking-[0.16em] opacity-65">
+            {side}
+          </p>
+          <p className="mt-2 text-[11px] font-black uppercase tracking-[0.12em] text-white">
+            {item.label}
+          </p>
+          <p className="mt-1.5 text-lg font-black text-white">{valueLabel}</p>
         </button>
-        <div
-          className={`grid transition-all duration-300 ease-out ${
-            nonVariablesOpen ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
-          }`}
-        >
-          <div className="overflow-hidden">
-            <div className="border-t border-cyan-200/12 p-4">
-              <div className="mb-4 flex flex-wrap gap-1.5 sm:hidden">
-                {nonVariablesSummaryItems.map((item) => (
-                  <span
-                    key={item}
-                    className="rounded-full border border-cyan-200/14 bg-cyan-300/8 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-cyan-50"
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
-              {nonVariablesContent}
+      );
+    };
+    const renderBodyMetricOrbiter = () => {
+      const previousIndex =
+        (safeBodyMetricOrbiterIndex - 1 + bodyMetricOrbiterCount) %
+        bodyMetricOrbiterCount;
+      const nextIndex =
+        (safeBodyMetricOrbiterIndex + 1) % bodyMetricOrbiterCount;
+
+      return (
+        <section className="rounded-[24px] border border-cyan-200/14 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_34%),rgba(15,23,42,0.46)] p-3 shadow-[0_0_32px_rgba(34,211,238,0.06),inset_0_1px_0_rgba(255,255,255,0.08)]">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100">
+                Body Metric Orbiter
+              </p>
+              <p className="mt-0.5 text-[11px] font-semibold text-slate-400">
+                Weight, waist, muscle mass, and body fat.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                type="button"
+                aria-label="Show previous body metric"
+                onClick={() => moveBodyMetricOrbiter(-1)}
+                className="grid h-9 w-9 place-items-center rounded-2xl border border-cyan-200/16 bg-slate-950/54 text-sm font-black text-cyan-100 transition hover:border-cyan-200/38 hover:bg-cyan-300/10"
+              >
+                &lt;
+              </button>
+              <button
+                type="button"
+                aria-label="Show next body metric"
+                onClick={() => moveBodyMetricOrbiter(1)}
+                className="grid h-9 w-9 place-items-center rounded-2xl border border-orange-200/16 bg-slate-950/54 text-sm font-black text-orange-100 transition hover:border-orange-200/38 hover:bg-orange-300/10"
+              >
+                &gt;
+              </button>
             </div>
           </div>
-        </div>
-      </section>
-    );
+
+          <div className="mt-2.5 grid items-center gap-3 lg:grid-cols-[minmax(112px,0.3fr)_minmax(0,1fr)_minmax(112px,0.3fr)]">
+            {renderBodyMetricPreview(previousIndex, "previous")}
+            <MetricControl
+              compact
+              dense
+              color={activeBodyMetricItem.color}
+              defaultValue={activeBodyMetricItem.defaultValue}
+              helper={activeBodyMetricItem.helper}
+              helperMode="tooltip"
+              label={activeBodyMetricItem.label}
+              max={activeBodyMetricItem.max}
+              min={activeBodyMetricItem.min}
+              onChange={activeBodyMetricItem.onChange}
+              showArrowControls
+              showManualInput={false}
+              showRangeMarkers
+              showSteppers={false}
+              step={activeBodyMetricItem.step}
+              unit={activeBodyMetricItem.unit}
+              value={activeBodyMetricItem.value}
+            />
+            {renderBodyMetricPreview(nextIndex, "next")}
+          </div>
+
+          <div className="mt-2 flex justify-center gap-2">
+            {bodyMetricOrbiterItems.map((item, index) => (
+              <button
+                key={item.id}
+                type="button"
+                aria-label={`Show ${item.label}`}
+                aria-pressed={index === safeBodyMetricOrbiterIndex}
+                onClick={() => setActiveBodyMetricOrbiterIndex(index)}
+                className={`h-2 rounded-full transition ${
+                  index === safeBodyMetricOrbiterIndex
+                    ? "w-8 bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]"
+                    : "w-2 bg-slate-500/55 hover:bg-orange-200/75"
+                }`}
+              />
+            ))}
+          </div>
+        </section>
+      );
+    };
+    const renderBodyMetricTrendChart = () => {
+      const savedPoints = normalizeBodyMetricHistory(profile.bodyMetricHistory);
+      const chartPoints = savedPoints.slice(-8);
+      const series = [
+        {
+          color: "#67e8f9",
+          getValue: (point: BodyMetricHistoryPoint) => point.weight,
+          label: "Weight",
+          unit: weightUnit,
+        },
+        {
+          color: "#facc15",
+          getValue: (point: BodyMetricHistoryPoint) => point.bodyFat,
+          label: "Body Fat",
+          unit: "%",
+        },
+        {
+          color: "#5eead4",
+          getValue: (point: BodyMetricHistoryPoint) => point.waist,
+          label: "Waist",
+          unit: "in",
+        },
+        {
+          color: "#c4b5fd",
+          getValue: (point: BodyMetricHistoryPoint) => point.muscleMass,
+          label: "Muscle",
+          unit: weightUnit,
+        },
+      ];
+      const width = 420;
+      const height = 164;
+      const paddingX = 24;
+      const paddingY = 20;
+      const plotWidth = width - paddingX * 2;
+      const plotHeight = height - paddingY * 2;
+      const xForIndex = (index: number) =>
+        paddingX +
+        (chartPoints.length <= 1
+          ? plotWidth
+          : (index / (chartPoints.length - 1)) * plotWidth);
+      const formatPointDate = (savedAt: string) => {
+        const date = new Date(savedAt);
+        if (Number.isNaN(date.getTime())) return "Saved";
+        return date.toLocaleDateString(undefined, {
+          day: "numeric",
+          month: "short",
+        });
+      };
+
+      const drawableSeries = series
+        .map((item) => {
+          const values = chartPoints.map((point) => {
+            const parsed = Number.parseFloat(item.getValue(point));
+            return Number.isFinite(parsed) ? parsed : null;
+          });
+          const numericValues = values.filter(
+            (value): value is number => typeof value === "number",
+          );
+          if (!numericValues.length) return { ...item, points: "", values };
+
+          const min = Math.min(...numericValues);
+          const max = Math.max(...numericValues);
+          const range = max - min || 1;
+          const points = values
+            .map((value, index) => {
+              if (value === null) return "";
+              const y =
+                paddingY + plotHeight - ((value - min) / range) * plotHeight;
+              return `${xForIndex(index)},${y}`;
+            })
+            .filter(Boolean)
+            .join(" ");
+
+          return { ...item, points, values };
+        })
+        .filter((item) => item.points);
+      const latestPoint = chartPoints[chartPoints.length - 1];
+
+      return (
+        <section className="min-h-full rounded-[18px] border border-cyan-200/14 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.10),transparent_34%),rgba(15,23,42,0.48)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                Body Trend Graph
+              </p>
+              <p className="mt-0.5 text-[11px] font-semibold text-slate-400">
+                Saves add a new plot point.
+              </p>
+            </div>
+            <span className="rounded-full border border-cyan-200/18 bg-cyan-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100">
+              {chartPoints.length} saved
+            </span>
+          </div>
+
+          <div className="mt-2 rounded-2xl border border-white/10 bg-slate-950/46 p-2">
+            {chartPoints.length ? (
+              <svg
+                aria-label="Body metric trend chart"
+                className="h-[150px] w-full overflow-visible"
+                role="img"
+                viewBox={`0 0 ${width} ${height}`}
+              >
+                {[0, 1, 2, 3].map((line) => (
+                  <line
+                    key={line}
+                    stroke="rgba(148,163,184,0.16)"
+                    strokeWidth="1"
+                    x1={paddingX}
+                    x2={width - paddingX}
+                    y1={paddingY + (plotHeight / 3) * line}
+                    y2={paddingY + (plotHeight / 3) * line}
+                  />
+                ))}
+                {drawableSeries.map((item) => (
+                  <g key={item.label}>
+                    <polyline
+                      fill="none"
+                      points={item.points}
+                      stroke={item.color}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="3"
+                    />
+                    {item.values.map((value, index) => {
+                      if (value === null) return null;
+                      const coordinates = item.points.split(" ")[index];
+                      if (!coordinates) return null;
+                      const [cx, cy] = coordinates.split(",");
+                      return (
+                        <circle
+                          cx={cx}
+                          cy={cy}
+                          fill="#020617"
+                          key={`${item.label}-${index}`}
+                          r="3.5"
+                          stroke={item.color}
+                          strokeWidth="2"
+                        />
+                      );
+                    })}
+                  </g>
+                ))}
+              </svg>
+            ) : (
+              <div className="grid min-h-[150px] place-items-center rounded-xl border border-dashed border-white/10 text-center">
+                <p className="px-6 text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                  Save body metrics to start the graph.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {series.map((item) => {
+              const latestValue = latestPoint ? item.getValue(latestPoint) : "";
+              return (
+                <span
+                  key={item.label}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-slate-950/42 px-2 py-1 text-[9px] font-black text-slate-200"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: item.color }}
+                  />
+                  {item.label}
+                  {latestValue ? ` ${latestValue}${item.unit === "%" ? "%" : ` ${item.unit}`}` : ""}
+                </span>
+              );
+            })}
+            {latestPoint ? (
+              <span className="rounded-full border border-cyan-200/12 bg-cyan-300/8 px-2 py-1 text-[9px] font-black text-cyan-100">
+                {formatPointDate(latestPoint.savedAt)}
+              </span>
+            ) : null}
+          </div>
+        </section>
+      );
+    };
+    const bodyScanSources = ["Manual Entry", "InBody", "Fit3D"];
 
     const bodyMetricsContent = (
       <>
         {/* TODO: Use these body and lifestyle inputs to tune workout recommendations, recovery prompts, nutrition targets, and equipment assumptions once shared recommendation logic is ready. */}
-        <div className="relative z-0 overflow-visible rounded-[28px] border border-cyan-200/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.14),transparent_30%),rgba(15,23,42,0.62)] p-4 shadow-[0_0_44px_rgba(34,211,238,0.08)] md:p-5">
-            <p className="mb-4 rounded-2xl border border-white/10 bg-white/[0.035] p-3 text-xs font-semibold leading-5 text-slate-400">
+        <div className="relative z-0 overflow-visible rounded-[24px] border border-cyan-200/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.14),transparent_30%),rgba(15,23,42,0.62)] p-3 shadow-[0_0_44px_rgba(34,211,238,0.08)] md:p-3">
+            <p className="mb-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2 text-[11px] font-semibold leading-5 text-slate-400">
               Only share what you want used for coaching context.
             </p>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2">
               <div className="hidden">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/75">
                   Body Weight
@@ -8644,165 +9370,60 @@ export default function ClientProfilePage() {
                   Trend: {profile.bodyStatus.weightTrend}
                 </p>
               </div>
-              <div className="grid max-w-xl gap-4 md:col-span-2">
-                <MetricControl
-                  compact
-                  color="cyan"
-                  defaultValue={weightUnit === "kg" ? 82 : 180}
-                  helper="Current body weight for nutrition and plan context."
-                  helperMode="tooltip"
-                  label="Current Weight"
-                  max={weightUnit === "kg" ? 220 : 480}
-                  min={weightUnit === "kg" ? 35 : 80}
-                  onChange={(value) => setProfileField("currentWeight", value)}
-                  showArrowControls
-                  showManualInput={false}
-                  showRangeMarkers
-                  showSteppers={false}
-                  step={weightUnit === "kg" ? 0.5 : 1}
-                  unit={weightUnit}
-                  value={profile.currentWeight}
-                />
-              </div>
+              <div className="md:col-span-2">{renderBodyMetricOrbiter()}</div>
             </div>
 
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <MetricControl
-                compact
-                color="amber"
-                defaultValue={18.5}
-                helper="Body-composition context."
-                helperMode="tooltip"
-                label="Body Fat %"
-                max={50}
-                min={5}
-                onChange={(value) => setProfileField("bodyFat", value)}
-                showArrowControls
-                showManualInput={false}
-                showRangeMarkers
-                showSteppers={false}
-                step={0.5}
-                unit="%"
-                value={profile.bodyFat}
-              />
-              <MetricControl
-                compact
-                color="teal"
-                defaultValue={34}
-                helper="Waist tracks direction over time."
-                helperMode="tooltip"
-                label="Waist"
-                max={70}
-                min={20}
-                onChange={(value) => setProfileField("waist", value)}
-                showArrowControls
-                showManualInput={false}
-                showRangeMarkers
-                showSteppers={false}
-                step={0.25}
-                unit="in"
-                value={profile.waist}
-              />
-            </div>
-
-            <div className="mt-4 grid max-w-xl items-start gap-4">
+            <div className="mt-3 grid items-stretch gap-3 xl:grid-cols-[minmax(230px,0.78fr)_minmax(0,1.22fr)]">
               <WeightTrendVerticalSelector
                 onChange={(value) => updateBodyStatus("weightTrend", value)}
                 value={profile.bodyStatus.weightTrend}
               />
+              {renderBodyMetricTrendChart()}
             </div>
 
-            <div className="mt-4 grid items-start gap-4 lg:grid-cols-3">
-              <OccupationSelector
-                helper="Occupation helps estimate daily fatigue, time constraints, and movement exposure."
-                onChange={(value) => setProfileField("occupation", value)}
-                value={profile.occupation}
-              />
-              <StatusSelector
-                helper="Daily activity level helps balance mobility, cardio, and recovery recommendations."
-                helperMode="tooltip"
-                label="Daily Activity Level"
-                onChange={(value) => setProfileField("sedentaryLevel", value)}
-                options={sedentaryLevelOptions}
-                value={profile.sedentaryLevel}
-              />
-              <MetricControl
-                compact
-                color="orange"
-                defaultValue={40}
-                helper="Work hours help estimate time pressure and non-training fatigue."
-                helperMode="tooltip"
-                label="Hours Worked / Week"
-                max={80}
-                min={0}
-                onChange={(value) => setProfileField("hoursWorkedPerWeek", value)}
-                showArrowControls
-                showManualInput={false}
-                showRangeMarkers
-                step={1}
-                unit="hrs"
-                value={profile.hoursWorkedPerWeek}
-              />
-            </div>
-
-            <div className="mt-4 rounded-[24px] border border-white/10 bg-slate-950/42 p-4">
+            <div className="mt-3 rounded-[22px] border border-violet-200/14 bg-[radial-gradient(circle_at_12%_0%,rgba(167,139,250,0.12),transparent_34%),rgba(15,23,42,0.46)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-300">
-                    Optional Contact Info
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-violet-100">
+                    Body Scan Source
                   </p>
-                  <InfoBubble label="Optional Contact Info">
-                    Optional details for future coaching context and emergency contact workflows.
+                  <InfoBubble label="Body Scan Source">
+                    Manual entry works today. InBody and Fit3D are reserved
+                    connection points for future imports.
                   </InfoBubble>
                 </div>
-                <span className="rounded-full border border-cyan-200/18 bg-cyan-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
-                  Optional
+                <span className="rounded-full border border-violet-200/18 bg-violet-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-violet-100">
+                  Future Sync
                 </span>
               </div>
-              <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                <InfoSearchableSelectField
-                  helper="State is optional and only used for broad weather, travel, and schedule-aware coaching context."
-                  label="State"
-                  onChange={(value) => setProfileField("state", value)}
-                  options={usStateOptions}
-                  placeholder="Select state"
-                  value={profile.state}
-                />
-                <InfoField
-                  helper={
-                    profile.state
-                      ? `City stays optional and is scoped to ${profile.state} for broad planning context.`
-                      : "City stays optional. Choose a state first if you want the app to keep location context broad."
-                  }
-                  label="City"
-                  onChange={(value) => setProfileField("city", value)}
-                  placeholder={profile.state ? "City name" : "Select state first"}
-                  value={profile.city}
-                />
-                <Field
-                  label="Phone"
-                  onChange={(value) => setProfileField("phone", value)}
-                  placeholder="Optional"
-                  type="tel"
-                  value={profile.phone}
-                />
-                <Field
-                  label="Emergency Contact"
-                  onChange={(value) => setProfileField("emergencyContactName", value)}
-                  placeholder="Optional name"
-                  value={profile.emergencyContactName}
-                />
-                <Field
-                  label="Emergency Phone"
-                  onChange={(value) => setProfileField("emergencyContactPhone", value)}
-                  placeholder="Optional phone"
-                  type="tel"
-                  value={profile.emergencyContactPhone}
-                />
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {bodyScanSources.map((source) => {
+                  const active = profile.bodyScanSource === source;
+                  return (
+                    <button
+                      key={source}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setProfileField("bodyScanSource", source)}
+                      className={`rounded-2xl border px-3 py-2.5 text-left transition ${
+                        active
+                          ? "border-violet-100/48 bg-violet-300/16 text-violet-50 shadow-[0_0_24px_rgba(167,139,250,0.18)]"
+                          : "border-white/10 bg-slate-950/42 text-slate-400 hover:border-violet-200/30 hover:bg-violet-300/10 hover:text-violet-100"
+                      }`}
+                    >
+                      <p className="text-[11px] font-black uppercase tracking-[0.12em]">
+                        {source}
+                      </p>
+                      <p className="mt-1 text-[10px] font-semibold leading-4 opacity-70">
+                        {source === "Manual Entry"
+                          ? "Use sliders and saved values."
+                          : "Connector placeholder."}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-
-            {nonVariablesAccordion}
 
           </div>
 
@@ -8818,7 +9439,7 @@ export default function ClientProfilePage() {
         onToggle={() => toggleProfileSection("myBody")}
         summary={bodySummary}
         title="My Body"
-        subtitle="Physical context that helps personalize training, recovery, nutrition, and recommendations."
+        subtitle="Variable body metrics that can change with training, nutrition, and body scans."
       >
         {bodyMetricsContent}
       </CollapsibleProfilePanel>
@@ -10966,9 +11587,1290 @@ export default function ClientProfilePage() {
     );
   };
 
+  const renderProfileHeroSummaryCards = () => (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {[
+        ["Primary Goal", profile.primaryGoal || "Goal not set"],
+        ["Goal Mode", `${profile.goalMode} / ${profile.bodyGoalMode}`],
+        [
+          "Gender",
+          normalizeBodyModel(profile.gender || profile.bodyModel) === "female"
+            ? "Female"
+            : "Male",
+        ],
+        [
+          "Body Context",
+          `${activeLimitations.length} limits - ${profile.specialCircumstances.length} special`,
+        ],
+      ].map(([label, value]) => (
+        <div key={label} className={profileOverviewMetricCardClass}>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/55 to-fuchsia-200/35"
+          />
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+            {label}
+          </p>
+          <p className="mt-2 text-lg font-black text-white">{value}</p>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderProfileSectionOrbiters = () => {
+    const weightUnit =
+      profile.appPersonalization.preferredUnitSystem === "kg" ? "kg" : "lb";
+    const heightUnit =
+      profile.appPersonalization.preferredUnitSystem === "kg" ? "cm" : "in";
+    const calculatedAge = calculateAgeFromBirthday(profile.birthday);
+    const bodyModelLabel =
+      normalizeBodyModel(profile.gender || profile.bodyModel) === "female"
+        ? "Female"
+        : "Male";
+    const completeMeasurementCount = measurementDefinitions.filter((definition) =>
+      isProfileFieldComplete(profile.measurements[definition.key]),
+    ).length;
+    const previousExperienceCompletion = calculateSectionCompletion([
+      profile.experienceLevel,
+      profile.consistencyHistory,
+      profile.familiarityAreas,
+      profile.exerciseConfidence,
+      profile.previousCoaching,
+    ]);
+    const planBuilderCompletion = calculateSectionCompletion([
+      profile.sessionsPerWeek,
+      profile.preferredDays,
+      profile.sessionLength,
+      profile.bestTimeOfDay,
+      profile.scheduleConsistency,
+      profile.trainingLocations,
+      profile.availableEquipment,
+      profile.travelTrainingNotes,
+    ]);
+    const bodyCardCompletion = calculateSectionCompletion([
+      profile.currentWeight,
+      profile.waist,
+      profile.muscleMass,
+      profile.bodyFat,
+      profile.bodyStatus.weightTrend,
+      profile.bodyScanSource,
+    ]);
+    const vitalStatsCompletion = calculateSectionCompletion([
+      profile.gender,
+      profile.birthday,
+      profile.height,
+    ]);
+    const occupationActivityCompletion = calculateSectionCompletion([
+      profile.occupation,
+      profile.sedentaryLevel,
+      profile.hoursWorkedPerWeek,
+    ]);
+    const contactInfoCompletion = calculateSectionCompletion([
+      profile.state,
+      profile.city,
+      profile.phone,
+      profile.emergencyContactName,
+      profile.emergencyContactPhone,
+    ]);
+    const contactLocation =
+      profile.city && profile.state
+        ? `${profile.city}, ${profile.state}`
+        : profile.state || profile.city || "Location optional";
+    const profileOrbitCards: ProfileOrbiterCard[] = [
+      {
+        completion: vitalStatsCompletion,
+        expandsToFullCard: true,
+        helper: "Stable body model, age, birthday, and height context.",
+        icon: "Vitals",
+        label: "Vital Statistics",
+        references: [
+          bodyModelLabel,
+          calculatedAge ? `${calculatedAge} yrs` : "Birthday not set",
+          profile.height ? `${profile.height} ${heightUnit}` : "Height not set",
+        ],
+        stat: calculatedAge ? `${calculatedAge} yrs` : bodyModelLabel,
+        tab: "overview",
+        targetId: "vital-statistics",
+        tone: "border-blue-200/24 bg-blue-300/10 text-blue-100",
+      },
+      {
+        accordion: "myBody",
+        completion: bodyCardCompletion,
+        expandsToFullCard: true,
+        helper: "Variable body metrics: weight, waist, muscle mass, and body fat.",
+        icon: "Body",
+        label: "My Body",
+        references: [
+          profile.currentWeight
+            ? `${profile.currentWeight} ${weightUnit}`
+            : "Weight not set",
+          profile.waist ? `${profile.waist} in waist` : "Waist not set",
+          profile.muscleMass
+            ? `${profile.muscleMass} ${weightUnit} muscle`
+            : "Muscle mass not set",
+        ],
+        stat: profile.currentWeight
+          ? `${profile.currentWeight} ${weightUnit}`
+          : "Weight not set",
+        tab: "overview",
+        targetId: "my-body",
+        tone: "border-sky-200/24 bg-sky-300/10 text-sky-100",
+      },
+      {
+        completion: occupationActivityCompletion,
+        expandsToFullCard: true,
+        helper: "Occupation, daily activity level, and weekly work load.",
+        icon: "Work",
+        label: "Occupation + Daily Activity",
+        references: [
+          normalizeOccupationValue(profile.occupation) || "Occupation not set",
+          profile.sedentaryLevel || "Daily activity not set",
+          profile.hoursWorkedPerWeek
+            ? `${profile.hoursWorkedPerWeek} hrs/week`
+            : "Work hours not set",
+        ],
+        stat: profile.occupation
+          ? normalizeOccupationValue(profile.occupation)
+          : "Work context",
+        tab: "overview",
+        targetId: "occupation-activity",
+        tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
+      },
+      {
+        completion: contactInfoCompletion,
+        expandsToFullCard: true,
+        helper: "Optional location, phone, and emergency contact details.",
+        icon: "Info",
+        label: "Contact Info",
+        references: [
+          contactLocation,
+          profile.phone ? "Phone saved" : "Phone optional",
+          profile.emergencyContactName
+            ? "Emergency contact saved"
+            : "Emergency contact optional",
+        ],
+        stat:
+          profile.phone || profile.emergencyContactName || profile.state
+            ? "Contact saved"
+            : "Optional",
+        tab: "overview",
+        targetId: "contact-info",
+        tone: "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
+      },
+      {
+        accordion: "measurements",
+        completion: tabCompletions.measurements,
+        helper: "Waist, chest, hips, limbs, photos, and progress notes.",
+        icon: "Measure",
+        label: "Body Measurements",
+        references: [
+          `Unit: ${profile.measurements.unit}`,
+          `Updated: ${formatSavedTime(profile.measurements.lastUpdated)}`,
+          `${completeMeasurementCount}/${measurementDefinitions.length} saved`,
+        ],
+        stat: profile.measurements.waist
+          ? `Waist ${profile.measurements.waist} ${profile.measurements.unit}`
+          : "Measurements open",
+        tab: "overview",
+        targetId: "measurements",
+        tone: "border-orange-200/24 bg-orange-300/10 text-orange-100",
+      },
+      {
+        accordion: "previousExperience",
+        completion: previousExperienceCompletion,
+        helper: "Training background, consistency, movement confidence, and coaching history.",
+        icon: "Exp",
+        label: "Previous Experience",
+        references: [
+          profile.experienceLevel || "Experience not set",
+          profile.consistencyHistory || "Consistency not set",
+          profile.familiarityAreas[0] || "Familiarity not set",
+        ],
+        stat: profile.previousCoaching.length
+          ? `${profile.previousCoaching.length} coaching notes`
+          : "Background",
+        tab: "overview",
+        targetId: "previous-experience",
+        tone: "border-fuchsia-200/24 bg-fuchsia-300/10 text-fuchsia-100",
+      },
+      {
+        accordion: "specialCircumstances",
+        completion: tabCompletions.circumstances,
+        helper: "Life, travel, recovery, health, or schedule context that should shape recommendations.",
+        icon: "Life",
+        label: "Special Circumstances",
+        references: [
+          `${profile.specialCircumstances.length} selected`,
+          activeLimitations[0]?.region || "No active limits",
+          `${profile.recoveryPriority}/10 recovery priority`,
+        ],
+        stat: profile.specialCircumstances.length ? "Context active" : "None selected",
+        tab: "overview",
+        targetId: "special-circumstances",
+        tone: "border-amber-200/24 bg-amber-300/10 text-amber-100",
+      },
+      {
+        accordion: "planDirection",
+        completion: tabCompletions.planDirection,
+        helper: "Primary and secondary plan priorities for training direction.",
+        icon: "Plan",
+        label: "Plan Direction",
+        references: [
+          profile.planDirections[0] || profile.goalMode,
+          profile.planDirections[1] || profile.bodyGoalMode,
+          profile.primaryGoal || "Goal not set",
+        ],
+        stat: `${tabCompletions.planDirection}% ready`,
+        tab: "readiness",
+        targetId: "plan-direction",
+        tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
+      },
+      {
+        accordion: "planBuilder",
+        completion: planBuilderCompletion,
+        helper: "Schedule, location, equipment, and weekly training setup.",
+        icon: "Setup",
+        label: "Training Setup",
+        references: [
+          profile.sessionsPerWeek ? `${profile.sessionsPerWeek} days/week` : "Schedule not set",
+          profile.trainingLocations[0] || "Location not set",
+          profile.availableEquipment[0] || "Equipment not set",
+        ],
+        stat: profile.sessionLength || "Session length",
+        tab: "readiness",
+        targetId: "training-setup",
+        tone: "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
+      },
+      {
+        completion: tabCompletions.training,
+        helper: "Training styles, preferred split, cardio, and mobility preferences.",
+        icon: "Style",
+        label: "Training Style",
+        references: [
+          profile.trainingStyles[0] || "Style not set",
+          profile.preferredSplits[0] || profile.preferredSplit,
+          profile.cardioPreferences[0] || "Cardio preference",
+        ],
+        stat: `${profile.cardioPriority}/10 cardio`,
+        tab: "readiness",
+        targetId: "training-style",
+        tone: "border-blue-200/24 bg-blue-300/10 text-blue-100",
+      },
+      {
+        accordion: "readiness",
+        completion: tabCompletions.readiness,
+        helper: "Sleep, stress, soreness, pain, energy, and recovery signal inputs.",
+        icon: "Ready",
+        label: "Readiness",
+        references: [
+          planReadiness.readinessLabel,
+          profile.bodyStatus.energyStatus,
+          profile.bodyStatus.stressStatus,
+        ],
+        stat: `${planReadiness.readinessScore}/100`,
+        tab: "readiness",
+        targetId: "readiness-section",
+        tone: "border-orange-200/24 bg-orange-300/10 text-orange-100",
+      },
+      {
+        accordion: "benchmarks",
+        completion: tabCompletions.benchmarks,
+        helper: "Strength, mobility, and performance baselines for progress tracking.",
+        icon: "PR",
+        label: "Benchmarks",
+        references: [
+          `${profile.benchmarks.length} benchmark slots`,
+          "Strength anchors",
+          "Performance trends",
+        ],
+        stat: `${tabCompletions.benchmarks}% logged`,
+        tab: "readiness",
+        targetId: "benchmarks",
+        tone: "border-violet-200/24 bg-violet-300/10 text-violet-100",
+      },
+      {
+        accordion: "appCoachNotes",
+        completion: tabCompletions.preferences,
+        helper: "Coach notes, app preferences, AI notes, and guidance style.",
+        icon: "Notes",
+        label: "Coach + App Notes",
+        references: [
+          profile.appPersonalization.coachingTone || "Tone not set",
+          profile.planFlexibilityPreference || "Flexibility not set",
+          profile.userNotes ? "User notes saved" : "Notes open",
+        ],
+        stat: "Coach context",
+        tab: "readiness",
+        targetId: "coach-app-notes",
+        tone: "border-teal-200/24 bg-teal-300/10 text-teal-100",
+      },
+      {
+        completion: tabCompletions.preferences,
+        helper: "Dashboard focus, units, anatomy display, and recovery warning preferences.",
+        icon: "Prefs",
+        label: "App Preferences",
+        references: [
+          profile.appPersonalization.defaultDashboardFocus,
+          profile.appPersonalization.preferredUnitSystem,
+          profile.appPersonalization.anatomyBackground,
+        ],
+        stat: "Preferences",
+        tab: "readiness",
+        targetId: "app-preferences",
+        tone: "border-slate-200/18 bg-slate-300/10 text-slate-100",
+      },
+      {
+        completion: tabCompletions.readiness,
+        helper: "Work schedule, sleep window, travel, childcare, and reminder context.",
+        icon: "Life",
+        label: "Lifestyle",
+        references: [
+          profile.lifestyleConstraints.workSchedule || "Work schedule",
+          profile.lifestyleConstraints.sleepWindow || "Sleep window",
+          profile.lifestyleConstraints.availableTrainingTimes[0] || "Training time",
+        ],
+        stat: `${profile.lifestyleConstraints.stressLevel}/10 stress`,
+        tab: "readiness",
+        targetId: "lifestyle",
+        tone: "border-rose-200/24 bg-rose-300/10 text-rose-100",
+      },
+      {
+        completion: tabCompletions.training,
+        helper: "Workout management, sessions, builder, plan, and training calendar links.",
+        icon: "Train",
+        label: "Workout Management",
+        references: ["Sessions", "Builder", "My Plan"],
+        stat: `${tabCompletions.training}% setup`,
+        tab: "training",
+        targetId: "training-management",
+        tone: "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
+      },
+      {
+        completion: tabCompletions.recovery,
+        helper: "Limitations, pain signals, recovery preferences, and mobility notes.",
+        icon: "Rec",
+        label: "Recovery Profile",
+        references: [
+          planReadiness.readinessLabel,
+          `${profile.injuries.length} injury notes`,
+          `${profile.recoveryPriority}/10 recovery priority`,
+        ],
+        stat: `${tabCompletions.recovery}% ready`,
+        tab: "recovery",
+        targetId: "recovery-profile",
+        tone: "border-violet-200/24 bg-violet-300/10 text-violet-100",
+      },
+      {
+        completion: tabCompletions.nutrition,
+        helper: "Protein, calories, dietary constraints, meal rhythm, and nutrition direction.",
+        icon: "Fuel",
+        label: "Nutrition Direction",
+        references: [
+          profile.nutritionDirection.nutritionGoal,
+          profile.nutritionDirection.proteinTarget || "Protein target",
+          profile.nutritionDirection.mealPrepPreference || "Meal prep",
+        ],
+        stat: `${tabCompletions.nutrition}% set`,
+        tab: "nutrition",
+        targetId: "nutrition-direction",
+        tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
+      },
+    ];
+    const profileCardRows = tabs
+      .map((tab, index) => ({
+        cards: profileOrbitCards.filter((card) => card.tab === tab.id),
+        eyebrow: `Row ${profileOrbiterCardStartRow + index}`,
+        helper: `${tab.label} cards sorted into their own orbit row.`,
+        rowIndex: profileOrbiterCardStartRow + index,
+        tab,
+        title: `${tab.label} Cards`,
+      }))
+      .filter((row) => row.cards.length > 0);
+    const profileOrbiterRows = [
+      {
+        eyebrow: "Row 0",
+        helper: "Identity, plan context, and summary signals.",
+        title: "Profile Hero",
+      },
+      ...profileCardRows.map((row) => ({
+        eyebrow: row.eyebrow,
+        helper: row.helper,
+        title: row.title,
+      })),
+    ];
+    const rawActiveProfileOrbiterRow =
+      typeof activeProfileOrbiterRow === "number"
+        ? activeProfileOrbiterRow
+        : Number(activeProfileOrbiterRow);
+    const safeActiveProfileOrbiterRow = Number.isFinite(
+      rawActiveProfileOrbiterRow,
+    )
+      ? Math.trunc(rawActiveProfileOrbiterRow)
+      : 0;
+    const clampedActiveProfileOrbiterRow = Math.max(
+      0,
+      Math.min(profileOrbiterRows.length - 1, safeActiveProfileOrbiterRow),
+    );
+    const getProfileSectionOrbitIndex = (tabId: ProfileTab, length: number) => {
+      if (length <= 0) return 0;
+
+      const storedIndex = activeProfileOrbiterIndices[`sections-${tabId}`];
+      const rawIndex =
+        typeof storedIndex === "number" ? storedIndex : Number(storedIndex);
+      const safeIndex = Number.isFinite(rawIndex) ? Math.trunc(rawIndex) : 0;
+
+      return ((safeIndex % length) + length) % length;
+    };
+    const activeProfileCardRow =
+      profileCardRows.find(
+        (row) => row.rowIndex === clampedActiveProfileOrbiterRow,
+      ) || null;
+    const activeProfileCardRowIndex = activeProfileCardRow
+      ? getProfileSectionOrbitIndex(
+          activeProfileCardRow.tab.id,
+          activeProfileCardRow.cards.length,
+        )
+      : 0;
+    const setProfileSectionOrbitIndex = (tabId: ProfileTab, index: number) => {
+      const cardRowIndex = tabs.findIndex((tab) => tab.id === tabId);
+      const rowIndex = profileOrbiterCardStartRow + Math.max(0, cardRowIndex);
+      setActiveProfileOrbiterIndices((current) => ({
+        ...current,
+        [`sections-${tabId}`]: index,
+      }));
+      setActiveProfileOrbiterRow(rowIndex);
+      setOpenProfileOrbiterDetails(null);
+      setExpandedProfileOrbiterCard(null);
+      scrollProfileOrbiterViewportToRow(rowIndex);
+    };
+    const moveProfileSectionOrbit = (
+      tabId: ProfileTab,
+      length: number,
+      direction: -1 | 1,
+    ) => {
+      if (length <= 1) return;
+
+      const currentIndex = getProfileSectionOrbitIndex(tabId, length);
+      setProfileSectionOrbitIndex(
+        tabId,
+        (currentIndex + direction + length) % length,
+      );
+    };
+    const openProfileOrbiterFullCard = (tabId: ProfileTab, index: number) => {
+      const cardRowIndex = tabs.findIndex((tab) => tab.id === tabId);
+      const rowIndex = profileOrbiterCardStartRow + Math.max(0, cardRowIndex);
+      setActiveProfileOrbiterIndices((current) => ({
+        ...current,
+        [`sections-${tabId}`]: index,
+      }));
+      setActiveProfileOrbiterRow(rowIndex);
+      setOpenProfileOrbiterDetails(null);
+      setExpandedProfileOrbiterCard(`${tabId}-${index}`);
+      scrollProfileOrbiterIntoView();
+      scrollProfileOrbiterViewportToRow(rowIndex);
+    };
+    const renderExpandedProfileOrbiterCard = (card: ProfileOrbiterCard) => {
+      const tone = getCompletionTone(card.completion);
+      const isOccupationActivityCard = card.targetId === "occupation-activity";
+      const isContactInfoCard = card.targetId === "contact-info";
+      const isVitalStatisticsCard = card.targetId === "vital-statistics";
+
+      if (
+        card.accordion !== "myBody" &&
+        !isOccupationActivityCard &&
+        !isContactInfoCard &&
+        !isVitalStatisticsCard
+      ) {
+        return null;
+      }
+
+      const title = isOccupationActivityCard
+        ? "Occupation + Daily Activity"
+        : isContactInfoCard
+          ? "Contact Info"
+          : isVitalStatisticsCard
+            ? "Vital Statistics"
+            : "My Body";
+      const description = isOccupationActivityCard
+        ? "Work context and daily activity inputs that help estimate fatigue, recovery pressure, and movement exposure."
+        : isContactInfoCard
+          ? "Optional location, phone, and emergency contact details kept separate from body metrics."
+          : isVitalStatisticsCard
+            ? "Stable body model inputs for age, gender, and height."
+            : "Variable body metrics for weight, waist, muscle mass, and body-fat direction.";
+      const content = isOccupationActivityCard
+        ? renderOccupationActivityControls()
+        : isContactInfoCard
+          ? renderContactInfoControls()
+          : isVitalStatisticsCard
+            ? renderVitalStatisticsControls()
+            : renderBodyMetrics({ embedded: true });
+
+      return (
+        <div
+          data-profile-orbiter-scroll-area="true"
+          className="max-h-[min(68vh,640px)] overflow-y-auto rounded-[30px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <section className={`${profileOverviewSectionShellClass} p-3 sm:p-3`}>
+            <span aria-hidden="true" className={profileOverviewSectionGlowClass} />
+            <div className="relative z-10">
+              <div className="rounded-[22px] border border-cyan-200/14 bg-slate-950/48 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                <div className="flex flex-wrap items-center justify-between gap-3 pr-28">
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/75">
+                      Full Profile Dropdown
+                    </p>
+                    <h3 className="mt-0.5 text-2xl font-black text-white">
+                      {title}
+                    </h3>
+                  </div>
+                  <span className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${tone.badge}`}>
+                    {card.completion}% complete
+                  </span>
+                </div>
+                <p className="mt-1 max-w-3xl text-sm font-semibold leading-5 text-slate-400">
+                  {description}
+                </p>
+              </div>
+              <div className="mt-3">{content}</div>
+            </div>
+          </section>
+        </div>
+      );
+    };
+    const activeProfileOrbiterMeta =
+      profileOrbiterRows[clampedActiveProfileOrbiterRow] || profileOrbiterRows[0];
+    const profileOrbiterLocked = Boolean(expandedProfileOrbiterCard);
+    const setProfileOrbiterRow = (row: number) => {
+      if (profileOrbiterLocked) return;
+      const nextRow = Math.max(0, Math.min(profileOrbiterRows.length - 1, row));
+      if (nextRow === 0) {
+        jumpProfileOrbiterToHero();
+        return;
+      }
+
+      setActiveProfileOrbiterRow(nextRow);
+      setOpenProfileOrbiterDetails(null);
+      setExpandedProfileOrbiterCard(null);
+      scrollProfileOrbiterIntoView();
+      scrollProfileOrbiterViewportToRow(nextRow);
+    };
+    const scrollProfileOrbiterToHero = () => {
+      if (profileOrbiterLocked) return;
+      jumpProfileOrbiterToHero();
+    };
+    const scrollProfileOrbiterRow = (direction: -1 | 1) => {
+      if (profileOrbiterLocked) return;
+      const maxRow = profileOrbiterRows.length - 1;
+      const nextRow = Math.max(
+        0,
+        Math.min(maxRow, clampedActiveProfileOrbiterRow + direction),
+      );
+      if (nextRow === 0) {
+        jumpProfileOrbiterToHero();
+        return;
+      }
+
+      setActiveProfileOrbiterRow(nextRow);
+      setOpenProfileOrbiterDetails(null);
+      setExpandedProfileOrbiterCard(null);
+      scrollProfileOrbiterIntoView();
+      scrollProfileOrbiterViewportToRow(nextRow);
+    };
+    const startProfileOrbiterDrag = (
+      event: ReactPointerEvent<HTMLDivElement>,
+    ) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      if (profileOrbiterLocked) {
+        profileOrbiterPointerStartRef.current = null;
+        profileOrbiterPointerMovedRef.current = false;
+        return;
+      }
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest(
+          "button,a,input,select,textarea,label,[data-profile-orbiter-scroll-area='true']",
+        )
+      ) {
+        profileOrbiterPointerStartRef.current = null;
+        profileOrbiterPointerMovedRef.current = false;
+        return;
+      }
+
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      profileOrbiterPointerStartRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+      profileOrbiterPointerMovedRef.current = false;
+    };
+    const moveProfileOrbiterDrag = (
+      event: ReactPointerEvent<HTMLDivElement>,
+    ) => {
+      const start = profileOrbiterPointerStartRef.current;
+      if (!start) return;
+
+      const deltaX = event.clientX - start.x;
+      const deltaY = event.clientY - start.y;
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+      if (Math.max(absX, absY) < 42) return;
+
+      if (activeProfileCardRow && absX > absY * 1.15) {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        profileOrbiterPointerMovedRef.current = true;
+        setProfileSectionOrbitIndex(
+          activeProfileCardRow.tab.id,
+          deltaX > 0
+            ? (activeProfileCardRowIndex - 1 + activeProfileCardRow.cards.length) %
+                activeProfileCardRow.cards.length
+            : (activeProfileCardRowIndex + 1) % activeProfileCardRow.cards.length,
+        );
+        profileOrbiterPointerStartRef.current = null;
+        return;
+      }
+
+      if (absY > absX * 1.15) {
+        event.preventDefault();
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        profileOrbiterPointerMovedRef.current = true;
+        scrollProfileOrbiterRow(deltaY > 0 ? -1 : 1);
+        profileOrbiterPointerStartRef.current = null;
+      }
+    };
+    const finishProfileOrbiterDrag = (
+      event: ReactPointerEvent<HTMLDivElement>,
+    ) => {
+      profileOrbiterPointerStartRef.current = null;
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+
+      if (profileOrbiterPointerMovedRef.current) {
+        window.setTimeout(() => {
+          profileOrbiterPointerMovedRef.current = false;
+        }, 0);
+      }
+    };
+    const getProfileOrbiterRowStyle = (row: number): CSSProperties => {
+      const isActive = row === clampedActiveProfileOrbiterRow;
+
+      return {
+        filter: "none",
+        opacity: 1,
+        pointerEvents: "auto",
+        scrollSnapAlign: "center",
+        scrollSnapStop: "always",
+        transform: "none",
+        visibility: "visible",
+        zIndex: isActive ? 40 : 20,
+      };
+    };
+    const syncProfileOrbiterRowFromScroll = () => {
+      if (profileOrbiterLocked) return;
+      const viewport = profileOrbiterViewportRef.current;
+      if (!viewport) return;
+
+      const rows = Array.from(
+        viewport.querySelectorAll<HTMLElement>("[data-profile-orbiter-row]"),
+      );
+      if (!rows.length) return;
+
+      const viewportCenter = viewport.scrollTop + viewport.clientHeight / 2;
+      let closestRow = clampedActiveProfileOrbiterRow;
+      let closestDistance = Number.POSITIVE_INFINITY;
+
+      rows.forEach((row) => {
+        const rowIndex = Number(row.dataset.profileOrbiterRow);
+        if (!Number.isFinite(rowIndex)) return;
+
+        const rowCenter = row.offsetTop + row.offsetHeight / 2;
+        const distance = Math.abs(rowCenter - viewportCenter);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestRow = rowIndex;
+        }
+      });
+
+      if (closestRow !== clampedActiveProfileOrbiterRow) {
+        setActiveProfileOrbiterRow(closestRow);
+      }
+    };
+    const renderProfileRowHeader = (
+      meta: { eyebrow: string; helper?: string; title: string },
+      className = "",
+    ) => (
+      <div
+        className={`z-[80] mx-auto flex w-[min(92vw,1040px)] flex-col gap-3 rounded-2xl border border-cyan-200/18 bg-slate-950/76 px-4 py-3 text-left shadow-[0_18px_54px_rgba(0,0,0,0.38)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between ${className}`}
+      >
+        <div className="min-w-0">
+          <p className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200/70">
+            {meta.eyebrow}
+          </p>
+          <p className="mt-1 text-sm font-black uppercase tracking-[0.14em] text-white">
+            {meta.title}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
+          <div className="min-w-[150px] sm:text-right">
+            <p
+              className={`text-[10px] font-black uppercase tracking-[0.14em] ${
+                hasUnsavedChanges ? "text-orange-100" : "text-cyan-100"
+              }`}
+            >
+              {hasUnsavedChanges ? "Unsaved changes" : "Profile synced"}
+            </p>
+            <p className="mt-0.5 text-[10px] font-semibold text-slate-500">
+              Last saved: {formatSavedTime(profile.updatedAt)}
+              {message ? ` - ${message}` : ""}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={saveProfile}
+            className="rounded-2xl border border-cyan-100/30 bg-cyan-300 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.22)] transition hover:bg-cyan-200"
+          >
+            Save Profile
+          </button>
+        </div>
+      </div>
+    );
+
+    return (
+      <section
+        id="profile-orbiter"
+        ref={profileOrbiterRef}
+        aria-label="Profile orbiter"
+        className="relative pt-6 scroll-mt-32"
+      >
+        {clampedActiveProfileOrbiterRow === 0 || activeProfileCardRow ? null : (
+          renderProfileRowHeader(
+            activeProfileOrbiterMeta,
+            "absolute left-1/2 top-2 -translate-x-1/2",
+          )
+        )}
+        <div className="absolute right-2 top-1/2 z-[70] flex -translate-y-1/2 flex-col items-center gap-2 rounded-3xl border border-white/10 bg-slate-950/70 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
+          <button
+            type="button"
+            aria-label="Scroll profile orbiter to hero"
+            disabled={profileOrbiterLocked}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (profileOrbiterLocked) return;
+              jumpProfileOrbiterToHero("auto");
+            }}
+            onClick={scrollProfileOrbiterToHero}
+            className="grid h-11 w-11 place-items-center rounded-2xl border border-cyan-200/18 bg-cyan-300/10 text-lg font-black text-cyan-100 transition hover:border-cyan-200/45 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-cyan-200/18 disabled:hover:bg-cyan-300/10"
+          >
+            ^
+          </button>
+          <div className="flex flex-col items-center gap-1">
+            {profileOrbiterRows.map((row, index) => (
+              <button
+                key={row.title}
+                type="button"
+                aria-label={`Show profile orbiter row ${index}: ${row.title}`}
+                aria-pressed={clampedActiveProfileOrbiterRow === index}
+                disabled={profileOrbiterLocked}
+                onClick={() => setProfileOrbiterRow(index)}
+                className={`h-2 rounded-full transition ${
+                  clampedActiveProfileOrbiterRow === index
+                    ? "w-7 bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]"
+                    : "w-2 bg-slate-500/60 hover:bg-orange-200/75"
+                }`}
+              />
+            ))}
+          </div>
+          <button
+            type="button"
+            aria-label="Scroll profile orbiter down"
+            disabled={
+              profileOrbiterLocked ||
+              clampedActiveProfileOrbiterRow === profileOrbiterRows.length - 1
+            }
+            onClick={() => scrollProfileOrbiterRow(1)}
+            className="grid h-11 w-11 place-items-center rounded-2xl border border-orange-200/18 bg-orange-300/10 text-base font-black text-orange-100 transition hover:border-orange-200/45 hover:bg-orange-300/16 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-orange-200/18 disabled:hover:bg-orange-300/10"
+          >
+            v
+          </button>
+        </div>
+
+        <div
+          ref={profileOrbiterViewportRef}
+          className={`relative h-[calc(100vh-13.5rem)] min-h-[620px] max-h-[820px] cursor-grab select-none overscroll-y-auto pr-14 scroll-smooth snap-y snap-mandatory [scrollbar-width:none] active:cursor-grabbing [&::-webkit-scrollbar]:hidden ${
+            profileOrbiterLocked ? "overflow-y-hidden" : "overflow-y-auto"
+          }`}
+          style={{
+            height: "calc(100vh - 13.5rem)",
+            maxHeight: 820,
+            minHeight: 620,
+          }}
+          onClickCapture={(event) => {
+            if (!profileOrbiterPointerMovedRef.current) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            profileOrbiterPointerMovedRef.current = false;
+          }}
+          onPointerCancel={finishProfileOrbiterDrag}
+          onPointerDown={startProfileOrbiterDrag}
+          onPointerMove={moveProfileOrbiterDrag}
+          onPointerUp={finishProfileOrbiterDrag}
+          onScroll={syncProfileOrbiterRowFromScroll}
+          onWheel={(event) => {
+            if (
+              shouldLetProfileOrbiterTargetScroll(
+                event.target,
+                event.deltaY,
+              )
+            ) {
+              return;
+            }
+
+            if (profileOrbiterLocked) {
+              event.preventDefault();
+              event.stopPropagation();
+              return;
+            }
+
+            profileOrbiterWheelLockRef.current = false;
+          }}
+        >
+          <div className="relative flex min-h-full flex-col gap-12 py-5">
+          <section
+            id="profile-orbiter-row-0"
+            ref={profileHeroRowRef}
+            data-profile-orbiter-row="0"
+            className="relative flex min-h-[calc(100vh-16.5rem)] snap-center flex-col justify-center py-3"
+            style={getProfileOrbiterRowStyle(0)}
+          >
+            <div className="mx-auto flex h-full w-full max-w-[1180px] flex-col justify-center gap-3">
+              {renderHero()}
+              {renderProfileHeroSummaryCards()}
+            </div>
+          </section>
+
+          {profileCardRows.map((cardRow) => {
+            const storedActiveCardIndex = getProfileSectionOrbitIndex(
+              cardRow.tab.id,
+              cardRow.cards.length,
+            );
+            const expandedCardIndex = cardRow.cards.findIndex(
+              (_card, index) =>
+                expandedProfileOrbiterCard === `${cardRow.tab.id}-${index}`,
+            );
+            const activeCardIndex =
+              expandedCardIndex >= 0 ? expandedCardIndex : storedActiveCardIndex;
+            const activeCard = cardRow.cards[activeCardIndex] || cardRow.cards[0];
+            const activeCardKey = activeCard
+              ? `${cardRow.tab.id}-${activeCardIndex}`
+              : null;
+            const hasExpandedActiveCard = Boolean(
+              activeCard?.expandsToFullCard &&
+                expandedProfileOrbiterCard === activeCardKey,
+            );
+            const expandedActiveContent =
+              hasExpandedActiveCard && activeCard
+                ? renderExpandedProfileOrbiterCard(activeCard)
+                : null;
+
+            if (expandedActiveContent) {
+              return (
+                <section
+                  key={cardRow.tab.id}
+                  id={`profile-orbiter-row-${cardRow.rowIndex}`}
+                  data-profile-orbiter-row={cardRow.rowIndex}
+                  className="relative flex min-h-[calc(100vh-16.5rem)] snap-center flex-col items-center justify-center overflow-hidden py-4"
+                  style={getProfileOrbiterRowStyle(cardRow.rowIndex)}
+                >
+                  <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-3">
+                    {renderProfileRowHeader(cardRow)}
+                    <article
+                      aria-current="page"
+                      aria-label={`Expanded ${activeCard?.label || cardRow.title}`}
+                      className={`relative w-[min(88vw,980px)] rounded-[28px] border p-0 text-left shadow-[0_22px_58px_rgba(0,0,0,0.36)] outline-none backdrop-blur ring-2 ring-cyan-100/26 ${activeCard?.tone || ""} ${getCompletionTone(activeCard?.completion || 0).glow}`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setExpandedProfileOrbiterCard(null)}
+                        className="absolute right-4 top-4 z-20 rounded-2xl border border-white/12 bg-slate-950/72 px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-[0_16px_42px_rgba(0,0,0,0.34)] transition hover:border-cyan-200/34 hover:bg-cyan-300/12"
+                      >
+                        Close Drop Down
+                      </button>
+                      {expandedActiveContent}
+                    </article>
+                  </div>
+
+                  <div className="mt-1 flex justify-center gap-2">
+                    {cardRow.cards.map((card, index) => (
+                      <button
+                        key={card.label}
+                        type="button"
+                        aria-label={`Show ${card.label}`}
+                        onClick={() =>
+                          setProfileSectionOrbitIndex(cardRow.tab.id, index)
+                        }
+                        className={`h-2 rounded-full transition ${
+                          index === activeCardIndex
+                            ? "w-8 bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]"
+                            : "w-2 bg-slate-500/55 hover:bg-orange-200/75"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  {cardRow.cards.length > 1 ? (
+                    <div className="mt-3 flex justify-center gap-3">
+                      <button
+                        type="button"
+                        aria-label={`Show previous ${cardRow.title}`}
+                        onClick={() =>
+                          moveProfileSectionOrbit(
+                            cardRow.tab.id,
+                            cardRow.cards.length,
+                            -1,
+                          )
+                        }
+                        className="grid h-10 w-10 place-items-center rounded-2xl border border-cyan-200/18 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_14px_38px_rgba(0,0,0,0.32)] transition hover:border-cyan-200/42 hover:bg-cyan-300/12"
+                      >
+                        &lt;
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Show next ${cardRow.title}`}
+                        onClick={() =>
+                          moveProfileSectionOrbit(
+                            cardRow.tab.id,
+                            cardRow.cards.length,
+                            1,
+                          )
+                        }
+                        className="grid h-10 w-10 place-items-center rounded-2xl border border-orange-200/18 bg-slate-950/72 text-lg font-black text-orange-100 shadow-[0_14px_38px_rgba(0,0,0,0.32)] transition hover:border-orange-200/42 hover:bg-orange-300/12"
+                      >
+                        &gt;
+                      </button>
+                    </div>
+                  ) : null}
+                </section>
+              );
+            }
+
+            return (
+              <section
+                key={cardRow.tab.id}
+                id={`profile-orbiter-row-${cardRow.rowIndex}`}
+                data-profile-orbiter-row={cardRow.rowIndex}
+                className={`relative flex min-h-[calc(100vh-16.5rem)] snap-center flex-col items-center overflow-hidden py-2 ${
+                  hasExpandedActiveCard ? "justify-start pt-14" : "justify-center"
+                }`}
+                style={getProfileOrbiterRowStyle(cardRow.rowIndex)}
+              >
+                <div
+                  className={`relative w-full overflow-hidden [perspective:900px] ${
+                    hasExpandedActiveCard
+                      ? "h-[calc(100%-3.25rem)] min-h-[0]"
+                      : "h-[min(520px,calc(100%-3rem))] min-h-[430px]"
+                  }`}
+                >
+                  {renderProfileRowHeader(
+                    cardRow,
+                    "absolute left-1/2 top-4 -translate-x-1/2",
+                  )}
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-1/2 top-1/2 h-[220px] w-[min(88vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-[46px] bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.11),rgba(251,146,60,0.08)_48%,transparent_76%)] blur-xl"
+                  />
+                  {cardRow.cards.length > 1 ? (
+                    <>
+                      <button
+                        type="button"
+                        aria-label={`Show previous ${cardRow.title}`}
+                        onClick={() =>
+                          moveProfileSectionOrbit(
+                            cardRow.tab.id,
+                            cardRow.cards.length,
+                            -1,
+                          )
+                        }
+                        className="absolute left-3 top-1/2 z-[70] grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-cyan-200/18 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-cyan-200/42 hover:bg-cyan-300/12 sm:left-6"
+                      >
+                        &lt;
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Show next ${cardRow.title}`}
+                        onClick={() =>
+                          moveProfileSectionOrbit(
+                            cardRow.tab.id,
+                            cardRow.cards.length,
+                            1,
+                          )
+                        }
+                        className="absolute right-3 top-1/2 z-[70] grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-orange-200/18 bg-slate-950/72 text-lg font-black text-orange-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-orange-200/42 hover:bg-orange-300/12 sm:right-6"
+                      >
+                        &gt;
+                      </button>
+                    </>
+                  ) : null}
+                  {cardRow.cards.map((card, index) => {
+                    let distance = index - activeCardIndex;
+                    if (distance > cardRow.cards.length / 2) {
+                      distance -= cardRow.cards.length;
+                    }
+                    if (distance < -cardRow.cards.length / 2) {
+                      distance += cardRow.cards.length;
+                    }
+                    const absDistance = Math.abs(distance);
+                    if (absDistance > 3) return null;
+
+                    const clampedDistance = Math.max(-3, Math.min(3, distance));
+                    const orbitXSlots = [0, 250, 390, 510];
+                    const isActive = distance === 0;
+                    const cardKey = `${cardRow.tab.id}-${index}`;
+                    const isExpandedCard = Boolean(
+                      isActive &&
+                        card.expandsToFullCard &&
+                        expandedProfileOrbiterCard === cardKey,
+                    );
+                    const expandedContent = isExpandedCard
+                      ? renderExpandedProfileOrbiterCard(card)
+                      : null;
+                    if (hasExpandedActiveCard && !isActive) return null;
+
+                    const x =
+                      Math.sign(clampedDistance) *
+                      orbitXSlots[Math.min(absDistance, orbitXSlots.length - 1)];
+                    const y = expandedContent
+                      ? 0
+                      : absDistance * 18 + (absDistance > 1 ? 8 : 0);
+                    const scale = isActive
+                      ? 1
+                      : absDistance === 1
+                        ? 0.78
+                        : absDistance === 2
+                          ? 0.64
+                          : 0.52;
+                    const opacity = isActive
+                      ? 1
+                      : absDistance === 1
+                        ? 0.82
+                        : absDistance === 2
+                          ? 0.56
+                          : 0.36;
+                    const tone = getCompletionTone(card.completion);
+                    const detailsKey = cardKey;
+                    const detailsOpen = openProfileOrbiterDetails === detailsKey;
+
+                    return (
+                      <article
+                        aria-current={isActive ? "page" : undefined}
+                        aria-label={`${isActive ? "Active" : "Show"} ${card.label}`}
+                        key={card.label}
+                        onClick={(event) => {
+                          const openFullCard = () =>
+                            openProfileOrbiterFullCard(cardRow.tab.id, index);
+
+                          if (isActive) {
+                            const target = event.target;
+                            if (
+                              !card.expandsToFullCard ||
+                              (target instanceof HTMLElement &&
+                                target.closest("button,a,input,select,textarea,label"))
+                            ) {
+                              return;
+                            }
+
+                            openFullCard();
+                            return;
+                          }
+
+                          if (card.expandsToFullCard) {
+                            openFullCard();
+                            return;
+                          }
+
+                          setProfileSectionOrbitIndex(cardRow.tab.id, index);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" && event.key !== " ") {
+                            return;
+                          }
+
+                          event.preventDefault();
+                          const openFullCard = () =>
+                            openProfileOrbiterFullCard(cardRow.tab.id, index);
+
+                          if (isActive) {
+                            if (!card.expandsToFullCard) return;
+
+                            openFullCard();
+                            return;
+                          }
+
+                          if (card.expandsToFullCard) {
+                            openFullCard();
+                            return;
+                          }
+
+                          setProfileSectionOrbitIndex(cardRow.tab.id, index);
+                        }}
+                        role={isActive && !card.expandsToFullCard ? undefined : "button"}
+                        tabIndex={isActive && !card.expandsToFullCard ? -1 : 0}
+                        className={`absolute left-1/2 rounded-[28px] border text-left shadow-[0_22px_58px_rgba(0,0,0,0.36)] outline-none backdrop-blur transition-[transform,opacity,border-color,background-color,box-shadow,width] duration-[520ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] hover:border-white/28 focus-visible:ring-2 focus-visible:ring-cyan-100/50 ${
+                          expandedContent
+                            ? `top-0 w-[min(88vw,980px)] p-0 ring-2 ring-cyan-100/26 ${tone.glow}`
+                            : isActive
+                              ? `top-1/2 w-[min(82vw,380px)] p-5 ring-2 ring-cyan-100/26 ${tone.glow}`
+                              : "top-1/2 w-[220px] cursor-pointer p-5"
+                        } ${card.tone}`}
+                        style={{
+                          filter: "none",
+                          opacity,
+                          transform: expandedContent
+                            ? `translateX(-50%) translateX(${x}px) translateY(${y}px) rotateY(${clampedDistance * -18}deg) scale(${scale})`
+                            : `translate(-50%, -50%) translateX(${x}px) translateY(${y}px) rotateY(${clampedDistance * -18}deg) scale(${scale})`,
+                          zIndex: 30 - absDistance,
+                        }}
+                      >
+                        {expandedContent ? (
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedProfileOrbiterCard(null)}
+                              className="absolute right-4 top-4 z-20 rounded-2xl border border-white/12 bg-slate-950/72 px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-[0_16px_42px_rgba(0,0,0,0.34)] transition hover:border-cyan-200/34 hover:bg-cyan-300/12"
+                            >
+                              Close Drop Down
+                            </button>
+                            {expandedContent}
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex min-w-0 items-start gap-3">
+                                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/12 bg-slate-950/42 text-[10px] font-black uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                                  {card.icon}
+                                </span>
+                                <div className="min-w-0">
+                                  <p className="text-sm font-black uppercase tracking-[0.12em] text-white">
+                                    {card.label}
+                                  </p>
+                                  <p className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.12em] text-current/80">
+                                    {card.stat}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${tone.badge}`}>
+                                {card.completion}%
+                              </span>
+                            </div>
+                            <p
+                              className={`mt-4 font-semibold text-slate-300 ${
+                                isActive
+                                  ? "line-clamp-3 text-sm leading-6"
+                                  : "line-clamp-2 text-xs leading-5"
+                              }`}
+                            >
+                              {card.helper}
+                            </p>
+                            {isActive ? (
+                              card.expandsToFullCard ? (
+                                <button
+                                  type="button"
+                                  aria-expanded={expandedProfileOrbiterCard === cardKey}
+                                  onPointerDown={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    openProfileOrbiterFullCard(cardRow.tab.id, index);
+                                  }}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openProfileOrbiterFullCard(cardRow.tab.id, index);
+                                  }}
+                                  className="mt-4 block w-full rounded-2xl border border-cyan-200/22 bg-cyan-300/12 px-3 py-3 text-center text-[9px] font-black uppercase tracking-[0.14em] text-cyan-50 transition hover:border-cyan-200/42 hover:bg-cyan-300/18"
+                                >
+                                  Open Full Drop Down
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    type="button"
+                                    aria-expanded={detailsOpen}
+                                    onClick={() =>
+                                      setOpenProfileOrbiterDetails((current) =>
+                                        current === detailsKey ? null : detailsKey,
+                                      )
+                                    }
+                                    className="mt-4 flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-950/54 px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-cyan-200/30 hover:bg-cyan-300/10"
+                                  >
+                                    <span>Details</span>
+                                    <span
+                                      aria-hidden="true"
+                                      className={`text-sm leading-none text-cyan-100 transition-transform duration-300 ${
+                                        detailsOpen ? "rotate-180" : ""
+                                      }`}
+                                    >
+                                      v
+                                    </span>
+                                  </button>
+                                  <div
+                                    className={`grid transition-all duration-300 ease-out ${
+                                      detailsOpen
+                                        ? "mt-3 grid-rows-[1fr] opacity-100"
+                                        : "grid-rows-[0fr] opacity-0"
+                                    }`}
+                                  >
+                                    <div className="overflow-hidden">
+                                      <div className="grid gap-2 rounded-2xl border border-white/10 bg-slate-950/34 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                                        {card.references.map((reference) => (
+                                          <span
+                                            key={reference}
+                                            className="truncate rounded-xl border border-white/10 bg-slate-950/42 px-3 py-2 text-[10px] font-black text-slate-100"
+                                          >
+                                            {reference}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </>
+                              )
+                            ) : null}
+                          </>
+                        )}
+                      </article>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-1 flex justify-center gap-2">
+                  {cardRow.cards.map((card, index) => (
+                    <button
+                      key={card.label}
+                      type="button"
+                      aria-label={`Show ${card.label}`}
+                      onClick={() => setProfileSectionOrbitIndex(cardRow.tab.id, index)}
+                      className={`h-2 rounded-full transition ${
+                        index === activeCardIndex
+                          ? "w-8 bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]"
+                          : "w-2 bg-slate-500/55 hover:bg-orange-200/75"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </section>
+            );
+          })}
+          </div>
+        </div>
+      </section>
+    );
+  };
+
   const renderOverview = () => (
     <div className="space-y-5">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="hidden gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           ["Primary Goal", profile.primaryGoal || "Goal not set"],
           ["Goal Mode", `${profile.goalMode} / ${profile.bodyGoalMode}`],
@@ -11022,37 +12924,129 @@ export default function ClientProfilePage() {
           </Link>
         </div>
       </div>
-      {renderBodyMetrics()}
-      <div id="measurements" data-profile-section="body-measurements">
-        {renderMeasurements()}
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <div id="my-body" className="min-w-0" data-profile-section="my-body">
+          {renderBodyMetrics()}
+        </div>
+        <div
+          id="measurements"
+          className="min-w-0"
+          data-profile-section="body-measurements"
+        >
+          {renderMeasurements()}
+        </div>
       </div>
-      {renderPreviousExperience()}
-      {renderSpecialCircumstances()}
+      <div id="previous-experience" data-profile-section="previous-experience">
+        {renderPreviousExperience()}
+      </div>
+      <div id="special-circumstances" data-profile-section="special-circumstances">
+        {renderSpecialCircumstances()}
+      </div>
     </div>
   );
 
-  const renderActiveTab = () => {
-    if (activeTab === "overview") return renderOverview();
-    if (activeTab === "readiness") {
+  const renderProfileTabContent = (tabId: ProfileTab) => {
+    if (tabId === "overview") return renderOverview();
+    if (tabId === "readiness") {
       return (
         <div className="space-y-5">
-          {renderPlanInputs()}
-          {renderTrainingStyle()}
-          {renderReadinessSection()}
+          <div id="plan-direction" data-profile-section="plan-direction">
+            {renderGoalCompass()}
+          </div>
+          <div id="training-setup" data-profile-section="training-setup">
+            {renderPlanInputs()}
+          </div>
+          <div id="training-style" data-profile-section="training-style">
+            {renderTrainingStyle()}
+          </div>
+          <div id="readiness-section" data-profile-section="readiness-section">
+            {renderReadinessSection()}
+          </div>
           <div id="benchmarks" data-profile-section="benchmarks">
             {renderBenchmarks()}
           </div>
-          {renderNotes({ includeCoachingPreferences: true })}
-          {renderPersonalization()}
-          {renderLifestyle()}
+          <div id="coach-app-notes" data-profile-section="coach-app-notes">
+            {renderNotes({ includeCoachingPreferences: true })}
+          </div>
+          <div id="app-preferences" data-profile-section="app-preferences">
+            {renderPersonalization()}
+          </div>
+          <div id="lifestyle" data-profile-section="lifestyle">
+            {renderLifestyle()}
+          </div>
         </div>
       );
     }
-    if (activeTab === "training") return renderTrainingManagement();
-    if (activeTab === "recovery") return renderRecoveryProfile();
-    if (activeTab === "nutrition") return renderNutrition();
+    if (tabId === "training") {
+      return (
+        <div id="training-management" data-profile-section="training-management">
+          {renderTrainingManagement()}
+        </div>
+      );
+    }
+    if (tabId === "recovery") {
+      return (
+        <div id="recovery-profile" data-profile-section="recovery-profile">
+          {renderRecoveryProfile()}
+        </div>
+      );
+    }
+    if (tabId === "nutrition") {
+      return (
+        <div id="nutrition-direction" data-profile-section="nutrition-direction">
+          {renderNutrition()}
+        </div>
+      );
+    }
     return renderOverview();
   };
+
+  const renderActiveTab = () => renderProfileTabContent(activeTab);
+
+  const renderProfileDetailsStack = () => (
+    <section className="space-y-6 pt-5" aria-label="Profile detail sections">
+      {profileDetailTabs.map((tab) => {
+        const completion = tabCompletions[tab.id] || 0;
+        const tone = getCompletionTone(completion);
+
+        return (
+          <section
+            key={tab.id}
+            className="space-y-5"
+            id={`profile-details-${tab.id}`}
+          >
+            <div className="relative overflow-hidden rounded-[28px] border border-cyan-200/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.14),transparent_34%),rgba(15,23,42,0.62)] p-4 shadow-[0_18px_56px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)]">
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-200/60 to-orange-200/45"
+              />
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200/70">
+                    Profile Details
+                  </p>
+                  <h2 className="mt-1 text-xl font-black text-white">
+                    {tab.label}
+                  </h2>
+                </div>
+                <span className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${tone.badge}`}>
+                  {completion}% Complete
+                </span>
+              </div>
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-950/70">
+                <span
+                  className={`block h-full rounded-full bg-gradient-to-r ${tone.bar} transition-[width] duration-300`}
+                  style={{ width: `${completion}%` }}
+                />
+              </div>
+            </div>
+            {renderProfileTabContent(tab.id)}
+          </section>
+        );
+      })}
+      {renderMasterJourneyMap()}
+    </section>
+  );
 
   const renderMasterJourneyMap = () => {
     const journeyRows: Array<{
@@ -11069,12 +13063,12 @@ export default function ClientProfilePage() {
     }> = [
       {
         accent: "from-cyan-300 to-blue-400",
-      completion: Math.round(
-        (tabCompletions.overview +
-          tabCompletions.goals +
+        completion: Math.round(
+          (tabCompletions.overview +
+            tabCompletions.goals +
             tabCompletions.training) /
             3,
-      ),
+        ),
         description: "Build sessions from profile, goals, libraries, and plans.",
         id: "training",
         title: "Training Journey",
@@ -11415,42 +13409,9 @@ export default function ClientProfilePage() {
   };
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_30%),radial-gradient(circle_at_82%_10%,rgba(251,146,60,0.14),transparent_28%),linear-gradient(180deg,#020617_0%,#07111f_52%,#020617_100%)] pb-28 text-white">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_30%),radial-gradient(circle_at_82%_10%,rgba(251,146,60,0.14),transparent_28%),linear-gradient(180deg,#020617_0%,#07111f_52%,#020617_100%)] pb-10 text-white">
       <section className="mx-auto w-full max-w-[1440px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.26em] text-cyan-200/70">
-              Member Profile
-            </p>
-            <h1 className="mt-2 text-3xl font-black text-white sm:text-4xl">
-              Training identity and readiness context
-            </h1>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={ROUTES.dashboard.home}
-              className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-slate-300 transition hover:border-cyan-200/35 hover:text-white"
-            >
-              Dashboard
-            </Link>
-            <Link
-              href="/goals"
-              className="rounded-2xl border border-cyan-200/25 bg-cyan-300/12 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:bg-cyan-300 hover:text-slate-950"
-            >
-              Goals
-            </Link>
-            <Link
-              href="/stats"
-              className="rounded-2xl border border-emerald-200/24 bg-emerald-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-emerald-100 transition hover:bg-emerald-300 hover:text-slate-950"
-            >
-              Stats
-            </Link>
-          </div>
-        </div>
-
-        {renderHero()}
-
-        <nav className="rounded-[28px] border border-white/10 bg-slate-950/52 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
+        <nav className="hidden rounded-[28px] border border-white/10 bg-slate-950/52 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -11464,8 +13425,7 @@ export default function ClientProfilePage() {
               ref={tabSliderRef}
               className="flex min-w-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-            {tabs.map((tab) => (
-              (() => {
+              {tabs.map((tab) => {
                 const completion = tabCompletions[tab.id] || 0;
                 const tone = getCompletionTone(completion);
                 const isActive = activeTab === tab.id;
@@ -11501,8 +13461,7 @@ export default function ClientProfilePage() {
                     </span>
                   </button>
                 );
-              })()
-            ))}
+              })}
             </div>
             <button
               type="button"
@@ -11520,49 +13479,13 @@ export default function ClientProfilePage() {
             Loading profile command center...
           </div>
         ) : (
-          renderActiveTab()
+          <>
+            {renderProfileSectionOrbiters()}
+            {renderProfileDetailsStack()}
+          </>
         )}
-
-        {!loading ? renderMasterJourneyMap() : null}
       </section>
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-slate-950/88 px-4 py-3 shadow-[0_-22px_80px_rgba(0,0,0,0.55)] backdrop-blur-2xl">
-        <div className="mx-auto flex max-w-[1440px] flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
-              {hasUnsavedChanges ? "Unsaved changes" : "Profile synced"}
-            </p>
-            <p className="mt-1 text-xs font-semibold text-slate-500">
-              Last saved: {formatSavedTime(profile.updatedAt)}
-              {message ? ` - ${message}` : ""}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={resetToDefaults}
-              className="rounded-2xl border border-orange-200/20 bg-orange-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-orange-100 transition hover:bg-orange-300 hover:text-slate-950"
-            >
-              Reset Defaults
-            </button>
-            <button
-              type="button"
-              disabled={!hasUnsavedChanges}
-              onClick={resetChanges}
-              className="rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-slate-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Reset Changes
-            </button>
-            <button
-              type="button"
-              onClick={saveProfile}
-              className="rounded-2xl border border-cyan-100/30 bg-cyan-300 px-5 py-3 text-xs font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.22)] transition hover:bg-cyan-200"
-            >
-              Save Profile
-            </button>
-          </div>
-        </div>
-      </div>
     </main>
   );
 }
