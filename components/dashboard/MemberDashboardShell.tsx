@@ -15,7 +15,11 @@ export default function MemberDashboardShell({
   const router = useRouter();
   const pathname = usePathname();
   const [loading, setLoading] = useState(true);
-  const useEmbeddedHeader = pathname === ROUTES.dashboard.sessions;
+  const useEmbeddedHeader =
+    pathname === ROUTES.dashboard.home ||
+    pathname === ROUTES.dashboard.goals ||
+    pathname === ROUTES.dashboard.sessions ||
+    pathname === ROUTES.dashboard.profile;
 
   useEffect(() => {
     let isActive = true;

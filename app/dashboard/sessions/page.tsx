@@ -1434,14 +1434,24 @@ export default function SessionsPage() {
       setOpenTrainingJourneyDropdown(null);
     }
   }, [activeTrainingJourneyStage?.title, openTrainingJourneyDropdown]);
-  const activeTrainingJourneyLayerLabel =
-    activeTrainingJourneyLayer === TRAINING_JOURNEY_HERO_LAYER
+  const getTrainingJourneyLayerLabel = (layer: number) =>
+    layer === TRAINING_JOURNEY_HERO_LAYER
       ? "Hero"
-      : activeTrainingJourneyLayer === 0
-        ? "Core Workout Flow"
-        : activeTrainingJourneyLayer === 1
+      : layer === 0
+        ? "Core Flow"
+        : layer === 1
           ? "Systems"
-          : `Row ${activeTrainingJourneyLayer + 1}`;
+          : `Row ${layer + 1}`;
+  const trainingJourneyLayerMenuItems = [
+    {
+      label: getTrainingJourneyLayerLabel(TRAINING_JOURNEY_HERO_LAYER),
+      layer: TRAINING_JOURNEY_HERO_LAYER,
+    },
+    ...Array.from({ length: totalTrainingJourneyLayers }, (_, layer) => ({
+      label: getTrainingJourneyLayerLabel(layer),
+      layer,
+    })),
+  ];
   const defaultTrainingJourneyCoreIndex =
     combinedTrainingJourneyStages.findIndex(
       (stage) => stage.title === TRAINING_JOURNEY_DEFAULT_CORE_TITLE,
@@ -1579,6 +1589,15 @@ export default function SessionsPage() {
 
       return nextPositions;
     });
+  };
+  const selectTrainingJourneyLayer = (layer: number) => {
+    setOpenTrainingJourneyDropdown(null);
+    setActiveTrainingJourneyLayer(
+      Math.max(
+        TRAINING_JOURNEY_HERO_LAYER,
+        Math.min(totalTrainingJourneyLayers - 1, layer),
+      ),
+    );
   };
   const handleTrainingJourneyPointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -1897,6 +1916,22 @@ export default function SessionsPage() {
       tone: "border-cyan-100/50 bg-cyan-300 text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.24)]",
     },
     {
+      href: ROUTES.dashboard.profile,
+      icon: "👤",
+      label: "Profile",
+      meta: "Identity",
+      points: Math.round(workoutRewardStats.soundPoints * 0.94),
+      tone: "border-cyan-200/30 bg-cyan-300/10 text-cyan-100 hover:border-cyan-100/45 hover:bg-cyan-300/16",
+    },
+    {
+      href: ROUTES.dashboard.goals,
+      icon: "🎯",
+      label: "Goals",
+      meta: "Direction",
+      points: Math.round(workoutRewardStats.soundPoints * 0.68),
+      tone: "border-amber-200/32 bg-amber-300/12 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/18",
+    },
+    {
       href: ROUTES.nutritionPortal.home,
       icon: "🍽️",
       label: "Nutrition",
@@ -1942,6 +1977,11 @@ export default function SessionsPage() {
     sessionsOrbitDashboardLinks[
       activeSessionsDashboardIndex % sessionsOrbitDashboardLinks.length
     ] || sessionsOrbitDashboardLinks[0];
+  const pinnedSessionsDashboardTabs = sessionsOrbitDashboardLinks.filter(
+    (dashboardLink) =>
+      dashboardLink.href === ROUTES.dashboard.profile ||
+      dashboardLink.href === ROUTES.dashboard.goals,
+  );
   const rotateSessionsDashboardRail = (direction: "left" | "right") => {
     setSessionsDashboardSlideDirection(direction);
     setActiveSessionsDashboardIndex((currentIndex) =>
@@ -2203,6 +2243,17 @@ export default function SessionsPage() {
       return nextLayer;
     });
   };
+  const sessionsProfileLayerMenuItems = [
+    { label: "Profile", layer: 0 },
+    { label: "My Hub", layer: 1 },
+    { label: "Account", layer: 2 },
+  ];
+  const selectSessionsProfileLayer = (layer: number) => {
+    const nextLayer = Math.max(0, Math.min(2, layer));
+    activeSessionsProfileLayerRef.current = nextLayer;
+    setProfileHubLayerMotionOffset(0);
+    setActiveSessionsProfileLayer(nextLayer);
+  };
   const handleSessionsProfileLayerWheel = (
     event: ReactWheelEvent<HTMLDivElement>,
   ) => {
@@ -2460,6 +2511,12 @@ export default function SessionsPage() {
     tone: string,
     centerPercent: number,
     fallbackCardHeight: number,
+    indicator?: {
+      activeClassName: string;
+      activeIndex: number;
+      count: number;
+      inactiveClassName: string;
+    },
   ) => (
     <div
       aria-hidden="true"
@@ -2476,6 +2533,21 @@ export default function SessionsPage() {
       <div className="text-[9px] font-black uppercase tracking-[0.16em]">
         {label}
       </div>
+      {indicator ? (
+        <div className="mt-1 flex items-center justify-center gap-1.5">
+          {Array.from({ length: indicator.count }).map((_, index) => (
+            <span
+              aria-hidden="true"
+              className={`h-1.5 rounded-full transition ${
+                index === indicator.activeIndex
+                  ? `w-5 ${indicator.activeClassName}`
+                  : `w-1.5 ${indicator.inactiveClassName}`
+              }`}
+              key={`${label}-row-title-indicator-${index}`}
+            />
+          ))}
+        </div>
+      ) : null}
       <div className="mt-1 text-[10px] font-bold leading-4 text-slate-300">
         {helper}
       </div>
@@ -2606,6 +2678,46 @@ export default function SessionsPage() {
                   </span>
                 </span>
               </Link>
+              {pinnedSessionsDashboardTabs
+                .filter(
+                  (dashboardLink) =>
+                    dashboardLink.href !== activeSessionsDashboardLink.href,
+                )
+                .map((dashboardLink) => (
+                  <Link
+                    aria-label={`Open ${dashboardLink.label} dashboard`}
+                    className={`group flex min-h-[58px] min-w-[58px] shrink-0 items-center justify-center gap-2 rounded-[22px] border px-2.5 py-2 text-left shadow-[0_0_20px_rgba(255,255,255,0.06)] transition hover:-translate-y-0.5 md:min-w-max md:justify-start ${dashboardLink.tone}`}
+                    draggable={false}
+                    href={dashboardLink.href}
+                    key={`sessions-pinned-dashboard-${dashboardLink.href}`}
+                    onClick={(event) => {
+                      if (sessionsDashboardPointerMovedRef.current) {
+                        event.preventDefault();
+                        sessionsDashboardPointerMovedRef.current = false;
+                      }
+                    }}
+                    onDragStart={(event) => event.preventDefault()}
+                    onPointerDown={(event) => {
+                      sessionsDashboardPointerMovedRef.current = false;
+                      event.stopPropagation();
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border text-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,255,255,0.06)] ${dashboardLink.tone}`}
+                    >
+                      {dashboardLink.icon}
+                    </span>
+                    <span className="hidden shrink-0 whitespace-nowrap xl:block">
+                      <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
+                        {dashboardLink.meta}
+                      </span>
+                      <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px]">
+                        {dashboardLink.label}
+                      </span>
+                    </span>
+                  </Link>
+                ))}
               <button
                 aria-label="Next dashboard"
                 className="grid h-11 w-9 shrink-0 place-items-center rounded-2xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
@@ -2806,9 +2918,40 @@ export default function SessionsPage() {
                     >
                       ^
                     </button>
-                    <span className="rounded-full border border-white/10 bg-slate-950/72 px-2 py-1 text-[8px] font-black uppercase tracking-[0.16em] text-slate-300 [writing-mode:vertical-rl]">
-                      {["Profile", "My Hub", "Account"][activeSessionsProfileLayer]}
-                    </span>
+                    <div
+                      aria-label="Profile hub row menu"
+                      className="flex w-[92px] flex-col gap-1 rounded-[22px] border border-white/10 bg-slate-950/48 p-1.5 shadow-[0_0_24px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:w-[104px]"
+                    >
+                      {sessionsProfileLayerMenuItems.map((item) => {
+                        const isActive =
+                          item.layer === activeSessionsProfileLayer;
+                        const activeTone =
+                          item.layer === 2
+                            ? "border-amber-100/45 bg-amber-300/18 text-amber-50 shadow-[0_0_18px_rgba(250,204,21,0.18)]"
+                            : "border-cyan-100/45 bg-cyan-300/18 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.20)]";
+
+                        return (
+                          <button
+                            aria-current={isActive ? "step" : undefined}
+                            aria-label={`Show ${item.label}`}
+                            className={`rounded-2xl border px-2 py-1.5 text-center text-[8px] font-black uppercase leading-tight tracking-[0.1em] transition hover:-translate-y-0.5 active:scale-95 ${
+                              isActive
+                                ? activeTone
+                                : "border-white/8 bg-white/[0.035] text-slate-400 hover:border-cyan-100/28 hover:bg-cyan-300/8 hover:text-cyan-100"
+                            }`}
+                            key={`sessions-profile-layer-menu-${item.layer}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              selectSessionsProfileLayer(item.layer);
+                            }}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            type="button"
+                          >
+                            {item.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                     <button
                       aria-label="Move profile hub layer down"
                       className={`grid h-10 w-10 place-items-center rounded-full border text-lg font-black shadow-[0_0_24px_rgba(0,0,0,0.28)] transition active:scale-95 ${
@@ -3024,6 +3167,14 @@ export default function SessionsPage() {
                       "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
                       55,
                       324,
+                      {
+                        activeClassName:
+                          "bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]",
+                        activeIndex: activeSessionsHubIndex,
+                        count: sessionsHubOrbitItems.length,
+                        inactiveClassName:
+                          "bg-cyan-300/35 shadow-[0_0_5px_rgba(34,211,238,0.18)]",
+                      },
                     )}
                     <span
                       aria-hidden="true"
@@ -3359,6 +3510,14 @@ export default function SessionsPage() {
                       "border-amber-200/24 bg-amber-300/10 text-amber-100",
                       54,
                       316,
+                      {
+                        activeClassName:
+                          "bg-amber-200 shadow-[0_0_14px_rgba(253,230,138,0.58)]",
+                        activeIndex: activeSessionsAccountIndex,
+                        count: sessionsAccountOrbitItems.length,
+                        inactiveClassName:
+                          "bg-amber-300/35 shadow-[0_0_5px_rgba(251,191,36,0.18)]",
+                      },
                     )}
                     <span
                       aria-hidden="true"
@@ -3744,9 +3903,39 @@ export default function SessionsPage() {
               >
                 ^
               </button>
-              <span className="rounded-full border border-white/10 bg-slate-950/72 px-2 py-1 text-[8px] font-black uppercase tracking-[0.16em] text-slate-300 shadow-[0_0_20px_rgba(0,0,0,0.24)] backdrop-blur [writing-mode:vertical-rl]">
-                {activeTrainingJourneyLayerLabel}
-              </span>
+              <div
+                aria-label="Sessions journey row menu"
+                className="flex w-[96px] flex-col gap-1 rounded-[22px] border border-white/10 bg-slate-950/48 p-1.5 shadow-[0_0_24px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:w-[116px]"
+              >
+                {trainingJourneyLayerMenuItems.map((item) => {
+                  const isActive = item.layer === activeTrainingJourneyLayer;
+                  const activeTone =
+                    item.layer <= 0
+                      ? "border-cyan-100/45 bg-cyan-300/18 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.20)]"
+                      : "border-amber-100/45 bg-amber-300/18 text-amber-50 shadow-[0_0_18px_rgba(250,204,21,0.18)]";
+
+                  return (
+                    <button
+                      aria-current={isActive ? "step" : undefined}
+                      aria-label={`Show ${item.label}`}
+                      className={`rounded-2xl border px-2 py-1.5 text-center text-[8px] font-black uppercase leading-tight tracking-[0.1em] transition hover:-translate-y-0.5 active:scale-95 ${
+                        isActive
+                          ? activeTone
+                          : "border-white/8 bg-white/[0.035] text-slate-400 hover:border-cyan-100/28 hover:bg-cyan-300/8 hover:text-cyan-100"
+                      }`}
+                      key={`sessions-journey-layer-menu-${item.layer}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectTrainingJourneyLayer(item.layer);
+                      }}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      type="button"
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
               <button
                 aria-label="Move sessions journey row down"
                 className={`grid h-10 w-10 place-items-center rounded-full border text-lg font-black shadow-[0_0_24px_rgba(0,0,0,0.28)] transition active:scale-95 ${

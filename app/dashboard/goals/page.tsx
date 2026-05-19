@@ -1,8 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import {
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type WheelEvent as ReactWheelEvent,
   useEffect,
   useMemo,
   useRef,
@@ -792,9 +795,96 @@ function TranslationCard({
   );
 }
 
+type GoalOrbiterIconName =
+  | "calendar"
+  | "compass"
+  | "scale"
+  | "signal"
+  | "stage";
+
+function GoalOrbiterIcon({
+  name,
+  className = "h-5 w-5",
+}: {
+  className?: string;
+  name: GoalOrbiterIconName;
+}) {
+  const iconProps = {
+    className,
+    fill: "none",
+    stroke: "currentColor",
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    strokeWidth: 2.2,
+    viewBox: "0 0 24 24",
+  };
+
+  switch (name) {
+    case "calendar":
+      return (
+        <svg {...iconProps}>
+          <path d="M8 2v4" />
+          <path d="M16 2v4" />
+          <rect height="18" rx="3" width="18" x="3" y="4" />
+          <path d="M3 10h18" />
+          <path d="M8 14h3" />
+          <path d="M13 14h3" />
+          <path d="M8 18h3" />
+        </svg>
+      );
+    case "compass":
+      return (
+        <svg {...iconProps}>
+          <circle cx="12" cy="12" r="9" />
+          <path d="m15.5 8.5-2 5-5 2 2-5 5-2Z" />
+        </svg>
+      );
+    case "scale":
+      return (
+        <svg {...iconProps}>
+          <path d="M7 20h10" />
+          <path d="M12 4v16" />
+          <path d="M5 7h14" />
+          <path d="m6 7-3 6h6L6 7Z" />
+          <path d="m18 7-3 6h6l-3-6Z" />
+        </svg>
+      );
+    case "signal":
+      return (
+        <svg {...iconProps}>
+          <path d="M4 19v-4" />
+          <path d="M9 19V9" />
+          <path d="M14 19v-7" />
+          <path d="M19 19V5" />
+        </svg>
+      );
+    case "stage":
+      return (
+        <svg {...iconProps}>
+          <path d="M5 19h14" />
+          <path d="M7 15h10" />
+          <path d="M9 11h6" />
+          <path d="M12 5v6" />
+          <path d="m9 8 3-3 3 3" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...iconProps}>
+          <circle cx="12" cy="12" r="8" />
+        </svg>
+      );
+  }
+}
+
 export default function GoalsPage() {
   const [profile, setProfile] = useState<ProfileSnapshot>(() => defaultProfile());
   const [goals, setGoals] = useState<GoalState>(() => buildGoalsFromProfile(defaultProfile()));
+  const [activeGoalsHeaderIndex, setActiveGoalsHeaderIndex] = useState(2);
+  const [goalsHeaderSlideDirection, setGoalsHeaderSlideDirection] =
+    useState<"left" | "right">("right");
+  const [activeGoalsOrbiterRow, setActiveGoalsOrbiterRow] = useState(0);
+  const [activeGoalOrbiterIndex, setActiveGoalOrbiterIndex] = useState(0);
   const [planDirectionOpen, setPlanDirectionOpen] = useState(false);
   const [planDirectionMessage, setPlanDirectionMessage] = useState("");
   const [planDirectionScrolling, setPlanDirectionScrolling] = useState(false);
@@ -807,6 +897,10 @@ export default function GoalsPage() {
   const planDirectionScrollTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("soundFitnessDashboardGoalsVisited", "true");
+    }
+
     const profileSnapshot = getProfileSnapshot();
     const storedGoals = asRecord(readLocal("soundFitnessGoals"));
     const mergedGoals = {
@@ -912,6 +1006,785 @@ export default function GoalsPage() {
     )
       ? [goals.goalPriorityRanking, ...goalPriorityOptions]
       : [...goalPriorityOptions];
+  const displayName = profile.displayName.trim() || "Member";
+  const firstName = displayName.split(/\s+/)[0] || "Member";
+  const soundPoints =
+    900 +
+    goalSetupCompletion * 10 +
+    weeklySets * 4 +
+    favoriteCount * 60 +
+    selectedDirections.length * 120;
+  const soundTokens =
+    70 +
+    Math.round(goalSetupCompletion / 5) +
+    favoriteCount * 2 +
+    selectedDirections.length * 4;
+  const goalsHeaderLinks = [
+    {
+      href: ROUTES.dashboard.home,
+      icon: "DB",
+      label: "Dashboard",
+      meta: "Command",
+      points: Math.round(soundPoints * 1.06),
+      tone:
+        "border-cyan-200/30 bg-cyan-300/10 text-cyan-100 hover:border-cyan-100/45 hover:bg-cyan-300/16",
+    },
+    {
+      href: ROUTES.dashboard.profile,
+      icon: "ID",
+      label: "Profile",
+      meta: "Identity",
+      points: Math.round(soundPoints * 0.92),
+      tone:
+        "border-cyan-200/30 bg-cyan-300/10 text-cyan-100 hover:border-cyan-100/45 hover:bg-cyan-300/16",
+    },
+    {
+      href: ROUTES.dashboard.goals,
+      icon: "GO",
+      label: "Direction",
+      meta: "Command",
+      points: soundPoints,
+      tone:
+        "border-amber-100/50 bg-amber-300 text-slate-950 shadow-[0_0_26px_rgba(251,191,36,0.24)]",
+    },
+    {
+      href: ROUTES.dashboard.sessions,
+      icon: "WO",
+      label: "Workout",
+      meta: "Sessions",
+      points: Math.round(soundPoints * 0.82),
+      tone:
+        "border-sky-200/28 bg-sky-300/10 text-sky-100 hover:border-sky-100/45 hover:bg-sky-300/16",
+    },
+    {
+      href: ROUTES.nutritionPortal.home,
+      icon: "NU",
+      label: "Nutrition",
+      meta: "Fuel",
+      points: Math.round(soundPoints * 0.42),
+      tone:
+        "border-emerald-200/28 bg-emerald-300/10 text-emerald-100 hover:border-emerald-100/45 hover:bg-emerald-300/16",
+    },
+    {
+      href: ROUTES.dashboard.recovery,
+      icon: "RE",
+      label: "Recovery",
+      meta: "Readiness",
+      points: Math.round(soundPoints * 0.3),
+      tone:
+        "border-violet-200/28 bg-violet-300/10 text-violet-100 hover:border-violet-100/45 hover:bg-violet-300/16",
+    },
+    {
+      href: ROUTES.performance.home,
+      icon: "PF",
+      label: "Performance",
+      meta: "Athletic",
+      points: Math.round(soundPoints * 0.48),
+      tone:
+        "border-amber-200/30 bg-amber-300/10 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/16",
+    },
+    {
+      href: ROUTES.learning.home,
+      icon: "ED",
+      label: "Education",
+      meta: "Learning",
+      points: Math.round(soundPoints * 0.16),
+      tone:
+        "border-blue-200/28 bg-blue-300/10 text-blue-100 hover:border-blue-100/45 hover:bg-blue-300/16",
+    },
+    {
+      href: ROUTES.soundworld.home,
+      icon: "SW",
+      label: "Sound World",
+      meta: "Community",
+      points: Math.round(soundPoints * 0.1),
+      tone:
+        "border-pink-200/28 bg-pink-300/10 text-pink-100 hover:border-pink-100/45 hover:bg-pink-300/16",
+    },
+  ] as const;
+  const activeGoalsHeaderLink =
+    goalsHeaderLinks[activeGoalsHeaderIndex % goalsHeaderLinks.length] ||
+    goalsHeaderLinks[2];
+  const goalsHeaderProfileLink =
+    goalsHeaderLinks.find((dashboardLink) => dashboardLink.href === ROUTES.dashboard.profile) ||
+    goalsHeaderLinks[1];
+  const goalsHeaderGoalsLink =
+    goalsHeaderLinks.find((dashboardLink) => dashboardLink.href === ROUTES.dashboard.goals) ||
+    goalsHeaderLinks[2];
+  const rotateGoalsHeaderRail = (direction: "left" | "right") => {
+    setGoalsHeaderSlideDirection(direction);
+    setActiveGoalsHeaderIndex((currentIndex) =>
+      direction === "left"
+        ? (currentIndex - 1 + goalsHeaderLinks.length) %
+          goalsHeaderLinks.length
+        : (currentIndex + 1) % goalsHeaderLinks.length,
+    );
+  };
+  const goalsOrbiterRows = [
+    {
+      completion: goalSetupCompletion,
+      helper: "Hero command surface and current goal summary.",
+      label: "Hero",
+    },
+    {
+      completion: Math.max(goalSetupCompletion, completion),
+      helper: "3D direction cards for goal planning.",
+      label: "Direction + Stage",
+    },
+  ] as const;
+  const activeGoalsOrbiterRowIndex = Math.max(
+    0,
+    Math.min(activeGoalsOrbiterRow, goalsOrbiterRows.length - 1),
+  );
+  const setGoalsOrbiterRow = (rowIndex: number) => {
+    setActiveGoalsOrbiterRow(
+      Math.max(0, Math.min(rowIndex, goalsOrbiterRows.length - 1)),
+    );
+  };
+  const moveGoalsOrbiterRow = (direction: -1 | 1) => {
+    setActiveGoalsOrbiterRow((currentIndex) =>
+      Math.max(
+        0,
+        Math.min(currentIndex + direction, goalsOrbiterRows.length - 1),
+      ),
+    );
+  };
+  const handleGoalsOrbiterWheel = (event: ReactWheelEvent<HTMLElement>) => {
+    if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+    if (Math.abs(event.deltaY) < 18) return;
+
+    const direction = event.deltaY > 0 ? 1 : -1;
+    const nextIndex = Math.max(
+      0,
+      Math.min(activeGoalsOrbiterRowIndex + direction, goalsOrbiterRows.length - 1),
+    );
+
+    if (nextIndex === activeGoalsOrbiterRowIndex) return;
+    event.preventDefault();
+    setGoalsOrbiterRow(nextIndex);
+  };
+  const handleGoalsOrbiterKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (
+      target?.isContentEditable ||
+      ["A", "BUTTON", "INPUT", "SELECT", "TEXTAREA"].includes(
+        target?.tagName || "",
+      )
+    ) {
+      return;
+    }
+
+    if (event.key === "ArrowDown" || event.key === "PageDown") {
+      event.preventDefault();
+      moveGoalsOrbiterRow(1);
+    } else if (event.key === "ArrowUp" || event.key === "PageUp") {
+      event.preventDefault();
+      moveGoalsOrbiterRow(-1);
+    }
+  };
+
+  const renderGoalsOrbiterTopMenu = () => (
+    <div className="sticky top-0 z-[120] mb-0 w-full overflow-hidden border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl">
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/55 to-transparent"
+      />
+      <div className="relative mx-auto flex min-h-[84px] w-full max-w-[1840px] items-center gap-4 px-3 py-3 sm:px-4 sm:py-4 md:px-6 xl:px-8 2xl:px-10">
+        <Link
+          aria-label="Open Sound Fitness dashboard"
+          className="flex min-h-[58px] min-w-0 shrink-0 items-center gap-3 rounded-[24px] border border-transparent bg-transparent px-2.5 py-2 transition hover:border-cyan-100/24 hover:bg-cyan-300/8"
+          href={ROUTES.dashboard.home}
+        >
+          <Image
+            alt="Sound Fitness"
+            className="h-10 w-10 shrink-0 rounded-full object-contain"
+            height={40}
+            src="/sound-fitness-logo.png"
+            width={40}
+          />
+          <span className="hidden min-w-0 leading-[0.9] sm:block">
+            <span className="block text-sm font-black uppercase tracking-[0.12em] text-white">
+              Sound
+            </span>
+            <span className="block text-[9px] font-black uppercase tracking-[0.34em] text-cyan-300">
+              Fitness
+            </span>
+          </span>
+          <span className="hidden rounded-full border border-cyan-200/28 bg-cyan-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.13em] text-cyan-100 lg:inline-flex">
+            Member
+          </span>
+        </Link>
+
+        <div className="min-w-0 flex-1" />
+
+        <div
+          aria-label="Dashboard selector"
+          className="flex w-fit max-w-[calc(100vw-7.5rem)] shrink-0 select-none items-center gap-1.5 bg-transparent p-0 shadow-none md:max-w-[min(56vw,520px)] lg:max-w-none"
+        >
+          <button
+            aria-label="Previous dashboard"
+            className="grid h-11 w-9 shrink-0 place-items-center rounded-2xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:-translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
+            onClick={() => rotateGoalsHeaderRail("left")}
+            type="button"
+          >
+            &lt;
+          </button>
+          <Link
+            aria-current={
+              activeGoalsHeaderLink.href === ROUTES.dashboard.goals
+                ? "page"
+                : undefined
+            }
+            className={`flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-2.5 py-2 text-left text-cyan-50 shadow-none transition hover:-translate-y-0.5 hover:bg-white/[0.04] ${
+              goalsHeaderSlideDirection === "right"
+                ? "animate-[sessions-dashboard-chip-slide-from-right_220ms_ease-out]"
+                : "animate-[sessions-dashboard-chip-slide-from-left_220ms_ease-out]"
+            }`}
+            draggable={false}
+            href={activeGoalsHeaderLink.href}
+            key={`${activeGoalsHeaderLink.label}-${goalsHeaderSlideDirection}`}
+            onDragStart={(event) => event.preventDefault()}
+          >
+            <span
+              aria-hidden="true"
+              className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border text-[11px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,255,255,0.06)] ${activeGoalsHeaderLink.tone}`}
+            >
+              {activeGoalsHeaderLink.icon}
+            </span>
+            <span className="shrink-0 whitespace-nowrap">
+              <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
+                {activeGoalsHeaderLink.meta}
+              </span>
+              <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px]">
+                {activeGoalsHeaderLink.label}
+              </span>
+            </span>
+            <span
+              className={`shrink-0 rounded-2xl border px-3 py-2 text-right ${activeGoalsHeaderLink.tone}`}
+            >
+              <span className="block text-[8px] font-black uppercase tracking-[0.1em] opacity-75">
+                pts
+              </span>
+              <span className="block text-sm font-black leading-none [text-shadow:0_1px_12px_rgba(0,0,0,0.34)]">
+                {activeGoalsHeaderLink.points.toLocaleString()}
+              </span>
+            </span>
+          </Link>
+          {activeGoalsHeaderLink.href !== ROUTES.dashboard.profile ? (
+            <Link
+              aria-label="Open Profile dashboard"
+              className={`group flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-2 rounded-[22px] border px-2.5 py-2 text-left shadow-[0_0_20px_rgba(34,211,238,0.08)] transition hover:-translate-y-0.5 ${goalsHeaderProfileLink.tone}`}
+              draggable={false}
+              href={goalsHeaderProfileLink.href}
+              onDragStart={(event) => event.preventDefault()}
+            >
+              <span
+                aria-hidden="true"
+                className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border text-[11px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(34,211,238,0.10)] ${goalsHeaderProfileLink.tone}`}
+              >
+                {goalsHeaderProfileLink.icon}
+              </span>
+              <span className="hidden shrink-0 whitespace-nowrap sm:block">
+                <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
+                  {goalsHeaderProfileLink.meta}
+                </span>
+                <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px]">
+                  {goalsHeaderProfileLink.label}
+                </span>
+              </span>
+            </Link>
+          ) : null}
+          {activeGoalsHeaderLink.href !== ROUTES.dashboard.goals ? (
+            <Link
+              aria-label="Open Direction command dashboard"
+              className={`group flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-2 rounded-[22px] border px-2.5 py-2 text-left shadow-[0_0_20px_rgba(251,191,36,0.08)] transition hover:-translate-y-0.5 ${goalsHeaderGoalsLink.tone}`}
+              draggable={false}
+              href={goalsHeaderGoalsLink.href}
+              onDragStart={(event) => event.preventDefault()}
+            >
+              <span
+                aria-hidden="true"
+                className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border text-[11px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(251,191,36,0.10)] ${goalsHeaderGoalsLink.tone}`}
+              >
+                {goalsHeaderGoalsLink.icon}
+              </span>
+              <span className="hidden shrink-0 whitespace-nowrap sm:block">
+                <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
+                  {goalsHeaderGoalsLink.meta}
+                </span>
+                <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px]">
+                  {goalsHeaderGoalsLink.label}
+                </span>
+              </span>
+            </Link>
+          ) : null}
+          <button
+            aria-label="Next dashboard"
+            className="grid h-11 w-9 shrink-0 place-items-center rounded-2xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
+            onClick={() => rotateGoalsHeaderRail("right")}
+            type="button"
+          >
+            &gt;
+          </button>
+        </div>
+
+        <Link
+          aria-label="Open profile hub"
+          className="hidden min-h-[58px] shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:bg-white/[0.04] md:flex"
+          href={ROUTES.dashboard.profile}
+        >
+          <Image
+            alt={`${firstName} profile`}
+            className="h-10 w-10 rounded-full border border-cyan-200/28 bg-slate-950 object-contain p-0.5 shadow-[0_0_18px_rgba(34,211,238,0.14)]"
+            height={40}
+            src="/sound-fitness-logo.png"
+            width={40}
+          />
+          <span className="hidden min-w-0 leading-none lg:block">
+            <span className="block max-w-[110px] truncate text-[10px] font-black uppercase tracking-[0.12em] text-white">
+              {firstName}
+            </span>
+            <span className="mt-1 block text-[8px] font-black uppercase tracking-[0.14em] text-cyan-200/70">
+              Profile Hub
+            </span>
+          </span>
+          <span className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5">
+              <span className="sr-only">Points</span>
+              <svg
+                aria-hidden="true"
+                className="h-5 w-5 text-amber-200 drop-shadow-[0_0_12px_rgba(250,204,21,0.28)]"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path d="M13.5 2 4.8 13.2h6.1L9.7 22 19.2 9.6h-6.4L13.5 2Z" />
+              </svg>
+              <span className="text-sm font-black leading-none text-white">
+                {soundPoints.toLocaleString()}
+              </span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="sr-only">Tokens</span>
+              <Image
+                alt=""
+                aria-hidden="true"
+                className="h-5 w-5 rounded-full border border-cyan-200/24 bg-slate-950 object-contain p-0.5 shadow-[0_0_12px_rgba(34,211,238,0.20)]"
+                height={20}
+                src="/sound-fitness-logo.png"
+                width={20}
+              />
+              <span className="text-sm font-black leading-none text-white">
+                {soundTokens.toLocaleString()}
+              </span>
+            </span>
+          </span>
+        </Link>
+      </div>
+    </div>
+  );
+
+  const renderGoalsHeroRow = () => (
+    <section
+      aria-label="Goals hero row"
+      data-goals-orbiter-row="0"
+      className="relative mx-auto w-full max-w-[1180px] overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.94),rgba(2,6,23,0.98))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.62)] backdrop-blur-xl sm:p-6 lg:p-8"
+    >
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-8 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/60 to-amber-100/45"
+      />
+      <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr] xl:items-stretch">
+        <div>
+          <p className="text-[11px] font-black uppercase tracking-[0.3em] text-cyan-200">
+            Desired Outcomes
+          </p>
+          <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+            Goals
+          </h1>
+          <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-300 sm:text-base">
+            Choose the outcomes your training system should build toward.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
+              Primary: {activeDirection}
+            </span>
+            {secondaryDirection ? (
+              <span className="rounded-full border border-fuchsia-300/20 bg-fuchsia-300/10 px-3 py-1 text-xs font-black text-fuchsia-100">
+                Secondary: {secondaryDirection}
+              </span>
+            ) : null}
+            <span className="rounded-full border border-violet-300/20 bg-violet-300/10 px-3 py-1 text-xs font-black text-violet-100">
+              Plan directions {selectedDirections.length}/2
+            </span>
+            <span className="rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs font-black text-amber-100">
+              Mode: {goals.goalMode}
+            </span>
+            <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-black text-emerald-100">
+              {goals.targetWeeklySessions || 0} sessions / wk
+            </span>
+            <span className="rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs font-black text-sky-100">
+              Timeline: {goalDeadlineLabel}
+            </span>
+            <span className="rounded-full border border-fuchsia-300/20 bg-fuchsia-300/10 px-3 py-1 text-xs font-black text-fuchsia-100">
+              Goal setup {goalSetupCompletion}%
+            </span>
+          </div>
+        </div>
+        <div className="rounded-[30px] border border-cyan-300/15 bg-slate-950/58 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">
+            Recommended Next Goal Step
+          </p>
+          <p className="mt-3 text-xl font-black leading-tight text-white">
+            {recommendedNextStep}
+          </p>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+            <TranslationCard label="Timeline" value={goalDeadlineLabel} />
+            <TranslationCard label="Goal Progress" value={`${goalSetupCompletion}% complete`} />
+            <TranslationCard label="Milestones" value={milestoneCount ? `${milestoneCount} milestone${milestoneCount === 1 ? "" : "s"} noted` : "Add milestones"} />
+            <TranslationCard label="Member" value={`${displayName} / ${profile.trainingAge}`} />
+            <TranslationCard label="Weight Target" value={weightDelta ? `${weightDelta > 0 ? "Gain" : "Lose"} ${Math.abs(weightDelta).toLocaleString()} lb` : "Add body metrics"} />
+            <TranslationCard label="Weekly Momentum" value={`${weeklySets} / ${weeklyTarget} sets / ${completion}%`} />
+            <TranslationCard label="Favorites" value={`${favoriteCount} saved exercise targets`} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+
+  const renderGoalOrbiterRow = () => {
+    const goalDirectionCompletion = calculateCompletion([
+      selectedDirections,
+      goals.primaryGoal,
+      goals.secondaryGoal,
+      goals.goalMode,
+      goals.goalPriorityRanking,
+    ]);
+    const goalStageCompletion = calculateCompletion([
+      goals.goalDeadline,
+      goals.goalMilestones,
+      goals.goalPriorityRanking,
+      goals.motivationFocus || goals.planDirectionNotes,
+    ]);
+    const bodyTargetCompletion = calculateCompletion([
+      goals.currentWeight,
+      goals.goalWeight,
+      goals.stepsGoal || goals.targetSteps,
+      goals.waterGoal,
+    ]);
+    const weeklyTargetCompletion = calculateCompletion([
+      goals.targetWeeklySessions,
+      goals.targetWeeklySets,
+      goals.targetProtein,
+      goals.targetSleep,
+    ]);
+    const signalCompletion = calculateCompletion([
+      weeklySets,
+      favoriteCount,
+      goals.benchmarkGoal,
+      goals.goalMilestones,
+    ]);
+    const goalStageStatus = goals.goalDeadline
+      ? "Timeline set"
+      : goals.goalMilestones.trim()
+        ? "Milestones set"
+        : goals.goalPriorityRanking
+          ? "Priority set"
+          : "Stage open";
+    const goalOrbiterCards: Array<{
+      completion: number;
+      helper: string;
+      icon: GoalOrbiterIconName;
+      label: string;
+      references: string[];
+      stat: string;
+      targetId: string;
+      tone: string;
+      wash: string;
+    }> = [
+      {
+        completion: goalDirectionCompletion,
+        helper: "Primary and secondary training priorities that steer programming.",
+        icon: "compass",
+        label: "Goal Direction",
+        references: [
+          primaryDirection ? `Primary: ${primaryDirection}` : "Primary direction open",
+          secondaryDirection ? `Secondary: ${secondaryDirection}` : "Secondary direction optional",
+          `${selectedDirections.length}/2 directions selected`,
+        ],
+        stat: primaryDirection || "Choose direction",
+        targetId: "goal-direction",
+        tone: "border-cyan-200/28 bg-cyan-300/10 text-cyan-50",
+        wash: "from-cyan-300/26 via-blue-300/12 to-transparent",
+      },
+      {
+        completion: goalStageCompletion,
+        helper: "Timeline, milestones, priority ranking, and motivation for this phase.",
+        icon: "stage",
+        label: "Goal Stage",
+        references: [
+          `Timeline: ${goalDeadlineLabel}`,
+          milestoneCount ? `${milestoneCount} milestones noted` : "Milestones open",
+          goals.goalPriorityRanking || "Priority open",
+        ],
+        stat: goalStageStatus,
+        targetId: "goal-stage",
+        tone: "border-amber-200/30 bg-amber-300/10 text-amber-50",
+        wash: "from-amber-300/26 via-orange-300/12 to-transparent",
+      },
+      {
+        completion: bodyTargetCompletion,
+        helper: "Current weight, goal weight, steps, and hydration targets.",
+        icon: "scale",
+        label: "Body Target",
+        references: [
+          goals.currentWeight ? `Current ${goals.currentWeight} lb` : "Current weight open",
+          goals.goalWeight ? `Goal ${goals.goalWeight} lb` : "Goal weight open",
+          goals.stepsGoal || goals.targetSteps ? `${goals.stepsGoal || goals.targetSteps} steps` : "Steps open",
+        ],
+        stat: weightDelta ? `${weightDelta > 0 ? "Gain" : "Lose"} ${Math.abs(weightDelta)} lb` : "Target open",
+        targetId: "goal-targets",
+        tone: "border-emerald-200/28 bg-emerald-300/10 text-emerald-50",
+        wash: "from-emerald-300/24 via-teal-300/12 to-transparent",
+      },
+      {
+        completion: weeklyTargetCompletion,
+        helper: "Weekly sessions, sets, protein, and sleep targets for the plan.",
+        icon: "calendar",
+        label: "Weekly Targets",
+        references: [
+          `${goals.targetWeeklySessions || 0} sessions/week`,
+          `${goals.targetWeeklySets || 0} sets/week`,
+          `${goals.targetSleep || 0} hours sleep`,
+        ],
+        stat: `${goals.targetWeeklySessions || 0} sessions/wk`,
+        targetId: "weekly-targets",
+        tone: "border-sky-200/28 bg-sky-300/10 text-sky-50",
+        wash: "from-sky-300/24 via-violet-300/12 to-transparent",
+      },
+      {
+        completion: signalCompletion,
+        helper: "Weekly volume, saved exercises, benchmarks, and milestones.",
+        icon: "signal",
+        label: "Progress Signals",
+        references: [
+          `${weeklySets} weekly sets`,
+          `${favoriteCount} saved exercise targets`,
+          goals.benchmarkGoal || "Benchmark open",
+        ],
+        stat: `${completion}% weekly volume`,
+        targetId: "goal-signals",
+        tone: "border-fuchsia-200/28 bg-fuchsia-300/10 text-fuchsia-50",
+        wash: "from-fuchsia-300/24 via-cyan-300/12 to-transparent",
+      },
+    ];
+    const activeIndex =
+      ((activeGoalOrbiterIndex % goalOrbiterCards.length) +
+        goalOrbiterCards.length) %
+      goalOrbiterCards.length;
+    const activeCard = goalOrbiterCards[activeIndex];
+    const moveGoalOrbiter = (direction: -1 | 1) => {
+      setActiveGoalOrbiterIndex(
+        (current) =>
+          (current + direction + goalOrbiterCards.length) %
+          goalOrbiterCards.length,
+      );
+    };
+    const openGoalOrbiterTarget = (targetId: string) => {
+      if (targetId === "goal-direction") {
+        setPlanDirectionOpen(true);
+      }
+
+      window.setTimeout(() => {
+        document.getElementById(targetId)?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }, targetId === "goal-direction" ? 80 : 0);
+    };
+
+    return (
+      <section className="relative mx-auto w-full max-w-[1180px] overflow-hidden rounded-[34px] border border-cyan-100/16 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_86%_10%,rgba(251,191,36,0.14),transparent_32%),rgba(2,6,23,0.72)] p-4 shadow-[0_26px_90px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl sm:p-5">
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-8 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/60 to-amber-100/45"
+        />
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100/75">
+              Goal Orbiter Row
+            </p>
+            <h2 className="mt-1 text-2xl font-black text-white">
+              Direction + Stage
+            </h2>
+          </div>
+          <div className="flex items-center gap-2">
+            {goalOrbiterCards.map((card, index) => (
+              <button
+                key={card.label}
+                type="button"
+                aria-label={`Show ${card.label}`}
+                aria-pressed={activeIndex === index}
+                onClick={() => setActiveGoalOrbiterIndex(index)}
+                className={`h-2 rounded-full transition ${
+                  activeIndex === index
+                    ? "w-8 bg-cyan-200 shadow-[0_0_16px_rgba(103,232,249,0.56)]"
+                    : "w-2 bg-slate-500/60 hover:bg-amber-200/80"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="relative mt-5 h-[420px] overflow-hidden [perspective:1000px] sm:h-[390px]">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-1/2 h-[220px] w-[min(86vw,780px)] -translate-x-1/2 -translate-y-1/2 rounded-[48px] bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.14),rgba(251,191,36,0.09)_48%,transparent_76%)] blur-xl"
+          />
+          <button
+            type="button"
+            aria-label="Show previous goal card"
+            onClick={() => moveGoalOrbiter(-1)}
+            className="absolute left-1 top-1/2 z-40 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-cyan-200/18 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-cyan-200/42 hover:bg-cyan-300/12 sm:left-4"
+          >
+            &lt;
+          </button>
+          <button
+            type="button"
+            aria-label="Show next goal card"
+            onClick={() => moveGoalOrbiter(1)}
+            className="absolute right-1 top-1/2 z-40 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-amber-200/18 bg-slate-950/72 text-lg font-black text-amber-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-amber-200/42 hover:bg-amber-300/12 sm:right-4"
+          >
+            &gt;
+          </button>
+          {goalOrbiterCards.map((card, index) => {
+            let distance = index - activeIndex;
+            if (distance > goalOrbiterCards.length / 2) {
+              distance -= goalOrbiterCards.length;
+            }
+            if (distance < -goalOrbiterCards.length / 2) {
+              distance += goalOrbiterCards.length;
+            }
+
+            const absDistance = Math.abs(distance);
+            const clampedDistance = Math.max(-2, Math.min(2, distance));
+            const isActive = distance === 0;
+            const orbitXSlots = [0, 270, 430];
+            const x =
+              Math.sign(clampedDistance) *
+              orbitXSlots[Math.min(absDistance, orbitXSlots.length - 1)];
+            const y = absDistance * 18 + (absDistance > 1 ? 10 : 0);
+            const scale = isActive ? 1 : absDistance === 1 ? 0.78 : 0.58;
+            const opacity = isActive ? 1 : absDistance === 1 ? 0.74 : 0.36;
+            const depth = isActive ? 68 : 28 - absDistance * 12;
+
+            return (
+              <article
+                key={card.label}
+                aria-current={isActive ? "page" : undefined}
+                aria-label={`${isActive ? "Active" : "Show"} ${card.label}`}
+                onClick={() => {
+                  if (!isActive) {
+                    setActiveGoalOrbiterIndex(index);
+                    return;
+                  }
+
+                  openGoalOrbiterTarget(card.targetId);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return;
+
+                  event.preventDefault();
+                  if (!isActive) {
+                    setActiveGoalOrbiterIndex(index);
+                    return;
+                  }
+
+                  openGoalOrbiterTarget(card.targetId);
+                }}
+                role="button"
+                tabIndex={0}
+                className={`absolute left-1/2 top-1/2 overflow-hidden rounded-[30px] border text-left shadow-[0_22px_64px_rgba(0,0,0,0.42)] outline-none backdrop-blur-xl transition-[transform,opacity,border-color,background-color,box-shadow,width,padding] duration-[520ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] hover:border-white/28 focus-visible:ring-2 focus-visible:ring-cyan-100/50 ${
+                  isActive
+                    ? "w-[min(82vw,420px)] p-5 ring-2 ring-cyan-100/24"
+                    : "w-[220px] cursor-pointer p-4"
+                } ${card.tone}`}
+                style={{
+                  opacity,
+                  transform: `translate(-50%, -50%) translateX(${x}px) translateY(${y}px) rotateY(${clampedDistance * -18}deg) translateZ(${depth}px) scale(${scale})`,
+                  zIndex: 30 - absDistance,
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r ${card.wash} opacity-90`}
+                />
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),transparent_42%),radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.10),transparent_34%)]`}
+                />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/12 bg-slate-950/48 text-current shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                      <GoalOrbiterIcon
+                        name={card.icon}
+                        className={isActive ? "h-6 w-6" : "h-5 w-5"}
+                      />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-black uppercase tracking-[0.12em] text-white">
+                        {card.label}
+                      </p>
+                      <p className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.12em] text-current/80">
+                        {card.stat}
+                      </p>
+                    </div>
+                  </div>
+                  <span className="rounded-full border border-white/12 bg-slate-950/46 px-2.5 py-1 text-[10px] font-black text-white">
+                    {card.completion}%
+                  </span>
+                </div>
+                <p
+                  className={`mt-4 font-semibold text-slate-300 ${
+                    isActive ? "line-clamp-3 text-sm leading-6" : "line-clamp-2 text-xs leading-5"
+                  }`}
+                >
+                  {card.helper}
+                </p>
+                {isActive ? (
+                  <>
+                    <div className="mt-4 grid gap-2 rounded-2xl border border-white/10 bg-slate-950/34 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                      {card.references.map((reference) => (
+                        <span
+                          key={reference}
+                          className="truncate rounded-xl border border-white/10 bg-slate-950/42 px-3 py-2 text-[10px] font-black text-slate-100"
+                        >
+                          {reference}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openGoalOrbiterTarget(card.targetId);
+                      }}
+                      className="mt-4 block w-full rounded-2xl border border-cyan-200/22 bg-cyan-300/12 px-3 py-3 text-center text-[9px] font-black uppercase tracking-[0.14em] text-cyan-50 transition hover:border-cyan-200/42 hover:bg-cyan-300/18"
+                    >
+                      Open {card.label}
+                    </button>
+                  </>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+
+        <p className="relative z-10 mx-auto mt-1 max-w-3xl text-center text-xs font-semibold leading-5 text-slate-400">
+          {activeCard.label} is active. Swipe, tap a side card, or use the arrows to rotate the goal row.
+        </p>
+      </section>
+    );
+  };
 
   const updateGoal = <K extends keyof GoalState>(key: K, value: GoalState[K]) => {
     setGoals((current) => ({ ...current, [key]: value }));
@@ -1395,67 +2268,103 @@ export default function GoalsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_10%,rgba(251,191,36,0.15),transparent_32%),linear-gradient(180deg,#020617_0%,#0f172a_48%,#020617_100%)] text-white">
-      <section className="mx-auto w-full max-w-[1440px] space-y-5 px-3 py-5 sm:px-5 lg:px-8">
-        <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.94),rgba(2,6,23,0.98))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.62)] sm:p-6 lg:p-8">
-          <div className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr] xl:items-stretch">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.3em] text-cyan-200">
-                Desired Outcomes
-              </p>
-              <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
-                🎯 Goals
-              </h1>
-              <p className="mt-4 max-w-3xl text-sm leading-6 text-slate-300 sm:text-base">
-                Choose the outcomes your training system should build toward.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-2">
-                <span className="rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
-                  Primary: {activeDirection}
-                </span>
-                {secondaryDirection ? (
-                  <span className="rounded-full border border-fuchsia-300/20 bg-fuchsia-300/10 px-3 py-1 text-xs font-black text-fuchsia-100">
-                    Secondary: {secondaryDirection}
-                  </span>
-                ) : null}
-                <span className="rounded-full border border-violet-300/20 bg-violet-300/10 px-3 py-1 text-xs font-black text-violet-100">
-                  Plan directions {selectedDirections.length}/2
-                </span>
-                <span className="rounded-full border border-amber-300/20 bg-amber-300/10 px-3 py-1 text-xs font-black text-amber-100">
-                  Mode: {goals.goalMode}
-                </span>
-                <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-black text-emerald-100">
-                  {goals.targetWeeklySessions || 0} sessions / wk
-                </span>
-                <span className="rounded-full border border-sky-300/20 bg-sky-300/10 px-3 py-1 text-xs font-black text-sky-100">
-                  Timeline: {goalDeadlineLabel}
-                </span>
-                <span className="rounded-full border border-fuchsia-300/20 bg-fuchsia-300/10 px-3 py-1 text-xs font-black text-fuchsia-100">
-                  Goal setup {goalSetupCompletion}%
-                </span>
+    <main className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_10%,rgba(251,191,36,0.15),transparent_32%),linear-gradient(180deg,#020617_0%,#0f172a_48%,#020617_100%)] text-white">
+      <section className="mx-auto w-full max-w-[1440px] space-y-5 px-3 pb-5 pt-0 sm:px-5 lg:px-8">
+        <section
+          aria-label="Goals orbital command center"
+          className="relative left-1/2 w-screen -translate-x-1/2 overflow-visible border-b border-cyan-100/12 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_86%_8%,rgba(251,191,36,0.13),transparent_30%),linear-gradient(180deg,rgba(2,6,23,0.98),rgba(15,23,42,0.88)_48%,rgba(2,6,23,0.98))] px-0 pb-6 pt-0 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] outline-none"
+          onKeyDown={handleGoalsOrbiterKeyDown}
+          onWheel={handleGoalsOrbiterWheel}
+          tabIndex={0}
+        >
+          {renderGoalsOrbiterTopMenu()}
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 top-[84px] h-px bg-gradient-to-r from-transparent via-cyan-100/20 to-transparent"
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1/2 top-[54%] h-[min(56vh,540px)] w-[min(96vw,1420px)] -translate-x-1/2 -translate-y-1/2 rounded-[999px] border border-cyan-100/8 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.12),rgba(251,191,36,0.06)_46%,transparent_74%)] blur-sm"
+          />
+          <div className="absolute right-2 top-1/2 z-50 flex -translate-y-1/2 flex-col items-center gap-2 rounded-[28px] border border-cyan-100/14 bg-slate-950/42 p-1.5 shadow-[0_22px_70px_rgba(0,0,0,0.38)] backdrop-blur-xl sm:right-5">
+            <button
+              aria-label="Show previous goals row"
+              className="grid h-10 w-10 place-items-center rounded-2xl border border-cyan-200/14 bg-slate-900/64 text-xs font-black text-cyan-100/80 transition hover:border-cyan-100/36 hover:bg-cyan-300/12 disabled:cursor-not-allowed disabled:opacity-35"
+              disabled={activeGoalsOrbiterRowIndex === 0}
+              onClick={() => moveGoalsOrbiterRow(-1)}
+              type="button"
+            >
+              ^
+            </button>
+            {goalsOrbiterRows.map((row, index) => {
+              const isActive = activeGoalsOrbiterRowIndex === index;
+
+              return (
+                <button
+                  aria-label={`Show ${row.label} goals row`}
+                  aria-pressed={isActive}
+                  className={`group grid h-9 w-9 place-items-center rounded-2xl border transition ${
+                    isActive
+                      ? "border-amber-200/42 bg-amber-300/14 shadow-[0_0_20px_rgba(251,191,36,0.18)]"
+                      : "border-cyan-100/10 bg-slate-900/42 hover:border-cyan-100/26 hover:bg-cyan-300/10"
+                  }`}
+                  key={row.label}
+                  onClick={() => setGoalsOrbiterRow(index)}
+                  type="button"
+                >
+                  <span
+                    className={`h-2.5 w-2.5 rounded-full transition ${
+                      isActive
+                        ? "bg-amber-200 shadow-[0_0_16px_rgba(251,191,36,0.52)]"
+                        : "bg-cyan-200/38 group-hover:bg-cyan-100/76"
+                    }`}
+                  />
+                </button>
+              );
+            })}
+            <button
+              aria-label="Show next goals row"
+              className="grid h-10 w-10 place-items-center rounded-2xl border border-amber-200/14 bg-slate-900/64 text-xs font-black text-amber-100/80 transition hover:border-amber-100/36 hover:bg-amber-300/12 disabled:cursor-not-allowed disabled:opacity-35"
+              disabled={activeGoalsOrbiterRowIndex === goalsOrbiterRows.length - 1}
+              onClick={() => moveGoalsOrbiterRow(1)}
+              type="button"
+            >
+              v
+            </button>
+          </div>
+          <div className="relative z-10 mx-auto h-[min(78vh,760px)] min-h-[650px] w-full max-w-[1540px] overflow-hidden px-3 pt-5 sm:px-5 sm:pt-6 lg:px-8 lg:pt-7">
+            <div
+              className="grid h-[200%] grid-rows-2 transition-transform duration-700 ease-[cubic-bezier(0.2,0.85,0.25,1)]"
+              style={{
+                transform: `translateY(-${activeGoalsOrbiterRowIndex * 50}%)`,
+              }}
+            >
+              <div
+                className={`flex min-h-0 items-center justify-center px-3 py-6 transition duration-700 ${
+                  activeGoalsOrbiterRowIndex === 0
+                    ? "opacity-100"
+                    : "scale-[0.96] opacity-55 blur-[1px]"
+                }`}
+              >
+                {renderGoalsHeroRow()}
               </div>
-            </div>
-            <div className="rounded-[30px] border border-cyan-300/15 bg-slate-950/58 p-4">
-              <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">
-                Recommended Next Goal Step
-              </p>
-              <p className="mt-3 text-xl font-black leading-tight text-white">
-                {recommendedNextStep}
-              </p>
-              <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                <TranslationCard label="Timeline" value={goalDeadlineLabel} />
-                <TranslationCard label="Goal Progress" value={`${goalSetupCompletion}% complete`} />
-                <TranslationCard label="Milestones" value={milestoneCount ? `${milestoneCount} milestone${milestoneCount === 1 ? "" : "s"} noted` : "Add milestones"} />
-                <TranslationCard label="Member" value={`${profile.displayName} · ${profile.trainingAge}`} />
-                <TranslationCard label="Weight Target" value={weightDelta ? `${weightDelta > 0 ? "Gain" : "Lose"} ${Math.abs(weightDelta).toLocaleString()} lb` : "Add body metrics"} />
-                <TranslationCard label="Weekly Momentum" value={`${weeklySets} / ${weeklyTarget} sets · ${completion}%`} />
-                <TranslationCard label="Favorites" value={`${favoriteCount} saved exercise targets`} />
+              <div
+                className={`flex min-h-0 items-center justify-center px-3 py-6 transition duration-700 ${
+                  activeGoalsOrbiterRowIndex === 1
+                    ? "opacity-100"
+                    : "scale-[0.96] opacity-55 blur-[1px]"
+                }`}
+              >
+                {renderGoalOrbiterRow()}
               </div>
             </div>
           </div>
         </section>
 
-        <section className="overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/58 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-xl">
+        <section
+          id="goal-direction"
+          className="scroll-mt-28 overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/58 shadow-[0_24px_80px_rgba(0,0,0,0.38)] backdrop-blur-xl"
+        >
           <button
             type="button"
             onClick={() => setPlanDirectionOpen((current) => !current)}
@@ -1656,7 +2565,10 @@ export default function GoalsPage() {
         ) : null}
 
         <section className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
-          <section className="rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl">
+          <section
+            id="goal-stack"
+            className="scroll-mt-28 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl"
+          >
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200">
               Goal Stack
             </p>
@@ -1678,7 +2590,10 @@ export default function GoalsPage() {
             </div>
           </section>
 
-          <section className="rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl">
+          <section
+            id="goal-targets"
+            className="scroll-mt-28 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl"
+          >
             <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200">
               Body Goals
             </p>
@@ -1732,7 +2647,10 @@ export default function GoalsPage() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div
+              id="weekly-targets"
+              className="mt-5 scroll-mt-28 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+            >
               <Field label="Weekly Sessions" value={goals.targetWeeklySessions} suffix="/ wk" onChange={(value) => updateGoal("targetWeeklySessions", value)} />
               <Field label="Weekly Sets" value={goals.targetWeeklySets} suffix="sets" onChange={(value) => updateGoal("targetWeeklySets", value)} />
               <Field label="Protein Target" value={goals.targetProtein} suffix="g" onChange={(value) => updateGoal("targetProtein", value)} />
@@ -1751,7 +2669,10 @@ export default function GoalsPage() {
           </section>
         </section>
 
-        <section className="rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl">
+        <section
+          id="goal-stage"
+          className="scroll-mt-28 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl"
+        >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-200">
@@ -1788,7 +2709,10 @@ export default function GoalsPage() {
           </div>
         </section>
 
-        <section className="rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl">
+        <section
+          id="goal-signals"
+          className="scroll-mt-28 rounded-[30px] border border-white/10 bg-slate-950/58 p-5 shadow-2xl"
+        >
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200">
             Goal-to-Plan Translation
           </p>

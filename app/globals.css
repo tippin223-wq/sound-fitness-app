@@ -2634,6 +2634,136 @@ body {
   animation-duration: 1.75s;
 }
 
+.profile-row-card-indicator [data-profile-pulse-dot="true"] {
+  animation: profile-row-card-indicator-red-pulse 1.45s ease-in-out infinite;
+}
+
+.profile-row-card-indicator[aria-pressed="true"] [data-profile-pulse-dot="true"],
+.profile-row-card-indicator[data-active="true"] [data-profile-pulse-dot="true"] {
+  animation-duration: 1.05s;
+}
+
+.profile-row-card-indicator[data-profile-indicator-motion="water"] [data-profile-pulse-dot="true"] {
+  animation: profile-row-card-indicator-water 2.9s ease-in-out infinite;
+  opacity: 1;
+}
+
+.profile-card-liquid-glass {
+  background:
+    radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.16), transparent 32%),
+    radial-gradient(circle at 84% 16%, var(--profile-indicator-glow-soft, rgba(34, 211, 238, 0.16)), transparent 38%),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(15, 23, 42, 0.34) 48%, rgba(2, 6, 23, 0.42));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -18px 42px rgba(2, 6, 23, 0.22),
+    0 0 18px var(--profile-indicator-glow-soft, rgba(34, 211, 238, 0.18));
+  opacity: 0.62;
+  pointer-events: none;
+  transition:
+    opacity 280ms ease,
+    box-shadow 280ms ease;
+}
+
+.profile-card-liquid-glass[data-profile-liquid-active="true"] {
+  opacity: 0.84;
+}
+
+.profile-card-liquid-glass::before {
+  background:
+    linear-gradient(130deg, rgba(255, 255, 255, 0.18), transparent 30%, rgba(255, 255, 255, 0.06) 58%, transparent),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent 42%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: inherit;
+  content: "";
+  inset: 1px;
+  position: absolute;
+  z-index: 4;
+}
+
+.profile-card-liquid-glass::after {
+  background:
+    radial-gradient(circle at 24% 30%, rgba(255, 255, 255, 0.16), transparent 22%),
+    radial-gradient(circle at 72% 62%, rgba(255, 255, 255, 0.12), transparent 24%),
+    linear-gradient(115deg, transparent 18%, rgba(255, 255, 255, 0.10), transparent 42%);
+  content: "";
+  inset: 0;
+  opacity: 0.30;
+  position: absolute;
+  z-index: 3;
+}
+
+.profile-card-liquid-reservoir {
+  animation: profile-card-liquid-card-flow 6.8s ease-in-out infinite;
+  background-size: 170% 170%;
+  border-radius: 48% 52% 0 0 / 18% 22% 0 0;
+  bottom: -18%;
+  box-shadow:
+    0 -18px 38px var(--profile-indicator-glow-soft, rgba(34, 211, 238, 0.18)),
+    0 -5px 18px var(--profile-indicator-glow-dim, rgba(34, 211, 238, 0.28)),
+    inset 0 18px 28px rgba(255, 255, 255, 0.14),
+    inset 0 -26px 44px rgba(2, 6, 23, 0.20);
+  filter: saturate(1.12);
+  height: calc(var(--profile-card-liquid-level, 50%) + 18%);
+  left: -15%;
+  opacity: 0.48;
+  right: -15%;
+  transform-origin: center bottom;
+  transition: height 620ms cubic-bezier(0.2, 0.85, 0.25, 1);
+  z-index: 1;
+}
+
+.profile-card-liquid-glass[data-profile-liquid-active="true"] .profile-card-liquid-reservoir {
+  opacity: 0.58;
+}
+
+.profile-card-liquid-glass[data-profile-liquid-motion="pulse"] .profile-card-liquid-reservoir {
+  animation-name: profile-card-liquid-lava-flow;
+  animation-duration: 4.8s;
+}
+
+.profile-card-liquid-glass[data-profile-liquid-motion="water"] .profile-card-liquid-reservoir {
+  animation-duration: 7.4s;
+  filter: saturate(1.04);
+}
+
+.profile-card-liquid-reservoir::before {
+  animation: profile-card-liquid-wave 4.4s ease-in-out infinite;
+  background:
+    radial-gradient(42% 110% at 16% 100%, rgba(255, 255, 255, 0.42), transparent 64%),
+    radial-gradient(48% 115% at 48% 100%, rgba(255, 255, 255, 0.22), transparent 66%),
+    radial-gradient(44% 110% at 84% 100%, rgba(255, 255, 255, 0.34), transparent 62%);
+  content: "";
+  height: 2.5rem;
+  left: -8%;
+  opacity: 0.70;
+  position: absolute;
+  right: -8%;
+  top: -1.45rem;
+}
+
+.profile-card-liquid-reservoir::after {
+  animation: profile-card-liquid-shimmer 4.6s linear infinite;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.20), transparent),
+    radial-gradient(circle at 30% 18%, rgba(255, 255, 255, 0.20), transparent 26%),
+    radial-gradient(circle at 74% 68%, rgba(255, 255, 255, 0.14), transparent 28%);
+  content: "";
+  inset: 0;
+  mix-blend-mode: screen;
+  opacity: 0.42;
+  position: absolute;
+}
+
+.profile-card-liquid-caustics {
+  animation: profile-card-liquid-glass-caustics 8s linear infinite;
+  background:
+    repeating-linear-gradient(108deg, transparent 0 18px, rgba(255, 255, 255, 0.07) 20px 22px, transparent 24px 44px),
+    radial-gradient(circle at 36% 82%, var(--profile-indicator-glow-soft, rgba(34, 211, 238, 0.16)), transparent 34%);
+  mix-blend-mode: screen;
+  opacity: 0.22;
+  z-index: 2;
+}
+
 @keyframes exercise-library-status-calm {
   0%,
   100% {
@@ -2699,6 +2829,125 @@ body {
       0 0 18px rgba(240, 171, 252, 0.90),
       0 0 30px rgba(251, 113, 133, 0.38);
     transform: scale(1.2);
+  }
+}
+
+@keyframes profile-row-card-indicator-red-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 8px var(--profile-indicator-glow-dim, rgba(251, 113, 133, 0.46));
+    opacity: 0.64;
+    transform: scale(0.72);
+  }
+  42% {
+    box-shadow:
+      0 0 16px var(--profile-indicator-glow, rgba(251, 113, 133, 0.92)),
+      0 0 28px var(--profile-indicator-glow-soft, rgba(244, 63, 94, 0.34));
+    opacity: 1;
+    transform: scale(1.22);
+  }
+  62% {
+    box-shadow:
+      0 0 10px var(--profile-indicator-glow, rgba(251, 113, 133, 0.70)),
+      0 0 20px var(--profile-indicator-glow-soft, rgba(244, 63, 94, 0.20));
+    transform: scale(0.9);
+  }
+}
+
+@keyframes profile-row-card-indicator-water {
+  0%,
+  100% {
+    border-radius: 999px;
+    box-shadow:
+      0 0 9px var(--profile-indicator-glow-dim, rgba(52, 211, 153, 0.46)),
+      0 0 18px var(--profile-indicator-glow-soft, rgba(16, 185, 129, 0.22));
+    filter: saturate(1.02);
+    transform: scaleX(1) scaleY(0.92);
+  }
+  34% {
+    border-radius: 58% 42% 46% 54%;
+    box-shadow:
+      0 0 13px var(--profile-indicator-glow, rgba(52, 211, 153, 0.72)),
+      0 0 24px var(--profile-indicator-glow-soft, rgba(16, 185, 129, 0.30));
+    filter: saturate(1.16);
+    transform: scaleX(1.22) scaleY(0.86);
+  }
+  68% {
+    border-radius: 44% 56% 58% 42%;
+    box-shadow:
+      0 0 11px var(--profile-indicator-glow, rgba(52, 211, 153, 0.62)),
+      0 0 20px var(--profile-indicator-glow-soft, rgba(16, 185, 129, 0.26));
+    filter: saturate(1.08);
+    transform: scaleX(0.9) scaleY(1.16);
+  }
+}
+
+@keyframes profile-card-liquid-shimmer {
+  0% {
+    transform: translateX(-28%);
+  }
+  100% {
+    transform: translateX(28%);
+  }
+}
+
+@keyframes profile-card-liquid-wave {
+  0%,
+  100% {
+    transform: translateX(-4%) scaleY(0.92);
+  }
+  50% {
+    transform: translateX(4%) scaleY(1.08);
+  }
+}
+
+@keyframes profile-card-liquid-card-flow {
+  0%,
+  100% {
+    background-position: 12% 62%;
+    border-radius: 48% 52% 0 0 / 18% 22% 0 0;
+    transform: translateX(-1.5%) scaleY(0.985);
+  }
+  36% {
+    background-position: 72% 38%;
+    border-radius: 42% 58% 0 0 / 24% 16% 0 0;
+    transform: translateX(1.8%) scaleY(1.025);
+  }
+  68% {
+    background-position: 38% 72%;
+    border-radius: 58% 42% 0 0 / 16% 26% 0 0;
+    transform: translateX(-0.8%) scaleY(1.01);
+  }
+}
+
+@keyframes profile-card-liquid-lava-flow {
+  0%,
+  100% {
+    background-position: 8% 72%;
+    border-radius: 52% 48% 0 0 / 20% 24% 0 0;
+    filter: saturate(1.22) brightness(1);
+    transform: translateX(-2%) scaleY(0.98);
+  }
+  42% {
+    background-position: 88% 30%;
+    border-radius: 40% 60% 0 0 / 30% 18% 0 0;
+    filter: saturate(1.44) brightness(1.08);
+    transform: translateX(2.5%) scaleY(1.04);
+  }
+  70% {
+    background-position: 42% 84%;
+    border-radius: 62% 38% 0 0 / 18% 30% 0 0;
+    filter: saturate(1.30) brightness(1.03);
+    transform: translateX(-1%) scaleY(1.015);
+  }
+}
+
+@keyframes profile-card-liquid-glass-caustics {
+  0% {
+    transform: translateX(-10%) translateY(4%) rotate(0deg);
+  }
+  100% {
+    transform: translateX(10%) translateY(-4%) rotate(1deg);
   }
 }
 
@@ -3151,6 +3400,13 @@ body {
   .exercise-library-anatomy-figure::before,
   .exercise-library-anatomy-figure::after,
   .exercise-library-volume-status-indicator span,
+  .profile-row-card-indicator [data-profile-pulse-dot="true"],
+  .profile-card-liquid-glass,
+  .profile-card-liquid-glass::after,
+  .profile-card-liquid-reservoir,
+  .profile-card-liquid-reservoir::before,
+  .profile-card-liquid-reservoir::after,
+  .profile-card-liquid-caustics,
   .exercise-library-page-section-tab__goal-fill::after,
   .exercise-library-category-heading__goal-fill::after,
   .exercise-library-page-section-tab__mini-fill::after,

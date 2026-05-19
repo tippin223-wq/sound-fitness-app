@@ -1,0 +1,4063 @@
+[browser] Uncaught ReferenceError: activeTrainingJourneyStage is not defined
+    at SessionsPage (app/dashboard/sessions/page.tsx:3763:27)
+  3761 |                       {isTrainingJourneyHeroActive
+  3762 |                         ? "OS"
+> 3763 |                         : activeTrainingJourneyStage.icon}
+       |                           ^
+  3764 |                     </span>
+  3765 |                     <span className="truncate">
+  3766 |                       {isTrainingJourneyHeroActive
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: activeTrainingJourneyStage is not defined
+    at SessionsPage (app/dashboard/sessions/page.tsx:3718:27)
+  3716 |                       {isTrainingJourneyHeroActive
+  3717 |                         ? "OS"
+> 3718 |                         : activeTrainingJourneyStage.icon}
+       |                           ^
+  3719 |                     </span>
+  3720 |                     <span className="truncate">
+  3721 |                       {isTrainingJourneyHeroActive
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Image with src "/sound-fitness-logo.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[browser] Uncaught ReferenceError: recentSessionsOrbitCardHeight is not defined
+    at eval (app/dashboard/sessions/page.tsx:4015:23)
+    at Array.map (<anonymous>)
+    at SessionsPage (app/dashboard/sessions/page.tsx:3992:17)
+  4013 |                 const rowActiveCardHeight =
+  4014 |                   row.layer === TRAINING_JOURNEY_RECENT_SESSIONS_LAYER
+> 4015 |                     ? recentSessionsOrbitCardHeight || 356
+       |                       ^
+  4016 |                     : trainingJourneyCardHeights[rowActiveIndex] || 304;
+  4017 |                 const rowTitleHeight =
+  4018 |                   trainingJourneyRowTitleHeights[row.layer] || 44;
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: recentSessionsOrbitCardHeight is not defined
+    at <unknown> (app/dashboard/sessions/page.tsx:4019:23)
+    at Array.map (<anonymous>)
+    at SessionsPage (app/dashboard/sessions/page.tsx:3996:17)
+  4017 |                 const rowActiveCardHeight =
+  4018 |                   row.layer === TRAINING_JOURNEY_RECENT_SESSIONS_LAYER
+> 4019 |                     ? recentSessionsOrbitCardHeight || 356
+       |                       ^
+  4020 |                     : trainingJourneyCardHeights[rowActiveIndex] || 304;
+  4021 |                 const rowTitleHeight =
+  4022 |                   trainingJourneyRowTitleHeights[row.layer] || 44;
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: recentSessionsOrbitCardHeight is not defined
+    at <unknown> (app/dashboard/sessions/page.tsx:4019:23)
+    at Array.map (<anonymous>)
+    at SessionsPage (app/dashboard/sessions/page.tsx:3996:17)
+  4017 |                 const rowActiveCardHeight =
+  4018 |                   row.layer === TRAINING_JOURNEY_RECENT_SESSIONS_LAYER
+> 4019 |                     ? recentSessionsOrbitCardHeight || 356
+       |                       ^
+  4020 |                     : trainingJourneyCardHeights[rowActiveIndex] || 304;
+  4021 |                 const rowTitleHeight =
+  4022 |                   trainingJourneyRowTitleHeights[row.layer] || 44;
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: recentSessionsOrbitCardHeight is not defined
+    at <unknown> (app/dashboard/sessions/page.tsx:4071:23)
+    at Array.map (<anonymous>)
+    at SessionsPage (app/dashboard/sessions/page.tsx:4048:17)
+  4069 |                 const rowActiveCardHeight =
+  4070 |                   row.layer === TRAINING_JOURNEY_RECENT_SESSIONS_LAYER
+> 4071 |                     ? recentSessionsOrbitCardHeight || 356
+       |                       ^
+  4072 |                     : trainingJourneyCardHeights[rowActiveIndex] || 304;
+  4073 |                 const rowTitleHeight =
+  4074 |                   trainingJourneyRowTitleHeights[row.layer] || 44;
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: recentSessionsOrbitCardRef is not defined
+    at SessionsPage (app/dashboard/sessions/page.tsx:4227:22)
+  4225 |                 aria-label="Recent completed sessions"
+  4226 |                 className="absolute left-1/2 top-1/2 w-[min(90vw,720px)] overflow-hidden...
+> 4227 |                 ref={recentSessionsOrbitCardRef}
+       |                      ^
+  4228 |                 role="region"
+  4229 |                 style={{
+  4230 |                   filter: `blur(${
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: recentSessionsOrbitCardRef is not defined
+    at SessionsPage (app/dashboard/sessions/page.tsx:4229:22)
+  4227 |                 aria-label="Recent completed sessions"
+  4228 |                 className="absolute left-1/2 top-1/2 w-[min(90vw,720px)] overflow-hidden...
+> 4229 |                 ref={recentSessionsOrbitCardRef}
+       |                      ^
+  4230 |                 role="region"
+  4231 |                 style={{
+  4232 |                   filter: `blur(${
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: recentSessionsOrbitCardRef is not defined
+    at SessionsPage (app/dashboard/sessions/page.tsx:4218:22)
+  4216 |                 aria-label="Recent completed sessions"
+  4217 |                 className="absolute left-1/2 top-1/2 w-[min(90vw,720px)] overflow-hidden...
+> 4218 |                 ref={recentSessionsOrbitCardRef}
+       |                      ^
+  4219 |                 role="region"
+  4220 |                 style={{
+  4221 |                   filter: `blur(${
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Image with src "/sound-fitness-logo.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[browser] Uncaught ReferenceError: savedTemplatesOrbitItem is not defined
+    at SessionsPage (app/dashboard/sessions/page.tsx:4128:24)
+  4126 |                 }}
+  4127 |                 role="region"
+> 4128 |                 style={savedTemplatesOrbitItem.style}
+       |                        ^
+  4129 |               >
+  4130 |                 <span
+  4131 |                   aria-hidden="true"
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Image with src "/sound-fitness-logo.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+⨯ ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  [90m4915 |[0m                     </>
+  [90m4916 |[0m                     )
+[31m[1m>[0m [90m4917 |[0m                     )}
+  [90m     |[0m                     [31m[1m^[0m
+  [90m4918 |[0m                   </article>
+  [90m4919 |[0m                 );
+  [90m4920 |[0m               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+⨯ ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  [90m4915 |[0m                     </>
+  [90m4916 |[0m                     )
+[31m[1m>[0m [90m4917 |[0m                     )}
+  [90m     |[0m                     [31m[1m^[0m
+  [90m4918 |[0m                   </article>
+  [90m4919 |[0m                 );
+  [90m4920 |[0m               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+⨯ ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  [90m4915 |[0m                     </>
+  [90m4916 |[0m                     )
+[31m[1m>[0m [90m4917 |[0m                     )}
+  [90m     |[0m                     [31m[1m^[0m
+  [90m4918 |[0m                   </article>
+  [90m4919 |[0m                 );
+  [90m4920 |[0m               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+
+[browser] Uncaught Error: ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+
+    at <unknown> (Error: ./app/dashboard/sessions/page.tsx:4917:21)
+    at <unknown> (Error: (./app/dashboard/sessions/page.tsx:4917:21)
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] ./app/dashboard/sessions/page.tsx:4917:21
+Expected '</', got ')'
+  4915 |                     </>
+  4916 |                     )
+> 4917 |                     )}
+       |                     ^
+  4918 |                   </article>
+  4919 |                 );
+  4920 |               })}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/sessions/page.tsx [Client Component Browser]
+    ./app/dashboard/sessions/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/sessions/page.tsx [Client Component SSR]
+    ./app/dashboard/sessions/page.tsx [Server Component] 
+[browser] Image with src "/sound-fitness-logo.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[browser] Uncaught ReferenceError: TRAINING_JOURNEY_RECENT_SESSIONS_LAYER is not defined
+    at SessionsPage (app/dashboard/sessions/page.tsx:1311:34)
+  1309 |       : 0;
+  1310 |   const activeTrainingJourneyDataLayer =
+> 1311 |     activeTrainingJourneyLayer > TRAINING_JOURNEY_RECENT_SESSIONS_LAYER
+       |                                  ^
+  1312 |       ? activeTrainingJourneyLayer - 1
+  1313 |       : activeTrainingJourneyLayer;
+  1314 |   const activeTrainingJourneyIndex =
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: TRAINING_JOURNEY_RECENT_SESSIONS_LAYER is not defined
+    at SessionsPage (app/dashboard/sessions/page.tsx:1306:34)
+  1304 |       : 0;
+  1305 |   const activeTrainingJourneyDataLayer =
+> 1306 |     activeTrainingJourneyLayer > TRAINING_JOURNEY_RECENT_SESSIONS_LAYER
+       |                                  ^
+  1307 |       ? activeTrainingJourneyLayer - 1
+  1308 |       : activeTrainingJourneyLayer;
+  1309 |   const activeTrainingJourneyIndex =
+[browser] Uncaught ReferenceError: TRAINING_JOURNEY_RECENT_SESSIONS_LAYER is not defined
+    at SessionsPage (app/dashboard/sessions/page.tsx:1306:34)
+  1304 |       : 0;
+  1305 |   const activeTrainingJourneyDataLayer =
+> 1306 |     activeTrainingJourneyLayer > TRAINING_JOURNEY_RECENT_SESSIONS_LAYER
+       |                                  ^
+  1307 |       ? activeTrainingJourneyLayer - 1
+  1308 |       : activeTrainingJourneyLayer;
+  1309 |   const activeTrainingJourneyIndex =
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: TRAINING_JOURNEY_RECENT_SESSIONS_LAYER is not defined
+    at SessionsPage (app/dashboard/sessions/page.tsx:2315:5)
+  2313 |   }
+  2314 |   const recentSessionsOrbitLayerOffset =
+> 2315 |     TRAINING_JOURNEY_RECENT_SESSIONS_LAYER - activeTrainingJourneyLayer;
+       |     ^
+  2316 |   const recentSessionsOrbitAbsLayerOffset = Math.abs(
+  2317 |     recentSessionsOrbitLayerOffset,
+  2318 |   );
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: TRAINING_JOURNEY_RECENT_SESSIONS_LAYER is not defined
+    at SessionsPage (app/dashboard/sessions/page.tsx:4054:26)
+  4052 |                   helper: "Completed workouts, movement detail, volume, and latest lifts.",
+  4053 |                   label: "Recent Sessions Row",
+> 4054 |                   layer: TRAINING_JOURNEY_RECENT_SESSIONS_LAYER,
+       |                          ^
+  4055 |                   tone: "border-emerald-200/26 bg-emerald-300/10 text-emerald-100",
+  4056 |                 },
+  4057 |                 {
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: completedSessionsOrbitItem is not defined
+    at SessionsPage (app/dashboard/sessions/page.tsx:4133:24)
+  4131 |                 }}
+  4132 |                 role="region"
+> 4133 |                 style={completedSessionsOrbitItem.style}
+       |                        ^
+  4134 |               >
+  4135 |                 <span
+  4136 |                   aria-hidden="true"
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Image with src "/sound-fitness-logo.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[browser] Uncaught ReferenceError: TRAINING_JOURNEY_LAYER_SIZE is not defined
+    at eval (app/dashboard/sessions/page.tsx:4138:31)
+    at Array.map (<anonymous>)
+    at SessionsPage (app/dashboard/sessions/page.tsx:4122:17)
+  4136 |                 );
+  4137 |                 const rowActiveIndex =
+> 4138 |                   row.layer * TRAINING_JOURNEY_LAYER_SIZE +
+       |                               ^
+  4139 |                   rowActivePosition;
+  4140 |                 const rowActiveCardHeight =
+  4141 |                   trainingJourneyCardHeights[rowActiveIndex] || 304;
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Image with src "/sound-fitness-logo.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[browser] Uncaught ReferenceError: selectedPackage is not defined
+    at eval (app/dashboard/sessions/page.tsx:5746:23)
+    at Array.map (<anonymous>)
+    at SessionsPage (app/dashboard/sessions/page.tsx:5738:25)
+  5744 |                     onClick={() => setSelectedPackage(pkg.name)}
+  5745 |                     className={`w-full rounded-[22px] border p-4 text-left transition ${
+> 5746 |                       selectedPackage === pkg.name
+       |                       ^
+  5747 |                         ? "border-sky-400 bg-sky-500/15"
+  5748 |                         : "border-white/10 bg-slate-950/60 hover:bg-white/10"
+  5749 |                     }`}
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Image with src "/sound-fitness-logo.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[browser] Uncaught ReferenceError: myPlanSnapshotOpen is not defined
+    at eval (app/dashboard/sessions/page.tsx:4316:27)
+    at Array.map (<anonymous>)
+    at SessionsPage (app/dashboard/sessions/page.tsx:4234:46)
+  4314 |                     className={`group absolute left-1/2 top-1/2 flex flex-col justify-be...
+  4315 |                       isMyPlan
+> 4316 |                         ? myPlanSnapshotOpen
+       |                           ^
+  4317 |                           ? "w-[min(90vw,620px)] p-0"
+  4318 |                           : "aspect-square w-[min(84vw,320px)] p-0"
+  4319 |                         : isWorkoutBuilder
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: myPlanSnapshotOpen is not defined
+    at <unknown> (app/dashboard/sessions/page.tsx:4324:27)
+    at Array.map (<anonymous>)
+    at SessionsPage (app/dashboard/sessions/page.tsx:4242:46)
+  4322 |                     className={`group absolute left-1/2 top-1/2 flex flex-col justify-be...
+  4323 |                       isMyPlan
+> 4324 |                         ? myPlanSnapshotOpen
+       |                           ^
+  4325 |                           ? "w-[min(90vw,620px)] p-0"
+  4326 |                           : "aspect-square w-[min(84vw,320px)] p-0"
+  4327 |                         : isWorkoutBuilder
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Image with src "/sound-fitness-logo.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[browser] Uncaught ReferenceError: setWorkoutBuilderDropdownOpen is not defined
+    at onClick (app/dashboard/sessions/page.tsx:4627:33)
+    at button (<anonymous>)
+    at <unknown> (app/dashboard/sessions/page.tsx:4620:29)
+    at Array.map (<anonymous>)
+    at SessionsPage (app/dashboard/sessions/page.tsx:4242:46)
+  4625 |                                 event.preventDefault();
+  4626 |                                 event.stopPropagation();
+> 4627 |                                 setWorkoutBuilderDropdownOpen(true);
+       |                                 ^
+  4628 |                               }}
+  4629 |                               onPointerDown={(event) =>
+  4630 |                                 event.stopPropagation()
+[browser] Uncaught ReferenceError: setWorkoutBuilderDropdownOpen is not defined
+    at onClick (app/dashboard/sessions/page.tsx:4627:33)
+    at button (<anonymous>)
+    at <unknown> (app/dashboard/sessions/page.tsx:4620:29)
+    at Array.map (<anonymous>)
+    at SessionsPage (app/dashboard/sessions/page.tsx:4242:46)
+  4625 |                                 event.preventDefault();
+  4626 |                                 event.stopPropagation();
+> 4627 |                                 setWorkoutBuilderDropdownOpen(true);
+       |                                 ^
+  4628 |                               }}
+  4629 |                               onPointerDown={(event) =>
+  4630 |                                 event.stopPropagation()
+[browser] Uncaught ReferenceError: profileOrbiterItems is not defined
+    at ClientProfilePage (app/dashboard/profile/page.tsx:11495:14)
+  11493 |               className="flex min-w-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-aut...
+  11494 |             >
+> 11495 |             {profileOrbiterItems.map((item) => (
+        |              ^
+  11496 |               (() => {
+  11497 |                 const completion = tabCompletions[item.completionKey] || 0;
+  11498 |                 const tone = getCompletionTone(completion);
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: profileOrbiterItems is not defined
+    at ClientProfilePage (app/dashboard/profile/page.tsx:11506:14)
+  11504 |               className="flex min-w-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-aut...
+  11505 |             >
+> 11506 |             {profileOrbiterItems.map((item) => (
+        |              ^
+  11507 |               (() => {
+  11508 |                 const completion = tabCompletions[item.completionKey] || 0;
+  11509 |                 const tone = getCompletionTone(completion);
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: profileOrbiterItems is not defined
+    at ClientProfilePage (app/dashboard/profile/page.tsx:11510:14)
+  11508 |               className="flex min-w-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-aut...
+  11509 |             >
+> 11510 |             {profileOrbiterItems.map((item) => (
+        |              ^
+  11511 |               (() => {
+  11512 |                 const completion = tabCompletions[item.completionKey] || 0;
+  11513 |                 const tone = getCompletionTone(completion);
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: profileOrbiterItems is not defined
+    at ClientProfilePage (app/dashboard/profile/page.tsx:11541:14)
+  11539 |               className="flex min-w-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-aut...
+  11540 |             >
+> 11541 |             {profileOrbiterItems.map((item) => (
+        |              ^
+  11542 |               (() => {
+  11543 |                 const completion = tabCompletions[item.completionKey] || 0;
+  11544 |                 const tone = getCompletionTone(completion);
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: profileOrbiterItems is not defined
+    at ClientProfilePage (app/dashboard/profile/page.tsx:11571:14)
+  11569 |               className="flex min-w-0 flex-1 snap-x snap-mandatory gap-2 overflow-x-aut...
+  11570 |             >
+> 11571 |             {profileOrbiterItems.map((item) => (
+        |              ^
+  11572 |               (() => {
+  11573 |                 const completion = tabCompletions[item.completionKey] || 0;
+  11574 |                 const tone = getCompletionTone(completion);
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Image with src "/sound-fitness-logo.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[browser] Uncaught ReferenceError: activeProfileBodyOrbitIndex is not defined
+    at eval (app/dashboard/profile/page.tsx:11153:38)
+    at Array.map (<anonymous>)
+    at renderProfileBodyOrbiter (app/dashboard/profile/page.tsx:11152:27)
+    at renderOverview (app/dashboard/profile/page.tsx:11311:8)
+    at renderActiveTab (app/dashboard/profile/page.tsx:11330:42)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:11816:11)
+  11151 |           />
+  11152 |           {bodyOrbitCards.map((card, index) => {
+> 11153 |             const distance = index - activeProfileBodyOrbitIndex;
+        |                                      ^
+  11154 |             const absDistance = Math.abs(distance);
+  11155 |             const isActive = distance === 0;
+  11156 |             const x = distance * 250;
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: activeProfileBodyOrbitIndex is not defined
+    at <unknown> (app/dashboard/profile/page.tsx:11155:38)
+    at Array.map (<anonymous>)
+    at renderProfileBodyOrbiter (app/dashboard/profile/page.tsx:11154:27)
+    at renderOverview (app/dashboard/profile/page.tsx:11313:8)
+    at renderActiveTab (app/dashboard/profile/page.tsx:11332:42)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:11818:11)
+  11153 |           />
+  11154 |           {bodyOrbitCards.map((card, index) => {
+> 11155 |             const distance = index - activeProfileBodyOrbitIndex;
+        |                                      ^
+  11156 |             const absDistance = Math.abs(distance);
+  11157 |             const isActive = distance === 0;
+  11158 |             const x = distance * 250;
+[browser] Uncaught ReferenceError: activeProfileBodyOrbitIndex is not defined
+    at <unknown> (app/dashboard/profile/page.tsx:11155:38)
+    at Array.map (<anonymous>)
+    at renderProfileBodyOrbiter (app/dashboard/profile/page.tsx:11154:27)
+    at renderOverview (app/dashboard/profile/page.tsx:11313:8)
+    at renderActiveTab (app/dashboard/profile/page.tsx:11332:42)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:11818:11)
+  11153 |           />
+  11154 |           {bodyOrbitCards.map((card, index) => {
+> 11155 |             const distance = index - activeProfileBodyOrbitIndex;
+        |                                      ^
+  11156 |             const absDistance = Math.abs(distance);
+  11157 |             const isActive = distance === 0;
+  11158 |             const x = distance * 250;
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: activeProfileBodyOrbitIndex is not defined
+    at <unknown> (app/dashboard/profile/page.tsx:11155:38)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:11154:27)
+    at renderOverview (app/dashboard/profile/page.tsx:11313:8)
+    at renderActiveTab (app/dashboard/profile/page.tsx:11332:42)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:11818:11)
+  11153 |           />
+  11154 |           {bodyOrbitCards.map((card, index) => {
+> 11155 |             const distance = index - activeProfileBodyOrbitIndex;
+        |                                      ^
+  11156 |             const absDistance = Math.abs(distance);
+  11157 |             const isActive = distance === 0;
+  11158 |             const x = distance * 250;
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: bodyOrbitCards is not defined
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:11364:16)
+    at renderOverview (app/dashboard/profile/page.tsx:11541:8)
+    at renderActiveTab (app/dashboard/profile/page.tsx:11560:42)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:12046:11)
+  11362 |             </button>
+  11363 |             <span className="rounded-full border border-cyan-200/22 bg-cyan-300/10 px-3...
+> 11364 |               {bodyOrbitCards.length} cards
+        |                ^
+  11365 |             </span>
+  11366 |             <button
+  11367 |               type="button"
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⨯ ./app/dashboard/profile/page.tsx:11505:30
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  [90m11503 |[0m   };
+  [90m11504 |[0m
+[31m[1m>[0m [90m11505 |[0m   [36mconst[0m renderOverview = () => (
+  [90m      |[0m                              [31m[1m^[0m
+  [90m11506 |[0m     <div className=[32m"space-y-5"[0m>
+  [90m11507 |[0m       <div className=[32m"grid gap-4 md:grid-cols-2 xl:grid-cols-4"[0m>
+  [90m11508 |[0m         {[
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+
+./app/dashboard/profile/page.tsx:11582:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  [90m11580 |[0m   );
+  [90m11581 |[0m
+[31m[1m>[0m [90m11582 |[0m   [36mconst[0m renderActiveTab = () => {
+  [90m      |[0m                               [31m[1m^[0m
+  [90m11583 |[0m     [36mif[0m (activeTab === [32m"overview"[0m) [36mreturn[0m renderOverview();
+  [90m11584 |[0m     [36mif[0m (activeTab === [32m"readiness"[0m) {
+  [90m11585 |[0m       [36mreturn[0m (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+
+./app/dashboard/profile/page.tsx:11503:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  [90m11501 |[0m       </div>
+  [90m11502 |[0m     );
+[31m[1m>[0m [90m11503 |[0m   };
+  [90m      |[0m   [31m[1m^[0m
+  [90m11504 |[0m
+  [90m11505 |[0m   [36mconst[0m renderOverview = () => (
+  [90m11506 |[0m     <div className=[32m"space-y-5"[0m>
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+⨯ ./app/dashboard/profile/page.tsx:11505:30
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  [90m11503 |[0m   };
+  [90m11504 |[0m
+[31m[1m>[0m [90m11505 |[0m   [36mconst[0m renderOverview = () => (
+  [90m      |[0m                              [31m[1m^[0m
+  [90m11506 |[0m     <div className=[32m"space-y-5"[0m>
+  [90m11507 |[0m       <div className=[32m"grid gap-4 md:grid-cols-2 xl:grid-cols-4"[0m>
+  [90m11508 |[0m         {[
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+
+./app/dashboard/profile/page.tsx:11582:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  [90m11580 |[0m   );
+  [90m11581 |[0m
+[31m[1m>[0m [90m11582 |[0m   [36mconst[0m renderActiveTab = () => {
+  [90m      |[0m                               [31m[1m^[0m
+  [90m11583 |[0m     [36mif[0m (activeTab === [32m"overview"[0m) [36mreturn[0m renderOverview();
+  [90m11584 |[0m     [36mif[0m (activeTab === [32m"readiness"[0m) {
+  [90m11585 |[0m       [36mreturn[0m (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+
+./app/dashboard/profile/page.tsx:11503:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  [90m11501 |[0m       </div>
+  [90m11502 |[0m     );
+[31m[1m>[0m [90m11503 |[0m   };
+  [90m      |[0m   [31m[1m^[0m
+  [90m11504 |[0m
+  [90m11505 |[0m   [36mconst[0m renderOverview = () => (
+  [90m11506 |[0m     <div className=[32m"space-y-5"[0m>
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+⨯ ./app/dashboard/profile/page.tsx:11505:30
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  [90m11503 |[0m   };
+  [90m11504 |[0m
+[31m[1m>[0m [90m11505 |[0m   [36mconst[0m renderOverview = () => (
+  [90m      |[0m                              [31m[1m^[0m
+  [90m11506 |[0m     <div className=[32m"space-y-5"[0m>
+  [90m11507 |[0m       <div className=[32m"grid gap-4 md:grid-cols-2 xl:grid-cols-4"[0m>
+  [90m11508 |[0m         {[
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+
+./app/dashboard/profile/page.tsx:11582:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  [90m11580 |[0m   );
+  [90m11581 |[0m
+[31m[1m>[0m [90m11582 |[0m   [36mconst[0m renderActiveTab = () => {
+  [90m      |[0m                               [31m[1m^[0m
+  [90m11583 |[0m     [36mif[0m (activeTab === [32m"overview"[0m) [36mreturn[0m renderOverview();
+  [90m11584 |[0m     [36mif[0m (activeTab === [32m"readiness"[0m) {
+  [90m11585 |[0m       [36mreturn[0m (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+
+./app/dashboard/profile/page.tsx:11503:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  [90m11501 |[0m       </div>
+  [90m11502 |[0m     );
+[31m[1m>[0m [90m11503 |[0m   };
+  [90m      |[0m   [31m[1m^[0m
+  [90m11504 |[0m
+  [90m11505 |[0m   [36mconst[0m renderOverview = () => (
+  [90m11506 |[0m     <div className=[32m"space-y-5"[0m>
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+[browser] Uncaught Error: ./app/dashboard/profile/page.tsx:11582:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11580 |   );
+  11581 |
+> 11582 |   const renderActiveTab = () => {
+        |                               ^
+  11583 |     if (activeTab === "overview") return renderOverview();
+  11584 |     if (activeTab === "readiness") {
+  11585 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+    at <unknown> (Error: ./app/dashboard/profile/page.tsx:11582:31)
+    at <unknown> (Error: (./app/dashboard/profile/page.tsx:11582:31)
+[browser] ./app/dashboard/profile/page.tsx:11582:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11580 |   );
+  11581 |
+> 11582 |   const renderActiveTab = () => {
+        |                               ^
+  11583 |     if (activeTab === "overview") return renderOverview();
+  11584 |     if (activeTab === "readiness") {
+  11585 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11503:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  11501 |       </div>
+  11502 |     );
+> 11503 |   };
+        |   ^
+  11504 |
+  11505 |   const renderOverview = () => (
+  11506 |     <div className="space-y-5">
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11582:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11580 |   );
+  11581 |
+> 11582 |   const renderActiveTab = () => {
+        |                               ^
+  11583 |     if (activeTab === "overview") return renderOverview();
+  11584 |     if (activeTab === "readiness") {
+  11585 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11503:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  11501 |       </div>
+  11502 |     );
+> 11503 |   };
+        |   ^
+  11504 |
+  11505 |   const renderOverview = () => (
+  11506 |     <div className="space-y-5">
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11585:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11583 |   );
+  11584 |
+> 11585 |   const renderActiveTab = () => {
+        |                               ^
+  11586 |     if (activeTab === "overview") return renderOverview();
+  11587 |     if (activeTab === "readiness") {
+  11588 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11506:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  11504 |       </div>
+  11505 |     );
+> 11506 |   };
+        |   ^
+  11507 |
+  11508 |   const renderOverview = () => (
+  11509 |     <div className="space-y-5">
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11585:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11583 |   );
+  11584 |
+> 11585 |   const renderActiveTab = () => {
+        |                               ^
+  11586 |     if (activeTab === "overview") return renderOverview();
+  11587 |     if (activeTab === "readiness") {
+  11588 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11506:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  11504 |       </div>
+  11505 |     );
+> 11506 |   };
+        |   ^
+  11507 |
+  11508 |   const renderOverview = () => (
+  11509 |     <div className="space-y-5">
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11585:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11583 |   );
+  11584 |
+> 11585 |   const renderActiveTab = () => {
+        |                               ^
+  11586 |     if (activeTab === "overview") return renderOverview();
+  11587 |     if (activeTab === "readiness") {
+  11588 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11506:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  11504 |       </div>
+  11505 |     );
+> 11506 |   };
+        |   ^
+  11507 |
+  11508 |   const renderOverview = () => (
+  11509 |     <div className="space-y-5">
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11585:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11583 |   );
+  11584 |
+> 11585 |   const renderActiveTab = () => {
+        |                               ^
+  11586 |     if (activeTab === "overview") return renderOverview();
+  11587 |     if (activeTab === "readiness") {
+  11588 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11506:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  11504 |       </div>
+  11505 |     );
+> 11506 |   };
+        |   ^
+  11507 |
+  11508 |   const renderOverview = () => (
+  11509 |     <div className="space-y-5">
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11585:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11583 |   );
+  11584 |
+> 11585 |   const renderActiveTab = () => {
+        |                               ^
+  11586 |     if (activeTab === "overview") return renderOverview();
+  11587 |     if (activeTab === "readiness") {
+  11588 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11506:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  11504 |       </div>
+  11505 |     );
+> 11506 |   };
+        |   ^
+  11507 |
+  11508 |   const renderOverview = () => (
+  11509 |     <div className="space-y-5">
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11585:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11583 |   );
+  11584 |
+> 11585 |   const renderActiveTab = () => {
+        |                               ^
+  11586 |     if (activeTab === "overview") return renderOverview();
+  11587 |     if (activeTab === "readiness") {
+  11588 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11506:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  11504 |       </div>
+  11505 |     );
+> 11506 |   };
+        |   ^
+  11507 |
+  11508 |   const renderOverview = () => (
+  11509 |     <div className="space-y-5">
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11585:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11583 |   );
+  11584 |
+> 11585 |   const renderActiveTab = () => {
+        |                               ^
+  11586 |     if (activeTab === "overview") return renderOverview();
+  11587 |     if (activeTab === "readiness") {
+  11588 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11506:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  11504 |       </div>
+  11505 |     );
+> 11506 |   };
+        |   ^
+  11507 |
+  11508 |   const renderOverview = () => (
+  11509 |     <div className="space-y-5">
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11585:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11583 |   );
+  11584 |
+> 11585 |   const renderActiveTab = () => {
+        |                               ^
+  11586 |     if (activeTab === "overview") return renderOverview();
+  11587 |     if (activeTab === "readiness") {
+  11588 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11506:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  11504 |       </div>
+  11505 |     );
+> 11506 |   };
+        |   ^
+  11507 |
+  11508 |   const renderOverview = () => (
+  11509 |     <div className="space-y-5">
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11585:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11583 |   );
+  11584 |
+> 11585 |   const renderActiveTab = () => {
+        |                               ^
+  11586 |     if (activeTab === "overview") return renderOverview();
+  11587 |     if (activeTab === "readiness") {
+  11588 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11506:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  11504 |       </div>
+  11505 |     );
+> 11506 |   };
+        |   ^
+  11507 |
+  11508 |   const renderOverview = () => (
+  11509 |     <div className="space-y-5">
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11585:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11583 |   );
+  11584 |
+> 11585 |   const renderActiveTab = () => {
+        |                               ^
+  11586 |     if (activeTab === "overview") return renderOverview();
+  11587 |     if (activeTab === "readiness") {
+  11588 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11506:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  11504 |       </div>
+  11505 |     );
+> 11506 |   };
+        |   ^
+  11507 |
+  11508 |   const renderOverview = () => (
+  11509 |     <div className="space-y-5">
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11585:31
+Unexpected token. Did you mean `{'>'}` or `&gt;`?
+  11583 |   );
+  11584 |
+> 11585 |   const renderActiveTab = () => {
+        |                               ^
+  11586 |     if (activeTab === "overview") return renderOverview();
+  11587 |     if (activeTab === "readiness") {
+  11588 |       return (
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11506:3
+Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
+  11504 |       </div>
+  11505 |     );
+> 11506 |   };
+        |   ^
+  11507 |
+  11508 |   const renderOverview = () => (
+  11509 |     <div className="space-y-5">
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] Uncaught ReferenceError: profileOrbiterRailRef is not defined
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:11339:16)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:12110:21)
+  11337 |       <section className="relative">
+  11338 |         <div
+> 11339 |           ref={profileOrbiterRailRef}
+        |                ^
+  11340 |           className="max-h-[82vh] space-y-5 overflow-y-auto overscroll-y-contain pr-1 s...
+  11341 |         >
+  11342 |           <div id="profile-orbiter-hero" className="snap-start scroll-mt-28">
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: scrollProfileOrbiterToHero is not defined
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:11354:26)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:12107:21)
+  11352 |                 type="button"
+  11353 |                 aria-label="Scroll profile orbiter to hero"
+> 11354 |                 onClick={scrollProfileOrbiterToHero}
+        |                          ^
+  11355 |                 className="grid h-10 w-10 place-items-center rounded-2xl border border-...
+  11356 |               >
+  11357 |                 ↑
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: activeProfileOrbitCard is not defined
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:11346:18)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:12116:21)
+  11344 |               </p>
+  11345 |               <h2 className="mt-1 text-2xl font-black text-white">
+> 11346 |                 {activeProfileOrbitCard?.kind === "hero"
+        |                  ^
+  11347 |                   ? "Personal Command Center"
+  11348 |                   : "Section Orbiter"}
+  11349 |               </h2>
+[browser] ./app/dashboard/profile/page.tsx:11521:7
+Expression expected
+  11519 |           </div>
+  11520 |         </div>
+> 11521 |       </section>
+        |       ^
+  11522 |     );
+  11523 |   };
+  11524 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11521:8
+Unterminated regexp literal
+  11519 |           </div>
+  11520 |         </div>
+> 11521 |       </section>
+        |        ^^^^^^^^^
+  11522 |     );
+  11523 |   };
+  11524 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11521:7
+Expression expected
+  11519 |           </div>
+  11520 |         </div>
+> 11521 |       </section>
+        |       ^
+  11522 |     );
+  11523 |   };
+  11524 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11521:8
+Unterminated regexp literal
+  11519 |           </div>
+  11520 |         </div>
+> 11521 |       </section>
+        |        ^^^^^^^^^
+  11522 |     );
+  11523 |   };
+  11524 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11521:7
+Expression expected
+  11519 |           </div>
+  11520 |         </div>
+> 11521 |       </section>
+        |       ^
+  11522 |     );
+  11523 |   };
+  11524 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11521:8
+Unterminated regexp literal
+  11519 |           </div>
+  11520 |         </div>
+> 11521 |       </section>
+        |        ^^^^^^^^^
+  11522 |     );
+  11523 |   };
+  11524 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+⨯ ./app/dashboard/profile/page.tsx:11521:7
+Expression expected
+  [90m11519 |[0m           </div>
+  [90m11520 |[0m         </div>
+[31m[1m>[0m [90m11521 |[0m       </section>
+  [90m      |[0m       [31m[1m^[0m
+  [90m11522 |[0m     );
+  [90m11523 |[0m   };
+  [90m11524 |[0m
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+
+./app/dashboard/profile/page.tsx:11521:8
+Unterminated regexp literal
+  [90m11519 |[0m           </div>
+  [90m11520 |[0m         </div>
+[31m[1m>[0m [90m11521 |[0m       </section>
+  [90m      |[0m        [31m[1m^^^^^^^^^[0m
+  [90m11522 |[0m     );
+  [90m11523 |[0m   };
+  [90m11524 |[0m
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+[browser] Uncaught Error: ./app/dashboard/profile/page.tsx:11521:7
+Expression expected
+  11519 |           </div>
+  11520 |         </div>
+> 11521 |       </section>
+        |       ^
+  11522 |     );
+  11523 |   };
+  11524 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+    at <unknown> (Error: ./app/dashboard/profile/page.tsx:11521:7)
+    at <unknown> (Error: (./app/dashboard/profile/page.tsx:11521:7)
+[browser] ./app/dashboard/profile/page.tsx:11521:7
+Expression expected
+  11519 |           </div>
+  11520 |         </div>
+> 11521 |       </section>
+        |       ^
+  11522 |     );
+  11523 |   };
+  11524 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11521:8
+Unterminated regexp literal
+  11519 |           </div>
+  11520 |         </div>
+> 11521 |       </section>
+        |        ^^^^^^^^^
+  11522 |     );
+  11523 |   };
+  11524 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11521:7
+Expression expected
+  11519 |           </div>
+  11520 |         </div>
+> 11521 |       </section>
+        |       ^
+  11522 |     );
+  11523 |   };
+  11524 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11521:8
+Unterminated regexp literal
+  11519 |           </div>
+  11520 |         </div>
+> 11521 |       </section>
+        |        ^^^^^^^^^
+  11522 |     );
+  11523 |   };
+  11524 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11505:7
+Expression expected
+  11503 |           </div>
+  11504 |         </div>
+> 11505 |       </section>
+        |       ^
+  11506 |     );
+  11507 |   };
+  11508 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11505:8
+Unterminated regexp literal
+  11503 |           </div>
+  11504 |         </div>
+> 11505 |       </section>
+        |        ^^^^^^^^^
+  11506 |     );
+  11507 |   };
+  11508 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11505:7
+Expression expected
+  11503 |           </div>
+  11504 |         </div>
+> 11505 |       </section>
+        |       ^
+  11506 |     );
+  11507 |   };
+  11508 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11505:8
+Unterminated regexp literal
+  11503 |           </div>
+  11504 |         </div>
+> 11505 |       </section>
+        |        ^^^^^^^^^
+  11506 |     );
+  11507 |   };
+  11508 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11505:7
+Expression expected
+  11503 |           </div>
+  11504 |         </div>
+> 11505 |       </section>
+        |       ^
+  11506 |     );
+  11507 |   };
+  11508 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:11505:8
+Unterminated regexp literal
+  11503 |           </div>
+  11504 |         </div>
+> 11505 |       </section>
+        |        ^^^^^^^^^
+  11506 |     );
+  11507 |   };
+  11508 |
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] Uncaught ReferenceError: renderProfileTabContent is not defined
+    at eval (app/dashboard/profile/page.tsx:11805:20)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:11767:17)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:12414:21)
+  11803 |                     </div>
+  11804 |                   </div>
+> 11805 |                   {renderProfileTabContent(tab.id)}
+        |                    ^
+  11806 |                 </div>
+  11807 |               </section>
+  11808 |             );
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: activeProfileSectionOrbitIndex is not defined
+    at eval (app/dashboard/profile/page.tsx:11620:36)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:11619:30)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:12444:11)
+  11618 |           />
+  11619 |           {profileOrbitCards.map((card, index) => {
+> 11620 |             let distance = index - activeProfileSectionOrbitIndex;
+        |                                    ^
+  11621 |             if (distance > profileOrbitCards.length / 2) {
+  11622 |               distance -= profileOrbitCards.length;
+  11623 |             }
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: activeProfileSectionOrbitIndex is not defined
+    at <unknown> (app/dashboard/profile/page.tsx:11621:36)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:11620:30)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:12445:11)
+  11619 |           />
+  11620 |           {profileOrbitCards.map((card, index) => {
+> 11621 |             let distance = index - activeProfileSectionOrbitIndex;
+        |                                    ^
+  11622 |             if (distance > profileOrbitCards.length / 2) {
+  11623 |               distance -= profileOrbitCards.length;
+  11624 |             }
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: activeProfileSectionOrbitIndex is not defined
+    at <unknown> (app/dashboard/profile/page.tsx:11621:36)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:11620:30)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:12445:11)
+  11619 |           />
+  11620 |           {profileOrbitCards.map((card, index) => {
+> 11621 |             let distance = index - activeProfileSectionOrbitIndex;
+        |                                    ^
+  11622 |             if (distance > profileOrbitCards.length / 2) {
+  11623 |               distance -= profileOrbitCards.length;
+  11624 |             }
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: distance is not defined
+    at getProfileOrbiterRowStyle (app/dashboard/profile/page.tsx:11593:24)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:11694:20)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:12619:11)
+  11591 |     };
+  11592 |     const getProfileOrbiterRowStyle = (row: number): CSSProperties => {
+> 11593 |       const isActive = distance === 0;
+        |                        ^
+  11594 |
+  11595 |       return {
+  11596 |         pointerEvents: isActive ? "auto" : "none",
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: birthdayYears is not defined
+    at renderBodyMetrics (app/dashboard/profile/page.tsx:8842:33)
+    at renderExpandedProfileOrbiterCard (app/dashboard/profile/page.tsx:11919:13)
+    at eval (app/dashboard/profile/page.tsx:12198:19)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:12183:28)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:13165:11)
+  8840 |       value: day,
+  8841 |     }));
+> 8842 |     const birthdayYearOptions = birthdayYears.map((year) => ({
+       |                                 ^
+  8843 |       label: year,
+  8844 |       value: year,
+  8845 |     }));
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: displayedAge is not defined
+    at renderBodyMetrics (app/dashboard/profile/page.tsx:8864:7)
+    at renderOverview (app/dashboard/profile/page.tsx:12634:12)
+    at renderProfileTabContent (app/dashboard/profile/page.tsx:12654:38)
+    at <unknown> (app/dashboard/profile/page.tsx:12555:20)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:12516:38)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:13142:11)
+  8862 |     const bodySummaryItems = [
+  8863 |       genderSummary,
+> 8864 |       displayedAge ? `${displayedAge} yrs` : "Birthday not set",
+       |       ^
+  8865 |       profile.height ? `${profile.height} ${heightUnit}` : "Height not set",
+  8866 |       profile.currentWeight
+  8867 |         ? `${profile.currentWeight} ${weightUnit}`
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: displayedAge is not defined
+    at renderBodyMetrics (app/dashboard/profile/page.tsx:8829:7)
+    at renderOverview (app/dashboard/profile/page.tsx:12599:12)
+    at renderProfileTabContent (app/dashboard/profile/page.tsx:12619:38)
+    at <unknown> (app/dashboard/profile/page.tsx:12520:20)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:12481:38)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:13107:11)
+  8827 |     const bodySummaryItems = [
+  8828 |       genderSummary,
+> 8829 |       displayedAge ? `${displayedAge} yrs` : "Birthday not set",
+       |       ^
+  8830 |       profile.height ? `${profile.height} ${heightUnit}` : "Height not set",
+  8831 |       profile.currentWeight
+  8832 |         ? `${profile.currentWeight} ${weightUnit}`
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: displayedAge is not defined
+    at renderBodyMetrics (app/dashboard/profile/page.tsx:8802:7)
+    at renderOverview (app/dashboard/profile/page.tsx:12572:12)
+    at renderProfileTabContent (app/dashboard/profile/page.tsx:12592:38)
+    at <unknown> (app/dashboard/profile/page.tsx:12493:20)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:12454:38)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:13080:11)
+  8800 |     const bodySummaryItems = [
+  8801 |       genderSummary,
+> 8802 |       displayedAge ? `${displayedAge} yrs` : "Birthday not set",
+       |       ^
+  8803 |       profile.height ? `${profile.height} ${heightUnit}` : "Height not set",
+  8804 |       profile.currentWeight
+  8805 |         ? `${profile.currentWeight} ${weightUnit}`
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: displayedAge is not defined
+    at renderBodyMetrics (app/dashboard/profile/page.tsx:8794:7)
+    at renderOverview (app/dashboard/profile/page.tsx:12564:12)
+    at renderProfileTabContent (app/dashboard/profile/page.tsx:12584:38)
+    at <unknown> (app/dashboard/profile/page.tsx:12485:20)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:12446:38)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:13072:11)
+  8792 |     const bodySummaryItems = [
+  8793 |       genderSummary,
+> 8794 |       displayedAge ? `${displayedAge} yrs` : "Birthday not set",
+       |       ^
+  8795 |       profile.height ? `${profile.height} ${heightUnit}` : "Height not set",
+  8796 |       profile.currentWeight
+  8797 |         ? `${profile.currentWeight} ${weightUnit}`
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: displayedAge is not defined
+    at renderBodyMetrics (app/dashboard/profile/page.tsx:8980:7)
+    at renderOverview (app/dashboard/profile/page.tsx:12566:12)
+    at renderProfileTabContent (app/dashboard/profile/page.tsx:12586:38)
+    at <unknown> (app/dashboard/profile/page.tsx:12487:20)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:12448:38)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:13074:11)
+  8978 |     const nonVariablesSummaryItems = [
+  8979 |       genderSummary,
+> 8980 |       displayedAge ? `${displayedAge} yrs` : "Age not set",
+       |       ^
+  8981 |       profile.height ? `${profile.height} ${heightUnit}` : "Height not set",
+  8982 |     ];
+  8983 |     const nonVariablesContent = (
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: displayedAge is not defined
+    at renderBodyMetrics (app/dashboard/profile/page.tsx:8994:7)
+    at renderOverview (app/dashboard/profile/page.tsx:12580:12)
+    at renderProfileTabContent (app/dashboard/profile/page.tsx:12600:38)
+    at <unknown> (app/dashboard/profile/page.tsx:12501:20)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:12462:38)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:13088:11)
+  8992 |     const nonVariablesSummaryItems = [
+  8993 |       genderSummary,
+> 8994 |       displayedAge ? `${displayedAge} yrs` : "Age not set",
+       |       ^
+  8995 |       profile.height ? `${profile.height} ${heightUnit}` : "Height not set",
+  8996 |     ];
+  8997 |     const nonVariablesContent = (
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: displayedAge is not defined
+    at renderBodyMetrics (app/dashboard/profile/page.tsx:8994:7)
+    at renderOverview (app/dashboard/profile/page.tsx:12580:12)
+    at renderProfileTabContent (app/dashboard/profile/page.tsx:12600:38)
+    at <unknown> (app/dashboard/profile/page.tsx:12501:20)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:12462:38)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:13088:11)
+  8992 |     const nonVariablesSummaryItems = [
+  8993 |       genderSummary,
+> 8994 |       displayedAge ? `${displayedAge} yrs` : "Age not set",
+       |       ^
+  8995 |       profile.height ? `${profile.height} ${heightUnit}` : "Height not set",
+  8996 |     ];
+  8997 |     const nonVariablesContent = (
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: nonVariablesAccordion is not defined
+    at renderBodyMetrics (app/dashboard/profile/page.tsx:9024:14)
+    at renderOverview (app/dashboard/profile/page.tsx:12413:12)
+    at renderProfileTabContent (app/dashboard/profile/page.tsx:12433:38)
+    at <unknown> (app/dashboard/profile/page.tsx:12334:20)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:12295:38)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:12921:11)
+  9022 |             </div>
+  9023 |
+> 9024 |             {nonVariablesAccordion}
+       |              ^
+  9025 |
+  9026 |           </div>
+  9027 |
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: nonVariablesAccordion is not defined
+    at renderBodyMetrics (app/dashboard/profile/page.tsx:9024:14)
+    at renderOverview (app/dashboard/profile/page.tsx:12413:12)
+    at renderProfileTabContent (app/dashboard/profile/page.tsx:12433:38)
+    at <unknown> (app/dashboard/profile/page.tsx:12334:20)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:12295:38)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:12921:11)
+  9022 |             </div>
+  9023 |
+> 9024 |             {nonVariablesAccordion}
+       |              ^
+  9025 |
+  9026 |           </div>
+  9027 |
+[browser] ./app/dashboard/profile/page.tsx:8787:80
+Expected ';', '}' or <eof>
+  8785 | ... { embedded?: boolean } = {}) => {
+  8786 | ...
+> 8787 | ...erredUnitSystem === "kg" ? "kg" : "lb";`r`n    const bodySummaryItems = [
+       |                                              ^
+  8788 | ...
+  8789 | ...{weightUnit}`
+  8790 | ...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+⨯ ./app/dashboard/profile/page.tsx:8787:80
+Expected ';', '}' or <eof>
+  [90m8785 |[0m ... { embedded?: boolean } = {}) => {
+  [90m8786 |[0m ...
+[31m[1m>[0m [90m8787 |[0m ...erredUnitSystem === [32m"kg"[0m ? [32m"kg"[0m : [32m"lb"[0m;[32m`r`[0mn    [36mconst[0m bodySummaryItems = [
+  [90m     |[0m                                              [31m[1m^[0m
+  [90m8788 |[0m ...
+  [90m8789 |[0m ...{weightUnit[32m}`[0m
+  [90m8790 |[0m ...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+[browser] Uncaught Error: ./app/dashboard/profile/page.tsx:8787:80
+Expected ';', '}' or <eof>
+  8785 | ... { embedded?: boolean } = {}) => {
+  8786 | ...
+> 8787 | ...erredUnitSystem === "kg" ? "kg" : "lb";`r`n    const bodySummaryItems = [
+       |                                              ^
+  8788 | ...
+  8789 | ...{weightUnit}`
+  8790 | ...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+    at <unknown> (Error: ./app/dashboard/profile/page.tsx:8787:80)
+    at <unknown> (Error: (./app/dashboard/profile/page.tsx:8787:80)
+[browser] ./app/dashboard/profile/page.tsx:8787:80
+Expected ';', '}' or <eof>
+  8785 | ... { embedded?: boolean } = {}) => {
+  8786 | ...
+> 8787 | ...erredUnitSystem === "kg" ? "kg" : "lb";`r`n    const bodySummaryItems = [
+       |                                              ^
+  8788 | ...
+  8789 | ...{weightUnit}`
+  8790 | ...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:8787:80
+Expected ';', '}' or <eof>
+  8785 | ... { embedded?: boolean } = {}) => {
+  8786 | ...
+> 8787 | ...erredUnitSystem === "kg" ? "kg" : "lb";`r`n    const bodySummaryItems = [
+       |                                              ^
+  8788 | ...
+  8789 | ...{weightUnit}`
+  8790 | ...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] Uncaught ReferenceError: nonVariablesAccordion is not defined
+    at renderBodyMetrics (app/dashboard/profile/page.tsx:9021:14)
+    at renderOverview (app/dashboard/profile/page.tsx:12410:12)
+    at renderProfileTabContent (app/dashboard/profile/page.tsx:12430:38)
+    at <unknown> (app/dashboard/profile/page.tsx:12331:20)
+    at Array.map (<anonymous>)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:12292:38)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:12918:11)
+  9019 |             </div>
+  9020 |
+> 9021 |             {nonVariablesAccordion}
+       |              ^
+  9022 |
+  9023 |           </div>
+  9024 |
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: profileOrbiterContentTabs is not defined
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:11730:10)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:13186:11)
+  11728 |         title: row.title,
+  11729 |       })),
+> 11730 |       ...profileOrbiterContentTabs.map((tab, index) => {
+        |          ^
+  11731 |         const completion = tabCompletions[tab.id] || 0;
+  11732 |
+  11733 |         return {
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: profileOrbiterContentTabs is not defined
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:12543:12)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:13171:11)
+  12541 |             );
+  12542 |           })}
+> 12543 |           {profileOrbiterContentTabs.map((tab, index) => {
+        |            ^
+  12544 |             const rowIndex = profileOrbiterTabStartRow + index;
+  12545 |             const completion = tabCompletions[tab.id] || 0;
+  12546 |             const tone = getCompletionTone(completion);
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: profileOrbiterContentTabs is not defined
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:12530:12)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:13158:11)
+  12528 |             );
+  12529 |           })}
+> 12530 |           {profileOrbiterContentTabs.map((tab, index) => {
+        |            ^
+  12531 |             const rowIndex = profileOrbiterTabStartRow + index;
+  12532 |             const completion = tabCompletions[tab.id] || 0;
+  12533 |             const tone = getCompletionTone(completion);
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] AuthApiError: Invalid Refresh Token: Refresh Token Not Found
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+⨯ ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  [90m12472 |[0m             {profileOrbiterRows.map((row, index) => (
+  [90m12473 |[0m               {
+[31m[1m>[0m [90m12474 |[0m                 [36mconst[0m isActiveRow = clampedActiveProfileOrbiterRow === index;
+  [90m      |[0m                       [31m[1m^^^^^^^^^^^[0m
+  [90m12475 |[0m                 [36mreturn[0m (
+  [90m12476 |[0m               <button
+  [90m12477 |[0m                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+⨯ ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  [90m12472 |[0m             {profileOrbiterRows.map((row, index) => (
+  [90m12473 |[0m               {
+[31m[1m>[0m [90m12474 |[0m                 [36mconst[0m isActiveRow = clampedActiveProfileOrbiterRow === index;
+  [90m      |[0m                       [31m[1m^^^^^^^^^^^[0m
+  [90m12475 |[0m                 [36mreturn[0m (
+  [90m12476 |[0m               <button
+  [90m12477 |[0m                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+⨯ ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  [90m12472 |[0m             {profileOrbiterRows.map((row, index) => (
+  [90m12473 |[0m               {
+[31m[1m>[0m [90m12474 |[0m                 [36mconst[0m isActiveRow = clampedActiveProfileOrbiterRow === index;
+  [90m      |[0m                       [31m[1m^^^^^^^^^^^[0m
+  [90m12475 |[0m                 [36mreturn[0m (
+  [90m12476 |[0m               <button
+  [90m12477 |[0m                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+⨯ ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  [90m12472 |[0m             {profileOrbiterRows.map((row, index) => (
+  [90m12473 |[0m               {
+[31m[1m>[0m [90m12474 |[0m                 [36mconst[0m isActiveRow = clampedActiveProfileOrbiterRow === index;
+  [90m      |[0m                       [31m[1m^^^^^^^^^^^[0m
+  [90m12475 |[0m                 [36mreturn[0m (
+  [90m12476 |[0m               <button
+  [90m12477 |[0m                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+⨯ ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  [90m12472 |[0m             {profileOrbiterRows.map((row, index) => (
+  [90m12473 |[0m               {
+[31m[1m>[0m [90m12474 |[0m                 [36mconst[0m isActiveRow = clampedActiveProfileOrbiterRow === index;
+  [90m      |[0m                       [31m[1m^^^^^^^^^^^[0m
+  [90m12475 |[0m                 [36mreturn[0m (
+  [90m12476 |[0m               <button
+  [90m12477 |[0m                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+[browser] Uncaught Error: ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+    at <unknown> (Error: ./app/dashboard/profile/page.tsx:12474:23)
+    at <unknown> (Error: (./app/dashboard/profile/page.tsx:12474:23)
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] Uncaught Error: ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+
+    at <unknown> (Error: ./app/dashboard/profile/page.tsx:12474:23)
+    at <unknown> (Error: (./app/dashboard/profile/page.tsx:12474:23)
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] ./app/dashboard/profile/page.tsx:12474:23
+Expected '</', got 'ident'
+  12472 |             {profileOrbiterRows.map((row, index) => (
+  12473 |               {
+> 12474 |                 const isActiveRow = clampedActiveProfileOrbiterRow === index;
+        |                       ^^^^^^^^^^^
+  12475 |                 return (
+  12476 |               <button
+  12477 |                 key={row.title}
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/profile/page.tsx [Client Component Browser]
+    ./app/dashboard/profile/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/profile/page.tsx [Client Component SSR]
+    ./app/dashboard/profile/page.tsx [Server Component] 
+[browser] Uncaught ReferenceError: profileHubDropdownKey is not defined
+    at renderProfileOrbiterTopMenu (app/dashboard/profile/page.tsx:13997:61)
+    at renderProfileSectionOrbiters (app/dashboard/profile/page.tsx:14180:10)
+    at ClientProfilePage (app/dashboard/profile/page.tsx:15390:14)
+  13995 | ...n
+  13996 | ...-controls="profile-orbiter-row-1"
+> 13997 | ...-expanded={expandedProfileOrbiterCard === profileHubDropdownKey}
+        |                                              ^
+  13998 | ...-label="Open profile hub dropdown"
+  13999 | ...sName="hidden min-h-[58px] shrink-0 items-center gap-3 rounded-[22px] border border-...
+  14000 | ...ick={openProfileHubDropdown}
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Image with src "/sound-fitness-logo.png" has either width or height modified, but not the other. If you use CSS to change the size of your image, also include the styles 'width: "auto"' or 'height: "auto"' to maintain the aspect ratio.
+[browser] ./app/dashboard/page.tsx:1827:18
+Expected '</', got 'ident'
+  1825 |         </header>
+  1826 |
+> 1827 |         <section className="mb-6 overflow-hidden rounded-[24px] border border-cyan-200/1...
+       |                  ^^^^^^^^^
+  1828 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+  1829 |             <div className="flex shrink-0 items-center justify-between gap-3 lg:w-[210px...
+  1830 |               <div>
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+⨯ ./app/dashboard/page.tsx:1827:18
+Expected '</', got 'ident'
+  [90m1825 |[0m         </header>
+  [90m1826 |[0m
+[31m[1m>[0m [90m1827 |[0m         <section className=[32m"mb-6 overflow-hidden rounded-[24px] border border-cyan-200/1...[0m
+  [90m     |[0m                  [31m[1m^^^^^^^^^[0m
+  [90m1828 |[0m           <div className=[32m"flex flex-col gap-3 lg:flex-row lg:items-center"[0m>
+  [90m1829 |[0m             <div className=[32m"flex shrink-0 items-center justify-between gap-3 lg:w-[210px...[0m
+  [90m1830 |[0m               <div>
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component]
+
+
+⨯ ./app/dashboard/page.tsx:1827:18
+Expected '</', got 'ident'
+  [90m1825 |[0m         </header>
+  [90m1826 |[0m
+[31m[1m>[0m [90m1827 |[0m         <section className=[32m"mb-6 overflow-hidden rounded-[24px] border border-cyan-200/1...[0m
+  [90m     |[0m                  [31m[1m^^^^^^^^^[0m
+  [90m1828 |[0m           <div className=[32m"flex flex-col gap-3 lg:flex-row lg:items-center"[0m>
+  [90m1829 |[0m             <div className=[32m"flex shrink-0 items-center justify-between gap-3 lg:w-[210px...[0m
+  [90m1830 |[0m               <div>
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component]
+
+
+[browser] Uncaught Error: ./app/dashboard/page.tsx:1827:18
+Expected '</', got 'ident'
+  1825 |         </header>
+  1826 |
+> 1827 |         <section className="mb-6 overflow-hidden rounded-[24px] border border-cyan-200/1...
+       |                  ^^^^^^^^^
+  1828 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+  1829 |             <div className="flex shrink-0 items-center justify-between gap-3 lg:w-[210px...
+  1830 |               <div>
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component]
+
+
+    at <unknown> (Error: ./app/dashboard/page.tsx:1827:18)
+    at <unknown> (Error: (./app/dashboard/page.tsx:1827:18)
+[browser] ./app/dashboard/page.tsx:1827:18
+Expected '</', got 'ident'
+  1825 |         </header>
+  1826 |
+> 1827 |         <section className="mb-6 overflow-hidden rounded-[24px] border border-cyan-200/1...
+       |                  ^^^^^^^^^
+  1828 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+  1829 |             <div className="flex shrink-0 items-center justify-between gap-3 lg:w-[210px...
+  1830 |               <div>
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+[browser] ./app/dashboard/page.tsx:1827:18
+Expected '</', got 'ident'
+  1825 |         </header>
+  1826 |
+> 1827 |         <section className="mb-6 overflow-hidden rounded-[24px] border border-cyan-200/1...
+       |                  ^^^^^^^^^
+  1828 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+  1829 |             <div className="flex shrink-0 items-center justify-between gap-3 lg:w-[210px...
+  1830 |               <div>
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+⨯ ./app/dashboard/page.tsx:1827:18
+Expected '</', got 'ident'
+  [90m1825 |[0m         </header>
+  [90m1826 |[0m
+[31m[1m>[0m [90m1827 |[0m         <section className=[32m"mb-6 overflow-hidden rounded-[24px] border border-cyan-200/1...[0m
+  [90m     |[0m                  [31m[1m^^^^^^^^^[0m
+  [90m1828 |[0m           <div className=[32m"flex flex-col gap-3 lg:flex-row lg:items-center"[0m>
+  [90m1829 |[0m             <div className=[32m"flex shrink-0 items-center justify-between gap-3 lg:w-[210px...[0m
+  [90m1830 |[0m               <div>
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component]
+
+
+[browser] ./app/dashboard/page.tsx:1827:18
+Expected '</', got 'ident'
+  1825 |         </header>
+  1826 |
+> 1827 |         <section className="mb-6 overflow-hidden rounded-[24px] border border-cyan-200/1...
+       |                  ^^^^^^^^^
+  1828 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+  1829 |             <div className="flex shrink-0 items-center justify-between gap-3 lg:w-[210px...
+  1830 |               <div>
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+[browser] Uncaught Error: ./app/dashboard/page.tsx:1827:18
+Expected '</', got 'ident'
+  1825 |         </header>
+  1826 |
+> 1827 |         <section className="mb-6 overflow-hidden rounded-[24px] border border-cyan-200/1...
+       |                  ^^^^^^^^^
+  1828 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+  1829 |             <div className="flex shrink-0 items-center justify-between gap-3 lg:w-[210px...
+  1830 |               <div>
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component]
+
+
+    at <unknown> (Error: ./app/dashboard/page.tsx:1827:18)
+    at <unknown> (Error: (./app/dashboard/page.tsx:1827:18)
+[browser] ./app/dashboard/page.tsx:1827:18
+Expected '</', got 'ident'
+  1825 |         </header>
+  1826 |
+> 1827 |         <section className="mb-6 overflow-hidden rounded-[24px] border border-cyan-200/1...
+       |                  ^^^^^^^^^
+  1828 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+  1829 |             <div className="flex shrink-0 items-center justify-between gap-3 lg:w-[210px...
+  1830 |               <div>
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+[browser] Uncaught ReferenceError: Cannot access 'masterJourneyProgress' before initialization
+    at UserHomeDashboardPage (app/dashboard/page.tsx:778:19)
+  776 |   const dashboardOrbiterRows = [
+  777 |     {
+> 778 |       completion: masterJourneyProgress,
+      |                   ^
+  779 |       helper: "Hero, rewards, and progression wallet.",
+  780 |       title: "Hero",
+  781 |     },
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+[browser] ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+[browser] ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+[browser] ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+[browser] ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+⨯ ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  [90m2845 |[0m           </div>
+  [90m2846 |[0m           </div>
+[31m[1m>[0m [90m2847 |[0m         </section>
+  [90m     |[0m                   [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[31m[1m>[0m [90m2848 |[0m
+  [90m     |[0m [31m[1m^[0m
+[31m[1m>[0m [90m2849 |[0m         <section className=[32m"mb-4 overflow-hidden rounded-[24px] border border-white/10 b...[0m
+  [90m     |[0m [31m[1m^^^^^^^^[0m
+  [90m2850 |[0m           <div className=[32m"flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...[0m
+  [90m2851 |[0m             <div className=[32m"min-w-0 lg:max-w-[360px]"[0m>
+  [90m2852 |[0m               <div className=[32m"text-[11px] font-black uppercase tracking-[0.24em] text-cy...[0m
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component]
+
+
+[browser] ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+[browser] ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+⨯ ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  [90m2845 |[0m           </div>
+  [90m2846 |[0m           </div>
+[31m[1m>[0m [90m2847 |[0m         </section>
+  [90m     |[0m                   [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[31m[1m>[0m [90m2848 |[0m
+  [90m     |[0m [31m[1m^[0m
+[31m[1m>[0m [90m2849 |[0m         <section className=[32m"mb-4 overflow-hidden rounded-[24px] border border-white/10 b...[0m
+  [90m     |[0m [31m[1m^^^^^^^^[0m
+  [90m2850 |[0m           <div className=[32m"flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...[0m
+  [90m2851 |[0m             <div className=[32m"min-w-0 lg:max-w-[360px]"[0m>
+  [90m2852 |[0m               <div className=[32m"text-[11px] font-black uppercase tracking-[0.24em] text-cy...[0m
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component]
+
+
+[browser] ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+⨯ ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  [90m2845 |[0m           </div>
+  [90m2846 |[0m           </div>
+[31m[1m>[0m [90m2847 |[0m         </section>
+  [90m     |[0m                   [31m[1m^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^[0m
+[31m[1m>[0m [90m2848 |[0m
+  [90m     |[0m [31m[1m^[0m
+[31m[1m>[0m [90m2849 |[0m         <section className=[32m"mb-4 overflow-hidden rounded-[24px] border border-white/10 b...[0m
+  [90m     |[0m [31m[1m^^^^^^^^[0m
+  [90m2850 |[0m           <div className=[32m"flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...[0m
+  [90m2851 |[0m             <div className=[32m"min-w-0 lg:max-w-[360px]"[0m>
+  [90m2852 |[0m               <div className=[32m"text-[11px] font-black uppercase tracking-[0.24em] text-cy...[0m
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component]
+
+
+[browser] Uncaught Error: ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component]
+
+
+    at <unknown> (Error: ./app/dashboard/page.tsx:2847:19)
+    at <unknown> (Error: (./app/dashboard/page.tsx:2847:19)
+[browser] ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+[browser] ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+[browser] Uncaught Error: ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component]
+
+
+    at <unknown> (Error: ./app/dashboard/page.tsx:2847:19)
+    at <unknown> (Error: (./app/dashboard/page.tsx:2847:19)
+[browser] ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+[browser] ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+[browser] ./app/dashboard/page.tsx:2847:19
+Expected '</', got 'jsx text'
+  2845 |           </div>
+  2846 |           </div>
+> 2847 |         </section>
+       |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 2848 |
+       | ^
+> 2849 |         <section className="mb-4 overflow-hidden rounded-[24px] border border-white/10 b...
+       | ^^^^^^^^
+  2850 |           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-bet...
+  2851 |             <div className="min-w-0 lg:max-w-[360px]">
+  2852 |               <div className="text-[11px] font-black uppercase tracking-[0.24em] text-cy...
+
+Parsing ecmascript source code failed
+
+Import traces:
+  Client Component Browser:
+    ./app/dashboard/page.tsx [Client Component Browser]
+    ./app/dashboard/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./app/dashboard/page.tsx [Client Component SSR]
+    ./app/dashboard/page.tsx [Server Component] 
+[browser] Uncaught ReferenceError: isManualEntryOpen is not defined
+    at UserHomeDashboardPage (app/dashboard/page.tsx:2623:32)
+  2621 |               <button
+  2622 |                 type="button"
+> 2623 |                 aria-expanded={isManualEntryOpen}
+       |                                ^
+  2624 |                 onClick={() => {
+  2625 |                   setActiveUploadType("manual");
+  2626 |                   setIsManualEntryOpen((open) => !open);
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: isManualEntryOpen is not defined
+    at UserHomeDashboardPage (app/dashboard/page.tsx:2607:32)
+  2605 |               <button
+  2606 |                 type="button"
+> 2607 |                 aria-expanded={isManualEntryOpen}
+       |                                ^
+  2608 |                 onClick={() => {
+  2609 |                   setActiveUploadType("manual");
+  2610 |                   setIsManualEntryOpen((open) => !open);
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught ReferenceError: isManualEntryOpen is not defined
+    at UserHomeDashboardPage (app/dashboard/page.tsx:2610:32)
+  2608 |               <button
+  2609 |                 type="button"
+> 2610 |                 aria-expanded={isManualEntryOpen}
+       |                                ^
+  2611 |                 onClick={() => {
+  2612 |                   setActiveUploadType("manual");
+  2613 |                   setIsManualEntryOpen((open) => !open);
+⚠ Fast Refresh had to perform a full reload due to a runtime error.

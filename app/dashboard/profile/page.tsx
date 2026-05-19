@@ -3,7 +3,9 @@
 import {
   type CSSProperties,
   type ChangeEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -11,6 +13,12 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
+import {
+  SoundLogoAchievementBadge,
+  type AchievementBadgeItem,
+} from "@/components/dashboard/SoundAchievementBadgeRow";
 import { useProfile } from "@/components/profile/ProfileProvider";
 import { supabase } from "@/lib/supabaseClient";
 import { ROUTES } from "@/lib/routes";
@@ -74,9 +82,12 @@ type SelectorIconName =
   | "building"
   | "calendar-clock"
   | "car"
+  | "clipboard-list"
   | "clock"
   | "circle"
   | "circle-dot"
+  | "compass"
+  | "contact"
   | "dumbbell"
   | "footprints"
   | "graduation-cap"
@@ -90,6 +101,8 @@ type SelectorIconName =
   | "panel-top"
   | "plane"
   | "runner"
+  | "ruler"
+  | "scale"
   | "settings"
   | "shield"
   | "shuffle"
@@ -98,6 +111,7 @@ type SelectorIconName =
   | "stretch"
   | "trophy"
   | "trees"
+  | "utensils"
   | "user"
   | "users"
   | "wallet"
@@ -142,12 +156,18 @@ function SelectorIcon({
       return <svg {...iconProps}><path d="M8 2v4" /><path d="M16 2v4" /><rect height="18" rx="2" width="18" x="3" y="4" /><path d="M3 10h18" /><circle cx="12" cy="15" r="3" /><path d="M12 13.5V15l1 1" /></svg>;
     case "car":
       return <svg {...iconProps}><path d="M5 17h14" /><path d="M6 17v2" /><path d="M18 17v2" /><path d="M4 13 6 7a2 2 0 0 1 2-1h8a2 2 0 0 1 2 1l2 6" /><path d="M4 13h16v4H4z" /><path d="M7 13v.01" /><path d="M17 13v.01" /></svg>;
+    case "clipboard-list":
+      return <svg {...iconProps}><rect height="16" rx="2" width="14" x="5" y="5" /><path d="M9 5a3 3 0 0 1 6 0" /><path d="M9 11h.01" /><path d="M12 11h4" /><path d="M9 15h.01" /><path d="M12 15h4" /></svg>;
     case "clock":
       return <svg {...iconProps}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>;
     case "circle":
       return <svg {...iconProps}><circle cx="12" cy="12" r="8" /></svg>;
     case "circle-dot":
       return <svg {...iconProps}><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" /></svg>;
+    case "compass":
+      return <svg {...iconProps}><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z" /></svg>;
+    case "contact":
+      return <svg {...iconProps}><rect height="16" rx="2" width="14" x="5" y="4" /><circle cx="12" cy="10" r="2.5" /><path d="M8.5 18a3.5 3.5 0 0 1 7 0" /><path d="M3 8h2" /><path d="M3 16h2" /></svg>;
     case "dumbbell":
       return <svg {...iconProps}><path d="M6 7v10" /><path d="M18 7v10" /><path d="M3 9v6" /><path d="M21 9v6" /><path d="M6 12h12" /></svg>;
     case "footprints":
@@ -174,6 +194,10 @@ function SelectorIcon({
       return <svg {...iconProps}><path d="M22 2 11 13" /><path d="m22 2-7 20-4-9-9-4 20-7Z" /></svg>;
     case "runner":
       return <svg {...iconProps}><circle cx="13" cy="4" r="2" /><path d="m7 21 3-6" /><path d="m17 21-4-6-4-2 2-5 4 2 3 4" /><path d="M5 10h4" /></svg>;
+    case "ruler":
+      return <svg {...iconProps}><path d="m4 15 11-11 5 5L9 20l-5-5Z" /><path d="m8 11 2 2" /><path d="m11 8 2 2" /><path d="m14 5 2 2" /></svg>;
+    case "scale":
+      return <svg {...iconProps}><path d="M7 20h10" /><path d="M12 4v16" /><path d="M5 7h14" /><path d="m6 7-3 6h6L6 7Z" /><path d="m18 7-3 6h6l-3-6Z" /></svg>;
     case "settings":
       return <svg {...iconProps}><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1A2 2 0 1 1 7.1 4l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 1 1 19.9 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.7 1Z" /></svg>;
     case "shield":
@@ -190,6 +214,8 @@ function SelectorIcon({
       return <svg {...iconProps}><path d="M8 21h8" /><path d="M12 17v4" /><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" /><path d="M5 5H3v3a4 4 0 0 0 4 4" /><path d="M19 5h2v3a4 4 0 0 1-4 4" /></svg>;
     case "trees":
       return <svg {...iconProps}><path d="M6 18h12" /><path d="M6 18V9l-3 5h6L6 9Z" /><path d="M16 18V6l-4 7h8l-4-7Z" /></svg>;
+    case "utensils":
+      return <svg {...iconProps}><path d="M4 3v8" /><path d="M7 3v8" /><path d="M4 7h3" /><path d="M5.5 11v10" /><path d="M16 3c2 1.7 3 3.6 3 6s-1 4.3-3 6V3Z" /><path d="M16 15v6" /></svg>;
     case "user":
       return <svg {...iconProps}><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0 1 16 0" /></svg>;
     case "users":
@@ -205,10 +231,12 @@ function SelectorIcon({
 
 type ProfileTab =
   | "overview"
+  | "goals"
   | "readiness"
   | "training"
   | "recovery"
-  | "nutrition";
+  | "nutrition"
+  | "coachApp";
 
 type ProfileCompletionSection =
   | ProfileTab
@@ -238,12 +266,26 @@ type ProfileOrbiterCard = {
   completion: number;
   expandsToFullCard?: boolean;
   helper: string;
-  icon: string;
+  icon: SelectorIconName;
   label: string;
   references: string[];
   stat: string;
   tab: ProfileTab;
   targetId: string;
+  tone: string;
+};
+
+type ProfileHubOrbitItem = {
+  action?: "logout";
+  achievements?: AchievementBadgeItem[];
+  buttonLabel?: string;
+  helper: string;
+  href?: string;
+  icon: SelectorIconName;
+  label: string;
+  onSelect?: () => void;
+  references: string[];
+  stat: string;
   tone: string;
 };
 
@@ -398,13 +440,64 @@ type BodyMeasurements = {
 };
 
 type BodyMetricHistoryPoint = {
+  basalMetabolicRate?: string;
   bodyFat: string;
+  leanMass?: string;
+  metabolicAge?: string;
   muscleMass: string;
+  notes?: string;
+  provider?: string;
+  rawFileName?: string;
   savedAt: string;
   source: string;
+  sourceSystem?: string;
+  visceralFat?: string;
   waist: string;
   weight: string;
   weightTrend: string;
+};
+
+type BodyScanDataField =
+  | "savedAt"
+  | "provider"
+  | "weight"
+  | "bodyFat"
+  | "waist"
+  | "muscleMass"
+  | "leanMass"
+  | "visceralFat"
+  | "metabolicAge"
+  | "basalMetabolicRate"
+  | "notes";
+
+type BodyScanColumnMapping = Partial<Record<BodyScanDataField, string>>;
+
+type NormalizedBodyScanRecord = BodyMetricHistoryPoint & {
+  id: string;
+  importedAt: string;
+  mappedColumns?: BodyScanColumnMapping;
+  provider: string;
+};
+
+type BodyScanManualDraft = {
+  basalMetabolicRate: string;
+  bodyFat: string;
+  leanMass: string;
+  metabolicAge: string;
+  muscleMass: string;
+  notes: string;
+  provider: string;
+  scanDate: string;
+  visceralFat: string;
+  waist: string;
+  weight: string;
+};
+
+type BodyScanCsvPreview = {
+  fileName: string;
+  importedCount: number;
+  mappedColumns: BodyScanColumnMapping;
+  unmappedHeaders: string[];
 };
 
 type SoundFitnessProfile = {
@@ -417,6 +510,7 @@ type SoundFitnessProfile = {
   bodyModel: BodyModel;
   bodyFat: string;
   bodyMetricHistory: BodyMetricHistoryPoint[];
+  bodyScanImports: NormalizedBodyScanRecord[];
   bodyScanSource: string;
   bodyGoalMode: BodyGoalMode;
   bodyStatus: BodyStatus;
@@ -523,13 +617,20 @@ const profileOverviewMetricCardClass =
 
 const tabs: Array<{ id: ProfileTab; label: string }> = [
   { id: "overview", label: "Overview" },
+  { id: "goals", label: "Goals" },
   { id: "readiness", label: "Training Readiness" },
   { id: "recovery", label: "Pain / Recovery Profile" },
-  { id: "training", label: "Training" },
   { id: "nutrition", label: "Nutrition" },
+  { id: "coachApp", label: "Coach + App" },
 ];
-const profileDetailTabs = tabs.filter((tab) => tab.id !== "training");
+const profileDetailTabs = tabs.filter((tab) => tab.id !== "goals");
 const profileOrbiterCardStartRow = 1;
+const DEFAULT_PROFILE_HUB_INDEX = 1;
+const DEFAULT_PROFILE_HUB_ACCOUNT_INDEX = 0;
+const DEFAULT_PROFILE_HUB_LAYER = 1;
+const PROFILE_HUB_HORIZONTAL_DRAG_THRESHOLD = 56;
+const PROFILE_HUB_HORIZONTAL_WHEEL_THRESHOLD = 42;
+const PROFILE_ORBITER_VERTICAL_WHEEL_DELAY_MS = 760;
 const getProfileOrbiterRowForTab = (tabId: ProfileTab) => {
   const cardRowIndex = tabs.findIndex((tab) => tab.id === tabId);
   return profileOrbiterCardStartRow + Math.max(0, cardRowIndex);
@@ -2926,6 +3027,7 @@ const defaultProfile: SoundFitnessProfile = {
   gender: "male",
   bodyFat: "",
   bodyMetricHistory: [],
+  bodyScanImports: [],
   bodyScanSource: "Manual Entry",
   bodyGoalMode: "Maintain",
   bodyStatus: {
@@ -3097,13 +3199,175 @@ const getNumberFromProfileValue = (value: string, fallback: number) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const bodyScanImportProviders = [
+  "Manual Entry",
+  "CSV Import",
+  "InBody",
+  "Fit3D",
+  "DEXA",
+  "BodPod",
+  "Styku",
+  "Evolt 360",
+  "Tanita",
+  "Withings",
+  "Renpho",
+  "Garmin Index",
+  "Omron",
+  "Hologic/Lunar DEXA",
+  "Other",
+];
+
+const bodyScanDataFields = [
+  "savedAt",
+  "provider",
+  "weight",
+  "bodyFat",
+  "waist",
+  "muscleMass",
+  "leanMass",
+  "visceralFat",
+  "metabolicAge",
+  "basalMetabolicRate",
+  "notes",
+] as const satisfies readonly BodyScanDataField[];
+
+const bodyScanMetricDataFields = [
+  "weight",
+  "bodyFat",
+  "waist",
+  "muscleMass",
+  "leanMass",
+  "visceralFat",
+  "metabolicAge",
+  "basalMetabolicRate",
+] as const satisfies readonly BodyScanDataField[];
+
+const bodyScanFieldLabels: Record<BodyScanDataField, string> = {
+  basalMetabolicRate: "BMR / RMR",
+  bodyFat: "Body Fat %",
+  leanMass: "Lean Mass",
+  metabolicAge: "Metabolic Age",
+  muscleMass: "Muscle Mass",
+  notes: "Notes",
+  provider: "Provider",
+  savedAt: "Scan Date",
+  visceralFat: "Visceral Fat",
+  waist: "Waist",
+  weight: "Weight",
+};
+
+const bodyScanColumnAliases: Record<BodyScanDataField, string[]> = {
+  basalMetabolicRate: [
+    "bmr",
+    "basal metabolic rate",
+    "rmr",
+    "resting metabolic rate",
+  ],
+  bodyFat: [
+    "body fat",
+    "body fat percent",
+    "body fat %",
+    "bodyfat",
+    "fat percentage",
+    "pbf",
+    "percent body fat",
+  ],
+  leanMass: ["lean body mass", "lean mass", "fat free mass", "ffm"],
+  metabolicAge: ["metabolic age", "body age"],
+  muscleMass: [
+    "muscle mass",
+    "skeletal muscle mass",
+    "smm",
+    "dry lean mass",
+  ],
+  notes: ["note", "notes", "comment", "comments"],
+  provider: ["provider", "scanner", "device", "source", "scan type"],
+  savedAt: [
+    "date",
+    "datetime",
+    "measurement date",
+    "scan date",
+    "scan time",
+    "saved at",
+    "test date",
+  ],
+  visceralFat: [
+    "visceral adipose area",
+    "visceral fat",
+    "visceral fat area",
+    "visceral fat level",
+    "vfa",
+  ],
+  waist: ["abdomen", "waist", "waist circumference"],
+  weight: ["body weight", "total body weight", "weight", "wt"],
+};
+
+const getBlankBodyScanManualDraft = (): BodyScanManualDraft => ({
+  basalMetabolicRate: "",
+  bodyFat: "",
+  leanMass: "",
+  metabolicAge: "",
+  muscleMass: "",
+  notes: "",
+  provider: "Manual Entry",
+  scanDate: new Date().toISOString().slice(0, 10),
+  visceralFat: "",
+  waist: "",
+  weight: "",
+});
+
+const readBodyScanValue = (...values: unknown[]) => {
+  const found = values.find(
+    (value) =>
+      (typeof value === "string" && value.trim().length > 0) ||
+      (typeof value === "number" && Number.isFinite(value)),
+  );
+  return typeof found === "number" ? String(found) : typeof found === "string" ? found.trim() : "";
+};
+
+const normalizeBodyScanDate = (...values: unknown[]) => {
+  const value = readBodyScanValue(...values);
+  if (!value) return new Date().toISOString();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T00:00:00`;
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+};
+
+const normalizeBodyScanHeader = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/%/g, " percent ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const isBodyScanDataField = (value: string): value is BodyScanDataField =>
+  bodyScanDataFields.includes(value as BodyScanDataField);
+
+const normalizeBodyScanColumnMapping = (
+  value: unknown,
+): BodyScanColumnMapping => {
+  const record = asRecord(value);
+
+  return Object.entries(record).reduce<BodyScanColumnMapping>(
+    (mapping, [field, column]) => {
+      if (isBodyScanDataField(field) && typeof column === "string" && column) {
+        mapping[field] = column;
+      }
+
+      return mapping;
+    },
+    {},
+  );
+};
+
 const normalizeBodyMetricHistory = (
   history: unknown,
 ): BodyMetricHistoryPoint[] => {
   if (!Array.isArray(history)) return [];
 
   return history
-    .map((item) => {
+    .map<BodyMetricHistoryPoint | null>((item) => {
       const record = asRecord(item);
       const savedAt =
         typeof record.savedAt === "string" && record.savedAt
@@ -3114,30 +3378,24 @@ const normalizeBodyMetricHistory = (
       if (!savedAt) return null;
 
       return {
-        bodyFat:
-          typeof record.bodyFat === "string" || typeof record.bodyFat === "number"
-            ? String(record.bodyFat)
-            : "",
-        muscleMass:
-          typeof record.muscleMass === "string" ||
-          typeof record.muscleMass === "number"
-            ? String(record.muscleMass)
-            : "",
+        basalMetabolicRate: readBodyScanValue(record.basalMetabolicRate),
+        bodyFat: readBodyScanValue(record.bodyFat),
+        leanMass: readBodyScanValue(record.leanMass),
+        metabolicAge: readBodyScanValue(record.metabolicAge),
+        muscleMass: readBodyScanValue(record.muscleMass),
+        notes: readBodyScanValue(record.notes),
+        provider: readBodyScanValue(record.provider, record.source),
+        rawFileName: readBodyScanValue(record.rawFileName),
         savedAt,
-        source: typeof record.source === "string" ? record.source : "Manual Entry",
-        waist:
-          typeof record.waist === "string" || typeof record.waist === "number"
-            ? String(record.waist)
-            : "",
-        weight:
-          typeof record.weight === "string" || typeof record.weight === "number"
-            ? String(record.weight)
-            : "",
-        weightTrend:
-          typeof record.weightTrend === "string" ? record.weightTrend : "Not Sure",
+        source: readBodyScanValue(record.source, record.provider) || "Manual Entry",
+        sourceSystem: readBodyScanValue(record.sourceSystem),
+        visceralFat: readBodyScanValue(record.visceralFat),
+        waist: readBodyScanValue(record.waist),
+        weight: readBodyScanValue(record.weight),
+        weightTrend: readBodyScanValue(record.weightTrend) || "Not Sure",
       };
     })
-    .filter((item): item is BodyMetricHistoryPoint => Boolean(item))
+    .filter((item): item is BodyMetricHistoryPoint => item !== null)
     .slice(-36);
 };
 
@@ -3163,6 +3421,214 @@ const createBodyMetricHistoryPoint = (
     weight: profile.currentWeight || "",
     weightTrend: profile.bodyStatus.weightTrend || "Not Sure",
   };
+};
+
+const createNormalizedBodyScanRecord = ({
+  importedAt = new Date().toISOString(),
+  mappedColumns,
+  provider,
+  rawFileName,
+  scanDate,
+  values,
+}: {
+  importedAt?: string;
+  mappedColumns?: BodyScanColumnMapping;
+  provider: string;
+  rawFileName?: string;
+  scanDate?: string;
+  values: Partial<BodyScanManualDraft> &
+    Partial<Record<BodyScanDataField, string>> & { weightTrend?: string };
+}): NormalizedBodyScanRecord => {
+  const providerName =
+    readBodyScanValue(values.provider, provider) || "Manual Entry";
+  const savedAt = normalizeBodyScanDate(values.savedAt, scanDate, values.scanDate);
+  const weightTrend = readBodyScanValue(values.weightTrend) || "Not Sure";
+
+  return {
+    basalMetabolicRate: readBodyScanValue(values.basalMetabolicRate),
+    bodyFat: readBodyScanValue(values.bodyFat),
+    id: `body-scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    importedAt,
+    leanMass: readBodyScanValue(values.leanMass),
+    mappedColumns,
+    metabolicAge: readBodyScanValue(values.metabolicAge),
+    muscleMass: readBodyScanValue(values.muscleMass),
+    notes: readBodyScanValue(values.notes),
+    provider: providerName,
+    rawFileName,
+    savedAt,
+    source: providerName,
+    sourceSystem: providerName,
+    visceralFat: readBodyScanValue(values.visceralFat),
+    waist: readBodyScanValue(values.waist),
+    weight: readBodyScanValue(values.weight),
+    weightTrend,
+  };
+};
+
+const bodyScanRecordHasMetricData = (
+  record: Pick<
+    NormalizedBodyScanRecord,
+    | "basalMetabolicRate"
+    | "bodyFat"
+    | "leanMass"
+    | "metabolicAge"
+    | "muscleMass"
+    | "visceralFat"
+    | "waist"
+    | "weight"
+  >,
+) =>
+  bodyScanMetricDataFields.some((field) =>
+    readBodyScanValue(record[field as keyof typeof record]),
+  );
+
+const normalizeBodyScanImports = (
+  imports: unknown,
+): NormalizedBodyScanRecord[] => {
+  if (!Array.isArray(imports)) return [];
+
+  return imports
+    .map<NormalizedBodyScanRecord | null>((item, index) => {
+      const record = asRecord(item);
+      const savedAt = normalizeBodyScanDate(record.savedAt, record.date);
+      const provider = readBodyScanValue(record.provider, record.source) || "Manual Entry";
+      const normalized: NormalizedBodyScanRecord = {
+        basalMetabolicRate: readBodyScanValue(record.basalMetabolicRate),
+        bodyFat: readBodyScanValue(record.bodyFat),
+        id:
+          readBodyScanValue(record.id) ||
+          `legacy-body-scan-${index}-${savedAt.replace(/[^a-z0-9]/gi, "")}`,
+        importedAt: normalizeBodyScanDate(record.importedAt, savedAt),
+        leanMass: readBodyScanValue(record.leanMass),
+        mappedColumns: normalizeBodyScanColumnMapping(record.mappedColumns),
+        metabolicAge: readBodyScanValue(record.metabolicAge),
+        muscleMass: readBodyScanValue(record.muscleMass),
+        notes: readBodyScanValue(record.notes),
+        provider,
+        rawFileName: readBodyScanValue(record.rawFileName),
+        savedAt,
+        source: provider,
+        sourceSystem: readBodyScanValue(record.sourceSystem, provider),
+        visceralFat: readBodyScanValue(record.visceralFat),
+        waist: readBodyScanValue(record.waist),
+        weight: readBodyScanValue(record.weight),
+        weightTrend: readBodyScanValue(record.weightTrend) || "Not Sure",
+      };
+
+      return bodyScanRecordHasMetricData(normalized) ? normalized : null;
+    })
+    .filter((item): item is NormalizedBodyScanRecord => item !== null)
+    .slice(-50);
+};
+
+const parseBodyScanCsvRows = (text: string) => {
+  const parsedRows: string[][] = [];
+  let currentCell = "";
+  let currentRow: string[] = [];
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    const nextCharacter = text[index + 1];
+
+    if (character === '"' && inQuotes && nextCharacter === '"') {
+      currentCell += '"';
+      index += 1;
+      continue;
+    }
+
+    if (character === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (character === "," && !inQuotes) {
+      currentRow.push(currentCell.trim());
+      currentCell = "";
+      continue;
+    }
+
+    if ((character === "\n" || character === "\r") && !inQuotes) {
+      if (character === "\r" && nextCharacter === "\n") index += 1;
+      currentRow.push(currentCell.trim());
+      if (currentRow.some((cell) => cell.length > 0)) {
+        parsedRows.push(currentRow);
+      }
+      currentCell = "";
+      currentRow = [];
+      continue;
+    }
+
+    currentCell += character;
+  }
+
+  currentRow.push(currentCell.trim());
+  if (currentRow.some((cell) => cell.length > 0)) {
+    parsedRows.push(currentRow);
+  }
+
+  const headers =
+    parsedRows[0]?.map((header, index) => header || `Column ${index + 1}`) || [];
+  const rows = parsedRows.slice(1).map((row) =>
+    headers.reduce<Record<string, string>>((record, header, index) => {
+      record[header] = row[index] || "";
+      return record;
+    }, {}),
+  );
+
+  return { headers, rows };
+};
+
+const inferBodyScanColumnMapping = (
+  headers: string[],
+): BodyScanColumnMapping => {
+  const normalizedHeaders = headers.map((header) => {
+    const normalized = normalizeBodyScanHeader(header);
+    return {
+      compact: normalized.replace(/\s+/g, ""),
+      normalized,
+      raw: header,
+    };
+  });
+  const usedHeaders = new Set<string>();
+
+  return bodyScanDataFields.reduce<BodyScanColumnMapping>((mapping, field) => {
+    const aliases = bodyScanColumnAliases[field].map((alias) => {
+      const normalized = normalizeBodyScanHeader(alias);
+      return {
+        compact: normalized.replace(/\s+/g, ""),
+        normalized,
+      };
+    });
+    const match = normalizedHeaders.find((header) => {
+      if (usedHeaders.has(header.raw)) return false;
+
+      return aliases.some(
+        (alias) =>
+          header.normalized === alias.normalized ||
+          header.compact === alias.compact ||
+          (alias.normalized.length > 3 &&
+            header.normalized.includes(alias.normalized)),
+      );
+    });
+
+    if (match) {
+      mapping[field] = match.raw;
+      usedHeaders.add(match.raw);
+    }
+
+    return mapping;
+  }, {});
+};
+
+const readMappedBodyScanField = (
+  row: Record<string, string>,
+  mapping: BodyScanColumnMapping,
+  field: BodyScanDataField,
+) => {
+  const column = mapping[field];
+  return column ? readBodyScanValue(row[column]) : "";
 };
 
 const calculateAgeFromBirthday = (birthday: string) => {
@@ -3777,6 +4243,133 @@ const getCompletionTone = (percent: number) => {
   };
 };
 
+const getCompletionIndicatorTone = (percent: number) => {
+  if (percent >= 80) {
+    return {
+      activeButton:
+        "border-emerald-200/38 bg-emerald-300/12 text-emerald-50 shadow-[0_0_10px_rgba(52,211,153,0.14)]",
+      activeDot:
+        "bg-emerald-300 shadow-[0_0_6px_rgba(52,211,153,0.70)] ring-1 ring-emerald-100/45",
+      inactiveDot:
+        "bg-emerald-300/55 shadow-[0_0_3px_rgba(52,211,153,0.22)] hover:bg-emerald-200/90 hover:shadow-[0_0_6px_rgba(110,231,183,0.42)]",
+    };
+  }
+
+  if (percent >= 50) {
+    return {
+      activeButton:
+        "border-cyan-200/36 bg-cyan-300/12 text-cyan-50 shadow-[0_0_10px_rgba(34,211,238,0.14)]",
+      activeDot:
+        "bg-cyan-200 shadow-[0_0_6px_rgba(103,232,249,0.68)] ring-1 ring-cyan-100/45",
+      inactiveDot:
+        "bg-cyan-300/55 shadow-[0_0_3px_rgba(34,211,238,0.22)] hover:bg-cyan-200/90 hover:shadow-[0_0_6px_rgba(103,232,249,0.42)]",
+    };
+  }
+
+  if (percent >= 25) {
+    return {
+      activeButton:
+        "border-amber-200/36 bg-amber-300/12 text-amber-50 shadow-[0_0_10px_rgba(251,191,36,0.13)]",
+      activeDot:
+        "bg-amber-300 shadow-[0_0_6px_rgba(251,191,36,0.66)] ring-1 ring-amber-100/45",
+      inactiveDot:
+        "bg-amber-300/58 shadow-[0_0_3px_rgba(251,191,36,0.22)] hover:bg-amber-200/90 hover:shadow-[0_0_6px_rgba(253,230,138,0.42)]",
+    };
+  }
+
+  return {
+    activeButton:
+      "border-rose-200/36 bg-rose-300/12 text-rose-50 shadow-[0_0_10px_rgba(251,113,133,0.13)]",
+    activeDot:
+      "bg-rose-300 shadow-[0_0_6px_rgba(251,113,133,0.68)] ring-1 ring-rose-100/45",
+    inactiveDot:
+      "bg-rose-300/60 shadow-[0_0_3px_rgba(251,113,133,0.23)] hover:bg-rose-200/90 hover:shadow-[0_0_6px_rgba(254,205,211,0.42)]",
+  };
+};
+
+type ProfilePulseIndicatorStyle = CSSProperties & {
+  "--profile-indicator-glow": string;
+  "--profile-indicator-glow-dim": string;
+  "--profile-indicator-glow-soft": string;
+};
+
+type ProfilePulseIndicatorTone = {
+  dotActive: string;
+  dotInactive: string;
+  motion: "pulse" | "water";
+  outerActive: string;
+  outerInactive: string;
+  style: ProfilePulseIndicatorStyle;
+};
+
+const getProfilePulseIndicatorTone = (
+  percent: number,
+): ProfilePulseIndicatorTone => {
+  if (percent >= 80) {
+    return {
+      dotActive:
+        "bg-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.72)]",
+      dotInactive:
+        "bg-emerald-300/80 shadow-[0_0_10px_rgba(52,211,153,0.46)]",
+      motion: "water",
+      outerActive: "border-emerald-100/42 ring-1 ring-emerald-200/38",
+      outerInactive: "border-emerald-300/22 ring-1 ring-emerald-300/18",
+      style: {
+        "--profile-indicator-glow": "rgba(52,211,153,0.92)",
+        "--profile-indicator-glow-dim": "rgba(52,211,153,0.46)",
+        "--profile-indicator-glow-soft": "rgba(16,185,129,0.34)",
+      } as ProfilePulseIndicatorStyle,
+    };
+  }
+
+  if (percent >= 50) {
+    return {
+      dotActive: "bg-cyan-200 shadow-[0_0_12px_rgba(103,232,249,0.72)]",
+      dotInactive:
+        "bg-cyan-300/80 shadow-[0_0_10px_rgba(34,211,238,0.46)]",
+      motion: "pulse",
+      outerActive: "border-cyan-100/42 ring-1 ring-cyan-200/38",
+      outerInactive: "border-cyan-300/22 ring-1 ring-cyan-300/18",
+      style: {
+        "--profile-indicator-glow": "rgba(103,232,249,0.92)",
+        "--profile-indicator-glow-dim": "rgba(34,211,238,0.46)",
+        "--profile-indicator-glow-soft": "rgba(34,211,238,0.34)",
+      } as ProfilePulseIndicatorStyle,
+    };
+  }
+
+  if (percent >= 25) {
+    return {
+      dotActive:
+        "bg-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.72)]",
+      dotInactive:
+        "bg-amber-300/80 shadow-[0_0_10px_rgba(251,191,36,0.46)]",
+      motion: "pulse",
+      outerActive: "border-amber-100/42 ring-1 ring-amber-200/38",
+      outerInactive: "border-amber-300/22 ring-1 ring-amber-300/18",
+      style: {
+        "--profile-indicator-glow": "rgba(251,191,36,0.92)",
+        "--profile-indicator-glow-dim": "rgba(251,191,36,0.46)",
+        "--profile-indicator-glow-soft": "rgba(245,158,11,0.34)",
+      } as ProfilePulseIndicatorStyle,
+    };
+  }
+
+  return {
+    dotActive: "bg-rose-300 shadow-[0_0_12px_rgba(251,113,133,0.72)]",
+    dotInactive:
+      "bg-rose-300/80 shadow-[0_0_10px_rgba(251,113,133,0.46)]",
+    motion: "pulse",
+    outerActive: "border-rose-100/42 ring-1 ring-rose-200/38",
+    outerInactive: "border-rose-300/22 ring-1 ring-rose-300/18",
+    style: {
+      "--profile-indicator-glow": "rgba(251,113,133,0.92)",
+      "--profile-indicator-glow-dim": "rgba(251,113,133,0.46)",
+      "--profile-indicator-glow-soft": "rgba(244,63,94,0.34)",
+    } as ProfilePulseIndicatorStyle,
+  };
+};
+
 const getProfileTabCompletions = (
   profile: SoundFitnessProfile,
 ): Record<ProfileCompletionSection, number> => {
@@ -3843,6 +4436,7 @@ const getProfileTabCompletions = (
       profile.muscleMass,
       profile.bodyFat,
       profile.waist,
+      profile.bodyScanImports,
       profile.bodyScanSource,
       profile.bodyStatus.weightTrend,
     ]),
@@ -3961,6 +4555,19 @@ const getProfileTabCompletions = (
       profile.planDirectionNotes,
       profile.coachNotes,
     ]),
+    coachApp: calculateSectionCompletion([
+      profile.appPersonalization.defaultDashboardFocus,
+      profile.appPersonalization.preferredUnitSystem,
+      profile.appPersonalization.coachingTone,
+      profile.appPersonalization.anatomyBackground,
+      profile.appPersonalization.showAnatomyHeatMap,
+      profile.appPersonalization.showSkillTreePoints,
+      profile.appPersonalization.showRecoveryWarnings,
+      profile.planFlexibilityPreference,
+      profile.roboCoachGuidanceLevel,
+      profile.userNotes,
+      profile.coachNotes,
+    ]),
   };
 };
 
@@ -4026,6 +4633,7 @@ const mergeProfile = (saved: Partial<SoundFitnessProfile>): SoundFitnessProfile 
         : defaultBenchmarks,
     bodyModel: gender,
     bodyMetricHistory: normalizeBodyMetricHistory(saved.bodyMetricHistory),
+    bodyScanImports: normalizeBodyScanImports(saved.bodyScanImports),
     gender,
     availableEquipment,
     equipment: availableEquipment,
@@ -5958,6 +6566,7 @@ export default function ClientProfilePage() {
     setProfile: setSharedProfile,
     updateProfile,
   } = useProfile();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<ProfileTab>("overview");
   const tabSliderRef = useRef<HTMLDivElement | null>(null);
   const tabButtonRefs = useRef<Partial<Record<ProfileTab, HTMLButtonElement | null>>>({});
@@ -5975,18 +6584,70 @@ export default function ClientProfilePage() {
   const [activeProfileOrbiterIndices, setActiveProfileOrbiterIndices] =
     useState<Record<string, number>>({});
   const [activeProfileOrbiterRow, setActiveProfileOrbiterRow] = useState(0);
+  const [activeProfileDashboardIndex, setActiveProfileDashboardIndex] =
+    useState(0);
+  const [profileDashboardSlideDirection, setProfileDashboardSlideDirection] =
+    useState<"left" | "right">("right");
   const [openProfileOrbiterDetails, setOpenProfileOrbiterDetails] =
     useState<string | null>(null);
   const [expandedProfileOrbiterCard, setExpandedProfileOrbiterCard] =
     useState<string | null>(null);
+  const [profileOrbiterRailExpanded, setProfileOrbiterRailExpanded] =
+    useState(false);
+  const [activeProfileHubIndex, setActiveProfileHubIndex] = useState(
+    DEFAULT_PROFILE_HUB_INDEX,
+  );
+  const [activeProfileHubAccountIndex, setActiveProfileHubAccountIndex] =
+    useState(DEFAULT_PROFILE_HUB_ACCOUNT_INDEX);
+  const [activeProfileHubLayer, setActiveProfileHubLayer] = useState(
+    DEFAULT_PROFILE_HUB_LAYER,
+  );
+  const activeProfileHubLayerRef = useRef(DEFAULT_PROFILE_HUB_LAYER);
+  const [profileHubLayerCardHeights, setProfileHubLayerCardHeights] = useState<
+    number[]
+  >([]);
+  const [profileHubRowTitleHeights, setProfileHubRowTitleHeights] = useState<
+    number[]
+  >([]);
+  const [profileHubLayerMotionOffset, setProfileHubLayerMotionOffset] =
+    useState(0);
+  const [profileHubHorizontalMotionOffset, setProfileHubHorizontalMotionOffset] =
+    useState(0);
+  const [profileHubOpen, setProfileHubOpen] = useState(false);
+  const [profileHubMounted, setProfileHubMounted] = useState(false);
+  const [openProfileHubDetailKey, setOpenProfileHubDetailKey] = useState<
+    string | null
+  >(null);
   const [activeBodyMetricOrbiterIndex, setActiveBodyMetricOrbiterIndex] =
     useState(0);
+  const profileHubOverlayRef = useRef<HTMLDivElement | null>(null);
+  const profileHubLayerCardRefs = useRef<(HTMLElement | null)[]>([]);
+  const profileHubRowTitleRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const profileHubLayerPointerStartRef = useRef<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const profileHubLayerPointerMovedRef = useRef(false);
+  const profileHubMainOrbitPointerStartRef = useRef<number | null>(null);
+  const profileHubMainOrbitPointerMovedRef = useRef(false);
+  const profileHubAccountOrbitPointerStartRef = useRef<number | null>(null);
+  const profileHubAccountOrbitPointerMovedRef = useRef(false);
+  const profileHubLayerWheelDeltaRef = useRef(0);
+  const profileHubLayerWheelLockRef = useRef(0);
+  const profileHubLayerWheelResetRef = useRef<number | null>(null);
+  const profileHubHorizontalWheelDeltaRef = useRef(0);
+  const profileHubHorizontalWheelLockRef = useRef(0);
+  const profileHubHorizontalWheelResetRef = useRef<number | null>(null);
+  const profileHubFadeFrameRef = useRef<number | null>(null);
   const profileOrbiterPointerStartRef = useRef<{
     x: number;
     y: number;
   } | null>(null);
   const profileOrbiterPointerMovedRef = useRef(false);
   const profileOrbiterWheelLockRef = useRef(false);
+  const profileOrbiterScrollSyncLockRef = useRef(false);
+  const profileOrbiterScrollSyncTimerRef = useRef<number | null>(null);
+  const profileOrbiterRailCollapseTimerRef = useRef<number | null>(null);
   const profileOrbiterRef = useRef<HTMLElement | null>(null);
   const profileOrbiterViewportRef = useRef<HTMLDivElement | null>(null);
   const profileHeroRowRef = useRef<HTMLElement | null>(null);
@@ -6008,6 +6669,176 @@ export default function ClientProfilePage() {
     if (deltaY > 0) return scrollArea.scrollTop < overflow - 2;
     return false;
   };
+  const resetProfileHubDefaults = useCallback(() => {
+    setActiveProfileHubIndex(DEFAULT_PROFILE_HUB_INDEX);
+    setActiveProfileHubAccountIndex(DEFAULT_PROFILE_HUB_ACCOUNT_INDEX);
+    setActiveProfileHubLayer(DEFAULT_PROFILE_HUB_LAYER);
+    activeProfileHubLayerRef.current = DEFAULT_PROFILE_HUB_LAYER;
+    setOpenProfileHubDetailKey(null);
+    setProfileHubLayerMotionOffset(0);
+    setProfileHubHorizontalMotionOffset(0);
+  }, []);
+  const openProfileHub = useCallback(() => {
+    resetProfileHubDefaults();
+    setProfileHubMounted(true);
+
+    if (profileHubFadeFrameRef.current !== null) {
+      cancelAnimationFrame(profileHubFadeFrameRef.current);
+    }
+
+    profileHubFadeFrameRef.current = requestAnimationFrame(() => {
+      profileHubFadeFrameRef.current = null;
+      setProfileHubOpen(true);
+    });
+  }, [resetProfileHubDefaults]);
+  const closeProfileHub = useCallback(() => {
+    if (profileHubFadeFrameRef.current !== null) {
+      cancelAnimationFrame(profileHubFadeFrameRef.current);
+      profileHubFadeFrameRef.current = null;
+    }
+
+    setProfileHubOpen(false);
+  }, []);
+  const toggleProfileHub = useCallback(() => {
+    if (profileHubOpen) {
+      closeProfileHub();
+      return;
+    }
+
+    openProfileHub();
+  }, [closeProfileHub, openProfileHub, profileHubOpen]);
+  const signOutFromProfileHub = useCallback(async () => {
+    closeProfileHub();
+    await supabase.auth.signOut();
+    router.push(ROUTES.auth.login);
+    router.refresh();
+  }, [closeProfileHub, router]);
+  const expandProfileOrbiterRail = useCallback(() => {
+    if (profileOrbiterRailCollapseTimerRef.current) {
+      window.clearTimeout(profileOrbiterRailCollapseTimerRef.current);
+      profileOrbiterRailCollapseTimerRef.current = null;
+    }
+
+    setProfileOrbiterRailExpanded(true);
+  }, []);
+  const collapseProfileOrbiterRail = useCallback(() => {
+    if (profileOrbiterRailCollapseTimerRef.current) {
+      window.clearTimeout(profileOrbiterRailCollapseTimerRef.current);
+    }
+
+    profileOrbiterRailCollapseTimerRef.current = window.setTimeout(() => {
+      setProfileOrbiterRailExpanded(false);
+      profileOrbiterRailCollapseTimerRef.current = null;
+    }, 240);
+  }, []);
+  useEffect(() => {
+    activeProfileHubLayerRef.current = activeProfileHubLayer;
+  }, [activeProfileHubLayer]);
+  useEffect(() => {
+    if (profileHubOpen) {
+      setProfileHubMounted(true);
+      return;
+    }
+
+    if (!profileHubMounted) return;
+
+    const unmountTimer = window.setTimeout(() => {
+      setProfileHubMounted(false);
+    }, 420);
+
+    return () => {
+      window.clearTimeout(unmountTimer);
+    };
+  }, [profileHubMounted, profileHubOpen]);
+  useEffect(() => {
+    if (!profileHubOpen) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      const clickedProfileOverlay =
+        profileHubOverlayRef.current?.contains(target) ?? false;
+
+      if (!clickedProfileOverlay) {
+        closeProfileHub();
+      }
+    };
+    const handleProfileHubKeyDown = (event: globalThis.KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const isTypingTarget =
+        target instanceof HTMLElement &&
+        ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName);
+
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeProfileHub();
+        return;
+      }
+
+      if (isTypingTarget) return;
+
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        setActiveProfileHubLayer((currentLayer) => {
+          const nextLayer = Math.max(0, currentLayer - 1);
+          activeProfileHubLayerRef.current = nextLayer;
+          return nextLayer;
+        });
+      }
+
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        setActiveProfileHubLayer((currentLayer) => {
+          const nextLayer = Math.min(2, currentLayer + 1);
+          activeProfileHubLayerRef.current = nextLayer;
+          return nextLayer;
+        });
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleProfileHubKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleProfileHubKeyDown);
+    };
+  }, [closeProfileHub, profileHubOpen]);
+  useEffect(() => {
+    if (!profileHubOpen) return;
+
+    let animationFrame = 0;
+    const arraysMatch = (left: number[], right: number[]) =>
+      left.length === right.length &&
+      left.every((value, index) => value === right[index]);
+    const updateMeasurements = () => {
+      const nextCardHeights = Array.from(
+        { length: 3 },
+        (_, layer) => profileHubLayerCardRefs.current[layer]?.offsetHeight || 0,
+      );
+      const nextTitleHeights = Array.from(
+        { length: 3 },
+        (_, layer) => profileHubRowTitleRefs.current[layer]?.offsetHeight || 0,
+      );
+
+      setProfileHubLayerCardHeights((current) =>
+        arraysMatch(current, nextCardHeights) ? current : nextCardHeights,
+      );
+      setProfileHubRowTitleHeights((current) =>
+        arraysMatch(current, nextTitleHeights) ? current : nextTitleHeights,
+      );
+      animationFrame = window.requestAnimationFrame(updateMeasurements);
+    };
+
+    animationFrame = window.requestAnimationFrame(updateMeasurements);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+    };
+  }, [profileHubOpen]);
   const scrollProfileOrbiterIntoView = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
       window.requestAnimationFrame(() => {
@@ -6035,6 +6866,15 @@ export default function ClientProfilePage() {
   );
   const scrollProfileOrbiterViewportToRow = useCallback(
     (row: number, behavior: ScrollBehavior = "smooth") => {
+      profileOrbiterScrollSyncLockRef.current = true;
+      if (profileOrbiterScrollSyncTimerRef.current) {
+        window.clearTimeout(profileOrbiterScrollSyncTimerRef.current);
+      }
+      profileOrbiterScrollSyncTimerRef.current = window.setTimeout(() => {
+        profileOrbiterScrollSyncLockRef.current = false;
+        profileOrbiterScrollSyncTimerRef.current = null;
+      }, behavior === "smooth" ? 680 : 140);
+
       window.requestAnimationFrame(() => {
         const viewport = profileOrbiterViewportRef.current;
         const target =
@@ -6044,14 +6884,17 @@ export default function ClientProfilePage() {
         if (!viewport || !target) return;
 
         const rowTop = target.offsetTop;
+        const rowHeight = target.offsetHeight;
         const centeredOffset = Math.max(
           0,
-          (viewport.clientHeight - target.clientHeight) / 2,
+          (viewport.clientHeight - rowHeight) / 2,
         );
+        const maxScroll = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+        const targetTop = row === 0 ? 0 : rowTop - centeredOffset;
 
         viewport.scrollTo({
           behavior,
-          top: Math.max(0, rowTop - centeredOffset),
+          top: Math.max(0, Math.min(maxScroll, targetTop)),
         });
       });
     },
@@ -6113,6 +6956,12 @@ export default function ClientProfilePage() {
   const [birthdayDraft, setBirthdayDraft] = useState<BirthdayParts>(() =>
     getBirthdayParts(defaultProfile.birthday),
   );
+  const [bodyScanManualDraft, setBodyScanManualDraft] =
+    useState<BodyScanManualDraft>(() => getBlankBodyScanManualDraft());
+  const [bodyScanCsvPreview, setBodyScanCsvPreview] =
+    useState<BodyScanCsvPreview | null>(null);
+  const [bodyScanImportMessage, setBodyScanImportMessage] = useState("");
+  const [bodyScanArtifactMessage, setBodyScanArtifactMessage] = useState("");
   const [customMeasurementLabel, setCustomMeasurementLabel] = useState("");
   const [customMeasurementValue, setCustomMeasurementValue] = useState("");
   const [customMeasurementsOpen, setCustomMeasurementsOpen] = useState(false);
@@ -6155,6 +7004,10 @@ export default function ClientProfilePage() {
     useState({ canScrollLeft: false, canScrollRight: true });
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("soundFitnessDashboardProfileVisited", "true");
+    }
+
     let isMounted = true;
 
     async function loadProfile() {
@@ -6263,6 +7116,15 @@ export default function ClientProfilePage() {
     profileRecord.soundPoints || profileRecord.points || 0,
   );
   const soundPoints = Number.isFinite(soundPointsValue) ? soundPointsValue : 0;
+  const soundTokensValue = Number(
+    profileRecord.soundTokens ??
+      profileRecord.tokens ??
+      profileRecord.soundTokenCount ??
+      profileRecord.tokenCount ??
+      profileRecord.sound_token_count ??
+      0,
+  );
+  const soundTokens = Number.isFinite(soundTokensValue) ? soundTokensValue : 0;
 
   const activeLimitations = profile.injuries.filter((injury) => injury.painLevel > 0);
 
@@ -6308,6 +7170,101 @@ export default function ClientProfilePage() {
     () => getProfileTabCompletions(profile),
     [profile],
   );
+  const profileHeaderDashboardLinks = useMemo(
+    () =>
+      [
+        {
+          href: ROUTES.dashboard.profile,
+          icon: "user" as SelectorIconName,
+          label: "Profile",
+          meta: "Identity",
+          points: soundPoints,
+          tone:
+            "border-cyan-100/50 bg-cyan-300 text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.24)]",
+        },
+        {
+          href: ROUTES.dashboard.goals,
+          icon: "compass" as SelectorIconName,
+          label: "Goals",
+          meta: "Direction",
+          points: Math.round(soundPoints * 0.68),
+          tone:
+            "border-amber-200/34 bg-amber-300/12 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/18",
+        },
+        {
+          href: ROUTES.dashboard.sessions,
+          icon: "dumbbell" as SelectorIconName,
+          label: "Workout",
+          meta: "Sessions",
+          points: Math.round(soundPoints * 0.82),
+          tone:
+            "border-sky-200/28 bg-sky-300/10 text-sky-100 hover:border-sky-100/45 hover:bg-sky-300/16",
+        },
+        {
+          href: ROUTES.nutritionPortal.home,
+          icon: "utensils" as SelectorIconName,
+          label: "Nutrition",
+          meta: "Fuel",
+          points: Math.round(soundPoints * 0.38),
+          tone:
+            "border-emerald-200/28 bg-emerald-300/10 text-emerald-100 hover:border-emerald-100/45 hover:bg-emerald-300/16",
+        },
+        {
+          href: ROUTES.dashboard.recovery,
+          icon: "heart-pulse" as SelectorIconName,
+          label: "Recovery",
+          meta: "Readiness",
+          points: Math.round(soundPoints * 0.24),
+          tone:
+            "border-violet-200/28 bg-violet-300/10 text-violet-100 hover:border-violet-100/45 hover:bg-violet-300/16",
+        },
+        {
+          href: ROUTES.performance.home,
+          icon: "activity" as SelectorIconName,
+          label: "Performance",
+          meta: "Athletic",
+          points: Math.round(soundPoints * 0.46),
+          tone:
+            "border-amber-200/30 bg-amber-300/10 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/16",
+        },
+        {
+          href: ROUTES.learning.home,
+          icon: "brain" as SelectorIconName,
+          label: "Education",
+          meta: "Learning",
+          points: Math.round(soundPoints * 0.12),
+          tone:
+            "border-blue-200/28 bg-blue-300/10 text-blue-100 hover:border-blue-100/45 hover:bg-blue-300/16",
+        },
+        {
+          href: ROUTES.soundworld.home,
+          icon: "sparkles" as SelectorIconName,
+          label: "Sound World",
+          meta: "Community",
+          points: Math.round(soundPoints * 0.08),
+          tone:
+            "border-pink-200/28 bg-pink-300/10 text-pink-100 hover:border-pink-100/45 hover:bg-pink-300/16",
+        },
+      ] as const,
+    [soundPoints],
+  );
+  const activeProfileDashboardLink =
+    profileHeaderDashboardLinks[
+      activeProfileDashboardIndex % profileHeaderDashboardLinks.length
+    ] || profileHeaderDashboardLinks[0];
+  const profileGoalsDashboardLink =
+    profileHeaderDashboardLinks.find(
+      (dashboardLink) => dashboardLink.href === ROUTES.dashboard.goals,
+    ) || profileHeaderDashboardLinks[1];
+  const rotateProfileDashboardRail = (direction: "left" | "right") => {
+    setProfileDashboardSlideDirection(direction);
+    setActiveProfileDashboardIndex((currentIndex) =>
+      direction === "left"
+        ? (currentIndex - 1 + profileHeaderDashboardLinks.length) %
+          profileHeaderDashboardLinks.length
+        : (currentIndex + 1) % profileHeaderDashboardLinks.length,
+    );
+  };
   const planReadiness = useMemo(() => {
     const readinessSectionIds: ProfileCompletionSection[] = [
       "overview",
@@ -6568,6 +7525,21 @@ export default function ClientProfilePage() {
       if (goalCompassScrollTimerRef.current) {
         window.clearTimeout(goalCompassScrollTimerRef.current);
       }
+      if (profileOrbiterScrollSyncTimerRef.current) {
+        window.clearTimeout(profileOrbiterScrollSyncTimerRef.current);
+      }
+      if (profileOrbiterRailCollapseTimerRef.current) {
+        window.clearTimeout(profileOrbiterRailCollapseTimerRef.current);
+      }
+      if (profileHubFadeFrameRef.current !== null) {
+        window.cancelAnimationFrame(profileHubFadeFrameRef.current);
+      }
+      if (profileHubLayerWheelResetRef.current) {
+        window.clearTimeout(profileHubLayerWheelResetRef.current);
+      }
+      if (profileHubHorizontalWheelResetRef.current) {
+        window.clearTimeout(profileHubHorizontalWheelResetRef.current);
+      }
     };
   }, []);
 
@@ -6657,6 +7629,154 @@ export default function ClientProfilePage() {
     value: SoundFitnessProfile[K],
   ) => {
     setProfile((current) => ({ ...current, [key]: value }));
+  };
+
+  const flashBodyScanImportMessage = (value: string) => {
+    setBodyScanImportMessage(value);
+    window.setTimeout(() => setBodyScanImportMessage(""), 3600);
+  };
+
+  const updateBodyScanManualDraft = <K extends keyof BodyScanManualDraft>(
+    key: K,
+    value: BodyScanManualDraft[K],
+  ) => {
+    setBodyScanManualDraft((current) => ({ ...current, [key]: value }));
+  };
+
+  const appendBodyScanRecords = (records: NormalizedBodyScanRecord[]) => {
+    const importableRecords = records.filter(bodyScanRecordHasMetricData);
+    if (!importableRecords.length) return;
+
+    setProfile((current) => {
+      const currentImports = normalizeBodyScanImports(current.bodyScanImports);
+      const currentHistory = normalizeBodyMetricHistory(current.bodyMetricHistory);
+      const latestRecord = importableRecords[importableRecords.length - 1];
+      const updatedMeasurements = {
+        ...current.measurements,
+        bodyFat: latestRecord.bodyFat || current.measurements.bodyFat,
+        lastUpdated: latestRecord.savedAt || new Date().toISOString(),
+        waist: latestRecord.waist || current.measurements.waist,
+      };
+
+      return {
+        ...current,
+        bodyFat: latestRecord.bodyFat || current.bodyFat,
+        bodyMetricHistory: [...currentHistory, ...importableRecords].slice(-36),
+        bodyScanImports: [...currentImports, ...importableRecords].slice(-50),
+        bodyScanSource: latestRecord.provider || current.bodyScanSource,
+        currentWeight: latestRecord.weight || current.currentWeight,
+        measurements: updatedMeasurements,
+        muscleMass: latestRecord.muscleMass || current.muscleMass,
+        waist: latestRecord.waist || current.waist,
+      };
+    });
+  };
+
+  const handleManualBodyScanImport = () => {
+    const record = createNormalizedBodyScanRecord({
+      provider: bodyScanManualDraft.provider || "Manual Entry",
+      scanDate: bodyScanManualDraft.scanDate,
+      values: {
+        ...bodyScanManualDraft,
+        weightTrend: profile.bodyStatus.weightTrend,
+      },
+    });
+
+    if (!bodyScanRecordHasMetricData(record)) {
+      flashBodyScanImportMessage("Add at least one body scan value to import.");
+      return;
+    }
+
+    appendBodyScanRecords([record]);
+    setBodyScanManualDraft(getBlankBodyScanManualDraft());
+    flashBodyScanImportMessage("Manual body scan imported into profile metrics.");
+  };
+
+  const handleBodyScanCsvUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = typeof reader.result === "string" ? reader.result : "";
+      const parsed = parseBodyScanCsvRows(text);
+      const mapping = inferBodyScanColumnMapping(parsed.headers);
+      const mappedHeaders = new Set(Object.values(mapping).filter(Boolean));
+      const unmappedHeaders = parsed.headers.filter((header) => !mappedHeaders.has(header));
+      const importedAt = new Date().toISOString();
+      const records = parsed.rows
+        .map((row) =>
+          createNormalizedBodyScanRecord({
+            importedAt,
+            mappedColumns: mapping,
+            provider: readMappedBodyScanField(row, mapping, "provider") || "CSV Import",
+            rawFileName: file.name,
+            scanDate: readMappedBodyScanField(row, mapping, "savedAt"),
+            values: {
+              basalMetabolicRate: readMappedBodyScanField(
+                row,
+                mapping,
+                "basalMetabolicRate",
+              ),
+              bodyFat: readMappedBodyScanField(row, mapping, "bodyFat"),
+              leanMass: readMappedBodyScanField(row, mapping, "leanMass"),
+              metabolicAge: readMappedBodyScanField(row, mapping, "metabolicAge"),
+              muscleMass: readMappedBodyScanField(row, mapping, "muscleMass"),
+              notes: readMappedBodyScanField(row, mapping, "notes"),
+              provider: readMappedBodyScanField(row, mapping, "provider"),
+              savedAt: readMappedBodyScanField(row, mapping, "savedAt"),
+              visceralFat: readMappedBodyScanField(row, mapping, "visceralFat"),
+              waist: readMappedBodyScanField(row, mapping, "waist"),
+              weight: readMappedBodyScanField(row, mapping, "weight"),
+              weightTrend: profile.bodyStatus.weightTrend,
+            },
+          }),
+        )
+        .filter(bodyScanRecordHasMetricData);
+
+      setBodyScanCsvPreview({
+        fileName: file.name,
+        importedCount: records.length,
+        mappedColumns: mapping,
+        unmappedHeaders,
+      });
+
+      if (!records.length) {
+        flashBodyScanImportMessage("CSV uploaded, but no mapped body scan values were found.");
+        return;
+      }
+
+      appendBodyScanRecords(records);
+      flashBodyScanImportMessage(
+        `Imported ${records.length} body scan ${records.length === 1 ? "row" : "rows"} from CSV.`,
+      );
+    };
+    reader.readAsText(file);
+  };
+
+  const handleBodyScanArtifactUpload = (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const accepted =
+      file.type.startsWith("image/") ||
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".pdf");
+
+    if (!accepted) {
+      setBodyScanArtifactMessage("Choose a body scan photo or PDF.");
+      window.setTimeout(() => setBodyScanArtifactMessage(""), 3600);
+      return;
+    }
+
+    setBodyScanArtifactMessage(
+      `${file.name} is staged for future OCR/manual review. Use manual or CSV import for profile values today.`,
+    );
+    window.setTimeout(() => setBodyScanArtifactMessage(""), 5200);
   };
 
   const setGender = (gender: BodyModel) => {
@@ -7324,6 +8444,7 @@ export default function ClientProfilePage() {
     const bodyMetricHistory = normalizeBodyMetricHistory(
       profile.bodyMetricHistory,
     );
+    const bodyScanImports = normalizeBodyScanImports(profile.bodyScanImports);
     const bodyMetricSnapshot = createBodyMetricHistoryPoint(profile, updatedAt);
     const nextBodyMetricHistory = bodyMetricSnapshot
       ? [...bodyMetricHistory, bodyMetricSnapshot].slice(-36)
@@ -7337,6 +8458,7 @@ export default function ClientProfilePage() {
       availableEquipment,
       avatarUrl: profileImage,
       bodyMetricHistory: nextBodyMetricHistory,
+      bodyScanImports,
       bodyModel: gender,
       cardioPreference: firstPreferenceValue(
         cardioPreferences,
@@ -9063,6 +10185,28 @@ export default function ClientProfilePage() {
           bodyMetricOrbiterCount,
       );
     };
+    const shouldIgnoreBodyMetricOrbiterKeyTarget = (target: EventTarget | null) =>
+      target instanceof HTMLElement &&
+      Boolean(
+        target.closest(
+          "button,a,input,select,textarea,label,[contenteditable='true']",
+        ),
+      );
+    const handleBodyMetricOrbiterKeyDown = (
+      event: ReactKeyboardEvent<HTMLElement>,
+    ) => {
+      if (shouldIgnoreBodyMetricOrbiterKeyTarget(event.target)) return;
+
+      if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        event.preventDefault();
+        moveBodyMetricOrbiter(-1);
+      }
+
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+        event.preventDefault();
+        moveBodyMetricOrbiter(1);
+      }
+    };
     const renderBodyMetricPreview = (index: number, side: "previous" | "next") => {
       const item = bodyMetricOrbiterItems[index];
       const valueLabel = `${formatProfileNumber(
@@ -9095,14 +10239,23 @@ export default function ClientProfilePage() {
         (safeBodyMetricOrbiterIndex + 1) % bodyMetricOrbiterCount;
 
       return (
-        <section className="rounded-[24px] border border-cyan-200/14 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_34%),rgba(15,23,42,0.46)] p-3 shadow-[0_0_32px_rgba(34,211,238,0.06),inset_0_1px_0_rgba(255,255,255,0.08)]">
+        <section
+          aria-label="Body metric orbiter"
+          className="rounded-[24px] border border-cyan-200/14 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_34%),rgba(15,23,42,0.46)] p-3 shadow-[0_0_32px_rgba(34,211,238,0.06),inset_0_1px_0_rgba(255,255,255,0.08)] outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/35"
+          onKeyDown={handleBodyMetricOrbiterKeyDown}
+          role="group"
+          tabIndex={0}
+        >
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100">
                 Body Metric Orbiter
               </p>
               <p className="mt-0.5 text-[11px] font-semibold text-slate-400">
-                Weight, waist, muscle mass, and body fat.
+                Weight, waist, muscle mass, and body fat.{" "}
+                <span className="text-cyan-100/70">
+                  Only share what you want used for coaching context.
+                </span>
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -9347,15 +10500,309 @@ export default function ClientProfilePage() {
         </section>
       );
     };
-    const bodyScanSources = ["Manual Entry", "InBody", "Fit3D"];
+    const renderBodyScanImportPanel = () => {
+      const bodyScanHistoryRows = normalizeBodyScanImports(
+        profile.bodyScanImports,
+      )
+        .slice(-8)
+        .reverse();
+      const manualBodyScanHasValues = bodyScanMetricDataFields.some((field) =>
+        readBodyScanValue(bodyScanManualDraft[field as keyof BodyScanManualDraft]),
+      );
+      const mappedColumnEntries = bodyScanCsvPreview
+        ? Object.entries(bodyScanCsvPreview.mappedColumns).filter(
+            ([, column]) => Boolean(column),
+          )
+        : [];
+      const providerChips = bodyScanImportProviders.filter(
+        (provider) => provider !== "Manual Entry" && provider !== "CSV Import",
+      );
+
+      return (
+        <section className="mt-3 rounded-[24px] border border-cyan-100/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.14),transparent_34%),radial-gradient(circle_at_86%_8%,rgba(167,139,250,0.13),transparent_36%),rgba(15,23,42,0.56)] p-3 shadow-[0_0_38px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.10)]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-cyan-100">
+                  Body Scan Import
+                </p>
+                <InfoBubble label="Body Scan Import">
+                  Imports normalize scan data into weight, body fat, waist, muscle
+                  mass, lean mass, visceral fat, metabolic age, and BMR fields.
+                </InfoBubble>
+              </div>
+              <p className="mt-1 text-[11px] font-semibold leading-5 text-slate-400">
+                Manual, CSV, and staged photo/PDF scan intake.
+              </p>
+            </div>
+            <span className="rounded-full border border-cyan-200/18 bg-cyan-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
+              {bodyScanHistoryRows.length} scans
+            </span>
+          </div>
+
+          <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {providerChips.map((provider) => (
+              <span
+                key={provider}
+                className="shrink-0 rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-slate-300"
+              >
+                {provider}
+              </span>
+            ))}
+          </div>
+
+          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1.08fr)_minmax(260px,0.92fr)]">
+            <div className="rounded-[20px] border border-white/10 bg-slate-950/38 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white">
+                  Manual Entry
+                </p>
+                <button
+                  type="button"
+                  disabled={!manualBodyScanHasValues}
+                  onClick={handleManualBodyScanImport}
+                  className="rounded-2xl border border-cyan-100/24 bg-cyan-300/14 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-50 transition hover:border-cyan-100/42 hover:bg-cyan-300/20 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-white/[0.035] disabled:text-slate-600"
+                >
+                  Import Manual Scan
+                </button>
+              </div>
+
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                <SelectField
+                  label="Provider"
+                  onChange={(value) => updateBodyScanManualDraft("provider", value)}
+                  options={bodyScanImportProviders}
+                  value={bodyScanManualDraft.provider}
+                />
+                <Field
+                  label="Scan Date"
+                  onChange={(value) => updateBodyScanManualDraft("scanDate", value)}
+                  type="date"
+                  value={bodyScanManualDraft.scanDate}
+                />
+                <Field
+                  label={`Weight (${weightUnit})`}
+                  onChange={(value) => updateBodyScanManualDraft("weight", value)}
+                  placeholder="180"
+                  value={bodyScanManualDraft.weight}
+                />
+                <Field
+                  label="Body Fat %"
+                  onChange={(value) => updateBodyScanManualDraft("bodyFat", value)}
+                  placeholder="18.5"
+                  value={bodyScanManualDraft.bodyFat}
+                />
+                <Field
+                  label="Waist"
+                  onChange={(value) => updateBodyScanManualDraft("waist", value)}
+                  placeholder="34"
+                  value={bodyScanManualDraft.waist}
+                />
+                <Field
+                  label="Muscle Mass"
+                  onChange={(value) => updateBodyScanManualDraft("muscleMass", value)}
+                  placeholder="145"
+                  value={bodyScanManualDraft.muscleMass}
+                />
+                <Field
+                  label="Lean Mass"
+                  onChange={(value) => updateBodyScanManualDraft("leanMass", value)}
+                  placeholder="150"
+                  value={bodyScanManualDraft.leanMass}
+                />
+                <Field
+                  label="Visceral Fat"
+                  onChange={(value) => updateBodyScanManualDraft("visceralFat", value)}
+                  placeholder="8"
+                  value={bodyScanManualDraft.visceralFat}
+                />
+                <Field
+                  label="Metabolic Age"
+                  onChange={(value) => updateBodyScanManualDraft("metabolicAge", value)}
+                  placeholder="31"
+                  value={bodyScanManualDraft.metabolicAge}
+                />
+                <Field
+                  label="BMR / RMR"
+                  onChange={(value) =>
+                    updateBodyScanManualDraft("basalMetabolicRate", value)
+                  }
+                  placeholder="1850"
+                  value={bodyScanManualDraft.basalMetabolicRate}
+                />
+                <div className="sm:col-span-2">
+                  <TextAreaField
+                    label="Notes"
+                    onChange={(value) => updateBodyScanManualDraft("notes", value)}
+                    placeholder="Scan notes"
+                    rows={3}
+                    value={bodyScanManualDraft.notes}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-3">
+              <div className="rounded-[20px] border border-cyan-200/12 bg-cyan-300/[0.055] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-cyan-50">
+                    CSV Auto Map
+                  </p>
+                  <label className="cursor-pointer rounded-2xl border border-cyan-100/24 bg-slate-950/48 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-100/42 hover:bg-cyan-300/12">
+                    Upload CSV
+                    <input
+                      accept=".csv,text/csv"
+                      className="sr-only"
+                      onChange={handleBodyScanCsvUpload}
+                      type="file"
+                    />
+                  </label>
+                </div>
+                <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/42 p-3">
+                  {bodyScanCsvPreview ? (
+                    <>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white">
+                          {bodyScanCsvPreview.fileName}
+                        </p>
+                        <span className="rounded-full border border-emerald-200/18 bg-emerald-300/10 px-2.5 py-1 text-[9px] font-black text-emerald-100">
+                          {bodyScanCsvPreview.importedCount} imported
+                        </span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {mappedColumnEntries.length ? (
+                          mappedColumnEntries.map(([field, column]) => (
+                            <span
+                              key={field}
+                              className="rounded-full border border-cyan-200/12 bg-cyan-300/10 px-2 py-1 text-[9px] font-black text-cyan-100"
+                            >
+                              {bodyScanFieldLabels[field as BodyScanDataField] ||
+                                field}{" "}
+                              = {column}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-500">
+                            No matching columns yet.
+                          </span>
+                        )}
+                      </div>
+                      {bodyScanCsvPreview.unmappedHeaders.length ? (
+                        <p className="mt-2 line-clamp-2 text-[10px] font-semibold leading-4 text-slate-500">
+                          Unmapped:{" "}
+                          {bodyScanCsvPreview.unmappedHeaders.slice(0, 6).join(", ")}
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className="text-[11px] font-semibold leading-5 text-slate-400">
+                      Recognizes common scan columns from InBody, Fit3D, DEXA,
+                      BodPod, Styku, Evolt, Tanita, Withings, Renpho, Garmin, and
+                      similar exports.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-[20px] border border-violet-200/12 bg-violet-300/[0.055] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-violet-50">
+                    Photo / PDF
+                  </p>
+                  <label className="cursor-pointer rounded-2xl border border-violet-100/24 bg-slate-950/48 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-violet-100 transition hover:border-violet-100/42 hover:bg-violet-300/12">
+                    Stage File
+                    <input
+                      accept="image/*,.pdf,application/pdf"
+                      className="sr-only"
+                      onChange={handleBodyScanArtifactUpload}
+                      type="file"
+                    />
+                  </label>
+                </div>
+                <p className="mt-3 rounded-2xl border border-white/10 bg-slate-950/42 p-3 text-[11px] font-semibold leading-5 text-slate-400">
+                  {bodyScanArtifactMessage ||
+                    "Photo and PDF scans are kept as an intake placeholder until OCR/review is connected."}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {bodyScanImportMessage ? (
+            <p className="mt-3 rounded-2xl border border-cyan-100/18 bg-cyan-300/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.1em] text-cyan-50">
+              {bodyScanImportMessage}
+            </p>
+          ) : null}
+
+          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(240px,0.56fr)]">
+            <div className="rounded-[20px] border border-white/10 bg-slate-950/38 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white">
+                  Scan History
+                </p>
+                <span className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+                  Latest 8
+                </span>
+              </div>
+              {bodyScanHistoryRows.length ? (
+                <div className="mt-2 overflow-x-auto">
+                  <table className="min-w-full text-left text-[10px] font-bold text-slate-300">
+                    <thead className="text-[9px] uppercase tracking-[0.12em] text-slate-500">
+                      <tr>
+                        <th className="py-2 pr-3">Date</th>
+                        <th className="py-2 pr-3">Provider</th>
+                        <th className="py-2 pr-3">Weight</th>
+                        <th className="py-2 pr-3">Fat</th>
+                        <th className="py-2 pr-3">Waist</th>
+                        <th className="py-2 pr-3">Muscle</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/10">
+                      {bodyScanHistoryRows.map((scan) => (
+                        <tr key={scan.id}>
+                          <td className="py-2 pr-3 text-slate-400">
+                            {formatSavedTime(scan.savedAt)}
+                          </td>
+                          <td className="py-2 pr-3 text-white">{scan.provider}</td>
+                          <td className="py-2 pr-3">{scan.weight || "-"}</td>
+                          <td className="py-2 pr-3">{scan.bodyFat || "-"}</td>
+                          <td className="py-2 pr-3">{scan.waist || "-"}</td>
+                          <td className="py-2 pr-3">{scan.muscleMass || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="mt-2 rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-3 py-4 text-center text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">
+                  No body scan imports yet.
+                </p>
+              )}
+            </div>
+
+            <div className="rounded-[20px] border border-white/10 bg-slate-950/38 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)]">
+              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white">
+                Normalized Model
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {bodyScanDataFields.map((field) => (
+                  <span
+                    key={field}
+                    className="rounded-full border border-white/10 bg-white/[0.045] px-2 py-1 text-[9px] font-black text-slate-300"
+                  >
+                    {bodyScanFieldLabels[field]}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      );
+    };
 
     const bodyMetricsContent = (
       <>
         {/* TODO: Use these body and lifestyle inputs to tune workout recommendations, recovery prompts, nutrition targets, and equipment assumptions once shared recommendation logic is ready. */}
         <div className="relative z-0 overflow-visible rounded-[24px] border border-cyan-200/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.14),transparent_30%),rgba(15,23,42,0.62)] p-3 shadow-[0_0_44px_rgba(34,211,238,0.08)] md:p-3">
-            <p className="mb-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2 text-[11px] font-semibold leading-5 text-slate-400">
-              Only share what you want used for coaching context.
-            </p>
             <div className="grid gap-3 md:grid-cols-2">
               <div className="hidden">
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/75">
@@ -9381,49 +10828,7 @@ export default function ClientProfilePage() {
               {renderBodyMetricTrendChart()}
             </div>
 
-            <div className="mt-3 rounded-[22px] border border-violet-200/14 bg-[radial-gradient(circle_at_12%_0%,rgba(167,139,250,0.12),transparent_34%),rgba(15,23,42,0.46)] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-violet-100">
-                    Body Scan Source
-                  </p>
-                  <InfoBubble label="Body Scan Source">
-                    Manual entry works today. InBody and Fit3D are reserved
-                    connection points for future imports.
-                  </InfoBubble>
-                </div>
-                <span className="rounded-full border border-violet-200/18 bg-violet-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-violet-100">
-                  Future Sync
-                </span>
-              </div>
-              <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                {bodyScanSources.map((source) => {
-                  const active = profile.bodyScanSource === source;
-                  return (
-                    <button
-                      key={source}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => setProfileField("bodyScanSource", source)}
-                      className={`rounded-2xl border px-3 py-2.5 text-left transition ${
-                        active
-                          ? "border-violet-100/48 bg-violet-300/16 text-violet-50 shadow-[0_0_24px_rgba(167,139,250,0.18)]"
-                          : "border-white/10 bg-slate-950/42 text-slate-400 hover:border-violet-200/30 hover:bg-violet-300/10 hover:text-violet-100"
-                      }`}
-                    >
-                      <p className="text-[11px] font-black uppercase tracking-[0.12em]">
-                        {source}
-                      </p>
-                      <p className="mt-1 text-[10px] font-semibold leading-4 opacity-70">
-                        {source === "Manual Entry"
-                          ? "Use sliders and saved values."
-                          : "Connector placeholder."}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {renderBodyScanImportPanel()}
 
           </div>
 
@@ -10435,59 +11840,6 @@ export default function ClientProfilePage() {
       </Panel>
     );
   };
-
-  const renderTrainingManagement = () => (
-    <Panel
-      eyebrow="Training"
-      title="Workout management"
-      subtitle="Build, schedule, and review workout-specific systems. Setup, style, frequency, and readiness inputs now live in Training Readiness."
-    >
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          {
-            href: ROUTES.dashboard.sessions,
-            icon: "▶",
-            label: "Sessions",
-            text: "Start or resume logged workout sessions.",
-          },
-          {
-            href: ROUTES.workoutBuilder.home,
-            icon: "＋",
-            label: "Builder",
-            text: "Create and manage workout templates.",
-          },
-          {
-            href: ROUTES.dashboard.myPlan,
-            icon: "📅",
-            label: "My Plan",
-            text: "Review weekly training structure.",
-          },
-          {
-            href: ROUTES.dashboard.trainingCalendar,
-            icon: "✓",
-            label: "Calendar",
-            text: "See upcoming training dates.",
-          },
-        ].map((item) => (
-          <Link
-            key={item.label}
-            href={item.href}
-            className="group rounded-[24px] border border-cyan-200/14 bg-slate-950/46 p-4 transition hover:-translate-y-0.5 hover:border-cyan-200/36 hover:bg-cyan-300/8"
-          >
-            <span className="grid h-10 w-10 place-items-center rounded-2xl border border-cyan-200/16 bg-cyan-300/10 text-lg text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.08)]">
-              {item.icon}
-            </span>
-            <p className="mt-3 text-sm font-black uppercase tracking-[0.12em] text-white">
-              {item.label}
-            </p>
-            <p className="mt-2 text-xs font-semibold leading-5 text-slate-400">
-              {item.text}
-            </p>
-          </Link>
-        ))}
-      </div>
-    </Panel>
-  );
 
   const renderRecoveryProfile = () => {
     const painScaleValue = getScaleValue(
@@ -11587,6 +12939,248 @@ export default function ClientProfilePage() {
     );
   };
 
+  const rotateProfileHubLayer = (direction: "up" | "down") => {
+    setActiveProfileHubLayer((currentLayer) => {
+      const nextLayer =
+        direction === "up"
+          ? Math.max(0, currentLayer - 1)
+          : Math.min(2, currentLayer + 1);
+
+      activeProfileHubLayerRef.current = nextLayer;
+      return nextLayer;
+    });
+  };
+  const profileHubLayerMenuItems = [
+    { label: "Profile", layer: 0 },
+    { label: "My Hub", layer: 1 },
+    { label: "Account", layer: 2 },
+  ];
+  const selectProfileHubLayer = (layer: number) => {
+    const nextLayer = Math.max(0, Math.min(2, layer));
+    activeProfileHubLayerRef.current = nextLayer;
+    setProfileHubLayerMotionOffset(0);
+    setActiveProfileHubLayer(nextLayer);
+  };
+  const handleProfileHubLayerWheel = (
+    event: ReactWheelEvent<HTMLDivElement>,
+  ) => {
+    if (Math.abs(event.deltaY) < 2) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const now = Date.now();
+    if (now < profileHubLayerWheelLockRef.current) return;
+
+    profileHubLayerWheelDeltaRef.current += event.deltaY;
+    setProfileHubLayerMotionOffset(
+      Math.max(-52, Math.min(52, profileHubLayerWheelDeltaRef.current * -0.42)),
+    );
+
+    if (profileHubLayerWheelResetRef.current) {
+      window.clearTimeout(profileHubLayerWheelResetRef.current);
+    }
+
+    profileHubLayerWheelResetRef.current = window.setTimeout(() => {
+      profileHubLayerWheelDeltaRef.current = 0;
+      setProfileHubLayerMotionOffset(0);
+      profileHubLayerWheelResetRef.current = null;
+    }, 140);
+
+    if (Math.abs(profileHubLayerWheelDeltaRef.current) < 78) return;
+
+    const direction =
+      profileHubLayerWheelDeltaRef.current > 0 ? "down" : "up";
+    const atLayerEdge =
+      (direction === "up" && activeProfileHubLayer <= 0) ||
+      (direction === "down" && activeProfileHubLayer >= 2);
+
+    profileHubLayerWheelDeltaRef.current = 0;
+    profileHubLayerWheelLockRef.current = now + 460;
+    setProfileHubLayerMotionOffset(0);
+
+    if (!atLayerEdge) {
+      rotateProfileHubLayer(direction);
+    }
+  };
+  const handleProfileHubHorizontalWheel = (
+    event: ReactWheelEvent<HTMLDivElement>,
+    rotate: (direction: "left" | "right") => void,
+  ) => {
+    const horizontalIntent =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY) || event.shiftKey;
+
+    if (!horizontalIntent) return;
+
+    const primaryDelta =
+      event.shiftKey && Math.abs(event.deltaY) >= Math.abs(event.deltaX)
+        ? event.deltaY
+        : event.deltaX;
+
+    if (Math.abs(primaryDelta) < 2) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const now = Date.now();
+    profileHubHorizontalWheelDeltaRef.current += primaryDelta;
+    setProfileHubHorizontalMotionOffset(
+      Math.max(
+        -48,
+        Math.min(-profileHubHorizontalWheelDeltaRef.current * 0.34, 48),
+      ),
+    );
+
+    if (profileHubHorizontalWheelResetRef.current) {
+      window.clearTimeout(profileHubHorizontalWheelResetRef.current);
+    }
+
+    profileHubHorizontalWheelResetRef.current = window.setTimeout(() => {
+      profileHubHorizontalWheelDeltaRef.current = 0;
+      setProfileHubHorizontalMotionOffset(0);
+      profileHubHorizontalWheelResetRef.current = null;
+    }, 130);
+
+    if (now < profileHubHorizontalWheelLockRef.current) return;
+    if (
+      Math.abs(profileHubHorizontalWheelDeltaRef.current) <
+      PROFILE_HUB_HORIZONTAL_WHEEL_THRESHOLD
+    ) {
+      return;
+    }
+
+    const direction =
+      profileHubHorizontalWheelDeltaRef.current > 0 ? "right" : "left";
+    profileHubHorizontalWheelDeltaRef.current = 0;
+    profileHubHorizontalWheelLockRef.current = now + 360;
+    setProfileHubHorizontalMotionOffset(0);
+    rotate(direction);
+  };
+  const startProfileHubHorizontalDrag = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    pointerStartRef: { current: number | null },
+    pointerMovedRef: { current: boolean },
+    stopPropagation = true,
+  ) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    pointerStartRef.current = event.clientX;
+    pointerMovedRef.current = false;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    if (stopPropagation) event.stopPropagation();
+  };
+  const moveProfileHubHorizontalDrag = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    pointerStartRef: { current: number | null },
+    pointerMovedRef: { current: boolean },
+    rotate: (direction: "left" | "right") => void,
+  ) => {
+    const start = pointerStartRef.current;
+    if (start === null) return;
+
+    const deltaX = event.clientX - start;
+    setProfileHubHorizontalMotionOffset(Math.max(-48, Math.min(48, deltaX * 0.32)));
+    if (Math.abs(deltaX) < PROFILE_HUB_HORIZONTAL_DRAG_THRESHOLD) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    pointerMovedRef.current = true;
+    rotate(deltaX > 0 ? "left" : "right");
+    setProfileHubHorizontalMotionOffset(0);
+    pointerStartRef.current = event.clientX;
+  };
+  const finishProfileHubHorizontalDrag = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    pointerStartRef: { current: number | null },
+    pointerMovedRef: { current: boolean },
+  ) => {
+    pointerStartRef.current = null;
+    setProfileHubHorizontalMotionOffset(0);
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+
+    if (pointerMovedRef.current) {
+      window.setTimeout(() => {
+        pointerMovedRef.current = false;
+      }, 0);
+    }
+  };
+  const handleProfileHubLayerPointerDown = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    const target = event.target as Element | null;
+    const startedInsideHorizontalOrbit = Boolean(
+      target?.closest("[data-profile-hub-horizontal-orbit]"),
+    );
+    const startedInLeftVerticalZone =
+      typeof window !== "undefined" &&
+      event.clientX <= Math.min(220, window.innerWidth * 0.22);
+
+    profileHubLayerPointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+    profileHubLayerPointerMovedRef.current = false;
+    if (!startedInsideHorizontalOrbit || startedInLeftVerticalZone) {
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    }
+  };
+  const handleProfileHubLayerPointerMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const start = profileHubLayerPointerStartRef.current;
+    if (!start) return;
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    const target = event.target as Element | null;
+    const movingInsideHorizontalOrbit = Boolean(
+      target?.closest("[data-profile-hub-horizontal-orbit]"),
+    );
+    const movingInLeftVerticalZone =
+      typeof window !== "undefined" &&
+      event.clientX <= Math.min(220, window.innerWidth * 0.22);
+    const horizontalIntent = Math.abs(deltaX) > Math.abs(deltaY) * 1.1;
+
+    if (
+      movingInsideHorizontalOrbit &&
+      !movingInLeftVerticalZone &&
+      horizontalIntent
+    ) {
+      return;
+    }
+
+    if (movingInsideHorizontalOrbit) {
+      setProfileHubHorizontalMotionOffset(0);
+    }
+
+    setProfileHubLayerMotionOffset(Math.max(-52, Math.min(52, deltaY * 0.34)));
+    if (Math.abs(deltaY) < 72 || Math.abs(deltaY) < Math.abs(deltaX) * 1.1) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    profileHubLayerPointerMovedRef.current = true;
+    profileHubMainOrbitPointerStartRef.current = null;
+    profileHubAccountOrbitPointerStartRef.current = null;
+    rotateProfileHubLayer(deltaY > 0 ? "up" : "down");
+    setProfileHubLayerMotionOffset(0);
+    profileHubLayerPointerStartRef.current = null;
+  };
+  const handleProfileHubLayerPointerEnd = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    profileHubLayerPointerStartRef.current = null;
+    setProfileHubLayerMotionOffset(0);
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+  };
+
   const renderProfileHeroSummaryCards = () => (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       {[
@@ -11653,6 +13247,7 @@ export default function ClientProfilePage() {
       profile.muscleMass,
       profile.bodyFat,
       profile.bodyStatus.weightTrend,
+      profile.bodyScanImports,
       profile.bodyScanSource,
     ]);
     const vitalStatsCompletion = calculateSectionCompletion([
@@ -11676,12 +13271,53 @@ export default function ClientProfilePage() {
       profile.city && profile.state
         ? `${profile.city}, ${profile.state}`
         : profile.state || profile.city || "Location optional";
+    const goalStageCompletion = tabCompletions.goals;
+    const goalStageLabel = profile.goalDeadline
+      ? "Timeline set"
+      : profile.goalWeight
+        ? "Target set"
+        : profile.primaryGoal
+          ? "Direction set"
+          : "Stage open";
     const profileOrbitCards: ProfileOrbiterCard[] = [
+      {
+        accordion: "planDirection",
+        completion: tabCompletions.planDirection,
+        helper: "Primary and secondary priorities for training direction.",
+        icon: "compass",
+        label: "Goal Direction",
+        references: [
+          profile.planDirections[0] || profile.goalMode,
+          profile.planDirections[1] || profile.bodyGoalMode,
+          profile.primaryGoal || "Goal not set",
+        ],
+        stat: `${tabCompletions.planDirection}% ready`,
+        tab: "goals",
+        targetId: "plan-direction",
+        tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
+      },
+      {
+        completion: goalStageCompletion,
+        helper: "Timeline, priority, body target, and consistency stage from the Goals workspace.",
+        icon: "trophy",
+        label: "Goal Stage",
+        references: [
+          profile.primaryGoal || "Primary goal open",
+          profile.goalDeadline || "Timeline open",
+          profile.goalWeight
+            ? `Goal weight ${profile.goalWeight}`
+            : `${profile.weeklyConsistencyGoal}% consistency target`,
+        ],
+        stat: goalStageLabel,
+        tab: "goals",
+        targetId: "goal-stage",
+        tone: "border-amber-200/26 bg-amber-300/10 text-amber-100",
+      },
       {
         completion: vitalStatsCompletion,
         expandsToFullCard: true,
         helper: "Stable body model, age, birthday, and height context.",
-        icon: "Vitals",
+        icon: "user",
         label: "Vital Statistics",
         references: [
           bodyModelLabel,
@@ -11698,7 +13334,7 @@ export default function ClientProfilePage() {
         completion: bodyCardCompletion,
         expandsToFullCard: true,
         helper: "Variable body metrics: weight, waist, muscle mass, and body fat.",
-        icon: "Body",
+        icon: "scale",
         label: "My Body",
         references: [
           profile.currentWeight
@@ -11717,10 +13353,171 @@ export default function ClientProfilePage() {
         tone: "border-sky-200/24 bg-sky-300/10 text-sky-100",
       },
       {
+        accordion: "measurements",
+        completion: tabCompletions.measurements,
+        helper: "Waist, chest, hips, limbs, photos, and progress notes.",
+        icon: "ruler",
+        label: "Body Measurements",
+        references: [
+          `Unit: ${profile.measurements.unit}`,
+          `Updated: ${formatSavedTime(profile.measurements.lastUpdated)}`,
+          `${completeMeasurementCount}/${measurementDefinitions.length} saved`,
+        ],
+        stat: profile.measurements.waist
+          ? `Waist ${profile.measurements.waist} ${profile.measurements.unit}`
+          : "Measurements open",
+        tab: "overview",
+        targetId: "measurements",
+        tone: "border-orange-200/24 bg-orange-300/10 text-orange-100",
+      },
+      {
+        accordion: "previousExperience",
+        completion: previousExperienceCompletion,
+        helper: "Training background, consistency, movement confidence, and coaching history.",
+        icon: "graduation-cap",
+        label: "Previous Experience",
+        references: [
+          profile.experienceLevel || "Experience not set",
+          profile.consistencyHistory || "Consistency not set",
+          profile.familiarityAreas[0] || "Familiarity not set",
+        ],
+        stat: profile.previousCoaching.length
+          ? `${profile.previousCoaching.length} coaching notes`
+          : "Background",
+        tab: "readiness",
+        targetId: "previous-experience",
+        tone: "border-fuchsia-200/24 bg-fuchsia-300/10 text-fuchsia-100",
+      },
+      {
+        accordion: "specialCircumstances",
+        completion: tabCompletions.circumstances,
+        helper: "Life, travel, recovery, health, or schedule context that should shape recommendations.",
+        icon: "sparkles",
+        label: "Special Circumstances",
+        references: [
+          `${profile.specialCircumstances.length} selected`,
+          activeLimitations[0]?.region || "No active limits",
+          `${profile.recoveryPriority}/10 recovery priority`,
+        ],
+        stat: profile.specialCircumstances.length ? "Context active" : "None selected",
+        tab: "readiness",
+        targetId: "special-circumstances",
+        tone: "border-amber-200/24 bg-amber-300/10 text-amber-100",
+      },
+      {
+        accordion: "planBuilder",
+        completion: planBuilderCompletion,
+        helper: "Schedule, location, equipment, and weekly training setup.",
+        icon: "calendar-clock",
+        label: "Training Setup",
+        references: [
+          profile.sessionsPerWeek ? `${profile.sessionsPerWeek} days/week` : "Schedule not set",
+          profile.trainingLocations[0] || "Location not set",
+          profile.availableEquipment[0] || "Equipment not set",
+        ],
+        stat: profile.sessionLength || "Session length",
+        tab: "readiness",
+        targetId: "training-setup",
+        tone: "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
+      },
+      {
+        completion: tabCompletions.training,
+        helper: "Training styles, preferred split, cardio, and mobility preferences.",
+        icon: "dumbbell",
+        label: "Training Style",
+        references: [
+          profile.trainingStyles[0] || "Style not set",
+          profile.preferredSplits[0] || profile.preferredSplit,
+          profile.cardioPreferences[0] || "Cardio preference",
+        ],
+        stat: `${profile.cardioPriority}/10 cardio`,
+        tab: "readiness",
+        targetId: "training-style",
+        tone: "border-blue-200/24 bg-blue-300/10 text-blue-100",
+      },
+      {
+        accordion: "readiness",
+        completion: tabCompletions.readiness,
+        helper: "Sleep, stress, soreness, pain, energy, and recovery signal inputs.",
+        icon: "activity",
+        label: "Readiness",
+        references: [
+          planReadiness.readinessLabel,
+          profile.bodyStatus.energyStatus,
+          profile.bodyStatus.stressStatus,
+        ],
+        stat: `${planReadiness.readinessScore}/100`,
+        tab: "overview",
+        targetId: "readiness-section",
+        tone: "border-orange-200/24 bg-orange-300/10 text-orange-100",
+      },
+      {
+        accordion: "benchmarks",
+        completion: tabCompletions.benchmarks,
+        helper: "Strength, mobility, and performance baselines for progress tracking.",
+        icon: "trophy",
+        label: "Benchmarks",
+        references: [
+          `${profile.benchmarks.length} benchmark slots`,
+          "Strength anchors",
+          "Performance trends",
+        ],
+        stat: `${tabCompletions.benchmarks}% logged`,
+        tab: "overview",
+        targetId: "benchmarks",
+        tone: "border-violet-200/24 bg-violet-300/10 text-violet-100",
+      },
+      {
+        accordion: "appCoachNotes",
+        completion: tabCompletions.preferences,
+        helper: "Coach notes, app preferences, AI notes, and guidance style.",
+        icon: "clipboard-list",
+        label: "Coach + App Notes",
+        references: [
+          profile.appPersonalization.coachingTone || "Tone not set",
+          profile.planFlexibilityPreference || "Flexibility not set",
+          profile.userNotes ? "User notes saved" : "Notes open",
+        ],
+        stat: "Coach context",
+        tab: "coachApp",
+        targetId: "coach-app-notes",
+        tone: "border-teal-200/24 bg-teal-300/10 text-teal-100",
+      },
+      {
+        completion: tabCompletions.preferences,
+        helper: "Dashboard focus, units, anatomy display, and recovery warning preferences.",
+        icon: "settings",
+        label: "App Preferences",
+        references: [
+          profile.appPersonalization.defaultDashboardFocus,
+          profile.appPersonalization.preferredUnitSystem,
+          profile.appPersonalization.anatomyBackground,
+        ],
+        stat: "Preferences",
+        tab: "coachApp",
+        targetId: "app-preferences",
+        tone: "border-slate-200/18 bg-slate-300/10 text-slate-100",
+      },
+      {
+        completion: tabCompletions.readiness,
+        helper: "Work schedule, sleep window, travel, childcare, and reminder context.",
+        icon: "clock",
+        label: "Lifestyle",
+        references: [
+          profile.lifestyleConstraints.workSchedule || "Work schedule",
+          profile.lifestyleConstraints.sleepWindow || "Sleep window",
+          profile.lifestyleConstraints.availableTrainingTimes[0] || "Training time",
+        ],
+        stat: `${profile.lifestyleConstraints.stressLevel}/10 stress`,
+        tab: "overview",
+        targetId: "lifestyle",
+        tone: "border-rose-200/24 bg-rose-300/10 text-rose-100",
+      },
+      {
         completion: occupationActivityCompletion,
         expandsToFullCard: true,
         helper: "Occupation, daily activity level, and weekly work load.",
-        icon: "Work",
+        icon: "briefcase",
         label: "Occupation + Daily Activity",
         references: [
           normalizeOccupationValue(profile.occupation) || "Occupation not set",
@@ -11740,7 +13537,7 @@ export default function ClientProfilePage() {
         completion: contactInfoCompletion,
         expandsToFullCard: true,
         helper: "Optional location, phone, and emergency contact details.",
-        icon: "Info",
+        icon: "contact",
         label: "Contact Info",
         references: [
           contactLocation,
@@ -11758,197 +13555,9 @@ export default function ClientProfilePage() {
         tone: "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
       },
       {
-        accordion: "measurements",
-        completion: tabCompletions.measurements,
-        helper: "Waist, chest, hips, limbs, photos, and progress notes.",
-        icon: "Measure",
-        label: "Body Measurements",
-        references: [
-          `Unit: ${profile.measurements.unit}`,
-          `Updated: ${formatSavedTime(profile.measurements.lastUpdated)}`,
-          `${completeMeasurementCount}/${measurementDefinitions.length} saved`,
-        ],
-        stat: profile.measurements.waist
-          ? `Waist ${profile.measurements.waist} ${profile.measurements.unit}`
-          : "Measurements open",
-        tab: "overview",
-        targetId: "measurements",
-        tone: "border-orange-200/24 bg-orange-300/10 text-orange-100",
-      },
-      {
-        accordion: "previousExperience",
-        completion: previousExperienceCompletion,
-        helper: "Training background, consistency, movement confidence, and coaching history.",
-        icon: "Exp",
-        label: "Previous Experience",
-        references: [
-          profile.experienceLevel || "Experience not set",
-          profile.consistencyHistory || "Consistency not set",
-          profile.familiarityAreas[0] || "Familiarity not set",
-        ],
-        stat: profile.previousCoaching.length
-          ? `${profile.previousCoaching.length} coaching notes`
-          : "Background",
-        tab: "overview",
-        targetId: "previous-experience",
-        tone: "border-fuchsia-200/24 bg-fuchsia-300/10 text-fuchsia-100",
-      },
-      {
-        accordion: "specialCircumstances",
-        completion: tabCompletions.circumstances,
-        helper: "Life, travel, recovery, health, or schedule context that should shape recommendations.",
-        icon: "Life",
-        label: "Special Circumstances",
-        references: [
-          `${profile.specialCircumstances.length} selected`,
-          activeLimitations[0]?.region || "No active limits",
-          `${profile.recoveryPriority}/10 recovery priority`,
-        ],
-        stat: profile.specialCircumstances.length ? "Context active" : "None selected",
-        tab: "overview",
-        targetId: "special-circumstances",
-        tone: "border-amber-200/24 bg-amber-300/10 text-amber-100",
-      },
-      {
-        accordion: "planDirection",
-        completion: tabCompletions.planDirection,
-        helper: "Primary and secondary plan priorities for training direction.",
-        icon: "Plan",
-        label: "Plan Direction",
-        references: [
-          profile.planDirections[0] || profile.goalMode,
-          profile.planDirections[1] || profile.bodyGoalMode,
-          profile.primaryGoal || "Goal not set",
-        ],
-        stat: `${tabCompletions.planDirection}% ready`,
-        tab: "readiness",
-        targetId: "plan-direction",
-        tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
-      },
-      {
-        accordion: "planBuilder",
-        completion: planBuilderCompletion,
-        helper: "Schedule, location, equipment, and weekly training setup.",
-        icon: "Setup",
-        label: "Training Setup",
-        references: [
-          profile.sessionsPerWeek ? `${profile.sessionsPerWeek} days/week` : "Schedule not set",
-          profile.trainingLocations[0] || "Location not set",
-          profile.availableEquipment[0] || "Equipment not set",
-        ],
-        stat: profile.sessionLength || "Session length",
-        tab: "readiness",
-        targetId: "training-setup",
-        tone: "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
-      },
-      {
-        completion: tabCompletions.training,
-        helper: "Training styles, preferred split, cardio, and mobility preferences.",
-        icon: "Style",
-        label: "Training Style",
-        references: [
-          profile.trainingStyles[0] || "Style not set",
-          profile.preferredSplits[0] || profile.preferredSplit,
-          profile.cardioPreferences[0] || "Cardio preference",
-        ],
-        stat: `${profile.cardioPriority}/10 cardio`,
-        tab: "readiness",
-        targetId: "training-style",
-        tone: "border-blue-200/24 bg-blue-300/10 text-blue-100",
-      },
-      {
-        accordion: "readiness",
-        completion: tabCompletions.readiness,
-        helper: "Sleep, stress, soreness, pain, energy, and recovery signal inputs.",
-        icon: "Ready",
-        label: "Readiness",
-        references: [
-          planReadiness.readinessLabel,
-          profile.bodyStatus.energyStatus,
-          profile.bodyStatus.stressStatus,
-        ],
-        stat: `${planReadiness.readinessScore}/100`,
-        tab: "readiness",
-        targetId: "readiness-section",
-        tone: "border-orange-200/24 bg-orange-300/10 text-orange-100",
-      },
-      {
-        accordion: "benchmarks",
-        completion: tabCompletions.benchmarks,
-        helper: "Strength, mobility, and performance baselines for progress tracking.",
-        icon: "PR",
-        label: "Benchmarks",
-        references: [
-          `${profile.benchmarks.length} benchmark slots`,
-          "Strength anchors",
-          "Performance trends",
-        ],
-        stat: `${tabCompletions.benchmarks}% logged`,
-        tab: "readiness",
-        targetId: "benchmarks",
-        tone: "border-violet-200/24 bg-violet-300/10 text-violet-100",
-      },
-      {
-        accordion: "appCoachNotes",
-        completion: tabCompletions.preferences,
-        helper: "Coach notes, app preferences, AI notes, and guidance style.",
-        icon: "Notes",
-        label: "Coach + App Notes",
-        references: [
-          profile.appPersonalization.coachingTone || "Tone not set",
-          profile.planFlexibilityPreference || "Flexibility not set",
-          profile.userNotes ? "User notes saved" : "Notes open",
-        ],
-        stat: "Coach context",
-        tab: "readiness",
-        targetId: "coach-app-notes",
-        tone: "border-teal-200/24 bg-teal-300/10 text-teal-100",
-      },
-      {
-        completion: tabCompletions.preferences,
-        helper: "Dashboard focus, units, anatomy display, and recovery warning preferences.",
-        icon: "Prefs",
-        label: "App Preferences",
-        references: [
-          profile.appPersonalization.defaultDashboardFocus,
-          profile.appPersonalization.preferredUnitSystem,
-          profile.appPersonalization.anatomyBackground,
-        ],
-        stat: "Preferences",
-        tab: "readiness",
-        targetId: "app-preferences",
-        tone: "border-slate-200/18 bg-slate-300/10 text-slate-100",
-      },
-      {
-        completion: tabCompletions.readiness,
-        helper: "Work schedule, sleep window, travel, childcare, and reminder context.",
-        icon: "Life",
-        label: "Lifestyle",
-        references: [
-          profile.lifestyleConstraints.workSchedule || "Work schedule",
-          profile.lifestyleConstraints.sleepWindow || "Sleep window",
-          profile.lifestyleConstraints.availableTrainingTimes[0] || "Training time",
-        ],
-        stat: `${profile.lifestyleConstraints.stressLevel}/10 stress`,
-        tab: "readiness",
-        targetId: "lifestyle",
-        tone: "border-rose-200/24 bg-rose-300/10 text-rose-100",
-      },
-      {
-        completion: tabCompletions.training,
-        helper: "Workout management, sessions, builder, plan, and training calendar links.",
-        icon: "Train",
-        label: "Workout Management",
-        references: ["Sessions", "Builder", "My Plan"],
-        stat: `${tabCompletions.training}% setup`,
-        tab: "training",
-        targetId: "training-management",
-        tone: "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
-      },
-      {
         completion: tabCompletions.recovery,
         helper: "Limitations, pain signals, recovery preferences, and mobility notes.",
-        icon: "Rec",
+        icon: "heart-pulse",
         label: "Recovery Profile",
         references: [
           planReadiness.readinessLabel,
@@ -11963,7 +13572,7 @@ export default function ClientProfilePage() {
       {
         completion: tabCompletions.nutrition,
         helper: "Protein, calories, dietary constraints, meal rhythm, and nutrition direction.",
-        icon: "Fuel",
+        icon: "utensils",
         label: "Nutrition Direction",
         references: [
           profile.nutritionDirection.nutritionGoal,
@@ -11977,22 +13586,33 @@ export default function ClientProfilePage() {
       },
     ];
     const profileCardRows = tabs
-      .map((tab, index) => ({
-        cards: profileOrbitCards.filter((card) => card.tab === tab.id),
-        eyebrow: `Row ${profileOrbiterCardStartRow + index}`,
-        helper: `${tab.label} cards sorted into their own orbit row.`,
-        rowIndex: profileOrbiterCardStartRow + index,
-        tab,
-        title: `${tab.label} Cards`,
-      }))
+      .map((tab, index) => {
+        const cards = profileOrbitCards.filter((card) => card.tab === tab.id);
+        const completion = Math.round(
+          cards.reduce((total, card) => total + card.completion, 0) /
+            Math.max(cards.length, 1),
+        );
+
+        return {
+          cards,
+          completion,
+          eyebrow: `Row ${profileOrbiterCardStartRow + index}`,
+          helper: `${tab.label} cards sorted into their own orbit row.`,
+          rowIndex: profileOrbiterCardStartRow + index,
+          tab,
+          title: tab.label,
+        };
+      })
       .filter((row) => row.cards.length > 0);
     const profileOrbiterRows = [
       {
+        completion: tabCompletions.overview,
         eyebrow: "Row 0",
         helper: "Identity, plan context, and summary signals.",
         title: "Profile Hero",
       },
       ...profileCardRows.map((row) => ({
+        completion: row.completion,
         eyebrow: row.eyebrow,
         helper: row.helper,
         title: row.title,
@@ -12015,8 +13635,22 @@ export default function ClientProfilePage() {
       if (length <= 0) return 0;
 
       const storedIndex = activeProfileOrbiterIndices[`sections-${tabId}`];
+      const defaultIndex =
+        tabId === "readiness"
+          ? Math.max(
+              0,
+              profileCardRows
+                .find((row) => row.tab.id === "readiness")
+                ?.cards.findIndex((card) => card.targetId === "training-setup") ??
+                0,
+            )
+          : 0;
       const rawIndex =
-        typeof storedIndex === "number" ? storedIndex : Number(storedIndex);
+        storedIndex === undefined
+          ? defaultIndex
+          : typeof storedIndex === "number"
+            ? storedIndex
+            : Number(storedIndex);
       const safeIndex = Number.isFinite(rawIndex) ? Math.trunc(rawIndex) : 0;
 
       return ((safeIndex % length) + length) % length;
@@ -12071,6 +13705,7 @@ export default function ClientProfilePage() {
     };
     const renderExpandedProfileOrbiterCard = (card: ProfileOrbiterCard) => {
       const tone = getCompletionTone(card.completion);
+      const pulseTone = getProfilePulseIndicatorTone(card.completion);
       const isOccupationActivityCard = card.targetId === "occupation-activity";
       const isContactInfoCard = card.targetId === "contact-info";
       const isVitalStatisticsCard = card.targetId === "vital-statistics";
@@ -12109,28 +13744,44 @@ export default function ClientProfilePage() {
       return (
         <div
           data-profile-orbiter-scroll-area="true"
-          className="max-h-[min(68vh,640px)] overflow-y-auto rounded-[30px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="max-h-[min(60vh,560px)] overflow-y-auto rounded-[30px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           <section className={`${profileOverviewSectionShellClass} p-3 sm:p-3`}>
             <span aria-hidden="true" className={profileOverviewSectionGlowClass} />
             <div className="relative z-10">
-              <div className="rounded-[22px] border border-cyan-200/14 bg-slate-950/48 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                <div className="flex flex-wrap items-center justify-between gap-3 pr-28">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/75">
-                      Full Profile Dropdown
-                    </p>
-                    <h3 className="mt-0.5 text-2xl font-black text-white">
-                      {title}
-                    </h3>
+              <div className="relative overflow-hidden rounded-[22px] border border-cyan-200/14 bg-slate-950/48 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                {renderProfileCardLiquidGlass(card.completion, true)}
+                <div className="relative z-10">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/75">
+                        Full Profile Dropdown
+                      </p>
+                      <h3 className="mt-0.5 text-2xl font-black text-white">
+                        {title}
+                      </h3>
+                    </div>
+                    <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${tone.badge}`}>
+                      <span
+                        aria-hidden="true"
+                        data-active="true"
+                        data-profile-indicator-motion={pulseTone.motion}
+                        style={pulseTone.style}
+                        className={`profile-row-card-indicator inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border bg-black/25 ${pulseTone.outerActive}`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          data-profile-pulse-dot="true"
+                          className={`h-2 w-2 rounded-full ${pulseTone.dotActive}`}
+                        />
+                      </span>
+                      {card.completion}% complete
+                    </span>
                   </div>
-                  <span className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${tone.badge}`}>
-                    {card.completion}% complete
-                  </span>
+                  <p className="mt-1 max-w-3xl text-sm font-semibold leading-5 text-slate-300">
+                    {description}
+                  </p>
                 </div>
-                <p className="mt-1 max-w-3xl text-sm font-semibold leading-5 text-slate-400">
-                  {description}
-                </p>
               </div>
               <div className="mt-3">{content}</div>
             </div>
@@ -12177,6 +13828,92 @@ export default function ClientProfilePage() {
       scrollProfileOrbiterIntoView();
       scrollProfileOrbiterViewportToRow(nextRow);
     };
+    const renderCollapseProfileDropdownButton = () => (
+      <button
+        type="button"
+        aria-label="Collapse full profile dropdown"
+        onClick={() => setExpandedProfileOrbiterCard(null)}
+        className="absolute right-0 top-[-3.25rem] z-30 grid h-11 w-11 place-items-center rounded-2xl border border-cyan-100/24 bg-slate-950/76 text-lg font-black leading-none text-cyan-50 shadow-[0_18px_48px_rgba(0,0,0,0.38),0_0_20px_rgba(103,232,249,0.10)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-100/44 hover:bg-cyan-300/14 sm:-right-14 sm:top-4"
+      >
+        ^
+      </button>
+    );
+    const renderProfileCardLiquidGlass = (
+      completion: number,
+      isActive = false,
+    ) => {
+      const tone = getCompletionTone(completion);
+      const pulseTone = getProfilePulseIndicatorTone(completion);
+      const progress = Math.max(10, Math.min(100, completion));
+      const liquidStyle = {
+        ...pulseTone.style,
+        "--profile-card-liquid-level": `${progress}%`,
+      } as ProfilePulseIndicatorStyle & {
+        "--profile-card-liquid-level": string;
+      };
+
+      return (
+        <span
+          aria-hidden="true"
+          className="profile-card-liquid-glass absolute inset-0 overflow-hidden rounded-[inherit]"
+          data-profile-liquid-active={isActive ? "true" : "false"}
+          data-profile-liquid-motion={pulseTone.motion}
+          style={liquidStyle}
+        >
+          <span
+            className={`profile-card-liquid-reservoir absolute bg-gradient-to-br ${tone.bar}`}
+          />
+          <span
+            aria-hidden="true"
+            className="profile-card-liquid-caustics absolute inset-0"
+          />
+        </span>
+      );
+    };
+    const shouldIgnoreProfileOrbiterKeyTarget = (target: EventTarget | null) =>
+      target instanceof HTMLElement &&
+      Boolean(
+        target.closest(
+          "button,a,input,select,textarea,label,[contenteditable='true'],[data-profile-orbiter-scroll-area='true']",
+        ),
+      );
+    const handleProfileOrbiterKeyDown = (
+      event: ReactKeyboardEvent<HTMLDivElement>,
+    ) => {
+      if (profileOrbiterLocked) return;
+      if (event.altKey || event.ctrlKey || event.metaKey) return;
+      if (shouldIgnoreProfileOrbiterKeyTarget(event.target)) return;
+
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        const direction = event.key === "ArrowUp" ? -1 : 1;
+        const nextRow = Math.max(
+          0,
+          Math.min(
+            profileOrbiterRows.length - 1,
+            clampedActiveProfileOrbiterRow + direction,
+          ),
+        );
+
+        if (nextRow === clampedActiveProfileOrbiterRow) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        scrollProfileOrbiterRow(direction);
+        return;
+      }
+
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        if (!activeProfileCardRow || activeProfileCardRow.cards.length <= 1) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        moveProfileSectionOrbit(
+          activeProfileCardRow.tab.id,
+          activeProfileCardRow.cards.length,
+          event.key === "ArrowLeft" ? -1 : 1,
+        );
+      }
+    };
     const startProfileOrbiterDrag = (
       event: ReactPointerEvent<HTMLDivElement>,
     ) => {
@@ -12199,6 +13936,7 @@ export default function ClientProfilePage() {
       }
 
       event.currentTarget.setPointerCapture?.(event.pointerId);
+      event.currentTarget.focus({ preventScroll: true });
       profileOrbiterPointerStartRef.current = {
         x: event.clientX,
         y: event.clientY,
@@ -12270,6 +14008,7 @@ export default function ClientProfilePage() {
     };
     const syncProfileOrbiterRowFromScroll = () => {
       if (profileOrbiterLocked) return;
+      if (profileOrbiterScrollSyncLockRef.current) return;
       const viewport = profileOrbiterViewportRef.current;
       if (!viewport) return;
 
@@ -12298,115 +14037,1528 @@ export default function ClientProfilePage() {
         setActiveProfileOrbiterRow(closestRow);
       }
     };
-    const renderProfileRowHeader = (
-      meta: { eyebrow: string; helper?: string; title: string },
-      className = "",
+    const profileHubCompletion = Math.round(
+      (tabCompletions.overview +
+        tabCompletions.readiness +
+        tabCompletions.recovery +
+        tabCompletions.nutrition +
+        tabCompletions.coachApp) /
+        5,
+    );
+    const getProfileHubCardIndex = (tabId: ProfileTab, targetId: string) => {
+      const row = profileCardRows.find((cardRow) => cardRow.tab.id === tabId);
+      if (!row) return 0;
+
+      return Math.max(
+        0,
+        row.cards.findIndex((card) => card.targetId === targetId),
+      );
+    };
+    const openProfileHubCard = (
+      tabId: ProfileTab,
+      targetId: string,
+      expand = false,
+    ) => {
+      closeProfileHub();
+      const cardIndex = getProfileHubCardIndex(tabId, targetId);
+
+      if (expand) {
+        openProfileOrbiterFullCard(tabId, cardIndex);
+        return;
+      }
+
+      setProfileSectionOrbitIndex(tabId, cardIndex);
+      scrollProfileOrbiterIntoView();
+    };
+    const profileHubMainItems: ProfileHubOrbitItem[] = [
+      {
+        buttonLabel: "Open Profile",
+        helper: "Identity, avatar, membership, and profile completion.",
+        icon: "user",
+        label: "Profile Basics",
+        onSelect: () => {
+          closeProfileHub();
+          jumpProfileOrbiterToHero();
+        },
+        references: [
+          profile.memberType || "Member",
+          `Member since ${memberSinceLabel}`,
+          `${profileHubCompletion}% complete`,
+        ],
+        stat: `@${identityHandle}`,
+        tone: "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
+      },
+      {
+        buttonLabel: "Open Body",
+        helper: "Weight, waist, muscle mass, and body-fat direction.",
+        icon: "scale",
+        label: "My Body",
+        onSelect: () => openProfileHubCard("overview", "my-body", true),
+        references: [
+          profile.currentWeight ? `${profile.currentWeight} ${weightUnit}` : "Weight open",
+          profile.waist ? `${profile.waist} in waist` : "Waist open",
+          profile.bodyFat ? `${profile.bodyFat}% body fat` : "Body fat open",
+        ],
+        stat: `${bodyCardCompletion}% ready`,
+        tone: "border-sky-200/24 bg-sky-300/10 text-sky-100",
+      },
+      {
+        buttonLabel: "Open Measurements",
+        helper: "Waist, chest, hips, limbs, photos, and progress notes.",
+        icon: "ruler",
+        label: "Measurements",
+        onSelect: () => openProfileHubCard("overview", "measurements"),
+        references: [
+          `${completeMeasurementCount}/${measurementDefinitions.length} saved`,
+          `Unit: ${profile.measurements.unit}`,
+          `Updated: ${formatSavedTime(profile.measurements.lastUpdated)}`,
+        ],
+        stat: `${tabCompletions.measurements}% logged`,
+        tone: "border-orange-200/24 bg-orange-300/10 text-orange-100",
+      },
+      {
+        buttonLabel: "Open Readiness",
+        helper: "Sleep, stress, soreness, pain, energy, and recovery signals.",
+        icon: "activity",
+        label: "Readiness",
+        onSelect: () => openProfileHubCard("overview", "readiness-section"),
+        references: [
+          planReadiness.readinessLabel,
+          profile.bodyStatus.energyStatus,
+          profile.bodyStatus.stressStatus,
+        ],
+        stat: `${planReadiness.readinessScore}/100`,
+        tone: "border-amber-200/24 bg-amber-300/10 text-amber-100",
+      },
+      {
+        buttonLabel: "Open Goals",
+        helper: "Primary priorities and direction for training recommendations.",
+        icon: "compass",
+        label: "Goal Direction",
+        onSelect: () => openProfileHubCard("goals", "plan-direction"),
+        references: [
+          profile.planDirections[0] || profile.goalMode,
+          profile.primaryGoal || "Goal open",
+          planReadiness.risk.label,
+        ],
+        stat: `${tabCompletions.planDirection}% ready`,
+        tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
+      },
+      {
+        buttonLabel: "Open Coach Notes",
+        helper: "Coach notes, app preferences, AI notes, and guidance style.",
+        icon: "clipboard-list",
+        label: "Coach + App",
+        onSelect: () => openProfileHubCard("coachApp", "coach-app-notes"),
+        references: [
+          profile.appPersonalization.coachingTone || "Tone open",
+          profile.planFlexibilityPreference || "Flexibility open",
+          profile.userNotes ? "User notes saved" : "Notes open",
+        ],
+        stat: "Coach context",
+        tone: "border-teal-200/24 bg-teal-300/10 text-teal-100",
+      },
+    ];
+    const profileHubAchievements: AchievementBadgeItem[] = [
+      {
+        category: "goal",
+        href: ROUTES.dashboard.achievements,
+        icon: "ID",
+        label: "Profile Built",
+        meta: `${profileHubCompletion}% profile ready`,
+        progress: profileHubCompletion,
+        rarity: profileHubCompletion >= 90 ? "gold" : "cyan",
+        status: profileHubCompletion >= 90 ? "completed" : "active",
+        statusLabel: profileHubCompletion >= 90 ? "Earned" : "In progress",
+      },
+      {
+        category: "performance",
+        href: ROUTES.dashboard.achievements,
+        icon: "SP",
+        label: "Sound Points",
+        meta: `${soundPoints.toLocaleString()} points`,
+        progress: Math.min(100, Math.max(28, Math.round(soundPoints / 24))),
+        rarity: soundPoints >= 1800 ? "gold" : "cyan",
+        status: soundPoints >= 1800 ? "completed" : "active",
+        statusLabel: soundPoints >= 1800 ? "Earned" : "In progress",
+      },
+      {
+        category: "volume",
+        href: ROUTES.dashboard.achievements,
+        icon: "ST",
+        label: "Token Vault",
+        meta: `${soundTokens.toLocaleString()} tokens`,
+        progress: Math.min(100, Math.max(24, Math.round(soundTokens * 1.8))),
+        rarity: soundTokens >= 60 ? "gold" : "silver",
+        status: soundTokens >= 60 ? "completed" : "active",
+        statusLabel: soundTokens >= 60 ? "Earned" : "In progress",
+      },
+      {
+        category: "recovery",
+        href: ROUTES.dashboard.achievements,
+        icon: "RD",
+        label: "Coach Ready",
+        meta: planReadiness.readinessLabel,
+        progress: planReadiness.readinessScore,
+        rarity: planReadiness.readinessScore >= 85 ? "gold" : "bronze",
+        status: planReadiness.readinessScore >= 85 ? "completed" : "active",
+        statusLabel:
+          planReadiness.readinessScore >= 85 ? "Earned" : "In progress",
+      },
+    ];
+    const profileHubAccountItems: ProfileHubOrbitItem[] = [
+      {
+        helper: "App preferences and account controls.",
+        href: ROUTES.dashboard.settings,
+        icon: "settings",
+        label: "Settings",
+        references: [
+          "Notifications",
+          "Display controls",
+          "Account security",
+        ],
+        stat: "Preferences",
+        tone: "border-violet-200/24 bg-violet-300/10 text-violet-100",
+      },
+      {
+        helper: "Payments and invoice history.",
+        href: ROUTES.dashboard.payments,
+        icon: "wallet",
+        label: "Billing",
+        references: [
+          profile.memberType || "Member",
+          "Payment methods",
+          "Invoice history",
+        ],
+        stat: "Account plan",
+        tone: "border-amber-200/24 bg-amber-300/10 text-amber-100",
+      },
+      {
+        helper: "Support, FAQs, and app guidance.",
+        href: ROUTES.dashboard.help,
+        icon: "contact",
+        label: "Help",
+        references: [
+          "Support center",
+          "FAQs",
+          "App guidance",
+        ],
+        stat: "Support",
+        tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
+      },
+      {
+        achievements: profileHubAchievements,
+        buttonLabel: "Open Rewards",
+        helper: "Milestones, badges, and Sound rewards.",
+        href: ROUTES.dashboard.achievements,
+        icon: "trophy",
+        label: "Achievements",
+        references: [
+          `${soundPoints.toLocaleString()} points`,
+          `${soundTokens.toLocaleString()} tokens`,
+          `${profileHubCompletion}% profile`,
+        ],
+        stat: "Rewards",
+        tone: "border-orange-200/24 bg-orange-300/10 text-orange-100",
+      },
+    ];
+    const rotateProfileHubOrbit = (direction: "left" | "right") => {
+      setActiveProfileHubIndex((currentIndex) =>
+        direction === "left"
+          ? (currentIndex - 1 + profileHubMainItems.length) %
+            profileHubMainItems.length
+          : (currentIndex + 1) % profileHubMainItems.length,
+      );
+    };
+    const rotateProfileHubAccountOrbit = (direction: "left" | "right") => {
+      setActiveProfileHubAccountIndex((currentIndex) =>
+        direction === "left"
+          ? (currentIndex - 1 + profileHubAccountItems.length) %
+            profileHubAccountItems.length
+          : (currentIndex + 1) % profileHubAccountItems.length,
+      );
+    };
+    const getProfileHubOrbitDistance = (
+      index: number,
+      activeIndex: number,
+      length: number,
+    ) => {
+      const rawDistance = index - activeIndex;
+
+      if (rawDistance > length / 2) return rawDistance - length;
+      if (rawDistance < -length / 2) return rawDistance + length;
+      return rawDistance;
+    };
+    const activateProfileHubItem = (item: ProfileHubOrbitItem) => {
+      if (item.action === "logout") {
+        void signOutFromProfileHub();
+        return;
+      }
+
+      if (item.onSelect) {
+        item.onSelect();
+        return;
+      }
+
+      if (item.href) {
+        closeProfileHub();
+        router.push(item.href);
+      }
+    };
+    const profileHubLayerMotionStyle = {
+      "--profile-hub-layer-offset": `${profileHubLayerMotionOffset}px`,
+    } as CSSProperties;
+    const getProfileHubRowTitleStyle = (
+      layer: number,
+      centerPercent: number,
+      fallbackCardHeight: number,
+    ) => {
+      const cardHeight = profileHubLayerCardHeights[layer] || fallbackCardHeight;
+      const titleHeight = profileHubRowTitleHeights[layer] || 44;
+      const offset = Math.max(
+        116,
+        Math.min(330, cardHeight / 2 + titleHeight + 18),
+      );
+
+      return {
+        top: `calc(${centerPercent}% - ${offset}px)`,
+      } as CSSProperties;
+    };
+    const renderProfileHubRowTitle = (
+      layer: number,
+      label: string,
+      helper: string,
+      tone: string,
+      centerPercent: number,
+      fallbackCardHeight: number,
+      indicator?: {
+        activeClassName: string;
+        activeIndex: number;
+        count: number;
+        inactiveClassName: string;
+      },
     ) => (
       <div
-        className={`z-[80] mx-auto flex w-[min(92vw,1040px)] flex-col gap-3 rounded-2xl border border-cyan-200/18 bg-slate-950/76 px-4 py-3 text-left shadow-[0_18px_54px_rgba(0,0,0,0.38)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between ${className}`}
+        aria-hidden="true"
+        className={`pointer-events-none absolute left-1/2 z-40 w-[min(86vw,430px)] -translate-x-1/2 rounded-2xl border px-3 py-2 text-center shadow-[0_16px_44px_rgba(0,0,0,0.28)] backdrop-blur ${tone}`}
+        ref={(node) => {
+          profileHubRowTitleRefs.current[layer] = node;
+        }}
+        style={getProfileHubRowTitleStyle(
+          layer,
+          centerPercent,
+          fallbackCardHeight,
+        )}
       >
-        <div className="min-w-0">
-          <p className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-200/70">
-            {meta.eyebrow}
-          </p>
-          <p className="mt-1 text-sm font-black uppercase tracking-[0.14em] text-white">
-            {meta.title}
-          </p>
+        <div className="text-[9px] font-black uppercase tracking-[0.16em]">
+          {label}
         </div>
-        <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-          <div className="min-w-[150px] sm:text-right">
-            <p
-              className={`text-[10px] font-black uppercase tracking-[0.14em] ${
-                hasUnsavedChanges ? "text-orange-100" : "text-cyan-100"
-              }`}
-            >
-              {hasUnsavedChanges ? "Unsaved changes" : "Profile synced"}
-            </p>
-            <p className="mt-0.5 text-[10px] font-semibold text-slate-500">
-              Last saved: {formatSavedTime(profile.updatedAt)}
-              {message ? ` - ${message}` : ""}
-            </p>
+        {indicator ? (
+          <div className="mt-1 flex items-center justify-center gap-1.5">
+            {Array.from({ length: indicator.count }).map((_, index) => (
+              <span
+                aria-hidden="true"
+                className={`h-1.5 rounded-full transition ${
+                  index === indicator.activeIndex
+                    ? `w-5 ${indicator.activeClassName}`
+                    : `w-1.5 ${indicator.inactiveClassName}`
+                }`}
+                key={`${label}-row-title-indicator-${index}`}
+              />
+            ))}
           </div>
-          <button
-            type="button"
-            onClick={saveProfile}
-            className="rounded-2xl border border-cyan-100/30 bg-cyan-300 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.22)] transition hover:bg-cyan-200"
-          >
-            Save Profile
-          </button>
+        ) : null}
+        <div className="mt-1 text-[10px] font-bold leading-4 text-slate-300">
+          {helper}
         </div>
       </div>
     );
+    const renderProfileHubOrbitCard = ({
+      activeIndex,
+      centerPercent,
+      focusTone,
+      index,
+      item,
+      itemCount,
+      layer,
+      orbitXSlots,
+      pointerMovedRef,
+      setActiveIndex,
+    }: {
+      activeIndex: number;
+      centerPercent: number;
+      focusTone: "amber" | "cyan";
+      index: number;
+      item: ProfileHubOrbitItem;
+      itemCount: number;
+      layer: number;
+      orbitXSlots: number[];
+      pointerMovedRef: { current: boolean };
+      setActiveIndex: (index: number) => void;
+    }) => {
+      const distance = getProfileHubOrbitDistance(index, activeIndex, itemCount);
+      const absDistance = Math.abs(distance);
+      const clampedDistance = Math.max(
+        -1 * (orbitXSlots.length - 1),
+        Math.min(orbitXSlots.length - 1, distance),
+      );
+      const isActive = distance === 0;
+      const x =
+        Math.sign(clampedDistance) *
+        orbitXSlots[Math.min(absDistance, orbitXSlots.length - 1)];
+      const horizontalMotionOffset =
+        activeProfileHubLayer === layer ? profileHubHorizontalMotionOffset : 0;
+      const isPreviewingHorizontalMotion = horizontalMotionOffset !== 0;
+      const y = absDistance * 18 + (absDistance > 1 ? 8 : 0);
+      const scale = isActive ? 1.04 : absDistance === 1 ? 0.82 : 0.64;
+      const opacity = isActive ? 1 : absDistance === 1 ? 0.76 : 0.38;
+      const depth = isActive ? 64 : 28 - absDistance * 11;
+      const rotateY = clampedDistance * -18;
+      const zIndex = 40 - absDistance;
+      const detailsKey = `${layer}-${item.label}`;
+      const detailsOpen = openProfileHubDetailKey === detailsKey;
+      const detailsId = `profile-hub-details-${layer}-${item.label
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")}`;
+      const isAchievementCard = Boolean(item.achievements?.length);
+      const primaryAchievement = item.achievements?.[0];
+      const achievementPreviewItems =
+        item.achievements?.slice(0, isActive ? 3 : 2) || [];
+      const visibleReferences = item.references.slice(0, isActive ? 3 : 2);
+      const activeWidth = isAchievementCard ? 356 : layer === 1 ? 324 : 316;
+      const inactiveWidth = isAchievementCard ? 206 : layer === 1 ? 190 : 186;
+      const cardTone = isAchievementCard
+        ? "border-amber-200/32 bg-[radial-gradient(circle_at_18%_0%,rgba(250,204,21,0.16),transparent_38%),radial-gradient(circle_at_92%_14%,rgba(34,211,238,0.12),transparent_34%),rgba(15,23,42,0.72)] text-amber-50"
+        : item.tone;
+
+      return (
+        <div
+          aria-current={isActive ? "page" : undefined}
+          className={`absolute left-1/2 cursor-pointer rounded-[28px] border text-left shadow-[0_18px_44px_rgba(0,0,0,0.38)] outline-none backdrop-blur transition-[transform,opacity,filter,border-color,background-color,box-shadow,width,padding] will-change-[transform,opacity,filter,width] hover:border-white/25 focus-visible:ring-2 ${
+            focusTone === "cyan"
+              ? "focus-visible:ring-cyan-100/50"
+              : "focus-visible:ring-amber-100/50"
+          } ${
+            isPreviewingHorizontalMotion
+              ? "duration-100 ease-out"
+              : "duration-[520ms] ease-[cubic-bezier(0.2,0.85,0.25,1)]"
+          } ${
+            isActive
+              ? `p-5 ${
+                  focusTone === "cyan"
+                    ? "ring-2 ring-cyan-100/30"
+                    : "ring-2 ring-amber-100/30"
+                }`
+              : "p-4"
+          } ${cardTone}`}
+          key={item.label}
+          onClick={() => {
+            if (
+              pointerMovedRef.current ||
+              profileHubLayerPointerMovedRef.current
+            ) {
+              pointerMovedRef.current = false;
+              profileHubLayerPointerMovedRef.current = false;
+              return;
+            }
+
+            if (!isActive) {
+              setActiveIndex(index);
+              return;
+            }
+
+            activateProfileHubItem(item);
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+
+            event.preventDefault();
+
+            if (!isActive) {
+              setActiveIndex(index);
+              return;
+            }
+
+            activateProfileHubItem(item);
+          }}
+          ref={(node) => {
+            if (isActive) {
+              profileHubLayerCardRefs.current[layer] = node;
+            }
+          }}
+          role="menuitem"
+          style={{
+            filter: absDistance > 2 ? "blur(1.5px)" : "none",
+            opacity,
+            top: `${centerPercent}%`,
+            transform: `translate(-50%, -50%) translateX(${x + horizontalMotionOffset}px) translateY(${y}px) rotateY(${rotateY}deg) translateZ(${depth}px) scale(${scale})`,
+            width: isActive
+              ? `min(84vw, ${activeWidth}px)`
+              : `${inactiveWidth}px`,
+            zIndex,
+          }}
+          tabIndex={0}
+        >
+          <div className="flex items-start gap-3">
+            {primaryAchievement ? (
+              <div
+                aria-hidden="true"
+                className={`group/badge -ml-1 -mt-2 shrink-0 transition ${
+                  isActive ? "scale-90" : "scale-75"
+                }`}
+              >
+                <SoundLogoAchievementBadge compact item={primaryAchievement} />
+              </div>
+            ) : (
+              <div
+                aria-hidden="true"
+                className={`grid shrink-0 place-items-center rounded-2xl border border-white/12 bg-slate-950/42 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${
+                  isActive ? "h-12 w-12" : "h-10 w-10"
+                }`}
+              >
+                <SelectorIcon
+                  name={item.icon}
+                  className={isActive ? "h-6 w-6" : "h-5 w-5"}
+                />
+              </div>
+            )}
+            <div className="min-w-0">
+              <div className="text-[10px] font-black uppercase tracking-[0.12em] text-white">
+                {item.label}
+              </div>
+              <div className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.12em] text-current/80">
+                {item.stat}
+              </div>
+            </div>
+          </div>
+          <div
+            className={`mt-3 font-semibold text-slate-300 ${
+              isActive
+                ? "line-clamp-3 text-xs leading-5"
+                : "line-clamp-2 text-[10px] leading-4"
+            }`}
+          >
+            {item.helper}
+          </div>
+          {isAchievementCard ? (
+            <div
+              className={`mt-3 overflow-hidden rounded-2xl border border-amber-200/18 bg-amber-300/8 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${
+                isActive ? "p-3" : "px-2 py-2"
+              }`}
+            >
+              {isActive ? (
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/75">
+                    Profile Rewards
+                  </span>
+                  <span className="rounded-full border border-amber-100/28 bg-amber-300/12 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-amber-50">
+                    {soundPoints.toLocaleString()} pts
+                  </span>
+                </div>
+              ) : null}
+              <div
+                className={`flex items-start ${
+                  isActive ? "mt-3 justify-center gap-3" : "justify-center gap-1.5"
+                }`}
+              >
+                {achievementPreviewItems.map((achievement) => (
+                  <div
+                    className="group/badge flex min-w-0 flex-col items-center text-center"
+                    key={achievement.label}
+                  >
+                    <SoundLogoAchievementBadge compact item={achievement} />
+                    {isActive ? (
+                      <span className="mt-1 max-w-[76px] truncate text-[8px] font-black uppercase tracking-[0.08em] text-white/75">
+                        {achievement.label}
+                      </span>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          <div className="mt-3">
+            <button
+              aria-controls={detailsId}
+              aria-expanded={detailsOpen}
+              className={`font-black uppercase tracking-[0.12em] text-slate-100 transition ${
+                detailsOpen
+                  ? `ml-auto flex h-7 w-7 items-center justify-center border-0 bg-transparent p-0 ${
+                      focusTone === "cyan"
+                        ? "text-cyan-100 hover:text-white"
+                        : "text-amber-100 hover:text-white"
+                    }`
+                  : `flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-950/34 hover:bg-slate-950/52 ${
+                      focusTone === "cyan"
+                        ? "hover:border-cyan-100/34"
+                        : "hover:border-amber-100/34"
+                    } ${isActive ? "px-3 py-2 text-[9px]" : "px-2.5 py-1.5 text-[8px]"}`
+              }`}
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpenProfileHubDetailKey((openKey) =>
+                  openKey === detailsKey ? null : detailsKey,
+                );
+              }}
+              onKeyDown={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+              type="button"
+            >
+              <span className={detailsOpen ? "sr-only" : ""}>Details</span>
+              <span
+                aria-hidden="true"
+                className={`text-[10px] transition ${detailsOpen ? "rotate-180" : ""}`}
+              >
+                v
+              </span>
+            </button>
+            <div
+              className={`overflow-hidden transition-all duration-300 ${
+                detailsOpen ? "mt-2 max-h-44 opacity-100" : "max-h-0 opacity-0"
+              }`}
+              id={detailsId}
+            >
+              <div className="grid gap-2">
+                {visibleReferences.map((reference) => (
+                  <span
+                    className={`border-0 bg-transparent font-black text-slate-100 ${
+                      isActive
+                        ? "px-1 py-1 text-[10px]"
+                        : "truncate px-1 py-0.5 text-[8px]"
+                    }`}
+                    key={reference}
+                  >
+                    {reference}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+          {isActive ? (
+            <button
+              className={`mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/36 px-3 py-2 text-center text-[9px] font-black uppercase tracking-[0.14em] text-white transition ${
+                focusTone === "cyan"
+                  ? "hover:border-cyan-100/34 hover:bg-cyan-300/10"
+                  : "hover:border-amber-100/34 hover:bg-amber-300/10"
+              }`}
+              onClick={(event) => {
+                event.stopPropagation();
+                activateProfileHubItem(item);
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+              type="button"
+            >
+              {item.buttonLabel || (layer === 2 ? "Open Account" : "Open Hub")}
+            </button>
+          ) : null}
+        </div>
+      );
+    };
+    const renderProfileHubOverlay = () => {
+      const profileAvatar =
+        profile.profileImage ||
+        profile.avatarUrl ||
+        authFallback.avatarUrl ||
+        "/sound-fitness-logo.png";
+
+      return profileHubMounted && typeof document !== "undefined"
+        ? createPortal(
+            <>
+              <button
+                aria-label="Close profile hub overlay"
+                className={`fixed inset-x-0 bottom-0 top-[84px] z-[80] cursor-default bg-black/85 backdrop-blur-[10px] transition-opacity duration-[420ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.16),transparent_28%),radial-gradient(circle_at_78%_26%,rgba(250,204,21,0.10),transparent_24%)] ${
+                  profileHubOpen
+                    ? "pointer-events-auto opacity-100"
+                    : "pointer-events-none opacity-0"
+                }`}
+                onClick={closeProfileHub}
+                type="button"
+              />
+              <div
+                aria-hidden={!profileHubOpen}
+                className={`pointer-events-none fixed inset-x-0 bottom-0 top-[84px] z-[90] w-screen overflow-hidden bg-transparent px-0 pb-0 pt-0 transition-[opacity,transform,filter] duration-[420ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] [perspective:1500px] [transform-style:preserve-3d] ${
+                  profileHubOpen
+                    ? "scale-100 opacity-100 blur-0"
+                    : "scale-[0.985] opacity-0 blur-sm"
+                }`}
+                id="profile-hub-orbital-overlay"
+                ref={profileHubOverlayRef}
+                role="menu"
+              >
+                <button
+                  aria-label="Close profile hub"
+                  className={`absolute right-4 top-4 z-40 grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-slate-950/70 text-sm font-black text-slate-200 shadow-[0_0_24px_rgba(0,0,0,0.24)] transition hover:border-red-200/35 hover:bg-red-500/12 hover:text-red-100 ${
+                    profileHubOpen ? "pointer-events-auto" : "pointer-events-none"
+                  }`}
+                  onClick={closeProfileHub}
+                  type="button"
+                >
+                  X
+                </button>
+                <div
+                  className={`relative mt-0 h-[calc(100dvh-84px)] w-screen cursor-grab select-none overflow-hidden rounded-none border-0 bg-transparent p-0 shadow-none [perspective:1500px] [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing ${
+                    profileHubOpen ? "pointer-events-auto" : "pointer-events-none"
+                  }`}
+                  onPointerCancel={handleProfileHubLayerPointerEnd}
+                  onPointerDown={handleProfileHubLayerPointerDown}
+                  onPointerMove={handleProfileHubLayerPointerMove}
+                  onPointerUp={handleProfileHubLayerPointerEnd}
+                  onWheel={handleProfileHubLayerWheel}
+                  style={profileHubLayerMotionStyle}
+                >
+                  <div className="absolute right-3 top-1/2 z-50 flex -translate-y-1/2 flex-col items-center gap-2">
+                    <button
+                      aria-label="Move profile hub layer up"
+                      className={`grid h-10 w-10 place-items-center rounded-full border text-lg font-black shadow-[0_0_24px_rgba(0,0,0,0.28)] transition active:scale-95 ${
+                        activeProfileHubLayer > 0
+                          ? "border-cyan-100/45 bg-cyan-300/18 text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.22)]"
+                          : "border-white/12 bg-slate-950/72 text-slate-500 opacity-60"
+                      }`}
+                      onClick={() => rotateProfileHubLayer("up")}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      type="button"
+                    >
+                      ^
+                    </button>
+                    <div
+                      aria-label="Profile hub row menu"
+                      className="flex w-[92px] flex-col gap-1 rounded-[22px] border border-white/10 bg-slate-950/48 p-1.5 shadow-[0_0_24px_rgba(0,0,0,0.26)] backdrop-blur-xl sm:w-[104px]"
+                    >
+                      {profileHubLayerMenuItems.map((item) => {
+                        const isActive = item.layer === activeProfileHubLayer;
+                        const activeTone =
+                          item.layer === 2
+                            ? "border-amber-100/45 bg-amber-300/18 text-amber-50 shadow-[0_0_18px_rgba(250,204,21,0.18)]"
+                            : "border-cyan-100/45 bg-cyan-300/18 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.20)]";
+
+                        return (
+                          <button
+                            aria-current={isActive ? "step" : undefined}
+                            aria-label={`Show ${item.label}`}
+                            className={`rounded-2xl border px-2 py-1.5 text-center text-[8px] font-black uppercase leading-tight tracking-[0.1em] transition hover:-translate-y-0.5 active:scale-95 ${
+                              isActive
+                                ? activeTone
+                                : "border-white/8 bg-white/[0.035] text-slate-400 hover:border-cyan-100/28 hover:bg-cyan-300/8 hover:text-cyan-100"
+                            }`}
+                            key={`profile-hub-layer-menu-${item.layer}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              selectProfileHubLayer(item.layer);
+                            }}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            type="button"
+                          >
+                            {item.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <button
+                      aria-label="Move profile hub layer down"
+                      className={`grid h-10 w-10 place-items-center rounded-full border text-lg font-black shadow-[0_0_24px_rgba(0,0,0,0.28)] transition active:scale-95 ${
+                        activeProfileHubLayer < 2
+                          ? "border-amber-100/45 bg-amber-300/18 text-amber-50 shadow-[0_0_24px_rgba(250,204,21,0.20)]"
+                          : "border-white/12 bg-slate-950/72 text-slate-500 opacity-60"
+                      }`}
+                      onClick={() => rotateProfileHubLayer("down")}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      type="button"
+                    >
+                      v
+                    </button>
+                  </div>
+                  <div
+                    className={`absolute inset-0 h-full overflow-hidden rounded-none border-0 bg-transparent p-4 shadow-none transition-[transform,opacity,filter] duration-[560ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] [transform-style:preserve-3d] ${
+                      activeProfileHubLayer === 0
+                        ? "z-30 translate-y-[var(--profile-hub-layer-offset)] scale-100 opacity-100 blur-0"
+                        : activeProfileHubLayer === 1
+                          ? "pointer-events-none z-20 translate-y-[calc(-10%+var(--profile-hub-layer-offset))] scale-[0.94] opacity-75 blur-0"
+                          : "pointer-events-none z-0 translate-y-[calc(-64%+var(--profile-hub-layer-offset))] scale-[0.84] opacity-0 blur-sm"
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-1/2 top-[35%] h-[210px] w-[min(86vw,1040px)] -translate-x-1/2 -translate-y-1/2 rounded-[42px] bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.13),rgba(15,23,42,0.16)_44%,transparent_72%)] blur-xl"
+                    />
+                    <div className="absolute inset-x-0 top-[34%] z-20 flex -translate-y-1/2 justify-center px-6 [transform:translateY(-50%)_translateZ(58px)]">
+                      <button
+                        className="grid w-[min(90vw,1040px)] gap-5 rounded-[32px] border border-cyan-100/22 bg-slate-950/76 p-6 text-left shadow-[0_28px_74px_rgba(0,0,0,0.44),0_0_34px_rgba(34,211,238,0.12)] transition hover:scale-[1.01] hover:border-cyan-100/40 md:grid-cols-[minmax(0,1fr)_auto] md:items-center"
+                        onClick={() => {
+                          if (profileHubLayerPointerMovedRef.current) {
+                            profileHubLayerPointerMovedRef.current = false;
+                            return;
+                          }
+
+                          closeProfileHub();
+                          jumpProfileOrbiterToHero();
+                        }}
+                        ref={(node) => {
+                          profileHubLayerCardRefs.current[0] = node;
+                        }}
+                        role="menuitem"
+                        type="button"
+                      >
+                        <div className="flex min-w-0 items-center gap-5">
+                          <img
+                            alt={`${identityDisplayName} profile`}
+                            className="h-16 w-16 rounded-full border border-cyan-100/30 bg-slate-950 object-cover p-1 shadow-[0_0_28px_rgba(34,211,238,0.18)]"
+                            src={profileAvatar}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-100">
+                              Profile Reward Hub
+                            </p>
+                            <p className="mt-1 truncate text-xl font-black text-white">
+                              {identityDisplayName}
+                            </p>
+                            <p className="mt-0.5 line-clamp-2 text-sm font-semibold text-slate-400">
+                              Profile, rewards, coach context, and account controls.
+                            </p>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {[
+                                `Member since ${memberSinceLabel}`,
+                                `${profileHubCompletion}% profile`,
+                                planReadiness.readinessLabel,
+                                profile.appPersonalization.defaultDashboardFocus,
+                              ].map((reference) => (
+                                <span
+                                  className="rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-slate-200"
+                                  key={reference}
+                                >
+                                  {reference}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="grid w-full shrink-0 gap-2 sm:grid-cols-2 md:w-[264px]">
+                          <div className="rounded-2xl border border-amber-200/22 bg-amber-300/10 px-4 py-3">
+                            <div className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/70">
+                              Sound Points
+                            </div>
+                            <div className="text-xl font-black text-white">
+                              {soundPoints.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-cyan-200/18 bg-cyan-300/10 px-4 py-3">
+                            <div className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/70">
+                              Sound Tokens
+                            </div>
+                            <div className="flex items-center gap-2 text-xl font-black text-white">
+                              <img
+                                alt=""
+                                aria-hidden="true"
+                                className="h-5 w-5 rounded-full object-contain"
+                                src="/sound-fitness-logo.png"
+                              />
+                              {soundTokens.toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    className={`absolute inset-0 h-full cursor-grab select-none overflow-hidden rounded-none border-0 bg-transparent p-4 shadow-none transition-[transform,opacity,filter] duration-[560ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing ${
+                      activeProfileHubLayer === 1
+                        ? "z-30 translate-y-[var(--profile-hub-layer-offset)] scale-100 opacity-100 blur-0"
+                        : activeProfileHubLayer < 1
+                          ? "pointer-events-none z-10 translate-y-[calc(42%+var(--profile-hub-layer-offset))] scale-[0.9] opacity-40 blur-[1px]"
+                          : "pointer-events-none z-10 translate-y-[calc(-54%+var(--profile-hub-layer-offset))] scale-[0.9] opacity-40 blur-[1px]"
+                    }`}
+                    data-profile-hub-horizontal-orbit="true"
+                    onPointerCancel={(event) =>
+                      finishProfileHubHorizontalDrag(
+                        event,
+                        profileHubMainOrbitPointerStartRef,
+                        profileHubMainOrbitPointerMovedRef,
+                      )
+                    }
+                    onPointerDown={(event) =>
+                      startProfileHubHorizontalDrag(
+                        event,
+                        profileHubMainOrbitPointerStartRef,
+                        profileHubMainOrbitPointerMovedRef,
+                        false,
+                      )
+                    }
+                    onPointerMove={(event) =>
+                      moveProfileHubHorizontalDrag(
+                        event,
+                        profileHubMainOrbitPointerStartRef,
+                        profileHubMainOrbitPointerMovedRef,
+                        rotateProfileHubOrbit,
+                      )
+                    }
+                    onPointerUp={(event) =>
+                      finishProfileHubHorizontalDrag(
+                        event,
+                        profileHubMainOrbitPointerStartRef,
+                        profileHubMainOrbitPointerMovedRef,
+                      )
+                    }
+                    onWheel={(event) =>
+                      handleProfileHubHorizontalWheel(event, rotateProfileHubOrbit)
+                    }
+                  >
+                    {renderProfileHubRowTitle(
+                      1,
+                      "My Hub Row",
+                      "Profile stats, body context, readiness, plan, and coach notes.",
+                      "border-cyan-200/24 bg-cyan-300/10 text-cyan-100",
+                      55,
+                      324,
+                      {
+                        activeClassName:
+                          "bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]",
+                        activeIndex: activeProfileHubIndex,
+                        count: profileHubMainItems.length,
+                        inactiveClassName:
+                          "bg-cyan-300/35 shadow-[0_0_5px_rgba(34,211,238,0.18)]",
+                      },
+                    )}
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-1/2 top-[55%] h-[230px] w-[min(88vw,1120px)] -translate-x-1/2 -translate-y-1/2 rounded-[46px] bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.11),rgba(99,102,241,0.08)_42%,transparent_74%)] blur-xl"
+                    />
+                    {profileHubMainItems.map((item, index) =>
+                      renderProfileHubOrbitCard({
+                        activeIndex: activeProfileHubIndex,
+                        centerPercent: 55,
+                        focusTone: "cyan",
+                        index,
+                        item,
+                        itemCount: profileHubMainItems.length,
+                        layer: 1,
+                        orbitXSlots: [0, 252, 400, 520],
+                        pointerMovedRef: profileHubMainOrbitPointerMovedRef,
+                        setActiveIndex: setActiveProfileHubIndex,
+                      }),
+                    )}
+                    {activeProfileHubLayer === 1 ? (
+                      <div
+                        className="pointer-events-auto absolute left-1/2 z-30 flex -translate-x-1/2 items-center gap-2"
+                        style={{ top: "calc(55% + 180px)" }}
+                      >
+                        {profileHubMainItems.map((item, index) => (
+                          <button
+                            aria-label={`Show ${item.label}`}
+                            className={`h-2 rounded-full transition ${
+                              index === activeProfileHubIndex
+                                ? "w-8 bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]"
+                                : "w-2 bg-slate-500/55 hover:bg-amber-200/75"
+                            }`}
+                            key={item.label}
+                            onClick={() => setActiveProfileHubIndex(index)}
+                            type="button"
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div
+                    className={`absolute inset-0 h-full cursor-grab select-none overflow-hidden rounded-none border-0 bg-transparent p-4 shadow-none transition-[transform,opacity,filter] duration-[560ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing ${
+                      activeProfileHubLayer === 2
+                        ? "z-30 translate-y-[var(--profile-hub-layer-offset)] scale-100 opacity-100 blur-0"
+                        : activeProfileHubLayer === 1
+                          ? "pointer-events-none z-10 translate-y-[calc(56%+var(--profile-hub-layer-offset))] scale-[0.9] opacity-40 blur-[1px]"
+                          : "pointer-events-none z-0 translate-y-[calc(64%+var(--profile-hub-layer-offset))] scale-[0.84] opacity-0 blur-sm"
+                    }`}
+                    data-profile-hub-horizontal-orbit="true"
+                    onPointerCancel={(event) =>
+                      finishProfileHubHorizontalDrag(
+                        event,
+                        profileHubAccountOrbitPointerStartRef,
+                        profileHubAccountOrbitPointerMovedRef,
+                      )
+                    }
+                    onPointerDown={(event) =>
+                      startProfileHubHorizontalDrag(
+                        event,
+                        profileHubAccountOrbitPointerStartRef,
+                        profileHubAccountOrbitPointerMovedRef,
+                        false,
+                      )
+                    }
+                    onPointerMove={(event) =>
+                      moveProfileHubHorizontalDrag(
+                        event,
+                        profileHubAccountOrbitPointerStartRef,
+                        profileHubAccountOrbitPointerMovedRef,
+                        rotateProfileHubAccountOrbit,
+                      )
+                    }
+                    onPointerUp={(event) =>
+                      finishProfileHubHorizontalDrag(
+                        event,
+                        profileHubAccountOrbitPointerStartRef,
+                        profileHubAccountOrbitPointerMovedRef,
+                      )
+                    }
+                    onWheel={(event) =>
+                      handleProfileHubHorizontalWheel(
+                        event,
+                        rotateProfileHubAccountOrbit,
+                      )
+                    }
+                  >
+                    {renderProfileHubRowTitle(
+                      2,
+                      "Account Row",
+                      "Settings, billing, help, achievements, and logout.",
+                      "border-amber-200/24 bg-amber-300/10 text-amber-100",
+                      54,
+                      316,
+                      {
+                        activeClassName:
+                          "bg-amber-200 shadow-[0_0_14px_rgba(253,230,138,0.58)]",
+                        activeIndex: activeProfileHubAccountIndex,
+                        count: profileHubAccountItems.length,
+                        inactiveClassName:
+                          "bg-amber-300/35 shadow-[0_0_5px_rgba(251,191,36,0.18)]",
+                      },
+                    )}
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute left-1/2 top-[54%] h-[204px] w-[min(84vw,1000px)] -translate-x-1/2 -translate-y-1/2 rounded-[42px] bg-[radial-gradient(ellipse_at_center,rgba(250,204,21,0.10),rgba(34,211,238,0.07)_44%,transparent_74%)] blur-xl"
+                    />
+                    {profileHubAccountItems.map((item, index) =>
+                      renderProfileHubOrbitCard({
+                        activeIndex: activeProfileHubAccountIndex,
+                        centerPercent: 54,
+                        focusTone: "amber",
+                        index,
+                        item,
+                        itemCount: profileHubAccountItems.length,
+                        layer: 2,
+                        orbitXSlots: [0, 250, 390],
+                        pointerMovedRef: profileHubAccountOrbitPointerMovedRef,
+                        setActiveIndex: setActiveProfileHubAccountIndex,
+                      }),
+                    )}
+                    {activeProfileHubLayer === 2 ? (
+                      <>
+                        <div
+                          className="pointer-events-auto absolute left-1/2 z-30 flex w-[min(84vw,316px)] -translate-x-1/2"
+                          style={{ top: "calc(54% + 192px)" }}
+                        >
+                          <button
+                            className="flex min-h-[50px] w-full items-center justify-center gap-3 rounded-2xl border border-red-300/24 bg-red-500/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-red-100 shadow-[0_18px_44px_rgba(0,0,0,0.26)] backdrop-blur transition hover:-translate-y-0.5 hover:border-red-200/45 hover:bg-red-500/16 active:scale-[0.98]"
+                            onClick={signOutFromProfileHub}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            type="button"
+                          >
+                            <svg
+                              aria-hidden="true"
+                              className="h-4 w-4 shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2.2"
+                              viewBox="0 0 24 24"
+                            >
+                              <path d="M10 17l5-5-5-5" />
+                              <path d="M15 12H3" />
+                              <path d="M21 5v14a2 2 0 0 1-2 2h-7" />
+                              <path d="M12 3h7a2 2 0 0 1 2 2" />
+                            </svg>
+                            Log Out
+                          </button>
+                        </div>
+                        <div
+                          className="pointer-events-auto absolute left-1/2 z-30 flex -translate-x-1/2 items-center"
+                          style={{ top: "calc(54% + 258px)" }}
+                        >
+                          <div className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/34 px-3 py-2">
+                            {profileHubAccountItems.map((item, index) => (
+                              <button
+                                aria-label={`Show ${item.label}`}
+                                className={`h-2 rounded-full transition ${
+                                  index === activeProfileHubAccountIndex
+                                    ? "w-8 bg-amber-200 shadow-[0_0_14px_rgba(253,230,138,0.58)]"
+                                    : "w-2 bg-slate-500/55 hover:bg-cyan-200/75"
+                                }`}
+                                key={item.label}
+                                onClick={() =>
+                                  setActiveProfileHubAccountIndex(index)
+                                }
+                                type="button"
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            </>,
+            document.body,
+          )
+        : null;
+    };
+    const renderProfileOrbiterTopMenu = () => {
+      const profileAvatar =
+        profile.profileImage ||
+        profile.avatarUrl ||
+        authFallback.avatarUrl ||
+        "/sound-fitness-logo.png";
+
+      return (
+        <>
+        <div className="relative left-1/2 z-[100] mb-0 w-screen -translate-x-1/2 overflow-hidden border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(2,6,23,0.64))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl">
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/55 to-transparent"
+          />
+          <div className="relative mx-auto flex min-h-[84px] w-full max-w-[1840px] items-center gap-4 px-3 py-3 sm:px-4 sm:py-4 md:px-6 xl:px-8 2xl:px-10">
+            <Link
+              aria-label="Open Sound Fitness dashboard"
+              className="flex min-h-[58px] min-w-0 shrink-0 items-center gap-3 rounded-[24px] border border-transparent bg-transparent px-2.5 py-2 transition hover:border-cyan-100/24 hover:bg-cyan-300/8"
+              href={ROUTES.dashboard.home}
+            >
+              <img
+                alt="Sound Fitness"
+                className="h-10 w-10 shrink-0 rounded-full object-contain"
+                src="/sound-fitness-logo.png"
+              />
+              <span className="hidden min-w-0 leading-[0.9] sm:block">
+                <span className="block text-sm font-black uppercase tracking-[0.12em] text-white">
+                  Sound
+                </span>
+                <span className="block text-[9px] font-black uppercase tracking-[0.34em] text-cyan-300">
+                  Fitness
+                </span>
+              </span>
+              <span className="hidden rounded-full border border-cyan-200/28 bg-cyan-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.13em] text-cyan-100 lg:inline-flex">
+                {profile.memberType || "Member"}
+              </span>
+            </Link>
+
+            <div className="min-w-0 flex-1" />
+
+            <div
+              aria-label="Dashboard selector"
+              className="flex w-fit max-w-[calc(100vw-7.5rem)] shrink-0 select-none items-center gap-1.5 bg-transparent p-0 shadow-none md:max-w-[min(56vw,520px)] lg:max-w-none"
+            >
+              <button
+                aria-label="Previous dashboard"
+                className="grid h-11 w-9 shrink-0 place-items-center rounded-2xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:-translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
+                onClick={() => rotateProfileDashboardRail("left")}
+                type="button"
+              >
+                &lt;
+              </button>
+              <Link
+                aria-current={
+                  activeProfileDashboardLink.href === ROUTES.dashboard.profile
+                    ? "page"
+                    : undefined
+                }
+                className={`flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-2.5 py-2 text-left text-cyan-50 shadow-none transition hover:-translate-y-0.5 hover:bg-white/[0.04] ${
+                  profileDashboardSlideDirection === "right"
+                    ? "animate-[sessions-dashboard-chip-slide-from-right_220ms_ease-out]"
+                    : "animate-[sessions-dashboard-chip-slide-from-left_220ms_ease-out]"
+                }`}
+                draggable={false}
+                href={activeProfileDashboardLink.href}
+                key={`${activeProfileDashboardLink.label}-${profileDashboardSlideDirection}`}
+                onDragStart={(event) => event.preventDefault()}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,255,255,0.06)] ${activeProfileDashboardLink.tone}`}
+                >
+                  <SelectorIcon
+                    name={activeProfileDashboardLink.icon}
+                    className="h-5 w-5"
+                  />
+                </span>
+                <span className="shrink-0 whitespace-nowrap">
+                  <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
+                    {activeProfileDashboardLink.meta}
+                  </span>
+                  <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px]">
+                    {activeProfileDashboardLink.label}
+                  </span>
+                </span>
+                <span
+                  className={`shrink-0 rounded-2xl border px-3 py-2 text-right ${activeProfileDashboardLink.tone}`}
+                >
+                  <span className="block text-[8px] font-black uppercase tracking-[0.1em] opacity-75">
+                    pts
+                  </span>
+                  <span className="block text-sm font-black leading-none [text-shadow:0_1px_12px_rgba(0,0,0,0.34)]">
+                    {activeProfileDashboardLink.points.toLocaleString()}
+                  </span>
+                </span>
+              </Link>
+              {activeProfileDashboardLink.href !== ROUTES.dashboard.goals ? (
+                <Link
+                  aria-label="Open Goals dashboard"
+                  className={`group flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-2 rounded-[22px] border px-2.5 py-2 text-left shadow-[0_0_20px_rgba(251,191,36,0.08)] transition hover:-translate-y-0.5 ${profileGoalsDashboardLink.tone}`}
+                  draggable={false}
+                  href={profileGoalsDashboardLink.href}
+                  onDragStart={(event) => event.preventDefault()}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(251,191,36,0.10)] ${profileGoalsDashboardLink.tone}`}
+                  >
+                    <SelectorIcon
+                      name={profileGoalsDashboardLink.icon}
+                      className="h-5 w-5"
+                    />
+                  </span>
+                  <span className="hidden shrink-0 whitespace-nowrap sm:block">
+                    <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
+                      {profileGoalsDashboardLink.meta}
+                    </span>
+                    <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px]">
+                      {profileGoalsDashboardLink.label}
+                    </span>
+                  </span>
+                </Link>
+              ) : null}
+              <button
+                aria-label="Next dashboard"
+                className="grid h-11 w-9 shrink-0 place-items-center rounded-2xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
+                onClick={() => rotateProfileDashboardRail("right")}
+                type="button"
+              >
+                &gt;
+              </button>
+            </div>
+
+            <button
+              aria-controls="profile-hub-orbital-overlay"
+              aria-expanded={profileHubOpen}
+              aria-haspopup="menu"
+              aria-label="Open profile hub"
+              className="hidden min-h-[58px] shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:bg-white/[0.04] md:flex"
+              onClick={toggleProfileHub}
+              type="button"
+            >
+              <img
+                alt={`${identityDisplayName} profile`}
+                className="h-10 w-10 rounded-full border border-cyan-200/28 bg-slate-950 object-cover p-0.5 shadow-[0_0_18px_rgba(34,211,238,0.14)]"
+                src={profileAvatar}
+              />
+              <span className="hidden min-w-0 leading-none lg:block">
+                <span className="block max-w-[110px] truncate text-[10px] font-black uppercase tracking-[0.12em] text-white">
+                  {identityDisplayName}
+                </span>
+                <span className="mt-1 block text-[8px] font-black uppercase tracking-[0.14em] text-cyan-200/70">
+                  Profile Hub
+                </span>
+              </span>
+              <span className="flex items-center gap-3">
+                <span className="flex items-center gap-1.5">
+                  <span className="sr-only">Points</span>
+                  <svg
+                    aria-hidden="true"
+                    className="h-5 w-5 text-amber-200 drop-shadow-[0_0_12px_rgba(250,204,21,0.28)]"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M13.5 2 4.8 13.2h6.1L9.7 22 19.2 9.6h-6.4L13.5 2Z" />
+                  </svg>
+                  <span className="text-sm font-black leading-none text-white">
+                    {soundPoints.toLocaleString()}
+                  </span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="sr-only">Tokens</span>
+                  <img
+                    alt=""
+                    aria-hidden="true"
+                    className="h-5 w-5 rounded-full border border-cyan-200/24 bg-slate-950 object-contain p-0.5 shadow-[0_0_12px_rgba(34,211,238,0.20)]"
+                    src="/sound-fitness-logo.png"
+                  />
+                  <span className="text-sm font-black leading-none text-white">
+                    {soundTokens.toLocaleString()}
+                  </span>
+                </span>
+              </span>
+            </button>
+          </div>
+        </div>
+        {renderProfileHubOverlay()}
+        </>
+      );
+    };
+    const renderProfileRowHeader = (
+      meta: { eyebrow: string; helper?: string; title: string },
+      className = "",
+      expanded = true,
+      lifted = false,
+      indicator?: {
+        activeIndex: number;
+        cards: ProfileOrbiterCard[];
+        tabId: ProfileTab;
+      },
+    ) => {
+      const showCardIndicator =
+        expanded && Boolean(indicator) && (indicator?.cards.length || 0) > 0;
+      const selectIndicatorCard = (index: number) => {
+        if (!indicator) return;
+
+        setProfileSectionOrbitIndex(indicator.tabId, index);
+        setOpenProfileOrbiterDetails(null);
+
+        if (expandedProfileOrbiterCard?.startsWith(`${indicator.tabId}-`)) {
+          const nextCard = indicator.cards[index];
+          setExpandedProfileOrbiterCard(
+            nextCard?.expandsToFullCard ? `${indicator.tabId}-${index}` : null,
+          );
+        }
+      };
+
+      return (
+        <div
+          aria-expanded={expanded}
+          className={`relative isolate z-[80] mx-auto grid overflow-hidden rounded-[22px] border bg-[radial-gradient(circle_at_50%_-20%,rgba(125,211,252,0.22),transparent_48%),linear-gradient(180deg,rgba(15,23,42,0.58),rgba(2,6,23,0.46))] text-center shadow-[0_20px_60px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl transition-[width,max-width,padding,border-color,background-color,box-shadow,transform,opacity] duration-500 ease-[cubic-bezier(0.2,0.85,0.25,1)] ${
+            expanded
+              ? `w-[min(92vw,980px)] gap-2 border-cyan-100/24 px-4 ${showCardIndicator ? "pb-6 pt-3" : "py-3"} sm:grid-cols-[minmax(0,1fr)_minmax(0,24rem)_minmax(0,1fr)] sm:items-center sm:gap-4`
+              : "w-[min(76vw,280px)] border-white/12 px-4 py-2.5 opacity-80"
+          } ${lifted ? "-translate-y-3" : ""} ${className}`}
+        >
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(255,255,255,0.18),transparent_38%),radial-gradient(circle_at_15%_20%,rgba(34,211,238,0.12),transparent_42%),radial-gradient(circle_at_86%_18%,rgba(251,191,36,0.10),transparent_38%)]"
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-4 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-white/55 to-transparent"
+          />
+          {expanded ? (
+            <div className="relative z-10 hidden min-w-0 justify-self-start text-left lg:block">
+              <p
+                className={`text-[10px] font-black uppercase tracking-[0.14em] ${
+                  hasUnsavedChanges ? "text-orange-100" : "text-cyan-100"
+                }`}
+              >
+                {hasUnsavedChanges ? "Unsaved changes" : "Profile synced"}
+              </p>
+              <p className="mt-0.5 truncate text-[10px] font-semibold text-slate-500">
+                Last saved: {formatSavedTime(profile.updatedAt)}
+                {message ? ` - ${message}` : ""}
+              </p>
+            </div>
+          ) : null}
+          <div
+            className={`relative z-10 min-w-0 justify-self-center text-center ${
+              expanded ? "sm:col-start-2" : ""
+            }`}
+          >
+            <p
+              className={`whitespace-normal break-words font-black uppercase tracking-[0.14em] text-white transition-[font-size,line-height] duration-500 ${
+                expanded ? "text-sm leading-5" : "text-center text-xs leading-4"
+              }`}
+            >
+              {meta.title}
+            </p>
+          </div>
+          {expanded ? (
+            <div className="relative z-10 flex min-w-0 justify-center sm:col-start-3 sm:justify-self-end">
+              <button
+                type="button"
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                }}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  saveProfile();
+                }}
+                className="rounded-2xl border border-cyan-100/30 bg-cyan-300 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.22)] transition hover:bg-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/50"
+              >
+                Save Profile
+              </button>
+            </div>
+          ) : null}
+          {showCardIndicator && indicator ? (
+            <div className="absolute inset-x-0 bottom-1.5 z-10 flex justify-center">
+              <div className="flex items-center gap-2">
+                {indicator.cards.map((card, index) => {
+                  const isActiveIndicator = indicator.activeIndex === index;
+                  const pulseTone = getProfilePulseIndicatorTone(card.completion);
+
+                  return (
+                    <button
+                      key={card.label}
+                      type="button"
+                      aria-label={`Show ${card.label}, ${card.completion}% complete`}
+                      aria-pressed={isActiveIndicator}
+                      data-profile-indicator-motion={pulseTone.motion}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                      }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        selectIndicatorCard(index);
+                      }}
+                      className={`profile-row-card-indicator inline-flex shrink-0 items-center justify-center rounded-full border bg-black/25 transition hover:scale-110 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-rose-100/55 ${
+                        isActiveIndicator
+                          ? `h-3.5 w-3.5 ${pulseTone.outerActive}`
+                          : `h-3 w-3 ${pulseTone.outerInactive}`
+                      }`}
+                      style={pulseTone.style}
+                    >
+                      <span
+                        aria-hidden="true"
+                        data-profile-pulse-dot="true"
+                        className={`rounded-full ${
+                          isActiveIndicator ? pulseTone.dotActive : pulseTone.dotInactive
+                        } ${
+                          isActiveIndicator ? "h-2 w-2" : "h-1.5 w-1.5"
+                        }`}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      );
+    };
 
     return (
       <section
         id="profile-orbiter"
         ref={profileOrbiterRef}
         aria-label="Profile orbiter"
-        className="relative pt-6 scroll-mt-32"
+        className="relative left-1/2 w-screen -translate-x-1/2 pt-0 scroll-mt-28"
       >
+        {renderProfileOrbiterTopMenu()}
         {clampedActiveProfileOrbiterRow === 0 || activeProfileCardRow ? null : (
           renderProfileRowHeader(
             activeProfileOrbiterMeta,
-            "absolute left-1/2 top-2 -translate-x-1/2",
+            "absolute inset-x-0 top-2 mx-auto",
           )
         )}
-        <div className="absolute right-2 top-1/2 z-[70] flex -translate-y-1/2 flex-col items-center gap-2 rounded-3xl border border-white/10 bg-slate-950/70 p-2 shadow-[0_18px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl">
-          <button
-            type="button"
-            aria-label="Scroll profile orbiter to hero"
-            disabled={profileOrbiterLocked}
-            onPointerDown={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              if (profileOrbiterLocked) return;
-              jumpProfileOrbiterToHero("auto");
-            }}
-            onClick={scrollProfileOrbiterToHero}
-            className="grid h-11 w-11 place-items-center rounded-2xl border border-cyan-200/18 bg-cyan-300/10 text-lg font-black text-cyan-100 transition hover:border-cyan-200/45 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-cyan-200/18 disabled:hover:bg-cyan-300/10"
-          >
-            ^
-          </button>
-          <div className="flex flex-col items-center gap-1">
-            {profileOrbiterRows.map((row, index) => (
-              <button
-                key={row.title}
-                type="button"
-                aria-label={`Show profile orbiter row ${index}: ${row.title}`}
-                aria-pressed={clampedActiveProfileOrbiterRow === index}
-                disabled={profileOrbiterLocked}
-                onClick={() => setProfileOrbiterRow(index)}
-                className={`h-2 rounded-full transition ${
-                  clampedActiveProfileOrbiterRow === index
-                    ? "w-7 bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]"
-                    : "w-2 bg-slate-500/60 hover:bg-orange-200/75"
-                }`}
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            aria-label="Scroll profile orbiter down"
-            disabled={
-              profileOrbiterLocked ||
-              clampedActiveProfileOrbiterRow === profileOrbiterRows.length - 1
+        <div
+          className="absolute right-0 top-1/2 z-[90] flex w-40 -translate-y-1/2 justify-end px-1 py-6 sm:right-1 sm:w-44"
+          onBlurCapture={(event) => {
+            const nextTarget = event.relatedTarget;
+            if (
+              nextTarget instanceof Node &&
+              event.currentTarget.contains(nextTarget)
+            ) {
+              return;
             }
-            onClick={() => scrollProfileOrbiterRow(1)}
-            className="grid h-11 w-11 place-items-center rounded-2xl border border-orange-200/18 bg-orange-300/10 text-base font-black text-orange-100 transition hover:border-orange-200/45 hover:bg-orange-300/16 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-orange-200/18 disabled:hover:bg-orange-300/10"
+
+            collapseProfileOrbiterRail();
+          }}
+          onFocusCapture={expandProfileOrbiterRail}
+          onPointerEnter={expandProfileOrbiterRail}
+          onPointerLeave={collapseProfileOrbiterRail}
+        >
+          <div
+            className={`flex flex-col items-center gap-1.5 rounded-2xl border p-1.5 shadow-[0_18px_60px_rgba(0,0,0,0.30)] backdrop-blur-xl transition-[width,opacity,background-color,border-color,box-shadow] duration-300 ease-out ${
+              profileOrbiterRailExpanded
+                ? "w-full border-cyan-200/18 bg-slate-950/62 opacity-100 shadow-[0_18px_60px_rgba(0,0,0,0.42)]"
+                : "w-12 border-white/8 bg-slate-950/35 opacity-70"
+            }`}
           >
-            v
-          </button>
+            <button
+              type="button"
+              aria-label="Scroll profile orbiter to hero"
+              disabled={profileOrbiterLocked}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (profileOrbiterLocked) return;
+                jumpProfileOrbiterToHero("auto");
+              }}
+              onClick={scrollProfileOrbiterToHero}
+              className="grid h-8 w-8 place-items-center rounded-xl border border-cyan-200/18 bg-cyan-300/10 text-sm font-black text-cyan-100 transition hover:border-cyan-200/45 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-cyan-200/18 disabled:hover:bg-cyan-300/10"
+            >
+              ^
+            </button>
+            <div className="flex w-full flex-col gap-1">
+              {profileOrbiterRows.map((row, index) => {
+                const isActiveRow = clampedActiveProfileOrbiterRow === index;
+                const rowTone = getCompletionIndicatorTone(row.completion);
+                const pulseTone = getProfilePulseIndicatorTone(row.completion);
+
+                return (
+                  <button
+                    key={row.title}
+                    type="button"
+                    aria-label={`Show profile orbiter row ${index}: ${row.title}, ${row.completion}% complete`}
+                    aria-pressed={isActiveRow}
+                    disabled={profileOrbiterLocked}
+                    onClick={() => setProfileOrbiterRow(index)}
+                    className={`flex min-h-7 w-full items-center gap-2 overflow-hidden rounded-xl border px-1.5 py-1 text-[8px] font-black uppercase leading-[0.65rem] tracking-[0.05em] transition ${
+                      profileOrbiterRailExpanded
+                        ? "justify-start"
+                        : "justify-center"
+                    } ${
+                      isActiveRow
+                        ? rowTone.activeButton
+                        : "border-white/8 bg-white/[0.025] text-slate-400 hover:border-orange-200/28 hover:bg-orange-300/10 hover:text-orange-100"
+                    } disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/10 disabled:hover:bg-white/[0.035] disabled:hover:text-slate-400`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      data-active={isActiveRow ? "true" : "false"}
+                      data-profile-indicator-motion={pulseTone.motion}
+                      className={`profile-row-card-indicator inline-flex shrink-0 items-center justify-center rounded-full border bg-black/25 transition ${
+                        isActiveRow
+                          ? `h-3.5 w-3.5 ${pulseTone.outerActive}`
+                          : `h-3 w-3 ${pulseTone.outerInactive}`
+                      }`}
+                      style={pulseTone.style}
+                    >
+                      <span
+                        aria-hidden="true"
+                        data-profile-pulse-dot="true"
+                        className={`rounded-full ${
+                          isActiveRow ? pulseTone.dotActive : pulseTone.dotInactive
+                        } ${
+                          isActiveRow ? "h-2 w-2" : "h-1.5 w-1.5"
+                        }`}
+                      />
+                    </span>
+                    <span
+                      className={`overflow-hidden whitespace-normal text-left transition-[max-width,opacity] duration-300 ${
+                        profileOrbiterRailExpanded
+                          ? "max-w-[6.8rem] opacity-100"
+                          : "max-w-0 opacity-0"
+                      }`}
+                    >
+                      {row.title}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              aria-label="Scroll profile orbiter down"
+              disabled={
+                profileOrbiterLocked ||
+                clampedActiveProfileOrbiterRow === profileOrbiterRows.length - 1
+              }
+              onClick={() => scrollProfileOrbiterRow(1)}
+              className="grid h-8 w-8 place-items-center rounded-xl border border-orange-200/18 bg-orange-300/10 text-sm font-black text-orange-100 transition hover:border-orange-200/45 hover:bg-orange-300/16 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-orange-200/18 disabled:hover:bg-orange-300/10"
+            >
+              v
+            </button>
+          </div>
         </div>
 
         <div
           ref={profileOrbiterViewportRef}
-          className={`relative h-[calc(100vh-13.5rem)] min-h-[620px] max-h-[820px] cursor-grab select-none overscroll-y-auto pr-14 scroll-smooth snap-y snap-mandatory [scrollbar-width:none] active:cursor-grabbing [&::-webkit-scrollbar]:hidden ${
+          aria-label="Profile orbiter rows and cards"
+          className={`relative h-[calc(100dvh-84px)] min-h-[640px] max-h-none cursor-grab select-none overscroll-y-auto scroll-smooth snap-y snap-mandatory [scrollbar-width:none] active:cursor-grabbing [&::-webkit-scrollbar]:hidden ${
             profileOrbiterLocked ? "overflow-y-hidden" : "overflow-y-auto"
           }`}
           style={{
-            height: "calc(100vh - 13.5rem)",
-            maxHeight: 820,
-            minHeight: 620,
+            height: "calc(100dvh - 84px)",
+            minHeight: 640,
           }}
           onClickCapture={(event) => {
             if (!profileOrbiterPointerMovedRef.current) return;
@@ -12415,6 +15567,7 @@ export default function ClientProfilePage() {
             event.stopPropagation();
             profileOrbiterPointerMovedRef.current = false;
           }}
+          onKeyDown={handleProfileOrbiterKeyDown}
           onPointerCancel={finishProfileOrbiterDrag}
           onPointerDown={startProfileOrbiterDrag}
           onPointerMove={moveProfileOrbiterDrag}
@@ -12436,15 +15589,47 @@ export default function ClientProfilePage() {
               return;
             }
 
+            const wheelDirection =
+              event.deltaY > 12 ? 1 : event.deltaY < -12 ? -1 : 0;
+            const nextRow =
+              wheelDirection === 0
+                ? clampedActiveProfileOrbiterRow
+                : Math.max(
+                    0,
+                    Math.min(
+                      profileOrbiterRows.length - 1,
+                      clampedActiveProfileOrbiterRow + wheelDirection,
+                    ),
+                  );
+
+            if (
+              wheelDirection !== 0 &&
+              nextRow !== clampedActiveProfileOrbiterRow
+            ) {
+              event.preventDefault();
+              event.stopPropagation();
+
+              if (profileOrbiterWheelLockRef.current) return;
+
+              profileOrbiterWheelLockRef.current = true;
+              scrollProfileOrbiterRow(wheelDirection);
+              window.setTimeout(() => {
+                profileOrbiterWheelLockRef.current = false;
+              }, PROFILE_ORBITER_VERTICAL_WHEEL_DELAY_MS);
+              return;
+            }
+
             profileOrbiterWheelLockRef.current = false;
           }}
+          role="region"
+          tabIndex={0}
         >
-          <div className="relative flex min-h-full flex-col gap-12 py-5">
+          <div className="relative flex min-h-full flex-col gap-6 py-[clamp(32px,6dvh,72px)]">
           <section
             id="profile-orbiter-row-0"
             ref={profileHeroRowRef}
             data-profile-orbiter-row="0"
-            className="relative flex min-h-[calc(100vh-16.5rem)] snap-center flex-col justify-center py-3"
+            className="relative flex min-h-[clamp(440px,54dvh,520px)] snap-center flex-col justify-center py-3"
             style={getProfileOrbiterRowStyle(0)}
           >
             <div className="mx-auto flex h-full w-full max-w-[1180px] flex-col justify-center gap-3">
@@ -12476,6 +15661,9 @@ export default function ClientProfilePage() {
               hasExpandedActiveCard && activeCard
                 ? renderExpandedProfileOrbiterCard(activeCard)
                 : null;
+            const activeCardDetailsOpen = Boolean(
+              activeCardKey && openProfileOrbiterDetails === activeCardKey,
+            );
 
             if (expandedActiveContent) {
               return (
@@ -12483,76 +15671,24 @@ export default function ClientProfilePage() {
                   key={cardRow.tab.id}
                   id={`profile-orbiter-row-${cardRow.rowIndex}`}
                   data-profile-orbiter-row={cardRow.rowIndex}
-                  className="relative flex min-h-[calc(100vh-16.5rem)] snap-center flex-col items-center justify-center overflow-hidden py-4"
+                  className="relative flex min-h-[clamp(500px,64dvh,560px)] snap-center flex-col items-center justify-center overflow-visible py-4"
                   style={getProfileOrbiterRowStyle(cardRow.rowIndex)}
                 >
                   <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-3">
-                    {renderProfileRowHeader(cardRow)}
+                    {renderProfileRowHeader(cardRow, "", true, true, {
+                      activeIndex: activeCardIndex,
+                      cards: cardRow.cards,
+                      tabId: cardRow.tab.id,
+                    })}
                     <article
                       aria-current="page"
                       aria-label={`Expanded ${activeCard?.label || cardRow.title}`}
                       className={`relative w-[min(88vw,980px)] rounded-[28px] border p-0 text-left shadow-[0_22px_58px_rgba(0,0,0,0.36)] outline-none backdrop-blur ring-2 ring-cyan-100/26 ${activeCard?.tone || ""} ${getCompletionTone(activeCard?.completion || 0).glow}`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => setExpandedProfileOrbiterCard(null)}
-                        className="absolute right-4 top-4 z-20 rounded-2xl border border-white/12 bg-slate-950/72 px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-[0_16px_42px_rgba(0,0,0,0.34)] transition hover:border-cyan-200/34 hover:bg-cyan-300/12"
-                      >
-                        Close Drop Down
-                      </button>
+                      {renderCollapseProfileDropdownButton()}
                       {expandedActiveContent}
                     </article>
                   </div>
-
-                  <div className="mt-1 flex justify-center gap-2">
-                    {cardRow.cards.map((card, index) => (
-                      <button
-                        key={card.label}
-                        type="button"
-                        aria-label={`Show ${card.label}`}
-                        onClick={() =>
-                          setProfileSectionOrbitIndex(cardRow.tab.id, index)
-                        }
-                        className={`h-2 rounded-full transition ${
-                          index === activeCardIndex
-                            ? "w-8 bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]"
-                            : "w-2 bg-slate-500/55 hover:bg-orange-200/75"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  {cardRow.cards.length > 1 ? (
-                    <div className="mt-3 flex justify-center gap-3">
-                      <button
-                        type="button"
-                        aria-label={`Show previous ${cardRow.title}`}
-                        onClick={() =>
-                          moveProfileSectionOrbit(
-                            cardRow.tab.id,
-                            cardRow.cards.length,
-                            -1,
-                          )
-                        }
-                        className="grid h-10 w-10 place-items-center rounded-2xl border border-cyan-200/18 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_14px_38px_rgba(0,0,0,0.32)] transition hover:border-cyan-200/42 hover:bg-cyan-300/12"
-                      >
-                        &lt;
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Show next ${cardRow.title}`}
-                        onClick={() =>
-                          moveProfileSectionOrbit(
-                            cardRow.tab.id,
-                            cardRow.cards.length,
-                            1,
-                          )
-                        }
-                        className="grid h-10 w-10 place-items-center rounded-2xl border border-orange-200/18 bg-slate-950/72 text-lg font-black text-orange-100 shadow-[0_14px_38px_rgba(0,0,0,0.32)] transition hover:border-orange-200/42 hover:bg-orange-300/12"
-                      >
-                        &gt;
-                      </button>
-                    </div>
-                  ) : null}
                 </section>
               );
             }
@@ -12562,7 +15698,7 @@ export default function ClientProfilePage() {
                 key={cardRow.tab.id}
                 id={`profile-orbiter-row-${cardRow.rowIndex}`}
                 data-profile-orbiter-row={cardRow.rowIndex}
-                className={`relative flex min-h-[calc(100vh-16.5rem)] snap-center flex-col items-center overflow-hidden py-2 ${
+                className={`relative flex min-h-[clamp(430px,52dvh,500px)] snap-center flex-col items-center overflow-visible py-2 ${
                   hasExpandedActiveCard ? "justify-start pt-14" : "justify-center"
                 }`}
                 style={getProfileOrbiterRowStyle(cardRow.rowIndex)}
@@ -12571,18 +15707,27 @@ export default function ClientProfilePage() {
                   className={`relative w-full overflow-hidden [perspective:900px] ${
                     hasExpandedActiveCard
                       ? "h-[calc(100%-3.25rem)] min-h-[0]"
-                      : "h-[min(520px,calc(100%-3rem))] min-h-[430px]"
+                      : "h-[min(460px,calc(100%-2.5rem))] min-h-[390px]"
                   }`}
                 >
                   {renderProfileRowHeader(
                     cardRow,
-                    "absolute left-1/2 top-4 -translate-x-1/2",
+                    `absolute inset-x-0 mx-auto ${
+                      activeCardDetailsOpen ? "top-1" : "top-4"
+                    }`,
+                    cardRow.rowIndex === clampedActiveProfileOrbiterRow,
+                    activeCardDetailsOpen,
+                    {
+                      activeIndex: activeCardIndex,
+                      cards: cardRow.cards,
+                      tabId: cardRow.tab.id,
+                    },
                   )}
                   <span
                     aria-hidden="true"
                     className="pointer-events-none absolute left-1/2 top-1/2 h-[220px] w-[min(88vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-[46px] bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.11),rgba(251,146,60,0.08)_48%,transparent_76%)] blur-xl"
                   />
-                  {cardRow.cards.length > 1 ? (
+                  {cardRow.cards.length > 1 && !expandedProfileOrbiterCard ? (
                     <>
                       <button
                         type="button"
@@ -12660,6 +15805,7 @@ export default function ClientProfilePage() {
                           ? 0.56
                           : 0.36;
                     const tone = getCompletionTone(card.completion);
+                    const pulseTone = getProfilePulseIndicatorTone(card.completion);
                     const detailsKey = cardKey;
                     const detailsOpen = openProfileOrbiterDetails === detailsKey;
 
@@ -12722,8 +15868,8 @@ export default function ClientProfilePage() {
                           expandedContent
                             ? `top-0 w-[min(88vw,980px)] p-0 ring-2 ring-cyan-100/26 ${tone.glow}`
                             : isActive
-                              ? `top-1/2 w-[min(82vw,380px)] p-5 ring-2 ring-cyan-100/26 ${tone.glow}`
-                              : "top-1/2 w-[220px] cursor-pointer p-5"
+                              ? `top-1/2 w-[min(82vw,380px)] overflow-hidden p-5 ring-2 ring-cyan-100/26 ${tone.glow}`
+                              : "top-1/2 w-[220px] cursor-pointer overflow-hidden p-5"
                         } ${card.tone}`}
                         style={{
                           filter: "none",
@@ -12734,23 +15880,26 @@ export default function ClientProfilePage() {
                           zIndex: 30 - absDistance,
                         }}
                       >
+                        {!expandedContent
+                          ? renderProfileCardLiquidGlass(card.completion, isActive)
+                          : null}
                         {expandedContent ? (
                           <div className="relative">
-                            <button
-                              type="button"
-                              onClick={() => setExpandedProfileOrbiterCard(null)}
-                              className="absolute right-4 top-4 z-20 rounded-2xl border border-white/12 bg-slate-950/72 px-4 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-white shadow-[0_16px_42px_rgba(0,0,0,0.34)] transition hover:border-cyan-200/34 hover:bg-cyan-300/12"
-                            >
-                              Close Drop Down
-                            </button>
+                            {renderCollapseProfileDropdownButton()}
                             {expandedContent}
                           </div>
                         ) : (
-                          <>
+                          <div className="relative z-10">
                             <div className="flex items-start justify-between gap-3">
                               <div className="flex min-w-0 items-start gap-3">
-                                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/12 bg-slate-950/42 text-[10px] font-black uppercase tracking-[0.08em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                                  {card.icon}
+                                <span
+                                  aria-hidden="true"
+                                  className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/12 bg-slate-950/42 text-current shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                                >
+                                  <SelectorIcon
+                                    name={card.icon}
+                                    className={isActive ? "h-6 w-6" : "h-5 w-5"}
+                                  />
                                 </span>
                                 <div className="min-w-0">
                                   <p className="text-sm font-black uppercase tracking-[0.12em] text-white">
@@ -12761,7 +15910,28 @@ export default function ClientProfilePage() {
                                   </p>
                                 </div>
                               </div>
-                              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${tone.badge}`}>
+                              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${tone.badge}`}>
+                                <span
+                                  aria-hidden="true"
+                                  data-active={isActive ? "true" : "false"}
+                                  data-profile-indicator-motion={pulseTone.motion}
+                                  className={`profile-row-card-indicator inline-flex shrink-0 items-center justify-center rounded-full border bg-black/25 ${
+                                    isActive
+                                      ? `h-3.5 w-3.5 ${pulseTone.outerActive}`
+                                      : `h-3 w-3 ${pulseTone.outerInactive}`
+                                  }`}
+                                  style={pulseTone.style}
+                                >
+                                  <span
+                                    aria-hidden="true"
+                                    data-profile-pulse-dot="true"
+                                    className={`rounded-full ${
+                                      isActive ? pulseTone.dotActive : pulseTone.dotInactive
+                                    } ${
+                                      isActive ? "h-2 w-2" : "h-1.5 w-1.5"
+                                    }`}
+                                  />
+                                </span>
                                 {card.completion}%
                               </span>
                             </div>
@@ -12837,28 +16007,13 @@ export default function ClientProfilePage() {
                                 </>
                               )
                             ) : null}
-                          </>
+                          </div>
                         )}
                       </article>
                     );
                   })}
                 </div>
 
-                <div className="mt-1 flex justify-center gap-2">
-                  {cardRow.cards.map((card, index) => (
-                    <button
-                      key={card.label}
-                      type="button"
-                      aria-label={`Show ${card.label}`}
-                      onClick={() => setProfileSectionOrbitIndex(cardRow.tab.id, index)}
-                      className={`h-2 rounded-full transition ${
-                        index === activeCardIndex
-                          ? "w-8 bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]"
-                          : "w-2 bg-slate-500/55 hover:bg-orange-200/75"
-                      }`}
-                    />
-                  ))}
-                </div>
               </section>
             );
           })}
@@ -12924,6 +16079,9 @@ export default function ClientProfilePage() {
           </Link>
         </div>
       </div>
+      <div id="plan-direction" data-profile-section="plan-direction">
+        {renderGoalCompass()}
+      </div>
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <div id="my-body" className="min-w-0" data-profile-section="my-body">
           {renderBodyMetrics()}
@@ -12936,11 +16094,14 @@ export default function ClientProfilePage() {
           {renderMeasurements()}
         </div>
       </div>
-      <div id="previous-experience" data-profile-section="previous-experience">
-        {renderPreviousExperience()}
+      <div id="readiness-section" data-profile-section="readiness-section">
+        {renderReadinessSection()}
       </div>
-      <div id="special-circumstances" data-profile-section="special-circumstances">
-        {renderSpecialCircumstances()}
+      <div id="benchmarks" data-profile-section="benchmarks">
+        {renderBenchmarks()}
+      </div>
+      <div id="lifestyle" data-profile-section="lifestyle">
+        {renderLifestyle()}
       </div>
     </div>
   );
@@ -12950,37 +16111,30 @@ export default function ClientProfilePage() {
     if (tabId === "readiness") {
       return (
         <div className="space-y-5">
-          <div id="plan-direction" data-profile-section="plan-direction">
-            {renderGoalCompass()}
-          </div>
           <div id="training-setup" data-profile-section="training-setup">
             {renderPlanInputs()}
           </div>
           <div id="training-style" data-profile-section="training-style">
             {renderTrainingStyle()}
           </div>
-          <div id="readiness-section" data-profile-section="readiness-section">
-            {renderReadinessSection()}
+          <div id="previous-experience" data-profile-section="previous-experience">
+            {renderPreviousExperience()}
           </div>
-          <div id="benchmarks" data-profile-section="benchmarks">
-            {renderBenchmarks()}
+          <div id="special-circumstances" data-profile-section="special-circumstances">
+            {renderSpecialCircumstances()}
           </div>
+        </div>
+      );
+    }
+    if (tabId === "coachApp") {
+      return (
+        <div className="space-y-5">
           <div id="coach-app-notes" data-profile-section="coach-app-notes">
             {renderNotes({ includeCoachingPreferences: true })}
           </div>
           <div id="app-preferences" data-profile-section="app-preferences">
             {renderPersonalization()}
           </div>
-          <div id="lifestyle" data-profile-section="lifestyle">
-            {renderLifestyle()}
-          </div>
-        </div>
-      );
-    }
-    if (tabId === "training") {
-      return (
-        <div id="training-management" data-profile-section="training-management">
-          {renderTrainingManagement()}
         </div>
       );
     }
@@ -13410,7 +16564,7 @@ export default function ClientProfilePage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_30%),radial-gradient(circle_at_82%_10%,rgba(251,146,60,0.14),transparent_28%),linear-gradient(180deg,#020617_0%,#07111f_52%,#020617_100%)] pb-10 text-white">
-      <section className="mx-auto w-full max-w-[1440px] space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+      <section className="mx-auto w-full max-w-[1440px] px-4 pb-6 pt-0 sm:px-6 lg:px-8">
         <nav className="hidden rounded-[28px] border border-white/10 bg-slate-950/52 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
           <div className="flex items-center gap-2">
             <button
