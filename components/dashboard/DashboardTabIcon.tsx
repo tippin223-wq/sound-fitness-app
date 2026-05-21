@@ -41,6 +41,7 @@ const aliases: Record<string, string> = {
   "My Plan": "plan",
   Post: "post",
   Power: "performance",
+  Progress: "stats",
   Run: "run",
   Social: "feed",
   Stats: "stats",

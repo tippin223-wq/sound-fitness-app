@@ -475,7 +475,7 @@ function FavoriteButton({
         onToggle();
       }}
       className={`relative z-[35] flex shrink-0 items-center justify-center rounded-full border backdrop-blur-xl transition hover:scale-105 focus:outline-none focus:ring-2 focus:ring-yellow-200/40 ${
-        compact ? "h-8 w-8" : "h-10 w-10"
+        compact ? "h-7 w-7" : "h-8 w-8"
       } ${
         isFavorite
           ? "border-yellow-200/70 bg-yellow-300/22 text-yellow-200 shadow-[0_0_28px_rgba(250,204,21,0.30),inset_0_1px_0_rgba(255,255,255,0.20)]"
@@ -11581,118 +11581,6 @@ function ExerciseBodyAnatomySelector({
       </div>
       </div>
 
-      <div
-        style={getCategoryThemeCssVariables(selectedTreeTheme)}
-        className="mt-4 min-w-0"
-      >
-          <div className="exercise-library-movement-panel relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/60 p-4 shadow-[0_0_40px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.11),transparent_34%),radial-gradient(circle_at_92%_10%,rgba(250,204,21,0.08),transparent_30%)]" />
-            <div className="relative z-10">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-emerald-200/80">
-                    Anatomy Skill Tree
-                  </p>
-                  <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
-                    Pick one root branch, earn points from logged volume, then add smart recommendations to a workout.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenRootRegion("upper-body");
-                    setOpenTreeNodes(new Set(["all-regions", "upper-body"]));
-                    onClearBodySelection();
-                  }}
-                  className="shrink-0 rounded-2xl border border-cyan-100/20 bg-cyan-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-100/45 hover:bg-cyan-300 hover:text-slate-950"
-                >
-                  All Regions
-                </button>
-              </div>
-
-              <div
-                aria-label="Anatomy root branch 3D orbit"
-                className="relative mt-4 h-[340px] overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.13),rgba(15,23,42,0.28)_48%,transparent_78%)] [perspective:1500px] [transform-style:preserve-3d]"
-              >
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute left-1/2 top-1/2 h-[188px] w-[min(92%,1040px)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/10 shadow-[0_0_88px_rgba(34,211,238,0.10)]"
-                />
-                <button
-                  type="button"
-                  aria-label="Previous anatomy root branch"
-                  onClick={() => rotateRootSkillOrbit("left")}
-                  className="absolute left-3 top-1/2 z-50 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/62 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.14)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
-                >
-                  &lt;
-                </button>
-                <button
-                  type="button"
-                  aria-label="Next anatomy root branch"
-                  onClick={() => rotateRootSkillOrbit("right")}
-                  className="absolute right-3 top-1/2 z-50 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/62 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.14)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
-                >
-                  &gt;
-                </button>
-                {rootRegionNodes.map((node, index) =>
-                  renderRootSkillCard(node, index),
-                )}
-                <div className="absolute inset-x-0 bottom-4 z-50 flex justify-center gap-2">
-                  {rootRegionNodes.map((node, index) => {
-                    const isActive = index === activeRootSkillOrbitIndex;
-
-                    return (
-                      <button
-                        key={`${node.id}-orbit-dot`}
-                        type="button"
-                        aria-label={`Show ${node.label}`}
-                        aria-pressed={isActive}
-                        onClick={() => {
-                          setActiveRootSkillOrbitIndex(index);
-                          openRootSkillRegion(node);
-                        }}
-                        className={`h-2.5 rounded-full transition-all ${
-                          isActive
-                            ? "w-8 bg-cyan-200 shadow-[0_0_14px_rgba(34,211,238,0.55)]"
-                            : "w-2.5 bg-white/20 hover:bg-white/40"
-                        }`}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="exercise-library-anatomy-tree-scroll mt-4 max-h-[560px] overflow-y-auto pr-2">
-                {openRootNode ? (
-                  <div
-                    style={getCategoryThemeCssVariables(
-                      getBodyRegionTheme(openRootNode.label),
-                    )}
-                    className="rounded-[24px] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-                  >
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[var(--exercise-theme-text)]">
-                          Open Branch
-                        </p>
-                        <p className="mt-1 text-sm font-black text-white">
-                          {openRootNode.label}
-                        </p>
-                      </div>
-                      <span className="rounded-xl border border-white/10 bg-white/[0.055] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.1em] text-slate-300">
-                        Single-open branch
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                      {openRootNode.children?.map((node) => renderTreeNode(node))}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </div>
-
       <div className="hidden content-start gap-2 rounded-[24px] border border-white/10 bg-white/[0.035] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -15607,25 +15495,25 @@ function ExerciseCategoryShelf({
 
 function CreateExerciseEmptyCard({ onCreate }: { onCreate: () => void }) {
   return (
-    <article className="exercise-library-themed-card group/create-exercise flex min-h-[360px] flex-col overflow-hidden rounded-[28px] border border-cyan-200/22 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_86%_12%,rgba(250,204,21,0.15),transparent_30%),linear-gradient(145deg,rgba(15,23,42,0.94),rgba(2,6,23,0.90))] p-4 shadow-[0_24px_78px_rgba(0,0,0,0.48),0_0_34px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] transition duration-200 hover:-translate-y-1 hover:border-cyan-100/45 hover:shadow-[0_30px_96px_rgba(0,0,0,0.58),0_0_46px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.22)]">
+    <article className="exercise-library-themed-card group/create-exercise flex min-h-[190px] flex-col overflow-hidden rounded-2xl border border-cyan-200/22 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_86%_12%,rgba(250,204,21,0.15),transparent_30%),linear-gradient(145deg,rgba(15,23,42,0.94),rgba(2,6,23,0.90))] p-3 shadow-[0_18px_52px_rgba(0,0,0,0.44),0_0_24px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] transition duration-200 hover:-translate-y-1 hover:border-cyan-100/45 hover:shadow-[0_24px_70px_rgba(0,0,0,0.54),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.22)] sm:min-h-[220px]">
       <button
         type="button"
         onClick={onCreate}
-        className="flex h-full min-h-[328px] flex-col items-center justify-center rounded-[24px] border border-dashed border-cyan-100/24 bg-white/[0.045] px-4 py-6 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition group-hover/create-exercise:bg-white/[0.07]"
+        className="flex h-full min-h-[166px] flex-col items-center justify-center rounded-xl border border-dashed border-cyan-100/24 bg-white/[0.045] px-3 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition group-hover/create-exercise:bg-white/[0.07] sm:min-h-[190px]"
       >
         <span
           aria-hidden="true"
-          className="flex h-16 w-16 items-center justify-center rounded-3xl border border-cyan-100/30 bg-cyan-300/14 text-4xl font-black leading-none text-cyan-50 shadow-[0_0_34px_rgba(34,211,238,0.22),inset_0_1px_0_rgba(255,255,255,0.18)]"
+          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-100/30 bg-cyan-300/14 text-2xl font-black leading-none text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.22),inset_0_1px_0_rgba(255,255,255,0.18)]"
         >
           +
         </span>
-        <span className="mt-5 text-xl font-black uppercase tracking-[0.08em] text-white">
+        <span className="mt-3 text-sm font-black uppercase tracking-[0.08em] text-white sm:text-base">
           Create an Exercise
         </span>
-        <span className="mt-3 max-w-[18rem] text-sm font-semibold leading-6 text-slate-300">
+        <span className="mt-2 max-w-[15rem] text-xs font-semibold leading-5 text-slate-300">
           Create your own movement variation, coaching cue, and settings.
         </span>
-        <span className="mt-6 rounded-2xl border border-emerald-200/25 bg-emerald-300/16 px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-emerald-100 shadow-[0_0_24px_rgba(16,185,129,0.14)] transition group-hover/create-exercise:border-emerald-100/55 group-hover/create-exercise:bg-emerald-300 group-hover/create-exercise:text-slate-950">
+        <span className="mt-3 rounded-xl border border-emerald-200/25 bg-emerald-300/16 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)] transition group-hover/create-exercise:border-emerald-100/55 group-hover/create-exercise:bg-emerald-300 group-hover/create-exercise:text-slate-950">
           Create Exercise
         </span>
       </button>
@@ -19582,24 +19470,24 @@ function ExerciseLibraryCard({
     </div>
   );
 
-  const collapsedCardRadius = isGridView ? "rounded-2xl" : "rounded-[30px]";
+  const collapsedCardRadius = isGridView ? "rounded-xl" : "rounded-2xl";
   const collapsedCardHeight = isGridView
-    ? "h-[280px] sm:h-[310px]"
-    : "h-[360px] sm:h-[410px]";
+    ? "h-[150px] sm:h-[165px]"
+    : "h-[180px] sm:h-[205px]";
   const collapsedTitleClass = isGridView
-    ? "text-lg leading-5 sm:text-xl sm:leading-6"
-    : "text-2xl leading-7 sm:text-3xl sm:leading-9";
+    ? "text-sm leading-4 sm:text-base sm:leading-5"
+    : "text-base leading-5 sm:text-xl sm:leading-6";
   const collapsedPillClass = isGridView
-    ? "px-2 py-1 text-[8px] tracking-[0.08em]"
-    : "px-3 py-1 text-[10px] tracking-[0.12em]";
+    ? "px-1.5 py-0.5 text-[7px] tracking-[0.06em]"
+    : "px-2 py-0.5 text-[8px] tracking-[0.08em]";
   const collapsedActionClass = isGridView
-    ? "min-h-[34px] rounded-xl px-2 py-1.5 text-[8px] tracking-[0.08em]"
-    : "min-h-[40px] rounded-2xl px-3 py-2 text-[10px] tracking-[0.12em]";
+    ? "min-h-[28px] rounded-lg px-1.5 py-1 text-[7px] tracking-[0.06em]"
+    : "min-h-[32px] rounded-xl px-2 py-1.5 text-[8px] tracking-[0.08em]";
 
   return (
     <article
       style={cardVolumeStyle}
-      className={`exercise-library-themed-card group relative mb-3 inline-block w-full break-inside-avoid self-start overflow-hidden border backdrop-blur-2xl backdrop-saturate-150 transition ${collapsedCardRadius} ${collapsedCardHeight} ${categoryTheme.surfaceClass} ${categoryTheme.cardClass} ${categoryTheme.hoverClass} ${
+      className={`exercise-library-themed-card group relative mb-1.5 inline-block w-full break-inside-avoid self-start overflow-hidden border backdrop-blur-2xl backdrop-saturate-150 transition ${collapsedCardRadius} ${collapsedCardHeight} ${categoryTheme.surfaceClass} ${categoryTheme.cardClass} ${categoryTheme.hoverClass} ${
         cardLatestSetInsight ? "exercise-library-volume-pulse" : ""
       } ${
         isVariationDropdownOpen ||
@@ -19631,10 +19519,10 @@ function ExerciseLibraryCard({
         className="absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(2,6,23,0.16)_0%,rgba(2,6,23,0.08)_32%,rgba(2,6,23,0.72)_72%,rgba(2,6,23,0.94)_100%),radial-gradient(circle_at_18%_4%,rgba(255,255,255,0.18),transparent_26%)]"
       />
 
-      <div className="absolute left-3 right-3 top-3 z-20 flex items-start justify-between gap-2 sm:left-4 sm:right-4 sm:top-4">
-        <div className="flex min-w-0 flex-wrap gap-1.5">
+      <div className="absolute left-2 right-2 top-2 z-20 flex items-start justify-between gap-1.5 sm:left-2.5 sm:right-2.5 sm:top-2.5">
+        <div className="flex min-w-0 flex-wrap gap-1">
           <span
-            className={`max-w-[11rem] truncate rounded-full border ${collapsedPillClass} font-black uppercase text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.14)] backdrop-blur-xl ${categoryTheme.pillClass}`}
+            className={`max-w-[8.5rem] truncate rounded-full border ${collapsedPillClass} font-black uppercase text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.14)] backdrop-blur-xl ${categoryTheme.pillClass}`}
           >
             {cardClassificationLabel}
           </span>
@@ -19653,8 +19541,8 @@ function ExerciseLibraryCard({
         />
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 z-20 max-h-full overflow-y-auto overscroll-contain p-3 [scrollbar-color:rgba(34,211,238,0.36)_transparent] [scrollbar-width:thin] sm:p-4">
-        <div className="exercise-library-card-info-glass rounded-2xl border p-3 sm:p-4">
+      <div className="absolute inset-x-0 bottom-0 z-20 max-h-full overflow-y-auto overscroll-contain p-2 [scrollbar-color:rgba(34,211,238,0.36)_transparent] [scrollbar-width:thin] sm:p-2.5">
+        <div className="exercise-library-card-info-glass rounded-xl border p-2 sm:p-2.5">
           <h2
             className={`line-clamp-2 font-black tracking-wide text-white drop-shadow-[0_0_16px_rgba(255,255,255,0.38)] ${collapsedTitleClass}`}
           >
@@ -19662,7 +19550,7 @@ function ExerciseLibraryCard({
           </h2>
 
           {coreMovementLabel ? (
-            <p className="mt-1 truncate text-[9px] font-black uppercase tracking-[0.14em] text-cyan-50/88 sm:text-[10px]">
+            <p className="mt-0.5 truncate text-[8px] font-black uppercase tracking-[0.1em] text-cyan-50/88 sm:text-[9px]">
               Core Movement:{" "}
               <button
                 type="button"
@@ -19686,7 +19574,7 @@ function ExerciseLibraryCard({
             aria-controls={cardMetaPanelId}
             aria-expanded={isCardMetaDropdownOpen}
             onClick={toggleCardMetaDropdown}
-            className="exercise-library-card-meta-trigger mt-2 flex w-full items-center justify-between gap-2 py-1.5 text-left text-[9px] font-black uppercase tracking-[0.14em] text-cyan-50/86 transition hover:text-white focus-visible:outline-none focus-visible:underline focus-visible:decoration-cyan-100/45 focus-visible:underline-offset-4 sm:text-[10px]"
+            className="exercise-library-card-meta-trigger mt-1 flex w-full items-center justify-between gap-1.5 py-1 text-left text-[8px] font-black uppercase tracking-[0.1em] text-cyan-50/86 transition hover:text-white focus-visible:outline-none focus-visible:underline focus-visible:decoration-cyan-100/45 focus-visible:underline-offset-4 sm:text-[9px]"
           >
             <span>Card Details</span>
             {renderSettingsChevron(isCardMetaDropdownOpen)}
@@ -19695,9 +19583,9 @@ function ExerciseLibraryCard({
           {isCardMetaDropdownOpen ? (
             <div
               id={cardMetaPanelId}
-              className="exercise-library-card-meta-dropdown mt-2 space-y-3"
+              className="exercise-library-card-meta-dropdown mt-1.5 space-y-2"
             >
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <div className="flex flex-wrap items-center gap-1">
                 <button
                   type="button"
                   aria-label={`Filter body region ${exercise.body}`}
@@ -19740,7 +19628,7 @@ function ExerciseLibraryCard({
             {weeklyExerciseVolumePill}
               </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-1.5 sm:gap-2">
+          <div className="mt-2 grid grid-cols-2 gap-1">
             <button
               type="button"
               aria-controls={collapsedDetailsPanelId}
@@ -19805,7 +19693,7 @@ function ExerciseLibraryCard({
           {isExerciseDetailsOpen ? (
             <div
               id={collapsedDetailsPanelId}
-              className="exercise-library-themed-panel exercise-library-card-info-glass exercise-library-card-info-glass--details mt-3 max-h-[min(22rem,58vh)] overflow-y-auto overscroll-contain rounded-2xl border p-2.5 [scrollbar-color:rgba(34,211,238,0.38)_transparent] [scrollbar-width:thin] sm:p-3"
+              className="exercise-library-themed-panel exercise-library-card-info-glass exercise-library-card-info-glass--details mt-2 max-h-[min(22rem,58vh)] overflow-y-auto overscroll-contain rounded-xl border p-2 [scrollbar-color:rgba(34,211,238,0.38)_transparent] [scrollbar-width:thin]"
             >
               <SemanticVariationSelect
                 options={semanticVariationOptions}
@@ -19825,7 +19713,7 @@ function ExerciseLibraryCard({
 
               {settingsDropdown}
 
-              <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035] p-2.5">
+              <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.035] p-2">
                 {isGridView ? (
                   gridDetailsPanelContent
                 ) : (
@@ -23454,32 +23342,6 @@ export default function ExerciseLibraryPage() {
             </div>
           </div>
         </section>
-
-        <TrainingIntelligenceHeader
-          bestMetricCards={bestMetricCards}
-          categoryMetricCards={categoryMetricCards}
-          currentFocusLabel={currentFocusLabel}
-          goalLogic={goalLogicSummary}
-          insights={renderedTrainingLogicInsights}
-          lastTrainedLabel={lastTrainedLabel}
-          latestSetInsight={latestSetInsight}
-          lifetimeMetricCards={lifetimeMetricCards}
-          onPreferredWeightUnitChange={updatePreferredWeightUnit}
-          preferredWeightUnit={preferredWeightUnit}
-          profileSummary={profileSummary}
-          recentMetricCards={recentMetricCards}
-          sectionTheme={activeExerciseSectionTheme}
-          shortcuts={trainingShortcuts}
-          statCards={trainingStatCards}
-          trainingStreakLabel={trainingStreakLabel}
-          weeklyMetricCards={weeklyMetricCards}
-          weeklyGoalSets={allBodyRegionWeeklySetGoal}
-          weeklyWeightVolumeComparisonLabel={weeklyWeightVolumeComparisonLabel}
-          weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
-          weeklyWeightVolume={weeklyTotalWeightVolume}
-          weeklyReps={weeklyTotalReps}
-          weeklySets={weeklyTotalSets}
-        />
 
         <ExerciseLibraryWidgetDock
           bodyBalanceLabel={

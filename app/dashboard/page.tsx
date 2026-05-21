@@ -857,6 +857,14 @@ const dashboardNavigationCards: DashboardNavigationCard[] = [
     status: "Metrics",
   },
   {
+    title: "Progress",
+    href: ROUTES.dashboard.progress,
+    description: "Check-ins, habits, goals, journal notes, and pain tracking.",
+    icon: "Progress",
+    tone: "emerald",
+    status: "Track",
+  },
+  {
     title: "Goals",
     href: ROUTES.dashboard.goals,
     description: "Plan direction, daily targets, milestones, and motivation.",
@@ -918,6 +926,7 @@ const dashboardSystemCardOrder = [
   "Goals",
   "Insights",
   "Stats",
+  "Progress",
   "Calendar",
   "Appointments",
   "Messages",
@@ -1248,7 +1257,7 @@ export default function UserHomeDashboardPage() {
         ((activeSystemCenterIndex + 1) / dashboardSystemCards.length) * 100,
       ),
       helper:
-        "Goals, insights, stats, calendar, appointments, messages, packages, and achievements.",
+        "Goals, insights, stats, progress, calendar, appointments, messages, packages, and achievements.",
       title: "System Row",
     },
   ];
@@ -5892,7 +5901,7 @@ export default function UserHomeDashboardPage() {
               {renderDashboardOrbitCardRow({
                 cards: dashboardSystemCards,
                 description:
-                  "Goals, insights, stats, calendar, appointments, messages, packages, and achievements live together here.",
+                  "Goals, insights, stats, progress, calendar, appointments, messages, packages, and achievements live together here.",
                 getDistance: getSystemCenterOrbitDistance,
                 kicker: "Systems",
                 pointerMovedRef: systemCenterPointerMovedRef,

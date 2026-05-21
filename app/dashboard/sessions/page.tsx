@@ -365,6 +365,7 @@ const UPPER_TRAINING_JOURNEY_TITLES = new Set([
   "Insights",
   "Performance",
   "Stats",
+  "Progress",
   "Calendar",
   "Appointments",
   "Messages",
@@ -1041,6 +1042,17 @@ export default function SessionsPage() {
         icon: "Stat",
         nextAction: "Open stats",
         progress: hasLogs ? 62 : 18,
+        status: hasLogs ? "Unlocked" : "Next",
+      },
+      {
+        title: "Progress",
+        helper: "Progress hub, check-ins, goals, journal notes, habits, and pain tracking.",
+        href: ROUTES.dashboard.progress,
+        icon: "Progress",
+        nextAction: hasLogs ? "Review progress" : "Start tracking",
+        progress: hasLogs
+          ? Math.min(100, 48 + workoutStats.loggedEntries * 3)
+          : 16,
         status: hasLogs ? "Unlocked" : "Next",
       },
       {
@@ -4511,7 +4523,7 @@ export default function SessionsPage() {
                   tone: "border-cyan-200/26 bg-cyan-300/10 text-cyan-100",
                 },
                 {
-                  helper: "Insights, Performance, Stats, Calendar, Appointments, Messages, Packages, Achievements",
+                  helper: "Insights, Performance, Stats, Progress, Calendar, Appointments, Messages, Packages, Achievements",
                   label: "Systems Row",
                   layer: 1,
                   tone: "border-amber-200/26 bg-amber-300/10 text-amber-100",
