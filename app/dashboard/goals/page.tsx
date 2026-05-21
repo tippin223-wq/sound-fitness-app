@@ -11,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
 import { writeSoundFitnessProfile } from "@/lib/profile-storage";
 import { ROUTES } from "@/lib/routes";
 
@@ -880,7 +881,7 @@ function GoalOrbiterIcon({
 export default function GoalsPage() {
   const [profile, setProfile] = useState<ProfileSnapshot>(() => defaultProfile());
   const [goals, setGoals] = useState<GoalState>(() => buildGoalsFromProfile(defaultProfile()));
-  const [activeGoalsHeaderIndex, setActiveGoalsHeaderIndex] = useState(2);
+  const [activeGoalsHeaderIndex, setActiveGoalsHeaderIndex] = useState(0);
   const [goalsHeaderSlideDirection, setGoalsHeaderSlideDirection] =
     useState<"left" | "right">("right");
   const [activeGoalsOrbiterRow, setActiveGoalsOrbiterRow] = useState(0);
@@ -1022,7 +1023,7 @@ export default function GoalsPage() {
   const goalsHeaderLinks = [
     {
       href: ROUTES.dashboard.home,
-      icon: "DB",
+      icon: "dashboard",
       label: "Dashboard",
       meta: "Command",
       points: Math.round(soundPoints * 1.06),
@@ -1031,7 +1032,7 @@ export default function GoalsPage() {
     },
     {
       href: ROUTES.dashboard.profile,
-      icon: "ID",
+      icon: "profile",
       label: "Profile",
       meta: "Identity",
       points: Math.round(soundPoints * 0.92),
@@ -1039,17 +1040,8 @@ export default function GoalsPage() {
         "border-cyan-200/30 bg-cyan-300/10 text-cyan-100 hover:border-cyan-100/45 hover:bg-cyan-300/16",
     },
     {
-      href: ROUTES.dashboard.goals,
-      icon: "GO",
-      label: "Direction",
-      meta: "Command",
-      points: soundPoints,
-      tone:
-        "border-amber-100/50 bg-amber-300 text-slate-950 shadow-[0_0_26px_rgba(251,191,36,0.24)]",
-    },
-    {
       href: ROUTES.dashboard.sessions,
-      icon: "WO",
+      icon: "workout",
       label: "Workout",
       meta: "Sessions",
       points: Math.round(soundPoints * 0.82),
@@ -1058,7 +1050,7 @@ export default function GoalsPage() {
     },
     {
       href: ROUTES.nutritionPortal.home,
-      icon: "NU",
+      icon: "nutrition",
       label: "Nutrition",
       meta: "Fuel",
       points: Math.round(soundPoints * 0.42),
@@ -1067,7 +1059,7 @@ export default function GoalsPage() {
     },
     {
       href: ROUTES.dashboard.recovery,
-      icon: "RE",
+      icon: "recovery",
       label: "Recovery",
       meta: "Readiness",
       points: Math.round(soundPoints * 0.3),
@@ -1076,7 +1068,7 @@ export default function GoalsPage() {
     },
     {
       href: ROUTES.performance.home,
-      icon: "PF",
+      icon: "performance",
       label: "Performance",
       meta: "Athletic",
       points: Math.round(soundPoints * 0.48),
@@ -1085,7 +1077,7 @@ export default function GoalsPage() {
     },
     {
       href: ROUTES.learning.home,
-      icon: "ED",
+      icon: "education",
       label: "Education",
       meta: "Learning",
       points: Math.round(soundPoints * 0.16),
@@ -1094,7 +1086,7 @@ export default function GoalsPage() {
     },
     {
       href: ROUTES.soundworld.home,
-      icon: "SW",
+      icon: "soundworld",
       label: "Sound World",
       meta: "Community",
       points: Math.round(soundPoints * 0.1),
@@ -1104,13 +1096,10 @@ export default function GoalsPage() {
   ] as const;
   const activeGoalsHeaderLink =
     goalsHeaderLinks[activeGoalsHeaderIndex % goalsHeaderLinks.length] ||
-    goalsHeaderLinks[2];
-  const goalsHeaderProfileLink =
-    goalsHeaderLinks.find((dashboardLink) => dashboardLink.href === ROUTES.dashboard.profile) ||
-    goalsHeaderLinks[1];
-  const goalsHeaderGoalsLink =
-    goalsHeaderLinks.find((dashboardLink) => dashboardLink.href === ROUTES.dashboard.goals) ||
-    goalsHeaderLinks[2];
+    goalsHeaderLinks[0];
+  const goalsHeaderCommandLink =
+    goalsHeaderLinks.find((dashboardLink) => dashboardLink.label === "Dashboard") ||
+    goalsHeaderLinks[0];
   const rotateGoalsHeaderRail = (direction: "left" | "right") => {
     setGoalsHeaderSlideDirection(direction);
     setActiveGoalsHeaderIndex((currentIndex) =>
@@ -1230,11 +1219,6 @@ export default function GoalsPage() {
             &lt;
           </button>
           <Link
-            aria-current={
-              activeGoalsHeaderLink.href === ROUTES.dashboard.goals
-                ? "page"
-                : undefined
-            }
             className={`flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-2.5 py-2 text-left text-cyan-50 shadow-none transition hover:-translate-y-0.5 hover:bg-white/[0.04] ${
               goalsHeaderSlideDirection === "right"
                 ? "animate-[sessions-dashboard-chip-slide-from-right_220ms_ease-out]"
@@ -1249,7 +1233,7 @@ export default function GoalsPage() {
               aria-hidden="true"
               className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border text-[11px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,255,255,0.06)] ${activeGoalsHeaderLink.tone}`}
             >
-              {activeGoalsHeaderLink.icon}
+              <DashboardTabIcon name={activeGoalsHeaderLink.icon} />
             </span>
             <span className="shrink-0 whitespace-nowrap">
               <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
@@ -1270,50 +1254,26 @@ export default function GoalsPage() {
               </span>
             </span>
           </Link>
-          {activeGoalsHeaderLink.href !== ROUTES.dashboard.profile ? (
+          {activeGoalsHeaderLink.label !== "Dashboard" ? (
             <Link
-              aria-label="Open Profile dashboard"
-              className={`group flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-2 rounded-[22px] border px-2.5 py-2 text-left shadow-[0_0_20px_rgba(34,211,238,0.08)] transition hover:-translate-y-0.5 ${goalsHeaderProfileLink.tone}`}
+              aria-label="Open command dashboard"
+              className={`group flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-2 rounded-[22px] border px-2.5 py-2 text-left shadow-[0_0_20px_rgba(251,191,36,0.08)] transition hover:-translate-y-0.5 ${goalsHeaderCommandLink.tone}`}
               draggable={false}
-              href={goalsHeaderProfileLink.href}
+              href={goalsHeaderCommandLink.href}
               onDragStart={(event) => event.preventDefault()}
             >
               <span
                 aria-hidden="true"
-                className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border text-[11px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(34,211,238,0.10)] ${goalsHeaderProfileLink.tone}`}
+                className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border text-[11px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(251,191,36,0.10)] ${goalsHeaderCommandLink.tone}`}
               >
-                {goalsHeaderProfileLink.icon}
+                <DashboardTabIcon name={goalsHeaderCommandLink.icon} />
               </span>
               <span className="hidden shrink-0 whitespace-nowrap sm:block">
                 <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
-                  {goalsHeaderProfileLink.meta}
+                  {goalsHeaderCommandLink.meta}
                 </span>
                 <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px]">
-                  {goalsHeaderProfileLink.label}
-                </span>
-              </span>
-            </Link>
-          ) : null}
-          {activeGoalsHeaderLink.href !== ROUTES.dashboard.goals ? (
-            <Link
-              aria-label="Open Direction command dashboard"
-              className={`group flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-2 rounded-[22px] border px-2.5 py-2 text-left shadow-[0_0_20px_rgba(251,191,36,0.08)] transition hover:-translate-y-0.5 ${goalsHeaderGoalsLink.tone}`}
-              draggable={false}
-              href={goalsHeaderGoalsLink.href}
-              onDragStart={(event) => event.preventDefault()}
-            >
-              <span
-                aria-hidden="true"
-                className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border text-[11px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(251,191,36,0.10)] ${goalsHeaderGoalsLink.tone}`}
-              >
-                {goalsHeaderGoalsLink.icon}
-              </span>
-              <span className="hidden shrink-0 whitespace-nowrap sm:block">
-                <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
-                  {goalsHeaderGoalsLink.meta}
-                </span>
-                <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px]">
-                  {goalsHeaderGoalsLink.label}
+                  {goalsHeaderCommandLink.label}
                 </span>
               </span>
             </Link>
@@ -1430,7 +1390,10 @@ export default function GoalsPage() {
             </span>
           </div>
         </div>
-        <div className="rounded-[30px] border border-cyan-300/15 bg-slate-950/58 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+        <div
+          id="recommended-goal-step"
+          className="rounded-[30px] border border-cyan-300/15 bg-slate-950/58 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] scroll-mt-28"
+        >
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">
             Recommended Next Goal Step
           </p>

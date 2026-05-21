@@ -17,34 +17,8 @@ type FuelJourneyStep = {
 
 const fuelJourneySteps: FuelJourneyStep[] = [
   {
-    id: "profile",
-    step: 1,
-    label: "Profile",
-    shortLabel: "Profile",
-    subtitle: "Baseline",
-    purpose: "Set personal details, preferences, constraints, and baseline info.",
-    detail:
-      "Your nutrition system starts with body metrics, schedule, limits, and preferences.",
-    cta: "Open Profile",
-    href: "/dashboard/profile",
-    status: "completed",
-  },
-  {
-    id: "goals",
-    step: 2,
-    label: "Goals",
-    shortLabel: "Goals",
-    subtitle: "Direction",
-    purpose: "Choose your nutrition goal and connect it to training outcomes.",
-    detail:
-      "Goal direction shapes calories, protein, meal prep, hydration, and recovery support.",
-    cta: "Set Goals",
-    href: "/nutrition/goals",
-    status: "completed",
-  },
-  {
     id: "fuel-dashboard",
-    step: 3,
+    step: 1,
     label: "Fuel Dashboard",
     shortLabel: "Fuel",
     subtitle: "Daily view",
@@ -57,7 +31,7 @@ const fuelJourneySteps: FuelJourneyStep[] = [
   },
   {
     id: "shopping",
-    step: 4,
+    step: 2,
     label: "Shopping / My Fridge",
     shortLabel: "Shopping",
     subtitle: "Groceries",
@@ -70,7 +44,7 @@ const fuelJourneySteps: FuelJourneyStep[] = [
   },
   {
     id: "kitchen",
-    step: 5,
+    step: 3,
     label: "The Kitchen",
     shortLabel: "Kitchen",
     subtitle: "Library",
@@ -83,7 +57,7 @@ const fuelJourneySteps: FuelJourneyStep[] = [
   },
   {
     id: "menu",
-    step: 6,
+    step: 4,
     label: "My Menu",
     shortLabel: "Menu",
     subtitle: "Meals",
@@ -96,7 +70,7 @@ const fuelJourneySteps: FuelJourneyStep[] = [
   },
   {
     id: "plan",
-    step: 7,
+    step: 5,
     label: "My Plan",
     shortLabel: "Plan",
     subtitle: "Week",
@@ -109,7 +83,7 @@ const fuelJourneySteps: FuelJourneyStep[] = [
   },
   {
     id: "progress",
-    step: 8,
+    step: 6,
     label: "Progress",
     shortLabel: "Progress",
     subtitle: "Review",
@@ -241,8 +215,7 @@ function FuelJourneyStrip() {
             Fuel Journey
           </p>
           <p className="mt-2 max-w-4xl text-xs leading-5 text-slate-400 sm:text-sm">
-            Profile - Goals - Fuel Dashboard - Shopping - Kitchen - Menu - Plan
-            - Progress
+            Fuel Dashboard - Shopping - Kitchen - Menu - Plan - Progress
           </p>
         </div>
 

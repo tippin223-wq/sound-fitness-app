@@ -4302,6 +4302,55 @@ type ProfilePulseIndicatorTone = {
   style: ProfilePulseIndicatorStyle;
 };
 
+type ProfileDashboardUrgencyStatus =
+  | "Complete"
+  | "Current"
+  | "Next"
+  | "Unlocked"
+  | "Locked";
+
+const getProfileDashboardUrgencyTone = (
+  status: ProfileDashboardUrgencyStatus,
+) => {
+  if (status === "Complete") {
+    return {
+      dot: "border-emerald-200/45 bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.42)]",
+      label: "Complete",
+      ring: "border-emerald-200/28 bg-emerald-300/10 text-emerald-100",
+    };
+  }
+
+  if (status === "Current") {
+    return {
+      dot: "border-cyan-100/60 bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]",
+      label: "Current",
+      ring: "border-cyan-100/45 bg-cyan-300/18 text-cyan-50",
+    };
+  }
+
+  if (status === "Next") {
+    return {
+      dot: "border-amber-100/55 bg-amber-200 shadow-[0_0_14px_rgba(250,204,21,0.52)]",
+      label: "Next",
+      ring: "border-amber-100/45 bg-amber-300/18 text-amber-50",
+    };
+  }
+
+  if (status === "Unlocked") {
+    return {
+      dot: "border-slate-200/28 bg-slate-300/60",
+      label: "Unlocked",
+      ring: "border-white/12 bg-white/[0.045] text-slate-300",
+    };
+  }
+
+  return {
+    dot: "border-rose-200/28 bg-rose-300/55 shadow-[0_0_12px_rgba(251,113,133,0.38)]",
+    label: "Locked",
+    ring: "border-rose-200/22 bg-rose-300/8 text-rose-100",
+  };
+};
+
 const getProfilePulseIndicatorTone = (
   percent: number,
 ): ProfilePulseIndicatorTone => {
@@ -6732,6 +6781,16 @@ export default function ClientProfilePage() {
     }, 240);
   }, []);
   useEffect(() => {
+    if (activeProfileOrbiterRow !== 0) return;
+
+    if (profileOrbiterRailCollapseTimerRef.current) {
+      window.clearTimeout(profileOrbiterRailCollapseTimerRef.current);
+      profileOrbiterRailCollapseTimerRef.current = null;
+    }
+
+    setProfileOrbiterRailExpanded(false);
+  }, [activeProfileOrbiterRow]);
+  useEffect(() => {
     activeProfileHubLayerRef.current = activeProfileHubLayer;
   }, [activeProfileHubLayer]);
   useEffect(() => {
@@ -7174,22 +7233,27 @@ export default function ClientProfilePage() {
     () =>
       [
         {
-          href: ROUTES.dashboard.profile,
-          icon: "user" as SelectorIconName,
-          label: "Profile",
-          meta: "Identity",
+          href: ROUTES.dashboard.home,
+          icon: "panel-top" as SelectorIconName,
+          label: "Command",
+          meta: "Dashboard",
           points: soundPoints,
           tone:
-            "border-cyan-100/50 bg-cyan-300 text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.24)]",
+            "border-slate-200/30 bg-slate-100/10 text-slate-100 hover:border-cyan-100/45 hover:bg-cyan-300/14",
+          urgencyStatus: "Unlocked" as ProfileDashboardUrgencyStatus,
         },
         {
           href: ROUTES.dashboard.goals,
-          icon: "compass" as SelectorIconName,
+          icon: "trophy" as SelectorIconName,
           label: "Goals",
           meta: "Direction",
           points: Math.round(soundPoints * 0.68),
           tone:
-            "border-amber-200/34 bg-amber-300/12 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/18",
+            "border-amber-200/32 bg-amber-300/12 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/18",
+          urgencyStatus:
+            tabCompletions.goals >= 80
+              ? ("Complete" as ProfileDashboardUrgencyStatus)
+              : ("Next" as ProfileDashboardUrgencyStatus),
         },
         {
           href: ROUTES.dashboard.sessions,
@@ -7199,6 +7263,7 @@ export default function ClientProfilePage() {
           points: Math.round(soundPoints * 0.82),
           tone:
             "border-sky-200/28 bg-sky-300/10 text-sky-100 hover:border-sky-100/45 hover:bg-sky-300/16",
+          urgencyStatus: "Unlocked" as ProfileDashboardUrgencyStatus,
         },
         {
           href: ROUTES.nutritionPortal.home,
@@ -7208,6 +7273,10 @@ export default function ClientProfilePage() {
           points: Math.round(soundPoints * 0.38),
           tone:
             "border-emerald-200/28 bg-emerald-300/10 text-emerald-100 hover:border-emerald-100/45 hover:bg-emerald-300/16",
+          urgencyStatus:
+            tabCompletions.nutrition >= 80
+              ? ("Complete" as ProfileDashboardUrgencyStatus)
+              : ("Next" as ProfileDashboardUrgencyStatus),
         },
         {
           href: ROUTES.dashboard.recovery,
@@ -7217,6 +7286,10 @@ export default function ClientProfilePage() {
           points: Math.round(soundPoints * 0.24),
           tone:
             "border-violet-200/28 bg-violet-300/10 text-violet-100 hover:border-violet-100/45 hover:bg-violet-300/16",
+          urgencyStatus:
+            tabCompletions.recovery >= 80
+              ? ("Complete" as ProfileDashboardUrgencyStatus)
+              : ("Unlocked" as ProfileDashboardUrgencyStatus),
         },
         {
           href: ROUTES.performance.home,
@@ -7226,6 +7299,7 @@ export default function ClientProfilePage() {
           points: Math.round(soundPoints * 0.46),
           tone:
             "border-amber-200/30 bg-amber-300/10 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/16",
+          urgencyStatus: "Unlocked" as ProfileDashboardUrgencyStatus,
         },
         {
           href: ROUTES.learning.home,
@@ -7235,6 +7309,7 @@ export default function ClientProfilePage() {
           points: Math.round(soundPoints * 0.12),
           tone:
             "border-blue-200/28 bg-blue-300/10 text-blue-100 hover:border-blue-100/45 hover:bg-blue-300/16",
+          urgencyStatus: "Unlocked" as ProfileDashboardUrgencyStatus,
         },
         {
           href: ROUTES.soundworld.home,
@@ -7244,18 +7319,18 @@ export default function ClientProfilePage() {
           points: Math.round(soundPoints * 0.08),
           tone:
             "border-pink-200/28 bg-pink-300/10 text-pink-100 hover:border-pink-100/45 hover:bg-pink-300/16",
+          urgencyStatus: "Unlocked" as ProfileDashboardUrgencyStatus,
         },
       ] as const,
-    [soundPoints],
+    [soundPoints, tabCompletions.goals, tabCompletions.nutrition, tabCompletions.recovery],
   );
   const activeProfileDashboardLink =
     profileHeaderDashboardLinks[
       activeProfileDashboardIndex % profileHeaderDashboardLinks.length
     ] || profileHeaderDashboardLinks[0];
-  const profileGoalsDashboardLink =
-    profileHeaderDashboardLinks.find(
-      (dashboardLink) => dashboardLink.href === ROUTES.dashboard.goals,
-    ) || profileHeaderDashboardLinks[1];
+  const activeProfileDashboardUrgency = getProfileDashboardUrgencyTone(
+    activeProfileDashboardLink.urgencyStatus,
+  );
   const rotateProfileDashboardRail = (direction: "left" | "right") => {
     setProfileDashboardSlideDirection(direction);
     setActiveProfileDashboardIndex((currentIndex) =>
@@ -8832,16 +8907,16 @@ export default function ClientProfilePage() {
   };
 
   const renderHero = () => (
-    <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,146,60,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.94))] p-4 shadow-[0_34px_120px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.14)] sm:p-5">
+    <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,146,60,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.94))] p-3 shadow-[0_34px_120px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.14)] sm:p-4">
       <div className="pointer-events-none absolute right-[-10%] top-[-30%] h-72 w-72 rounded-full bg-cyan-300/10 blur-3xl" />
-      <div className="relative z-10 grid gap-4 xl:grid-cols-[minmax(0,1fr)_390px] xl:items-center">
+      <div className="relative z-10 grid gap-3 xl:grid-cols-[minmax(0,1fr)_390px] xl:items-center">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.26em] text-cyan-200/80">
             Personal Command Center
           </p>
-          <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <div className="flex shrink-0 flex-col items-center gap-2.5">
-              <div className="relative h-24 w-24 overflow-hidden rounded-full border border-cyan-100/24 bg-cyan-300/12 shadow-[0_0_44px_rgba(34,211,238,0.2)]">
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex shrink-0 flex-col items-center gap-2">
+              <div className="relative h-20 w-20 overflow-hidden rounded-full border border-cyan-100/24 bg-cyan-300/12 shadow-[0_0_44px_rgba(34,211,238,0.2)] sm:h-[5.5rem] sm:w-[5.5rem]">
                 {profile.profileImage ? (
                   <img
                     alt={`${identityDisplayName} profile`}
@@ -8890,10 +8965,10 @@ export default function ClientProfilePage() {
                   <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
                     Sound Fitness ID
                   </p>
-                  <p className="mt-2 break-words text-4xl font-black uppercase tracking-wide text-white drop-shadow-[0_0_22px_rgba(34,211,238,0.18)] sm:text-5xl">
+                  <p className="mt-1.5 break-words text-3xl font-black uppercase tracking-wide text-white drop-shadow-[0_0_22px_rgba(34,211,238,0.18)] sm:text-4xl">
                     {identityDisplayName}
                   </p>
-                  <p className="mt-2 text-sm font-black text-cyan-100">
+                  <p className="mt-1.5 text-sm font-black text-cyan-100">
                     @{identityHandle}
                   </p>
                 </div>
@@ -8910,7 +8985,7 @@ export default function ClientProfilePage() {
                 </button>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 <span className="rounded-full border border-orange-200/24 bg-orange-300/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-orange-100">
                   {profile.memberType || "Member"}
                 </span>
@@ -8969,13 +9044,13 @@ export default function ClientProfilePage() {
               ) : null}
             </div>
           </div>
-          <h1 className="mt-4 max-w-4xl text-3xl font-black tracking-tight text-white sm:text-4xl">
+          <h1 className="mt-3 max-w-4xl text-2xl font-black tracking-tight text-white sm:text-3xl">
             {profile.primaryGoal || "Goal not set"}
           </h1>
-          <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-slate-300">
+          <p className="mt-2 max-w-3xl text-sm font-semibold leading-5 text-slate-300">
             Define the training identity that powers dashboard focus, workout generation, exercise recommendations, recovery thresholds, and nutrition direction.
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2">
             {[
               `Goal: ${profile.goalMode}`,
               `Mode: ${profile.bodyGoalMode}`,
@@ -13182,7 +13257,7 @@ export default function ClientProfilePage() {
   };
 
   const renderProfileHeroSummaryCards = () => (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       {[
         ["Primary Goal", profile.primaryGoal || "Goal not set"],
         ["Goal Mode", `${profile.goalMode} / ${profile.bodyGoalMode}`],
@@ -13197,7 +13272,7 @@ export default function ClientProfilePage() {
           `${activeLimitations.length} limits - ${profile.specialCircumstances.length} special`,
         ],
       ].map(([label, value]) => (
-        <div key={label} className={profileOverviewMetricCardClass}>
+        <div key={label} className={`${profileOverviewMetricCardClass} p-3`}>
           <span
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/55 to-fuchsia-200/35"
@@ -13205,7 +13280,7 @@ export default function ClientProfilePage() {
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
             {label}
           </p>
-          <p className="mt-2 text-lg font-black text-white">{value}</p>
+          <p className="mt-1.5 text-base font-black text-white">{value}</p>
         </div>
       ))}
     </div>
@@ -13806,10 +13881,6 @@ export default function ClientProfilePage() {
       scrollProfileOrbiterIntoView();
       scrollProfileOrbiterViewportToRow(nextRow);
     };
-    const scrollProfileOrbiterToHero = () => {
-      if (profileOrbiterLocked) return;
-      jumpProfileOrbiterToHero();
-    };
     const scrollProfileOrbiterRow = (direction: -1 | 1) => {
       if (profileOrbiterLocked) return;
       const maxRow = profileOrbiterRows.length - 1;
@@ -13996,12 +14067,16 @@ export default function ClientProfilePage() {
       const isActive = row === clampedActiveProfileOrbiterRow;
 
       return {
-        filter: "none",
-        opacity: 1,
-        pointerEvents: "auto",
+        filter: isActive ? "none" : "blur(4px)",
+        opacity: isActive ? 1 : 0,
+        pointerEvents: isActive ? "auto" : "none",
         scrollSnapAlign: "center",
         scrollSnapStop: "always",
-        transform: "none",
+        transform: isActive
+          ? "none"
+          : `translateY(${row < clampedActiveProfileOrbiterRow ? "-24px" : "24px"}) scale(0.98)`,
+        transition:
+          "opacity 320ms ease, transform 420ms cubic-bezier(0.2,0.85,0.25,1), filter 320ms ease",
         visibility: "visible",
         zIndex: isActive ? 40 : 20,
       };
@@ -15151,11 +15226,7 @@ export default function ClientProfilePage() {
                 &lt;
               </button>
               <Link
-                aria-current={
-                  activeProfileDashboardLink.href === ROUTES.dashboard.profile
-                    ? "page"
-                    : undefined
-                }
+                aria-current={undefined}
                 className={`flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-2.5 py-2 text-left text-cyan-50 shadow-none transition hover:-translate-y-0.5 hover:bg-white/[0.04] ${
                   profileDashboardSlideDirection === "right"
                     ? "animate-[sessions-dashboard-chip-slide-from-right_220ms_ease-out]"
@@ -15168,12 +15239,20 @@ export default function ClientProfilePage() {
               >
                 <span
                   aria-hidden="true"
-                  className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,255,255,0.06)] ${activeProfileDashboardLink.tone}`}
+                  className={`relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,255,255,0.06)] ${activeProfileDashboardLink.tone}`}
                 >
                   <SelectorIcon
                     name={activeProfileDashboardLink.icon}
                     className="h-5 w-5"
                   />
+                  <span
+                    className={`absolute -bottom-1 -right-1 grid h-4 w-4 place-items-center rounded-full border bg-slate-950/82 shadow-[0_0_14px_rgba(0,0,0,0.24)] ${activeProfileDashboardUrgency.ring}`}
+                    title={`${activeProfileDashboardLink.label}: ${activeProfileDashboardUrgency.label}`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full border ${activeProfileDashboardUrgency.dot}`}
+                    />
+                  </span>
                 </span>
                 <span className="shrink-0 whitespace-nowrap">
                   <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
@@ -15186,41 +15265,18 @@ export default function ClientProfilePage() {
                 <span
                   className={`shrink-0 rounded-2xl border px-3 py-2 text-right ${activeProfileDashboardLink.tone}`}
                 >
-                  <span className="block text-[8px] font-black uppercase tracking-[0.1em] opacity-75">
-                    pts
+                  <span className="flex items-center justify-end gap-1 text-[8px] font-black uppercase tracking-[0.1em] opacity-75">
+                    <span
+                      aria-hidden="true"
+                      className={`h-1.5 w-1.5 rounded-full border ${activeProfileDashboardUrgency.dot}`}
+                    />
+                    {activeProfileDashboardUrgency.label}
                   </span>
                   <span className="block text-sm font-black leading-none [text-shadow:0_1px_12px_rgba(0,0,0,0.34)]">
                     {activeProfileDashboardLink.points.toLocaleString()}
                   </span>
                 </span>
               </Link>
-              {activeProfileDashboardLink.href !== ROUTES.dashboard.goals ? (
-                <Link
-                  aria-label="Open Goals dashboard"
-                  className={`group flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-2 rounded-[22px] border px-2.5 py-2 text-left shadow-[0_0_20px_rgba(251,191,36,0.08)] transition hover:-translate-y-0.5 ${profileGoalsDashboardLink.tone}`}
-                  draggable={false}
-                  href={profileGoalsDashboardLink.href}
-                  onDragStart={(event) => event.preventDefault()}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(251,191,36,0.10)] ${profileGoalsDashboardLink.tone}`}
-                  >
-                    <SelectorIcon
-                      name={profileGoalsDashboardLink.icon}
-                      className="h-5 w-5"
-                    />
-                  </span>
-                  <span className="hidden shrink-0 whitespace-nowrap sm:block">
-                    <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
-                      {profileGoalsDashboardLink.meta}
-                    </span>
-                    <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px]">
-                      {profileGoalsDashboardLink.label}
-                    </span>
-                  </span>
-                </Link>
-              ) : null}
               <button
                 aria-label="Next dashboard"
                 className="grid h-11 w-9 shrink-0 place-items-center rounded-2xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
@@ -15439,7 +15495,11 @@ export default function ClientProfilePage() {
           )
         )}
         <div
-          className="absolute right-0 top-1/2 z-[90] flex w-40 -translate-y-1/2 justify-end px-1 py-6 sm:right-1 sm:w-44"
+          className={`absolute right-0 top-1/2 z-[90] flex -translate-y-1/2 justify-end px-1 py-6 transition-[width] duration-300 ease-out sm:right-1 ${
+            profileOrbiterRailExpanded && clampedActiveProfileOrbiterRow !== 0
+              ? "w-40 sm:w-44"
+              : "w-14"
+          }`}
           onBlurCapture={(event) => {
             const nextTarget = event.relatedTarget;
             if (
@@ -15449,104 +15509,137 @@ export default function ClientProfilePage() {
               return;
             }
 
-            collapseProfileOrbiterRail();
+            if (clampedActiveProfileOrbiterRow !== 0) {
+              collapseProfileOrbiterRail();
+            }
           }}
-          onFocusCapture={expandProfileOrbiterRail}
-          onPointerEnter={expandProfileOrbiterRail}
-          onPointerLeave={collapseProfileOrbiterRail}
+          onFocusCapture={() => {
+            if (clampedActiveProfileOrbiterRow !== 0) {
+              expandProfileOrbiterRail();
+            }
+          }}
+          onPointerEnter={() => {
+            if (clampedActiveProfileOrbiterRow !== 0) {
+              expandProfileOrbiterRail();
+            }
+          }}
+          onPointerLeave={() => {
+            if (clampedActiveProfileOrbiterRow !== 0) {
+              collapseProfileOrbiterRail();
+            }
+          }}
         >
           <div
-            className={`flex flex-col items-center gap-1.5 rounded-2xl border p-1.5 shadow-[0_18px_60px_rgba(0,0,0,0.30)] backdrop-blur-xl transition-[width,opacity,background-color,border-color,box-shadow] duration-300 ease-out ${
-              profileOrbiterRailExpanded
-                ? "w-full border-cyan-200/18 bg-slate-950/62 opacity-100 shadow-[0_18px_60px_rgba(0,0,0,0.42)]"
-                : "w-12 border-white/8 bg-slate-950/35 opacity-70"
+            className={`relative isolate flex flex-col items-center gap-1.5 overflow-hidden rounded-[22px] border p-1.5 shadow-[0_18px_60px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl transition-[width,opacity,background-color,border-color,box-shadow] duration-300 ease-out ${
+              profileOrbiterRailExpanded && clampedActiveProfileOrbiterRow !== 0
+                ? "w-full border-cyan-100/28 bg-[radial-gradient(circle_at_18%_0%,rgba(103,232,249,0.24),transparent_36%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.15),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.52))] opacity-100 shadow-[0_22px_70px_rgba(0,0,0,0.46),0_0_28px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.18)]"
+                : "w-12 border-cyan-100/18 bg-[radial-gradient(circle_at_25%_0%,rgba(103,232,249,0.20),transparent_36%),linear-gradient(180deg,rgba(255,255,255,0.10),rgba(15,23,42,0.48)_42%,rgba(2,6,23,0.42))] opacity-90 shadow-[0_18px_60px_rgba(0,0,0,0.34),0_0_20px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.16)]"
             }`}
           >
-            <button
-              type="button"
-              aria-label="Scroll profile orbiter to hero"
-              disabled={profileOrbiterLocked}
-              onPointerDown={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                if (profileOrbiterLocked) return;
-                jumpProfileOrbiterToHero("auto");
-              }}
-              onClick={scrollProfileOrbiterToHero}
-              className="grid h-8 w-8 place-items-center rounded-xl border border-cyan-200/18 bg-cyan-300/10 text-sm font-black text-cyan-100 transition hover:border-cyan-200/45 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-cyan-200/18 disabled:hover:bg-cyan-300/10"
-            >
-              ^
-            </button>
-            <div className="flex w-full flex-col gap-1">
-              {profileOrbiterRows.map((row, index) => {
-                const isActiveRow = clampedActiveProfileOrbiterRow === index;
-                const rowTone = getCompletionIndicatorTone(row.completion);
-                const pulseTone = getProfilePulseIndicatorTone(row.completion);
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-2 top-0 -z-10 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/70 to-transparent"
+            />
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(135deg,rgba(255,255,255,0.16),transparent_34%),radial-gradient(circle_at_50%_110%,rgba(34,211,238,0.12),transparent_42%)]"
+            />
+            {clampedActiveProfileOrbiterRow === 0 ? (
+              <button
+                type="button"
+                aria-label="Scroll profile orbiter down"
+                disabled={profileOrbiterLocked || profileOrbiterRows.length <= 1}
+                onClick={() => scrollProfileOrbiterRow(1)}
+                className="grid h-10 w-10 place-items-center rounded-2xl border border-orange-100/30 bg-[radial-gradient(circle_at_35%_16%,rgba(255,255,255,0.24),transparent_34%),linear-gradient(180deg,rgba(251,191,36,0.18),rgba(251,146,60,0.10))] text-base font-black text-orange-50 shadow-[0_0_26px_rgba(251,146,60,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur transition hover:border-orange-100/52 hover:bg-orange-300/18 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-orange-100/30 disabled:hover:bg-orange-300/12"
+              >
+                v
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  aria-label="Scroll profile orbiter up"
+                  disabled={profileOrbiterLocked}
+                  onClick={() => scrollProfileOrbiterRow(-1)}
+                  className="grid h-8 w-8 place-items-center rounded-xl border border-cyan-100/24 bg-[radial-gradient(circle_at_32%_12%,rgba(255,255,255,0.22),transparent_34%),rgba(34,211,238,0.10)] text-sm font-black text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur transition hover:border-cyan-100/48 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-cyan-100/24 disabled:hover:bg-cyan-300/10"
+                >
+                  ^
+                </button>
+                <div className="flex w-full flex-col gap-1">
+                  {profileOrbiterRows.slice(1).map((row, rowOffset) => {
+                    const rowIndex = rowOffset + 1;
+                    const isActiveRow =
+                      clampedActiveProfileOrbiterRow === rowIndex;
+                    const rowTone = getCompletionIndicatorTone(row.completion);
+                    const pulseTone = getProfilePulseIndicatorTone(row.completion);
 
-                return (
-                  <button
-                    key={row.title}
-                    type="button"
-                    aria-label={`Show profile orbiter row ${index}: ${row.title}, ${row.completion}% complete`}
-                    aria-pressed={isActiveRow}
-                    disabled={profileOrbiterLocked}
-                    onClick={() => setProfileOrbiterRow(index)}
-                    className={`flex min-h-7 w-full items-center gap-2 overflow-hidden rounded-xl border px-1.5 py-1 text-[8px] font-black uppercase leading-[0.65rem] tracking-[0.05em] transition ${
-                      profileOrbiterRailExpanded
-                        ? "justify-start"
-                        : "justify-center"
-                    } ${
-                      isActiveRow
-                        ? rowTone.activeButton
-                        : "border-white/8 bg-white/[0.025] text-slate-400 hover:border-orange-200/28 hover:bg-orange-300/10 hover:text-orange-100"
-                    } disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/10 disabled:hover:bg-white/[0.035] disabled:hover:text-slate-400`}
-                  >
-                    <span
-                      aria-hidden="true"
-                      data-active={isActiveRow ? "true" : "false"}
-                      data-profile-indicator-motion={pulseTone.motion}
-                      className={`profile-row-card-indicator inline-flex shrink-0 items-center justify-center rounded-full border bg-black/25 transition ${
-                        isActiveRow
-                          ? `h-3.5 w-3.5 ${pulseTone.outerActive}`
-                          : `h-3 w-3 ${pulseTone.outerInactive}`
-                      }`}
-                      style={pulseTone.style}
-                    >
-                      <span
-                        aria-hidden="true"
-                        data-profile-pulse-dot="true"
-                        className={`rounded-full ${
-                          isActiveRow ? pulseTone.dotActive : pulseTone.dotInactive
+                    return (
+                      <button
+                        key={row.title}
+                        type="button"
+                        aria-label={`Show profile orbiter row ${rowIndex}: ${row.title}, ${row.completion}% complete`}
+                        aria-pressed={isActiveRow}
+                        disabled={profileOrbiterLocked}
+                        onClick={() => setProfileOrbiterRow(rowIndex)}
+                        className={`flex min-h-7 w-full items-center gap-2 overflow-hidden rounded-xl border px-1.5 py-1 text-[8px] font-black uppercase leading-[0.65rem] tracking-[0.05em] transition ${
+                          profileOrbiterRailExpanded
+                            ? "justify-start"
+                            : "justify-center"
                         } ${
-                          isActiveRow ? "h-2 w-2" : "h-1.5 w-1.5"
-                        }`}
-                      />
-                    </span>
-                    <span
-                      className={`overflow-hidden whitespace-normal text-left transition-[max-width,opacity] duration-300 ${
-                        profileOrbiterRailExpanded
-                          ? "max-w-[6.8rem] opacity-100"
-                          : "max-w-0 opacity-0"
-                      }`}
-                    >
-                      {row.title}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              type="button"
-              aria-label="Scroll profile orbiter down"
-              disabled={
-                profileOrbiterLocked ||
-                clampedActiveProfileOrbiterRow === profileOrbiterRows.length - 1
-              }
-              onClick={() => scrollProfileOrbiterRow(1)}
-              className="grid h-8 w-8 place-items-center rounded-xl border border-orange-200/18 bg-orange-300/10 text-sm font-black text-orange-100 transition hover:border-orange-200/45 hover:bg-orange-300/16 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-orange-200/18 disabled:hover:bg-orange-300/10"
-            >
-              v
-            </button>
+                          isActiveRow
+                            ? `${rowTone.activeButton} shadow-[0_0_18px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.16)]`
+                            : "border-white/12 bg-white/[0.055] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-orange-200/34 hover:bg-orange-300/12 hover:text-orange-100"
+                        } backdrop-blur disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/10 disabled:hover:bg-white/[0.035] disabled:hover:text-slate-400`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          data-active={isActiveRow ? "true" : "false"}
+                          data-profile-indicator-motion={pulseTone.motion}
+                          className={`profile-row-card-indicator inline-flex shrink-0 items-center justify-center rounded-full border bg-black/25 transition ${
+                            isActiveRow
+                              ? `h-3.5 w-3.5 ${pulseTone.outerActive}`
+                              : `h-3 w-3 ${pulseTone.outerInactive}`
+                          }`}
+                          style={pulseTone.style}
+                        >
+                          <span
+                            aria-hidden="true"
+                            data-profile-pulse-dot="true"
+                            className={`rounded-full ${
+                              isActiveRow
+                                ? pulseTone.dotActive
+                                : pulseTone.dotInactive
+                            } ${isActiveRow ? "h-2 w-2" : "h-1.5 w-1.5"}`}
+                          />
+                        </span>
+                        <span
+                          className={`overflow-hidden whitespace-normal text-left transition-[max-width,opacity] duration-300 ${
+                            profileOrbiterRailExpanded
+                              ? "max-w-[6.8rem] opacity-100"
+                              : "max-w-0 opacity-0"
+                          }`}
+                        >
+                          {row.title}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  aria-label="Scroll profile orbiter down"
+                  disabled={
+                    profileOrbiterLocked ||
+                    clampedActiveProfileOrbiterRow ===
+                      profileOrbiterRows.length - 1
+                  }
+                  onClick={() => scrollProfileOrbiterRow(1)}
+                  className="grid h-8 w-8 place-items-center rounded-xl border border-orange-100/24 bg-[radial-gradient(circle_at_32%_12%,rgba(255,255,255,0.20),transparent_34%),rgba(251,146,60,0.10)] text-sm font-black text-orange-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur transition hover:border-orange-100/48 hover:bg-orange-300/16 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-orange-100/24 disabled:hover:bg-orange-300/10"
+                >
+                  v
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -15624,15 +15717,15 @@ export default function ClientProfilePage() {
           role="region"
           tabIndex={0}
         >
-          <div className="relative flex min-h-full flex-col gap-6 py-[clamp(32px,6dvh,72px)]">
+          <div className="relative flex min-h-full flex-col gap-[clamp(64px,10dvh,120px)] pb-[clamp(54px,9dvh,104px)] pt-0">
           <section
             id="profile-orbiter-row-0"
             ref={profileHeroRowRef}
             data-profile-orbiter-row="0"
-            className="relative flex min-h-[clamp(440px,54dvh,520px)] snap-center flex-col justify-center py-3"
+            className="relative flex min-h-[calc(100dvh-84px)] snap-center flex-col justify-center py-[clamp(14px,3dvh,30px)]"
             style={getProfileOrbiterRowStyle(0)}
           >
-            <div className="mx-auto flex h-full w-full max-w-[1180px] flex-col justify-center gap-3">
+            <div className="mx-auto flex h-full w-full max-w-[1180px] flex-col justify-center gap-2.5">
               {renderHero()}
               {renderProfileHeroSummaryCards()}
             </div>
@@ -15671,7 +15764,7 @@ export default function ClientProfilePage() {
                   key={cardRow.tab.id}
                   id={`profile-orbiter-row-${cardRow.rowIndex}`}
                   data-profile-orbiter-row={cardRow.rowIndex}
-                  className="relative flex min-h-[clamp(500px,64dvh,560px)] snap-center flex-col items-center justify-center overflow-visible py-4"
+                  className="relative flex min-h-[calc(100dvh-84px)] snap-center flex-col items-center justify-center overflow-visible py-[clamp(54px,8dvh,92px)]"
                   style={getProfileOrbiterRowStyle(cardRow.rowIndex)}
                 >
                   <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-3">
@@ -15698,8 +15791,8 @@ export default function ClientProfilePage() {
                 key={cardRow.tab.id}
                 id={`profile-orbiter-row-${cardRow.rowIndex}`}
                 data-profile-orbiter-row={cardRow.rowIndex}
-                className={`relative flex min-h-[clamp(430px,52dvh,500px)] snap-center flex-col items-center overflow-visible py-2 ${
-                  hasExpandedActiveCard ? "justify-start pt-14" : "justify-center"
+                className={`relative flex min-h-[calc(100dvh-84px)] snap-center flex-col items-center overflow-visible py-[clamp(54px,8dvh,92px)] ${
+                  hasExpandedActiveCard ? "justify-start pt-16" : "justify-center"
                 }`}
                 style={getProfileOrbiterRowStyle(cardRow.rowIndex)}
               >
@@ -15707,7 +15800,7 @@ export default function ClientProfilePage() {
                   className={`relative w-full overflow-hidden [perspective:900px] ${
                     hasExpandedActiveCard
                       ? "h-[calc(100%-3.25rem)] min-h-[0]"
-                      : "h-[min(460px,calc(100%-2.5rem))] min-h-[390px]"
+                      : "h-[min(520px,calc(100%-5rem))] min-h-[430px]"
                   }`}
                 >
                   {renderProfileRowHeader(
@@ -15739,7 +15832,7 @@ export default function ClientProfilePage() {
                             -1,
                           )
                         }
-                        className="absolute left-3 top-1/2 z-[70] grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-cyan-200/18 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-cyan-200/42 hover:bg-cyan-300/12 sm:left-6"
+                        className="absolute left-2 top-1/2 z-[70] grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-cyan-200/18 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-cyan-200/42 hover:bg-cyan-300/12 sm:left-4 lg:left-6"
                       >
                         &lt;
                       </button>
@@ -15753,7 +15846,7 @@ export default function ClientProfilePage() {
                             1,
                           )
                         }
-                        className="absolute right-3 top-1/2 z-[70] grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-orange-200/18 bg-slate-950/72 text-lg font-black text-orange-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-orange-200/42 hover:bg-orange-300/12 sm:right-6"
+                        className="absolute right-[10.5rem] top-1/2 z-[70] grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-orange-200/18 bg-slate-950/72 text-lg font-black text-orange-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-orange-200/42 hover:bg-orange-300/12 sm:right-[11.5rem]"
                       >
                         &gt;
                       </button>

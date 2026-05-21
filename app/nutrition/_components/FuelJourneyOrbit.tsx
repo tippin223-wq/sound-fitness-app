@@ -74,6 +74,55 @@ const fuelJourneyOrbitStatusStyles: Record<
   },
 };
 
+const getFuelJourneyUrgencyDotClass = (
+  status: FuelJourneyStageStatus,
+  isActive: boolean,
+) => {
+  const shape = isActive ? "h-2.5 w-7" : "h-2.5 w-2.5";
+  const tone =
+    status === "Complete"
+      ? "border-emerald-200/40 bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.45)]"
+      : status === "Current"
+        ? "border-cyan-100/55 bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]"
+        : status === "Next"
+          ? "border-amber-100/50 bg-amber-200 shadow-[0_0_14px_rgba(250,204,21,0.55)]"
+          : status === "Unlocked"
+            ? "border-slate-300/22 bg-slate-300/55"
+            : "border-rose-200/20 bg-rose-300/38";
+
+  return `${shape} rounded-full border transition-all duration-300 ${tone}`;
+};
+
+const getFuelJourneyVerticalUrgencyDotClass = (
+  status: FuelJourneyStageStatus,
+  isActive: boolean,
+) => {
+  const shape = isActive ? "h-7 w-2.5" : "h-2.5 w-2.5";
+  const tone =
+    status === "Complete"
+      ? "border-emerald-200/40 bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.45)]"
+      : status === "Current"
+        ? "border-cyan-100/55 bg-cyan-200 shadow-[0_0_14px_rgba(103,232,249,0.58)]"
+        : status === "Next"
+          ? "border-amber-100/50 bg-amber-200 shadow-[0_0_14px_rgba(250,204,21,0.55)]"
+          : status === "Unlocked"
+            ? "border-slate-300/22 bg-slate-300/55"
+            : "border-rose-200/20 bg-rose-300/38";
+
+  return `${shape} rounded-full border transition-all duration-300 ${tone}`;
+};
+
+const getFuelJourneyRowUrgencyStatus = (
+  rowStages: FuelJourneyStage[],
+): FuelJourneyStageStatus => {
+  if (rowStages.some((stage) => stage.status === "Current")) return "Current";
+  if (rowStages.some((stage) => stage.status === "Next")) return "Next";
+  if (rowStages.some((stage) => stage.status === "Unlocked")) return "Unlocked";
+  if (rowStages.some((stage) => stage.status === "Locked")) return "Locked";
+
+  return "Complete";
+};
+
 export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
   const fuelJourneyPointerStartRef = useRef<{
     x: number;
@@ -293,7 +342,7 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
   if (!activeFuelStage) return null;
 
   return (
-    <div className="relative mt-6 overflow-hidden rounded-[32px] border border-cyan-200/14 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.16),transparent_34%),radial-gradient(circle_at_82%_12%,rgba(250,204,21,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.70),rgba(2,6,23,0.58))] p-4 shadow-[0_26px_90px_rgba(0,0,0,0.34),0_0_38px_rgba(34,211,238,0.10)] sm:p-5">
+    <div className="relative left-1/2 mt-6 w-[calc(100%+2rem)] -translate-x-1/2 overflow-hidden px-0 pb-3 pt-0 sm:w-[calc(100%+2.5rem)]">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute left-1/2 top-1/2 h-[74%] w-[94%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/10 shadow-[0_0_92px_rgba(34,211,238,0.10)]"
@@ -346,6 +395,39 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
       >
         v
       </button>
+      <div
+        aria-label="Fuel journey vertical row selector"
+        className="absolute right-3 top-[42%] z-40 flex -translate-y-1/2 flex-col items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/54 px-2 py-3 shadow-[0_18px_48px_rgba(0,0,0,0.34)] backdrop-blur-xl sm:right-5"
+      >
+        {fuelJourneyRows.map((row) => {
+          const isActiveRow = row.layer === activeFuelLayer;
+          const rowUrgencyStatus = getFuelJourneyRowUrgencyStatus(row.stages);
+
+          return (
+            <button
+              aria-label={`Show ${row.label}: ${rowUrgencyStatus}`}
+              aria-pressed={isActiveRow}
+              className={`grid h-9 w-8 place-items-center rounded-xl border transition hover:border-cyan-200/35 hover:bg-cyan-300/10 ${
+                isActiveRow
+                  ? "border-cyan-100/35 bg-cyan-300/12"
+                  : "border-white/10 bg-white/[0.035]"
+              }`}
+              key={`${row.label}-vertical-selector`}
+              onClick={() => setActiveFuelLayer(row.layer)}
+              title={`${row.label}: ${rowUrgencyStatus}`}
+              type="button"
+            >
+              <span
+                aria-hidden="true"
+                className={getFuelJourneyVerticalUrgencyDotClass(
+                  rowUrgencyStatus,
+                  isActiveRow,
+                )}
+              />
+            </button>
+          );
+        })}
+      </div>
       <button
         aria-label="Previous fuel journey stage"
         className="absolute left-1 top-[58%] z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/64 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-3 sm:h-14 sm:w-14 sm:text-3xl"
@@ -365,7 +447,7 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
 
       <div
         aria-label="Fuel journey orbit selector"
-        className="relative z-10 h-[860px] w-full cursor-grab select-none overflow-visible outline-none [perspective:1500px] [touch-action:none] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[920px]"
+        className="relative z-10 h-[860px] w-full cursor-grab select-none overflow-visible outline-none [perspective:1500px] [touch-action:none] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[920px] lg:h-[940px]"
         onClickCapture={(event) => {
           if (fuelJourneyPointerMovedRef.current) {
             event.preventDefault();
@@ -408,6 +490,23 @@ export default function FuelJourneyOrbit({ stages }: FuelJourneyOrbitProps) {
               </div>
               <div className="mt-1 text-[10px] font-bold leading-4 text-slate-300">
                 {row.helper}
+              </div>
+              <div className="mt-2 flex items-center justify-center gap-1.5 border-t border-white/10 pt-2">
+                {row.stages.map((stage, stageIndex) => {
+                  const stageGlobalIndex = row.startIndex + stageIndex;
+                  const isActiveStageDot = stageGlobalIndex === activeFuelIndex;
+
+                  return (
+                    <span
+                      aria-hidden="true"
+                      className={getFuelJourneyUrgencyDotClass(
+                        stage.status,
+                        isActiveStageDot,
+                      )}
+                      key={`${row.label}-${stage.title}-urgency-dot`}
+                    />
+                  );
+                })}
               </div>
             </div>
           );
