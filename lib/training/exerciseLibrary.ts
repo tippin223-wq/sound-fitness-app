@@ -2,6 +2,152 @@ import type { ExerciseCatalogItem } from "@/types";
 
 export type Exercise = ExerciseCatalogItem;
 
+const freeExerciseDbBaseUrl =
+  "https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises";
+
+const freeExerciseDbImage = (exerciseId: string, frame = 0) =>
+  `${freeExerciseDbBaseUrl}/${exerciseId}/${frame}.jpg`;
+
+const exerciseSpecificImages: Record<string, string> = {
+  "core-squat": freeExerciseDbImage("Bodyweight_Squat"),
+  "core-hinge": freeExerciseDbImage("Romanian_Deadlift"),
+  "core-lunge": freeExerciseDbImage("Bodyweight_Walking_Lunge"),
+  "core-step-up": freeExerciseDbImage("Step-up_with_Knee_Raise"),
+  "core-hip-thrust-bridge": freeExerciseDbImage("Barbell_Hip_Thrust"),
+  "core-knee-extension": freeExerciseDbImage("Leg_Extensions"),
+  "core-knee-flexion": freeExerciseDbImage("Seated_Leg_Curl"),
+  "core-hip-abduction": freeExerciseDbImage("Thigh_Abductor"),
+  "core-hip-adduction": freeExerciseDbImage("Thigh_Adductor"),
+  "core-hip-internal-rotation": freeExerciseDbImage("Hip_Circles_prone"),
+  "core-hip-external-rotation": freeExerciseDbImage("Hip_Circles_prone", 1),
+  "core-calf-raise": freeExerciseDbImage("Standing_Calf_Raises"),
+  "core-tibialis-raise": freeExerciseDbImage("Smith_Machine_Reverse_Calf_Raises"),
+  "core-chest-press": freeExerciseDbImage("Push-Up_Wide"),
+  "core-shoulder-press": freeExerciseDbImage("Dumbbell_Shoulder_Press"),
+  "core-chest-fly": freeExerciseDbImage("Dumbbell_Flyes"),
+  "core-lateral-raise": freeExerciseDbImage("Side_Lateral_Raise"),
+  "core-row": freeExerciseDbImage("Bent_Over_Two-Dumbbell_Row"),
+  "core-vertical-pull": freeExerciseDbImage("Chin-Up"),
+  "core-pullover": freeExerciseDbImage("Bent-Arm_Dumbbell_Pullover"),
+  "core-reverse-fly": freeExerciseDbImage("Reverse_Flyes"),
+  "core-curl": freeExerciseDbImage("Dumbbell_Bicep_Curl"),
+  "core-triceps-extension": freeExerciseDbImage("Triceps_Pushdown"),
+  "core-wrist-flexion": freeExerciseDbImage(
+    "Seated_Dumbbell_Palms-Up_Wrist_Curl",
+  ),
+  "core-wrist-extension": freeExerciseDbImage(
+    "Seated_Dumbbell_Palms-Down_Wrist_Curl",
+  ),
+  "core-wrist-rotation": freeExerciseDbImage("Dumbbell_Lying_Pronation"),
+  "core-shoulder-internal-rotation": freeExerciseDbImage(
+    "Internal_Rotation_with_Band",
+  ),
+  "core-shoulder-external-rotation": freeExerciseDbImage(
+    "External_Rotation_with_Band",
+  ),
+  "core-scapular-control": freeExerciseDbImage("Face_Pull"),
+  "core-rotation": freeExerciseDbImage("Standing_Cable_Wood_Chop"),
+  "core-anti-rotation": freeExerciseDbImage("Pallof_Press"),
+  "core-flexion": freeExerciseDbImage("3_4_Sit-Up"),
+  "core-anti-extension": freeExerciseDbImage("Plank"),
+  "core-anti-lateral-flexion": freeExerciseDbImage("Farmers_Walk"),
+  "core-carry": freeExerciseDbImage("Farmers_Walk"),
+  "core-crawl": freeExerciseDbImage("Spider_Crawl"),
+  "core-jump": freeExerciseDbImage("Front_Box_Jump"),
+  "core-sprint": freeExerciseDbImage("Wind_Sprints"),
+  "core-throw": freeExerciseDbImage("Medicine_Ball_Chest_Pass"),
+  "core-mobility": freeExerciseDbImage("Worlds_Greatest_Stretch"),
+  "core-breathing-bracing": freeExerciseDbImage("Plank", 1),
+  "core-neck-flexion": freeExerciseDbImage(
+    "Isometric_Neck_Exercise_-_Front_And_Back",
+  ),
+  "core-neck-extension": freeExerciseDbImage(
+    "Isometric_Neck_Exercise_-_Front_And_Back",
+    1,
+  ),
+  "core-neck-rotation": freeExerciseDbImage("Isometric_Neck_Exercise_-_Sides"),
+  "core-integrated-movement": freeExerciseDbImage("Kettlebell_Thruster"),
+
+  "goblet-squat": freeExerciseDbImage("Goblet_Squat"),
+  "db-front-squat": freeExerciseDbImage("Front_Squats_With_Two_Kettlebells"),
+  "barbell-back-squat": freeExerciseDbImage("Barbell_Squat"),
+  "box-squat": freeExerciseDbImage("Box_Squat"),
+  "split-squat": freeExerciseDbImage("Split_Squat_with_Dumbbells"),
+  "bulgarian-split-squat": freeExerciseDbImage("Suspended_Split_Squat"),
+  "step-up": freeExerciseDbImage("Step-up_with_Knee_Raise"),
+  "lateral-step-up": freeExerciseDbImage("Step-up_with_Knee_Raise", 1),
+  "db-romanian-deadlift": freeExerciseDbImage("Stiff-Legged_Dumbbell_Deadlift"),
+  "barbell-romanian-deadlift": freeExerciseDbImage("Romanian_Deadlift"),
+  "conventional-deadlift": freeExerciseDbImage("Barbell_Deadlift"),
+  "trap-bar-deadlift": freeExerciseDbImage("Trap_Bar_Deadlift"),
+  "single-leg-rdl": freeExerciseDbImage("Kettlebell_One-Legged_Deadlift"),
+  "hip-thrust": freeExerciseDbImage("Barbell_Hip_Thrust"),
+  "glute-bridge": freeExerciseDbImage("Single_Leg_Glute_Bridge"),
+  "cable-pull-through": freeExerciseDbImage("Pull_Through"),
+  "reverse-lunge": freeExerciseDbImage("Dumbbell_Rear_Lunge"),
+  "walking-lunge": freeExerciseDbImage("Dumbbell_Lunges"),
+  "forward-lunge": freeExerciseDbImage("Bodyweight_Walking_Lunge"),
+  "lateral-lunge": freeExerciseDbImage("Barbell_Side_Split_Squat"),
+  "curtsy-lunge": freeExerciseDbImage("Crossover_Reverse_Lunge"),
+  plank: freeExerciseDbImage("Plank"),
+  "dead-bug": freeExerciseDbImage("Dead_Bug"),
+  "stability-ball-rollout": freeExerciseDbImage("Exercise_Ball_Pull-In"),
+  "ab-wheel": freeExerciseDbImage("Ab_Roller"),
+  "pallof-press": freeExerciseDbImage("Pallof_Press"),
+  "half-kneeling-pallof-press": freeExerciseDbImage("Pallof_Press_With_Rotation"),
+  "cable-hold": freeExerciseDbImage("Pallof_Press", 1),
+  "suitcase-carry": freeExerciseDbImage("Farmers_Walk"),
+  "single-arm-farmer-carry": freeExerciseDbImage("Farmers_Walk", 1),
+  "cable-wood-chop": freeExerciseDbImage("Standing_Cable_Wood_Chop"),
+  "med-ball-rotations": freeExerciseDbImage("Medicine_Ball_Full_Twist"),
+  "push-up": freeExerciseDbImage("Push-Up_Wide"),
+  "incline-push-up": freeExerciseDbImage("Incline_Push-Up"),
+  "db-bench-press": freeExerciseDbImage("Dumbbell_Bench_Press"),
+  "barbell-bench-press": freeExerciseDbImage(
+    "Barbell_Bench_Press_-_Medium_Grip",
+  ),
+  "incline-db-press": freeExerciseDbImage("Incline_Dumbbell_Press"),
+  "db-shoulder-press": freeExerciseDbImage("Dumbbell_Shoulder_Press"),
+  "arnold-press": freeExerciseDbImage("Arnold_Dumbbell_Press"),
+  "landmine-press": freeExerciseDbImage("Landmine_Linear_Jammer"),
+  "barbell-overhead-press": freeExerciseDbImage("Standing_Military_Press"),
+  "bent-over-row": freeExerciseDbImage("Bent_Over_Barbell_Row"),
+  "one-arm-db-row": freeExerciseDbImage("One-Arm_Dumbbell_Row"),
+  "chest-supported-row": freeExerciseDbImage("Incline_Bench_Pull"),
+  "cable-row": freeExerciseDbImage("Seated_Cable_Rows"),
+  "lat-pulldown": freeExerciseDbImage("Wide-Grip_Lat_Pulldown"),
+  "assisted-pull-up": freeExerciseDbImage("Band_Assisted_Pull-Up"),
+  "pull-up": freeExerciseDbImage("Wide-Grip_Rear_Pull-Up"),
+  "chin-up": freeExerciseDbImage("Chin-Up"),
+  "lateral-raise": freeExerciseDbImage("Side_Lateral_Raise"),
+  "front-raise": freeExerciseDbImage("Front_Dumbbell_Raise"),
+  "rear-delt-fly": freeExerciseDbImage("Reverse_Flyes"),
+  "face-pull": freeExerciseDbImage("Face_Pull"),
+  "yt-raises": freeExerciseDbImage("Dumbbell_Scaption"),
+  "frog-pump": freeExerciseDbImage("Single_Leg_Glute_Bridge", 1),
+  "cable-kickback": freeExerciseDbImage("One-Legged_Cable_Kickback"),
+  "glute-bridge-march": freeExerciseDbImage("Single_Leg_Glute_Bridge"),
+  "hip-mobility-flow": freeExerciseDbImage("Worlds_Greatest_Stretch"),
+  "90-90-hip-rotation": freeExerciseDbImage("Hip_Circles_prone"),
+  "thoracic-rotation": freeExerciseDbImage("Torso_Rotation"),
+  "worlds-greatest-stretch": freeExerciseDbImage("Worlds_Greatest_Stretch"),
+  "ankle-dorsiflexion-drill": freeExerciseDbImage(
+    "Calf_Stretch_Hands_Against_Wall",
+  ),
+  "box-jump": freeExerciseDbImage("Front_Box_Jump"),
+  "broad-jump": freeExerciseDbImage("Standing_Long_Jump"),
+  "med-ball-slam": freeExerciseDbImage("Overhead_Slam"),
+  "med-ball-chest-pass": freeExerciseDbImage("Medicine_Ball_Chest_Pass"),
+  "kettlebell-swing": freeExerciseDbImage("One-Arm_Kettlebell_Swings"),
+  "kettlebell-clean": freeExerciseDbImage("One-Arm_Kettlebell_Clean"),
+  "db-thruster": freeExerciseDbImage("Kettlebell_Thruster"),
+  burpee:
+    "https://commons.wikimedia.org/wiki/Special:FilePath/Airborne%20Burpee.jpg?width=900",
+  "farmer-carry": freeExerciseDbImage("Farmers_Walk"),
+  "sled-push": freeExerciseDbImage("Sled_Push"),
+  "sled-pull": freeExerciseDbImage("Sled_Drag_-_Harness"),
+};
+
 const bodyPartImages: Record<string, string[]> = {
   Legs: [
     "https://images.unsplash.com/photo-1434682881908-b43d0467b798?q=80&w=900",
@@ -48,6 +194,8 @@ const bodyPartImages: Record<string, string[]> = {
 };
 
 export function getExerciseImage(body: string, id?: string) {
+  if (id && exerciseSpecificImages[id]) return exerciseSpecificImages[id];
+
   const images = bodyPartImages[body] || bodyPartImages["Full Body"];
   return images[0];
 }

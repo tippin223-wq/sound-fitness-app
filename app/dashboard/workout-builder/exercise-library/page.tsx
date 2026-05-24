@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -27,12 +28,26 @@ import Body, {
   type Slug,
 } from "react-muscle-highlighter";
 import { useRouter } from "next/navigation";
-import { loadWorkoutLogEntriesWithFallback } from "@/lib/data/workoutPersistence";
+import {
+  loadWorkoutLogEntriesWithFallback,
+  loadWorkoutTemplatesWithFallback,
+} from "@/lib/data/workoutPersistence";
 import { supabase } from "@/lib/supabaseClient";
 import {
+  LOCAL_WORKOUT_BUILDER_STORAGE_KEYS,
   readWorkoutBuilderSelectedExercises,
+  type LocalWorkoutBuilderSelectedExercise,
+  type LocalWorkoutBuilderTemplate,
   writeWorkoutBuilderSelectedExercises,
 } from "@/lib/localData/workoutBuilderData";
+import {
+  getActiveWorkoutPlanId,
+  LOCAL_WORKOUT_PLAN_STORAGE_KEYS,
+  readWorkoutPlans,
+  type LocalPlanAssignment,
+  type LocalPlanDay,
+  type LocalWeeklyPlan,
+} from "@/lib/localData/workoutPlanData";
 import {
   prependExerciseStats,
   readCustomExercises,
@@ -65,6 +80,7 @@ import {
 import { createExerciseVariation } from "@/lib/training/movementGeneration";
 import { ROUTES } from "@/lib/routes";
 import { useProfile } from "@/components/profile/ProfileProvider";
+import DashboardOrbitalHeader from "@/components/dashboard/DashboardOrbitalHeader";
 import type { MuscleSlug } from "@/components/anatomy/exerciseMuscleMap";
 import {
   getBodyModelFromProfile,
@@ -115,6 +131,20 @@ type DraftWorkoutPreviewItem = {
   id: string;
   slot: WorkoutBuilderPreviewSlot;
   source?: string;
+};
+
+type TodayPlanSectionStatus =
+  | "loading"
+  | "ready"
+  | "empty-day"
+  | "missing-template"
+  | "no-plan";
+
+type TodayPlanSectionMeta = {
+  assignmentCount: number;
+  dayLabel: string;
+  planTitle: string;
+  status: TodayPlanSectionStatus;
 };
 
 type PrivateExerciseDraft = {
@@ -175,6 +205,21 @@ type ExerciseLibrarySortMode =
 type MovementDetailsSubPanel = "similar" | "progress";
 
 const defaultExerciseLibrarySortMode: ExerciseLibrarySortMode = "category";
+const exerciseColumnActiveCardAnchorRatio = 0.36;
+const exerciseColumnActiveCardTitleClearancePx = 38;
+const exerciseColumnActiveNextCardGapPx = 18;
+const exerciseColumnActiveRowTitleGapPx = 22;
+const exerciseColumnActiveCardCommitMinDistancePx = 18;
+const exerciseColumnActiveCardCommitMaxDistancePx = 42;
+const exerciseColumnActiveSnapDelayMs = 160;
+const exerciseColumnWheelStepDeltaPx = 48;
+const exerciseColumnBodyDragThresholdPx = 4;
+const cardMetaOverlayRevealDelayMs = 170;
+const clampExerciseColumnOrbitValue = (
+  value: number,
+  min: number,
+  max: number,
+) => Math.min(Math.max(value, min), max);
 
 const viewModeLabels: Record<ExerciseLibraryViewMode, string> = {
   detail: "Detail View",
@@ -318,6 +363,37 @@ function ViewModeIcon({ mode }: { mode: ExerciseLibraryViewMode }) {
   );
 }
 
+function ExerciseLibraryViewModeToggle({
+  onChange,
+  value,
+}: {
+  onChange: (mode: ExerciseLibraryViewMode) => void;
+  value: ExerciseLibraryViewMode;
+}) {
+  return (
+    <div className="w-fit shrink-0 rounded-2xl border border-cyan-300/16 bg-slate-950/55 p-0.5 shadow-[0_12px_30px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.10)] sm:p-1 min-[1180px]:rounded-xl">
+      <div className="grid grid-cols-2 gap-1">
+        {(["detail", "grid"] as ExerciseLibraryViewMode[]).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            aria-label={viewModeLabels[mode]}
+            title={viewModeLabels[mode]}
+            onClick={() => onChange(mode)}
+            className={`flex min-h-[38px] min-w-[36px] items-center justify-center rounded-lg px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] transition sm:min-w-[42px] sm:rounded-xl sm:px-3 sm:py-2 min-[1180px]:min-h-[34px] min-[1180px]:min-w-[34px] min-[1180px]:rounded-lg min-[1180px]:px-2 ${
+              value === mode
+                ? "bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.26)]"
+                : "text-slate-400 hover:bg-cyan-300/10 hover:text-cyan-50"
+            }`}
+          >
+            <ViewModeIcon mode={mode} />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FavoriteStarIcon({ filled }: { filled: boolean }) {
   return (
     <svg
@@ -342,6 +418,7 @@ type ExerciseColumnUrgencyIconName =
   | "mobility"
   | "power"
   | "saved"
+  | "today"
   | "upper"
   | "user";
 
@@ -350,6 +427,7 @@ const getExerciseColumnUrgencyIconName = (
 ): ExerciseColumnUrgencyIconName => {
   const signature = `${section.key} ${section.label}`.toLowerCase();
 
+  if (isTodayPlanExerciseSection(section)) return "today";
   if (/(favorite|saved)/.test(signature)) return "saved";
   if (/(my exercises|custom|mine)/.test(signature)) return "user";
   if (/(lower|leg|glute|squat|hinge|lunge|calf)/.test(signature)) {
@@ -432,6 +510,16 @@ function ExerciseColumnUrgencyIcon({
       return (
         <svg {...iconProps} fill="currentColor">
           <path d="m12 2 3.09 6.26 6.91 1-5 4.87 1.18 6.87L12 17.77 5.82 21 7 14.13l-5-4.87 6.91-1L12 2Z" />
+        </svg>
+      );
+    case "today":
+      return (
+        <svg {...iconProps}>
+          <path d="M8 2v4" />
+          <path d="M16 2v4" />
+          <rect x="3" y="4" width="18" height="18" rx="3" />
+          <path d="M3 10h18" />
+          <path d="m8.5 15 2.2 2.2L16 12" />
         </svg>
       );
     case "user":
@@ -673,10 +761,22 @@ const getRankedSearchSuggestions = (
     .map(({ suggestion }) => suggestion);
 
 function SearchInputWithSuggestions({
+  compact = false,
+  className = "",
+  exercises = [],
+  openSuggestionsOnFocus = true,
+  onFocus,
+  onExerciseSelect,
   value,
   onChange,
   suggestions,
 }: {
+  compact?: boolean;
+  className?: string;
+  exercises?: Exercise[];
+  openSuggestionsOnFocus?: boolean;
+  onFocus?: () => void;
+  onExerciseSelect?: (exercise: Exercise) => void;
   value: string;
   onChange: (value: string) => void;
   suggestions: SearchSuggestion[];
@@ -691,6 +791,81 @@ function SearchInputWithSuggestions({
     () => getRankedSearchSuggestions(value, suggestions).slice(0, 16),
     [value, suggestions],
   );
+  const visibleExerciseResults = useMemo(() => {
+    const normalizedQuery = value.trim().toLowerCase();
+
+    return exercises
+      .map((exercise, index) => {
+        const metadata = getMetadataForExercise(exercise);
+        const title = getExerciseSortTitle(exercise) || exercise.name;
+        const movementLabel =
+          metadata?.coreMovementLabel ||
+          metadata?.movementPatternLabel ||
+          exercise.pattern ||
+          "Exercise";
+        const metaLabel = [exercise.body, exercise.level, exercise.equipment]
+          .filter(Boolean)
+          .join(" / ");
+        const searchableText = [
+          title,
+          exercise.name,
+          exercise.exerciseName,
+          exercise.generatedTitle,
+          exercise.semanticVariationName,
+          exercise.semanticVariation,
+          exercise.body,
+          exercise.muscles,
+          exercise.pattern,
+          exercise.goal,
+          exercise.equipment,
+          exercise.level,
+          metadata?.coreMovementLabel,
+          metadata?.movementPatternLabel,
+          metadata?.familyLabel,
+          metadata?.apparatus,
+          ...(metadata?.semanticVariationNames || []),
+          ...(metadata?.searchTokens || []),
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        const normalizedTitle = title.toLowerCase();
+        const matches =
+          !normalizedQuery || searchableText.includes(normalizedQuery);
+
+        if (!matches) return null;
+
+        const score = !normalizedQuery
+          ? 8
+          : normalizedTitle === normalizedQuery
+            ? 0
+            : normalizedTitle.startsWith(normalizedQuery)
+              ? 1
+              : exercise.name.toLowerCase().startsWith(normalizedQuery)
+                ? 2
+                : normalizedTitle.includes(normalizedQuery)
+                  ? 3
+                  : 4;
+
+        return {
+          exercise,
+          imageSrc: getExerciseVisualUrl(exercise),
+          index,
+          metaLabel,
+          movementLabel,
+          score,
+          title,
+        };
+      })
+      .filter((result): result is NonNullable<typeof result> => Boolean(result))
+      .sort(
+        (left, right) =>
+          left.score - right.score ||
+          left.title.localeCompare(right.title) ||
+          left.index - right.index,
+      );
+  }, [exercises, value]);
+  const showExerciseResults = exercises.length > 0;
 
   const updatePanelPosition = () => {
     const trigger = inputRef.current;
@@ -803,10 +978,12 @@ function SearchInputWithSuggestions({
   }, [dropdownId, open]);
 
   return (
-    <div className="relative">
+    <div className={`relative ${className}`}>
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute left-3 top-1/2 z-10 mt-1 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/18 bg-cyan-300/10 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.14)] min-[1100px]:mt-1.5 min-[1100px]:h-8 min-[1100px]:w-8"
+        className={`pointer-events-none absolute left-3 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/18 bg-cyan-300/10 text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.14)] min-[1100px]:h-8 min-[1100px]:w-8 ${
+          compact ? "" : "mt-1 min-[1100px]:mt-1.5"
+        }`}
       >
         <svg
           className="h-3.5 w-3.5 min-[1100px]:h-4 min-[1100px]:w-4"
@@ -823,14 +1000,25 @@ function SearchInputWithSuggestions({
       </div>
       <input
         ref={inputRef}
-        placeholder="Search core movement, muscle, pattern, goal, equipment, or level..."
+        placeholder="Search core movement, variant, muscle, pattern, goal, equipment, or level..."
         value={value}
-        onFocus={openPanel}
+        onFocus={() => {
+          onFocus?.();
+          if (openSuggestionsOnFocus || showExerciseResults) openPanel();
+        }}
+        onClick={() => {
+          if (openSuggestionsOnFocus || showExerciseResults) openPanel();
+        }}
+        onPointerDown={() => {
+          if (openSuggestionsOnFocus || showExerciseResults) openPanel();
+        }}
         onChange={(event) => {
           onChange(event.target.value);
           if (!open) openPanel();
         }}
-        className="mt-2 min-h-[44px] w-full rounded-2xl border border-cyan-100/18 bg-[radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.94),rgba(2,6,23,0.82))] px-3 py-2 pl-12 text-sm font-semibold text-white shadow-[0_16px_42px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.12)] outline-none ring-1 ring-white/[0.035] backdrop-blur-2xl placeholder:text-slate-500 transition focus:border-cyan-200/60 focus:bg-slate-950/90 focus:shadow-[0_20px_58px_rgba(0,0,0,0.38),0_0_36px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] focus:ring-2 focus:ring-cyan-200/18 md:min-h-[42px] md:px-3 md:py-2 md:pl-12 min-[1100px]:mt-3 min-[1100px]:min-h-[48px] min-[1100px]:rounded-[22px] min-[1100px]:px-4 min-[1100px]:py-3 min-[1100px]:pl-14 min-[1100px]:text-base"
+        className={`min-h-[44px] w-full rounded-2xl border border-cyan-100/18 bg-[radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.94),rgba(2,6,23,0.82))] px-3 py-2 pl-12 text-sm font-semibold text-white shadow-[0_16px_42px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.12)] outline-none ring-1 ring-white/[0.035] backdrop-blur-2xl placeholder:text-slate-500 transition focus:border-cyan-200/60 focus:bg-slate-950/90 focus:shadow-[0_20px_58px_rgba(0,0,0,0.38),0_0_36px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] focus:ring-2 focus:ring-cyan-200/18 md:min-h-[42px] md:px-3 md:py-2 md:pl-12 min-[1100px]:min-h-[48px] min-[1100px]:rounded-[22px] min-[1100px]:px-4 min-[1100px]:py-3 min-[1100px]:pl-14 min-[1100px]:text-base ${
+          compact ? "" : "mt-2 min-[1100px]:mt-3"
+        }`}
         aria-label="Search Exercise Library"
         aria-expanded={open}
       />
@@ -843,7 +1031,94 @@ function SearchInputWithSuggestions({
               className="fixed overflow-hidden rounded-[26px] border border-cyan-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-2 shadow-[0_26px_90px_rgba(0,0,0,0.76),0_0_36px_rgba(34,211,238,0.14)] backdrop-blur-xl [scrollbar-color:rgba(34,211,238,0.38)_transparent]"
             >
               <div className="max-h-[inherit] overflow-y-auto pr-1 [scrollbar-width:thin]">
-                {visibleSuggestions.length > 0 ? (
+                {showExerciseResults ? (
+                  <>
+                    <div className="sticky top-0 z-10 mb-2 rounded-2xl border border-cyan-100/18 bg-slate-950/92 px-4 py-3 shadow-[0_12px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                          All Exercises
+                        </span>
+                        <span className="shrink-0 rounded-full border border-cyan-200/18 bg-cyan-300/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100/80">
+                          {visibleExerciseResults.length.toLocaleString()} /{" "}
+                          {exercises.length.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {visibleExerciseResults.length > 0 ? (
+                      visibleExerciseResults.map((result) => (
+                        <button
+                          key={result.exercise.id}
+                          type="button"
+                          onClick={() => {
+                            onExerciseSelect?.(result.exercise);
+                            setOpen(false);
+                          }}
+                          className="mb-1 flex min-h-[58px] w-full items-center gap-3 rounded-2xl px-3 py-2 text-left text-sm font-bold text-slate-300 transition hover:bg-cyan-300/10 hover:text-white"
+                        >
+                          <img
+                            src={result.imageSrc}
+                            alt=""
+                            className="h-11 w-14 shrink-0 rounded-xl border border-white/10 object-cover"
+                            loading="lazy"
+                            decoding="async"
+                            draggable={false}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-white">
+                              {result.title}
+                            </span>
+                            <span className="mt-0.5 block truncate text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100/45">
+                              {[result.movementLabel, result.metaLabel]
+                                .filter(Boolean)
+                                .join(" / ")}
+                            </span>
+                          </span>
+                          <span className="shrink-0 rounded-full border border-cyan-200/20 bg-cyan-300/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                            Open
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-sm font-bold text-slate-400">
+                        No exercises match this search
+                      </div>
+                    )}
+
+                    {value.trim() && visibleSuggestions.length > 0 ? (
+                      <div className="mt-2 border-t border-white/10 pt-2">
+                        <p className="px-3 pb-1 text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                          Search terms
+                        </p>
+                        {visibleSuggestions.slice(0, 6).map((suggestion) => (
+                          <button
+                            key={suggestion.id}
+                            type="button"
+                            onClick={() => {
+                              onChange(suggestion.query);
+                              setOpen(false);
+                            }}
+                            className="mb-1 flex min-h-[38px] w-full items-center justify-between gap-3 rounded-2xl px-3 py-2 text-left text-xs font-bold text-slate-300 transition hover:bg-cyan-300/10 hover:text-white"
+                          >
+                            <span className="min-w-0">
+                              <span className="block truncate text-white">
+                                {suggestion.label}
+                              </span>
+                              <span className="mt-0.5 block truncate text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100/45">
+                                {[suggestion.group, suggestion.helper]
+                                  .filter(Boolean)
+                                  .join(" / ")}
+                              </span>
+                            </span>
+                            <span className="shrink-0 rounded-full border border-cyan-200/20 bg-cyan-300/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                              Search
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </>
+                ) : visibleSuggestions.length > 0 ? (
                   visibleSuggestions.map((suggestion) => (
                     <button
                       key={suggestion.id}
@@ -1593,26 +1868,6 @@ const createMovementTypeOptions = (): MovementTypeOption[] => {
 };
 
 const movementTypeOptions = createMovementTypeOptions();
-const movementTypeOptionByValue = new Map(
-  movementTypeOptions.map((option) => [option.value, option]),
-);
-const movementTypeFilterOptions: FilterMenuOption[] = [
-  {
-    value: "All",
-    label: "All Movement Types",
-    group: "All",
-    helper: `${movementTypeOptions.length} supported types`,
-  },
-  ...movementTypeOptions.map((option) => ({
-    value: option.value,
-    label: option.label,
-    group: option.group,
-    helper:
-      option.count > 0
-        ? `${option.count} movement${option.count === 1 ? "" : "s"}`
-        : "No mapped exercises yet",
-  })),
-];
 
 const normalizedMetadataByExerciseId = new Map(
   normalizedCatalog.items.map((item) => [item.legacyExerciseId, item]),
@@ -1628,8 +1883,14 @@ const normalizedSystemExercises = (
 const defaultImage =
   "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?q=80&w=900";
 
+const todayPlanSectionLabel = "Today's Plan";
+const todayPlanSectionKey = "today-plan";
 const myExercisesSectionLabel = "My Exercises";
 const myExercisesSectionKey = myExercisesSectionLabel.toLowerCase();
+
+const isTodayPlanExerciseSection = (section: { key: string; label: string }) =>
+  section.key === todayPlanSectionKey ||
+  section.label.toLowerCase().includes("today's plan");
 
 const isCustomExerciseSection = (section: { key: string; label: string }) => {
   const key = section.key.toLowerCase();
@@ -1653,7 +1914,7 @@ type BuilderSelectableExercise = Pick<
   Exercise,
   "id" | "name" | "body" | "pattern" | "goal" | "equipment"
 > &
-  Partial<Pick<Exercise, "muscles" | "level" | "image" | "cue">>;
+  Partial<Pick<Exercise, "muscles" | "level" | "image" | "imageUrl" | "cue">>;
 
 const toBuilderCatalogExercise = (
   exercise: BuilderSelectableExercise,
@@ -1666,7 +1927,7 @@ const toBuilderCatalogExercise = (
   goal: exercise.goal,
   equipment: exercise.equipment,
   level: exercise.level || "",
-  image: exercise.image || defaultImage,
+  image: exercise.imageUrl || exercise.image || defaultImage,
   cue:
     exercise.cue ||
     "Move with control, own the position, and make every rep count.",
@@ -1884,6 +2145,100 @@ const getCompatibleModifierGroups = (
 const getModifierCategoryId = (modifierId: string) =>
   EXERCISE_MODIFIER_BY_ID[modifierId as keyof typeof EXERCISE_MODIFIER_BY_ID]
     ?.categoryId || null;
+
+const variantTypeModifierCategoryOrder = [
+  "Execution Style",
+  "Angle / Position",
+  "Limb Usage",
+  "Range of Motion",
+  "Load Behavior",
+  "Assistance / Resistance",
+  "Stability",
+  "Tempo",
+  "Grip",
+];
+
+const variantTypeModifierOptions = normalizedCatalog.filterOptions.modifiers
+  .filter((option) => {
+    const categoryId = getModifierCategoryId(option.id);
+
+    return (
+      Boolean(categoryId) &&
+      categoryId !== "apparatus" &&
+      categoryId !== "training-intent"
+    );
+  })
+  .sort((left, right) => {
+    const leftCategory = getModifierCategoryId(left.id);
+    const rightCategory = getModifierCategoryId(right.id);
+    const leftGroup = leftCategory
+      ? getModifierCategoryLabel(leftCategory as ExerciseModifierCategoryId)
+      : "";
+    const rightGroup = rightCategory
+      ? getModifierCategoryLabel(rightCategory as ExerciseModifierCategoryId)
+      : "";
+    const leftGroupIndex = variantTypeModifierCategoryOrder.indexOf(leftGroup);
+    const rightGroupIndex = variantTypeModifierCategoryOrder.indexOf(rightGroup);
+    const leftGroupSort =
+      leftGroupIndex === -1 ? Number.MAX_SAFE_INTEGER : leftGroupIndex;
+    const rightGroupSort =
+      rightGroupIndex === -1 ? Number.MAX_SAFE_INTEGER : rightGroupIndex;
+
+    return (
+      leftGroupSort - rightGroupSort ||
+      leftGroup.localeCompare(rightGroup) ||
+      left.label.localeCompare(right.label)
+    );
+  });
+
+const variantTypeFilterOptions: FilterMenuOption[] = [
+  {
+    value: "All",
+    label: "All Variant Types",
+    group: "All",
+    helper: `${variantTypeModifierOptions.length} variant options`,
+  },
+  ...variantTypeModifierOptions.map((option) => {
+    const categoryId = getModifierCategoryId(option.id);
+    const group = categoryId
+      ? getModifierCategoryLabel(categoryId as ExerciseModifierCategoryId)
+      : "Variant Type";
+
+    return {
+      value: option.id,
+      label: option.label,
+      group,
+      helper:
+        typeof option.count === "number"
+          ? formatCountLabel(option.count, "movement")
+          : undefined,
+    };
+  }),
+];
+
+const variantTypeOptionByValue = new Map(
+  variantTypeFilterOptions.map((option) => [option.value, option]),
+);
+
+const variantTypeMatchesItem = (
+  modifierId: string,
+  metadata: NormalizedExerciseCatalogItem | null,
+) => {
+  if (!metadata) return false;
+
+  const availableModifierIds = new Set<string>(metadata.modifierIds || []);
+
+  Object.values(metadata.modifiersByCategory || {}).forEach((modifierIds) => {
+    modifierIds.forEach((id) => availableModifierIds.add(id));
+  });
+
+  metadata.semanticVariations.forEach((variation) => {
+    variation.modifierIds.forEach((id) => availableModifierIds.add(id));
+    variation.definingModifierIds?.forEach((id) => availableModifierIds.add(id));
+  });
+
+  return availableModifierIds.has(modifierId);
+};
 
 const getSelectedModifiersByCategory = (
   modifierIds: ExerciseModifierId[],
@@ -3805,6 +4160,24 @@ const categoryThemeFallback: CategoryTheme = {
 };
 
 const categoryThemes: Record<string, CategoryTheme> = {
+  "today's plan": {
+    surfaceClass:
+      "bg-[linear-gradient(135deg,rgba(14,116,144,0.34),rgba(15,23,42,0.78),rgba(2,6,23,0.92))]",
+    cardClass:
+      "border-cyan-200/28 shadow-[0_18px_58px_rgba(0,0,0,0.40),0_0_34px_rgba(34,211,238,0.15),inset_0_1px_0_rgba(255,255,255,0.18)]",
+    overlayClass:
+      "bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_82%_10%,rgba(110,231,183,0.14),transparent_30%),linear-gradient(120deg,rgba(255,255,255,0.11)_0%,rgba(255,255,255,0.04)_42%,transparent_74%)]",
+    accentClass:
+      "bg-gradient-to-r from-transparent via-cyan-200/80 to-emerald-200/50",
+    pillClass:
+      "border-cyan-200/34 bg-cyan-300/16 text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.16)]",
+    hoverClass:
+      "hover:border-cyan-100/44 hover:shadow-[0_26px_86px_rgba(0,0,0,0.52),0_0_42px_rgba(34,211,238,0.20),inset_0_1px_0_rgba(255,255,255,0.22)]",
+    tabClass:
+      "bg-[linear-gradient(135deg,rgba(103,232,249,0.98),rgba(52,211,153,0.78))] text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.30),inset_0_1px_0_rgba(255,255,255,0.40)] ring-1 ring-cyan-100/70",
+    tabHoverClass:
+      "hover:bg-[linear-gradient(135deg,rgba(34,211,238,0.18),rgba(15,23,42,0.88))] hover:text-cyan-50 hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] focus:ring-cyan-200/35",
+  },
   favorites: {
     surfaceClass:
       "bg-[linear-gradient(135deg,rgba(113,63,18,0.36),rgba(15,23,42,0.76),rgba(2,6,23,0.92))]",
@@ -7294,18 +7667,20 @@ function SemanticVariationSelect({
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setOpen(false);
-                  setSearchQuery("");
-                  onAddNewVariation?.();
-                }}
-                className="mt-2 flex min-h-11 w-full items-center justify-center rounded-xl border border-emerald-200/22 bg-emerald-300/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-100 transition hover:border-emerald-100/48 hover:bg-emerald-300 hover:text-slate-950"
-              >
-                + Add New Variation
-              </button>
+              {onAddNewVariation ? (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setOpen(false);
+                    setSearchQuery("");
+                    onAddNewVariation();
+                  }}
+                  className="mt-2 flex min-h-11 w-full items-center justify-center rounded-xl border border-emerald-200/22 bg-emerald-300/10 px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-emerald-100 transition hover:border-emerald-100/48 hover:bg-emerald-300 hover:text-slate-950"
+                >
+                  + Add New Variation
+                </button>
+              ) : null}
             </div>,
             document.body,
           )
@@ -8539,6 +8914,160 @@ type ExerciseLibrarySection = {
   exercises: Exercise[];
   key: string;
   label: string;
+  todayPlanMeta?: TodayPlanSectionMeta;
+};
+
+type TodayPlanSummary = {
+  activePlan: LocalWeeklyPlan | null;
+  assignments: LocalPlanAssignment[];
+  day: LocalPlanDay | null;
+  exercises: Exercise[];
+  status: TodayPlanSectionStatus;
+};
+
+const getLocalDateOnlyLabel = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const getCurrentPlanDayName = () =>
+  new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(new Date());
+
+const getActiveLocalWorkoutPlan = (
+  plans: LocalWeeklyPlan[],
+  activePlanId: string | null,
+) =>
+  plans.find((plan) => plan.id === activePlanId) ||
+  plans.find((plan) => plan.status === "active") ||
+  plans[0] ||
+  null;
+
+const resolvePlanAssignmentTemplate = (
+  assignment: LocalPlanAssignment,
+  templates: LocalWorkoutBuilderTemplate[],
+) =>
+  templates.find((template) => template.id === assignment.templateId) ||
+  templates.find(
+    (template) =>
+      template.title.trim().toLowerCase() ===
+      assignment.templateTitle.trim().toLowerCase(),
+  ) ||
+  null;
+
+const resolvePlannedExerciseCard = (
+  plannedExercise: LocalWorkoutBuilderSelectedExercise,
+  allExercises: Exercise[],
+): Exercise => {
+  const normalizedPlannedId = plannedExercise.id.trim().toLowerCase();
+  const normalizedPlannedName = normalizeFilterCompareValue(plannedExercise.name);
+  const matchedExercise =
+    allExercises.find(
+      (exercise) => exercise.id.trim().toLowerCase() === normalizedPlannedId,
+    ) ||
+    allExercises.find(
+      (exercise) =>
+        normalizeFilterCompareValue(exercise.name) === normalizedPlannedName ||
+        normalizeFilterCompareValue(getExerciseDisplayVariationName(exercise)) ===
+          normalizedPlannedName,
+    );
+
+  if (matchedExercise) return matchedExercise;
+
+  return {
+    id: plannedExercise.id || `today-plan-${normalizedPlannedName}`,
+    name: plannedExercise.name || "Planned Exercise",
+    body: plannedExercise.body || "Full Body",
+    muscles: plannedExercise.body || "",
+    pattern: plannedExercise.pattern || "Planned Movement",
+    goal: plannedExercise.goal || "Strength",
+    equipment: plannedExercise.equipment || "Bodyweight",
+    level: "",
+    image: defaultImage,
+    cue: "This card is linked from today's plan.",
+  };
+};
+
+const getTodayPlanSummary = ({
+  activePlanId,
+  allExercises,
+  templates,
+  templatesLoaded,
+  workoutPlans,
+}: {
+  activePlanId: string | null;
+  allExercises: Exercise[];
+  templates: LocalWorkoutBuilderTemplate[];
+  templatesLoaded: boolean;
+  workoutPlans: LocalWeeklyPlan[];
+}): TodayPlanSummary => {
+  const activePlan = getActiveLocalWorkoutPlan(workoutPlans, activePlanId);
+  const todayDate = getLocalDateOnlyLabel();
+  const todayDayName = getCurrentPlanDayName();
+  const day =
+    activePlan?.days.find((planDay) => planDay.date === todayDate) ||
+    activePlan?.days.find((planDay) => planDay.dayOfWeek === todayDayName) ||
+    null;
+  const assignments = day?.assignments || [];
+
+  if (!activePlan || !day) {
+    return {
+      activePlan,
+      assignments: [],
+      day,
+      exercises: [],
+      status: "no-plan",
+    };
+  }
+
+  if (assignments.length === 0) {
+    return {
+      activePlan,
+      assignments,
+      day,
+      exercises: [],
+      status: "empty-day",
+    };
+  }
+
+  if (!templatesLoaded) {
+    return {
+      activePlan,
+      assignments,
+      day,
+      exercises: [],
+      status: "loading",
+    };
+  }
+
+  const plannedExercisesByKey = new Map<string, Exercise>();
+
+  assignments.forEach((assignment) => {
+    const template = resolvePlanAssignmentTemplate(assignment, templates);
+
+    template?.exercises.forEach((plannedExercise) => {
+      const exercise = resolvePlannedExerciseCard(plannedExercise, allExercises);
+      const key =
+        exercise.id ||
+        normalizeFilterCompareValue(getExerciseDisplayVariationName(exercise));
+
+      if (!plannedExercisesByKey.has(key)) {
+        plannedExercisesByKey.set(key, exercise);
+      }
+    });
+  });
+
+  const exercises = Array.from(plannedExercisesByKey.values());
+
+  return {
+    activePlan,
+    assignments,
+    day,
+    exercises,
+    status: exercises.length > 0 ? "ready" : "missing-template",
+  };
 };
 
 const groupExercisesIntoSections = (
@@ -8716,6 +9245,8 @@ const getExerciseSectionOrbitGroupId = (
   const key = section.key.toLowerCase();
 
   if (
+    key === todayPlanSectionKey ||
+    label.includes("today's plan") ||
     key === "favorites" ||
     key === myExercisesSectionKey ||
     label.includes("favorite") ||
@@ -9103,10 +9634,12 @@ const getWeeklySetGoalStatusId = (
 };
 
 function VolumeStatusIndicator({
+  blink = false,
   className = "",
   sets,
   statusId,
 }: {
+  blink?: boolean;
   className?: string;
   sets: number;
   statusId?: WeeklyVolumeStatusId;
@@ -9117,6 +9650,7 @@ function VolumeStatusIndicator({
   return (
     <span
       aria-label={status.label}
+      data-status-blink={blink ? "true" : undefined}
       data-volume-status={resolvedStatusId}
       className={`exercise-library-volume-status-indicator inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full bg-black/25 ring-1 ${status.ringClass} ${className}`}
       title={status.label}
@@ -9303,6 +9837,7 @@ function CooldownCounterBar({
 }
 
 function WeeklySetGoalBadge({
+  blink = false,
   className = "",
   completedSets,
   completedReps = 0,
@@ -9313,6 +9848,7 @@ function WeeklySetGoalBadge({
   showWeightVolume = false,
   weightUnit = "lbs",
 }: {
+  blink?: boolean;
   className?: string;
   completedSets: number;
   completedReps?: number;
@@ -9347,6 +9883,7 @@ function WeeklySetGoalBadge({
       }`}
     >
       <VolumeStatusIndicator
+        blink={blink}
         sets={roundedCompletedSets}
         statusId={statusId}
       />
@@ -11315,7 +11852,7 @@ function ExerciseBodyAnatomySelector({
   return (
     <div
       ref={anatomySelectorRef}
-      className="relative overflow-visible border-b border-cyan-100/10 p-3"
+      className="exercise-library-anatomy-selector-root relative overflow-visible border-b border-cyan-100/10 p-3"
     >
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)] xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
       <div className="exercise-library-movement-panel relative overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/60 p-2 shadow-[0_0_40px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl sm:p-3">
@@ -11978,7 +12515,7 @@ type TrainingInsightsTabId =
   | "recommendations";
 
 const getExerciseVisualUrl = (exercise?: Exercise | null) =>
-  exercise?.image || exercise?.imageUrl || "";
+  exercise?.imageUrl || exercise?.image || defaultImage;
 
 function TrainingLogicDropdownSection({
   accent,
@@ -13342,7 +13879,6 @@ function ExerciseLibraryWidgetDock({
   currentFocusLabel,
   latestTrainingExerciseName,
   latestTrainingLine,
-  onCreateExercise,
   onThemeChange,
   sectionTheme,
   shortcuts,
@@ -13359,7 +13895,6 @@ function ExerciseLibraryWidgetDock({
   currentFocusLabel: string;
   latestTrainingExerciseName: string;
   latestTrainingLine: string;
-  onCreateExercise: () => void;
   onThemeChange: (themeId: ExerciseLibraryUiThemeId) => void;
   sectionTheme: CategoryTheme;
   shortcuts: TrainingIntelligenceShortcut[];
@@ -13386,14 +13921,6 @@ function ExerciseLibraryWidgetDock({
         shortcut.id,
       ),
     ),
-    {
-      disabled: false,
-      helper: "Start a private movement",
-      id: "widget-create-exercise",
-      label: "Create Exercise",
-      onClick: onCreateExercise,
-      theme: getCategoryTheme("Integrated"),
-    },
   ].slice(0, 5);
 
   return (
@@ -13531,44 +14058,512 @@ function ExerciseLibraryWidgetDock({
   );
 }
 
+type ExerciseAnatomyOverlayControlProps = Parameters<
+  typeof ExerciseBodyAnatomySelector
+>[0];
+
+function ExerciseAnatomyOverlayControl({
+  activeLayer,
+  selectedBodies,
+  ...selectorProps
+}: ExerciseAnatomyOverlayControlProps) {
+  const dropdownId = useId();
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const lockedPanelWidthRef = useRef<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
+  const selectedLabel = selectedBodies.length
+    ? selectedBodies.join(" / ")
+    : activeLayer || "All regions";
+  const hasSelection = selectedBodies.length > 0 || Boolean(activeLayer);
+
+  const updatePanelPosition = () => {
+    const button = buttonRef.current;
+    if (!button) return;
+
+    const rect = button.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const margin = 12;
+    const safeTop = getTopNavigationSafeArea();
+    const measuredWidth = Math.min(
+      Math.max(760, viewportWidth * 0.64),
+      1180,
+      viewportWidth - margin * 2,
+    );
+    const width = lockedPanelWidthRef.current ?? measuredWidth;
+    lockedPanelWidthRef.current = width;
+    const preferredTop = Math.max(rect.bottom + 10, safeTop);
+    const minPanelHeight = Math.min(360, viewportHeight - safeTop - margin);
+    const top = Math.min(
+      preferredTop,
+      Math.max(safeTop, viewportHeight - minPanelHeight - margin),
+    );
+    const left = Math.min(
+      Math.max(rect.right - width, margin),
+      Math.max(margin, viewportWidth - width - margin),
+    );
+    const maxHeight = Math.max(
+      minPanelHeight,
+      Math.min(780, viewportHeight - top - margin),
+    );
+
+    setStableFixedDropdownStyle(
+      setPanelStyle,
+      createFixedDropdownStyle({
+        left,
+        top,
+        width,
+        maxHeight,
+        zIndex: topFilterDropdownZIndex + 12,
+      }),
+    );
+  };
+
+  useEffect(() => {
+    const closeWhenAnotherDropdownOpens = (
+      event: CustomEvent<ExerciseLibraryDropdownOpenDetail>,
+    ) => {
+      const detail = event.detail;
+      if (detail?.id !== dropdownId) setOpen(false);
+    };
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        (buttonRef.current?.contains(target) ||
+          panelRef.current?.contains(target))
+      ) {
+        return;
+      }
+
+      setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    window.addEventListener(
+      exerciseLibraryDropdownOpenEvent,
+      closeWhenAnotherDropdownOpens as EventListener,
+    );
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      window.removeEventListener(
+        exerciseLibraryDropdownOpenEvent,
+        closeWhenAnotherDropdownOpens as EventListener,
+      );
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [dropdownId]);
+
+  useEffect(() => {
+    if (!open) {
+      lockedPanelWidthRef.current = null;
+      setPanelStyle(null);
+      return;
+    }
+
+    updatePanelPosition();
+
+    let animationFrame: number | null = null;
+    const schedulePositionUpdate = (unlockWidth = false) => {
+      if (unlockWidth) lockedPanelWidthRef.current = null;
+      if (animationFrame !== null) return;
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updatePanelPosition();
+      });
+    };
+    const handleResize = () => schedulePositionUpdate(true);
+    const handleScroll = () => schedulePositionUpdate();
+
+    document.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+      document.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative w-fit max-w-full">
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label="Open anatomy map"
+        aria-expanded={open}
+        data-open={open ? "true" : undefined}
+        data-has-selection={hasSelection ? "true" : undefined}
+        onClick={() => {
+          if (!open) announceExerciseLibraryDropdownOpen(dropdownId);
+          setOpen((current) => !current);
+        }}
+        className="exercise-library-anatomy-coil-button group/filter-control flex min-h-[42px] w-fit max-w-full items-center gap-2 rounded-2xl border px-2.5 py-1.5 text-left shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.12)] outline-none ring-1 ring-white/[0.03] transition duration-200 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-cyan-200/30 md:min-h-[40px] min-[1100px]:min-h-[46px] min-[1100px]:rounded-[22px] min-[1100px]:px-3 min-[1100px]:py-2"
+      >
+        <span className="exercise-library-anatomy-coil-button__coil" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block whitespace-nowrap text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/72 md:text-[9px] md:tracking-[0.14em] min-[1100px]:text-[10px] min-[1100px]:tracking-[0.18em]">
+            Anatomy
+          </span>
+          <span className="mt-0.5 block whitespace-nowrap text-xs font-black leading-4 text-white md:text-[13px] min-[1100px]:text-sm">
+            {selectedLabel}
+          </span>
+        </span>
+        <span
+          aria-hidden="true"
+          className="exercise-library-anatomy-coil-button__chevron"
+        >
+          v
+        </span>
+      </button>
+
+      {open && panelStyle
+        ? createPortal(
+            <div
+              ref={panelRef}
+              style={panelStyle}
+              className="exercise-library-anatomy-overlay-panel fixed overflow-hidden rounded-[30px] border border-cyan-100/22 bg-[radial-gradient(circle_at_50%_-12%,rgba(125,211,252,0.22),transparent_36%),radial-gradient(circle_at_15%_12%,rgba(34,211,238,0.16),transparent_34%),radial-gradient(circle_at_88%_8%,rgba(250,204,21,0.14),transparent_30%),linear-gradient(135deg,rgba(3,7,18,0.98),rgba(15,23,42,0.96))] p-2 shadow-[0_32px_96px_rgba(0,0,0,0.76),0_0_46px_rgba(34,211,238,0.18),0_0_90px_rgba(168,85,247,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur-2xl"
+              role="dialog"
+              aria-label="Anatomy filter map"
+            >
+              <span className="exercise-library-anatomy-overlay-panel__arc exercise-library-anatomy-overlay-panel__arc--left" aria-hidden="true" />
+              <span className="exercise-library-anatomy-overlay-panel__arc exercise-library-anatomy-overlay-panel__arc--right" aria-hidden="true" />
+              <span className="exercise-library-anatomy-overlay-panel__coil" aria-hidden="true" />
+              <div className="relative z-10 flex items-start justify-between gap-3 px-2 pb-2 pt-1 sm:px-3 sm:pt-2">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-[0.22em] text-cyan-100/74">
+                    Anatomy Filter
+                  </p>
+                  <p className="mt-1 truncate text-sm font-black text-white">
+                    {selectedLabel}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] text-xs font-black text-slate-300 transition hover:border-cyan-100/30 hover:bg-cyan-300/12 hover:text-white"
+                  aria-label="Close anatomy filter"
+                >
+                  X
+                </button>
+              </div>
+              <ExerciseBodyAnatomySelector
+                activeLayer={activeLayer}
+                selectedBodies={selectedBodies}
+                {...selectorProps}
+              />
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
+function ActiveFilterSortDropdown({
+  onChange,
+  sectionTheme,
+  sortMode,
+  sortOptions,
+}: {
+  onChange: (mode: ExerciseLibrarySortMode) => void;
+  sectionTheme: CategoryTheme;
+  sortMode: ExerciseLibrarySortMode;
+  sortOptions: FilterMenuOption[];
+}) {
+  const dropdownId = useId();
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const lockedPanelWidthRef = useRef<number | null>(null);
+  const [open, setOpen] = useState(false);
+  const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
+  const selectedOption =
+    sortOptions.find((option) => option.value === sortMode) || sortOptions[0];
+
+  const updatePanelPosition = () => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const margin = 12;
+    const safeTop = getTopNavigationSafeArea();
+    const measuredWidth = Math.min(
+      Math.max(rect.width, 230),
+      viewportWidth - margin * 2,
+    );
+    const width = lockedPanelWidthRef.current ?? measuredWidth;
+    lockedPanelWidthRef.current = width;
+    const panelMaxHeight = Math.min(360, viewportHeight - safeTop - margin);
+    const preferredTop = Math.max(rect.bottom + 8, safeTop);
+    const top = Math.min(
+      preferredTop,
+      Math.max(safeTop, viewportHeight - Math.min(220, panelMaxHeight) - margin),
+    );
+    const left = Math.min(
+      Math.max(rect.right - width, margin),
+      Math.max(margin, viewportWidth - width - margin),
+    );
+
+    setStableFixedDropdownStyle(
+      setPanelStyle,
+      createFixedDropdownStyle({
+        left,
+        top,
+        width,
+        maxHeight: panelMaxHeight,
+        zIndex: topFilterDropdownZIndex + 8,
+      }),
+    );
+  };
+
+  useEffect(() => {
+    const closeWhenAnotherDropdownOpens = (event: Event) => {
+      const detail = (event as CustomEvent<{ id: string }>).detail;
+      if (detail?.id !== dropdownId) setOpen(false);
+    };
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        (triggerRef.current?.contains(target) ||
+          panelRef.current?.contains(target))
+      ) {
+        return;
+      }
+
+      setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    window.addEventListener(
+      exerciseLibraryDropdownOpenEvent,
+      closeWhenAnotherDropdownOpens,
+    );
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      window.removeEventListener(
+        exerciseLibraryDropdownOpenEvent,
+        closeWhenAnotherDropdownOpens,
+      );
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [dropdownId]);
+
+  useEffect(() => {
+    if (!open) {
+      lockedPanelWidthRef.current = null;
+      setPanelStyle(null);
+      return;
+    }
+
+    updatePanelPosition();
+
+    let animationFrame: number | null = null;
+    const schedulePositionUpdate = (unlockWidth = false) => {
+      if (unlockWidth) lockedPanelWidthRef.current = null;
+      if (animationFrame !== null) return;
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updatePanelPosition();
+      });
+    };
+    const handleResize = () => schedulePositionUpdate(true);
+    const handleScroll = () => schedulePositionUpdate();
+
+    document.addEventListener("scroll", handleScroll, true);
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
+      document.removeEventListener("scroll", handleScroll, true);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label="Sort exercise library"
+        aria-expanded={open}
+        onClick={() => {
+          if (!open) announceExerciseLibraryDropdownOpen(dropdownId);
+          setOpen((current) => !current);
+        }}
+        className="group/filter-control flex min-h-[40px] w-[12.25rem] max-w-full shrink-0 items-center justify-between rounded-2xl border border-emerald-200/24 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.16),transparent_34%),linear-gradient(135deg,rgba(6,78,59,0.42),rgba(15,23,42,0.84))] px-2 py-1 text-left text-emerald-100 shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.12)] outline-none ring-1 ring-white/[0.03] backdrop-blur-2xl transition duration-200 hover:-translate-y-0.5 hover:border-emerald-100/48 hover:bg-emerald-300/12 hover:shadow-[0_18px_42px_rgba(0,0,0,0.32),0_0_26px_rgba(16,185,129,0.14),inset_0_1px_0_rgba(255,255,255,0.16)] focus-visible:ring-2 focus-visible:ring-emerald-200/30 md:min-h-[38px] min-[1100px]:min-h-[44px] min-[1100px]:px-2.5 min-[1100px]:py-1.5"
+      >
+        <span className="min-w-0">
+          <span className="flex items-center gap-1.5 whitespace-nowrap text-[7px] font-black uppercase tracking-[0.1em] opacity-70 min-[1100px]:text-[8px]">
+            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70 shadow-[0_0_10px_currentColor]" />
+            Sort
+          </span>
+          <span className="mt-0.5 block max-w-[8.8rem] truncate text-[11px] font-black leading-3 text-white min-[1100px]:max-w-[9.8rem] min-[1100px]:text-xs">
+            {selectedOption?.label || sortModeLabels[sortMode]}
+          </span>
+        </span>
+        <span
+          aria-hidden="true"
+          className={`relative ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-emerald-200/25 bg-emerald-300/10 text-sm font-black text-transparent shadow-[0_0_14px_rgba(16,185,129,0.12)] transition after:absolute after:content-['v'] after:text-emerald-100 ${
+            open ? "rotate-180 border-emerald-200/50 bg-emerald-300/20" : ""
+          }`}
+        >
+          down
+        </span>
+      </button>
+
+      {open && panelStyle
+        ? createPortal(
+            <div
+              ref={panelRef}
+              style={{
+                ...panelStyle,
+                ...getCategoryThemeCssVariables(sectionTheme),
+              }}
+              className="fixed overflow-hidden rounded-[26px] border border-emerald-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-2 shadow-[0_24px_80px_rgba(0,0,0,0.72),0_0_34px_rgba(16,185,129,0.12)] backdrop-blur-xl"
+            >
+              <div className="max-h-[inherit] overflow-y-auto pr-1 [scrollbar-color:rgba(16,185,129,0.38)_transparent] [scrollbar-width:thin]">
+                {sortOptions.map((option) => {
+                  const isActive = option.value === sortMode;
+
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        onChange(option.value as ExerciseLibrarySortMode);
+                        setOpen(false);
+                      }}
+                      className={`mb-1 flex min-h-[42px] w-full items-center justify-between gap-3 rounded-2xl px-3 py-2 text-left transition ${
+                        isActive
+                          ? "bg-emerald-300 text-slate-950"
+                          : "text-slate-300 hover:bg-emerald-300/10 hover:text-white"
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-black">
+                          {option.label}
+                        </span>
+                        {option.helper ? (
+                          <span
+                            className={`mt-0.5 block truncate text-[9px] font-black uppercase tracking-[0.12em] ${
+                              isActive ? "text-slate-900/62" : "text-white/38"
+                            }`}
+                          >
+                            {option.helper}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span
+                        aria-hidden="true"
+                        className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[10px] font-black ${
+                          isActive
+                            ? "border-slate-950/20 bg-slate-950/10"
+                            : "border-white/10 bg-white/[0.045] text-white/40"
+                        }`}
+                      >
+                        {isActive ? "✓" : ""}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
+
 function ActiveFilterStatusPanel({
   activeFilterChips,
   bodyRegionLayer,
+  children,
+  filterControls,
   matchingCount,
   onClear,
   onSortChange,
   sectionTheme,
   sortMode,
   sortOptions,
+  summaryControls,
+  rightControls,
 }: {
   activeFilterChips: string[];
   bodyRegionLayer: BodyRegionLayer | null;
+  children?: ReactNode;
+  filterControls?: ReactNode;
   matchingCount: number;
   onClear: () => void;
   onSortChange: (mode: ExerciseLibrarySortMode) => void;
   sectionTheme: CategoryTheme;
   sortMode: ExerciseLibrarySortMode;
   sortOptions: FilterMenuOption[];
+  summaryControls?: ReactNode;
+  rightControls?: ReactNode;
 }) {
   const hasActiveFilters = activeFilterChips.length > 0;
   const layerLabel = bodyRegionLayer || "All regions";
   const sortLabel = sortModeLabels[sortMode] || "Category Order";
   const statusStyle = getCategoryThemeCssVariables(sectionTheme);
-
-  return (
-    <div
-      style={statusStyle}
-      className="exercise-library-active-filter-status sticky bottom-0 z-[40] overflow-hidden border-y border-cyan-100/12 bg-slate-950/52 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl sm:px-4"
+  const sortControl = (
+    <ActiveFilterSortDropdown
+      onChange={onSortChange}
+      sectionTheme={sectionTheme}
+      sortMode={sortMode}
+      sortOptions={sortOptions}
+    />
+  );
+  const clearFiltersButton = (
+    <button
+      type="button"
+      onClick={onClear}
+      className="min-h-[2.35rem] self-center shrink-0 rounded-2xl border border-cyan-100/18 bg-cyan-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/45 hover:bg-cyan-300 hover:text-slate-950"
     >
-      <div
-        aria-hidden="true"
-        className={`pointer-events-none absolute inset-0 ${sectionTheme.overlayClass} opacity-35`}
-      />
-      <div className="relative z-10 grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto_minmax(14rem,0.72fr)] xl:items-center">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[var(--exercise-theme-text)]">
-            Active Filter Status
-          </p>
+      Clear Filters
+    </button>
+  );
+  const renderMatchingExercisesSummary = (className = "") => (
+    <div
+      className={`flex min-w-[9.5rem] max-w-[13.5rem] flex-[0_1_11.5rem] flex-col justify-center rounded-[16px] border border-white/10 bg-white/[0.026] px-2.5 py-1 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${className}`}
+    >
+      <p className="text-xs font-black leading-3 text-white">
+        {matchingCount.toLocaleString()} matching exercises
+      </p>
+      <p className="mt-0.5 text-[8px] font-bold uppercase leading-[0.62rem] tracking-[0.07em] text-slate-400">
+        {layerLabel} - {sortLabel}
+      </p>
+    </div>
+  );
+  const activeFilterStatusStack = (
+    <div className="exercise-library-active-filter-status__stack min-w-[min(100%,13.5rem)] max-w-[18rem] shrink-0">
+      <div className="grid min-w-0 gap-1">
+        <p className="text-[8px] font-black uppercase tracking-[0.16em] text-[var(--exercise-theme-text)]">
+          Active Filter Status
+        </p>
+
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
           {hasActiveFilters ? (
             activeFilterChips.map((chip) => (
               <button
@@ -13576,61 +14571,71 @@ function ActiveFilterStatusPanel({
                 type="button"
                 onClick={onClear}
                 title={`Clear filters including ${chip}`}
-                className="exercise-library-logic-pill rounded-xl border border-white/10 bg-white/[0.055] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-slate-200 transition hover:-translate-y-0.5 hover:border-[var(--exercise-theme-border)] hover:bg-[var(--exercise-theme-accent-soft)] hover:text-white"
+                className="exercise-library-logic-pill rounded-xl border border-white/10 bg-white/[0.055] px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-200 transition hover:-translate-y-0.5 hover:border-[var(--exercise-theme-border)] hover:bg-[var(--exercise-theme-accent-soft)] hover:text-white"
               >
                 {chip}
                 <span className="ml-1 text-[var(--exercise-theme-text)]">x</span>
               </button>
             ))
           ) : (
-            <span className="exercise-library-logic-chip rounded-xl border border-white/10 bg-white/[0.045] px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-slate-400">
+            <span className="exercise-library-logic-chip rounded-xl border border-white/10 bg-white/[0.045] px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-400">
               No active filters
             </span>
           )}
         </div>
-
-        <div className="min-w-0 text-left xl:text-center">
-          <p className="text-sm font-black text-white">
-            {matchingCount.toLocaleString()} matching exercises
-          </p>
-          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
-            {layerLabel} - Sorted by: {sortLabel}
-          </p>
-        </div>
-
-        <div className="flex min-w-0 flex-wrap items-center gap-2 xl:justify-end">
-          <label className="min-w-[10rem] flex-1 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2">
-            <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
-              Sort
-            </span>
-            <select
-              value={sortMode}
-              onChange={(event) =>
-                onSortChange(event.target.value as ExerciseLibrarySortMode)
-              }
-              className="mt-1 w-full bg-transparent text-xs font-black uppercase tracking-[0.08em] text-white outline-none"
-            >
-              {sortOptions.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                  className="bg-slate-950 text-white"
-                >
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <button
-            type="button"
-            onClick={onClear}
-            className="min-h-[3.25rem] rounded-2xl border border-cyan-100/18 bg-cyan-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/45 hover:bg-cyan-300 hover:text-slate-950"
-          >
-            Clear Filters
-          </button>
-        </div>
       </div>
+    </div>
+  );
+
+  return (
+    <div
+      style={statusStyle}
+      className="exercise-library-active-filter-status-shell relative mt-2 overflow-visible px-0 py-0"
+    >
+      {filterControls ? (
+        <div className="relative z-10 mb-2">
+          <div className="flex max-w-full flex-nowrap items-center gap-1.5 min-[1500px]:gap-2">
+            {renderMatchingExercisesSummary("shrink-0")}
+            {clearFiltersButton}
+            <div className="min-w-0 flex-1">{filterControls}</div>
+          </div>
+        </div>
+      ) : null}
+      <div className="relative z-10 flex min-w-0 flex-wrap items-center gap-2">
+        {!filterControls ? renderMatchingExercisesSummary("mr-auto") : null}
+
+        {summaryControls ? (
+          <div className="flex min-w-0 shrink-0 items-center gap-2">
+            {summaryControls}
+          </div>
+        ) : null}
+
+        {!filterControls ? sortControl : null}
+
+        {!filterControls ? clearFiltersButton : null}
+
+        {rightControls && !children ? (
+          <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-2">
+            {rightControls}
+          </div>
+        ) : null}
+      </div>
+
+      {children ? (
+        <div className="relative z-30 mt-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {activeFilterStatusStack}
+            <div className="min-w-0 flex-1">
+              {children}
+            </div>
+            {rightControls ? (
+              <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-2">
+                {rightControls}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -13640,43 +14645,150 @@ function ExerciseLibraryResultsPageSelector({
   activeSectionLabel,
   currentPage,
   dailySetsComplete,
+  exerciseSelector,
   latestSetInsight,
   onPageChange,
   onSectionSelect,
+  onViewModeChange,
   placement,
   preferredWeightUnit,
   sections,
   sectionTheme,
+  statusPanel,
   weeklySetsBySectionKey,
   weeklyVolumeRangeLabel,
   weeklyWeightVolumeBySectionKey,
   sortMode,
   totalPages,
+  viewMode,
 }: {
   activeSectionKey: string | null;
   activeSectionLabel: string;
   currentPage: number;
   dailySetsComplete: number;
+  exerciseSelector?: ReactNode;
   latestSetInsight?: LatestSetInsight | null;
   onPageChange: (page: number) => void;
   onSectionSelect: (sectionKey: string) => void;
+  onViewModeChange: (mode: ExerciseLibraryViewMode) => void;
   placement: "top" | "bottom";
   preferredWeightUnit: WeightUnit;
   sections: ExerciseLibrarySection[];
   sectionTheme: CategoryTheme;
+  statusPanel?: (
+    content: ReactNode,
+    summaryControls?: ReactNode,
+    rightControls?: ReactNode,
+  ) => ReactNode;
   weeklySetsBySectionKey: Map<string, number>;
   weeklyVolumeRangeLabel: string;
   weeklyWeightVolumeBySectionKey: Map<string, number>;
   sortMode: ExerciseLibrarySortMode;
   totalPages: number;
+  viewMode: ExerciseLibraryViewMode;
 }) {
   const groupedCategoryRailRef = useRef<HTMLDivElement | null>(null);
+  const sectionTabRailRef = useRef<HTMLDivElement | null>(null);
   const groupedCategoryDragStateRef = useRef({
     isDragging: false,
     startX: 0,
     startY: 0,
   });
   const groupedCategoryWheelDelayRef = useRef(0);
+  const sectionTabOrbitWheelDelayRef = useRef(0);
+
+  useLayoutEffect(() => {
+    if (placement !== "top" || !activeSectionKey) return;
+
+    let frameId = 0;
+    let settleTimer: number | null = null;
+    const centerActiveSectionTab = (behavior: ScrollBehavior) => {
+      const rail = sectionTabRailRef.current;
+      if (!rail) return;
+      if (rail.dataset.sectionTabOrbit === "true") return;
+
+      const activeTab = Array.from(
+        rail.querySelectorAll<HTMLElement>("[data-section-key]"),
+      ).find((tab) => tab.dataset.sectionKey === activeSectionKey);
+
+      if (!activeTab) return;
+
+      const maxScrollLeft = Math.max(0, rail.scrollWidth - rail.clientWidth);
+      const targetLeft = Math.min(
+        Math.max(
+          activeTab.offsetLeft + activeTab.offsetWidth / 2 - rail.clientWidth / 2,
+          0,
+        ),
+        maxScrollLeft,
+      );
+      const prefersReducedMotion =
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      rail.scrollTo({
+        behavior: prefersReducedMotion ? "auto" : behavior,
+        left: targetLeft,
+      });
+    };
+
+    frameId = window.requestAnimationFrame(() => {
+      centerActiveSectionTab("smooth");
+      settleTimer = window.setTimeout(
+        () => centerActiveSectionTab("auto"),
+        220,
+      );
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      if (settleTimer !== null) window.clearTimeout(settleTimer);
+    };
+  }, [activeSectionKey, placement, sections.length, viewMode]);
+
+  useLayoutEffect(() => {
+    if (placement !== "top") return;
+
+    const rail = sectionTabRailRef.current;
+    if (!rail) return;
+
+    let frameId = 0;
+    const syncOrbitCenterToActiveCard = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        const currentRail = sectionTabRailRef.current;
+        const activeCard =
+          document.querySelector<HTMLElement>(
+            ".exercise-library-column-orbit__column[data-position=\"center\"] .exercise-library-column-orbit__card[data-active-exercise=\"true\"]",
+          ) ||
+          document.querySelector<HTMLElement>(
+            ".exercise-library-column-orbit__column[data-position=\"center\"]",
+          ) ||
+          document.querySelector<HTMLElement>(
+            ".exercise-library-column-orbit__track",
+          );
+
+        if (!currentRail || !activeCard) return;
+
+        const railRect = currentRail.getBoundingClientRect();
+        const activeCardRect = activeCard.getBoundingClientRect();
+        const railCenterX = railRect.left + railRect.width / 2;
+        const activeCardCenterX =
+          activeCardRect.left + activeCardRect.width / 2;
+
+        currentRail.style.setProperty(
+          "--exercise-category-tab-orbit-shift",
+          `${(activeCardCenterX - railCenterX).toFixed(1)}px`,
+        );
+      });
+    };
+
+    syncOrbitCenterToActiveCard();
+    window.addEventListener("resize", syncOrbitCenterToActiveCard);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", syncOrbitCenterToActiveCard);
+    };
+  }, [activeSectionKey, placement, sections.length, viewMode]);
 
   if (placement !== "top" || sections.length <= 0) return null;
 
@@ -13715,12 +14827,60 @@ function ExerciseLibraryResultsPageSelector({
     roundedDailySetsComplete,
     dailySetGoal,
   );
-  const dailySetGoalStyle = {
-    "--exercise-daily-sets-progress": `${getWeeklySetGoalFillPercent(
-      roundedDailySetsComplete,
-      dailySetGoal,
-    )}%`,
-  } as ExerciseLibraryThemeCssVariables;
+  const sectionViewModeControl = (
+    <ExerciseLibraryViewModeToggle
+      value={viewMode}
+      onChange={onViewModeChange}
+    />
+  );
+  const renderLinkedScroller = ({
+    iconName,
+    label,
+    tone,
+  }: {
+    iconName: ExerciseColumnUrgencyIconName;
+    label: string;
+    tone: "plan" | "workout";
+  }) => (
+    <section
+      aria-label={`${label} scroller`}
+      className="exercise-library-linked-scroller relative flex h-12 w-[8.8rem] shrink-0 flex-col justify-center overflow-hidden rounded-2xl border border-cyan-100/16 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.16),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(2,6,23,0.68))] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.24),0_0_22px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.12)]"
+      data-tone={tone}
+      data-no-drag-scroll="true"
+    >
+      <span className="exercise-library-linked-scroller__label mb-0.5 block truncate px-1.5 text-[7px] font-black uppercase leading-none tracking-[0.14em] text-cyan-100/80">
+        {label}
+      </span>
+      <div className="exercise-library-linked-scroller__track flex min-w-0 gap-1 overflow-x-auto overflow-y-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <button
+          type="button"
+          aria-label={`Create ${label}`}
+          className="exercise-library-linked-scroller__item flex min-h-[1.62rem] min-w-0 flex-1 items-center gap-1.5 rounded-xl border border-cyan-100/14 bg-white/[0.045] px-1.5 text-left text-[9px] font-black uppercase tracking-[0.09em] text-slate-100 transition hover:-translate-y-px hover:border-cyan-100/35 hover:bg-cyan-300/12 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/25"
+        >
+          <span
+            aria-hidden="true"
+            className="exercise-library-linked-scroller__icon flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-cyan-100/18 bg-cyan-300/10 text-cyan-100"
+          >
+            <ExerciseColumnUrgencyIcon className="h-3.5 w-3.5" name={iconName} />
+          </span>
+          <span className="min-w-0 truncate">Create</span>
+        </button>
+      </div>
+    </section>
+  );
+  const myPlanScrollerControl = renderLinkedScroller({
+    iconName: "today",
+    label: "My Plan",
+    tone: "plan",
+  });
+  const workoutsScrollerControl = renderLinkedScroller({
+    iconName: "power",
+    label: "Workouts",
+    tone: "workout",
+  });
+  const wrapSectionRail: NonNullable<typeof statusPanel> =
+    statusPanel ??
+    ((content: ReactNode) => content);
   const showGroupedSectionRail = false;
   const groupedSectionCards = showGroupedSectionRail
     ? getExerciseCategoryOrbitGroups(sections)
@@ -13753,8 +14913,58 @@ function ExerciseLibraryResultsPageSelector({
       : 0;
   const showSectionRail =
     placement === "top" && sections.length > 0 && !showGroupedSectionRail;
+  const activeSectionOrbitIndex = Math.max(
+    0,
+    sections.findIndex(
+      (section) =>
+        section.key === activeSectionKey ||
+        section.label.toLowerCase() === activeSectionLabel.toLowerCase(),
+    ),
+  );
   const goToPage = (page: number) => {
     onPageChange(Math.min(Math.max(page, 1), totalPages));
+  };
+  const getSectionTabOrbitOffset = (sectionIndex: number) => {
+    const totalSections = Math.max(1, sections.length);
+    let offset = sectionIndex - activeSectionOrbitIndex;
+
+    if (totalSections > 1) {
+      const halfSectionCount = totalSections / 2;
+
+      if (offset > halfSectionCount) offset -= totalSections;
+      if (offset < -halfSectionCount) offset += totalSections;
+    }
+
+    return offset;
+  };
+  const moveSectionTabOrbit = (direction: -1 | 1) => {
+    if (!sections.length) return;
+
+    const nextIndex =
+      (activeSectionOrbitIndex + direction + sections.length) %
+      sections.length;
+    const nextSection = sections[nextIndex];
+
+    if (nextSection) onSectionSelect(nextSection.key);
+  };
+  const handleSectionTabOrbitWheel = (
+    event: ReactWheelEvent<HTMLDivElement>,
+  ) => {
+    const dominantDelta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY;
+
+    if (Math.abs(dominantDelta) < 12) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const now = Date.now();
+    if (now - sectionTabOrbitWheelDelayRef.current < 140) return;
+
+    sectionTabOrbitWheelDelayRef.current = now;
+    moveSectionTabOrbit(dominantDelta > 0 ? 1 : -1);
   };
   const getPrimaryGroupedSection = (
     group: ExerciseCategoryOrbitGroup | undefined,
@@ -13807,6 +15017,7 @@ function ExerciseLibraryResultsPageSelector({
     if (Math.abs(dominantDelta) < 14) return;
 
     event.preventDefault();
+    event.stopPropagation();
 
     const now = Date.now();
     if (now - groupedCategoryWheelDelayRef.current < 360) return;
@@ -14192,137 +15403,275 @@ function ExerciseLibraryResultsPageSelector({
       ) : null}
 
       {showSectionRail ? (
-        <div className="exercise-library-page-section-tab-rail relative z-10 mt-3 flex flex-col items-center gap-2 overflow-visible">
+        wrapSectionRail(
           <div
-            className="exercise-library-row-title-daily-sets"
-            aria-label={`Total Daily Sets Complete: ${roundedDailySetsComplete} of ${dailySetGoal} sets, ${weeklyVolumeStatusConfig[dailySetStatusId].label}`}
-            data-volume-status={dailySetStatusId}
-            style={dailySetGoalStyle}
-            title={`${weeklyVolumeStatusConfig[dailySetStatusId].label}. Daily set volume: ${roundedDailySetsComplete} of ${dailySetGoal} sets.`}
+            className={`exercise-library-page-section-tab-rail relative z-10 flex w-full min-w-0 items-center gap-2 overflow-visible ${
+              statusPanel ? "mt-0" : "mt-3"
+            }`}
           >
-            <span
-              aria-hidden="true"
-              className="exercise-library-row-title-daily-sets__fill"
-            />
-            <VolumeStatusIndicator
-              className="exercise-library-row-title-daily-sets__status"
-              sets={roundedDailySetsComplete}
-              statusId={dailySetStatusId}
-            />
-            <span className="exercise-library-row-title-daily-sets__label">
-              Total Daily Sets Complete
-            </span>
-            <strong>
-              {roundedDailySetsComplete.toLocaleString()}/
-              {dailySetGoal.toLocaleString()}
-            </strong>
-          </div>
-          <div className="exercise-library-row-title-icon-line flex w-full flex-nowrap items-center justify-center gap-1.5 overflow-x-auto overflow-y-visible px-1 py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {sections.map((section) => {
-              const pillTheme = getExerciseSectionTheme(section, sortMode);
-              const isActive = section.key === activeSectionKey;
-              const isLatestSectionPulse =
-                latestSetInsight?.sectionKey === section.key;
-              const sectionIconName = getExerciseColumnUrgencyIconName(section);
-              const compactLabel = getCompactExerciseSectionLabel(section.label);
-              const weeklySets = weeklySetsBySectionKey.get(section.key) || 0;
-              const weightVolume =
-                weeklyWeightVolumeBySectionKey.get(section.key) || 0;
-              const weightVolumeLabel = formatWeightMetric(
-                weightVolume,
-                preferredWeightUnit,
-                { compact: true, volume: true },
-              );
-              const weeklyGoal = getWeeklySetGoalForSection(section.label);
-              const goalFillPercent = getWeeklySetGoalFillPercent(
-                weeklySets,
-                weeklyGoal,
-              );
-              const goalStatusId = getWeeklySetGoalStatusId(
-                weeklySets,
-                weeklyGoal,
-              );
-              const sectionTabStyle = {
-                ...getCategoryThemeCssVariables(pillTheme),
-                "--exercise-category-goal-progress": `${goalFillPercent}%`,
-              } as ExerciseLibraryThemeCssVariables;
+            {myPlanScrollerControl}
+            <div className="relative min-w-0 flex-1 overflow-visible">
+              <div
+                ref={sectionTabRailRef}
+                className="exercise-library-row-title-icon-line exercise-library-row-title-icon-line--orbit w-full overflow-visible px-1 py-1"
+                data-section-tab-orbit="true"
+                onWheel={handleSectionTabOrbitWheel}
+              >
+                {sections.map((section, sectionIndex) => {
+                  const pillTheme = getExerciseSectionTheme(section, sortMode);
+                  const isActive = section.key === activeSectionKey;
+                  const orbitOffset = getSectionTabOrbitOffset(sectionIndex);
+                  const isOrbitVisible = Math.abs(orbitOffset) <= 4;
+                  const isLatestSectionPulse =
+                    latestSetInsight?.sectionKey === section.key;
+                  const isTodayPlanTab = isTodayPlanExerciseSection(section);
+                  const sectionIconName =
+                    getExerciseColumnUrgencyIconName(section);
+                  const compactLabel = getCompactExerciseSectionLabel(
+                    section.label,
+                  );
+                  const weeklySets = weeklySetsBySectionKey.get(section.key) || 0;
+                  const weightVolume =
+                    weeklyWeightVolumeBySectionKey.get(section.key) || 0;
+                  const weightVolumeLabel = formatWeightMetric(
+                    weightVolume,
+                    preferredWeightUnit,
+                    { compact: true, volume: true },
+                  );
+                  const weeklyGoal = getWeeklySetGoalForSection(section.label);
+                  const tabCompletedSets = isTodayPlanTab
+                    ? roundedDailySetsComplete
+                    : weeklySets;
+                  const tabGoalSets = isTodayPlanTab ? dailySetGoal : weeklyGoal;
+                  const goalFillPercent = getWeeklySetGoalFillPercent(
+                    tabCompletedSets,
+                    tabGoalSets,
+                  );
+                  const goalStatusId = getWeeklySetGoalStatusId(
+                    tabCompletedSets,
+                    tabGoalSets,
+                  );
+                  const tabTitle = isTodayPlanTab
+                    ? `${section.label}. Total Daily Sets Complete: ${roundedDailySetsComplete} of ${dailySetGoal} sets, ${weeklyVolumeStatusConfig[dailySetStatusId].label}. ${section.exercises.length} planned exercises.`
+                    : `${section.label}. Set volume, ${weeklyVolumeRangeLabel}: ${Math.max(0, Math.round(weeklySets))} of ${weeklyGoal} sets${
+                        weightVolumeLabel
+                          ? ` - Weight volume: ${weightVolumeLabel}`
+                          : ""
+                      }, ${weeklyVolumeStatusConfig[goalStatusId].label}`;
+                  const sectionTabStyle = {
+                    ...getCategoryThemeCssVariables(pillTheme),
+                    "--exercise-category-goal-progress": `${goalFillPercent}%`,
+                  } as ExerciseLibraryThemeCssVariables;
 
-              return (
-                <button
-                  key={section.key}
-                  type="button"
-                  aria-pressed={isActive}
-                  onClick={() => onSectionSelect(section.key)}
-                  style={sectionTabStyle}
-                  title={`${section.label}. Set volume, ${weeklyVolumeRangeLabel}: ${Math.max(0, Math.round(weeklySets))} of ${weeklyGoal} sets${
-                    weightVolumeLabel ? ` - Weight volume: ${weightVolumeLabel}` : ""
-                  }, ${weeklyVolumeStatusConfig[goalStatusId].label}`}
-                  className={`exercise-library-page-section-tab ${
-                    isActive
-                      ? "exercise-library-page-section-tab--active"
-                      : "exercise-library-page-section-tab--inactive"
-                  } ${
-                    isLatestSectionPulse ? "exercise-library-volume-pulse" : ""
-                  } group/tile flex h-11 shrink-0 items-center gap-2 border py-2 text-left transition duration-200 sm:h-12 ${
-                    isActive
-                      ? "w-[10rem] scale-[1.01] justify-start border-cyan-300/40 bg-cyan-300/10 px-3 text-white shadow-[0_0_28px_rgba(34,211,238,0.18)] sm:w-[11.25rem] sm:px-3.5"
-                      : "w-11 justify-center border-white/10 bg-white/[0.04] px-2 text-slate-100 opacity-[0.88] hover:-translate-y-0.5 hover:border-cyan-200/24 hover:bg-cyan-300/10 hover:opacity-100 sm:w-12"
-                  }`}
-                >
-                  <span
-                    aria-hidden="true"
-                    className="exercise-library-page-section-tab__goal-fill"
-                  />
-                  <span
-                    aria-hidden="true"
-                    className={`pointer-events-none absolute inset-0 ${pillTheme.overlayClass} ${
-                      isActive ? "opacity-70" : "opacity-30"
-                    }`}
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="exercise-library-page-section-tab__icon"
-                  >
-                    <ExerciseColumnUrgencyIcon
-                      className="h-4 w-4"
-                      name={sectionIconName}
-                    />
-                    <VolumeStatusIndicator
-                      className="exercise-library-page-section-tab__status"
-                      sets={weeklySets}
-                      statusId={goalStatusId}
-                    />
-                  </span>
-                  {isActive ? (
-                    <span className="exercise-library-page-section-tab__content relative z-10 min-w-0">
-                      <span className="block truncate text-[10px] font-black uppercase leading-4 tracking-[0.14em] sm:text-[11px]">
-                        {compactLabel}
-                      </span>
-                      <span className="mt-0.5 block truncate text-[8px] font-black uppercase tracking-[0.08em] opacity-78">
-                        {section.exercises.length} cards
-                        {isLatestSectionPulse ? (
-                          <>
-                            <span className="opacity-50"> - </span>
-                            <span className="exercise-library-volume-added-chip">
-                              {latestSetInsight?.pulseLabel}
+                  return (
+                    <span
+                      key={section.key}
+                      aria-hidden={isOrbitVisible ? undefined : true}
+                      className="exercise-library-horizontal-card-scroller-slot relative flex shrink-0 overflow-visible"
+                      data-orbit-offset={
+                        isOrbitVisible ? String(orbitOffset) : undefined
+                      }
+                      data-orbit-visible={isOrbitVisible ? "true" : undefined}
+                    >
+                      <button
+                        type="button"
+                        aria-pressed={isActive}
+                        data-section-key={section.key}
+                        onClick={() => onSectionSelect(section.key)}
+                        style={sectionTabStyle}
+                        tabIndex={isOrbitVisible ? 0 : -1}
+                        title={tabTitle}
+                        className={`exercise-library-page-section-tab ${
+                          isActive
+                            ? "exercise-library-page-section-tab--active"
+                            : "exercise-library-page-section-tab--inactive"
+                        } ${
+                          isLatestSectionPulse
+                            ? "exercise-library-volume-pulse"
+                            : ""
+                        } group/tile flex h-11 shrink-0 items-center gap-2 border py-2 text-left transition duration-200 sm:h-12 ${
+                          isActive
+                            ? "w-[10rem] scale-[1.01] justify-start border-cyan-300/40 bg-cyan-300/10 px-3 text-white shadow-[0_0_28px_rgba(34,211,238,0.18)] sm:w-[11.25rem] sm:px-3.5"
+                            : "w-11 justify-center border-white/10 bg-white/[0.04] px-2 text-slate-100 opacity-[0.88] hover:-translate-y-0.5 hover:border-cyan-200/24 hover:bg-cyan-300/10 hover:opacity-100 sm:w-12"
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="exercise-library-page-section-tab__goal-fill"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none absolute inset-0 ${pillTheme.overlayClass} ${
+                            isActive ? "opacity-70" : "opacity-30"
+                          }`}
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="exercise-library-page-section-tab__icon"
+                        >
+                          <ExerciseColumnUrgencyIcon
+                            className="h-4 w-4"
+                            name={sectionIconName}
+                          />
+                          <VolumeStatusIndicator
+                            blink={isActive}
+                            className="exercise-library-page-section-tab__status"
+                            sets={tabCompletedSets}
+                            statusId={goalStatusId}
+                          />
+                        </span>
+                        {isActive ? (
+                          <span className="exercise-library-page-section-tab__content relative z-10 min-w-0">
+                            <span className="block truncate text-[10px] font-black uppercase leading-4 tracking-[0.14em] sm:text-[11px]">
+                              {compactLabel}
                             </span>
-                          </>
-                        ) : null}
-                      </span>
+                            <span className="mt-0.5 block truncate text-[8px] font-black uppercase tracking-[0.08em] opacity-78">
+                              {isTodayPlanTab ? (
+                                <>
+                                  {roundedDailySetsComplete.toLocaleString()}/
+                                  {dailySetGoal.toLocaleString()} sets
+                                  <span className="opacity-50"> - </span>
+                                  {section.exercises.length > 0
+                                    ? `${section.exercises.length} planned`
+                                    : "No plan"}
+                                </>
+                              ) : (
+                                <>{section.exercises.length} cards</>
+                              )}
+                              {!isTodayPlanTab && isLatestSectionPulse ? (
+                                <>
+                                  <span className="opacity-50"> - </span>
+                                  <span className="exercise-library-volume-added-chip">
+                                    {latestSetInsight?.pulseLabel}
+                                  </span>
+                                </>
+                              ) : null}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="sr-only">
+                            {section.label} - {section.exercises.length} cards
+                          </span>
+                        )}
+                      </button>
                     </span>
-                  ) : (
-                    <span className="sr-only">
-                      {section.label} - {section.exercises.length} cards
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                  );
+                })}
+              </div>
+              {exerciseSelector ? (
+                <div className="exercise-library-horizontal-exercise-selector-anchor">
+                  {exerciseSelector}
+                </div>
+              ) : null}
+            </div>
+            <div className="exercise-library-workouts-selector-anchor relative shrink-0 overflow-visible">
+              {workoutsScrollerControl}
+            </div>
+          </div>,
+          undefined,
+          sectionViewModeControl,
+        )
       ) : null}
 
     </nav>
+  );
+}
+
+type ExerciseLibraryPageScrollerStepId =
+  | "intro"
+  | "library";
+
+type ExerciseLibraryPageScrollerStep = {
+  id: ExerciseLibraryPageScrollerStepId;
+  label: string;
+  shortLabel: string;
+};
+
+const exerciseLibraryPageScrollerSteps: ExerciseLibraryPageScrollerStep[] = [
+  { id: "intro", label: "Hero", shortLabel: "H" },
+  { id: "library", label: "Library", shortLabel: "L" },
+];
+
+function ExerciseLibraryPageScroller({
+  activeStepId,
+  onMove,
+  onSelect,
+  placement = "intro",
+  style,
+  steps,
+}: {
+  activeStepId: ExerciseLibraryPageScrollerStepId;
+  onMove: (direction: -1 | 1) => void;
+  onSelect: (stepId: ExerciseLibraryPageScrollerStepId) => void;
+  placement?: "intro" | "library";
+  style?: CSSProperties;
+  steps: ExerciseLibraryPageScrollerStep[];
+}) {
+  const activeIndex = steps.findIndex((step) => step.id === activeStepId);
+  const resolvedActiveIndex = activeIndex >= 0 ? activeIndex : 0;
+  const visibleSteps = steps.filter((step) => step.id === "library");
+  const canMoveUp = resolvedActiveIndex > 0;
+  const canMoveDown = resolvedActiveIndex < steps.length - 1;
+
+  return (
+    <div
+      aria-label="Exercise library page scroller"
+      className="exercise-library-page-scroll-orbiter"
+      data-active-step={activeStepId}
+      data-placement={placement}
+      data-no-drag-scroll="true"
+      style={style}
+    >
+      {canMoveUp ? (
+        <button
+          type="button"
+          aria-label="Scroll to hero and cards"
+          onClick={() => onMove(-1)}
+          className="exercise-library-page-scroll-orbiter__arrow"
+        >
+          ^
+        </button>
+      ) : null}
+
+      {activeStepId === "library" ? (
+        <div className="exercise-library-page-scroll-orbiter__rail">
+          {visibleSteps.map((step) => {
+            const isActive = step.id === activeStepId;
+
+            return (
+              <button
+                key={step.id}
+                type="button"
+                aria-label={`Scroll to ${step.label}`}
+                aria-pressed={isActive}
+                data-active={isActive ? "true" : undefined}
+                onClick={() => onSelect(step.id)}
+                title={step.label}
+                className="exercise-library-page-scroll-orbiter__item"
+              >
+                <span className="exercise-library-page-scroll-orbiter__dot">
+                  {step.shortLabel}
+                </span>
+                <span className="exercise-library-page-scroll-orbiter__label">
+                  {step.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {canMoveDown ? (
+        <button
+          type="button"
+          aria-label="Scroll to library"
+          onClick={() => onMove(1)}
+          className="exercise-library-page-scroll-orbiter__arrow"
+        >
+          v
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -15125,6 +16474,7 @@ function ExerciseCategoryShelf({
                 </span>
                 <span className="mt-0.5 inline-flex rounded-lg border border-cyan-100/16 bg-cyan-300/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/80">
                   <WeeklySetGoalBadge
+                    blink={isOpen}
                     completedSets={weeklySets}
                     completedWeightVolume={weeklyWeightVolume}
                     goalSets={weeklyGoal}
@@ -15311,6 +16661,7 @@ function ExerciseCategoryShelf({
                       {tab.label}
                       <span className="exercise-library-core-tab__stat">
                         <WeeklySetGoalBadge
+                          blink={isActiveTab}
                           completedSets={tabWeeklySets}
                           completedWeightVolume={tabWeeklyWeightVolume}
                           goalSets={tabWeeklyGoal}
@@ -15493,12 +16844,23 @@ function ExerciseCategoryShelf({
   );
 }
 
-function CreateExerciseEmptyCard({ onCreate }: { onCreate: () => void }) {
+function CreateExerciseEmptyCard({
+  onCreate,
+}: {
+  onCreate: (anchorElement?: HTMLElement | null) => void;
+}) {
   return (
     <article className="exercise-library-themed-card group/create-exercise flex min-h-[190px] flex-col overflow-hidden rounded-2xl border border-cyan-200/22 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_86%_12%,rgba(250,204,21,0.15),transparent_30%),linear-gradient(145deg,rgba(15,23,42,0.94),rgba(2,6,23,0.90))] p-3 shadow-[0_18px_52px_rgba(0,0,0,0.44),0_0_24px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] transition duration-200 hover:-translate-y-1 hover:border-cyan-100/45 hover:shadow-[0_24px_70px_rgba(0,0,0,0.54),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.22)] sm:min-h-[220px]">
       <button
         type="button"
-        onClick={onCreate}
+        onPointerDown={(event) => {
+          event.stopPropagation();
+        }}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onCreate(event.currentTarget);
+        }}
         className="flex h-full min-h-[166px] flex-col items-center justify-center rounded-xl border border-dashed border-cyan-100/24 bg-white/[0.045] px-3 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition group-hover/create-exercise:bg-white/[0.07] sm:min-h-[190px]"
       >
         <span
@@ -15521,7 +16883,160 @@ function CreateExerciseEmptyCard({ onCreate }: { onCreate: () => void }) {
   );
 }
 
+function TodayPlanEmptyCard({
+  meta,
+  onMakePlan,
+}: {
+  meta?: TodayPlanSectionMeta;
+  onMakePlan: () => void;
+}) {
+  const copy: Record<
+    TodayPlanSectionStatus,
+    { helper: string; title: string }
+  > = {
+    loading: {
+      title: "Loading today's plan",
+      helper: "Plan assignments are syncing into the library.",
+    },
+    ready: {
+      title: "Today's plan",
+      helper: "Planned exercises will appear here.",
+    },
+    "empty-day": {
+      title: "No plan?",
+      helper: "Make a plan for today and this tab will fill with those exercises.",
+    },
+    "missing-template": {
+      title: "Template missing",
+      helper: "Today's assignment exists, but its saved template is unavailable.",
+    },
+    "no-plan": {
+      title: "No plan?",
+      helper: "Make a plan for today and this tab will fill with those exercises.",
+    },
+  };
+  const content = copy[meta?.status || "no-plan"];
+
+  return (
+    <article className="exercise-library-themed-card group/today-plan-empty flex min-h-[190px] flex-col overflow-hidden rounded-2xl border border-cyan-200/24 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_86%_12%,rgba(16,185,129,0.16),transparent_30%),linear-gradient(145deg,rgba(15,23,42,0.94),rgba(2,6,23,0.90))] p-3 shadow-[0_18px_52px_rgba(0,0,0,0.44),0_0_24px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] transition duration-200 hover:-translate-y-1 hover:border-cyan-100/45 hover:shadow-[0_24px_70px_rgba(0,0,0,0.54),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.22)] sm:min-h-[220px]">
+      <button
+        type="button"
+        onPointerDown={(event) => {
+          event.stopPropagation();
+        }}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          onMakePlan();
+        }}
+        className="flex h-full min-h-[166px] flex-col items-center justify-center rounded-xl border border-dashed border-cyan-100/24 bg-white/[0.045] px-3 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition group-hover/today-plan-empty:bg-white/[0.07] sm:min-h-[190px]"
+      >
+        <span
+          aria-hidden="true"
+          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-100/30 bg-cyan-300/14 text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.22),inset_0_1px_0_rgba(255,255,255,0.18)]"
+        >
+          <ExerciseColumnUrgencyIcon className="h-5 w-5" name="today" />
+        </span>
+        <span className="mt-3 text-sm font-black uppercase tracking-[0.08em] text-white sm:text-base">
+          {content.title}
+        </span>
+        <span className="mt-2 max-w-[16rem] text-xs font-semibold leading-5 text-slate-300">
+          {content.helper}
+        </span>
+        <span className="mt-3 rounded-xl border border-emerald-200/25 bg-emerald-300/16 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)] transition group-hover/today-plan-empty:border-emerald-100/55 group-hover/today-plan-empty:bg-emerald-300 group-hover/today-plan-empty:text-slate-950">
+          Make a Plan
+        </span>
+      </button>
+    </article>
+  );
+}
+
+function ExerciseLibraryLightweightCard({
+  exercise,
+  metadata,
+  sectionTheme,
+  categoryLabel,
+  viewMode,
+  onActivate,
+}: {
+  exercise: Exercise;
+  metadata: NormalizedExerciseCatalogItem | null;
+  sectionTheme: CategoryTheme;
+  categoryLabel: string;
+  viewMode: ExerciseLibraryViewMode;
+  onActivate: () => void;
+}) {
+  const title =
+    exercise.generatedTitle ||
+    exercise.semanticVariationName ||
+    exercise.semanticVariation ||
+    metadata?.semanticVariationNames?.[0] ||
+    metadata?.coreMovementLabel ||
+    metadata?.movementPatternLabel ||
+    exercise.exerciseName ||
+    exercise.name;
+  const imageSrc = getExerciseVisualUrl(exercise);
+  const movementLabel =
+    metadata?.coreMovementLabel ||
+    metadata?.movementPatternLabel ||
+    exercise.pattern ||
+    "Exercise";
+  const metaLabel = [exercise.body, exercise.level, exercise.equipment]
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" / ");
+
+  return (
+    <article
+      className="exercise-library-lightweight-card"
+      data-view-mode={viewMode}
+      style={getCategoryThemeCssVariables(sectionTheme)}
+    >
+      <button
+        type="button"
+        aria-label={`Open ${title}`}
+        className="exercise-library-lightweight-card__button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onActivate();
+        }}
+      >
+        <img
+          src={imageSrc}
+          alt={title}
+          className="exercise-library-lightweight-card__image"
+          loading="lazy"
+          decoding="async"
+          draggable={false}
+        />
+        <span className={`exercise-library-card-top-category-tab border ${sectionTheme.pillClass}`}>
+          <span className="exercise-library-card-top-category-tab__text">
+            {categoryLabel}
+          </span>
+        </span>
+        <span className="exercise-library-lightweight-card__copy">
+          <span className="exercise-library-lightweight-card__eyebrow">
+            {movementLabel}
+          </span>
+          <span className="exercise-library-lightweight-card__title">
+            {title}
+          </span>
+          {metaLabel ? (
+            <span className="exercise-library-lightweight-card__meta">
+              {metaLabel}
+            </span>
+          ) : null}
+        </span>
+      </button>
+    </article>
+  );
+}
+
 const getExerciseCardCategoryTabLabel = (section: ExerciseLibrarySection) => {
+  if (isTodayPlanExerciseSection(section)) {
+    return { full: "Today's Plan", short: "Today" };
+  }
+
   if (section.key === "favorites") {
     return { full: "Favorite", short: "Fav" };
   }
@@ -15582,6 +17097,7 @@ const categoryFavoriteVariationFallbacks: Record<string, string[]> = {
   Mobility: ["Hip CARs", "T-Spine Rotation", "Ankle Mobility", "Neck CARs"],
   "Cervical Isolation": ["Neck CARs", "Chin Tuck", "Cervical Isometric"],
   Integrated: ["Turkish Get-Up", "Bear Crawl", "Loaded Carry", "Crawl"],
+  "Today's Plan": ["Open My Plan to assign today's workout"],
   Favorites: ["Star a variation to pin it here"],
   "My Exercises": ["Create a private variation to pin it here"],
 };
@@ -15730,8 +17246,9 @@ function ExerciseCardCategoryTab({
   );
 }
 
-const formatCountLabel = (count: number, singular: string, plural?: string) =>
-  `${count} ${count === 1 ? singular : plural || `${singular}s`}`;
+function formatCountLabel(count: number, singular: string, plural?: string) {
+  return `${count} ${count === 1 ? singular : plural || `${singular}s`}`;
+}
 
 const createCountedFilterOptions = ({
   allHelper,
@@ -16963,6 +18480,31 @@ function MiniPanelScroller({
   className?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [scrollState, setScrollState] = useState({
+    canScrollLeft: false,
+    canScrollRight: false,
+  });
+  const updateScrollState = useCallback(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+
+    const maxScrollLeft = Math.max(
+      0,
+      scroller.scrollWidth - scroller.clientWidth,
+    );
+    const scrollLeft = Math.round(scroller.scrollLeft);
+    const nextState = {
+      canScrollLeft: scrollLeft > 3,
+      canScrollRight: scrollLeft < maxScrollLeft - 3,
+    };
+
+    setScrollState((current) =>
+      current.canScrollLeft === nextState.canScrollLeft &&
+      current.canScrollRight === nextState.canScrollRight
+        ? current
+        : nextState,
+    );
+  }, []);
   const scrollByDirection = (direction: "left" | "right") => {
     const scroller = scrollRef.current;
     if (!scroller) return;
@@ -16973,11 +18515,38 @@ function MiniPanelScroller({
     });
   };
 
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+
+    updateScrollState();
+
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(updateScrollState)
+        : null;
+
+    resizeObserver?.observe(scroller);
+    scroller.addEventListener("scroll", updateScrollState, { passive: true });
+    window.addEventListener("resize", updateScrollState);
+
+    return () => {
+      resizeObserver?.disconnect();
+      scroller.removeEventListener("scroll", updateScrollState);
+      window.removeEventListener("resize", updateScrollState);
+    };
+  }, [children, updateScrollState]);
+
   return (
-    <div className={`exercise-library-mini-scroller relative ${className}`}>
+    <div
+      className={`exercise-library-mini-scroller relative ${className}`}
+      data-no-drag-scroll="true"
+      onPointerDown={(event) => event.stopPropagation()}
+    >
       <button
         type="button"
         aria-label={`Scroll ${ariaLabel} left`}
+        disabled={!scrollState.canScrollLeft}
         onClick={() => scrollByDirection("left")}
         className="exercise-library-mini-scroller__arrow exercise-library-mini-scroller__arrow--left"
       >
@@ -16986,6 +18555,7 @@ function MiniPanelScroller({
       <div
         ref={scrollRef}
         aria-label={ariaLabel}
+        data-no-drag-scroll="true"
         className="exercise-library-themed-scrollbar exercise-library-mini-scroller__viewport"
       >
         <div className="exercise-library-mini-scroller__track">{children}</div>
@@ -16993,6 +18563,7 @@ function MiniPanelScroller({
       <button
         type="button"
         aria-label={`Scroll ${ariaLabel} right`}
+        disabled={!scrollState.canScrollRight}
         onClick={() => scrollByDirection("right")}
         className="exercise-library-mini-scroller__arrow exercise-library-mini-scroller__arrow--right"
       >
@@ -18089,6 +19660,7 @@ function ExerciseLibraryCard({
   exercise,
   cardInstanceId,
   sectionTheme,
+  categoryLabel,
   metadata,
   suggestions,
   latestSetInsight,
@@ -18099,11 +19671,12 @@ function ExerciseLibraryCard({
   weeklyVolumeRangeLabel,
   searchedEquipmentModifierId,
   isFavorite,
+  favoriteSemanticVariationIds,
+  favoriteSemanticVariationNames,
   onToggleFavorite,
   onAddToPlan,
   onDeleteCustom,
   onAddStats,
-  onCreateVariation,
   onBodyFilterSelect,
   onDifficultyFilterSelect,
   onMovementChipSelect,
@@ -18118,6 +19691,7 @@ function ExerciseLibraryCard({
   exercise: Exercise;
   cardInstanceId: string;
   sectionTheme: CategoryTheme;
+  categoryLabel: string;
   metadata: NormalizedExerciseCatalogItem | null;
   suggestions: ReturnType<typeof getMovementSuggestions>;
   latestSetInsight?: LatestSetInsight | null;
@@ -18128,6 +19702,8 @@ function ExerciseLibraryCard({
   weeklyVolumeRangeLabel: string;
   searchedEquipmentModifierId: ExerciseModifierId | null;
   isFavorite: boolean;
+  favoriteSemanticVariationIds: Set<string>;
+  favoriteSemanticVariationNames: Set<string>;
   onToggleFavorite: (exerciseId: string) => void;
   onAddToPlan: (exercise: Exercise) => void;
   onDeleteCustom: (id: string) => void;
@@ -18136,7 +19712,6 @@ function ExerciseLibraryCard({
     mode: ExerciseStatsMenuMode,
     anchorElement?: HTMLElement | null,
   ) => void;
-  onCreateVariation: (coreMovementId?: CoreMovementId | string) => void;
   onBodyFilterSelect: (body: string) => void;
   onDifficultyFilterSelect: (level: string) => void;
   onMovementChipSelect: (chip: MovementArchitectureChip) => void;
@@ -18158,26 +19733,32 @@ function ExerciseLibraryCard({
   );
   const [isVariationDropdownOpen, setIsVariationDropdownOpen] =
     useState(false);
-  const [isSemanticDropdownOpen, setIsSemanticDropdownOpen] = useState(false);
   const [activeMovementDetailsSubPanel, setActiveMovementDetailsSubPanel] =
     useState<MovementDetailsSubPanel | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isCardMetaDropdownOpen, setIsCardMetaDropdownOpen] = useState(false);
+  const [isCardMetaOverlayVisible, setIsCardMetaOverlayVisible] =
+    useState(false);
   const gridDetailsDropdownRef = useRef<HTMLDivElement | null>(null);
   const gridDetailsButtonRef = useRef<HTMLButtonElement | null>(null);
   const gridDetailsFloatingPanelRef = useRef<HTMLDivElement | null>(null);
   const settingsDropdownRef = useRef<HTMLDivElement | null>(null);
   const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
   const settingsFloatingPanelRef = useRef<HTMLDivElement | null>(null);
+  const cardMetaButtonRef = useRef<HTMLButtonElement | null>(null);
+  const cardMetaFloatingPanelRef = useRef<HTMLDivElement | null>(null);
   const movementDetailsDropdownRef = useRef<HTMLDivElement | null>(null);
   const movementDetailsButtonRef = useRef<HTMLButtonElement | null>(null);
   const movementDetailsFloatingPanelRef = useRef<HTMLDivElement | null>(null);
   const lockedGridDetailsPanelWidthRef = useRef<number | null>(null);
   const lockedGridSettingsPanelWidthRef = useRef<number | null>(null);
+  const lockedCardMetaPanelWidthRef = useRef<number | null>(null);
   const lockedMovementDetailsPanelWidthRef = useRef<number | null>(null);
   const [gridDetailsPanelStyle, setGridDetailsPanelStyle] =
     useState<CSSProperties | null>(null);
   const [gridSettingsPanelStyle, setGridSettingsPanelStyle] =
+    useState<CSSProperties | null>(null);
+  const [cardMetaPanelStyle, setCardMetaPanelStyle] =
     useState<CSSProperties | null>(null);
   const [movementDetailsPanelStyle, setMovementDetailsPanelStyle] =
     useState<CSSProperties | null>(null);
@@ -18207,6 +19788,7 @@ function ExerciseLibraryCard({
   const categoryTheme = sectionTheme || getCategoryTheme(cardClassificationLabel);
   const categoryThemeStyle = getCategoryThemeCssVariables(categoryTheme);
   const difficultyTheme = getDifficultyTheme(exercise.level);
+  const activeCardCategoryLabel = categoryLabel || cardClassificationLabel;
   const activeExerciseName = activeSemanticVariationName || variationName;
   const patternLabel = metadata?.movementPatternLabel || exercise.pattern;
   const equipmentLabel = getSelectedEquipmentLabel(
@@ -18215,6 +19797,8 @@ function ExerciseLibraryCard({
     selectedModifierIds,
   );
   const coreMovementLabel = metadata?.coreMovementLabel || "";
+  const activeCardMovementLabel =
+    coreMovementLabel || patternLabel || "Exercise";
   const cardTitle = getGeneratedCardTitle({
     exercise,
     metadata,
@@ -18276,6 +19860,7 @@ function ExerciseLibraryCard({
       )} of ${weeklyExerciseGoal} weekly sets, ${weeklyVolumeStatusConfig[weeklyExerciseStatusId].label}`}
     >
       <WeeklySetGoalBadge
+        blink
         completedSets={weeklyExerciseVolume.sets}
         completedReps={weeklyExerciseVolume.reps}
         completedWeightVolume={weeklyExerciseVolume.weightVolume}
@@ -18297,20 +19882,6 @@ function ExerciseLibraryCard({
   const isGridView = viewMode === "grid";
   const isGridDetailsOpen = isGridView && isExerciseDetailsOpen;
   const isDetailExerciseDetailsOpen = !isGridView && isExerciseDetailsOpen;
-  const semanticVariationStatsById = useMemo(
-    () =>
-      Object.fromEntries(
-        semanticVariationOptions.map((variation) => [
-          variation.id,
-          getSemanticVariationStatsSummary(
-            savedExerciseStats,
-            exercise,
-            variation,
-          ),
-        ]),
-      ) as Record<string, SemanticVariationStatsSummary>,
-    [exercise, savedExerciseStats, semanticVariationOptions],
-  );
   const compatibleModifierGroups = getCompatibleModifierGroups(metadata);
   const coreMovementId = metadata?.coreMovementId || null;
   const rawGoalModifierGroup = compatibleModifierGroups.find(
@@ -18537,6 +20108,58 @@ function ExerciseLibraryCard({
       ),
     );
   };
+  const semanticVariationPagerIndex = Math.max(
+    0,
+    semanticVariationOptions.findIndex(
+      (variation) => variation.id === selectedSemanticVariation?.id,
+    ),
+  );
+  const hasSemanticVariationPager = semanticVariationOptions.length > 1;
+  const semanticVariationPagerVisibleDotCount = Math.min(
+    semanticVariationOptions.length,
+    7,
+  );
+  const semanticVariationPagerMaxDotStart = Math.max(
+    0,
+    semanticVariationOptions.length - semanticVariationPagerVisibleDotCount,
+  );
+  const semanticVariationPagerDotStart = Math.min(
+    Math.max(
+      semanticVariationPagerIndex -
+        Math.floor(semanticVariationPagerVisibleDotCount / 2),
+      0,
+    ),
+    semanticVariationPagerMaxDotStart,
+  );
+  const semanticVariationPagerDots = Array.from(
+    { length: semanticVariationPagerVisibleDotCount },
+    (_, dotIndex) => {
+      const optionIndex = semanticVariationPagerDotStart + dotIndex;
+      const variation = semanticVariationOptions[optionIndex];
+      const isFavoriteSemantic = Boolean(
+        variation &&
+          (favoriteSemanticVariationIds.has(variation.id) ||
+            favoriteSemanticVariationNames.has(
+              normalizeGeneratedTitlePart(variation.name),
+            )),
+      );
+
+      return {
+        isActive: optionIndex === semanticVariationPagerIndex,
+        isFavorite: isFavoriteSemantic,
+        key: variation?.id || optionIndex,
+      };
+    },
+  );
+  const cycleSemanticVariation = (direction: -1 | 1) => {
+    if (!hasSemanticVariationPager) return;
+
+    const nextIndex =
+      (semanticVariationPagerIndex + direction + semanticVariationOptions.length) %
+      semanticVariationOptions.length;
+
+    handleSemanticVariationChange(semanticVariationOptions[nextIndex]);
+  };
 
   useEffect(() => {
     setSelectedModifierIds(
@@ -18549,6 +20172,7 @@ function ExerciseLibraryCard({
     setActiveMovementDetailsSubPanel(null);
     setIsSettingsOpen(false);
     setIsCardMetaDropdownOpen(false);
+    setIsCardMetaOverlayVisible(false);
   }, [exercise.id, metadata?.id]);
 
   useEffect(() => {
@@ -18695,6 +20319,17 @@ function ExerciseLibraryCard({
       setStyle: setGridDetailsPanelStyle,
       lockedWidthRef: lockedGridDetailsPanelWidthRef,
       zIndex: 2147483010,
+    });
+  const updateCardMetaPanelPosition = () =>
+    updateGridFloatingPanelPosition({
+      anchor: cardMetaButtonRef.current,
+      maxHeight: 520,
+      maxWidth: isGridView ? 360 : 440,
+      minHeight: 190,
+      preferredWidth: isGridView ? 300 : 360,
+      setStyle: setCardMetaPanelStyle,
+      lockedWidthRef: lockedCardMetaPanelWidthRef,
+      zIndex: 2147483030,
     });
   const updateMovementDetailsPanelPosition = () =>
     updateGridFloatingPanelPosition({
@@ -18987,11 +20622,13 @@ function ExerciseLibraryCard({
   };
   const closeCardMetaDropdown = () => {
     setIsCardMetaDropdownOpen(false);
+    setIsCardMetaOverlayVisible(false);
+    lockedCardMetaPanelWidthRef.current = null;
+    setCardMetaPanelStyle(null);
     onToggleExerciseDetails(null);
     closeMovementDetailsAccordion();
     setIsSettingsOpen(false);
     setIsVariationDropdownOpen(false);
-    setIsSemanticDropdownOpen(false);
   };
   const toggleCardMetaDropdown = () => {
     if (isCardMetaDropdownOpen) {
@@ -19000,8 +20637,129 @@ function ExerciseLibraryCard({
     }
 
     announceExerciseLibraryDropdownOpen(cardMetaPanelId);
+    setIsCardMetaOverlayVisible(false);
     setIsCardMetaDropdownOpen(true);
   };
+  useEffect(() => {
+    if (!isCardMetaDropdownOpen) {
+      setIsCardMetaOverlayVisible(false);
+      lockedCardMetaPanelWidthRef.current = null;
+      setCardMetaPanelStyle(null);
+      return;
+    }
+
+    setIsCardMetaOverlayVisible(false);
+    const closeCardMetaOverlay = () => {
+      setIsCardMetaDropdownOpen(false);
+      setIsCardMetaOverlayVisible(false);
+      lockedCardMetaPanelWidthRef.current = null;
+      setCardMetaPanelStyle(null);
+      onToggleExerciseDetails(null);
+      setActiveMovementDetailsSubPanel(null);
+      if (isMovementDetailsOpen) onToggleMovementDetails(null);
+      setIsSettingsOpen(false);
+      setIsVariationDropdownOpen(false);
+    };
+    const closeWhenAnotherDropdownOpens = (event: Event) => {
+      const detail = (event as CustomEvent<ExerciseLibraryDropdownOpenDetail>)
+        .detail;
+
+      if (
+        dropdownEventKeepsPanelOpen(detail, cardMetaPanelId) ||
+        dropdownEventKeepsPanelOpen(detail, collapsedDetailsPanelId) ||
+        dropdownEventKeepsPanelOpen(detail, settingsDropdownId) ||
+        dropdownEventKeepsPanelOpen(detail, movementDetailsPanelId)
+      ) {
+        return;
+      }
+
+      closeCardMetaOverlay();
+    };
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (
+        target instanceof Node &&
+        (cardMetaButtonRef.current?.contains(target) ||
+          cardMetaFloatingPanelRef.current?.contains(target))
+      ) {
+        return;
+      }
+
+      if (
+        target instanceof Element &&
+        target.closest('[data-exercise-library-floating-menu="true"]')
+      ) {
+        return;
+      }
+
+      closeCardMetaOverlay();
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeCardMetaOverlay();
+    };
+    let animationFrame: number | null = null;
+    const scheduleCardMetaPositionUpdate = (
+      event?: Event,
+      unlockWidth = false,
+    ) => {
+      const target = event?.target;
+      if (
+        target instanceof Node &&
+        cardMetaFloatingPanelRef.current?.contains(target)
+      ) {
+        return;
+      }
+
+      if (unlockWidth) lockedCardMetaPanelWidthRef.current = null;
+      if (animationFrame !== null) return;
+
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = null;
+        updateCardMetaPanelPosition();
+      });
+    };
+    const handleCardMetaResize = () =>
+      scheduleCardMetaPositionUpdate(undefined, true);
+
+    const revealTimer = window.setTimeout(() => {
+      updateCardMetaPanelPosition();
+      setIsCardMetaOverlayVisible(true);
+    }, cardMetaOverlayRevealDelayMs);
+    window.addEventListener(
+      exerciseLibraryDropdownOpenEvent,
+      closeWhenAnotherDropdownOpens,
+    );
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+    document.addEventListener("scroll", scheduleCardMetaPositionUpdate, true);
+    window.addEventListener("resize", handleCardMetaResize);
+
+    return () => {
+      window.clearTimeout(revealTimer);
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      window.removeEventListener(
+        exerciseLibraryDropdownOpenEvent,
+        closeWhenAnotherDropdownOpens,
+      );
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+      document.removeEventListener("scroll", scheduleCardMetaPositionUpdate, true);
+      window.removeEventListener("resize", handleCardMetaResize);
+    };
+  }, [
+    cardMetaPanelId,
+    collapsedDetailsPanelId,
+    isCardMetaDropdownOpen,
+    isGridView,
+    isMovementDetailsOpen,
+    movementDetailsPanelId,
+    onToggleExerciseDetails,
+    onToggleMovementDetails,
+    settingsDropdownId,
+  ]);
   const toggleMovementDetailsSubPanel = (
     panel: MovementDetailsSubPanel,
   ) => {
@@ -19472,10 +21230,10 @@ function ExerciseLibraryCard({
 
   const collapsedCardRadius = isGridView ? "rounded-xl" : "rounded-2xl";
   const collapsedCardHeight = isGridView
-    ? "h-[150px] sm:h-[165px]"
+    ? "h-[86px] sm:h-[92px]"
     : "h-[180px] sm:h-[205px]";
   const collapsedTitleClass = isGridView
-    ? "text-sm leading-4 sm:text-base sm:leading-5"
+    ? "text-[0.68rem] leading-[0.78rem] sm:text-[0.72rem] sm:leading-[0.84rem]"
     : "text-base leading-5 sm:text-xl sm:leading-6";
   const collapsedPillClass = isGridView
     ? "px-1.5 py-0.5 text-[7px] tracking-[0.06em]"
@@ -19483,17 +21241,26 @@ function ExerciseLibraryCard({
   const collapsedActionClass = isGridView
     ? "min-h-[28px] rounded-lg px-1.5 py-1 text-[7px] tracking-[0.06em]"
     : "min-h-[32px] rounded-xl px-2 py-1.5 text-[8px] tracking-[0.08em]";
+  const cardTextDensity =
+    cardTitle.length > (isGridView ? 34 : 62)
+      ? "dense"
+      : cardTitle.length > (isGridView ? 24 : 46)
+        ? "compact"
+        : undefined;
 
   return (
     <article
       style={cardVolumeStyle}
+      data-card-meta-open={isCardMetaDropdownOpen ? "true" : undefined}
+      data-card-text-density={cardTextDensity}
+      data-view-mode={viewMode}
       className={`exercise-library-themed-card group relative mb-1.5 inline-block w-full break-inside-avoid self-start overflow-hidden border backdrop-blur-2xl backdrop-saturate-150 transition ${collapsedCardRadius} ${collapsedCardHeight} ${categoryTheme.surfaceClass} ${categoryTheme.cardClass} ${categoryTheme.hoverClass} ${
         cardLatestSetInsight ? "exercise-library-volume-pulse" : ""
       } ${
         isVariationDropdownOpen ||
-        isSemanticDropdownOpen ||
         isGridDetailsOpen ||
         isDetailExerciseDetailsOpen ||
+        isCardMetaDropdownOpen ||
         isSettingsOpen
           ? "z-[520]"
           : "z-0 hover:z-20"
@@ -19510,30 +21277,25 @@ function ExerciseLibraryCard({
         className={`pointer-events-none absolute inset-x-0 top-0 z-[12] h-px ${categoryTheme.accentClass}`}
       />
       <img
-        src={exercise.image || defaultImage}
+        src={getExerciseVisualUrl(exercise)}
         alt={cardTitle}
         className="absolute inset-0 z-[1] h-full w-full object-cover opacity-88 transition duration-700 group-hover:scale-105 group-hover:opacity-100"
+        draggable={false}
       />
       <div
         aria-hidden="true"
         className="absolute inset-0 z-10 bg-[linear-gradient(180deg,rgba(2,6,23,0.16)_0%,rgba(2,6,23,0.08)_32%,rgba(2,6,23,0.72)_72%,rgba(2,6,23,0.94)_100%),radial-gradient(circle_at_18%_4%,rgba(255,255,255,0.18),transparent_26%)]"
       />
 
-      <div className="absolute left-2 right-2 top-2 z-20 flex items-start justify-between gap-1.5 sm:left-2.5 sm:right-2.5 sm:top-2.5">
-        <div className="flex min-w-0 flex-wrap gap-1">
-          <span
-            className={`max-w-[8.5rem] truncate rounded-full border ${collapsedPillClass} font-black uppercase text-cyan-50 shadow-[0_0_14px_rgba(34,211,238,0.14)] backdrop-blur-xl ${categoryTheme.pillClass}`}
-          >
-            {cardClassificationLabel}
-          </span>
-          {exercise.custom ? (
-            <span
-              className={`rounded-full border border-amber-100/30 bg-amber-300/16 ${collapsedPillClass} font-black uppercase text-amber-50 shadow-[0_0_18px_rgba(251,191,36,0.14)] backdrop-blur-xl`}
-            >
-              Custom
-            </span>
-          ) : null}
-        </div>
+      <span
+        className={`exercise-library-card-top-category-tab exercise-library-card-top-category-tab--active border ${categoryTheme.pillClass}`}
+      >
+        <span className="exercise-library-card-top-category-tab__text">
+          {activeCardCategoryLabel}
+        </span>
+      </span>
+
+      <div className="exercise-library-active-card-favorite absolute right-2 top-2 z-30 sm:right-2.5 sm:top-2.5">
         <FavoriteButton
           isFavorite={isFavorite}
           onToggle={() => onToggleFavorite(exercise.id)}
@@ -19541,50 +21303,112 @@ function ExerciseLibraryCard({
         />
       </div>
 
-      <div className="absolute inset-x-0 bottom-0 z-20 max-h-full overflow-y-auto overscroll-contain p-2 [scrollbar-color:rgba(34,211,238,0.36)_transparent] [scrollbar-width:thin] sm:p-2.5">
-        <div className="exercise-library-card-info-glass rounded-xl border p-2 sm:p-2.5">
+      <div className="exercise-library-themed-card__content absolute inset-x-0 bottom-0 z-20 max-h-full overflow-hidden px-2 pb-2.5 pt-16 sm:px-2.5 sm:pb-3">
+        <div className="relative">
+          <button
+            type="button"
+            className="exercise-library-active-card-movement block max-w-full truncate text-left text-[8px] font-black uppercase tracking-[0.12em] text-cyan-50/86 drop-shadow-[0_2px_10px_rgba(2,6,23,0.86)] transition hover:text-white focus:outline-none focus:ring-2 focus:ring-cyan-100/30 sm:text-[9px]"
+            onClick={() =>
+              onMovementChipSelect({
+                key: `movement-${activeCardMovementLabel}`,
+                label: activeCardMovementLabel,
+                tone: "movement",
+              })
+            }
+            title={`Filter by ${activeCardMovementLabel}`}
+          >
+            {activeCardMovementLabel}
+          </button>
+
           <h2
-            className={`line-clamp-2 font-black tracking-wide text-white drop-shadow-[0_0_16px_rgba(255,255,255,0.38)] ${collapsedTitleClass}`}
+            className={`mt-1 line-clamp-2 font-black tracking-wide text-white drop-shadow-[0_2px_16px_rgba(2,6,23,0.92)] ${collapsedTitleClass}`}
           >
             {cardTitle}
           </h2>
 
-          {coreMovementLabel ? (
-            <p className="mt-0.5 truncate text-[8px] font-black uppercase tracking-[0.1em] text-cyan-50/88 sm:text-[9px]">
-              Core Movement:{" "}
+          {hasSemanticVariationPager ? (
+            <div
+              className={`exercise-library-card-semantic-pager mt-1.5 ${
+                isGridView ? "exercise-library-card-semantic-pager--compact" : ""
+              }`}
+              data-no-drag-scroll="true"
+              onClick={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
               <button
                 type="button"
-                className="text-cyan-50 underline decoration-cyan-200/0 underline-offset-2 transition hover:decoration-cyan-200/70 focus:outline-none focus:ring-2 focus:ring-cyan-100/30"
-                onClick={() =>
-                  onMovementChipSelect({
-                    key: `core-${coreMovementLabel}`,
-                    label: coreMovementLabel,
-                    tone: "movement",
-                  })
-                }
-                title={`Filter by ${coreMovementLabel}`}
+                aria-label="Previous semantic variation"
+                onClick={() => cycleSemanticVariation(-1)}
+                className="exercise-library-card-semantic-pager__arrow"
               >
-                {coreMovementLabel}
+                {"<"}
               </button>
-            </p>
+              <button
+                type="button"
+                aria-label="Next semantic variation"
+                onClick={() => cycleSemanticVariation(1)}
+                className="exercise-library-card-semantic-pager__arrow"
+              >
+                {">"}
+              </button>
+              <div
+                aria-hidden="true"
+                className="exercise-library-card-semantic-pager__dots"
+              >
+                {semanticVariationPagerDots.map((dot) => (
+                  <span
+                    key={dot.key}
+                    data-semantic-dot-state={
+                      dot.isActive && dot.isFavorite
+                        ? "active-favorite"
+                        : dot.isFavorite
+                          ? "favorite"
+                          : dot.isActive
+                            ? "active"
+                            : "available"
+                    }
+                    className={`exercise-library-card-semantic-pager__dot ${
+                      dot.isActive
+                        ? "exercise-library-card-semantic-pager__dot--active"
+                        : ""
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
           ) : null}
 
           <button
+            ref={cardMetaButtonRef}
             type="button"
             aria-controls={cardMetaPanelId}
             aria-expanded={isCardMetaDropdownOpen}
+            aria-haspopup="dialog"
             onClick={toggleCardMetaDropdown}
-            className="exercise-library-card-meta-trigger mt-1 flex w-full items-center justify-between gap-1.5 py-1 text-left text-[8px] font-black uppercase tracking-[0.1em] text-cyan-50/86 transition hover:text-white focus-visible:outline-none focus-visible:underline focus-visible:decoration-cyan-100/45 focus-visible:underline-offset-4 sm:text-[9px]"
+            className="exercise-library-card-meta-trigger mt-1.5 flex w-full items-center justify-between gap-2 py-1 text-left text-[8px] font-black uppercase tracking-[0.1em] text-cyan-50/86 transition hover:text-white focus-visible:outline-none focus-visible:underline focus-visible:decoration-cyan-100/45 focus-visible:underline-offset-4 sm:text-[9px]"
           >
-            <span>Card Details</span>
+            <span className="shrink-0">Card Details</span>
+            <span
+              aria-hidden="true"
+              className="h-px min-w-6 flex-1 bg-gradient-to-r from-cyan-100/50 via-cyan-100/22 to-transparent"
+            />
             {renderSettingsChevron(isCardMetaDropdownOpen)}
           </button>
 
-          {isCardMetaDropdownOpen ? (
-            <div
-              id={cardMetaPanelId}
-              className="exercise-library-card-meta-dropdown mt-1.5 space-y-2"
-            >
+          {typeof document !== "undefined" &&
+          isCardMetaDropdownOpen &&
+          isCardMetaOverlayVisible &&
+          cardMetaPanelStyle
+            ? createPortal(
+                <div
+                  ref={cardMetaFloatingPanelRef}
+                  id={cardMetaPanelId}
+                  role="dialog"
+                  aria-label={`${cardTitle} card details`}
+                  style={{ ...cardMetaPanelStyle, ...categoryThemeStyle }}
+                  data-exercise-library-floating-menu="true"
+                  className="exercise-library-card-meta-dropdown exercise-library-card-meta-dropdown--floating exercise-library-themed-floating-panel exercise-library-themed-scrollbar fixed space-y-2 overflow-y-auto overscroll-contain rounded-2xl border border-cyan-100/24 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.16),transparent_34%),radial-gradient(circle_at_88%_8%,rgba(250,204,21,0.11),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.985),rgba(2,6,23,0.965))] p-2.5 shadow-[0_28px_86px_rgba(0,0,0,0.82),0_0_38px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.15)] ring-1 ring-cyan-200/12 backdrop-blur-2xl [scrollbar-color:rgba(34,211,238,0.38)_transparent] [scrollbar-width:thin]"
+                >
               <div className="flex flex-wrap items-center gap-1">
                 <button
                   type="button"
@@ -19693,24 +21517,8 @@ function ExerciseLibraryCard({
           {isExerciseDetailsOpen ? (
             <div
               id={collapsedDetailsPanelId}
-              className="exercise-library-themed-panel exercise-library-card-info-glass exercise-library-card-info-glass--details mt-2 max-h-[min(22rem,58vh)] overflow-y-auto overscroll-contain rounded-xl border p-2 [scrollbar-color:rgba(34,211,238,0.38)_transparent] [scrollbar-width:thin]"
+              className="exercise-library-themed-panel exercise-library-card-info-glass exercise-library-card-info-glass--details mt-2 overflow-hidden rounded-xl border p-2"
             >
-              <SemanticVariationSelect
-                options={semanticVariationOptions}
-                value={selectedSemanticVariation?.id || ""}
-                onChange={handleSemanticVariationChange}
-                onOpenChange={setIsSemanticDropdownOpen}
-                onAddNewVariation={() =>
-                  onCreateVariation(
-                    metadata?.coreMovementId || exercise.coreMovementPattern,
-                  )
-                }
-                coreMovementLabel={coreMovementLabel}
-                statsByVariationId={semanticVariationStatsById}
-                themeStyle={categoryThemeStyle}
-                compact={isGridView}
-              />
-
               {settingsDropdown}
 
               <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.035] p-2">
@@ -19746,8 +21554,10 @@ function ExerciseLibraryCard({
               />
             </div>
           ) : null}
-            </div>
-          ) : null}
+                </div>,
+                document.body,
+              )
+            : null}
         </div>
       </div>
     </article>
@@ -19899,7 +21709,7 @@ export default function ExerciseLibraryPage() {
     useState<BodyRegionLayer | null>(null);
   const [goalFilter, setGoalFilter] = useState("All");
   const [levelFilter, setLevelFilter] = useState("All");
-  const [movementTypeFilter, setMovementTypeFilter] = useState("All");
+  const [variantTypeFilter, setVariantTypeFilter] = useState("All");
   const [apparatusFilter, setApparatusFilter] = useState("All");
   const [loadBehaviorFilter, setLoadBehaviorFilter] = useState("All");
   const [planAddToParam, setPlanAddToParam] = useState("");
@@ -19915,20 +21725,55 @@ export default function ExerciseLibraryPage() {
   const [customExercises, setCustomExercises] = useState<Exercise[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const addExerciseFormRef = useRef<HTMLDivElement | null>(null);
+  const createExerciseCardAnchorRef = useRef<HTMLElement | null>(null);
   const [statsExercise, setStatsExercise] = useState<Exercise | null>(null);
   const [statsMenuMode, setStatsMenuMode] =
     useState<ExerciseStatsMenuMode>("detail");
   const statsMenuRef = useRef<HTMLDivElement | null>(null);
   const statsMenuAnchorRef = useRef<HTMLElement | null>(null);
   const lockedStatsMenuWidthRef = useRef<number | null>(null);
+  const compactFilterRailRef = useRef<HTMLDivElement | null>(null);
   const exerciseColumnOrbitWheelDelayRef = useRef(0);
   const exerciseColumnVerticalScrollDelayRef = useRef(0);
   const exerciseColumnKeyboardDelayRef = useRef(0);
+  const exerciseColumnVerticalOrbitFrameRef = useRef<number | null>(null);
+  const exerciseColumnVerticalOrbitBodyRef = useRef<HTMLElement | null>(null);
+  const exerciseColumnActiveSyncFrameRef = useRef<number | null>(null);
+  const exerciseColumnActiveSyncBodyRef = useRef<HTMLElement | null>(null);
+  const exerciseColumnActiveSnapTimeoutRef = useRef<number | null>(null);
+  const exerciseColumnActiveSnapBodyRef = useRef<HTMLElement | null>(null);
+  const exerciseColumnScrollActiveTimeoutRef = useRef<number | null>(null);
+  const exerciseColumnScrollActiveColumnRef = useRef<HTMLElement | null>(null);
+  const exerciseLibraryPageSnapLockRef = useRef(0);
+  const exerciseLibraryPageSnapTimeoutRef = useRef<number | null>(null);
+  const exerciseLibraryPageSectionOrbitRef = useRef<HTMLDivElement | null>(
+    null,
+  );
+  const exerciseLibraryHeroCardRef = useRef<HTMLElement | null>(null);
+  const exerciseLibraryIntroSectionRef = useRef<HTMLElement | null>(null);
+  const exerciseLibraryLibrarySectionRef = useRef<HTMLElement | null>(null);
+  const exerciseLibraryPageOrbitBodyRef = useRef<HTMLDivElement | null>(null);
+  const exerciseLibraryPageOrbitFrameRef = useRef<number | null>(null);
+  const exerciseLibraryOrbitCardsRef = useRef<HTMLDivElement | null>(null);
+  const lastActiveRenderedExerciseSectionKeyRef = useRef<
+    string | null | undefined
+  >(undefined);
   const exerciseColumnOrbitDragStateRef = useRef({
     isDragging: false,
     startX: 0,
     startY: 0,
   });
+  const exerciseColumnBodyDragStateRef = useRef({
+    hasDragged: false,
+    isPointerDown: false,
+    mode: null as "horizontal" | "vertical" | null,
+    pointerId: 0,
+    scrollBody: null as HTMLElement | null,
+    startScrollTop: 0,
+    startX: 0,
+    startY: 0,
+  });
+  const suppressExerciseColumnBodyClickRef = useRef(false);
   const [statsMenuStyle, setStatsMenuStyle] =
     useState<CSSProperties | null>(null);
   const [statWeight, setStatWeight] = useState("");
@@ -19947,10 +21792,22 @@ export default function ExerciseLibraryPage() {
     );
   const [latestSetInsight, setLatestSetInsight] =
     useState<LatestSetInsight | null>(null);
+  const [activePageScrollStepId, setActivePageScrollStepId] =
+    useState<ExerciseLibraryPageScrollerStepId>("intro");
+  const [exerciseLibraryIntroScrollerTop, setExerciseLibraryIntroScrollerTop] =
+    useState<number | null>(null);
   const [isWorkoutOverlayOpen, setIsWorkoutOverlayOpen] = useState(false);
   const [draftWorkoutItems, setDraftWorkoutItems] = useState<
     DraftWorkoutPreviewItem[]
   >([]);
+  const [workoutPlans, setWorkoutPlans] = useState<LocalWeeklyPlan[]>([]);
+  const [activeWorkoutPlanId, setActiveWorkoutPlanId] = useState<string | null>(
+    null,
+  );
+  const [savedWorkoutTemplates, setSavedWorkoutTemplates] = useState<
+    LocalWorkoutBuilderTemplate[]
+  >([]);
+  const [workoutTemplatesLoaded, setWorkoutTemplatesLoaded] = useState(false);
 
   const [newExercise, setNewExercise] = useState<PrivateExerciseDraft>(
     emptyPrivateExerciseDraft,
@@ -20001,10 +21858,65 @@ export default function ExerciseLibraryPage() {
       ?.id || "";
 
   useEffect(() => {
+    const scrollbarClassName = "exercise-library-scrollbar-hidden";
+
+    document.documentElement.classList.add(scrollbarClassName);
+    document.body.classList.add(scrollbarClassName);
+
+    return () => {
+      document.documentElement.classList.remove(scrollbarClassName);
+      document.body.classList.remove(scrollbarClassName);
+    };
+  }, []);
+
+  useEffect(() => {
     setCustomExercises(readCustomExercises<Exercise>());
     setFavoriteExerciseIds(new Set(readExerciseLibraryFavoriteIds()));
     setPreferredWeightUnit(readExerciseLibraryPreferredWeightUnit());
     setUiThemeId(readExerciseLibraryUiTheme());
+  }, []);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const refreshWorkoutPlanState = () => {
+      if (!isActive) return;
+
+      setWorkoutPlans(readWorkoutPlans());
+      setActiveWorkoutPlanId(getActiveWorkoutPlanId());
+    };
+    const loadWorkoutTemplates = async () => {
+      const result = await loadWorkoutTemplatesWithFallback();
+
+      if (!isActive) return;
+
+      setSavedWorkoutTemplates(result.data);
+      setWorkoutTemplatesLoaded(true);
+    };
+    const refreshTodayPlan = () => {
+      refreshWorkoutPlanState();
+      void loadWorkoutTemplates();
+    };
+    const handleStorage = (event: StorageEvent) => {
+      const watchedKeys: string[] = [
+        ...Object.values(LOCAL_WORKOUT_PLAN_STORAGE_KEYS),
+        LOCAL_WORKOUT_BUILDER_STORAGE_KEYS.savedTemplates,
+      ];
+
+      if (!event.key || watchedKeys.includes(event.key)) {
+        refreshTodayPlan();
+      }
+    };
+
+    refreshTodayPlan();
+    window.addEventListener("focus", refreshTodayPlan);
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      isActive = false;
+      window.removeEventListener("focus", refreshTodayPlan);
+      window.removeEventListener("storage", handleStorage);
+    };
   }, []);
 
   useEffect(() => {
@@ -20175,6 +22087,38 @@ export default function ExerciseLibraryPage() {
     () => getDailySetsComplete(savedExerciseStats),
     [savedExerciseStats],
   );
+  const todayPlanSummary = useMemo(
+    () =>
+      getTodayPlanSummary({
+        activePlanId: activeWorkoutPlanId,
+        allExercises,
+        templates: savedWorkoutTemplates,
+        templatesLoaded: workoutTemplatesLoaded,
+        workoutPlans,
+      }),
+    [
+      activeWorkoutPlanId,
+      allExercises,
+      savedWorkoutTemplates,
+      workoutPlans,
+      workoutTemplatesLoaded,
+    ],
+  );
+  const todayPlanSection = useMemo<ExerciseLibrarySection>(() => {
+    const dayLabel = todayPlanSummary.day?.dayOfWeek || getCurrentPlanDayName();
+
+    return {
+      key: todayPlanSectionKey,
+      label: todayPlanSectionLabel,
+      exercises: todayPlanSummary.exercises,
+      todayPlanMeta: {
+        assignmentCount: todayPlanSummary.assignments.length,
+        dayLabel,
+        planTitle: todayPlanSummary.activePlan?.title || "No active plan",
+        status: todayPlanSummary.status,
+      },
+    };
+  }, [todayPlanSummary]);
   const weeklyVolumeRangeLabel = useMemo(
     () => formatWeeklyVolumeRangeLabel(),
     [],
@@ -20238,12 +22182,6 @@ export default function ExerciseLibraryPage() {
 
     return grouped;
   }, [bodyOptions]);
-  const visibleBodyOptions = useMemo(() => {
-    if (!bodyRegionLayer) return bodyOptions;
-    const layerOptions = bodyOptionsByLayer.get(bodyRegionLayer) || [];
-
-    return layerOptions.length ? ["All", ...layerOptions] : bodyOptions;
-  }, [bodyOptions, bodyOptionsByLayer, bodyRegionLayer]);
   const getBodyPartVolume = useCallback(
     (bodyPart: string): BodyPartVolumeSummary => {
       const isAllBody = bodyPart === "All";
@@ -20537,17 +22475,9 @@ export default function ExerciseLibraryPage() {
 
       const matchesGoal = goalFilter === "All" || exercise.goal === goalFilter;
 
-      const selectedMovementType =
-        movementTypeFilter === "All"
-          ? null
-          : movementTypeOptionByValue.get(movementTypeFilter) || null;
-      const matchesMovementType =
-        movementTypeFilter === "All" ||
-        Boolean(
-          metadata &&
-            selectedMovementType &&
-            movementTypeMatchesItem(selectedMovementType, metadata),
-        );
+      const matchesVariantType =
+        variantTypeFilter === "All" ||
+        variantTypeMatchesItem(variantTypeFilter, metadata);
       const matchesApparatus =
         apparatusFilter === "All" ||
         getApparatusFilterLabelsForMetadata(metadata).includes(apparatusFilter);
@@ -20560,7 +22490,7 @@ export default function ExerciseLibraryPage() {
         matchesBodyRegionLayer &&
         matchesBody &&
         matchesGoal &&
-        matchesMovementType &&
+        matchesVariantType &&
         matchesApparatus &&
         matchesLoadBehavior
       );
@@ -20572,7 +22502,7 @@ export default function ExerciseLibraryPage() {
     bodyRegionLayer,
     bodyFilters,
     goalFilter,
-    movementTypeFilter,
+    variantTypeFilter,
     apparatusFilter,
     loadBehaviorFilter,
   ]);
@@ -20596,7 +22526,7 @@ export default function ExerciseLibraryPage() {
     bodyFilters.length > 0 ||
     goalFilter !== "All" ||
     levelFilter !== "All" ||
-    movementTypeFilter !== "All" ||
+    variantTypeFilter !== "All" ||
     apparatusFilter !== "All" ||
     loadBehaviorFilter !== "All";
 
@@ -20685,28 +22615,35 @@ export default function ExerciseLibraryPage() {
       sortMode,
       favoriteExerciseIds,
     );
+    const sectionsWithTodayPlan = [
+      todayPlanSection,
+      ...sections.filter((section) => section.key !== todayPlanSectionKey),
+    ];
     const shouldShowCreateExerciseEmptyState =
       sortMode === defaultExerciseLibrarySortMode &&
       !hasActiveExerciseFilters &&
       customExercises.length === 0 &&
-      !sections.some((section) => section.key === myExercisesSectionKey);
+      !sectionsWithTodayPlan.some(
+        (section) => section.key === myExercisesSectionKey,
+      );
 
     return shouldShowCreateExerciseEmptyState
       ? [
-          ...sections,
+          ...sectionsWithTodayPlan,
           {
             key: myExercisesSectionKey,
             label: myExercisesSectionLabel,
             exercises: [],
           },
         ]
-      : sections;
+      : sectionsWithTodayPlan;
   }, [
     sortedFocusedExercises,
     sortMode,
     favoriteExerciseIds,
     hasActiveExerciseFilters,
     customExercises.length,
+    todayPlanSection,
   ]);
   const hasUserSelectedExerciseSectionRef = useRef(false);
   const [activeExerciseSectionKey, setActiveExerciseSectionKey] = useState<
@@ -20715,6 +22652,15 @@ export default function ExerciseLibraryPage() {
   const [activeColumnExerciseId, setActiveColumnExerciseId] = useState<
     string | null
   >(null);
+  const activeColumnExerciseIdRef = useRef<string | null>(null);
+  const commitActiveColumnExerciseId = (exerciseId: string | null) => {
+    activeColumnExerciseIdRef.current = exerciseId;
+    setActiveColumnExerciseId(exerciseId);
+  };
+
+  useEffect(() => {
+    activeColumnExerciseIdRef.current = activeColumnExerciseId;
+  }, [activeColumnExerciseId]);
 
   const totalPages = Math.ceil(exerciseSections.length / exerciseSectionsPerPage);
 
@@ -20813,6 +22759,10 @@ export default function ExerciseLibraryPage() {
       (section) => section.key === sectionKey,
     );
 
+    if (sectionKey !== activeExerciseSectionKey) {
+      resetActiveExerciseColumnScrollToTop();
+    }
+
     if (sectionIndex >= 0) {
       setCurrentPage(Math.floor(sectionIndex / exerciseSectionsPerPage) + 1);
     }
@@ -20830,7 +22780,7 @@ export default function ExerciseLibraryPage() {
     bodyFilters,
     goalFilter,
     levelFilter,
-    movementTypeFilter,
+    variantTypeFilter,
     apparatusFilter,
     loadBehaviorFilter,
     sortMode,
@@ -20851,7 +22801,7 @@ export default function ExerciseLibraryPage() {
     setBodyRegionLayer(null);
     setGoalFilter("All");
     setLevelFilter("All");
-    setMovementTypeFilter("All");
+    setVariantTypeFilter("All");
     setApparatusFilter("All");
     setLoadBehaviorFilter("All");
     setSortMode(defaultExerciseLibrarySortMode);
@@ -20933,31 +22883,6 @@ export default function ExerciseLibraryPage() {
         selectExerciseSectionFromNavigator(matchingSection.key);
         return;
       }
-    }
-
-    const matchingMovementType = movementTypeOptions.find(
-      (option) =>
-        normalizeFilterCompareValue(option.label) === normalizeFilterCompareValue(chip.label) ||
-        option.coreMovementIds.some(
-          (coreMovementId) =>
-            normalizeFilterCompareValue(CORE_MOVEMENT_BY_ID[coreMovementId]?.label || "") ===
-            normalizeFilterCompareValue(chip.label),
-        ) ||
-        option.movementPatternIds.some(
-          (movementPatternId) =>
-            normalizeFilterCompareValue(
-              MOVEMENT_PATTERN_BY_ID[movementPatternId]?.label || "",
-            ) === normalizeFilterCompareValue(chip.label),
-        ),
-    );
-
-    if (matchingMovementType) {
-      setMovementTypeFilter((currentMovementType) =>
-        currentMovementType === matchingMovementType.value
-          ? "All"
-          : matchingMovementType.value,
-      );
-      return;
     }
 
     setSearch(chip.label);
@@ -21149,7 +23074,19 @@ export default function ExerciseLibraryPage() {
     });
   };
 
-  const openCreateExerciseForm = (coreMovementId?: CoreMovementId | string) => {
+  const resetCreateExercisePanelAnchor = () => {
+    createExerciseCardAnchorRef.current = null;
+  };
+
+  const closeCreateExerciseForm = () => {
+    setShowAddForm(false);
+    resetCreateExercisePanelAnchor();
+  };
+
+  const openCreateExerciseForm = (
+    coreMovementId?: CoreMovementId | string,
+    anchorElement?: HTMLElement | null,
+  ) => {
     const nextCoreMovementId =
       coreMovementId && CORE_MOVEMENT_BY_ID[coreMovementId as CoreMovementId]
         ? (coreMovementId as CoreMovementId)
@@ -21190,8 +23127,18 @@ export default function ExerciseLibraryPage() {
       }));
     }
 
+    if (anchorElement) {
+      createExerciseCardAnchorRef.current = anchorElement;
+    } else {
+      resetCreateExercisePanelAnchor();
+    }
+
     setShowAddForm(true);
     window.setTimeout(() => {
+      if (anchorElement) {
+        return;
+      }
+
       addExerciseFormRef.current?.scrollIntoView({
         behavior: "smooth",
         block: "start",
@@ -21255,8 +23202,38 @@ export default function ExerciseLibraryPage() {
     setCustomExercises((prev) => [exercise, ...prev]);
     setNewExercise(emptyPrivateExerciseDraft());
 
-    setShowAddForm(false);
+    closeCreateExerciseForm();
   };
+
+  useEffect(() => {
+    if (!showAddForm || !createExerciseCardAnchorRef.current) return;
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      const anchor = createExerciseCardAnchorRef.current;
+
+      if (
+        target instanceof Node &&
+        (addExerciseFormRef.current?.contains(target) ||
+          anchor?.contains(target))
+      ) {
+        return;
+      }
+
+      closeCreateExerciseForm();
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeCreateExerciseForm();
+    };
+
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [showAddForm]);
 
   const deleteCustomExercise = (id: string) => {
     setCustomExercises((prev) => prev.filter((exercise) => exercise.id !== id));
@@ -21372,6 +23349,16 @@ export default function ExerciseLibraryPage() {
       ...additions,
     ]);
     router.push(ROUTES.workoutBuilder.home);
+  };
+
+  const scrollCompactFilterRail = (direction: -1 | 1) => {
+    const rail = compactFilterRailRef.current;
+    if (!rail) return;
+
+    rail.scrollBy({
+      left: direction * rail.clientWidth,
+      behavior: "smooth",
+    });
   };
 
   const updateStatsMenuPosition = (mode: ExerciseStatsMenuMode = statsMenuMode) => {
@@ -21607,8 +23594,10 @@ export default function ExerciseLibraryPage() {
     widePanel = false,
     searchable = false,
     groupOrder = [],
+    openRequestSignal = 0,
     panelWidth = 560,
     preserveOrder = false,
+    compactTrigger = false,
   }: {
     label: string;
     value: string;
@@ -21618,14 +23607,17 @@ export default function ExerciseLibraryPage() {
     widePanel?: boolean;
     searchable?: boolean;
     groupOrder?: string[];
+    openRequestSignal?: number;
     panelWidth?: number;
     preserveOrder?: boolean;
+    compactTrigger?: boolean;
   }) => {
     const dropdownId = useId();
     const dropdownRef = useRef<HTMLDivElement | null>(null);
     const buttonRef = useRef<HTMLButtonElement | null>(null);
     const panelRef = useRef<HTMLDivElement | null>(null);
     const lockedPanelWidthRef = useRef<number | null>(null);
+    const lastOpenRequestSignalRef = useRef(openRequestSignal);
     const [open, setOpen] = useState(false);
     const [panelQuery, setPanelQuery] = useState("");
     const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
@@ -21765,6 +23757,19 @@ export default function ExerciseLibraryPage() {
     };
 
     useEffect(() => {
+      if (
+        !openRequestSignal ||
+        openRequestSignal === lastOpenRequestSignalRef.current
+      ) {
+        return;
+      }
+
+      lastOpenRequestSignalRef.current = openRequestSignal;
+      announceExerciseLibraryDropdownOpen(dropdownId);
+      setOpen(true);
+    }, [dropdownId, openRequestSignal]);
+
+    useEffect(() => {
       const closeWhenAnotherDropdownOpens = (event: Event) => {
         const detail = (event as CustomEvent<{ id: string }>).detail;
         if (detail?.id !== dropdownId) setOpen(false);
@@ -21890,7 +23895,10 @@ export default function ExerciseLibraryPage() {
     );
 
     return (
-      <div ref={dropdownRef} className="relative">
+      <div
+        ref={dropdownRef}
+        className={`relative max-w-full ${compactTrigger ? "w-full" : "w-fit"}`}
+      >
         <button
           ref={buttonRef}
           type="button"
@@ -21900,18 +23908,34 @@ export default function ExerciseLibraryPage() {
           if (!open) announceExerciseLibraryDropdownOpen(dropdownId);
           setOpen((prev) => !prev);
         }}
-          className={`group/filter-control flex min-h-[42px] w-full items-center justify-between rounded-2xl border px-2.5 py-1.5 text-left shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.12)] outline-none ring-1 ring-white/[0.03] backdrop-blur-2xl transition duration-200 hover:-translate-y-0.5 md:min-h-[40px] md:px-2.5 md:py-1.5 min-[1100px]:min-h-[46px] min-[1100px]:rounded-[22px] min-[1100px]:px-3.5 min-[1100px]:py-2.5 ${accentClasses[accent].trigger}`}
+          className={`group/filter-control flex max-w-full items-center justify-between rounded-2xl border text-left shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.12)] outline-none ring-1 ring-white/[0.03] backdrop-blur-2xl transition duration-200 hover:-translate-y-0.5 ${
+            compactTrigger
+              ? "min-h-[40px] w-full px-2 py-1 md:min-h-[38px] min-[1100px]:min-h-[44px] min-[1100px]:rounded-2xl min-[1100px]:px-2.5 min-[1100px]:py-1.5"
+              : "min-h-[42px] w-fit px-2.5 py-1.5 md:min-h-[40px] md:px-2.5 md:py-1.5 min-[1100px]:min-h-[46px] min-[1100px]:rounded-[22px] min-[1100px]:px-3.5 min-[1100px]:py-2.5"
+          } ${accentClasses[accent].trigger}`}
         >
           <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.12em] opacity-70 md:text-[9px] md:tracking-[0.14em] min-[1100px]:text-[10px] min-[1100px]:tracking-[0.18em]">
+            <p
+              className={`flex items-center gap-1.5 whitespace-nowrap font-black uppercase opacity-70 ${
+                compactTrigger
+                  ? "text-[7px] tracking-[0.1em] min-[1100px]:text-[8px]"
+                  : "text-[8px] tracking-[0.12em] md:text-[9px] md:tracking-[0.14em] min-[1100px]:text-[10px] min-[1100px]:tracking-[0.18em]"
+              }`}
+            >
               <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70 shadow-[0_0_10px_currentColor]" />
               {label}
             </p>
-            <p className="mt-0.5 truncate text-xs font-black leading-4 text-white md:text-[13px] md:leading-4 min-[1100px]:text-sm">
+            <p
+              className={`mt-0.5 whitespace-nowrap font-black text-white ${
+                compactTrigger
+                  ? "max-w-[6.6rem] truncate text-[11px] leading-3 min-[1100px]:max-w-[7.7rem] min-[1100px]:text-xs"
+                  : "text-xs leading-4 md:text-[13px] md:leading-4 min-[1100px]:text-sm"
+              }`}
+            >
               {selectedOption?.label || value}
             </p>
-            {(selectedOption?.group || selectedOption?.helper) ? (
-              <p className="mt-0.5 hidden text-[10px] font-bold uppercase tracking-[0.12em] text-white/45 md:block md:text-[9px] md:leading-3 md:tracking-[0.1em] min-[1100px]:text-[10px] min-[1100px]:tracking-[0.12em]">
+            {!compactTrigger && (selectedOption?.group || selectedOption?.helper) ? (
+              <p className="mt-0.5 hidden max-w-[18rem] truncate text-[10px] font-bold uppercase tracking-[0.12em] text-white/45 md:block md:text-[9px] md:leading-3 md:tracking-[0.1em] min-[1100px]:text-[10px] min-[1100px]:tracking-[0.12em]">
                 {[selectedOption.group, selectedOption.helper]
                   .filter(Boolean)
                   .join(" / ")}
@@ -21921,7 +23945,11 @@ export default function ExerciseLibraryPage() {
 
           <span
             aria-hidden="true"
-            className={`relative ml-2 flex h-5 w-5 items-center justify-center rounded-full border text-sm font-black text-transparent transition after:absolute after:content-['v'] md:h-6 md:w-6 min-[1100px]:ml-3 min-[1100px]:h-7 min-[1100px]:w-7 ${accentClasses[accent].arrow} ${
+            className={`relative flex items-center justify-center rounded-full border text-sm font-black text-transparent transition after:absolute after:content-['v'] ${
+              compactTrigger
+                ? "ml-1 h-5 w-5"
+                : "ml-2 h-5 w-5 md:h-6 md:w-6 min-[1100px]:ml-3 min-[1100px]:h-7 min-[1100px]:w-7"
+            } ${accentClasses[accent].arrow} ${
               open ? accentClasses[accent].arrowOpen : ""
             }`}
           >
@@ -21993,45 +24021,248 @@ export default function ExerciseLibraryPage() {
     value: string;
     onChange: (value: string) => void;
     counts: Record<string, number>;
-  }) => (
-    <div
-      aria-label="Level"
-      className="grid min-h-[42px] grid-cols-3 overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.74))] p-0.5 shadow-[0_14px_38px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] ring-1 ring-white/[0.035] backdrop-blur-2xl md:min-h-[40px] min-[1100px]:min-h-[46px] min-[1100px]:rounded-[22px]"
-    >
-        {levelSegments.map((segment, index) => {
-          const isActive = value === segment.value;
-          const count = counts[segment.value] || 0;
-          const radiusClass =
-            index === 0
-              ? "rounded-l-2xl rounded-r-none"
-              : index === levelSegments.length - 1
-                ? "rounded-r-2xl rounded-l-none"
-                : "rounded-none";
+  }) => {
+    const levelRailRef = useRef<HTMLDivElement | null>(null);
+    const levelProgrammaticScrollRef = useRef(false);
+    const levelUserScrollIntentRef = useRef(false);
+    const levelScrollReleaseTimerRef = useRef<number | null>(null);
+    const levelWheelDelayRef = useRef(0);
+    const levelDisplay: Record<
+      string,
+      {
+        activeClass: string;
+        label: string;
+        textClass: string;
+      }
+    > = {
+      All: {
+        activeClass:
+          "border-cyan-200/70 bg-cyan-300/92 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.22)]",
+        label: "Any",
+        textClass: "text-cyan-100",
+      },
+      Beginner: {
+        activeClass:
+          "border-emerald-200/70 bg-emerald-300/92 text-slate-950 shadow-[0_0_18px_rgba(16,185,129,0.22)]",
+        label: "Beginner",
+        textClass: "text-emerald-100",
+      },
+      Intermediate: {
+        activeClass:
+          "border-cyan-200/70 bg-cyan-300/92 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.22)]",
+        label: "Intermediate",
+        textClass: "text-cyan-100",
+      },
+      Advanced: {
+        activeClass:
+          "border-amber-200/70 bg-amber-300/92 text-slate-950 shadow-[0_0_18px_rgba(251,191,36,0.22)]",
+        label: "Advanced",
+        textClass: "text-amber-100",
+      },
+    };
+    const levelOptions = [
+      {
+        value: "All",
+        label: "Any",
+        focusRing: "focus:ring-cyan-200/40",
+      },
+      ...levelSegments,
+    ];
+    const totalLevelCount = levelSegments.reduce(
+      (total, segment) => total + (counts[segment.value] || 0),
+      0,
+    );
+    const releaseLevelScrollGuards = (delay = 140) => {
+      if (typeof window === "undefined") return;
+      if (levelScrollReleaseTimerRef.current !== null) {
+        window.clearTimeout(levelScrollReleaseTimerRef.current);
+      }
 
-          return (
-            <button
-              key={segment.value}
-              type="button"
-              aria-pressed={isActive}
-              onClick={() => onChange(isActive ? "All" : segment.value)}
-              title={
-                isActive
-                  ? `Clear level filter (${count} available)`
-                  : `Filter ${segment.label} (${count} available)`
-              }
-              className={`min-w-0 border px-0.5 py-1 text-[8px] font-black uppercase leading-3 tracking-[0.02em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 sm:px-1.5 sm:text-[10px] md:py-1 md:text-[9px] min-[1100px]:py-1.5 min-[1100px]:text-[10px] ${segment.focusRing} ${
-                isActive ? segment.active : segment.tone
-              } ${radiusClass}`}
-            >
-              <span className="block truncate">{segment.label}</span>
-              <span className="mt-0.5 block truncate text-[7px] font-black leading-3 opacity-70 sm:text-[9px] md:text-[8px] min-[1100px]:text-[9px]">
-                {count} available
-              </span>
-            </button>
-          );
-        })}
-    </div>
-  );
+      levelScrollReleaseTimerRef.current = window.setTimeout(() => {
+        levelProgrammaticScrollRef.current = false;
+        levelUserScrollIntentRef.current = false;
+        levelScrollReleaseTimerRef.current = null;
+      }, delay);
+    };
+    const getLevelIndex = () => {
+      const rail = levelRailRef.current;
+      const activeIndex = levelOptions.findIndex(
+        (option) => option.value === value,
+      );
+
+      if (activeIndex >= 0) return activeIndex;
+      if (!rail) return 0;
+
+      return Math.round(rail.scrollLeft / Math.max(1, rail.clientWidth));
+    };
+    const selectLevelAtIndex = (
+      index: number,
+      behavior: ScrollBehavior = "smooth",
+    ) => {
+      const rail = levelRailRef.current;
+      const nextIndex = Math.min(Math.max(index, 0), levelOptions.length - 1);
+      const nextOption = levelOptions[nextIndex];
+
+      if (!nextOption) return;
+      if (nextOption.value !== value) onChange(nextOption.value);
+
+      if (rail) {
+        levelProgrammaticScrollRef.current = true;
+        rail.scrollTo({
+          left: nextIndex * Math.max(1, rail.clientWidth),
+          behavior,
+        });
+        releaseLevelScrollGuards(behavior === "smooth" ? 260 : 60);
+      }
+    };
+    const scrollLevelRail = (direction: -1 | 1) => {
+      selectLevelAtIndex(getLevelIndex() + direction);
+    };
+
+    useLayoutEffect(() => {
+      const rail = levelRailRef.current;
+      if (!rail) return;
+
+      const activeIndex = levelOptions.findIndex(
+        (option) => option.value === value,
+      );
+      if (activeIndex < 0) return;
+
+      levelProgrammaticScrollRef.current = true;
+      rail.scrollTo({
+        left: activeIndex * Math.max(1, rail.clientWidth),
+        behavior: "auto",
+      });
+      releaseLevelScrollGuards(60);
+    }, [value]);
+
+    useEffect(
+      () => () => {
+        if (
+          typeof window !== "undefined" &&
+          levelScrollReleaseTimerRef.current !== null
+        ) {
+          window.clearTimeout(levelScrollReleaseTimerRef.current);
+        }
+      },
+      [],
+    );
+
+    return (
+      <div
+        aria-label="Level"
+        className="flex h-[42px] w-[13.5rem] shrink-0 items-stretch gap-1 md:h-[40px] min-[1100px]:h-[46px] min-[1100px]:w-[14.5rem]"
+      >
+        <button
+          type="button"
+          aria-label="Scroll difficulty left"
+          onClick={() => scrollLevelRail(-1)}
+          className="flex w-7 shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-slate-950/58 text-sm font-black text-cyan-100 shadow-[0_8px_22px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur transition hover:border-cyan-100/40 hover:bg-cyan-300 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/35"
+        >
+          &lt;
+        </button>
+        <div
+          ref={levelRailRef}
+          aria-label="Difficulty levels"
+          className="flex h-full min-w-0 flex-1 snap-x snap-mandatory items-stretch overflow-x-auto overflow-y-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.10),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.9),rgba(2,6,23,0.72))] shadow-[0_14px_38px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] ring-1 ring-white/[0.035] backdrop-blur-2xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden min-[1100px]:rounded-[22px]"
+          onPointerDown={() => {
+            levelUserScrollIntentRef.current = true;
+          }}
+          onScroll={(event) => {
+            if (
+              levelProgrammaticScrollRef.current ||
+              !levelUserScrollIntentRef.current
+            ) {
+              return;
+            }
+
+            const rail = event.currentTarget;
+            const nextIndex = Math.round(
+              rail.scrollLeft / Math.max(1, rail.clientWidth),
+            );
+            const nextOption = levelOptions[nextIndex];
+
+            if (nextOption && nextOption.value !== value) {
+              onChange(nextOption.value);
+            }
+
+            releaseLevelScrollGuards();
+          }}
+          onWheel={(event) => {
+            const dominantDelta =
+              Math.abs(event.deltaX) > Math.abs(event.deltaY)
+                ? event.deltaX
+                : event.deltaY;
+
+            if (Math.abs(dominantDelta) < 10) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            const now = Date.now();
+            if (now - levelWheelDelayRef.current < 180) return;
+
+            levelWheelDelayRef.current = now;
+            selectLevelAtIndex(getLevelIndex() + (dominantDelta > 0 ? 1 : -1));
+          }}
+        >
+          {levelOptions.map((segment) => {
+            const isActive = value === segment.value;
+            const count =
+              segment.value === "All"
+                ? totalLevelCount
+                : counts[segment.value] || 0;
+            const display = levelDisplay[segment.value] || {
+              activeClass: "border-white/70 bg-white/80 text-slate-950",
+              label: segment.label,
+              textClass: "text-white",
+            };
+
+            return (
+              <button
+                key={segment.value}
+                type="button"
+                aria-pressed={isActive}
+                onClick={() => onChange(isActive ? "All" : segment.value)}
+                title={
+                  segment.value === "All"
+                    ? `Show any difficulty (${count} available)`
+                    : isActive
+                    ? `Clear level filter (${count} available)`
+                    : `Filter ${segment.label} (${count} available)`
+                }
+                className={`flex h-full w-full shrink-0 snap-start items-center justify-between gap-2 rounded-[inherit] border px-2.5 text-left text-[10px] font-black uppercase leading-none tracking-[0.06em] transition hover:bg-white/[0.06] focus:relative focus:z-10 focus:outline-none focus:ring-2 min-[1100px]:px-3 min-[1100px]:text-[11px] ${segment.focusRing || "focus:ring-white/30"} ${
+                  isActive
+                    ? display.activeClass
+                    : `border-transparent ${display.textClass}`
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className="block text-[7px] font-black uppercase tracking-[0.12em] opacity-65 min-[1100px]:text-[8px]">
+                    Level
+                  </span>
+                  <span className="mt-0.5 block truncate text-xs font-black leading-4 text-current min-[1100px]:text-sm">
+                    {display.label}
+                  </span>
+                </span>
+                <span className="shrink-0 rounded-full border border-current/18 bg-black/10 px-2 py-1 text-[8px] leading-none opacity-78">
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          aria-label="Scroll difficulty right"
+          onClick={() => scrollLevelRail(1)}
+          className="flex w-7 shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-slate-950/58 text-sm font-black text-cyan-100 shadow-[0_8px_22px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur transition hover:border-cyan-100/40 hover:bg-cyan-300 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/35"
+        >
+          &gt;
+        </button>
+      </div>
+    );
+  };
 
   const privateExerciseFieldClass =
     "min-h-[46px] w-full rounded-[16px] border border-white/10 bg-slate-950/70 px-3.5 py-2.5 text-sm font-bold text-white outline-none placeholder:text-slate-500 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition focus:border-emerald-300/70 focus:bg-slate-950/90";
@@ -22450,9 +24681,9 @@ export default function ExerciseLibraryPage() {
   ];
   const activeTrainingFilterChips = useMemo(() => {
     const chips: string[] = [];
-    const movementTypeLabel =
-      movementTypeOptionByValue.get(movementTypeFilter)?.label ||
-      movementTypeFilter;
+    const variantTypeLabel =
+      variantTypeOptionByValue.get(variantTypeFilter)?.label ||
+      variantTypeFilter;
 
     if (search.trim()) chips.push(`Search: ${search.trim()}`);
     if (bodyRegionLayer) chips.push(`${bodyRegionLayer} region`);
@@ -22463,7 +24694,7 @@ export default function ExerciseLibraryPage() {
           : `Body: ${bodyFilters.slice(0, 2).join(", ")} +${bodyFilters.length - 2}`,
       );
     }
-    if (movementTypeFilter !== "All") chips.push(`Movement: ${movementTypeLabel}`);
+    if (variantTypeFilter !== "All") chips.push(`Variant: ${variantTypeLabel}`);
     if (apparatusFilter !== "All") chips.push(`Equipment: ${apparatusFilter}`);
     if (goalFilter !== "All") chips.push(`Goal: ${goalFilter}`);
     if (levelFilter !== "All") chips.push(`Level: ${levelFilter}`);
@@ -22484,7 +24715,7 @@ export default function ExerciseLibraryPage() {
     goalFilter,
     levelFilter,
     loadBehaviorFilter,
-    movementTypeFilter,
+    variantTypeFilter,
     search,
     sortMode,
   ]);
@@ -22778,13 +25009,6 @@ export default function ExerciseLibraryPage() {
       onClick: () => navigateToExerciseSectionKey(myExercisesSectionKey),
       theme: getCategoryTheme(myExercisesSectionLabel),
     },
-    {
-      helper: "Open the private exercise form",
-      id: "create-exercise",
-      label: "Create Exercise",
-      onClick: () => openCreateExerciseForm(),
-      theme: getCategoryTheme("Integrated"),
-    },
   ];
   const trainingLogicInsights: TrainingLogicInsight[] = [];
 
@@ -22927,21 +25151,6 @@ export default function ExerciseLibraryPage() {
     );
   }, [activeRenderedExerciseSection]);
 
-  useEffect(() => {
-    setActiveColumnExerciseId((currentExerciseId) => {
-      if (
-        currentExerciseId &&
-        activeColumnUniqueExercises.some(
-          (exercise) => exercise.id === currentExerciseId,
-        )
-      ) {
-        return currentExerciseId;
-      }
-
-      return activeColumnUniqueExercises[0]?.id || null;
-    });
-  }, [activeColumnUniqueExercises]);
-
   const activeExerciseColumnIndex = Math.max(
     0,
     exerciseSections.findIndex(
@@ -22972,53 +25181,415 @@ export default function ExerciseLibraryPage() {
       (child): child is HTMLElement =>
         child instanceof HTMLElement && Boolean(child.dataset.exerciseId),
     );
-  const getClosestColumnExerciseCardIndex = (
+  const getColumnExerciseCardCenterY = (card: HTMLElement) =>
+    card.offsetTop + card.offsetHeight / 2;
+  const getColumnExerciseCardTargetScrollTop = (
     scrollBody: HTMLElement,
-    exerciseCardElements: HTMLElement[],
+    card: HTMLElement,
   ) => {
-    if (!exerciseCardElements.length) return 0;
+    const targetTop =
+      getColumnExerciseCardCenterY(card) -
+      scrollBody.clientHeight * exerciseColumnActiveCardAnchorRatio +
+      exerciseColumnActiveCardTitleClearancePx;
+    const maxScrollTop = Math.max(
+      0,
+      scrollBody.scrollHeight - scrollBody.clientHeight,
+    );
 
-    const scrollBodyRect = scrollBody.getBoundingClientRect();
-    const scrollCenterY = scrollBodyRect.top + scrollBodyRect.height / 2;
-
-    return exerciseCardElements.reduce((closestIndex, card, cardIndex) => {
-      const closestCard = exerciseCardElements[closestIndex];
-      const closestRect = closestCard.getBoundingClientRect();
-      const closestDistance = Math.abs(
-        closestRect.top + closestRect.height / 2 - scrollCenterY,
-      );
-      const cardRect = card.getBoundingClientRect();
-      const cardDistance = Math.abs(
-        cardRect.top + cardRect.height / 2 - scrollCenterY,
-      );
-
-      return cardDistance < closestDistance ? cardIndex : closestIndex;
-    }, 0);
+    return clampExerciseColumnOrbitValue(targetTop, 0, maxScrollTop);
   };
-  const scrollActiveColumnExerciseByDirection = (
-    direction: -1 | 1,
-    inputMode: "keyboard" | "wheel",
+  const applyColumnCardVerticalOrbit = (scrollBody: HTMLElement) => {
+    const exerciseCardElements = getColumnExerciseCardElements(scrollBody);
+    if (!exerciseCardElements.length) return;
+
+    const scrollTop = scrollBody.scrollTop;
+    const scrollBodyHeight = scrollBody.clientHeight;
+    const scrollCenterY =
+      scrollTop + scrollBodyHeight * exerciseColumnActiveCardAnchorRatio;
+    const scrollRadius = Math.max(128, scrollBodyHeight * 0.42);
+    const visibleTop = scrollTop - scrollBodyHeight * 0.46;
+    const visibleBottom = scrollTop + scrollBodyHeight * 1.28;
+    const activeColumn = scrollBody.closest<HTMLElement>(
+      ".exercise-library-column-orbit__column",
+    );
+    const activeExerciseCard =
+      exerciseCardElements.find(
+        (card) => card.dataset.activeExercise === "true",
+      ) ||
+      exerciseCardElements[
+        getClosestColumnExerciseCardIndex(scrollBody, exerciseCardElements)
+      ];
+    const activeExerciseCardIndex = activeExerciseCard
+      ? exerciseCardElements.indexOf(activeExerciseCard)
+      : -1;
+
+    if (activeColumn?.dataset.active === "true" && activeExerciseCard) {
+      const activeRowTitle = activeColumn.querySelector<HTMLElement>(
+        ".exercise-library-column-orbit__heading",
+      );
+      const titleHeight = activeRowTitle?.offsetHeight || 58;
+      const activeCardCenterY =
+        getColumnExerciseCardCenterY(activeExerciseCard);
+      const activeOrbitProgress = clampExerciseColumnOrbitValue(
+        (activeCardCenterY - scrollCenterY) / scrollRadius,
+        -1.35,
+        1.35,
+      );
+      const activeCardVisualTop =
+        scrollBody.offsetTop +
+        activeExerciseCard.offsetTop -
+        scrollTop +
+        activeOrbitProgress * 18 +
+        exerciseColumnActiveCardTitleClearancePx;
+      const titleTop = clampExerciseColumnOrbitValue(
+        activeCardVisualTop - titleHeight - exerciseColumnActiveRowTitleGapPx,
+        8,
+        Math.max(8, scrollBody.offsetTop + scrollBody.clientHeight - 72),
+      );
+      activeColumn.style.setProperty(
+        "--exercise-active-row-title-top",
+        `${titleTop.toFixed(1)}px`,
+      );
+    }
+
+    exerciseCardElements.forEach((card, cardIndex) => {
+      const cardTop = card.offsetTop;
+      const cardHeight = card.offsetHeight;
+      const cardBottom = cardTop + cardHeight;
+      const isNearViewport =
+        cardBottom >= visibleTop && cardTop <= visibleBottom;
+
+      if (!isNearViewport) {
+        if (card.dataset.orbitActive === "true") {
+          card.style.transform = "";
+          card.style.zIndex = "";
+          delete card.dataset.orbitActive;
+          delete card.dataset.orbitTransform;
+          delete card.dataset.orbitUnderTitle;
+        }
+
+        return;
+      }
+
+      const cardCenterY = cardTop + cardHeight / 2;
+      const rawOrbitProgress = (cardCenterY - scrollCenterY) / scrollRadius;
+      const orbitProgress = clampExerciseColumnOrbitValue(
+        rawOrbitProgress,
+        -1.35,
+        1.35,
+      );
+      const orbitDepth = Math.min(1, Math.abs(orbitProgress));
+      const focusProgress = 1 - orbitDepth;
+      const rotateX = orbitProgress * -32;
+      const activeCardClearance =
+        card.dataset.activeExercise === "true"
+          ? exerciseColumnActiveCardTitleClearancePx
+          : 0;
+      const nextCardClearance =
+        activeExerciseCardIndex >= 0 &&
+        cardIndex === activeExerciseCardIndex + 1
+          ? exerciseColumnActiveNextCardGapPx
+          : 0;
+      const translateY =
+        orbitProgress * 18 + activeCardClearance + nextCardClearance;
+      const translateZ = focusProgress * 24 - orbitDepth * 72;
+      const scale = 0.94 + focusProgress * 0.04;
+      const zIndex = Math.round(focusProgress * 28 + 10);
+      const transformValue = `translate3d(0, ${translateY.toFixed(
+        1,
+      )}px, ${translateZ.toFixed(1)}px) rotateX(${rotateX.toFixed(
+        1,
+      )}deg) scale(${scale.toFixed(3)})`;
+
+      if (card.dataset.orbitTransform !== transformValue) {
+        card.style.transform = transformValue;
+        card.dataset.orbitTransform = transformValue;
+      }
+
+      if (card.style.zIndex !== String(zIndex)) {
+        card.style.zIndex = String(zIndex);
+      }
+
+      card.dataset.orbitActive = "true";
+      delete card.dataset.orbitUnderTitle;
+    });
+  };
+  const applyAllColumnCardVerticalOrbits = () => {
+    document
+      .querySelectorAll<HTMLElement>("[data-column-card-scroll='true']")
+      .forEach(applyColumnCardVerticalOrbit);
+  };
+  useLayoutEffect(() => {
+    applyAllColumnCardVerticalOrbits();
+  }, [activeColumnExerciseId, activeRenderedExerciseSectionKey, viewMode]);
+
+  const markExerciseColumnScrollActive = (scrollBody: HTMLElement) => {
+    const column = scrollBody.closest<HTMLElement>(
+      ".exercise-library-column-orbit__column",
+    );
+
+    if (!column) return;
+
+    if (
+      exerciseColumnScrollActiveColumnRef.current &&
+      exerciseColumnScrollActiveColumnRef.current !== column
+    ) {
+      delete exerciseColumnScrollActiveColumnRef.current.dataset.cardScrolling;
+    }
+
+    column.dataset.cardScrolling = "true";
+    exerciseColumnScrollActiveColumnRef.current = column;
+
+    if (exerciseColumnScrollActiveTimeoutRef.current !== null) {
+      window.clearTimeout(exerciseColumnScrollActiveTimeoutRef.current);
+    }
+
+    exerciseColumnScrollActiveTimeoutRef.current = window.setTimeout(() => {
+      delete column.dataset.cardScrolling;
+      if (exerciseColumnScrollActiveColumnRef.current === column) {
+        exerciseColumnScrollActiveColumnRef.current = null;
+      }
+      exerciseColumnScrollActiveTimeoutRef.current = null;
+    }, 220);
+  };
+  const scheduleColumnCardVerticalOrbit = (scrollBody: HTMLElement) => {
+    markExerciseColumnScrollActive(scrollBody);
+    exerciseColumnVerticalOrbitBodyRef.current = scrollBody;
+
+    if (exerciseColumnVerticalOrbitFrameRef.current !== null) return;
+
+    exerciseColumnVerticalOrbitFrameRef.current = window.requestAnimationFrame(
+      () => {
+        const activeScrollBody = exerciseColumnVerticalOrbitBodyRef.current;
+        exerciseColumnVerticalOrbitBodyRef.current = null;
+        exerciseColumnVerticalOrbitFrameRef.current = null;
+
+        if (activeScrollBody) {
+          applyColumnCardVerticalOrbit(activeScrollBody);
+        }
+      },
+    );
+  };
+  const resetActiveExerciseColumnScrollToTop = (
+    behavior: ScrollBehavior = "auto",
   ) => {
-    const now = Date.now();
-    const delayRef =
-      inputMode === "keyboard"
-        ? exerciseColumnKeyboardDelayRef
-        : exerciseColumnVerticalScrollDelayRef;
-    const delayMs = inputMode === "keyboard" ? 150 : 210;
-
-    if (now - delayRef.current < delayMs) return;
-    delayRef.current = now;
-
     const scrollBody = document.querySelector<HTMLElement>(
       ".exercise-library-column-orbit__column[data-active=\"true\"] [data-column-card-scroll=\"true\"]",
     );
 
     if (!scrollBody) return;
 
+    scrollBody.scrollTo({
+      behavior,
+      top: 0,
+    });
+    scheduleColumnCardVerticalOrbit(scrollBody);
+  };
+
+  useEffect(() => {
+    const previousSectionKey = lastActiveRenderedExerciseSectionKeyRef.current;
+    const didChangeSection =
+      previousSectionKey !== undefined &&
+      previousSectionKey !== activeRenderedExerciseSectionKey;
+
+    lastActiveRenderedExerciseSectionKeyRef.current =
+      activeRenderedExerciseSectionKey;
+
+    setActiveColumnExerciseId((currentExerciseId) => {
+      let nextExerciseId: string | null = null;
+
+      if (
+        !didChangeSection &&
+        currentExerciseId &&
+        activeColumnUniqueExercises.some(
+          (exercise) => exercise.id === currentExerciseId,
+        )
+      ) {
+        nextExerciseId = currentExerciseId;
+      } else {
+        nextExerciseId = activeColumnUniqueExercises[0]?.id || null;
+      }
+
+      activeColumnExerciseIdRef.current = nextExerciseId;
+      return nextExerciseId;
+    });
+
+    if (!didChangeSection) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      resetActiveExerciseColumnScrollToTop();
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [activeColumnUniqueExercises, activeRenderedExerciseSectionKey]);
+
+  const snapClosestColumnExerciseToAnchor = (
+    scrollBody: HTMLElement,
+    behavior: ScrollBehavior = "auto",
+  ) => {
     const exerciseCardElements = getColumnExerciseCardElements(scrollBody);
     if (!exerciseCardElements.length) return;
 
-    const currentIndex = getClosestColumnExerciseCardIndex(
+    const targetCard =
+      exerciseCardElements[
+        getStableColumnExerciseCardIndex(scrollBody, exerciseCardElements)
+      ];
+    const targetTop = getColumnExerciseCardTargetScrollTop(
+      scrollBody,
+      targetCard,
+    );
+    const targetExerciseId = targetCard.dataset.exerciseId || null;
+
+    if (
+      targetExerciseId &&
+      targetExerciseId !== activeColumnExerciseIdRef.current
+    ) {
+      commitActiveColumnExerciseId(targetExerciseId);
+    }
+
+    if (Math.abs(scrollBody.scrollTop - targetTop) <= 2) return;
+
+    scrollBody.scrollTo({
+      behavior,
+      top: targetTop,
+    });
+    scheduleColumnCardVerticalOrbit(scrollBody);
+  };
+  const scheduleActiveColumnExerciseSnap = (scrollBody: HTMLElement) => {
+    exerciseColumnActiveSnapBodyRef.current = scrollBody;
+
+    if (exerciseColumnActiveSnapTimeoutRef.current !== null) {
+      window.clearTimeout(exerciseColumnActiveSnapTimeoutRef.current);
+    }
+
+    exerciseColumnActiveSnapTimeoutRef.current = window.setTimeout(() => {
+      const activeScrollBody = exerciseColumnActiveSnapBodyRef.current;
+      exerciseColumnActiveSnapBodyRef.current = null;
+      exerciseColumnActiveSnapTimeoutRef.current = null;
+
+      if (activeScrollBody) {
+        snapClosestColumnExerciseToAnchor(activeScrollBody);
+      }
+    }, exerciseColumnActiveSnapDelayMs);
+  };
+  const scheduleActiveColumnExerciseSync = (scrollBody: HTMLElement) => {
+    exerciseColumnActiveSyncBodyRef.current = scrollBody;
+    scheduleActiveColumnExerciseSnap(scrollBody);
+
+    if (exerciseColumnActiveSyncFrameRef.current !== null) return;
+
+    exerciseColumnActiveSyncFrameRef.current = window.requestAnimationFrame(
+      () => {
+        const activeScrollBody = exerciseColumnActiveSyncBodyRef.current;
+        exerciseColumnActiveSyncBodyRef.current = null;
+        exerciseColumnActiveSyncFrameRef.current = null;
+
+        if (activeScrollBody) {
+          syncActiveColumnExerciseFromScroll(activeScrollBody);
+        }
+      },
+    );
+  };
+  const getClosestColumnExerciseCardIndex = (
+    scrollBody: HTMLElement,
+    exerciseCardElements: HTMLElement[],
+  ) => {
+    if (!exerciseCardElements.length) return 0;
+
+    const scrollCenterY =
+      scrollBody.scrollTop +
+      scrollBody.clientHeight * exerciseColumnActiveCardAnchorRatio;
+
+    return exerciseCardElements.reduce((closestIndex, card, cardIndex) => {
+      const closestCard = exerciseCardElements[closestIndex];
+      const closestDistance = Math.abs(
+        getColumnExerciseCardCenterY(closestCard) - scrollCenterY,
+      );
+      const cardDistance = Math.abs(
+        getColumnExerciseCardCenterY(card) - scrollCenterY,
+      );
+
+      return cardDistance < closestDistance ? cardIndex : closestIndex;
+    }, 0);
+  };
+  const getStableColumnExerciseCardIndex = (
+    scrollBody: HTMLElement,
+    exerciseCardElements: HTMLElement[],
+  ) => {
+    const closestIndex = getClosestColumnExerciseCardIndex(
+      scrollBody,
+      exerciseCardElements,
+    );
+    const activeExerciseId = activeColumnExerciseIdRef.current;
+    const activeIndex = activeExerciseId
+      ? exerciseCardElements.findIndex(
+          (card) => card.dataset.exerciseId === activeExerciseId,
+        )
+      : -1;
+
+    if (
+      activeIndex < 0 ||
+      activeIndex === closestIndex ||
+      Math.abs(activeIndex - closestIndex) > 1
+    ) {
+      return closestIndex;
+    }
+
+    const maxScrollTop = Math.max(
+      0,
+      scrollBody.scrollHeight - scrollBody.clientHeight,
+    );
+
+    if (scrollBody.scrollTop <= 1 || scrollBody.scrollTop >= maxScrollTop - 1) {
+      return closestIndex;
+    }
+
+    const anchorY =
+      scrollBody.scrollTop +
+      scrollBody.clientHeight * exerciseColumnActiveCardAnchorRatio;
+    const activeCard = exerciseCardElements[activeIndex];
+    const closestCard = exerciseCardElements[closestIndex];
+    const activeDistance = Math.abs(
+      getColumnExerciseCardCenterY(activeCard) - anchorY,
+    );
+    const closestDistance = Math.abs(
+      getColumnExerciseCardCenterY(closestCard) - anchorY,
+    );
+    const averageCardHeight =
+      (activeCard.offsetHeight + closestCard.offsetHeight) / 2 || 180;
+    const commitDistance = clampExerciseColumnOrbitValue(
+      averageCardHeight * 0.16,
+      exerciseColumnActiveCardCommitMinDistancePx,
+      exerciseColumnActiveCardCommitMaxDistancePx,
+    );
+
+    return closestDistance + commitDistance < activeDistance
+      ? closestIndex
+      : activeIndex;
+  };
+  const scrollActiveColumnExerciseByDirection = (
+    direction: -1 | 1,
+    inputMode: "keyboard" | "wheel",
+  ): "moved" | "edge" | "blocked" => {
+    const now = Date.now();
+    const delayRef =
+      inputMode === "keyboard"
+        ? exerciseColumnKeyboardDelayRef
+        : exerciseColumnVerticalScrollDelayRef;
+    const delayMs = inputMode === "keyboard" ? 55 : 70;
+
+    if (now - delayRef.current < delayMs) return "blocked";
+
+    const scrollBody = document.querySelector<HTMLElement>(
+      ".exercise-library-column-orbit__column[data-active=\"true\"] [data-column-card-scroll=\"true\"]",
+    );
+
+    if (!scrollBody) return "blocked";
+
+    const exerciseCardElements = getColumnExerciseCardElements(scrollBody);
+    if (!exerciseCardElements.length) return "blocked";
+
+    const currentIndex = getStableColumnExerciseCardIndex(
       scrollBody,
       exerciseCardElements,
     );
@@ -23029,14 +25600,19 @@ export default function ExerciseLibraryPage() {
     const nextExerciseId =
       exerciseCardElements[nextIndex]?.dataset.exerciseId || null;
 
-    if (!nextExerciseId || nextIndex === currentIndex) return;
+    if (!nextExerciseId || nextIndex === currentIndex) return "edge";
 
-    setActiveColumnExerciseId(nextExerciseId);
-    exerciseCardElements[nextIndex].scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-      inline: "nearest",
+    delayRef.current = now;
+    commitActiveColumnExerciseId(nextExerciseId);
+    scrollBody.scrollTo({
+      behavior: "auto",
+      top: getColumnExerciseCardTargetScrollTop(
+        scrollBody,
+        exerciseCardElements[nextIndex],
+      ),
     });
+    scheduleColumnCardVerticalOrbit(scrollBody);
+    return "moved";
   };
   const handleExerciseColumnOrbitWheel = (
     event: ReactWheelEvent<HTMLDivElement>,
@@ -23046,40 +25622,69 @@ export default function ExerciseLibraryPage() {
     const scrollBody = targetElement?.closest<HTMLElement>(
       "[data-column-card-scroll='true']",
     );
+    const horizontalDelta = Math.abs(event.deltaX);
+    const verticalDelta = Math.abs(event.deltaY);
 
-    if (scrollBody && Math.abs(event.deltaY) >= Math.abs(event.deltaX)) {
-      const canScrollDown =
-        scrollBody.scrollTop + scrollBody.clientHeight <
-        scrollBody.scrollHeight - 1;
-      const canScrollUp = scrollBody.scrollTop > 1;
+    if (verticalDelta >= 8 && verticalDelta >= horizontalDelta) {
+      event.preventDefault();
+      event.stopPropagation();
 
-      if (
-        (event.deltaY > 0 && canScrollDown) ||
-        (event.deltaY < 0 && canScrollUp)
-      ) {
-        event.preventDefault();
-        scrollActiveColumnExerciseByDirection(
-          event.deltaY > 0 ? 1 : -1,
-          "wheel",
+      const wheelDeltaY =
+        event.deltaMode === 1
+          ? event.deltaY * 40
+          : event.deltaMode === 2
+            ? event.deltaY * (scrollBody?.clientHeight || window.innerHeight)
+            : event.deltaY;
+
+      if (scrollBody) {
+        const shouldStepColumnCards =
+          event.deltaMode !== 0 ||
+          Math.abs(wheelDeltaY) >= exerciseColumnWheelStepDeltaPx;
+
+        if (shouldStepColumnCards) {
+          const stepResult = scrollActiveColumnExerciseByDirection(
+            wheelDeltaY > 0 ? 1 : -1,
+            "wheel",
+          );
+
+          if (stepResult !== "edge") return;
+        }
+
+        const maxScrollTop = Math.max(
+          0,
+          scrollBody.scrollHeight - scrollBody.clientHeight,
         );
+        const nextScrollTop = Math.min(
+          maxScrollTop,
+          Math.max(0, scrollBody.scrollTop + wheelDeltaY),
+        );
+
+        if (Math.abs(nextScrollTop - scrollBody.scrollTop) > 0.5) {
+          scrollBody.scrollTop = nextScrollTop;
+          scheduleColumnCardVerticalOrbit(scrollBody);
+          scheduleActiveColumnExerciseSync(scrollBody);
+          return;
+        }
+      }
+
+      if (event.deltaY < 0 && activePageScrollStepId === "library") {
+        scrollExerciseLibraryPageToStep("intro");
         return;
       }
+
+      scrollExerciseLibraryPageToStep("library", "auto");
+      return;
     }
 
-    const dominantDelta =
-      Math.abs(event.deltaX) > Math.abs(event.deltaY)
-        ? event.deltaX
-        : event.deltaY;
-
-    if (Math.abs(dominantDelta) < 16) return;
+    if (horizontalDelta < 8 || horizontalDelta < verticalDelta * 1.15) return;
 
     event.preventDefault();
 
     const now = Date.now();
-    if (now - exerciseColumnOrbitWheelDelayRef.current < 360) return;
+    if (now - exerciseColumnOrbitWheelDelayRef.current < 115) return;
 
     exerciseColumnOrbitWheelDelayRef.current = now;
-    moveExerciseColumnOrbit(dominantDelta > 0 ? 1 : -1);
+    moveExerciseColumnOrbit(event.deltaX > 0 ? 1 : -1);
   };
   const handleExerciseColumnOrbitKeyDown = (
     event: ReactKeyboardEvent<HTMLDivElement>,
@@ -23099,7 +25704,7 @@ export default function ExerciseLibraryPage() {
       event.preventDefault();
 
       const now = Date.now();
-      if (now - exerciseColumnKeyboardDelayRef.current < 150) return;
+      if (now - exerciseColumnKeyboardDelayRef.current < 70) return;
       exerciseColumnKeyboardDelayRef.current = now;
 
       moveExerciseColumnOrbit(event.key === "ArrowRight" ? 1 : -1);
@@ -23114,10 +25719,149 @@ export default function ExerciseLibraryPage() {
       );
     }
   };
+  const resetExerciseColumnBodyDragState = () => {
+    exerciseColumnBodyDragStateRef.current = {
+      hasDragged: false,
+      isPointerDown: false,
+      mode: null,
+      pointerId: 0,
+      scrollBody: null,
+      startScrollTop: 0,
+      startX: 0,
+      startY: 0,
+    };
+  };
+  const startExerciseColumnBodyDrag = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (event.button !== 0) return;
+
+    const targetElement =
+      event.target instanceof Element ? event.target : null;
+
+    if (
+      targetElement?.closest(
+        "input,select,textarea,[contenteditable='true'],[contenteditable=''],[data-no-drag-scroll='true'],[data-exercise-library-floating-menu='true']",
+      )
+    ) {
+      return;
+    }
+
+    const scrollBody = event.currentTarget;
+    const column = scrollBody.closest<HTMLElement>(
+      ".exercise-library-column-orbit__column",
+    );
+
+    if (column?.dataset.active !== "true") return;
+
+    exerciseColumnBodyDragStateRef.current = {
+      hasDragged: false,
+      isPointerDown: true,
+      mode: null,
+      pointerId: event.pointerId,
+      scrollBody,
+      startScrollTop: scrollBody.scrollTop,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    scrollBody.setPointerCapture(event.pointerId);
+  };
+  const continueExerciseColumnBodyDrag = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const dragState = exerciseColumnBodyDragStateRef.current;
+
+    if (!dragState.isPointerDown || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const scrollBody = dragState.scrollBody || event.currentTarget;
+    const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+    const horizontalDelta = Math.abs(deltaX);
+    const verticalDelta = Math.abs(deltaY);
+
+    if (!dragState.mode) {
+      if (
+        horizontalDelta < exerciseColumnBodyDragThresholdPx &&
+        verticalDelta < exerciseColumnBodyDragThresholdPx
+      ) {
+        return;
+      }
+
+      dragState.mode =
+        verticalDelta >= horizontalDelta ? "vertical" : "horizontal";
+      dragState.hasDragged = true;
+      scrollBody.dataset.dragging = dragState.mode;
+    }
+
+    event.preventDefault();
+
+    if (dragState.mode === "vertical") {
+      scrollBody.scrollTop = dragState.startScrollTop - deltaY;
+      scheduleColumnCardVerticalOrbit(scrollBody);
+      syncActiveColumnExerciseFromScroll(scrollBody);
+    }
+  };
+  const finishExerciseColumnBodyDrag = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const dragState = exerciseColumnBodyDragStateRef.current;
+
+    if (!dragState.isPointerDown || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const scrollBody = dragState.scrollBody || event.currentTarget;
+    const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+    const horizontalDelta = Math.abs(deltaX);
+    const verticalDelta = Math.abs(deltaY);
+    const didDrag = dragState.hasDragged;
+    const dragMode = dragState.mode;
+
+    if (scrollBody.hasPointerCapture(event.pointerId)) {
+      scrollBody.releasePointerCapture(event.pointerId);
+    }
+
+    delete scrollBody.dataset.dragging;
+    resetExerciseColumnBodyDragState();
+
+    if (didDrag) {
+      suppressExerciseColumnBodyClickRef.current = true;
+      window.setTimeout(() => {
+        suppressExerciseColumnBodyClickRef.current = false;
+      }, 160);
+    }
+
+    if (dragMode === "vertical") {
+      snapClosestColumnExerciseToAnchor(scrollBody);
+      return;
+    }
+
+    if (
+      dragMode === "horizontal" &&
+      horizontalDelta >= 34 &&
+      horizontalDelta >= verticalDelta * 1.15
+    ) {
+      moveExerciseColumnOrbit(deltaX < 0 ? 1 : -1);
+    }
+  };
+  const handleExerciseColumnBodyClickCapture = (
+    event: MouseEvent<HTMLDivElement>,
+  ) => {
+    if (!suppressExerciseColumnBodyClickRef.current) return;
+
+    suppressExerciseColumnBodyClickRef.current = false;
+    event.preventDefault();
+    event.stopPropagation();
+  };
   const startExerciseColumnOrbitDrag = (
     event: ReactPointerEvent<HTMLDivElement>,
   ) => {
     if (event.button !== 0) return;
+
+    event.currentTarget.focus({ preventScroll: true });
 
     const targetElement =
       event.target instanceof Element ? event.target : null;
@@ -23155,12 +25899,12 @@ export default function ExerciseLibraryPage() {
 
     const deltaX = event.clientX - dragState.startX;
     const deltaY = event.clientY - dragState.startY;
-    const dominantDelta =
-      Math.abs(deltaX) >= Math.abs(deltaY) ? deltaX : deltaY;
+    const horizontalDelta = Math.abs(deltaX);
+    const verticalDelta = Math.abs(deltaY);
 
-    if (Math.abs(dominantDelta) < 30) return;
+    if (horizontalDelta < 30 || horizontalDelta < verticalDelta * 1.15) return;
 
-    moveExerciseColumnOrbit(dominantDelta < 0 ? 1 : -1);
+    moveExerciseColumnOrbit(deltaX < 0 ? 1 : -1);
   };
   const syncActiveColumnExerciseFromScroll = (scrollBody: HTMLElement) => {
     const exerciseCardElements = getColumnExerciseCardElements(scrollBody);
@@ -23169,16 +25913,19 @@ export default function ExerciseLibraryPage() {
 
     const closestExerciseCard =
       exerciseCardElements[
-        getClosestColumnExerciseCardIndex(scrollBody, exerciseCardElements)
+        getStableColumnExerciseCardIndex(scrollBody, exerciseCardElements)
       ];
     const nextExerciseId = closestExerciseCard.dataset.exerciseId || null;
 
-    if (nextExerciseId && nextExerciseId !== activeColumnExerciseId) {
-      setActiveColumnExerciseId(nextExerciseId);
+    if (
+      nextExerciseId &&
+      nextExerciseId !== activeColumnExerciseIdRef.current
+    ) {
+      commitActiveColumnExerciseId(nextExerciseId);
     }
   };
   const scrollActiveColumnExerciseIntoView = (exerciseId: string) => {
-    setActiveColumnExerciseId(exerciseId);
+    commitActiveColumnExerciseId(exerciseId);
 
     window.requestAnimationFrame(() => {
       const safeExerciseId = exerciseId
@@ -23190,13 +25937,450 @@ export default function ExerciseLibraryPage() {
 
       if (!target) return;
 
-      target.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-        inline: "nearest",
+      const scrollBody = target.closest<HTMLElement>(
+        "[data-column-card-scroll='true']",
+      );
+
+      if (!scrollBody) return;
+
+      scrollBody.scrollTo({
+        behavior: "auto",
+        top: getColumnExerciseCardTargetScrollTop(scrollBody, target),
       });
+      scheduleColumnCardVerticalOrbit(scrollBody);
     });
   };
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(
+      applyAllColumnCardVerticalOrbits,
+    );
+    const handleResize = () => applyAllColumnCardVerticalOrbits();
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.removeEventListener("resize", handleResize);
+
+      if (exerciseColumnVerticalOrbitFrameRef.current !== null) {
+        window.cancelAnimationFrame(exerciseColumnVerticalOrbitFrameRef.current);
+        exerciseColumnVerticalOrbitFrameRef.current = null;
+      }
+
+      if (exerciseColumnActiveSyncFrameRef.current !== null) {
+        window.cancelAnimationFrame(exerciseColumnActiveSyncFrameRef.current);
+        exerciseColumnActiveSyncFrameRef.current = null;
+      }
+
+      if (exerciseColumnActiveSnapTimeoutRef.current !== null) {
+        window.clearTimeout(exerciseColumnActiveSnapTimeoutRef.current);
+        exerciseColumnActiveSnapTimeoutRef.current = null;
+      }
+
+      if (exerciseColumnScrollActiveTimeoutRef.current !== null) {
+        window.clearTimeout(exerciseColumnScrollActiveTimeoutRef.current);
+        exerciseColumnScrollActiveTimeoutRef.current = null;
+      }
+
+      if (exerciseColumnScrollActiveColumnRef.current) {
+        delete exerciseColumnScrollActiveColumnRef.current.dataset.cardScrolling;
+        exerciseColumnScrollActiveColumnRef.current = null;
+      }
+    };
+  }, [
+    activeRenderedExerciseSectionKey,
+    currentPage,
+    exerciseSections,
+    sortMode,
+    viewMode,
+  ]);
+
+  useLayoutEffect(() => {
+    const heroCard = exerciseLibraryHeroCardRef.current;
+    const pageOrbit = exerciseLibraryPageSectionOrbitRef.current;
+
+    if (!heroCard || !pageOrbit) return;
+
+    let frameId = 0;
+    const updateIntroScrollerTop = () => {
+      window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => {
+        const heroRect = heroCard.getBoundingClientRect();
+        const orbitRect = pageOrbit.getBoundingClientRect();
+        const introArrowHeight = 37.6;
+        const nextTop = Math.max(
+          0,
+          heroRect.bottom - orbitRect.top - introArrowHeight,
+        );
+
+        setExerciseLibraryIntroScrollerTop((currentTop) =>
+          currentTop === null || Math.abs(currentTop - nextTop) > 0.5
+            ? nextTop
+            : currentTop,
+        );
+      });
+    };
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(updateIntroScrollerTop)
+        : null;
+
+    updateIntroScrollerTop();
+    resizeObserver?.observe(heroCard);
+    resizeObserver?.observe(pageOrbit);
+    window.addEventListener("resize", updateIntroScrollerTop);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateIntroScrollerTop);
+    };
+  }, [activePageScrollStepId, uiThemeId]);
+
+  const getExerciseLibraryPageScrollTarget = useCallback(
+    (stepId: ExerciseLibraryPageScrollerStepId): HTMLElement | null => {
+      switch (stepId) {
+        case "intro":
+          return exerciseLibraryIntroSectionRef.current;
+        case "library":
+          return exerciseLibraryLibrarySectionRef.current;
+        default:
+          return null;
+      }
+    },
+    [],
+  );
+
+  const applyExerciseLibraryPageSectionOrbit = useCallback(
+    (scrollBody: HTMLElement) => {
+      const sectionCards = Array.from(scrollBody.children).filter(
+        (child): child is HTMLElement =>
+          child instanceof HTMLElement &&
+          child.dataset.pageSectionOrbitCard === "true",
+      );
+      const visibleSectionCards = sectionCards.filter(
+        (card) => window.getComputedStyle(card).display !== "none",
+      );
+
+      visibleSectionCards.forEach((card) => {
+        card.style.transform = "none";
+        card.dataset.pageOrbitTransform = "none";
+        card.style.opacity = "1";
+        card.style.zIndex = "80";
+        card.style.pointerEvents = "auto";
+        card.dataset.pageOrbitActive = "true";
+      });
+    },
+    [],
+  );
+
+  const scheduleExerciseLibraryPageSectionOrbit = useCallback(
+    (scrollBody?: HTMLElement | null) => {
+      const targetScrollBody =
+        scrollBody || exerciseLibraryPageOrbitBodyRef.current;
+      if (!targetScrollBody) return;
+
+      if (exerciseLibraryPageOrbitFrameRef.current !== null) return;
+
+      exerciseLibraryPageOrbitFrameRef.current = window.requestAnimationFrame(
+        () => {
+          exerciseLibraryPageOrbitFrameRef.current = null;
+          applyExerciseLibraryPageSectionOrbit(targetScrollBody);
+        },
+      );
+    },
+    [applyExerciseLibraryPageSectionOrbit],
+  );
+
+  const updateActivePageScrollStepFromOrbit = useCallback(
+    (scrollBody: HTMLElement) => {
+      let closestStepId: ExerciseLibraryPageScrollerStepId = "intro";
+      let closestDistance = Number.POSITIVE_INFINITY;
+      const safeTop = getTopNavigationSafeArea();
+      const scrollBodyDocumentTop =
+        window.scrollY + scrollBody.getBoundingClientRect().top;
+      const anchorY = window.scrollY + safeTop + window.innerHeight * 0.3;
+
+      exerciseLibraryPageScrollerSteps.forEach((step) => {
+        const target = getExerciseLibraryPageScrollTarget(step.id);
+        if (!target) return;
+
+        const distance = Math.abs(scrollBodyDocumentTop + target.offsetTop - anchorY);
+
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestStepId = step.id;
+        }
+      });
+
+      setActivePageScrollStepId((currentStepId) =>
+        currentStepId === closestStepId ? currentStepId : closestStepId,
+      );
+    },
+    [getExerciseLibraryPageScrollTarget],
+  );
+
+  const getExerciseLibraryPageStepTop = useCallback(
+    (stepId: ExerciseLibraryPageScrollerStepId) => {
+      const scrollBody = exerciseLibraryPageOrbitBodyRef.current;
+      const target = getExerciseLibraryPageScrollTarget(stepId);
+      if (!scrollBody || !target) return null;
+
+      const safeTop = getTopNavigationSafeArea();
+      const scrollBodyDocumentTop =
+        window.scrollY + scrollBody.getBoundingClientRect().top;
+
+      return Math.max(
+        0,
+        Math.round(scrollBodyDocumentTop + target.offsetTop - safeTop - 12),
+      );
+    },
+    [getExerciseLibraryPageScrollTarget],
+  );
+
+  const getExerciseLibraryMaxPageScrollTop = useCallback(() => {
+    const pageOrbit = exerciseLibraryPageSectionOrbitRef.current;
+    const libraryStage = pageOrbit?.querySelector(
+      ".exercise-library-page-section-orbit__card--library .exercise-library-column-orbit__overlay-stage",
+    );
+    const pageFrame = pageOrbit?.closest(".exercise-library-column-orbit");
+    const frameElement =
+      libraryStage instanceof HTMLElement
+        ? libraryStage
+        : pageFrame instanceof HTMLElement
+          ? pageFrame
+          : pageOrbit;
+
+    if (!frameElement) return null;
+
+    const frameBottom =
+      window.scrollY + frameElement.getBoundingClientRect().bottom;
+
+    return Math.max(0, Math.floor(frameBottom - window.innerHeight));
+  }, []);
+
+  const getClampedExerciseLibraryPageStepTop = useCallback(
+    (stepId: ExerciseLibraryPageScrollerStepId) => {
+      const targetTop = getExerciseLibraryPageStepTop(stepId);
+      if (targetTop === null) return null;
+
+      if (stepId !== "library") return targetTop;
+
+      const maxPageScrollTop = getExerciseLibraryMaxPageScrollTop();
+      if (maxPageScrollTop === null) return targetTop;
+
+      return Math.min(targetTop, maxPageScrollTop);
+    },
+    [getExerciseLibraryMaxPageScrollTop, getExerciseLibraryPageStepTop],
+  );
+
+  const getClosestExerciseLibraryPageStepId = useCallback(() => {
+    let closestStepId: ExerciseLibraryPageScrollerStepId = "intro";
+    let closestDistance = Number.POSITIVE_INFINITY;
+
+    exerciseLibraryPageScrollerSteps.forEach((step) => {
+      const targetTop = getClampedExerciseLibraryPageStepTop(step.id);
+      if (targetTop === null) return;
+
+      const distance = Math.abs(window.scrollY - targetTop);
+
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestStepId = step.id;
+      }
+    });
+
+    return closestStepId;
+  }, [getClampedExerciseLibraryPageStepTop]);
+
+  const clampExerciseLibraryPageScroll = useCallback(() => {
+    const maxPageScrollTop = getExerciseLibraryMaxPageScrollTop();
+    const libraryTop = getClampedExerciseLibraryPageStepTop("library");
+    if (maxPageScrollTop === null && libraryTop === null) return false;
+
+    const maxAllowedScrollY = Math.max(
+      0,
+      maxPageScrollTop ?? libraryTop ?? 0,
+    );
+    if (window.scrollY <= maxAllowedScrollY + 2) return false;
+
+    window.scrollTo({
+      behavior: "auto",
+      top: maxAllowedScrollY,
+    });
+    return true;
+  }, [
+    getClampedExerciseLibraryPageStepTop,
+    getExerciseLibraryMaxPageScrollTop,
+  ]);
+
+  const isExerciseLibraryPageAnchorInRange = useCallback(() => {
+    const pageOrbit = exerciseLibraryPageSectionOrbitRef.current;
+    if (!pageOrbit) return false;
+
+    const safeTop = getTopNavigationSafeArea();
+    const orbitRect = pageOrbit.getBoundingClientRect();
+    const orbitTop = window.scrollY + orbitRect.top;
+    const orbitBottom = orbitTop + orbitRect.height;
+    const anchorY = window.scrollY + safeTop + window.innerHeight * 0.32;
+
+    return anchorY >= orbitTop - 80 && anchorY <= orbitBottom + 80;
+  }, []);
+
+  const scrollExerciseLibraryPageToStep = useCallback(
+    (
+      stepId: ExerciseLibraryPageScrollerStepId,
+      behavior: ScrollBehavior = "smooth",
+    ) => {
+      const scrollBody = exerciseLibraryPageOrbitBodyRef.current;
+      const targetTop = getClampedExerciseLibraryPageStepTop(stepId);
+      if (!scrollBody || targetTop === null) return;
+
+      exerciseLibraryPageSnapLockRef.current =
+        Date.now() + (behavior === "smooth" ? 620 : 180);
+      setActivePageScrollStepId(stepId);
+      window.scrollTo({
+        behavior,
+        top: targetTop,
+      });
+      scheduleExerciseLibraryPageSectionOrbit(scrollBody);
+    },
+    [
+      getClampedExerciseLibraryPageStepTop,
+      scheduleExerciseLibraryPageSectionOrbit,
+    ],
+  );
+
+  const scrollExerciseLibraryPageByDirection = useCallback(
+    (direction: -1 | 1) => {
+      const currentIndex = exerciseLibraryPageScrollerSteps.findIndex(
+        (step) => step.id === activePageScrollStepId,
+      );
+      const resolvedIndex = currentIndex >= 0 ? currentIndex : 0;
+      const nextIndex = Math.min(
+        exerciseLibraryPageScrollerSteps.length - 1,
+        Math.max(0, resolvedIndex + direction),
+      );
+      const nextStep = exerciseLibraryPageScrollerSteps[nextIndex];
+
+      if (nextStep) scrollExerciseLibraryPageToStep(nextStep.id);
+    },
+    [activePageScrollStepId, scrollExerciseLibraryPageToStep],
+  );
+
+  useEffect(() => {
+    const scrollBody = exerciseLibraryPageOrbitBodyRef.current;
+    if (!scrollBody) return;
+
+    const snapToClosestPageStep = () => {
+      if (!isExerciseLibraryPageAnchorInRange()) return;
+      if (Date.now() < exerciseLibraryPageSnapLockRef.current) return;
+
+      scrollExerciseLibraryPageToStep(getClosestExerciseLibraryPageStepId());
+    };
+    const syncPageOrbit = () => {
+      if (clampExerciseLibraryPageScroll()) return;
+
+      scheduleExerciseLibraryPageSectionOrbit(scrollBody);
+      updateActivePageScrollStepFromOrbit(scrollBody);
+
+      if (Date.now() < exerciseLibraryPageSnapLockRef.current) return;
+      if (!isExerciseLibraryPageAnchorInRange()) return;
+
+      if (exerciseLibraryPageSnapTimeoutRef.current !== null) {
+        window.clearTimeout(exerciseLibraryPageSnapTimeoutRef.current);
+      }
+
+      exerciseLibraryPageSnapTimeoutRef.current = window.setTimeout(() => {
+        exerciseLibraryPageSnapTimeoutRef.current = null;
+        snapToClosestPageStep();
+      }, 140);
+    };
+    const handlePageWheel = (event: WheelEvent) => {
+      const pageOrbit = exerciseLibraryPageSectionOrbitRef.current;
+      const target = event.target instanceof Element ? event.target : null;
+      const pageRoot = document.querySelector<HTMLElement>(
+        ".exercise-library-page-theme",
+      );
+      if (!pageOrbit || !target || !pageRoot) return;
+      if (
+        !pageRoot.contains(target) &&
+        target !== document.body &&
+        target !== document.documentElement
+      ) {
+        return;
+      }
+      if (event.defaultPrevented) return;
+      if (Math.abs(event.deltaY) < 8) return;
+      if (
+        target.closest(
+          [
+            ".exercise-library-column-orbit__viewport",
+            ".exercise-library-filter-menu-panel",
+            "input",
+            "select",
+            "textarea",
+            "[role='dialog']",
+          ].join(","),
+        )
+      ) {
+        return;
+      }
+      if (exerciseLibraryPageScrollerSteps.length <= 1) return;
+
+      event.preventDefault();
+
+      if (Date.now() < exerciseLibraryPageSnapLockRef.current) return;
+
+      const currentStepId = getClosestExerciseLibraryPageStepId();
+      const currentIndex = exerciseLibraryPageScrollerSteps.findIndex(
+        (step) => step.id === currentStepId,
+      );
+      const nextIndex = Math.min(
+        exerciseLibraryPageScrollerSteps.length - 1,
+        Math.max(0, currentIndex + (event.deltaY > 0 ? 1 : -1)),
+      );
+      const nextStep = exerciseLibraryPageScrollerSteps[nextIndex];
+
+      if (nextStep && nextStep.id !== currentStepId) {
+        scrollExerciseLibraryPageToStep(nextStep.id);
+        return;
+      }
+
+      scrollExerciseLibraryPageToStep(currentStepId, "auto");
+    };
+    const handleResize = () => syncPageOrbit();
+
+    syncPageOrbit();
+    window.addEventListener("scroll", syncPageOrbit, { passive: true });
+    window.addEventListener("resize", handleResize);
+    window.addEventListener("wheel", handlePageWheel, { passive: false });
+
+    return () => {
+      window.removeEventListener("scroll", syncPageOrbit);
+      window.removeEventListener("resize", handleResize);
+      window.removeEventListener("wheel", handlePageWheel);
+
+      if (exerciseLibraryPageSnapTimeoutRef.current !== null) {
+        window.clearTimeout(exerciseLibraryPageSnapTimeoutRef.current);
+        exerciseLibraryPageSnapTimeoutRef.current = null;
+      }
+
+      if (exerciseLibraryPageOrbitFrameRef.current !== null) {
+        window.cancelAnimationFrame(exerciseLibraryPageOrbitFrameRef.current);
+        exerciseLibraryPageOrbitFrameRef.current = null;
+      }
+    };
+  }, [
+    clampExerciseLibraryPageScroll,
+    getClosestExerciseLibraryPageStepId,
+    isExerciseLibraryPageAnchorInRange,
+    scheduleExerciseLibraryPageSectionOrbit,
+    scrollExerciseLibraryPageToStep,
+    updateActivePageScrollStepFromOrbit,
+  ]);
+
   const exerciseColumnUrgencyItems = activeColumnUniqueExercises.map((exercise) => {
     const section = activeRenderedExerciseSection;
     const sectionTheme = section
@@ -23246,34 +26430,154 @@ export default function ExerciseLibraryPage() {
       weeklyWeightVolumeLabel,
     };
   });
+  const activeColumnExerciseSelectorIndex = Math.max(
+    0,
+    exerciseColumnUrgencyItems.findIndex(
+      (item) => item.exercise.id === activeColumnExerciseId,
+    ),
+  );
+  const getExerciseColumnSelectorOrbitOffset = (itemIndex: number) => {
+    return itemIndex - activeColumnExerciseSelectorIndex;
+  };
+  const activeColumnExerciseSelector =
+    activePageScrollStepId === "library" && exerciseColumnUrgencyItems.length > 0 ? (
+      <div
+        aria-label="Active column exercise selector"
+        className="exercise-library-column-urgency-scroller exercise-library-column-urgency-scroller--overlay"
+        data-orbit-window-size="5"
+        onWheel={(event) => {
+          const verticalDelta = Math.abs(event.deltaY);
+          const horizontalDelta = Math.abs(event.deltaX);
+
+          if (verticalDelta < 8 || verticalDelta < horizontalDelta) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          scrollActiveColumnExerciseByDirection(
+            event.deltaY > 0 ? 1 : -1,
+            "wheel",
+          );
+        }}
+      >
+        {exerciseColumnUrgencyItems.map((item, itemIndex) => {
+          const isActive = item.exercise.id === activeColumnExerciseId;
+          const orbitOffset = getExerciseColumnSelectorOrbitOffset(itemIndex);
+          const isOrbitVisible = Math.abs(orbitOffset) <= 2;
+          const title = item.label;
+          const style = {
+            ...item.style,
+            "--exercise-column-urgency-orbit-offset": `${orbitOffset}`,
+          } as ExerciseLibraryThemeCssVariables;
+
+          return (
+            <button
+              key={item.exercise.id}
+              type="button"
+              aria-label={title}
+              aria-pressed={isActive}
+              data-exercise-id={item.exercise.id}
+              data-active={isActive ? "true" : undefined}
+              data-orbit-offset={
+                isOrbitVisible ? String(orbitOffset) : undefined
+              }
+              data-orbit-visible={isOrbitVisible ? "true" : undefined}
+              data-urgency-muted={item.isUrgencyMuted ? "true" : undefined}
+              data-volume-status={item.statusId || undefined}
+              aria-hidden={isOrbitVisible ? undefined : true}
+              onClick={() => scrollActiveColumnExerciseIntoView(item.exercise.id)}
+              style={style}
+              tabIndex={isOrbitVisible ? 0 : -1}
+              title={title}
+              className="exercise-library-column-urgency-scroller__item group/column-urgency"
+            >
+              <span
+                aria-hidden="true"
+                className="exercise-library-column-urgency-scroller__fill"
+              />
+              <span className="exercise-library-column-urgency-scroller__icon">
+                <ExerciseColumnUrgencyIcon
+                  className="h-4 w-4"
+                  name={item.iconName}
+                />
+                {item.statusId ? (
+                  <VolumeStatusIndicator
+                    className="exercise-library-column-urgency-scroller__status"
+                    sets={item.weeklySets}
+                    statusId={item.statusId}
+                  />
+                ) : null}
+              </span>
+              <span className="exercise-library-column-urgency-scroller__title">
+                {item.label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    ) : null;
   const profileInitial =
     profileSummary.displayName.trim().charAt(0).toUpperCase() || "A";
 
   return (
     <main
       data-ui-theme={uiThemeId}
-      className={`exercise-library-page-theme exercise-library-page-theme--${uiThemeId} relative isolate min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white`}
+      className={`exercise-library-page-theme exercise-library-page-theme--${uiThemeId} relative isolate min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white`}
     >
-      <section className="mx-auto w-full max-w-[1240px] space-y-6 px-3 py-6 sm:px-4 sm:py-8">
-        <section className="overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_18%_8%,rgba(34,211,238,0.2),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(16,185,129,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-4 shadow-2xl sm:rounded-[42px] sm:p-6 lg:p-8">
-          <p className="text-[11px] font-black uppercase tracking-[0.3em] text-cyan-300">
+      <section className="exercise-library-slider-shelf relative z-0 space-y-5 overflow-visible pb-0 pt-0 sm:space-y-4 sm:pb-0 sm:pt-0">
+        <div className="exercise-library-column-orbit exercise-library-column-orbit--full-width exercise-library-column-orbit--screen-edge exercise-library-column-orbit--page-stack exercise-library-column-orbit--page-corner-fill relative overflow-visible rounded-[30px] border border-cyan-100/14 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.13),transparent_34%),radial-gradient(circle_at_88%_10%,rgba(250,204,21,0.10),transparent_28%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(2,6,23,0.72))] px-3 pb-3 pt-0 shadow-[0_22px_72px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.12)] sm:px-4 sm:pb-4 sm:pt-0">
+          <DashboardOrbitalHeader className="dashboard-orbital-header--page-frame mb-2" />
+          <div
+            ref={exerciseLibraryPageSectionOrbitRef}
+            className="exercise-library-page-section-orbit"
+          >
+            {activePageScrollStepId === "intro" ? (
+              <ExerciseLibraryPageScroller
+                activeStepId={activePageScrollStepId}
+                onMove={scrollExerciseLibraryPageByDirection}
+                onSelect={scrollExerciseLibraryPageToStep}
+                placement="intro"
+                style={
+                  exerciseLibraryIntroScrollerTop === null
+                    ? undefined
+                    : ({
+                        "--exercise-library-page-scroll-intro-top": `${exerciseLibraryIntroScrollerTop}px`,
+                      } as CSSProperties)
+                }
+                steps={exerciseLibraryPageScrollerSteps}
+              />
+            ) : null}
+            <div
+              ref={exerciseLibraryPageOrbitBodyRef}
+              className="exercise-library-page-section-orbit__body"
+            >
+              <section
+                ref={exerciseLibraryIntroSectionRef}
+                data-page-section-orbit-card="true"
+                className="exercise-library-page-section-orbit__card exercise-library-page-section-orbit__card--intro"
+              >
+          <div className="exercise-library-orbit-preface mx-auto w-full max-w-[1240px] space-y-3 px-0 pb-1 sm:space-y-4 sm:pb-2">
+        <section
+          ref={exerciseLibraryHeroCardRef}
+          className="overflow-hidden rounded-[26px] border border-white/10 bg-[radial-gradient(circle_at_18%_8%,rgba(34,211,238,0.2),transparent_32%),radial-gradient(circle_at_90%_20%,rgba(16,185,129,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))] p-3 shadow-2xl sm:rounded-[34px] sm:p-4 lg:p-5"
+        >
+          <p className="text-[10px] font-black uppercase tracking-[0.26em] text-cyan-300">
             Exercise Library
           </p>
 
-          <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_320px] lg:items-end">
+          <div className="mt-3 grid gap-4 lg:grid-cols-[1fr_300px] lg:items-end">
               <div>
-                <h1 className="max-w-3xl text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
+                <h1 className="max-w-3xl text-2xl font-black leading-tight sm:text-3xl lg:text-4xl">
                   Choose the movement first.
                 </h1>
 
-                <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300">
+                <p className="mt-3 max-w-2xl text-sm leading-5 text-slate-300">
                   Start from the core movement pattern, then use compatible
                   modifiers to shape the variation you want to train.
                 </p>
-                <div className="mt-5 flex flex-wrap items-center gap-2">
+                <div className="mt-4 flex flex-wrap items-center gap-2">
                   <a
                     href={ROUTES.dashboard.stats}
-                    className="exercise-library-logic-pill inline-flex min-h-[44px] items-center rounded-2xl border border-cyan-100/24 bg-cyan-300/12 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.12)] transition hover:-translate-y-0.5 hover:border-cyan-100/55 hover:bg-cyan-300 hover:text-slate-950"
+                    className="exercise-library-logic-pill inline-flex min-h-[38px] items-center rounded-2xl border border-cyan-100/24 bg-cyan-300/12 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.12)] transition hover:-translate-y-0.5 hover:border-cyan-100/55 hover:bg-cyan-300 hover:text-slate-950"
                   >
                     Training Analytics
                   </a>
@@ -23283,17 +26587,17 @@ export default function ExerciseLibraryPage() {
                 </div>
               </div>
 
-            <div className="rounded-[28px] border border-cyan-300/20 bg-cyan-400/10 p-5 flex flex-col justify-between">
-              <div className="exercise-library-goal-engine mb-4 rounded-[24px] border border-white/12 bg-[radial-gradient(circle_at_10%_0%,rgba(250,204,21,0.16),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.70),rgba(2,6,23,0.50))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_34px_rgba(0,0,0,0.18)]">
+            <div className="flex flex-col justify-between rounded-[24px] border border-cyan-300/20 bg-cyan-400/10 p-4">
+              <div className="exercise-library-goal-engine mb-3 rounded-[20px] border border-white/12 bg-[radial-gradient(circle_at_10%_0%,rgba(250,204,21,0.16),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.70),rgba(2,6,23,0.50))] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_14px_34px_rgba(0,0,0,0.18)]">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-[9px] font-black uppercase tracking-[0.18em] text-yellow-200/80">
                       Goal Command
                     </p>
-                    <h2 className="mt-1 truncate text-lg font-black leading-6 text-white">
+                    <h2 className="mt-1 truncate text-base font-black leading-5 text-white">
                       {goalLogicSummary.primaryGoalLabel}
                     </h2>
-                    <p className="mt-1 text-[11px] font-bold leading-4 text-cyan-100/78">
+                    <p className="mt-1 text-[10px] font-bold leading-4 text-cyan-100/78">
                       {goalLogicSummary.emphasisLabel}
                     </p>
                     <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-slate-300">
@@ -23303,7 +26607,7 @@ export default function ExerciseLibraryPage() {
                       {profileSummary.displayName} · {goalLogicSummary.recoveryRiskLabel}
                     </p>
                   </div>
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-cyan-100/20 bg-slate-950/60 text-xl font-black text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)]">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-cyan-100/20 bg-slate-950/60 text-lg font-black text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)]">
                     {profileSummary.avatarUrl ? (
                       <img
                         src={profileSummary.avatarUrl}
@@ -23318,7 +26622,7 @@ export default function ExerciseLibraryPage() {
               </div>
               <div>
                 <p className="text-sm text-slate-300">Library Count</p>
-                <p className="mt-2 text-3xl font-black text-white sm:text-4xl">
+                <p className="mt-1 text-2xl font-black text-white sm:text-3xl">
                   {allExercises.length}
                 </p>
                 <p className="mt-1 text-sm text-slate-400">
@@ -23335,7 +26639,7 @@ export default function ExerciseLibraryPage() {
                 onClick={() =>
                   (window.location.href = ROUTES.workoutBuilder.home)
                 }
-                className="mt-4 min-h-[48px] rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-sm font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white"
+                className="mt-3 min-h-[42px] rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm font-black text-slate-300 transition hover:border-cyan-300/40 hover:text-white"
               >
                 ← Back to Workout Builder
               </button>
@@ -23343,521 +26647,29 @@ export default function ExerciseLibraryPage() {
           </div>
         </section>
 
-        <ExerciseLibraryWidgetDock
-          bodyBalanceLabel={
-            highestVolumeBodyTarget
-              ? `${highestVolumeBodyTarget.body} leads this range`
-              : "Log sets to compare regions"
-          }
-          currentFocusLabel={currentFocusLabel}
-          latestTrainingExerciseName={latestTrainingExerciseName}
-          latestTrainingLine={latestTrainingLine}
-          onCreateExercise={openCreateExerciseForm}
-          onThemeChange={updateExerciseLibraryUiTheme}
-          sectionTheme={activeExerciseSectionTheme}
-          shortcuts={trainingShortcuts}
-          themeId={uiThemeId}
-          preferredWeightUnit={preferredWeightUnit}
-          weeklyGoalSets={allBodyRegionWeeklySetGoal}
-          weeklyMuscleGroupsHit={weeklyMuscleGroupsHit}
-          weeklyWeightVolume={weeklyTotalWeightVolume}
-          weeklyWeightVolumeComparisonLabel={weeklyWeightVolumeComparisonLabel}
-          weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
-          weeklySets={weeklyTotalSets}
-        />
-
-        <section className="exercise-library-filter-command-center relative z-30 overflow-visible rounded-[26px] border border-cyan-100/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_34%),radial-gradient(circle_at_86%_14%,rgba(16,185,129,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.78))] p-2.5 shadow-[0_24px_80px_rgba(0,0,0,0.42),0_0_46px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-white/[0.045] backdrop-blur-2xl backdrop-saturate-150 sm:rounded-[32px] sm:p-4 md:p-3 min-[1100px]:p-4">
-          <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/60 to-transparent" />
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-end min-[1100px]:grid-cols-[1fr_auto_auto] min-[1100px]:items-start">
-            <div className="col-span-2 md:col-span-2 min-[1100px]:col-span-1">
-              <p className="inline-flex rounded-full border border-emerald-200/16 bg-emerald-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200 shadow-[0_0_18px_rgba(16,185,129,0.10)]">
-                Movement Filters
-              </p>
-
-              <SearchInputWithSuggestions
-                value={search}
-                onChange={setSearch}
-                suggestions={searchSuggestions}
-              />
-            </div>
-
-            <div className="flex min-h-[42px] items-center gap-2 rounded-2xl border border-cyan-100/14 bg-[linear-gradient(135deg,rgba(15,23,42,0.88),rgba(8,47,73,0.42))] px-2.5 py-1.5 shadow-[0_14px_34px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] ring-1 ring-white/[0.035] md:min-h-[40px] md:min-w-[12rem] md:justify-self-start md:gap-2.5 md:px-3 md:py-1.5 min-[1100px]:block min-[1100px]:rounded-[22px] min-[1100px]:px-4 min-[1100px]:py-2.5">
-              <p className="text-[9px] font-bold uppercase leading-none tracking-[0.1em] text-slate-400 md:text-[10px] md:leading-none md:tracking-[0.12em] min-[1100px]:text-xs min-[1100px]:font-normal min-[1100px]:normal-case min-[1100px]:tracking-normal">
-                Showing
-              </p>
-              <p className="text-xl font-black leading-none text-cyan-300 md:text-xl min-[1100px]:mt-1 min-[1100px]:text-2xl">
-                {focusedExercises.length}
-              </p>
-              <p className="hidden text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 min-[390px]:block md:text-[9px] md:leading-none md:tracking-[0.1em] min-[1100px]:mt-1 min-[1100px]:text-[10px] min-[1100px]:tracking-[0.14em]">
-                Core cards
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setShowAddForm((prev) => !prev)}
-              className="min-h-[42px] rounded-2xl border border-emerald-200/24 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.20),transparent_34%),linear-gradient(135deg,rgba(6,78,59,0.52),rgba(15,23,42,0.82))] px-3 py-2 text-xs font-black text-emerald-100 shadow-[0_14px_34px_rgba(0,0,0,0.28),0_0_22px_rgba(16,185,129,0.10),inset_0_1px_0_rgba(255,255,255,0.14)] ring-1 ring-white/[0.035] transition hover:-translate-y-0.5 hover:border-emerald-100/55 hover:bg-emerald-400 hover:text-slate-950 md:min-h-[40px] md:justify-self-end md:px-3.5 md:py-2 min-[1100px]:min-h-[44px] min-[1100px]:rounded-[22px] min-[1100px]:px-5 min-[1100px]:py-3 min-[1100px]:text-sm"
-            >
-              <span className="min-[1100px]:hidden">
-                {showAddForm ? "Close" : "+ Add"}
-              </span>
-              <span className="hidden min-[1100px]:inline">
-                {showAddForm ? "Close Form" : "+ Add Exercise"}
-              </span>
-            </button>
-          </div>
-
-          {showAddForm && (
-            <div
-              ref={addExerciseFormRef}
-              className="exercise-library-create-panel mt-6 overflow-hidden rounded-[30px] border border-emerald-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.18),transparent_32%),radial-gradient(circle_at_92%_10%,rgba(34,211,238,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.90),rgba(2,6,23,0.82))] p-3 shadow-[0_22px_70px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.14)] sm:p-5"
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <p className="inline-flex rounded-lg border border-emerald-200/22 bg-emerald-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-emerald-100">
-                    Private Exercise
-                  </p>
-                  <h2 className="mt-3 text-2xl font-black text-white">
-                    Add Private Exercise
-                  </h2>
-                  <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-                    Build a custom card using the current movement-engine
-                    structure without forcing a semantic variation.
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-cyan-200/14 bg-cyan-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
-                  Core first
-                </div>
-              </div>
-
-              <div className="mt-5 grid gap-3 xl:grid-cols-[1.05fr_1fr]">
-                <section className={privateExerciseSectionClass}>
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">
-                        01 Identity
-                      </p>
-                      <p className="mt-1 text-xs font-bold text-slate-400">
-                        Name the card and choose an exercise type.
-                      </p>
-                    </div>
-                    <span className="rounded-xl border border-emerald-200/18 bg-emerald-300/10 px-2 py-1 text-[9px] font-black uppercase text-emerald-100">
-                      Custom
-                    </span>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className={`${privateExerciseLabelClass} sm:col-span-2`}>
-                      Exercise Name
-                  <input
-                    placeholder="Exercise Name"
-                    value={newExercise.name}
-                    onChange={(event) =>
-                      setNewExercise((prev) => ({
-                        ...prev,
-                        name: event.target.value,
-                      }))
-                    }
-                        className={privateExerciseFieldClass}
-                  />
-                </label>
-
-                    <label className={`${privateExerciseLabelClass} sm:col-span-2`}>
-                      Semantic Variation / Exercise Type
-                  <select
-                    value={newExercise.semanticVariationId}
-                    onChange={(event) =>
-                      updatePrivateExerciseSemanticVariation(event.target.value)
-                    }
-                    disabled={!newExercise.coreMovementPattern}
-                        className={`${privateExerciseFieldClass} disabled:cursor-not-allowed disabled:opacity-55`}
-                  >
-                        <option value="">
-                          {newExercise.coreMovementPattern
-                            ? "N/A - custom/private variation"
-                            : "Select core movement first"}
-                        </option>
-                    {privateExerciseSemanticVariationOptions.map((variation) => (
-                      <option key={variation.id} value={variation.id}>
-                        {variation.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                  </div>
-                </section>
-
-                <section className={privateExerciseSectionClass}>
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">
-                        02 Movement Architecture
-                      </p>
-                      <p className="mt-1 text-xs font-bold text-slate-400">
-                        Pick the core pattern, default load, goal, and level.
-                      </p>
-                    </div>
-                    <span className="rounded-xl border border-cyan-200/18 bg-cyan-300/10 px-2 py-1 text-[9px] font-black uppercase text-cyan-100">
-                      Engine
-                    </span>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className={`${privateExerciseLabelClass} sm:col-span-2`}>
-                      Core Movement Pattern
-                      <select
-                        value={newExercise.coreMovementPattern}
-                        onChange={(event) =>
-                          updatePrivateExerciseCoreMovement(event.target.value)
-                        }
-                        className={privateExerciseFieldClass}
-                      >
-                        <option value="">Select core movement</option>
-                        {privateExerciseCoreOptions.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className={privateExerciseLabelClass}>
-                      Primary Equipment
-                  <select
-                    value={privateExerciseSelectedEquipmentModifierId}
-                    onChange={(event) =>
-                      updatePrivateExerciseEquipment(event.target.value)
-                    }
-                    disabled={
-                      !newExercise.coreMovementPattern ||
-                      privateExerciseEquipmentOptions.length === 0
-                    }
-                        className={`${privateExerciseFieldClass} focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-55`}
-                  >
-                    <option value="">Select equipment</option>
-                    {privateExerciseEquipmentOptions.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {getControlModifierDisplayLabel("Equipment", option)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                    <label className={privateExerciseLabelClass}>
-                      Primary Goal
-                  <select
-                    value={newExercise.goal}
-                    onChange={(event) =>
-                      setNewExercise((prev) => ({
-                        ...prev,
-                        goal: event.target.value,
-                      }))
-                    }
-                        className={`${privateExerciseFieldClass} focus:border-yellow-300`}
-                  >
-                    {baseGoals.map((goal) => (
-                      <option key={goal} value={goal}>
-                        {goal}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                    <label className={privateExerciseLabelClass}>
-                      Difficulty
-                  <select
-                    value={newExercise.difficulty}
-                    onChange={(event) =>
-                      setNewExercise((prev) => ({
-                        ...prev,
-                        difficulty: event.target.value,
-                      }))
-                    }
-                        className={`${privateExerciseFieldClass} focus:border-yellow-300`}
-                  >
-                    {difficultyOrder.map((difficulty) => (
-                      <option key={difficulty} value={difficulty}>
-                        {difficulty}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                  </div>
-                </section>
-
-                <section className={privateExerciseSectionClass}>
-                  <div className="mb-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-200">
-                      03 Muscles
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-slate-400">
-                      These power search, filters, and weekly set rollups.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className={privateExerciseLabelClass}>
-                      Primary Muscles
-                  <input
-                    placeholder="Pecs | Triceps"
-                    value={newExercise.primaryMuscles}
-                    onChange={(event) =>
-                      setNewExercise((prev) => ({
-                        ...prev,
-                        primaryMuscles: event.target.value,
-                      }))
-                    }
-                        className={`${privateExerciseFieldClass} focus:border-violet-300`}
-                  />
-                </label>
-
-                    <label className={privateExerciseLabelClass}>
-                      Secondary Muscles
-                  <input
-                    placeholder="Shoulders | Core"
-                    value={newExercise.secondaryMuscles}
-                    onChange={(event) =>
-                      setNewExercise((prev) => ({
-                        ...prev,
-                        secondaryMuscles: event.target.value,
-                      }))
-                    }
-                        className={`${privateExerciseFieldClass} focus:border-violet-300`}
-                  />
-                </label>
-                  </div>
-                </section>
-
-                <section className={privateExerciseSectionClass}>
-                  <div className="mb-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-200">
-                      04 Coaching / Media
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-slate-400">
-                      Add the cue and optional image used by the private card.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-3">
-                    <label className={privateExerciseLabelClass}>
-                      Image URL
-                  <input
-                    placeholder="Image URL"
-                    value={newExercise.image}
-                    onChange={(event) =>
-                      setNewExercise((prev) => ({
-                        ...prev,
-                        image: event.target.value,
-                      }))
-                    }
-                        className={`${privateExerciseFieldClass} focus:border-cyan-300`}
-                  />
-                </label>
-
-                    <label className={privateExerciseLabelClass}>
-                      Coaching Cue
-                <textarea
-                  placeholder="Move with control, own the position, and make every rep count."
-                  value={newExercise.cue}
-                  onChange={(event) =>
-                    setNewExercise((prev) => ({
-                      ...prev,
-                      cue: event.target.value,
-                    }))
-                  }
-                        className={`${privateExerciseFieldClass} min-h-[96px] resize-y`}
-                />
-              </label>
-                  </div>
-                </section>
-              </div>
-
-              <button
-                type="button"
-                onClick={addExercise}
-                disabled={!newExercise.name.trim() || !newExercise.coreMovementPattern}
-                className="mt-4 min-h-[48px] w-full rounded-[18px] border border-emerald-100/30 bg-[linear-gradient(135deg,rgba(52,211,153,0.98),rgba(34,211,238,0.76))] px-5 py-3 text-sm font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_18px_42px_rgba(16,185,129,0.18),inset_0_1px_0_rgba(255,255,255,0.38)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_58px_rgba(16,185,129,0.24)] disabled:cursor-not-allowed disabled:translate-y-0 disabled:border-slate-600 disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none sm:w-auto"
-              >
-                Save Exercise
-              </button>
-            </div>
-          )}
-
-          {planAddToParam ? (
-            <div className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-xs font-black text-emerald-200">
-              Plan assignment mode
-            </div>
-          ) : null}
-
-          <div className="mt-2 grid grid-cols-2 gap-2 rounded-[22px] border border-white/10 bg-white/[0.035] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] md:mt-2.5 md:grid-cols-3 min-[1100px]:grid-cols-4 min-[1100px]:gap-2.5 min-[1100px]:rounded-[26px] min-[1100px]:p-2">
-              <FilterMenu
-                label="Movement Type"
-                value={movementTypeFilter}
-                options={movementTypeFilterOptions}
-                onChange={setMovementTypeFilter}
-                accent="emerald"
-                widePanel
-                searchable
-                groupOrder={[...movementTypeGroupOrder]}
-                panelWidth={680}
-              />
-
-              <FilterMenu
-                label="Equipment"
-                value={apparatusFilter}
-                options={apparatusOptions}
-                onChange={setApparatusFilter}
-                accent="blue"
-                widePanel
-                panelWidth={540}
-              />
-
-              <FilterMenu
-                label="Goal"
-                value={goalFilter}
-                options={goalOptions}
-                onChange={setGoalFilter}
-                accent="emerald"
-              />
-
-              <LevelSegmentedControl
-                value={levelFilter}
-                onChange={setLevelFilter}
-                counts={levelCounts}
-              />
-
-          </div>
-
-          <div className="mt-2 grid grid-cols-[auto_minmax(0,1fr)_auto] items-stretch gap-1.5 rounded-[22px] border border-cyan-100/12 bg-[linear-gradient(135deg,rgba(15,23,42,0.76),rgba(2,6,23,0.56))] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] sm:gap-2 md:flex md:flex-nowrap md:items-center md:p-2">
-            <div className="rounded-2xl border border-cyan-300/16 bg-slate-950/55 p-0.5 shadow-[0_12px_30px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.10)] sm:p-1">
-              <div className="grid grid-cols-2 gap-1">
-                {(["detail", "grid"] as ExerciseLibraryViewMode[]).map(
-                  (mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      aria-label={viewModeLabels[mode]}
-                      title={viewModeLabels[mode]}
-                      onClick={() => setViewMode(mode)}
-                      className={`flex min-h-[38px] min-w-[36px] items-center justify-center rounded-lg px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] transition sm:min-w-[42px] sm:rounded-xl sm:px-3 sm:py-2 ${
-                        viewMode === mode
-                          ? "bg-cyan-300 text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.26)]"
-                          : "text-slate-400 hover:bg-cyan-300/10 hover:text-cyan-50"
-                      }`}
-                    >
-                      <ViewModeIcon mode={mode} />
-                    </button>
-                  ),
-                )}
-              </div>
-            </div>
-
-            <div className="min-w-0 md:w-full md:max-w-[15rem]">
-              <FilterMenu
-                label="Sort"
-                value={sortMode}
-                options={sortOptions}
-                onChange={(value) => setSortMode(value as ExerciseLibrarySortMode)}
-                accent="cyan"
-                preserveOrder
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={resetFilters}
-              className="min-h-[42px] rounded-2xl border border-white/12 bg-white/[0.045] px-3 py-2 text-xs font-black text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-cyan-200/40 hover:bg-cyan-300/10 hover:text-white sm:min-w-[116px] sm:px-5 sm:py-3 sm:text-sm"
-            >
-              Clear
-            </button>
-          </div>
-
-          <div className="-mx-2.5 -mb-2.5 mt-2 box-border overflow-hidden rounded-b-[26px] border-t border-cyan-100/14 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.08),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.70),rgba(2,6,23,0.76))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:-mx-4 sm:-mb-4 sm:mt-3 sm:rounded-b-[32px] md:-mx-3 md:-mb-3 min-[1100px]:-mx-4 min-[1100px]:-mb-4">
-            <ExerciseBodyAnatomySelector
-              activeLayer={bodyRegionLayer}
-              bodyOptions={bodyOptions}
-              exercises={allExercises}
-              getBodyPartVolume={getBodyPartVolume}
-              latestSetInsight={latestSetInsight}
-              selectedBodies={bodyFilters}
-              preferredWeightUnit={preferredWeightUnit}
-              suggestedFocus={currentFocusLabel}
-              weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
-              weeklySetsSummary={weeklySetsSummary}
-              onClearBodySelection={() => {
-                setSelectedBodyPart(null);
-                setBodyRegionLayer(null);
-              }}
-              onAddWorkoutItems={addExercisesToDraftWorkoutPreview}
-              onBodySelect={toggleAnatomyBodyFilter}
-              onLayerSelect={selectBodyRegionLayer}
-              onPopularExerciseSelect={navigateToExerciseCard}
-              primaryGoal={profileSummary.primaryGoal}
-            />
-            <div className="hidden">
-              {visibleBodyOptions.map((body) => {
-                const isActive =
-                  body === "All"
-                    ? bodyFilters.length === 0
-                    : bodyFilters.includes(body);
-                const bodyTheme = getBodyRegionTheme(body);
-                const bodyVolume = getBodyPartVolume(body);
-                const weeklyWeightVolumeLabel = formatWeightMetric(
-                  bodyVolume.weightVolume,
-                  preferredWeightUnit,
-                  { compact: true, volume: true },
-                );
-                const isLatestBodyPulse = Boolean(
-                  latestSetInsight?.bodyLabels.some(
-                    (label) =>
-                      normalizeBodySelectorValue(label) ===
-                      normalizeBodySelectorValue(body),
-                  ),
-                );
-                const bodyVolumeStyle = {
-                  ...getCategoryThemeCssVariables(bodyTheme),
-                } as ExerciseLibraryThemeCssVariables;
-
-                return (
-                  <VolumeRing
-                    key={body}
-                    className={`${
-                      isLatestBodyPulse ? "exercise-library-volume-pulse" : ""
-                    }`}
-                    cooldownHours={bodyVolume.cooldownHours}
-                    isActive={isActive}
-                    label={body}
-                    onClick={() => toggleBodyFilter(body)}
-                    percent={bodyVolume.volumePercent}
-                    style={bodyVolumeStyle}
-                    title={`${body}. Weekly Volume, ${weeklyVolumeRangeLabel}: ${Math.max(
-                      0,
-                      Math.round(bodyVolume.weeklySets),
-                    )} of ${bodyVolume.weeklyTarget} sets${
-                      weeklyWeightVolumeLabel
-                        ? ` - Weight volume: ${weeklyWeightVolumeLabel}`
-                        : ""
-                    } - ${bodyPartVolumeStatusLabels[bodyVolume.status]} - ${formatVolumeRingCooldownLabel(
-                      bodyVolume.cooldownHours,
-                    )}`}
-                    weeklySets={bodyVolume.weeklySets}
-                    weeklyTarget={bodyVolume.weeklyTarget}
-                  />
-                );
-              })}
-            </div>
-            <ActiveFilterStatusPanel
-              activeFilterChips={activeTrainingFilterChips}
-              bodyRegionLayer={bodyRegionLayer}
-              matchingCount={focusedExercises.length}
-              onClear={resetFilters}
-              onSortChange={setSortMode}
-              sectionTheme={activeExerciseSectionTheme}
-              sortMode={sortMode}
-              sortOptions={sortOptions}
-            />
-          </div>
-        </section>
+        <div>
+          <ExerciseLibraryWidgetDock
+            bodyBalanceLabel={
+              highestVolumeBodyTarget
+                ? `${highestVolumeBodyTarget.body} leads this range`
+                : "Log sets to compare regions"
+            }
+            currentFocusLabel={currentFocusLabel}
+            latestTrainingExerciseName={latestTrainingExerciseName}
+            latestTrainingLine={latestTrainingLine}
+            onThemeChange={updateExerciseLibraryUiTheme}
+            sectionTheme={activeExerciseSectionTheme}
+            shortcuts={trainingShortcuts}
+            themeId={uiThemeId}
+            preferredWeightUnit={preferredWeightUnit}
+            weeklyGoalSets={allBodyRegionWeeklySetGoal}
+            weeklyMuscleGroupsHit={weeklyMuscleGroupsHit}
+            weeklyWeightVolume={weeklyTotalWeightVolume}
+            weeklyWeightVolumeComparisonLabel={weeklyWeightVolumeComparisonLabel}
+            weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
+            weeklySets={weeklyTotalSets}
+          />
+        </div>
 
         {latestSetInsight ? (
           <div className="exercise-library-volume-pulse rounded-[24px] border border-emerald-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.72))] px-4 py-3 shadow-[0_18px_52px_rgba(0,0,0,0.32),0_0_34px_rgba(16,185,129,0.12),inset_0_1px_0_rgba(255,255,255,0.12)]">
@@ -23891,11 +26703,305 @@ export default function ExerciseLibraryPage() {
             </div>
           </div>
         ) : null}
-      </section>
+          </div>
+              </section>
 
-      <section className="exercise-library-slider-shelf relative z-0 space-y-5 overflow-visible pb-6 sm:space-y-4 sm:pb-8">
-        <div className="exercise-library-column-orbit exercise-library-column-orbit--full-width relative overflow-visible rounded-[30px] border border-cyan-100/14 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.13),transparent_34%),radial-gradient(circle_at_88%_10%,rgba(250,204,21,0.10),transparent_28%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(2,6,23,0.72))] p-3 shadow-[0_22px_72px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.12)] sm:p-4">
+              <section
+                ref={exerciseLibraryLibrarySectionRef}
+                data-page-section-orbit-card="true"
+                className="exercise-library-page-section-orbit__card exercise-library-page-section-orbit__card--library"
+              >
           <div className="exercise-library-column-orbit__header relative z-10">
+            {planAddToParam ? (
+              <section className="exercise-library-filter-command-center relative z-30 overflow-visible rounded-[26px] border border-cyan-100/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.12),transparent_34%),radial-gradient(circle_at_86%_14%,rgba(16,185,129,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.78))] p-2.5 shadow-[0_24px_80px_rgba(0,0,0,0.42),0_0_46px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-white/[0.045] backdrop-blur-2xl backdrop-saturate-150 sm:rounded-[32px] sm:p-4 md:p-3 min-[1100px]:p-4">
+              {false && showAddForm && !createExerciseCardAnchorRef.current && (
+                <div
+                  ref={addExerciseFormRef}
+                  data-placement="command-center"
+                  className="exercise-library-create-panel mt-6 overflow-hidden rounded-[30px] border border-emerald-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.18),transparent_32%),radial-gradient(circle_at_92%_10%,rgba(34,211,238,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.90),rgba(2,6,23,0.82))] p-3 shadow-[0_22px_70px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.14)] sm:p-5"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="inline-flex rounded-lg border border-emerald-200/22 bg-emerald-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-emerald-100">
+                        Private Exercise
+                      </p>
+                      <h2 className="mt-3 text-2xl font-black text-white">
+                        Add Private Exercise
+                      </h2>
+                      <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
+                        Build a custom card using the current movement-engine
+                        structure without forcing a semantic variation.
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <div className="rounded-2xl border border-cyan-200/14 bg-cyan-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                        Core first
+                      </div>
+                    </div>
+                  </div>
+    
+                  <div className="mt-5 grid gap-3 xl:grid-cols-[1.05fr_1fr]">
+                    <section className={privateExerciseSectionClass}>
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">
+                            01 Identity
+                          </p>
+                          <p className="mt-1 text-xs font-bold text-slate-400">
+                            Name the card and choose an exercise type.
+                          </p>
+                        </div>
+                        <span className="rounded-xl border border-emerald-200/18 bg-emerald-300/10 px-2 py-1 text-[9px] font-black uppercase text-emerald-100">
+                          Custom
+                        </span>
+                      </div>
+    
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className={`${privateExerciseLabelClass} sm:col-span-2`}>
+                          Exercise Name
+                      <input
+                        placeholder="Exercise Name"
+                        value={newExercise.name}
+                        onChange={(event) =>
+                          setNewExercise((prev) => ({
+                            ...prev,
+                            name: event.target.value,
+                          }))
+                        }
+                            className={privateExerciseFieldClass}
+                      />
+                    </label>
+    
+                        <label className={`${privateExerciseLabelClass} sm:col-span-2`}>
+                          Semantic Variation / Exercise Type
+                      <select
+                        value={newExercise.semanticVariationId}
+                        onChange={(event) =>
+                          updatePrivateExerciseSemanticVariation(event.target.value)
+                        }
+                        disabled={!newExercise.coreMovementPattern}
+                            className={`${privateExerciseFieldClass} disabled:cursor-not-allowed disabled:opacity-55`}
+                      >
+                            <option value="">
+                              {newExercise.coreMovementPattern
+                                ? "N/A - custom/private variation"
+                                : "Select core movement first"}
+                            </option>
+                        {privateExerciseSemanticVariationOptions.map((variation) => (
+                          <option key={variation.id} value={variation.id}>
+                            {variation.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                      </div>
+                    </section>
+    
+                    <section className={privateExerciseSectionClass}>
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">
+                            02 Movement Architecture
+                          </p>
+                          <p className="mt-1 text-xs font-bold text-slate-400">
+                            Pick the core pattern, default load, goal, and level.
+                          </p>
+                        </div>
+                        <span className="rounded-xl border border-cyan-200/18 bg-cyan-300/10 px-2 py-1 text-[9px] font-black uppercase text-cyan-100">
+                          Engine
+                        </span>
+                      </div>
+    
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className={`${privateExerciseLabelClass} sm:col-span-2`}>
+                          Core Movement Pattern
+                          <select
+                            value={newExercise.coreMovementPattern}
+                            onChange={(event) =>
+                              updatePrivateExerciseCoreMovement(event.target.value)
+                            }
+                            className={privateExerciseFieldClass}
+                          >
+                            <option value="">Select core movement</option>
+                            {privateExerciseCoreOptions.map((option) => (
+                              <option key={option.id} value={option.id}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+    
+                        <label className={privateExerciseLabelClass}>
+                          Primary Equipment
+                      <select
+                        value={privateExerciseSelectedEquipmentModifierId}
+                        onChange={(event) =>
+                          updatePrivateExerciseEquipment(event.target.value)
+                        }
+                        disabled={
+                          !newExercise.coreMovementPattern ||
+                          privateExerciseEquipmentOptions.length === 0
+                        }
+                            className={`${privateExerciseFieldClass} focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-55`}
+                      >
+                        <option value="">Select equipment</option>
+                        {privateExerciseEquipmentOptions.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {getControlModifierDisplayLabel("Equipment", option)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+    
+                        <label className={privateExerciseLabelClass}>
+                          Primary Goal
+                      <select
+                        value={newExercise.goal}
+                        onChange={(event) =>
+                          setNewExercise((prev) => ({
+                            ...prev,
+                            goal: event.target.value,
+                          }))
+                        }
+                            className={`${privateExerciseFieldClass} focus:border-yellow-300`}
+                      >
+                        {baseGoals.map((goal) => (
+                          <option key={goal} value={goal}>
+                            {goal}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+    
+                        <label className={privateExerciseLabelClass}>
+                          Difficulty
+                      <select
+                        value={newExercise.difficulty}
+                        onChange={(event) =>
+                          setNewExercise((prev) => ({
+                            ...prev,
+                            difficulty: event.target.value,
+                          }))
+                        }
+                            className={`${privateExerciseFieldClass} focus:border-yellow-300`}
+                      >
+                        {difficultyOrder.map((difficulty) => (
+                          <option key={difficulty} value={difficulty}>
+                            {difficulty}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                      </div>
+                    </section>
+    
+                    <section className={privateExerciseSectionClass}>
+                      <div className="mb-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-200">
+                          03 Muscles
+                        </p>
+                        <p className="mt-1 text-xs font-bold text-slate-400">
+                          These power search, filters, and weekly set rollups.
+                        </p>
+                      </div>
+    
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className={privateExerciseLabelClass}>
+                          Primary Muscles
+                      <input
+                        placeholder="Pecs | Triceps"
+                        value={newExercise.primaryMuscles}
+                        onChange={(event) =>
+                          setNewExercise((prev) => ({
+                            ...prev,
+                            primaryMuscles: event.target.value,
+                          }))
+                        }
+                            className={`${privateExerciseFieldClass} focus:border-violet-300`}
+                      />
+                    </label>
+    
+                        <label className={privateExerciseLabelClass}>
+                          Secondary Muscles
+                      <input
+                        placeholder="Shoulders | Core"
+                        value={newExercise.secondaryMuscles}
+                        onChange={(event) =>
+                          setNewExercise((prev) => ({
+                            ...prev,
+                            secondaryMuscles: event.target.value,
+                          }))
+                        }
+                            className={`${privateExerciseFieldClass} focus:border-violet-300`}
+                      />
+                    </label>
+                      </div>
+                    </section>
+    
+                    <section className={privateExerciseSectionClass}>
+                      <div className="mb-3">
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-200">
+                          04 Coaching / Media
+                        </p>
+                        <p className="mt-1 text-xs font-bold text-slate-400">
+                          Add the cue and optional image used by the private card.
+                        </p>
+                      </div>
+    
+                      <div className="grid gap-3">
+                        <label className={privateExerciseLabelClass}>
+                          Image URL
+                      <input
+                        placeholder="Image URL"
+                        value={newExercise.image}
+                        onChange={(event) =>
+                          setNewExercise((prev) => ({
+                            ...prev,
+                            image: event.target.value,
+                          }))
+                        }
+                            className={`${privateExerciseFieldClass} focus:border-cyan-300`}
+                      />
+                    </label>
+    
+                        <label className={privateExerciseLabelClass}>
+                          Coaching Cue
+                    <textarea
+                      placeholder="Move with control, own the position, and make every rep count."
+                      value={newExercise.cue}
+                      onChange={(event) =>
+                        setNewExercise((prev) => ({
+                          ...prev,
+                          cue: event.target.value,
+                        }))
+                      }
+                            className={`${privateExerciseFieldClass} min-h-[96px] resize-y`}
+                    />
+                  </label>
+                      </div>
+                    </section>
+                  </div>
+    
+                  <button
+                    type="button"
+                    onClick={addExercise}
+                    disabled={!newExercise.name.trim() || !newExercise.coreMovementPattern}
+                    className="mt-4 min-h-[48px] w-full rounded-[18px] border border-emerald-100/30 bg-[linear-gradient(135deg,rgba(52,211,153,0.98),rgba(34,211,238,0.76))] px-5 py-3 text-sm font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_18px_42px_rgba(16,185,129,0.18),inset_0_1px_0_rgba(255,255,255,0.38)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_58px_rgba(16,185,129,0.24)] disabled:cursor-not-allowed disabled:translate-y-0 disabled:border-slate-600 disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none sm:w-auto"
+                  >
+                    Save Exercise
+                  </button>
+                </div>
+              )}
+    
+              {planAddToParam ? (
+                <div className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-xs font-black text-emerald-200">
+                  Plan assignment mode
+                </div>
+              ) : null}
+    
+              </section>
+            ) : null}
+
             <ExerciseLibraryResultsPageSelector
               activeSectionKey={activeExerciseSectionKey}
               activeSectionLabel={
@@ -23906,28 +27012,182 @@ export default function ExerciseLibraryPage() {
               latestSetInsight={latestSetInsight}
               onPageChange={setCurrentPage}
               onSectionSelect={selectExerciseSectionFromNavigator}
+              onViewModeChange={setViewMode}
               placement="top"
               preferredWeightUnit={preferredWeightUnit}
               sections={exerciseSections}
               sectionTheme={activeExercisePageSelectorTheme}
+              statusPanel={(categoryTabs, summaryControls, rightControls) => (
+                <ActiveFilterStatusPanel
+                  activeFilterChips={activeTrainingFilterChips}
+                  bodyRegionLayer={bodyRegionLayer}
+                  filterControls={
+                    <div className="flex w-full max-w-full flex-nowrap items-center gap-1.5 min-[1500px]:gap-2">
+                      <SearchInputWithSuggestions
+                        compact
+                        className="w-[17rem] max-w-[17rem] flex-none"
+                        exercises={allExercises}
+                        value={search}
+                        onChange={setSearch}
+                        onExerciseSelect={navigateToExerciseCard}
+                        suggestions={searchSuggestions}
+                      />
+
+                      <ActiveFilterSortDropdown
+                        onChange={setSortMode}
+                        sectionTheme={activeExerciseSectionTheme}
+                        sortMode={sortMode}
+                        sortOptions={sortOptions}
+                      />
+
+                      <div className="flex h-[42px] w-[13.5rem] shrink-0 items-stretch gap-1 md:h-[40px] min-[1100px]:h-[46px] min-[1100px]:w-[14.5rem]">
+                        <button
+                          type="button"
+                          aria-label="Scroll filter rail left"
+                          onClick={() => scrollCompactFilterRail(-1)}
+                          className="flex w-7 shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-slate-950/58 text-sm font-black text-cyan-100 shadow-[0_8px_22px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur transition hover:border-cyan-100/40 hover:bg-cyan-300 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/35"
+                        >
+                          &lt;
+                        </button>
+                        <div
+                          ref={compactFilterRailRef}
+                          aria-label="Variant type, equipment, and goal filters"
+                          className="flex h-full min-w-0 flex-1 snap-x snap-mandatory items-stretch gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                          onWheel={(event) => {
+                            if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+                              return;
+                            }
+
+                            event.preventDefault();
+                            event.stopPropagation();
+                            event.currentTarget.scrollLeft += event.deltaY;
+                          }}
+                        >
+                          <div className="w-full shrink-0 snap-start">
+                            <FilterMenu
+                              compactTrigger
+                              label="Variant Type"
+                              value={variantTypeFilter}
+                              options={variantTypeFilterOptions}
+                              onChange={setVariantTypeFilter}
+                              accent="emerald"
+                              widePanel
+                              searchable
+                              groupOrder={variantTypeModifierCategoryOrder}
+                              panelWidth={680}
+                            />
+                          </div>
+
+                          <div className="w-full shrink-0 snap-start">
+                            <FilterMenu
+                              compactTrigger
+                              label="Equipment"
+                              value={apparatusFilter}
+                              options={apparatusOptions}
+                              onChange={setApparatusFilter}
+                              accent="blue"
+                              widePanel
+                              panelWidth={540}
+                            />
+                          </div>
+
+                          <div className="w-full shrink-0 snap-start">
+                            <FilterMenu
+                              compactTrigger
+                              label="Goal"
+                              value={goalFilter}
+                              options={goalOptions}
+                              onChange={setGoalFilter}
+                              accent="emerald"
+                              widePanel
+                              panelWidth={420}
+                            />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="Scroll filter rail right"
+                          onClick={() => scrollCompactFilterRail(1)}
+                          className="flex w-7 shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-slate-950/58 text-sm font-black text-cyan-100 shadow-[0_8px_22px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur transition hover:border-cyan-100/40 hover:bg-cyan-300 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/35"
+                        >
+                          &gt;
+                        </button>
+                      </div>
+
+                      <LevelSegmentedControl
+                        value={levelFilter}
+                        onChange={setLevelFilter}
+                        counts={levelCounts}
+                      />
+
+                      <div className="ml-auto shrink-0">
+                        <ExerciseAnatomyOverlayControl
+                          activeLayer={bodyRegionLayer}
+                          bodyOptions={bodyOptions}
+                          exercises={allExercises}
+                          getBodyPartVolume={getBodyPartVolume}
+                          latestSetInsight={latestSetInsight}
+                          selectedBodies={bodyFilters}
+                          preferredWeightUnit={preferredWeightUnit}
+                          suggestedFocus={currentFocusLabel}
+                          weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
+                          weeklySetsSummary={weeklySetsSummary}
+                          onClearBodySelection={() => {
+                            setSelectedBodyPart(null);
+                            setBodyRegionLayer(null);
+                          }}
+                          onAddWorkoutItems={addExercisesToDraftWorkoutPreview}
+                          onBodySelect={toggleAnatomyBodyFilter}
+                          onLayerSelect={selectBodyRegionLayer}
+                          onPopularExerciseSelect={navigateToExerciseCard}
+                          primaryGoal={profileSummary.primaryGoal}
+                        />
+                      </div>
+                    </div>
+                  }
+                  matchingCount={focusedExercises.length}
+                  onClear={resetFilters}
+                  onSortChange={setSortMode}
+                  sectionTheme={activeExerciseSectionTheme}
+                  sortMode={sortMode}
+                  sortOptions={sortOptions}
+                  summaryControls={summaryControls}
+                  rightControls={rightControls}
+                >
+                  {categoryTabs}
+                </ActiveFilterStatusPanel>
+              )}
               weeklySetsBySectionKey={weeklySetsBySectionKey}
               weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
               weeklyWeightVolumeBySectionKey={weeklyWeightVolumeBySectionKey}
               sortMode={sortMode}
               totalPages={totalPages}
+              viewMode={viewMode}
             />
           </div>
 
-          <div
-            aria-label="Exercise card orbital. Use left and right arrows for columns, up and down arrows for cards."
-            className="exercise-library-column-orbit__viewport relative z-10 mt-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/35"
-            tabIndex={0}
-            onPointerCancel={finishExerciseColumnOrbitDrag}
-            onPointerDown={startExerciseColumnOrbitDrag}
-            onPointerUp={finishExerciseColumnOrbitDrag}
-            onKeyDown={handleExerciseColumnOrbitKeyDown}
-            onWheel={handleExerciseColumnOrbitWheel}
-          >
+          <div className="exercise-library-column-orbit__overlay-stage">
+            <div
+              ref={exerciseLibraryOrbitCardsRef}
+              aria-label="Exercise card orbital. Use left and right arrows for columns, up and down arrows for cards."
+              className="exercise-library-column-orbit__viewport relative z-10 mt-1 focus-visible:outline-none"
+              tabIndex={0}
+              onPointerCancel={finishExerciseColumnOrbitDrag}
+              onPointerDown={startExerciseColumnOrbitDrag}
+              onPointerUp={finishExerciseColumnOrbitDrag}
+              onKeyDown={handleExerciseColumnOrbitKeyDown}
+              onWheel={handleExerciseColumnOrbitWheel}
+            >
+            {activePageScrollStepId === "library" ? (
+              <ExerciseLibraryPageScroller
+                activeStepId={activePageScrollStepId}
+                onMove={scrollExerciseLibraryPageByDirection}
+                onSelect={scrollExerciseLibraryPageToStep}
+                placement="library"
+                steps={exerciseLibraryPageScrollerSteps}
+              />
+            ) : null}
+
             <button
               type="button"
               aria-label="Previous exercise category column"
@@ -23944,56 +27204,11 @@ export default function ExerciseLibraryPage() {
             >
               {">"}
             </button>
-            <div
-              aria-label="Active column exercise selector"
-              className="exercise-library-column-urgency-scroller"
-            >
-              {exerciseColumnUrgencyItems.map((item) => {
-                const isActive = item.exercise.id === activeColumnExerciseId;
-                const title = item.label;
-
-                return (
-                  <button
-                    key={item.exercise.id}
-                    type="button"
-                    aria-label={title}
-                    aria-pressed={isActive}
-                    data-active={isActive ? "true" : undefined}
-                    data-urgency-muted={
-                      item.isUrgencyMuted ? "true" : undefined
-                    }
-                    data-volume-status={item.statusId || undefined}
-                    onClick={() =>
-                      scrollActiveColumnExerciseIntoView(item.exercise.id)
-                    }
-                    style={item.style}
-                    title={title}
-                    className="exercise-library-column-urgency-scroller__item group/column-urgency"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="exercise-library-column-urgency-scroller__fill"
-                    />
-                    <span className="exercise-library-column-urgency-scroller__icon">
-                      <ExerciseColumnUrgencyIcon
-                        className="h-4 w-4"
-                        name={item.iconName}
-                      />
-                      {item.statusId ? (
-                        <VolumeStatusIndicator
-                          className="exercise-library-column-urgency-scroller__status"
-                          sets={item.weeklySets}
-                          statusId={item.statusId}
-                        />
-                      ) : null}
-                    </span>
-                    <span className="exercise-library-column-urgency-scroller__title">
-                      {item.label}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            {activeColumnExerciseSelector ? (
+              <div className="exercise-library-column-orbit__exercise-selector-anchor">
+                {activeColumnExerciseSelector}
+              </div>
+            ) : null}
             <div className="exercise-library-column-orbit__track">
               {exerciseSections.map((section, sectionIndex) => {
                 const sectionTheme = getExerciseSectionTheme(section, sortMode);
@@ -24005,25 +27220,46 @@ export default function ExerciseLibraryPage() {
                     ? "center"
                     : columnDistance === -1
                       ? "left"
-                      : columnDistance === 1
-                        ? "right"
-                        : "hidden";
+                    : columnDistance === -2
+                      ? "left-outer"
+                      : columnDistance === -3
+                        ? "left-far"
+                        : columnDistance === 1
+                          ? "right"
+                          : columnDistance === 2
+                            ? "right-outer"
+                            : columnDistance === 3
+                              ? "right-far"
+                              : "hidden";
+                const isTodayPlanColumn = isTodayPlanExerciseSection(section);
                 const isCustomColumn = isCustomExerciseSection(section);
                 const weeklySets = weeklySetsBySectionKey.get(section.key) || 0;
                 const weeklyWeightVolume =
                   weeklyWeightVolumeBySectionKey.get(section.key) || 0;
                 const weeklyGoal = getWeeklySetGoalForSection(section.label);
+                const columnCompletedSets = isTodayPlanColumn
+                  ? Math.max(0, Math.round(dailySetsComplete))
+                  : weeklySets;
+                const columnGoalSets = isTodayPlanColumn
+                  ? defaultDailySetGoal
+                  : weeklyGoal;
                 const weeklyWeightVolumeLabel = formatWeightMetric(
                   weeklyWeightVolume,
                   preferredWeightUnit,
                   { compact: true, volume: true },
                 );
+                const columnVolumeStatusId = getWeeklySetGoalStatusId(
+                  columnCompletedSets,
+                  columnGoalSets,
+                );
+                const columnVolumePercent = getWeeklySetGoalFillPercent(
+                  columnCompletedSets,
+                  columnGoalSets,
+                );
                 const sectionStyle = {
                   ...getCategoryThemeCssVariables(sectionTheme),
-                  "--exercise-category-goal-progress": `${getWeeklySetGoalFillPercent(
-                    weeklySets,
-                    weeklyGoal,
-                  )}%`,
+                  "--exercise-category-goal-progress": `${columnVolumePercent}%`,
+                  "--exercise-column-volume-progress": `${columnVolumePercent}%`,
                 } as ExerciseLibraryThemeCssVariables;
 
                 return (
@@ -24035,11 +27271,22 @@ export default function ExerciseLibraryPage() {
                     style={sectionStyle}
                     data-active={isActiveColumn ? "true" : undefined}
                     data-position={columnPosition}
+                    data-volume-status={columnVolumeStatusId}
                     data-urgency-muted={
                       isCustomColumn ? "true" : undefined
                     }
                     className={`exercise-library-column-orbit__column ${sectionTheme.surfaceClass} ${sectionTheme.cardClass}`}
                   >
+                    {isActiveColumn ? (
+                      <span
+                        aria-hidden="true"
+                        className="exercise-library-column-orbit__volume-field"
+                      >
+                        <span className="exercise-library-column-orbit__volume-fill" />
+                        <span className="exercise-library-column-orbit__volume-scan" />
+                        <span className="exercise-library-column-orbit__volume-ribs" />
+                      </span>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => toggleExerciseSection(section.key)}
@@ -24059,55 +27306,435 @@ export default function ExerciseLibraryPage() {
                         <span className="block truncate text-[12px] font-black uppercase tracking-[0.16em] text-white">
                           {section.label}
                         </span>
-                        <span className="mt-1 block text-[9px] font-black uppercase tracking-[0.1em] text-slate-300">
-                          {section.exercises.length} cards
-                          <span className="opacity-40"> - </span>
-                          {isCustomColumn ? (
-                            <span>Custom library</span>
-                          ) : (
-                            <WeeklySetGoalBadge
-                              completedSets={weeklySets}
-                              completedWeightVolume={weeklyWeightVolume}
-                              goalSets={weeklyGoal}
-                              rangeLabel={weeklyVolumeRangeLabel}
-                              showWeightVolume={Boolean(weeklyWeightVolumeLabel)}
-                              weightUnit={preferredWeightUnit}
-                            />
-                          )}
+                      </span>
+                      <span className="relative z-10 flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-slate-950/34 px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
+                        <VolumeStatusIndicator
+                          blink={isActiveColumn}
+                          className="h-3.5 w-3.5"
+                          sets={columnCompletedSets}
+                          statusId={columnVolumeStatusId}
+                        />
+                        <span className="whitespace-nowrap">
+                          {isCustomColumn
+                            ? "Custom"
+                            : `${Math.max(
+                                0,
+                                Math.round(columnCompletedSets),
+                              )} / ${Math.max(
+                                1,
+                                Math.round(columnGoalSets),
+                              )} sets`}
                         </span>
                       </span>
-                      <span className={`relative z-10 h-2.5 w-2.5 shrink-0 rounded-full ${sectionTheme.accentClass} shadow-[0_0_16px_currentColor]`} />
                     </button>
 
                     <div
                       className="exercise-library-column-orbit__column-body"
                       data-column-card-scroll="true"
+                      data-view-mode={viewMode}
+                      onClickCapture={handleExerciseColumnBodyClickCapture}
+                      onPointerCancel={finishExerciseColumnBodyDrag}
+                      onPointerDown={startExerciseColumnBodyDrag}
+                      onPointerMove={continueExerciseColumnBodyDrag}
+                      onPointerUp={finishExerciseColumnBodyDrag}
                       onScroll={(event) => {
-                        if (isActiveColumn) {
-                          syncActiveColumnExerciseFromScroll(
-                            event.currentTarget,
-                          );
+                        scheduleColumnCardVerticalOrbit(event.currentTarget);
+
+                        if (
+                          isActiveColumn &&
+                          !event.currentTarget.dataset.dragging
+                        ) {
+                          scheduleActiveColumnExerciseSync(event.currentTarget);
                         }
                       }}
                     >
-                      {section.key === myExercisesSectionKey &&
+                      {isTodayPlanColumn && section.exercises.length === 0 ? (
+                        <div
+                          className="exercise-library-column-orbit__card"
+                          data-card-key={`${section.key}:empty-plan`}
+                        >
+                          <TodayPlanEmptyCard
+                            meta={section.todayPlanMeta}
+                            onMakePlan={() => router.push(ROUTES.dashboard.myPlan)}
+                          />
+                        </div>
+                      ) : section.key === myExercisesSectionKey &&
                       section.exercises.length === 0 ? (
                         <div
                           className="exercise-library-column-orbit__card"
                           data-card-key={`${section.key}:create`}
                         >
                           <CreateExerciseEmptyCard
-                            onCreate={openCreateExerciseForm}
+                            onCreate={(anchorElement) =>
+                              openCreateExerciseForm(undefined, anchorElement)
+                            }
                           />
+                          {showAddForm && createExerciseCardAnchorRef.current ? (
+                            <div
+                              ref={addExerciseFormRef}
+                              role="dialog"
+                              aria-label="Add private exercise"
+                              data-placement="card-orbit"
+                              className="exercise-library-create-panel exercise-library-create-panel--card-overlay rounded-[28px] border border-emerald-200/22 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.20),transparent_32%),radial-gradient(circle_at_92%_10%,rgba(34,211,238,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.96),rgba(2,6,23,0.94))] p-3 shadow-[0_30px_88px_rgba(0,0,0,0.62),0_0_42px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.16)] ring-1 ring-cyan-100/20 sm:p-4"
+                              onClick={(event) => event.stopPropagation()}
+                              onPointerDown={(event) => event.stopPropagation()}
+                              onWheel={(event) => event.stopPropagation()}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="inline-flex rounded-lg border border-emerald-200/22 bg-emerald-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-emerald-100">
+                                    Private Exercise
+                                  </p>
+                                  <h2 className="mt-2 text-xl font-black text-white">
+                                    Add Private Exercise
+                                  </h2>
+                                  <p className="mt-1 max-w-md text-xs font-semibold leading-5 text-slate-400">
+                                    Build this card right here in the orbit.
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={closeCreateExerciseForm}
+                                  className="min-h-[36px] shrink-0 rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300 transition hover:border-cyan-100/35 hover:bg-cyan-300/12 hover:text-white"
+                                >
+                                  Close
+                                </button>
+                              </div>
+
+                              <div className="mt-4 grid gap-3">
+                                <section className={privateExerciseSectionClass}>
+                                  <div className="mb-3 flex items-center justify-between gap-3">
+                                    <div>
+                                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-200">
+                                        01 Identity
+                                      </p>
+                                      <p className="mt-1 text-xs font-bold text-slate-400">
+                                        Name the card and choose an exercise type.
+                                      </p>
+                                    </div>
+                                    <span className="rounded-xl border border-emerald-200/18 bg-emerald-300/10 px-2 py-1 text-[9px] font-black uppercase text-emerald-100">
+                                      Custom
+                                    </span>
+                                  </div>
+
+                                  <div className="grid gap-3 min-[560px]:grid-cols-2">
+                                    <label className={`${privateExerciseLabelClass} min-[560px]:col-span-2`}>
+                                      Exercise Name
+                                      <input
+                                        placeholder="Exercise Name"
+                                        value={newExercise.name}
+                                        onChange={(event) =>
+                                          setNewExercise((prev) => ({
+                                            ...prev,
+                                            name: event.target.value,
+                                          }))
+                                        }
+                                        className={privateExerciseFieldClass}
+                                      />
+                                    </label>
+
+                                    <label className={`${privateExerciseLabelClass} min-[560px]:col-span-2`}>
+                                      Semantic Variation / Exercise Type
+                                      <select
+                                        value={newExercise.semanticVariationId}
+                                        onChange={(event) =>
+                                          updatePrivateExerciseSemanticVariation(
+                                            event.target.value,
+                                          )
+                                        }
+                                        disabled={!newExercise.coreMovementPattern}
+                                        className={`${privateExerciseFieldClass} disabled:cursor-not-allowed disabled:opacity-55`}
+                                      >
+                                        <option value="">
+                                          {newExercise.coreMovementPattern
+                                            ? "N/A - custom/private variation"
+                                            : "Select core movement first"}
+                                        </option>
+                                        {privateExerciseSemanticVariationOptions.map(
+                                          (variation) => (
+                                            <option
+                                              key={variation.id}
+                                              value={variation.id}
+                                            >
+                                              {variation.name}
+                                            </option>
+                                          ),
+                                        )}
+                                      </select>
+                                    </label>
+                                  </div>
+                                </section>
+
+                                <section className={privateExerciseSectionClass}>
+                                  <div className="mb-3 flex items-center justify-between gap-3">
+                                    <div>
+                                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200">
+                                        02 Movement
+                                      </p>
+                                      <p className="mt-1 text-xs font-bold text-slate-400">
+                                        Pick the core pattern, load, goal, and level.
+                                      </p>
+                                    </div>
+                                    <span className="rounded-xl border border-cyan-200/18 bg-cyan-300/10 px-2 py-1 text-[9px] font-black uppercase text-cyan-100">
+                                      Engine
+                                    </span>
+                                  </div>
+
+                                  <div className="grid gap-3 min-[560px]:grid-cols-2">
+                                    <label className={`${privateExerciseLabelClass} min-[560px]:col-span-2`}>
+                                      Core Movement Pattern
+                                      <select
+                                        value={newExercise.coreMovementPattern}
+                                        onChange={(event) =>
+                                          updatePrivateExerciseCoreMovement(
+                                            event.target.value,
+                                          )
+                                        }
+                                        className={privateExerciseFieldClass}
+                                      >
+                                        <option value="">Select core movement</option>
+                                        {privateExerciseCoreOptions.map((option) => (
+                                          <option key={option.id} value={option.id}>
+                                            {option.label}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+
+                                    <label className={privateExerciseLabelClass}>
+                                      Primary Equipment
+                                      <select
+                                        value={privateExerciseSelectedEquipmentModifierId}
+                                        onChange={(event) =>
+                                          updatePrivateExerciseEquipment(
+                                            event.target.value,
+                                          )
+                                        }
+                                        disabled={
+                                          !newExercise.coreMovementPattern ||
+                                          privateExerciseEquipmentOptions.length === 0
+                                        }
+                                        className={`${privateExerciseFieldClass} focus:border-cyan-300 disabled:cursor-not-allowed disabled:opacity-55`}
+                                      >
+                                        <option value="">Select equipment</option>
+                                        {privateExerciseEquipmentOptions.map(
+                                          (option) => (
+                                            <option
+                                              key={option.id}
+                                              value={option.id}
+                                            >
+                                              {getControlModifierDisplayLabel(
+                                                "Equipment",
+                                                option,
+                                              )}
+                                            </option>
+                                          ),
+                                        )}
+                                      </select>
+                                    </label>
+
+                                    <label className={privateExerciseLabelClass}>
+                                      Primary Goal
+                                      <select
+                                        value={newExercise.goal}
+                                        onChange={(event) =>
+                                          setNewExercise((prev) => ({
+                                            ...prev,
+                                            goal: event.target.value,
+                                          }))
+                                        }
+                                        className={`${privateExerciseFieldClass} focus:border-yellow-300`}
+                                      >
+                                        {baseGoals.map((goal) => (
+                                          <option key={goal} value={goal}>
+                                            {goal}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+
+                                    <label className={privateExerciseLabelClass}>
+                                      Difficulty
+                                      <select
+                                        value={newExercise.difficulty}
+                                        onChange={(event) =>
+                                          setNewExercise((prev) => ({
+                                            ...prev,
+                                            difficulty: event.target.value,
+                                          }))
+                                        }
+                                        className={`${privateExerciseFieldClass} focus:border-yellow-300`}
+                                      >
+                                        {difficultyOrder.map((difficulty) => (
+                                          <option
+                                            key={difficulty}
+                                            value={difficulty}
+                                          >
+                                            {difficulty}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                  </div>
+                                </section>
+
+                                <section className={privateExerciseSectionClass}>
+                                  <div className="mb-3">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-violet-200">
+                                      03 Muscles
+                                    </p>
+                                    <p className="mt-1 text-xs font-bold text-slate-400">
+                                      These power search, filters, and weekly set rollups.
+                                    </p>
+                                  </div>
+
+                                  <div className="grid gap-3 min-[560px]:grid-cols-2">
+                                    <label className={privateExerciseLabelClass}>
+                                      Primary Muscles
+                                      <input
+                                        placeholder="Pecs | Triceps"
+                                        value={newExercise.primaryMuscles}
+                                        onChange={(event) =>
+                                          setNewExercise((prev) => ({
+                                            ...prev,
+                                            primaryMuscles: event.target.value,
+                                          }))
+                                        }
+                                        className={`${privateExerciseFieldClass} focus:border-violet-300`}
+                                      />
+                                    </label>
+
+                                    <label className={privateExerciseLabelClass}>
+                                      Secondary Muscles
+                                      <input
+                                        placeholder="Shoulders | Core"
+                                        value={newExercise.secondaryMuscles}
+                                        onChange={(event) =>
+                                          setNewExercise((prev) => ({
+                                            ...prev,
+                                            secondaryMuscles: event.target.value,
+                                          }))
+                                        }
+                                        className={`${privateExerciseFieldClass} focus:border-violet-300`}
+                                      />
+                                    </label>
+                                  </div>
+                                </section>
+
+                                <section className={privateExerciseSectionClass}>
+                                  <div className="mb-3">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-200">
+                                      04 Coaching / Media
+                                    </p>
+                                    <p className="mt-1 text-xs font-bold text-slate-400">
+                                      Add the cue and optional image used by the card.
+                                    </p>
+                                  </div>
+
+                                  <div className="grid gap-3">
+                                    <label className={privateExerciseLabelClass}>
+                                      Image URL
+                                      <input
+                                        placeholder="Image URL"
+                                        value={newExercise.image}
+                                        onChange={(event) =>
+                                          setNewExercise((prev) => ({
+                                            ...prev,
+                                            image: event.target.value,
+                                          }))
+                                        }
+                                        className={`${privateExerciseFieldClass} focus:border-cyan-300`}
+                                      />
+                                    </label>
+
+                                    <label className={privateExerciseLabelClass}>
+                                      Coaching Cue
+                                      <textarea
+                                        placeholder="Move with control, own the position, and make every rep count."
+                                        value={newExercise.cue}
+                                        onChange={(event) =>
+                                          setNewExercise((prev) => ({
+                                            ...prev,
+                                            cue: event.target.value,
+                                          }))
+                                        }
+                                        className={`${privateExerciseFieldClass} min-h-[88px] resize-y`}
+                                      />
+                                    </label>
+                                  </div>
+                                </section>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={addExercise}
+                                disabled={
+                                  !newExercise.name.trim() ||
+                                  !newExercise.coreMovementPattern
+                                }
+                                className="mt-4 min-h-[48px] w-full rounded-[18px] border border-emerald-100/30 bg-[linear-gradient(135deg,rgba(52,211,153,0.98),rgba(34,211,238,0.76))] px-5 py-3 text-sm font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_18px_42px_rgba(16,185,129,0.18),inset_0_1px_0_rgba(255,255,255,0.38)] transition hover:-translate-y-0.5 hover:shadow-[0_24px_58px_rgba(16,185,129,0.24)] disabled:cursor-not-allowed disabled:translate-y-0 disabled:border-slate-600 disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none"
+                              >
+                                Save Exercise
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
                       ) : (
                         section.exercises.map((exercise) => {
                           const metadata = getMetadataForExercise(exercise);
-                          const suggestions = getMovementSuggestions(
-                            exercise,
-                            metadata,
-                          );
                           const cardInstanceId = `${section.key}:${exercise.id}`;
+                          const isActiveExerciseCard =
+                            isActiveColumn &&
+                            activeColumnExerciseId === exercise.id;
+                          const suggestions = isActiveExerciseCard
+                            ? getMovementSuggestions(exercise, metadata)
+                            : null;
+                          const favoriteSemanticVariationIds = new Set<string>();
+                          const favoriteSemanticVariationNames = new Set<string>();
+
+                          if (isActiveExerciseCard) {
+                            const addFavoriteSemanticName = (name?: string) => {
+                              const normalizedName = normalizeGeneratedTitlePart(
+                                name || "",
+                              );
+                              if (normalizedName) {
+                                favoriteSemanticVariationNames.add(
+                                  normalizedName,
+                                );
+                              }
+                            };
+
+                            allExercises.forEach((favoriteExercise) => {
+                              if (!favoriteExerciseIds.has(favoriteExercise.id)) {
+                                return;
+                              }
+
+                              const favoriteMetadata =
+                                getMetadataForExercise(favoriteExercise);
+                              const matchesCurrentCore = metadata?.coreMovementId
+                                ? favoriteMetadata?.coreMovementId ===
+                                  metadata.coreMovementId
+                                : favoriteExercise.id === exercise.id;
+
+                              if (!matchesCurrentCore) return;
+
+                              if (favoriteExercise.semanticVariationId) {
+                                favoriteSemanticVariationIds.add(
+                                  favoriteExercise.semanticVariationId,
+                                );
+                              }
+
+                              addFavoriteSemanticName(
+                                favoriteExercise.semanticVariationName,
+                              );
+                              addFavoriteSemanticName(
+                                favoriteExercise.generatedTitle,
+                              );
+                              addFavoriteSemanticName(
+                                getExerciseDisplayVariationName(favoriteExercise),
+                              );
+                            });
+                          }
 
                           return (
                             <div
@@ -24115,53 +27742,94 @@ export default function ExerciseLibraryPage() {
                               className="exercise-library-column-orbit__card"
                               data-card-key={cardInstanceId}
                               data-exercise-id={exercise.id}
+                              data-view-mode={viewMode}
+                              data-active-exercise={
+                                isActiveExerciseCard
+                                  ? "true"
+                                  : undefined
+                              }
                             >
-                              <ExerciseLibraryCard
-                                exercise={exercise}
-                                cardInstanceId={cardInstanceId}
-                                sectionTheme={sectionTheme}
-                                metadata={metadata}
-                                suggestions={suggestions}
-                                latestSetInsight={latestSetInsight}
-                                planAddToParam={planAddToParam}
-                                preferredWeightUnit={preferredWeightUnit}
-                                savedExerciseStats={savedExerciseStats}
-                                viewMode={viewMode}
-                                weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
-                                searchedEquipmentModifierId={
-                                  searchedEquipmentModifierId
-                                }
-                                isFavorite={favoriteExerciseIds.has(exercise.id)}
-                                onToggleFavorite={toggleFavoriteExercise}
-                                onAddToPlan={addExerciseToPlanBuilder}
-                                onDeleteCustom={deleteCustomExercise}
-                                onAddStats={openStatsMenu}
-                                onCreateVariation={openCreateExerciseForm}
-                                onBodyFilterSelect={toggleBodyFilter}
-                                onDifficultyFilterSelect={
-                                  toggleDifficultyFilter
-                                }
-                                onMovementChipSelect={
-                                  handleArchitectureChipSelect
-                                }
-                                onMuscleSelect={filterByMuscleLabel}
-                                onSuggestionSelect={handleSuggestionSelect}
-                                weeklySetsByMuscleLabel={
-                                  weeklySetsSummary.bodySetsByLabel
-                                }
-                                isExerciseDetailsOpen={
-                                  activeExerciseDetailsCardId === exercise.id
-                                }
-                                onToggleExerciseDetails={
-                                  setActiveExerciseDetailsCardId
-                                }
-                                isMovementDetailsOpen={
-                                  activeMovementDetailsPopupId === cardInstanceId
-                                }
-                                onToggleMovementDetails={
-                                  setActiveMovementDetailsPopupId
-                                }
-                              />
+                              {isActiveExerciseCard && suggestions ? (
+                                <ExerciseLibraryCard
+                                  exercise={exercise}
+                                  cardInstanceId={cardInstanceId}
+                                  sectionTheme={sectionTheme}
+                                  categoryLabel={section.label}
+                                  metadata={metadata}
+                                  suggestions={suggestions}
+                                  latestSetInsight={latestSetInsight}
+                                  planAddToParam={planAddToParam}
+                                  preferredWeightUnit={preferredWeightUnit}
+                                  savedExerciseStats={savedExerciseStats}
+                                  viewMode={viewMode}
+                                  weeklyVolumeRangeLabel={weeklyVolumeRangeLabel}
+                                  searchedEquipmentModifierId={
+                                    searchedEquipmentModifierId
+                                  }
+                                  isFavorite={favoriteExerciseIds.has(
+                                    exercise.id,
+                                  )}
+                                  favoriteSemanticVariationIds={
+                                    favoriteSemanticVariationIds
+                                  }
+                                  favoriteSemanticVariationNames={
+                                    favoriteSemanticVariationNames
+                                  }
+                                  onToggleFavorite={toggleFavoriteExercise}
+                                  onAddToPlan={addExerciseToPlanBuilder}
+                                  onDeleteCustom={deleteCustomExercise}
+                                  onAddStats={openStatsMenu}
+                                  onBodyFilterSelect={toggleBodyFilter}
+                                  onDifficultyFilterSelect={
+                                    toggleDifficultyFilter
+                                  }
+                                  onMovementChipSelect={
+                                    handleArchitectureChipSelect
+                                  }
+                                  onMuscleSelect={filterByMuscleLabel}
+                                  onSuggestionSelect={handleSuggestionSelect}
+                                  weeklySetsByMuscleLabel={
+                                    weeklySetsSummary.bodySetsByLabel
+                                  }
+                                  isExerciseDetailsOpen={
+                                    activeExerciseDetailsCardId === exercise.id
+                                  }
+                                  onToggleExerciseDetails={
+                                    setActiveExerciseDetailsCardId
+                                  }
+                                  isMovementDetailsOpen={
+                                    activeMovementDetailsPopupId === cardInstanceId
+                                  }
+                                  onToggleMovementDetails={
+                                    setActiveMovementDetailsPopupId
+                                  }
+                                />
+                              ) : (
+                                <ExerciseLibraryLightweightCard
+                                  exercise={exercise}
+                                  metadata={metadata}
+                                  sectionTheme={sectionTheme}
+                                  categoryLabel={section.label}
+                                  viewMode={viewMode}
+                                  onActivate={() =>
+                                    scrollActiveColumnExerciseIntoView(
+                                      exercise.id,
+                                    )
+                                  }
+                                />
+                              )}
+                              {isActiveExerciseCard ? (
+                                <span
+                                  aria-hidden="true"
+                                  className="exercise-library-grid-card-cursor"
+                                >
+                                  <span className="exercise-library-grid-card-cursor__halo" />
+                                  <span className="exercise-library-grid-card-cursor__pointer" />
+                                  <span className="exercise-library-grid-card-cursor__label">
+                                    Active
+                                  </span>
+                                </span>
+                              ) : null}
                             </div>
                           );
                         })
@@ -24172,7 +27840,7 @@ export default function ExerciseLibraryPage() {
               })}
             </div>
           </div>
-        </div>
+          </div>
 
         <ExerciseLibraryResultsPageSelector
           activeSectionKey={activeExerciseSectionKey}
@@ -24184,6 +27852,7 @@ export default function ExerciseLibraryPage() {
           latestSetInsight={latestSetInsight}
           onPageChange={setCurrentPage}
           onSectionSelect={selectExerciseSectionFromNavigator}
+          onViewModeChange={setViewMode}
           placement="bottom"
           preferredWeightUnit={preferredWeightUnit}
           sections={paginatedExerciseSections}
@@ -24193,6 +27862,7 @@ export default function ExerciseLibraryPage() {
           weeklyWeightVolumeBySectionKey={weeklyWeightVolumeBySectionKey}
           sortMode={sortMode}
           totalPages={totalPages}
+          viewMode={viewMode}
         />
 
         {focusedExercises.length === 0 && (
@@ -24203,6 +27873,10 @@ export default function ExerciseLibraryPage() {
             </p>
           </section>
         )}
+              </section>
+            </div>
+          </div>
+        </div>
       </section>
 
       {statsExercise && statsMenuMode === "grid" && (

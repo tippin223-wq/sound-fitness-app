@@ -19,7 +19,9 @@ export default function MemberDashboardShell({
     pathname === ROUTES.dashboard.home ||
     pathname === ROUTES.dashboard.goals ||
     pathname === ROUTES.dashboard.sessions ||
-    pathname === ROUTES.dashboard.profile;
+    pathname === ROUTES.dashboard.profile ||
+    pathname === ROUTES.dashboard.exerciseLibrary ||
+    pathname === ROUTES.workoutBuilder.exerciseLibrary;
 
   useEffect(() => {
     let isActive = true;
