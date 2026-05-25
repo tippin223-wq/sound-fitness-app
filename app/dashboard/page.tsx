@@ -205,6 +205,44 @@ const getManualLogIsoDate = (value: string) => {
   return date.toISOString();
 };
 
+const getDashboardLocalDateKey = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const addDashboardDays = (date: Date, days: number) => {
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  next.setDate(next.getDate() + days);
+  return next;
+};
+
+const getDashboardEntryDateKey = (value?: string | null) => {
+  if (!value) return null;
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return getDashboardLocalDateKey(parsed);
+};
+
+const getDashboardEntryStreak = (dateKeys: Set<string>, endDate: Date) => {
+  let streak = 0;
+  let cursor = new Date(
+    endDate.getFullYear(),
+    endDate.getMonth(),
+    endDate.getDate(),
+  );
+
+  while (dateKeys.has(getDashboardLocalDateKey(cursor))) {
+    streak += 1;
+    cursor = addDashboardDays(cursor, -1);
+  }
+
+  return streak;
+};
+
 const readManualStatsLogEntries = (): ManualStatsLogEntry[] => {
   if (typeof window === "undefined") return [];
 
@@ -297,6 +335,845 @@ const buildExerciseReference = (exercise: Exercise): ManualLibraryReference => (
   sourceLibrary: "Exercise Library",
 });
 
+type ManualExerciseLibraryCategory = {
+  exercises: Exercise[];
+  helper: string;
+  id: string;
+  label: string;
+};
+
+type ManualExerciseCategoryIconName =
+  | "core"
+  | "library"
+  | "lower"
+  | "mobility"
+  | "power"
+  | "saved"
+  | "today"
+  | "upper"
+  | "user";
+
+const manualExerciseMovementCategoryLabels = [
+  "Lower Body Compound",
+  "Lower Body Isolation",
+  "Core",
+  "Upper Push",
+  "Upper Pull",
+  "Arm Isolation",
+  "Athletic",
+  "Integrated",
+  "Mobility",
+  "Cervical Isolation",
+] as const;
+
+type ManualExerciseMovementCategory =
+  (typeof manualExerciseMovementCategoryLabels)[number];
+
+const manualExerciseLibraryBaseCategories = [
+  {
+    id: "my-plan",
+    label: "My Plan",
+    fallbackExerciseIds: [
+      "goblet-squat",
+      "db-bench-press",
+      "one-arm-db-row",
+      "dead-bug",
+      "farmer-carry",
+      "hip-mobility-flow",
+    ],
+  },
+  {
+    id: "favorites",
+    label: "Favorites",
+    fallbackExerciseIds: [
+      "goblet-squat",
+      "push-up",
+      "bent-over-row",
+      "pallof-press",
+      "kettlebell-swing",
+      "worlds-greatest-stretch",
+    ],
+  },
+  ...manualExerciseMovementCategoryLabels.map((label) => ({
+    id: label.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+    label,
+    fallbackExerciseIds: [],
+  })),
+] as const;
+
+const manualExerciseCategoryThemeByLabel: Record<
+  string,
+  {
+    accent: string;
+    accentSoft: string;
+    accentStrong: string;
+    glow: string;
+    icon: ManualExerciseCategoryIconName;
+  }
+> = {
+  "My Plan": {
+    accent: "rgb(34, 211, 238)",
+    accentSoft: "rgba(34, 211, 238, 0.18)",
+    accentStrong: "rgb(103, 232, 249)",
+    glow: "rgba(34, 211, 238, 0.22)",
+    icon: "today",
+  },
+  Favorites: {
+    accent: "rgb(250, 204, 21)",
+    accentSoft: "rgba(250, 204, 21, 0.18)",
+    accentStrong: "rgb(254, 240, 138)",
+    glow: "rgba(250, 204, 21, 0.20)",
+    icon: "saved",
+  },
+  "Lower Body Compound": {
+    accent: "rgb(16, 185, 129)",
+    accentSoft: "rgba(16, 185, 129, 0.18)",
+    accentStrong: "rgb(110, 231, 183)",
+    glow: "rgba(16, 185, 129, 0.22)",
+    icon: "lower",
+  },
+  "Lower Body Isolation": {
+    accent: "rgb(132, 204, 22)",
+    accentSoft: "rgba(132, 204, 22, 0.18)",
+    accentStrong: "rgb(190, 242, 100)",
+    glow: "rgba(132, 204, 22, 0.20)",
+    icon: "lower",
+  },
+  Core: {
+    accent: "rgb(45, 212, 191)",
+    accentSoft: "rgba(45, 212, 191, 0.18)",
+    accentStrong: "rgb(153, 246, 228)",
+    glow: "rgba(45, 212, 191, 0.20)",
+    icon: "core",
+  },
+  "Upper Push": {
+    accent: "rgb(56, 189, 248)",
+    accentSoft: "rgba(56, 189, 248, 0.18)",
+    accentStrong: "rgb(186, 230, 253)",
+    glow: "rgba(56, 189, 248, 0.22)",
+    icon: "upper",
+  },
+  "Upper Pull": {
+    accent: "rgb(129, 140, 248)",
+    accentSoft: "rgba(129, 140, 248, 0.18)",
+    accentStrong: "rgb(199, 210, 254)",
+    glow: "rgba(129, 140, 248, 0.22)",
+    icon: "upper",
+  },
+  "Arm Isolation": {
+    accent: "rgb(168, 85, 247)",
+    accentSoft: "rgba(168, 85, 247, 0.18)",
+    accentStrong: "rgb(216, 180, 254)",
+    glow: "rgba(168, 85, 247, 0.22)",
+    icon: "upper",
+  },
+  Athletic: {
+    accent: "rgb(251, 146, 60)",
+    accentSoft: "rgba(251, 146, 60, 0.18)",
+    accentStrong: "rgb(253, 186, 116)",
+    glow: "rgba(251, 146, 60, 0.20)",
+    icon: "power",
+  },
+  Integrated: {
+    accent: "rgb(244, 114, 182)",
+    accentSoft: "rgba(244, 114, 182, 0.18)",
+    accentStrong: "rgb(251, 207, 232)",
+    glow: "rgba(244, 114, 182, 0.20)",
+    icon: "power",
+  },
+  Mobility: {
+    accent: "rgb(103, 232, 249)",
+    accentSoft: "rgba(103, 232, 249, 0.16)",
+    accentStrong: "rgb(207, 250, 254)",
+    glow: "rgba(103, 232, 249, 0.18)",
+    icon: "mobility",
+  },
+  "Cervical Isolation": {
+    accent: "rgb(148, 163, 184)",
+    accentSoft: "rgba(148, 163, 184, 0.16)",
+    accentStrong: "rgb(226, 232, 240)",
+    glow: "rgba(148, 163, 184, 0.18)",
+    icon: "mobility",
+  },
+};
+
+function ManualExerciseCategoryIcon({
+  className = "h-4 w-4",
+  name,
+}: {
+  className?: string;
+  name: ManualExerciseCategoryIconName;
+}) {
+  const iconProps = {
+    "aria-hidden": true,
+    className,
+    fill: "none",
+    focusable: false,
+    stroke: "currentColor",
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    strokeWidth: 2,
+    viewBox: "0 0 24 24",
+  };
+
+  switch (name) {
+    case "lower":
+      return (
+        <svg {...iconProps}>
+          <path d="M9 3v6l-2.5 5.5 4 1.5 2-5 3.5 3-1 7h4l1-9-5.5-5V3" />
+          <path d="M7 21h5" />
+        </svg>
+      );
+    case "upper":
+      return (
+        <svg {...iconProps}>
+          <path d="M6 7v10" />
+          <path d="M18 7v10" />
+          <path d="M3 9v6" />
+          <path d="M21 9v6" />
+          <path d="M6 12h12" />
+        </svg>
+      );
+    case "core":
+      return (
+        <svg {...iconProps}>
+          <circle cx="12" cy="12" r="7" />
+          <path d="M12 5v14" />
+          <path d="M5 12h14" />
+          <path d="M8.5 8.5h.01" />
+          <path d="M15.5 15.5h.01" />
+        </svg>
+      );
+    case "power":
+      return (
+        <svg {...iconProps}>
+          <path d="M13 2 4 14h7l-1 8 10-13h-7l1-7Z" />
+        </svg>
+      );
+    case "mobility":
+      return (
+        <svg {...iconProps}>
+          <path d="M22 12h-4l-3 8-6-16-3 8H2" />
+        </svg>
+      );
+    case "saved":
+      return (
+        <svg {...iconProps} fill="currentColor">
+          <path d="m12 2 3.09 6.26 6.91 1-5 4.87 1.18 6.87L12 17.77 5.82 21 7 14.13l-5-4.87 6.91-1L12 2Z" />
+        </svg>
+      );
+    case "today":
+      return (
+        <svg {...iconProps}>
+          <path d="M8 2v4" />
+          <path d="M16 2v4" />
+          <rect x="3" y="4" width="18" height="18" rx="3" />
+          <path d="M3 10h18" />
+          <path d="m8.5 15 2.2 2.2L16 12" />
+        </svg>
+      );
+    case "user":
+      return (
+        <svg {...iconProps}>
+          <circle cx="12" cy="8" r="4" />
+          <path d="M4 21a8 8 0 0 1 16 0" />
+        </svg>
+      );
+    default:
+      return (
+        <svg {...iconProps}>
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" />
+          <path d="M9 6h7" />
+          <path d="M9 10h5" />
+          <path d="M9 14h6" />
+        </svg>
+      );
+  }
+}
+
+const manualExercisePatternCategoryByToken: Record<
+  string,
+  ManualExerciseMovementCategory
+> = {
+  "anti-extension": "Core",
+  "anti-lateral-flexion": "Core",
+  "anti-rotation": "Core",
+  carry: "Athletic",
+  conditioning: "Athletic",
+  core: "Core",
+  crawl: "Athletic",
+  flexion: "Core",
+  gait: "Athletic",
+  hinge: "Lower Body Compound",
+  "hip-thrust-bridge": "Lower Body Compound",
+  "horizontal-pull": "Upper Pull",
+  "horizontal-push": "Upper Push",
+  jump: "Athletic",
+  lunge: "Lower Body Compound",
+  mobility: "Mobility",
+  power: "Athletic",
+  "power-push": "Athletic",
+  pull: "Upper Pull",
+  rotation: "Core",
+  squat: "Lower Body Compound",
+  "squat-to-press": "Integrated",
+  sprint: "Athletic",
+  "step-up": "Lower Body Compound",
+  throw: "Athletic",
+  "vertical-pull": "Upper Pull",
+  "vertical-push": "Upper Push",
+};
+
+const normalizeManualExerciseToken = (value?: string) =>
+  (value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+const getManualExerciseMovementCategory = (
+  exercise: Exercise,
+): ManualExerciseMovementCategory => {
+  const patternToken = normalizeManualExerciseToken(exercise.pattern);
+  const nameToken = normalizeManualExerciseToken(exercise.name);
+  const bodyToken = normalizeManualExerciseToken(exercise.body);
+  const combinedToken = `${nameToken}-${patternToken}-${bodyToken}`;
+
+  if (combinedToken.includes("neck") || combinedToken.includes("cervical")) {
+    return "Cervical Isolation";
+  }
+  if (combinedToken.includes("mobility") || combinedToken.includes("stretch")) {
+    return "Mobility";
+  }
+  if (
+    combinedToken.includes("thruster") ||
+    combinedToken.includes("turkish") ||
+    combinedToken.includes("bear-crawl") ||
+    patternToken === "squat-to-press"
+  ) {
+    return "Integrated";
+  }
+  if (
+    combinedToken.includes("calf") ||
+    combinedToken.includes("tibialis") ||
+    combinedToken.includes("leg-extension") ||
+    combinedToken.includes("leg-curl") ||
+    combinedToken.includes("hip-abduction") ||
+    combinedToken.includes("hip-adduction") ||
+    combinedToken.includes("kickback") ||
+    combinedToken.includes("frog-pump")
+  ) {
+    return "Lower Body Isolation";
+  }
+  if (
+    combinedToken.includes("curl") ||
+    combinedToken.includes("triceps") ||
+    combinedToken.includes("wrist") ||
+    combinedToken.includes("face-pull") ||
+    combinedToken.includes("external-rotation") ||
+    combinedToken.includes("internal-rotation")
+  ) {
+    return "Arm Isolation";
+  }
+  if (manualExercisePatternCategoryByToken[patternToken]) {
+    return manualExercisePatternCategoryByToken[patternToken];
+  }
+  if (bodyToken.includes("chest") || bodyToken.includes("shoulder")) {
+    return "Upper Push";
+  }
+  if (bodyToken.includes("back")) return "Upper Pull";
+  if (
+    bodyToken.includes("leg") ||
+    bodyToken.includes("glute") ||
+    bodyToken.includes("hamstring") ||
+    bodyToken.includes("posterior-chain")
+  ) {
+    return "Lower Body Compound";
+  }
+  if (bodyToken.includes("core")) return "Core";
+
+  return "Athletic";
+};
+
+const getManualExerciseFallbacks = (exerciseIds: readonly string[]) =>
+  exerciseIds
+    .map((exerciseId) =>
+      exerciseLibrary.find((exercise) => exercise.id === exerciseId),
+    )
+    .filter((exercise): exercise is Exercise => Boolean(exercise));
+
+const createManualExerciseLibraryCategories = ({
+  favoriteExercises,
+  myPlanExercises,
+}: {
+  favoriteExercises: Exercise[];
+  myPlanExercises: Exercise[];
+}) => {
+  const grouped = exerciseLibrary.reduce((categories, exercise) => {
+    const label = getManualExerciseMovementCategory(exercise);
+    const current = categories.get(label) || [];
+    current.push(exercise);
+    categories.set(label, current);
+
+    return categories;
+  }, new Map<ManualExerciseMovementCategory, Exercise[]>());
+
+  return manualExerciseLibraryBaseCategories.map((category) => {
+    const fallbackExercises = getManualExerciseFallbacks(
+      category.fallbackExerciseIds,
+    );
+    const exercises =
+      category.id === "my-plan"
+        ? myPlanExercises.length
+          ? myPlanExercises
+          : fallbackExercises
+        : category.id === "favorites"
+          ? favoriteExercises.length
+            ? favoriteExercises
+            : fallbackExercises
+          : grouped.get(category.label as ManualExerciseMovementCategory) || [];
+
+    return {
+      exercises,
+      helper:
+        category.id === "my-plan"
+          ? myPlanExercises.length
+            ? `${myPlanExercises.length.toLocaleString()} planned`
+            : "Plan preview"
+          : category.id === "favorites"
+            ? favoriteExercises.length
+              ? `${favoriteExercises.length.toLocaleString()} saved`
+              : "Favorite preview"
+            : `${exercises.length.toLocaleString()} cards`,
+      id: category.id,
+      label: category.label,
+    };
+  });
+};
+
+function ManualExerciseLibraryPreview({
+  activeCategoryId,
+  categories,
+  manualStatsDraft,
+  onCategorySelect,
+  onCategoryShift,
+  onExerciseSelect,
+  onManualStatsDraftChange,
+  onSaveManualStats,
+  selectedExerciseCue,
+  selectedExerciseIds,
+}: {
+  activeCategoryId: string;
+  categories: ManualExerciseLibraryCategory[];
+  manualStatsDraft: ManualStatsDraft;
+  onCategorySelect: (categoryId: string) => void;
+  onCategoryShift: (direction: "left" | "right") => void;
+  onExerciseSelect: (exercise: Exercise) => void;
+  onManualStatsDraftChange: (
+    field: keyof ManualStatsDraft,
+    value: string,
+  ) => void;
+  onSaveManualStats: () => void;
+  selectedExerciseCue?: string;
+  selectedExerciseIds: Set<string>;
+}) {
+  const activeCategory =
+    categories.find(
+      (category) => category.id === activeCategoryId,
+    ) || categories[0];
+  const visibleExercises = activeCategory?.exercises || [];
+  const exerciseCardScrollerRef = useRef<HTMLDivElement | null>(null);
+  const [exerciseCardsCanScrollDown, setExerciseCardsCanScrollDown] =
+    useState(false);
+  const quickManualSliderFields: Array<{
+    defaultValue: number;
+    field: keyof Pick<ManualStatsDraft, "load" | "reps" | "rpe" | "sets">;
+    label: string;
+    max: number;
+    min: number;
+    step: number;
+    valueLabel: (value: number) => string;
+  }> = [
+    {
+      defaultValue: 3,
+      field: "sets",
+      label: "Sets",
+      max: 10,
+      min: 1,
+      step: 1,
+      valueLabel: (value) => `${value}`,
+    },
+    {
+      defaultValue: 10,
+      field: "reps",
+      label: "Reps",
+      max: 40,
+      min: 1,
+      step: 1,
+      valueLabel: (value) => `${value}`,
+    },
+    {
+      defaultValue: 185,
+      field: "load",
+      label: "Load",
+      max: 450,
+      min: 0,
+      step: 5,
+      valueLabel: (value) => (value >= 450 ? "450+ lb" : `${value} lb`),
+    },
+    {
+      defaultValue: 8,
+      field: "rpe",
+      label: "RPE",
+      max: 10,
+      min: 1,
+      step: 1,
+      valueLabel: (value) => `${value}/10`,
+    },
+  ];
+  const getQuickManualSliderValue = (
+    field: (typeof quickManualSliderFields)[number],
+  ) => {
+    const rawValue = manualStatsDraft[field.field];
+    const numericValue = Number.parseFloat(
+      String(rawValue).replace(/[^\d.]/g, ""),
+    );
+    const fallbackValue = Number.isFinite(numericValue)
+      ? numericValue
+      : field.defaultValue;
+
+    return Math.min(field.max, Math.max(field.min, fallbackValue));
+  };
+  const activeCategoryIndex = Math.max(
+    0,
+    categories.findIndex((category) => category.id === activeCategory?.id),
+  );
+  const maxExerciseCount = Math.max(
+    1,
+    ...categories.map((category) => category.exercises.length),
+  );
+  const getCategoryOrbitOffset = (categoryIndex: number) => {
+    const totalCategories = Math.max(1, categories.length);
+    let offset = categoryIndex - activeCategoryIndex;
+
+    if (totalCategories > 1) {
+      const halfCategoryCount = totalCategories / 2;
+
+      if (offset > halfCategoryCount) offset -= totalCategories;
+      if (offset < -halfCategoryCount) offset += totalCategories;
+    }
+
+    return offset;
+  };
+  const updateExerciseCardsScrollCue = (
+    scroller = exerciseCardScrollerRef.current,
+  ) => {
+    if (!scroller) return;
+
+    const hasMoreBelow =
+      scroller.scrollTop + scroller.clientHeight < scroller.scrollHeight - 4;
+
+    setExerciseCardsCanScrollDown((current) =>
+      current === hasMoreBelow ? current : hasMoreBelow,
+    );
+  };
+  const scrollExerciseCardsDown = () => {
+    const scroller = exerciseCardScrollerRef.current;
+
+    if (!scroller) return;
+
+    scroller.scrollBy({
+      behavior: "smooth",
+      top: Math.max(132, scroller.clientHeight * 0.72),
+    });
+  };
+
+  useEffect(() => {
+    const scroller = exerciseCardScrollerRef.current;
+
+    if (!scroller) return;
+
+    const updateScrollCue = () => updateExerciseCardsScrollCue(scroller);
+    const animationFrame = window.requestAnimationFrame(() => {
+      scroller.scrollTop = 0;
+      updateScrollCue();
+    });
+    let resizeObserver: ResizeObserver | null = null;
+
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(updateScrollCue);
+      resizeObserver.observe(scroller);
+    }
+
+    window.addEventListener("resize", updateScrollCue);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", updateScrollCue);
+      resizeObserver?.disconnect();
+    };
+  }, [activeCategory?.id, selectedExerciseCue, visibleExercises.length]);
+
+  return (
+    <div className="w-full">
+      <div className="relative mx-auto flex max-w-[56rem] items-center justify-center gap-2 text-center">
+        <button
+          type="button"
+          aria-label="Previous exercise category"
+          onClick={() => onCategoryShift("left")}
+          className="grid h-9 w-8 shrink-0 place-items-center rounded-xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:-translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
+        >
+          &lt;
+        </button>
+        <div
+          aria-label="Manual stats exercise category orbital"
+          className="exercise-library-row-title-icon-line exercise-library-row-title-icon-line--orbit relative min-w-0 flex-1 overflow-visible px-1 py-1"
+          style={{ height: "4.8rem", minHeight: "4.8rem" }}
+        >
+          {categories.map((category, categoryIndex) => {
+            const active = category.id === activeCategory?.id;
+            const orbitOffset = getCategoryOrbitOffset(categoryIndex);
+            const orbitVisible = Math.abs(orbitOffset) <= 4;
+            const categoryTheme =
+              manualExerciseCategoryThemeByLabel[category.label] ||
+              manualExerciseCategoryThemeByLabel.Mobility;
+            const goalFillPercent = Math.round(
+              (category.exercises.length / maxExerciseCount) * 100,
+            );
+            const categoryStyle = {
+              "--exercise-category-goal-progress": `${goalFillPercent}%`,
+              "--exercise-theme-accent": categoryTheme.accent,
+              "--exercise-theme-accent-soft": categoryTheme.accentSoft,
+              "--exercise-theme-accent-strong": categoryTheme.accentStrong,
+              "--exercise-theme-glow": categoryTheme.glow,
+            } as CSSProperties;
+
+            return (
+              <span
+                key={category.id}
+                aria-hidden={orbitVisible ? undefined : true}
+                className="exercise-library-horizontal-card-scroller-slot relative flex shrink-0 overflow-visible"
+                data-orbit-offset={orbitVisible ? String(orbitOffset) : undefined}
+                data-orbit-visible={orbitVisible ? "true" : undefined}
+              >
+                <button
+                  type="button"
+                  aria-pressed={active}
+                  data-section-key={category.id}
+                  onClick={() => onCategorySelect(category.id)}
+                  style={categoryStyle}
+                  tabIndex={orbitVisible ? 0 : -1}
+                  title={`${category.label}. ${category.helper}`}
+                  className={`exercise-library-page-section-tab ${
+                    active
+                      ? "exercise-library-page-section-tab--active"
+                      : "exercise-library-page-section-tab--inactive"
+                  } group/tile flex h-11 shrink-0 items-center gap-2 border py-2 text-left transition duration-200 sm:h-12 ${
+                    active
+                      ? "w-[10rem] scale-[1.01] justify-start border-cyan-300/40 bg-cyan-300/10 px-3 text-white shadow-[0_0_28px_rgba(34,211,238,0.18)] sm:w-[11.25rem] sm:px-3.5"
+                      : "w-11 justify-center border-white/10 bg-white/[0.04] px-2 text-slate-100 opacity-[0.88] hover:-translate-y-0.5 hover:border-cyan-200/24 hover:bg-cyan-300/10 hover:opacity-100 sm:w-12"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="exercise-library-page-section-tab__goal-fill"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="exercise-library-page-section-tab__icon"
+                  >
+                    <ManualExerciseCategoryIcon
+                      className="h-4 w-4"
+                      name={categoryTheme.icon}
+                    />
+                    <span className="exercise-library-page-section-tab__status grid place-items-center">
+                      <span className="block rounded-full bg-current shadow-[0_0_10px_currentColor]" />
+                    </span>
+                  </span>
+                  {active ? (
+                    <span className="exercise-library-page-section-tab__content relative z-10 min-w-0">
+                      <span className="block truncate text-[10px] font-black uppercase leading-4 tracking-[0.14em] sm:text-[11px]">
+                        {category.label}
+                      </span>
+                      <span className="mt-0.5 block truncate text-[8px] font-black uppercase tracking-[0.08em] opacity-78">
+                        {category.helper}
+                      </span>
+                    </span>
+                  ) : null}
+                </button>
+              </span>
+            );
+          })}
+        </div>
+        <button
+          type="button"
+          aria-label="Next exercise category"
+          onClick={() => onCategoryShift("right")}
+          className="grid h-9 w-8 shrink-0 place-items-center rounded-xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
+        >
+          &gt;
+        </button>
+      </div>
+
+      <div className="mt-3 rounded-[24px] border border-cyan-200/14 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.10),transparent_42%),rgba(2,6,23,0.38)] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:p-3">
+        <div className="grid items-stretch gap-2 min-[760px]:h-[24rem] min-[760px]:grid-cols-[minmax(0,1fr)_12rem] min-[1020px]:h-[25rem] min-[1020px]:grid-cols-[minmax(0,1fr)_13rem]">
+          <div className="relative flex min-h-[21rem] min-w-0 flex-col overflow-hidden rounded-[20px] border border-cyan-200/10 bg-slate-950/24 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] min-[760px]:h-full min-[760px]:min-h-0">
+            {selectedExerciseCue ? (
+              <p className="mb-1.5 line-clamp-1 text-center text-[10px] font-semibold text-cyan-100/70">
+                Cue: {selectedExerciseCue}
+              </p>
+            ) : null}
+            <div
+              data-dashboard-orbiter-local-scroll="true"
+              ref={exerciseCardScrollerRef}
+              onScroll={() => updateExerciseCardsScrollCue()}
+              className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 scroll-smooth [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
+            >
+              <div className="grid gap-1.5 pb-8 sm:grid-cols-3">
+                {visibleExercises.map((exercise) => {
+                  const selected = selectedExerciseIds.has(exercise.id);
+
+                  return (
+                    <button
+                      key={`${activeCategory?.id}-${exercise.id}`}
+                      type="button"
+                      aria-label={`Attach ${exercise.name}`}
+                      onClick={() => onExerciseSelect(exercise)}
+                      className={`group relative isolate min-h-[96px] overflow-hidden rounded-[16px] border p-2 text-left transition hover:-translate-y-0.5 active:scale-[0.98] ${
+                        selected
+                          ? "border-emerald-200/50 bg-emerald-300/12 text-emerald-50 shadow-[0_0_26px_rgba(16,185,129,0.16)]"
+                          : "border-white/10 bg-white/[0.045] text-slate-200 hover:border-cyan-200/34 hover:bg-cyan-300/8 hover:text-white"
+                      }`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-0 -z-10 bg-cover bg-center opacity-48 transition duration-300 group-hover:scale-105 group-hover:opacity-60"
+                        style={{
+                          backgroundImage: `linear-gradient(180deg, rgba(2,6,23,0.08), rgba(2,6,23,0.88)), url(${exercise.image})`,
+                        }}
+                      />
+                      <span className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.16),transparent_40%),linear-gradient(180deg,transparent,rgba(2,6,23,0.78))]" />
+
+                      <span className="relative flex min-h-[80px] flex-col justify-between">
+                        <span className="flex items-start justify-between gap-1.5">
+                          <span className="rounded-full border border-cyan-100/24 bg-slate-950/58 px-1.5 py-0.5 text-[6.5px] font-black uppercase tracking-[0.07em] text-cyan-100 backdrop-blur">
+                            {exercise.body}
+                          </span>
+                          <span
+                            className={`rounded-full border px-1.5 py-0.5 text-[6.5px] font-black uppercase tracking-[0.07em] backdrop-blur ${
+                              selected
+                                ? "border-emerald-100/44 bg-emerald-300/18 text-emerald-100"
+                                : "border-white/14 bg-slate-950/54 text-slate-200"
+                            }`}
+                          >
+                            {selected ? "Attached" : "Add"}
+                          </span>
+                        </span>
+
+                        <span className="mt-auto block">
+                          <span className="block truncate text-[6.5px] font-black uppercase tracking-[0.09em] text-cyan-100/80">
+                            {exercise.pattern} / {exercise.equipment}
+                          </span>
+                          <span className="mt-0.5 block truncate text-[12px] font-black leading-4 text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.55)]">
+                            {exercise.name}
+                          </span>
+                          <span className="mt-0.5 line-clamp-1 text-[8px] font-semibold leading-3 text-slate-200/88">
+                            {exercise.muscles}
+                          </span>
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {exerciseCardsCanScrollDown ? (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-2 bottom-2 h-14 rounded-b-[18px] bg-gradient-to-t from-slate-950/92 via-slate-950/52 to-transparent"
+                />
+                <button
+                  type="button"
+                  aria-label="Scroll exercise cards down"
+                  onClick={scrollExerciseCardsDown}
+                  className="absolute bottom-3 left-1/2 z-10 grid h-8 w-8 -translate-x-1/2 place-items-center rounded-full border border-cyan-100/28 bg-slate-950/82 text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.22)] backdrop-blur transition hover:-translate-y-0.5 hover:border-cyan-100/50 hover:bg-cyan-300/14 active:scale-95"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="mb-1 h-2.5 w-2.5 rotate-45 border-b-2 border-r-2 border-current"
+                  />
+                </button>
+              </>
+            ) : null}
+          </div>
+
+          <div className="grid gap-1.5 min-[760px]:h-full min-[760px]:content-start">
+            {quickManualSliderFields.map((field) => {
+              const sliderValue = getQuickManualSliderValue(field);
+              const sliderFillPercent =
+                ((sliderValue - field.min) / (field.max - field.min)) * 100;
+              const sliderTrackStyle = {
+                background: `linear-gradient(90deg, rgba(34,211,238,0.95) 0%, rgba(103,232,249,0.95) ${sliderFillPercent}%, rgba(148,163,184,0.28) ${sliderFillPercent}%, rgba(148,163,184,0.28) 100%)`,
+                boxShadow: "0 0 18px rgba(34,211,238,0.14)",
+              } as CSSProperties;
+
+              return (
+                <label
+                  key={`quick-${field.field}`}
+                  className="min-w-0 rounded-[16px] border border-white/10 bg-slate-950/48 px-2.5 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-cyan-200/28 hover:bg-cyan-300/8"
+                >
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-400">
+                      {field.label}
+                    </span>
+                    <span className="text-[14px] font-black uppercase tracking-[0.05em] text-cyan-50">
+                      {field.valueLabel(sliderValue)}
+                    </span>
+                  </span>
+                  <input
+                    aria-label={`${field.label} slider`}
+                    type="range"
+                    min={field.min}
+                    max={field.max}
+                    step={field.step}
+                    value={sliderValue}
+                    onChange={(event) =>
+                      onManualStatsDraftChange(field.field, event.target.value)
+                    }
+                    style={sliderTrackStyle}
+                    className="mt-2 h-2 w-full cursor-ew-resize appearance-none rounded-full outline-none transition [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-cyan-50 [&::-moz-range-thumb]:bg-cyan-300 [&::-moz-range-thumb]:shadow-[0_0_16px_rgba(34,211,238,0.55)] [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-cyan-50 [&::-webkit-slider-thumb]:bg-cyan-300 [&::-webkit-slider-thumb]:shadow-[0_0_16px_rgba(34,211,238,0.55)]"
+                  />
+                </label>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={onSaveManualStats}
+              className="mt-0.5 inline-flex min-h-[38px] w-full items-center justify-center rounded-[16px] bg-gradient-to-r from-amber-300 to-cyan-300 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_0_34px_rgba(250,204,21,0.18)] active:scale-[0.99]"
+            >
+              Save Stat
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-3 flex justify-center">
+          <Link
+            href={ROUTES.workoutBuilder.exerciseLibrary}
+            className="inline-flex min-h-[34px] items-center justify-center rounded-full border border-cyan-200/24 bg-cyan-300/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/48 hover:bg-cyan-300/18 hover:text-cyan-50"
+          >
+            Open full Exercise Library
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const formatDashboardDate = (value?: string) => {
   if (!value) return "No workout logged yet";
 
@@ -322,6 +1199,24 @@ const formatCompactDateTime = (value?: string) => {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
+};
+
+const formatManualLoadDisplay = (value?: string) => {
+  const trimmedValue = value?.trim();
+
+  if (!trimmedValue) return "0 lb";
+  if (/\b(lb|lbs|kg)\b/i.test(trimmedValue)) return trimmedValue;
+
+  return `${trimmedValue} lb`;
+};
+
+const formatManualRpeDisplay = (value?: string) => {
+  const trimmedValue = value?.trim();
+
+  if (!trimmedValue) return "0/10";
+  if (trimmedValue.includes("/")) return trimmedValue;
+
+  return `${trimmedValue}/10`;
 };
 
 const getSourceLabel = ({ source, error }: SourceResult) => {
@@ -719,8 +1614,8 @@ const dashboardHeroAchievementOrbitSlots = [
     opacity: 0.76,
     rotateY: -14,
     scale: 0.82,
-    x: 225,
-    y: 12,
+    x: 158,
+    y: 8,
     zIndex: 30,
   },
   {
@@ -728,8 +1623,8 @@ const dashboardHeroAchievementOrbitSlots = [
     opacity: 0.34,
     rotateY: -28,
     scale: 0.62,
-    x: 360,
-    y: 28,
+    x: 248,
+    y: 18,
     zIndex: 16,
   },
   {
@@ -737,8 +1632,8 @@ const dashboardHeroAchievementOrbitSlots = [
     opacity: 0.12,
     rotateY: -42,
     scale: 0.46,
-    x: 480,
-    y: 48,
+    x: 328,
+    y: 30,
     zIndex: 8,
   },
 ];
@@ -1091,6 +1986,7 @@ const dashboardJourneyStepStyles: Record<DashboardJourneyStepState, string> = {
 };
 
 export default function UserHomeDashboardPage() {
+  const [dashboardToday] = useState<Date>(() => new Date());
   const [firstName, setFirstName] = useState("Member");
   const [exerciseStats, setExerciseStats] = useState<LocalExerciseStatEntry[]>(
     [],
@@ -1116,6 +2012,10 @@ export default function UserHomeDashboardPage() {
     activeManualFavoriteDashboardIndex,
     setActiveManualFavoriteDashboardIndex,
   ] = useState(0);
+  const [
+    activeManualExerciseCategoryId,
+    setActiveManualExerciseCategoryId,
+  ] = useState<string>(manualExerciseLibraryBaseCategories[0]?.id || "my-plan");
   const [exerciseSelectorOpen, setExerciseSelectorOpen] = useState(false);
   const [exerciseReferenceSearch, setExerciseReferenceSearch] = useState("");
   const [manualReferences, setManualReferences] = useState<
@@ -1123,17 +2023,18 @@ export default function UserHomeDashboardPage() {
   >([]);
   const [manualStatsDraft, setManualStatsDraft] = useState<ManualStatsDraft>({
     dateTime: getManualDateTimeInputValue(),
-    load: "",
+    load: "185",
     notes: "",
-    reps: "",
-    rpe: "",
+    reps: "10",
+    rpe: "8",
     sessionLabel: "",
-    sets: "",
+    sets: "3",
   });
   const [manualStatsLogs, setManualStatsLogs] = useState<ManualStatsLogEntry[]>(
     [],
   );
-  const [manualLogMessage, setManualLogMessage] = useState("");
+  const [manualStatsAdderCollapsed, setManualStatsAdderCollapsed] =
+    useState(true);
   const [activeDashboardOrbiterRow, setActiveDashboardOrbiterRow] =
     useState(0);
   const [activeDashboardHeaderIndex, setActiveDashboardHeaderIndex] =
@@ -1220,6 +2121,20 @@ export default function UserHomeDashboardPage() {
 
     return favorites.slice(0, 12);
   }, [favoriteExerciseIds]);
+  const manualPlanExerciseCards = useMemo(() => {
+    const planExercises = favoriteWorkoutTemplates[0]?.exercises || [];
+    const resolvedExercises = planExercises
+      .map((plannedExercise) =>
+        exerciseLibrary.find(
+          (exercise) =>
+            exercise.id === plannedExercise.id ||
+            exercise.name.toLowerCase() === plannedExercise.name.toLowerCase(),
+        ),
+      )
+      .filter((exercise): exercise is Exercise => Boolean(exercise));
+
+    return resolvedExercises.slice(0, 12);
+  }, [favoriteWorkoutTemplates]);
   const activeManualFavoriteDashboard =
     manualStatsFavoriteDashboardSources[
       activeManualFavoriteDashboardIndex %
@@ -1233,6 +2148,31 @@ export default function UserHomeDashboardPage() {
     activeManualFavoriteDashboard.id === "workout"
       ? favoriteExerciseCards.length
       : activeDashboardLibraryFavoriteIds.length;
+  const manualExerciseLibraryCategories = useMemo(
+    () =>
+      createManualExerciseLibraryCategories({
+        favoriteExercises: favoriteExerciseCards,
+        myPlanExercises: manualPlanExerciseCards,
+      }),
+    [favoriteExerciseCards, manualPlanExerciseCards],
+  );
+  const activeManualExerciseCategory =
+    manualExerciseLibraryCategories.find(
+      (category) => category.id === activeManualExerciseCategoryId,
+    ) || manualExerciseLibraryCategories[0];
+  const activeManualFavoriteCountLabel =
+    activeManualFavoriteDashboard.id === "workout"
+      ? activeManualExerciseCategory?.helper || "Library"
+      : `${activeManualFavoriteCount} saved`;
+  const selectedManualExerciseReferenceIds = useMemo(
+    () =>
+      new Set(
+        manualReferences
+          .filter((reference) => reference.referenceType === "exercise")
+          .map((reference) => reference.referenceId),
+      ),
+    [manualReferences],
+  );
   const activeCommandCenter =
     dashboardCommandCenterCards[activeCommandCenterIndex] ||
     dashboardCommandCenterCards[0];
@@ -1245,6 +2185,11 @@ export default function UserHomeDashboardPage() {
       title: "Weekly Snapshot",
     },
     {
+      completion: manualStatsLogs.length ? 100 : 58,
+      helper: "Manual stats, import tools, library attach, and recent saves.",
+      title: "Daily Tools",
+    },
+    {
       completion: Math.round(
         ((activeCommandCenterIndex + 1) / dashboardCommandCenterCards.length) *
           100,
@@ -1253,11 +2198,16 @@ export default function UserHomeDashboardPage() {
       title: "Dashboards",
     },
     {
+      completion: 72,
+      helper: "Training calendar, scheduled sessions, and weekly commitments.",
+      title: "Calendar",
+    },
+    {
       completion: Math.round(
         ((activeSystemCenterIndex + 1) / dashboardSystemCards.length) * 100,
       ),
       helper:
-        "Goals, insights, stats, progress, calendar, appointments, messages, packages, and achievements.",
+        "Goals, insights, stats, progress, appointments, messages, packages, and achievements.",
       title: "System Row",
     },
   ];
@@ -1308,6 +2258,15 @@ export default function UserHomeDashboardPage() {
   const handleDashboardOrbiterWheel = (
     event: ReactWheelEvent<HTMLElement>,
   ) => {
+    const target = event.target;
+
+    if (
+      target instanceof HTMLElement &&
+      target.closest("[data-dashboard-orbiter-local-scroll='true']")
+    ) {
+      return;
+    }
+
     if (Math.abs(event.deltaX) > Math.abs(event.deltaY) * 1.2) return;
 
     const direction = event.deltaY > 18 ? 1 : event.deltaY < -18 ? -1 : 0;
@@ -1332,7 +2291,9 @@ export default function UserHomeDashboardPage() {
     const target = event.target;
     if (
       target instanceof HTMLElement &&
-      target.closest("input,select,textarea,[contenteditable='true']")
+      target.closest(
+        "input,select,textarea,[contenteditable='true'],[data-dashboard-orbiter-local-scroll='true']",
+      )
     ) {
       return;
     }
@@ -1361,7 +2322,9 @@ export default function UserHomeDashboardPage() {
     const target = event.target;
     if (
       target instanceof HTMLElement &&
-      target.closest("input,select,textarea,[contenteditable='true']")
+      target.closest(
+        "input,select,textarea,[contenteditable='true'],[data-dashboard-orbiter-local-scroll='true']",
+      )
     ) {
       return;
     }
@@ -1611,7 +2574,6 @@ export default function UserHomeDashboardPage() {
     field: keyof ManualStatsDraft,
     value: string,
   ) => {
-    setManualLogMessage("");
     setManualStatsDraft((current) => ({
       ...current,
       [field]: value,
@@ -1628,13 +2590,6 @@ export default function UserHomeDashboardPage() {
     ]);
     setExerciseSelectorOpen(false);
     setExerciseReferenceSearch("");
-    setManualLogMessage("");
-  };
-
-  const removeManualReference = (referenceId: string) => {
-    setManualReferences((current) =>
-      current.filter((reference) => reference.referenceId !== referenceId),
-    );
   };
 
   const saveManualStatsLog = () => {
@@ -1648,7 +2603,6 @@ export default function UserHomeDashboardPage() {
     ].some((value) => value.trim());
 
     if (!hasManualValue && manualReferences.length === 0) {
-      setManualLogMessage("Add a stat, note, or exercise reference first.");
       return;
     }
 
@@ -1690,11 +2644,6 @@ export default function UserHomeDashboardPage() {
       sessionLabel: "",
       sets: "",
     });
-    setManualLogMessage(
-      selectedExerciseReference
-        ? `Logged ${selectedExerciseReference.referenceTitle}.`
-        : "Logged generic manual stats.",
-    );
   };
 
   const handleUploadOptionSelect = (optionId: UploadOptionId) => {
@@ -1710,6 +2659,25 @@ export default function UserHomeDashboardPage() {
         (nextIndex + manualStatsFavoriteDashboardSources.length) %
         manualStatsFavoriteDashboardSources.length
       );
+    });
+  };
+  const rotateManualExerciseCategory = (direction: "left" | "right") => {
+    setActiveManualExerciseCategoryId((currentCategoryId) => {
+      const currentIndex = Math.max(
+        0,
+        manualExerciseLibraryCategories.findIndex(
+          (category) => category.id === currentCategoryId,
+        ),
+      );
+      const nextIndex =
+        direction === "left" ? currentIndex - 1 : currentIndex + 1;
+      const nextCategory =
+        manualExerciseLibraryCategories[
+          (nextIndex + manualExerciseLibraryCategories.length) %
+            manualExerciseLibraryCategories.length
+        ];
+
+      return nextCategory?.id || currentCategoryId;
     });
   };
   const scrollFavoriteWorkouts = (direction: "left" | "right") => {
@@ -2463,13 +3431,6 @@ export default function UserHomeDashboardPage() {
       masterJourneyNodes.length) *
       100,
   );
-  const heroProgressionLine = activeSessionTemplate
-    ? "Session in motion. Keep the chain alive."
-    : dashboardSummary.workoutsThisWeek >= 3
-      ? `${dashboardSummary.workoutsThisWeek} active progression streaks.`
-      : dashboardSummary.hasStats
-        ? "Recovery stable. Strength trend rising."
-        : "Momentum building. First milestone is close.";
   const soundPoints =
     1200 +
     dashboardSummary.completedWorkouts * 130 +
@@ -2481,6 +3442,97 @@ export default function UserHomeDashboardPage() {
     dashboardSummary.completedWorkouts * 4 +
     dashboardSummary.templateCount * 6 +
     (dashboardSummary.hasStats ? 12 : 0);
+  const momentumEntryDateKeys = new Set<string>();
+  exerciseStats.forEach((entry) => {
+    const entryDateKey = getDashboardEntryDateKey(entry.date);
+    if (entryDateKey) momentumEntryDateKeys.add(entryDateKey);
+  });
+  manualStatsLogs.forEach((entry) => {
+    const entryDateKey = getDashboardEntryDateKey(
+      entry.loggedAt || entry.dateTime,
+    );
+    if (entryDateKey) momentumEntryDateKeys.add(entryDateKey);
+  });
+  const dashboardHasPlan =
+    Boolean(activeSessionTemplate) || dashboardSummary.templateCount > 0;
+  const dashboardStatDateKeys = Array.from(momentumEntryDateKeys).sort();
+  const dashboardLatestStatDateKey =
+    dashboardStatDateKeys[dashboardStatDateKeys.length - 1] || "";
+  const dashboardDaysSinceLastStat = dashboardLatestStatDateKey
+    ? Math.floor(
+        (new Date(
+          dashboardToday.getFullYear(),
+          dashboardToday.getMonth(),
+          dashboardToday.getDate(),
+        ).getTime() -
+          new Date(`${dashboardLatestStatDateKey}T00:00:00`).getTime()) /
+          (24 * 60 * 60 * 1000),
+      )
+    : null;
+  const dashboardHasSixMonthBiweeklyStats =
+    dashboardStatDateKeys.length > 0 &&
+    dashboardDaysSinceLastStat !== null &&
+    dashboardDaysSinceLastStat < 14 &&
+    Array.from({ length: 13 }).every((_, windowIndex) => {
+      const windowEnd = addDashboardDays(dashboardToday, -windowIndex * 14);
+      const windowStart = addDashboardDays(windowEnd, -13);
+      const windowStartKey = getDashboardLocalDateKey(windowStart);
+      const windowEndKey = getDashboardLocalDateKey(windowEnd);
+
+      return dashboardStatDateKeys.some(
+        (dateKey) => dateKey >= windowStartKey && dateKey <= windowEndKey,
+      );
+    });
+  const momentumTodayKey = getDashboardLocalDateKey(dashboardToday);
+  const momentumHasEntryToday = momentumEntryDateKeys.has(momentumTodayKey);
+  const momentumStreakTarget = 7;
+  const momentumEntryStreak = momentumHasEntryToday
+    ? getDashboardEntryStreak(momentumEntryDateKeys, dashboardToday)
+    : 0;
+  const momentumPreviousStreak = momentumHasEntryToday
+    ? momentumEntryStreak
+    : getDashboardEntryStreak(
+        momentumEntryDateKeys,
+        addDashboardDays(dashboardToday, -1),
+      );
+  const momentumMeterScore = clampDashboardPercent(
+    (momentumEntryStreak / momentumStreakTarget) * 100,
+  );
+  const momentumNeedleAngle = -90 + momentumMeterScore * 1.8;
+  const momentumMeterCaption = momentumHasEntryToday
+    ? `${momentumEntryStreak} day streak`
+    : "No entry today";
+  const momentumPrompt = momentumHasEntryToday
+    ? "Daily signal logged. Keep the chain alive tomorrow."
+    : momentumPreviousStreak > 0
+      ? `${momentumPreviousStreak} day streak waiting. Enter anything today.`
+      : "Enter one stat, note, workout, or check-in today.";
+  const dashboardConsistencyStage =
+    dashboardStatDateKeys.length === 0
+      ? dashboardHasPlan
+        ? "Contemplation"
+        : "Pre-Contemplation"
+      : dashboardHasSixMonthBiweeklyStats
+        ? "Maintenance"
+        : dashboardDaysSinceLastStat !== null && dashboardDaysSinceLastStat >= 28
+          ? "Contemplation"
+          : "Active";
+  const dashboardStatusUrgency =
+    dashboardConsistencyStage === "Maintenance"
+      ? "Maintain rhythm"
+      : dashboardConsistencyStage === "Active"
+        ? "Log by 2 weeks"
+        : dashboardConsistencyStage === "Contemplation"
+          ? "Plan then log"
+          : "Make a plan";
+  const dashboardStatusPillTone =
+    dashboardConsistencyStage === "Maintenance"
+      ? "border-emerald-200/28 bg-emerald-300/10 text-emerald-100"
+      : dashboardConsistencyStage === "Active"
+        ? "border-cyan-200/30 bg-cyan-300/10 text-cyan-100"
+        : dashboardConsistencyStage === "Contemplation"
+          ? "border-amber-200/30 bg-amber-300/10 text-amber-100"
+          : "border-slate-200/18 bg-slate-100/8 text-slate-200";
   const dashboardProfileHubCompletion = Math.max(
     dashboardFoundationProgress.profileCompletion,
     Math.round(
@@ -2489,6 +3541,27 @@ export default function UserHomeDashboardPage() {
         2,
     ),
   );
+  const dashboardActiveProfileGoalFocus =
+    dashboardFoundationProgress.goalFocus || "Choose training focus";
+  const dashboardActiveProfilePlanDetail = activeSessionTemplate
+    ? `${activeSessionTemplate.exercises.length} exercises in progress`
+    : dashboardSummary.latestTemplate
+      ? dashboardSummary.latestTemplate.title
+      : dashboardSummary.templateCount > 0
+        ? `${dashboardSummary.templateCount} templates ready`
+        : "Build first workout";
+  const dashboardActiveProfileNextStep =
+    dashboardFoundationProgress.profileCompletion < 70
+      ? "Profile context"
+      : dashboardFoundationProgress.goalsCompletion < 70
+        ? "Goal direction"
+        : nextAction.cta;
+  const dashboardActiveProfileNextHref =
+    dashboardFoundationProgress.profileCompletion < 70
+      ? ROUTES.dashboard.profile
+      : dashboardFoundationProgress.goalsCompletion < 70
+        ? ROUTES.dashboard.goals
+        : nextAction.href;
   const dashboardProfileHubMainItems: DashboardProfileHubOrbitItem[] = [
     {
       helper: "Identity, member status, profile completion, and dashboard defaults.",
@@ -2650,21 +3723,21 @@ export default function UserHomeDashboardPage() {
     return rawDistance;
   };
   const dashboardFloatingSnapshotActiveCard =
-    clampedDashboardOrbiterRow === 1
+    clampedDashboardOrbiterRow === 2
       ? activeCommandCenter
-      : clampedDashboardOrbiterRow === 2
+      : clampedDashboardOrbiterRow === 4
         ? activeSystemCenter
         : null;
   const dashboardFloatingSnapshotRowCards =
-    clampedDashboardOrbiterRow === 1
+    clampedDashboardOrbiterRow === 2
       ? dashboardCommandCenterCards
-      : clampedDashboardOrbiterRow === 2
+      : clampedDashboardOrbiterRow === 4
         ? dashboardSystemCards
         : [];
   const dashboardFloatingSnapshotActiveCardIndex =
-    clampedDashboardOrbiterRow === 1
+    clampedDashboardOrbiterRow === 2
       ? activeCommandCenterIndex
-      : clampedDashboardOrbiterRow === 2
+      : clampedDashboardOrbiterRow === 4
         ? activeSystemCenterIndex
         : -1;
   const dashboardFloatingSnapshotCompletion =
@@ -3005,6 +4078,25 @@ export default function UserHomeDashboardPage() {
         dashboardFloatingSnapshotActiveCard,
         dashboardFloatingSnapshotActiveJourneyStep,
       )
+    : clampedDashboardOrbiterRow === 3
+      ? [
+          {
+            label: "Week",
+            value: `${dashboardSummary.workoutsThisWeek} workouts`,
+          },
+          {
+            label: "Templates",
+            value: `${dashboardSummary.templateCount} saved`,
+          },
+          {
+            label: "Next Plan",
+            value: dashboardSummary.latestTemplate?.title || "Build week",
+          },
+          {
+            label: "Focus",
+            value: "Calendar",
+          },
+        ]
     : [
         {
           label: "Workouts",
@@ -3024,34 +4116,39 @@ export default function UserHomeDashboardPage() {
           value: dashboardSummary.hasStats ? "Trend active" : "Start logging",
         },
       ];
-  const dashboardFloatingSnapshotTitle =
-    dashboardFloatingSnapshotActiveCard?.title || "Weekly Snapshot";
   const dashboardFloatingSnapshotRow =
     dashboardOrbiterRows[clampedDashboardOrbiterRow];
+  const dashboardFloatingSnapshotTitle =
+    dashboardFloatingSnapshotActiveCard?.title ||
+    dashboardFloatingSnapshotRow?.title ||
+    "Weekly Snapshot";
   const dashboardFloatingSnapshotRowTone = getDashboardRowUrgencyTone(
     dashboardFloatingSnapshotRow?.completion || 0,
   );
   const dashboardFloatingSnapshotEyebrow = dashboardFloatingSnapshotActiveCard
     ? dashboardFloatingSnapshotRow?.title || "Dashboard Row"
-    : "Weekly Snapshot";
+    : dashboardFloatingSnapshotRow?.title || "Weekly Snapshot";
   const dashboardFloatingSnapshotDescription =
     dashboardFloatingSnapshotActiveCard?.description ||
+    dashboardFloatingSnapshotRow?.helper ||
     "Workouts, nutrition, readiness, and performance stay visible as the orbiter moves.";
   const dashboardFloatingSnapshotIcon =
-    dashboardFloatingSnapshotActiveCard?.icon || "DB";
+    dashboardFloatingSnapshotActiveCard?.icon ||
+    (clampedDashboardOrbiterRow === 3 ? "calendar" : "DB");
   const dashboardFloatingSnapshotIconLabel =
-    dashboardFloatingSnapshotActiveCard?.title || "Dashboard";
-  const dashboardFloatingSnapshotHref = dashboardFloatingSnapshotActiveCard?.href;
+    dashboardFloatingSnapshotActiveCard?.title ||
+    dashboardFloatingSnapshotRow?.title ||
+    "Dashboard";
   const dashboardHeaderLinks = [
     {
-      completion: dashboardTabCompletions.dashboard,
-      href: ROUTES.dashboard.home,
-      icon: "dashboard",
-      label: "Dashboard",
-      meta: "Command",
-      points: soundPoints,
+      completion: dashboardTabCompletions.workout,
+      href: ROUTES.dashboard.sessions,
+      icon: "workout",
+      label: "Sessions",
+      meta: "Training",
+      points: Math.round(soundPoints * 0.82),
       tone:
-        "border-cyan-100/50 bg-cyan-300 text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.24)]",
+        "border-sky-200/28 bg-sky-300/10 text-sky-100 hover:border-sky-100/45 hover:bg-sky-300/16",
     },
     {
       completion: dashboardTabCompletions.profile,
@@ -3072,16 +4169,6 @@ export default function UserHomeDashboardPage() {
       points: Math.round(soundPoints * 0.68),
       tone:
         "border-amber-200/34 bg-amber-300/12 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/18",
-    },
-    {
-      completion: dashboardTabCompletions.workout,
-      href: ROUTES.dashboard.sessions,
-      icon: "workout",
-      label: "Workout",
-      meta: "Sessions",
-      points: Math.round(soundPoints * 0.82),
-      tone:
-        "border-sky-200/28 bg-sky-300/10 text-sky-100 hover:border-sky-100/45 hover:bg-sky-300/16",
     },
     {
       completion: dashboardTabCompletions.nutrition,
@@ -3138,10 +4225,6 @@ export default function UserHomeDashboardPage() {
     dashboardHeaderLinks[
       activeDashboardHeaderIndex % dashboardHeaderLinks.length
     ] || dashboardHeaderLinks[0];
-  const dashboardHeaderGoalsLink =
-    dashboardHeaderLinks.find(
-      (dashboardLink) => dashboardLink.label === "Goals",
-    ) || dashboardHeaderLinks[2];
   const rotateDashboardHeaderRail = (direction: "left" | "right") => {
     setDashboardHeaderSlideDirection(direction);
     setActiveDashboardHeaderIndex((currentIndex) =>
@@ -3470,8 +4553,168 @@ export default function UserHomeDashboardPage() {
     return dashboardIconToneStyles.cyan[strength];
   };
 
-  const showGoalsQuickLink =
-    activeDashboardHeaderLink.label !== dashboardHeaderGoalsLink.label;
+  const getDashboardHeaderJourneyCard = () => {
+    if (activeDashboardHeaderLink.href === ROUTES.dashboard.sessions) {
+      return dashboardNavigationCards.find(
+        (card) => card.title === "Workout / Sessions",
+      );
+    }
+
+    return dashboardNavigationCards.find(
+      (card) =>
+        card.href === activeDashboardHeaderLink.href ||
+        card.title === activeDashboardHeaderLink.label,
+    );
+  };
+
+  const renderDashboardHeaderJourneyTabs = () => {
+    const card = getDashboardHeaderJourneyCard();
+    const journeySteps = card?.journeySteps?.length
+      ? card.journeySteps
+      : [
+          {
+            completion: activeDashboardHeaderLink.completion,
+            href: activeDashboardHeaderLink.href,
+            icon: activeDashboardHeaderLink.icon,
+            label: activeDashboardHeaderLink.label,
+            state: "active" as const,
+          },
+        ];
+    const activeJourneyStepIndex = card
+      ? getActiveDashboardJourneyStepIndex(card)
+      : 0;
+    const canRotateJourney = Boolean(card && journeySteps.length > 1);
+
+    return (
+      <div
+        aria-label={`${activeDashboardHeaderLink.label} journey tabs`}
+        className="relative h-[62px] w-12 shrink-0 overflow-visible py-3 [perspective:390px]"
+      >
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-1/2 h-[52px] w-5 -translate-x-1/2 -translate-y-1/2 rounded-[999px] border border-cyan-100/14 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.18),rgba(250,204,21,0.10)_46%,transparent_68%)] shadow-[0_0_22px_rgba(34,211,238,0.14)] [transform:translate(-50%,-50%)_rotateY(64deg)]"
+        />
+        {canRotateJourney ? (
+          <button
+            aria-label={`Previous ${activeDashboardHeaderLink.label} journey tab`}
+            className="absolute left-1/2 top-0 z-40 grid h-4 w-5 -translate-x-1/2 place-items-center rounded-full border border-cyan-200/18 bg-slate-950/58 text-[8px] font-black leading-none text-cyan-100 transition hover:-translate-y-0.5 hover:border-amber-200/42 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
+            onClick={() => card && rotateDashboardJourneyStepOrbit(card, "left")}
+            type="button"
+          >
+            ^
+          </button>
+        ) : (
+          <span aria-hidden="true" className="absolute left-1/2 top-0 h-4 w-5 -translate-x-1/2" />
+        )}
+        <div className="absolute inset-y-4 left-1/2 w-9 -translate-x-1/2 [transform-style:preserve-3d]">
+          {journeySteps.map((step, stepIndex) => {
+            const journeyDistance = getDashboardJourneyStepOrbitDistance(
+              stepIndex,
+              activeJourneyStepIndex,
+              journeySteps.length,
+            );
+            const isActiveJourneyStep = journeyDistance === 0;
+            const stepCompletion = getDashboardJourneyStepCompletion(step);
+            const stepUrgencyTone = getDashboardRowUrgencyTone(stepCompletion);
+            const stepIconTone = getDashboardJourneyStepIconTone(
+              step,
+              isActiveJourneyStep,
+            );
+            const journeyAbsDistance = Math.abs(journeyDistance);
+            const journeyDirection = Math.sign(journeyDistance);
+            const journeySlots = [
+              {
+                blur: 0,
+                opacity: 1,
+                rotateX: 0,
+                scale: 1.22,
+                y: 0,
+                zIndex: 32,
+              },
+              {
+                blur: 0.15,
+                opacity: 0.9,
+                rotateX: -34,
+                scale: 0.96,
+                y: 20,
+                zIndex: 22,
+              },
+              {
+                blur: 0.35,
+                opacity: 0.62,
+                rotateX: -54,
+                scale: 0.76,
+                y: 32,
+                zIndex: 12,
+              },
+            ];
+            const journeySlot =
+              journeySlots[
+                Math.min(journeyAbsDistance, journeySlots.length - 1)
+              ];
+
+            return (
+              <Link
+                aria-current={isActiveJourneyStep ? "step" : undefined}
+                aria-label={`${step.label} journey tab, ${stepUrgencyTone.label}`}
+                className={`absolute left-1/2 top-1/2 grid h-6 w-6 place-items-center rounded-full border ring-1 ring-white/10 transition-[border-color,background-color,box-shadow,filter,opacity,transform] duration-300 hover:-translate-y-0.5 hover:brightness-125 active:scale-95 ${
+                  isActiveJourneyStep
+                    ? `${stepIconTone} ring-white/20`
+                    : `${stepIconTone} hover:ring-cyan-100/24`
+                }`}
+                href={step.href}
+                key={`${activeDashboardHeaderLink.label}-${step.label}-header-journey`}
+                onClick={() => {
+                  if (card) {
+                    setActiveDashboardJourneyStepIndexes((currentIndexes) => ({
+                      ...currentIndexes,
+                      [card.title]: stepIndex,
+                    }));
+                  }
+                  markDashboardDestinationVisited(step.href);
+                }}
+                style={{
+                  filter: `blur(${journeySlot.blur}px)`,
+                  opacity: journeySlot.opacity,
+                  pointerEvents: journeyAbsDistance > 2 ? "none" : "auto",
+                  transform: `translate(-50%, -50%) translateY(${
+                    journeyDirection * journeySlot.y
+                  }px) scale(${
+                    journeySlot.scale
+                  }) rotateX(${journeyDirection * journeySlot.rotateX}deg)`,
+                  zIndex: journeySlot.zIndex,
+                }}
+                title={step.label}
+              >
+                <span className="sr-only">{step.label}</span>
+                <DashboardTabIcon
+                  className={
+                    isActiveJourneyStep
+                      ? "h-3.5 w-3.5 drop-shadow-[0_0_8px_rgba(255,255,255,0.30)]"
+                      : "h-3 w-3 drop-shadow-[0_0_7px_rgba(255,255,255,0.24)]"
+                  }
+                  label={step.label}
+                  name={step.icon}
+                />
+              </Link>
+            );
+          })}
+        </div>
+        {canRotateJourney ? (
+          <button
+            aria-label={`Next ${activeDashboardHeaderLink.label} journey tab`}
+            className="absolute bottom-0 left-1/2 z-40 grid h-4 w-5 -translate-x-1/2 place-items-center rounded-full border border-cyan-200/18 bg-slate-950/58 text-[8px] font-black leading-none text-cyan-100 transition hover:translate-y-0.5 hover:border-amber-200/42 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
+            onClick={() => card && rotateDashboardJourneyStepOrbit(card, "right")}
+            type="button"
+          >
+            v
+          </button>
+        ) : (
+          <span aria-hidden="true" className="absolute bottom-0 left-1/2 h-4 w-5 -translate-x-1/2" />
+        )}
+      </div>
+    );
+  };
 
   const renderDashboardJourneyStepOrbitPanel = (
     card?: DashboardNavigationCard,
@@ -3486,7 +4729,7 @@ export default function UserHomeDashboardPage() {
 
     return (
       <div
-        className="pointer-events-auto mt-3 pt-0 [perspective:900px]"
+        className="pointer-events-auto mt-2 pt-0 [perspective:900px]"
         onClick={(event) => event.stopPropagation()}
         onPointerCancel={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
@@ -3507,11 +4750,11 @@ export default function UserHomeDashboardPage() {
           );
         }}
       >
-        <div className="relative mb-1 flex min-h-7 items-center justify-center">
+        <div className="relative mb-0.5 flex min-h-5 items-center justify-center">
           {steps.length > 1 ? (
             <button
               aria-label={`Previous ${card.title} journey step`}
-              className="absolute left-0 top-1/2 z-40 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/18 bg-slate-950/72 text-[9px] font-black text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.12)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/42 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
+              className="absolute left-0 top-1/2 z-40 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/18 bg-slate-950/72 text-[8px] font-black text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.10)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/42 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -3522,13 +4765,13 @@ export default function UserHomeDashboardPage() {
               &lt;
             </button>
           ) : null}
-          <div className="px-10 text-center text-[9px] font-black uppercase tracking-[0.18em] text-cyan-200/70">
+          <div className="px-8 text-center text-[8px] font-black uppercase tracking-[0.16em] text-cyan-200/70">
             {dashboardJourneyPanelTitle}
           </div>
           {steps.length > 1 ? (
             <button
               aria-label={`Next ${card.title} journey step`}
-              className="absolute right-0 top-1/2 z-40 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/18 bg-slate-950/72 text-[9px] font-black text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.12)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/42 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
+              className="absolute right-0 top-1/2 z-40 grid h-5 w-5 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/18 bg-slate-950/72 text-[8px] font-black text-cyan-100 shadow-[0_0_14px_rgba(34,211,238,0.10)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/42 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -3543,7 +4786,7 @@ export default function UserHomeDashboardPage() {
 
         <div
           aria-label={`${dashboardJourneyPanelTitle} urgency indicators`}
-          className="mb-1.5 flex max-w-full items-center justify-center gap-1 overflow-x-auto overscroll-x-contain px-1 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="mb-1 flex max-w-full items-center justify-center gap-1 overflow-x-auto overscroll-x-contain px-1 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {steps.map((step, stepIndex) => {
             const isActiveJourneyStep = stepIndex === activeJourneyStepIndex;
@@ -3554,7 +4797,7 @@ export default function UserHomeDashboardPage() {
               <button
                 aria-label={`Show ${step.label} journey card, ${stepUrgencyTone.label}`}
                 aria-pressed={isActiveJourneyStep}
-                className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border transition hover:-translate-y-0.5 active:scale-95 ${
+                className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border transition hover:-translate-y-0.5 active:scale-95 ${
                   isActiveJourneyStep
                     ? `${stepUrgencyTone.ring} ${stepUrgencyTone.text} shadow-[0_0_16px_rgba(34,211,238,0.16)]`
                     : "border-white/10 bg-slate-950/54 text-slate-400 hover:border-cyan-200/30 hover:bg-cyan-300/8 hover:text-cyan-100"
@@ -3573,7 +4816,7 @@ export default function UserHomeDashboardPage() {
               >
                 <span className="sr-only">{step.label}</span>
                 <DashboardTabIcon
-                  className="h-3 w-3"
+                  className="h-2.5 w-2.5"
                   label={step.label}
                   name={step.icon}
                 />
@@ -3582,7 +4825,7 @@ export default function UserHomeDashboardPage() {
           })}
         </div>
 
-        <div className="relative h-[106px] overflow-visible [transform-style:preserve-3d]">
+        <div className="relative h-[76px] overflow-visible [transform-style:preserve-3d]">
           {steps.map((step, stepIndex) => {
             const journeyDistance = getDashboardJourneyStepOrbitDistance(
               stepIndex,
@@ -3597,7 +4840,7 @@ export default function UserHomeDashboardPage() {
                 opacity: 1,
                 rotateY: 0,
                 scale: 1,
-                width: 152,
+                width: 128,
                 x: 0,
                 y: 0,
                 zIndex: 34,
@@ -3607,9 +4850,9 @@ export default function UserHomeDashboardPage() {
                 opacity: 0.74,
                 rotateY: -18,
                 scale: 0.82,
-                width: 112,
-                x: 96,
-                y: 10,
+                width: 92,
+                x: 84,
+                y: 7,
                 zIndex: 24,
               },
               {
@@ -3617,9 +4860,9 @@ export default function UserHomeDashboardPage() {
                 opacity: 0.34,
                 rotateY: -34,
                 scale: 0.62,
-                width: 92,
-                x: 140,
-                y: 20,
+                width: 76,
+                x: 118,
+                y: 14,
                 zIndex: 14,
               },
               {
@@ -3627,9 +4870,9 @@ export default function UserHomeDashboardPage() {
                 opacity: 0.14,
                 rotateY: -48,
                 scale: 0.5,
-                width: 78,
-                x: 166,
-                y: 28,
+                width: 64,
+                x: 140,
+                y: 20,
                 zIndex: 6,
               },
             ];
@@ -3642,7 +4885,7 @@ export default function UserHomeDashboardPage() {
             return (
               <Link
                 aria-current={isActiveJourneyStep ? "step" : undefined}
-                className={`dashboard-journey-orbit-card absolute left-1/2 top-1/2 isolate flex h-[96px] flex-col items-center justify-center gap-1.5 overflow-visible rounded-2xl border px-3 text-center transition-[transform,opacity,filter,border-color,background-color,box-shadow] duration-[420ms] hover:-translate-y-0.5 active:scale-[0.98] ${
+                className={`dashboard-journey-orbit-card absolute left-1/2 top-1/2 isolate flex h-[68px] flex-col items-center justify-center gap-1 overflow-visible rounded-xl border px-2 text-center transition-[transform,opacity,filter,border-color,background-color,box-shadow] duration-[420ms] hover:-translate-y-0.5 active:scale-[0.98] ${
                   isActiveJourneyStep ? "dashboard-journey-active-card" : ""
                 } ${dashboardJourneyStepStyles[step.state]}`}
                 href={step.href}
@@ -3673,7 +4916,7 @@ export default function UserHomeDashboardPage() {
                 />
                 <span
                   className={`relative z-10 grid shrink-0 place-items-center rounded-full border ${
-                    isActiveJourneyStep ? "h-10 w-10" : "h-8 w-8"
+                    isActiveJourneyStep ? "h-8 w-8" : "h-7 w-7"
                   } ${getDashboardJourneyStepIconTone(
                     step,
                     isActiveJourneyStep,
@@ -3683,18 +4926,18 @@ export default function UserHomeDashboardPage() {
                   <DashboardTabIcon
                     className={
                       isActiveJourneyStep
-                        ? "h-[22px] w-[22px] drop-shadow-[0_0_10px_rgba(255,255,255,0.28)]"
-                        : "h-5 w-5 drop-shadow-[0_0_8px_rgba(255,255,255,0.22)]"
+                        ? "h-4 w-4 drop-shadow-[0_0_10px_rgba(255,255,255,0.28)]"
+                        : "h-3.5 w-3.5 drop-shadow-[0_0_8px_rgba(255,255,255,0.22)]"
                     }
                     label={step.label}
                     name={step.icon}
                   />
                 </span>
                 <span
-                  className={`relative z-10 line-clamp-2 min-h-[1.35rem] max-w-full px-1 font-black uppercase leading-[1.08] tracking-[0.08em] drop-shadow-[0_1px_8px_rgba(2,6,23,0.7)] ${
+                  className={`relative z-10 line-clamp-1 max-w-full px-1 font-black uppercase leading-none tracking-[0.08em] drop-shadow-[0_1px_8px_rgba(2,6,23,0.7)] ${
                     isActiveJourneyStep
-                      ? "text-[10px] text-white"
-                      : "text-[8px] text-slate-100/90"
+                      ? "text-[9px] text-white"
+                      : "text-[7px] text-slate-100/90"
                   }`}
                 >
                   {step.label}
@@ -3702,7 +4945,7 @@ export default function UserHomeDashboardPage() {
                 {renderDashboardCompletionDot(
                   getDashboardJourneyStepCompletion(step),
                   isActiveJourneyStep || step.state === "complete",
-                  "-bottom-2 -right-2 z-30",
+                  "-bottom-1 -right-1 z-30",
                 )}
               </Link>
             );
@@ -3926,13 +5169,15 @@ export default function UserHomeDashboardPage() {
   );
 
   const renderDashboardFloatingSnapshotHeader = () => {
-    if (clampedDashboardOrbiterRow === 0) return null;
+    if (clampedDashboardOrbiterRow <= 1 || clampedDashboardOrbiterRow === 3) {
+      return null;
+    }
 
     return (
     <div className="pointer-events-none absolute inset-x-0 top-[118px] z-[70] px-3 sm:top-[122px] sm:px-5 lg:top-[126px] lg:px-8">
       <section className="pointer-events-auto mx-auto max-w-[1280px] overflow-hidden rounded-[22px] border border-white/12 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.18),transparent_32%),radial-gradient(circle_at_88%_16%,rgba(250,204,21,0.11),transparent_28%),linear-gradient(135deg,rgba(15,23,42,0.72),rgba(2,6,23,0.58))] p-2.5 shadow-[0_18px_60px_rgba(0,0,0,0.30),0_0_28px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl sm:p-3">
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-center gap-2 lg:max-w-[500px]">
+        <div className="flex flex-col gap-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
+          <div className="flex min-w-0 items-center gap-2 min-[760px]:max-w-[360px] min-[1040px]:max-w-[500px]">
             <span
               className="grid h-10 w-10 shrink-0 place-items-center rounded-[18px] border border-cyan-200/22 bg-cyan-300/12 text-xs font-black text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.12)]"
               aria-hidden="true"
@@ -3990,12 +5235,12 @@ export default function UserHomeDashboardPage() {
                         }`}
                         key={`${dashboardFloatingSnapshotEyebrow}-${card.title}`}
                         onClick={() => {
-                          if (clampedDashboardOrbiterRow === 1) {
+                          if (clampedDashboardOrbiterRow === 2) {
                             setActiveCommandCenterIndex(cardIndex);
                             return;
                           }
 
-                          if (clampedDashboardOrbiterRow === 2) {
+                          if (clampedDashboardOrbiterRow === 4) {
                             setActiveSystemCenterIndex(cardIndex);
                           }
                         }}
@@ -4019,7 +5264,7 @@ export default function UserHomeDashboardPage() {
             </div>
           </div>
 
-          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] lg:max-w-[640px] [&::-webkit-scrollbar]:hidden">
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-width:none] min-[760px]:max-w-[520px] min-[1040px]:max-w-[640px] [&::-webkit-scrollbar]:hidden">
             {dashboardFloatingSnapshotMetrics.map((metric) => (
               <div
                 key={metric.label}
@@ -4033,14 +5278,6 @@ export default function UserHomeDashboardPage() {
                 </div>
               </div>
             ))}
-            {dashboardFloatingSnapshotHref ? (
-              <Link
-                className="inline-flex min-h-[42px] shrink-0 items-center justify-center rounded-2xl border border-cyan-200/35 bg-cyan-300/14 px-3.5 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.12)] transition hover:-translate-y-0.5 hover:bg-cyan-300/20 active:scale-[0.98]"
-                href={dashboardFloatingSnapshotHref}
-              >
-                Open
-              </Link>
-            ) : null}
           </div>
         </div>
       </section>
@@ -4486,7 +5723,7 @@ export default function UserHomeDashboardPage() {
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/55 to-transparent"
       />
-      <div className="relative mx-auto flex min-h-[84px] w-full max-w-[1840px] items-center gap-4 px-3 py-3 sm:px-4 sm:py-4 md:px-6 xl:px-8 2xl:px-10">
+      <div className="relative mx-auto flex min-h-[88px] w-full max-w-[1840px] items-center gap-4 px-3 py-2.5 sm:px-4 sm:py-3 md:px-6 xl:px-8 2xl:px-10">
         <Link
           aria-label="Open Sound Fitness dashboard"
           className="flex min-h-[58px] min-w-0 shrink-0 items-center gap-3 rounded-[24px] border border-transparent bg-transparent px-2.5 py-2 transition hover:border-cyan-100/24 hover:bg-cyan-300/8"
@@ -4516,55 +5753,84 @@ export default function UserHomeDashboardPage() {
 
         <div
           aria-label="Dashboard selector"
-          className="flex w-fit max-w-[calc(100vw-7.5rem)] shrink-0 select-none items-center gap-1.5 bg-transparent p-0 shadow-none md:max-w-[min(56vw,520px)] lg:max-w-none"
+          className="flex w-fit max-w-[calc(100vw-7.5rem)] shrink-0 select-none items-center gap-2 bg-transparent p-0 shadow-none md:max-w-[min(64vw,620px)] lg:max-w-none"
         >
-          <button
-            aria-label="Previous dashboard"
-            className="grid h-11 w-9 shrink-0 place-items-center rounded-2xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:-translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
-            onClick={() => rotateDashboardHeaderRail("left")}
-            type="button"
+          <div
+            aria-label="Dashboard scroll controls"
+            className="flex h-12 w-9 shrink-0 flex-col overflow-hidden rounded-2xl border border-cyan-100/12 bg-slate-950/22 text-[9px] font-black text-cyan-100/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+            role="group"
           >
-            &lt;
-          </button>
-          <Link
-            aria-current={
-              activeDashboardHeaderLink.href === ROUTES.dashboard.home
-                ? "page"
-                : undefined
-            }
-            className={`flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-2.5 py-2 text-left text-cyan-50 shadow-none transition hover:-translate-y-0.5 hover:bg-white/[0.04] ${
+            <button
+              aria-label="Next dashboard"
+              className="grid min-h-0 flex-1 place-items-center border-b border-white/10 transition hover:border-amber-200/28 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
+              onClick={() => rotateDashboardHeaderRail("right")}
+              title="Next dashboard"
+              type="button"
+            >
+              &gt;
+            </button>
+            <button
+              aria-label="Previous dashboard"
+              className="grid min-h-0 flex-1 place-items-center transition hover:border-amber-200/28 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
+              onClick={() => rotateDashboardHeaderRail("left")}
+              title="Previous dashboard"
+              type="button"
+            >
+              &lt;
+            </button>
+          </div>
+          <div
+            aria-label={`${activeDashboardHeaderLink.label} dashboard tab`}
+            className={`flex min-h-[62px] w-auto min-w-max shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-2.5 py-2 text-left text-cyan-50 shadow-none transition ${
               dashboardHeaderSlideDirection === "right"
                 ? "animate-[sessions-dashboard-chip-slide-from-right_220ms_ease-out]"
                 : "animate-[sessions-dashboard-chip-slide-from-left_220ms_ease-out]"
             }`}
-            draggable={false}
-            href={activeDashboardHeaderLink.href}
             key={`${activeDashboardHeaderLink.label}-${dashboardHeaderSlideDirection}`}
-            onClick={() =>
-              markDashboardDestinationVisited(activeDashboardHeaderLink.href)
-            }
-            onDragStart={(event) => event.preventDefault()}
+            role="group"
           >
-            <span
-              aria-hidden="true"
-              className={`relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl border text-[11px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,255,255,0.06)] ${activeDashboardHeaderLink.tone}`}
-            >
-              <DashboardTabIcon name={activeDashboardHeaderLink.icon} />
-              {renderDashboardCompletionDot(
-                activeDashboardHeaderLink.completion,
-                true,
-              )}
-            </span>
-            <span className="shrink-0 whitespace-nowrap">
-              <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
-                {activeDashboardHeaderLink.meta}
-              </span>
-              <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px]">
-                {activeDashboardHeaderLink.label}
-              </span>
-            </span>
-            <span
-              className={`shrink-0 rounded-2xl border px-3 py-2 text-right ${activeDashboardHeaderLink.tone}`}
+            <div className="flex min-w-[214px] shrink-0 items-center justify-center gap-2">
+              <Link
+                aria-label={`Open ${activeDashboardHeaderLink.label}`}
+                className="flex items-center gap-3 rounded-xl px-0.5 transition hover:-translate-y-0.5 hover:bg-white/[0.04]"
+                draggable={false}
+                href={activeDashboardHeaderLink.href}
+                onClick={() =>
+                  markDashboardDestinationVisited(activeDashboardHeaderLink.href)
+                }
+                onDragStart={(event) => event.preventDefault()}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`relative grid h-9 w-9 shrink-0 place-items-center rounded-2xl border text-[10px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,255,255,0.06)] ${activeDashboardHeaderLink.tone}`}
+                >
+                  <DashboardTabIcon className="h-4 w-4" name={activeDashboardHeaderLink.icon} />
+                  {renderDashboardCompletionDot(
+                    activeDashboardHeaderLink.completion,
+                    true,
+                    "-bottom-1 -right-1",
+                  )}
+                </span>
+                <span className="block whitespace-nowrap">
+                  <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
+                    {activeDashboardHeaderLink.meta}
+                  </span>
+                  <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px]">
+                    {activeDashboardHeaderLink.label}
+                  </span>
+                </span>
+              </Link>
+              {renderDashboardHeaderJourneyTabs()}
+            </div>
+            <Link
+              aria-label={`Open ${activeDashboardHeaderLink.label}, ${activeDashboardHeaderLink.points.toLocaleString()} points`}
+              className={`shrink-0 rounded-2xl border px-3 py-2 text-right transition hover:-translate-y-0.5 hover:bg-white/[0.04] ${activeDashboardHeaderLink.tone}`}
+              draggable={false}
+              href={activeDashboardHeaderLink.href}
+              onClick={() =>
+                markDashboardDestinationVisited(activeDashboardHeaderLink.href)
+              }
+              onDragStart={(event) => event.preventDefault()}
             >
               <span className="block text-[8px] font-black uppercase tracking-[0.1em] opacity-75">
                 pts
@@ -4572,46 +5838,8 @@ export default function UserHomeDashboardPage() {
               <span className="block text-sm font-black leading-none [text-shadow:0_1px_12px_rgba(0,0,0,0.34)]">
                 {activeDashboardHeaderLink.points.toLocaleString()}
               </span>
-            </span>
-          </Link>
-          <button
-            aria-label="Next dashboard"
-            className="grid h-11 w-9 shrink-0 place-items-center rounded-2xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
-            onClick={() => rotateDashboardHeaderRail("right")}
-            type="button"
-          >
-            &gt;
-          </button>
-          {showGoalsQuickLink ? (
-            <Link
-              aria-label="Open goals dashboard"
-              className={`group flex min-h-[58px] w-auto min-w-max shrink-0 items-center gap-2 rounded-[22px] border px-2.5 py-2 text-left shadow-[0_0_20px_rgba(251,191,36,0.08)] transition hover:-translate-y-0.5 ${dashboardHeaderGoalsLink.tone}`}
-              draggable={false}
-              href={dashboardHeaderGoalsLink.href}
-              onClick={() =>
-                markDashboardDestinationVisited(dashboardHeaderGoalsLink.href)
-              }
-              onDragStart={(event) => event.preventDefault()}
-            >
-              <span
-                aria-hidden="true"
-                className={`relative grid h-11 w-11 shrink-0 place-items-center rounded-2xl border text-[11px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(251,191,36,0.10)] ${dashboardHeaderGoalsLink.tone}`}
-              >
-                <DashboardTabIcon name={dashboardHeaderGoalsLink.icon} />
-                {renderDashboardCompletionDot(
-                  dashboardHeaderGoalsLink.completion,
-                )}
-              </span>
-              <span className="hidden shrink-0 whitespace-nowrap sm:block">
-                <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
-                  {dashboardHeaderGoalsLink.meta}
-                </span>
-                <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px]">
-                  {dashboardHeaderGoalsLink.label}
-                </span>
-              </span>
             </Link>
-          ) : null}
+          </div>
         </div>
 
         <button
@@ -4656,11 +5884,10 @@ export default function UserHomeDashboardPage() {
               <span className="sr-only">Tokens</span>
               <Image
                 alt=""
-                aria-hidden="true"
-                className="h-5 w-5 rounded-full border border-cyan-200/24 bg-slate-950 object-contain p-0.5 shadow-[0_0_12px_rgba(34,211,238,0.20)]"
-                height={20}
+                className="h-6 w-6 rounded-full border border-cyan-200/20 bg-slate-950 object-contain p-0.5"
+                height={24}
                 src="/sound-fitness-logo.png"
-                width={20}
+                width={24}
               />
               <span className="text-sm font-black leading-none text-white">
                 {soundTokens.toLocaleString()}
@@ -4673,9 +5900,9 @@ export default function UserHomeDashboardPage() {
   );
 
   const renderFavoriteWorkoutsCard = () => (
-    <section className="relative z-10 mx-auto w-full max-w-[1080px] overflow-hidden rounded-[24px] border border-cyan-200/16 bg-[linear-gradient(135deg,rgba(15,23,42,0.68),rgba(2,6,23,0.54)),radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.13),transparent_32%)] p-3 shadow-2xl shadow-black/15 backdrop-blur sm:p-4">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="flex shrink-0 items-center justify-between gap-3 lg:w-[210px] lg:flex-col lg:items-start">
+    <section className="relative z-10 mx-auto w-full max-w-[1080px] overflow-hidden rounded-[24px] border border-cyan-200/16 bg-[linear-gradient(135deg,rgba(15,23,42,0.68),rgba(2,6,23,0.54)),radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.13),transparent_32%)] p-2.5 shadow-2xl shadow-black/15 backdrop-blur sm:p-3">
+      <div className="flex flex-col gap-2 min-[760px]:flex-row min-[760px]:items-center">
+        <div className="flex shrink-0 items-center justify-between gap-3 min-[760px]:w-[190px] min-[760px]:flex-col min-[760px]:items-start">
           <div>
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-300">
               Favorite Workouts
@@ -4684,10 +5911,10 @@ export default function UserHomeDashboardPage() {
               Fast launch saved sessions.
             </p>
           </div>
-          <div className="hidden gap-2 lg:flex">
+          <div className="hidden gap-1.5 min-[760px]:flex">
             <button
               aria-label="Scroll favorite workouts left"
-              className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-slate-950/55 text-xs font-black text-slate-300 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-100"
+              className="grid h-7 w-7 place-items-center rounded-xl border border-white/10 bg-slate-950/55 text-xs font-black text-slate-300 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-100"
               onClick={() => scrollFavoriteWorkouts("left")}
               type="button"
             >
@@ -4695,7 +5922,7 @@ export default function UserHomeDashboardPage() {
             </button>
             <button
               aria-label="Scroll favorite workouts right"
-              className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-slate-950/55 text-xs font-black text-slate-300 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-100"
+              className="grid h-7 w-7 place-items-center rounded-xl border border-white/10 bg-slate-950/55 text-xs font-black text-slate-300 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-100"
               onClick={() => scrollFavoriteWorkouts("right")}
               type="button"
             >
@@ -4705,7 +5932,7 @@ export default function UserHomeDashboardPage() {
         </div>
 
         <div className="min-w-0 flex-1">
-          <div className="mb-2 flex justify-end gap-2 lg:hidden">
+          <div className="mb-1.5 flex justify-end gap-2 min-[760px]:hidden">
             <button
               aria-label="Scroll favorite workouts left"
               className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-slate-950/55 text-xs font-black text-slate-300 transition hover:border-cyan-200/35 hover:bg-cyan-300/10 hover:text-cyan-100"
@@ -4734,7 +5961,7 @@ export default function UserHomeDashboardPage() {
 
               return (
                 <Link
-                  className={`group flex h-[82px] min-w-[236px] snap-start items-center gap-3 rounded-[20px] border p-3 transition hover:-translate-y-0.5 active:scale-[0.99] ${
+                  className={`group flex h-[72px] min-w-[220px] snap-start items-center gap-2.5 rounded-[18px] border p-2.5 transition hover:-translate-y-0.5 active:scale-[0.99] ${
                     isActive
                       ? "border-cyan-200/55 bg-cyan-300/14 shadow-[0_0_28px_rgba(34,211,238,0.18)]"
                       : "border-white/10 bg-slate-950/52 hover:border-cyan-200/35 hover:bg-cyan-300/8"
@@ -4752,7 +5979,7 @@ export default function UserHomeDashboardPage() {
                   }}
                 >
                   <span
-                    className={`grid h-12 w-12 shrink-0 place-items-center rounded-2xl border text-xl ${
+                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-2xl border text-lg ${
                       isActive
                         ? "border-cyan-100/45 bg-cyan-300/16 text-cyan-50"
                         : "border-white/10 bg-white/[0.045] text-slate-100 group-hover:border-cyan-200/28 group-hover:bg-cyan-300/10"
@@ -4793,11 +6020,11 @@ export default function UserHomeDashboardPage() {
             })}
 
             <Link
-              className="group flex h-[82px] min-w-[180px] snap-start items-center gap-3 rounded-[20px] border border-dashed border-cyan-200/24 bg-cyan-300/6 p-3 transition hover:-translate-y-0.5 hover:border-cyan-200/48 hover:bg-cyan-300/10 active:scale-[0.99]"
+              className="group flex h-[72px] min-w-[168px] snap-start items-center gap-2.5 rounded-[18px] border border-dashed border-cyan-200/24 bg-cyan-300/6 p-2.5 transition hover:-translate-y-0.5 hover:border-cyan-200/48 hover:bg-cyan-300/10 active:scale-[0.99]"
               href={ROUTES.workoutBuilder.home}
             >
               <span
-                className="grid h-12 w-12 place-items-center rounded-2xl border border-cyan-200/24 bg-slate-950/54 text-xl text-cyan-100"
+                className="grid h-10 w-10 place-items-center rounded-2xl border border-cyan-200/24 bg-slate-950/54 text-lg text-cyan-100"
                 aria-hidden="true"
               >
                 +
@@ -4813,11 +6040,11 @@ export default function UserHomeDashboardPage() {
             </Link>
 
             <Link
-              className="group flex h-[82px] min-w-[180px] snap-start items-center gap-3 rounded-[20px] border border-white/10 bg-slate-950/45 p-3 transition hover:-translate-y-0.5 hover:border-amber-200/35 hover:bg-amber-300/8 active:scale-[0.99]"
+              className="group flex h-[72px] min-w-[168px] snap-start items-center gap-2.5 rounded-[18px] border border-white/10 bg-slate-950/45 p-2.5 transition hover:-translate-y-0.5 hover:border-amber-200/35 hover:bg-amber-300/8 active:scale-[0.99]"
               href={ROUTES.dashboard.sessionHistory}
             >
               <span
-                className="grid h-12 w-12 place-items-center rounded-2xl border border-amber-200/20 bg-amber-300/8 text-lg text-amber-100"
+                className="grid h-10 w-10 place-items-center rounded-2xl border border-amber-200/20 bg-amber-300/8 text-base text-amber-100"
                 aria-hidden="true"
               >
                 R
@@ -4838,11 +6065,99 @@ export default function UserHomeDashboardPage() {
   );
 
   const renderDashboardHeroAchievementOrbit = () => (
-    <div className="relative z-10 -mx-4 mt-3 overflow-hidden py-0 before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(ellipse_at_8%_0%,rgba(250,204,21,0.12),transparent_32%),radial-gradient(ellipse_at_92%_20%,rgba(34,211,238,0.10),transparent_34%),radial-gradient(ellipse_at_50%_72%,rgba(2,6,23,0.34),transparent_72%)] before:[mask-image:linear-gradient(to_bottom,transparent_0%,black_42%,black_100%)] before:content-[''] sm:-mx-6 lg:-mx-7">
+    <div className="relative z-10 mt-1 grid gap-2 min-[760px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] min-[760px]:items-end">
+      <div className="relative h-[194px] min-w-0 overflow-hidden p-0 sm:h-[196px]">
+        <div className="flex h-full min-w-0 flex-col items-center justify-end gap-1">
+          <div className="order-2 relative h-[150px] w-[256px] max-w-full shrink-0 sm:h-[154px] sm:w-[264px]">
+            <svg
+              aria-hidden="true"
+              className="absolute inset-0 h-full w-full overflow-visible"
+              viewBox="0 0 180 112"
+            >
+              <path
+                d="M24 88 A66 66 0 0 1 156 88"
+                fill="none"
+                pathLength={100}
+                stroke="rgba(148,163,184,0.18)"
+                strokeLinecap="round"
+                strokeWidth="16"
+              />
+              <path
+                d="M24 88 A66 66 0 0 1 156 88"
+                fill="none"
+                pathLength={100}
+                stroke="url(#dashboardMomentumGaugeGradient)"
+                strokeDasharray="100"
+                strokeDashoffset={100 - momentumMeterScore}
+                strokeLinecap="round"
+                strokeWidth="16"
+              />
+              <g
+                style={{
+                  transform: `rotate(${momentumNeedleAngle}deg)`,
+                  transformOrigin: "90px 88px",
+                }}
+              >
+                <line
+                  stroke="rgba(236,254,255,0.82)"
+                  strokeLinecap="butt"
+                  strokeWidth="2.5"
+                  x1="90"
+                  x2="90"
+                  y1="88"
+                  y2="44"
+                />
+              </g>
+              <circle
+                cx="90"
+                cy="88"
+                fill="rgba(15,23,42,0.92)"
+                r="8"
+                stroke="rgba(125,211,252,0.46)"
+                strokeWidth="3"
+              />
+              <defs>
+                <linearGradient
+                  id="dashboardMomentumGaugeGradient"
+                  x1="20"
+                  x2="160"
+                  y1="88"
+                  y2="88"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop offset="0%" stopColor="rgb(56,189,248)" />
+                  <stop offset="55%" stopColor="rgb(45,212,191)" />
+                  <stop offset="100%" stopColor="rgb(250,204,21)" />
+                </linearGradient>
+              </defs>
+            </svg>
+            <div className="absolute inset-x-0 bottom-14 text-center">
+              <div className="text-5xl font-black leading-none text-white">
+                {momentumEntryStreak}
+              </div>
+            </div>
+            <div className="absolute inset-x-0 bottom-11 text-center">
+              <div className="mt-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                Day Streak
+              </div>
+            </div>
+          </div>
+
+          <div className="order-1 min-w-0 self-stretch px-1 text-center">
+            <div className="truncate text-[9px] font-black uppercase tracking-[0.14em] text-cyan-50">
+              {momentumMeterCaption}
+            </div>
+            <p className="mt-1 line-clamp-1 text-[10px] font-bold leading-4 text-slate-100">
+              {momentumPrompt}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div className="relative min-w-0 overflow-hidden before:pointer-events-none before:absolute before:inset-0 before:bg-[radial-gradient(ellipse_at_8%_0%,rgba(250,204,21,0.10),transparent_32%),radial-gradient(ellipse_at_92%_20%,rgba(34,211,238,0.09),transparent_34%),radial-gradient(ellipse_at_50%_72%,rgba(2,6,23,0.30),transparent_72%)] before:[mask-image:linear-gradient(to_bottom,transparent_0%,black_38%,black_100%)] before:content-['']">
       <div className="sr-only">Progression rewards. Recent achievements.</div>
       <div
         aria-label="Dashboard achievement orbit"
-        className="relative z-10 h-[166px] cursor-grab select-none overflow-hidden [perspective:1100px] [touch-action:pan-y] active:cursor-grabbing sm:h-[172px]"
+        className="relative z-10 h-[154px] cursor-grab select-none overflow-visible [perspective:1000px] [touch-action:pan-y] active:cursor-grabbing sm:h-[160px]"
         onPointerCancel={(event) => {
           event.stopPropagation();
           finishHeroAchievementPointer(event);
@@ -4874,7 +6189,7 @@ export default function UserHomeDashboardPage() {
       >
         <button
           aria-label="Previous dashboard achievement"
-          className="absolute left-2 top-1/2 z-40 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100"
+          className="absolute left-1 top-1/2 z-40 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/72 text-base font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100"
           onClick={(event) => {
             event.stopPropagation();
             rotateHeroAchievement("left");
@@ -4886,7 +6201,7 @@ export default function UserHomeDashboardPage() {
         </button>
         <button
           aria-label="Next dashboard achievement"
-          className="absolute right-2 top-1/2 z-40 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100"
+          className="absolute right-1 top-1/2 z-40 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/72 text-base font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100"
           onClick={(event) => {
             event.stopPropagation();
             rotateHeroAchievement("right");
@@ -4918,8 +6233,8 @@ export default function UserHomeDashboardPage() {
                   : Math.max(0, baseSlot.opacity - overflowDistance * 0.08),
                 rotateY: baseSlot.rotateY - overflowDistance * 8,
                 scale: Math.max(0.26, baseSlot.scale - overflowDistance * 0.08),
-                x: baseSlot.x + overflowDistance * 140,
-                y: baseSlot.y + overflowDistance * 32,
+                x: baseSlot.x + overflowDistance * 96,
+                y: baseSlot.y + overflowDistance * 24,
                 zIndex: Math.max(0, baseSlot.zIndex - overflowDistance * 4),
               }
             : baseSlot;
@@ -4954,8 +6269,8 @@ export default function UserHomeDashboardPage() {
               aria-label={`Open ${achievement.label} achievements`}
               className={`group/hero-achievement absolute left-1/2 top-1/2 flex cursor-pointer flex-col items-center justify-center text-center transition duration-300 ${
                 isActiveAchievement
-                  ? "h-[154px] w-[min(68vw,270px)] overflow-hidden rounded-[28px] border border-cyan-100/30 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.18),transparent_36%),radial-gradient(circle_at_88%_12%,rgba(250,204,21,0.13),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.74))] px-4 py-2 shadow-[0_24px_62px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl sm:h-[160px]"
-                  : "min-h-[128px] w-[min(52vw,170px)] hover:drop-shadow-[0_14px_34px_rgba(34,211,238,0.14)]"
+                  ? "h-[136px] w-[min(52vw,184px)] overflow-visible rounded-[24px] border border-cyan-100/30 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.18),transparent_36%),radial-gradient(circle_at_88%_12%,rgba(250,204,21,0.13),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.74))] px-2.5 py-2 shadow-[0_18px_44px_rgba(0,0,0,0.30),0_0_28px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl sm:h-[140px]"
+                  : "min-h-[92px] w-[min(42vw,122px)] hover:drop-shadow-[0_14px_34px_rgba(34,211,238,0.14)]"
               }`}
               draggable={false}
               href={achievement.href || ROUTES.dashboard.achievements}
@@ -4991,7 +6306,7 @@ export default function UserHomeDashboardPage() {
               ) : null}
               <span
                 aria-hidden="true"
-                className={`pointer-events-none absolute left-1/2 top-[42%] h-28 w-28 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl transition ${
+                className={`pointer-events-none absolute left-1/2 top-[42%] h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full blur-2xl transition ${
                   isActiveAchievement ? "bg-cyan-300/20" : "bg-cyan-300/8"
                 }`}
               />
@@ -5006,22 +6321,22 @@ export default function UserHomeDashboardPage() {
                 />
               </div>
               <h3
-                className={`relative z-10 mt-2 max-w-[150px] text-center font-black uppercase leading-tight tracking-[0.1em] ${
+                className={`relative z-10 mt-1 max-w-[130px] text-center font-black uppercase leading-tight tracking-[0.1em] ${
                   isActiveAchievement
-                    ? "text-sm text-white drop-shadow-[0_0_16px_rgba(34,211,238,0.24)]"
-                    : "text-[10px] text-slate-300"
+                    ? "text-xs text-white drop-shadow-[0_0_16px_rgba(34,211,238,0.24)]"
+                    : "text-[9px] text-slate-300"
                 }`}
               >
                 {achievement.label}
               </h3>
               {isActiveAchievement ? (
-                <div className="relative z-10 mt-1.5 w-full text-left">
+                <div className="relative z-10 mt-0.5 w-full text-left">
                   {achievement.meta ? (
-                    <p className="truncate text-center text-[10px] font-bold leading-4 text-slate-300">
+                    <p className="truncate text-center text-[9px] font-bold leading-4 text-slate-300">
                       {achievement.meta}
                     </p>
                   ) : null}
-                  <div className="mt-1.5 flex items-center justify-center gap-2">
+                  <div className="mt-1 flex items-center justify-center gap-1.5">
                     <span className="rounded-full border border-cyan-100/24 bg-cyan-300/12 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100">
                       {achievement.category}
                     </span>
@@ -5035,6 +6350,7 @@ export default function UserHomeDashboardPage() {
           );
         })}
       </div>
+      </div>
     </div>
   );
 
@@ -5042,89 +6358,525 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="Dashboard hero row"
       data-dashboard-orbiter-row="0"
-      className="relative z-10 mx-auto w-full max-w-[1080px] overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(15,23,42,0.72)),radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.14),transparent_34%),radial-gradient(circle_at_92%_18%,rgba(250,204,21,0.12),transparent_30%)] px-4 pb-3 pt-4 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[30px] sm:px-6 sm:pb-4 sm:pt-6 lg:px-7 lg:pb-5 lg:pt-7"
+      className="relative z-10 mx-auto w-full max-w-[1080px] overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(15,23,42,0.72)),radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.14),transparent_34%),radial-gradient(circle_at_92%_18%,rgba(250,204,21,0.12),transparent_30%)] px-4 py-3 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[30px] sm:px-5 sm:py-4 lg:px-6"
     >
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(330px,390px)] xl:items-start">
+      <div className="grid gap-4 min-[760px]:grid-cols-[minmax(0,1fr)_minmax(240px,300px)] min-[760px]:items-start">
         <div className="min-w-0">
           <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-400">
             Sound Fitness Command Center
           </div>
 
-          <h1 className="mt-3 break-words text-3xl font-black uppercase tracking-tight sm:text-5xl">
+          <h1 className="mt-2 break-words text-3xl font-black uppercase tracking-tight sm:text-4xl">
             Welcome back, <span className="text-sky-400">{firstName}</span>
           </h1>
 
-          <div className="mt-3 inline-flex max-w-full items-center gap-2 rounded-full border border-cyan-300/22 bg-cyan-300/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.14em] text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.12)]">
-            <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.75)]" />
-            <span className="min-w-0 truncate">{heroProgressionLine}</span>
-          </div>
-
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+          <p className="mt-2 max-w-2xl text-sm leading-5 text-slate-300">
             Start training, check your progress, back up your workout data,
             and jump into the next part of your plan from one place.
           </p>
+
+          <div
+            className={`mt-3 inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.08em] shadow-[0_0_22px_rgba(34,211,238,0.10)] ${dashboardStatusPillTone}`}
+          >
+            <span
+              aria-hidden="true"
+              className="h-2 w-2 shrink-0 rounded-full bg-current shadow-[0_0_10px_currentColor]"
+            />
+            <span className="min-w-0 truncate">
+              {dashboardConsistencyStage} / {dashboardStatusUrgency} /{" "}
+              {masterJourneyCurrentFocus}
+            </span>
+          </div>
         </div>
 
-        <div className="grid gap-3">
+        <div className="grid gap-3 min-[760px]:w-[min(32vw,300px)] min-[760px]:justify-self-end">
           <div className="rounded-[24px] border border-white/10 bg-slate-950/36 p-3 shadow-inner shadow-white/5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                  Progress wallet
-                </div>
-                <div className="mt-1 text-sm font-black text-white">
-                  Ecosystem rewards
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <Image
+                  alt=""
+                  className="h-10 w-10 shrink-0 rounded-full border border-cyan-100/28 bg-slate-950 object-contain p-1 shadow-[0_0_18px_rgba(34,211,238,0.16)]"
+                  height={40}
+                  src="/sound-fitness-logo.png"
+                  width={40}
+                />
+                <div className="min-w-0">
+                  <div className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/72">
+                    Active Profile
+                  </div>
+                  <div className="mt-0.5 truncate text-sm font-black text-white">
+                    {firstName}
+                  </div>
+                  <div className="mt-0.5 truncate text-[10px] font-semibold text-slate-400">
+                    {dashboardConsistencyStage} stage
+                  </div>
                 </div>
               </div>
-              <div className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.13em] text-amber-100">
-                Level {Math.max(1, Math.round(masterJourneyProgress / 12))}
+              <div className="shrink-0 rounded-full border border-amber-300/25 bg-amber-300/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-amber-100">
+                {dashboardProfileHubCompletion}% ready
               </div>
             </div>
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-              <div className="rounded-2xl border border-cyan-300/20 bg-cyan-300/10 p-3 shadow-[0_0_18px_rgba(34,211,238,0.08)]">
-                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] text-cyan-100 [&>span:first-child]:hidden">
-                  <span className="text-base">âš¡</span>
-                  <span className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-amber-200/35 bg-amber-300/12 text-amber-100 shadow-[0_0_14px_rgba(250,204,21,0.25)]">
-                    <svg
-                      aria-hidden="true"
-                      className="h-4 w-4 drop-shadow-[0_0_10px_rgba(250,204,21,0.32)]"
-                      fill="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path d="M13.5 2 4.8 13.2h6.1L9.7 22 19.2 9.6h-6.4L13.5 2Z" />
-                    </svg>
+            <div className="mt-3 grid gap-2 border-t border-white/10 pt-2.5">
+              <Link
+                className="group block min-w-0 text-left transition hover:translate-x-0.5"
+                href={ROUTES.dashboard.goals}
+              >
+                <span className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="truncate text-[9px] font-black uppercase tracking-[0.15em] text-slate-500">
+                    Goal Focus
                   </span>
-                  Sound Points
-                </div>
-                <div className="mt-1 text-2xl font-black tracking-tight text-white">
-                  {soundPoints.toLocaleString()}
-                </div>
-              </div>
+                  <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
+                    {dashboardFoundationProgress.goalsCompletion}% goals
+                  </span>
+                </span>
+                <span className="mt-1 block truncate text-sm font-black text-white group-hover:text-cyan-100">
+                  {dashboardActiveProfileGoalFocus}
+                </span>
+              </Link>
 
-              <div className="rounded-2xl border border-amber-300/24 bg-amber-300/10 p-3 shadow-[0_0_18px_rgba(250,204,21,0.1)]">
-                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.15em] text-amber-100">
-                  <span className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-amber-200/35 bg-slate-950/70 shadow-[0_0_14px_rgba(250,204,21,0.25)]">
-                    <Image
-                      src="/sound-fitness-logo.png"
-                      alt="Sound Fitness token"
-                      width={18}
-                      height={18}
-                      className="rounded-full"
-                    />
+              <Link
+                className="group block min-w-0 border-t border-white/10 pt-2 text-left transition hover:translate-x-0.5"
+                href={dashboardActiveProfileNextHref}
+              >
+                <span className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="truncate text-[9px] font-black uppercase tracking-[0.15em] text-slate-500">
+                    Position
                   </span>
-                  Sound Tokens
-                </div>
-                <div className="mt-1 text-2xl font-black tracking-tight text-white">
-                  {soundTokens.toLocaleString()}
-                </div>
-              </div>
+                  <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                    {dashboardActiveProfileNextStep}
+                  </span>
+                </span>
+                <span className="mt-1 block truncate text-sm font-black text-white group-hover:text-cyan-100">
+                  {masterJourneyCurrentFocus}
+                </span>
+                <span className="mt-0.5 block truncate text-[10px] font-semibold text-slate-400">
+                  {dashboardActiveProfilePlanDetail}
+                </span>
+              </Link>
             </div>
+
           </div>
         </div>
       </div>
 
       {renderDashboardHeroAchievementOrbit()}
+    </div>
+  );
+
+  const renderDashboardDailyToolsRow = () => (
+    <div
+      aria-label="Daily Tools row"
+      data-dashboard-orbiter-row="1"
+      className={`flex min-h-0 items-start justify-center pl-6 pr-20 pt-2 transition-opacity duration-300 sm:pl-10 sm:pr-24 sm:pt-3 lg:pl-12 lg:pr-28 lg:pt-4 ${
+        clampedDashboardOrbiterRow === 1
+          ? "pointer-events-auto opacity-100"
+          : "pointer-events-none opacity-40"
+      }`}
+    >
+      <div
+        data-dashboard-orbiter-local-scroll="true"
+        className="h-full w-full max-w-[1180px] snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain pb-2 pr-1 scroll-smooth [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-x] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
+      >
+        <section className="flex min-h-full items-center justify-center pb-4">
+          <div className="flex w-max min-w-full justify-center gap-3 px-1">
+            <article
+              className={`relative flex shrink-0 overflow-hidden border border-cyan-300/24 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.16),transparent_34%),radial-gradient(circle_at_92%_12%,rgba(250,204,21,0.12),transparent_30%),rgba(15,23,42,0.72)] shadow-2xl shadow-black/25 backdrop-blur transition-[height,width,border-radius,box-shadow] duration-300 ${
+                manualStatsAdderCollapsed
+                  ? "h-[220px] w-[min(86vw,24rem)] snap-center flex-col rounded-[28px] p-5 sm:h-[244px] sm:w-[24rem]"
+                  : "aspect-square w-[min(86vw,26rem)] flex-col rounded-[28px] p-4 sm:rounded-[34px] sm:p-5"
+              }`}
+            >
+            {manualStatsAdderCollapsed ? (
+              <button
+                type="button"
+                aria-controls="dashboard-manual-stats-adder-body"
+                aria-expanded="false"
+                onClick={() => setManualStatsAdderCollapsed(false)}
+                className="group relative z-10 flex h-full w-full flex-col items-stretch justify-between text-left"
+              >
+                <span className="flex items-start justify-between gap-3">
+                  <span
+                    className="grid h-16 w-16 shrink-0 place-items-center rounded-[24px] border border-cyan-100/35 bg-cyan-300/14 text-2xl font-black text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.16)]"
+                    aria-hidden="true"
+                  >
+                    +
+                  </span>
+                  <span className="rounded-full border border-cyan-200/28 bg-cyan-300/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                    Daily Tool
+                  </span>
+                </span>
+
+                <span className="block min-w-0">
+                  <span className="block text-2xl font-black tracking-tight text-white">
+                    Manual Stats Adder
+                  </span>
+                  <span className="mt-2 block max-w-[18rem] text-sm font-semibold leading-5 text-slate-300">
+                    Quick-log a stat or attach it to an Exercise Library card.
+                  </span>
+                </span>
+
+                <span className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: "Sets", value: manualStatsDraft.sets || "3" },
+                    { label: "Reps", value: manualStatsDraft.reps || "10" },
+                    {
+                      label: "Recent",
+                      value: Math.min(manualStatsLogs.length, 6).toString(),
+                    },
+                  ].map((item) => (
+                    <span
+                      key={item.label}
+                      className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/42 px-2.5 py-2"
+                    >
+                      <span className="block truncate text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                        {item.label}
+                      </span>
+                      <span className="mt-0.5 block truncate text-sm font-black uppercase text-white">
+                        {item.value}
+                      </span>
+                    </span>
+                  ))}
+                </span>
+              </button>
+            ) : (
+              <>
+            <span className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-200/70 to-amber-200/55" />
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              <div className="grid gap-2">
+                <div className="min-w-0 text-left">
+                  <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
+                    Manual Stats Adder
+                  </h2>
+                  <p className="mt-1 max-w-[25rem] text-xs leading-5 text-slate-300">
+                    Quick-log a generic stat or attach it to a referenced Exercise Library card.
+                  </p>
+                </div>
+
+                <div className="flex max-w-full flex-wrap items-center justify-start gap-1.5">
+                  <span className="flex w-full flex-wrap items-center justify-between gap-1.5">
+                    <span className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-300">
+                      Import Tools
+                    </span>
+                    <button
+                      type="button"
+                      aria-controls="dashboard-manual-stats-adder-body"
+                      aria-expanded={!manualStatsAdderCollapsed}
+                      onClick={() =>
+                        setManualStatsAdderCollapsed((collapsed) => !collapsed)
+                      }
+                      className="inline-flex min-h-[28px] items-center justify-center gap-1 rounded-full border border-cyan-200/24 bg-cyan-300/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/48 hover:bg-cyan-300/16 hover:text-cyan-50 active:scale-[0.98]"
+                    >
+                      {manualStatsAdderCollapsed ? "Expand" : "Collapse"}
+                      <span aria-hidden="true">
+                        {manualStatsAdderCollapsed ? "v" : "^"}
+                      </span>
+                    </button>
+                  </span>
+                  {dashboardUploadOptions.map((option) => {
+                    const active = option.id === activeUploadType;
+
+                    return (
+                      <Link
+                        key={option.id}
+                        href={option.href}
+                        aria-current={active ? "page" : undefined}
+                        onClick={() => handleUploadOptionSelect(option.id)}
+                        title={option.description}
+                        className={`inline-flex min-h-[28px] items-center justify-center rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] transition hover:-translate-y-0.5 active:scale-[0.98] ${
+                          active
+                            ? "border-cyan-100/45 bg-cyan-300/16 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.18)]"
+                            : "border-white/10 bg-slate-950/46 text-slate-300 hover:border-cyan-200/32 hover:bg-cyan-300/8 hover:text-cyan-100"
+                        }`}
+                      >
+                        {option.label}
+                      </Link>
+                    );
+                  })}
+                  <Link
+                    href="/stats/add/connect"
+                    className="inline-flex min-h-[28px] items-center justify-center rounded-full border border-amber-200/28 bg-amber-300/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-amber-100 transition hover:-translate-y-0.5 hover:border-amber-100/50 hover:bg-amber-300/16 hover:text-amber-50 active:scale-[0.98]"
+                  >
+                    Wearables
+                  </Link>
+                </div>
+              </div>
+
+              <div
+                data-dashboard-orbiter-local-scroll="true"
+                className="mt-3 min-h-0 flex-1 overflow-y-auto pr-1 scroll-smooth [scrollbar-color:rgba(34,211,238,0.38)_rgba(15,23,42,0.58)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
+              >
+              {manualStatsAdderCollapsed ? (
+                <div
+                  id="dashboard-manual-stats-adder-body"
+                  className="grid gap-2 rounded-[22px] border border-cyan-200/14 bg-slate-950/28 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:grid-cols-2"
+                >
+                  {[
+                    { label: "Sets", value: manualStatsDraft.sets || "3" },
+                    { label: "Reps", value: manualStatsDraft.reps || "10" },
+                    {
+                      label: "Load",
+                      value: formatManualLoadDisplay(manualStatsDraft.load),
+                    },
+                    {
+                      label: "Recent",
+                      value: `${Math.min(manualStatsLogs.length, 6)} saved`,
+                    },
+                  ].map((item) => (
+                    <span
+                      key={item.label}
+                      className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/46 px-3 py-2 text-left"
+                    >
+                      <span className="block truncate text-[8px] font-black uppercase tracking-[0.13em] text-slate-500">
+                        {item.label}
+                      </span>
+                      <span className="mt-1 block truncate text-sm font-black uppercase text-cyan-50">
+                        {item.value}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <div id="dashboard-manual-stats-adder-body">
+                  <div className="overflow-hidden rounded-[22px] border border-cyan-200/14 bg-slate-950/28 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  <div
+                    aria-label="Manual stats dashboard favorite selector"
+                    className="mx-auto flex min-w-0 items-center gap-1.5"
+                  >
+                    <button
+                      type="button"
+                      aria-label="Previous favorites dashboard"
+                      onClick={() => rotateManualFavoriteDashboard("left")}
+                      className="grid h-9 w-8 shrink-0 place-items-center rounded-xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:-translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
+                    >
+                      &lt;
+                    </button>
+                    <Link
+                      href={activeManualFavoriteDashboard.href}
+                      className="group flex min-h-[50px] min-w-[230px] items-center justify-between gap-3 rounded-2xl border border-cyan-200/22 bg-cyan-300/8 px-3 py-2 text-left shadow-[0_0_18px_rgba(34,211,238,0.08)] transition hover:-translate-y-0.5 hover:border-cyan-200/42 hover:bg-cyan-300/12"
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/75">
+                          {activeManualFavoriteDashboard.meta}
+                        </span>
+                        <span className="mt-0.5 block truncate text-[11px] font-black uppercase tracking-[0.11em] text-white">
+                          {activeManualFavoriteDashboard.label}
+                        </span>
+                      </span>
+                      <span className="shrink-0 rounded-full border border-white/10 bg-slate-950/48 px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-slate-300">
+                        {activeManualFavoriteCountLabel}
+                      </span>
+                    </Link>
+                    <button
+                      type="button"
+                      aria-label="Next favorites dashboard"
+                      onClick={() => rotateManualFavoriteDashboard("right")}
+                      className="grid h-9 w-8 shrink-0 place-items-center rounded-xl border border-transparent bg-transparent text-xs font-black text-cyan-100/80 transition hover:translate-x-0.5 hover:border-amber-200/28 hover:bg-amber-300/8 hover:text-amber-100 active:scale-95"
+                    >
+                      &gt;
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mx-auto mt-1.5 w-full max-w-full">
+                  {activeManualFavoriteDashboard.id === "workout" ? (
+                    <ManualExerciseLibraryPreview
+                      activeCategoryId={activeManualExerciseCategoryId}
+                      categories={manualExerciseLibraryCategories}
+                      manualStatsDraft={manualStatsDraft}
+                      onCategorySelect={setActiveManualExerciseCategoryId}
+                      onCategoryShift={rotateManualExerciseCategory}
+                      onExerciseSelect={selectExerciseReference}
+                      onManualStatsDraftChange={updateManualStatsDraft}
+                      onSaveManualStats={saveManualStatsLog}
+                      selectedExerciseCue={selectedExercise?.cue}
+                      selectedExerciseIds={selectedManualExerciseReferenceIds}
+                    />
+                  ) : (
+                    <div className="mx-auto flex w-fit max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {activeDashboardLibraryFavoriteIds.length ? (
+                        activeDashboardLibraryFavoriteIds.map((favoriteId) => (
+                          <Link
+                            key={`${activeManualFavoriteDashboard.id}-${favoriteId}`}
+                            href={activeManualFavoriteDashboard.href}
+                            className="flex min-h-[96px] min-w-[210px] shrink-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.045] p-3 transition hover:-translate-y-0.5 hover:border-cyan-200/30 hover:bg-cyan-300/8"
+                          >
+                            <span>
+                              <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100/80">
+                                {activeManualFavoriteDashboard.label}
+                              </span>
+                              <span className="mt-1.5 block truncate text-sm font-black text-white">
+                                {formatFavoriteIdLabel(favoriteId)}
+                              </span>
+                            </span>
+                            <span className="mt-2 inline-flex w-fit rounded-full border border-white/10 bg-slate-950/45 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-slate-300">
+                              Open dashboard
+                            </span>
+                          </Link>
+                        ))
+                      ) : (
+                        <Link
+                          href={activeManualFavoriteDashboard.href}
+                          className="flex min-h-[96px] min-w-[230px] shrink-0 flex-col justify-between rounded-2xl border border-dashed border-cyan-200/24 bg-cyan-300/6 p-3 text-left transition hover:-translate-y-0.5 hover:border-cyan-200/48 hover:bg-cyan-300/10"
+                        >
+                          <span>
+                            <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                              No saved favorites
+                            </span>
+                            <span className="mt-1.5 block text-sm font-black text-white">
+                              {activeManualFavoriteDashboard.label}
+                            </span>
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400">
+                            {activeManualFavoriteDashboard.helper}
+                          </span>
+                        </Link>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            <div className="mt-3">
+              <div className="mb-2 flex flex-col items-center justify-center gap-2 text-center sm:flex-row">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+                  Recently saved stats
+                </p>
+                <span className="rounded-full border border-cyan-200/18 bg-cyan-300/8 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                  Last {Math.min(manualStatsLogs.length, 6) || 0}
+                </span>
+              </div>
+
+              {manualStatsLogs.length ? (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {manualStatsLogs.slice(0, 6).map((entry) => {
+                    const reference =
+                      entry.references?.find(
+                        (item) => item.referenceType === "exercise",
+                      ) || entry.references?.[0];
+                    const statTitle =
+                      entry.sessionLabel?.trim() ||
+                      reference?.referenceTitle ||
+                      "Manual stat";
+                    const statMeta = reference
+                      ? `${reference.metadata.movementPattern || "Movement"} / ${
+                          reference.metadata.equipment || "Equipment"
+                        }`
+                      : "Generic manual entry";
+                    const statImage = reference?.metadata.image;
+                    const statDate = formatCompactDateTime(
+                      entry.loggedAt || entry.dateTime,
+                    );
+                    const statValues = [
+                      { label: "Sets", value: entry.sets?.trim() || "0" },
+                      { label: "Reps", value: entry.reps?.trim() || "0" },
+                      {
+                        label: "Load",
+                        value: formatManualLoadDisplay(entry.load),
+                      },
+                      {
+                        label: "RPE",
+                        value: formatManualRpeDisplay(entry.rpe),
+                      },
+                    ];
+
+                    return (
+                      <article
+                        key={entry.id}
+                        className="relative isolate min-h-[132px] overflow-hidden rounded-2xl border border-white/10 bg-slate-950/42 p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                      >
+                        <span className="flex items-start gap-3">
+                          {statImage ? (
+                            <span
+                              aria-hidden="true"
+                              className="h-14 w-14 shrink-0 rounded-xl border border-cyan-100/16 bg-cover bg-center"
+                              style={{
+                                backgroundImage: `linear-gradient(180deg, rgba(2,6,23,0.08), rgba(2,6,23,0.32)), url(${statImage})`,
+                              }}
+                            />
+                          ) : (
+                            <span
+                              aria-hidden="true"
+                              className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-cyan-100/16 bg-cyan-300/10 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100"
+                            >
+                              Stat
+                            </span>
+                          )}
+
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-black text-white">
+                              {statTitle}
+                            </span>
+                            <span className="mt-1 block truncate text-[9px] font-black uppercase tracking-[0.11em] text-cyan-100/78">
+                              {statMeta}
+                            </span>
+                            <span className="mt-1 block truncate text-[10px] font-semibold text-slate-400">
+                              {statDate}
+                            </span>
+                          </span>
+                        </span>
+
+                        <span className="mt-3 grid grid-cols-4 gap-1.5">
+                          {statValues.map((stat) => (
+                            <span
+                              key={stat.label}
+                              className="min-w-0 rounded-xl border border-white/10 bg-slate-950/46 px-2 py-1"
+                            >
+                              <span className="block truncate text-[7px] font-black uppercase tracking-[0.1em] text-slate-500">
+                                {stat.label}
+                              </span>
+                              <span className="mt-0.5 block truncate text-[10px] font-black uppercase text-cyan-50">
+                                {stat.value}
+                              </span>
+                            </span>
+                          ))}
+                        </span>
+                      </article>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex min-h-[74px] w-full items-center justify-center rounded-2xl border border-dashed border-cyan-200/22 bg-slate-950/36 px-4 py-3 text-center">
+                  <p className="text-xs font-semibold text-slate-400">
+                    Saved manual stats will appear here after you hit Save Stat.
+                  </p>
+                </div>
+              )}
+            </div>
+                </div>
+              )}
+              </div>
+          </div>
+              </>
+            )}
+          </article>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+
+  const renderDashboardCalendarRow = () => (
+    <div
+      aria-label="Calendar row"
+      data-dashboard-orbiter-row="3"
+      className={`flex min-h-0 items-start justify-center pl-6 pr-20 pt-2 transition-opacity duration-300 sm:pl-10 sm:pr-24 sm:pt-3 lg:pl-12 lg:pr-28 lg:pt-4 ${
+        clampedDashboardOrbiterRow === 3
+          ? "pointer-events-auto opacity-100"
+          : "pointer-events-none opacity-40"
+      }`}
+    >
+      <div
+        data-dashboard-orbiter-local-scroll="true"
+        className="h-full w-full max-w-[1180px] overflow-y-auto overscroll-contain pr-1 scroll-smooth [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
+      >
+        <section className="pb-4">
+          <div className="mx-auto w-full max-w-[1120px]">
+            <DashboardCalendar items={dashboardCalendarItems} />
+          </div>
+        </section>
+      </div>
     </div>
   );
 
@@ -5293,33 +7045,22 @@ export default function UserHomeDashboardPage() {
           </div>
         </section>
 
-        <section className="mb-6">
+        <section className="hidden" aria-hidden="true">
           <div className="relative min-w-0 overflow-hidden rounded-[28px] border border-cyan-300/24 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.16),transparent_34%),radial-gradient(circle_at_92%_12%,rgba(250,204,21,0.12),transparent_30%),rgba(15,23,42,0.72)] p-4 shadow-2xl shadow-black/25 backdrop-blur sm:rounded-[34px] sm:p-5 lg:p-6">
             <span className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-200/70 to-amber-200/55" />
             <div className="relative">
-              <div className="min-w-0 lg:pr-[350px]">
-                <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-400">
-                  Active Log Panel
-                </div>
+              <div className="mx-auto max-w-3xl min-w-0 text-center">
                 <h2 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">
                   Manual Stats Adder
                 </h2>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+                <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-300">
                   Quick-log a generic stat or attach it to a referenced Exercise Library card.
                 </p>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Link
-                    href={ROUTES.dashboard.sessions}
-                    className="rounded-2xl border border-white/10 bg-slate-950/46 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300 transition hover:-translate-y-0.5 hover:border-cyan-200/35 hover:bg-cyan-300/8 hover:text-cyan-100"
-                  >
-                    Start Workout
-                  </Link>
-                </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2 lg:absolute lg:right-0 lg:top-0 lg:mt-0 lg:max-w-[430px] lg:justify-end">
-                <span className="mr-1 text-[9px] font-black uppercase tracking-[0.18em] text-emerald-300">
+              <div className="mx-auto mt-4 flex max-w-[680px] flex-wrap items-center justify-center gap-2">
+                <span className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-300">
                   Import Tools
                 </span>
                 {dashboardUploadOptions.map((option) => {
@@ -5350,11 +7091,11 @@ export default function UserHomeDashboardPage() {
                 </Link>
               </div>
 
-              <div className="mt-5 overflow-hidden rounded-[22px] border border-cyan-200/14 bg-slate-950/28 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="mx-auto mt-5 max-w-[980px] overflow-hidden rounded-[22px] border border-cyan-200/14 bg-slate-950/28 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                <div className="flex flex-wrap items-center justify-center gap-3">
                   <div
                     aria-label="Manual stats dashboard favorite selector"
-                    className="flex min-w-0 items-center gap-1.5"
+                    className="mx-auto flex min-w-0 items-center gap-1.5"
                   >
                     <button
                       type="button"
@@ -5377,7 +7118,7 @@ export default function UserHomeDashboardPage() {
                         </span>
                       </span>
                       <span className="shrink-0 rounded-full border border-white/10 bg-slate-950/48 px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-slate-300">
-                        {activeManualFavoriteCount} saved
+                        {activeManualFavoriteCountLabel}
                       </span>
                     </Link>
                     <button
@@ -5391,255 +7132,177 @@ export default function UserHomeDashboardPage() {
                   </div>
                 </div>
 
-                <div className="mt-3 flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="mx-auto mt-1.5 w-full max-w-full">
                   {activeManualFavoriteDashboard.id === "workout" ? (
-                    favoriteExerciseCards.length ? (
-                      favoriteExerciseCards.map((exercise) => {
-                        const selected = manualReferences.some(
-                          (reference) => reference.referenceId === exercise.id,
-                        );
-
-                        return (
-                          <button
-                            type="button"
-                            key={exercise.id}
-                            onClick={() => selectExerciseReference(exercise)}
-                            className={`group flex min-h-[96px] min-w-[210px] shrink-0 flex-col justify-between rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 active:scale-[0.98] ${
-                              selected
-                                ? "border-emerald-200/44 bg-emerald-300/12 text-emerald-50 shadow-[0_0_22px_rgba(16,185,129,0.12)]"
-                                : "border-white/10 bg-white/[0.045] text-slate-300 hover:border-cyan-200/34 hover:bg-cyan-300/8 hover:text-white"
-                            }`}
+                    <ManualExerciseLibraryPreview
+                      activeCategoryId={activeManualExerciseCategoryId}
+                      categories={manualExerciseLibraryCategories}
+                      manualStatsDraft={manualStatsDraft}
+                      onCategorySelect={setActiveManualExerciseCategoryId}
+                      onCategoryShift={rotateManualExerciseCategory}
+                      onExerciseSelect={selectExerciseReference}
+                      onManualStatsDraftChange={updateManualStatsDraft}
+                      onSaveManualStats={saveManualStatsLog}
+                      selectedExerciseCue={selectedExercise?.cue}
+                      selectedExerciseIds={selectedManualExerciseReferenceIds}
+                    />
+                  ) : (
+                    <div className="mx-auto flex w-fit max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      {activeDashboardLibraryFavoriteIds.length ? (
+                        activeDashboardLibraryFavoriteIds.map((favoriteId) => (
+                          <Link
+                            key={`${activeManualFavoriteDashboard.id}-${favoriteId}`}
+                            href={activeManualFavoriteDashboard.href}
+                            className="flex min-h-[96px] min-w-[210px] shrink-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.045] p-3 transition hover:-translate-y-0.5 hover:border-cyan-200/30 hover:bg-cyan-300/8"
                           >
                             <span>
-                              <span className="block truncate text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100/80">
-                                {exercise.body} / {exercise.pattern}
+                              <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100/80">
+                                {activeManualFavoriteDashboard.label}
                               </span>
                               <span className="mt-1.5 block truncate text-sm font-black text-white">
-                                {exercise.name}
-                              </span>
-                              <span className="mt-1 block truncate text-[10px] font-bold text-slate-400">
-                                {exercise.equipment} / {exercise.level}
+                                {formatFavoriteIdLabel(favoriteId)}
                               </span>
                             </span>
-                            <span
-                              className={`mt-2 inline-flex w-fit rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] ${
-                                selected
-                                  ? "border-emerald-100/34 bg-emerald-300/14 text-emerald-100"
-                                  : "border-cyan-200/18 bg-slate-950/45 text-cyan-100"
-                              }`}
-                            >
-                              {selected ? "Attached" : "Add to stat"}
+                            <span className="mt-2 inline-flex w-fit rounded-full border border-white/10 bg-slate-950/45 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-slate-300">
+                              Open dashboard
                             </span>
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <Link
-                        href={ROUTES.workoutBuilder.exerciseLibrary}
-                        className="flex min-h-[96px] min-w-[230px] shrink-0 flex-col justify-between rounded-2xl border border-dashed border-cyan-200/24 bg-cyan-300/6 p-3 text-left transition hover:-translate-y-0.5 hover:border-cyan-200/48 hover:bg-cyan-300/10"
-                      >
-                        <span>
-                          <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100">
-                            No exercise favorites
+                          </Link>
+                        ))
+                      ) : (
+                        <Link
+                          href={activeManualFavoriteDashboard.href}
+                          className="flex min-h-[96px] min-w-[230px] shrink-0 flex-col justify-between rounded-2xl border border-dashed border-cyan-200/24 bg-cyan-300/6 p-3 text-left transition hover:-translate-y-0.5 hover:border-cyan-200/48 hover:bg-cyan-300/10"
+                        >
+                          <span>
+                            <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                              No saved favorites
+                            </span>
+                            <span className="mt-1.5 block text-sm font-black text-white">
+                              {activeManualFavoriteDashboard.label}
+                            </span>
                           </span>
-                          <span className="mt-1.5 block text-sm font-black text-white">
-                            Star library moves
+                          <span className="text-[10px] font-bold text-slate-400">
+                            {activeManualFavoriteDashboard.helper}
                           </span>
-                        </span>
-                        <span className="text-[10px] font-bold text-slate-400">
-                          Open Exercise Library
-                        </span>
-                      </Link>
-                    )
-                  ) : activeDashboardLibraryFavoriteIds.length ? (
-                    activeDashboardLibraryFavoriteIds.map((favoriteId) => (
-                      <Link
-                        key={`${activeManualFavoriteDashboard.id}-${favoriteId}`}
-                        href={activeManualFavoriteDashboard.href}
-                        className="flex min-h-[96px] min-w-[210px] shrink-0 flex-col justify-between rounded-2xl border border-white/10 bg-white/[0.045] p-3 transition hover:-translate-y-0.5 hover:border-cyan-200/30 hover:bg-cyan-300/8"
-                      >
-                        <span>
-                          <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100/80">
-                            {activeManualFavoriteDashboard.label}
-                          </span>
-                          <span className="mt-1.5 block truncate text-sm font-black text-white">
-                            {formatFavoriteIdLabel(favoriteId)}
-                          </span>
-                        </span>
-                        <span className="mt-2 inline-flex w-fit rounded-full border border-white/10 bg-slate-950/45 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-slate-300">
-                          Open dashboard
-                        </span>
-                      </Link>
-                    ))
-                  ) : (
-                    <Link
-                      href={activeManualFavoriteDashboard.href}
-                      className="flex min-h-[96px] min-w-[230px] shrink-0 flex-col justify-between rounded-2xl border border-dashed border-cyan-200/24 bg-cyan-300/6 p-3 text-left transition hover:-translate-y-0.5 hover:border-cyan-200/48 hover:bg-cyan-300/10"
-                    >
-                      <span>
-                        <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100">
-                          No saved favorites
-                        </span>
-                        <span className="mt-1.5 block text-sm font-black text-white">
-                          {activeManualFavoriteDashboard.label}
-                        </span>
-                      </span>
-                      <span className="text-[10px] font-bold text-slate-400">
-                        {activeManualFavoriteDashboard.helper}
-                      </span>
-                    </Link>
+                        </Link>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
             </div>
 
-            <div className="mt-4">
-              <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="mx-auto mt-4 max-w-[980px]">
+              <div className="mb-2 flex flex-col items-center justify-center gap-2 text-center sm:flex-row">
                 <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-                  References
+                  Recently saved stats
                 </p>
-                <span className="rounded-full border border-amber-200/18 bg-amber-300/8 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
-                  Future library-ready
+                <span className="rounded-full border border-cyan-200/18 bg-cyan-300/8 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                  Last {Math.min(manualStatsLogs.length, 6) || 0}
                 </span>
               </div>
 
-              {manualReferences.length ? (
-                <div className="flex max-w-full gap-2 overflow-x-auto overscroll-x-contain pb-2 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {manualReferences.map((reference) => (
-                    <div
-                      key={`${reference.referenceType}-${reference.referenceId}`}
-                      className="relative flex min-w-[260px] max-w-[320px] shrink-0 gap-3 overflow-hidden rounded-2xl border border-cyan-200/35 bg-cyan-300/10 p-3 shadow-[0_0_26px_rgba(34,211,238,0.13)]"
-                    >
-                      {reference.metadata.image ? (
-                        <img
-                          alt=""
-                          className="h-16 w-16 shrink-0 rounded-xl border border-white/10 object-cover"
-                          src={reference.metadata.image}
-                        />
-                      ) : (
-                        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-xl border border-cyan-200/20 bg-cyan-300/10 text-lg font-black text-cyan-100">
-                          EX
-                        </span>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-black text-white">
-                          {reference.referenceTitle}
-                        </p>
-                        <p className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100/80">
-                          {reference.metadata.movementPattern || "Movement"} /{" "}
-                          {reference.metadata.equipment || "Equipment"}
-                        </p>
-                        <p className="mt-1 line-clamp-2 text-[11px] font-semibold leading-4 text-slate-300">
-                          {reference.metadata.muscles || "Muscle profile pending"}
-                        </p>
-                        <div className="mt-2 flex gap-1 overflow-hidden">
-                          {(reference.metadata.tags || []).slice(0, 3).map((tag) => (
+              {manualStatsLogs.length ? (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {manualStatsLogs.slice(0, 6).map((entry) => {
+                    const reference =
+                      entry.references?.find(
+                        (item) => item.referenceType === "exercise",
+                      ) || entry.references?.[0];
+                    const statTitle =
+                      entry.sessionLabel?.trim() ||
+                      reference?.referenceTitle ||
+                      "Manual stat";
+                    const statMeta = reference
+                      ? `${reference.metadata.movementPattern || "Movement"} / ${
+                          reference.metadata.equipment || "Equipment"
+                        }`
+                      : "Generic manual entry";
+                    const statImage = reference?.metadata.image;
+                    const statDate = formatCompactDateTime(
+                      entry.loggedAt || entry.dateTime,
+                    );
+                    const statValues = [
+                      {
+                        label: "Sets",
+                        value: entry.sets?.trim() || "0",
+                      },
+                      {
+                        label: "Reps",
+                        value: entry.reps?.trim() || "0",
+                      },
+                      {
+                        label: "Load",
+                        value: formatManualLoadDisplay(entry.load),
+                      },
+                      {
+                        label: "RPE",
+                        value: formatManualRpeDisplay(entry.rpe),
+                      },
+                    ];
+
+                    return (
+                      <article
+                        key={entry.id}
+                        className="relative isolate min-h-[132px] overflow-hidden rounded-2xl border border-white/10 bg-slate-950/42 p-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                      >
+                        <span className="flex items-start gap-3">
+                          {statImage ? (
                             <span
-                              key={tag}
-                              className="shrink-0 rounded-full border border-white/10 bg-slate-950/44 px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.08em] text-slate-300"
+                              aria-hidden="true"
+                              className="h-14 w-14 shrink-0 rounded-xl border border-cyan-100/16 bg-cover bg-center"
+                              style={{
+                                backgroundImage: `linear-gradient(180deg, rgba(2,6,23,0.08), rgba(2,6,23,0.32)), url(${statImage})`,
+                              }}
+                            />
+                          ) : (
+                            <span
+                              aria-hidden="true"
+                              className="grid h-14 w-14 shrink-0 place-items-center rounded-xl border border-cyan-100/16 bg-cyan-300/10 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100"
                             >
-                              {tag}
+                              Stat
+                            </span>
+                          )}
+
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-black text-white">
+                              {statTitle}
+                            </span>
+                            <span className="mt-1 block truncate text-[9px] font-black uppercase tracking-[0.11em] text-cyan-100/78">
+                              {statMeta}
+                            </span>
+                            <span className="mt-1 block truncate text-[10px] font-semibold text-slate-400">
+                              {statDate}
+                            </span>
+                          </span>
+                        </span>
+
+                        <span className="mt-3 grid grid-cols-4 gap-1.5">
+                          {statValues.map((stat) => (
+                            <span
+                              key={stat.label}
+                              className="min-w-0 rounded-xl border border-white/10 bg-slate-950/46 px-2 py-1"
+                            >
+                              <span className="block truncate text-[7px] font-black uppercase tracking-[0.1em] text-slate-500">
+                                {stat.label}
+                              </span>
+                              <span className="mt-0.5 block truncate text-[10px] font-black uppercase text-cyan-50">
+                                {stat.value}
+                              </span>
                             </span>
                           ))}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        aria-label={`Remove ${reference.referenceTitle}`}
-                        onClick={() => removeManualReference(reference.referenceId)}
-                        className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-lg border border-white/10 bg-slate-950/70 text-[10px] font-black text-slate-400 transition hover:border-rose-200/40 hover:bg-rose-300/10 hover:text-rose-100"
-                      >
-                        X
-                      </button>
-                    </div>
-                  ))}
+                        </span>
+                      </article>
+                    );
+                  })}
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => setExerciseSelectorOpen(true)}
-                  className="flex min-h-[74px] w-full items-center justify-between gap-3 rounded-2xl border border-dashed border-cyan-200/22 bg-slate-950/36 px-4 py-3 text-left transition hover:border-cyan-200/42 hover:bg-cyan-300/8"
-                >
-                  <span>
-                    <span className="block text-xs font-black uppercase tracking-[0.14em] text-cyan-100">
-                      No exercise attached
-                    </span>
-                    <span className="mt-1 block text-xs font-semibold text-slate-400">
-                      Log generic stats, or attach a movement from the Exercise Library.
-                    </span>
-                  </span>
-                  <span className="rounded-full border border-cyan-200/24 bg-cyan-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
-                    Browse
-                  </span>
-                </button>
+                <div className="mx-auto flex min-h-[74px] w-full max-w-[980px] items-center justify-center rounded-2xl border border-dashed border-cyan-200/22 bg-slate-950/36 px-4 py-3 text-center">
+                  <p className="text-xs font-semibold text-slate-400">
+                    Saved manual stats will appear here after you hit Save Stat.
+                  </p>
+                </div>
               )}
-              {selectedExercise?.cue ? (
-                <p className="mt-1.5 line-clamp-1 text-[11px] font-semibold text-slate-500">
-                  Cue: {selectedExercise.cue}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {[
-                { field: "sessionLabel", label: "Session Label", placeholder: "Upper Strength" },
-                { field: "sets", label: "Sets", placeholder: "3", type: "number" },
-                { field: "reps", label: "Reps", placeholder: "10", type: "number" },
-                { field: "load", label: "Weight / Load", placeholder: "185 lb" },
-                { field: "rpe", label: "RPE / Effort", placeholder: "8 / 10" },
-                { field: "dateTime", label: "Date / Time", placeholder: "", type: "datetime-local" },
-              ].map((field) => (
-                <label
-                  key={field.field}
-                  className="rounded-2xl border border-white/10 bg-slate-950/44 p-2.5"
-                >
-                  <span className="block text-[9px] font-black uppercase tracking-[0.13em] text-slate-500">
-                    {field.label}
-                  </span>
-                  <input
-                    type={field.type || "text"}
-                    placeholder={field.placeholder}
-                    value={manualStatsDraft[field.field as keyof ManualStatsDraft]}
-                    onChange={(event) =>
-                      updateManualStatsDraft(
-                        field.field as keyof ManualStatsDraft,
-                        event.target.value,
-                      )
-                    }
-                    className="mt-1 w-full border-0 bg-transparent text-sm font-bold text-white outline-none placeholder:text-slate-600"
-                  />
-                </label>
-              ))}
-            </div>
-
-            <label className="mt-2.5 block rounded-2xl border border-white/10 bg-slate-950/44 p-2.5">
-              <span className="block text-[9px] font-black uppercase tracking-[0.13em] text-slate-500">
-                Notes
-              </span>
-              <textarea
-                value={manualStatsDraft.notes}
-                onChange={(event) => updateManualStatsDraft("notes", event.target.value)}
-                placeholder="How did it feel? Any setup notes?"
-                className="mt-1 min-h-[52px] w-full resize-none border-0 bg-transparent text-sm font-bold text-white outline-none placeholder:text-slate-600"
-              />
-            </label>
-
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <p className="truncate text-[11px] font-bold text-slate-400">
-                  {manualLogMessage ||
-                    (manualStatsLogs[0]
-                      ? `Last manual log: ${manualStatsLogs[0].sessionLabel || manualStatsLogs[0].references[0]?.referenceTitle || "Generic entry"}`
-                      : "Manual logs stay compact and can attach to library references.")}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={saveManualStatsLog}
-                className="inline-flex min-h-[42px] shrink-0 items-center justify-center rounded-2xl bg-gradient-to-r from-amber-300 to-cyan-300 px-4 py-2 text-xs font-black uppercase tracking-[0.13em] text-slate-950 shadow-[0_0_28px_rgba(250,204,21,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_0_36px_rgba(34,211,238,0.24)] active:scale-[0.99]"
-              >
-                Log Manual Stats
-              </button>
             </div>
 
             <div className="hidden">
@@ -5783,7 +7446,7 @@ export default function UserHomeDashboardPage() {
             {clampedDashboardOrbiterRow === 0 ? (
               <button
                 type="button"
-                aria-label="Show Dashboards row"
+                aria-label={`Show ${dashboardOrbiterRows[1]?.title || "next"} row`}
                 onClick={() => setDashboardOrbiterRow(1)}
                 className="flex h-10 w-10 items-center justify-center rounded-full border border-amber-100/30 bg-[radial-gradient(circle_at_35%_16%,rgba(255,255,255,0.24),transparent_34%),linear-gradient(180deg,rgba(251,191,36,0.18),rgba(251,146,60,0.10))] text-sm font-black text-amber-50 shadow-[0_0_26px_rgba(251,191,36,0.18),inset_0_1px_0_rgba(255,255,255,0.16)] backdrop-blur transition hover:translate-y-0.5 hover:border-amber-100/54 hover:bg-amber-300/18 active:scale-95"
                 title={dashboardOrbiterRows[1]?.title}
@@ -5863,9 +7526,9 @@ export default function UserHomeDashboardPage() {
               </>
             )}
           </div>
-          <div className="relative z-10 mt-4 h-[min(78vh,760px)] min-h-[640px] overflow-hidden sm:mt-5 sm:min-h-[670px] lg:mt-5 lg:min-h-[700px]">
+          <div className="relative z-10 mt-4 h-[min(70vh,640px)] min-h-[520px] overflow-hidden sm:mt-5 sm:min-h-[560px] lg:mt-5 lg:min-h-[600px]">
             <div
-              className="grid h-[300%] grid-rows-3 transition-transform duration-[620ms] ease-[cubic-bezier(0.2,0.85,0.25,1)]"
+              className="grid h-[500%] grid-rows-5 transition-transform duration-[620ms] ease-[cubic-bezier(0.2,0.85,0.25,1)]"
               style={{
                 transform: `translateY(-${
                   clampedDashboardOrbiterRow *
@@ -5880,11 +7543,15 @@ export default function UserHomeDashboardPage() {
                     : "pointer-events-none opacity-40"
                 }`}
               >
-                <div className="flex w-full max-w-[1120px] flex-col items-center gap-3 sm:gap-4">
+                <div
+                  data-dashboard-orbiter-local-scroll="true"
+                  className="flex h-full w-full max-w-[1120px] flex-col items-center gap-2 overflow-y-auto overscroll-contain pb-3 pr-1 sm:gap-3 [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
+                >
                   {renderDashboardHeroRow()}
                   {renderFavoriteWorkoutsCard()}
                 </div>
               </div>
+              {renderDashboardDailyToolsRow()}
               {renderDashboardOrbitCardRow({
                 cards: dashboardCommandCenterCards,
                 description:
@@ -5894,20 +7561,21 @@ export default function UserHomeDashboardPage() {
                 pointerMovedRef: commandCenterPointerMovedRef,
                 pointerStartRef: commandCenterPointerStartRef,
                 rotateOrbit: rotateCommandCenter,
-                rowIndex: 1,
+                rowIndex: 2,
                 setActiveIndex: setActiveCommandCenterIndex,
                 title: "Choose Your Command Center",
               })}
+              {renderDashboardCalendarRow()}
               {renderDashboardOrbitCardRow({
                 cards: dashboardSystemCards,
                 description:
-                  "Goals, insights, stats, progress, calendar, appointments, messages, packages, and achievements live together here.",
+                  "Goals, insights, stats, progress, appointments, messages, packages, and achievements live together here.",
                 getDistance: getSystemCenterOrbitDistance,
                 kicker: "Systems",
                 pointerMovedRef: systemCenterPointerMovedRef,
                 pointerStartRef: systemCenterPointerStartRef,
                 rotateOrbit: rotateSystemCenter,
-                rowIndex: 2,
+                rowIndex: 4,
                 setActiveIndex: setActiveSystemCenterIndex,
                 title: "System Row",
               })}
@@ -5915,10 +7583,6 @@ export default function UserHomeDashboardPage() {
           </div>
         </section>
         {renderDashboardProfileHubOverlay()}
-
-        <section className="mb-6">
-          <DashboardCalendar items={dashboardCalendarItems} />
-        </section>
 
         <section className="mb-6">
           <DashboardCharts
