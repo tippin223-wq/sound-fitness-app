@@ -763,6 +763,8 @@ const getRankedSearchSuggestions = (
 function SearchInputWithSuggestions({
   compact = false,
   className = "",
+  dropdownControls,
+  dropdownFooter,
   exercises = [],
   openSuggestionsOnFocus = true,
   onFocus,
@@ -773,6 +775,8 @@ function SearchInputWithSuggestions({
 }: {
   compact?: boolean;
   className?: string;
+  dropdownControls?: ReactNode;
+  dropdownFooter?: ReactNode;
   exercises?: Exercise[];
   openSuggestionsOnFocus?: boolean;
   onFocus?: () => void;
@@ -934,7 +938,13 @@ function SearchInputWithSuggestions({
       if (
         target instanceof Node &&
         !inputRef.current?.contains(target) &&
-        !panelRef.current?.contains(target)
+        !panelRef.current?.contains(target) &&
+        !(
+          target instanceof Element &&
+          target.closest(
+            ".exercise-library-anatomy-overlay-panel, .exercise-library-filter-menu-panel",
+          )
+        )
       ) {
         setOpen(false);
       }
@@ -1028,9 +1038,14 @@ function SearchInputWithSuggestions({
             <div
               ref={panelRef}
               style={panelStyle}
-              className="fixed overflow-hidden rounded-[26px] border border-cyan-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-2 shadow-[0_26px_90px_rgba(0,0,0,0.76),0_0_36px_rgba(34,211,238,0.14)] backdrop-blur-xl [scrollbar-color:rgba(34,211,238,0.38)_transparent]"
+              className="fixed flex flex-col overflow-hidden rounded-[26px] border border-cyan-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-2 shadow-[0_26px_90px_rgba(0,0,0,0.76),0_0_36px_rgba(34,211,238,0.14)] backdrop-blur-xl [scrollbar-color:rgba(34,211,238,0.38)_transparent]"
             >
-              <div className="max-h-[inherit] overflow-y-auto pr-1 [scrollbar-width:thin]">
+              {dropdownControls ? (
+                <div className="exercise-library-search-dropdown-controls mb-2 rounded-[22px] border border-cyan-100/14 bg-slate-950/72 p-2 shadow-[0_14px_34px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.08)]">
+                  {dropdownControls}
+                </div>
+              ) : null}
+              <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pr-1 [scrollbar-width:thin]">
                 {showExerciseResults ? (
                   <>
                     <div className="sticky top-0 z-10 mb-2 rounded-2xl border border-cyan-100/18 bg-slate-950/92 px-4 py-3 shadow-[0_12px_28px_rgba(0,0,0,0.28)] backdrop-blur-xl">
@@ -1150,6 +1165,11 @@ function SearchInputWithSuggestions({
                   </div>
                 )}
               </div>
+              {dropdownFooter ? (
+                <div className="exercise-library-search-dropdown-footer mt-2 rounded-[22px] border border-cyan-100/14 bg-slate-950/76 p-2 shadow-[0_-10px_30px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.08)]">
+                  {dropdownFooter}
+                </div>
+              ) : null}
             </div>,
             document.body,
           )
@@ -2576,7 +2596,7 @@ const normalizeModifierDedupLabel = (label: string) => {
   const normalizedKey = normalizedEquipmentLabel
     .trim()
     .toLowerCase()
-    .replace(/[â€™']/g, "")
+    .replace(/[’']/g, "")
     .replace(/[-_/]+/g, " ")
     .replace(/[^a-z0-9\s]+/g, " ")
     .replace(/\s+/g, " ")
@@ -14283,216 +14303,79 @@ function ActiveFilterSortDropdown({
   sortMode: ExerciseLibrarySortMode;
   sortOptions: FilterMenuOption[];
 }) {
-  const dropdownId = useId();
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const panelRef = useRef<HTMLDivElement | null>(null);
-  const lockedPanelWidthRef = useRef<number | null>(null);
-  const [open, setOpen] = useState(false);
-  const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null);
   const selectedOption =
     sortOptions.find((option) => option.value === sortMode) || sortOptions[0];
+  const selectedIndex = Math.max(
+    0,
+    sortOptions.findIndex((option) => option.value === selectedOption?.value),
+  );
+  const selectedLabel = selectedOption?.label || sortModeLabels[sortMode];
+  const selectedDetail = selectedOption?.helper;
+  const selectAdjacentSort = (direction: -1 | 1) => {
+    if (sortOptions.length < 2) return;
 
-  const updatePanelPosition = () => {
-    const trigger = triggerRef.current;
-    if (!trigger) return;
+    const nextIndex =
+      (selectedIndex + direction + sortOptions.length) % sortOptions.length;
 
-    const rect = trigger.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    const margin = 12;
-    const safeTop = getTopNavigationSafeArea();
-    const measuredWidth = Math.min(
-      Math.max(rect.width, 230),
-      viewportWidth - margin * 2,
-    );
-    const width = lockedPanelWidthRef.current ?? measuredWidth;
-    lockedPanelWidthRef.current = width;
-    const panelMaxHeight = Math.min(360, viewportHeight - safeTop - margin);
-    const preferredTop = Math.max(rect.bottom + 8, safeTop);
-    const top = Math.min(
-      preferredTop,
-      Math.max(safeTop, viewportHeight - Math.min(220, panelMaxHeight) - margin),
-    );
-    const left = Math.min(
-      Math.max(rect.right - width, margin),
-      Math.max(margin, viewportWidth - width - margin),
-    );
-
-    setStableFixedDropdownStyle(
-      setPanelStyle,
-      createFixedDropdownStyle({
-        left,
-        top,
-        width,
-        maxHeight: panelMaxHeight,
-        zIndex: topFilterDropdownZIndex + 8,
-      }),
-    );
+    onChange(sortOptions[nextIndex].value as ExerciseLibrarySortMode);
   };
 
-  useEffect(() => {
-    const closeWhenAnotherDropdownOpens = (event: Event) => {
-      const detail = (event as CustomEvent<{ id: string }>).detail;
-      if (detail?.id !== dropdownId) setOpen(false);
-    };
-    const closeOnOutsidePointer = (event: PointerEvent) => {
-      const target = event.target;
-      if (
-        target instanceof Node &&
-        (triggerRef.current?.contains(target) ||
-          panelRef.current?.contains(target))
-      ) {
-        return;
-      }
-
-      setOpen(false);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-
-    window.addEventListener(
-      exerciseLibraryDropdownOpenEvent,
-      closeWhenAnotherDropdownOpens,
-    );
-    document.addEventListener("pointerdown", closeOnOutsidePointer);
-    document.addEventListener("keydown", closeOnEscape);
-
-    return () => {
-      window.removeEventListener(
-        exerciseLibraryDropdownOpenEvent,
-        closeWhenAnotherDropdownOpens,
-      );
-      document.removeEventListener("pointerdown", closeOnOutsidePointer);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, [dropdownId]);
-
-  useEffect(() => {
-    if (!open) {
-      lockedPanelWidthRef.current = null;
-      setPanelStyle(null);
-      return;
-    }
-
-    updatePanelPosition();
-
-    let animationFrame: number | null = null;
-    const schedulePositionUpdate = (unlockWidth = false) => {
-      if (unlockWidth) lockedPanelWidthRef.current = null;
-      if (animationFrame !== null) return;
-
-      animationFrame = window.requestAnimationFrame(() => {
-        animationFrame = null;
-        updatePanelPosition();
-      });
-    };
-    const handleResize = () => schedulePositionUpdate(true);
-    const handleScroll = () => schedulePositionUpdate();
-
-    document.addEventListener("scroll", handleScroll, true);
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      if (animationFrame !== null) window.cancelAnimationFrame(animationFrame);
-      document.removeEventListener("scroll", handleScroll, true);
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [open]);
-
   return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-label="Sort exercise library"
-        aria-expanded={open}
-        onClick={() => {
-          if (!open) announceExerciseLibraryDropdownOpen(dropdownId);
-          setOpen((current) => !current);
+    <div
+      aria-label="Sort exercise library"
+      style={getCategoryThemeCssVariables(sectionTheme)}
+      className="flex h-[42px] w-[12.25rem] max-w-full shrink-0 flex-col justify-center gap-1 overflow-hidden rounded-2xl border border-emerald-200/24 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.16),transparent_34%),linear-gradient(135deg,rgba(6,78,59,0.42),rgba(15,23,42,0.84))] px-1.5 py-1 text-emerald-100 shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.12)] ring-1 ring-white/[0.03] backdrop-blur-2xl md:h-[40px] min-[1100px]:h-[46px]"
+    >
+      <div className="flex min-w-0 items-center gap-1 px-1">
+        <span className="flex items-center gap-1 whitespace-nowrap text-[7px] font-black uppercase leading-none tracking-[0.09em] opacity-70 min-[1100px]:text-[8px]">
+          <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70 shadow-[0_0_10px_currentColor]" />
+          Sort
+        </span>
+      </div>
+      <div
+        className="flex min-h-0 min-w-0 flex-1 items-stretch gap-1 overflow-hidden"
+        onWheel={(event) => {
+          const dominantDelta =
+            Math.abs(event.deltaX) > Math.abs(event.deltaY)
+              ? event.deltaX
+              : event.deltaY;
+
+          if (Math.abs(dominantDelta) < 8) return;
+
+          event.preventDefault();
+          event.stopPropagation();
+          selectAdjacentSort(dominantDelta > 0 ? 1 : -1);
         }}
-        className="group/filter-control flex min-h-[40px] w-[12.25rem] max-w-full shrink-0 items-center justify-between rounded-2xl border border-emerald-200/24 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.16),transparent_34%),linear-gradient(135deg,rgba(6,78,59,0.42),rgba(15,23,42,0.84))] px-2 py-1 text-left text-emerald-100 shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.12)] outline-none ring-1 ring-white/[0.03] backdrop-blur-2xl transition duration-200 hover:-translate-y-0.5 hover:border-emerald-100/48 hover:bg-emerald-300/12 hover:shadow-[0_18px_42px_rgba(0,0,0,0.32),0_0_26px_rgba(16,185,129,0.14),inset_0_1px_0_rgba(255,255,255,0.16)] focus-visible:ring-2 focus-visible:ring-emerald-200/30 md:min-h-[38px] min-[1100px]:min-h-[44px] min-[1100px]:px-2.5 min-[1100px]:py-1.5"
       >
-        <span className="min-w-0">
-          <span className="flex items-center gap-1.5 whitespace-nowrap text-[7px] font-black uppercase tracking-[0.1em] opacity-70 min-[1100px]:text-[8px]">
-            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70 shadow-[0_0_10px_currentColor]" />
-            Sort
-          </span>
-          <span className="mt-0.5 block max-w-[8.8rem] truncate text-[11px] font-black leading-3 text-white min-[1100px]:max-w-[9.8rem] min-[1100px]:text-xs">
-            {selectedOption?.label || sortModeLabels[sortMode]}
-          </span>
-        </span>
-        <span
-          aria-hidden="true"
-          className={`relative ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-emerald-200/25 bg-emerald-300/10 text-sm font-black text-transparent shadow-[0_0_14px_rgba(16,185,129,0.12)] transition after:absolute after:content-['v'] after:text-emerald-100 ${
-            open ? "rotate-180 border-emerald-200/50 bg-emerald-300/20" : ""
-          }`}
+        <button
+          type="button"
+          aria-label="Previous sort option"
+          onClick={() => selectAdjacentSort(-1)}
+          className="flex w-6 shrink-0 items-center justify-center rounded-xl border border-emerald-100/16 bg-emerald-300/8 text-[11px] font-black leading-none text-emerald-50 transition hover:border-emerald-100/44 hover:bg-emerald-300 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/24"
         >
-          down
-        </span>
-      </button>
+          &lt;
+        </button>
+        <button
+          type="button"
+          aria-label={`Sort: ${selectedLabel}`}
+          aria-pressed={sortMode !== defaultExerciseLibrarySortMode}
+          onClick={() => selectAdjacentSort(1)}
+          title={[selectedLabel, selectedDetail].filter(Boolean).join(" - ")}
+          className="flex min-w-0 flex-1 items-center justify-center rounded-xl border border-emerald-200/70 bg-emerald-300 px-2 text-center text-[10px] font-black uppercase leading-none tracking-[0.055em] text-slate-950 shadow-[0_0_18px_rgba(16,185,129,0.22)] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 focus:ring-white/24"
+        >
+          <span className="truncate">{selectedLabel}</span>
+        </button>
+        <button
+          type="button"
+          aria-label="Next sort option"
+          onClick={() => selectAdjacentSort(1)}
+          className="flex w-6 shrink-0 items-center justify-center rounded-xl border border-emerald-100/16 bg-emerald-300/8 text-[11px] font-black leading-none text-emerald-50 transition hover:border-emerald-100/44 hover:bg-emerald-300 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/24"
+        >
+          &gt;
+        </button>
+      </div>
 
-      {open && panelStyle
-        ? createPortal(
-            <div
-              ref={panelRef}
-              style={{
-                ...panelStyle,
-                ...getCategoryThemeCssVariables(sectionTheme),
-              }}
-              className="fixed overflow-hidden rounded-[26px] border border-emerald-100/20 bg-[radial-gradient(circle_at_15%_0%,rgba(16,185,129,0.18),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.98),rgba(2,6,23,0.96))] p-2 shadow-[0_24px_80px_rgba(0,0,0,0.72),0_0_34px_rgba(16,185,129,0.12)] backdrop-blur-xl"
-            >
-              <div className="max-h-[inherit] overflow-y-auto pr-1 [scrollbar-color:rgba(16,185,129,0.38)_transparent] [scrollbar-width:thin]">
-                {sortOptions.map((option) => {
-                  const isActive = option.value === sortMode;
-
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        onChange(option.value as ExerciseLibrarySortMode);
-                        setOpen(false);
-                      }}
-                      className={`mb-1 flex min-h-[42px] w-full items-center justify-between gap-3 rounded-2xl px-3 py-2 text-left transition ${
-                        isActive
-                          ? "bg-emerald-300 text-slate-950"
-                          : "text-slate-300 hover:bg-emerald-300/10 hover:text-white"
-                      }`}
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-black">
-                          {option.label}
-                        </span>
-                        {option.helper ? (
-                          <span
-                            className={`mt-0.5 block truncate text-[9px] font-black uppercase tracking-[0.12em] ${
-                              isActive ? "text-slate-900/62" : "text-white/38"
-                            }`}
-                          >
-                            {option.helper}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span
-                        aria-hidden="true"
-                        className={`grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[10px] font-black ${
-                          isActive
-                            ? "border-slate-950/20 bg-slate-950/10"
-                            : "border-white/10 bg-white/[0.045] text-white/40"
-                        }`}
-                      >
-                        {isActive ? "✓" : ""}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
-    </>
+    </div>
   );
 }
 
@@ -14535,11 +14418,12 @@ function ActiveFilterStatusPanel({
       sortOptions={sortOptions}
     />
   );
-  const clearFiltersButton = (
+  const categoryControlStackRef = useRef<HTMLDivElement | null>(null);
+  const renderClearFiltersButton = (className = "") => (
     <button
       type="button"
       onClick={onClear}
-      className="min-h-[2.35rem] self-center shrink-0 rounded-2xl border border-cyan-100/18 bg-cyan-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/45 hover:bg-cyan-300 hover:text-slate-950"
+      className={`exercise-library-active-filter-status__clear min-h-[2.35rem] self-center shrink-0 rounded-2xl border border-cyan-100/18 bg-cyan-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/45 hover:bg-cyan-300 hover:text-slate-950 ${className}`}
     >
       Clear Filters
     </button>
@@ -14556,11 +14440,13 @@ function ActiveFilterStatusPanel({
       </p>
     </div>
   );
-  const activeFilterStatusStack = (
-    <div className="exercise-library-active-filter-status__stack min-w-[min(100%,13.5rem)] max-w-[18rem] shrink-0">
+  const renderActiveFilterStatusStack = (className = "") => (
+    <div
+      className={`exercise-library-active-filter-status__stack min-w-[min(100%,13.5rem)] max-w-[18rem] shrink-0 ${className}`}
+    >
       <div className="grid min-w-0 gap-1">
         <p className="text-[8px] font-black uppercase tracking-[0.16em] text-[var(--exercise-theme-text)]">
-          Active Filter Status
+          {matchingCount.toLocaleString()} matching exercises
         </p>
 
         <div className="flex min-w-0 flex-wrap items-center gap-1">
@@ -14583,9 +14469,97 @@ function ActiveFilterStatusPanel({
             </span>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={onClear}
+          className="exercise-library-active-filter-status__clear-pill inline-flex w-max items-center justify-center rounded-xl border border-cyan-100/18 bg-cyan-300/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/45 hover:bg-cyan-300 hover:text-slate-950"
+        >
+          Clear Filters
+        </button>
       </div>
     </div>
   );
+
+  useLayoutEffect(() => {
+    if (!filterControls || !children) {
+      return;
+    }
+
+    const stack = categoryControlStackRef.current;
+    if (!stack) {
+      return;
+    }
+
+    let animationFrame = 0;
+    const timeoutIds: number[] = [];
+
+    const syncDesktopStatusAnchor = () => {
+      const myPlan = stack.querySelector<HTMLElement>(
+        ".exercise-library-my-plan-selector-anchor",
+      );
+      const anchor = stack.querySelector<HTMLElement>(
+        ".exercise-library-active-filter-status__desktop-anchor",
+      );
+      if (!myPlan || !anchor) {
+        return;
+      }
+
+      const stackRect = stack.getBoundingClientRect();
+      const myPlanRect = myPlan.getBoundingClientRect();
+      const anchorRect = anchor.getBoundingClientRect();
+      const anchorStatus = anchor.querySelector<HTMLElement>(
+        ".exercise-library-active-filter-status__stack",
+      );
+      const anchorClear = anchor.querySelector<HTMLElement>(
+        ".exercise-library-active-filter-status__clear--desktop-anchor",
+      );
+      const anchorStatusRect = anchorStatus?.getBoundingClientRect();
+      const anchorClearRect = anchorClear?.getBoundingClientRect();
+      const childLeft = Math.min(
+        anchorStatusRect?.left ?? anchorRect.left,
+        anchorClearRect?.left ?? anchorRect.left,
+      );
+      const childRight = Math.max(
+        anchorStatusRect?.right ?? anchorRect.right,
+        anchorClearRect?.right ?? anchorRect.right,
+      );
+      const anchoredWidth =
+        childRight > childLeft ? childRight - childLeft : anchorRect.width;
+      const anchoredLeft = myPlanRect.left - stackRect.left - anchoredWidth;
+
+      stack.style.setProperty(
+        "--exercise-library-status-anchor-left",
+        `${Math.max(0, anchoredLeft)}px`,
+      );
+    };
+
+    const scheduleSync = () => {
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = window.requestAnimationFrame(syncDesktopStatusAnchor);
+    };
+
+    scheduleSync();
+    timeoutIds.push(window.setTimeout(scheduleSync, 80));
+    timeoutIds.push(window.setTimeout(scheduleSync, 240));
+
+    window.addEventListener("resize", scheduleSync);
+    window.addEventListener("orientationchange", scheduleSync);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      window.removeEventListener("resize", scheduleSync);
+      window.removeEventListener("orientationchange", scheduleSync);
+    };
+  }, [
+    children,
+    filterControls,
+    activeFilterChips,
+    matchingCount,
+    sortMode,
+    bodyRegionLayer,
+  ]);
 
   return (
     <div
@@ -14594,10 +14568,13 @@ function ActiveFilterStatusPanel({
     >
       {filterControls ? (
         <div className="relative z-10 mb-2">
-          <div className="flex max-w-full flex-nowrap items-center gap-1.5 min-[1500px]:gap-2">
-            {renderMatchingExercisesSummary("shrink-0")}
-            {clearFiltersButton}
-            <div className="min-w-0 flex-1">{filterControls}</div>
+          <div className="exercise-library-active-filter-status__filter-command flex max-w-full flex-nowrap items-center gap-1.5 min-[1500px]:gap-2">
+            {renderClearFiltersButton(
+              "exercise-library-active-filter-status__clear--top",
+            )}
+            <div className="exercise-library-active-filter-status__controls min-w-0 flex-1">
+              {filterControls}
+            </div>
           </div>
         </div>
       ) : null}
@@ -14612,7 +14589,7 @@ function ActiveFilterStatusPanel({
 
         {!filterControls ? sortControl : null}
 
-        {!filterControls ? clearFiltersButton : null}
+        {!filterControls ? renderClearFiltersButton() : null}
 
         {rightControls && !children ? (
           <div className="ml-auto flex min-w-0 shrink-0 items-center justify-end gap-2">
@@ -14622,10 +14599,35 @@ function ActiveFilterStatusPanel({
       </div>
 
       {children ? (
-        <div className="relative z-30 mt-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            {activeFilterStatusStack}
-            <div className="min-w-0 flex-1">
+        <div
+          ref={categoryControlStackRef}
+          className="exercise-library-category-control-stack relative z-30 mt-1"
+        >
+          {filterControls ? (
+            <div className="exercise-library-active-filter-status__desktop-anchor">
+              {renderActiveFilterStatusStack(
+                "exercise-library-active-filter-status__stack--desktop-anchor",
+              )}
+            </div>
+          ) : null}
+          <div
+            className={`exercise-library-category-control-row flex min-w-0 flex-wrap items-center gap-1.5 ${
+              filterControls
+                ? "exercise-library-category-control-row--desktop-clear"
+                : ""
+            }`}
+          >
+            {renderActiveFilterStatusStack(
+              "exercise-library-active-filter-status__stack--category-row",
+            )}
+            {filterControls ? (
+              <div className="exercise-library-active-filter-status__clear-slot">
+                {renderClearFiltersButton(
+                  "exercise-library-active-filter-status__clear--desktop-row",
+                )}
+              </div>
+            ) : null}
+            <div className="exercise-library-section-tab-rail-slot min-w-0 flex-1">
               {children}
             </div>
             {rightControls ? (
@@ -14751,42 +14753,39 @@ function ExerciseLibraryResultsPageSelector({
     if (!rail) return;
 
     let frameId = 0;
-    const syncOrbitCenterToActiveCard = () => {
+    const syncOrbitCenterToExerciseOrbit = () => {
       window.cancelAnimationFrame(frameId);
       frameId = window.requestAnimationFrame(() => {
         const currentRail = sectionTabRailRef.current;
-        const activeCard =
+        const exerciseOrbitTrack =
           document.querySelector<HTMLElement>(
-            ".exercise-library-column-orbit__column[data-position=\"center\"] .exercise-library-column-orbit__card[data-active-exercise=\"true\"]",
+            ".exercise-library-column-orbit__track",
           ) ||
           document.querySelector<HTMLElement>(
             ".exercise-library-column-orbit__column[data-position=\"center\"]",
-          ) ||
-          document.querySelector<HTMLElement>(
-            ".exercise-library-column-orbit__track",
           );
 
-        if (!currentRail || !activeCard) return;
+        if (!currentRail || !exerciseOrbitTrack) return;
 
         const railRect = currentRail.getBoundingClientRect();
-        const activeCardRect = activeCard.getBoundingClientRect();
+        const exerciseOrbitRect = exerciseOrbitTrack.getBoundingClientRect();
         const railCenterX = railRect.left + railRect.width / 2;
-        const activeCardCenterX =
-          activeCardRect.left + activeCardRect.width / 2;
+        const exerciseOrbitCenterX =
+          exerciseOrbitRect.left + exerciseOrbitRect.width / 2;
 
         currentRail.style.setProperty(
           "--exercise-category-tab-orbit-shift",
-          `${(activeCardCenterX - railCenterX).toFixed(1)}px`,
+          `${(exerciseOrbitCenterX - railCenterX).toFixed(1)}px`,
         );
       });
     };
 
-    syncOrbitCenterToActiveCard();
-    window.addEventListener("resize", syncOrbitCenterToActiveCard);
+    syncOrbitCenterToExerciseOrbit();
+    window.addEventListener("resize", syncOrbitCenterToExerciseOrbit);
 
     return () => {
       window.cancelAnimationFrame(frameId);
-      window.removeEventListener("resize", syncOrbitCenterToActiveCard);
+      window.removeEventListener("resize", syncOrbitCenterToExerciseOrbit);
     };
   }, [activeSectionKey, placement, sections.length, viewMode]);
 
@@ -14844,7 +14843,9 @@ function ExerciseLibraryResultsPageSelector({
   }) => (
     <section
       aria-label={`${label} scroller`}
-      className="exercise-library-linked-scroller relative flex h-12 w-[8.8rem] shrink-0 flex-col justify-center overflow-hidden rounded-2xl border border-cyan-100/16 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.16),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(2,6,23,0.68))] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.24),0_0_22px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.12)]"
+      className={`exercise-library-linked-scroller relative flex h-12 w-[8.8rem] shrink-0 flex-col justify-center overflow-hidden rounded-2xl border border-cyan-100/16 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.16),transparent_36%),linear-gradient(135deg,rgba(15,23,42,0.78),rgba(2,6,23,0.68))] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.24),0_0_22px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.12)] ${
+        tone === "plan" ? "min-[1021px]:z-[47]" : ""
+      }`}
       data-tone={tone}
       data-no-drag-scroll="true"
     >
@@ -15405,11 +15406,10 @@ function ExerciseLibraryResultsPageSelector({
       {showSectionRail ? (
         wrapSectionRail(
           <div
-            className={`exercise-library-page-section-tab-rail relative z-10 flex w-full min-w-0 items-center gap-2 overflow-visible ${
+            className={`exercise-library-page-section-tab-rail relative z-10 flex w-full min-w-0 items-center gap-0 overflow-visible ${
               statusPanel ? "mt-0" : "mt-3"
             }`}
           >
-            {myPlanScrollerControl}
             <div className="relative min-w-0 flex-1 overflow-visible">
               <div
                 ref={sectionTabRailRef}
@@ -15417,6 +15417,9 @@ function ExerciseLibraryResultsPageSelector({
                 data-section-tab-orbit="true"
                 onWheel={handleSectionTabOrbitWheel}
               >
+                <div className="exercise-library-my-plan-selector-anchor">
+                  {myPlanScrollerControl}
+                </div>
                 {sections.map((section, sectionIndex) => {
                   const pillTheme = getExerciseSectionTheme(section, sortMode);
                   const isActive = section.key === activeSectionKey;
@@ -15557,6 +15560,12 @@ function ExerciseLibraryResultsPageSelector({
                     </span>
                   );
                 })}
+                <div className="exercise-library-workouts-selector-anchor">
+                  {workoutsScrollerControl}
+                </div>
+                <div className="exercise-library-view-selector-anchor">
+                  {sectionViewModeControl}
+                </div>
               </div>
               {exerciseSelector ? (
                 <div className="exercise-library-horizontal-exercise-selector-anchor">
@@ -15564,12 +15573,9 @@ function ExerciseLibraryResultsPageSelector({
                 </div>
               ) : null}
             </div>
-            <div className="exercise-library-workouts-selector-anchor relative shrink-0 overflow-visible">
-              {workoutsScrollerControl}
-            </div>
           </div>,
           undefined,
-          sectionViewModeControl,
+          undefined,
         )
       ) : null}
 
@@ -16846,11 +16852,16 @@ function ExerciseCategoryShelf({
 
 function CreateExerciseEmptyCard({
   onCreate,
+  viewMode,
 }: {
   onCreate: (anchorElement?: HTMLElement | null) => void;
+  viewMode: ExerciseLibraryViewMode;
 }) {
   return (
-    <article className="exercise-library-themed-card group/create-exercise flex min-h-[190px] flex-col overflow-hidden rounded-2xl border border-cyan-200/22 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_86%_12%,rgba(250,204,21,0.15),transparent_30%),linear-gradient(145deg,rgba(15,23,42,0.94),rgba(2,6,23,0.90))] p-3 shadow-[0_18px_52px_rgba(0,0,0,0.44),0_0_24px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] transition duration-200 hover:-translate-y-1 hover:border-cyan-100/45 hover:shadow-[0_24px_70px_rgba(0,0,0,0.54),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.22)] sm:min-h-[220px]">
+    <article
+      data-view-mode={viewMode}
+      className="exercise-library-themed-card exercise-library-placeholder-card group/create-exercise flex min-h-[190px] flex-col overflow-hidden rounded-2xl border border-cyan-200/22 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_86%_12%,rgba(250,204,21,0.15),transparent_30%),linear-gradient(145deg,rgba(15,23,42,0.94),rgba(2,6,23,0.90))] p-3 shadow-[0_18px_52px_rgba(0,0,0,0.44),0_0_24px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] transition duration-200 hover:-translate-y-1 hover:border-cyan-100/45 hover:shadow-[0_24px_70px_rgba(0,0,0,0.54),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.22)] sm:min-h-[220px]"
+    >
       <button
         type="button"
         onPointerDown={(event) => {
@@ -16861,21 +16872,21 @@ function CreateExerciseEmptyCard({
           event.stopPropagation();
           onCreate(event.currentTarget);
         }}
-        className="flex h-full min-h-[166px] flex-col items-center justify-center rounded-xl border border-dashed border-cyan-100/24 bg-white/[0.045] px-3 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition group-hover/create-exercise:bg-white/[0.07] sm:min-h-[190px]"
+        className="exercise-library-placeholder-card__button flex h-full min-h-[166px] flex-col items-center justify-center rounded-xl border border-dashed border-cyan-100/24 bg-white/[0.045] px-3 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition group-hover/create-exercise:bg-white/[0.07] sm:min-h-[190px]"
       >
         <span
           aria-hidden="true"
-          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-100/30 bg-cyan-300/14 text-2xl font-black leading-none text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.22),inset_0_1px_0_rgba(255,255,255,0.18)]"
+          className="exercise-library-placeholder-card__icon flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-100/30 bg-cyan-300/14 text-2xl font-black leading-none text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.22),inset_0_1px_0_rgba(255,255,255,0.18)]"
         >
           +
         </span>
-        <span className="mt-3 text-sm font-black uppercase tracking-[0.08em] text-white sm:text-base">
+        <span className="exercise-library-placeholder-card__title mt-3 text-sm font-black uppercase tracking-[0.08em] text-white sm:text-base">
           Create an Exercise
         </span>
-        <span className="mt-2 max-w-[15rem] text-xs font-semibold leading-5 text-slate-300">
+        <span className="exercise-library-placeholder-card__helper mt-2 max-w-[15rem] text-xs font-semibold leading-5 text-slate-300">
           Create your own movement variation, coaching cue, and settings.
         </span>
-        <span className="mt-3 rounded-xl border border-emerald-200/25 bg-emerald-300/16 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)] transition group-hover/create-exercise:border-emerald-100/55 group-hover/create-exercise:bg-emerald-300 group-hover/create-exercise:text-slate-950">
+        <span className="exercise-library-placeholder-card__action mt-3 rounded-xl border border-emerald-200/25 bg-emerald-300/16 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)] transition group-hover/create-exercise:border-emerald-100/55 group-hover/create-exercise:bg-emerald-300 group-hover/create-exercise:text-slate-950">
           Create Exercise
         </span>
       </button>
@@ -16886,9 +16897,11 @@ function CreateExerciseEmptyCard({
 function TodayPlanEmptyCard({
   meta,
   onMakePlan,
+  viewMode,
 }: {
   meta?: TodayPlanSectionMeta;
   onMakePlan: () => void;
+  viewMode: ExerciseLibraryViewMode;
 }) {
   const copy: Record<
     TodayPlanSectionStatus,
@@ -16918,7 +16931,10 @@ function TodayPlanEmptyCard({
   const content = copy[meta?.status || "no-plan"];
 
   return (
-    <article className="exercise-library-themed-card group/today-plan-empty flex min-h-[190px] flex-col overflow-hidden rounded-2xl border border-cyan-200/24 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_86%_12%,rgba(16,185,129,0.16),transparent_30%),linear-gradient(145deg,rgba(15,23,42,0.94),rgba(2,6,23,0.90))] p-3 shadow-[0_18px_52px_rgba(0,0,0,0.44),0_0_24px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] transition duration-200 hover:-translate-y-1 hover:border-cyan-100/45 hover:shadow-[0_24px_70px_rgba(0,0,0,0.54),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.22)] sm:min-h-[220px]">
+    <article
+      data-view-mode={viewMode}
+      className="exercise-library-themed-card exercise-library-placeholder-card group/today-plan-empty flex min-h-[190px] flex-col overflow-hidden rounded-2xl border border-cyan-200/24 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_86%_12%,rgba(16,185,129,0.16),transparent_30%),linear-gradient(145deg,rgba(15,23,42,0.94),rgba(2,6,23,0.90))] p-3 shadow-[0_18px_52px_rgba(0,0,0,0.44),0_0_24px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.16)] transition duration-200 hover:-translate-y-1 hover:border-cyan-100/45 hover:shadow-[0_24px_70px_rgba(0,0,0,0.54),0_0_34px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.22)] sm:min-h-[220px]"
+    >
       <button
         type="button"
         onPointerDown={(event) => {
@@ -16929,21 +16945,21 @@ function TodayPlanEmptyCard({
           event.stopPropagation();
           onMakePlan();
         }}
-        className="flex h-full min-h-[166px] flex-col items-center justify-center rounded-xl border border-dashed border-cyan-100/24 bg-white/[0.045] px-3 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition group-hover/today-plan-empty:bg-white/[0.07] sm:min-h-[190px]"
+        className="exercise-library-placeholder-card__button flex h-full min-h-[166px] flex-col items-center justify-center rounded-xl border border-dashed border-cyan-100/24 bg-white/[0.045] px-3 py-4 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] transition group-hover/today-plan-empty:bg-white/[0.07] sm:min-h-[190px]"
       >
         <span
           aria-hidden="true"
-          className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-100/30 bg-cyan-300/14 text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.22),inset_0_1px_0_rgba(255,255,255,0.18)]"
+          className="exercise-library-placeholder-card__icon flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-100/30 bg-cyan-300/14 text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.22),inset_0_1px_0_rgba(255,255,255,0.18)]"
         >
           <ExerciseColumnUrgencyIcon className="h-5 w-5" name="today" />
         </span>
-        <span className="mt-3 text-sm font-black uppercase tracking-[0.08em] text-white sm:text-base">
+        <span className="exercise-library-placeholder-card__title mt-3 text-sm font-black uppercase tracking-[0.08em] text-white sm:text-base">
           {content.title}
         </span>
-        <span className="mt-2 max-w-[16rem] text-xs font-semibold leading-5 text-slate-300">
+        <span className="exercise-library-placeholder-card__helper mt-2 max-w-[16rem] text-xs font-semibold leading-5 text-slate-300">
           {content.helper}
         </span>
-        <span className="mt-3 rounded-xl border border-emerald-200/25 bg-emerald-300/16 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)] transition group-hover/today-plan-empty:border-emerald-100/55 group-hover/today-plan-empty:bg-emerald-300 group-hover/today-plan-empty:text-slate-950">
+        <span className="exercise-library-placeholder-card__action mt-3 rounded-xl border border-emerald-200/25 bg-emerald-300/16 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)] transition group-hover/today-plan-empty:border-emerald-100/55 group-hover/today-plan-empty:bg-emerald-300 group-hover/today-plan-empty:text-slate-950">
           Make a Plan
         </span>
       </button>
@@ -22608,6 +22624,29 @@ export default function ExerciseLibraryPage() {
       }, {}),
     [levelAvailabilityBase],
   );
+  const levelFilterOptions = useMemo<FilterMenuOption[]>(() => {
+    const totalLevelCount = levelSegments.reduce(
+      (total, segment) => total + (levelCounts[segment.value] || 0),
+      0,
+    );
+
+    return [
+      {
+        value: "All",
+        label: "Any",
+        helper: `${totalLevelCount.toLocaleString()} exercises`,
+      },
+      ...levelSegments.map((segment) => {
+        const count = levelCounts[segment.value] || 0;
+
+        return {
+          value: segment.value,
+          label: segment.label,
+          helper: `${count.toLocaleString()} exercises`,
+        };
+      }),
+    ];
+  }, [levelCounts]);
 
   const exerciseSections = useMemo(() => {
     const sections = groupExercisesIntoSections(
@@ -23116,11 +23155,11 @@ export default function ExerciseLibraryPage() {
           ? titleCase(coreMovement.defaultLevel)
           : prev.difficulty || "Beginner",
         primaryMuscles:
-          coreMovement?.primaryMuscles.join(" â€¢ ") ||
+          coreMovement?.primaryMuscles.join(" • ") ||
           prev.primaryMuscles ||
           "",
         secondaryMuscles:
-          coreMovement?.secondaryMuscles.join(" â€¢ ") ||
+          coreMovement?.secondaryMuscles.join(" • ") ||
           prev.secondaryMuscles ||
           "",
         cue: prev.cue || coreMovement?.defaultCue || "",
@@ -24009,6 +24048,170 @@ export default function ExerciseLibraryPage() {
             </div>
           </div>
         )}
+      </div>
+    );
+  };
+
+  const CompactFilterChipScroller = ({
+    accent = "cyan",
+    groupOrder = [],
+    label,
+    onChange,
+    options,
+    preserveOrder = false,
+    value,
+  }: {
+    accent?: "cyan" | "emerald" | "blue" | "violet";
+    groupOrder?: string[];
+    label: string;
+    onChange: (value: string) => void;
+    options: Array<string | FilterMenuOption>;
+    preserveOrder?: boolean;
+    value: string;
+  }) => {
+    const normalizedOptions: FilterMenuOption[] = options.map((option) =>
+      typeof option === "string"
+        ? { value: option, label: option }
+        : option,
+    );
+    const allOption = normalizedOptions.find((option) => option.value === "All");
+    const nonAllOptions = normalizedOptions.filter(
+      (option) => option.value !== "All",
+    );
+    const sortedOptions = [
+      ...(allOption ? [allOption] : []),
+      ...(preserveOrder
+        ? nonAllOptions
+        : [...nonAllOptions].sort((left, right) => {
+            const leftGroupIndex = groupOrder.indexOf(left.group || "");
+            const rightGroupIndex = groupOrder.indexOf(right.group || "");
+            const leftGroupSort =
+              leftGroupIndex === -1 ? Number.MAX_SAFE_INTEGER : leftGroupIndex;
+            const rightGroupSort =
+              rightGroupIndex === -1 ? Number.MAX_SAFE_INTEGER : rightGroupIndex;
+
+            return (
+              leftGroupSort - rightGroupSort ||
+              (left.group || "").localeCompare(right.group || "") ||
+              left.label.localeCompare(right.label)
+            );
+          })),
+    ];
+    const selectedOption =
+      normalizedOptions.find((option) => option.value === value) ||
+      normalizedOptions[0];
+    const selectedIndex = Math.max(
+      0,
+      sortedOptions.findIndex((option) => option.value === selectedOption?.value),
+    );
+    const accentClasses = {
+      cyan: {
+        active:
+          "border-cyan-200/70 bg-cyan-300 text-slate-950 shadow-[0_0_18px_rgba(34,211,238,0.22)]",
+        arrow:
+          "border-cyan-100/16 bg-cyan-300/8 text-cyan-50 hover:border-cyan-100/44 hover:bg-cyan-300 hover:text-slate-950",
+        panel:
+          "border-cyan-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.16),transparent_34%),linear-gradient(135deg,rgba(8,47,73,0.42),rgba(15,23,42,0.84))] text-cyan-100",
+      },
+      emerald: {
+        active:
+          "border-emerald-200/70 bg-emerald-300 text-slate-950 shadow-[0_0_18px_rgba(16,185,129,0.22)]",
+        arrow:
+          "border-emerald-100/16 bg-emerald-300/8 text-emerald-50 hover:border-emerald-100/44 hover:bg-emerald-300 hover:text-slate-950",
+        panel:
+          "border-emerald-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.16),transparent_34%),linear-gradient(135deg,rgba(6,78,59,0.42),rgba(15,23,42,0.84))] text-emerald-100",
+      },
+      blue: {
+        active:
+          "border-sky-200/70 bg-sky-300 text-slate-950 shadow-[0_0_18px_rgba(56,189,248,0.22)]",
+        arrow:
+          "border-sky-100/16 bg-sky-300/8 text-sky-50 hover:border-sky-100/44 hover:bg-sky-300 hover:text-slate-950",
+        panel:
+          "border-sky-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(56,189,248,0.16),transparent_34%),linear-gradient(135deg,rgba(12,74,110,0.42),rgba(15,23,42,0.84))] text-sky-100",
+      },
+      violet: {
+        active:
+          "border-violet-200/70 bg-violet-300 text-slate-950 shadow-[0_0_18px_rgba(167,139,250,0.22)]",
+        arrow:
+          "border-violet-100/16 bg-violet-300/8 text-violet-50 hover:border-violet-100/44 hover:bg-violet-300 hover:text-slate-950",
+        panel:
+          "border-violet-200/20 bg-[radial-gradient(circle_at_12%_0%,rgba(167,139,250,0.16),transparent_34%),linear-gradient(135deg,rgba(76,29,149,0.42),rgba(15,23,42,0.84))] text-violet-100",
+      },
+    };
+    const selectedLabel = selectedOption?.label || value;
+    const selectAdjacentOption = (direction: -1 | 1) => {
+      if (sortedOptions.length < 2) return;
+
+      const nextIndex =
+        (selectedIndex + direction + sortedOptions.length) %
+        sortedOptions.length;
+
+      onChange(sortedOptions[nextIndex].value);
+    };
+
+    return (
+      <div
+        aria-label={label}
+        className={`flex h-full min-w-0 flex-col justify-center gap-1 overflow-hidden rounded-2xl border px-1.5 py-1 shadow-[0_12px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.12)] ring-1 ring-white/[0.03] backdrop-blur-2xl ${accentClasses[accent].panel}`}
+      >
+        <div className="flex min-w-0 items-center gap-1 px-1">
+          <span className="flex items-center gap-1 whitespace-nowrap text-[7px] font-black uppercase leading-none tracking-[0.09em] opacity-70 min-[1100px]:text-[8px]">
+            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70 shadow-[0_0_10px_currentColor]" />
+            {label}
+          </span>
+        </div>
+        <div
+          className="flex min-h-0 min-w-0 flex-1 items-stretch gap-1 overflow-hidden"
+          onWheel={(event) => {
+            const dominantDelta =
+              Math.abs(event.deltaX) > Math.abs(event.deltaY)
+                ? event.deltaX
+                : event.deltaY;
+
+            if (Math.abs(dominantDelta) < 8) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+            selectAdjacentOption(dominantDelta > 0 ? 1 : -1);
+          }}
+        >
+          <button
+            type="button"
+            aria-label={`Previous ${label} option`}
+            onClick={() => selectAdjacentOption(-1)}
+            className={`flex w-6 shrink-0 items-center justify-center rounded-xl border text-[11px] font-black leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/24 ${accentClasses[accent].arrow}`}
+          >
+            &lt;
+          </button>
+          <button
+            type="button"
+            aria-pressed={value !== "All"}
+            aria-label={`${label}: ${selectedLabel}`}
+            data-filter-chip-value={selectedOption?.value || value}
+            onClick={() => {
+              if (value !== "All") {
+                onChange("All");
+                return;
+              }
+
+              selectAdjacentOption(1);
+            }}
+            title={[selectedLabel, selectedOption?.group, selectedOption?.helper]
+              .filter(Boolean)
+              .join(" - ")}
+            className={`flex min-w-0 flex-1 items-center justify-center rounded-xl border px-2 text-center text-[10px] font-black uppercase leading-none tracking-[0.055em] transition focus:relative focus:z-10 focus:outline-none focus:ring-2 focus:ring-white/24 ${accentClasses[accent].active}`}
+          >
+            <span className="truncate">{selectedLabel}</span>
+          </button>
+          <button
+            type="button"
+            aria-label={`Next ${label} option`}
+            onClick={() => selectAdjacentOption(1)}
+            className={`flex w-6 shrink-0 items-center justify-center rounded-xl border text-[11px] font-black leading-none transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/24 ${accentClasses[accent].arrow}`}
+          >
+            &gt;
+          </button>
+        </div>
       </div>
     );
   };
@@ -25183,12 +25386,116 @@ export default function ExerciseLibraryPage() {
     );
   const getColumnExerciseCardCenterY = (card: HTMLElement) =>
     card.offsetTop + card.offsetHeight / 2;
+  const getGridColumnExerciseCardRows = (
+    exerciseCardElements: HTMLElement[],
+  ) => {
+    const rows: {
+      cards: {
+        card: HTMLElement;
+        index: number;
+        left: number;
+      }[];
+      top: number;
+    }[] = [];
+
+    exerciseCardElements.forEach((card, index) => {
+      const top = card.offsetTop;
+      const row = rows.find(
+        (candidateRow) => Math.abs(candidateRow.top - top) <= 4,
+      );
+      const cardEntry = {
+        card,
+        index,
+        left: card.offsetLeft,
+      };
+
+      if (row) {
+        row.cards.push(cardEntry);
+        row.top = Math.min(row.top, top);
+      } else {
+        rows.push({ cards: [cardEntry], top });
+      }
+    });
+
+    rows.sort((firstRow, secondRow) => firstRow.top - secondRow.top);
+    rows.forEach((row) =>
+      row.cards.sort(
+        (firstCard, secondCard) => firstCard.left - secondCard.left,
+      ),
+    );
+
+    return rows;
+  };
+  const getColumnExerciseCardVirtualCenters = (
+    exerciseCardElements: HTMLElement[],
+  ) => {
+    const rows = getGridColumnExerciseCardRows(exerciseCardElements);
+
+    const rowCenters = rows.map((row) => {
+      const centerSum = row.cards.reduce(
+        (sum, cardEntry) =>
+          sum + getColumnExerciseCardCenterY(cardEntry.card),
+        0,
+      );
+
+      return centerSum / Math.max(1, row.cards.length);
+    });
+    const averageCardHeight =
+      exerciseCardElements.reduce(
+        (sum, card) => sum + card.offsetHeight,
+        0,
+      ) / Math.max(1, exerciseCardElements.length);
+    const fallbackRowStep = Math.max(1, averageCardHeight + 8);
+    const virtualCenters = new Map<HTMLElement, number>();
+
+    rows.forEach((row, rowIndex) => {
+      const rowCenter = rowCenters[rowIndex] ?? row.top;
+      const nextRowCenter = rowCenters[rowIndex + 1];
+      const previousRowCenter = rowCenters[rowIndex - 1];
+      const rowStep = Math.max(
+        1,
+        nextRowCenter !== undefined
+          ? nextRowCenter - rowCenter
+          : previousRowCenter !== undefined
+            ? rowCenter - previousRowCenter
+            : fallbackRowStep,
+      );
+      const cardsInRow = Math.max(1, row.cards.length);
+
+      row.cards.forEach((cardEntry, slotIndex) => {
+        const slotOffset =
+          cardsInRow > 1
+            ? ((slotIndex - (cardsInRow - 1) / 2) / cardsInRow) * rowStep
+            : 0;
+
+        virtualCenters.set(cardEntry.card, rowCenter + slotOffset);
+      });
+    });
+
+    return virtualCenters;
+  };
+  const getColumnExerciseCardSelectionCenters = (
+    scrollBody: HTMLElement,
+    exerciseCardElements: HTMLElement[],
+  ) =>
+    scrollBody.dataset.viewMode === "grid"
+      ? getColumnExerciseCardVirtualCenters(exerciseCardElements)
+      : new Map<HTMLElement, number>();
+  const getColumnExerciseCardSelectionCenterY = (
+    card: HTMLElement,
+    selectionCenters?: Map<HTMLElement, number>,
+  ) => selectionCenters?.get(card) ?? getColumnExerciseCardCenterY(card);
   const getColumnExerciseCardTargetScrollTop = (
     scrollBody: HTMLElement,
     card: HTMLElement,
+    exerciseCardElements = getColumnExerciseCardElements(scrollBody),
   ) => {
+    const selectionCenters = getColumnExerciseCardSelectionCenters(
+      scrollBody,
+      exerciseCardElements,
+    );
     const targetTop =
-      getColumnExerciseCardCenterY(card) -
+      getColumnExerciseCardSelectionCenterY(card, selectionCenters) -
       scrollBody.clientHeight * exerciseColumnActiveCardAnchorRatio +
       exerciseColumnActiveCardTitleClearancePx;
     const maxScrollTop = Math.max(
@@ -25281,10 +25588,10 @@ export default function ExerciseLibraryPage() {
       const orbitDepth = Math.min(1, Math.abs(orbitProgress));
       const focusProgress = 1 - orbitDepth;
       const rotateX = orbitProgress * -32;
-      const activeCardClearance =
-        card.dataset.activeExercise === "true"
-          ? exerciseColumnActiveCardTitleClearancePx
-          : 0;
+      const isActiveExerciseCard = card.dataset.activeExercise === "true";
+      const activeCardClearance = isActiveExerciseCard
+        ? exerciseColumnActiveCardTitleClearancePx
+        : 0;
       const nextCardClearance =
         activeExerciseCardIndex >= 0 &&
         cardIndex === activeExerciseCardIndex + 1
@@ -25292,9 +25599,15 @@ export default function ExerciseLibraryPage() {
           : 0;
       const translateY =
         orbitProgress * 18 + activeCardClearance + nextCardClearance;
-      const translateZ = focusProgress * 24 - orbitDepth * 72;
+      const baseTranslateZ = focusProgress * 24 - orbitDepth * 72;
+      const translateZ =
+        isActiveExerciseCard && scrollBody.dataset.viewMode === "grid"
+          ? Math.max(baseTranslateZ, 56)
+          : baseTranslateZ;
       const scale = 0.94 + focusProgress * 0.04;
-      const zIndex = Math.round(focusProgress * 28 + 10);
+      const zIndex = isActiveExerciseCard
+        ? 88
+        : Math.round(focusProgress * 28 + 10);
       const transformValue = `translate3d(0, ${translateY.toFixed(
         1,
       )}px, ${translateZ.toFixed(1)}px) rotateX(${rotateX.toFixed(
@@ -25437,6 +25750,7 @@ export default function ExerciseLibraryPage() {
     const targetTop = getColumnExerciseCardTargetScrollTop(
       scrollBody,
       targetCard,
+      exerciseCardElements,
     );
     const targetExerciseId = targetCard.dataset.exerciseId || null;
 
@@ -25496,6 +25810,10 @@ export default function ExerciseLibraryPage() {
   ) => {
     if (!exerciseCardElements.length) return 0;
 
+    const selectionCenters = getColumnExerciseCardSelectionCenters(
+      scrollBody,
+      exerciseCardElements,
+    );
     const scrollCenterY =
       scrollBody.scrollTop +
       scrollBody.clientHeight * exerciseColumnActiveCardAnchorRatio;
@@ -25503,10 +25821,14 @@ export default function ExerciseLibraryPage() {
     return exerciseCardElements.reduce((closestIndex, card, cardIndex) => {
       const closestCard = exerciseCardElements[closestIndex];
       const closestDistance = Math.abs(
-        getColumnExerciseCardCenterY(closestCard) - scrollCenterY,
+        getColumnExerciseCardSelectionCenterY(
+          closestCard,
+          selectionCenters,
+        ) - scrollCenterY,
       );
       const cardDistance = Math.abs(
-        getColumnExerciseCardCenterY(card) - scrollCenterY,
+        getColumnExerciseCardSelectionCenterY(card, selectionCenters) -
+          scrollCenterY,
       );
 
       return cardDistance < closestDistance ? cardIndex : closestIndex;
@@ -25540,20 +25862,30 @@ export default function ExerciseLibraryPage() {
       scrollBody.scrollHeight - scrollBody.clientHeight,
     );
 
+    if (maxScrollTop <= 1 && activeIndex >= 0) {
+      return activeIndex;
+    }
+
     if (scrollBody.scrollTop <= 1 || scrollBody.scrollTop >= maxScrollTop - 1) {
       return closestIndex;
     }
 
+    const selectionCenters = getColumnExerciseCardSelectionCenters(
+      scrollBody,
+      exerciseCardElements,
+    );
     const anchorY =
       scrollBody.scrollTop +
       scrollBody.clientHeight * exerciseColumnActiveCardAnchorRatio;
     const activeCard = exerciseCardElements[activeIndex];
     const closestCard = exerciseCardElements[closestIndex];
     const activeDistance = Math.abs(
-      getColumnExerciseCardCenterY(activeCard) - anchorY,
+      getColumnExerciseCardSelectionCenterY(activeCard, selectionCenters) -
+        anchorY,
     );
     const closestDistance = Math.abs(
-      getColumnExerciseCardCenterY(closestCard) - anchorY,
+      getColumnExerciseCardSelectionCenterY(closestCard, selectionCenters) -
+        anchorY,
     );
     const averageCardHeight =
       (activeCard.offsetHeight + closestCard.offsetHeight) / 2 || 180;
@@ -25566,6 +25898,105 @@ export default function ExerciseLibraryPage() {
     return closestDistance + commitDistance < activeDistance
       ? closestIndex
       : activeIndex;
+  };
+  const getActiveColumnExerciseCardIndex = (
+    scrollBody: HTMLElement,
+    exerciseCardElements: HTMLElement[],
+  ) => {
+    const activeExerciseId = activeColumnExerciseIdRef.current;
+    const activeIndex = activeExerciseId
+      ? exerciseCardElements.findIndex(
+          (card) => card.dataset.exerciseId === activeExerciseId,
+        )
+      : -1;
+
+    return activeIndex >= 0
+      ? activeIndex
+      : getStableColumnExerciseCardIndex(scrollBody, exerciseCardElements);
+  };
+  const getGridColumnExerciseCardIndexByArrowKey = (
+    scrollBody: HTMLElement,
+    exerciseCardElements: HTMLElement[],
+    key: string,
+  ) => {
+    const currentIndex = getActiveColumnExerciseCardIndex(
+      scrollBody,
+      exerciseCardElements,
+    );
+    const currentCard = exerciseCardElements[currentIndex];
+
+    if (!currentCard) return currentIndex;
+
+    const rows = getGridColumnExerciseCardRows(exerciseCardElements);
+    const rowIndex = rows.findIndex((row) =>
+      row.cards.some((cardEntry) => cardEntry.card === currentCard),
+    );
+
+    if (rowIndex < 0) return currentIndex;
+
+    if (key === "ArrowLeft" || key === "ArrowRight") {
+      const currentRow = rows[rowIndex];
+      const slotIndex = currentRow.cards.findIndex(
+        (cardEntry) => cardEntry.card === currentCard,
+      );
+      const nextSlotIndex = slotIndex + (key === "ArrowRight" ? 1 : -1);
+      const nextCardEntry = currentRow.cards[nextSlotIndex];
+
+      return nextCardEntry?.index ?? currentIndex;
+    }
+
+
+    const targetRow = rows[rowIndex + (key === "ArrowDown" ? 1 : -1)];
+
+    if (!targetRow) return currentIndex;
+
+    const currentLeft = currentCard.offsetLeft;
+    const targetCardEntry = targetRow.cards.reduce((closestEntry, cardEntry) =>
+      Math.abs(cardEntry.left - currentLeft) <
+      Math.abs(closestEntry.left - currentLeft)
+        ? cardEntry
+        : closestEntry,
+    );
+
+    return targetCardEntry.index;
+  };
+  const scrollActiveColumnGridExerciseByArrowKey = (
+    key: string,
+  ): "moved" | "edge" | "blocked" => {
+    const now = Date.now();
+
+    if (now - exerciseColumnKeyboardDelayRef.current < 55) return "blocked";
+
+    const scrollBody = document.querySelector<HTMLElement>(
+      ".exercise-library-column-orbit__column[data-active=\"true\"] [data-column-card-scroll=\"true\"]",
+    );
+
+    if (!scrollBody || scrollBody.dataset.viewMode !== "grid") {
+      return "blocked";
+    }
+
+    const exerciseCardElements = getColumnExerciseCardElements(scrollBody);
+    if (!exerciseCardElements.length) return "blocked";
+
+    const currentIndex = getActiveColumnExerciseCardIndex(
+      scrollBody,
+      exerciseCardElements,
+    );
+    const nextIndex = getGridColumnExerciseCardIndexByArrowKey(
+      scrollBody,
+      exerciseCardElements,
+      key,
+    );
+    const nextExerciseId =
+      exerciseCardElements[nextIndex]?.dataset.exerciseId || null;
+
+    if (!nextExerciseId || nextIndex === currentIndex) return "edge";
+
+    exerciseColumnKeyboardDelayRef.current = now;
+    commitActiveColumnExerciseId(nextExerciseId);
+    scrollActiveColumnExerciseCardToAnchor(nextExerciseId);
+
+    return "moved";
   };
   const scrollActiveColumnExerciseByDirection = (
     direction: -1 | 1,
@@ -25589,7 +26020,7 @@ export default function ExerciseLibraryPage() {
     const exerciseCardElements = getColumnExerciseCardElements(scrollBody);
     if (!exerciseCardElements.length) return "blocked";
 
-    const currentIndex = getStableColumnExerciseCardIndex(
+    const currentIndex = getActiveColumnExerciseCardIndex(
       scrollBody,
       exerciseCardElements,
     );
@@ -25604,11 +26035,18 @@ export default function ExerciseLibraryPage() {
 
     delayRef.current = now;
     commitActiveColumnExerciseId(nextExerciseId);
+
+    if (scrollBody.dataset.viewMode === "grid") {
+      scrollActiveColumnExerciseCardToAnchor(nextExerciseId);
+      return "moved";
+    }
+
     scrollBody.scrollTo({
       behavior: "auto",
       top: getColumnExerciseCardTargetScrollTop(
         scrollBody,
         exerciseCardElements[nextIndex],
+        exerciseCardElements,
       ),
     });
     scheduleColumnCardVerticalOrbit(scrollBody);
@@ -25697,6 +26135,31 @@ export default function ExerciseLibraryPage() {
         "input,textarea,select,[contenteditable='true'],[contenteditable='']",
       )
     ) {
+      return;
+    }
+
+    if (
+      viewMode === "grid" &&
+      (event.key === "ArrowLeft" ||
+        event.key === "ArrowRight" ||
+        event.key === "ArrowUp" ||
+        event.key === "ArrowDown")
+    ) {
+      event.preventDefault();
+      const gridKeyResult = scrollActiveColumnGridExerciseByArrowKey(event.key);
+
+      if (
+        gridKeyResult === "edge" &&
+        (event.key === "ArrowLeft" || event.key === "ArrowRight")
+      ) {
+        const now = Date.now();
+
+        if (now - exerciseColumnKeyboardDelayRef.current < 70) return;
+
+        exerciseColumnKeyboardDelayRef.current = now;
+        moveExerciseColumnOrbit(event.key === "ArrowRight" ? 1 : -1);
+      }
+
       return;
     }
 
@@ -25924,10 +26387,11 @@ export default function ExerciseLibraryPage() {
       commitActiveColumnExerciseId(nextExerciseId);
     }
   };
-  const scrollActiveColumnExerciseIntoView = (exerciseId: string) => {
-    commitActiveColumnExerciseId(exerciseId);
-
-    window.requestAnimationFrame(() => {
+  const scrollActiveColumnExerciseCardToAnchor = (
+    exerciseId: string,
+    behavior: ScrollBehavior = "auto",
+  ) => {
+    const scrollToTargetCard = () => {
       const safeExerciseId = exerciseId
         .replace(/\\/g, "\\\\")
         .replace(/"/g, '\\"');
@@ -25943,12 +26407,26 @@ export default function ExerciseLibraryPage() {
 
       if (!scrollBody) return;
 
+      const exerciseCardElements = getColumnExerciseCardElements(scrollBody);
+
       scrollBody.scrollTo({
-        behavior: "auto",
-        top: getColumnExerciseCardTargetScrollTop(scrollBody, target),
+        behavior,
+        top: getColumnExerciseCardTargetScrollTop(
+          scrollBody,
+          target,
+          exerciseCardElements,
+        ),
       });
       scheduleColumnCardVerticalOrbit(scrollBody);
+    };
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(scrollToTargetCard);
     });
+  };
+  const scrollActiveColumnExerciseIntoView = (exerciseId: string) => {
+    commitActiveColumnExerciseId(exerciseId);
+    scrollActiveColumnExerciseCardToAnchor(exerciseId);
   };
 
   useEffect(() => {
@@ -26501,6 +26979,7 @@ export default function ExerciseLibraryPage() {
                 />
                 {item.statusId ? (
                   <VolumeStatusIndicator
+                    blink={isActive}
                     className="exercise-library-column-urgency-scroller__status"
                     sets={item.weeklySets}
                     statusId={item.statusId}
@@ -27022,105 +27501,162 @@ export default function ExerciseLibraryPage() {
                   activeFilterChips={activeTrainingFilterChips}
                   bodyRegionLayer={bodyRegionLayer}
                   filterControls={
-                    <div className="flex w-full max-w-full flex-nowrap items-center gap-1.5 min-[1500px]:gap-2">
-                      <SearchInputWithSuggestions
-                        compact
-                        className="w-[17rem] max-w-[17rem] flex-none"
-                        exercises={allExercises}
-                        value={search}
-                        onChange={setSearch}
-                        onExerciseSelect={navigateToExerciseCard}
-                        suggestions={searchSuggestions}
-                      />
+                    <div className="exercise-library-mobile-filter-stack flex w-full max-w-full flex-nowrap items-center gap-1.5 min-[1500px]:gap-2">
+                      <div className="exercise-library-mobile-search-slot flex-none">
+                        <SearchInputWithSuggestions
+                          compact
+                          className="exercise-library-mobile-search-input w-[17rem] max-w-[17rem] flex-none"
+                          dropdownControls={
+                            <div className="exercise-library-mobile-filter-row exercise-library-search-dropdown-filter-row flex min-w-0 flex-nowrap items-center gap-1.5 min-[1500px]:gap-2">
+                              <ActiveFilterSortDropdown
+                                onChange={setSortMode}
+                                sectionTheme={activeExerciseSectionTheme}
+                                sortMode={sortMode}
+                                sortOptions={sortOptions}
+                              />
 
-                      <ActiveFilterSortDropdown
-                        onChange={setSortMode}
-                        sectionTheme={activeExerciseSectionTheme}
-                        sortMode={sortMode}
-                        sortOptions={sortOptions}
-                      />
+                              <div className="exercise-library-mobile-filter-rail flex h-[42px] w-[11.75rem] shrink-0 items-stretch gap-1 md:h-[40px] min-[1100px]:h-[46px] min-[1500px]:w-[12.75rem]">
+                                <button
+                                  type="button"
+                                  aria-label="Scroll filter rail left"
+                                  onClick={() => scrollCompactFilterRail(-1)}
+                                  className="flex w-7 shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-slate-950/58 text-sm font-black text-cyan-100 shadow-[0_8px_22px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur transition hover:border-cyan-100/40 hover:bg-cyan-300 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/35"
+                                >
+                                  &lt;
+                                </button>
+                                <div
+                                  ref={compactFilterRailRef}
+                                  aria-label="Variant type, equipment, goal, and difficulty filters"
+                                  className="flex h-full min-w-0 flex-1 snap-x snap-mandatory items-stretch gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                                  onWheel={(event) => {
+                                    if (
+                                      Math.abs(event.deltaY) <=
+                                      Math.abs(event.deltaX)
+                                    ) {
+                                      return;
+                                    }
 
-                      <div className="flex h-[42px] w-[13.5rem] shrink-0 items-stretch gap-1 md:h-[40px] min-[1100px]:h-[46px] min-[1100px]:w-[14.5rem]">
-                        <button
-                          type="button"
-                          aria-label="Scroll filter rail left"
-                          onClick={() => scrollCompactFilterRail(-1)}
-                          className="flex w-7 shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-slate-950/58 text-sm font-black text-cyan-100 shadow-[0_8px_22px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur transition hover:border-cyan-100/40 hover:bg-cyan-300 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/35"
-                        >
-                          &lt;
-                        </button>
-                        <div
-                          ref={compactFilterRailRef}
-                          aria-label="Variant type, equipment, and goal filters"
-                          className="flex h-full min-w-0 flex-1 snap-x snap-mandatory items-stretch gap-1 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-                          onWheel={(event) => {
-                            if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
-                              return;
-                            }
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    event.currentTarget.scrollLeft +=
+                                      event.deltaY;
+                                  }}
+                                >
+                                  <div className="w-full shrink-0 snap-start">
+                                    <CompactFilterChipScroller
+                                      label="Variant Type"
+                                      value={variantTypeFilter}
+                                      options={variantTypeFilterOptions}
+                                      onChange={setVariantTypeFilter}
+                                      accent="emerald"
+                                      groupOrder={variantTypeModifierCategoryOrder}
+                                    />
+                                  </div>
 
-                            event.preventDefault();
-                            event.stopPropagation();
-                            event.currentTarget.scrollLeft += event.deltaY;
-                          }}
-                        >
-                          <div className="w-full shrink-0 snap-start">
-                            <FilterMenu
-                              compactTrigger
-                              label="Variant Type"
-                              value={variantTypeFilter}
-                              options={variantTypeFilterOptions}
-                              onChange={setVariantTypeFilter}
-                              accent="emerald"
-                              widePanel
-                              searchable
-                              groupOrder={variantTypeModifierCategoryOrder}
-                              panelWidth={680}
-                            />
-                          </div>
+                                  <div className="w-full shrink-0 snap-start">
+                                    <CompactFilterChipScroller
+                                      label="Equipment"
+                                      value={apparatusFilter}
+                                      options={apparatusOptions}
+                                      onChange={setApparatusFilter}
+                                      accent="blue"
+                                    />
+                                  </div>
 
-                          <div className="w-full shrink-0 snap-start">
-                            <FilterMenu
-                              compactTrigger
-                              label="Equipment"
-                              value={apparatusFilter}
-                              options={apparatusOptions}
-                              onChange={setApparatusFilter}
-                              accent="blue"
-                              widePanel
-                              panelWidth={540}
-                            />
-                          </div>
+                                  <div className="w-full shrink-0 snap-start">
+                                    <CompactFilterChipScroller
+                                      label="Goal"
+                                      value={goalFilter}
+                                      options={goalOptions}
+                                      onChange={setGoalFilter}
+                                      accent="emerald"
+                                    />
+                                  </div>
 
-                          <div className="w-full shrink-0 snap-start">
-                            <FilterMenu
-                              compactTrigger
-                              label="Goal"
-                              value={goalFilter}
-                              options={goalOptions}
-                              onChange={setGoalFilter}
-                              accent="emerald"
-                              widePanel
-                              panelWidth={420}
-                            />
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          aria-label="Scroll filter rail right"
-                          onClick={() => scrollCompactFilterRail(1)}
-                          className="flex w-7 shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-slate-950/58 text-sm font-black text-cyan-100 shadow-[0_8px_22px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur transition hover:border-cyan-100/40 hover:bg-cyan-300 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/35"
-                        >
-                          &gt;
-                        </button>
+                                  <div className="w-full shrink-0 snap-start">
+                                    <CompactFilterChipScroller
+                                      label="Difficulty"
+                                      value={levelFilter}
+                                      options={levelFilterOptions}
+                                      onChange={setLevelFilter}
+                                      accent="violet"
+                                      preserveOrder
+                                    />
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  aria-label="Scroll filter rail right"
+                                  onClick={() => scrollCompactFilterRail(1)}
+                                  className="flex w-7 shrink-0 items-center justify-center rounded-2xl border border-white/12 bg-slate-950/58 text-sm font-black text-cyan-100 shadow-[0_8px_22px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur transition hover:border-cyan-100/40 hover:bg-cyan-300 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/35"
+                                >
+                                  &gt;
+                                </button>
+                              </div>
+
+                              <div className="exercise-library-mobile-filter-view-selector">
+                                <ExerciseLibraryViewModeToggle
+                                  value={viewMode}
+                                  onChange={setViewMode}
+                                />
+                              </div>
+                            </div>
+                          }
+                          dropdownFooter={
+                            <div
+                              style={getCategoryThemeCssVariables(
+                                activeExerciseSectionTheme,
+                              )}
+                              className="exercise-library-active-filter-status__stack exercise-library-active-filter-status__stack--search-dropdown"
+                            >
+                              <div className="grid min-w-0 gap-1">
+                                <p className="text-[8px] font-black uppercase tracking-[0.16em] text-[var(--exercise-theme-text)]">
+                                  {focusedExercises.length.toLocaleString()}{" "}
+                                  matching exercises
+                                </p>
+
+                                <div className="flex min-w-0 flex-wrap items-center gap-1">
+                                  {activeTrainingFilterChips.length > 0 ? (
+                                    activeTrainingFilterChips.map((chip) => (
+                                      <button
+                                        key={chip}
+                                        type="button"
+                                        onClick={resetFilters}
+                                        title={`Clear filters including ${chip}`}
+                                        className="exercise-library-logic-pill rounded-xl border border-white/10 bg-white/[0.055] px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-200 transition hover:-translate-y-0.5 hover:border-[var(--exercise-theme-border)] hover:bg-[var(--exercise-theme-accent-soft)] hover:text-white"
+                                      >
+                                        {chip}
+                                        <span className="ml-1 text-[var(--exercise-theme-text)]">
+                                          x
+                                        </span>
+                                      </button>
+                                    ))
+                                  ) : (
+                                    <span className="exercise-library-logic-chip rounded-xl border border-white/10 bg-white/[0.045] px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-slate-400">
+                                      No active filters
+                                    </span>
+                                  )}
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={resetFilters}
+                                  className="exercise-library-active-filter-status__clear-pill inline-flex w-max items-center justify-center rounded-xl border border-cyan-100/18 bg-cyan-300/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/45 hover:bg-cyan-300 hover:text-slate-950"
+                                >
+                                  Clear Filters
+                                </button>
+                              </div>
+                            </div>
+                          }
+                          exercises={allExercises}
+                          value={search}
+                          onChange={setSearch}
+                          onExerciseSelect={navigateToExerciseCard}
+                          suggestions={searchSuggestions}
+                        />
                       </div>
 
-                      <LevelSegmentedControl
-                        value={levelFilter}
-                        onChange={setLevelFilter}
-                        counts={levelCounts}
-                      />
-
-                      <div className="ml-auto shrink-0">
+                      <div className="exercise-library-filter-edge-anchor shrink-0">
                         <ExerciseAnatomyOverlayControl
                           activeLayer={bodyRegionLayer}
                           bodyOptions={bodyOptions}
@@ -27277,16 +27813,14 @@ export default function ExerciseLibraryPage() {
                     }
                     className={`exercise-library-column-orbit__column ${sectionTheme.surfaceClass} ${sectionTheme.cardClass}`}
                   >
-                    {isActiveColumn ? (
-                      <span
-                        aria-hidden="true"
-                        className="exercise-library-column-orbit__volume-field"
-                      >
-                        <span className="exercise-library-column-orbit__volume-fill" />
-                        <span className="exercise-library-column-orbit__volume-scan" />
-                        <span className="exercise-library-column-orbit__volume-ribs" />
-                      </span>
-                    ) : null}
+                    <span
+                      aria-hidden="true"
+                      className="exercise-library-column-orbit__volume-field"
+                    >
+                      <span className="exercise-library-column-orbit__volume-fill" />
+                      <span className="exercise-library-column-orbit__volume-scan" />
+                      <span className="exercise-library-column-orbit__volume-ribs" />
+                    </span>
                     <button
                       type="button"
                       onClick={() => toggleExerciseSection(section.key)}
@@ -27356,6 +27890,7 @@ export default function ExerciseLibraryPage() {
                           <TodayPlanEmptyCard
                             meta={section.todayPlanMeta}
                             onMakePlan={() => router.push(ROUTES.dashboard.myPlan)}
+                            viewMode={viewMode}
                           />
                         </div>
                       ) : section.key === myExercisesSectionKey &&
@@ -27368,6 +27903,7 @@ export default function ExerciseLibraryPage() {
                             onCreate={(anchorElement) =>
                               openCreateExerciseForm(undefined, anchorElement)
                             }
+                            viewMode={viewMode}
                           />
                           {showAddForm && createExerciseCardAnchorRef.current ? (
                             <div
