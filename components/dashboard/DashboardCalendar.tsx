@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
 
 type CalendarView = "week" | "month";
@@ -296,8 +296,6 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
   const [cursorDate, setCursorDate] = useState<Date | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDayDropdownOpen, setSelectedDayDropdownOpen] = useState(false);
-  const weekDayRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const weekScrollerRef = useRef<HTMLDivElement | null>(null);
   const activeToday = today;
   const activeCursorDate = cursorDate || activeToday;
   const activeSelectedDate = selectedDate || activeToday;
@@ -318,34 +316,32 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
   const selectedDayCountLabel = selectedEvents.length
     ? `${selectedEvents.length} marker${selectedEvents.length === 1 ? "" : "s"}`
     : "Open day";
-  const centeredWeekDay =
-    dayRailDays.find((day) => isSameDate(day, activeSelectedDate)) ||
-    dayRailDays.find((day) => isSameDate(day, activeToday)) ||
-    dayRailDays[Math.floor(dayRailDays.length / 2)];
-  const centeredWeekDayKey = centeredWeekDay ? toDateKey(centeredWeekDay) : "";
-
-  function centerWeekDay(dayKey: string, behavior: ScrollBehavior = "smooth") {
-    const scroller = weekScrollerRef.current;
-    const dayButton = weekDayRefs.current[dayKey];
-    if (!scroller || !dayButton) return;
-
-    const nextLeft =
-      dayButton.offsetLeft - (scroller.clientWidth - dayButton.clientWidth) / 2;
-    scroller.scrollTo({
-      behavior,
-      left: Math.max(0, nextLeft),
-    });
-  }
-
-  useEffect(() => {
-    if (view !== "week" || !centeredWeekDayKey) return;
-
-    const animationFrame = window.requestAnimationFrame(() => {
-      centerWeekDay(centeredWeekDayKey);
-    });
-
-    return () => window.cancelAnimationFrame(animationFrame);
-  }, [centeredWeekDayKey, view]);
+  const weekInViewStart = startOfWeek(activeSelectedDate);
+  const weekInViewEnd = endOfWeek(activeSelectedDate);
+  const weekInViewLabel = `${compactDateFormatter.format(
+    weekInViewStart,
+  )} - ${compactDateFormatter.format(weekInViewEnd)}`;
+  const calendarDateLabel = calendarReady
+    ? view === "week"
+      ? weekInViewLabel
+      : monthTitleFormatter.format(activeCursorDate)
+    : "Loading current dates";
+  const selectedDayRailIndex = dayRailDays.findIndex((day) =>
+    isSameDate(day, activeSelectedDate),
+  );
+  const todayDayRailIndex = dayRailDays.findIndex((day) =>
+    isSameDate(day, activeToday),
+  );
+  const activeDayOrbitIndex =
+    selectedDayRailIndex >= 0
+      ? selectedDayRailIndex
+      : Math.max(0, todayDayRailIndex);
+  const viewingToday =
+    view === "week"
+      ? isSameDate(activeSelectedDate, activeToday)
+      : activeCursorDate.getFullYear() === activeToday.getFullYear() &&
+        activeCursorDate.getMonth() === activeToday.getMonth();
+  const showBackToToday = calendarReady && !viewingToday;
 
   function moveRange(direction: "next" | "previous") {
     const amount = direction === "next" ? 1 : -1;
@@ -366,10 +362,14 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
     }
   }
 
-  function jumpToToday() {
+  function jumpToToday({ focusWeek = false }: { focusWeek?: boolean } = {}) {
     const nextToday = startOfDay(new Date());
     setCursorDate(nextToday);
     setSelectedDate(nextToday);
+    setSelectedDayDropdownOpen(false);
+    if (focusWeek) {
+      setView("week");
+    }
   }
 
   function selectDay(day: Date) {
@@ -402,19 +402,37 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
   }
 
   return (
-    <section className="dashboard-calendar-card relative overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/15 backdrop-blur sm:p-5">
-      <div className="flex flex-col gap-3 min-[760px]:flex-row min-[760px]:items-start min-[760px]:justify-between">
+    <section
+      className={`dashboard-calendar-card relative overflow-hidden border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/15 backdrop-blur ${
+        view === "month"
+          ? "rounded-[26px] p-3 sm:p-4"
+          : "rounded-[32px] p-4 sm:p-5"
+      }`}
+    >
+      <div
+        className={`flex flex-col min-[760px]:flex-row min-[760px]:items-start min-[760px]:justify-between ${
+          view === "month" ? "gap-2" : "gap-3"
+        }`}
+      >
         <div className="min-w-0 min-[760px]:max-w-[560px]">
           <p className="text-[11px] font-black uppercase tracking-[0.24em] text-amber-300">
             Dashboard Calendar
           </p>
-          <h2 className="mt-2 text-2xl font-black tracking-tight text-white">
+          <h2
+            className={`font-black tracking-tight text-white ${
+              view === "month" ? "mt-1 text-xl sm:text-2xl" : "mt-2 text-2xl"
+            }`}
+          >
             Training, recovery, and nutrition markers
           </h2>
-          <p className="mt-3 text-4xl font-black uppercase leading-none tracking-tight text-cyan-50 [text-shadow:0_0_24px_rgba(34,211,238,0.16)] sm:text-5xl lg:text-6xl">
-            {calendarReady
-              ? monthTitleFormatter.format(activeCursorDate)
-              : "Loading current dates"}
+          <p
+            className={`font-black uppercase leading-none tracking-tight text-cyan-50 [text-shadow:0_0_24px_rgba(34,211,238,0.16)] ${
+              view === "month"
+                ? "mt-2 text-xl sm:text-2xl"
+                : "mt-3 text-4xl sm:text-5xl lg:text-6xl"
+            }`}
+          >
+            {calendarDateLabel}
           </p>
         </div>
 
@@ -449,11 +467,15 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
               &lt;
             </button>
             <button
-              className="min-h-10 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 text-[10px] font-black uppercase tracking-[0.14em] text-amber-100 transition hover:bg-amber-300 hover:text-slate-950"
-              onClick={jumpToToday}
+              aria-label={`Today - show ${weekInViewLabel} week in view`}
+              className="min-h-10 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-amber-100 transition hover:bg-amber-300 hover:text-slate-950"
+              onClick={() => jumpToToday({ focusWeek: true })}
               type="button"
             >
-              Today
+              <span className="block leading-none">Today</span>
+              <span className="mt-1 block text-[8px] tracking-[0.12em] opacity-75">
+                Week in view
+              </span>
             </button>
             <button
               aria-label={`Next ${view}`}
@@ -468,8 +490,29 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
         </div>
       </div>
 
-      <div className="dashboard-calendar-main mt-7 grid gap-6">
+      <div
+        className={`dashboard-calendar-main grid ${
+          view === "month" ? "mt-4 gap-3" : "mt-7 gap-6"
+        }`}
+      >
         <div className="min-w-0">
+          {showBackToToday ? (
+            <div
+              className={`flex justify-center ${
+                view === "month" ? "mb-2" : "mb-3"
+              }`}
+            >
+              <button
+                aria-label="Back to today"
+                className="inline-flex min-h-9 items-center justify-center rounded-full border border-cyan-200/24 bg-cyan-300/12 px-4 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.16)] transition hover:border-amber-200/45 hover:bg-amber-300/16 hover:text-amber-50 active:scale-[0.98]"
+                onClick={() => jumpToToday()}
+                type="button"
+              >
+                Back to today
+              </button>
+            </div>
+          ) : null}
+
           {view === "week" ? (
             <div className="relative">
               <button
@@ -491,16 +534,39 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
                 &gt;
               </button>
               <div
-                data-dashboard-orbiter-local-scroll="true"
-                ref={weekScrollerRef}
-                className="-mx-1 snap-x snap-mandatory overflow-x-auto overscroll-x-contain px-[calc(50%-5rem)] pb-3 scroll-smooth [scrollbar-color:rgba(34,211,238,0.48)_rgba(15,23,42,0.70)] [scrollbar-width:thin] [touch-action:pan-x] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/50 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/65"
+                aria-label="Calendar day orbital scroller"
+                className="relative h-[250px] overflow-hidden rounded-[30px] border border-cyan-100/10 bg-slate-950/30 px-12 py-4 [perspective:1300px] [scrollbar-width:none] sm:h-[264px] [&::-webkit-scrollbar]:hidden"
               >
-                <div className="flex w-max gap-3">
-                  {dayRailDays.map((day) => {
+                <div className="pointer-events-none absolute inset-y-4 left-0 z-10 w-24 bg-gradient-to-r from-slate-950/95 via-slate-950/58 to-transparent" />
+                <div className="pointer-events-none absolute inset-y-4 right-0 z-10 w-24 bg-gradient-to-l from-slate-950/95 via-slate-950/58 to-transparent" />
+                <div className="pointer-events-none absolute inset-x-14 top-1/2 h-px bg-gradient-to-r from-transparent via-cyan-200/35 to-transparent" />
+                <div className="absolute inset-x-12 top-1/2 h-[224px] -translate-y-1/2 [transform-style:preserve-3d]">
+                  {dayRailDays.map((day, dayIndex) => {
+                    const orbitDistance = dayIndex - activeDayOrbitIndex;
+                    const orbitDepth = Math.abs(orbitDistance);
+
+                    if (orbitDepth > 3) return null;
+
                     const dayKey = toDateKey(day);
                     const dayEvents = eventsByDate[dayKey] || [];
                     const todayActive = isSameDate(day, activeToday);
                     const selected = isSameDate(day, activeSelectedDate);
+                    const orbitDirection = orbitDistance < 0 ? -1 : 1;
+                    const orbitSlots = [
+                      { opacity: 1, rotateY: 0, scale: 1, x: 0, y: 0, z: 120 },
+                      { opacity: 0.82, rotateY: 28, scale: 0.88, x: 188, y: 12, z: -10 },
+                      { opacity: 0.48, rotateY: 42, scale: 0.76, x: 326, y: 26, z: -150 },
+                      { opacity: 0.24, rotateY: 54, scale: 0.64, x: 432, y: 38, z: -280 },
+                    ];
+                    const orbitSlot = orbitSlots[orbitDepth];
+                    const orbitTransform = [
+                      "translate(-50%, -50%)",
+                      `translateX(${orbitDirection * orbitSlot.x}px)`,
+                      `translateY(${orbitSlot.y}px)`,
+                      `translateZ(${orbitSlot.z}px)`,
+                      `rotateY(${orbitDirection * -orbitSlot.rotateY}deg)`,
+                      `scale(${orbitSlot.scale})`,
+                    ].join(" ");
 
                     const assignedEventIndexes = new Set<number>();
                     const getTimelineEvent = (
@@ -527,16 +593,24 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
                         aria-label={`${longWeekdayFormatter
                           .format(day)
                           .slice(0, 3)} ${day.getDate()} daily timeline`}
-                        className={`h-[224px] w-44 shrink-0 snap-center rounded-[24px] border p-3 text-left transition duration-300 hover:-translate-y-0.5 hover:border-cyan-300/35 hover:bg-cyan-300/8 ${
+                        className={`absolute left-1/2 top-1/2 h-[224px] w-44 rounded-[24px] border p-3 text-left shadow-2xl transition duration-500 hover:border-cyan-300/45 hover:bg-cyan-300/10 ${
                           selected
                             ? "border-cyan-300/40 bg-cyan-300/10 shadow-[0_0_28px_rgba(34,211,238,0.12)]"
                             : todayActive
                               ? "border-amber-300/35 bg-amber-300/8"
                               : "border-white/10 bg-slate-950/55"
                         }`}
+                        data-calendar-orbit-card="true"
                         key={dayKey}
-                        ref={(node) => {
-                          weekDayRefs.current[dayKey] = node;
+                        style={{
+                          filter:
+                            orbitDepth > 1
+                              ? `saturate(${1 - orbitDepth * 0.13}) blur(${(orbitDepth - 1) * 0.2}px)`
+                              : undefined,
+                          opacity: orbitSlot.opacity,
+                          pointerEvents: orbitDepth > 2 ? "none" : "auto",
+                          transform: orbitTransform,
+                          zIndex: 50 - orbitDepth * 8,
                         }}
                       >
                         <button
@@ -617,12 +691,12 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
               </div>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-[28px] border border-white/10 bg-slate-950/35 p-3">
+            <div className="overflow-x-auto rounded-[22px] border border-white/10 bg-slate-950/35 p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <div className="min-w-[680px]">
-                <div className="grid grid-cols-7 gap-2 pb-2">
+                <div className="grid grid-cols-7 gap-1.5 pb-1.5">
                   {dayLabels.map((day) => (
                     <div
-                      className="px-2 text-center text-[10px] font-black uppercase tracking-[0.18em] text-slate-500"
+                      className="px-2 text-center text-[9px] font-black uppercase tracking-[0.16em] text-slate-500"
                       key={day}
                     >
                       {day}
@@ -630,7 +704,7 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
                   ))}
                 </div>
 
-                <div className="grid grid-cols-7 gap-2">
+                <div className="grid grid-cols-7 gap-1.5">
                   {monthDays.map((day) => {
                     const dayKey = toDateKey(day);
                     const dayEvents = eventsByDate[dayKey] || [];
@@ -641,7 +715,7 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
                     return (
                       <button
                         aria-pressed={selected}
-                        className={`min-h-[102px] rounded-2xl border p-2 text-left transition duration-300 hover:border-cyan-300/35 hover:bg-cyan-300/8 ${
+                        className={`min-h-[58px] rounded-xl border px-2 py-1.5 text-left transition duration-300 hover:border-cyan-300/35 hover:bg-cyan-300/8 ${
                           selected
                             ? "border-cyan-300/45 bg-cyan-300/10 shadow-[0_0_24px_rgba(34,211,238,0.12)]"
                             : todayActive
@@ -654,17 +728,17 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
                         type="button"
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-black text-white">
+                          <span className="text-sm font-black leading-none text-white">
                             {day.getDate()}
                           </span>
                           {todayActive ? (
                             <span className="h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.7)]" />
                           ) : null}
                         </div>
-                        <div className="mt-3 flex flex-wrap gap-1.5">
+                        <div className="mt-1.5 flex flex-wrap gap-1">
                           {dayEvents.slice(0, 4).map((event) => (
                             <span
-                              className={`h-2 w-2 rounded-full ${dotStyles[event.type]}`}
+                              className={`h-1.5 w-1.5 rounded-full ${dotStyles[event.type]}`}
                               key={`${event.dateKey}-${event.title}`}
                               title={event.title}
                             />
@@ -676,7 +750,7 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
                           ) : null}
                         </div>
                         {dayEvents[0] ? (
-                          <p className="mt-3 truncate text-[11px] font-bold text-slate-300">
+                          <p className="mt-1 truncate text-[9px] font-bold leading-tight text-slate-300">
                             {dayEvents[0].title}
                           </p>
                         ) : null}

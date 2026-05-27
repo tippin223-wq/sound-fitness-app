@@ -473,9 +473,6 @@ export default function DashboardOrbitalHeader({
               <span className="block max-w-[110px] truncate text-[10px] font-black uppercase tracking-[0.12em] text-white">
                 {firstName}
               </span>
-              <span className="mt-1 block text-[8px] font-black uppercase tracking-[0.14em] text-cyan-200/70">
-                Profile Hub
-              </span>
             </span>
             <span className="flex items-center gap-3">
               <span className="flex items-center gap-1.5">

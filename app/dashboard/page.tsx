@@ -15,7 +15,6 @@ import {
 import DashboardCalendar, {
   type DashboardCalendarItem,
 } from "@/components/dashboard/DashboardCalendar";
-import DashboardCharts from "@/components/dashboard/DashboardCharts";
 import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
 import {
   SoundLogoAchievementBadge,
@@ -50,11 +49,6 @@ import {
   type Exercise,
 } from "@/lib/training/exerciseLibrary";
 import type { LocalExerciseStatEntry } from "@/types";
-
-type SourceResult = {
-  source: "supabase" | "localStorage";
-  error: string | null;
-};
 
 type UploadOptionId = "photo" | "screenshot" | "file";
 
@@ -107,6 +101,19 @@ const DASHBOARD_GOALS_VISITED_KEY = "soundFitnessDashboardGoalsVisited";
 const EXERCISE_LIBRARY_FAVORITES_STORAGE_KEY =
   "sound-fitness:exercise-library:favorites";
 const GLOBAL_DASHBOARD_FAVORITES_STORAGE_KEY = "soundFitnessFavorites";
+const DASHBOARD_CONSISTENCY_MONTHS_BACK = 12;
+const DASHBOARD_CONSISTENCY_MONTHS_AHEAD = 9;
+const DASHBOARD_CONSISTENCY_ACTIVE_MONTH_INDEX =
+  DASHBOARD_CONSISTENCY_MONTHS_BACK;
+const DASHBOARD_CONSISTENCY_MONTH_WINDOW =
+  DASHBOARD_CONSISTENCY_MONTHS_BACK + DASHBOARD_CONSISTENCY_MONTHS_AHEAD + 1;
+const DASHBOARD_MUSIC_PHRASE_SECONDS = 4.8;
+const DASHBOARD_ANALOG_DRAG_THRESHOLD = 14;
+const DASHBOARD_ANALOG_HOLD_DELAY_MS = 120;
+const DASHBOARD_ANALOG_REPEAT_MS = 150;
+const DASHBOARD_ORBITER_ROW_CLICK_LOCK_MS = 170;
+const DASHBOARD_ORBITER_ROW_SCROLL_LOCK_MS = 145;
+const DASHBOARD_PROFILE_ICON_FALLBACK = "/sound-fitness-logo.png";
 
 const dashboardFavoriteLibrarySources = [
   {
@@ -1201,6 +1208,13 @@ const formatCompactDateTime = (value?: string) => {
   }).format(date);
 };
 
+const formatStreakDeadline = (date: Date) =>
+  new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    weekday: "short",
+  }).format(date);
+
 const formatManualLoadDisplay = (value?: string) => {
   const trimmedValue = value?.trim();
 
@@ -1217,14 +1231,6 @@ const formatManualRpeDisplay = (value?: string) => {
   if (trimmedValue.includes("/")) return trimmedValue;
 
   return `${trimmedValue}/10`;
-};
-
-const getSourceLabel = ({ source, error }: SourceResult) => {
-  if (source === "supabase") return "Account-backed";
-
-  return error && !error.includes("No authenticated Supabase user")
-    ? "Backup retry"
-    : "Browser backup";
 };
 
 const buildTemplateWorkoutHref = (templateId: string) =>
@@ -1396,6 +1402,20 @@ const readDashboardFoundationProgress = (): DashboardFoundationProgress => {
   };
 };
 
+const readDashboardProfileIconUrl = (fallback = DASHBOARD_PROFILE_ICON_FALLBACK) => {
+  if (typeof window === "undefined") return fallback;
+
+  const profile = readDashboardLocalRecord(SOUND_FITNESS_PROFILE_STORAGE_KEY);
+  return (
+    readDashboardText(
+      profile.profileImage,
+      profile.avatarUrl,
+      profile.avatar_url,
+      fallback,
+    ) || DASHBOARD_PROFILE_ICON_FALLBACK
+  );
+};
+
 const getDashboardPulseIndicatorTone = (
   percent: number,
 ): DashboardPulseIndicatorTone => {
@@ -1481,6 +1501,17 @@ type DashboardCardTone =
   | "fuchsia"
   | "sky"
   | "violet";
+
+type DashboardHeaderLink = {
+  completion: number;
+  href: string;
+  icon: string;
+  label: string;
+  meta: string;
+  points: number;
+  tone: string;
+  toneKey: DashboardCardTone;
+};
 
 type DashboardNavigationCard = {
   description: string;
@@ -1574,6 +1605,8 @@ type DashboardVerticalPointerStart = {
   x: number;
   y: number;
 };
+
+type DashboardScrollButtonDirection = "down" | "left" | "right" | "up";
 
 type DashboardProfileHubOrbitItem = {
   helper: string;
@@ -1898,6 +1931,228 @@ const dashboardIconToneStyles: Record<
   },
 };
 
+const dashboardJourneyTabIconOnlyStyles: Record<
+  DashboardCardTone,
+  { active: string; idle: string }
+> = {
+  amber: {
+    active: "text-amber-100 drop-shadow-[0_0_10px_rgba(250,204,21,0.46)]",
+    idle: "text-amber-100/72 drop-shadow-[0_0_7px_rgba(250,204,21,0.26)]",
+  },
+  cyan: {
+    active: "text-cyan-50 drop-shadow-[0_0_10px_rgba(34,211,238,0.52)]",
+    idle: "text-cyan-100/72 drop-shadow-[0_0_7px_rgba(34,211,238,0.30)]",
+  },
+  emerald: {
+    active: "text-emerald-100 drop-shadow-[0_0_10px_rgba(16,185,129,0.44)]",
+    idle: "text-emerald-100/72 drop-shadow-[0_0_7px_rgba(16,185,129,0.24)]",
+  },
+  fuchsia: {
+    active: "text-fuchsia-100 drop-shadow-[0_0_10px_rgba(217,70,239,0.42)]",
+    idle: "text-fuchsia-100/70 drop-shadow-[0_0_7px_rgba(217,70,239,0.22)]",
+  },
+  sky: {
+    active: "text-sky-100 drop-shadow-[0_0_10px_rgba(14,165,233,0.46)]",
+    idle: "text-sky-100/72 drop-shadow-[0_0_7px_rgba(14,165,233,0.26)]",
+  },
+  violet: {
+    active: "text-violet-100 drop-shadow-[0_0_10px_rgba(139,92,246,0.44)]",
+    idle: "text-violet-100/72 drop-shadow-[0_0_7px_rgba(139,92,246,0.24)]",
+  },
+};
+
+type DashboardHeaderToneStyle = {
+  aura: string;
+  dot: string;
+  glow: string;
+  iconEffectStyle: CSSProperties;
+  journeyText: string;
+  labelText: string;
+  metaText: string;
+  pointsGlow: string;
+  pointsIcon: string;
+  pointsLine: string;
+  pointsText: string;
+  shell: string;
+};
+
+const dashboardHeaderToneStyles: Record<
+  DashboardCardTone,
+  DashboardHeaderToneStyle
+> = {
+  amber: {
+    aura:
+      "bg-[radial-gradient(circle_at_20%_24%,rgba(251,191,36,0.24),transparent_42%),radial-gradient(circle_at_82%_68%,rgba(245,158,11,0.14),transparent_46%),linear-gradient(135deg,rgba(251,191,36,0.13),rgba(2,6,23,0.06))]",
+    dot: "bg-amber-200 shadow-[0_0_12px_rgba(250,204,21,0.86)]",
+    glow: "bg-amber-300/14",
+    iconEffectStyle: {
+      "--dashboard-header-journey-circle": "rgba(250,204,21,0.42)",
+      "--dashboard-header-journey-circle-ring": "rgba(253,224,71,0.42)",
+      "--dashboard-header-journey-circle-soft": "rgba(245,158,11,0.22)",
+      "--dashboard-header-journey-halo": "rgba(250,204,21,0.54)",
+      "--dashboard-header-journey-halo-soft": "rgba(245,158,11,0.22)",
+      "--dashboard-header-journey-motion": "rgba(250,204,21,0.86)",
+      "--dashboard-header-journey-motion-alt": "rgba(251,146,60,0.64)",
+      "--dashboard-header-journey-shadow": "rgba(250,204,21,0.34)",
+    } as CSSProperties,
+    journeyText: "text-amber-100/82",
+    labelText: "text-amber-50 drop-shadow-[0_0_12px_rgba(250,204,21,0.32)]",
+    metaText: "text-amber-100/72",
+    pointsGlow:
+      "bg-[radial-gradient(circle,rgba(250,204,21,0.42),rgba(251,191,36,0.17)_46%,transparent_72%)]",
+    pointsIcon:
+      "text-amber-200 drop-shadow-[0_0_14px_rgba(250,204,21,0.64)]",
+    pointsLine:
+      "bg-gradient-to-r from-transparent via-amber-200/78 to-orange-200/52 shadow-[0_0_14px_rgba(250,204,21,0.48)]",
+    pointsText: "text-amber-50 hover:bg-amber-300/10",
+    shell:
+      "border-amber-200/28 bg-amber-300/8 shadow-[0_0_30px_rgba(250,204,21,0.13),inset_0_1px_0_rgba(255,255,255,0.10)]",
+  },
+  cyan: {
+    aura:
+      "bg-[radial-gradient(circle_at_20%_24%,rgba(34,211,238,0.24),transparent_42%),radial-gradient(circle_at_82%_68%,rgba(14,165,233,0.14),transparent_46%),linear-gradient(135deg,rgba(34,211,238,0.12),rgba(2,6,23,0.06))]",
+    dot: "bg-cyan-200 shadow-[0_0_12px_rgba(34,211,238,0.82)]",
+    glow: "bg-cyan-300/14",
+    iconEffectStyle: {
+      "--dashboard-header-journey-circle": "rgba(34,211,238,0.42)",
+      "--dashboard-header-journey-circle-ring": "rgba(125,211,252,0.42)",
+      "--dashboard-header-journey-circle-soft": "rgba(14,165,233,0.22)",
+      "--dashboard-header-journey-halo": "rgba(34,211,238,0.54)",
+      "--dashboard-header-journey-halo-soft": "rgba(14,165,233,0.22)",
+      "--dashboard-header-journey-motion": "rgba(34,211,238,0.86)",
+      "--dashboard-header-journey-motion-alt": "rgba(125,211,252,0.58)",
+      "--dashboard-header-journey-shadow": "rgba(34,211,238,0.34)",
+    } as CSSProperties,
+    journeyText: "text-cyan-100/82",
+    labelText: "text-cyan-50 drop-shadow-[0_0_12px_rgba(34,211,238,0.34)]",
+    metaText: "text-cyan-100/72",
+    pointsGlow:
+      "bg-[radial-gradient(circle,rgba(34,211,238,0.42),rgba(14,165,233,0.16)_46%,transparent_72%)]",
+    pointsIcon:
+      "text-cyan-100 drop-shadow-[0_0_14px_rgba(34,211,238,0.64)]",
+    pointsLine:
+      "bg-gradient-to-r from-transparent via-cyan-200/78 to-sky-200/52 shadow-[0_0_14px_rgba(34,211,238,0.48)]",
+    pointsText: "text-cyan-50 hover:bg-cyan-300/10",
+    shell:
+      "border-cyan-200/28 bg-cyan-300/8 shadow-[0_0_30px_rgba(34,211,238,0.13),inset_0_1px_0_rgba(255,255,255,0.10)]",
+  },
+  emerald: {
+    aura:
+      "bg-[radial-gradient(circle_at_20%_24%,rgba(52,211,153,0.23),transparent_42%),radial-gradient(circle_at_82%_68%,rgba(16,185,129,0.14),transparent_46%),linear-gradient(135deg,rgba(52,211,153,0.12),rgba(2,6,23,0.06))]",
+    dot: "bg-emerald-200 shadow-[0_0_12px_rgba(52,211,153,0.82)]",
+    glow: "bg-emerald-300/14",
+    iconEffectStyle: {
+      "--dashboard-header-journey-circle": "rgba(52,211,153,0.40)",
+      "--dashboard-header-journey-circle-ring": "rgba(110,231,183,0.40)",
+      "--dashboard-header-journey-circle-soft": "rgba(16,185,129,0.22)",
+      "--dashboard-header-journey-halo": "rgba(52,211,153,0.52)",
+      "--dashboard-header-journey-halo-soft": "rgba(16,185,129,0.22)",
+      "--dashboard-header-journey-motion": "rgba(52,211,153,0.84)",
+      "--dashboard-header-journey-motion-alt": "rgba(45,212,191,0.56)",
+      "--dashboard-header-journey-shadow": "rgba(52,211,153,0.32)",
+    } as CSSProperties,
+    journeyText: "text-emerald-100/82",
+    labelText:
+      "text-emerald-50 drop-shadow-[0_0_12px_rgba(52,211,153,0.34)]",
+    metaText: "text-emerald-100/72",
+    pointsGlow:
+      "bg-[radial-gradient(circle,rgba(52,211,153,0.40),rgba(16,185,129,0.16)_46%,transparent_72%)]",
+    pointsIcon:
+      "text-emerald-100 drop-shadow-[0_0_14px_rgba(52,211,153,0.62)]",
+    pointsLine:
+      "bg-gradient-to-r from-transparent via-emerald-200/76 to-teal-200/50 shadow-[0_0_14px_rgba(52,211,153,0.46)]",
+    pointsText: "text-emerald-50 hover:bg-emerald-300/10",
+    shell:
+      "border-emerald-200/26 bg-emerald-300/8 shadow-[0_0_30px_rgba(52,211,153,0.12),inset_0_1px_0_rgba(255,255,255,0.10)]",
+  },
+  fuchsia: {
+    aura:
+      "bg-[radial-gradient(circle_at_20%_24%,rgba(217,70,239,0.24),transparent_42%),radial-gradient(circle_at_82%_68%,rgba(244,114,182,0.14),transparent_46%),linear-gradient(135deg,rgba(217,70,239,0.12),rgba(2,6,23,0.06))]",
+    dot: "bg-fuchsia-200 shadow-[0_0_12px_rgba(217,70,239,0.82)]",
+    glow: "bg-fuchsia-300/14",
+    iconEffectStyle: {
+      "--dashboard-header-journey-circle": "rgba(217,70,239,0.42)",
+      "--dashboard-header-journey-circle-ring": "rgba(244,114,182,0.42)",
+      "--dashboard-header-journey-circle-soft": "rgba(190,24,93,0.24)",
+      "--dashboard-header-journey-halo": "rgba(217,70,239,0.54)",
+      "--dashboard-header-journey-halo-soft": "rgba(244,114,182,0.22)",
+      "--dashboard-header-journey-motion": "rgba(217,70,239,0.86)",
+      "--dashboard-header-journey-motion-alt": "rgba(244,114,182,0.60)",
+      "--dashboard-header-journey-shadow": "rgba(217,70,239,0.34)",
+    } as CSSProperties,
+    journeyText: "text-fuchsia-100/82",
+    labelText:
+      "text-fuchsia-50 drop-shadow-[0_0_12px_rgba(217,70,239,0.34)]",
+    metaText: "text-fuchsia-100/72",
+    pointsGlow:
+      "bg-[radial-gradient(circle,rgba(217,70,239,0.42),rgba(244,114,182,0.16)_46%,transparent_72%)]",
+    pointsIcon:
+      "text-fuchsia-100 drop-shadow-[0_0_14px_rgba(217,70,239,0.64)]",
+    pointsLine:
+      "bg-gradient-to-r from-transparent via-fuchsia-200/78 to-pink-200/52 shadow-[0_0_14px_rgba(217,70,239,0.48)]",
+    pointsText: "text-fuchsia-50 hover:bg-fuchsia-300/10",
+    shell:
+      "border-fuchsia-200/26 bg-fuchsia-300/8 shadow-[0_0_30px_rgba(217,70,239,0.13),inset_0_1px_0_rgba(255,255,255,0.10)]",
+  },
+  sky: {
+    aura:
+      "bg-[radial-gradient(circle_at_20%_24%,rgba(56,189,248,0.23),transparent_42%),radial-gradient(circle_at_82%_68%,rgba(125,211,252,0.13),transparent_46%),linear-gradient(135deg,rgba(56,189,248,0.12),rgba(2,6,23,0.06))]",
+    dot: "bg-sky-200 shadow-[0_0_12px_rgba(56,189,248,0.82)]",
+    glow: "bg-sky-300/14",
+    iconEffectStyle: {
+      "--dashboard-header-journey-circle": "rgba(56,189,248,0.40)",
+      "--dashboard-header-journey-circle-ring": "rgba(125,211,252,0.40)",
+      "--dashboard-header-journey-circle-soft": "rgba(14,165,233,0.22)",
+      "--dashboard-header-journey-halo": "rgba(56,189,248,0.52)",
+      "--dashboard-header-journey-halo-soft": "rgba(125,211,252,0.20)",
+      "--dashboard-header-journey-motion": "rgba(56,189,248,0.84)",
+      "--dashboard-header-journey-motion-alt": "rgba(34,211,238,0.56)",
+      "--dashboard-header-journey-shadow": "rgba(56,189,248,0.32)",
+    } as CSSProperties,
+    journeyText: "text-sky-100/82",
+    labelText: "text-sky-50 drop-shadow-[0_0_12px_rgba(56,189,248,0.34)]",
+    metaText: "text-sky-100/72",
+    pointsGlow:
+      "bg-[radial-gradient(circle,rgba(56,189,248,0.40),rgba(14,165,233,0.16)_46%,transparent_72%)]",
+    pointsIcon:
+      "text-sky-100 drop-shadow-[0_0_14px_rgba(56,189,248,0.62)]",
+    pointsLine:
+      "bg-gradient-to-r from-transparent via-sky-200/78 to-cyan-200/52 shadow-[0_0_14px_rgba(56,189,248,0.48)]",
+    pointsText: "text-sky-50 hover:bg-sky-300/10",
+    shell:
+      "border-sky-200/26 bg-sky-300/8 shadow-[0_0_30px_rgba(56,189,248,0.13),inset_0_1px_0_rgba(255,255,255,0.10)]",
+  },
+  violet: {
+    aura:
+      "bg-[radial-gradient(circle_at_20%_24%,rgba(167,139,250,0.24),transparent_42%),radial-gradient(circle_at_82%_68%,rgba(139,92,246,0.14),transparent_46%),linear-gradient(135deg,rgba(167,139,250,0.12),rgba(2,6,23,0.06))]",
+    dot: "bg-violet-200 shadow-[0_0_12px_rgba(167,139,250,0.82)]",
+    glow: "bg-violet-300/14",
+    iconEffectStyle: {
+      "--dashboard-header-journey-circle": "rgba(167,139,250,0.40)",
+      "--dashboard-header-journey-circle-ring": "rgba(196,181,253,0.40)",
+      "--dashboard-header-journey-circle-soft": "rgba(139,92,246,0.22)",
+      "--dashboard-header-journey-halo": "rgba(167,139,250,0.52)",
+      "--dashboard-header-journey-halo-soft": "rgba(139,92,246,0.22)",
+      "--dashboard-header-journey-motion": "rgba(167,139,250,0.84)",
+      "--dashboard-header-journey-motion-alt": "rgba(217,70,239,0.54)",
+      "--dashboard-header-journey-shadow": "rgba(167,139,250,0.32)",
+    } as CSSProperties,
+    journeyText: "text-violet-100/82",
+    labelText:
+      "text-violet-50 drop-shadow-[0_0_12px_rgba(167,139,250,0.34)]",
+    metaText: "text-violet-100/72",
+    pointsGlow:
+      "bg-[radial-gradient(circle,rgba(167,139,250,0.40),rgba(139,92,246,0.16)_46%,transparent_72%)]",
+    pointsIcon:
+      "text-violet-100 drop-shadow-[0_0_14px_rgba(167,139,250,0.62)]",
+    pointsLine:
+      "bg-gradient-to-r from-transparent via-violet-200/76 to-fuchsia-200/50 shadow-[0_0_14px_rgba(167,139,250,0.46)]",
+    pointsText: "text-violet-50 hover:bg-violet-300/10",
+    shell:
+      "border-violet-200/26 bg-violet-300/8 shadow-[0_0_30px_rgba(167,139,250,0.12),inset_0_1px_0_rgba(255,255,255,0.10)]",
+  },
+};
+
 type DashboardEffectToneStyle = CSSProperties & {
   "--dashboard-effect-accent": string;
   "--dashboard-effect-accent-soft": string;
@@ -1954,6 +2209,62 @@ const dashboardEffectToneStyles: Record<
   },
 };
 
+type DashboardHeaderScrollButtonPreviewToneStyle = CSSProperties & {
+  "--dashboard-header-scroll-preview-accent": string;
+  "--dashboard-header-scroll-preview-core": string;
+  "--dashboard-header-scroll-preview-core-soft": string;
+  "--dashboard-header-scroll-preview-ring": string;
+  "--dashboard-header-scroll-preview-shadow": string;
+};
+
+const dashboardHeaderScrollButtonPreviewToneStyles: Record<
+  DashboardCardTone,
+  DashboardHeaderScrollButtonPreviewToneStyle
+> = {
+  amber: {
+    "--dashboard-header-scroll-preview-accent": "rgba(251, 146, 60, 0.76)",
+    "--dashboard-header-scroll-preview-core": "rgba(250, 204, 21, 0.94)",
+    "--dashboard-header-scroll-preview-core-soft": "rgba(251, 191, 36, 0.34)",
+    "--dashboard-header-scroll-preview-ring": "rgba(253, 224, 71, 0.56)",
+    "--dashboard-header-scroll-preview-shadow": "rgba(250, 204, 21, 0.64)",
+  },
+  cyan: {
+    "--dashboard-header-scroll-preview-accent": "rgba(125, 211, 252, 0.76)",
+    "--dashboard-header-scroll-preview-core": "rgba(34, 211, 238, 0.94)",
+    "--dashboard-header-scroll-preview-core-soft": "rgba(14, 165, 233, 0.34)",
+    "--dashboard-header-scroll-preview-ring": "rgba(165, 243, 252, 0.56)",
+    "--dashboard-header-scroll-preview-shadow": "rgba(34, 211, 238, 0.64)",
+  },
+  emerald: {
+    "--dashboard-header-scroll-preview-accent": "rgba(45, 212, 191, 0.72)",
+    "--dashboard-header-scroll-preview-core": "rgba(52, 211, 153, 0.92)",
+    "--dashboard-header-scroll-preview-core-soft": "rgba(16, 185, 129, 0.34)",
+    "--dashboard-header-scroll-preview-ring": "rgba(167, 243, 208, 0.54)",
+    "--dashboard-header-scroll-preview-shadow": "rgba(52, 211, 153, 0.60)",
+  },
+  fuchsia: {
+    "--dashboard-header-scroll-preview-accent": "rgba(244, 114, 182, 0.74)",
+    "--dashboard-header-scroll-preview-core": "rgba(217, 70, 239, 0.92)",
+    "--dashboard-header-scroll-preview-core-soft": "rgba(190, 24, 93, 0.34)",
+    "--dashboard-header-scroll-preview-ring": "rgba(245, 208, 254, 0.54)",
+    "--dashboard-header-scroll-preview-shadow": "rgba(217, 70, 239, 0.60)",
+  },
+  sky: {
+    "--dashboard-header-scroll-preview-accent": "rgba(34, 211, 238, 0.72)",
+    "--dashboard-header-scroll-preview-core": "rgba(56, 189, 248, 0.92)",
+    "--dashboard-header-scroll-preview-core-soft": "rgba(14, 165, 233, 0.34)",
+    "--dashboard-header-scroll-preview-ring": "rgba(186, 230, 253, 0.54)",
+    "--dashboard-header-scroll-preview-shadow": "rgba(56, 189, 248, 0.60)",
+  },
+  violet: {
+    "--dashboard-header-scroll-preview-accent": "rgba(217, 70, 239, 0.68)",
+    "--dashboard-header-scroll-preview-core": "rgba(167, 139, 250, 0.92)",
+    "--dashboard-header-scroll-preview-core-soft": "rgba(139, 92, 246, 0.34)",
+    "--dashboard-header-scroll-preview-ring": "rgba(221, 214, 254, 0.54)",
+    "--dashboard-header-scroll-preview-shadow": "rgba(167, 139, 250, 0.60)",
+  },
+};
+
 const dashboardJourneyStepStyles: Record<DashboardJourneyStepState, string> = {
   active:
     "border-cyan-200/65 bg-cyan-300/14 text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.26)] ring-1 ring-cyan-200/20",
@@ -1976,9 +2287,6 @@ export default function UserHomeDashboardPage() {
   >([]);
   const [activeSessionTemplate, setActiveSessionTemplate] =
     useState<LocalWorkoutBuilderSessionTemplate | null>(null);
-  const [statsSourceLabel, setStatsSourceLabel] = useState("Loading stats");
-  const [templatesSourceLabel, setTemplatesSourceLabel] =
-    useState("Loading templates");
   const [canSyncWorkoutData, setCanSyncWorkoutData] = useState(false);
   const [isSyncingWorkoutData, setIsSyncingWorkoutData] = useState(false);
   const [syncStatusMessage, setSyncStatusMessage] = useState("");
@@ -2029,6 +2337,31 @@ export default function UserHomeDashboardPage() {
     });
   const [dashboardHeaderSlideDirection, setDashboardHeaderSlideDirection] =
     useState<"left" | "right">("right");
+  const [
+    dashboardHeaderScrollButtonDragging,
+    setDashboardHeaderScrollButtonDragging,
+  ] = useState(false);
+  const [
+    dashboardHeaderScrollButtonRoll,
+    setDashboardHeaderScrollButtonRoll,
+  ] = useState(0);
+  const [
+    dashboardHeaderScrollButtonActiveDirection,
+    setDashboardHeaderScrollButtonActiveDirection,
+  ] = useState<DashboardScrollButtonDirection | null>(null);
+  const [dashboardHeaderVortexPulseMode, setDashboardHeaderVortexPulseMode] =
+    useState<"clockwise" | "counter" | null>(null);
+  const [dashboardHeaderAnalogOffset, setDashboardHeaderAnalogOffset] =
+    useState<DashboardVerticalPointerStart>({ x: 0, y: 0 });
+  const [dashboardPageAnalogDragging, setDashboardPageAnalogDragging] =
+    useState(false);
+  const [dashboardPageAnalogRoll, setDashboardPageAnalogRoll] = useState(0);
+  const [
+    dashboardPageAnalogActiveDirection,
+    setDashboardPageAnalogActiveDirection,
+  ] = useState<DashboardScrollButtonDirection | null>(null);
+  const [dashboardPageAnalogOffset, setDashboardPageAnalogOffset] =
+    useState<DashboardVerticalPointerStart>({ x: 0, y: 0 });
   const [activeCommandCenterIndex, setActiveCommandCenterIndex] = useState(0);
   const [activeDailyToolIndex, setActiveDailyToolIndex] = useState(0);
   const [activeWeeklyRecapIndex, setActiveWeeklyRecapIndex] = useState(0);
@@ -2048,6 +2381,10 @@ export default function UserHomeDashboardPage() {
     useState<"left" | "right">("right");
   const [dashboardProfileHubOpen, setDashboardProfileHubOpen] =
     useState(false);
+  const [dashboardMusicEnabled, setDashboardMusicEnabled] = useState(false);
+  const [dashboardProfileIconUrl, setDashboardProfileIconUrl] = useState(
+    DASHBOARD_PROFILE_ICON_FALLBACK,
+  );
   const [activeDashboardProfileHubLayer, setActiveDashboardProfileHubLayer] =
     useState(0);
   const [
@@ -2061,7 +2398,8 @@ export default function UserHomeDashboardPage() {
   const [
     activeDashboardConsistencyMonthIndex,
     setActiveDashboardConsistencyMonthIndex,
-  ] = useState(2);
+  ] = useState(DASHBOARD_CONSISTENCY_ACTIVE_MONTH_INDEX);
+  const dashboardStatusDetailsRef = useRef<HTMLDetailsElement | null>(null);
   const favoriteWorkoutStripRef = useRef<HTMLDivElement | null>(null);
   const dashboardOrbiterPointerStartRef =
     useRef<DashboardVerticalPointerStart | null>(null);
@@ -2069,6 +2407,25 @@ export default function UserHomeDashboardPage() {
   const dashboardOrbiterRowChangeLockRef = useRef(0);
   const commandCenterPointerStartRef = useRef<number | null>(null);
   const commandCenterPointerMovedRef = useRef(false);
+  const dashboardHeaderScrollButtonPointerStartRef =
+    useRef<DashboardVerticalPointerStart | null>(null);
+  const dashboardHeaderScrollButtonPointerMovedRef = useRef(false);
+  const dashboardHeaderScrollButtonHoldDirectionRef =
+    useRef<DashboardScrollButtonDirection | null>(null);
+  const dashboardHeaderScrollButtonHoldTimeoutRef = useRef<number | null>(
+    null,
+  );
+  const dashboardHeaderScrollButtonHoldIntervalRef = useRef<number | null>(
+    null,
+  );
+  const dashboardHeaderVortexPulseTimeoutRef = useRef<number | null>(null);
+  const dashboardPageAnalogPointerStartRef =
+    useRef<DashboardVerticalPointerStart | null>(null);
+  const dashboardPageAnalogPointerMovedRef = useRef(false);
+  const dashboardPageAnalogHoldDirectionRef =
+    useRef<DashboardScrollButtonDirection | null>(null);
+  const dashboardPageAnalogHoldTimeoutRef = useRef<number | null>(null);
+  const dashboardPageAnalogHoldIntervalRef = useRef<number | null>(null);
   const weeklyRecapPointerStartRef = useRef<number | null>(null);
   const weeklyRecapPointerMovedRef = useRef(false);
   const mySoundPointerStartRef = useRef<number | null>(null);
@@ -2079,6 +2436,563 @@ export default function UserHomeDashboardPage() {
   const heroAchievementPointerStartRef = useRef<number | null>(null);
   const heroAchievementPointerMovedRef = useRef(false);
   const heroAchievementWheelLockRef = useRef(0);
+  const dashboardMusicAudioContextRef = useRef<AudioContext | null>(null);
+  const dashboardMusicAudioElementRef = useRef<HTMLAudioElement | null>(null);
+  const dashboardMusicGainRef = useRef<GainNode | null>(null);
+  const dashboardMusicIntervalRef = useRef<number | null>(null);
+  const dashboardMusicObjectUrlRef = useRef<string | null>(null);
+  const dashboardMusicStepRef = useRef(0);
+  const closeDashboardStatusDropdown = () => {
+    if (dashboardStatusDetailsRef.current) {
+      dashboardStatusDetailsRef.current.open = false;
+    }
+  };
+  const scheduleDashboardMusicTone = ({
+    attack = 0.16,
+    context,
+    duration,
+    filterFrequency = 1400,
+    frequency,
+    masterGain,
+    pan = 0,
+    q = 0.7,
+    release = 0.42,
+    startTime,
+    sustain = 0.62,
+    type = "sine",
+    volume,
+  }: {
+    attack?: number;
+    context: AudioContext;
+    duration: number;
+    filterFrequency?: number;
+    frequency: number;
+    masterGain: GainNode;
+    pan?: number;
+    q?: number;
+    release?: number;
+    startTime: number;
+    sustain?: number;
+    type?: OscillatorType;
+    volume: number;
+  }) => {
+    const oscillator = context.createOscillator();
+    const filter = context.createBiquadFilter();
+    const noteGain = context.createGain();
+    const panner =
+      typeof context.createStereoPanner === "function"
+        ? context.createStereoPanner()
+        : null;
+
+    oscillator.frequency.setValueAtTime(frequency, startTime);
+    oscillator.type = type;
+    oscillator.detune.setValueAtTime(0, startTime);
+    filter.frequency.setValueAtTime(filterFrequency, startTime);
+    filter.Q.setValueAtTime(q, startTime);
+    filter.type = "lowpass";
+    noteGain.gain.setValueAtTime(0.0001, startTime);
+    noteGain.gain.exponentialRampToValueAtTime(volume, startTime + attack);
+    noteGain.gain.setTargetAtTime(
+      Math.max(0.0001, volume * sustain),
+      startTime + attack,
+      Math.max(0.08, duration * 0.2),
+    );
+    noteGain.gain.exponentialRampToValueAtTime(
+      0.0001,
+      startTime + Math.max(attack + release, duration),
+    );
+    if (panner) panner.pan.setValueAtTime(pan, startTime);
+
+    oscillator.connect(filter);
+    filter.connect(noteGain);
+    if (panner) {
+      noteGain.connect(panner);
+      panner.connect(masterGain);
+    } else {
+      noteGain.connect(masterGain);
+    }
+    oscillator.start(startTime);
+    oscillator.stop(startTime + duration + 0.08);
+    oscillator.onended = () => {
+      oscillator.disconnect();
+      filter.disconnect();
+      noteGain.disconnect();
+      panner?.disconnect();
+    };
+  };
+  const scheduleDashboardMusicNoise = ({
+    context,
+    duration,
+    filterFrequency,
+    masterGain,
+    pan = 0,
+    startTime,
+    volume,
+  }: {
+    context: AudioContext;
+    duration: number;
+    filterFrequency: number;
+    masterGain: GainNode;
+    pan?: number;
+    startTime: number;
+    volume: number;
+  }) => {
+    const sampleRate = context.sampleRate;
+    const sampleCount = Math.floor(sampleRate * duration);
+    const buffer = context.createBuffer(1, sampleCount, sampleRate);
+    const channel = buffer.getChannelData(0);
+
+    for (let index = 0; index < sampleCount; index += 1) {
+      channel[index] = (Math.random() * 2 - 1) * (1 - index / sampleCount);
+    }
+
+    const source = context.createBufferSource();
+    const filter = context.createBiquadFilter();
+    const noteGain = context.createGain();
+    const panner =
+      typeof context.createStereoPanner === "function"
+        ? context.createStereoPanner()
+        : null;
+
+    source.buffer = buffer;
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(filterFrequency, startTime);
+    filter.Q.setValueAtTime(1.4, startTime);
+    noteGain.gain.setValueAtTime(0.0001, startTime);
+    noteGain.gain.exponentialRampToValueAtTime(volume, startTime + 0.04);
+    noteGain.gain.exponentialRampToValueAtTime(
+      0.0001,
+      startTime + duration,
+    );
+    if (panner) panner.pan.setValueAtTime(pan, startTime);
+
+    source.connect(filter);
+    filter.connect(noteGain);
+    if (panner) {
+      noteGain.connect(panner);
+      panner.connect(masterGain);
+    } else {
+      noteGain.connect(masterGain);
+    }
+    source.start(startTime);
+    source.stop(startTime + duration + 0.04);
+    source.onended = () => {
+      source.disconnect();
+      filter.disconnect();
+      noteGain.disconnect();
+      panner?.disconnect();
+    };
+  };
+  const scheduleDashboardMusicStartCue = () => {
+    const context = dashboardMusicAudioContextRef.current;
+    const masterGain = dashboardMusicGainRef.current;
+    if (!context || !masterGain || context.state === "closed") return;
+
+    const startTime = context.currentTime + 0.06;
+
+    [392, 587.33, 880].forEach((frequency, noteIndex) => {
+      scheduleDashboardMusicTone({
+        attack: 0.018,
+        context,
+        duration: 0.46 + noteIndex * 0.08,
+        filterFrequency: 3600 + noteIndex * 380,
+        frequency,
+        masterGain,
+        pan: -0.32 + noteIndex * 0.32,
+        q: 0.82,
+        release: 0.18,
+        startTime: startTime + noteIndex * 0.07,
+        sustain: 0.5,
+        type: "triangle",
+        volume: 0.12,
+      });
+    });
+
+    scheduleDashboardMusicTone({
+      attack: 0.012,
+      context,
+      duration: 0.34,
+      filterFrequency: 760,
+      frequency: 98,
+      masterGain,
+      q: 0.6,
+      release: 0.1,
+      startTime,
+      sustain: 0.42,
+      type: "sine",
+      volume: 0.16,
+    });
+
+    scheduleDashboardMusicNoise({
+      context,
+      duration: 0.3,
+      filterFrequency: 3200,
+      masterGain,
+      startTime: startTime + 0.18,
+      volume: 0.032,
+    });
+  };
+  const scheduleDashboardMusicPhrase = () => {
+    const context = dashboardMusicAudioContextRef.current;
+    const masterGain = dashboardMusicGainRef.current;
+    if (!context || !masterGain || context.state === "closed") return;
+
+    const progression = [
+      {
+        bass: 87.31,
+        color: [392, 523.25, 659.25],
+        notes: [174.61, 220, 261.63, 329.63],
+      },
+      {
+        bass: 98,
+        color: [440, 587.33, 739.99],
+        notes: [196, 246.94, 293.66, 392],
+      },
+      {
+        bass: 73.42,
+        color: [329.63, 493.88, 659.25],
+        notes: [146.83, 196, 246.94, 329.63],
+      },
+      {
+        bass: 110,
+        color: [493.88, 659.25, 880],
+        notes: [220, 277.18, 329.63, 440],
+      },
+    ];
+    const step = dashboardMusicStepRef.current;
+    const chord = progression[step % progression.length];
+    const startTime = context.currentTime + 0.08;
+
+    scheduleDashboardMusicTone({
+      context,
+      duration: DASHBOARD_MUSIC_PHRASE_SECONDS - 0.18,
+      filterFrequency: 640,
+      frequency: chord.bass,
+      masterGain,
+      startTime,
+      type: "sine",
+      volume: 0.085,
+    });
+
+    chord.notes.forEach((frequency, noteIndex) => {
+      scheduleDashboardMusicTone({
+        attack: 0.72,
+        context,
+        duration: DASHBOARD_MUSIC_PHRASE_SECONDS - 0.24,
+        filterFrequency: 1150 + noteIndex * 120,
+        frequency: frequency * (noteIndex === 3 ? 1.005 : 1),
+        masterGain,
+        pan: -0.42 + noteIndex * 0.28,
+        q: 0.52,
+        release: 0.86,
+        startTime: startTime + noteIndex * 0.055,
+        sustain: 0.72,
+        type: noteIndex % 2 === 0 ? "triangle" : "sine",
+        volume: 0.036,
+      });
+    });
+
+    chord.color.forEach((frequency, noteIndex) => {
+      scheduleDashboardMusicTone({
+        attack: 0.045,
+        context,
+        duration: 1.18,
+        filterFrequency: 2400 + noteIndex * 420,
+        frequency,
+        masterGain,
+        pan: noteIndex % 2 === 0 ? 0.52 : -0.48,
+        q: 0.92,
+        release: 0.36,
+        startTime: startTime + 0.48 + noteIndex * 0.74,
+        sustain: 0.45,
+        type: "triangle",
+        volume: 0.026,
+      });
+    });
+
+    [0, 2.4].forEach((beatOffset) => {
+      scheduleDashboardMusicTone({
+        attack: 0.018,
+        context,
+        duration: 0.42,
+        filterFrequency: 520,
+        frequency: chord.bass / 2,
+        masterGain,
+        q: 0.6,
+        release: 0.12,
+        startTime: startTime + beatOffset,
+        sustain: 0.35,
+        type: "sine",
+        volume: 0.105,
+      });
+    });
+
+    scheduleDashboardMusicNoise({
+      context,
+      duration: 1.3,
+      filterFrequency: 2800,
+      masterGain,
+      pan: step % 2 === 0 ? -0.36 : 0.36,
+      startTime: startTime + 3.05,
+      volume: 0.024,
+    });
+
+    dashboardMusicStepRef.current = step + 1;
+  };
+  const createDashboardMusicFallbackUrl = () => {
+    const sampleRate = 22050;
+    const phraseLength = DASHBOARD_MUSIC_PHRASE_SECONDS * 4;
+    const totalSamples = Math.floor(sampleRate * phraseLength);
+    const bytesPerSample = 2;
+    const buffer = new ArrayBuffer(44 + totalSamples * bytesPerSample);
+    const view = new DataView(buffer);
+    const progression = [
+      {
+        bass: 87.31,
+        color: [392, 523.25, 659.25],
+        notes: [174.61, 220, 261.63, 329.63],
+      },
+      {
+        bass: 98,
+        color: [440, 587.33, 739.99],
+        notes: [196, 246.94, 293.66, 392],
+      },
+      {
+        bass: 73.42,
+        color: [329.63, 493.88, 659.25],
+        notes: [146.83, 196, 246.94, 329.63],
+      },
+      {
+        bass: 110,
+        color: [493.88, 659.25, 880],
+        notes: [220, 277.18, 329.63, 440],
+      },
+    ];
+    const writeString = (offset: number, value: string) => {
+      for (let index = 0; index < value.length; index += 1) {
+        view.setUint8(offset + index, value.charCodeAt(index));
+      }
+    };
+
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + totalSamples * bytesPerSample, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * bytesPerSample, true);
+    view.setUint16(32, bytesPerSample, true);
+    view.setUint16(34, 16, true);
+    writeString(36, "data");
+    view.setUint32(40, totalSamples * bytesPerSample, true);
+
+    for (let sampleIndex = 0; sampleIndex < totalSamples; sampleIndex += 1) {
+      const time = sampleIndex / sampleRate;
+      const barTime = time % DASHBOARD_MUSIC_PHRASE_SECONDS;
+      const chord =
+        progression[
+          Math.floor(time / DASHBOARD_MUSIC_PHRASE_SECONDS) %
+            progression.length
+        ];
+      const fadeIn = Math.min(1, barTime / 0.72);
+      const fadeOut = Math.min(
+        1,
+        (DASHBOARD_MUSIC_PHRASE_SECONDS - barTime) / 0.88,
+      );
+      const envelope = fadeIn * fadeOut;
+      const pad =
+        chord.notes.reduce((sum, frequency, noteIndex) => {
+          const detune = noteIndex === 3 ? 1.005 : 1;
+
+          return (
+            sum +
+            Math.sin(2 * Math.PI * frequency * detune * time) *
+              0.036 *
+              envelope +
+            Math.sin(2 * Math.PI * frequency * 0.5 * time) *
+              0.018 *
+              envelope
+          );
+        }, 0) / chord.notes.length;
+      const shimmer =
+        chord.color.reduce((sum, frequency, noteIndex) => {
+          const arpOffset = noteIndex * 0.74 + 0.48;
+          const arpTime = Math.max(0, barTime - arpOffset);
+          const arpEnvelope =
+            barTime > arpOffset && barTime < arpOffset + 1.18
+              ? Math.sin((arpTime / 1.18) * Math.PI)
+              : 0;
+
+          return (
+            sum +
+            Math.sin(2 * Math.PI * frequency * time) * 0.018 * arpEnvelope
+          );
+        }, 0) / chord.color.length;
+      const bass = Math.sin(2 * Math.PI * chord.bass * time) * 0.09 * envelope;
+      const pulseEnvelope = [0, 2.4].reduce((sum, beatOffset) => {
+        const beatTime = Math.max(0, barTime - beatOffset);
+        return (
+          sum +
+          (barTime >= beatOffset && barTime < beatOffset + 0.42
+            ? Math.sin((beatTime / 0.42) * Math.PI)
+            : 0)
+        );
+      }, 0);
+      const pulse =
+        Math.sin(2 * Math.PI * (chord.bass / 2) * time) * 0.075 * pulseEnvelope;
+      const air =
+        Math.sin(2 * Math.PI * 3136 * time) *
+        Math.sin(2 * Math.PI * 0.11 * time) *
+        Math.max(0, Math.sin(((barTime - 3.05) / 1.3) * Math.PI)) *
+        0.006;
+      const value = Math.max(
+        -0.92,
+        Math.min(0.92, (bass + pulse + pad + shimmer + air) * 1.7),
+      );
+
+      view.setInt16(44 + sampleIndex * bytesPerSample, value * 32767, true);
+    }
+
+    return window.URL.createObjectURL(
+      new Blob([buffer], { type: "audio/wav" }),
+    );
+  };
+  const startDashboardMusicFallback = async () => {
+    if (typeof Audio === "undefined") return false;
+
+    const url = createDashboardMusicFallbackUrl();
+    const audio = new Audio(url);
+    audio.loop = true;
+    audio.volume = 0.72;
+    dashboardMusicAudioElementRef.current = audio;
+    dashboardMusicObjectUrlRef.current = url;
+
+    try {
+      await audio.play();
+      return true;
+    } catch {
+      audio.pause();
+      window.URL.revokeObjectURL(url);
+      dashboardMusicAudioElementRef.current = null;
+      dashboardMusicObjectUrlRef.current = null;
+      return false;
+    }
+  };
+  const stopDashboardMusic = () => {
+    if (dashboardMusicIntervalRef.current !== null) {
+      window.clearInterval(dashboardMusicIntervalRef.current);
+      dashboardMusicIntervalRef.current = null;
+    }
+
+    if (dashboardMusicAudioElementRef.current) {
+      dashboardMusicAudioElementRef.current.pause();
+      dashboardMusicAudioElementRef.current.currentTime = 0;
+      dashboardMusicAudioElementRef.current = null;
+    }
+
+    if (dashboardMusicObjectUrlRef.current) {
+      window.URL.revokeObjectURL(dashboardMusicObjectUrlRef.current);
+      dashboardMusicObjectUrlRef.current = null;
+    }
+
+    const context = dashboardMusicAudioContextRef.current;
+    const masterGain = dashboardMusicGainRef.current;
+
+    if (context && masterGain && context.state !== "closed") {
+      const now = context.currentTime;
+      masterGain.gain.cancelScheduledValues(now);
+      masterGain.gain.setTargetAtTime(0.0001, now, 0.08);
+
+      window.setTimeout(() => {
+        if (
+          dashboardMusicAudioContextRef.current === context &&
+          context.state !== "closed"
+        ) {
+          void context.close().catch(() => undefined);
+          dashboardMusicAudioContextRef.current = null;
+          dashboardMusicGainRef.current = null;
+        }
+      }, 420);
+    }
+  };
+  const startDashboardMusic = async () => {
+    if (typeof window === "undefined") return false;
+
+    const AudioContextConstructor =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext;
+    if (!AudioContextConstructor) return startDashboardMusicFallback();
+
+    const context = new AudioContextConstructor();
+    const masterGain = context.createGain();
+    const toneFilter = context.createBiquadFilter();
+    const compressor = context.createDynamicsCompressor();
+    const delay = context.createDelay(2);
+    const delayFeedback = context.createGain();
+    const delayReturn = context.createGain();
+
+    toneFilter.type = "lowpass";
+    toneFilter.frequency.setValueAtTime(3600, context.currentTime);
+    toneFilter.Q.setValueAtTime(0.42, context.currentTime);
+    compressor.threshold.setValueAtTime(-24, context.currentTime);
+    compressor.knee.setValueAtTime(20, context.currentTime);
+    compressor.ratio.setValueAtTime(3, context.currentTime);
+    compressor.attack.setValueAtTime(0.018, context.currentTime);
+    compressor.release.setValueAtTime(0.26, context.currentTime);
+    delay.delayTime.setValueAtTime(0.38, context.currentTime);
+    delayFeedback.gain.setValueAtTime(0.2, context.currentTime);
+    delayReturn.gain.setValueAtTime(0.18, context.currentTime);
+    masterGain.gain.setValueAtTime(0.0001, context.currentTime);
+    masterGain.connect(toneFilter);
+    masterGain.connect(delay);
+    delay.connect(delayFeedback);
+    delayFeedback.connect(delay);
+    delay.connect(delayReturn);
+    delayReturn.connect(toneFilter);
+    toneFilter.connect(compressor);
+    compressor.connect(context.destination);
+    dashboardMusicAudioContextRef.current = context;
+    dashboardMusicGainRef.current = masterGain;
+    dashboardMusicStepRef.current = 0;
+
+    await context.resume();
+    if (context.state !== "running") {
+      await context.resume();
+    }
+
+    if (context.state !== "running") {
+      await context.close().catch(() => undefined);
+      dashboardMusicAudioContextRef.current = null;
+      dashboardMusicGainRef.current = null;
+      return startDashboardMusicFallback();
+    }
+
+    const now = context.currentTime;
+    masterGain.gain.cancelScheduledValues(now);
+    masterGain.gain.exponentialRampToValueAtTime(0.2, now + 0.16);
+    masterGain.gain.exponentialRampToValueAtTime(0.24, now + 0.75);
+    scheduleDashboardMusicStartCue();
+    scheduleDashboardMusicPhrase();
+    dashboardMusicIntervalRef.current = window.setInterval(
+      scheduleDashboardMusicPhrase,
+      DASHBOARD_MUSIC_PHRASE_SECONDS * 1000,
+    );
+
+    return true;
+  };
+  const toggleDashboardMusic = async () => {
+    if (dashboardMusicEnabled) {
+      stopDashboardMusic();
+      setDashboardMusicEnabled(false);
+      return;
+    }
+
+    const started = await startDashboardMusic();
+    setDashboardMusicEnabled(started);
+  };
   const selectedExerciseReference = manualReferences.find(
     (reference) => reference.referenceType === "exercise",
   );
@@ -2280,13 +3194,32 @@ export default function UserHomeDashboardPage() {
     if (nextRow === clampedDashboardOrbiterRow) return;
 
     const now = Date.now();
-    if (now - dashboardOrbiterRowChangeLockRef.current < 280) return;
+    if (
+      now - dashboardOrbiterRowChangeLockRef.current <
+      DASHBOARD_ORBITER_ROW_CLICK_LOCK_MS
+    ) {
+      return;
+    }
 
     dashboardOrbiterRowChangeLockRef.current = now;
     setActiveDashboardOrbiterRow(nextRow);
   };
   const moveDashboardOrbiterRow = (direction: -1 | 1) => {
-    setDashboardOrbiterRow(clampedDashboardOrbiterRow + direction);
+    const now = Date.now();
+    if (
+      now - dashboardOrbiterRowChangeLockRef.current <
+      DASHBOARD_ORBITER_ROW_SCROLL_LOCK_MS
+    ) {
+      return;
+    }
+
+    dashboardOrbiterRowChangeLockRef.current = now;
+    setActiveDashboardOrbiterRow((currentRow) =>
+      Math.max(
+        0,
+        Math.min(dashboardOrbiterRows.length - 1, currentRow + direction),
+      ),
+    );
   };
   const handleDashboardOrbiterWheel = (
     event: ReactWheelEvent<HTMLElement>,
@@ -2464,6 +3397,15 @@ export default function UserHomeDashboardPage() {
         (nextIndex + dashboardSystemCards.length) % dashboardSystemCards.length
       );
     });
+  };
+  const dashboardDailyToolCount = 3;
+  const rotateDailyToolOrbit = (direction: DashboardOrbitDirection) => {
+    setActiveDailyToolIndex((currentIndex) =>
+      direction === "left"
+        ? (currentIndex - 1 + dashboardDailyToolCount) %
+          dashboardDailyToolCount
+        : (currentIndex + 1) % dashboardDailyToolCount,
+    );
   };
   const handleDashboardOrbitPointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -2747,6 +3689,62 @@ export default function UserHomeDashboardPage() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (dashboardHeaderScrollButtonHoldTimeoutRef.current !== null) {
+        window.clearTimeout(dashboardHeaderScrollButtonHoldTimeoutRef.current);
+      }
+
+      if (dashboardHeaderScrollButtonHoldIntervalRef.current !== null) {
+        window.clearInterval(
+          dashboardHeaderScrollButtonHoldIntervalRef.current,
+        );
+      }
+
+      if (dashboardHeaderVortexPulseTimeoutRef.current !== null) {
+        window.clearTimeout(dashboardHeaderVortexPulseTimeoutRef.current);
+      }
+
+      if (dashboardPageAnalogHoldTimeoutRef.current !== null) {
+        window.clearTimeout(dashboardPageAnalogHoldTimeoutRef.current);
+      }
+
+      if (dashboardPageAnalogHoldIntervalRef.current !== null) {
+        window.clearInterval(dashboardPageAnalogHoldIntervalRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const { body, documentElement } = document;
+    const previousBodyHeight = body.style.height;
+    const previousBodyOverflow = body.style.overflow;
+    const previousBodyOverscrollBehavior = body.style.overscrollBehavior;
+    const previousDocumentHeight = documentElement.style.height;
+    const previousDocumentOverflow = documentElement.style.overflow;
+    const previousDocumentOverscrollBehavior =
+      documentElement.style.overscrollBehavior;
+
+    documentElement.style.height = "100%";
+    documentElement.style.overflow = "hidden";
+    documentElement.style.overscrollBehavior = "none";
+    body.style.height = "100%";
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+
+    return () => {
+      documentElement.style.height = previousDocumentHeight;
+      documentElement.style.overflow = previousDocumentOverflow;
+      documentElement.style.overscrollBehavior =
+        previousDocumentOverscrollBehavior;
+      body.style.height = previousBodyHeight;
+      body.style.overflow = previousBodyOverflow;
+      body.style.overscrollBehavior = previousBodyOverscrollBehavior;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!dashboardProfileHubOpen) return;
 
     const previousOverflow = document.body.style.overflow;
@@ -2822,6 +3820,7 @@ export default function UserHomeDashboardPage() {
 
       if (!authData.user) {
         setCanSyncWorkoutData(false);
+        setDashboardProfileIconUrl(readDashboardProfileIconUrl());
         return;
       }
 
@@ -2838,8 +3837,13 @@ export default function UserHomeDashboardPage() {
         authData.user.user_metadata?.full_name ||
         authData.user.user_metadata?.first_name ||
         "Member";
+      const authProfileIcon = readDashboardText(
+        authData.user.user_metadata?.avatar_url,
+        authData.user.user_metadata?.picture,
+      );
 
       setFirstName(String(nameSource).split(" ")[0] || "Member");
+      setDashboardProfileIconUrl(readDashboardProfileIconUrl(authProfileIcon));
     }
 
     loadUser();
@@ -2857,6 +3861,7 @@ export default function UserHomeDashboardPage() {
 
     const refreshFoundationProgress = () => {
       setDashboardFoundationProgress(readDashboardFoundationProgress());
+      setDashboardProfileIconUrl(readDashboardProfileIconUrl());
     };
 
     refreshFoundationProgress();
@@ -2878,6 +3883,43 @@ export default function UserHomeDashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const closeOnExternalScroll = (event: Event) => {
+      const details = dashboardStatusDetailsRef.current;
+      if (!details?.open) return;
+
+      const target = event.target;
+      if (target instanceof Node && details.contains(target)) return;
+
+      details.open = false;
+    };
+
+    window.addEventListener("scroll", closeOnExternalScroll, true);
+    window.addEventListener("wheel", closeOnExternalScroll, {
+      capture: true,
+      passive: true,
+    });
+    window.addEventListener("touchmove", closeOnExternalScroll, {
+      capture: true,
+      passive: true,
+    });
+
+    return () => {
+      window.removeEventListener("scroll", closeOnExternalScroll, true);
+      window.removeEventListener("wheel", closeOnExternalScroll, true);
+      window.removeEventListener("touchmove", closeOnExternalScroll, true);
+    };
+  }, []);
+
+  useEffect(
+    () => () => {
+      stopDashboardMusic();
+    },
+    [],
+  );
+
+  useEffect(() => {
     let isActive = true;
 
     const syncDashboardData = async () => {
@@ -2890,8 +3932,6 @@ export default function UserHomeDashboardPage() {
 
       setExerciseStats(statsResult.data);
       setSavedTemplates(templatesResult.data);
-      setStatsSourceLabel(getSourceLabel(statsResult));
-      setTemplatesSourceLabel(getSourceLabel(templatesResult));
     };
 
     syncDashboardData();
@@ -2913,9 +3953,6 @@ export default function UserHomeDashboardPage() {
 
     setExerciseStats(statsResult.data);
     setSavedTemplates(templatesResult.data);
-    setStatsSourceLabel(getSourceLabel(statsResult));
-    setTemplatesSourceLabel(getSourceLabel(templatesResult));
-
     return { statsResult, templatesResult };
   }
 
@@ -3087,29 +4124,6 @@ export default function UserHomeDashboardPage() {
           href: ROUTES.dashboard.sessions,
           cta: "Open Sessions",
         };
-
-  const statCards = [
-    {
-      label: "Completed Workouts",
-      value: String(dashboardSummary.completedWorkouts),
-      detail: `${dashboardSummary.workoutsThisWeek} in the last 7 days`,
-    },
-    {
-      label: "Logged Entries",
-      value: String(dashboardSummary.totalLoggedEntries),
-      detail: `${dashboardSummary.workoutSessionEntries} from workout sessions`,
-    },
-    {
-      label: "Total Sets",
-      value: String(dashboardSummary.totalSets),
-      detail: `${dashboardSummary.uniqueExerciseCount} unique exercises`,
-    },
-    {
-      label: "Templates",
-      value: String(dashboardSummary.templateCount),
-      detail: templatesSourceLabel,
-    },
-  ];
 
   const planHighlights = [
     {
@@ -3623,21 +4637,34 @@ export default function UserHomeDashboardPage() {
     dashboardSummary.totalLoggedEntries * 28 +
     dashboardSummary.totalSets * 5 +
     dashboardSummary.templateCount * 90;
+  const soundFitnessLevelSize = 500;
+  const soundFitnessLevel = Math.max(
+    1,
+    Math.floor(soundPoints / soundFitnessLevelSize) + 1,
+  );
+  const soundFitnessLevelProgress = clampDashboardPercent(
+    ((soundPoints % soundFitnessLevelSize) / soundFitnessLevelSize) * 100,
+  );
   const soundTokens =
     80 +
     dashboardSummary.completedWorkouts * 4 +
     dashboardSummary.templateCount * 6 +
     (dashboardSummary.hasStats ? 12 : 0);
   const momentumEntryDateKeys = new Set<string>();
+  const momentumInputTimestamps: number[] = [];
   exerciseStats.forEach((entry) => {
     const entryDateKey = getDashboardEntryDateKey(entry.date);
     if (entryDateKey) momentumEntryDateKeys.add(entryDateKey);
+    const timestamp = new Date(entry.date).getTime();
+    if (Number.isFinite(timestamp)) momentumInputTimestamps.push(timestamp);
   });
   manualStatsLogs.forEach((entry) => {
     const entryDateKey = getDashboardEntryDateKey(
       entry.loggedAt || entry.dateTime,
     );
     if (entryDateKey) momentumEntryDateKeys.add(entryDateKey);
+    const timestamp = new Date(entry.loggedAt || entry.dateTime).getTime();
+    if (Number.isFinite(timestamp)) momentumInputTimestamps.push(timestamp);
   });
   const dashboardTrainingDateKeys = new Set(
     groupWorkoutDates(exerciseStats)
@@ -3689,6 +4716,39 @@ export default function UserHomeDashboardPage() {
   const momentumMeterScore = clampDashboardPercent(
     (momentumEntryStreak / momentumStreakTarget) * 100,
   );
+  const momentumHeatIntensity = momentumMeterScore / 100;
+  const momentumStreakBackdropStyle: CSSProperties = {
+    background: `radial-gradient(ellipse at 50% 72%, rgba(250,204,21,${
+      0.12 + momentumHeatIntensity * 0.38
+    }), transparent 42%), radial-gradient(ellipse at 22% 84%, rgba(249,115,22,${
+      0.06 + momentumHeatIntensity * 0.34
+    }), transparent 34%), radial-gradient(ellipse at 76% 82%, rgba(239,68,68,${
+      momentumHeatIntensity * 0.28
+    }), transparent 36%), radial-gradient(ellipse at 50% 18%, rgba(34,211,238,${
+      0.22 - momentumHeatIntensity * 0.08
+    }), transparent 58%)`,
+    filter: `saturate(${1 + momentumHeatIntensity * 1.25})`,
+    opacity: 0.82,
+  };
+  const momentumStreakFlameStyle: CSSProperties = {
+    background:
+      "conic-gradient(from 205deg at 50% 88%, transparent 0deg, rgba(250,204,21,0.28) 34deg, rgba(249,115,22,0.78) 78deg, rgba(239,68,68,0.52) 118deg, rgba(34,211,238,0.10) 162deg, transparent 218deg, rgba(250,204,21,0.26) 306deg, transparent 360deg)",
+    filter: `blur(${10 - momentumHeatIntensity * 3}px) saturate(${
+      1 + momentumHeatIntensity * 1.6
+    })`,
+    opacity: 0.12 + momentumHeatIntensity * 0.72,
+    transform: `translate(-50%, ${12 - momentumHeatIntensity * 18}px) scale(${
+      0.78 + momentumHeatIntensity * 0.36
+    })`,
+  };
+  const momentumStreakEmberStyle: CSSProperties = {
+    background:
+      "radial-gradient(circle at 12% 72%, rgba(250,204,21,0.80) 0 2px, transparent 3px), radial-gradient(circle at 34% 42%, rgba(249,115,22,0.70) 0 1.5px, transparent 3px), radial-gradient(circle at 58% 78%, rgba(254,240,138,0.78) 0 2px, transparent 3px), radial-gradient(circle at 82% 36%, rgba(248,113,113,0.68) 0 1.5px, transparent 3px)",
+    backgroundSize: "58px 42px",
+    filter: `drop-shadow(0 0 ${6 + momentumHeatIntensity * 10}px rgba(250,204,21,0.48))`,
+    opacity: 0.16 + momentumHeatIntensity * 0.62,
+    transform: `translateY(${-momentumHeatIntensity * 10}px)`,
+  };
   const momentumNeedleAngle = -90 + momentumMeterScore * 1.8;
   const momentumNeedleRadians = (momentumNeedleAngle * Math.PI) / 180;
   const momentumMeterNeedleTipX = 110 + Math.sin(momentumNeedleRadians) * 84;
@@ -3697,11 +4757,28 @@ export default function UserHomeDashboardPage() {
     0,
     momentumStreakTarget - momentumEntryStreak,
   );
+  const momentumLatestInputTimestamp = momentumInputTimestamps.length
+    ? Math.max(...momentumInputTimestamps)
+    : null;
+  const momentumContinueDeadline =
+    momentumLatestInputTimestamp === null
+      ? null
+      : new Date(momentumLatestInputTimestamp + 36 * 60 * 60 * 1000);
+  const momentumContinueDeadlineLabel = momentumContinueDeadline
+    ? formatStreakDeadline(momentumContinueDeadline)
+    : "";
   const momentumGoalLabel =
     momentumStreakDaysRemaining > 0
       ? `${momentumStreakDaysRemaining} to ${momentumStreakTarget}`
       : "Goal live";
-  const momentumSignalLabel = momentumHasEntryToday ? "Logged" : "Log today";
+  const momentumSignalLabel = momentumContinueDeadline
+    ? `Log by ${momentumContinueDeadlineLabel}`
+    : "Log today";
+  const momentumSignalTitle = momentumContinueDeadline
+    ? `Log by ${formatCompactDateTime(
+        momentumContinueDeadline.toISOString(),
+      )} to continue streak`
+    : "Log today to start your streak";
   const momentumMeterCaption = momentumHasEntryToday
     ? `${momentumEntryStreak} day streak`
     : "No entry today";
@@ -3715,12 +4792,22 @@ export default function UserHomeDashboardPage() {
     dashboardToday.getMonth(),
     dashboardToday.getDate(),
   );
+  const dashboardTodayDropdownLabel = new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    weekday: "long",
+    year: "numeric",
+  }).format(dashboardToday);
+  const dashboardConsistencyPlannedWeekdays = new Set([1, 3, 5]);
+  const dashboardConsistencyRecoveryWeekdays = new Set([0, 4]);
   const dashboardConsistencyCalendarMonths = Array.from(
-    { length: 3 },
+    { length: DASHBOARD_CONSISTENCY_MONTH_WINDOW },
     (_, monthIndex) => {
       const monthDate = new Date(
         dashboardToday.getFullYear(),
-        dashboardToday.getMonth() - 2 + monthIndex,
+        dashboardToday.getMonth() -
+          DASHBOARD_CONSISTENCY_MONTHS_BACK +
+          monthIndex,
         1,
       );
       const daysInMonth = new Date(
@@ -3740,22 +4827,37 @@ export default function UserHomeDashboardPage() {
         const isFuture = dayDate.getTime() > dashboardCalendarToday.getTime();
         const hasTraining = dashboardTrainingDateKeys.has(dateKey);
         const hasSignal = momentumEntryDateKeys.has(dateKey);
+        const isRecoveryDay = dashboardConsistencyRecoveryWeekdays.has(
+          dayDate.getDay(),
+        );
+        const isPlannedTrainingDay = dashboardConsistencyPlannedWeekdays.has(
+          dayDate.getDay(),
+        );
         const status = isFuture
-          ? "future"
+          ? isRecoveryDay
+            ? "recovery"
+            : isPlannedTrainingDay
+              ? "planned"
+              : "future"
           : hasTraining
             ? "trained"
-            : hasSignal
-              ? "logged"
-              : "empty";
+            : isRecoveryDay
+              ? "recovery"
+              : isPlannedTrainingDay
+                ? "planned"
+                : hasSignal
+                  ? "logged"
+                  : "empty";
         const label = new Intl.DateTimeFormat("en-US", {
-          month: "short",
           day: "numeric",
+          month: "short",
           year: "numeric",
         }).format(dayDate);
 
         return {
           dateKey,
           day: dayIndex + 1,
+          hasSignal,
           isToday,
           label,
           status,
@@ -3763,12 +4865,12 @@ export default function UserHomeDashboardPage() {
       });
 
       return {
+        days,
         label: new Intl.DateTimeFormat("en-US", {
           month: "short",
           year: "numeric",
         }).format(monthDate),
         leadingBlankCount,
-        days,
       };
     },
   );
@@ -3780,10 +4882,10 @@ export default function UserHomeDashboardPage() {
         month.days.filter((day) => day.status === "trained").length,
       0,
     );
-  const dashboardConsistencyCalendarSignalDays =
+  const dashboardConsistencyCalendarPlannedDays =
     dashboardConsistencyCalendarMonths.reduce(
       (total, month) =>
-        total + month.days.filter((day) => day.status === "logged").length,
+        total + month.days.filter((day) => day.status === "planned").length,
       0,
     );
   const dashboardConsistencyCalendarMonthCount =
@@ -3830,6 +4932,7 @@ export default function UserHomeDashboardPage() {
         : dashboardConsistencyStage === "Contemplation"
           ? "border-amber-200/30 bg-amber-300/10 text-amber-100"
           : "border-slate-200/18 bg-slate-100/8 text-slate-200";
+  const dashboardStatusDropdownTitle = `${dashboardConsistencyStage} / ${dashboardStatusUrgency} / ${masterJourneyCurrentFocus}`;
   const dashboardProfileHubCompletion = Math.max(
     dashboardFoundationProgress.profileCompletion,
     Math.round(
@@ -3844,9 +4947,26 @@ export default function UserHomeDashboardPage() {
     ? `${activeSessionTemplate.exercises.length} exercises in progress`
     : dashboardSummary.latestTemplate
       ? dashboardSummary.latestTemplate.title
-      : dashboardSummary.templateCount > 0
-        ? `${dashboardSummary.templateCount} templates ready`
-        : "Build first workout";
+        : dashboardSummary.templateCount > 0
+          ? `${dashboardSummary.templateCount} templates ready`
+          : "Build first workout";
+  const dashboardStatusDropdownItems = [
+    {
+      detail: dashboardStatusUrgency,
+      label: "Stage",
+      value: dashboardConsistencyStage,
+    },
+    {
+      detail: dashboardActiveProfilePlanDetail,
+      label: "Focus",
+      value: masterJourneyCurrentFocus,
+    },
+    {
+      detail: momentumMeterCaption,
+      label: "Signal",
+      value: momentumSignalLabel,
+    },
+  ];
   const dashboardActiveProfileNextStep =
     dashboardFoundationProgress.profileCompletion < 70
       ? "Profile context"
@@ -4146,6 +5266,41 @@ export default function UserHomeDashboardPage() {
       })),
       title: "Recovery Readiness",
       tone: "amber",
+    },
+    {
+      description: dashboardSummary.hasStats
+        ? dashboardSummary.mostRecentDate
+        : "No saved workout activity yet.",
+      metric: dashboardSummary.hasStats
+        ? `${dashboardSummary.totalLoggedEntries} logs`
+        : "0 logs",
+      rows: dashboardSummary.hasStats
+        ? dashboardSummary.latestEntries.slice(0, 5).map((entry) => ({
+            detail: `${
+              entry.source === "workout-session" ? "Workout" : "Library"
+            } / ${entry.sets} sets`,
+            label: entry.exerciseName,
+            value: `${entry.weight} x ${entry.reps}`,
+          }))
+        : [
+            {
+              detail: dashboardSummary.mostRecentDate,
+              label: "Status",
+              value: dashboardSummary.latestExercise,
+            },
+            {
+              detail: "Create your first local stats entry",
+              label: "Next",
+              value: "Start session hub",
+            },
+            {
+              detail: "Open stats dashboard",
+              label: "Route",
+              value: "Stats",
+            },
+          ],
+      title: "Recent Workout Activity",
+      tone: "sky",
     },
   ];
   const getWeeklyRecapOrbitDistance = (index: number) =>
@@ -4760,14 +5915,6 @@ export default function UserHomeDashboardPage() {
     dashboardFloatingSnapshotActiveCard?.description ||
     dashboardFloatingSnapshotRow?.helper ||
     "Workouts, nutrition, readiness, and performance stay visible as the orbiter moves.";
-  const dashboardFloatingSnapshotIcon =
-    dashboardFloatingSnapshotActiveCard?.icon ||
-    dashboardFloatingSnapshotRow?.icon ||
-    (clampedDashboardOrbiterRow === 4 ? "calendar" : "DB");
-  const dashboardFloatingSnapshotIconLabel =
-    dashboardFloatingSnapshotActiveCard?.title ||
-    dashboardFloatingSnapshotRow?.title ||
-    "Dashboard";
   const activeDashboardFloatingMetric =
     dashboardFloatingSnapshotMetrics[
       activeDashboardFloatingMetricIndex %
@@ -4793,7 +5940,7 @@ export default function UserHomeDashboardPage() {
     dashboardFloatingSnapshotMetrics.length,
     dashboardFloatingSnapshotTitle,
   ]);
-  const dashboardHeaderLinks = [
+  const dashboardHeaderLinks: DashboardHeaderLink[] = [
     {
       completion: dashboardTabCompletions.workout,
       href: ROUTES.dashboard.sessions,
@@ -4803,6 +5950,7 @@ export default function UserHomeDashboardPage() {
       points: Math.round(soundPoints * 0.82),
       tone:
         "border-sky-200/28 bg-sky-300/10 text-sky-100 hover:border-sky-100/45 hover:bg-sky-300/16",
+      toneKey: "cyan",
     },
     {
       completion: dashboardTabCompletions.profile,
@@ -4813,6 +5961,7 @@ export default function UserHomeDashboardPage() {
       points: Math.round(soundPoints * 0.94),
       tone:
         "border-cyan-200/30 bg-cyan-300/10 text-cyan-100 hover:border-cyan-100/45 hover:bg-cyan-300/16",
+      toneKey: "cyan",
     },
     {
       completion: dashboardTabCompletions.goals,
@@ -4823,6 +5972,7 @@ export default function UserHomeDashboardPage() {
       points: Math.round(soundPoints * 0.68),
       tone:
         "border-amber-200/34 bg-amber-300/12 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/18",
+      toneKey: "amber",
     },
     {
       completion: dashboardTabCompletions.nutrition,
@@ -4833,6 +5983,7 @@ export default function UserHomeDashboardPage() {
       points: Math.round(soundPoints * 0.38),
       tone:
         "border-emerald-200/28 bg-emerald-300/10 text-emerald-100 hover:border-emerald-100/45 hover:bg-emerald-300/16",
+      toneKey: "emerald",
     },
     {
       completion: dashboardTabCompletions.recovery,
@@ -4843,6 +5994,7 @@ export default function UserHomeDashboardPage() {
       points: Math.round(soundPoints * 0.24),
       tone:
         "border-violet-200/28 bg-violet-300/10 text-violet-100 hover:border-violet-100/45 hover:bg-violet-300/16",
+      toneKey: "sky",
     },
     {
       completion: dashboardTabCompletions.performance,
@@ -4853,6 +6005,7 @@ export default function UserHomeDashboardPage() {
       points: Math.round(soundPoints * 0.46),
       tone:
         "border-amber-200/30 bg-amber-300/10 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/16",
+      toneKey: "amber",
     },
     {
       completion: dashboardTabCompletions.education,
@@ -4863,6 +6016,7 @@ export default function UserHomeDashboardPage() {
       points: Math.round(soundPoints * 0.12),
       tone:
         "border-blue-200/28 bg-blue-300/10 text-blue-100 hover:border-blue-100/45 hover:bg-blue-300/16",
+      toneKey: "violet",
     },
     {
       completion: dashboardTabCompletions.soundWorld,
@@ -4873,12 +6027,50 @@ export default function UserHomeDashboardPage() {
       points: Math.round(soundPoints * 0.08),
       tone:
         "border-pink-200/28 bg-pink-300/10 text-pink-100 hover:border-pink-100/45 hover:bg-pink-300/16",
+      toneKey: "fuchsia",
     },
   ];
+  const activeDashboardHeaderNormalizedIndex =
+    ((activeDashboardHeaderIndex % dashboardHeaderLinks.length) +
+      dashboardHeaderLinks.length) %
+    dashboardHeaderLinks.length;
   const activeDashboardHeaderLink =
+    dashboardHeaderLinks[activeDashboardHeaderNormalizedIndex] ||
+    dashboardHeaderLinks[0];
+  const activeDashboardHeaderTone =
+    dashboardHeaderToneStyles[activeDashboardHeaderLink.toneKey];
+  const dashboardHeaderActiveVortexMode =
+    dashboardHeaderScrollButtonActiveDirection === "up"
+      ? "clockwise"
+      : dashboardHeaderScrollButtonActiveDirection === "down"
+        ? "counter"
+        : null;
+  const dashboardHeaderVortexMode =
+    dashboardHeaderActiveVortexMode || dashboardHeaderVortexPulseMode;
+  const activeDashboardHeaderUrgencyTone = getDashboardRowUrgencyTone(
+    activeDashboardHeaderLink.completion,
+  );
+  const nextDashboardHeaderLink =
     dashboardHeaderLinks[
-      activeDashboardHeaderIndex % dashboardHeaderLinks.length
+      (activeDashboardHeaderNormalizedIndex + 1) % dashboardHeaderLinks.length
     ] || dashboardHeaderLinks[0];
+  const previousDashboardHeaderLink =
+    dashboardHeaderLinks[
+      (activeDashboardHeaderNormalizedIndex - 1 + dashboardHeaderLinks.length) %
+        dashboardHeaderLinks.length
+    ] || dashboardHeaderLinks[0];
+  const dashboardHeaderScrollButtonPreviewLink =
+    dashboardHeaderScrollButtonActiveDirection === "left"
+      ? previousDashboardHeaderLink
+      : nextDashboardHeaderLink;
+  const dashboardHeaderScrollButtonPreviewTone =
+    dashboardHeaderScrollButtonPreviewToneStyles[
+      dashboardHeaderScrollButtonPreviewLink.toneKey
+    ];
+  const dashboardHeaderActiveScrollButtonTone =
+    dashboardHeaderScrollButtonPreviewToneStyles[
+      activeDashboardHeaderLink.toneKey
+    ];
   const rotateDashboardHeaderRail = (direction: "left" | "right") => {
     setDashboardHeaderSlideDirection(direction);
     setActiveDashboardHeaderIndex((currentIndex) =>
@@ -4888,6 +6080,479 @@ export default function UserHomeDashboardPage() {
         : (currentIndex + 1) % dashboardHeaderLinks.length,
     );
   };
+  const getDashboardAnalogOffset = (
+    deltaX: number,
+    deltaY: number,
+    radius = 10,
+  ): DashboardVerticalPointerStart => {
+    const distance = Math.hypot(deltaX, deltaY);
+    if (distance <= radius) return { x: deltaX, y: deltaY };
+
+    const ratio = radius / distance;
+    return {
+      x: deltaX * ratio,
+      y: deltaY * ratio,
+    };
+  };
+  const rotateDashboardHeaderJourneyTabs = (
+    direction: Extract<DashboardScrollButtonDirection, "down" | "up">,
+  ) => {
+    const { activeJourneyStepIndex, card, journeySteps } =
+      getDashboardHeaderJourneyState();
+    if (!card || journeySteps.length < 2) return false;
+    const canMoveJourney =
+      direction === "up"
+        ? activeJourneyStepIndex > 0
+        : activeJourneyStepIndex < journeySteps.length - 1;
+    if (!canMoveJourney) return false;
+
+    rotateDashboardJourneyStepOrbit(
+      card,
+      direction === "up" ? "left" : "right",
+    );
+    return true;
+  };
+  useEffect(() => {
+    const { card, journeySteps } = getDashboardHeaderJourneyState();
+    if (!card || journeySteps.length < 2) return;
+
+    setActiveDashboardJourneyStepIndexes((currentIndexes) => {
+      if (currentIndexes[card.title] === 0) return currentIndexes;
+
+      return {
+        ...currentIndexes,
+        [card.title]: 0,
+      };
+    });
+  }, [activeDashboardHeaderNormalizedIndex]);
+  const pulseDashboardHeaderVortex = (
+    direction: DashboardScrollButtonDirection,
+  ) => {
+    if (direction !== "up" && direction !== "down") return;
+
+    if (dashboardHeaderVortexPulseTimeoutRef.current !== null) {
+      window.clearTimeout(dashboardHeaderVortexPulseTimeoutRef.current);
+    }
+
+    setDashboardHeaderVortexPulseMode(
+      direction === "up" ? "clockwise" : "counter",
+    );
+    dashboardHeaderVortexPulseTimeoutRef.current = window.setTimeout(() => {
+      setDashboardHeaderVortexPulseMode(null);
+      dashboardHeaderVortexPulseTimeoutRef.current = null;
+    }, 900);
+  };
+  const runDashboardHeaderScrollButtonDirection = (
+    direction: DashboardScrollButtonDirection,
+  ) => {
+    const didMove =
+      direction === "left" || direction === "right"
+        ? (rotateDashboardHeaderRail(direction), true)
+        : rotateDashboardHeaderJourneyTabs(direction);
+    if (!didMove) return false;
+
+    pulseDashboardHeaderVortex(direction);
+
+    setDashboardHeaderScrollButtonRoll((currentRoll) => {
+      const directionalRoll =
+        direction === "right"
+          ? 120
+          : direction === "left"
+            ? -120
+            : direction === "down"
+              ? 110
+              : -110;
+
+      return currentRoll + directionalRoll;
+    });
+
+    return true;
+  };
+  const stopDashboardHeaderScrollButtonHold = () => {
+    if (dashboardHeaderScrollButtonHoldTimeoutRef.current !== null) {
+      window.clearTimeout(dashboardHeaderScrollButtonHoldTimeoutRef.current);
+      dashboardHeaderScrollButtonHoldTimeoutRef.current = null;
+    }
+
+    if (dashboardHeaderScrollButtonHoldIntervalRef.current !== null) {
+      window.clearInterval(dashboardHeaderScrollButtonHoldIntervalRef.current);
+      dashboardHeaderScrollButtonHoldIntervalRef.current = null;
+    }
+
+    dashboardHeaderScrollButtonHoldDirectionRef.current = null;
+    setDashboardHeaderScrollButtonActiveDirection(null);
+  };
+  const resetDashboardHeaderScrollButtonDrag = () => {
+    dashboardHeaderScrollButtonPointerStartRef.current = null;
+    setDashboardHeaderScrollButtonDragging(false);
+    setDashboardHeaderAnalogOffset({ x: 0, y: 0 });
+    stopDashboardHeaderScrollButtonHold();
+  };
+  const startDashboardHeaderScrollButtonHold = (
+    direction: DashboardScrollButtonDirection,
+  ) => {
+    if (dashboardHeaderScrollButtonHoldDirectionRef.current === direction) {
+      return;
+    }
+
+    stopDashboardHeaderScrollButtonHold();
+    const didMove = runDashboardHeaderScrollButtonDirection(direction);
+    if (!didMove) return;
+
+    dashboardHeaderScrollButtonHoldDirectionRef.current = direction;
+    setDashboardHeaderScrollButtonActiveDirection(direction);
+
+    dashboardHeaderScrollButtonHoldTimeoutRef.current = window.setTimeout(() => {
+      dashboardHeaderScrollButtonHoldIntervalRef.current = window.setInterval(
+        () => {
+          if (!runDashboardHeaderScrollButtonDirection(direction)) {
+            stopDashboardHeaderScrollButtonHold();
+          }
+        },
+        DASHBOARD_ANALOG_REPEAT_MS,
+      );
+    }, DASHBOARD_ANALOG_HOLD_DELAY_MS);
+  };
+  const handleDashboardHeaderScrollButtonPointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    dashboardHeaderScrollButtonPointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+    dashboardHeaderScrollButtonPointerMovedRef.current = false;
+    setDashboardHeaderScrollButtonDragging(true);
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const handleDashboardHeaderScrollButtonPointerMove = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    const start = dashboardHeaderScrollButtonPointerStartRef.current;
+    if (!start) return;
+
+    event.stopPropagation();
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+    if (Math.max(absDeltaX, absDeltaY) < 4) return;
+
+    setDashboardHeaderAnalogOffset(
+      getDashboardAnalogOffset(deltaX, deltaY, 10),
+    );
+    setDashboardHeaderScrollButtonRoll(
+      (currentRoll) => currentRoll + deltaX * 1.1 + deltaY * 0.85,
+    );
+
+    if (Math.max(absDeltaX, absDeltaY) < DASHBOARD_ANALOG_DRAG_THRESHOLD) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    dashboardHeaderScrollButtonPointerMovedRef.current = true;
+
+    const nextDirection: DashboardScrollButtonDirection =
+      absDeltaX >= absDeltaY
+        ? deltaX > 0
+          ? "right"
+          : "left"
+        : deltaY > 0
+          ? "down"
+          : "up";
+
+    startDashboardHeaderScrollButtonHold(nextDirection);
+  };
+  const handleDashboardHeaderScrollButtonPointerEnd = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    resetDashboardHeaderScrollButtonDrag();
+    event.stopPropagation();
+
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+
+    if (dashboardHeaderScrollButtonPointerMovedRef.current) {
+      event.preventDefault();
+      window.setTimeout(() => {
+        dashboardHeaderScrollButtonPointerMovedRef.current = false;
+      }, 0);
+    }
+  };
+  const handleDashboardHeaderScrollButtonWheel = (
+    event: ReactWheelEvent<HTMLButtonElement>,
+  ) => {
+    const absDeltaX = Math.abs(event.deltaX);
+    const absDeltaY = Math.abs(event.deltaY);
+
+    if (Math.max(absDeltaX, absDeltaY) < 8) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const nextDirection: DashboardScrollButtonDirection =
+      absDeltaX > absDeltaY
+        ? event.deltaX > 0
+          ? "right"
+          : "left"
+        : event.deltaY > 0
+          ? "down"
+          : "up";
+
+    if (runDashboardHeaderScrollButtonDirection(nextDirection)) {
+      setDashboardHeaderScrollButtonActiveDirection(nextDirection);
+      window.setTimeout(() => {
+        if (!dashboardHeaderScrollButtonDragging) {
+          setDashboardHeaderScrollButtonActiveDirection(null);
+        }
+      }, 220);
+    }
+  };
+  const rotateActiveDashboardOrbiterRow = (
+    direction: DashboardOrbitDirection,
+  ) => {
+    if (clampedDashboardOrbiterRow === 0) {
+      setHeroAchievementSlideDirection(direction);
+      setActiveHeroAchievementIndex((currentIndex) => {
+        const nextIndex =
+          direction === "left" ? currentIndex - 1 : currentIndex + 1;
+
+        return (nextIndex + heroAchievements.length) % heroAchievements.length;
+      });
+      return true;
+    }
+
+    if (clampedDashboardOrbiterRow === 1) {
+      rotateDailyToolOrbit(direction);
+      return true;
+    }
+
+    if (clampedDashboardOrbiterRow === 2) {
+      rotateWeeklyRecap(direction);
+      return true;
+    }
+
+    if (clampedDashboardOrbiterRow === 3) {
+      rotateCommandCenter(direction);
+      return true;
+    }
+
+    if (clampedDashboardOrbiterRow === 4) {
+      rotateDashboardConsistencyMonth(direction === "left" ? -1 : 1);
+      return true;
+    }
+
+    if (clampedDashboardOrbiterRow === 5) {
+      rotateMySound(direction);
+      return true;
+    }
+
+    if (clampedDashboardOrbiterRow === 6) {
+      rotateSystemCenter(direction);
+      return true;
+    }
+
+    return false;
+  };
+  const runDashboardPageAnalogDirection = (
+    direction: DashboardScrollButtonDirection,
+  ) => {
+    const didMove =
+      direction === "left" || direction === "right"
+        ? rotateActiveDashboardOrbiterRow(direction)
+        : direction === "up"
+          ? clampedDashboardOrbiterRow > 0
+          : clampedDashboardOrbiterRow < dashboardOrbiterRows.length - 1;
+    if (!didMove) return false;
+
+    setDashboardPageAnalogRoll(
+      (currentRoll) =>
+        currentRoll +
+        (direction === "right"
+          ? 120
+          : direction === "left"
+            ? -120
+            : direction === "down"
+              ? 110
+              : -110),
+    );
+
+    if (direction === "left" || direction === "right") {
+      return true;
+    }
+
+    moveDashboardOrbiterRow(direction === "up" ? -1 : 1);
+    return true;
+  };
+  const stopDashboardPageAnalogHold = () => {
+    if (dashboardPageAnalogHoldTimeoutRef.current !== null) {
+      window.clearTimeout(dashboardPageAnalogHoldTimeoutRef.current);
+      dashboardPageAnalogHoldTimeoutRef.current = null;
+    }
+
+    if (dashboardPageAnalogHoldIntervalRef.current !== null) {
+      window.clearInterval(dashboardPageAnalogHoldIntervalRef.current);
+      dashboardPageAnalogHoldIntervalRef.current = null;
+    }
+
+    dashboardPageAnalogHoldDirectionRef.current = null;
+    setDashboardPageAnalogActiveDirection(null);
+  };
+  const resetDashboardPageAnalogDrag = () => {
+    dashboardPageAnalogPointerStartRef.current = null;
+    setDashboardPageAnalogDragging(false);
+    setDashboardPageAnalogOffset({ x: 0, y: 0 });
+    stopDashboardPageAnalogHold();
+  };
+  const startDashboardPageAnalogHold = (
+    direction: DashboardScrollButtonDirection,
+  ) => {
+    if (dashboardPageAnalogHoldDirectionRef.current === direction) {
+      return;
+    }
+
+    stopDashboardPageAnalogHold();
+    const didMove = runDashboardPageAnalogDirection(direction);
+    if (!didMove) return;
+
+    dashboardPageAnalogHoldDirectionRef.current = direction;
+    setDashboardPageAnalogActiveDirection(direction);
+
+    dashboardPageAnalogHoldTimeoutRef.current = window.setTimeout(() => {
+      dashboardPageAnalogHoldIntervalRef.current = window.setInterval(
+        () => {
+          if (!runDashboardPageAnalogDirection(direction)) {
+            stopDashboardPageAnalogHold();
+          }
+        },
+        DASHBOARD_ANALOG_REPEAT_MS,
+      );
+    }, DASHBOARD_ANALOG_HOLD_DELAY_MS);
+  };
+  const handleDashboardPageAnalogPointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    dashboardPageAnalogPointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+    dashboardPageAnalogPointerMovedRef.current = false;
+    setDashboardPageAnalogDragging(true);
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const handleDashboardPageAnalogPointerMove = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    const start = dashboardPageAnalogPointerStartRef.current;
+    if (!start) return;
+
+    event.stopPropagation();
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+    if (Math.max(absDeltaX, absDeltaY) < 4) return;
+
+    setDashboardPageAnalogOffset(getDashboardAnalogOffset(deltaX, deltaY, 11));
+    setDashboardPageAnalogRoll(
+      (currentRoll) => currentRoll + deltaY * 1.2 - deltaX * 0.35,
+    );
+
+    if (Math.max(absDeltaX, absDeltaY) < DASHBOARD_ANALOG_DRAG_THRESHOLD) {
+      return;
+    }
+
+    event.preventDefault();
+    dashboardPageAnalogPointerMovedRef.current = true;
+
+    const nextDirection: DashboardScrollButtonDirection =
+      absDeltaX >= absDeltaY
+        ? deltaX > 0
+          ? "right"
+          : "left"
+        : deltaY > 0
+          ? "down"
+          : "up";
+
+    startDashboardPageAnalogHold(nextDirection);
+  };
+  const handleDashboardPageAnalogPointerEnd = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    resetDashboardPageAnalogDrag();
+    event.stopPropagation();
+
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+
+    if (dashboardPageAnalogPointerMovedRef.current) {
+      event.preventDefault();
+      window.setTimeout(() => {
+        dashboardPageAnalogPointerMovedRef.current = false;
+      }, 0);
+    }
+  };
+  const handleDashboardPageAnalogWheel = (
+    event: ReactWheelEvent<HTMLButtonElement>,
+  ) => {
+    const absDeltaX = Math.abs(event.deltaX);
+    const absDeltaY = Math.abs(event.deltaY);
+
+    if (Math.max(absDeltaX, absDeltaY) < 8) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const nextDirection: DashboardScrollButtonDirection =
+      absDeltaX > absDeltaY
+        ? event.deltaX > 0
+          ? "right"
+          : "left"
+        : event.deltaY > 0
+          ? "down"
+          : "up";
+
+    if (runDashboardPageAnalogDirection(nextDirection)) {
+      setDashboardPageAnalogActiveDirection(nextDirection);
+      window.setTimeout(() => {
+        if (!dashboardPageAnalogDragging) {
+          setDashboardPageAnalogActiveDirection(null);
+        }
+      }, 220);
+    }
+  };
+  useEffect(() => {
+    if (!dashboardHeaderScrollButtonDragging && !dashboardPageAnalogDragging) {
+      return;
+    }
+
+    const releaseActiveJoystickDrag = () => {
+      resetDashboardHeaderScrollButtonDrag();
+      resetDashboardPageAnalogDrag();
+    };
+
+    window.addEventListener("pointerup", releaseActiveJoystickDrag);
+    window.addEventListener("pointercancel", releaseActiveJoystickDrag);
+    window.addEventListener("blur", releaseActiveJoystickDrag);
+
+    return () => {
+      window.removeEventListener("pointerup", releaseActiveJoystickDrag);
+      window.removeEventListener("pointercancel", releaseActiveJoystickDrag);
+      window.removeEventListener("blur", releaseActiveJoystickDrag);
+    };
+  }, [dashboardHeaderScrollButtonDragging, dashboardPageAnalogDragging]);
   const heroAchievements = [
     {
       category: "volume",
@@ -5277,17 +6942,680 @@ export default function UserHomeDashboardPage() {
     getDashboardHeaderJourneyState().activeJourneyStep?.label ||
     activeDashboardHeaderLink.label;
 
-  const renderDashboardHeaderJourneyTabs = () => {
+  const isDashboardProfileRailStep = (step: DashboardJourneyStep) =>
+    step.icon.toLowerCase() === "profile" ||
+    step.label.toLowerCase() === "profile";
+
+  const renderDashboardHeaderJourneyStepIcon = (
+    step: DashboardJourneyStep,
+    className: string,
+  ) => {
+    if (isDashboardProfileRailStep(step)) {
+      return (
+        <span
+          aria-hidden="true"
+          className={`dashboard-header-profile-rail-logo relative z-10 grid place-items-center overflow-hidden rounded-full ${className}`}
+        >
+          <img
+            alt=""
+            className="h-full w-full rounded-full object-contain p-[1px]"
+            draggable={false}
+            onError={(event) => {
+              event.currentTarget.src = DASHBOARD_PROFILE_ICON_FALLBACK;
+            }}
+            src={dashboardProfileIconUrl || DASHBOARD_PROFILE_ICON_FALLBACK}
+          />
+        </span>
+      );
+    }
+
+    return (
+      <DashboardTabIcon
+        className={className}
+        label={step.label}
+        name={step.icon}
+      />
+    );
+  };
+
+  const renderDashboardHeaderPageOrbitRail = () => {
+    const headerRailSlots: Record<
+      number,
+      { opacity: number; rotate: number; scale: number; x: number; y: number; zIndex: number }
+    > = {
+      [-2]: { opacity: 0.44, rotate: -20, scale: 0.64, x: 36, y: 16, zIndex: 10 },
+      [-1]: { opacity: 0.76, rotate: -10, scale: 0.78, x: 60, y: 11, zIndex: 16 },
+      1: { opacity: 0.76, rotate: 10, scale: 0.78, x: 60, y: 69, zIndex: 16 },
+      2: { opacity: 0.44, rotate: 20, scale: 0.64, x: 36, y: 66, zIndex: 10 },
+    };
+    const { activeJourneyStepIndex, card, journeySteps } =
+      getDashboardHeaderJourneyState();
+    const railSteps = journeySteps
+      .map((step, stepIndex) => {
+        const distance = stepIndex - activeJourneyStepIndex;
+
+        return { distance, step, stepIndex };
+      })
+      .filter(({ distance }) => distance !== 0 && Math.abs(distance) <= 2);
+
+    if (!card || !railSteps.length) return null;
+
+    const hasRailPagesAbove = railSteps.some(({ distance }) => distance < 0);
+    const hasRailPagesBelow = railSteps.some(({ distance }) => distance > 0);
+    const upperRailParticlePath = "M20 24 C42 7 66 5 84 15 C91 20 92 30 88 39";
+    const lowerRailParticlePath = "M20 56 C42 76 66 79 84 63 C91 58 92 48 88 39";
+    const upperRailCounterParticlePath =
+      "M88 39 C92 30 91 20 84 15 C66 5 42 7 20 24";
+    const lowerRailCounterParticlePath =
+      "M88 39 C92 48 91 58 84 63 C66 79 42 76 20 56";
+    const isDashboardHeaderVortexCounter =
+      dashboardHeaderVortexMode === "counter";
+    const upperRailMotionPath = isDashboardHeaderVortexCounter
+      ? upperRailCounterParticlePath
+      : upperRailParticlePath;
+    const lowerRailMotionPath = isDashboardHeaderVortexCounter
+      ? lowerRailCounterParticlePath
+      : lowerRailParticlePath;
+    const railDashOffsetValues = isDashboardHeaderVortexCounter
+      ? "0;106"
+      : "106;0";
+    const railParticleBursts = [
+      {
+        delay: "0s",
+        dur: "2.45s",
+        fill: "var(--dashboard-header-journey-motion-alt, rgba(254,240,138,0.96))",
+        rValues: "0.16;0.34;0.58;0.16",
+      },
+      {
+        delay: "0.22s",
+        dur: "2.9s",
+        fill: "var(--dashboard-header-journey-circle, rgba(103,232,249,0.92))",
+        rValues: "0.14;0.3;0.5;0.14",
+      },
+      {
+        delay: "0.44s",
+        dur: "2.65s",
+        fill: "rgba(255,255,255,0.92)",
+        rValues: "0.1;0.24;0.4;0.1",
+      },
+      {
+        delay: "0.72s",
+        dur: "3.2s",
+        fill: "var(--dashboard-header-journey-motion, rgba(34,211,238,0.92))",
+        rValues: "0.12;0.28;0.46;0.12",
+      },
+      {
+        delay: "1.04s",
+        dur: "2.75s",
+        fill: "var(--dashboard-header-journey-halo, rgba(34,211,238,0.72))",
+        rValues: "0.11;0.25;0.42;0.11",
+      },
+      {
+        delay: "1.32s",
+        dur: "3.45s",
+        fill: "var(--dashboard-header-journey-motion-alt, rgba(254,240,138,0.82))",
+        rValues: "0.1;0.22;0.38;0.1",
+      },
+      {
+        delay: "1.72s",
+        dur: "2.55s",
+        fill: "var(--dashboard-header-journey-circle, rgba(103,232,249,0.78))",
+        rValues: "0.09;0.2;0.34;0.09",
+      },
+      {
+        delay: "2.08s",
+        dur: "3.75s",
+        fill: "rgba(255,255,255,0.78)",
+        rValues: "0.08;0.17;0.3;0.08",
+      },
+    ];
+    const renderRailParticles = (
+      path: string,
+      side: "above" | "below",
+    ) => (
+      <g
+        aria-hidden="true"
+        className="dashboard-header-page-orbit-rail__particles"
+        filter="url(#dashboard-header-page-orbit-rail-glow)"
+      >
+        {railParticleBursts.map((particle, particleIndex) => (
+          <circle
+            fill={particle.fill}
+            key={`${side}-${particleIndex}-rail-particle`}
+            opacity="0"
+            r="0.16"
+          >
+            <animateMotion
+              begin={particle.delay}
+              dur={particle.dur}
+              path={path}
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              begin={particle.delay}
+              dur={particle.dur}
+              repeatCount="indefinite"
+              values="0;0.18;0.48;0.18;0"
+            />
+            <animate
+              attributeName="r"
+              begin={particle.delay}
+              dur={particle.dur}
+              repeatCount="indefinite"
+              values={particle.rValues}
+            />
+          </circle>
+        ))}
+      </g>
+    );
+    const renderRailSparkField = (side: "above" | "below") => {
+      const yOffset = side === "above" ? -1 : 1;
+      const sparkField = [
+        { delay: "0s", r: 0.2, x: 26, y: 32 + yOffset * 8 },
+        { delay: "0.18s", r: 0.17, x: 34, y: 31 + yOffset * 13 },
+        { delay: "0.34s", r: 0.15, x: 44, y: 29 + yOffset * 16 },
+        { delay: "0.5s", r: 0.21, x: 54, y: 28 + yOffset * 18 },
+        { delay: "0.66s", r: 0.16, x: 64, y: 30 + yOffset * 15 },
+        { delay: "0.82s", r: 0.18, x: 74, y: 33 + yOffset * 10 },
+        { delay: "1.04s", r: 0.14, x: 82, y: 36 + yOffset * 5 },
+        { delay: "1.26s", r: 0.15, x: 48, y: 40 + yOffset * 17 },
+        { delay: "1.48s", r: 0.13, x: 60, y: 40 + yOffset * 14 },
+      ];
+
+      return (
+        <g
+          aria-hidden="true"
+          className="dashboard-header-page-orbit-rail__spark-field"
+        >
+          {sparkField.map((spark, sparkIndex) => (
+            <circle
+              cx={spark.x}
+              cy={spark.y}
+              fill={
+                sparkIndex % 2 === 0
+                  ? "var(--dashboard-header-journey-motion-alt, rgba(254,240,138,0.9))"
+                  : "var(--dashboard-header-journey-circle, rgba(103,232,249,0.86))"
+              }
+              key={`${side}-${sparkIndex}-rail-spark`}
+              opacity="0.24"
+              r={spark.r}
+            >
+              <animate
+                attributeName="opacity"
+                begin={spark.delay}
+                dur="2.35s"
+                repeatCount="indefinite"
+                values="0.02;0.34;0.1;0.24;0.02"
+              />
+              <animate
+                attributeName="r"
+                begin={spark.delay}
+                dur="2.35s"
+                repeatCount="indefinite"
+                values={`${Math.max(0.06, spark.r - 0.06)};${spark.r + 0.1};${spark.r};${Math.max(0.06, spark.r - 0.06)}`}
+              />
+            </circle>
+          ))}
+        </g>
+      );
+    };
+
+    return (
+      <div
+        aria-label={`${activeDashboardHeaderLink.label} journey page orbital rail`}
+        className={`dashboard-header-page-orbit-rail pointer-events-none absolute -left-[2.35rem] -top-[1.15rem] h-[5.25rem] w-[6.1rem] overflow-visible [transform-style:preserve-3d] ${
+          dashboardHeaderVortexMode
+            ? `dashboard-header-page-orbit-rail--${dashboardHeaderVortexMode}`
+            : ""
+        }`}
+        key={`${activeDashboardHeaderLink.label}-${activeJourneyStepIndex}-header-page-orbit-rail`}
+        role="group"
+        style={activeDashboardHeaderTone.iconEffectStyle}
+      >
+        <svg
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-visible drop-shadow-[0_0_4px_rgba(34,211,238,0.24)]"
+          focusable="false"
+          viewBox="0 0 98 84"
+        >
+          <defs>
+            <linearGradient
+              id="dashboard-header-page-orbit-rail-gradient"
+              x1="10"
+              x2="86"
+              y1="10"
+              y2="74"
+            >
+              <stop
+                offset="0%"
+                stopColor="var(--dashboard-header-journey-halo-soft, rgba(34,211,238,0.16))"
+              />
+              <stop
+                offset="24%"
+                stopColor="var(--dashboard-header-journey-circle, rgba(34,211,238,0.88))"
+              />
+              <stop
+                offset="52%"
+                stopColor="var(--dashboard-header-journey-motion, rgba(34,211,238,0.74))"
+              />
+              <stop
+                offset="76%"
+                stopColor="var(--dashboard-header-journey-motion-alt, rgba(125,211,252,0.86))"
+              />
+              <stop
+                offset="100%"
+                stopColor="var(--dashboard-header-journey-circle-soft, rgba(34,211,238,0.58))"
+              />
+            </linearGradient>
+            <filter
+              colorInterpolationFilters="sRGB"
+              height="160%"
+              id="dashboard-header-page-orbit-rail-glow"
+              width="160%"
+              x="-30%"
+              y="-30%"
+            >
+              <feGaussianBlur stdDeviation="0.75" />
+              <feColorMatrix
+                type="matrix"
+                values="0 0 0 0 0.1 0 0 0 0 0.85 0 0 0 0 1 0 0 0 0.36 0"
+              />
+              <feMerge>
+                <feMergeNode />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          {hasRailPagesAbove ? (
+            <>
+              <path
+                d="M84 15 C66 5 42 7 20 24"
+                fill="none"
+                filter="url(#dashboard-header-page-orbit-rail-glow)"
+                stroke="url(#dashboard-header-page-orbit-rail-gradient)"
+                strokeLinecap="round"
+                strokeWidth="2.4"
+              >
+                <animate
+                  attributeName="opacity"
+                  dur="3.4s"
+                  repeatCount="indefinite"
+                  values="0.42;0.74;0.58;0.66;0.42"
+                />
+                <animate
+                  attributeName="stroke-width"
+                  dur="3.4s"
+                  repeatCount="indefinite"
+                  values="2;3.1;2.45;2.8;2"
+                />
+              </path>
+              <path
+                d="M20 24 C42 7 66 5 84 15 C91 20 92 30 88 39"
+                fill="none"
+                filter="url(#dashboard-header-page-orbit-rail-glow)"
+                opacity="0"
+                stroke="var(--dashboard-header-journey-motion, rgba(236,254,255,0.92))"
+                strokeDasharray="1 112"
+                strokeLinecap="round"
+                strokeWidth="2.4"
+              >
+                <animate
+                  attributeName="stroke-dasharray"
+                  dur="2.1s"
+                  repeatCount="indefinite"
+                  values="1 112;10 102;18 94;1 112"
+                />
+                <animate
+                  attributeName="stroke-dashoffset"
+                  dur="2.1s"
+                  repeatCount="indefinite"
+                  values={railDashOffsetValues}
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="2.1s"
+                  repeatCount="indefinite"
+                  values="0;0.2;0.38;0"
+                />
+              </path>
+              <path
+                d="M20 24 C42 7 66 5 84 15 C91 20 92 30 88 39"
+                fill="none"
+                opacity="0"
+                stroke="var(--dashboard-header-journey-circle, rgba(34,211,238,0.56))"
+                strokeDasharray="1 116"
+                strokeLinecap="round"
+                strokeWidth="1.5"
+              >
+                <animate
+                  attributeName="stroke-dasharray"
+                  begin="0.55s"
+                  dur="2.6s"
+                  repeatCount="indefinite"
+                  values="1 116;8 108;15 101;1 116"
+                />
+                <animate
+                  attributeName="stroke-dashoffset"
+                  begin="0.55s"
+                  dur="2.6s"
+                  repeatCount="indefinite"
+                  values={isDashboardHeaderVortexCounter ? "0;108" : "108;0"}
+                />
+                <animate
+                  attributeName="opacity"
+                  begin="0.55s"
+                  dur="2.6s"
+                  repeatCount="indefinite"
+                  values="0;0.14;0.28;0"
+                />
+              </path>
+              <path
+                d="M84 15 C66 5 42 7 20 24"
+                fill="none"
+                opacity="0"
+                stroke="var(--dashboard-header-journey-motion-alt, rgba(255,255,255,0.82))"
+                strokeDasharray="12 84"
+                strokeLinecap="round"
+                strokeWidth="1.1"
+              >
+                <animate
+                  attributeName="stroke-dashoffset"
+                  dur="2.8s"
+                  repeatCount="indefinite"
+                  values="96;0"
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="2.8s"
+                  repeatCount="indefinite"
+                  values="0;0.42;0"
+                />
+              </path>
+              <circle
+                fill="var(--dashboard-header-journey-motion-alt, rgba(254,240,138,0.96))"
+                r="0.24"
+              >
+                <animateMotion
+                  dur="3.2s"
+                  path={upperRailMotionPath}
+                  repeatCount="indefinite"
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="3.2s"
+                  repeatCount="indefinite"
+                  values="0;0.18;0.42;0"
+                />
+                <animate
+                  attributeName="r"
+                  dur="3.2s"
+                  repeatCount="indefinite"
+                  values="0.18;0.34;0.5;0.18"
+                />
+              </circle>
+              {renderRailParticles(upperRailMotionPath, "above")}
+              {renderRailSparkField("above")}
+            </>
+          ) : null}
+          {hasRailPagesBelow ? (
+            <>
+              <path
+                d="M84 63 C66 79 42 76 20 56"
+                fill="none"
+                filter="url(#dashboard-header-page-orbit-rail-glow)"
+                stroke="url(#dashboard-header-page-orbit-rail-gradient)"
+                strokeLinecap="round"
+                strokeWidth="2.4"
+              >
+                <animate
+                  attributeName="opacity"
+                  dur="3.6s"
+                  repeatCount="indefinite"
+                  values="0.42;0.74;0.58;0.66;0.42"
+                />
+                <animate
+                  attributeName="stroke-width"
+                  dur="3.6s"
+                  repeatCount="indefinite"
+                  values="2;3.1;2.45;2.8;2"
+                />
+              </path>
+              <path
+                d="M20 56 C42 76 66 79 84 63 C91 58 92 48 88 39"
+                fill="none"
+                filter="url(#dashboard-header-page-orbit-rail-glow)"
+                opacity="0"
+                stroke="var(--dashboard-header-journey-motion, rgba(236,254,255,0.92))"
+                strokeDasharray="1 112"
+                strokeLinecap="round"
+                strokeWidth="2.4"
+              >
+                <animate
+                  attributeName="stroke-dasharray"
+                  dur="2.2s"
+                  repeatCount="indefinite"
+                  values="1 112;10 102;18 94;1 112"
+                />
+                <animate
+                  attributeName="stroke-dashoffset"
+                  dur="2.2s"
+                  repeatCount="indefinite"
+                  values={railDashOffsetValues}
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="2.2s"
+                  repeatCount="indefinite"
+                  values="0;0.2;0.38;0"
+                />
+              </path>
+              <path
+                d="M20 56 C42 76 66 79 84 63 C91 58 92 48 88 39"
+                fill="none"
+                opacity="0"
+                stroke="var(--dashboard-header-journey-circle, rgba(34,211,238,0.56))"
+                strokeDasharray="1 116"
+                strokeLinecap="round"
+                strokeWidth="1.5"
+              >
+                <animate
+                  attributeName="stroke-dasharray"
+                  begin="0.6s"
+                  dur="2.7s"
+                  repeatCount="indefinite"
+                  values="1 116;8 108;15 101;1 116"
+                />
+                <animate
+                  attributeName="stroke-dashoffset"
+                  begin="0.6s"
+                  dur="2.7s"
+                  repeatCount="indefinite"
+                  values={isDashboardHeaderVortexCounter ? "0;108" : "108;0"}
+                />
+                <animate
+                  attributeName="opacity"
+                  begin="0.6s"
+                  dur="2.7s"
+                  repeatCount="indefinite"
+                  values="0;0.14;0.28;0"
+                />
+              </path>
+              <path
+                d="M84 63 C66 79 42 76 20 56"
+                fill="none"
+                opacity="0"
+                stroke="var(--dashboard-header-journey-motion-alt, rgba(255,255,255,0.82))"
+                strokeDasharray="12 84"
+                strokeLinecap="round"
+                strokeWidth="1.1"
+              >
+                <animate
+                  attributeName="stroke-dashoffset"
+                  dur="3s"
+                  repeatCount="indefinite"
+                  values="96;0"
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="3s"
+                  repeatCount="indefinite"
+                  values="0;0.42;0"
+                />
+              </path>
+              <circle
+                fill="var(--dashboard-header-journey-motion, rgba(103,232,249,0.96))"
+                r="0.24"
+              >
+                <animateMotion
+                  dur="3.4s"
+                  path={lowerRailMotionPath}
+                  repeatCount="indefinite"
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="3.4s"
+                  repeatCount="indefinite"
+                  values="0;0.18;0.42;0"
+                />
+                <animate
+                  attributeName="r"
+                  dur="3.4s"
+                  repeatCount="indefinite"
+                  values="0.18;0.34;0.5;0.18"
+                />
+              </circle>
+              {renderRailParticles(lowerRailMotionPath, "below")}
+              {renderRailSparkField("below")}
+            </>
+          ) : null}
+          {hasRailPagesAbove || hasRailPagesBelow ? (
+            <g aria-hidden="true">
+              <circle
+                cx="88"
+                cy="39"
+                fill="none"
+                opacity="0.38"
+                r="2.6"
+                stroke="var(--dashboard-header-journey-circle-ring, rgba(207,250,254,0.48))"
+                strokeWidth="1"
+              >
+                <animate
+                  attributeName="r"
+                  dur="2.2s"
+                  repeatCount="indefinite"
+                  values="2.2;4.2;2.2"
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="2.2s"
+                  repeatCount="indefinite"
+                  values="0.16;0.48;0.16"
+                />
+              </circle>
+              <circle
+                cx="88"
+                cy="39"
+                fill="var(--dashboard-header-journey-circle, rgba(34,211,238,0.74))"
+                opacity="0.58"
+                r="1.1"
+              >
+                <animate
+                  attributeName="r"
+                  dur="1.7s"
+                  repeatCount="indefinite"
+                  values="0.8;1.7;0.8"
+                />
+                <animate
+                  attributeName="opacity"
+                  dur="1.7s"
+                  repeatCount="indefinite"
+                  values="0.32;0.68;0.32"
+                />
+              </circle>
+            </g>
+          ) : null}
+        </svg>
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute left-[0.85rem] top-1/2 h-[4.25rem] w-[4.85rem] -translate-y-1/2 rounded-full opacity-[0.46] blur-md"
+          style={{
+            background:
+              "radial-gradient(ellipse at 78% 50%, var(--dashboard-header-journey-circle-soft, rgba(34,211,238,0.14)), transparent 46%), radial-gradient(ellipse at 24% 24%, var(--dashboard-header-journey-motion-alt, rgba(250,204,21,0.10)), transparent 36%), radial-gradient(ellipse at 24% 76%, var(--dashboard-header-journey-halo-soft, rgba(244,114,182,0.08)), transparent 36%)",
+          }}
+        />
+        {railSteps.map(({ distance, step, stepIndex }) => {
+          const clampedDistance = Math.max(-2, Math.min(2, distance));
+          const slot = headerRailSlots[clampedDistance];
+          const stepCompletion = getDashboardJourneyStepCompletion(step);
+          const stepUrgencyTone = getDashboardRowUrgencyTone(stepCompletion);
+          const pageTone =
+            dashboardJourneyTabIconOnlyStyles[
+              getDashboardJourneyStepTone(step, stepIndex)
+            ].idle;
+
+          if (!slot) return null;
+
+          return (
+            <Link
+              aria-label={`${step.label} journey rail page, ${stepUrgencyTone.label}`}
+              className="pointer-events-auto absolute grid h-6 w-6 place-items-center overflow-hidden rounded-full border border-white/12 bg-slate-950/58 shadow-[0_0_14px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:scale-110 hover:border-cyan-100/38 hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/55 active:scale-95"
+              draggable={false}
+              href={step.href}
+              key={`${activeDashboardHeaderLink.label}-${step.label}-dashboard-header-page-rail`}
+              onClick={() => {
+                setActiveDashboardJourneyStepIndexes((currentIndexes) => ({
+                  ...currentIndexes,
+                  [card.title]: stepIndex,
+                }));
+                markDashboardDestinationVisited(step.href);
+              }}
+              onDragStart={(event) => event.preventDefault()}
+              style={{
+                left: `${slot.x}px`,
+                opacity: slot.opacity,
+                top: `${slot.y}px`,
+                transform: `translate(-50%, -50%) rotate(${slot.rotate}deg) scale(${slot.scale})`,
+                zIndex: slot.zIndex,
+              }}
+              title={step.label}
+            >
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_48%,rgba(34,211,238,0.10),rgba(2,6,23,0.72)_72%)]"
+              />
+              {renderDashboardHeaderJourneyStepIcon(
+                step,
+                `relative z-10 h-3 w-3 ${pageTone}`,
+              )}
+            </Link>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderDashboardHeaderJourneyTabs = (
+    placement: "header" | "points" = "header",
+  ) => {
     const { activeJourneyStepIndex, card, journeySteps } =
       getDashboardHeaderJourneyState();
     const canRotateJourney = Boolean(card && journeySteps.length > 1);
+    const isPointsDock = placement === "points";
+    const pointsDockEffectStyle = isPointsDock
+      ? activeDashboardHeaderTone.iconEffectStyle
+      : undefined;
 
     return (
       <div
         aria-label={`${activeDashboardHeaderLink.label} journey tabs`}
-        className="relative h-[62px] w-[62px] shrink-0 overflow-visible py-3 [perspective:390px]"
+        className={
+          isPointsDock
+            ? "relative h-8 w-[3.25rem] shrink-0 overflow-visible [perspective:390px]"
+            : "relative h-[62px] w-[62px] shrink-0 overflow-visible py-3 [perspective:390px]"
+        }
       >
-        {canRotateJourney ? (
+        {canRotateJourney && !isPointsDock ? (
           <div
             aria-label={`${activeDashboardHeaderLink.label} journey scroll controls`}
             className="absolute right-0 top-1/2 z-40 flex h-9 w-5 -translate-y-1/2 flex-col overflow-hidden rounded-full border border-cyan-200/18 bg-slate-950/58 text-[8px] font-black leading-none text-cyan-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
@@ -5312,10 +7640,16 @@ export default function UserHomeDashboardPage() {
               v
             </button>
           </div>
-        ) : (
+        ) : !isPointsDock ? (
           <span aria-hidden="true" className="absolute right-0 top-1/2 h-9 w-5 -translate-y-1/2" />
-        )}
-        <div className="absolute inset-y-4 left-5 w-9 -translate-x-1/2 [transform-style:preserve-3d]">
+        ) : null}
+        <div
+          className={
+            isPointsDock
+              ? "absolute -top-1 left-1/2 h-9 w-9 -translate-x-1/2 overflow-visible rounded-full [transform-style:preserve-3d]"
+              : "absolute inset-y-4 left-5 w-9 -translate-x-1/2 [transform-style:preserve-3d]"
+          }
+        >
           {journeySteps.map((step, stepIndex) => {
             const journeyDistance = getDashboardJourneyStepOrbitDistance(
               stepIndex,
@@ -5323,13 +7657,17 @@ export default function UserHomeDashboardPage() {
               journeySteps.length,
             );
             const isActiveJourneyStep = journeyDistance === 0;
+            if (isPointsDock && !isActiveJourneyStep) return null;
+
             const stepCompletion = getDashboardJourneyStepCompletion(step);
             const stepUrgencyTone = getDashboardRowUrgencyTone(stepCompletion);
-            const stepIconTone = getDashboardJourneyStepIconTone(
-              step,
-              isActiveJourneyStep,
-              stepIndex,
-            );
+            const journeyTone = isPointsDock
+              ? activeDashboardHeaderLink.toneKey
+              : getDashboardJourneyStepTone(step, stepIndex);
+            const stepIconTone =
+              dashboardJourneyTabIconOnlyStyles[journeyTone][
+                isActiveJourneyStep ? "active" : "idle"
+              ];
             const journeyAbsDistance = Math.abs(journeyDistance);
             const journeyDirection = Math.sign(journeyDistance);
             const journeySlots = [
@@ -5337,16 +7675,16 @@ export default function UserHomeDashboardPage() {
                 blur: 0,
                 opacity: 1,
                 rotateX: 0,
-                scale: 1.22,
+                scale: isPointsDock ? 1.12 : 1.22,
                 y: 0,
                 zIndex: 32,
               },
               {
                 blur: 0.15,
-                opacity: 0.9,
+                opacity: isPointsDock ? 0.64 : 0.9,
                 rotateX: -34,
-                scale: 0.96,
-                y: 20,
+                scale: isPointsDock ? 0.78 : 0.96,
+                y: isPointsDock ? 16 : 20,
                 zIndex: 22,
               },
               {
@@ -5354,7 +7692,7 @@ export default function UserHomeDashboardPage() {
                 opacity: 0,
                 rotateX: -54,
                 scale: 0.76,
-                y: 32,
+                y: isPointsDock ? 27 : 32,
                 zIndex: 12,
               },
             ];
@@ -5362,15 +7700,26 @@ export default function UserHomeDashboardPage() {
               journeySlots[
                 Math.min(journeyAbsDistance, journeySlots.length - 1)
               ];
+            const activeJourneyOrbStyle: CSSProperties | undefined =
+              isActiveJourneyStep
+                ? {
+                    background:
+                      "radial-gradient(circle at 50% 48%, rgba(255,255,255,0.30), transparent 17%), radial-gradient(circle at 50% 44%, var(--dashboard-header-journey-circle, rgba(34,211,238,0.34)), var(--dashboard-header-journey-circle-soft, rgba(34,211,238,0.18)) 48%, rgba(2,6,23,0.44) 74%)",
+                    boxShadow:
+                      "0 0 16px var(--dashboard-header-journey-shadow, rgba(34,211,238,0.30)), inset 0 0 0 1px var(--dashboard-header-journey-circle-ring, rgba(207,250,254,0.20))",
+                    overflow: "hidden",
+                    transformStyle: "preserve-3d",
+                  }
+                : undefined;
 
             return (
               <Link
                 aria-current={isActiveJourneyStep ? "step" : undefined}
                 aria-label={`${step.label} journey tab, ${stepUrgencyTone.label}`}
-                className={`absolute left-1/2 top-1/2 grid h-6 w-6 place-items-center rounded-full border ring-1 ring-white/10 transition-[border-color,background-color,box-shadow,filter,opacity,transform] duration-300 hover:-translate-y-0.5 hover:brightness-125 active:scale-95 ${
+                className={`dashboard-header-journey-tab absolute left-1/2 top-1/2 isolate grid h-7 w-7 place-items-center overflow-visible rounded-full bg-transparent text-cyan-100 transition-[filter,opacity,transform,color] duration-300 hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/55 active:scale-95 ${
                   isActiveJourneyStep
-                    ? `${stepIconTone} ring-white/20`
-                    : `${stepIconTone} hover:ring-cyan-100/24`
+                    ? "dashboard-header-journey-tab--active"
+                    : ""
                 }`}
                 href={step.href}
                 key={`${activeDashboardHeaderLink.label}-${step.label}-header-journey`}
@@ -5384,11 +7733,16 @@ export default function UserHomeDashboardPage() {
                   markDashboardDestinationVisited(step.href);
                 }}
                 style={{
+                  ...(isActiveJourneyStep && pointsDockEffectStyle
+                    ? pointsDockEffectStyle
+                    : {}),
+                  ...(activeJourneyOrbStyle ?? {}),
                   filter: `blur(${journeySlot.blur}px)`,
                   opacity: journeySlot.opacity,
                   pointerEvents: journeyAbsDistance > 1 ? "none" : "auto",
                   transform: `translate(-50%, -50%) translateY(${
-                    journeyDirection * journeySlot.y
+                    (isPointsDock ? -journeyDirection : journeyDirection) *
+                    journeySlot.y
                   }px) scale(${
                     journeySlot.scale
                   }) rotateX(${journeyDirection * journeySlot.rotateX}deg)`,
@@ -5396,21 +7750,356 @@ export default function UserHomeDashboardPage() {
                 }}
                 title={step.label}
               >
+                {isActiveJourneyStep ? (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className="dashboard-header-journey-tab__halo"
+                      style={{
+                        filter: "blur(4px)",
+                        inset: "-0.12rem",
+                        zIndex: 0,
+                      }}
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="dashboard-header-journey-tab__motion"
+                      style={{
+                        inset: "-0.06rem",
+                        opacity: 0.92,
+                        zIndex: 0,
+                      }}
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="dashboard-header-journey-tab__core"
+                      style={{
+                        inset: "0.16rem",
+                        zIndex: 1,
+                      }}
+                    />
+                  </>
+                ) : null}
                 <span className="sr-only">{step.label}</span>
-                <DashboardTabIcon
+                <span
                   className={
                     isActiveJourneyStep
-                      ? "h-3.5 w-3.5 drop-shadow-[0_0_8px_rgba(255,255,255,0.30)]"
-                      : "h-3 w-3 drop-shadow-[0_0_7px_rgba(255,255,255,0.24)]"
+                      ? "dashboard-header-journey-tab__float relative z-10 grid h-full w-full place-items-center rounded-full"
+                      : "relative z-10 grid place-items-center"
                   }
-                  label={step.label}
-                  name={step.icon}
-                />
+                >
+                  {renderDashboardHeaderJourneyStepIcon(
+                    step,
+                    isActiveJourneyStep
+                      ? `h-4 w-4 ${stepIconTone}`
+                      : `h-3.5 w-3.5 ${stepIconTone}`,
+                  )}
+                </span>
               </Link>
             );
           })}
         </div>
       </div>
+    );
+  };
+
+  const renderDashboardHeaderScrollControls = () => {
+    const {
+      activeJourneyStepIndex: headerJoystickJourneyStepIndex,
+      card: headerJoystickJourneyCard,
+      journeySteps: headerJoystickJourneySteps,
+    } = getDashboardHeaderJourneyState();
+    const canHeaderJoystickScrollUp = Boolean(
+      headerJoystickJourneyCard &&
+        headerJoystickJourneySteps.length > 1 &&
+        headerJoystickJourneyStepIndex > 0,
+    );
+    const canHeaderJoystickScrollDown = Boolean(
+      headerJoystickJourneyCard &&
+        headerJoystickJourneySteps.length > 1 &&
+        headerJoystickJourneyStepIndex < headerJoystickJourneySteps.length - 1,
+    );
+    const scrollButtonTiltX =
+      dashboardHeaderScrollButtonActiveDirection === "up"
+        ? "-22deg"
+        : dashboardHeaderScrollButtonActiveDirection === "down"
+          ? "22deg"
+          : "10deg";
+    const scrollButtonTiltY =
+      dashboardHeaderScrollButtonActiveDirection === "left"
+        ? "-22deg"
+        : dashboardHeaderScrollButtonActiveDirection === "right"
+          ? "22deg"
+          : "0deg";
+
+    return (
+      <button
+        aria-label="Scroll dashboard selector"
+        className={`dashboard-header-scroll-button relative z-10 grid h-[3.35rem] w-[3.35rem] shrink-0 place-items-center overflow-hidden rounded-[24px] border border-cyan-100/16 bg-slate-950/26 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-y-0.5 hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:420px] [touch-action:none] ${
+          dashboardHeaderScrollButtonDragging
+            ? "dashboard-header-scroll-button--dragging cursor-grabbing border-amber-100/44 bg-amber-300/10"
+            : "cursor-pointer"
+        } ${
+          dashboardHeaderScrollButtonActiveDirection
+            ? `dashboard-header-scroll-button--${dashboardHeaderScrollButtonActiveDirection}`
+            : ""
+        }`}
+        data-dashboard-header-scroll-button="true"
+        onClick={(event) => {
+          if (dashboardHeaderScrollButtonPointerMovedRef.current) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+
+          runDashboardHeaderScrollButtonDirection("right");
+        }}
+        onBlur={resetDashboardHeaderScrollButtonDrag}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            runDashboardHeaderScrollButtonDirection("up");
+          }
+
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            runDashboardHeaderScrollButtonDirection("left");
+          }
+
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            runDashboardHeaderScrollButtonDirection("right");
+          }
+
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            runDashboardHeaderScrollButtonDirection("down");
+          }
+        }}
+        onLostPointerCapture={handleDashboardHeaderScrollButtonPointerEnd}
+        onPointerCancel={handleDashboardHeaderScrollButtonPointerEnd}
+        onPointerDown={handleDashboardHeaderScrollButtonPointerDown}
+        onPointerLeave={(event) => {
+          if (dashboardHeaderScrollButtonDragging && event.buttons === 0) {
+            handleDashboardHeaderScrollButtonPointerEnd(event);
+          }
+        }}
+        onPointerMove={handleDashboardHeaderScrollButtonPointerMove}
+        onPointerUp={handleDashboardHeaderScrollButtonPointerEnd}
+        onWheel={handleDashboardHeaderScrollButtonWheel}
+        style={
+          {
+            ...activeDashboardHeaderTone.iconEffectStyle,
+            ...dashboardHeaderScrollButtonPreviewTone,
+            "--dashboard-header-scroll-button-roll": `${dashboardHeaderScrollButtonRoll}deg`,
+            "--dashboard-header-scroll-button-tilt-x": scrollButtonTiltX,
+            "--dashboard-header-scroll-button-tilt-y": scrollButtonTiltY,
+            "--dashboard-analog-offset-x": `${dashboardHeaderAnalogOffset.x}px`,
+            "--dashboard-analog-offset-y": `${dashboardHeaderAnalogOffset.y}px`,
+          } as CSSProperties
+        }
+        title="Scroll dashboard selector"
+        type="button"
+      >
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__field"
+        />
+        {canHeaderJoystickScrollUp ? (
+          <span
+            aria-hidden="true"
+            className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--up"
+          >
+            ^
+          </span>
+        ) : null}
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--left"
+        >
+          &lt;
+        </span>
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__ball"
+          style={{
+            background:
+              "radial-gradient(circle at 34% 26%, rgba(255,255,255,0.78), transparent 18%), radial-gradient(circle at 42% 38%, rgba(255,255,255,0.24), transparent 28%), radial-gradient(circle at 50% 52%, var(--dashboard-header-scroll-preview-core, rgba(34,211,238,0.90)), transparent 24%), radial-gradient(circle at 50% 52%, var(--dashboard-header-scroll-preview-core-soft, rgba(14,165,233,0.34)), transparent 50%), radial-gradient(circle at 62% 72%, var(--dashboard-header-scroll-preview-accent, rgba(34,211,238,0.44)), transparent 34%), conic-gradient(from 20deg, rgba(8,47,73,0.98), var(--dashboard-header-scroll-preview-accent, rgba(34,211,238,0.62)), var(--dashboard-header-scroll-preview-core, rgba(250,204,21,0.62)), rgba(15,23,42,0.96), rgba(8,47,73,0.98))",
+            borderColor:
+              "var(--dashboard-header-scroll-preview-ring, rgba(207,250,254,0.28))",
+            boxShadow:
+              "0 0 18px var(--dashboard-header-scroll-preview-shadow, rgba(34,211,238,0.22)), 0 8px 18px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -10px 16px rgba(2,6,23,0.48)",
+          }}
+        >
+          <span className="dashboard-header-scroll-button__grid" />
+          <span className="dashboard-header-scroll-button__latitudes" />
+          <span
+            className="dashboard-header-scroll-button__core"
+            style={{
+              background:
+                "radial-gradient(circle at 50% 45%, rgba(255,255,255,0.88) 0 0.12rem, transparent 0.14rem), radial-gradient(circle, var(--dashboard-header-scroll-preview-core, rgba(34,211,238,0.92)), transparent 62%), conic-gradient(from 180deg, var(--dashboard-header-scroll-preview-core, rgba(250,204,21,0.88)), var(--dashboard-header-scroll-preview-accent, rgba(34,211,238,0.82)), var(--dashboard-header-scroll-preview-core-soft, rgba(99,102,241,0.56)), var(--dashboard-header-scroll-preview-core, rgba(250,204,21,0.88)))",
+              borderColor:
+                "var(--dashboard-header-scroll-preview-ring, rgba(255,255,255,0.36))",
+              boxShadow:
+                "0 0 12px var(--dashboard-header-scroll-preview-shadow, rgba(250,204,21,0.46)), 0 0 18px var(--dashboard-header-scroll-preview-core, rgba(34,211,238,0.32)), inset 0 1px 0 rgba(255,255,255,0.44)",
+            }}
+          />
+          <span
+            className="dashboard-header-scroll-button__spark"
+            style={{
+              background:
+                "var(--dashboard-header-scroll-preview-core, rgba(250,204,21,0.92))",
+              boxShadow:
+                "0 0 10px var(--dashboard-header-scroll-preview-shadow, rgba(250,204,21,0.85)), 0 0 18px var(--dashboard-header-scroll-preview-accent, rgba(34,211,238,0.36))",
+            }}
+          />
+        </span>
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--right"
+        >
+          &gt;
+        </span>
+        {canHeaderJoystickScrollDown ? (
+          <span
+            aria-hidden="true"
+            className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--down"
+          >
+            v
+          </span>
+        ) : null}
+      </button>
+    );
+  };
+
+  const renderDashboardPageAnalog = () => {
+    const canPageJoystickScrollUp = clampedDashboardOrbiterRow > 0;
+    const canPageJoystickScrollDown =
+      clampedDashboardOrbiterRow < dashboardOrbiterRows.length - 1;
+    const pageAnalogTiltX =
+      dashboardPageAnalogActiveDirection === "up"
+        ? "-22deg"
+        : dashboardPageAnalogActiveDirection === "down"
+          ? "22deg"
+          : "10deg";
+    const pageAnalogTiltY =
+      dashboardPageAnalogActiveDirection === "left"
+        ? "-22deg"
+        : dashboardPageAnalogActiveDirection === "right"
+          ? "22deg"
+          : "0deg";
+
+    return (
+      <button
+        aria-label="Scroll dashboard page rows"
+        className={`dashboard-header-scroll-button dashboard-header-scroll-button--page relative z-10 grid h-[3.35rem] w-[3.35rem] shrink-0 place-items-center overflow-hidden rounded-[24px] border border-cyan-100/16 bg-slate-950/26 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-y-0.5 hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:420px] [touch-action:none] ${
+          dashboardPageAnalogDragging
+            ? "dashboard-header-scroll-button--dragging cursor-grabbing border-amber-100/44 bg-amber-300/10"
+            : "cursor-pointer"
+        } ${
+          dashboardPageAnalogActiveDirection
+            ? `dashboard-header-scroll-button--${dashboardPageAnalogActiveDirection}`
+            : ""
+        }`}
+        data-dashboard-page-analog="true"
+        onClick={(event) => {
+          if (dashboardPageAnalogPointerMovedRef.current) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+
+          runDashboardPageAnalogDirection("right");
+        }}
+        onBlur={resetDashboardPageAnalogDrag}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowUp") {
+            event.preventDefault();
+            runDashboardPageAnalogDirection("up");
+          }
+
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            runDashboardPageAnalogDirection("left");
+          }
+
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            runDashboardPageAnalogDirection("right");
+          }
+
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            runDashboardPageAnalogDirection("down");
+          }
+        }}
+        onLostPointerCapture={handleDashboardPageAnalogPointerEnd}
+        onPointerCancel={handleDashboardPageAnalogPointerEnd}
+        onPointerDown={handleDashboardPageAnalogPointerDown}
+        onPointerLeave={(event) => {
+          if (dashboardPageAnalogDragging && event.buttons === 0) {
+            handleDashboardPageAnalogPointerEnd(event);
+          }
+        }}
+        onPointerMove={handleDashboardPageAnalogPointerMove}
+        onPointerUp={handleDashboardPageAnalogPointerEnd}
+        onWheel={handleDashboardPageAnalogWheel}
+        style={
+          {
+            ...activeDashboardHeaderTone.iconEffectStyle,
+            ...dashboardHeaderActiveScrollButtonTone,
+            "--dashboard-header-scroll-button-roll": `${dashboardPageAnalogRoll}deg`,
+            "--dashboard-header-scroll-button-tilt-x": pageAnalogTiltX,
+            "--dashboard-header-scroll-button-tilt-y": pageAnalogTiltY,
+            "--dashboard-analog-offset-x": `${dashboardPageAnalogOffset.x}px`,
+            "--dashboard-analog-offset-y": `${dashboardPageAnalogOffset.y}px`,
+          } as CSSProperties
+        }
+        title="Scroll dashboard page rows"
+        type="button"
+      >
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__field"
+        />
+        {canPageJoystickScrollUp ? (
+          <span
+            aria-hidden="true"
+            className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--up"
+          >
+            ^
+          </span>
+        ) : null}
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--left"
+        >
+          &lt;
+        </span>
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__ball"
+        >
+          <span className="dashboard-header-scroll-button__grid" />
+          <span className="dashboard-header-scroll-button__latitudes" />
+          <span className="dashboard-header-scroll-button__core" />
+          <span className="dashboard-header-scroll-button__spark" />
+        </span>
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--right"
+        >
+          &gt;
+        </span>
+        {canPageJoystickScrollDown ? (
+          <span
+            aria-hidden="true"
+            className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--down"
+          >
+            v
+          </span>
+        ) : null}
+      </button>
     );
   };
 
@@ -5483,7 +8172,7 @@ export default function UserHomeDashboardPage() {
         </div>
 
         <div
-          aria-label={`${dashboardJourneyPanelTitle} urgency indicators`}
+          aria-label={`${dashboardJourneyPanelTitle} journey selectors`}
           className="relative mb-0.5 h-8 max-w-full overflow-visible px-1 [perspective:680px]"
         >
           {steps.map((step, stepIndex) => {
@@ -5503,8 +8192,6 @@ export default function UserHomeDashboardPage() {
             const journeyAbsDistance = Math.abs(clampedDistance);
             const journeyDirection = Math.sign(clampedDistance);
             const isActiveJourneyStep = journeyDistance === 0;
-            const stepCompletion = getDashboardJourneyStepCompletion(step);
-            const stepUrgencyTone = getDashboardRowUrgencyTone(stepCompletion);
             const stepIconTone = getDashboardJourneyStepIconTone(
               step,
               isActiveJourneyStep,
@@ -5532,7 +8219,7 @@ export default function UserHomeDashboardPage() {
 
             return (
               <button
-                aria-label={`Show ${step.label} journey card, ${stepUrgencyTone.label}`}
+                aria-label={`Show ${step.label} journey card`}
                 aria-pressed={isActiveJourneyStep}
                 className={`absolute left-1/2 top-1/2 isolate flex h-6 w-6 items-center justify-center overflow-visible rounded-full border text-left shadow-[0_12px_28px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-xl transition-[border-color,background-color,box-shadow,filter] duration-300 hover:-translate-y-0.5 hover:saturate-150 active:scale-95 ${
                   isActiveJourneyStep
@@ -5557,7 +8244,7 @@ export default function UserHomeDashboardPage() {
                     "transform 520ms cubic-bezier(0.2,0.82,0.2,1), opacity 260ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease",
                   zIndex: 30 - journeyAbsDistance,
                 }}
-                title={`${step.label} - ${stepUrgencyTone.label}`}
+                title={step.label}
                 type="button"
               >
                 <span className="sr-only">{step.label}</span>
@@ -5567,10 +8254,6 @@ export default function UserHomeDashboardPage() {
                   }`}
                   label={step.label}
                   name={step.icon}
-                />
-                <span
-                  aria-hidden="true"
-                  className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-1 ring-slate-950/80 ${stepUrgencyTone.dot}`}
                 />
               </button>
             );
@@ -5734,7 +8417,7 @@ export default function UserHomeDashboardPage() {
   }) => (
     <div
       data-dashboard-orbiter-row={rowIndex}
-      className={`relative min-h-0 w-full overflow-hidden px-10 pt-20 transition-opacity duration-300 sm:px-12 sm:pt-24 lg:pt-28 ${
+      className={`relative min-h-0 w-full overflow-hidden pl-24 pr-10 pt-20 transition-opacity duration-300 sm:pl-28 sm:pr-12 sm:pt-24 lg:pt-28 ${
         clampedDashboardOrbiterRow === rowIndex
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
@@ -5742,7 +8425,7 @@ export default function UserHomeDashboardPage() {
     >
       <button
         aria-label={`Previous ${title}`}
-        className="absolute left-2 top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 hover:shadow-[0_0_38px_rgba(250,204,21,0.18)] active:scale-95 sm:left-4 sm:h-14 sm:w-14 sm:text-3xl lg:left-6 xl:left-8"
+        className="absolute left-[5.75rem] top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 hover:shadow-[0_0_38px_rgba(250,204,21,0.18)] active:scale-95 sm:left-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:left-[6.75rem] xl:left-[7.25rem]"
         onClick={() => rotateOrbit("left")}
         type="button"
       >
@@ -5750,7 +8433,7 @@ export default function UserHomeDashboardPage() {
       </button>
       <button
         aria-label={`Next ${title}`}
-        className="absolute right-[5.75rem] top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 hover:shadow-[0_0_38px_rgba(250,204,21,0.18)] active:scale-95 sm:right-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:right-[6.75rem] xl:right-[7.25rem]"
+        className="absolute right-2 top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 hover:shadow-[0_0_38px_rgba(250,204,21,0.18)] active:scale-95 sm:right-4 sm:h-14 sm:w-14 sm:text-3xl lg:right-6 xl:right-8"
         onClick={() => rotateOrbit("right")}
         type="button"
       >
@@ -5864,10 +8547,12 @@ export default function UserHomeDashboardPage() {
               }}
               tabIndex={0}
             >
-              <span
-                aria-hidden="true"
-                className="dashboard-orbit-card__effect"
-              />
+              {isActive ? (
+                <span
+                  aria-hidden="true"
+                  className="dashboard-orbit-card__effect"
+                />
+              ) : null}
               <span
                 className={`absolute left-6 right-6 top-0 z-10 h-[2px] rounded-full ${tone.line}`}
               />
@@ -5933,18 +8618,21 @@ export default function UserHomeDashboardPage() {
 
     return (
     <div className="pointer-events-none absolute inset-x-0 top-[118px] z-[70] px-3 sm:top-[122px] sm:px-5 lg:top-[126px] lg:px-8">
-      <section className="pointer-events-auto mx-auto max-w-[1280px] overflow-hidden rounded-[22px] border border-white/12 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.18),transparent_32%),radial-gradient(circle_at_88%_16%,rgba(250,204,21,0.11),transparent_28%),linear-gradient(135deg,rgba(15,23,42,0.72),rgba(2,6,23,0.58))] p-2.5 shadow-[0_18px_60px_rgba(0,0,0,0.30),0_0_28px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl sm:p-3">
-        <div className="flex flex-col gap-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
-          <div className="flex min-w-0 items-center gap-2 min-[760px]:max-w-[360px] min-[1040px]:max-w-[500px]">
-            <span
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-[18px] border border-cyan-200/22 bg-cyan-300/12 text-xs font-black text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.12)]"
-              aria-hidden="true"
-            >
-              <DashboardTabIcon
-                label={dashboardFloatingSnapshotIconLabel}
-                name={dashboardFloatingSnapshotIcon}
-              />
-            </span>
+      <section className="pointer-events-auto relative mx-auto max-w-[1280px] overflow-visible px-1 py-2 sm:px-2 sm:py-3">
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -left-8 top-0 h-28 w-[min(46rem,72vw)] rounded-full bg-[radial-gradient(ellipse_at_18%_42%,rgba(34,211,238,0.30),rgba(14,165,233,0.14)_34%,transparent_72%)] blur-2xl"
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute left-4 top-2 h-px w-[min(34rem,70vw)] bg-gradient-to-r from-cyan-200/75 via-amber-200/28 to-transparent shadow-[0_0_18px_rgba(34,211,238,0.38)]"
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute left-0 top-10 h-16 w-[min(32rem,68vw)] bg-[linear-gradient(90deg,rgba(34,211,238,0.10),rgba(15,23,42,0.03),transparent)] blur-xl"
+        />
+        <div className="relative z-10 flex flex-col gap-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
+          <div className="min-w-0 min-[760px]:max-w-[390px] min-[1040px]:max-w-[540px]">
             <div className="min-w-0">
               {clampedDashboardOrbiterRow === 0 ? null : (
                 <div
@@ -5970,10 +8658,13 @@ export default function UserHomeDashboardPage() {
                   {dashboardFloatingSnapshotTitle}
                 </h2>
               )}
+              <p className="mt-0.5 line-clamp-1 text-[11px] font-semibold leading-4 text-slate-400">
+                {dashboardFloatingSnapshotDescription}
+              </p>
               {dashboardFloatingSnapshotRowCards.length ? (
                 <div
                   aria-label={`${dashboardFloatingSnapshotEyebrow} card orbit`}
-                  className="relative mt-1.5 h-9 w-[300px] max-w-full overflow-visible [perspective:760px] sm:w-[340px]"
+                  className="relative mt-1 h-9 w-[300px] max-w-full overflow-visible [perspective:760px] sm:w-[340px]"
                 >
                   {dashboardFloatingSnapshotRowCards.map((card, cardIndex) => {
                     const activeCardIndex =
@@ -6058,13 +8749,14 @@ export default function UserHomeDashboardPage() {
                   })}
                 </div>
               ) : null}
-              <p className="mt-0.5 line-clamp-1 text-[11px] font-semibold leading-4 text-slate-400">
-                {dashboardFloatingSnapshotDescription}
-              </p>
             </div>
           </div>
 
-          <div className="relative min-h-[108px] min-w-0 flex-1 overflow-visible [perspective:780px] min-[760px]:max-w-[250px] min-[1040px]:max-w-[280px]">
+          <div className="dashboard-constellation-orbit relative min-h-[108px] min-w-0 flex-1 overflow-visible [perspective:780px] min-[760px]:max-w-[250px] min-[1040px]:max-w-[280px]">
+            <span
+              aria-hidden="true"
+              className="dashboard-constellation-orbit__field"
+            />
             <div
               aria-live="polite"
               className="sr-only"
@@ -6111,9 +8803,9 @@ export default function UserHomeDashboardPage() {
                   <button
                     aria-label={`Show ${metric.label} metric, ${metric.value}, ${metricUrgencyTone.label}`}
                     aria-pressed={isActive}
-                    className={`absolute left-1/2 top-1/2 flex h-10 items-center justify-between gap-3 rounded-2xl border px-3 text-left shadow-[0_16px_42px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl transition-[width,border-color,background-color,box-shadow] duration-300 ${
+                    className={`dashboard-constellation-metric group absolute left-1/2 top-1/2 isolate flex h-10 items-center justify-between gap-3 overflow-visible rounded-2xl border px-3 text-left shadow-[0_16px_42px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl transition-[width,border-color,background-color,box-shadow,filter] duration-300 ${
                       isActive
-                        ? `${dashboardIconToneStyles[metricTone].active} w-[208px]`
+                        ? `dashboard-constellation-metric--active ${dashboardIconToneStyles[metricTone].active} w-[208px]`
                         : `${dashboardIconToneStyles[metricTone].idle} w-[174px] hover:brightness-125`
                     }`}
                     key={`${dashboardFloatingSnapshotTitle}-${metric.label}`}
@@ -6133,9 +8825,21 @@ export default function UserHomeDashboardPage() {
                   >
                     <span
                       aria-hidden="true"
-                      className={`absolute inset-x-5 top-0 h-px rounded-full ${dashboardToneStyles[metricTone].line}`}
+                      className="dashboard-constellation-metric__zoom"
                     />
-                    <span className="min-w-0">
+                    <span
+                      aria-hidden="true"
+                      className="dashboard-constellation-metric__lines"
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="dashboard-constellation-metric__stars"
+                    />
+                    <span
+                      aria-hidden="true"
+                      className={`absolute inset-x-5 top-0 z-10 h-px rounded-full ${dashboardToneStyles[metricTone].line}`}
+                    />
+                    <span className="relative z-10 min-w-0">
                       <span className="block truncate text-[7px] font-black uppercase tracking-[0.14em] text-slate-300/80">
                         {metric.label}
                       </span>
@@ -6145,7 +8849,7 @@ export default function UserHomeDashboardPage() {
                     </span>
                     <span
                       aria-hidden="true"
-                      className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border bg-slate-950/72 text-[7px] font-black leading-none text-slate-950 ring-1 ring-white/10 ${
+                      className={`relative z-10 grid h-4 w-4 shrink-0 place-items-center rounded-full border bg-slate-950/72 text-[7px] font-black leading-none text-slate-950 ring-1 ring-white/10 ${
                         isActive
                           ? `${metricUrgencyTone.ring} ${metricUrgencyTone.text}`
                           : "border-white/10 text-slate-500"
@@ -6605,81 +9309,113 @@ export default function UserHomeDashboardPage() {
   };
 
   const renderDashboardOrbiterTopMenu = () => (
-    <div className="sticky top-0 z-[120] mb-0 w-full overflow-hidden border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl">
+    <div
+      className={`dashboard-header-vortex-shell sticky top-0 z-[120] mb-0 w-full shrink-0 overflow-hidden border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl ${
+        dashboardHeaderVortexMode
+          ? `dashboard-header-vortex-shell--${dashboardHeaderVortexMode}`
+          : ""
+      }`}
+    >
       <span
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/55 to-transparent"
       />
-      <div className="relative mx-auto flex min-h-[88px] w-full max-w-[1840px] items-center gap-4 px-3 py-2.5 sm:px-4 sm:py-3 md:px-6 xl:px-8 2xl:px-10">
+      <div className="relative mx-auto flex min-h-[88px] w-full max-w-[1840px] items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 md:px-6 xl:px-8 2xl:px-10">
         <Link
           aria-label="Open Sound Fitness dashboard"
-          className="flex min-h-[58px] min-w-0 shrink-0 items-center gap-3 rounded-[24px] border border-transparent bg-transparent px-2.5 py-2 transition hover:border-cyan-100/24 hover:bg-cyan-300/8"
+          className="dashboard-header-home-logo relative isolate grid min-h-[58px] w-12 shrink-0 place-items-center overflow-visible rounded-[22px] border border-transparent bg-transparent px-1 py-2 transition hover:border-cyan-100/24 hover:bg-cyan-300/8"
           href={ROUTES.dashboard.home}
+          style={activeDashboardHeaderTone.iconEffectStyle}
+          title="Sound Fitness"
         >
+          <span
+            aria-hidden="true"
+            className="dashboard-header-home-logo__field"
+          />
           <Image
             alt="Sound Fitness"
-            className="h-10 w-10 shrink-0 rounded-full object-contain"
+            className="relative z-10 h-10 w-10 shrink-0 rounded-full object-contain"
             height={40}
             src="/sound-fitness-logo.png"
             width={40}
           />
-          <span className="hidden min-w-0 leading-[0.9] sm:block">
-            <span className="block text-sm font-black uppercase tracking-[0.12em] text-white">
-              Sound
-            </span>
-            <span className="block text-[9px] font-black uppercase tracking-[0.34em] text-cyan-300">
-              Fitness
-            </span>
-          </span>
-          <span className="hidden rounded-full border border-cyan-200/28 bg-cyan-300/10 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.13em] text-cyan-100 lg:inline-flex">
-            Member
-          </span>
         </Link>
-
-        <div className="min-w-0 flex-1" />
 
         <div
           aria-label="Dashboard selector"
-          className="flex w-fit max-w-[calc(100vw-7.5rem)] shrink-0 select-none items-center gap-2 bg-transparent p-0 shadow-none md:max-w-[min(64vw,620px)] lg:max-w-none"
+          className="-ml-4 flex w-fit max-w-[calc(100vw-7.5rem)] shrink-0 select-none items-center gap-2 bg-transparent p-0 shadow-none md:max-w-[min(64vw,620px)] lg:max-w-none"
         >
           <div
-            aria-label="Dashboard scroll controls"
-            className="relative z-10 flex h-12 w-9 translate-x-2 shrink-0 flex-col overflow-hidden rounded-2xl border border-cyan-100/12 bg-slate-950/22 text-[9px] font-black text-cyan-100/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
-            role="group"
-          >
-            <button
-              aria-label="Next dashboard"
-              className="grid min-h-0 flex-1 place-items-center border-b border-white/10 transition hover:border-amber-200/28 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
-              onClick={() => rotateDashboardHeaderRail("right")}
-              title="Next dashboard"
-              type="button"
-            >
-              &gt;
-            </button>
-            <button
-              aria-label="Previous dashboard"
-              className="grid min-h-0 flex-1 place-items-center transition hover:border-amber-200/28 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
-              onClick={() => rotateDashboardHeaderRail("left")}
-              title="Previous dashboard"
-              type="button"
-            >
-              &lt;
-            </button>
-          </div>
-          <div
             aria-label={`${activeDashboardHeaderLink.label} dashboard tab`}
-            className={`flex min-h-[62px] w-auto min-w-max shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-2.5 py-2 text-left text-cyan-50 shadow-none transition ${
+            className={`dashboard-header-orbit-system flex min-h-[62px] w-auto min-w-max shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-1.5 py-2 text-left text-cyan-50 shadow-none transition ${
               dashboardHeaderSlideDirection === "right"
                 ? "animate-[sessions-dashboard-chip-slide-from-right_220ms_ease-out]"
                 : "animate-[sessions-dashboard-chip-slide-from-left_220ms_ease-out]"
+            } ${
+              dashboardHeaderVortexMode
+                ? `dashboard-header-orbit-system--${dashboardHeaderVortexMode}`
+                : ""
             }`}
             key={`${activeDashboardHeaderLink.label}-${dashboardHeaderSlideDirection}`}
             role="group"
           >
-            <div className="flex min-w-[214px] shrink-0 items-center justify-center gap-2">
+            {renderDashboardHeaderScrollControls()}
+            <div className="flex min-w-[226px] shrink-0 items-center justify-center gap-3">
+              <div
+                className="dashboard-header-rail-pocket relative flex h-[4.35rem] min-w-[7.25rem] shrink-0 items-center justify-center text-cyan-100"
+                style={activeDashboardHeaderTone.iconEffectStyle}
+              >
+                <span
+                  aria-hidden="true"
+                  className="dashboard-header-rail-core-field pointer-events-none absolute left-[-2.18rem] top-[-1.02rem] h-[5.05rem] w-[6rem] rounded-[999px]"
+                />
+                {renderDashboardHeaderPageOrbitRail()}
+                <div className="absolute left-[1.55rem] top-[0.08rem] z-20 flex items-center justify-center">
+                  {renderDashboardHeaderJourneyTabs("points")}
+                </div>
+                <Link
+                  aria-label={`Open ${activeDashboardHeaderLink.label}, ${activeDashboardHeaderLink.points.toLocaleString()} points`}
+                  className="dashboard-header-rail-points-core absolute left-[0.78rem] top-[1.3rem] z-[4] inline-flex max-w-[3.9rem] -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 overflow-hidden whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[11px] font-black leading-none tracking-tight text-cyan-50 transition hover:brightness-125 active:scale-95"
+                  draggable={false}
+                  href={activeDashboardHeaderLink.href}
+                  onClick={() =>
+                    markDashboardDestinationVisited(activeDashboardHeaderLink.href)
+                  }
+                  onDragStart={(event) => event.preventDefault()}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="dashboard-header-rail-points-core__vortex"
+                  >
+                    {Array.from({ length: 12 }).map((_, particleIndex) => (
+                      <span
+                        key={`points-vortex-particle-${particleIndex}`}
+                        style={
+                          {
+                            "--dashboard-vortex-particle-angle": `${particleIndex * 30}deg`,
+                            "--dashboard-vortex-particle-delay": `${particleIndex * -0.14}s`,
+                            "--dashboard-vortex-particle-distance": `${0.34 + (particleIndex % 4) * 0.08}rem`,
+                          } as CSSProperties
+                        }
+                      />
+                    ))}
+                  </span>
+                  <DashboardTabIcon
+                    className={`relative z-10 h-3.5 w-3.5 shrink-0 ${activeDashboardHeaderTone.pointsIcon}`}
+                    name="performance"
+                  />
+                  <span className="relative z-10 truncate">
+                    {activeDashboardHeaderLink.points.toLocaleString()}
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="dashboard-header-rail-points-core__spark"
+                  />
+                </Link>
+              </div>
               <Link
-                aria-label={`Open ${activeDashboardHeaderLink.label}, ${activeDashboardHeaderLink.points.toLocaleString()} points`}
-                className="flex items-center gap-3 rounded-xl px-0.5 transition hover:-translate-y-0.5 hover:bg-white/[0.04]"
+                aria-label={`Open ${activeDashboardHeaderLink.label}`}
+                className="block whitespace-nowrap rounded-xl px-1 py-1 transition hover:-translate-y-0.5 hover:bg-white/[0.04]"
                 draggable={false}
                 href={activeDashboardHeaderLink.href}
                 onClick={() =>
@@ -6687,58 +9423,224 @@ export default function UserHomeDashboardPage() {
                 }
                 onDragStart={(event) => event.preventDefault()}
               >
-                <span
-                  aria-hidden="true"
-                  className={`relative flex h-12 w-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl border text-[10px] font-black shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_16px_rgba(255,255,255,0.06)] ${activeDashboardHeaderLink.tone}`}
-                >
-                  <DashboardTabIcon className="h-4 w-4" name={activeDashboardHeaderLink.icon} />
-                  <span className="block max-w-[2.65rem] truncate text-[8px] font-black leading-none tracking-tight text-cyan-50 [text-shadow:0_1px_10px_rgba(0,0,0,0.36)]">
-                    {activeDashboardHeaderLink.points.toLocaleString()}
-                  </span>
-                  {renderDashboardCompletionDot(
-                    activeDashboardHeaderLink.completion,
-                    true,
-                    "-bottom-1 -right-1",
-                  )}
-                </span>
-                <span className="block whitespace-nowrap">
-                  <span className="block text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
+                <span className="block">
+                  <span
+                    className={`block text-[8px] font-black uppercase tracking-[0.1em] ${activeDashboardHeaderTone.metaText}`}
+                  >
                     {activeDashboardHeaderLink.meta}
                   </span>
-                  <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.12em] sm:text-[11px]">
+                  <span
+                    className={`mt-0.5 block text-[10px] font-black uppercase tracking-[0.07em] sm:text-[11px] ${activeDashboardHeaderTone.labelText}`}
+                  >
                     {activeDashboardHeaderLink.label}
                   </span>
-                  <span className="mt-0.5 block max-w-[118px] truncate text-[7px] font-black uppercase tracking-[0.1em] text-amber-100/80">
+                  <span
+                    className={`mt-0.5 block max-w-[118px] truncate text-[7px] font-black uppercase tracking-[0.06em] ${activeDashboardHeaderTone.journeyText}`}
+                  >
                     {getDashboardHeaderActiveJourneyStepLabel()}
+                  </span>
+                  <span
+                    className={`mt-1 inline-flex max-w-[118px] items-center gap-1 rounded-full border px-1.5 py-0.5 text-[6px] font-black uppercase tracking-[0.08em] ${activeDashboardHeaderUrgencyTone.ring} ${activeDashboardHeaderUrgencyTone.text}`}
+                    title={activeDashboardHeaderUrgencyTone.label}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${activeDashboardHeaderUrgencyTone.dot}`}
+                    />
+                    <span className="truncate">
+                      {activeDashboardHeaderUrgencyTone.label}
+                    </span>
                   </span>
                 </span>
               </Link>
-              {renderDashboardHeaderJourneyTabs()}
             </div>
           </div>
+        </div>
+
+        <div className="min-w-0 flex-1" />
+
+        <button
+          aria-label={
+            dashboardMusicEnabled
+              ? "Pause Orbit FM dashboard music"
+              : "Play Orbit FM dashboard music"
+          }
+          aria-pressed={dashboardMusicEnabled}
+          className={`dashboard-music-toggle group hidden h-14 min-w-[5.4rem] shrink-0 items-center justify-center gap-2 rounded-[20px] border px-2.5 text-left shadow-[0_0_22px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] transition hover:-translate-y-0.5 active:scale-95 md:flex ${
+            dashboardMusicEnabled
+              ? "dashboard-music-toggle--active border-amber-100/36 bg-amber-300/12 text-amber-50 shadow-[0_0_30px_rgba(250,204,21,0.16),inset_0_1px_0_rgba(255,255,255,0.12)]"
+              : "border-cyan-100/18 bg-slate-950/46 text-cyan-50 hover:border-amber-200/34 hover:bg-amber-300/10"
+          }`}
+          onClick={() => {
+            void toggleDashboardMusic();
+          }}
+          title={
+            dashboardMusicEnabled
+              ? "Pause Orbit FM"
+              : "Play Orbit FM"
+          }
+          type="button"
+        >
+          <span
+            aria-hidden="true"
+            className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/10 bg-slate-950/52"
+          >
+            <svg
+              className={`h-4 w-4 ${
+                dashboardMusicEnabled
+                  ? "text-amber-200 drop-shadow-[0_0_10px_rgba(250,204,21,0.58)]"
+                  : "text-cyan-100 drop-shadow-[0_0_10px_rgba(34,211,238,0.28)]"
+              }`}
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              viewBox="0 0 24 24"
+            >
+              <path d="M9 18V5l11-2v13" />
+              <circle cx="6" cy="18" r="3" />
+              <circle cx="17" cy="16" r="3" />
+            </svg>
+            {dashboardMusicEnabled ? (
+              <span className="dashboard-music-toggle__pulse" />
+            ) : null}
+            <span
+              aria-hidden="true"
+              className="dashboard-music-toggle__bars"
+            >
+              <span />
+              <span />
+              <span />
+            </span>
+          </span>
+          <span className="flex flex-col leading-none">
+            <span className="text-[10px] font-black uppercase tracking-[0.12em] text-white">
+              {dashboardMusicEnabled ? "Live" : "Orbit"}
+            </span>
+            <span className="mt-1 text-[7px] font-black uppercase tracking-[0.13em] text-cyan-100/70">
+              FM
+            </span>
+          </span>
+        </button>
+
+        <div
+          aria-label={`${dashboardSummary.workoutsThisWeek} sessions this week`}
+          className="hidden h-14 min-w-[4.25rem] shrink-0 flex-col items-center justify-center rounded-[20px] border border-emerald-200/18 bg-[radial-gradient(circle_at_50%_18%,rgba(94,234,212,0.18),rgba(15,23,42,0.76)_56%,rgba(2,6,23,0.86))] px-2 text-center text-emerald-50 shadow-[0_0_20px_rgba(45,212,191,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] md:flex"
+          title={`${dashboardSummary.workoutsThisWeek} sessions this week`}
+        >
+          <span className="text-lg font-black leading-none tracking-tight text-white">
+            {dashboardSummary.workoutsThisWeek}
+          </span>
+          <span className="mt-1 text-[7px] font-black uppercase leading-none tracking-[0.12em] text-emerald-100/72">
+            Sessions
+          </span>
+          <span className="mt-0.5 text-[6px] font-black uppercase leading-none tracking-[0.14em] text-slate-400">
+            Week
+          </span>
+        </div>
+
+        <div
+          aria-label={`${momentumEntryStreak} day streak, ${momentumStreakDaysRemaining} days to ${momentumStreakTarget}`}
+          aria-valuemax={momentumStreakTarget}
+          aria-valuemin={0}
+          aria-valuenow={momentumEntryStreak}
+          className="relative hidden h-14 w-14 shrink-0 place-items-center rounded-full border border-cyan-100/18 bg-[radial-gradient(circle_at_50%_28%,rgba(34,211,238,0.20),rgba(15,23,42,0.78)_54%,rgba(2,6,23,0.86))] text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.10)] md:grid"
+          role="meter"
+          title={momentumSignalTitle}
+        >
+          <svg
+            aria-hidden="true"
+            className="absolute inset-1.5 -rotate-90"
+            viewBox="0 0 44 44"
+          >
+            <circle
+              cx="22"
+              cy="22"
+              fill="none"
+              pathLength={100}
+              r="18"
+              stroke="rgba(148,163,184,0.22)"
+              strokeWidth="3"
+            />
+            <circle
+              cx="22"
+              cy="22"
+              fill="none"
+              pathLength={100}
+              r="18"
+              stroke="url(#dashboard-header-streak-gradient)"
+              strokeDasharray="100"
+              strokeDashoffset={100 - momentumMeterScore}
+              strokeLinecap="round"
+              strokeWidth="3.5"
+            />
+            <defs>
+              <linearGradient
+                id="dashboard-header-streak-gradient"
+                x1="6"
+                x2="38"
+                y1="22"
+                y2="22"
+              >
+                <stop stopColor="#67e8f9" />
+                <stop offset="0.62" stopColor="#5eead4" />
+                <stop offset="1" stopColor="#fde047" />
+              </linearGradient>
+            </defs>
+          </svg>
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-0.5 top-2 h-2.5 w-2.5 rounded-full border border-cyan-100/40 bg-amber-300 shadow-[0_0_12px_rgba(250,204,21,0.55)]"
+          />
+          <span className="relative z-10 flex flex-col items-center leading-none">
+            <span className="text-lg font-black tracking-tight text-white">
+              {momentumEntryStreak}
+            </span>
+            <span className="mt-0.5 text-[7px] font-black uppercase tracking-[0.12em] text-cyan-100/72">
+              Streak
+            </span>
+          </span>
         </div>
 
         <button
           aria-controls="dashboard-profile-hub-orbital-overlay"
           aria-expanded={dashboardProfileHubOpen}
-          aria-label="Open profile hub"
-          className="hidden min-h-[58px] shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:bg-white/[0.04] md:flex"
+          aria-label={`Open profile hub, Sound Fitness level ${soundFitnessLevel}`}
+          className="hidden min-h-[58px] shrink-0 items-center gap-2 rounded-[22px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:bg-white/[0.04] md:flex"
           onClick={openDashboardProfileHub}
           type="button"
         >
-          <Image
-            alt={`${firstName} profile`}
-            className="h-10 w-10 rounded-full border border-cyan-200/28 bg-slate-950 object-contain p-0.5 shadow-[0_0_18px_rgba(34,211,238,0.14)]"
-            height={40}
-            src="/sound-fitness-logo.png"
-            width={40}
-          />
-          <span className="hidden min-w-0 leading-none lg:block">
-            <span className="block max-w-[110px] truncate text-[10px] font-black uppercase tracking-[0.12em] text-white">
-              {firstName}
-            </span>
-            <span className="mt-1 block text-[8px] font-black uppercase tracking-[0.14em] text-cyan-200/70">
-              Profile Hub
+          <span
+            aria-hidden="true"
+            className="dashboard-sound-level-badge relative isolate grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center overflow-hidden rounded-full border border-cyan-200/30 bg-slate-950 p-0.5 shadow-[0_0_20px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)]"
+            style={
+              {
+                "--dashboard-sound-level-progress": `${Math.max(
+                  10,
+                  soundFitnessLevelProgress,
+                )}%`,
+              } as CSSProperties
+            }
+            title={`Sound Fitness level ${soundFitnessLevel}`}
+          >
+            <Image
+              alt=""
+              className="relative z-10 h-11 w-11 rounded-full object-contain"
+              height={44}
+              src="/sound-fitness-logo.png"
+              width={44}
+            />
+            <span className="dashboard-sound-level-badge__band pointer-events-none absolute inset-x-0.5 bottom-0.5 z-20 h-[40%] rounded-b-full border-t border-cyan-200/35 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.38),rgba(15,23,42,0.42)_62%,rgba(2,6,23,0.78))] shadow-[0_-4px_14px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.20)]" />
+            <span
+              className="dashboard-sound-level-badge__fill pointer-events-none absolute bottom-0.5 left-0.5 z-20 h-[40%] overflow-hidden rounded-b-full bg-[linear-gradient(90deg,rgba(250,204,21,0.92),rgba(103,232,249,0.86))] opacity-90 shadow-[0_0_16px_rgba(250,204,21,0.42),0_0_20px_rgba(34,211,238,0.26)]"
+              style={{
+                width: `calc(var(--dashboard-sound-level-progress) - 0.25rem)`,
+              }}
+            />
+            <span className="dashboard-sound-level-badge__label pointer-events-none absolute bottom-[0.16rem] z-30 flex items-baseline justify-center gap-[0.08rem] font-black leading-none tracking-[0.04em] text-white [text-shadow:0_0_8px_rgba(2,6,23,0.96),0_0_10px_rgba(250,204,21,0.62)]">
+              <span className="text-[0.42rem]">LV</span>
+              <span className="text-[0.78rem]">{soundFitnessLevel}</span>
             </span>
           </span>
           <span className="flex min-w-[72px] flex-col items-start justify-center gap-1">
@@ -6941,12 +9843,29 @@ export default function UserHomeDashboardPage() {
   );
 
   const renderDashboardHeroAchievementOrbit = () => (
-    <div className="relative z-10 mt-1 grid gap-2 min-[760px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] min-[760px]:items-end">
+    <div className="relative z-10 mt-2 grid gap-3 min-[760px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] min-[760px]:items-end">
       <div className="relative h-[210px] min-w-0 overflow-hidden px-0 pb-5 pt-0 sm:h-[214px]">
         <div className="flex h-full min-w-0 flex-col items-center justify-end gap-0">
-          <div className="order-2 relative h-[154px] w-[284px] max-w-full shrink-0 sm:h-[158px] sm:w-[296px]">
-            <span className="pointer-events-none absolute inset-x-6 bottom-6 top-7 rounded-full bg-cyan-400/12 blur-2xl" />
-            <span className="pointer-events-none absolute bottom-4 left-1/2 h-20 w-20 -translate-x-1/2 rounded-full bg-yellow-300/18 blur-2xl" />
+          <div className="isolate order-2 relative h-[154px] w-[284px] max-w-full shrink-0 sm:h-[158px] sm:w-[296px]">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -inset-x-8 -bottom-7 -top-4 -z-10 overflow-hidden rounded-[44px]"
+            >
+              <span
+                className="absolute inset-0"
+                style={momentumStreakBackdropStyle}
+              />
+              <span
+                className="absolute bottom-0 left-1/2 h-36 w-72 origin-bottom rounded-[50%] mix-blend-screen"
+                style={momentumStreakFlameStyle}
+              />
+              <span
+                className="absolute inset-x-8 bottom-6 h-24 rounded-[50%] mix-blend-screen"
+                style={momentumStreakEmberStyle}
+              />
+            </div>
+            <span className="pointer-events-none absolute inset-x-6 bottom-6 top-7 -z-10 rounded-full bg-cyan-400/12 blur-2xl" />
+            <span className="pointer-events-none absolute bottom-4 left-1/2 -z-10 h-20 w-20 -translate-x-1/2 rounded-full bg-yellow-300/18 blur-2xl" />
             <svg
               aria-hidden="true"
               className="absolute inset-0 h-full w-full overflow-visible"
@@ -7090,9 +10009,10 @@ export default function UserHomeDashboardPage() {
                   gradientUnits="userSpaceOnUse"
                 >
                   <stop offset="0%" stopColor="rgb(56,189,248)" />
-                  <stop offset="45%" stopColor="rgb(45,212,191)" />
-                  <stop offset="72%" stopColor="rgb(129,140,248)" />
-                  <stop offset="100%" stopColor="rgb(250,204,21)" />
+                  <stop offset="38%" stopColor="rgb(45,212,191)" />
+                  <stop offset="64%" stopColor="rgb(250,204,21)" />
+                  <stop offset="84%" stopColor="rgb(249,115,22)" />
+                  <stop offset="100%" stopColor="rgb(239,68,68)" />
                 </linearGradient>
                 <linearGradient
                   id="dashboardMomentumNeedleGradient"
@@ -7147,8 +10067,12 @@ export default function UserHomeDashboardPage() {
                 Day Streak
               </div>
             </div>
-            <div className="absolute inset-x-4 bottom-3 grid grid-cols-2 gap-1.5 text-center">
-              <div className="rounded-full border border-cyan-300/18 bg-slate-950/48 px-2 py-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+            <div className="absolute inset-x-4 bottom-0 grid grid-cols-2 gap-1.5 text-center">
+              <div
+                aria-label={momentumSignalTitle}
+                className="rounded-full border border-cyan-300/18 bg-slate-950/48 px-2 py-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                title={momentumSignalTitle}
+              >
                 <span className="block text-[7px] font-black uppercase tracking-[0.16em] text-slate-400">
                   Signal
                 </span>
@@ -7177,11 +10101,11 @@ export default function UserHomeDashboardPage() {
           </div>
         </div>
       </div>
-      <div className="relative min-w-0 overflow-hidden before:pointer-events-none before:absolute before:inset-0 before:z-0 before:bg-[radial-gradient(ellipse_at_8%_0%,rgba(250,204,21,0.10),transparent_32%),radial-gradient(ellipse_at_92%_20%,rgba(34,211,238,0.09),transparent_34%),radial-gradient(ellipse_at_50%_72%,rgba(2,6,23,0.30),transparent_72%)] before:[mask-image:radial-gradient(ellipse_at_center,black_0%,black_46%,rgba(0,0,0,0.68)_68%,transparent_100%)] before:content-['']">
+      <div className="relative min-w-0 overflow-hidden rounded-[30px] pb-5 pt-2 before:pointer-events-none before:absolute before:inset-0 before:z-0 before:rounded-[30px] before:bg-[radial-gradient(ellipse_at_10%_12%,rgba(250,204,21,0.10),transparent_34%),radial-gradient(ellipse_at_92%_24%,rgba(34,211,238,0.12),transparent_38%),radial-gradient(ellipse_at_50%_58%,rgba(14,165,233,0.13),transparent_48%),radial-gradient(ellipse_at_50%_78%,rgba(2,6,23,0.36),transparent_76%)] before:[mask-image:radial-gradient(ellipse_at_center,black_0%,black_54%,rgba(0,0,0,0.58)_75%,transparent_100%)] before:content-['']">
       <div className="sr-only">Progression rewards. Recent achievements.</div>
       <div
         aria-label="Dashboard achievement orbit"
-        className="relative z-10 h-[154px] cursor-grab select-none overflow-visible [perspective:1000px] [touch-action:pan-y] active:cursor-grabbing sm:h-[160px]"
+        className="relative z-10 h-[184px] cursor-grab select-none overflow-visible [perspective:1000px] [touch-action:pan-y] active:cursor-grabbing sm:h-[190px]"
         onPointerCancel={(event) => {
           event.stopPropagation();
           finishHeroAchievementPointer(event);
@@ -7213,23 +10137,23 @@ export default function UserHomeDashboardPage() {
       >
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-0 z-[31] w-24 bg-gradient-to-r from-[#101927]/95 via-[#101927]/64 to-transparent"
+          className="pointer-events-none absolute inset-y-0 left-0 z-[18] w-36 bg-gradient-to-r from-[#101927]/68 via-[#101927]/26 to-transparent"
         />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 z-[31] w-24 bg-gradient-to-l from-[#101927]/95 via-[#101927]/64 to-transparent"
+          className="pointer-events-none absolute inset-y-0 right-0 z-[18] w-36 bg-gradient-to-l from-[#101927]/68 via-[#101927]/26 to-transparent"
         />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-6 top-0 z-[31] h-8 bg-gradient-to-b from-[#101927]/58 to-transparent"
+          className="pointer-events-none absolute inset-x-10 top-0 z-[18] h-12 bg-gradient-to-b from-[#101927]/38 to-transparent"
         />
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-6 bottom-0 z-[31] h-8 bg-gradient-to-t from-[#101927]/58 to-transparent"
+          className="pointer-events-none absolute inset-x-10 bottom-0 z-[18] h-12 bg-gradient-to-t from-[#101927]/42 to-transparent"
         />
         <button
           aria-label="Previous dashboard achievement"
-          className="absolute left-1 top-1/2 z-40 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/72 text-base font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100"
+          className="absolute left-0 top-1/2 z-40 grid h-10 w-6 -translate-y-1/2 place-items-center rounded-full border border-transparent bg-transparent text-lg font-black text-cyan-100/72 transition hover:-translate-x-0.5 hover:border-cyan-100/18 hover:bg-white/[0.045] hover:text-amber-100 active:scale-95"
           onClick={(event) => {
             event.stopPropagation();
             rotateHeroAchievement("left");
@@ -7241,7 +10165,7 @@ export default function UserHomeDashboardPage() {
         </button>
         <button
           aria-label="Next dashboard achievement"
-          className="absolute right-1 top-1/2 z-40 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/72 text-base font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100"
+          className="absolute right-0 top-1/2 z-40 grid h-10 w-6 -translate-y-1/2 place-items-center rounded-full border border-transparent bg-transparent text-lg font-black text-cyan-100/72 transition hover:translate-x-0.5 hover:border-cyan-100/18 hover:bg-white/[0.045] hover:text-amber-100 active:scale-95"
           onClick={(event) => {
             event.stopPropagation();
             rotateHeroAchievement("right");
@@ -7252,6 +10176,7 @@ export default function UserHomeDashboardPage() {
           &gt;
         </button>
 
+        <div className="absolute inset-x-4 inset-y-4 z-20 overflow-visible [mask-image:radial-gradient(ellipse_at_center,black_0%,black_58%,rgba(0,0,0,0.72)_76%,transparent_100%)]">
         {heroAchievements.map((achievement, index) => {
           const distance = getHeroAchievementOrbitDistance(index);
           const absDistance = Math.abs(distance);
@@ -7389,6 +10314,7 @@ export default function UserHomeDashboardPage() {
             </Link>
           );
         })}
+        </div>
       </div>
       </div>
     </div>
@@ -7398,7 +10324,7 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="Dashboard hero row"
       data-dashboard-orbiter-row="0"
-      className="relative z-10 mx-auto w-full max-w-[1080px] overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(15,23,42,0.72)),radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.14),transparent_34%),radial-gradient(circle_at_92%_18%,rgba(250,204,21,0.12),transparent_30%)] px-4 py-3 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[30px] sm:px-5 sm:py-4 lg:px-6"
+      className="relative z-10 mx-auto w-full max-w-[1080px] overflow-visible rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(15,23,42,0.72)),radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.14),transparent_34%),radial-gradient(circle_at_92%_18%,rgba(250,204,21,0.12),transparent_30%)] px-4 py-3 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[30px] sm:px-5 sm:py-4 lg:px-6"
     >
       <div className="grid gap-4 min-[760px]:grid-cols-[minmax(0,1fr)_minmax(240px,300px)] min-[760px]:items-start">
         <div className="min-w-0">
@@ -7415,52 +10341,94 @@ export default function UserHomeDashboardPage() {
             and jump into the next part of your plan from one place.
           </p>
 
-          <details className="group relative mt-3 max-w-full">
+          <details
+            className="group relative mt-3 max-w-full"
+            ref={dashboardStatusDetailsRef}
+          >
             <summary
-              className={`inline-flex h-8 max-w-full cursor-pointer list-none items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.08em] shadow-[0_0_22px_rgba(34,211,238,0.10)] transition hover:-translate-y-0.5 hover:border-cyan-100/42 hover:bg-cyan-300/12 [&::-webkit-details-marker]:hidden ${dashboardStatusPillTone}`}
+              className={`relative z-[51] inline-flex h-8 max-w-full cursor-pointer list-none items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.08em] shadow-[0_0_22px_rgba(34,211,238,0.10)] transition hover:-translate-y-0.5 hover:border-cyan-100/42 hover:bg-cyan-300/12 group-open:rounded-b-lg group-open:border-cyan-100/50 group-open:bg-slate-950/72 [&::-webkit-details-marker]:hidden ${dashboardStatusPillTone}`}
             >
               <span
                 aria-hidden="true"
                 className="h-2 w-2 shrink-0 rounded-full bg-current shadow-[0_0_10px_currentColor]"
               />
               <span className="min-w-0 truncate">
-                {dashboardConsistencyStage} / {dashboardStatusUrgency} /{" "}
-                {masterJourneyCurrentFocus}
+                {dashboardStatusDropdownTitle}
               </span>
               <span className="ml-1 grid h-4 w-4 shrink-0 place-items-center rounded-full border border-white/12 bg-slate-950/36 text-[8px] text-cyan-50 transition group-open:rotate-180">
                 v
               </span>
             </summary>
 
-            <div className="absolute left-0 top-full z-50 mt-2 w-[min(540px,calc(100vw-7rem))] rounded-2xl border border-cyan-100/18 bg-[#101927]/95 p-2.5 shadow-[0_18px_46px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
-              <div className="flex items-center justify-between gap-3">
+            <div className="absolute left-0 top-0 z-[52] w-[min(540px,calc(100vw-7rem))] rounded-2xl border border-cyan-100/18 bg-[#101927]/95 px-2.5 pb-2.5 pt-0 shadow-[0_18px_46px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
+              <button
+                aria-label="Close dashboard status calendar"
+                className={`flex min-h-10 w-full items-center gap-2 rounded-full border px-3 py-2 text-left transition hover:border-cyan-100/42 hover:bg-cyan-300/12 ${dashboardStatusPillTone}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  closeDashboardStatusDropdown();
+                }}
+                type="button"
+              >
+                <span className="sr-only">
+                  Current dashboard status
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 shrink-0 rounded-full bg-current shadow-[0_0_10px_currentColor]"
+                />
+                <h2 className="min-w-0 truncate text-[9px] font-black uppercase tracking-[0.08em] text-white sm:text-[10px]">
+                  {dashboardStatusDropdownTitle}
+                </h2>
+              </button>
+
+              <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                {dashboardStatusDropdownItems.map((item) => (
+                  <div
+                    className="min-w-0 rounded-xl border border-white/10 bg-slate-950/42 px-3 py-2"
+                    key={item.label}
+                  >
+                    <div className="truncate text-[8px] font-black uppercase tracking-[0.16em] text-slate-500">
+                      {item.label}
+                    </div>
+                    <div className="mt-1 truncate text-[10px] font-black uppercase tracking-[0.08em] text-white">
+                      {item.value}
+                    </div>
+                    <div className="mt-0.5 truncate text-[9px] font-semibold text-slate-400">
+                      {item.detail}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-2 flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="truncate text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100/72">
-                    90 day training calendar
+                    {dashboardTodayDropdownLabel}
                   </div>
                   <div className="mt-0.5 truncate text-[10px] font-black uppercase tracking-[0.08em] text-white">
                     {dashboardConsistencyCalendarTrainingDays} trained /{" "}
-                    {dashboardConsistencyCalendarSignalDays} logged
+                    {dashboardConsistencyCalendarPlannedDays} planned
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-2 text-[7px] font-black uppercase tracking-[0.1em] text-slate-400">
                   <span className="inline-flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.72)]" />
-                    Train
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(250,204,21,0.95),0_0_16px_rgba(251,191,36,0.48)]" />
+                    Trained
                   </span>
                   <span className="inline-flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-300 shadow-[0_0_8px_rgba(252,211,77,0.60)]" />
-                    Log
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.86),0_0_16px_rgba(16,185,129,0.42)]" />
+                    Recovery
                   </span>
                   <span className="inline-flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-600/80" />
-                    Off
+                    <span className="h-1.5 w-1.5 rounded-full bg-sky-300 shadow-[0_0_8px_rgba(56,189,248,0.88),0_0_16px_rgba(14,165,233,0.44)]" />
+                    Planned
                   </span>
                 </div>
               </div>
 
               <div
-                aria-label="90 day training calendar month orbit"
+                aria-label="Training calendar month orbit"
                 className="relative mt-2 h-[158px] overflow-hidden rounded-xl border border-white/8 bg-slate-950/28 px-8 py-2 [perspective:760px]"
               >
                 <button
@@ -7538,34 +10506,46 @@ export default function UserHomeDashboardPage() {
                           {month.days.map((day) => {
                             const dayTone =
                               day.status === "trained"
-                                ? "bg-emerald-300 shadow-[0_0_7px_rgba(52,211,153,0.80)]"
-                                : day.status === "logged"
-                                  ? "bg-amber-300 shadow-[0_0_7px_rgba(252,211,77,0.62)]"
-                                  : day.status === "future"
-                                    ? "bg-white/10"
-                                    : "bg-slate-600/75";
+                                ? "bg-amber-300 ring-1 ring-amber-100/45 shadow-[0_0_8px_rgba(250,204,21,0.95),0_0_18px_rgba(251,191,36,0.46)]"
+                                : day.status === "recovery"
+                                  ? "bg-emerald-300 ring-1 ring-emerald-100/35 shadow-[0_0_8px_rgba(52,211,153,0.86),0_0_16px_rgba(16,185,129,0.42)]"
+                                  : day.status === "planned"
+                                    ? "bg-sky-300 ring-1 ring-sky-100/35 shadow-[0_0_8px_rgba(56,189,248,0.88),0_0_16px_rgba(14,165,233,0.44)]"
+                                    : day.status === "logged"
+                                      ? "bg-amber-100/60 shadow-[0_0_6px_rgba(253,230,138,0.46)]"
+                                      : day.status === "future"
+                                        ? "bg-sky-100/18"
+                                        : "bg-slate-600/75";
 
                             return (
                               <span
                                 aria-label={`${day.label}: ${
                                   day.status === "trained"
                                     ? "trained"
-                                    : day.status === "logged"
-                                      ? "logged"
-                                      : day.status === "future"
-                                        ? "upcoming"
-                                        : "no training"
+                                    : day.status === "recovery"
+                                      ? "recovery"
+                                      : day.status === "planned"
+                                        ? "planned"
+                                        : day.status === "logged"
+                                          ? "logged"
+                                          : day.status === "future"
+                                            ? "upcoming"
+                                            : "no training"
                                 }`}
                                 className="grid h-3 place-items-center"
                                 key={day.dateKey}
                                 title={`${day.label}: ${
                                   day.status === "trained"
                                     ? "trained"
-                                    : day.status === "logged"
-                                      ? "logged"
-                                      : day.status === "future"
-                                        ? "upcoming"
-                                        : "no training"
+                                    : day.status === "recovery"
+                                      ? "recovery"
+                                      : day.status === "planned"
+                                        ? "planned"
+                                        : day.status === "logged"
+                                          ? "logged"
+                                          : day.status === "future"
+                                            ? "upcoming"
+                                            : "no training"
                                 }`}
                               >
                                 <span
@@ -7591,6 +10571,21 @@ export default function UserHomeDashboardPage() {
                 >
                   &gt;
                 </button>
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <Link
+                  className="inline-flex min-h-9 items-center rounded-xl border border-cyan-200/24 bg-cyan-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100 transition hover:border-cyan-100/45 hover:bg-cyan-300/18"
+                  href={nextAction.href}
+                >
+                  {nextAction.cta}
+                </Link>
+                <Link
+                  className="inline-flex min-h-9 items-center rounded-xl border border-amber-200/24 bg-amber-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100 transition hover:border-amber-100/45 hover:bg-amber-300/18"
+                  href={ROUTES.dashboard.goals}
+                >
+                  Plan goals
+                </Link>
               </div>
             </div>
           </details>
@@ -7671,19 +10666,44 @@ export default function UserHomeDashboardPage() {
     </div>
   );
 
+  const renderDashboardRowTitle = ({
+    accentClassName,
+    description,
+    kicker,
+    title,
+  }: {
+    accentClassName: string;
+    description: string;
+    kicker: string;
+    title: string;
+  }) => (
+    <div className="pointer-events-none absolute left-20 top-5 z-30 w-[min(34rem,calc(100%-10rem))] min-w-0 sm:left-24 lg:left-28">
+      <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-slate-950/54 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-slate-300 shadow-[0_14px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur">
+        <span
+          aria-hidden="true"
+          className={`h-2 w-2 shrink-0 rounded-full ${accentClassName}`}
+        />
+        <span className="truncate">{kicker}</span>
+      </div>
+      <h2 className="mt-2 text-2xl font-black uppercase leading-none tracking-[0.08em] text-white [text-shadow:0_0_24px_rgba(34,211,238,0.12)] sm:text-3xl">
+        {title}
+      </h2>
+      <p className="mt-1 max-w-[32rem] text-xs font-semibold leading-5 text-slate-300">
+        {description}
+      </p>
+    </div>
+  );
+
   const renderDashboardDailyToolsRow = () => {
-    const dailyToolCount = 2;
     const getDailyToolOrbitDistance = (index: number) =>
-      getDashboardOrbitDistance(index, activeDailyToolIndex, dailyToolCount);
-    const rotateDailyToolOrbit = (direction: DashboardOrbitDirection) => {
-      setActiveDailyToolIndex((currentIndex) =>
-        direction === "left"
-          ? (currentIndex - 1 + dailyToolCount) % dailyToolCount
-          : (currentIndex + 1) % dailyToolCount,
+      getDashboardOrbitDistance(
+        index,
+        activeDailyToolIndex,
+        dashboardDailyToolCount,
       );
-    };
     const manualToolDistance = getDailyToolOrbitDistance(0);
     const videoToolDistance = getDailyToolOrbitDistance(1);
+    const planToolDistance = getDailyToolOrbitDistance(2);
     const getDailyToolOrbitStyle = (distance: number): CSSProperties => {
       const clampedDistance = Math.max(-1, Math.min(1, distance));
       const absDistance = Math.abs(clampedDistance);
@@ -7706,20 +10726,19 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="Daily Tools row"
       data-dashboard-orbiter-row="1"
-      className={`relative flex min-h-0 items-start justify-center pl-6 pr-20 pt-2 transition-opacity duration-300 sm:pl-10 sm:pr-24 sm:pt-3 lg:pl-12 lg:pr-28 lg:pt-4 ${
+      className={`relative flex min-h-0 items-start justify-center pl-24 pr-6 pt-20 transition-opacity duration-300 sm:pl-28 sm:pr-10 sm:pt-24 lg:pl-32 lg:pr-12 lg:pt-28 ${
         clampedDashboardOrbiterRow === 1
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
       }`}
     >
-      <div className="pointer-events-none absolute left-6 top-6 z-20 min-w-0 pr-24 sm:left-10 lg:left-12">
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-300">
-          Daily Tools
-        </div>
-        <p className="mt-1 max-w-[26rem] truncate text-[11px] font-semibold text-slate-400">
-          Quick logging, form checks, imports, library attach, and recent saves.
-        </p>
-      </div>
+      {renderDashboardRowTitle({
+        accentClassName: "bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.65)]",
+        description:
+          "Quick logging, form checks, plan snapshot, imports, and recent saves.",
+        kicker: "Daily command row",
+        title: "Daily Tools",
+      })}
       <div
         data-dashboard-orbiter-local-scroll="true"
         className="relative h-full w-full max-w-[1180px] overflow-visible pb-2 pr-1 [perspective:1100px]"
@@ -8169,6 +11188,57 @@ export default function UserHomeDashboardPage() {
               ))}
             </span>
           </Link>
+          <Link
+            aria-label="Open Current Week plan snapshot"
+            className="group absolute left-1/2 top-1/2 flex h-[220px] w-[min(82vw,21rem)] flex-col justify-between overflow-hidden rounded-[28px] border border-amber-300/24 bg-[radial-gradient(circle_at_18%_0%,rgba(250,204,21,0.18),transparent_34%),radial-gradient(circle_at_88%_16%,rgba(34,211,238,0.14),transparent_30%),rgba(15,23,42,0.72)] p-5 text-left shadow-2xl shadow-black/25 backdrop-blur transition hover:border-amber-200/50 hover:bg-amber-300/12 sm:h-[244px] sm:w-[22rem]"
+            href={ROUTES.dashboard.myPlan}
+            style={getDailyToolOrbitStyle(planToolDistance)}
+          >
+            <span className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-amber-200/75 to-cyan-200/55" />
+            <span className="flex items-start justify-between gap-3">
+              <span
+                className="grid h-16 w-16 shrink-0 place-items-center rounded-[24px] border border-amber-100/35 bg-amber-300/14 text-amber-50 shadow-[0_0_22px_rgba(250,204,21,0.18)]"
+                aria-hidden="true"
+              >
+                <DashboardTabIcon
+                  className="h-8 w-8 drop-shadow-[0_0_12px_rgba(255,255,255,0.24)]"
+                  label="My Plan"
+                  name="plan"
+                />
+              </span>
+              <span className="rounded-full border border-amber-200/28 bg-amber-300/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100">
+                Open Plan
+              </span>
+            </span>
+
+            <span className="block min-w-0">
+              <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-amber-200">
+                Current Week
+              </span>
+              <span className="mt-1 block text-2xl font-black tracking-tight text-white">
+                Plan snapshot
+              </span>
+              <span className="mt-2 block max-w-[18rem] text-sm font-semibold leading-5 text-slate-300">
+                {planHighlights[0]?.value}
+              </span>
+            </span>
+
+            <span className="grid grid-cols-2 gap-2">
+              {planHighlights.slice(1).map((item) => (
+                <span
+                  key={item.label}
+                  className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/42 px-2.5 py-2"
+                >
+                  <span className="block truncate text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                    {item.label}
+                  </span>
+                  <span className="mt-0.5 block truncate text-xs font-black text-white">
+                    {item.value}
+                  </span>
+                </span>
+              ))}
+            </span>
+          </Link>
           </div>
         </section>
       </div>
@@ -8180,23 +11250,22 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="Weekly Recap row"
       data-dashboard-orbiter-row="2"
-      className={`relative min-h-0 w-full overflow-hidden px-10 pt-20 transition-opacity duration-300 sm:px-12 sm:pt-24 lg:pt-28 ${
+      className={`relative min-h-0 w-full overflow-hidden pl-24 pr-10 pt-20 transition-opacity duration-300 sm:pl-28 sm:pr-12 sm:pt-24 lg:pt-28 ${
         clampedDashboardOrbiterRow === 2
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
       }`}
     >
-      <div className="pointer-events-none absolute left-6 top-6 z-20 min-w-0 pr-24 sm:left-10 lg:left-12">
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">
-          Weekly Recap
-        </div>
-        <p className="mt-1 max-w-[30rem] truncate text-[11px] font-semibold text-slate-400">
-          Last 7 days: training volume, nutrition consistency, and readiness.
-        </p>
-      </div>
+      {renderDashboardRowTitle({
+        accentClassName: "bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.62)]",
+        description:
+          "Last 7 days: training volume, nutrition consistency, readiness, and recent activity.",
+        kicker: "7 day review row",
+        title: "Weekly Recap",
+      })}
       <button
         aria-label="Previous weekly recap card"
-        className="absolute left-2 top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-4 sm:h-14 sm:w-14 sm:text-3xl lg:left-6 xl:left-8"
+        className="absolute left-[5.75rem] top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:left-[6.75rem] xl:left-[7.25rem]"
         onClick={() => rotateWeeklyRecap("left")}
         type="button"
       >
@@ -8204,7 +11273,7 @@ export default function UserHomeDashboardPage() {
       </button>
       <button
         aria-label="Next weekly recap card"
-        className="absolute right-[5.75rem] top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:right-[6.75rem] xl:right-[7.25rem]"
+        className="absolute right-2 top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-4 sm:h-14 sm:w-14 sm:text-3xl lg:right-6 xl:right-8"
         onClick={() => rotateWeeklyRecap("right")}
         type="button"
       >
@@ -8212,8 +11281,8 @@ export default function UserHomeDashboardPage() {
       </button>
 
       <div className="sr-only">
-        Weekly Recap. Last 7 days. Training volume, nutrition consistency, and
-        recovery readiness.
+        Weekly Recap. Last 7 days. Training volume, nutrition consistency,
+        recovery readiness, and recent workout activity.
       </div>
 
       <div
@@ -8278,6 +11347,8 @@ export default function UserHomeDashboardPage() {
           const isRecoveryLineGraph = card.title === "Recovery Readiness";
           const isNutritionLoadingBars =
             card.title === "Nutrition Consistency";
+          const isRecentWorkoutActivity =
+            card.title === "Recent Workout Activity";
           const lineGraphPoints = card.rows.map((row, rowIndex) => {
             const percent = getWeeklyRecapBarPercent(card, row);
             const x =
@@ -8339,10 +11410,12 @@ export default function UserHomeDashboardPage() {
               }}
               tabIndex={0}
             >
-              <span
-                aria-hidden="true"
-                className="dashboard-orbit-card__effect"
-              />
+              {isActive ? (
+                <span
+                  aria-hidden="true"
+                  className="dashboard-orbit-card__effect"
+                />
+              ) : null}
               <span
                 className={`absolute left-6 right-6 top-0 z-10 h-[2px] rounded-full ${tone.line}`}
               />
@@ -8374,6 +11447,8 @@ export default function UserHomeDashboardPage() {
                     ? "horizontal line graph"
                     : isNutritionLoadingBars
                       ? "loading bars"
+                      : isRecentWorkoutActivity
+                        ? "activity summary"
                     : "vertical bar graph"
                 }`}
                 className="relative z-10 mt-4 rounded-3xl border border-white/10 bg-slate-950/34 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
@@ -8384,6 +11459,8 @@ export default function UserHomeDashboardPage() {
                       ? "7 day trend"
                       : isNutritionLoadingBars
                         ? "fuel loading bars"
+                        : isRecentWorkoutActivity
+                          ? "latest activity"
                         : "7 day chart"}
                   </span>
                   <span className={`h-1.5 w-12 rounded-full ${tone.line}`} />
@@ -8542,6 +11619,30 @@ export default function UserHomeDashboardPage() {
                       );
                     })}
                   </div>
+                ) : isRecentWorkoutActivity ? (
+                  <div className="space-y-2">
+                    {card.rows.slice(0, 4).map((row) => (
+                      <div
+                        className="rounded-2xl border border-white/8 bg-slate-950/44 px-3 py-2.5"
+                        key={`${card.title}-${row.label}-activity`}
+                        title={`${row.label}: ${row.value} (${row.detail})`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="min-w-0">
+                            <span className="block truncate text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                              {row.label}
+                            </span>
+                            <span className="mt-1 block truncate text-sm font-black text-white">
+                              {row.value}
+                            </span>
+                          </span>
+                          <span className="shrink-0 rounded-full border border-sky-200/22 bg-sky-300/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-sky-100">
+                            {row.detail}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
                   <div className="flex h-[148px] items-end justify-between gap-2">
                     {card.rows.map((row) => {
@@ -8600,7 +11701,7 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="Calendar row"
       data-dashboard-orbiter-row="4"
-      className={`flex min-h-0 items-start justify-center pl-6 pr-20 pt-2 transition-opacity duration-300 sm:pl-10 sm:pr-24 sm:pt-3 lg:pl-12 lg:pr-28 lg:pt-4 ${
+      className={`flex min-h-0 items-start justify-center pl-24 pr-6 pt-2 transition-opacity duration-300 sm:pl-28 sm:pr-10 sm:pt-3 lg:pl-32 lg:pr-12 lg:pt-4 ${
         clampedDashboardOrbiterRow === 4
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
@@ -8623,23 +11724,22 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="My Sound row"
       data-dashboard-orbiter-row="5"
-      className={`relative min-h-0 w-full overflow-hidden px-10 pt-20 transition-opacity duration-300 sm:px-12 sm:pt-24 lg:pt-28 ${
+      className={`relative min-h-0 w-full overflow-hidden pl-24 pr-10 pt-20 transition-opacity duration-300 sm:pl-28 sm:pr-12 sm:pt-24 lg:pt-28 ${
         clampedDashboardOrbiterRow === 5
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
       }`}
     >
-      <div className="pointer-events-none absolute left-6 top-6 z-20 min-w-0 pr-24 sm:left-10 lg:left-12">
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">
-          My Sound
-        </div>
-        <p className="mt-1 max-w-[34rem] truncate text-[11px] font-semibold text-slate-400">
-          Personalized dashboard signals and relevant content paths.
-        </p>
-      </div>
+      {renderDashboardRowTitle({
+        accentClassName: "bg-fuchsia-300 shadow-[0_0_14px_rgba(217,70,239,0.58)]",
+        description:
+          "Personalized dashboard signals, content paths, and next-best actions.",
+        kicker: "Personal insight row",
+        title: "My Sound",
+      })}
       <button
         aria-label="Previous My Sound insight"
-        className="absolute left-2 top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-4 sm:h-14 sm:w-14 sm:text-3xl lg:left-6 xl:left-8"
+        className="absolute left-[5.75rem] top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:left-[6.75rem] xl:left-[7.25rem]"
         onClick={() => rotateMySound("left")}
         type="button"
       >
@@ -8647,7 +11747,7 @@ export default function UserHomeDashboardPage() {
       </button>
       <button
         aria-label="Next My Sound insight"
-        className="absolute right-[5.75rem] top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:right-[6.75rem] xl:right-[7.25rem]"
+        className="absolute right-2 top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-4 sm:h-14 sm:w-14 sm:text-3xl lg:right-6 xl:right-8"
         onClick={() => rotateMySound("right")}
         type="button"
       >
@@ -8755,10 +11855,12 @@ export default function UserHomeDashboardPage() {
               }}
               tabIndex={0}
             >
-              <span
-                aria-hidden="true"
-                className="dashboard-orbit-card__effect"
-              />
+              {isActive ? (
+                <span
+                  aria-hidden="true"
+                  className="dashboard-orbit-card__effect"
+                />
+              ) : null}
               <span
                 className={`absolute left-6 right-6 top-0 z-10 h-[2px] rounded-full ${tone.line}`}
               />
@@ -8844,13 +11946,13 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="Master Training Journey row"
       data-dashboard-orbiter-row="7"
-      className={`relative flex min-h-0 items-start justify-center pl-6 pr-20 pt-2 transition-opacity duration-300 sm:pl-10 sm:pr-24 sm:pt-3 lg:pl-12 lg:pr-28 lg:pt-4 ${
+      className={`relative flex min-h-0 items-start justify-center pl-24 pr-6 pt-2 transition-opacity duration-300 sm:pl-28 sm:pr-10 sm:pt-3 lg:pl-32 lg:pr-12 lg:pt-4 ${
         clampedDashboardOrbiterRow === 7
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
       }`}
     >
-      <div className="pointer-events-none absolute left-6 top-6 z-20 min-w-0 pr-24 sm:left-10 lg:left-12">
+      <div className="pointer-events-none absolute left-20 top-6 z-20 min-w-0 pr-6 sm:left-24 lg:left-28">
         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">
           Master Training Journey
         </div>
@@ -9026,10 +12128,10 @@ export default function UserHomeDashboardPage() {
   );
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-[#020713] text-white">
+    <main className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#020713] text-white">
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_18%_0%,rgba(14,165,233,0.18),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(16,185,129,0.13),transparent_26%),linear-gradient(180deg,#020713_0%,#07111f_48%,#020713_100%)]" />
 
-      <div className="mx-auto flex max-w-7xl flex-col px-4 pb-6 pt-0 sm:px-8 lg:pb-8">
+      <div className="mx-auto flex h-full max-h-full max-w-7xl flex-col overflow-hidden px-4 pb-0 pt-0 sm:px-8">
         <section className="hidden">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <div className="flex shrink-0 items-center justify-between gap-3 lg:w-[210px] lg:flex-col lg:items-start">
@@ -9555,7 +12657,7 @@ export default function UserHomeDashboardPage() {
 
         <section
           aria-label="Dashboard vertical orbiter"
-          className="relative left-1/2 -order-1 mb-6 w-screen -translate-x-1/2 cursor-grab overflow-visible rounded-none border-y border-cyan-200/12 bg-[radial-gradient(circle_at_50%_18%,rgba(34,211,238,0.13),transparent_34%),radial-gradient(circle_at_82%_28%,rgba(250,204,21,0.09),transparent_28%),linear-gradient(135deg,rgba(15,23,42,0.62),rgba(2,6,23,0.72))] px-0 pb-5 pt-0 shadow-2xl shadow-black/20 outline-none backdrop-blur [touch-action:none] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:pb-6 lg:pb-7"
+          className="relative left-1/2 -order-1 mb-0 flex h-full min-h-0 w-screen -translate-x-1/2 flex-col overflow-visible rounded-none border-y border-cyan-200/12 bg-[radial-gradient(circle_at_50%_18%,rgba(34,211,238,0.13),transparent_34%),radial-gradient(circle_at_82%_28%,rgba(250,204,21,0.09),transparent_28%),linear-gradient(135deg,rgba(15,23,42,0.62),rgba(2,6,23,0.72))] px-0 pb-0 pt-0 shadow-2xl shadow-black/20 outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-cyan-200/45"
           onClickCapture={(event) => {
             if (dashboardOrbiterPointerMovedRef.current) {
               event.preventDefault();
@@ -9564,84 +12666,145 @@ export default function UserHomeDashboardPage() {
             }
           }}
           onKeyDown={handleDashboardOrbiterKeyDown}
-          onPointerCancel={handleDashboardOrbiterPointerEnd}
-          onPointerDown={handleDashboardOrbiterPointerDown}
-          onPointerMove={handleDashboardOrbiterPointerMove}
-          onPointerUp={handleDashboardOrbiterPointerEnd}
           onWheel={handleDashboardOrbiterWheel}
           tabIndex={0}
         >
           {renderDashboardOrbiterTopMenu()}
           {renderDashboardFloatingSnapshotHeader()}
-          <div className="absolute right-2 top-1/2 z-50 h-[410px] w-16 -translate-y-1/2 overflow-visible [perspective:760px] sm:right-4 lg:right-6">
-            <div className="pointer-events-none absolute left-1/2 top-1/2 h-[276px] w-px -translate-x-1/2 -translate-y-1/2 bg-gradient-to-b from-transparent via-cyan-200/22 to-transparent shadow-[0_0_22px_rgba(34,211,238,0.22)]" />
-            <button
-              aria-label="Show previous dashboard row"
-              className="absolute left-1/2 top-0 z-50 flex h-9 w-11 -translate-x-1/2 items-center justify-center rounded-t-2xl border border-cyan-100/20 bg-slate-950/58 text-[11px] font-black text-cyan-100 shadow-[0_14px_34px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-100/42 hover:bg-cyan-300/12 disabled:cursor-not-allowed disabled:opacity-35"
-              disabled={clampedDashboardOrbiterRow === 0}
-              onClick={() => moveDashboardOrbiterRow(-1)}
-              type="button"
-            >
-              ^
-            </button>
+          <div className="dashboard-page-orbit-shell pointer-events-none absolute left-1 top-1/2 z-50 h-[394px] w-36 -translate-y-1/2 overflow-visible [perspective:860px] sm:left-3 lg:left-5">
+            <span
+              aria-hidden="true"
+              className="dashboard-page-orbit-rail pointer-events-none absolute"
+              style={
+                {
+                  WebkitMask:
+                    "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+                  WebkitMaskComposite: "xor",
+                  background:
+                    "conic-gradient(from 222deg at 54% 50%, rgba(34,211,238,0.08), rgba(34,211,238,0.88) 38deg, rgba(52,211,153,0.78) 86deg, rgba(250,204,21,0.82) 136deg, rgba(244,114,182,0.70) 188deg, rgba(129,140,248,0.76) 238deg, rgba(34,211,238,0.16) 306deg, rgba(34,211,238,0.08))",
+                  borderRadius: "9999px",
+                  boxSizing: "border-box",
+                  filter:
+                    "drop-shadow(0 0 18px rgba(34,211,238,0.30)) drop-shadow(0 0 14px rgba(250,204,21,0.14))",
+                  height: "21.6rem",
+                  left: "-0.26rem",
+                  mask:
+                    "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
+                  maskComposite: "exclude",
+                  opacity: 0.86,
+                  padding: "1px",
+                  top: "50%",
+                  transform: "translateY(-50%) rotateY(-12deg)",
+                  width: "8.8rem",
+                  zIndex: -8,
+                } as CSSProperties
+              }
+            />
+            <span
+              aria-hidden="true"
+              className="dashboard-page-orbit-glow pointer-events-none absolute"
+              style={
+                {
+                  background:
+                    "radial-gradient(ellipse at 50% 50%, rgba(34,211,238,0.18), transparent 56%), radial-gradient(ellipse at 30% 18%, rgba(250,204,21,0.16), transparent 34%), radial-gradient(ellipse at 24% 82%, rgba(244,114,182,0.13), transparent 34%)",
+                  borderRadius: "9999px",
+                  filter: "blur(10px)",
+                  height: "22.2rem",
+                  left: "-0.52rem",
+                  opacity: 0.74,
+                  top: "50%",
+                  transform: "translateY(-50%) rotateY(-12deg)",
+                  width: "9.25rem",
+                  zIndex: -12,
+                } as CSSProperties
+              }
+            />
+            <span
+              aria-hidden="true"
+              className="dashboard-page-orbit-well pointer-events-none absolute"
+              style={
+                {
+                  background:
+                    "radial-gradient(circle at 48% 48%, rgba(207,250,254,0.12), transparent 28%), radial-gradient(circle at 50% 50%, rgba(34,211,238,0.12), transparent 58%), radial-gradient(circle at 50% 50%, rgba(2,6,23,0.56), transparent 70%)",
+                  border: "1px solid rgba(207,250,254,0.10)",
+                  borderRadius: "9999px",
+                  boxShadow:
+                    "0 0 22px rgba(34,211,238,0.14), inset 0 1px 0 rgba(255,255,255,0.08)",
+                  height: "6.6rem",
+                  left: "2.2rem",
+                  top: "50%",
+                  transform: "translateY(-50%) translateZ(-20px)",
+                  width: "6.6rem",
+                  zIndex: -4,
+                } as CSSProperties
+              }
+            />
             <div
               aria-label="Dashboard row orbit selector"
-              className="absolute inset-x-0 bottom-12 top-12 [transform-style:preserve-3d]"
+              className="absolute inset-0 [transform-style:preserve-3d]"
             >
               {dashboardOrbiterRows.map((row, index) => {
                 const distance = index - clampedDashboardOrbiterRow;
                 const rawAbsDistance = Math.abs(distance);
-                const clampedDistance = Math.max(-3, Math.min(3, distance));
+                const clampedDistance = Math.max(-2, Math.min(2, distance));
                 const absDistance = Math.abs(clampedDistance);
                 const isActive = distance === 0;
                 const urgencyTone = getDashboardRowUrgencyTone(
                   row.completion,
                 );
-                const yOffset = clampedDistance * 58;
+                const yOffset = clampedDistance * 78;
+                const xOffset = isActive
+                  ? -42
+                  : absDistance === 1
+                    ? -50
+                    : -36;
                 const scale =
                   absDistance === 0
                     ? 1
                     : absDistance === 1
-                      ? 0.82
-                      : absDistance === 2
-                        ? 0.66
-                        : 0.5;
+                      ? 0.78
+                      : 0.58;
                 const opacity =
-                  rawAbsDistance > 3
+                  rawAbsDistance > 2
                     ? 0
                     : absDistance === 0
                     ? 1
                     : absDistance === 1
-                      ? 0.76
-                      : absDistance === 2
-                        ? 0.42
-                        : 0.2;
-                const rotateY = clampedDistance * -12;
+                      ? 0.68
+                      : 0.34;
+                const rotateY = isActive ? -8 : clampedDistance * -16;
+                const rotateX = clampedDistance * -5;
 
                 return (
                   <button
                     aria-label={`Show ${row.title} row`}
                     aria-pressed={isActive}
-                    className={`absolute left-1/2 top-1/2 grid h-12 w-12 origin-center place-items-center overflow-hidden rounded-[18px] border p-1 text-left shadow-[0_14px_34px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl transition-[border-color,background-color,box-shadow] duration-300 ${
+                    className={`dashboard-page-orbit-node pointer-events-auto absolute left-1/2 top-1/2 grid h-12 w-12 origin-center place-items-center overflow-hidden rounded-[18px] border p-1 text-left shadow-[0_14px_34px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl transition-[border-color,background-color,box-shadow] duration-300 ${
                       isActive
-                        ? `${urgencyTone.ring} ${urgencyTone.text} border-cyan-100/34 shadow-[0_18px_46px_rgba(0,0,0,0.40),0_0_24px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.18)]`
-                        : "border-white/12 bg-slate-950/52 text-slate-300 hover:border-cyan-200/30 hover:bg-cyan-300/10 hover:text-cyan-100"
+                        ? `dashboard-page-orbit-node--active ${urgencyTone.ring} ${urgencyTone.text} border-cyan-100/34 shadow-[0_18px_46px_rgba(0,0,0,0.40),0_0_24px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.18)]`
+                        : "dashboard-page-orbit-node--ghost border-white/12 bg-slate-950/52 text-slate-300 hover:border-cyan-200/30 hover:bg-cyan-300/10 hover:text-cyan-100"
                     }`}
                     key={row.title}
                     onClick={() => setDashboardOrbiterRow(index)}
                     style={{
                       opacity,
-                      pointerEvents: rawAbsDistance > 3 ? "none" : "auto",
-                      transform: `translate(-50%, -50%) translateY(${yOffset}px) translateZ(${
-                        isActive ? 56 : 14 - absDistance * 10
-                      }px) rotateY(${rotateY}deg) scale(${scale})`,
+                      pointerEvents: rawAbsDistance > 2 ? "none" : "auto",
+                      transform: `translate(-50%, -50%) translateX(${xOffset}px) translateY(${yOffset}px) translateZ(${
+                        isActive ? 62 : 20 - absDistance * 8
+                      }px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${scale})`,
                       transition:
-                        "transform 520ms cubic-bezier(0.2, 0.82, 0.2, 1), opacity 260ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease",
+                        "transform 380ms cubic-bezier(0.2, 0.82, 0.2, 1), opacity 220ms ease, border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease",
                       zIndex: 40 - absDistance,
                     }}
                     title={row.helper}
                     type="button"
                   >
+                    <span
+                      aria-hidden="true"
+                      className={`pointer-events-none absolute -inset-2 rounded-[inherit] bg-[radial-gradient(circle_at_50%_50%,rgba(34,211,238,0.18),transparent_60%),linear-gradient(90deg,transparent,rgba(250,204,21,0.12),transparent)] ${
+                        isActive ? "opacity-70" : "opacity-40"
+                      }`}
+                    />
                     <span
                       aria-hidden="true"
                       className={`relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-2xl border ${
@@ -9679,21 +12842,13 @@ export default function UserHomeDashboardPage() {
                 );
               })}
             </div>
-            <button
-              aria-label="Show next dashboard row"
-              className="absolute bottom-0 left-1/2 z-50 flex h-9 w-11 -translate-x-1/2 items-center justify-center rounded-b-2xl border border-amber-100/20 bg-slate-950/58 text-[11px] font-black text-amber-100 shadow-[0_14px_34px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl transition hover:translate-y-0.5 hover:border-amber-100/42 hover:bg-amber-300/12 disabled:cursor-not-allowed disabled:opacity-35"
-              disabled={
-                clampedDashboardOrbiterRow === dashboardOrbiterRows.length - 1
-              }
-              onClick={() => moveDashboardOrbiterRow(1)}
-              type="button"
-            >
-              v
-            </button>
+            <div className="pointer-events-auto absolute left-[4.35rem] top-1/2 z-50 -translate-x-1/2 -translate-y-1/2">
+              {renderDashboardPageAnalog()}
+            </div>
           </div>
-          <div className="relative z-10 mt-4 h-[min(70vh,640px)] min-h-[520px] overflow-hidden sm:mt-5 sm:min-h-[560px] lg:mt-5 lg:min-h-[600px]">
+          <div className="relative z-10 mt-4 min-h-0 flex-1 overflow-hidden sm:mt-5 lg:mt-5">
             <div
-              className="grid transition-transform duration-[620ms] ease-[cubic-bezier(0.2,0.85,0.25,1)]"
+              className="grid transition-transform duration-[430ms] ease-[cubic-bezier(0.2,0.85,0.25,1)]"
               style={{
                 gridTemplateRows: `repeat(${dashboardOrbiterRows.length}, minmax(0, 1fr))`,
                 height: `${dashboardOrbiterRows.length * 100}%`,
@@ -9704,7 +12859,7 @@ export default function UserHomeDashboardPage() {
               }}
             >
               <div
-                className={`flex min-h-0 items-start justify-center pl-6 pr-20 pt-2 transition-opacity duration-300 sm:pl-10 sm:pr-24 sm:pt-3 lg:pl-12 lg:pr-28 lg:pt-4 ${
+                className={`flex min-h-0 items-start justify-center pl-24 pr-6 pt-2 transition-opacity duration-300 sm:pl-28 sm:pr-10 sm:pt-3 lg:pl-32 lg:pr-12 lg:pt-4 ${
                   clampedDashboardOrbiterRow === 0
                     ? "pointer-events-auto opacity-100"
                     : "pointer-events-none opacity-40"
@@ -9753,228 +12908,6 @@ export default function UserHomeDashboardPage() {
           </div>
         </section>
         {renderDashboardProfileHubOverlay()}
-
-        <section className="mb-6">
-          <DashboardCharts recoveryTrend={dashboardCharts.recoveryTrend} />
-        </section>
-
-        <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {statCards.map((card) => (
-            <div
-              key={card.label}
-              className="rounded-[24px] border border-white/10 bg-white/[0.05] p-5 shadow-xl shadow-black/15 backdrop-blur"
-            >
-              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
-                {card.label}
-              </div>
-              <div className="mt-3 break-words text-2xl font-black tracking-tight text-white">
-                {card.value}
-              </div>
-              <div className="mt-2 text-sm text-slate-400">{card.detail}</div>
-            </div>
-          ))}
-        </section>
-
-        <section className="mb-6 grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/15 backdrop-blur sm:rounded-[32px] sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-300">
-                  Current Week
-                </div>
-                <h2 className="mt-2 text-2xl font-black tracking-tight">
-                  Plan snapshot
-                </h2>
-              </div>
-              <Link
-                href={ROUTES.dashboard.myPlan}
-                className="min-h-[44px] rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-amber-200 transition hover:bg-amber-300 hover:text-slate-950"
-              >
-                Open Plan
-              </Link>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              {planHighlights.map((item) => (
-                <div
-                  key={item.label}
-                  className="rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3"
-                >
-                  <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
-                    {item.label}
-                  </div>
-                  <p className="mt-1 text-sm font-bold leading-6 text-white">
-                    {item.value}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="rounded-[28px] border border-white/10 bg-white/[0.045] p-5 shadow-2xl shadow-black/15 backdrop-blur sm:rounded-[32px] sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-300">
-                  Recent Workout Activity
-                </div>
-                <h2 className="mt-2 text-2xl font-black tracking-tight">
-                  {dashboardSummary.latestExercise}
-                </h2>
-                <p className="mt-1 text-sm text-slate-400">
-                  {dashboardSummary.mostRecentDate}
-                </p>
-              </div>
-              <Link
-                href={ROUTES.dashboard.stats}
-                className="min-h-[44px] rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-emerald-200 transition hover:bg-emerald-300 hover:text-slate-950"
-              >
-                Stats
-              </Link>
-            </div>
-
-            {dashboardSummary.hasStats ? (
-              <div className="mt-5 grid gap-3 lg:grid-cols-3">
-                {dashboardSummary.latestEntries.map((entry, index) => (
-                  <div
-                    key={`${entry.date}-${entry.exerciseId}-${index}`}
-                    className="rounded-2xl border border-white/10 bg-slate-950/55 px-4 py-3"
-                  >
-                    <div className="text-sm font-bold leading-5 text-white">
-                      {entry.exerciseName}
-                    </div>
-                    <p className="mt-2 text-sm text-slate-400">
-                      {entry.weight} x {entry.reps} x {entry.sets}
-                    </p>
-                    <span className="mt-3 inline-flex rounded-full border border-sky-400/20 bg-sky-500/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.12em] text-sky-300">
-                      {entry.source === "workout-session"
-                        ? "Workout"
-                        : "Library"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="mt-5 rounded-2xl border border-white/10 bg-slate-950/55 p-4 text-sm leading-6 text-slate-300">
-                No saved workout activity yet. Start the session hub to create
-                your first local stats entry.
-              </p>
-            )}
-          </div>
-        </section>
-
-        <section className="mb-6 grid gap-4 lg:grid-cols-3">
-          <Link
-            href={ROUTES.dashboard.videoReview}
-            className="group rounded-[26px] border border-sky-300/20 bg-sky-400/10 p-5 shadow-xl shadow-black/15 transition hover:border-sky-300/45 hover:bg-sky-400/15"
-          >
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-300">
-              Video Review
-            </div>
-            <h3 className="mt-3 text-xl font-black tracking-tight text-white">
-              Submit a lift for coach feedback
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              MVP review queue with related exercise and linked workout fields.
-            </p>
-            <div className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-sky-200 transition group-hover:translate-x-1">
-              Open Video Review
-            </div>
-          </Link>
-
-          <Link
-            href={ROUTES.dashboard.recovery}
-            className="group rounded-[26px] border border-emerald-300/20 bg-emerald-400/10 p-5 shadow-xl shadow-black/15 transition hover:border-emerald-300/45 hover:bg-emerald-400/15"
-          >
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-300">
-              Recovery / Readiness
-            </div>
-            <h3 className="mt-3 text-xl font-black tracking-tight text-white">
-              Keep readiness in the loop
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              Mobility, soreness, and recovery recommendations remain secondary
-              until readiness data is wired.
-            </p>
-            <div className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-emerald-200 transition group-hover:translate-x-1">
-              Open Recovery
-            </div>
-          </Link>
-
-          <Link
-            href={ROUTES.nutrition.home}
-            className="group rounded-[26px] border border-amber-300/20 bg-amber-300/10 p-5 shadow-xl shadow-black/15 transition hover:border-amber-300/45 hover:bg-amber-300/15"
-          >
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-300">
-              Nutrition
-            </div>
-            <h3 className="mt-3 text-xl font-black tracking-tight text-white">
-              Fuel the next phase
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              Recipes, meal prep, and grocery tools are available while deeper
-              nutrition logic stays future-scoped.
-            </p>
-            <div className="mt-4 text-xs font-black uppercase tracking-[0.16em] text-amber-200 transition group-hover:translate-x-1">
-              Open Nutrition
-            </div>
-          </Link>
-        </section>
-
-        <section className="mb-6 grid gap-5 xl:grid-cols-[1fr_1fr]">
-          <div className="rounded-[28px] border border-white/10 bg-white/[0.035] p-5 shadow-2xl shadow-black/15 backdrop-blur sm:rounded-[32px] sm:p-6">
-            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-fuchsia-300">
-              Continuation Program
-            </div>
-            <h2 className="mt-2 text-2xl font-black tracking-tight">
-              Keep the plan moving
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-300">
-              Use My Plan and the Sessions hub as the active continuation path
-              for weekly programming, workout launches, and progress follow-up.
-            </p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <Link
-                href={ROUTES.dashboard.myPlan}
-                className="min-h-[48px] rounded-2xl border border-fuchsia-300/20 bg-fuchsia-400/10 px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-fuchsia-100 transition hover:bg-fuchsia-300 hover:text-slate-950"
-              >
-                Review Plan
-              </Link>
-              <Link
-                href={ROUTES.dashboard.sessions}
-                className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-white transition hover:border-sky-300/40 hover:bg-sky-400/10"
-              >
-                Sessions Hub
-              </Link>
-            </div>
-          </div>
-
-          <div className="rounded-[28px] border border-white/10 bg-white/[0.035] p-5 shadow-2xl shadow-black/15 backdrop-blur sm:rounded-[32px] sm:p-6">
-            <div className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-300">
-              Performance / Conditioning
-            </div>
-            <h2 className="mt-2 text-2xl font-black tracking-tight">
-              Track capacity without clutter
-            </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-300">
-              Stats are the live source today. Conditioning, calendars, and
-              deeper performance trends can build from the same workout logs.
-            </p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <Link
-                href={ROUTES.dashboard.stats}
-                className="min-h-[48px] rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-cyan-100 transition hover:bg-cyan-300 hover:text-slate-950"
-              >
-                View Stats
-              </Link>
-              <Link
-                href={ROUTES.dashboard.trainingCalendar}
-                className="min-h-[48px] rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-white transition hover:border-cyan-300/40 hover:bg-cyan-400/10"
-              >
-                Calendar
-              </Link>
-            </div>
-          </div>
-        </section>
 
       </div>
     </main>

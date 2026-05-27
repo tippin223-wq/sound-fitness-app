@@ -14081,6 +14081,26 @@ export default function ClientProfilePage() {
         zIndex: isActive ? 40 : 20,
       };
     };
+    const getProfileOrbiterRailRowStyle = (row: number): CSSProperties => {
+      const distance = row - clampedActiveProfileOrbiterRow;
+      const absDistance = Math.abs(distance);
+      const visibleDistance = Math.min(absDistance, 3);
+      const isActive = distance === 0;
+
+      return {
+        opacity:
+          absDistance > 3 ? 0 : isActive ? 1 : Math.max(0.32, 0.72 - visibleDistance * 0.12),
+        pointerEvents: absDistance > 3 ? "none" : "auto",
+        transform: `translate(-50%, -50%) translateY(${distance * 42}px) translateZ(${
+          isActive ? 42 : -visibleDistance * 38
+        }px) rotateX(${distance * -24}deg) scale(${
+          isActive ? 1 : Math.max(0.68, 0.9 - visibleDistance * 0.08)
+        })`,
+        transition:
+          "opacity 240ms ease, transform 420ms cubic-bezier(0.2,0.85,0.25,1), width 260ms ease, border-color 220ms ease, background-color 220ms ease",
+        zIndex: isActive ? 50 : 36 - visibleDistance,
+      };
+    };
     const syncProfileOrbiterRowFromScroll = () => {
       if (profileOrbiterLocked) return;
       if (profileOrbiterScrollSyncLockRef.current) return;
@@ -15497,8 +15517,8 @@ export default function ClientProfilePage() {
         <div
           className={`absolute right-0 top-1/2 z-[90] flex -translate-y-1/2 justify-end px-1 py-6 transition-[width] duration-300 ease-out sm:right-1 ${
             profileOrbiterRailExpanded && clampedActiveProfileOrbiterRow !== 0
-              ? "w-40 sm:w-44"
-              : "w-14"
+              ? "w-44 sm:w-48"
+              : "w-16"
           }`}
           onBlurCapture={(event) => {
             const nextTarget = event.relatedTarget;
@@ -15530,10 +15550,10 @@ export default function ClientProfilePage() {
           }}
         >
           <div
-            className={`relative isolate flex flex-col items-center gap-1.5 overflow-hidden rounded-[22px] border p-1.5 shadow-[0_18px_60px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl transition-[width,opacity,background-color,border-color,box-shadow] duration-300 ease-out ${
+            className={`relative isolate flex flex-col items-center gap-2 overflow-visible rounded-[22px] border p-1.5 shadow-[0_18px_60px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl transition-[width,opacity,background-color,border-color,box-shadow] duration-300 ease-out ${
               profileOrbiterRailExpanded && clampedActiveProfileOrbiterRow !== 0
                 ? "w-full border-cyan-100/28 bg-[radial-gradient(circle_at_18%_0%,rgba(103,232,249,0.24),transparent_36%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.15),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.52))] opacity-100 shadow-[0_22px_70px_rgba(0,0,0,0.46),0_0_28px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.18)]"
-                : "w-12 border-cyan-100/18 bg-[radial-gradient(circle_at_25%_0%,rgba(103,232,249,0.20),transparent_36%),linear-gradient(180deg,rgba(255,255,255,0.10),rgba(15,23,42,0.48)_42%,rgba(2,6,23,0.42))] opacity-90 shadow-[0_18px_60px_rgba(0,0,0,0.34),0_0_20px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.16)]"
+                : "w-14 border-cyan-100/18 bg-[radial-gradient(circle_at_25%_0%,rgba(103,232,249,0.20),transparent_36%),linear-gradient(180deg,rgba(255,255,255,0.10),rgba(15,23,42,0.48)_42%,rgba(2,6,23,0.42))] opacity-90 shadow-[0_18px_60px_rgba(0,0,0,0.34),0_0_20px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.16)]"
             }`}
           >
             <span
@@ -15565,13 +15585,26 @@ export default function ClientProfilePage() {
                 >
                   ^
                 </button>
-                <div className="flex w-full flex-col gap-1">
+                <div
+                  aria-label="Profile row 3D vertical scroller"
+                  className="relative h-[250px] w-full overflow-visible [perspective:720px]"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-1/2 top-1/2 h-[178px] w-[86%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(103,232,249,0.16),rgba(251,191,36,0.08)_44%,transparent_74%)] blur-xl"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-x-2 top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-transparent via-cyan-100/35 to-transparent"
+                  />
                   {profileOrbiterRows.slice(1).map((row, rowOffset) => {
                     const rowIndex = rowOffset + 1;
                     const isActiveRow =
                       clampedActiveProfileOrbiterRow === rowIndex;
                     const rowTone = getCompletionIndicatorTone(row.completion);
                     const pulseTone = getProfilePulseIndicatorTone(row.completion);
+                    const rowTextVisible =
+                      profileOrbiterRailExpanded || isActiveRow;
 
                     return (
                       <button
@@ -15581,15 +15614,14 @@ export default function ClientProfilePage() {
                         aria-pressed={isActiveRow}
                         disabled={profileOrbiterLocked}
                         onClick={() => setProfileOrbiterRow(rowIndex)}
-                        className={`flex min-h-7 w-full items-center gap-2 overflow-hidden rounded-xl border px-1.5 py-1 text-[8px] font-black uppercase leading-[0.65rem] tracking-[0.05em] transition ${
-                          profileOrbiterRailExpanded
-                            ? "justify-start"
-                            : "justify-center"
+                        className={`absolute left-1/2 top-1/2 flex min-h-9 items-center gap-2 overflow-hidden rounded-2xl border px-2 py-1.5 text-[8px] font-black uppercase leading-[0.68rem] tracking-[0.06em] backdrop-blur-xl ${
+                          rowTextVisible ? "w-[9.2rem] justify-start" : "w-9 justify-center"
                         } ${
                           isActiveRow
-                            ? `${rowTone.activeButton} shadow-[0_0_18px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.16)]`
-                            : "border-white/12 bg-white/[0.055] text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-orange-200/34 hover:bg-orange-300/12 hover:text-orange-100"
-                        } backdrop-blur disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/10 disabled:hover:bg-white/[0.035] disabled:hover:text-slate-400`}
+                            ? `${rowTone.activeButton} shadow-[0_0_22px_rgba(34,211,238,0.18),0_16px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.18)]`
+                            : "border-white/12 bg-slate-950/42 text-slate-300 shadow-[0_10px_24px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-orange-200/34 hover:bg-orange-300/12 hover:text-orange-100"
+                        } disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/10 disabled:hover:bg-white/[0.035] disabled:hover:text-slate-400`}
+                        style={getProfileOrbiterRailRowStyle(rowIndex)}
                       >
                         <span
                           aria-hidden="true"
@@ -15614,7 +15646,7 @@ export default function ClientProfilePage() {
                         </span>
                         <span
                           className={`overflow-hidden whitespace-normal text-left transition-[max-width,opacity] duration-300 ${
-                            profileOrbiterRailExpanded
+                            rowTextVisible
                               ? "max-w-[6.8rem] opacity-100"
                               : "max-w-0 opacity-0"
                           }`}
@@ -15832,7 +15864,7 @@ export default function ClientProfilePage() {
                             -1,
                           )
                         }
-                        className="absolute left-2 top-1/2 z-[70] grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-cyan-200/18 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-cyan-200/42 hover:bg-cyan-300/12 sm:left-4 lg:left-6"
+                        className="absolute left-4 top-1/2 z-[70] grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-cyan-200/18 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-cyan-200/42 hover:bg-cyan-300/12 sm:left-6 lg:left-8"
                       >
                         &lt;
                       </button>
@@ -15846,7 +15878,7 @@ export default function ClientProfilePage() {
                             1,
                           )
                         }
-                        className="absolute right-[10.5rem] top-1/2 z-[70] grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-orange-200/18 bg-slate-950/72 text-lg font-black text-orange-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-orange-200/42 hover:bg-orange-300/12 sm:right-[11.5rem]"
+                        className="absolute right-[5.75rem] top-1/2 z-[70] grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-orange-200/18 bg-slate-950/72 text-lg font-black text-orange-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-orange-200/42 hover:bg-orange-300/12 sm:right-[6.5rem] lg:right-[7rem]"
                       >
                         &gt;
                       </button>
