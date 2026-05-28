@@ -25,7 +25,11 @@ const aliases: Record<string, string> = {
   Dash: "dashboard",
   Feed: "feed",
   Form: "form",
+  FAQ: "help",
   Grocery: "grocery",
+  Group: "groups",
+  Groups: "groups",
+  Help: "help",
   Hydrate: "hydration",
   Insights: "insights",
   Lessons: "education",
@@ -35,15 +39,30 @@ const aliases: Record<string, string> = {
   Meals: "meals",
   Messages: "messages",
   Metrics: "stats",
+  Music: "music",
+  Muted: "volume-muted",
   Overview: "dashboard",
   Packages: "packages",
+  Pause: "pause",
+  Play: "play",
+  Program: "challenges",
+  Programs: "challenges",
+  "Programs & Challenges": "challenges",
+  "Programs and Challenges": "challenges",
   Plan: "plan",
   "My Plan": "plan",
   Post: "post",
   Power: "performance",
   Progress: "stats",
+  Question: "help",
   Run: "run",
+  Sound: "music",
+  "Sound Controls": "music",
   Social: "feed",
+  Gear: "settings",
+  Settings: "settings",
+  Skip: "skip",
+  Challenges: "challenges",
   Stats: "stats",
   Tests: "tests",
   Technique: "form",
@@ -67,6 +86,7 @@ const aliases: Record<string, string> = {
   WO: "workout",
   Workout: "workout",
   "Workout / Sessions": "workout",
+  Volume: "volume",
 };
 
 function IconSvg(props: SVGProps<SVGSVGElement>) {
@@ -154,8 +174,28 @@ export default function DashboardTabIcon({
       return <IconSvg className={className}><path d="M9 18h6" /><path d="M10 22h4" /><path d="M8.5 14.5A6 6 0 1 1 15.5 14.5c-.9.6-1.5 1.6-1.5 2.5h-4c0-.9-.6-1.9-1.5-2.5Z" /></IconSvg>;
     case "achievements":
       return <IconSvg className={className}><path d="M8 21h8" /><path d="M12 17v4" /><path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" /><path d="M7 7H4a3 3 0 0 0 3 3" /><path d="M17 7h3a3 3 0 0 1-3 3" /></IconSvg>;
+    case "music":
+      return <IconSvg className={className}><path d="M9 18V5l11-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="17" cy="16" r="3" /></IconSvg>;
+    case "pause":
+      return <IconSvg className={className}><path d="M8 5v14" /><path d="M16 5v14" /></IconSvg>;
+    case "play":
+      return <IconSvg className={className}><path d="m8 5 11 7-11 7V5Z" /></IconSvg>;
+    case "skip":
+      return <IconSvg className={className}><path d="m5 5 9 7-9 7V5Z" /><path d="M19 5v14" /></IconSvg>;
+    case "volume":
+      return <IconSvg className={className}><path d="M4 9v6h4l5 4V5L8 9H4Z" /><path d="M17 9.5a4 4 0 0 1 0 5" /><path d="M19.5 7a8 8 0 0 1 0 10" /></IconSvg>;
+    case "volume-muted":
+      return <IconSvg className={className}><path d="M4 9v6h4l5 4V5L8 9H4Z" /><path d="m18 9 4 4" /><path d="m22 9-4 4" /></IconSvg>;
     case "messages":
       return <IconSvg className={className}><path d="M21 12a8 8 0 0 1-8 8H6l-4 2 2-5a8 8 0 1 1 17-5Z" /><path d="M8 11h8" /><path d="M8 15h5" /></IconSvg>;
+    case "settings":
+      return <IconSvg className={className}><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.08a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.08A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88l-.06-.06A2 2 0 1 1 7.03 4.2l.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 10 3.04V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06A2 2 0 1 1 19.8 7.03l-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.96 10H21a2 2 0 1 1 0 4h-.08A1.7 1.7 0 0 0 19.4 15Z" /></IconSvg>;
+    case "help":
+      return <IconSvg className={className}><circle cx="12" cy="12" r="9" /><path d="M9.5 9a2.8 2.8 0 0 1 5.2 1.4c0 2-2.7 2.3-2.7 4" /><path d="M12 18h.01" /></IconSvg>;
+    case "groups":
+      return <IconSvg className={className}><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2.4" /><path d="M3.5 21a5.5 5.5 0 0 1 11 0" /><path d="M14.5 19.5a4.5 4.5 0 0 1 6 1.5" /></IconSvg>;
+    case "challenges":
+      return <IconSvg className={className}><path d="M5 21V4" /><path d="M5 5h11l-1.6 3L16 11H5" /><path d="M12 14.5 10.8 17l-2.8.4 2 1.9-.5 2.7 2.5-1.3 2.5 1.3-.5-2.7 2-1.9-2.8-.4L12 14.5Z" /></IconSvg>;
     case "packages":
       return <IconSvg className={className}><path d="m12 3 8 4-8 4-8-4 8-4Z" /><path d="M4 7v10l8 4 8-4V7" /><path d="M12 11v10" /></IconSvg>;
     default:

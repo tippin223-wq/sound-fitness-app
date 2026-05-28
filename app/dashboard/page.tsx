@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
+  type ChangeEvent as ReactChangeEvent,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
@@ -93,6 +94,62 @@ type ManualStatsLogEntry = ManualStatsDraft & {
   references: ManualLibraryReference[];
 };
 
+type DashboardMusicStationId =
+  | "orbit"
+  | "rock"
+  | "hipHop"
+  | "loFi"
+  | "house"
+  | "cinematic";
+
+type DashboardMusicAutoplayMode = "off" | "on";
+
+type DashboardMusicChord = {
+  bass: number;
+  color: number[];
+  notes: number[];
+};
+
+type DashboardMusicStation = {
+  accentType: OscillatorType;
+  arpOffsets: number[];
+  bassFilter: number;
+  bassType: OscillatorType;
+  bassVolume: number;
+  hatOffsets: number[];
+  helper: string;
+  id: DashboardMusicStationId;
+  kickVolume: number;
+  label: string;
+  leadPattern: number[];
+  leadType: OscillatorType;
+  leadVolume: number;
+  musicTags: string[];
+  noiseFilter: number;
+  noiseOffset: number;
+  noiseVolume: number;
+  padFilter: number;
+  padType: OscillatorType;
+  padVolume: number;
+  pulseOffsets: number[];
+  shortLabel: string;
+  snareOffsets: number[];
+  tempoLabel: string;
+  textureVolume: number;
+  progression: DashboardMusicChord[];
+};
+
+const DASHBOARD_MUSIC_DEFAULT_STATIONS: DashboardMusicStationId[] = ["orbit"];
+const DASHBOARD_MUSIC_DEFAULT_VOLUME = 0.72;
+const DASHBOARD_MUSIC_SETTINGS_STORAGE_KEY =
+  "soundFitnessDashboardMusicSettings";
+const DASHBOARD_MUSIC_AUTOPLAY_OPTIONS: {
+  id: DashboardMusicAutoplayMode;
+  label: string;
+}[] = [
+  { id: "off", label: "Off" },
+  { id: "on", label: "On" },
+];
 const WORKOUT_SYNC_LAST_SYNCED_KEY = "soundFitnessWorkoutDataLastSyncedAt";
 const MANUAL_STATS_LOG_STORAGE_KEY = "soundFitnessManualStatsLogs";
 const DASHBOARD_GOALS_STORAGE_KEY = "soundFitnessGoals";
@@ -108,12 +165,324 @@ const DASHBOARD_CONSISTENCY_ACTIVE_MONTH_INDEX =
 const DASHBOARD_CONSISTENCY_MONTH_WINDOW =
   DASHBOARD_CONSISTENCY_MONTHS_BACK + DASHBOARD_CONSISTENCY_MONTHS_AHEAD + 1;
 const DASHBOARD_MUSIC_PHRASE_SECONDS = 4.8;
+const DASHBOARD_MUSIC_TRANSITION_SECONDS = 0.62;
+const DASHBOARD_MUSIC_MASTER_GAIN_MAX = 0.34;
 const DASHBOARD_ANALOG_DRAG_THRESHOLD = 14;
 const DASHBOARD_ANALOG_HOLD_DELAY_MS = 120;
 const DASHBOARD_ANALOG_REPEAT_MS = 150;
 const DASHBOARD_ORBITER_ROW_CLICK_LOCK_MS = 170;
 const DASHBOARD_ORBITER_ROW_SCROLL_LOCK_MS = 145;
 const DASHBOARD_PROFILE_ICON_FALLBACK = "/sound-fitness-logo.png";
+
+const dashboardMusicStations: DashboardMusicStation[] = [
+  {
+    accentType: "triangle",
+    arpOffsets: [0.48, 1.28, 2.12, 3.08, 3.84],
+    bassFilter: 640,
+    bassType: "sine",
+    bassVolume: 0.085,
+    hatOffsets: [0.6, 1.8, 3, 4.2],
+    helper: "Late-2000s chillwave and ambient synth-pop focus.",
+    id: "orbit",
+    kickVolume: 0.105,
+    label: "Orbit FM",
+    leadPattern: [0, 2, 1, 2, 0],
+    leadType: "triangle",
+    leadVolume: 0.018,
+    musicTags: ["Chillwave", "Ambient Pop", "2010s", "Focus"],
+    noiseFilter: 2800,
+    noiseOffset: 3.05,
+    noiseVolume: 0.024,
+    padFilter: 1150,
+    padType: "triangle",
+    padVolume: 0.036,
+    pulseOffsets: [0, 2.4],
+    shortLabel: "Orbit",
+    snareOffsets: [2.4],
+    tempoLabel: "Focus",
+    textureVolume: 0.012,
+    progression: [
+      {
+        bass: 87.31,
+        color: [392, 523.25, 659.25],
+        notes: [174.61, 220, 261.63, 329.63],
+      },
+      {
+        bass: 98,
+        color: [440, 587.33, 739.99],
+        notes: [196, 246.94, 293.66, 392],
+      },
+      {
+        bass: 73.42,
+        color: [329.63, 493.88, 659.25],
+        notes: [146.83, 196, 246.94, 329.63],
+      },
+      {
+        bass: 110,
+        color: [493.88, 659.25, 880],
+        notes: [220, 277.18, 329.63, 440],
+      },
+    ],
+  },
+  {
+    accentType: "square",
+    arpOffsets: [0.36, 0.72, 1.56, 2.76, 3.12, 3.84],
+    bassFilter: 920,
+    bassType: "sawtooth",
+    bassVolume: 0.07,
+    hatOffsets: [0.3, 0.9, 1.5, 2.1, 2.7, 3.3, 3.9, 4.5],
+    helper: "2000s alt-rock with stadium-workout energy.",
+    id: "rock",
+    kickVolume: 0.13,
+    label: "Rock",
+    leadPattern: [0, 1, 2, 1, 2, 0],
+    leadType: "sawtooth",
+    leadVolume: 0.026,
+    musicTags: ["Alt-Rock", "Arena", "2000s", "Drive"],
+    noiseFilter: 4200,
+    noiseOffset: 2.28,
+    noiseVolume: 0.04,
+    padFilter: 1780,
+    padType: "sawtooth",
+    padVolume: 0.026,
+    pulseOffsets: [0, 1.2, 2.4, 3.6],
+    shortLabel: "Rock",
+    snareOffsets: [1.2, 3.6],
+    tempoLabel: "Drive",
+    textureVolume: 0.006,
+    progression: [
+      {
+        bass: 82.41,
+        color: [329.63, 392, 659.25],
+        notes: [164.81, 246.94, 329.63, 493.88],
+      },
+      {
+        bass: 110,
+        color: [440, 554.37, 880],
+        notes: [220, 329.63, 440, 659.25],
+      },
+      {
+        bass: 98,
+        color: [392, 493.88, 783.99],
+        notes: [196, 293.66, 392, 587.33],
+      },
+      {
+        bass: 123.47,
+        color: [493.88, 622.25, 987.77],
+        notes: [246.94, 369.99, 493.88, 739.99],
+      },
+    ],
+  },
+  {
+    accentType: "square",
+    arpOffsets: [0.72, 1.68, 2.88, 3.6],
+    bassFilter: 540,
+    bassType: "sine",
+    bassVolume: 0.12,
+    hatOffsets: [0.36, 0.72, 1.08, 1.92, 2.28, 2.88, 3.42, 4.08, 4.44],
+    helper: "2010s trap and boom-bap for strength blocks.",
+    id: "hipHop",
+    kickVolume: 0.145,
+    label: "Hip-Hop",
+    leadPattern: [0, 0, 2, 1],
+    leadType: "square",
+    leadVolume: 0.022,
+    musicTags: ["Hip-Hop", "Trap", "2010s", "Bounce"],
+    noiseFilter: 2200,
+    noiseOffset: 1.18,
+    noiseVolume: 0.034,
+    padFilter: 980,
+    padType: "triangle",
+    padVolume: 0.024,
+    pulseOffsets: [0, 1.2, 2.4],
+    shortLabel: "Hip-Hop",
+    snareOffsets: [1.2, 3.6],
+    tempoLabel: "Bounce",
+    textureVolume: 0.008,
+    progression: [
+      {
+        bass: 65.41,
+        color: [261.63, 311.13, 392],
+        notes: [130.81, 155.56, 196, 261.63],
+      },
+      {
+        bass: 73.42,
+        color: [293.66, 349.23, 440],
+        notes: [146.83, 174.61, 220, 293.66],
+      },
+      {
+        bass: 87.31,
+        color: [349.23, 415.3, 523.25],
+        notes: [174.61, 207.65, 261.63, 349.23],
+      },
+      {
+        bass: 98,
+        color: [392, 466.16, 587.33],
+        notes: [196, 233.08, 293.66, 392],
+      },
+    ],
+  },
+  {
+    accentType: "triangle",
+    arpOffsets: [0.62, 1.38, 2.26, 3.14, 4.02],
+    bassFilter: 520,
+    bassType: "sine",
+    bassVolume: 0.076,
+    hatOffsets: [0.6, 1.2, 2.16, 3, 4.08],
+    helper: "2020s lo-fi jazzhop with late-night calm.",
+    id: "loFi",
+    kickVolume: 0.094,
+    label: "Lo-Fi",
+    leadPattern: [2, 1, 0, 1, 2],
+    leadType: "triangle",
+    leadVolume: 0.019,
+    musicTags: ["Lo-Fi", "Jazzhop", "2020s", "Chill"],
+    noiseFilter: 1850,
+    noiseOffset: 2.96,
+    noiseVolume: 0.03,
+    padFilter: 860,
+    padType: "triangle",
+    padVolume: 0.041,
+    pulseOffsets: [0, 1.8, 2.4, 3.72],
+    shortLabel: "Lo-Fi",
+    snareOffsets: [1.2, 3.6],
+    tempoLabel: "Chill",
+    textureVolume: 0.016,
+    progression: [
+      {
+        bass: 73.42,
+        color: [293.66, 349.23, 440],
+        notes: [146.83, 174.61, 220, 293.66],
+      },
+      {
+        bass: 58.27,
+        color: [233.08, 293.66, 349.23],
+        notes: [116.54, 146.83, 174.61, 233.08],
+      },
+      {
+        bass: 87.31,
+        color: [349.23, 440, 523.25],
+        notes: [174.61, 220, 261.63, 349.23],
+      },
+      {
+        bass: 65.41,
+        color: [261.63, 329.63, 392],
+        notes: [130.81, 164.81, 196, 261.63],
+      },
+    ],
+  },
+  {
+    accentType: "square",
+    arpOffsets: [0.3, 0.9, 1.5, 2.1, 2.7, 3.3, 3.9, 4.5],
+    bassFilter: 720,
+    bassType: "sawtooth",
+    bassVolume: 0.074,
+    hatOffsets: [0.6, 1.8, 3, 4.2],
+    helper: "90s/2000s house with club-cardio momentum.",
+    id: "house",
+    kickVolume: 0.136,
+    label: "House",
+    leadPattern: [0, 1, 2, 1, 0, 2, 1, 2],
+    leadType: "square",
+    leadVolume: 0.02,
+    musicTags: ["House", "Club", "2000s", "Cardio"],
+    noiseFilter: 5200,
+    noiseOffset: 3.36,
+    noiseVolume: 0.028,
+    padFilter: 1380,
+    padType: "sawtooth",
+    padVolume: 0.026,
+    pulseOffsets: [0, 1.2, 2.4, 3.6],
+    shortLabel: "House",
+    snareOffsets: [1.2, 3.6],
+    tempoLabel: "Club",
+    textureVolume: 0.007,
+    progression: [
+      {
+        bass: 82.41,
+        color: [329.63, 493.88, 659.25],
+        notes: [164.81, 246.94, 329.63, 493.88],
+      },
+      {
+        bass: 98,
+        color: [392, 587.33, 783.99],
+        notes: [196, 293.66, 392, 587.33],
+      },
+      {
+        bass: 73.42,
+        color: [293.66, 440, 587.33],
+        notes: [146.83, 220, 293.66, 440],
+      },
+      {
+        bass: 110,
+        color: [440, 659.25, 880],
+        notes: [220, 329.63, 440, 659.25],
+      },
+    ],
+  },
+  {
+    accentType: "sine",
+    arpOffsets: [0.8, 1.9, 3.1, 4.05],
+    bassFilter: 480,
+    bassType: "sine",
+    bassVolume: 0.09,
+    hatOffsets: [1.2, 2.4, 3.6],
+    helper: "Modern trailer-score lift with epic drama.",
+    id: "cinematic",
+    kickVolume: 0.122,
+    label: "Cinematic",
+    leadPattern: [2, 1, 2, 0],
+    leadType: "sine",
+    leadVolume: 0.024,
+    musicTags: ["Cinematic", "Trailer", "Modern", "Epic"],
+    noiseFilter: 3100,
+    noiseOffset: 3.42,
+    noiseVolume: 0.036,
+    padFilter: 980,
+    padType: "triangle",
+    padVolume: 0.048,
+    pulseOffsets: [0, 2.4],
+    shortLabel: "Score",
+    snareOffsets: [3.6],
+    tempoLabel: "Epic",
+    textureVolume: 0.018,
+    progression: [
+      {
+        bass: 55,
+        color: [220, 329.63, 440],
+        notes: [110, 164.81, 220, 329.63],
+      },
+      {
+        bass: 65.41,
+        color: [261.63, 392, 523.25],
+        notes: [130.81, 196, 261.63, 392],
+      },
+      {
+        bass: 82.41,
+        color: [329.63, 493.88, 659.25],
+        notes: [164.81, 246.94, 329.63, 493.88],
+      },
+      {
+        bass: 73.42,
+        color: [293.66, 440, 587.33],
+        notes: [146.83, 220, 293.66, 440],
+      },
+    ],
+  },
+];
+
+const dashboardMusicStationById = Object.fromEntries(
+  dashboardMusicStations.map((station) => [station.id, station]),
+) as Record<DashboardMusicStationId, DashboardMusicStation>;
+
+const dashboardMusicStationIconNames: Record<DashboardMusicStationId, string> = {
+  cinematic: "Achievements",
+  hipHop: "Music",
+  house: "Cardio",
+  loFi: "Recovery",
+  orbit: "Sound World",
+  rock: "Performance",
+};
 
 const dashboardFavoriteLibrarySources = [
   {
@@ -284,6 +653,85 @@ const readStringArrayFromStorage = (key: string) => {
   } catch {
     return [];
   }
+};
+
+const normalizeDashboardMusicStationIds = (value: unknown) => {
+  const requestedIds = Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === "string")
+    : [];
+  const normalizedIds = dashboardMusicStations
+    .map((station) => station.id)
+    .filter((id) => requestedIds.includes(id));
+
+  return normalizedIds.length
+    ? normalizedIds
+    : [...DASHBOARD_MUSIC_DEFAULT_STATIONS];
+};
+
+const getDashboardMusicAutoplayMode = (
+  value: unknown,
+): DashboardMusicAutoplayMode =>
+  value === "on" ? value : "off";
+
+const readDashboardMusicSettings = () => {
+  if (typeof window === "undefined") {
+    return {
+      autoplayMode: "off" as DashboardMusicAutoplayMode,
+      muted: false,
+      stationIds: [...DASHBOARD_MUSIC_DEFAULT_STATIONS],
+      volume: DASHBOARD_MUSIC_DEFAULT_VOLUME,
+    };
+  }
+
+  try {
+    const parsed = asRecord(
+      JSON.parse(
+        window.localStorage.getItem(DASHBOARD_MUSIC_SETTINGS_STORAGE_KEY) ||
+          "{}",
+      ),
+    );
+    const volume = Number(parsed.volume);
+
+    return {
+      autoplayMode: getDashboardMusicAutoplayMode(parsed.autoplayMode),
+      muted: parsed.muted === true,
+      stationIds: normalizeDashboardMusicStationIds(parsed.stationIds),
+      volume: Number.isFinite(volume)
+        ? Math.min(1, Math.max(0, volume))
+        : DASHBOARD_MUSIC_DEFAULT_VOLUME,
+    };
+  } catch {
+    return {
+      autoplayMode: "off" as DashboardMusicAutoplayMode,
+      muted: false,
+      stationIds: [...DASHBOARD_MUSIC_DEFAULT_STATIONS],
+      volume: DASHBOARD_MUSIC_DEFAULT_VOLUME,
+    };
+  }
+};
+
+const writeDashboardMusicSettings = ({
+  autoplayMode,
+  muted,
+  stationIds,
+  volume,
+}: {
+  autoplayMode: DashboardMusicAutoplayMode;
+  muted: boolean;
+  stationIds: DashboardMusicStationId[];
+  volume: number;
+}) => {
+  if (typeof window === "undefined") return;
+
+  window.localStorage.setItem(
+    DASHBOARD_MUSIC_SETTINGS_STORAGE_KEY,
+    JSON.stringify({
+      autoplayMode,
+      muted,
+      stationIds,
+      volume: Math.min(1, Math.max(0, volume)),
+    }),
+  );
 };
 
 const readDashboardLibraryFavoriteIds = (
@@ -962,6 +1410,7 @@ function ManualExerciseLibraryPreview({
                 key={category.id}
                 aria-hidden={orbitVisible ? undefined : true}
                 className="exercise-library-horizontal-card-scroller-slot relative flex shrink-0 overflow-visible"
+                data-dashboard-tooltip={`${category.label}. ${category.helper}`}
                 data-orbit-offset={orbitVisible ? String(orbitOffset) : undefined}
                 data-orbit-visible={orbitVisible ? "true" : undefined}
               >
@@ -972,7 +1421,6 @@ function ManualExerciseLibraryPreview({
                   onClick={() => onCategorySelect(category.id)}
                   style={categoryStyle}
                   tabIndex={orbitVisible ? 0 : -1}
-                  title={`${category.label}. ${category.helper}`}
                   className={`exercise-library-page-section-tab ${
                     active
                       ? "exercise-library-page-section-tab--active"
@@ -1513,6 +1961,11 @@ type DashboardHeaderLink = {
   toneKey: DashboardCardTone;
 };
 
+type DashboardHeaderNewsHeadline = {
+  label: string;
+  tone?: "alert" | "default";
+};
+
 type DashboardNavigationCard = {
   description: string;
   href: string;
@@ -1607,6 +2060,10 @@ type DashboardVerticalPointerStart = {
 };
 
 type DashboardScrollButtonDirection = "down" | "left" | "right" | "up";
+
+type DashboardHeaderVortexMode = "clockwise" | "counter";
+
+type DashboardHeaderVortexPhase = "active" | "idle" | "settling";
 
 type DashboardProfileHubOrbitItem = {
   helper: string;
@@ -2350,7 +2807,9 @@ export default function UserHomeDashboardPage() {
     setDashboardHeaderScrollButtonActiveDirection,
   ] = useState<DashboardScrollButtonDirection | null>(null);
   const [dashboardHeaderVortexPulseMode, setDashboardHeaderVortexPulseMode] =
-    useState<"clockwise" | "counter" | null>(null);
+    useState<DashboardHeaderVortexMode | null>(null);
+  const [dashboardHeaderVortexSettling, setDashboardHeaderVortexSettling] =
+    useState(false);
   const [dashboardHeaderAnalogOffset, setDashboardHeaderAnalogOffset] =
     useState<DashboardVerticalPointerStart>({ x: 0, y: 0 });
   const [dashboardPageAnalogDragging, setDashboardPageAnalogDragging] =
@@ -2381,7 +2840,34 @@ export default function UserHomeDashboardPage() {
     useState<"left" | "right">("right");
   const [dashboardProfileHubOpen, setDashboardProfileHubOpen] =
     useState(false);
+  const [dashboardProfileActionsOpen, setDashboardProfileActionsOpen] =
+    useState(false);
+  const [dashboardPointsDropdownOpen, setDashboardPointsDropdownOpen] =
+    useState(false);
+  const [dashboardMusicDropdownOpen, setDashboardMusicDropdownOpen] =
+    useState(false);
   const [dashboardMusicEnabled, setDashboardMusicEnabled] = useState(false);
+  const [dashboardMusicStationIds, setDashboardMusicStationIds] = useState<
+    DashboardMusicStationId[]
+  >(DASHBOARD_MUSIC_DEFAULT_STATIONS);
+  const [dashboardMusicVolume, setDashboardMusicVolume] = useState(
+    DASHBOARD_MUSIC_DEFAULT_VOLUME,
+  );
+  const [dashboardMusicMuted, setDashboardMusicMuted] = useState(false);
+  const [dashboardMusicAutoplayMode, setDashboardMusicAutoplayMode] =
+    useState<DashboardMusicAutoplayMode>("off");
+  const [dashboardMusicSettingsLoaded, setDashboardMusicSettingsLoaded] =
+    useState(false);
+  const [
+    activeDashboardMusicStationIndex,
+    setActiveDashboardMusicStationIndex,
+  ] = useState(0);
+  const [dashboardTooltip, setDashboardTooltip] = useState<{
+    placement: "above" | "below";
+    text: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [dashboardProfileIconUrl, setDashboardProfileIconUrl] = useState(
     DASHBOARD_PROFILE_ICON_FALLBACK,
   );
@@ -2401,6 +2887,13 @@ export default function UserHomeDashboardPage() {
   ] = useState(DASHBOARD_CONSISTENCY_ACTIVE_MONTH_INDEX);
   const dashboardStatusDetailsRef = useRef<HTMLDetailsElement | null>(null);
   const favoriteWorkoutStripRef = useRef<HTMLDivElement | null>(null);
+  const dashboardHeaderNewsHeadlineRef = useRef<HTMLSpanElement | null>(null);
+  const dashboardHeaderNewsHeadlineIndexRef = useRef(0);
+  const dashboardHeaderNewsHeadlinesRef = useRef<
+    DashboardHeaderNewsHeadline[]
+  >([]);
+  const dashboardPointsDropdownRef = useRef<HTMLDivElement | null>(null);
+  const dashboardMusicDropdownRef = useRef<HTMLDivElement | null>(null);
   const dashboardOrbiterPointerStartRef =
     useRef<DashboardVerticalPointerStart | null>(null);
   const dashboardOrbiterPointerMovedRef = useRef(false);
@@ -2419,6 +2912,7 @@ export default function UserHomeDashboardPage() {
     null,
   );
   const dashboardHeaderVortexPulseTimeoutRef = useRef<number | null>(null);
+  const dashboardHeaderVortexSettleTimeoutRef = useRef<number | null>(null);
   const dashboardPageAnalogPointerStartRef =
     useRef<DashboardVerticalPointerStart | null>(null);
   const dashboardPageAnalogPointerMovedRef = useRef(false);
@@ -2430,6 +2924,8 @@ export default function UserHomeDashboardPage() {
   const weeklyRecapPointerMovedRef = useRef(false);
   const mySoundPointerStartRef = useRef<number | null>(null);
   const mySoundPointerMovedRef = useRef(false);
+  const dashboardMusicStationPointerStartRef = useRef<number | null>(null);
+  const dashboardMusicStationPointerMovedRef = useRef(false);
   const systemCenterPointerStartRef = useRef<number | null>(null);
   const systemCenterPointerMovedRef = useRef(false);
   const dashboardCardWheelLockRef = useRef(0);
@@ -2441,7 +2937,103 @@ export default function UserHomeDashboardPage() {
   const dashboardMusicGainRef = useRef<GainNode | null>(null);
   const dashboardMusicIntervalRef = useRef<number | null>(null);
   const dashboardMusicObjectUrlRef = useRef<string | null>(null);
+  const dashboardMusicStationIdsRef = useRef<DashboardMusicStationId[]>(
+    DASHBOARD_MUSIC_DEFAULT_STATIONS,
+  );
   const dashboardMusicStepRef = useRef(0);
+  const dashboardMusicVolumeRef = useRef(DASHBOARD_MUSIC_DEFAULT_VOLUME);
+  const dashboardMusicMutedRef = useRef(false);
+  const dashboardMusicAutoplayModeRef =
+    useRef<DashboardMusicAutoplayMode>("off");
+  const dashboardTooltipTimerRef = useRef<number | null>(null);
+
+  const clearDashboardTooltipTimer = () => {
+    if (dashboardTooltipTimerRef.current !== null) {
+      window.clearTimeout(dashboardTooltipTimerRef.current);
+      dashboardTooltipTimerRef.current = null;
+    }
+  };
+
+  const hideDashboardTooltip = () => {
+    clearDashboardTooltipTimer();
+    setDashboardTooltip(null);
+  };
+
+  const getDashboardMusicMasterGainLevel = () =>
+    dashboardMusicMutedRef.current
+      ? 0.0001
+      : Math.max(
+          0.0001,
+          dashboardMusicVolumeRef.current * DASHBOARD_MUSIC_MASTER_GAIN_MAX,
+        );
+
+  const applyDashboardMusicVolume = () => {
+    const context = dashboardMusicAudioContextRef.current;
+    const masterGain = dashboardMusicGainRef.current;
+
+    if (context && masterGain && context.state !== "closed") {
+      const now = context.currentTime;
+      masterGain.gain.cancelScheduledValues(now);
+      masterGain.gain.setTargetAtTime(
+        getDashboardMusicMasterGainLevel(),
+        now,
+        0.08,
+      );
+    }
+
+    if (dashboardMusicAudioElementRef.current) {
+      dashboardMusicAudioElementRef.current.volume =
+        dashboardMusicMutedRef.current
+          ? 0
+          : Math.min(1, Math.max(0, dashboardMusicVolumeRef.current));
+    }
+  };
+
+  const getDashboardMusicSelectedStations = () => {
+    const selectedStations = dashboardMusicStations.filter((station) =>
+      dashboardMusicStationIdsRef.current.includes(station.id),
+    );
+
+    return selectedStations.length
+      ? selectedStations
+      : [dashboardMusicStationById.orbit];
+  };
+
+  const getDashboardTooltipTarget = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) return null;
+
+    return target.closest("[data-dashboard-tooltip]") as HTMLElement | null;
+  };
+
+  const showDashboardTooltipForTarget = (target: HTMLElement) => {
+    const text = target.getAttribute("data-dashboard-tooltip");
+
+    if (!text) return;
+
+    clearDashboardTooltipTimer();
+    dashboardTooltipTimerRef.current = window.setTimeout(() => {
+      const rect = target.getBoundingClientRect();
+      const placement =
+        rect.bottom + 54 < window.innerHeight ? "below" : "above";
+      const x = Math.min(
+        window.innerWidth - 18,
+        Math.max(18, rect.left + rect.width / 2),
+      );
+      const y =
+        placement === "below"
+          ? Math.min(window.innerHeight - 12, rect.bottom + 10)
+          : Math.max(12, rect.top - 10);
+
+      setDashboardTooltip({
+        placement,
+        text,
+        x,
+        y,
+      });
+      dashboardTooltipTimerRef.current = null;
+    }, 240);
+  };
+
   const closeDashboardStatusDropdown = () => {
     if (dashboardStatusDetailsRef.current) {
       dashboardStatusDetailsRef.current.open = false;
@@ -2450,9 +3042,12 @@ export default function UserHomeDashboardPage() {
   const scheduleDashboardMusicTone = ({
     attack = 0.16,
     context,
+    detune = 0,
     duration,
+    filterType = "lowpass",
     filterFrequency = 1400,
     frequency,
+    frequencyEnd,
     masterGain,
     pan = 0,
     q = 0.7,
@@ -2464,9 +3059,12 @@ export default function UserHomeDashboardPage() {
   }: {
     attack?: number;
     context: AudioContext;
+    detune?: number;
     duration: number;
+    filterType?: BiquadFilterType;
     filterFrequency?: number;
     frequency: number;
+    frequencyEnd?: number;
     masterGain: GainNode;
     pan?: number;
     q?: number;
@@ -2485,11 +3083,17 @@ export default function UserHomeDashboardPage() {
         : null;
 
     oscillator.frequency.setValueAtTime(frequency, startTime);
+    if (frequencyEnd && frequencyEnd > 0 && frequencyEnd !== frequency) {
+      oscillator.frequency.exponentialRampToValueAtTime(
+        frequencyEnd,
+        startTime + Math.max(0.05, duration * 0.42),
+      );
+    }
     oscillator.type = type;
-    oscillator.detune.setValueAtTime(0, startTime);
+    oscillator.detune.setValueAtTime(detune, startTime);
     filter.frequency.setValueAtTime(filterFrequency, startTime);
     filter.Q.setValueAtTime(q, startTime);
-    filter.type = "lowpass";
+    filter.type = filterType;
     noteGain.gain.setValueAtTime(0.0001, startTime);
     noteGain.gain.exponentialRampToValueAtTime(volume, startTime + attack);
     noteGain.gain.setTargetAtTime(
@@ -2521,19 +3125,25 @@ export default function UserHomeDashboardPage() {
     };
   };
   const scheduleDashboardMusicNoise = ({
+    attack = 0.04,
     context,
     duration,
+    filterType = "bandpass",
     filterFrequency,
     masterGain,
     pan = 0,
+    q = 1.4,
     startTime,
     volume,
   }: {
+    attack?: number;
     context: AudioContext;
     duration: number;
+    filterType?: BiquadFilterType;
     filterFrequency: number;
     masterGain: GainNode;
     pan?: number;
+    q?: number;
     startTime: number;
     volume: number;
   }) => {
@@ -2555,11 +3165,11 @@ export default function UserHomeDashboardPage() {
         : null;
 
     source.buffer = buffer;
-    filter.type = "bandpass";
+    filter.type = filterType;
     filter.frequency.setValueAtTime(filterFrequency, startTime);
-    filter.Q.setValueAtTime(1.4, startTime);
+    filter.Q.setValueAtTime(q, startTime);
     noteGain.gain.setValueAtTime(0.0001, startTime);
-    noteGain.gain.exponentialRampToValueAtTime(volume, startTime + 0.04);
+    noteGain.gain.exponentialRampToValueAtTime(volume, startTime + attack);
     noteGain.gain.exponentialRampToValueAtTime(
       0.0001,
       startTime + duration,
@@ -2637,49 +3247,59 @@ export default function UserHomeDashboardPage() {
     const masterGain = dashboardMusicGainRef.current;
     if (!context || !masterGain || context.state === "closed") return;
 
-    const progression = [
-      {
-        bass: 87.31,
-        color: [392, 523.25, 659.25],
-        notes: [174.61, 220, 261.63, 329.63],
-      },
-      {
-        bass: 98,
-        color: [440, 587.33, 739.99],
-        notes: [196, 246.94, 293.66, 392],
-      },
-      {
-        bass: 73.42,
-        color: [329.63, 493.88, 659.25],
-        notes: [146.83, 196, 246.94, 329.63],
-      },
-      {
-        bass: 110,
-        color: [493.88, 659.25, 880],
-        notes: [220, 277.18, 329.63, 440],
-      },
-    ];
+    const selectedStations = getDashboardMusicSelectedStations();
     const step = dashboardMusicStepRef.current;
-    const chord = progression[step % progression.length];
+    const stationIndex = step % selectedStations.length;
+    const progressionStep = Math.floor(step / selectedStations.length);
+    const station = selectedStations[stationIndex];
+    const nextStation =
+      selectedStations[(stationIndex + 1) % selectedStations.length];
+    const progression = station.progression;
+    const chord = progression[progressionStep % progression.length];
+    const nextProgression = nextStation.progression;
+    const nextChord =
+      nextProgression[
+        Math.floor((step + 1) / selectedStations.length) %
+          nextProgression.length
+      ];
     const startTime = context.currentTime + 0.08;
+    const volumeScale = 0.92;
+    const leadOffsets = station.arpOffsets.length
+      ? station.arpOffsets
+      : [0.48, 1.2, 2.16, 3.08];
 
     scheduleDashboardMusicTone({
       context,
       duration: DASHBOARD_MUSIC_PHRASE_SECONDS - 0.18,
-      filterFrequency: 640,
+      filterFrequency: station.bassFilter,
       frequency: chord.bass,
       masterGain,
       startTime,
-      type: "sine",
-      volume: 0.085,
+      type: station.bassType,
+      volume: station.bassVolume * volumeScale,
     });
+
+    if (station.textureVolume > 0) {
+      scheduleDashboardMusicNoise({
+        attack: 0.18,
+        context,
+        duration: DASHBOARD_MUSIC_PHRASE_SECONDS - 0.34,
+        filterFrequency: Math.max(1600, station.noiseFilter),
+        filterType: "highpass",
+        masterGain,
+        pan: stationIndex % 2 === 0 ? -0.24 : 0.24,
+        q: 0.48,
+        startTime: startTime + 0.12,
+        volume: station.textureVolume * volumeScale,
+      });
+    }
 
     chord.notes.forEach((frequency, noteIndex) => {
       scheduleDashboardMusicTone({
         attack: 0.72,
         context,
         duration: DASHBOARD_MUSIC_PHRASE_SECONDS - 0.24,
-        filterFrequency: 1150 + noteIndex * 120,
+        filterFrequency: station.padFilter + noteIndex * 120,
         frequency: frequency * (noteIndex === 3 ? 1.005 : 1),
         masterGain,
         pan: -0.42 + noteIndex * 0.28,
@@ -2687,87 +3307,173 @@ export default function UserHomeDashboardPage() {
         release: 0.86,
         startTime: startTime + noteIndex * 0.055,
         sustain: 0.72,
-        type: noteIndex % 2 === 0 ? "triangle" : "sine",
-        volume: 0.036,
+        type: noteIndex % 2 === 0 ? station.padType : "sine",
+        volume: station.padVolume * volumeScale,
       });
     });
 
-    chord.color.forEach((frequency, noteIndex) => {
+    leadOffsets.forEach((beatOffset, noteIndex) => {
+      const leadDegree =
+        station.leadPattern[noteIndex % station.leadPattern.length];
+      const frequency =
+        chord.color[leadDegree % chord.color.length] *
+        (noteIndex % 4 === 3 ? 2 : 1);
+
       scheduleDashboardMusicTone({
-        attack: 0.045,
+        attack: 0.024,
         context,
-        duration: 1.18,
-        filterFrequency: 2400 + noteIndex * 420,
+        detune: noteIndex % 2 === 0 ? -5 : 4,
+        duration: 0.44 + (noteIndex % 2) * 0.16,
+        filterFrequency: station.padFilter + 1800 + noteIndex * 220,
         frequency,
         masterGain,
-        pan: noteIndex % 2 === 0 ? 0.52 : -0.48,
-        q: 0.92,
-        release: 0.36,
-        startTime: startTime + 0.48 + noteIndex * 0.74,
-        sustain: 0.45,
-        type: "triangle",
-        volume: 0.026,
+        pan: noteIndex % 2 === 0 ? 0.48 : -0.46,
+        q: 1.08,
+        release: 0.2,
+        startTime: startTime + beatOffset,
+        sustain: 0.38,
+        type: noteIndex % 3 === 2 ? station.leadType : station.accentType,
+        volume: station.leadVolume * volumeScale,
       });
     });
 
-    [0, 2.4].forEach((beatOffset) => {
+    station.pulseOffsets.forEach((beatOffset, beatIndex) => {
+      const kickStartFrequency = Math.max(72, chord.bass * 1.08);
+      const kickEndFrequency = Math.max(34, chord.bass * 0.42);
+
       scheduleDashboardMusicTone({
-        attack: 0.018,
+        attack: 0.006,
         context,
-        duration: 0.42,
-        filterFrequency: 520,
-        frequency: chord.bass / 2,
+        duration: 0.34 + (beatIndex % 2) * 0.04,
+        filterFrequency: 440,
+        frequency: kickStartFrequency,
+        frequencyEnd: kickEndFrequency,
         masterGain,
-        q: 0.6,
-        release: 0.12,
+        q: 0.55,
+        release: 0.08,
         startTime: startTime + beatOffset,
-        sustain: 0.35,
+        sustain: 0.24,
         type: "sine",
-        volume: 0.105,
+        volume: station.kickVolume * volumeScale,
+      });
+    });
+
+    station.snareOffsets.forEach((beatOffset, snareIndex) => {
+      scheduleDashboardMusicNoise({
+        attack: 0.012,
+        context,
+        duration: 0.22,
+        filterFrequency: station.noiseFilter + 820,
+        filterType: "bandpass",
+        masterGain,
+        pan: snareIndex % 2 === 0 ? 0.16 : -0.12,
+        q: 0.92,
+        startTime: startTime + beatOffset,
+        volume: station.noiseVolume * 1.55 * volumeScale,
+      });
+      scheduleDashboardMusicTone({
+        attack: 0.01,
+        context,
+        duration: 0.16,
+        filterFrequency: 920,
+        frequency: chord.bass * 1.5,
+        masterGain,
+        q: 0.7,
+        release: 0.08,
+        startTime: startTime + beatOffset,
+        sustain: 0.2,
+        type: "triangle",
+        volume: station.noiseVolume * 0.46 * volumeScale,
+      });
+    });
+
+    station.hatOffsets.forEach((beatOffset, hatIndex) => {
+      scheduleDashboardMusicNoise({
+        attack: 0.006,
+        context,
+        duration: 0.07 + (hatIndex % 3) * 0.015,
+        filterFrequency: 6400 + (hatIndex % 4) * 520,
+        filterType: "highpass",
+        masterGain,
+        pan: hatIndex % 2 === 0 ? -0.42 : 0.38,
+        q: 0.62,
+        startTime: startTime + beatOffset,
+        volume: station.noiseVolume * 0.5 * volumeScale,
       });
     });
 
     scheduleDashboardMusicNoise({
+      attack: 0.045,
       context,
       duration: 1.3,
-      filterFrequency: 2800,
+      filterFrequency: station.noiseFilter,
       masterGain,
       pan: step % 2 === 0 ? -0.36 : 0.36,
-      startTime: startTime + 3.05,
-      volume: 0.024,
+      q: 1.18,
+      startTime: startTime + station.noiseOffset,
+      volume: station.noiseVolume * volumeScale,
     });
+
+    if (selectedStations.length > 1) {
+      const transitionStartTime =
+        startTime +
+        DASHBOARD_MUSIC_PHRASE_SECONDS -
+        DASHBOARD_MUSIC_TRANSITION_SECONDS;
+
+      scheduleDashboardMusicNoise({
+        attack: 0.08,
+        context,
+        duration: DASHBOARD_MUSIC_TRANSITION_SECONDS - 0.08,
+        filterFrequency: Math.max(
+          2400,
+          station.noiseFilter,
+          nextStation.noiseFilter,
+        ),
+        filterType: "highpass",
+        masterGain,
+        pan: stationIndex % 2 === 0 ? 0.2 : -0.2,
+        q: 0.78,
+        startTime: transitionStartTime,
+        volume:
+          Math.max(0.014, station.noiseVolume + nextStation.textureVolume) *
+          0.38 *
+          volumeScale,
+      });
+
+      scheduleDashboardMusicTone({
+        attack: 0.036,
+        context,
+        duration: DASHBOARD_MUSIC_TRANSITION_SECONDS - 0.14,
+        filterFrequency: Math.max(station.padFilter, nextStation.padFilter) + 760,
+        frequency: Math.max(72, chord.bass * 1.5),
+        frequencyEnd: Math.max(72, nextChord.bass * 1.5),
+        masterGain,
+        pan: stationIndex % 2 === 0 ? -0.18 : 0.18,
+        q: 0.86,
+        release: 0.14,
+        startTime: transitionStartTime + 0.1,
+        sustain: 0.34,
+        type: nextStation.accentType,
+        volume:
+          Math.max(0.018, station.leadVolume + nextStation.leadVolume) *
+          0.7 *
+          volumeScale,
+      });
+    }
 
     dashboardMusicStepRef.current = step + 1;
   };
   const createDashboardMusicFallbackUrl = () => {
     const sampleRate = 22050;
-    const phraseLength = DASHBOARD_MUSIC_PHRASE_SECONDS * 4;
+    const selectedStations = getDashboardMusicSelectedStations();
+    const sequencePhraseCount = Math.max(4, selectedStations.length * 2);
+    const phraseLength = DASHBOARD_MUSIC_PHRASE_SECONDS * sequencePhraseCount;
     const totalSamples = Math.floor(sampleRate * phraseLength);
     const bytesPerSample = 2;
     const buffer = new ArrayBuffer(44 + totalSamples * bytesPerSample);
     const view = new DataView(buffer);
-    const progression = [
-      {
-        bass: 87.31,
-        color: [392, 523.25, 659.25],
-        notes: [174.61, 220, 261.63, 329.63],
-      },
-      {
-        bass: 98,
-        color: [440, 587.33, 739.99],
-        notes: [196, 246.94, 293.66, 392],
-      },
-      {
-        bass: 73.42,
-        color: [329.63, 493.88, 659.25],
-        notes: [146.83, 196, 246.94, 329.63],
-      },
-      {
-        bass: 110,
-        color: [493.88, 659.25, 880],
-        notes: [220, 277.18, 329.63, 440],
-      },
-    ];
+    const mixScale = 0.92;
+    const sequenceStartStep = dashboardMusicStepRef.current;
     const writeString = (offset: number, value: string) => {
       for (let index = 0; index < value.length; index += 1) {
         view.setUint8(offset + index, value.charCodeAt(index));
@@ -2790,66 +3496,212 @@ export default function UserHomeDashboardPage() {
 
     for (let sampleIndex = 0; sampleIndex < totalSamples; sampleIndex += 1) {
       const time = sampleIndex / sampleRate;
+      const phraseIndex =
+        Math.floor(time / DASHBOARD_MUSIC_PHRASE_SECONDS) + sequenceStartStep;
+      const activeStationIndex = phraseIndex % selectedStations.length;
       const barTime = time % DASHBOARD_MUSIC_PHRASE_SECONDS;
-      const chord =
-        progression[
-          Math.floor(time / DASHBOARD_MUSIC_PHRASE_SECONDS) %
-            progression.length
-        ];
-      const fadeIn = Math.min(1, barTime / 0.72);
-      const fadeOut = Math.min(
-        1,
-        (DASHBOARD_MUSIC_PHRASE_SECONDS - barTime) / 0.88,
-      );
-      const envelope = fadeIn * fadeOut;
-      const pad =
-        chord.notes.reduce((sum, frequency, noteIndex) => {
-          const detune = noteIndex === 3 ? 1.005 : 1;
+      const blendedValue = selectedStations.reduce(
+        (stationSum, station, stationIndex) => {
+          if (stationIndex !== activeStationIndex) return stationSum;
 
-          return (
-            sum +
-            Math.sin(2 * Math.PI * frequency * detune * time) *
-              0.036 *
-              envelope +
-            Math.sin(2 * Math.PI * frequency * 0.5 * time) *
-              0.018 *
-              envelope
+          const layerTime = barTime;
+          const progression = station.progression;
+          const chord =
+            progression[
+              Math.floor(phraseIndex / selectedStations.length) %
+                progression.length
+            ];
+          const fadeIn = Math.min(1, barTime / 0.72);
+          const fadeOut = Math.min(
+            1,
+            (DASHBOARD_MUSIC_PHRASE_SECONDS - barTime) / 0.88,
           );
-        }, 0) / chord.notes.length;
-      const shimmer =
-        chord.color.reduce((sum, frequency, noteIndex) => {
-          const arpOffset = noteIndex * 0.74 + 0.48;
-          const arpTime = Math.max(0, barTime - arpOffset);
-          const arpEnvelope =
-            barTime > arpOffset && barTime < arpOffset + 1.18
-              ? Math.sin((arpTime / 1.18) * Math.PI)
+          const envelope = fadeIn * fadeOut;
+          const leadOffsets = station.arpOffsets.length
+            ? station.arpOffsets
+            : [0.48, 1.2, 2.16, 3.08];
+          const shapeEnvelope = (offset: number, length: number) => {
+            const localTime = barTime - offset;
+
+            return localTime >= 0 && localTime < length
+              ? Math.sin((localTime / length) * Math.PI)
               : 0;
+          };
+          const pad =
+            chord.notes.reduce((sum, frequency, noteIndex) => {
+              const detune = noteIndex === 3 ? 1.005 : 1;
+
+              return (
+                sum +
+                Math.sin(2 * Math.PI * frequency * detune * layerTime) *
+                  station.padVolume *
+                  envelope +
+                Math.sin(2 * Math.PI * frequency * 1.5 * layerTime) *
+                  station.padVolume *
+                  0.18 *
+                  envelope +
+                Math.sin(2 * Math.PI * frequency * 0.5 * layerTime) *
+                  station.padVolume *
+                  0.5 *
+                  envelope
+              );
+            }, 0) / chord.notes.length;
+          const shimmer =
+            leadOffsets.reduce((sum, arpOffset, noteIndex) => {
+              const leadDegree = station.leadPattern[
+                noteIndex % station.leadPattern.length
+              ];
+              const frequency =
+                chord.color[leadDegree % chord.color.length] *
+                (noteIndex % 4 === 3 ? 2 : 1);
+              const arpEnvelope = shapeEnvelope(arpOffset, 0.62);
+
+              return (
+                sum +
+                Math.sin(2 * Math.PI * frequency * layerTime) *
+                  station.leadVolume *
+                  0.92 *
+                  arpEnvelope
+              );
+            }, 0) / leadOffsets.length;
+          const lead =
+            station.leadPattern.reduce((sum, leadDegree, noteIndex) => {
+              const leadOffset = leadOffsets[noteIndex % leadOffsets.length];
+              const leadEnvelope = shapeEnvelope(leadOffset, 0.42);
+              const frequency =
+                chord.color[leadDegree % chord.color.length] *
+                (noteIndex % 4 === 2 ? 2 : 1);
+              const phase = 2 * Math.PI * frequency * layerTime;
+              const sawPhase = (layerTime * frequency) % 1;
+              const waveform =
+                station.leadType === "square"
+                  ? Math.sign(Math.sin(phase)) * 0.72 +
+                    Math.sin(phase) * 0.28
+                  : station.leadType === "sawtooth"
+                    ? (sawPhase * 2 - 1) * 0.58 + Math.sin(phase) * 0.42
+                    : Math.sin(phase) +
+                      Math.sin(phase * 2) * 0.22 +
+                      Math.sin(phase * 0.5) * 0.12;
+
+              return sum + waveform * station.leadVolume * leadEnvelope;
+            }, 0) / station.leadPattern.length;
+          const bass =
+            Math.sin(2 * Math.PI * chord.bass * layerTime) *
+            station.bassVolume *
+            envelope;
+          const pulseEnvelope = station.pulseOffsets.reduce(
+            (sum, beatOffset) => {
+              const beatTime = Math.max(0, barTime - beatOffset);
+
+              return (
+                sum +
+                (barTime >= beatOffset && barTime < beatOffset + 0.42
+                  ? Math.sin((beatTime / 0.42) * Math.PI)
+                  : 0)
+              );
+            },
+            0,
+          );
+          const pulse =
+            Math.sin(2 * Math.PI * (chord.bass / 2) * layerTime) *
+            station.kickVolume *
+            0.72 *
+            pulseEnvelope;
+          const snare =
+            station.snareOffsets.reduce((sum, beatOffset) => {
+              const snareEnvelope = shapeEnvelope(beatOffset, 0.22);
+
+              return (
+                sum +
+                (Math.sin(2 * Math.PI * 190 * layerTime) * 0.38 +
+                  Math.sin(2 * Math.PI * 2300 * layerTime) * 0.62) *
+                  station.noiseVolume *
+                  1.05 *
+                  snareEnvelope
+              );
+            }, 0) / Math.max(1, station.snareOffsets.length);
+          const hat =
+            station.hatOffsets.reduce((sum, beatOffset, hatIndex) => {
+              const hatEnvelope = shapeEnvelope(beatOffset, 0.08);
+
+              return (
+                sum +
+                Math.sin(
+                  2 *
+                    Math.PI *
+                    (6400 + hatIndex * 360 + stationIndex * 110) *
+                    layerTime,
+                ) *
+                  station.noiseVolume *
+                  0.32 *
+                  hatEnvelope
+              );
+            }, 0) / Math.max(1, station.hatOffsets.length);
+          const texture =
+            Math.sin(2 * Math.PI * (5200 + stationIndex * 190) * layerTime) *
+            Math.sin(2 * Math.PI * (6.5 + stationIndex * 0.7) * layerTime) *
+            station.textureVolume *
+            0.18 *
+            envelope;
+          const air =
+            Math.sin(2 * Math.PI * 3136 * layerTime) *
+            Math.sin(2 * Math.PI * 0.11 * layerTime) *
+            shapeEnvelope(station.noiseOffset, 1.3) *
+            station.noiseVolume *
+            0.24;
+          const nextStation =
+            selectedStations[(stationIndex + 1) % selectedStations.length];
+          const nextProgression = nextStation.progression;
+          const nextChord =
+            nextProgression[
+              Math.floor((phraseIndex + 1) / selectedStations.length) %
+                nextProgression.length
+            ];
+          const transitionEnvelope =
+            selectedStations.length > 1
+              ? shapeEnvelope(
+                  DASHBOARD_MUSIC_PHRASE_SECONDS -
+                    DASHBOARD_MUSIC_TRANSITION_SECONDS,
+                  DASHBOARD_MUSIC_TRANSITION_SECONDS,
+                )
+              : 0;
+          const transition =
+            (Math.sin(
+              2 *
+                Math.PI *
+                Math.max(chord.bass, nextChord.bass) *
+                1.5 *
+                layerTime,
+            ) *
+              Math.max(station.leadVolume, nextStation.leadVolume) *
+              0.68 +
+              Math.sin(
+                2 * Math.PI * (2600 + stationIndex * 180) * layerTime,
+              ) *
+                Math.max(station.noiseVolume, nextStation.noiseVolume) *
+                0.18) *
+            transitionEnvelope;
 
           return (
-            sum +
-            Math.sin(2 * Math.PI * frequency * time) * 0.018 * arpEnvelope
+            stationSum +
+            (bass +
+              pulse +
+              snare +
+              hat +
+              pad +
+              shimmer +
+              lead +
+              texture +
+              air +
+              transition) *
+              mixScale
           );
-        }, 0) / chord.color.length;
-      const bass = Math.sin(2 * Math.PI * chord.bass * time) * 0.09 * envelope;
-      const pulseEnvelope = [0, 2.4].reduce((sum, beatOffset) => {
-        const beatTime = Math.max(0, barTime - beatOffset);
-        return (
-          sum +
-          (barTime >= beatOffset && barTime < beatOffset + 0.42
-            ? Math.sin((beatTime / 0.42) * Math.PI)
-            : 0)
-        );
-      }, 0);
-      const pulse =
-        Math.sin(2 * Math.PI * (chord.bass / 2) * time) * 0.075 * pulseEnvelope;
-      const air =
-        Math.sin(2 * Math.PI * 3136 * time) *
-        Math.sin(2 * Math.PI * 0.11 * time) *
-        Math.max(0, Math.sin(((barTime - 3.05) / 1.3) * Math.PI)) *
-        0.006;
+        },
+        0,
+      );
       const value = Math.max(
         -0.92,
-        Math.min(0.92, (bass + pulse + pad + shimmer + air) * 1.7),
+        Math.min(0.92, blendedValue * 1.55),
       );
 
       view.setInt16(44 + sampleIndex * bytesPerSample, value * 32767, true);
@@ -2865,7 +3717,9 @@ export default function UserHomeDashboardPage() {
     const url = createDashboardMusicFallbackUrl();
     const audio = new Audio(url);
     audio.loop = true;
-    audio.volume = 0.72;
+    audio.volume = dashboardMusicMutedRef.current
+      ? 0
+      : Math.min(1, Math.max(0, dashboardMusicVolumeRef.current));
     dashboardMusicAudioElementRef.current = audio;
     dashboardMusicObjectUrlRef.current = url;
 
@@ -2917,8 +3771,14 @@ export default function UserHomeDashboardPage() {
       }, 420);
     }
   };
-  const startDashboardMusic = async () => {
+  const startDashboardMusic = async (
+    options: { resetStep?: boolean } = {},
+  ) => {
     if (typeof window === "undefined") return false;
+
+    if (options.resetStep ?? true) {
+      dashboardMusicStepRef.current = 0;
+    }
 
     const AudioContextConstructor =
       window.AudioContext ||
@@ -2956,7 +3816,6 @@ export default function UserHomeDashboardPage() {
     compressor.connect(context.destination);
     dashboardMusicAudioContextRef.current = context;
     dashboardMusicGainRef.current = masterGain;
-    dashboardMusicStepRef.current = 0;
 
     await context.resume();
     if (context.state !== "running") {
@@ -2972,8 +3831,14 @@ export default function UserHomeDashboardPage() {
 
     const now = context.currentTime;
     masterGain.gain.cancelScheduledValues(now);
-    masterGain.gain.exponentialRampToValueAtTime(0.2, now + 0.16);
-    masterGain.gain.exponentialRampToValueAtTime(0.24, now + 0.75);
+    masterGain.gain.exponentialRampToValueAtTime(
+      getDashboardMusicMasterGainLevel() * 0.84,
+      now + 0.16,
+    );
+    masterGain.gain.exponentialRampToValueAtTime(
+      getDashboardMusicMasterGainLevel(),
+      now + 0.75,
+    );
     scheduleDashboardMusicStartCue();
     scheduleDashboardMusicPhrase();
     dashboardMusicIntervalRef.current = window.setInterval(
@@ -2982,6 +3847,17 @@ export default function UserHomeDashboardPage() {
     );
 
     return true;
+  };
+  const restartDashboardMusicSequence = () => {
+    if (!dashboardMusicEnabled) return;
+
+    stopDashboardMusic();
+    setDashboardMusicEnabled(false);
+    window.setTimeout(() => {
+      void startDashboardMusic({ resetStep: false }).then((started) => {
+        setDashboardMusicEnabled(started);
+      });
+    }, 460);
   };
   const toggleDashboardMusic = async () => {
     if (dashboardMusicEnabled) {
@@ -2992,6 +3868,88 @@ export default function UserHomeDashboardPage() {
 
     const started = await startDashboardMusic();
     setDashboardMusicEnabled(started);
+  };
+  const handleDashboardMusicMuteToggle = () => {
+    const nextMuted = !dashboardMusicMutedRef.current;
+
+    dashboardMusicMutedRef.current = nextMuted;
+    setDashboardMusicMuted(nextMuted);
+    applyDashboardMusicVolume();
+  };
+  const handleDashboardMusicSkip = () => {
+    dashboardMusicStepRef.current += 1;
+
+    if (dashboardMusicEnabled) {
+      restartDashboardMusicSequence();
+    }
+  };
+  const handleDashboardMusicAutoplayModeChange = (
+    mode: DashboardMusicAutoplayMode,
+  ) => {
+    dashboardMusicAutoplayModeRef.current = mode;
+    setDashboardMusicAutoplayMode(mode);
+
+    if (mode === "on" && dashboardMusicMutedRef.current) {
+      dashboardMusicMutedRef.current = false;
+      setDashboardMusicMuted(false);
+      applyDashboardMusicVolume();
+    }
+
+    if (mode !== "off" && !dashboardMusicEnabled) {
+      void startDashboardMusic().then((started) => {
+        setDashboardMusicEnabled(started);
+      });
+    }
+  };
+  const toggleDashboardMusicDropdown = () => {
+    hideDashboardTooltip();
+    setDashboardProfileHubOpen(false);
+    setDashboardPointsDropdownOpen(false);
+    setDashboardMusicDropdownOpen((open) => !open);
+  };
+  const handleDashboardMusicVolumeChange = (
+    event: ReactChangeEvent<HTMLInputElement>,
+  ) => {
+    const nextVolume = Math.min(
+      1,
+      Math.max(0, Number(event.currentTarget.value) / 100),
+    );
+
+    dashboardMusicVolumeRef.current = nextVolume;
+    if (dashboardMusicMutedRef.current && nextVolume > 0) {
+      dashboardMusicMutedRef.current = false;
+      setDashboardMusicMuted(false);
+    }
+    setDashboardMusicVolume(nextVolume);
+    applyDashboardMusicVolume();
+  };
+  const handleDashboardMusicStationToggle = (
+    stationId: DashboardMusicStationId,
+  ) => {
+    const stationIndex = dashboardMusicStations.findIndex(
+      (station) => station.id === stationId,
+    );
+    const currentStationIds = dashboardMusicStationIdsRef.current;
+    const nextStationIds = currentStationIds.includes(stationId)
+      ? currentStationIds.filter((id) => id !== stationId)
+      : [...currentStationIds, stationId];
+    const normalizedStationIds = dashboardMusicStations
+      .map((station) => station.id)
+      .filter((id) => nextStationIds.includes(id));
+    const safeStationIds = normalizedStationIds.length
+      ? normalizedStationIds
+      : currentStationIds;
+
+    dashboardMusicStationIdsRef.current = safeStationIds;
+    dashboardMusicStepRef.current = 0;
+    if (stationIndex >= 0) {
+      setActiveDashboardMusicStationIndex(stationIndex);
+    }
+    setDashboardMusicStationIds(safeStationIds);
+
+    if (dashboardMusicEnabled) {
+      restartDashboardMusicSequence();
+    }
   };
   const selectedExerciseReference = manualReferences.find(
     (reference) => reference.referenceType === "exercise",
@@ -3186,6 +4144,10 @@ export default function UserHomeDashboardPage() {
     0,
     Math.min(dashboardOrbiterRows.length - 1, activeDashboardOrbiterRow),
   );
+  const dashboardPageOrbitProgress =
+    dashboardOrbiterRows.length > 1
+      ? clampedDashboardOrbiterRow / (dashboardOrbiterRows.length - 1)
+      : 0;
   const setDashboardOrbiterRow = (row: number) => {
     const nextRow = Math.max(
       0,
@@ -3405,6 +4367,16 @@ export default function UserHomeDashboardPage() {
         ? (currentIndex - 1 + dashboardDailyToolCount) %
           dashboardDailyToolCount
         : (currentIndex + 1) % dashboardDailyToolCount,
+    );
+  };
+  const rotateDashboardMusicStationOrbit = (
+    direction: DashboardOrbitDirection,
+  ) => {
+    setActiveDashboardMusicStationIndex((currentIndex) =>
+      direction === "left"
+        ? (currentIndex - 1 + dashboardMusicStations.length) %
+          dashboardMusicStations.length
+        : (currentIndex + 1) % dashboardMusicStations.length,
     );
   };
   const handleDashboardOrbitPointerDown = (
@@ -3689,6 +4661,63 @@ export default function UserHomeDashboardPage() {
   }, []);
 
   useEffect(() => {
+    const savedSettings = readDashboardMusicSettings();
+    const savedMuted = savedSettings.muted;
+    let cancelled = false;
+    let autoplayTimeout: number | null = null;
+
+    dashboardMusicStationIdsRef.current = savedSettings.stationIds;
+    dashboardMusicVolumeRef.current = savedSettings.volume;
+    dashboardMusicMutedRef.current = savedMuted;
+    dashboardMusicAutoplayModeRef.current = savedSettings.autoplayMode;
+    setDashboardMusicStationIds(savedSettings.stationIds);
+    setDashboardMusicVolume(savedSettings.volume);
+    setDashboardMusicMuted(savedMuted);
+    setDashboardMusicAutoplayMode(savedSettings.autoplayMode);
+    setActiveDashboardMusicStationIndex(
+      Math.max(
+        0,
+        dashboardMusicStations.findIndex(
+          (station) => station.id === savedSettings.stationIds[0],
+        ),
+      ),
+    );
+    setDashboardMusicSettingsLoaded(true);
+
+    if (savedSettings.autoplayMode !== "off") {
+      autoplayTimeout = window.setTimeout(() => {
+        void startDashboardMusic().then((started) => {
+          if (!cancelled) setDashboardMusicEnabled(started);
+        });
+      }, 360);
+    }
+
+    return () => {
+      cancelled = true;
+      if (autoplayTimeout !== null) {
+        window.clearTimeout(autoplayTimeout);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!dashboardMusicSettingsLoaded) return;
+
+    writeDashboardMusicSettings({
+      autoplayMode: dashboardMusicAutoplayMode,
+      muted: dashboardMusicMuted,
+      stationIds: dashboardMusicStationIds,
+      volume: dashboardMusicVolume,
+    });
+  }, [
+    dashboardMusicAutoplayMode,
+    dashboardMusicMuted,
+    dashboardMusicSettingsLoaded,
+    dashboardMusicStationIds,
+    dashboardMusicVolume,
+  ]);
+
+  useEffect(() => {
     return () => {
       if (dashboardHeaderScrollButtonHoldTimeoutRef.current !== null) {
         window.clearTimeout(dashboardHeaderScrollButtonHoldTimeoutRef.current);
@@ -3704,12 +4733,20 @@ export default function UserHomeDashboardPage() {
         window.clearTimeout(dashboardHeaderVortexPulseTimeoutRef.current);
       }
 
+      if (dashboardHeaderVortexSettleTimeoutRef.current !== null) {
+        window.clearTimeout(dashboardHeaderVortexSettleTimeoutRef.current);
+      }
+
       if (dashboardPageAnalogHoldTimeoutRef.current !== null) {
         window.clearTimeout(dashboardPageAnalogHoldTimeoutRef.current);
       }
 
       if (dashboardPageAnalogHoldIntervalRef.current !== null) {
         window.clearInterval(dashboardPageAnalogHoldIntervalRef.current);
+      }
+
+      if (dashboardTooltipTimerRef.current !== null) {
+        window.clearTimeout(dashboardTooltipTimerRef.current);
       }
     };
   }, []);
@@ -3747,6 +4784,10 @@ export default function UserHomeDashboardPage() {
   useEffect(() => {
     if (!dashboardProfileHubOpen) return;
 
+    setDashboardProfileActionsOpen(false);
+    setDashboardPointsDropdownOpen(false);
+    setDashboardMusicDropdownOpen(false);
+
     const previousOverflow = document.body.style.overflow;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -3762,6 +4803,97 @@ export default function UserHomeDashboardPage() {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [dashboardProfileHubOpen]);
+
+  useEffect(() => {
+    if (!dashboardProfileActionsOpen) return;
+
+    const closeOnOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target;
+      if (
+        !(target instanceof Element) ||
+        !target.closest(
+          ".dashboard-profile-action-gear, .dashboard-profile-quick-action, .dashboard-music-dropdown",
+        )
+      ) {
+        setDashboardProfileActionsOpen(false);
+        setDashboardMusicDropdownOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setDashboardProfileActionsOpen(false);
+        setDashboardMusicDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutside);
+    document.addEventListener("touchstart", closeOnOutside);
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      document.removeEventListener("touchstart", closeOnOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [dashboardProfileActionsOpen]);
+
+  useEffect(() => {
+    if (!dashboardPointsDropdownOpen) return;
+
+    const closeOnOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        !dashboardPointsDropdownRef.current?.contains(target)
+      ) {
+        setDashboardPointsDropdownOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setDashboardPointsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutside);
+    document.addEventListener("touchstart", closeOnOutside);
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      document.removeEventListener("touchstart", closeOnOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [dashboardPointsDropdownOpen]);
+
+  useEffect(() => {
+    if (!dashboardMusicDropdownOpen) return;
+
+    const closeOnOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        !dashboardMusicDropdownRef.current?.contains(target)
+      ) {
+        setDashboardMusicDropdownOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setDashboardMusicDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutside);
+    document.addEventListener("touchstart", closeOnOutside);
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      document.removeEventListener("touchstart", closeOnOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [dashboardMusicDropdownOpen]);
 
   useEffect(() => {
     const loadDashboardFavorites = () => {
@@ -4061,6 +5193,31 @@ export default function UserHomeDashboardPage() {
       const timestamp = new Date(date).getTime();
       return Number.isFinite(timestamp) && timestamp >= sevenDaysAgo;
     }).length;
+    const weeklySessionBars = Array.from({ length: 7 }, (_, dayIndex) => {
+      const dayDate = addDashboardDays(dashboardToday, dayIndex - 6);
+      const dayStart = new Date(
+        dayDate.getFullYear(),
+        dayDate.getMonth(),
+        dayDate.getDate(),
+      ).getTime();
+      const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+      const sessionCount = workoutDates.filter((date) => {
+        const timestamp = new Date(date).getTime();
+        return (
+          Number.isFinite(timestamp) &&
+          timestamp >= dayStart &&
+          timestamp < dayEnd
+        );
+      }).length;
+
+      return {
+        active: sessionCount > 0,
+        label: new Intl.DateTimeFormat("en-US", { weekday: "narrow" }).format(
+          dayDate,
+        ),
+        value: sessionCount > 0 ? Math.min(100, 42 + sessionCount * 22) : 14,
+      };
+    });
     const weeklySets = weeklyExerciseStats.reduce(
       (sum, stat) => sum + toLoggedNumber(stat.sets),
       0,
@@ -4084,6 +5241,7 @@ export default function UserHomeDashboardPage() {
       workoutSessionEntries: workoutSessionEntries.length,
       completedWorkouts: workoutDates.length,
       workoutsThisWeek,
+      weeklySessionBars,
       totalSets,
       totalVolume,
       weeklySets,
@@ -4096,7 +5254,7 @@ export default function UserHomeDashboardPage() {
       latestTemplate,
       templateCount: savedTemplates.length,
     };
-  }, [exerciseStats, savedTemplates]);
+  }, [dashboardToday, exerciseStats, savedTemplates]);
 
   const nextAction = activeSessionTemplate
     ? {
@@ -4650,6 +5808,46 @@ export default function UserHomeDashboardPage() {
     dashboardSummary.completedWorkouts * 4 +
     dashboardSummary.templateCount * 6 +
     (dashboardSummary.hasStats ? 12 : 0);
+  const soundPointsIntoLevel = soundPoints % soundFitnessLevelSize;
+  const soundPointsToNextLevel =
+    soundFitnessLevelSize - soundPointsIntoLevel || soundFitnessLevelSize;
+  const activeDashboardMusicStations = dashboardMusicStations.filter((station) =>
+    dashboardMusicStationIds.includes(station.id),
+  );
+  const safeActiveDashboardMusicStations = activeDashboardMusicStations.length
+    ? activeDashboardMusicStations
+    : [dashboardMusicStationById.orbit];
+  const activeDashboardMusicBlendLabel =
+    safeActiveDashboardMusicStations.length === 1
+      ? safeActiveDashboardMusicStations[0].label
+      : `${safeActiveDashboardMusicStations.length}-Station DJ Sequence`;
+  const activeDashboardMusicBlendShortLabel =
+    safeActiveDashboardMusicStations.length === 1
+      ? safeActiveDashboardMusicStations[0].shortLabel
+      : "Seq";
+  const activeDashboardMusicBlendHelper =
+    safeActiveDashboardMusicStations.length === 1
+      ? safeActiveDashboardMusicStations[0].helper
+      : `${safeActiveDashboardMusicStations
+          .map((station) => station.label)
+          .join(", then ")} queued with smooth transition cues.`;
+  const activeDashboardMusicBlendTempo =
+    safeActiveDashboardMusicStations.length === 1
+      ? safeActiveDashboardMusicStations[0].tempoLabel
+      : "Sequence";
+  const dashboardMusicVolumePercent = Math.round(dashboardMusicVolume * 100);
+  const dashboardMusicVolumeLabel = dashboardMusicMuted
+    ? "Muted"
+    : `${dashboardMusicVolumePercent}%`;
+  const activeDashboardMusicAutoplayOption =
+    DASHBOARD_MUSIC_AUTOPLAY_OPTIONS.find(
+      (option) => option.id === dashboardMusicAutoplayMode,
+    ) || DASHBOARD_MUSIC_AUTOPLAY_OPTIONS[0];
+  const safeDashboardMusicStationOrbitIndex =
+    activeDashboardMusicStationIndex % dashboardMusicStations.length;
+  const activeDashboardMusicMoodStation =
+    dashboardMusicStations[safeDashboardMusicStationOrbitIndex] ||
+    safeActiveDashboardMusicStations[0];
   const momentumEntryDateKeys = new Set<string>();
   const momentumInputTimestamps: number[] = [];
   exerciseStats.forEach((entry) => {
@@ -5090,6 +6288,8 @@ export default function UserHomeDashboardPage() {
     { label: "Account", layer: 2 },
   ];
   const openDashboardProfileHub = () => {
+    setDashboardPointsDropdownOpen(false);
+    setDashboardMusicDropdownOpen(false);
     setActiveDashboardProfileHubLayer(0);
     setActiveDashboardProfileHubMainIndex(0);
     setActiveDashboardProfileHubAccountIndex(0);
@@ -5097,6 +6297,11 @@ export default function UserHomeDashboardPage() {
   };
   const closeDashboardProfileHub = () => {
     setDashboardProfileHubOpen(false);
+  };
+  const toggleDashboardPointsDropdown = () => {
+    setDashboardProfileHubOpen(false);
+    setDashboardMusicDropdownOpen(false);
+    setDashboardPointsDropdownOpen((open) => !open);
   };
   const selectDashboardProfileHubLayer = (layer: number) => {
     setActiveDashboardProfileHubLayer(Math.max(0, Math.min(2, layer)));
@@ -5925,21 +7130,6 @@ export default function UserHomeDashboardPage() {
     setActiveDashboardFloatingMetricIndex(0);
   }, [clampedDashboardOrbiterRow, dashboardFloatingSnapshotTitle]);
 
-  useEffect(() => {
-    if (dashboardFloatingSnapshotMetrics.length <= 1) return;
-
-    const intervalId = window.setInterval(() => {
-      setActiveDashboardFloatingMetricIndex((currentIndex) =>
-        (currentIndex + 1) % dashboardFloatingSnapshotMetrics.length,
-      );
-    }, 2600);
-
-    return () => window.clearInterval(intervalId);
-  }, [
-    clampedDashboardOrbiterRow,
-    dashboardFloatingSnapshotMetrics.length,
-    dashboardFloatingSnapshotTitle,
-  ]);
   const dashboardHeaderLinks: DashboardHeaderLink[] = [
     {
       completion: dashboardTabCompletions.workout,
@@ -6039,14 +7229,26 @@ export default function UserHomeDashboardPage() {
     dashboardHeaderLinks[0];
   const activeDashboardHeaderTone =
     dashboardHeaderToneStyles[activeDashboardHeaderLink.toneKey];
+  const getDashboardHeaderVortexModeForDirection = (
+    direction: DashboardScrollButtonDirection,
+  ): DashboardHeaderVortexMode =>
+    direction === "up" || direction === "right" ? "clockwise" : "counter";
   const dashboardHeaderActiveVortexMode =
-    dashboardHeaderScrollButtonActiveDirection === "up"
-      ? "clockwise"
-      : dashboardHeaderScrollButtonActiveDirection === "down"
-        ? "counter"
-        : null;
+    dashboardHeaderScrollButtonActiveDirection
+      ? getDashboardHeaderVortexModeForDirection(
+          dashboardHeaderScrollButtonActiveDirection,
+        )
+      : null;
   const dashboardHeaderVortexMode =
     dashboardHeaderActiveVortexMode || dashboardHeaderVortexPulseMode;
+  const dashboardHeaderVortexPhase: DashboardHeaderVortexPhase =
+    dashboardHeaderActiveVortexMode
+      ? "active"
+      : dashboardHeaderVortexPulseMode
+        ? dashboardHeaderVortexSettling
+          ? "settling"
+          : "active"
+        : "idle";
   const activeDashboardHeaderUrgencyTone = getDashboardRowUrgencyTone(
     activeDashboardHeaderLink.completion,
   );
@@ -6128,19 +7330,52 @@ export default function UserHomeDashboardPage() {
   const pulseDashboardHeaderVortex = (
     direction: DashboardScrollButtonDirection,
   ) => {
-    if (direction !== "up" && direction !== "down") return;
+    const nextMode = getDashboardHeaderVortexModeForDirection(direction);
 
     if (dashboardHeaderVortexPulseTimeoutRef.current !== null) {
       window.clearTimeout(dashboardHeaderVortexPulseTimeoutRef.current);
+      dashboardHeaderVortexPulseTimeoutRef.current = null;
     }
 
-    setDashboardHeaderVortexPulseMode(
-      direction === "up" ? "clockwise" : "counter",
-    );
+    if (dashboardHeaderVortexSettleTimeoutRef.current !== null) {
+      window.clearTimeout(dashboardHeaderVortexSettleTimeoutRef.current);
+      dashboardHeaderVortexSettleTimeoutRef.current = null;
+    }
+
+    setDashboardHeaderVortexSettling(false);
+    setDashboardHeaderVortexPulseMode(nextMode);
     dashboardHeaderVortexPulseTimeoutRef.current = window.setTimeout(() => {
-      setDashboardHeaderVortexPulseMode(null);
       dashboardHeaderVortexPulseTimeoutRef.current = null;
-    }, 900);
+      setDashboardHeaderVortexSettling(true);
+      dashboardHeaderVortexSettleTimeoutRef.current = window.setTimeout(() => {
+        setDashboardHeaderVortexPulseMode(null);
+        setDashboardHeaderVortexSettling(false);
+        dashboardHeaderVortexSettleTimeoutRef.current = null;
+      }, 760);
+    }, 680);
+  };
+  const settleDashboardHeaderVortex = (
+    direction: DashboardScrollButtonDirection,
+  ) => {
+    const nextMode = getDashboardHeaderVortexModeForDirection(direction);
+
+    if (dashboardHeaderVortexPulseTimeoutRef.current !== null) {
+      window.clearTimeout(dashboardHeaderVortexPulseTimeoutRef.current);
+      dashboardHeaderVortexPulseTimeoutRef.current = null;
+    }
+
+    if (dashboardHeaderVortexSettleTimeoutRef.current !== null) {
+      window.clearTimeout(dashboardHeaderVortexSettleTimeoutRef.current);
+      dashboardHeaderVortexSettleTimeoutRef.current = null;
+    }
+
+    setDashboardHeaderVortexPulseMode(nextMode);
+    setDashboardHeaderVortexSettling(true);
+    dashboardHeaderVortexSettleTimeoutRef.current = window.setTimeout(() => {
+      setDashboardHeaderVortexPulseMode(null);
+      setDashboardHeaderVortexSettling(false);
+      dashboardHeaderVortexSettleTimeoutRef.current = null;
+    }, 820);
   };
   const runDashboardHeaderScrollButtonDirection = (
     direction: DashboardScrollButtonDirection,
@@ -6169,6 +7404,8 @@ export default function UserHomeDashboardPage() {
     return true;
   };
   const stopDashboardHeaderScrollButtonHold = () => {
+    const releasedDirection = dashboardHeaderScrollButtonHoldDirectionRef.current;
+
     if (dashboardHeaderScrollButtonHoldTimeoutRef.current !== null) {
       window.clearTimeout(dashboardHeaderScrollButtonHoldTimeoutRef.current);
       dashboardHeaderScrollButtonHoldTimeoutRef.current = null;
@@ -6181,6 +7418,9 @@ export default function UserHomeDashboardPage() {
 
     dashboardHeaderScrollButtonHoldDirectionRef.current = null;
     setDashboardHeaderScrollButtonActiveDirection(null);
+    if (releasedDirection) {
+      settleDashboardHeaderVortex(releasedDirection);
+    }
   };
   const resetDashboardHeaderScrollButtonDrag = () => {
     dashboardHeaderScrollButtonPointerStartRef.current = null;
@@ -6942,6 +8182,91 @@ export default function UserHomeDashboardPage() {
     getDashboardHeaderJourneyState().activeJourneyStep?.label ||
     activeDashboardHeaderLink.label;
 
+  const dashboardHeaderActiveJourneyStepLabel =
+    getDashboardHeaderActiveJourneyStepLabel();
+  const dashboardHeaderNewsHeadlines = useMemo<DashboardHeaderNewsHeadline[]>(
+    () => [
+      { label: activeDashboardHeaderLink.label },
+      { label: activeDashboardHeaderUrgencyTone.label, tone: "alert" },
+      { label: `${dashboardSummary.workoutsThisWeek} sessions / week` },
+      { label: `${momentumEntryStreak} day streak` },
+      { label: `${soundPoints.toLocaleString()} sound points` },
+      { label: `Next: ${dashboardHeaderActiveJourneyStepLabel}` },
+    ],
+    [
+      activeDashboardHeaderLink.label,
+      activeDashboardHeaderUrgencyTone.label,
+      dashboardHeaderActiveJourneyStepLabel,
+      dashboardSummary.workoutsThisWeek,
+      momentumEntryStreak,
+      soundPoints,
+    ],
+  );
+
+  useEffect(() => {
+    dashboardHeaderNewsHeadlinesRef.current = dashboardHeaderNewsHeadlines;
+    dashboardHeaderNewsHeadlineIndexRef.current =
+      dashboardHeaderNewsHeadlineIndexRef.current %
+      Math.max(1, dashboardHeaderNewsHeadlines.length);
+
+    const headline =
+      dashboardHeaderNewsHeadlines[
+        dashboardHeaderNewsHeadlineIndexRef.current
+      ] || dashboardHeaderNewsHeadlines[0];
+    const headlineElement = dashboardHeaderNewsHeadlineRef.current;
+
+    if (headlineElement && headline) {
+      headlineElement.textContent = headline.label;
+      headlineElement.dataset.newsTone = headline.tone || "default";
+    }
+  }, [dashboardHeaderNewsHeadlines]);
+
+  useEffect(() => {
+    let entryTimeout: number | null = null;
+
+    const clearEntryTimeout = () => {
+      if (entryTimeout !== null) {
+        window.clearTimeout(entryTimeout);
+        entryTimeout = null;
+      }
+    };
+
+    const showNextHeadline = () => {
+      const headlineElement = dashboardHeaderNewsHeadlineRef.current;
+      const headlines = dashboardHeaderNewsHeadlinesRef.current;
+      if (!headlineElement || headlines.length < 2) return;
+
+      dashboardHeaderNewsHeadlineIndexRef.current =
+        (dashboardHeaderNewsHeadlineIndexRef.current + 1) % headlines.length;
+      const nextHeadline =
+        headlines[dashboardHeaderNewsHeadlineIndexRef.current] || headlines[0];
+
+      headlineElement.classList.remove(
+        "dashboard-header-news-chyron__item--entering",
+      );
+      void headlineElement.offsetHeight;
+      headlineElement.textContent = nextHeadline.label;
+      headlineElement.dataset.newsTone = nextHeadline.tone || "default";
+      headlineElement.classList.add(
+        "dashboard-header-news-chyron__item--entering",
+      );
+      clearEntryTimeout();
+      entryTimeout = window.setTimeout(() => {
+        headlineElement.classList.remove(
+          "dashboard-header-news-chyron__item--entering",
+        );
+        entryTimeout = null;
+      }, 260);
+    };
+
+    const headlineInterval = window.setInterval(showNextHeadline, 3800);
+
+    return () => {
+      window.clearInterval(headlineInterval);
+      clearEntryTimeout();
+    };
+  }, []);
+
   const isDashboardProfileRailStep = (step: DashboardJourneyStep) =>
     step.icon.toLowerCase() === "profile" ||
     step.label.toLowerCase() === "profile";
@@ -7019,6 +8344,7 @@ export default function UserHomeDashboardPage() {
     const railDashOffsetValues = isDashboardHeaderVortexCounter
       ? "0;106"
       : "106;0";
+    const isDashboardHeaderVortexAnimating = Boolean(dashboardHeaderVortexMode);
     const railParticleBursts = [
       {
         delay: "0s",
@@ -7068,48 +8394,101 @@ export default function UserHomeDashboardPage() {
         fill: "rgba(255,255,255,0.78)",
         rValues: "0.08;0.17;0.3;0.08",
       },
+      {
+        delay: "0.1s",
+        dur: "2.2s",
+        fill: "var(--dashboard-header-journey-motion, rgba(125,211,252,0.86))",
+        rValues: "0.08;0.18;0.36;0.08",
+      },
+      {
+        delay: "0.36s",
+        dur: "2.38s",
+        fill: "var(--dashboard-header-journey-motion-alt, rgba(254,240,138,0.78))",
+        rValues: "0.07;0.19;0.34;0.07",
+      },
+      {
+        delay: "0.84s",
+        dur: "2.18s",
+        fill: "var(--dashboard-header-journey-circle, rgba(103,232,249,0.72))",
+        rValues: "0.06;0.17;0.32;0.06",
+      },
+      {
+        delay: "1.18s",
+        dur: "2.32s",
+        fill: "rgba(236,254,255,0.72)",
+        rValues: "0.06;0.15;0.28;0.06",
+      },
+      {
+        delay: "1.58s",
+        dur: "2.48s",
+        fill: "var(--dashboard-header-journey-halo, rgba(14,165,233,0.70))",
+        rValues: "0.07;0.18;0.31;0.07",
+      },
+      {
+        delay: "1.92s",
+        dur: "2.26s",
+        fill: "var(--dashboard-header-journey-motion-alt, rgba(250,204,21,0.68))",
+        rValues: "0.06;0.14;0.26;0.06",
+      },
     ];
     const renderRailParticles = (
       path: string,
       side: "above" | "below",
-    ) => (
-      <g
-        aria-hidden="true"
-        className="dashboard-header-page-orbit-rail__particles"
-        filter="url(#dashboard-header-page-orbit-rail-glow)"
-      >
-        {railParticleBursts.map((particle, particleIndex) => (
-          <circle
-            fill={particle.fill}
-            key={`${side}-${particleIndex}-rail-particle`}
-            opacity="0"
-            r="0.16"
-          >
-            <animateMotion
-              begin={particle.delay}
-              dur={particle.dur}
-              path={path}
-              repeatCount="indefinite"
-            />
-            <animate
-              attributeName="opacity"
-              begin={particle.delay}
-              dur={particle.dur}
-              repeatCount="indefinite"
-              values="0;0.18;0.48;0.18;0"
-            />
-            <animate
-              attributeName="r"
-              begin={particle.delay}
-              dur={particle.dur}
-              repeatCount="indefinite"
-              values={particle.rValues}
-            />
-          </circle>
-        ))}
-      </g>
-    );
+    ) => {
+      const visibleRailParticleBursts = isDashboardHeaderVortexAnimating
+        ? railParticleBursts
+        : railParticleBursts.slice(0, 3).map((particle, particleIndex) => ({
+            ...particle,
+            delay: `${particleIndex * 1.85}s`,
+            dur: "9.4s",
+            rValues: "0.05;0.1;0.18;0.05",
+          }));
+
+      return (
+        <g
+          aria-hidden="true"
+          className={`dashboard-header-page-orbit-rail__particles dashboard-header-page-orbit-rail__particles--${dashboardHeaderVortexPhase}`}
+          filter="url(#dashboard-header-page-orbit-rail-glow)"
+        >
+          {visibleRailParticleBursts.map((particle, particleIndex) => (
+            <circle
+              fill={particle.fill}
+              key={`${side}-${particleIndex}-rail-particle`}
+              opacity="0"
+              r="0.16"
+            >
+              <animateMotion
+                begin={particle.delay}
+                dur={particle.dur}
+                path={path}
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="opacity"
+                begin={particle.delay}
+                dur={particle.dur}
+                repeatCount="indefinite"
+                values={
+                  isDashboardHeaderVortexAnimating
+                    ? "0;0.18;0.48;0.18;0"
+                    : "0;0.05;0.14;0.05;0"
+                }
+              />
+              <animate
+                attributeName="r"
+                begin={particle.delay}
+                dur={particle.dur}
+                repeatCount="indefinite"
+                values={particle.rValues}
+              />
+            </circle>
+          ))}
+        </g>
+      );
+    };
     const renderRailSparkField = (side: "above" | "below") => {
+      if (!isDashboardHeaderVortexAnimating) return null;
+
       const yOffset = side === "above" ? -1 : 1;
       const sparkField = [
         { delay: "0s", r: 0.2, x: 26, y: 32 + yOffset * 8 },
@@ -7121,6 +8500,12 @@ export default function UserHomeDashboardPage() {
         { delay: "1.04s", r: 0.14, x: 82, y: 36 + yOffset * 5 },
         { delay: "1.26s", r: 0.15, x: 48, y: 40 + yOffset * 17 },
         { delay: "1.48s", r: 0.13, x: 60, y: 40 + yOffset * 14 },
+        { delay: "1.66s", r: 0.12, x: 30, y: 36 + yOffset * 11 },
+        { delay: "1.84s", r: 0.1, x: 39, y: 34 + yOffset * 16 },
+        { delay: "2.02s", r: 0.12, x: 70, y: 34 + yOffset * 13 },
+        { delay: "2.18s", r: 0.09, x: 78, y: 38 + yOffset * 8 },
+        { delay: "2.36s", r: 0.11, x: 52, y: 34 + yOffset * 19 },
+        { delay: "2.54s", r: 0.09, x: 88, y: 39 + yOffset * 4 },
       ];
 
       return (
@@ -7164,7 +8549,7 @@ export default function UserHomeDashboardPage() {
     return (
       <div
         aria-label={`${activeDashboardHeaderLink.label} journey page orbital rail`}
-        className={`dashboard-header-page-orbit-rail pointer-events-none absolute -left-[2.35rem] -top-[1.15rem] h-[5.25rem] w-[6.1rem] overflow-visible [transform-style:preserve-3d] ${
+        className={`dashboard-header-page-orbit-rail dashboard-header-page-orbit-rail--${dashboardHeaderVortexPhase} pointer-events-none absolute -left-[0.98rem] -top-[1.15rem] h-[5.25rem] w-[6.1rem] overflow-visible [transform-style:preserve-3d] ${
           dashboardHeaderVortexMode
             ? `dashboard-header-page-orbit-rail--${dashboardHeaderVortexMode}`
             : ""
@@ -7236,126 +8621,140 @@ export default function UserHomeDashboardPage() {
                 stroke="url(#dashboard-header-page-orbit-rail-gradient)"
                 strokeLinecap="round"
                 strokeWidth="2.4"
+                opacity="0.58"
               >
-                <animate
-                  attributeName="opacity"
-                  dur="3.4s"
-                  repeatCount="indefinite"
-                  values="0.42;0.74;0.58;0.66;0.42"
-                />
-                <animate
-                  attributeName="stroke-width"
-                  dur="3.4s"
-                  repeatCount="indefinite"
-                  values="2;3.1;2.45;2.8;2"
-                />
+                {isDashboardHeaderVortexAnimating ? (
+                  <>
+                    <animate
+                      attributeName="opacity"
+                      dur="3.4s"
+                      repeatCount="indefinite"
+                      values="0.42;0.74;0.58;0.66;0.42"
+                    />
+                    <animate
+                      attributeName="stroke-width"
+                      dur="3.4s"
+                      repeatCount="indefinite"
+                      values="2;3.1;2.45;2.8;2"
+                    />
+                  </>
+                ) : null}
               </path>
-              <path
-                d="M20 24 C42 7 66 5 84 15 C91 20 92 30 88 39"
-                fill="none"
-                filter="url(#dashboard-header-page-orbit-rail-glow)"
-                opacity="0"
-                stroke="var(--dashboard-header-journey-motion, rgba(236,254,255,0.92))"
-                strokeDasharray="1 112"
-                strokeLinecap="round"
-                strokeWidth="2.4"
-              >
-                <animate
-                  attributeName="stroke-dasharray"
-                  dur="2.1s"
-                  repeatCount="indefinite"
-                  values="1 112;10 102;18 94;1 112"
-                />
-                <animate
-                  attributeName="stroke-dashoffset"
-                  dur="2.1s"
-                  repeatCount="indefinite"
-                  values={railDashOffsetValues}
-                />
-                <animate
-                  attributeName="opacity"
-                  dur="2.1s"
-                  repeatCount="indefinite"
-                  values="0;0.2;0.38;0"
-                />
-              </path>
-              <path
-                d="M20 24 C42 7 66 5 84 15 C91 20 92 30 88 39"
-                fill="none"
-                opacity="0"
-                stroke="var(--dashboard-header-journey-circle, rgba(34,211,238,0.56))"
-                strokeDasharray="1 116"
-                strokeLinecap="round"
-                strokeWidth="1.5"
-              >
-                <animate
-                  attributeName="stroke-dasharray"
-                  begin="0.55s"
-                  dur="2.6s"
-                  repeatCount="indefinite"
-                  values="1 116;8 108;15 101;1 116"
-                />
-                <animate
-                  attributeName="stroke-dashoffset"
-                  begin="0.55s"
-                  dur="2.6s"
-                  repeatCount="indefinite"
-                  values={isDashboardHeaderVortexCounter ? "0;108" : "108;0"}
-                />
-                <animate
-                  attributeName="opacity"
-                  begin="0.55s"
-                  dur="2.6s"
-                  repeatCount="indefinite"
-                  values="0;0.14;0.28;0"
-                />
-              </path>
-              <path
-                d="M84 15 C66 5 42 7 20 24"
-                fill="none"
-                opacity="0"
-                stroke="var(--dashboard-header-journey-motion-alt, rgba(255,255,255,0.82))"
-                strokeDasharray="12 84"
-                strokeLinecap="round"
-                strokeWidth="1.1"
-              >
-                <animate
-                  attributeName="stroke-dashoffset"
-                  dur="2.8s"
-                  repeatCount="indefinite"
-                  values="96;0"
-                />
-                <animate
-                  attributeName="opacity"
-                  dur="2.8s"
-                  repeatCount="indefinite"
-                  values="0;0.42;0"
-                />
-              </path>
-              <circle
-                fill="var(--dashboard-header-journey-motion-alt, rgba(254,240,138,0.96))"
-                r="0.24"
-              >
-                <animateMotion
-                  dur="3.2s"
-                  path={upperRailMotionPath}
-                  repeatCount="indefinite"
-                />
-                <animate
-                  attributeName="opacity"
-                  dur="3.2s"
-                  repeatCount="indefinite"
-                  values="0;0.18;0.42;0"
-                />
-                <animate
-                  attributeName="r"
-                  dur="3.2s"
-                  repeatCount="indefinite"
-                  values="0.18;0.34;0.5;0.18"
-                />
-              </circle>
-              {renderRailParticles(upperRailMotionPath, "above")}
-              {renderRailSparkField("above")}
+              {isDashboardHeaderVortexAnimating ? (
+                <>
+                  <path
+                    d="M20 24 C42 7 66 5 84 15 C91 20 92 30 88 39"
+                    fill="none"
+                    filter="url(#dashboard-header-page-orbit-rail-glow)"
+                    opacity="0"
+                    stroke="var(--dashboard-header-journey-motion, rgba(236,254,255,0.92))"
+                    strokeDasharray="1 112"
+                    strokeLinecap="round"
+                    strokeWidth="2.4"
+                  >
+                    <animate
+                      attributeName="stroke-dasharray"
+                      dur="2.1s"
+                      repeatCount="indefinite"
+                      values="1 112;10 102;18 94;1 112"
+                    />
+                    <animate
+                      attributeName="stroke-dashoffset"
+                      dur="2.1s"
+                      repeatCount="indefinite"
+                      values={railDashOffsetValues}
+                    />
+                    <animate
+                      attributeName="opacity"
+                      dur="2.1s"
+                      repeatCount="indefinite"
+                      values="0;0.2;0.38;0"
+                    />
+                  </path>
+                  <path
+                    d="M20 24 C42 7 66 5 84 15 C91 20 92 30 88 39"
+                    fill="none"
+                    opacity="0"
+                    stroke="var(--dashboard-header-journey-circle, rgba(34,211,238,0.56))"
+                    strokeDasharray="1 116"
+                    strokeLinecap="round"
+                    strokeWidth="1.5"
+                  >
+                    <animate
+                      attributeName="stroke-dasharray"
+                      begin="0.55s"
+                      dur="2.6s"
+                      repeatCount="indefinite"
+                      values="1 116;8 108;15 101;1 116"
+                    />
+                    <animate
+                      attributeName="stroke-dashoffset"
+                      begin="0.55s"
+                      dur="2.6s"
+                      repeatCount="indefinite"
+                      values={
+                        isDashboardHeaderVortexCounter ? "0;108" : "108;0"
+                      }
+                    />
+                    <animate
+                      attributeName="opacity"
+                      begin="0.55s"
+                      dur="2.6s"
+                      repeatCount="indefinite"
+                      values="0;0.14;0.28;0"
+                    />
+                  </path>
+                  <path
+                    d="M84 15 C66 5 42 7 20 24"
+                    fill="none"
+                    opacity="0"
+                    stroke="var(--dashboard-header-journey-motion-alt, rgba(255,255,255,0.82))"
+                    strokeDasharray="12 84"
+                    strokeLinecap="round"
+                    strokeWidth="1.1"
+                  >
+                    <animate
+                      attributeName="stroke-dashoffset"
+                      dur="2.8s"
+                      repeatCount="indefinite"
+                      values="96;0"
+                    />
+                    <animate
+                      attributeName="opacity"
+                      dur="2.8s"
+                      repeatCount="indefinite"
+                      values="0;0.42;0"
+                    />
+                  </path>
+                  <circle
+                    fill="var(--dashboard-header-journey-motion-alt, rgba(254,240,138,0.96))"
+                    r="0.24"
+                  >
+                    <animateMotion
+                      dur="3.2s"
+                      path={upperRailMotionPath}
+                      repeatCount="indefinite"
+                    />
+                    <animate
+                      attributeName="opacity"
+                      dur="3.2s"
+                      repeatCount="indefinite"
+                      values="0;0.18;0.42;0"
+                    />
+                    <animate
+                      attributeName="r"
+                      dur="3.2s"
+                      repeatCount="indefinite"
+                      values="0.18;0.34;0.5;0.18"
+                    />
+                  </circle>
+                  {renderRailParticles(upperRailMotionPath, "above")}
+                  {renderRailSparkField("above")}
+                </>
+              ) : null}
+              {!isDashboardHeaderVortexAnimating
+                ? renderRailParticles(upperRailMotionPath, "above")
+                : null}
             </>
           ) : null}
           {hasRailPagesBelow ? (
@@ -7367,126 +8766,140 @@ export default function UserHomeDashboardPage() {
                 stroke="url(#dashboard-header-page-orbit-rail-gradient)"
                 strokeLinecap="round"
                 strokeWidth="2.4"
+                opacity="0.58"
               >
-                <animate
-                  attributeName="opacity"
-                  dur="3.6s"
-                  repeatCount="indefinite"
-                  values="0.42;0.74;0.58;0.66;0.42"
-                />
-                <animate
-                  attributeName="stroke-width"
-                  dur="3.6s"
-                  repeatCount="indefinite"
-                  values="2;3.1;2.45;2.8;2"
-                />
+                {isDashboardHeaderVortexAnimating ? (
+                  <>
+                    <animate
+                      attributeName="opacity"
+                      dur="3.6s"
+                      repeatCount="indefinite"
+                      values="0.42;0.74;0.58;0.66;0.42"
+                    />
+                    <animate
+                      attributeName="stroke-width"
+                      dur="3.6s"
+                      repeatCount="indefinite"
+                      values="2;3.1;2.45;2.8;2"
+                    />
+                  </>
+                ) : null}
               </path>
-              <path
-                d="M20 56 C42 76 66 79 84 63 C91 58 92 48 88 39"
-                fill="none"
-                filter="url(#dashboard-header-page-orbit-rail-glow)"
-                opacity="0"
-                stroke="var(--dashboard-header-journey-motion, rgba(236,254,255,0.92))"
-                strokeDasharray="1 112"
-                strokeLinecap="round"
-                strokeWidth="2.4"
-              >
-                <animate
-                  attributeName="stroke-dasharray"
-                  dur="2.2s"
-                  repeatCount="indefinite"
-                  values="1 112;10 102;18 94;1 112"
-                />
-                <animate
-                  attributeName="stroke-dashoffset"
-                  dur="2.2s"
-                  repeatCount="indefinite"
-                  values={railDashOffsetValues}
-                />
-                <animate
-                  attributeName="opacity"
-                  dur="2.2s"
-                  repeatCount="indefinite"
-                  values="0;0.2;0.38;0"
-                />
-              </path>
-              <path
-                d="M20 56 C42 76 66 79 84 63 C91 58 92 48 88 39"
-                fill="none"
-                opacity="0"
-                stroke="var(--dashboard-header-journey-circle, rgba(34,211,238,0.56))"
-                strokeDasharray="1 116"
-                strokeLinecap="round"
-                strokeWidth="1.5"
-              >
-                <animate
-                  attributeName="stroke-dasharray"
-                  begin="0.6s"
-                  dur="2.7s"
-                  repeatCount="indefinite"
-                  values="1 116;8 108;15 101;1 116"
-                />
-                <animate
-                  attributeName="stroke-dashoffset"
-                  begin="0.6s"
-                  dur="2.7s"
-                  repeatCount="indefinite"
-                  values={isDashboardHeaderVortexCounter ? "0;108" : "108;0"}
-                />
-                <animate
-                  attributeName="opacity"
-                  begin="0.6s"
-                  dur="2.7s"
-                  repeatCount="indefinite"
-                  values="0;0.14;0.28;0"
-                />
-              </path>
-              <path
-                d="M84 63 C66 79 42 76 20 56"
-                fill="none"
-                opacity="0"
-                stroke="var(--dashboard-header-journey-motion-alt, rgba(255,255,255,0.82))"
-                strokeDasharray="12 84"
-                strokeLinecap="round"
-                strokeWidth="1.1"
-              >
-                <animate
-                  attributeName="stroke-dashoffset"
-                  dur="3s"
-                  repeatCount="indefinite"
-                  values="96;0"
-                />
-                <animate
-                  attributeName="opacity"
-                  dur="3s"
-                  repeatCount="indefinite"
-                  values="0;0.42;0"
-                />
-              </path>
-              <circle
-                fill="var(--dashboard-header-journey-motion, rgba(103,232,249,0.96))"
-                r="0.24"
-              >
-                <animateMotion
-                  dur="3.4s"
-                  path={lowerRailMotionPath}
-                  repeatCount="indefinite"
-                />
-                <animate
-                  attributeName="opacity"
-                  dur="3.4s"
-                  repeatCount="indefinite"
-                  values="0;0.18;0.42;0"
-                />
-                <animate
-                  attributeName="r"
-                  dur="3.4s"
-                  repeatCount="indefinite"
-                  values="0.18;0.34;0.5;0.18"
-                />
-              </circle>
-              {renderRailParticles(lowerRailMotionPath, "below")}
-              {renderRailSparkField("below")}
+              {isDashboardHeaderVortexAnimating ? (
+                <>
+                  <path
+                    d="M20 56 C42 76 66 79 84 63 C91 58 92 48 88 39"
+                    fill="none"
+                    filter="url(#dashboard-header-page-orbit-rail-glow)"
+                    opacity="0"
+                    stroke="var(--dashboard-header-journey-motion, rgba(236,254,255,0.92))"
+                    strokeDasharray="1 112"
+                    strokeLinecap="round"
+                    strokeWidth="2.4"
+                  >
+                    <animate
+                      attributeName="stroke-dasharray"
+                      dur="2.2s"
+                      repeatCount="indefinite"
+                      values="1 112;10 102;18 94;1 112"
+                    />
+                    <animate
+                      attributeName="stroke-dashoffset"
+                      dur="2.2s"
+                      repeatCount="indefinite"
+                      values={railDashOffsetValues}
+                    />
+                    <animate
+                      attributeName="opacity"
+                      dur="2.2s"
+                      repeatCount="indefinite"
+                      values="0;0.2;0.38;0"
+                    />
+                  </path>
+                  <path
+                    d="M20 56 C42 76 66 79 84 63 C91 58 92 48 88 39"
+                    fill="none"
+                    opacity="0"
+                    stroke="var(--dashboard-header-journey-circle, rgba(34,211,238,0.56))"
+                    strokeDasharray="1 116"
+                    strokeLinecap="round"
+                    strokeWidth="1.5"
+                  >
+                    <animate
+                      attributeName="stroke-dasharray"
+                      begin="0.6s"
+                      dur="2.7s"
+                      repeatCount="indefinite"
+                      values="1 116;8 108;15 101;1 116"
+                    />
+                    <animate
+                      attributeName="stroke-dashoffset"
+                      begin="0.6s"
+                      dur="2.7s"
+                      repeatCount="indefinite"
+                      values={
+                        isDashboardHeaderVortexCounter ? "0;108" : "108;0"
+                      }
+                    />
+                    <animate
+                      attributeName="opacity"
+                      begin="0.6s"
+                      dur="2.7s"
+                      repeatCount="indefinite"
+                      values="0;0.14;0.28;0"
+                    />
+                  </path>
+                  <path
+                    d="M84 63 C66 79 42 76 20 56"
+                    fill="none"
+                    opacity="0"
+                    stroke="var(--dashboard-header-journey-motion-alt, rgba(255,255,255,0.82))"
+                    strokeDasharray="12 84"
+                    strokeLinecap="round"
+                    strokeWidth="1.1"
+                  >
+                    <animate
+                      attributeName="stroke-dashoffset"
+                      dur="3s"
+                      repeatCount="indefinite"
+                      values="96;0"
+                    />
+                    <animate
+                      attributeName="opacity"
+                      dur="3s"
+                      repeatCount="indefinite"
+                      values="0;0.42;0"
+                    />
+                  </path>
+                  <circle
+                    fill="var(--dashboard-header-journey-motion, rgba(103,232,249,0.96))"
+                    r="0.24"
+                  >
+                    <animateMotion
+                      dur="3.4s"
+                      path={lowerRailMotionPath}
+                      repeatCount="indefinite"
+                    />
+                    <animate
+                      attributeName="opacity"
+                      dur="3.4s"
+                      repeatCount="indefinite"
+                      values="0;0.18;0.42;0"
+                    />
+                    <animate
+                      attributeName="r"
+                      dur="3.4s"
+                      repeatCount="indefinite"
+                      values="0.18;0.34;0.5;0.18"
+                    />
+                  </circle>
+                  {renderRailParticles(lowerRailMotionPath, "below")}
+                  {renderRailSparkField("below")}
+                </>
+              ) : null}
+              {!isDashboardHeaderVortexAnimating
+                ? renderRailParticles(lowerRailMotionPath, "below")
+                : null}
             </>
           ) : null}
           {hasRailPagesAbove || hasRailPagesBelow ? (
@@ -7500,18 +8913,22 @@ export default function UserHomeDashboardPage() {
                 stroke="var(--dashboard-header-journey-circle-ring, rgba(207,250,254,0.48))"
                 strokeWidth="1"
               >
-                <animate
-                  attributeName="r"
-                  dur="2.2s"
-                  repeatCount="indefinite"
-                  values="2.2;4.2;2.2"
-                />
-                <animate
-                  attributeName="opacity"
-                  dur="2.2s"
-                  repeatCount="indefinite"
-                  values="0.16;0.48;0.16"
-                />
+                {isDashboardHeaderVortexAnimating ? (
+                  <>
+                    <animate
+                      attributeName="r"
+                      dur="2.2s"
+                      repeatCount="indefinite"
+                      values="2.2;4.2;2.2"
+                    />
+                    <animate
+                      attributeName="opacity"
+                      dur="2.2s"
+                      repeatCount="indefinite"
+                      values="0.16;0.48;0.16"
+                    />
+                  </>
+                ) : null}
               </circle>
               <circle
                 cx="88"
@@ -7520,18 +8937,22 @@ export default function UserHomeDashboardPage() {
                 opacity="0.58"
                 r="1.1"
               >
-                <animate
-                  attributeName="r"
-                  dur="1.7s"
-                  repeatCount="indefinite"
-                  values="0.8;1.7;0.8"
-                />
-                <animate
-                  attributeName="opacity"
-                  dur="1.7s"
-                  repeatCount="indefinite"
-                  values="0.32;0.68;0.32"
-                />
+                {isDashboardHeaderVortexAnimating ? (
+                  <>
+                    <animate
+                      attributeName="r"
+                      dur="1.7s"
+                      repeatCount="indefinite"
+                      values="0.8;1.7;0.8"
+                    />
+                    <animate
+                      attributeName="opacity"
+                      dur="1.7s"
+                      repeatCount="indefinite"
+                      values="0.32;0.68;0.32"
+                    />
+                  </>
+                ) : null}
               </circle>
             </g>
           ) : null}
@@ -7559,7 +8980,7 @@ export default function UserHomeDashboardPage() {
           return (
             <Link
               aria-label={`${step.label} journey rail page, ${stepUrgencyTone.label}`}
-              className="pointer-events-auto absolute grid h-6 w-6 place-items-center overflow-hidden rounded-full border border-white/12 bg-slate-950/58 shadow-[0_0_14px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:scale-110 hover:border-cyan-100/38 hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/55 active:scale-95"
+              className="dashboard-header-page-orbit-node pointer-events-auto absolute isolate grid h-6 w-6 place-items-center overflow-visible rounded-full border border-white/12 bg-slate-950/58 shadow-[0_0_14px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.08)] transition-[border-color,box-shadow,filter,transform] duration-200 hover:border-cyan-100/48 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/55 active:scale-95"
               draggable={false}
               href={step.href}
               key={`${activeDashboardHeaderLink.label}-${step.label}-dashboard-header-page-rail`}
@@ -7571,22 +8992,22 @@ export default function UserHomeDashboardPage() {
                 markDashboardDestinationVisited(step.href);
               }}
               onDragStart={(event) => event.preventDefault()}
+              data-dashboard-tooltip={step.label}
               style={{
                 left: `${slot.x}px`,
                 opacity: slot.opacity,
                 top: `${slot.y}px`,
-                transform: `translate(-50%, -50%) rotate(${slot.rotate}deg) scale(${slot.scale})`,
+                transform: `translate(-50%, -50%) rotate(${slot.rotate}deg) scale(calc(${slot.scale} * var(--dashboard-header-page-orbit-node-hover-scale, 1)))`,
                 zIndex: slot.zIndex,
               }}
-              title={step.label}
             >
               <span
                 aria-hidden="true"
-                className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_48%,rgba(34,211,238,0.10),rgba(2,6,23,0.72)_72%)]"
+                className="dashboard-header-page-orbit-node__field absolute inset-0 rounded-full bg-[radial-gradient(circle_at_50%_48%,rgba(34,211,238,0.10),rgba(2,6,23,0.72)_72%)]"
               />
               {renderDashboardHeaderJourneyStepIcon(
                 step,
-                `relative z-10 h-3 w-3 ${pageTone}`,
+                `dashboard-header-page-orbit-node__icon relative z-10 h-3 w-3 ${pageTone}`,
               )}
             </Link>
           );
@@ -7624,8 +9045,8 @@ export default function UserHomeDashboardPage() {
             <button
               aria-label={`Previous ${activeDashboardHeaderLink.label} journey tab`}
               className="grid min-h-0 flex-1 place-items-center border-b border-white/10 transition hover:border-amber-200/42 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
+              data-dashboard-tooltip={`Previous ${activeDashboardHeaderLink.label} journey tab`}
               onClick={() => card && rotateDashboardJourneyStepOrbit(card, "left")}
-              title={`Previous ${activeDashboardHeaderLink.label} journey tab`}
               type="button"
             >
               ^
@@ -7633,8 +9054,8 @@ export default function UserHomeDashboardPage() {
             <button
               aria-label={`Next ${activeDashboardHeaderLink.label} journey tab`}
               className="grid min-h-0 flex-1 place-items-center transition hover:border-amber-200/42 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
+              data-dashboard-tooltip={`Next ${activeDashboardHeaderLink.label} journey tab`}
               onClick={() => card && rotateDashboardJourneyStepOrbit(card, "right")}
-              title={`Next ${activeDashboardHeaderLink.label} journey tab`}
               type="button"
             >
               v
@@ -7721,6 +9142,7 @@ export default function UserHomeDashboardPage() {
                     ? "dashboard-header-journey-tab--active"
                     : ""
                 }`}
+                data-dashboard-tooltip={step.label}
                 href={step.href}
                 key={`${activeDashboardHeaderLink.label}-${step.label}-header-journey`}
                 onClick={() => {
@@ -7748,7 +9170,6 @@ export default function UserHomeDashboardPage() {
                   }) rotateX(${journeyDirection * journeySlot.rotateX}deg)`,
                   zIndex: journeySlot.zIndex,
                 }}
-                title={step.label}
               >
                 {isActiveJourneyStep ? (
                   <>
@@ -7835,7 +9256,7 @@ export default function UserHomeDashboardPage() {
     return (
       <button
         aria-label="Scroll dashboard selector"
-        className={`dashboard-header-scroll-button relative z-10 grid h-[3.35rem] w-[3.35rem] shrink-0 place-items-center overflow-hidden rounded-[24px] border border-cyan-100/16 bg-slate-950/26 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-y-0.5 hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:420px] [touch-action:none] ${
+        className={`dashboard-header-scroll-button relative z-10 grid h-[3.35rem] w-[3.35rem] shrink-0 translate-x-8 -translate-y-2 place-items-center overflow-hidden rounded-[24px] border border-cyan-100/16 bg-slate-950/26 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-y-2.5 hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:420px] [touch-action:none] ${
           dashboardHeaderScrollButtonDragging
             ? "dashboard-header-scroll-button--dragging cursor-grabbing border-amber-100/44 bg-amber-300/10"
             : "cursor-pointer"
@@ -7887,6 +9308,7 @@ export default function UserHomeDashboardPage() {
         onPointerMove={handleDashboardHeaderScrollButtonPointerMove}
         onPointerUp={handleDashboardHeaderScrollButtonPointerEnd}
         onWheel={handleDashboardHeaderScrollButtonWheel}
+        data-dashboard-tooltip="Scroll dashboard selector"
         style={
           {
             ...activeDashboardHeaderTone.iconEffectStyle,
@@ -7898,7 +9320,6 @@ export default function UserHomeDashboardPage() {
             "--dashboard-analog-offset-y": `${dashboardHeaderAnalogOffset.y}px`,
           } as CSSProperties
         }
-        title="Scroll dashboard selector"
         type="button"
       >
         <span
@@ -7992,7 +9413,7 @@ export default function UserHomeDashboardPage() {
     return (
       <button
         aria-label="Scroll dashboard page rows"
-        className={`dashboard-header-scroll-button dashboard-header-scroll-button--page relative z-10 grid h-[3.35rem] w-[3.35rem] shrink-0 place-items-center overflow-hidden rounded-[24px] border border-cyan-100/16 bg-slate-950/26 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-y-0.5 hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:420px] [touch-action:none] ${
+        className={`dashboard-header-scroll-button dashboard-header-scroll-button--page pointer-events-auto relative z-10 grid h-[3.35rem] w-[3.35rem] shrink-0 place-items-center overflow-hidden rounded-[24px] border border-cyan-100/16 bg-slate-950/26 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-y-0.5 hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:420px] [touch-action:none] ${
           dashboardPageAnalogDragging
             ? "dashboard-header-scroll-button--dragging cursor-grabbing border-amber-100/44 bg-amber-300/10"
             : "cursor-pointer"
@@ -8044,6 +9465,7 @@ export default function UserHomeDashboardPage() {
         onPointerMove={handleDashboardPageAnalogPointerMove}
         onPointerUp={handleDashboardPageAnalogPointerEnd}
         onWheel={handleDashboardPageAnalogWheel}
+        data-dashboard-tooltip="Scroll dashboard page rows"
         style={
           {
             ...activeDashboardHeaderTone.iconEffectStyle,
@@ -8055,7 +9477,6 @@ export default function UserHomeDashboardPage() {
             "--dashboard-analog-offset-y": `${dashboardPageAnalogOffset.y}px`,
           } as CSSProperties
         }
-        title="Scroll dashboard page rows"
         type="button"
       >
         <span
@@ -8244,7 +9665,7 @@ export default function UserHomeDashboardPage() {
                     "transform 520ms cubic-bezier(0.2,0.82,0.2,1), opacity 260ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease",
                   zIndex: 30 - journeyAbsDistance,
                 }}
-                title={step.label}
+                data-dashboard-tooltip={step.label}
                 type="button"
               >
                 <span className="sr-only">{step.label}</span>
@@ -8340,7 +9761,7 @@ export default function UserHomeDashboardPage() {
                   width: `${journeySlot.width}px`,
                   zIndex: journeySlot.zIndex,
                 }}
-                title={`${card.title}: ${step.label}`}
+                data-dashboard-tooltip={`${card.title}: ${step.label}`}
               >
                 <span
                   aria-hidden="true"
@@ -8417,7 +9838,7 @@ export default function UserHomeDashboardPage() {
   }) => (
     <div
       data-dashboard-orbiter-row={rowIndex}
-      className={`relative min-h-0 w-full overflow-hidden pl-24 pr-10 pt-20 transition-opacity duration-300 sm:pl-28 sm:pr-12 sm:pt-24 lg:pt-28 ${
+      className={`relative min-h-0 w-full overflow-hidden pl-36 pr-10 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-12 sm:pt-24 lg:pl-44 lg:pt-28 ${
         clampedDashboardOrbiterRow === rowIndex
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
@@ -8733,7 +10154,7 @@ export default function UserHomeDashboardPage() {
                             "transform 520ms cubic-bezier(0.2,0.82,0.2,1), opacity 260ms ease, width 300ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease",
                           zIndex: 30 - absDistance,
                         }}
-                        title={`${card.title} - ${cardTone.label}`}
+                        data-dashboard-tooltip={`${card.title} - ${cardTone.label}`}
                         type="button"
                       >
                         <span className="sr-only">{card.title}</span>
@@ -9022,11 +10443,11 @@ export default function UserHomeDashboardPage() {
               isActive ? activeClasses : idleClasses
             }`}
             key={item.label}
+            data-dashboard-tooltip={item.label}
             onClick={(event) => {
               event.stopPropagation();
               setActiveIndex(index);
             }}
-            title={item.label}
             type="button"
           >
             <span className="sr-only">{item.label}</span>
@@ -9310,7 +10731,7 @@ export default function UserHomeDashboardPage() {
 
   const renderDashboardOrbiterTopMenu = () => (
     <div
-      className={`dashboard-header-vortex-shell sticky top-0 z-[120] mb-0 w-full shrink-0 overflow-hidden border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl ${
+      className={`dashboard-header-vortex-shell dashboard-header-vortex-shell--${dashboardHeaderVortexPhase} sticky top-0 z-[120] mb-0 w-full shrink-0 overflow-visible border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl ${
         dashboardHeaderVortexMode
           ? `dashboard-header-vortex-shell--${dashboardHeaderVortexMode}`
           : ""
@@ -9320,13 +10741,13 @@ export default function UserHomeDashboardPage() {
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/55 to-transparent"
       />
-      <div className="relative mx-auto flex min-h-[88px] w-full max-w-[1840px] items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3 md:px-6 xl:px-8 2xl:px-10">
+      <div className="relative mx-auto flex min-h-[88px] w-full max-w-[1840px] items-center gap-2 px-3 pb-7 pt-2.5 sm:gap-3 sm:px-4 sm:pb-8 sm:pt-3 md:px-6 xl:px-8 2xl:px-10">
         <Link
           aria-label="Open Sound Fitness dashboard"
           className="dashboard-header-home-logo relative isolate grid min-h-[58px] w-12 shrink-0 place-items-center overflow-visible rounded-[22px] border border-transparent bg-transparent px-1 py-2 transition hover:border-cyan-100/24 hover:bg-cyan-300/8"
+          data-dashboard-tooltip="Sound Fitness"
           href={ROUTES.dashboard.home}
           style={activeDashboardHeaderTone.iconEffectStyle}
-          title="Sound Fitness"
         >
           <span
             aria-hidden="true"
@@ -9343,11 +10764,11 @@ export default function UserHomeDashboardPage() {
 
         <div
           aria-label="Dashboard selector"
-          className="-ml-4 flex w-fit max-w-[calc(100vw-7.5rem)] shrink-0 select-none items-center gap-2 bg-transparent p-0 shadow-none md:max-w-[min(64vw,620px)] lg:max-w-none"
+          className="ml-1 flex w-fit max-w-[calc(100vw-7.5rem)] shrink-0 select-none items-center gap-2 bg-transparent p-0 shadow-none md:max-w-[min(64vw,620px)] lg:max-w-none"
         >
           <div
             aria-label={`${activeDashboardHeaderLink.label} dashboard tab`}
-            className={`dashboard-header-orbit-system flex min-h-[62px] w-auto min-w-max shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-1.5 py-2 text-left text-cyan-50 shadow-none transition ${
+            className={`dashboard-header-orbit-system dashboard-header-orbit-system--${dashboardHeaderVortexPhase} flex min-h-[62px] w-auto min-w-max shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-1.5 py-2 text-left text-cyan-50 shadow-none transition ${
               dashboardHeaderSlideDirection === "right"
                 ? "animate-[sessions-dashboard-chip-slide-from-right_220ms_ease-out]"
                 : "animate-[sessions-dashboard-chip-slide-from-left_220ms_ease-out]"
@@ -9360,22 +10781,22 @@ export default function UserHomeDashboardPage() {
             role="group"
           >
             {renderDashboardHeaderScrollControls()}
-            <div className="flex min-w-[226px] shrink-0 items-center justify-center gap-3">
+            <div className="flex min-w-[204px] shrink-0 items-center justify-center gap-1.5">
               <div
-                className="dashboard-header-rail-pocket relative flex h-[4.35rem] min-w-[7.25rem] shrink-0 items-center justify-center text-cyan-100"
+                className="dashboard-header-rail-pocket relative flex h-[4.35rem] min-w-[6.05rem] shrink-0 translate-x-3 items-center justify-center text-cyan-100"
                 style={activeDashboardHeaderTone.iconEffectStyle}
               >
                 <span
                   aria-hidden="true"
-                  className="dashboard-header-rail-core-field pointer-events-none absolute left-[-2.18rem] top-[-1.02rem] h-[5.05rem] w-[6rem] rounded-[999px]"
+                  className="dashboard-header-rail-core-field pointer-events-none absolute left-[-0.86rem] top-[-1.02rem] h-[5.05rem] w-[6rem] rounded-[999px]"
                 />
                 {renderDashboardHeaderPageOrbitRail()}
-                <div className="absolute left-[1.55rem] top-[0.08rem] z-20 flex items-center justify-center">
+                <div className="absolute left-[2.72rem] top-[0.08rem] z-20 flex items-center justify-center">
                   {renderDashboardHeaderJourneyTabs("points")}
                 </div>
                 <Link
                   aria-label={`Open ${activeDashboardHeaderLink.label}, ${activeDashboardHeaderLink.points.toLocaleString()} points`}
-                  className="dashboard-header-rail-points-core absolute left-[0.78rem] top-[1.3rem] z-[4] inline-flex max-w-[3.9rem] -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 overflow-hidden whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[11px] font-black leading-none tracking-tight text-cyan-50 transition hover:brightness-125 active:scale-95"
+                  className="dashboard-header-rail-points-core absolute left-[2.02rem] top-[1.3rem] z-[4] inline-flex max-w-[3.9rem] -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 overflow-hidden whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[11px] font-black leading-none tracking-tight text-cyan-50 transition hover:brightness-125 active:scale-95"
                   draggable={false}
                   href={activeDashboardHeaderLink.href}
                   onClick={() =>
@@ -9415,7 +10836,7 @@ export default function UserHomeDashboardPage() {
               </div>
               <Link
                 aria-label={`Open ${activeDashboardHeaderLink.label}`}
-                className="block whitespace-nowrap rounded-xl px-1 py-1 transition hover:-translate-y-0.5 hover:bg-white/[0.04]"
+                className="-ml-1 block whitespace-nowrap rounded-xl px-1 py-1 transition hover:-translate-y-0.5 hover:bg-white/[0.04]"
                 draggable={false}
                 href={activeDashboardHeaderLink.href}
                 onClick={() =>
@@ -9441,7 +10862,7 @@ export default function UserHomeDashboardPage() {
                   </span>
                   <span
                     className={`mt-1 inline-flex max-w-[118px] items-center gap-1 rounded-full border px-1.5 py-0.5 text-[6px] font-black uppercase tracking-[0.08em] ${activeDashboardHeaderUrgencyTone.ring} ${activeDashboardHeaderUrgencyTone.text}`}
-                    title={activeDashboardHeaderUrgencyTone.label}
+                    data-dashboard-tooltip={activeDashboardHeaderUrgencyTone.label}
                   >
                     <span
                       aria-hidden="true"
@@ -9459,84 +10880,39 @@ export default function UserHomeDashboardPage() {
 
         <div className="min-w-0 flex-1" />
 
-        <button
-          aria-label={
-            dashboardMusicEnabled
-              ? "Pause Orbit FM dashboard music"
-              : "Play Orbit FM dashboard music"
-          }
-          aria-pressed={dashboardMusicEnabled}
-          className={`dashboard-music-toggle group hidden h-14 min-w-[5.4rem] shrink-0 items-center justify-center gap-2 rounded-[20px] border px-2.5 text-left shadow-[0_0_22px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] transition hover:-translate-y-0.5 active:scale-95 md:flex ${
-            dashboardMusicEnabled
-              ? "dashboard-music-toggle--active border-amber-100/36 bg-amber-300/12 text-amber-50 shadow-[0_0_30px_rgba(250,204,21,0.16),inset_0_1px_0_rgba(255,255,255,0.12)]"
-              : "border-cyan-100/18 bg-slate-950/46 text-cyan-50 hover:border-amber-200/34 hover:bg-amber-300/10"
-          }`}
-          onClick={() => {
-            void toggleDashboardMusic();
-          }}
-          title={
-            dashboardMusicEnabled
-              ? "Pause Orbit FM"
-              : "Play Orbit FM"
-          }
-          type="button"
-        >
-          <span
-            aria-hidden="true"
-            className="relative grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/10 bg-slate-950/52"
-          >
-            <svg
-              className={`h-4 w-4 ${
-                dashboardMusicEnabled
-                  ? "text-amber-200 drop-shadow-[0_0_10px_rgba(250,204,21,0.58)]"
-                  : "text-cyan-100 drop-shadow-[0_0_10px_rgba(34,211,238,0.28)]"
-              }`}
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <path d="M9 18V5l11-2v13" />
-              <circle cx="6" cy="18" r="3" />
-              <circle cx="17" cy="16" r="3" />
-            </svg>
-            {dashboardMusicEnabled ? (
-              <span className="dashboard-music-toggle__pulse" />
-            ) : null}
-            <span
-              aria-hidden="true"
-              className="dashboard-music-toggle__bars"
-            >
-              <span />
-              <span />
-              <span />
-            </span>
-          </span>
-          <span className="flex flex-col leading-none">
-            <span className="text-[10px] font-black uppercase tracking-[0.12em] text-white">
-              {dashboardMusicEnabled ? "Live" : "Orbit"}
-            </span>
-            <span className="mt-1 text-[7px] font-black uppercase tracking-[0.13em] text-cyan-100/70">
-              FM
-            </span>
-          </span>
-        </button>
-
         <div
           aria-label={`${dashboardSummary.workoutsThisWeek} sessions this week`}
-          className="hidden h-14 min-w-[4.25rem] shrink-0 flex-col items-center justify-center rounded-[20px] border border-emerald-200/18 bg-[radial-gradient(circle_at_50%_18%,rgba(94,234,212,0.18),rgba(15,23,42,0.76)_56%,rgba(2,6,23,0.86))] px-2 text-center text-emerald-50 shadow-[0_0_20px_rgba(45,212,191,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] md:flex"
-          title={`${dashboardSummary.workoutsThisWeek} sessions this week`}
+          className="dashboard-header-week-sessions hidden h-14 min-w-[3.55rem] shrink-0 flex-col items-center justify-center bg-transparent px-0 text-center text-emerald-50 md:flex"
+          data-dashboard-tooltip={`${dashboardSummary.workoutsThisWeek} sessions this week`}
         >
-          <span className="text-lg font-black leading-none tracking-tight text-white">
+          <span className="dashboard-header-week-sessions__value">
             {dashboardSummary.workoutsThisWeek}
           </span>
-          <span className="mt-1 text-[7px] font-black uppercase leading-none tracking-[0.12em] text-emerald-100/72">
-            Sessions
+          <span
+            aria-hidden="true"
+            className="dashboard-header-week-sessions__graph"
+          >
+            {dashboardSummary.weeklySessionBars.map((bar, barIndex) => (
+              <span
+                className={`dashboard-header-week-sessions__bar ${
+                  bar.active
+                    ? "dashboard-header-week-sessions__bar--active"
+                    : ""
+                }`}
+                key={`${bar.label}-${barIndex}-session-bar`}
+                style={
+                  {
+                    "--dashboard-week-session-bar": `${bar.value}%`,
+                    "--dashboard-week-session-delay": `${barIndex * 85}ms`,
+                  } as CSSProperties
+                }
+              >
+                <span />
+              </span>
+            ))}
           </span>
-          <span className="mt-0.5 text-[6px] font-black uppercase leading-none tracking-[0.14em] text-slate-400">
-            Week
+          <span className="dashboard-header-week-sessions__label">
+            Sessions / Week
           </span>
         </div>
 
@@ -9545,134 +10921,763 @@ export default function UserHomeDashboardPage() {
           aria-valuemax={momentumStreakTarget}
           aria-valuemin={0}
           aria-valuenow={momentumEntryStreak}
-          className="relative hidden h-14 w-14 shrink-0 place-items-center rounded-full border border-cyan-100/18 bg-[radial-gradient(circle_at_50%_28%,rgba(34,211,238,0.20),rgba(15,23,42,0.78)_54%,rgba(2,6,23,0.86))] text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.10)] md:grid"
+          className="dashboard-header-streak-fire relative hidden h-14 min-w-[3.55rem] shrink-0 place-items-center overflow-visible bg-transparent px-0 text-center text-amber-50 md:grid"
           role="meter"
-          title={momentumSignalTitle}
+          style={
+            {
+              "--dashboard-header-streak-progress": `${Math.max(
+                8,
+                momentumMeterScore,
+              )}%`,
+            } as CSSProperties
+          }
         >
-          <svg
-            aria-hidden="true"
-            className="absolute inset-1.5 -rotate-90"
-            viewBox="0 0 44 44"
-          >
-            <circle
-              cx="22"
-              cy="22"
-              fill="none"
-              pathLength={100}
-              r="18"
-              stroke="rgba(148,163,184,0.22)"
-              strokeWidth="3"
-            />
-            <circle
-              cx="22"
-              cy="22"
-              fill="none"
-              pathLength={100}
-              r="18"
-              stroke="url(#dashboard-header-streak-gradient)"
-              strokeDasharray="100"
-              strokeDashoffset={100 - momentumMeterScore}
-              strokeLinecap="round"
-              strokeWidth="3.5"
-            />
-            <defs>
-              <linearGradient
-                id="dashboard-header-streak-gradient"
-                x1="6"
-                x2="38"
-                y1="22"
-                y2="22"
-              >
-                <stop stopColor="#67e8f9" />
-                <stop offset="0.62" stopColor="#5eead4" />
-                <stop offset="1" stopColor="#fde047" />
-              </linearGradient>
-            </defs>
-          </svg>
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute -right-0.5 top-2 h-2.5 w-2.5 rounded-full border border-cyan-100/40 bg-amber-300 shadow-[0_0_12px_rgba(250,204,21,0.55)]"
+            className="dashboard-header-streak-fire__flame"
+            style={momentumStreakFlameStyle}
           />
-          <span className="relative z-10 flex flex-col items-center leading-none">
-            <span className="text-lg font-black tracking-tight text-white">
+          <span
+            aria-hidden="true"
+            className="dashboard-header-streak-fire__embers"
+            style={momentumStreakEmberStyle}
+          />
+          <span
+            aria-hidden="true"
+            className="dashboard-header-streak-fire__meter"
+          >
+            <span className="dashboard-header-streak-fire__meter-band" />
+            <span className="dashboard-header-streak-fire__meter-fill" />
+          </span>
+          <span
+            aria-hidden="true"
+            className="dashboard-header-streak-fire__status-pill"
+          >
+            <span>{momentumGoalLabel}</span>
+            <span>{momentumSignalLabel}</span>
+          </span>
+          <span className="dashboard-header-streak-fire__content">
+            <span className="dashboard-header-streak-fire__value">
               {momentumEntryStreak}
             </span>
-            <span className="mt-0.5 text-[7px] font-black uppercase tracking-[0.12em] text-cyan-100/72">
+            <span className="dashboard-header-streak-fire__label">
               Streak
             </span>
           </span>
         </div>
 
-        <button
-          aria-controls="dashboard-profile-hub-orbital-overlay"
-          aria-expanded={dashboardProfileHubOpen}
-          aria-label={`Open profile hub, Sound Fitness level ${soundFitnessLevel}`}
-          className="hidden min-h-[58px] shrink-0 items-center gap-2 rounded-[22px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:bg-white/[0.04] md:flex"
-          onClick={openDashboardProfileHub}
-          type="button"
+        <div
+          className="relative hidden shrink-0 overflow-visible pb-3 md:block"
         >
-          <span
-            aria-hidden="true"
-            className="dashboard-sound-level-badge relative isolate grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center overflow-hidden rounded-full border border-cyan-200/30 bg-slate-950 p-0.5 shadow-[0_0_20px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)]"
-            style={
-              {
-                "--dashboard-sound-level-progress": `${Math.max(
-                  10,
-                  soundFitnessLevelProgress,
-                )}%`,
-              } as CSSProperties
-            }
-            title={`Sound Fitness level ${soundFitnessLevel}`}
-          >
-            <Image
-              alt=""
-              className="relative z-10 h-11 w-11 rounded-full object-contain"
-              height={44}
-              src="/sound-fitness-logo.png"
-              width={44}
-            />
-            <span className="dashboard-sound-level-badge__band pointer-events-none absolute inset-x-0.5 bottom-0.5 z-20 h-[40%] rounded-b-full border-t border-cyan-200/35 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.38),rgba(15,23,42,0.42)_62%,rgba(2,6,23,0.78))] shadow-[0_-4px_14px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.20)]" />
-            <span
-              className="dashboard-sound-level-badge__fill pointer-events-none absolute bottom-0.5 left-0.5 z-20 h-[40%] overflow-hidden rounded-b-full bg-[linear-gradient(90deg,rgba(250,204,21,0.92),rgba(103,232,249,0.86))] opacity-90 shadow-[0_0_16px_rgba(250,204,21,0.42),0_0_20px_rgba(34,211,238,0.26)]"
-              style={{
-                width: `calc(var(--dashboard-sound-level-progress) - 0.25rem)`,
-              }}
-            />
-            <span className="dashboard-sound-level-badge__label pointer-events-none absolute bottom-[0.16rem] z-30 flex items-baseline justify-center gap-[0.08rem] font-black leading-none tracking-[0.04em] text-white [text-shadow:0_0_8px_rgba(2,6,23,0.96),0_0_10px_rgba(250,204,21,0.62)]">
-              <span className="text-[0.42rem]">LV</span>
-              <span className="text-[0.78rem]">{soundFitnessLevel}</span>
-            </span>
-          </span>
-          <span className="flex min-w-[72px] flex-col items-start justify-center gap-1">
-            <span className="flex items-center gap-1.5">
-              <span className="sr-only">Tokens</span>
-              <Image
-                alt=""
-                className="h-4 w-4 rounded-full border border-cyan-200/20 bg-slate-950 object-contain p-0.5"
-                height={16}
-                src="/sound-fitness-logo.png"
-                width={16}
-              />
-              <span className="text-xs font-black leading-none text-white">
-                {soundTokens.toLocaleString()}
-              </span>
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="sr-only">Points</span>
-              <svg
+          <div className="flex min-h-[58px] items-center gap-2">
+            <button
+              aria-controls="dashboard-profile-hub-orbital-overlay"
+              aria-expanded={dashboardProfileHubOpen}
+              aria-label={`Open profile hub, Sound Fitness level ${soundFitnessLevel}`}
+              className="flex min-h-[58px] shrink-0 items-center rounded-[22px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:bg-transparent"
+              data-dashboard-tooltip={`Profile hub, level ${soundFitnessLevel}`}
+              onClick={openDashboardProfileHub}
+              type="button"
+            >
+              <span
                 aria-hidden="true"
-                className="h-4 w-4 text-amber-200 drop-shadow-[0_0_12px_rgba(250,204,21,0.28)]"
-                fill="currentColor"
-                viewBox="0 0 24 24"
+                className="dashboard-sound-level-badge relative isolate grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center overflow-hidden rounded-full border border-cyan-200/30 bg-slate-950 p-0.5 shadow-[0_0_20px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)]"
+                style={
+                  {
+                    "--dashboard-sound-level-progress": `${Math.max(
+                      10,
+                      soundFitnessLevelProgress,
+                    )}%`,
+                  } as CSSProperties
+                }
               >
-                <path d="M13.5 2 4.8 13.2h6.1L9.7 22 19.2 9.6h-6.4L13.5 2Z" />
-              </svg>
-              <span className="text-sm font-black leading-none text-white">
-                {soundPoints.toLocaleString()}
+                <Image
+                  alt=""
+                  className="relative z-10 h-11 w-11 rounded-full object-contain"
+                  height={44}
+                  src="/sound-fitness-logo.png"
+                  width={44}
+                />
+                <span className="dashboard-sound-level-badge__band pointer-events-none absolute inset-x-0.5 bottom-0.5 z-20 h-[40%] rounded-b-full border-t border-cyan-200/35 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.38),rgba(15,23,42,0.42)_62%,rgba(2,6,23,0.78))] shadow-[0_-4px_14px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.20)]" />
+                <span
+                  className="dashboard-sound-level-badge__fill pointer-events-none absolute bottom-0.5 left-0.5 z-20 h-[40%] overflow-hidden rounded-b-full bg-[linear-gradient(90deg,rgba(250,204,21,0.92),rgba(103,232,249,0.86))] opacity-90 shadow-[0_0_16px_rgba(250,204,21,0.42),0_0_20px_rgba(34,211,238,0.26)]"
+                  style={{
+                    width: `calc(var(--dashboard-sound-level-progress) - 0.25rem)`,
+                  }}
+                />
+                <span className="dashboard-sound-level-badge__label pointer-events-none absolute bottom-[0.16rem] z-30 flex items-baseline justify-center gap-[0.08rem] font-black leading-none tracking-[0.04em] text-white [text-shadow:0_0_8px_rgba(2,6,23,0.96),0_0_10px_rgba(250,204,21,0.62)]">
+                  <span className="text-[0.42rem]">LV</span>
+                  <span className="text-[0.78rem]">{soundFitnessLevel}</span>
+                </span>
               </span>
+            </button>
+
+            <div
+              className="relative"
+              ref={dashboardPointsDropdownRef}
+            >
+              <button
+                aria-controls="dashboard-points-dropdown"
+                aria-expanded={dashboardPointsDropdownOpen}
+                aria-label={`Open Sound Points rewards, ${soundPoints.toLocaleString()} points and ${soundTokens.toLocaleString()} tokens`}
+                className="dashboard-profile-points-trigger flex min-h-[58px] min-w-[82px] shrink-0 flex-col items-start justify-center gap-1 rounded-[18px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:border-amber-200/18 hover:bg-amber-300/8"
+                data-dashboard-tooltip="Sound Points"
+                onClick={toggleDashboardPointsDropdown}
+                type="button"
+              >
+                <span className="flex items-center gap-1.5">
+                  <span className="sr-only">Tokens</span>
+                  <Image
+                    alt=""
+                    className="h-4 w-4 rounded-full border border-cyan-200/20 bg-slate-950 object-contain p-0.5"
+                    height={16}
+                    src="/sound-fitness-logo.png"
+                    width={16}
+                  />
+                  <span className="text-xs font-black leading-none text-white">
+                    {soundTokens.toLocaleString()}
+                  </span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="sr-only">Points</span>
+                  <svg
+                    aria-hidden="true"
+                    className="h-4 w-4 text-amber-200 drop-shadow-[0_0_12px_rgba(250,204,21,0.28)]"
+                    fill="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M13.5 2 4.8 13.2h6.1L9.7 22 19.2 9.6h-6.4L13.5 2Z" />
+                  </svg>
+                  <span className="text-sm font-black leading-none text-white">
+                    {soundPoints.toLocaleString()}
+                  </span>
+                </span>
+              </button>
+
+              {dashboardPointsDropdownOpen ? (
+                <div
+                  aria-label="Sound Points rewards"
+                  className="dashboard-profile-points-dropdown absolute right-0 top-[calc(100%+0.55rem)] z-[160] w-[17.5rem] overflow-hidden rounded-[22px] border border-amber-200/24 bg-slate-950/92 p-3 text-slate-200 shadow-[0_22px_70px_rgba(0,0,0,0.46),0_0_34px_rgba(250,204,21,0.12),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-2xl"
+                  id="dashboard-points-dropdown"
+                  role="region"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-100">
+                        Sound Rewards
+                      </div>
+                      <div className="mt-1 text-[11px] font-bold leading-4 text-slate-400">
+                        Points, tokens, and level progress.
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-cyan-200/24 bg-cyan-300/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                      LV {soundFitnessLevel}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-2xl border border-amber-200/18 bg-amber-300/8 p-2">
+                      <div className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/72">
+                        Points
+                      </div>
+                      <div className="mt-1 text-lg font-black leading-none text-white">
+                        {soundPoints.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-cyan-200/18 bg-cyan-300/8 p-2">
+                      <div className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/72">
+                        Tokens
+                      </div>
+                      <div className="mt-1 text-lg font-black leading-none text-white">
+                        {soundTokens.toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
+                    <div className="flex items-center justify-between gap-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">
+                      <span>Level progress</span>
+                      <span>{Math.round(soundFitnessLevelProgress)}%</span>
+                    </div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-900/80">
+                      <span
+                        className="block h-full rounded-full bg-[linear-gradient(90deg,rgba(250,204,21,0.92),rgba(103,232,249,0.92))] shadow-[0_0_14px_rgba(250,204,21,0.28)]"
+                        style={{ width: `${soundFitnessLevelProgress}%` }}
+                      />
+                    </div>
+                    <div className="mt-2 text-[10px] font-bold text-slate-400">
+                      {soundPointsToNextLevel.toLocaleString()} points to LV{" "}
+                      {soundFitnessLevel + 1}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex gap-2">
+                    <Link
+                      className="flex-1 rounded-2xl border border-amber-200/24 bg-amber-300/10 px-3 py-2 text-center text-[9px] font-black uppercase tracking-[0.12em] text-amber-100 transition hover:border-cyan-200/40 hover:bg-cyan-300/10 hover:text-cyan-100"
+                      href={ROUTES.dashboard.achievements}
+                      onClick={() => {
+                        markDashboardDestinationVisited(
+                          ROUTES.dashboard.achievements,
+                        );
+                        setDashboardPointsDropdownOpen(false);
+                      }}
+                    >
+                      Achievements
+                    </Link>
+                    <Link
+                      className="flex-1 rounded-2xl border border-cyan-200/24 bg-cyan-300/10 px-3 py-2 text-center text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-amber-200/40 hover:bg-amber-300/10 hover:text-amber-100"
+                      href={ROUTES.dashboard.stats}
+                      onClick={() => {
+                        markDashboardDestinationVisited(ROUTES.dashboard.stats);
+                        setDashboardPointsDropdownOpen(false);
+                      }}
+                    >
+                      Stats
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <button
+            aria-expanded={dashboardProfileActionsOpen}
+            aria-hidden={dashboardProfileActionsOpen}
+            aria-label={
+              dashboardProfileActionsOpen
+                ? "Hide profile shortcuts"
+                : "Show profile shortcuts"
+            }
+            className="dashboard-profile-action-gear"
+            data-dashboard-tooltip={
+              dashboardProfileActionsOpen
+                ? "Hide shortcuts"
+                : "Profile shortcuts"
+            }
+            onClick={() => {
+              const nextOpen = !dashboardProfileActionsOpen;
+              setDashboardProfileActionsOpen(nextOpen);
+              setDashboardPointsDropdownOpen(false);
+              if (!nextOpen) {
+                setDashboardMusicDropdownOpen(false);
+              }
+            }}
+            tabIndex={dashboardProfileActionsOpen ? -1 : 0}
+            type="button"
+          >
+            <DashboardTabIcon className="h-3.5 w-3.5" name="Settings" />
+          </button>
+
+          <div
+            aria-hidden={!dashboardProfileActionsOpen}
+            aria-label="Profile community and program actions"
+            className="dashboard-profile-upper-actions"
+            data-profile-actions-open={
+              dashboardProfileActionsOpen ? "true" : "false"
+            }
+          >
+            <Link
+              aria-label="Open groups"
+              className="dashboard-profile-quick-action dashboard-profile-quick-action--top-left dashboard-profile-quick-action--groups"
+              data-dashboard-tooltip="Groups"
+              href={ROUTES.dashboard.social}
+              onClick={() =>
+                markDashboardDestinationVisited(ROUTES.dashboard.social)
+              }
+              tabIndex={dashboardProfileActionsOpen ? 0 : -1}
+            >
+              <DashboardTabIcon className="h-3.5 w-3.5" name="Groups" />
+            </Link>
+            <Link
+              aria-label="Open programs and challenges"
+              className="dashboard-profile-quick-action dashboard-profile-quick-action--top-right dashboard-profile-quick-action--programs"
+              data-dashboard-tooltip="Programs and challenges"
+              href={ROUTES.dashboard.myPlan}
+              onClick={() =>
+                markDashboardDestinationVisited(ROUTES.dashboard.myPlan)
+              }
+              tabIndex={dashboardProfileActionsOpen ? 0 : -1}
+            >
+              <DashboardTabIcon
+                className="h-3.5 w-3.5"
+                name="Programs and Challenges"
+              />
+            </Link>
+          </div>
+
+          <div
+            aria-hidden={!dashboardProfileActionsOpen}
+            aria-label="Profile quick actions"
+            className="dashboard-profile-quick-actions"
+            data-profile-actions-open={
+              dashboardProfileActionsOpen ? "true" : "false"
+            }
+          >
+            <div
+              className="dashboard-music-control"
+              ref={dashboardMusicDropdownRef}
+            >
+              <button
+                aria-controls="dashboard-music-dropdown"
+                aria-expanded={dashboardMusicDropdownOpen}
+                aria-label={`${dashboardMusicDropdownOpen ? "Close" : "Open"} ${activeDashboardMusicBlendLabel} controls`}
+                aria-pressed={dashboardMusicEnabled}
+                className="dashboard-profile-quick-action dashboard-profile-quick-action--left dashboard-profile-quick-action--music"
+                data-music-active={dashboardMusicEnabled ? "true" : "false"}
+                onClick={toggleDashboardMusicDropdown}
+                tabIndex={dashboardProfileActionsOpen ? 0 : -1}
+                type="button"
+              >
+                <span className="dashboard-profile-quick-action__inner">
+                  <DashboardTabIcon
+                    className="dashboard-profile-quick-action__music-note h-3.5 w-3.5"
+                    name="Music"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="dashboard-profile-quick-action__bars"
+                  >
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                </span>
+              </button>
+              <span
+                aria-hidden="true"
+                className="dashboard-profile-quick-action__station dashboard-profile-quick-action__station--floating"
+              >
+                <span>{activeDashboardMusicBlendShortLabel}</span>
+                <span>FM</span>
+              </span>
+
+              {dashboardMusicDropdownOpen ? (
+                <>
+                  <div
+                  aria-label="Music Now sound controls"
+                  className="dashboard-music-dropdown"
+                  data-mood-station={activeDashboardMusicMoodStation.id}
+                  id="dashboard-music-dropdown"
+                  role="region"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="dashboard-music-mood-visualizer"
+                  />
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-100">
+                        Music Now
+                      </div>
+                      <div className="mt-1 text-[11px] font-bold leading-4 text-slate-400">
+                        {activeDashboardMusicBlendHelper}
+                      </div>
+                    </div>
+                    <span className="rounded-full border border-cyan-200/24 bg-cyan-300/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                      {activeDashboardMusicBlendTempo}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-center gap-5">
+                    <button
+                      aria-label={
+                        dashboardMusicEnabled
+                          ? "Pause Music Now sequence"
+                          : "Play Music Now sequence"
+                      }
+                      aria-pressed={dashboardMusicEnabled}
+                      className={`grid h-12 w-12 place-items-center rounded-full transition hover:-translate-y-0.5 hover:bg-white/[0.06] ${
+                        dashboardMusicEnabled
+                          ? "bg-white/[0.16] text-white shadow-[0_0_24px_rgba(255,255,255,0.18)] ring-1 ring-white/35"
+                          : "text-cyan-100"
+                      }`}
+                      onClick={() => {
+                        void toggleDashboardMusic();
+                      }}
+                      type="button"
+                    >
+                      <DashboardTabIcon
+                        className="h-5 w-5"
+                        name={dashboardMusicEnabled ? "Pause" : "Play"}
+                      />
+                    </button>
+                    <button
+                      aria-label="Skip to next Music Now station"
+                      className="grid h-12 w-12 place-items-center rounded-full text-slate-300 transition hover:-translate-y-0.5 hover:bg-white/[0.06] hover:text-amber-100"
+                      onClick={handleDashboardMusicSkip}
+                      type="button"
+                    >
+                      <DashboardTabIcon className="h-5 w-5" name="Skip" />
+                    </button>
+                  </div>
+
+                  <div
+                    className="dashboard-music-volume-row mt-3 flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.12em] text-slate-300"
+                    data-volume-muted={dashboardMusicMuted ? "true" : "false"}
+                  >
+                    <button
+                      aria-label={
+                        dashboardMusicMuted
+                          ? "Unmute Music Now"
+                          : "Mute Music Now"
+                      }
+                      aria-pressed={dashboardMusicMuted}
+                      className={`grid h-8 w-8 shrink-0 place-items-center rounded-full transition hover:-translate-y-0.5 hover:bg-white/[0.06] ${
+                        dashboardMusicMuted ? "text-rose-100" : "text-cyan-100"
+                      }`}
+                      onClick={handleDashboardMusicMuteToggle}
+                      type="button"
+                    >
+                      <DashboardTabIcon
+                        className="h-3.5 w-3.5"
+                        name={dashboardMusicMuted ? "Muted" : "Volume"}
+                      />
+                    </button>
+                    <input
+                      aria-label="Music Now volume"
+                      aria-valuetext={dashboardMusicVolumeLabel}
+                      className="dashboard-music-volume-slider min-w-0 flex-1"
+                      max={100}
+                      min={0}
+                      onChange={handleDashboardMusicVolumeChange}
+                      style={
+                        {
+                          "--dashboard-music-volume-percent": `${dashboardMusicVolumePercent}%`,
+                        } as CSSProperties
+                      }
+                      type="range"
+                      value={dashboardMusicVolumePercent}
+                    />
+                    <span className="w-10 text-right">
+                      {dashboardMusicVolumeLabel}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between gap-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">
+                    <span>Auto play</span>
+                    <button
+                      aria-label="Toggle Music Now auto play"
+                      aria-pressed={dashboardMusicAutoplayMode === "on"}
+                      className={`rounded-full px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] transition hover:-translate-y-0.5 hover:bg-white/[0.06] ${
+                        dashboardMusicAutoplayMode === "on"
+                          ? "text-amber-100"
+                          : "text-slate-300 hover:text-cyan-100"
+                      }`}
+                      onClick={() =>
+                        handleDashboardMusicAutoplayModeChange(
+                          dashboardMusicAutoplayMode === "on" ? "off" : "on",
+                        )
+                      }
+                      type="button"
+                    >
+                      {activeDashboardMusicAutoplayOption.label}
+                    </button>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">
+                    <span>Sound stations</span>
+                    <span
+                      aria-label={`${safeActiveDashboardMusicStations
+                        .map((station) => station.label)
+                        .join(", ")} queued`}
+                      className="flex items-center gap-1"
+                    >
+                      {safeActiveDashboardMusicStations.map((station) => (
+                        <span
+                          className="inline-flex text-amber-100 drop-shadow-[0_0_8px_rgba(250,204,21,0.42)]"
+                          data-dashboard-tooltip={`${station.label} queued`}
+                          key={`${station.id}-queued-station-icon`}
+                        >
+                          <DashboardTabIcon
+                            className="h-3 w-3"
+                            name={dashboardMusicStationIconNames[station.id]}
+                          />
+                        </span>
+                      ))}
+                    </span>
+                  </div>
+                </div>
+
+                  <div
+                    aria-label="Music Now station orbit selector"
+                    className="dashboard-music-station-orbit"
+                    style={{
+                      height: "9.4rem",
+                      left: "-11.3rem",
+                      minHeight: 0,
+                      position: "absolute",
+                      top: "18.15rem",
+                      width: "19.65rem",
+                      zIndex: 220,
+                    }}
+                  >
+                    <div
+                      className="dashboard-music-station-orbit__stage cursor-grab select-none outline-none [touch-action:pan-y] active:cursor-grabbing"
+                      onClickCapture={(event) => {
+                        if (dashboardMusicStationPointerMovedRef.current) {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          dashboardMusicStationPointerMovedRef.current = false;
+                        }
+                      }}
+                      onKeyDown={(event) =>
+                        handleDashboardOrbitKeyDown(
+                          event,
+                          rotateDashboardMusicStationOrbit,
+                        )
+                      }
+                      onPointerCancel={(event) => {
+                        dashboardMusicStationPointerStartRef.current = null;
+                        if (
+                          event.currentTarget.hasPointerCapture?.(
+                            event.pointerId,
+                          )
+                        ) {
+                          event.currentTarget.releasePointerCapture?.(
+                            event.pointerId,
+                          );
+                        }
+                      }}
+                      onPointerDown={(event) =>
+                        handleDashboardOrbitPointerDown(
+                          event,
+                          dashboardMusicStationPointerStartRef,
+                          dashboardMusicStationPointerMovedRef,
+                        )
+                      }
+                      onPointerMove={(event) =>
+                        handleDashboardOrbitPointerMove(
+                          event,
+                          dashboardMusicStationPointerStartRef,
+                          dashboardMusicStationPointerMovedRef,
+                          rotateDashboardMusicStationOrbit,
+                          42,
+                        )
+                      }
+                      onPointerUp={(event) => {
+                        const startX =
+                          dashboardMusicStationPointerStartRef.current;
+                        dashboardMusicStationPointerStartRef.current = null;
+
+                        if (
+                          event.currentTarget.hasPointerCapture?.(
+                            event.pointerId,
+                          )
+                        ) {
+                          event.currentTarget.releasePointerCapture?.(
+                            event.pointerId,
+                          );
+                        }
+
+                        if (
+                          startX === null ||
+                          dashboardMusicStationPointerMovedRef.current
+                        ) {
+                          return;
+                        }
+
+                        const elementAtPoint =
+                          event.currentTarget.ownerDocument.elementFromPoint(
+                            event.clientX,
+                            event.clientY,
+                          );
+                        const stationElement =
+                          elementAtPoint instanceof HTMLElement
+                            ? elementAtPoint.closest("[data-music-station-id]")
+                            : null;
+                        const stationId =
+                          stationElement instanceof HTMLElement
+                            ? stationElement.dataset.musicStationId
+                            : undefined;
+
+                        if (
+                          stationId &&
+                          stationId in dashboardMusicStationById
+                        ) {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          handleDashboardMusicStationToggle(
+                            stationId as DashboardMusicStationId,
+                          );
+                        }
+                      }}
+                      role="group"
+                      style={{
+                        height: "100%",
+                        overflow: "visible",
+                        perspective: "720px",
+                        position: "relative",
+                        transformStyle: "preserve-3d",
+                        width: "100%",
+                      }}
+                      tabIndex={0}
+                    >
+                      {dashboardMusicStations.map((station, index) => {
+                        const distance = getDashboardOrbitDistance(
+                          index,
+                          safeDashboardMusicStationOrbitIndex,
+                          dashboardMusicStations.length,
+                        );
+                        const absDistance = Math.abs(distance);
+                        const direction = Math.sign(distance);
+                        const isCenteredStation = distance === 0;
+                        const isOrbitVisible = absDistance <= 1;
+                        const isActiveStation =
+                          dashboardMusicStationIds.includes(station.id);
+                        const slot = isCenteredStation
+                          ? {
+                              blur: 0,
+                              opacity: 1,
+                              rotateY: 0,
+                              scale: 1,
+                              x: 0,
+                              y: 0,
+                              zIndex: 30,
+                            }
+                          : {
+                              blur: 0.36,
+                              opacity: 0.68,
+                              rotateY: 31,
+                              scale: 0.72,
+                              x: 120,
+                              y: 8,
+                              zIndex: 14,
+                            };
+
+                        return (
+                          <button
+                            aria-label={`${isActiveStation ? "Remove" : "Add"} ${station.label} from Music Now sequence`}
+                            aria-pressed={isActiveStation}
+                            className={`dashboard-music-station-orbit__card ${
+                              isActiveStation
+                                ? "dashboard-music-station-orbit__card--active"
+                                : ""
+                            }`}
+                            data-orbit-center={
+                              isCenteredStation ? "true" : "false"
+                            }
+                            data-orbit-visible={
+                              isOrbitVisible ? "true" : "false"
+                            }
+                            data-music-station-id={station.id}
+                            data-station-id={station.id}
+                            key={station.id}
+                            onClick={(event) => {
+                              if (event.detail === 0) {
+                                handleDashboardMusicStationToggle(station.id);
+                              }
+                            }}
+                            style={{
+                              background: "transparent",
+                              border: "1px solid transparent",
+                              borderRadius: "0.82rem",
+                              boxShadow: "none",
+                              color: isActiveStation
+                                ? "rgb(254, 243, 199)"
+                                : "rgb(203, 213, 225)",
+                              filter: "none",
+                              left: "50%",
+                              minHeight: "4.35rem",
+                              opacity: isOrbitVisible ? slot.opacity : 0,
+                              overflow: "visible",
+                              padding: "0.48rem",
+                              pointerEvents: isOrbitVisible ? "auto" : "none",
+                              position: "absolute",
+                              textAlign: "center",
+                              top: "34%",
+                              transform: `translate(-50%, -50%) translateX(${
+                                direction * slot.x
+                              }px) translateY(${slot.y}px) scale(${
+                                isOrbitVisible ? slot.scale : 0.52
+                              }) rotateY(${direction * slot.rotateY}deg)`,
+                              transformStyle: "preserve-3d",
+                              transition:
+                                "transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 260ms ease",
+                              visibility: isOrbitVisible
+                                ? "visible"
+                                : "hidden",
+                              width: "8.75rem",
+                              zIndex: isOrbitVisible ? slot.zIndex : 0,
+                            }}
+                            tabIndex={isOrbitVisible ? 0 : -1}
+                            type="button"
+                          >
+                            {isActiveStation && isCenteredStation ? (
+                              <span
+                                aria-hidden="true"
+                                className="dashboard-music-station-orbit__card-glow"
+                              />
+                            ) : null}
+                            <span className="dashboard-music-station-orbit__content relative z-[1] grid min-h-[3.35rem] place-items-center">
+                              <span
+                                className={`dashboard-music-station-orbit__label block text-[13px] font-black uppercase leading-none tracking-[0] ${
+                                  isActiveStation
+                                    ? "text-amber-50"
+                                    : "text-cyan-50"
+                                }`}
+                              >
+                                {station.label}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+            <Link
+              aria-label="Open AI companion and coach messages"
+              className="dashboard-profile-quick-action dashboard-profile-quick-action--center dashboard-profile-quick-action--messages"
+              data-dashboard-tooltip="Messages"
+              href={ROUTES.dashboard.coachMessaging}
+              onClick={() =>
+                markDashboardDestinationVisited(
+                  ROUTES.dashboard.coachMessaging,
+                )
+              }
+              tabIndex={dashboardProfileActionsOpen ? 0 : -1}
+            >
+              <DashboardTabIcon className="h-3.5 w-3.5" name="Messages" />
+            </Link>
+            <Link
+              aria-label="Open AI companion tutorial, FAQ, and next steps"
+              className="dashboard-profile-quick-action dashboard-profile-quick-action--right dashboard-profile-quick-action--help"
+              data-dashboard-tooltip="Tutorial, FAQ, and what to do next"
+              href={ROUTES.dashboard.help}
+              onClick={() =>
+                markDashboardDestinationVisited(ROUTES.dashboard.help)
+              }
+              tabIndex={dashboardProfileActionsOpen ? 0 : -1}
+            >
+              <DashboardTabIcon className="h-3.5 w-3.5" name="Question" />
+            </Link>
+          </div>
+        </div>
+      </div>
+      <div
+        aria-label={`Dashboard news: ${activeDashboardHeaderLink.label}. ${activeDashboardHeaderUrgencyTone.label}. ${dashboardSummary.workoutsThisWeek} sessions this week. ${momentumEntryStreak} day streak. ${soundPoints.toLocaleString()} sound points. ${dashboardHeaderActiveJourneyStepLabel} next.`}
+        className="dashboard-header-news-chyron"
+      >
+        <span className="dashboard-header-news-chyron__label">SFN</span>
+        <span aria-hidden="true" className="dashboard-header-news-chyron__light" />
+        <div
+          aria-hidden="true"
+          className="dashboard-header-news-chyron__viewport"
+        >
+          <span className="dashboard-header-news-chyron__kicker">Live</span>
+          <span className="dashboard-header-news-chyron__divider" />
+          <div className="dashboard-header-news-chyron__track">
+            <span
+              className="dashboard-header-news-chyron__item"
+              data-news-tone={dashboardHeaderNewsHeadlines[0]?.tone || "default"}
+              ref={dashboardHeaderNewsHeadlineRef}
+            >
+              {dashboardHeaderNewsHeadlines[0]?.label}
             </span>
-          </span>
-        </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -10071,7 +12076,7 @@ export default function UserHomeDashboardPage() {
               <div
                 aria-label={momentumSignalTitle}
                 className="rounded-full border border-cyan-300/18 bg-slate-950/48 px-2 py-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-                title={momentumSignalTitle}
+                data-dashboard-tooltip={momentumSignalTitle}
               >
                 <span className="block text-[7px] font-black uppercase tracking-[0.16em] text-slate-400">
                   Signal
@@ -10534,7 +12539,7 @@ export default function UserHomeDashboardPage() {
                                 }`}
                                 className="grid h-3 place-items-center"
                                 key={day.dateKey}
-                                title={`${day.label}: ${
+                                data-dashboard-tooltip={`${day.label}: ${
                                   day.status === "trained"
                                     ? "trained"
                                     : day.status === "recovery"
@@ -10677,7 +12682,7 @@ export default function UserHomeDashboardPage() {
     kicker: string;
     title: string;
   }) => (
-    <div className="pointer-events-none absolute left-20 top-5 z-30 w-[min(34rem,calc(100%-10rem))] min-w-0 sm:left-24 lg:left-28">
+    <div className="pointer-events-none absolute left-36 top-5 z-30 w-[min(34rem,calc(100%-12rem))] min-w-0 sm:left-40 lg:left-44">
       <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-slate-950/54 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-slate-300 shadow-[0_14px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur">
         <span
           aria-hidden="true"
@@ -10726,7 +12731,7 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="Daily Tools row"
       data-dashboard-orbiter-row="1"
-      className={`relative flex min-h-0 items-start justify-center pl-24 pr-6 pt-20 transition-opacity duration-300 sm:pl-28 sm:pr-10 sm:pt-24 lg:pl-32 lg:pr-12 lg:pt-28 ${
+      className={`relative flex min-h-0 items-start justify-center pl-36 pr-6 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
         clampedDashboardOrbiterRow === 1
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
@@ -10867,7 +12872,7 @@ export default function UserHomeDashboardPage() {
                         href={option.href}
                         aria-current={active ? "page" : undefined}
                         onClick={() => handleUploadOptionSelect(option.id)}
-                        title={option.description}
+                        data-dashboard-tooltip={option.description}
                         className={`inline-flex min-h-[28px] items-center justify-center rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] transition hover:-translate-y-0.5 active:scale-[0.98] ${
                           active
                             ? "border-cyan-100/45 bg-cyan-300/16 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.18)]"
@@ -11250,7 +13255,7 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="Weekly Recap row"
       data-dashboard-orbiter-row="2"
-      className={`relative min-h-0 w-full overflow-hidden pl-24 pr-10 pt-20 transition-opacity duration-300 sm:pl-28 sm:pr-12 sm:pt-24 lg:pt-28 ${
+      className={`relative min-h-0 w-full overflow-hidden pl-36 pr-10 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-12 sm:pt-24 lg:pl-44 lg:pt-28 ${
         clampedDashboardOrbiterRow === 2
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
@@ -11588,7 +13593,7 @@ export default function UserHomeDashboardPage() {
                         <div
                           className="rounded-2xl border border-white/8 bg-slate-950/44 px-3 py-2.5"
                           key={`${card.title}-${row.label}-loading`}
-                          title={`${row.label}: ${row.value} (${row.detail})`}
+                          data-dashboard-tooltip={`${row.label}: ${row.value} (${row.detail})`}
                         >
                           <div className="mb-1.5 flex items-center justify-between gap-3">
                             <span className="truncate text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
@@ -11625,7 +13630,7 @@ export default function UserHomeDashboardPage() {
                       <div
                         className="rounded-2xl border border-white/8 bg-slate-950/44 px-3 py-2.5"
                         key={`${card.title}-${row.label}-activity`}
-                        title={`${row.label}: ${row.value} (${row.detail})`}
+                        data-dashboard-tooltip={`${row.label}: ${row.value} (${row.detail})`}
                       >
                         <div className="flex items-start justify-between gap-3">
                           <span className="min-w-0">
@@ -11659,7 +13664,7 @@ export default function UserHomeDashboardPage() {
                         <div
                           className="flex min-w-0 flex-1 flex-col items-center justify-end"
                           key={`${card.title}-${row.label}`}
-                          title={`${row.label}: ${row.value} (${row.detail})`}
+                          data-dashboard-tooltip={`${row.label}: ${row.value} (${row.detail})`}
                         >
                           <span className="mb-1 max-w-full truncate text-[8px] font-black text-white">
                             {row.value}
@@ -11701,7 +13706,7 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="Calendar row"
       data-dashboard-orbiter-row="4"
-      className={`flex min-h-0 items-start justify-center pl-24 pr-6 pt-2 transition-opacity duration-300 sm:pl-28 sm:pr-10 sm:pt-3 lg:pl-32 lg:pr-12 lg:pt-4 ${
+      className={`flex min-h-0 items-start justify-center pl-36 pr-6 pt-2 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-3 lg:pl-44 lg:pr-12 lg:pt-4 ${
         clampedDashboardOrbiterRow === 4
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
@@ -11724,7 +13729,7 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="My Sound row"
       data-dashboard-orbiter-row="5"
-      className={`relative min-h-0 w-full overflow-hidden pl-24 pr-10 pt-20 transition-opacity duration-300 sm:pl-28 sm:pr-12 sm:pt-24 lg:pt-28 ${
+      className={`relative min-h-0 w-full overflow-hidden pl-36 pr-10 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-12 sm:pt-24 lg:pl-44 lg:pt-28 ${
         clampedDashboardOrbiterRow === 5
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
@@ -11946,13 +13951,13 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="Master Training Journey row"
       data-dashboard-orbiter-row="7"
-      className={`relative flex min-h-0 items-start justify-center pl-24 pr-6 pt-2 transition-opacity duration-300 sm:pl-28 sm:pr-10 sm:pt-3 lg:pl-32 lg:pr-12 lg:pt-4 ${
+      className={`relative flex min-h-0 items-start justify-center pl-36 pr-6 pt-2 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-3 lg:pl-44 lg:pr-12 lg:pt-4 ${
         clampedDashboardOrbiterRow === 7
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
       }`}
     >
-      <div className="pointer-events-none absolute left-20 top-6 z-20 min-w-0 pr-6 sm:left-24 lg:left-28">
+      <div className="pointer-events-none absolute left-36 top-6 z-20 min-w-0 pr-6 sm:left-40 lg:left-44">
         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">
           Master Training Journey
         </div>
@@ -12128,8 +14133,33 @@ export default function UserHomeDashboardPage() {
   );
 
   return (
-    <main className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#020713] text-white">
-      <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_18%_0%,rgba(14,165,233,0.18),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(16,185,129,0.13),transparent_26%),linear-gradient(180deg,#020713_0%,#07111f_48%,#020713_100%)]" />
+    <>
+      <main
+        className="h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#020713] text-white"
+        onBlurCapture={hideDashboardTooltip}
+        onFocusCapture={(event) => {
+          const target = getDashboardTooltipTarget(event.target);
+
+          if (target) showDashboardTooltipForTarget(target);
+        }}
+        onPointerCancel={hideDashboardTooltip}
+        onPointerLeave={hideDashboardTooltip}
+        onPointerOut={(event) => {
+          const target = getDashboardTooltipTarget(event.target);
+          const relatedTarget = getDashboardTooltipTarget(event.relatedTarget);
+
+          if (target && target !== relatedTarget) hideDashboardTooltip();
+        }}
+        onPointerOver={(event) => {
+          const target = getDashboardTooltipTarget(event.target);
+          const relatedTarget = getDashboardTooltipTarget(event.relatedTarget);
+
+          if (target && target !== relatedTarget) {
+            showDashboardTooltipForTarget(target);
+          }
+        }}
+      >
+        <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_18%_0%,rgba(14,165,233,0.18),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(16,185,129,0.13),transparent_26%),linear-gradient(180deg,#020713_0%,#07111f_48%,#020713_100%)]" />
 
       <div className="mx-auto flex h-full max-h-full max-w-7xl flex-col overflow-hidden px-4 pb-0 pt-0 sm:px-8">
         <section className="hidden">
@@ -12319,7 +14349,7 @@ export default function UserHomeDashboardPage() {
                       href={option.href}
                       aria-current={active ? "page" : undefined}
                       onClick={() => handleUploadOptionSelect(option.id)}
-                      title={option.description}
+                      data-dashboard-tooltip={option.description}
                       className={`inline-flex min-h-[30px] items-center justify-center rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.1em] transition hover:-translate-y-0.5 active:scale-[0.98] ${
                         active
                           ? "border-cyan-100/45 bg-cyan-300/16 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.18)]"
@@ -12671,73 +14701,30 @@ export default function UserHomeDashboardPage() {
         >
           {renderDashboardOrbiterTopMenu()}
           {renderDashboardFloatingSnapshotHeader()}
-          <div className="dashboard-page-orbit-shell pointer-events-none absolute left-1 top-1/2 z-50 h-[394px] w-36 -translate-y-1/2 overflow-visible [perspective:860px] sm:left-3 lg:left-5">
+          <div
+            className={`dashboard-page-orbit-shell pointer-events-none absolute left-[-2.85rem] top-1/2 z-[70] h-[394px] w-36 -translate-y-1/2 overflow-visible sm:left-[-2.65rem] lg:left-[-2.35rem] ${
+              dashboardPageAnalogActiveDirection || dashboardPageAnalogDragging
+                ? "dashboard-page-orbit-shell--scrolling"
+                : ""
+            }`}
+            style={
+              {
+                "--dashboard-page-orbit-progress": dashboardPageOrbitProgress,
+                "--dashboard-page-orbit-fill":
+                  0.08 + dashboardPageOrbitProgress * 0.92,
+                "--dashboard-page-orbit-marker-y": `${
+                  0.75 + dashboardPageOrbitProgress * 20.05
+                }rem`,
+              } as CSSProperties
+            }
+          >
             <span
               aria-hidden="true"
               className="dashboard-page-orbit-rail pointer-events-none absolute"
-              style={
-                {
-                  WebkitMask:
-                    "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-                  WebkitMaskComposite: "xor",
-                  background:
-                    "conic-gradient(from 222deg at 54% 50%, rgba(34,211,238,0.08), rgba(34,211,238,0.88) 38deg, rgba(52,211,153,0.78) 86deg, rgba(250,204,21,0.82) 136deg, rgba(244,114,182,0.70) 188deg, rgba(129,140,248,0.76) 238deg, rgba(34,211,238,0.16) 306deg, rgba(34,211,238,0.08))",
-                  borderRadius: "9999px",
-                  boxSizing: "border-box",
-                  filter:
-                    "drop-shadow(0 0 18px rgba(34,211,238,0.30)) drop-shadow(0 0 14px rgba(250,204,21,0.14))",
-                  height: "21.6rem",
-                  left: "-0.26rem",
-                  mask:
-                    "linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)",
-                  maskComposite: "exclude",
-                  opacity: 0.86,
-                  padding: "1px",
-                  top: "50%",
-                  transform: "translateY(-50%) rotateY(-12deg)",
-                  width: "8.8rem",
-                  zIndex: -8,
-                } as CSSProperties
-              }
             />
             <span
               aria-hidden="true"
               className="dashboard-page-orbit-glow pointer-events-none absolute"
-              style={
-                {
-                  background:
-                    "radial-gradient(ellipse at 50% 50%, rgba(34,211,238,0.18), transparent 56%), radial-gradient(ellipse at 30% 18%, rgba(250,204,21,0.16), transparent 34%), radial-gradient(ellipse at 24% 82%, rgba(244,114,182,0.13), transparent 34%)",
-                  borderRadius: "9999px",
-                  filter: "blur(10px)",
-                  height: "22.2rem",
-                  left: "-0.52rem",
-                  opacity: 0.74,
-                  top: "50%",
-                  transform: "translateY(-50%) rotateY(-12deg)",
-                  width: "9.25rem",
-                  zIndex: -12,
-                } as CSSProperties
-              }
-            />
-            <span
-              aria-hidden="true"
-              className="dashboard-page-orbit-well pointer-events-none absolute"
-              style={
-                {
-                  background:
-                    "radial-gradient(circle at 48% 48%, rgba(207,250,254,0.12), transparent 28%), radial-gradient(circle at 50% 50%, rgba(34,211,238,0.12), transparent 58%), radial-gradient(circle at 50% 50%, rgba(2,6,23,0.56), transparent 70%)",
-                  border: "1px solid rgba(207,250,254,0.10)",
-                  borderRadius: "9999px",
-                  boxShadow:
-                    "0 0 22px rgba(34,211,238,0.14), inset 0 1px 0 rgba(255,255,255,0.08)",
-                  height: "6.6rem",
-                  left: "2.2rem",
-                  top: "50%",
-                  transform: "translateY(-50%) translateZ(-20px)",
-                  width: "6.6rem",
-                  zIndex: -4,
-                } as CSSProperties
-              }
             />
             <div
               aria-label="Dashboard row orbit selector"
@@ -12752,12 +14739,10 @@ export default function UserHomeDashboardPage() {
                 const urgencyTone = getDashboardRowUrgencyTone(
                   row.completion,
                 );
-                const yOffset = clampedDistance * 78;
-                const xOffset = isActive
-                  ? -42
-                  : absDistance === 1
-                    ? -50
-                    : -36;
+                const arcAngle = clampedDistance * 42;
+                const arcAngleRadians = (arcAngle * Math.PI) / 180;
+                const xOffset = Math.cos(arcAngleRadians) * 54;
+                const yOffset = Math.sin(arcAngleRadians) * 132;
                 const scale =
                   absDistance === 0
                     ? 1
@@ -12772,16 +14757,13 @@ export default function UserHomeDashboardPage() {
                     : absDistance === 1
                       ? 0.68
                       : 0.34;
-                const rotateY = isActive ? -8 : clampedDistance * -16;
-                const rotateX = clampedDistance * -5;
-
                 return (
                   <button
                     aria-label={`Show ${row.title} row`}
                     aria-pressed={isActive}
-                    className={`dashboard-page-orbit-node pointer-events-auto absolute left-1/2 top-1/2 grid h-12 w-12 origin-center place-items-center overflow-hidden rounded-[18px] border p-1 text-left shadow-[0_14px_34px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl transition-[border-color,background-color,box-shadow] duration-300 ${
+                    className={`dashboard-page-orbit-node pointer-events-auto absolute left-1/2 top-1/2 grid h-12 w-12 origin-center place-items-center overflow-hidden rounded-[18px] border p-1 text-left shadow-none transition-[border-color,background-color] duration-300 ${
                       isActive
-                        ? `dashboard-page-orbit-node--active ${urgencyTone.ring} ${urgencyTone.text} border-cyan-100/34 shadow-[0_18px_46px_rgba(0,0,0,0.40),0_0_24px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.18)]`
+                        ? `dashboard-page-orbit-node--active ${urgencyTone.ring} ${urgencyTone.text} border-cyan-100/34 shadow-none`
                         : "dashboard-page-orbit-node--ghost border-white/12 bg-slate-950/52 text-slate-300 hover:border-cyan-200/30 hover:bg-cyan-300/10 hover:text-cyan-100"
                     }`}
                     key={row.title}
@@ -12789,19 +14771,17 @@ export default function UserHomeDashboardPage() {
                     style={{
                       opacity,
                       pointerEvents: rawAbsDistance > 2 ? "none" : "auto",
-                      transform: `translate(-50%, -50%) translateX(${xOffset}px) translateY(${yOffset}px) translateZ(${
-                        isActive ? 62 : 20 - absDistance * 8
-                      }px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(${scale})`,
+                      transform: `translate(-50%, -50%) translateX(${xOffset}px) translateY(${yOffset}px) scale(${scale})`,
                       transition:
-                        "transform 380ms cubic-bezier(0.2, 0.82, 0.2, 1), opacity 220ms ease, border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease",
+                        "transform 240ms ease, opacity 160ms ease, border-color 160ms ease, background-color 160ms ease",
                       zIndex: 40 - absDistance,
                     }}
-                    title={row.helper}
+                    data-dashboard-tooltip={row.helper}
                     type="button"
                   >
                     <span
                       aria-hidden="true"
-                      className={`pointer-events-none absolute -inset-2 rounded-[inherit] bg-[radial-gradient(circle_at_50%_50%,rgba(34,211,238,0.18),transparent_60%),linear-gradient(90deg,transparent,rgba(250,204,21,0.12),transparent)] ${
+                      className={`pointer-events-none absolute -inset-2 hidden rounded-[inherit] bg-[radial-gradient(circle_at_50%_50%,rgba(34,211,238,0.18),transparent_60%),linear-gradient(90deg,transparent,rgba(250,204,21,0.12),transparent)] ${
                         isActive ? "opacity-70" : "opacity-40"
                       }`}
                     />
@@ -12809,21 +14789,21 @@ export default function UserHomeDashboardPage() {
                       aria-hidden="true"
                       className={`relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-2xl border ${
                         isActive
-                          ? "border-cyan-100/34 bg-cyan-300/14 text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.22)]"
+                          ? "border-cyan-100/34 bg-cyan-300/14 text-cyan-50 shadow-none"
                           : "border-white/12 bg-slate-950/66 text-slate-300"
                       }`}
                     >
                       {row.logo === "sound" ? (
                         <Image
                           alt=""
-                          className="h-7 w-7 object-contain drop-shadow-[0_0_10px_rgba(34,211,238,0.24)]"
+                          className="h-7 w-7 object-contain"
                           height={28}
                           src="/sound-fitness-logo.png"
                           width={28}
                         />
                       ) : (
                         <DashboardTabIcon
-                          className="h-4 w-4 drop-shadow-[0_0_8px_rgba(255,255,255,0.18)]"
+                          className="h-4 w-4"
                           label={row.title}
                           name={row.icon}
                         />
@@ -12842,7 +14822,19 @@ export default function UserHomeDashboardPage() {
                 );
               })}
             </div>
-            <div className="pointer-events-auto absolute left-[4.35rem] top-1/2 z-50 -translate-x-1/2 -translate-y-1/2">
+            <div className="dashboard-page-analog-dock pointer-events-none absolute left-[4.35rem] top-1/2 z-[76] -translate-x-1/2 -translate-y-1/2">
+              <span
+                aria-hidden="true"
+                className="dashboard-page-analog-rail"
+              />
+              <span
+                aria-hidden="true"
+                className="dashboard-page-analog-rail__fill"
+              />
+              <span
+                aria-hidden="true"
+                className="dashboard-page-analog-rail__scanner"
+              />
               {renderDashboardPageAnalog()}
             </div>
           </div>
@@ -12859,7 +14851,7 @@ export default function UserHomeDashboardPage() {
               }}
             >
               <div
-                className={`flex min-h-0 items-start justify-center pl-24 pr-6 pt-2 transition-opacity duration-300 sm:pl-28 sm:pr-10 sm:pt-3 lg:pl-32 lg:pr-12 lg:pt-4 ${
+                className={`flex min-h-0 items-start justify-center pl-36 pr-6 pt-2 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-3 lg:pl-44 lg:pr-12 lg:pt-4 ${
                   clampedDashboardOrbiterRow === 0
                     ? "pointer-events-auto opacity-100"
                     : "pointer-events-none opacity-40"
@@ -12910,6 +14902,20 @@ export default function UserHomeDashboardPage() {
         {renderDashboardProfileHubOverlay()}
 
       </div>
-    </main>
+      </main>
+      {dashboardTooltip ? (
+        <div
+          className={`dashboard-hover-tooltip dashboard-hover-tooltip--${dashboardTooltip.placement}`}
+          style={
+            {
+              "--dashboard-tooltip-x": `${dashboardTooltip.x}px`,
+              "--dashboard-tooltip-y": `${dashboardTooltip.y}px`,
+            } as CSSProperties
+          }
+        >
+          {dashboardTooltip.text}
+        </div>
+      ) : null}
+    </>
   );
 }
