@@ -2,10 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   type ChangeEvent as ReactChangeEvent,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
   useEffect,
@@ -13,6 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import DashboardCalendar, {
   type DashboardCalendarItem,
 } from "@/components/dashboard/DashboardCalendar";
@@ -173,6 +176,442 @@ const DASHBOARD_ANALOG_REPEAT_MS = 150;
 const DASHBOARD_ORBITER_ROW_CLICK_LOCK_MS = 170;
 const DASHBOARD_ORBITER_ROW_SCROLL_LOCK_MS = 145;
 const DASHBOARD_PROFILE_ICON_FALLBACK = "/sound-fitness-logo.png";
+const DASHBOARD_WEEKLY_SESSION_GOAL = 7;
+const DASHBOARD_PLAN_SESSION_TARGET = 10;
+const DASHBOARD_HEADER_METER_COUNT = 2;
+const DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT = 3;
+const DASHBOARD_HEADER_MENU_BLOCK_COUNT = 5;
+const DASHBOARD_HEADER_PROGRESS_BLOCK_INDEX = 2;
+const DASHBOARD_HEADER_IDLE_TIMEOUT_MS = 20000;
+const DASHBOARD_HEADER_METER_AUTOSCROLL_MS = 6200;
+const DASHBOARD_HEADER_METER_RAIL_PULSE_MS = 1400;
+const DASHBOARD_HEADER_ACHIEVEMENT_ROTATE_MS = 4600;
+const DASHBOARD_HEADER_TIMEOUT_PORTAL_VISIBLE_MS = 15000;
+const DASHBOARD_HEADER_TIMEOUT_PORTAL_BREAK_MS = 30000;
+const DASHBOARD_HEADER_TIMEOUT_PORTAL_INTERVAL_MS =
+  DASHBOARD_HEADER_TIMEOUT_PORTAL_VISIBLE_MS +
+  DASHBOARD_HEADER_TIMEOUT_PORTAL_BREAK_MS;
+const dashboardHeaderCategoryLevels = [
+  {
+    color: "rgba(110, 231, 183, 0.96)",
+    id: "lower-compound",
+    label: "Lower Body Compound",
+    left: 8,
+    level: 74,
+    shortLabel: "Lower Comp",
+    top: 58,
+  },
+  {
+    color: "rgba(190, 242, 100, 0.92)",
+    id: "lower-isolation",
+    label: "Lower Body Isolation",
+    left: 18,
+    level: 58,
+    shortLabel: "Lower Iso",
+    top: 49,
+  },
+  {
+    color: "rgba(153, 246, 228, 0.94)",
+    id: "core",
+    label: "Core",
+    left: 28,
+    level: 66,
+    shortLabel: "Core",
+    top: 60,
+  },
+  {
+    color: "rgba(186, 230, 253, 0.96)",
+    id: "upper-push",
+    label: "Upper Push",
+    left: 39,
+    level: 62,
+    shortLabel: "Push",
+    top: 50,
+  },
+  {
+    color: "rgba(199, 210, 254, 0.96)",
+    id: "upper-pull",
+    label: "Upper Pull",
+    left: 50,
+    level: 55,
+    shortLabel: "Pull",
+    top: 58,
+  },
+  {
+    color: "rgba(216, 180, 254, 0.96)",
+    id: "arm-isolation",
+    label: "Arm Isolation",
+    left: 61,
+    level: 49,
+    shortLabel: "Arms",
+    top: 50,
+  },
+  {
+    color: "rgba(253, 186, 116, 0.96)",
+    id: "athletic",
+    label: "Athletic",
+    left: 71,
+    level: 71,
+    shortLabel: "Athletic",
+    top: 55,
+  },
+  {
+    color: "rgba(251, 207, 232, 0.94)",
+    id: "integrated",
+    label: "Integrated",
+    left: 80,
+    level: 44,
+    shortLabel: "Integrated",
+    top: 49,
+  },
+  {
+    color: "rgba(207, 250, 254, 0.96)",
+    id: "mobility",
+    label: "Mobility",
+    left: 89,
+    level: 61,
+    shortLabel: "Mobility",
+    top: 58,
+  },
+  {
+    color: "rgba(226, 232, 240, 0.9)",
+    id: "cervical",
+    label: "Cervical Isolation",
+    left: 96,
+    level: 38,
+    shortLabel: "Neck",
+    top: 49,
+  },
+] as const;
+
+const dashboardHeaderCategoryFloorSlots = [
+  { delay: 0, left: 53, top: 55 },
+  { delay: 0, left: 62, top: 49 },
+  { delay: 6.4, left: 53, top: 50 },
+  { delay: 6.4, left: 62, top: 53 },
+  { delay: 12.8, left: 53, top: 56 },
+  { delay: 12.8, left: 62, top: 51 },
+  { delay: 19.2, left: 53, top: 52 },
+  { delay: 19.2, left: 62, top: 55 },
+  { delay: 25.6, left: 53, top: 49 },
+  { delay: 25.6, left: 62, top: 54 },
+] as const;
+
+const dashboardHeaderIdleEquipmentStations = [
+  {
+    categoryId: "lower-compound",
+    color: "rgba(110, 231, 183, 0.96)",
+    delay: 0,
+    equipmentId: "rack",
+    id: "lower-compound",
+    label: "Squat Rack",
+    left: 14,
+    level: 7,
+    progress: 74,
+  },
+  {
+    categoryId: "lower-isolation",
+    color: "rgba(190, 242, 100, 0.92)",
+    delay: 6,
+    equipmentId: "leg-machine",
+    id: "lower-isolation",
+    label: "Leg Machine",
+    left: 30,
+    level: 6,
+    progress: 58,
+  },
+  {
+    categoryId: "core",
+    color: "rgba(153, 246, 228, 0.94)",
+    delay: 12,
+    equipmentId: "mat",
+    id: "core",
+    label: "Core Mat",
+    left: 46,
+    level: 7,
+    progress: 66,
+  },
+  {
+    categoryId: "upper-push",
+    color: "rgba(186, 230, 253, 0.96)",
+    delay: 18,
+    equipmentId: "bench",
+    id: "upper-push",
+    label: "Bench",
+    left: 62,
+    level: 6,
+    progress: 62,
+  },
+  {
+    categoryId: "upper-pull",
+    color: "rgba(199, 210, 254, 0.96)",
+    delay: 24,
+    equipmentId: "pull",
+    id: "upper-pull",
+    label: "Pull Tower",
+    left: 76,
+    level: 6,
+    progress: 55,
+  },
+  {
+    categoryId: "arm-isolation",
+    color: "rgba(216, 180, 254, 0.96)",
+    delay: 30,
+    equipmentId: "bells",
+    id: "arm-isolation",
+    label: "Dumbbells",
+    left: 88,
+    level: 5,
+    progress: 49,
+  },
+  {
+    categoryId: "athletic",
+    color: "rgba(253, 186, 116, 0.96)",
+    delay: 42,
+    equipmentId: "cones",
+    id: "athletic",
+    label: "Agility",
+    left: 114,
+    level: 7,
+    progress: 71,
+  },
+  {
+    categoryId: "integrated",
+    color: "rgba(251, 207, 232, 0.94)",
+    delay: 48,
+    equipmentId: "platform",
+    id: "integrated",
+    label: "Clean Pad",
+    left: 130,
+    level: 4,
+    progress: 44,
+  },
+  {
+    categoryId: "mobility",
+    color: "rgba(207, 250, 254, 0.96)",
+    delay: 54,
+    equipmentId: "mobility",
+    id: "mobility",
+    label: "Mobility Rail",
+    left: 146,
+    level: 6,
+    progress: 61,
+  },
+  {
+    categoryId: "cervical",
+    color: "rgba(226, 232, 240, 0.9)",
+    delay: 60,
+    equipmentId: "neck",
+    id: "cervical",
+    label: "Neck Station",
+    left: 162,
+    level: 4,
+    progress: 38,
+  },
+] as const;
+
+type DashboardHeaderIdleEquipmentId =
+  (typeof dashboardHeaderIdleEquipmentStations)[number]["equipmentId"];
+
+const renderDashboardHeaderIdleEquipmentIcon = (
+  equipmentId: DashboardHeaderIdleEquipmentId,
+) => {
+  switch (equipmentId) {
+    case "rack":
+      return (
+        <svg
+          aria-hidden="true"
+          className="dashboard-header-idle-station__equipment-icon"
+          focusable="false"
+          viewBox="0 0 96 64"
+        >
+          <ellipse className="dashboard-header-equipment-shadow" cx="48" cy="58" rx="38" ry="5" />
+          <path className="dashboard-header-equipment-metal" d="M20 58V14M76 58V14M22 15H74" />
+          <path className="dashboard-header-equipment-metal" d="M16 14H80" />
+          <path className="dashboard-header-equipment-rubber" d="M9 10H17V22H9Z" />
+          <path className="dashboard-header-equipment-rubber" d="M79 10H87V22H79Z" />
+          <path className="dashboard-header-equipment-pad" d="M30 47H66V58H30Z" />
+          <path className="dashboard-header-equipment-detail" d="M29 27H39M57 27H67M29 39H39M57 39H67" />
+          <path className="dashboard-header-equipment-highlight" d="M24 17V54M72 17V54M35 49H61" />
+        </svg>
+      );
+    case "leg-machine":
+      return (
+        <svg
+          aria-hidden="true"
+          className="dashboard-header-idle-station__equipment-icon"
+          focusable="false"
+          viewBox="0 0 96 64"
+        >
+          <ellipse className="dashboard-header-equipment-shadow" cx="48" cy="58" rx="35" ry="5" />
+          <path className="dashboard-header-equipment-frame" d="M18 58H77M34 50L45 23M53 57L46 39" />
+          <path className="dashboard-header-equipment-pad" d="M21 39H49L42 52H17Z" />
+          <path className="dashboard-header-equipment-pad" d="M31 17L52 20L45 39H24Z" />
+          <path className="dashboard-header-equipment-metal" d="M48 39L70 34M70 25V52" />
+          <circle className="dashboard-header-equipment-rubber" cx="76" cy="28" r="7" />
+          <circle className="dashboard-header-equipment-rubber" cx="76" cy="48" r="7" />
+          <path className="dashboard-header-equipment-highlight" d="M27 42H42M34 21L47 23" />
+          <path className="dashboard-header-equipment-detail" d="M70 35H82M70 49H82" />
+        </svg>
+      );
+    case "mat":
+      return (
+        <svg
+          aria-hidden="true"
+          className="dashboard-header-idle-station__equipment-icon"
+          focusable="false"
+          viewBox="0 0 96 64"
+        >
+          <ellipse className="dashboard-header-equipment-shadow" cx="48" cy="58" rx="38" ry="5" />
+          <path className="dashboard-header-equipment-pad" d="M16 47C24 39 70 36 80 43C84 46 78 55 69 57C50 61 21 59 15 53C13 50 14 48 16 47Z" />
+          <path className="dashboard-header-equipment-highlight" d="M29 45C40 48 57 48 69 43" />
+          <circle className="dashboard-header-equipment-rubber" cx="38" cy="27" r="6" />
+          <path className="dashboard-header-equipment-metal" d="M42 31C51 35 58 39 67 43M36 32L28 40" />
+          <path className="dashboard-header-equipment-detail" d="M56 38L71 31M57 39L77 48" />
+        </svg>
+      );
+    case "bench":
+      return (
+        <svg
+          aria-hidden="true"
+          className="dashboard-header-idle-station__equipment-icon"
+          focusable="false"
+          viewBox="0 0 96 64"
+        >
+          <ellipse className="dashboard-header-equipment-shadow" cx="48" cy="58" rx="37" ry="5" />
+          <path className="dashboard-header-equipment-metal" d="M20 18H76" />
+          <path className="dashboard-header-equipment-rubber" d="M10 12H18V24H10Z" />
+          <path className="dashboard-header-equipment-rubber" d="M78 12H86V24H78Z" />
+          <path className="dashboard-header-equipment-pad" d="M27 39L67 32L72 40L31 48Z" />
+          <path className="dashboard-header-equipment-frame" d="M34 46L27 58M64 39L71 58M47 18V33" />
+          <path className="dashboard-header-equipment-highlight" d="M34 39L64 34" />
+          <path className="dashboard-header-equipment-detail" d="M18 58H78" />
+        </svg>
+      );
+    case "pull":
+      return (
+        <svg
+          aria-hidden="true"
+          className="dashboard-header-idle-station__equipment-icon"
+          focusable="false"
+          viewBox="0 0 96 64"
+        >
+          <ellipse className="dashboard-header-equipment-shadow" cx="48" cy="58" rx="37" ry="5" />
+          <path className="dashboard-header-equipment-metal" d="M22 58V13M74 58V13M18 14H78" />
+          <path className="dashboard-header-equipment-detail" d="M31 25H65M31 34H65M41 25V55M55 25V55" />
+          <path className="dashboard-header-equipment-cable" d="M34 15C34 29 62 29 62 15M48 29V49" />
+          <path className="dashboard-header-equipment-pad" d="M41 48H55V58H41Z" />
+          <path className="dashboard-header-equipment-rubber" d="M29 11H37V17H29Z" />
+          <path className="dashboard-header-equipment-rubber" d="M59 11H67V17H59Z" />
+          <path className="dashboard-header-equipment-highlight" d="M26 17V54M70 17V54" />
+        </svg>
+      );
+    case "bells":
+      return (
+        <svg
+          aria-hidden="true"
+          className="dashboard-header-idle-station__equipment-icon"
+          focusable="false"
+          viewBox="0 0 96 64"
+        >
+          <ellipse className="dashboard-header-equipment-shadow" cx="48" cy="58" rx="36" ry="5" />
+          <path className="dashboard-header-equipment-metal" d="M21 31L48 24L75 31M31 45L48 39L65 45" />
+          <path className="dashboard-header-equipment-rubber" d="M13 23H25V40H13Z" />
+          <path className="dashboard-header-equipment-rubber" d="M25 22H33V39H25Z" />
+          <path className="dashboard-header-equipment-rubber" d="M63 22H71V39H63Z" />
+          <path className="dashboard-header-equipment-rubber" d="M71 23H83V40H71Z" />
+          <path className="dashboard-header-equipment-rubber" d="M24 41H35V56H24Z" />
+          <path className="dashboard-header-equipment-rubber" d="M61 41H72V56H61Z" />
+          <path className="dashboard-header-equipment-highlight" d="M18 27V36M76 27V36M29 44V53M66 44V53" />
+        </svg>
+      );
+    case "cones":
+      return (
+        <svg
+          aria-hidden="true"
+          className="dashboard-header-idle-station__equipment-icon"
+          focusable="false"
+          viewBox="0 0 96 64"
+        >
+          <ellipse className="dashboard-header-equipment-shadow" cx="48" cy="58" rx="36" ry="5" />
+          <path className="dashboard-header-equipment-pad" d="M20 53L31 26L43 53Z" />
+          <path className="dashboard-header-equipment-pad" d="M55 53L66 23L79 53Z" />
+          <path className="dashboard-header-equipment-highlight" d="M26 43H38M60 43H74" />
+          <path className="dashboard-header-equipment-rubber" d="M18 53H45V58H18Z" />
+          <path className="dashboard-header-equipment-rubber" d="M53 53H82V58H53Z" />
+          <path className="dashboard-header-equipment-detail" d="M35 30L55 24" />
+        </svg>
+      );
+    case "platform":
+      return (
+        <svg
+          aria-hidden="true"
+          className="dashboard-header-idle-station__equipment-icon"
+          focusable="false"
+          viewBox="0 0 96 64"
+        >
+          <ellipse className="dashboard-header-equipment-shadow" cx="49" cy="58" rx="38" ry="5" />
+          <path className="dashboard-header-equipment-pad" d="M16 47L78 39L85 55L24 61Z" />
+          <path className="dashboard-header-equipment-metal" d="M22 35H74" />
+          <path className="dashboard-header-equipment-rubber" d="M10 29H18V42H10Z" />
+          <path className="dashboard-header-equipment-rubber" d="M78 29H86V42H78Z" />
+          <path className="dashboard-header-equipment-frame" d="M32 47L37 57M63 42L69 53" />
+          <path className="dashboard-header-equipment-rubber" d="M44 22L56 32L48 42L36 32Z" />
+          <path className="dashboard-header-equipment-highlight" d="M26 49L73 43" />
+        </svg>
+      );
+    case "mobility":
+      return (
+        <svg
+          aria-hidden="true"
+          className="dashboard-header-idle-station__equipment-icon"
+          focusable="false"
+          viewBox="0 0 96 64"
+        >
+          <ellipse className="dashboard-header-equipment-shadow" cx="48" cy="58" rx="36" ry="5" />
+          <path className="dashboard-header-equipment-metal" d="M22 49H76M34 21H64" />
+          <path className="dashboard-header-equipment-frame" d="M39 21V49M58 21V49" />
+          <path className="dashboard-header-equipment-cable" d="M29 49C33 36 48 31 60 26M62 22C72 27 75 36 72 49" />
+          <path className="dashboard-header-equipment-pad" d="M28 33C34 27 43 26 49 32C42 38 34 40 28 33Z" />
+          <path className="dashboard-header-equipment-highlight" d="M31 33C36 31 41 31 46 33" />
+        </svg>
+      );
+    case "neck":
+      return (
+        <svg
+          aria-hidden="true"
+          className="dashboard-header-idle-station__equipment-icon"
+          focusable="false"
+          viewBox="0 0 96 64"
+        >
+          <ellipse className="dashboard-header-equipment-shadow" cx="48" cy="58" rx="35" ry="5" />
+          <path className="dashboard-header-equipment-pad" d="M35 23C35 14 61 14 61 23V38H35Z" />
+          <circle className="dashboard-header-equipment-rubber" cx="48" cy="28" r="8" />
+          <path className="dashboard-header-equipment-metal" d="M40 43H56M48 38V58" />
+          <path className="dashboard-header-equipment-detail" d="M31 51H65" />
+          <path className="dashboard-header-equipment-cable" d="M30 43C25 36 25 27 30 20M66 43C71 36 71 27 66 20" />
+          <path className="dashboard-header-equipment-highlight" d="M39 24C42 20 54 20 57 24" />
+        </svg>
+      );
+  }
+};
+
+const DASHBOARD_COMPOUND_LIFT_PATTERNS = [
+  "squat",
+  "deadlift",
+  "bench",
+  "press",
+  "row",
+  "pull-up",
+  "pull up",
+  "chin-up",
+  "chin up",
+  "clean",
+  "snatch",
+  "lunge",
+  "thruster",
+  "dip",
+];
 
 const dashboardMusicStations: DashboardMusicStation[] = [
   {
@@ -592,6 +1031,18 @@ const addDashboardDays = (date: Date, days: number) => {
   const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   next.setDate(next.getDate() + days);
   return next;
+};
+
+const getDashboardWeekResetDate = (date: Date) => {
+  const resetDate = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  );
+  const daysUntilSunday = (7 - resetDate.getDay()) % 7;
+  resetDate.setDate(resetDate.getDate() + daysUntilSunday);
+  resetDate.setHours(23, 59, 0, 0);
+  return resetDate;
 };
 
 const getDashboardEntryDateKey = (value?: string | null) => {
@@ -1663,6 +2114,35 @@ const formatStreakDeadline = (date: Date) =>
     weekday: "short",
   }).format(date);
 
+const formatHeaderMeterDeadline = (date: Date) =>
+  new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    weekday: "short",
+  }).format(date);
+
+const formatHeaderMeterFullDateTime = (date: Date) =>
+  new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+    weekday: "long",
+  }).format(date);
+
+const formatAchievementEstimateDate = (date: Date) =>
+  new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+  }).format(date);
+
+const formatAchievementEstimateFullDate = (date: Date) =>
+  new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    weekday: "long",
+  }).format(date);
+
 const formatManualLoadDisplay = (value?: string) => {
   const trimmedValue = value?.trim();
 
@@ -1756,6 +2236,23 @@ const readDashboardText = (...values: unknown[]) => {
   );
 
   return typeof found === "string" ? found.trim() : "";
+};
+
+const readDashboardNumber = (...values: unknown[]) => {
+  for (const value of values) {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value !== "string") continue;
+
+    const parsed = Number(value.replace(/,/g, "").trim());
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+
+  return 0;
+};
+
+const formatDashboardCompactCalories = (value: number) => {
+  if (value >= 10000) return `${(value / 1000).toFixed(1)}k`;
+  return Math.round(value).toLocaleString();
 };
 
 const readDashboardLocalRecord = (key: string) => {
@@ -1962,8 +2459,9 @@ type DashboardHeaderLink = {
 };
 
 type DashboardHeaderNewsHeadline = {
+  category: string;
   label: string;
-  tone?: "alert" | "default";
+  tone?: "advice" | "alert" | "default" | "quote" | "trivia";
 };
 
 type DashboardNavigationCard = {
@@ -2060,6 +2558,10 @@ type DashboardVerticalPointerStart = {
 };
 
 type DashboardScrollButtonDirection = "down" | "left" | "right" | "up";
+type DashboardHorizontalScrollDirection = Extract<
+  DashboardScrollButtonDirection,
+  "left" | "right"
+>;
 
 type DashboardHeaderVortexMode = "clockwise" | "counter";
 
@@ -2734,6 +3236,7 @@ const dashboardJourneyStepStyles: Record<DashboardJourneyStepState, string> = {
 };
 
 export default function UserHomeDashboardPage() {
+  const router = useRouter();
   const [dashboardToday] = useState<Date>(() => new Date());
   const [firstName, setFirstName] = useState("Member");
   const [exerciseStats, setExerciseStats] = useState<LocalExerciseStatEntry[]>(
@@ -2806,11 +3309,68 @@ export default function UserHomeDashboardPage() {
     dashboardHeaderScrollButtonActiveDirection,
     setDashboardHeaderScrollButtonActiveDirection,
   ] = useState<DashboardScrollButtonDirection | null>(null);
+  const [
+    dashboardHeaderMenuOrbitDragging,
+    setDashboardHeaderMenuOrbitDragging,
+  ] = useState(false);
+  const [dashboardHeaderMenuOrbitRoll, setDashboardHeaderMenuOrbitRoll] =
+    useState(0);
+  const [
+    dashboardHeaderMenuOrbitActiveDirection,
+    setDashboardHeaderMenuOrbitActiveDirection,
+  ] = useState<DashboardHorizontalScrollDirection | null>(null);
+  const [dashboardHeaderMenuActiveIndex, setDashboardHeaderMenuActiveIndex] =
+    useState(0);
   const [dashboardHeaderVortexPulseMode, setDashboardHeaderVortexPulseMode] =
     useState<DashboardHeaderVortexMode | null>(null);
   const [dashboardHeaderVortexSettling, setDashboardHeaderVortexSettling] =
     useState(false);
+  const [dashboardHeaderTimedOut, setDashboardHeaderTimedOut] =
+    useState(false);
+  const [
+    dashboardHeaderTimeoutPortalOpen,
+    setDashboardHeaderTimeoutPortalOpen,
+  ] = useState(false);
+  const [
+    dashboardHeaderTimeoutMeterIndex,
+    setDashboardHeaderTimeoutMeterIndex,
+  ] = useState(0);
+  const [
+    dashboardHeaderTimeoutPortalPosition,
+    setDashboardHeaderTimeoutPortalPosition,
+  ] = useState({ x: 50, y: 54 });
+  const [
+    dashboardHeaderMeterActiveIndex,
+    setDashboardHeaderMeterActiveIndex,
+  ] = useState(0);
+  const [
+    dashboardHeaderMeterPanelActiveIndex,
+    setDashboardHeaderMeterPanelActiveIndex,
+  ] = useState(0);
+  const [dashboardHeaderPrActiveIndex, setDashboardHeaderPrActiveIndex] =
+    useState(0);
+  const [dashboardHeaderMeterRailActive, setDashboardHeaderMeterRailActive] =
+    useState(false);
+  const [dashboardHeaderMeterMenuOpen, setDashboardHeaderMeterMenuOpen] =
+    useState(false);
+  const [
+    dashboardHeaderCategoryLevelActiveIndex,
+    setDashboardHeaderCategoryLevelActiveIndex,
+  ] = useState(0);
+  const [
+    dashboardHeaderAchievementActiveIndex,
+    setDashboardHeaderAchievementActiveIndex,
+  ] = useState(0);
+  const [
+    dashboardHeaderAchievementRevealActive,
+    setDashboardHeaderAchievementRevealActive,
+  ] = useState(false);
+  const dashboardHeaderAchievementRevealTimeoutRef = useRef<number | null>(
+    null,
+  );
   const [dashboardHeaderAnalogOffset, setDashboardHeaderAnalogOffset] =
+    useState<DashboardVerticalPointerStart>({ x: 0, y: 0 });
+  const [dashboardHeaderMenuOrbitOffset, setDashboardHeaderMenuOrbitOffset] =
     useState<DashboardVerticalPointerStart>({ x: 0, y: 0 });
   const [dashboardPageAnalogDragging, setDashboardPageAnalogDragging] =
     useState(false);
@@ -2888,12 +3448,14 @@ export default function UserHomeDashboardPage() {
   const dashboardStatusDetailsRef = useRef<HTMLDetailsElement | null>(null);
   const favoriteWorkoutStripRef = useRef<HTMLDivElement | null>(null);
   const dashboardHeaderNewsHeadlineRef = useRef<HTMLSpanElement | null>(null);
+  const dashboardHeaderNewsKickerRef = useRef<HTMLSpanElement | null>(null);
   const dashboardHeaderNewsHeadlineIndexRef = useRef(0);
   const dashboardHeaderNewsHeadlinesRef = useRef<
     DashboardHeaderNewsHeadline[]
   >([]);
   const dashboardPointsDropdownRef = useRef<HTMLDivElement | null>(null);
   const dashboardMusicDropdownRef = useRef<HTMLDivElement | null>(null);
+  const dashboardHeaderMeterMenuRef = useRef<HTMLDivElement | null>(null);
   const dashboardOrbiterPointerStartRef =
     useRef<DashboardVerticalPointerStart | null>(null);
   const dashboardOrbiterPointerMovedRef = useRef(false);
@@ -2911,8 +3473,31 @@ export default function UserHomeDashboardPage() {
   const dashboardHeaderScrollButtonHoldIntervalRef = useRef<number | null>(
     null,
   );
+  const dashboardHeaderMenuOrbitPointerStartRef =
+    useRef<DashboardVerticalPointerStart | null>(null);
+  const dashboardHeaderMenuOrbitPointerMovedRef = useRef(false);
+  const dashboardHeaderMenuOrbitHoldDirectionRef =
+    useRef<DashboardHorizontalScrollDirection | null>(null);
+  const dashboardHeaderMenuOrbitHoldTimeoutRef = useRef<number | null>(null);
+  const dashboardHeaderMenuOrbitHoldIntervalRef = useRef<number | null>(null);
+  const dashboardHeaderIdleTimeoutRef = useRef<number | null>(null);
+  const dashboardHeaderTimeoutPortalIntervalRef = useRef<number | null>(null);
+  const dashboardHeaderTimeoutPortalCloseTimeoutRef = useRef<number | null>(
+    null,
+  );
   const dashboardHeaderVortexPulseTimeoutRef = useRef<number | null>(null);
   const dashboardHeaderVortexSettleTimeoutRef = useRef<number | null>(null);
+  const dashboardHeaderPrPointerStartRef = useRef<number | null>(null);
+  const dashboardHeaderPrPointerMovedRef = useRef(false);
+  const dashboardHeaderPrWheelLockRef = useRef(0);
+  const dashboardHeaderMeterPanelPointerStartRef = useRef<number | null>(null);
+  const dashboardHeaderMeterPanelPointerMovedRef = useRef(false);
+  const dashboardHeaderMeterPanelWheelLockRef = useRef(0);
+  const dashboardHeaderCategoryLevelPointerStartRef = useRef<number | null>(
+    null,
+  );
+  const dashboardHeaderCategoryLevelPointerMovedRef = useRef(false);
+  const dashboardHeaderCategoryLevelWheelLockRef = useRef(0);
   const dashboardPageAnalogPointerStartRef =
     useRef<DashboardVerticalPointerStart | null>(null);
   const dashboardPageAnalogPointerMovedRef = useRef(false);
@@ -3905,6 +4490,7 @@ export default function UserHomeDashboardPage() {
     hideDashboardTooltip();
     setDashboardProfileHubOpen(false);
     setDashboardPointsDropdownOpen(false);
+    setDashboardHeaderMeterMenuOpen(false);
     setDashboardMusicDropdownOpen((open) => !open);
   };
   const handleDashboardMusicVolumeChange = (
@@ -4649,6 +5235,38 @@ export default function UserHomeDashboardPage() {
 
     setDashboardFoundationProgress(readDashboardFoundationProgress());
   };
+  const openDashboardAchievementsFromHeader = (
+    event: ReactMouseEvent<HTMLAnchorElement>,
+  ) => {
+    markDashboardDestinationVisited(ROUTES.dashboard.achievements);
+
+    if (
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      event.button !== 0
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (dashboardHeaderAchievementRevealActive) return;
+
+    setDashboardHeaderAchievementRevealActive(true);
+
+    if (dashboardHeaderAchievementRevealTimeoutRef.current !== null) {
+      window.clearTimeout(dashboardHeaderAchievementRevealTimeoutRef.current);
+    }
+
+    dashboardHeaderAchievementRevealTimeoutRef.current = window.setTimeout(
+      () => {
+        router.push(ROUTES.dashboard.achievements);
+      },
+      620,
+    );
+  };
   const launchFavoriteWorkout = (template: LocalWorkoutBuilderTemplate) => {
     if (!template.exercises.length) return;
 
@@ -4656,9 +5274,53 @@ export default function UserHomeDashboardPage() {
     setActiveSessionTemplate(sessionTemplate);
   };
 
+  useEffect(
+    () => () => {
+      if (dashboardHeaderAchievementRevealTimeoutRef.current !== null) {
+        window.clearTimeout(dashboardHeaderAchievementRevealTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     setManualStatsLogs(readManualStatsLogEntries());
   }, []);
+
+  useEffect(() => {
+    if (!dashboardHeaderMeterMenuOpen) {
+      setDashboardHeaderMeterRailActive(false);
+      return;
+    }
+
+    let railTimeoutId: number | null = null;
+    const rotateDashboardHeaderMeters = () => {
+      setDashboardHeaderMeterRailActive(true);
+      setDashboardHeaderMeterActiveIndex(
+        (currentIndex) => (currentIndex + 1) % DASHBOARD_HEADER_METER_COUNT,
+      );
+
+      if (railTimeoutId !== null) {
+        window.clearTimeout(railTimeoutId);
+      }
+
+      railTimeoutId = window.setTimeout(() => {
+        setDashboardHeaderMeterRailActive(false);
+      }, DASHBOARD_HEADER_METER_RAIL_PULSE_MS);
+    };
+
+    const intervalId = window.setInterval(
+      rotateDashboardHeaderMeters,
+      DASHBOARD_HEADER_METER_AUTOSCROLL_MS,
+    );
+
+    return () => {
+      window.clearInterval(intervalId);
+      if (railTimeoutId !== null) {
+        window.clearTimeout(railTimeoutId);
+      }
+    };
+  }, [dashboardHeaderMeterMenuOpen]);
 
   useEffect(() => {
     const savedSettings = readDashboardMusicSettings();
@@ -4729,6 +5391,28 @@ export default function UserHomeDashboardPage() {
         );
       }
 
+      if (dashboardHeaderMenuOrbitHoldTimeoutRef.current !== null) {
+        window.clearTimeout(dashboardHeaderMenuOrbitHoldTimeoutRef.current);
+      }
+
+      if (dashboardHeaderMenuOrbitHoldIntervalRef.current !== null) {
+        window.clearInterval(dashboardHeaderMenuOrbitHoldIntervalRef.current);
+      }
+
+      if (dashboardHeaderIdleTimeoutRef.current !== null) {
+        window.clearTimeout(dashboardHeaderIdleTimeoutRef.current);
+      }
+
+      if (dashboardHeaderTimeoutPortalIntervalRef.current !== null) {
+        window.clearTimeout(dashboardHeaderTimeoutPortalIntervalRef.current);
+      }
+
+      if (dashboardHeaderTimeoutPortalCloseTimeoutRef.current !== null) {
+        window.clearTimeout(
+          dashboardHeaderTimeoutPortalCloseTimeoutRef.current,
+        );
+      }
+
       if (dashboardHeaderVortexPulseTimeoutRef.current !== null) {
         window.clearTimeout(dashboardHeaderVortexPulseTimeoutRef.current);
       }
@@ -4786,6 +5470,7 @@ export default function UserHomeDashboardPage() {
 
     setDashboardProfileActionsOpen(false);
     setDashboardPointsDropdownOpen(false);
+    setDashboardHeaderMeterMenuOpen(false);
     setDashboardMusicDropdownOpen(false);
 
     const previousOverflow = document.body.style.overflow;
@@ -4803,6 +5488,40 @@ export default function UserHomeDashboardPage() {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [dashboardProfileHubOpen]);
+
+  useEffect(() => {
+    if (!dashboardHeaderMeterMenuOpen) return;
+
+    setDashboardPointsDropdownOpen(false);
+    setDashboardMusicDropdownOpen(false);
+
+    const closeOnOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        !target.closest(
+          ".dashboard-header-meter-menu-shell, .dashboard-header-meter-panel",
+        )
+      ) {
+        setDashboardHeaderMeterMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setDashboardHeaderMeterMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutside);
+    document.addEventListener("touchstart", closeOnOutside);
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      document.removeEventListener("touchstart", closeOnOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [dashboardHeaderMeterMenuOpen]);
 
   useEffect(() => {
     if (!dashboardProfileActionsOpen) return;
@@ -5180,9 +5899,286 @@ export default function UserHomeDashboardPage() {
     const workoutSessionEntries = exerciseStats.filter(
       (stat) => stat.source === "workout-session",
     );
+    const latestWorkoutSessionTimestamp =
+      workoutSessionEntries.reduce<number | null>((latestTimestamp, entry) => {
+        const timestamp = new Date(entry.date).getTime();
+        if (!Number.isFinite(timestamp)) return latestTimestamp;
+        return latestTimestamp === null
+          ? timestamp
+          : Math.max(latestTimestamp, timestamp);
+      }, null);
     const uniqueExercises = new Set(
       exerciseStats.map((stat) => stat.exerciseName).filter(Boolean),
     );
+    const todayDateKey = getDashboardLocalDateKey(dashboardToday);
+    const todayExerciseStats = [...exerciseStats]
+      .filter((stat) => getDashboardEntryDateKey(stat.date) === todayDateKey)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const bestExerciseStats = new Map<
+      string,
+      { score: number; timestamp: number }
+    >();
+    const compoundLiftStats = new Map<
+      string,
+      {
+        entries: {
+          estimatedMax: number;
+          score: number;
+          sets: number;
+          timestamp: number;
+          volume: number;
+          weight: number;
+        }[];
+        name: string;
+      }
+    >();
+
+    exerciseStats.forEach((stat) => {
+      const exerciseName = stat.exerciseName?.trim();
+      const timestamp = new Date(stat.date).getTime();
+      if (!exerciseName || !Number.isFinite(timestamp)) return;
+
+      const weight = toLoggedNumber(stat.weight);
+      const reps = toLoggedNumber(stat.reps);
+      const sets = Math.max(1, toLoggedNumber(stat.sets));
+      const score = Math.max(weight * reps * sets, weight, reps * sets);
+      if (score <= 0) return;
+
+      const currentBest = bestExerciseStats.get(exerciseName);
+      if (!currentBest || score > currentBest.score) {
+        bestExerciseStats.set(exerciseName, { score, timestamp });
+      }
+
+      const compoundSignature = [
+        exerciseName,
+        stat.pattern,
+        stat.coreMovementPattern,
+        stat.semanticVariationName,
+      ]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ");
+      const isCompoundLift = DASHBOARD_COMPOUND_LIFT_PATTERNS.some((pattern) =>
+        compoundSignature.includes(pattern),
+      );
+
+      if (!isCompoundLift) return;
+
+      const estimatedMax =
+        weight > 0 ? weight * (1 + Math.min(Math.max(reps, 1), 30) / 30) : score;
+      const compoundLiftKey = exerciseName.toLowerCase();
+      const compoundLift = compoundLiftStats.get(compoundLiftKey) || {
+        entries: [],
+        name: exerciseName,
+      };
+
+      compoundLift.entries.push({
+        estimatedMax,
+        score,
+        sets,
+        timestamp,
+        volume: score,
+        weight,
+      });
+      compoundLiftStats.set(compoundLiftKey, compoundLift);
+    });
+
+    const recentPrCount = Array.from(bestExerciseStats.values()).filter(
+      (bestStat) => bestStat.timestamp >= thirtyDaysAgo,
+    ).length;
+    const prTarget = Math.max(3, Math.min(8, Math.ceil(uniqueExercises.size / 2)));
+    const prProgress = clampDashboardPercent((recentPrCount / prTarget) * 100);
+    const compoundLiftSummaries: {
+      bestScore: number;
+      bestWeight: number;
+      bestThirtyDayTimestamp: number | null;
+      bestThirtyDayWeight: number;
+      improvementPercent: number;
+      improvementScore: number;
+      latestEstimatedMax: number;
+      name: string;
+      thirtyDaySets: number;
+      thirtyDayVolume: number;
+    }[] = [];
+
+    compoundLiftStats.forEach((compoundLift) => {
+      const sortedEntries = [...compoundLift.entries].sort(
+        (a, b) => a.timestamp - b.timestamp,
+      );
+      const firstEntry = sortedEntries[0];
+      if (!firstEntry) return;
+
+      const latestEntry = sortedEntries[sortedEntries.length - 1] || firstEntry;
+      const bestEntry = sortedEntries.reduce(
+        (best, entry) =>
+          entry.estimatedMax > best.estimatedMax ||
+          (entry.estimatedMax === best.estimatedMax && entry.weight > best.weight)
+            ? entry
+            : best,
+        firstEntry,
+      );
+      const bestThirtyDayEntry = sortedEntries
+        .filter((entry) => entry.timestamp >= thirtyDaysAgo)
+        .reduce<(typeof sortedEntries)[number] | null>(
+          (best, entry) =>
+            !best ||
+            entry.estimatedMax > best.estimatedMax ||
+            (entry.estimatedMax === best.estimatedMax && entry.weight > best.weight)
+              ? entry
+              : best,
+          null,
+        );
+      const thirtyDayEntries = sortedEntries.filter(
+        (entry) => entry.timestamp >= thirtyDaysAgo,
+      );
+      const thirtyDaySets = thirtyDayEntries.reduce(
+        (sum, entry) => sum + entry.sets,
+        0,
+      );
+      const thirtyDayVolume = thirtyDayEntries.reduce(
+        (sum, entry) => sum + entry.volume,
+        0,
+      );
+      const improvementScore = latestEntry.estimatedMax - firstEntry.estimatedMax;
+      const improvementPercent =
+        firstEntry.estimatedMax > 0
+          ? (improvementScore / firstEntry.estimatedMax) * 100
+          : latestEntry.estimatedMax > 0
+            ? 100
+            : 0;
+
+      compoundLiftSummaries.push({
+        bestScore: bestEntry.score,
+        bestWeight: bestEntry.weight,
+        bestThirtyDayTimestamp: bestThirtyDayEntry?.timestamp ?? null,
+        bestThirtyDayWeight: bestThirtyDayEntry?.weight ?? 0,
+        improvementPercent,
+        improvementScore,
+        latestEstimatedMax: latestEntry.estimatedMax,
+        name: compoundLift.name,
+        thirtyDaySets,
+        thirtyDayVolume,
+      });
+    });
+
+    const totalCompoundThirtyDayVolume = compoundLiftSummaries.reduce(
+      (sum, summary) => sum + summary.thirtyDayVolume,
+      0,
+    );
+
+    const selectedCompoundLiftNames = new Set<string>();
+    const pickCompoundLift = (
+      summaries: typeof compoundLiftSummaries,
+    ) => {
+      const selected =
+        summaries.find((summary) => !selectedCompoundLiftNames.has(summary.name)) ||
+        null;
+      if (selected) selectedCompoundLiftNames.add(selected.name);
+      return selected;
+    };
+    const heaviestCompoundLift = pickCompoundLift(
+      [...compoundLiftSummaries].sort(
+        (a, b) => b.bestWeight - a.bestWeight || b.bestScore - a.bestScore,
+      ),
+    );
+    const mostImprovedCompoundLift = pickCompoundLift(
+      [...compoundLiftSummaries].sort(
+        (a, b) =>
+          b.improvementPercent - a.improvementPercent ||
+          b.improvementScore - a.improvementScore,
+      ),
+    );
+    const needsImprovementCompoundLift = pickCompoundLift(
+      [...compoundLiftSummaries].sort(
+        (a, b) =>
+          a.thirtyDayVolume - b.thirtyDayVolume ||
+          a.thirtyDaySets - b.thirtyDaySets ||
+          a.improvementPercent - b.improvementPercent,
+      ),
+    );
+    const formatCompoundLiftLoad = (
+      summary: (typeof compoundLiftSummaries)[number] | null,
+    ) => {
+      if (!summary) return "--";
+      const load = summary.bestWeight > 0 ? summary.bestWeight : summary.bestScore;
+      return load > 0 ? `${Math.round(load).toLocaleString()} lb` : "--";
+    };
+    const formatCompoundLiftChange = (
+      summary: (typeof compoundLiftSummaries)[number] | null,
+    ) => {
+      if (!summary) return "--";
+      const roundedChange = Math.round(summary.improvementPercent);
+      return `${roundedChange >= 0 ? "+" : ""}${roundedChange}%`;
+    };
+    const formatCompoundLiftThirtyDayWeight = (
+      summary: (typeof compoundLiftSummaries)[number] | null,
+    ) =>
+      summary && summary.bestThirtyDayWeight > 0
+        ? `${Math.round(summary.bestThirtyDayWeight).toLocaleString()} lb`
+        : "-- lb";
+    const formatCompoundLiftThirtyDayDate = (
+      summary: (typeof compoundLiftSummaries)[number] | null,
+    ) =>
+      summary?.bestThirtyDayTimestamp
+        ? new Intl.DateTimeFormat("en-US", {
+            day: "numeric",
+            month: "short",
+          }).format(new Date(summary.bestThirtyDayTimestamp))
+        : "-- date";
+    const formatCompoundLiftRelativeVolume = (
+      summary: (typeof compoundLiftSummaries)[number] | null,
+    ) =>
+      summary && totalCompoundThirtyDayVolume > 0
+        ? `${Math.round(
+            (summary.thirtyDayVolume / totalCompoundThirtyDayVolume) * 100,
+          )}%`
+        : "--%";
+    const formatCompoundLiftSets = (
+      summary: (typeof compoundLiftSummaries)[number] | null,
+    ) =>
+      summary ? Math.round(summary.thirtyDaySets).toLocaleString() : "0";
+    const compoundLiftHighlights = [
+      {
+        dateLabel: formatCompoundLiftThirtyDayDate(heaviestCompoundLift),
+        detail: "Heaviest Lift",
+        label: heaviestCompoundLift?.name || "Log heavy lift",
+        rank: 1,
+        setsLabel: formatCompoundLiftSets(heaviestCompoundLift),
+        tone: "heavy",
+        value: formatCompoundLiftLoad(heaviestCompoundLift),
+        volumeLabel: formatCompoundLiftRelativeVolume(heaviestCompoundLift),
+        weightLabel: formatCompoundLiftThirtyDayWeight(heaviestCompoundLift),
+        windowLabel: "30 day best",
+      },
+      {
+        dateLabel: formatCompoundLiftThirtyDayDate(mostImprovedCompoundLift),
+        detail: "Most Improved",
+        label: mostImprovedCompoundLift?.name || "Build trend",
+        rank: 2,
+        setsLabel: formatCompoundLiftSets(mostImprovedCompoundLift),
+        tone: "improved",
+        value: formatCompoundLiftChange(mostImprovedCompoundLift),
+        volumeLabel: formatCompoundLiftRelativeVolume(mostImprovedCompoundLift),
+        weightLabel: formatCompoundLiftThirtyDayWeight(mostImprovedCompoundLift),
+        windowLabel: "30 day best",
+      },
+      {
+        dateLabel: formatCompoundLiftThirtyDayDate(needsImprovementCompoundLift),
+        detail: "Needs Work",
+        label: needsImprovementCompoundLift?.name || "Add compound",
+        rank: 3,
+        setsLabel: formatCompoundLiftSets(needsImprovementCompoundLift),
+        tone: "needs",
+        value: formatCompoundLiftChange(needsImprovementCompoundLift),
+        volumeLabel: formatCompoundLiftRelativeVolume(
+          needsImprovementCompoundLift,
+        ),
+        weightLabel: formatCompoundLiftThirtyDayWeight(
+          needsImprovementCompoundLift,
+        ),
+        windowLabel: "30 day best",
+      },
+    ];
     const workoutDates = groupWorkoutDates(exerciseStats);
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
     const weeklyExerciseStats = exerciseStats.filter((stat) => {
@@ -5193,34 +6189,24 @@ export default function UserHomeDashboardPage() {
       const timestamp = new Date(date).getTime();
       return Number.isFinite(timestamp) && timestamp >= sevenDaysAgo;
     }).length;
-    const weeklySessionBars = Array.from({ length: 7 }, (_, dayIndex) => {
-      const dayDate = addDashboardDays(dashboardToday, dayIndex - 6);
-      const dayStart = new Date(
-        dayDate.getFullYear(),
-        dayDate.getMonth(),
-        dayDate.getDate(),
-      ).getTime();
-      const dayEnd = dayStart + 24 * 60 * 60 * 1000;
-      const sessionCount = workoutDates.filter((date) => {
-        const timestamp = new Date(date).getTime();
-        return (
-          Number.isFinite(timestamp) &&
-          timestamp >= dayStart &&
-          timestamp < dayEnd
-        );
-      }).length;
-
-      return {
-        active: sessionCount > 0,
-        label: new Intl.DateTimeFormat("en-US", { weekday: "narrow" }).format(
-          dayDate,
-        ),
-        value: sessionCount > 0 ? Math.min(100, 42 + sessionCount * 22) : 14,
-      };
-    });
+    const planSessionsAttended = Math.min(
+      DASHBOARD_PLAN_SESSION_TARGET,
+      workoutDates.length,
+    );
+    const planSessionProgress = clampDashboardPercent(
+      (planSessionsAttended / DASHBOARD_PLAN_SESSION_TARGET) * 100,
+    );
+    const weeklySessionGoal = DASHBOARD_WEEKLY_SESSION_GOAL;
+    const weeklySessionProgress = clampDashboardPercent(
+      (workoutsThisWeek / weeklySessionGoal) * 100,
+    );
+    const weeklySetGoal = Math.max(12, weeklySessionGoal * 4);
     const weeklySets = weeklyExerciseStats.reduce(
       (sum, stat) => sum + toLoggedNumber(stat.sets),
       0,
+    );
+    const weeklySetProgress = clampDashboardPercent(
+      (weeklySets / weeklySetGoal) * 100,
     );
     const weeklyVolume = weeklyExerciseStats.reduce(
       (sum, stat) =>
@@ -5230,6 +6216,183 @@ export default function UserHomeDashboardPage() {
           toLoggedNumber(stat.sets),
       0,
     );
+    const dashboardProfile = readDashboardLocalRecord(
+      SOUND_FITNESS_PROFILE_STORAGE_KEY,
+    );
+    const dashboardGoals = readDashboardLocalRecord(DASHBOARD_GOALS_STORAGE_KEY);
+    const dashboardMeasurements = asRecord(dashboardProfile.measurements);
+    const dashboardNutritionDirection = asRecord(
+      dashboardProfile.nutritionDirection,
+    );
+    const dashboardBodyStatus = asRecord(dashboardProfile.bodyStatus);
+    const currentBodyWeight = readDashboardNumber(
+      dashboardProfile.currentWeight,
+      dashboardMeasurements.weight,
+      dashboardGoals.currentWeight,
+    );
+    const dailyCalorieGoal = readDashboardNumber(
+      dashboardProfile.calorieGoalKnown,
+      dashboardGoals.targetCalories,
+      dashboardGoals.calorieGoal,
+      dashboardGoals.dailyCalories,
+      dashboardNutritionDirection.calorieTarget,
+    );
+    const estimatedDailyCalories =
+      dailyCalorieGoal || Math.round((currentBodyWeight || 180) * 14);
+    const weeklyCalories = estimatedDailyCalories * 7;
+    const weeklyCaloriesGoal = weeklyCalories;
+    const weeklyCaloriesProgress = dailyCalorieGoal
+      ? 100
+      : exerciseStats.length
+        ? 72
+        : 42;
+    const bodyMetricSources = [
+      ...(Array.isArray(dashboardProfile.bodyMetricHistory)
+        ? dashboardProfile.bodyMetricHistory
+        : []),
+      ...(Array.isArray(dashboardProfile.bodyScanImports)
+        ? dashboardProfile.bodyScanImports
+        : []),
+    ];
+    const bodyWeightHistory = bodyMetricSources
+      .map((item) => {
+        const record = asRecord(item);
+        const savedAt = readDashboardText(
+          record.savedAt,
+          record.date,
+          record.scanDate,
+          record.importedAt,
+        );
+        const timestamp = savedAt ? new Date(savedAt).getTime() : NaN;
+        const weight = readDashboardNumber(record.weight);
+
+        return Number.isFinite(timestamp) && weight > 0
+          ? { timestamp, weight }
+          : null;
+      })
+      .filter((item): item is { timestamp: number; weight: number } =>
+        Boolean(item),
+      );
+
+    if (currentBodyWeight > 0) {
+      bodyWeightHistory.push({
+        timestamp: Date.now(),
+        weight: currentBodyWeight,
+      });
+    }
+
+    bodyWeightHistory.sort((a, b) => a.timestamp - b.timestamp);
+
+    const latestBodyWeight = bodyWeightHistory[bodyWeightHistory.length - 1];
+    const previousBodyWeight =
+      bodyWeightHistory.length > 1
+        ? bodyWeightHistory[bodyWeightHistory.length - 2]
+        : null;
+    const weightChange =
+      latestBodyWeight && previousBodyWeight
+        ? latestBodyWeight.weight - previousBodyWeight.weight
+        : 0;
+    const weightChangeTone =
+      weightChange > 0.05 ? "up" : weightChange < -0.05 ? "down" : "flat";
+    const weightTrendText = readDashboardText(dashboardBodyStatus.weightTrend);
+    const weightChangeTrendLabel =
+      weightTrendText && weightTrendText !== "Not Sure"
+        ? weightTrendText
+        : previousBodyWeight
+          ? "Latest check-in"
+          : "Add weigh-in";
+    const weightChangeProgress = Math.max(
+      6,
+      clampDashboardPercent((Math.min(Math.abs(weightChange), 5) / 5) * 100),
+    );
+    const dailySetGoal = Math.max(
+      12,
+      Math.ceil(weeklySetGoal / Math.max(1, weeklySessionGoal)),
+    );
+    const getDailySetGroup = (stat: LocalExerciseStatEntry) => {
+      const signature = [
+        stat.exerciseName,
+        stat.body,
+        stat.pattern,
+        stat.coreMovementPattern,
+        stat.semanticVariationName,
+      ]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ");
+      const isCompound = DASHBOARD_COMPOUND_LIFT_PATTERNS.some((pattern) =>
+        signature.includes(pattern),
+      );
+      const isLowerBody = [
+        "squat",
+        "deadlift",
+        "lunge",
+        "leg",
+        "hip",
+        "glute",
+        "hamstring",
+        "quad",
+        "calf",
+      ].some((term) => signature.includes(term));
+      const isUpperBody = [
+        "bench",
+        "press",
+        "row",
+        "pull",
+        "chin",
+        "dip",
+        "shoulder",
+        "chest",
+        "back",
+      ].some((term) => signature.includes(term));
+
+      if (isCompound && isLowerBody) return "lower-compound";
+      if (isCompound && isUpperBody) return "upper-compound";
+      if (isCompound) return "compound";
+      return "accessory";
+    };
+    const dailySetGroupLabels: Record<string, string> = {
+      accessory: "Accessory",
+      compound: "Compound",
+      "lower-compound": "Lower compound",
+      "upper-compound": "Upper compound",
+    };
+    const dailySetEntries = todayExerciseStats.flatMap((stat) => {
+      const setCount = Math.max(0, Math.round(toLoggedNumber(stat.sets)));
+      const group = getDailySetGroup(stat);
+
+      return Array.from({ length: setCount }, (_, setIndex) => ({
+        group,
+        id: `${stat.exerciseId || stat.exerciseName}-${stat.date}-${setIndex}`,
+      }));
+    });
+    const dailySetFocusGroup = dailySetEntries[0]?.group || "lower-compound";
+    const dailySetGroupCounts = dailySetEntries.reduce<Record<string, number>>(
+      (counts, setEntry) => ({
+        ...counts,
+        [setEntry.group]: (counts[setEntry.group] || 0) + 1,
+      }),
+      {},
+    );
+    const dailySetGroupSummary = Object.entries(dailySetGroupCounts)
+      .filter(([, count]) => count > 0)
+      .map(
+        ([group, count]) =>
+          `${count} ${dailySetGroupLabels[group] || "Other"}`,
+      )
+      .join(", ");
+    const dailySetTallyMarks = Array.from(
+      { length: dailySetGoal },
+      (_, markIndex) => {
+        const setEntry = dailySetEntries[markIndex];
+
+        return {
+          filled: Boolean(setEntry),
+          group: setEntry?.group || dailySetFocusGroup,
+          id: setEntry?.id || `empty-${markIndex}`,
+        };
+      },
+    );
+    const dailySets = dailySetEntries.length;
     const latestTemplate = [...savedTemplates].sort(
       (a, b) =>
         new Date(b.updatedAt || b.createdAt).getTime() -
@@ -5240,8 +6403,35 @@ export default function UserHomeDashboardPage() {
       totalLoggedEntries: exerciseStats.length,
       workoutSessionEntries: workoutSessionEntries.length,
       completedWorkouts: workoutDates.length,
+      compoundLiftHighlights,
+      planSessionsAttended,
+      planSessionProgress,
+      planSessionTarget: DASHBOARD_PLAN_SESSION_TARGET,
+      prProgress,
+      prTarget,
+      recentPrCount,
       workoutsThisWeek,
-      weeklySessionBars,
+      weeklySessionGoal,
+      weeklySessionProgress,
+      weeklyCalories,
+      weeklyCaloriesDisplay: formatDashboardCompactCalories(weeklyCalories),
+      weeklyCaloriesGoal,
+      weeklyCaloriesProgress,
+      dailySetGoal,
+      dailySetGroupSummary:
+        dailySetGroupSummary ||
+        `${dailySetGroupLabels[dailySetFocusGroup]} day, no sets logged yet`,
+      dailySets,
+      dailySetTallyMarks,
+      weightChange,
+      weightChangeLabel: `${weightChange > 0 ? "+" : ""}${weightChange.toFixed(
+        1,
+      )}`,
+      weightChangeProgress,
+      weightChangeTone,
+      weightChangeTrendLabel,
+      weeklySetGoal,
+      weeklySetProgress,
       totalSets,
       totalVolume,
       weeklySets,
@@ -5251,6 +6441,7 @@ export default function UserHomeDashboardPage() {
       mostRecentDate: formatDashboardDate(latest?.date),
       hasStats: exerciseStats.length > 0,
       latestEntries: sortedStats.slice(0, 3),
+      latestWorkoutSessionTimestamp,
       latestTemplate,
       templateCount: savedTemplates.length,
     };
@@ -5282,6 +6473,53 @@ export default function UserHomeDashboardPage() {
           href: ROUTES.dashboard.sessions,
           cta: "Open Sessions",
         };
+  const dashboardWeeklySessionResetDate =
+    getDashboardWeekResetDate(dashboardToday);
+  const dashboardWeeklySessionResetLabel = formatHeaderMeterDeadline(
+    dashboardWeeklySessionResetDate,
+  );
+  const dashboardWeeklySessionResetFullLabel = formatHeaderMeterFullDateTime(
+    dashboardWeeklySessionResetDate,
+  );
+  const dashboardPlanSessionsAttended = dashboardSummary.planSessionsAttended;
+  const dashboardPlanSessionsRemaining = Math.max(
+    0,
+    dashboardSummary.planSessionTarget - dashboardPlanSessionsAttended,
+  );
+  const dashboardPlanSessionCadenceMs =
+    (7 / Math.max(1, dashboardSummary.weeklySessionGoal)) *
+    24 *
+    60 *
+    60 *
+    1000;
+  const dashboardNextPlannedSessionDate =
+    dashboardSummary.latestWorkoutSessionTimestamp === null
+      ? dashboardToday
+      : new Date(
+          dashboardSummary.latestWorkoutSessionTimestamp +
+            dashboardPlanSessionCadenceMs,
+        );
+
+  while (
+    !activeSessionTemplate &&
+    dashboardNextPlannedSessionDate.getTime() < dashboardToday.getTime()
+  ) {
+    dashboardNextPlannedSessionDate.setTime(
+      dashboardNextPlannedSessionDate.getTime() + dashboardPlanSessionCadenceMs,
+    );
+  }
+
+  const dashboardNextPlannedSessionLabel = activeSessionTemplate
+    ? "Now"
+    : formatHeaderMeterDeadline(dashboardNextPlannedSessionDate);
+  const dashboardNextPlannedSessionFullLabel = activeSessionTemplate
+    ? "a planned session is live now"
+    : formatHeaderMeterFullDateTime(dashboardNextPlannedSessionDate);
+  const dashboardPlanAttendanceCaption =
+    dashboardPlanSessionsRemaining <= 0
+      ? "Plan complete"
+      : `Next ${dashboardNextPlannedSessionLabel}`;
+  const dashboardPlanAttendanceDescription = `${dashboardPlanSessionsAttended} of ${dashboardSummary.planSessionTarget} plan sessions attended. Next planned session ${dashboardNextPlannedSessionFullLabel}`;
 
   const planHighlights = [
     {
@@ -5808,6 +7046,7 @@ export default function UserHomeDashboardPage() {
     dashboardSummary.completedWorkouts * 4 +
     dashboardSummary.templateCount * 6 +
     (dashboardSummary.hasStats ? 12 : 0);
+  const soundEmeralds = Math.max(0, Math.floor(soundTokens / 25));
   const soundPointsIntoLevel = soundPoints % soundFitnessLevelSize;
   const soundPointsToNextLevel =
     soundFitnessLevelSize - soundPointsIntoLevel || soundFitnessLevelSize;
@@ -6269,14 +7508,14 @@ export default function UserHomeDashboardPage() {
       tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
     },
     {
-      helper: "Milestones, badges, Sound Points, and token rewards.",
+      helper: "Milestones, badges, Sound Points, tokens, and emerald rewards.",
       href: ROUTES.dashboard.achievements,
       icon: "goals",
       label: "Achievements",
       references: [
         `${soundPoints.toLocaleString()} points`,
+        `${soundEmeralds.toLocaleString()} emeralds`,
         `${soundTokens.toLocaleString()} tokens`,
-        `${dashboardProfileHubCompletion}% profile`,
       ],
       stat: "Rewards",
       tone: "border-orange-200/24 bg-orange-300/10 text-orange-100",
@@ -6290,6 +7529,7 @@ export default function UserHomeDashboardPage() {
   const openDashboardProfileHub = () => {
     setDashboardPointsDropdownOpen(false);
     setDashboardMusicDropdownOpen(false);
+    setDashboardHeaderMeterMenuOpen(false);
     setActiveDashboardProfileHubLayer(0);
     setActiveDashboardProfileHubMainIndex(0);
     setActiveDashboardProfileHubAccountIndex(0);
@@ -6301,6 +7541,7 @@ export default function UserHomeDashboardPage() {
   const toggleDashboardPointsDropdown = () => {
     setDashboardProfileHubOpen(false);
     setDashboardMusicDropdownOpen(false);
+    setDashboardHeaderMeterMenuOpen(false);
     setDashboardPointsDropdownOpen((open) => !open);
   };
   const selectDashboardProfileHubLayer = (layer: number) => {
@@ -6714,7 +7955,7 @@ export default function UserHomeDashboardPage() {
       metric: soundPoints.toLocaleString(),
       rows: [
         {
-          detail: `${soundTokens.toLocaleString()} Sound Tokens`,
+          detail: `${soundEmeralds.toLocaleString()} Emeralds | ${soundTokens.toLocaleString()} Sound Tokens`,
           label: "Wallet",
           value: `${soundPoints.toLocaleString()} pts`,
         },
@@ -6958,8 +8199,8 @@ export default function UserHomeDashboardPage() {
           value: soundTokens.toLocaleString(),
         },
         {
-          label: "Profile",
-          value: `${dashboardProfileHubCompletion}%`,
+          label: "Emeralds",
+          value: soundEmeralds.toLocaleString(),
         },
         progressMetric,
       ];
@@ -6994,8 +8235,8 @@ export default function UserHomeDashboardPage() {
           value: soundTokens.toLocaleString(),
         },
         {
-          label: "Inner Focus",
-          value: stepLabel,
+          label: "Emeralds",
+          value: soundEmeralds.toLocaleString(),
         },
         progressMetric,
       ];
@@ -7234,7 +8475,11 @@ export default function UserHomeDashboardPage() {
   ): DashboardHeaderVortexMode =>
     direction === "up" || direction === "right" ? "clockwise" : "counter";
   const dashboardHeaderActiveVortexMode =
-    dashboardHeaderScrollButtonActiveDirection
+    dashboardHeaderMenuOrbitActiveDirection
+      ? getDashboardHeaderVortexModeForDirection(
+          dashboardHeaderMenuOrbitActiveDirection,
+        )
+      : dashboardHeaderScrollButtonActiveDirection
       ? getDashboardHeaderVortexModeForDirection(
           dashboardHeaderScrollButtonActiveDirection,
         )
@@ -7249,6 +8494,60 @@ export default function UserHomeDashboardPage() {
           ? "settling"
           : "active"
         : "idle";
+  const dashboardHeaderHasLiveHighlight = Boolean(
+    dashboardHeaderActiveVortexMode ||
+      dashboardHeaderVortexPulseMode ||
+      dashboardHeaderScrollButtonActiveDirection ||
+      dashboardHeaderMenuOrbitActiveDirection ||
+      dashboardHeaderScrollButtonDragging ||
+      dashboardHeaderMenuOrbitDragging ||
+      dashboardHeaderMeterRailActive ||
+      dashboardHeaderMeterMenuOpen ||
+      dashboardProfileActionsOpen ||
+      dashboardPointsDropdownOpen ||
+      dashboardMusicDropdownOpen,
+  );
+  const clearDashboardHeaderIdleTimeout = () => {
+    if (dashboardHeaderIdleTimeoutRef.current !== null) {
+      window.clearTimeout(dashboardHeaderIdleTimeoutRef.current);
+      dashboardHeaderIdleTimeoutRef.current = null;
+    }
+  };
+  const startDashboardHeaderIdleTimeout = () => {
+    if (typeof window === "undefined") return;
+
+    clearDashboardHeaderIdleTimeout();
+    dashboardHeaderIdleTimeoutRef.current = window.setTimeout(() => {
+      dashboardHeaderIdleTimeoutRef.current = null;
+      setDashboardHeaderTimedOut(true);
+    }, DASHBOARD_HEADER_IDLE_TIMEOUT_MS);
+  };
+  const wakeDashboardHeaderMenu = () => {
+    setDashboardHeaderTimedOut(false);
+
+    if (!dashboardHeaderHasLiveHighlight) {
+      startDashboardHeaderIdleTimeout();
+    }
+  };
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (dashboardHeaderHasLiveHighlight) {
+      clearDashboardHeaderIdleTimeout();
+      setDashboardHeaderTimedOut(false);
+      return;
+    }
+
+    startDashboardHeaderIdleTimeout();
+
+    return () => {
+      clearDashboardHeaderIdleTimeout();
+    };
+  }, [
+    activeDashboardHeaderNormalizedIndex,
+    dashboardHeaderHasLiveHighlight,
+    dashboardHeaderMenuActiveIndex,
+  ]);
   const activeDashboardHeaderUrgencyTone = getDashboardRowUrgencyTone(
     activeDashboardHeaderLink.completion,
   );
@@ -7264,10 +8563,20 @@ export default function UserHomeDashboardPage() {
   const dashboardHeaderScrollButtonPreviewLink =
     dashboardHeaderScrollButtonActiveDirection === "left"
       ? previousDashboardHeaderLink
+      : dashboardHeaderScrollButtonActiveDirection === "right"
+        ? nextDashboardHeaderLink
+        : activeDashboardHeaderLink;
+  const dashboardHeaderMenuOrbitPreviewLink =
+    dashboardHeaderMenuOrbitActiveDirection === "left"
+      ? previousDashboardHeaderLink
       : nextDashboardHeaderLink;
   const dashboardHeaderScrollButtonPreviewTone =
     dashboardHeaderScrollButtonPreviewToneStyles[
       dashboardHeaderScrollButtonPreviewLink.toneKey
+    ];
+  const dashboardHeaderMenuOrbitPreviewTone =
+    dashboardHeaderScrollButtonPreviewToneStyles[
+      dashboardHeaderMenuOrbitPreviewLink.toneKey
     ];
   const dashboardHeaderActiveScrollButtonTone =
     dashboardHeaderScrollButtonPreviewToneStyles[
@@ -7281,6 +8590,26 @@ export default function UserHomeDashboardPage() {
           dashboardHeaderLinks.length
         : (currentIndex + 1) % dashboardHeaderLinks.length,
     );
+  };
+  const rotateDashboardHeaderMenu = (direction: "left" | "right") => {
+    setDashboardHeaderSlideDirection(direction);
+    setDashboardHeaderMenuActiveIndex((currentIndex) =>
+      direction === "left"
+        ? (currentIndex - 1 + DASHBOARD_HEADER_MENU_BLOCK_COUNT) %
+          DASHBOARD_HEADER_MENU_BLOCK_COUNT
+        : (currentIndex + 1) % DASHBOARD_HEADER_MENU_BLOCK_COUNT,
+    );
+  };
+  const getDashboardHeaderMenuBlockSlot = (blockIndex: number) => {
+    const relativeIndex =
+      (blockIndex - dashboardHeaderMenuActiveIndex +
+        DASHBOARD_HEADER_MENU_BLOCK_COUNT) %
+      DASHBOARD_HEADER_MENU_BLOCK_COUNT;
+
+    if (relativeIndex === 0) return "center";
+    if (relativeIndex === 1) return "right";
+    if (relativeIndex === DASHBOARD_HEADER_MENU_BLOCK_COUNT - 1) return "left";
+    return "back";
   };
   const getDashboardAnalogOffset = (
     deltaX: number,
@@ -7380,10 +8709,13 @@ export default function UserHomeDashboardPage() {
   const runDashboardHeaderScrollButtonDirection = (
     direction: DashboardScrollButtonDirection,
   ) => {
+    wakeDashboardHeaderMenu();
+
     const didMove =
       direction === "left" || direction === "right"
         ? (rotateDashboardHeaderRail(direction), true)
         : rotateDashboardHeaderJourneyTabs(direction);
+
     if (!didMove) return false;
 
     pulseDashboardHeaderVortex(direction);
@@ -7552,6 +8884,146 @@ export default function UserHomeDashboardPage() {
         }
       }, 220);
     }
+  };
+  const runDashboardHeaderMenuOrbitDirection = (
+    direction: DashboardHorizontalScrollDirection,
+  ) => {
+    wakeDashboardHeaderMenu();
+
+    rotateDashboardHeaderMenu(direction);
+    pulseDashboardHeaderVortex(direction);
+
+    setDashboardHeaderMenuOrbitRoll((currentRoll) =>
+      currentRoll + (direction === "right" ? 120 : -120),
+    );
+
+    return true;
+  };
+  const stopDashboardHeaderMenuOrbitHold = () => {
+    const releasedDirection = dashboardHeaderMenuOrbitHoldDirectionRef.current;
+
+    if (dashboardHeaderMenuOrbitHoldTimeoutRef.current !== null) {
+      window.clearTimeout(dashboardHeaderMenuOrbitHoldTimeoutRef.current);
+      dashboardHeaderMenuOrbitHoldTimeoutRef.current = null;
+    }
+
+    if (dashboardHeaderMenuOrbitHoldIntervalRef.current !== null) {
+      window.clearInterval(dashboardHeaderMenuOrbitHoldIntervalRef.current);
+      dashboardHeaderMenuOrbitHoldIntervalRef.current = null;
+    }
+
+    dashboardHeaderMenuOrbitHoldDirectionRef.current = null;
+    setDashboardHeaderMenuOrbitActiveDirection(null);
+    if (releasedDirection) {
+      settleDashboardHeaderVortex(releasedDirection);
+    }
+  };
+  const resetDashboardHeaderMenuOrbitDrag = () => {
+    dashboardHeaderMenuOrbitPointerStartRef.current = null;
+    setDashboardHeaderMenuOrbitDragging(false);
+    setDashboardHeaderMenuOrbitOffset({ x: 0, y: 0 });
+    stopDashboardHeaderMenuOrbitHold();
+  };
+  const startDashboardHeaderMenuOrbitHold = (
+    direction: DashboardHorizontalScrollDirection,
+  ) => {
+    if (dashboardHeaderMenuOrbitHoldDirectionRef.current === direction) {
+      return;
+    }
+
+    stopDashboardHeaderMenuOrbitHold();
+    runDashboardHeaderMenuOrbitDirection(direction);
+
+    dashboardHeaderMenuOrbitHoldDirectionRef.current = direction;
+    setDashboardHeaderMenuOrbitActiveDirection(direction);
+
+    dashboardHeaderMenuOrbitHoldTimeoutRef.current = window.setTimeout(() => {
+      dashboardHeaderMenuOrbitHoldIntervalRef.current = window.setInterval(
+        () => runDashboardHeaderMenuOrbitDirection(direction),
+        DASHBOARD_ANALOG_REPEAT_MS,
+      );
+    }, DASHBOARD_ANALOG_HOLD_DELAY_MS);
+  };
+  const handleDashboardHeaderMenuOrbitPointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    dashboardHeaderMenuOrbitPointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+    dashboardHeaderMenuOrbitPointerMovedRef.current = false;
+    setDashboardHeaderMenuOrbitDragging(true);
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const handleDashboardHeaderMenuOrbitPointerMove = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    const start = dashboardHeaderMenuOrbitPointerStartRef.current;
+    if (!start) return;
+
+    event.stopPropagation();
+
+    const deltaX = event.clientX - start.x;
+    const absDeltaX = Math.abs(deltaX);
+    if (absDeltaX < 4) return;
+
+    setDashboardHeaderMenuOrbitOffset(getDashboardAnalogOffset(deltaX, 0, 10));
+    setDashboardHeaderMenuOrbitRoll(
+      (currentRoll) => currentRoll + deltaX * 1.1,
+    );
+
+    if (absDeltaX < DASHBOARD_ANALOG_DRAG_THRESHOLD) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    dashboardHeaderMenuOrbitPointerMovedRef.current = true;
+
+    const nextDirection: DashboardHorizontalScrollDirection =
+      deltaX > 0 ? "right" : "left";
+
+    startDashboardHeaderMenuOrbitHold(nextDirection);
+  };
+  const handleDashboardHeaderMenuOrbitPointerEnd = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    resetDashboardHeaderMenuOrbitDrag();
+    event.stopPropagation();
+
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+
+    if (dashboardHeaderMenuOrbitPointerMovedRef.current) {
+      event.preventDefault();
+      window.setTimeout(() => {
+        dashboardHeaderMenuOrbitPointerMovedRef.current = false;
+      }, 0);
+    }
+  };
+  const handleDashboardHeaderMenuOrbitWheel = (
+    event: ReactWheelEvent<HTMLButtonElement>,
+  ) => {
+    const absDeltaX = Math.abs(event.deltaX);
+    if (absDeltaX < 8) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const nextDirection: DashboardHorizontalScrollDirection =
+      event.deltaX > 0 ? "right" : "left";
+
+    runDashboardHeaderMenuOrbitDirection(nextDirection);
+    setDashboardHeaderMenuOrbitActiveDirection(nextDirection);
+    window.setTimeout(() => {
+      if (!dashboardHeaderMenuOrbitDragging) {
+        setDashboardHeaderMenuOrbitActiveDirection(null);
+      }
+    }, 220);
   };
   const rotateActiveDashboardOrbiterRow = (
     direction: DashboardOrbitDirection,
@@ -7774,12 +9246,17 @@ export default function UserHomeDashboardPage() {
     }
   };
   useEffect(() => {
-    if (!dashboardHeaderScrollButtonDragging && !dashboardPageAnalogDragging) {
+    if (
+      !dashboardHeaderScrollButtonDragging &&
+      !dashboardHeaderMenuOrbitDragging &&
+      !dashboardPageAnalogDragging
+    ) {
       return;
     }
 
     const releaseActiveJoystickDrag = () => {
       resetDashboardHeaderScrollButtonDrag();
+      resetDashboardHeaderMenuOrbitDrag();
       resetDashboardPageAnalogDrag();
     };
 
@@ -7792,7 +9269,11 @@ export default function UserHomeDashboardPage() {
       window.removeEventListener("pointercancel", releaseActiveJoystickDrag);
       window.removeEventListener("blur", releaseActiveJoystickDrag);
     };
-  }, [dashboardHeaderScrollButtonDragging, dashboardPageAnalogDragging]);
+  }, [
+    dashboardHeaderMenuOrbitDragging,
+    dashboardHeaderScrollButtonDragging,
+    dashboardPageAnalogDragging,
+  ]);
   const heroAchievements = [
     {
       category: "volume",
@@ -7896,6 +9377,444 @@ export default function UserHomeDashboardPage() {
     },
   ] satisfies AchievementBadgeItem[];
   const heroAchievementCount = heroAchievements.length;
+  const headerAchievementItems = heroAchievements.filter(
+    (achievement) => achievement.variant !== "cta",
+  );
+  const headerAchievementTotal = Math.max(1, headerAchievementItems.length);
+  const getHeaderAchievementProgress = (achievement: AchievementBadgeItem) => {
+    const fallbackProgress =
+      achievement.status === "completed"
+        ? 100
+        : achievement.status === "locked"
+          ? 0
+          : 48;
+
+    return clampDashboardPercent(achievement.progress ?? fallbackProgress);
+  };
+  const getHeaderAchievementEstimate = (achievement: AchievementBadgeItem) => {
+    const progress = getHeaderAchievementProgress(achievement);
+
+    if (progress >= 100 || achievement.status === "completed") {
+      return {
+        fullLabel: `${achievement.label} is already earned`,
+        label: "Earned",
+      };
+    }
+
+    const plannedSessionsPerWeek = Math.max(
+      1,
+      dashboardSummary.weeklySessionGoal || DASHBOARD_WEEKLY_SESSION_GOAL,
+    );
+    const progressPerPlannedSession = 100 / plannedSessionsPerWeek;
+    const sessionsRemaining = Math.max(
+      1,
+      Math.ceil((100 - progress) / progressPerPlannedSession),
+    );
+    const daysPerPlannedSession = 7 / plannedSessionsPerWeek;
+    const daysRemaining = Math.max(
+      1,
+      Math.ceil(sessionsRemaining * daysPerPlannedSession),
+    );
+    const estimateDate = addDashboardDays(dashboardToday, daysRemaining);
+    const estimateDateLabel = formatAchievementEstimateDate(estimateDate);
+    const estimateFullDateLabel =
+      formatAchievementEstimateFullDate(estimateDate);
+
+    return {
+      fullLabel: `${achievement.label} estimated completion ${estimateFullDateLabel} if the current plan pace is followed`,
+      label: `Est. ${estimateDateLabel}`,
+    };
+  };
+  const headerAchievementsEarned = headerAchievementItems.filter(
+    (achievement) =>
+      achievement.status === "completed" || (achievement.progress ?? 0) >= 100,
+  ).length;
+  const headerAchievementProgress = clampDashboardPercent(
+    headerAchievementItems.reduce(
+      (sum, achievement) => sum + getHeaderAchievementProgress(achievement),
+      0,
+    ) / headerAchievementTotal,
+  );
+  const normalizedHeaderAchievementIndex =
+    headerAchievementItems.length > 0
+      ? dashboardHeaderAchievementActiveIndex % headerAchievementItems.length
+      : 0;
+  const activeHeaderAchievement =
+    headerAchievementItems[normalizedHeaderAchievementIndex] ??
+    headerAchievementItems[0];
+  const activeHeaderAchievementProgress = activeHeaderAchievement
+    ? getHeaderAchievementProgress(activeHeaderAchievement)
+    : 0;
+  const activeHeaderAchievementEstimate = activeHeaderAchievement
+    ? getHeaderAchievementEstimate(activeHeaderAchievement)
+    : { fullLabel: "Achievement estimate unavailable", label: "Est. TBD" };
+  const headerAchievementNext =
+    headerAchievementItems.find(
+      (achievement) =>
+        achievement.status === "active" && (achievement.progress ?? 0) < 100,
+    ) || headerAchievementItems.find((achievement) => achievement.status === "locked");
+  const dashboardHeaderTimeoutPortalMeters = useMemo(() => {
+    const prHighlights = dashboardSummary.compoundLiftHighlights;
+    const activePrHighlight =
+      prHighlights.length > 0
+        ? prHighlights[
+            dashboardHeaderPrActiveIndex % prHighlights.length
+          ]
+        : null;
+
+    return [
+      {
+        id: "sessions",
+        meta: `Reset ${dashboardWeeklySessionResetLabel}`,
+        progress: dashboardSummary.weeklySessionProgress,
+        title: "Sessions / Week",
+        tone: "emerald",
+        value: `${dashboardSummary.workoutsThisWeek}/${dashboardSummary.weeklySessionGoal}`,
+      },
+      {
+        id: "plan",
+        meta: dashboardPlanAttendanceCaption,
+        progress: dashboardSummary.planSessionProgress,
+        title: "Plan Sessions",
+        tone: "amber",
+        value: `${dashboardPlanSessionsAttended}/${dashboardSummary.planSessionTarget}`,
+      },
+      {
+        id: "sets",
+        meta: dashboardSummary.dailySetGroupSummary,
+        progress: clampDashboardPercent(
+          (dashboardSummary.dailySets /
+            Math.max(1, dashboardSummary.dailySetGoal)) *
+            100,
+        ),
+        title: "Daily Sets",
+        tone: "emerald",
+        value: `${dashboardSummary.dailySets}/${dashboardSummary.dailySetGoal}`,
+      },
+      {
+        id: "pr",
+        meta: activePrHighlight
+          ? `${activePrHighlight.detail} / ${activePrHighlight.windowLabel}`
+          : "30 day best pending",
+        progress: dashboardSummary.prProgress,
+        title: "Compound PR",
+        tone: "cyan",
+        value: activePrHighlight?.value ?? "0 lb",
+      },
+      {
+        id: "achievements",
+        meta: activeHeaderAchievement
+          ? `${activeHeaderAchievement.label} / ${activeHeaderAchievementEstimate.label}`
+          : "Achievement estimate pending",
+        progress: headerAchievementProgress,
+        title: "Achievements",
+        tone: "gold",
+        value: `${headerAchievementsEarned}/${headerAchievementTotal}`,
+      },
+      {
+        id: "calories",
+        meta: "Total week",
+        progress: dashboardSummary.weeklyCaloriesProgress,
+        title: "Weekly Calories",
+        tone: "violet",
+        value: dashboardSummary.weeklyCaloriesDisplay,
+      },
+      {
+        id: "weight",
+        meta: dashboardSummary.weightChangeTrendLabel,
+        progress: dashboardSummary.weightChangeProgress,
+        title: "Weight +/-",
+        tone: dashboardSummary.weightChangeTone === "flat" ? "cyan" : "violet",
+        value: dashboardSummary.weightChangeLabel,
+      },
+    ];
+  }, [
+    activeHeaderAchievement,
+    activeHeaderAchievementEstimate.label,
+    dashboardHeaderPrActiveIndex,
+    dashboardPlanAttendanceCaption,
+    dashboardPlanSessionsAttended,
+    dashboardSummary,
+    dashboardWeeklySessionResetLabel,
+    headerAchievementProgress,
+    headerAchievementTotal,
+    headerAchievementsEarned,
+  ]);
+  const normalizedDashboardHeaderTimeoutMeterIndex =
+    dashboardHeaderTimeoutPortalMeters.length > 0
+      ? ((dashboardHeaderTimeoutMeterIndex %
+          dashboardHeaderTimeoutPortalMeters.length) +
+          dashboardHeaderTimeoutPortalMeters.length) %
+        dashboardHeaderTimeoutPortalMeters.length
+      : 0;
+  const dashboardHeaderTimeoutPortalMeter =
+    dashboardHeaderTimeoutPortalMeters[
+      normalizedDashboardHeaderTimeoutMeterIndex
+    ] ?? dashboardHeaderTimeoutPortalMeters[0];
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const clearPortalTimers = () => {
+      if (dashboardHeaderTimeoutPortalIntervalRef.current !== null) {
+        window.clearTimeout(dashboardHeaderTimeoutPortalIntervalRef.current);
+        dashboardHeaderTimeoutPortalIntervalRef.current = null;
+      }
+
+      if (dashboardHeaderTimeoutPortalCloseTimeoutRef.current !== null) {
+        window.clearTimeout(
+          dashboardHeaderTimeoutPortalCloseTimeoutRef.current,
+        );
+        dashboardHeaderTimeoutPortalCloseTimeoutRef.current = null;
+      }
+    };
+
+    clearPortalTimers();
+
+    if (
+      !dashboardHeaderTimedOut ||
+      dashboardHeaderTimeoutPortalMeters.length === 0
+    ) {
+      setDashboardHeaderTimeoutPortalOpen(false);
+      return;
+    }
+
+    const openPortal = (advanceMeter: boolean) => {
+      setDashboardHeaderTimeoutPortalPosition({
+        x: 36 + Math.random() * 28,
+        y: 36 + Math.random() * 8,
+      });
+
+      if (advanceMeter) {
+        setDashboardHeaderTimeoutMeterIndex(
+          (currentIndex) =>
+            (currentIndex + 1) % dashboardHeaderTimeoutPortalMeters.length,
+        );
+      } else {
+        setDashboardHeaderTimeoutMeterIndex(
+          (currentIndex) =>
+            currentIndex % dashboardHeaderTimeoutPortalMeters.length,
+        );
+      }
+
+      setDashboardHeaderTimeoutPortalOpen(true);
+
+      if (dashboardHeaderTimeoutPortalCloseTimeoutRef.current !== null) {
+        window.clearTimeout(
+          dashboardHeaderTimeoutPortalCloseTimeoutRef.current,
+        );
+      }
+
+      dashboardHeaderTimeoutPortalCloseTimeoutRef.current = window.setTimeout(
+        () => {
+          dashboardHeaderTimeoutPortalCloseTimeoutRef.current = null;
+          setDashboardHeaderTimeoutPortalOpen(false);
+        },
+        DASHBOARD_HEADER_TIMEOUT_PORTAL_VISIBLE_MS,
+      );
+    };
+
+    const scheduleNextPortal = (delayMs: number, advanceMeter: boolean) => {
+      if (dashboardHeaderTimeoutPortalIntervalRef.current !== null) {
+        window.clearTimeout(dashboardHeaderTimeoutPortalIntervalRef.current);
+      }
+
+      dashboardHeaderTimeoutPortalIntervalRef.current = window.setTimeout(
+        () => {
+          dashboardHeaderTimeoutPortalIntervalRef.current = null;
+          openPortal(advanceMeter);
+          scheduleNextPortal(DASHBOARD_HEADER_TIMEOUT_PORTAL_INTERVAL_MS, true);
+        },
+        delayMs,
+      );
+    };
+
+    scheduleNextPortal(DASHBOARD_HEADER_TIMEOUT_PORTAL_BREAK_MS, false);
+
+    return clearPortalTimers;
+  }, [dashboardHeaderTimedOut, dashboardHeaderTimeoutPortalMeters.length]);
+
+  useEffect(() => {
+    if (headerAchievementItems.length < 2) return;
+
+    const intervalId = window.setInterval(() => {
+      setDashboardHeaderAchievementActiveIndex(
+        (currentIndex) => (currentIndex + 1) % headerAchievementItems.length,
+      );
+    }, DASHBOARD_HEADER_ACHIEVEMENT_ROTATE_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [headerAchievementItems.length]);
+  const getDashboardHeaderMeterSlot = (meterIndex: number) => {
+    const relativeIndex =
+      (meterIndex - dashboardHeaderMeterActiveIndex + DASHBOARD_HEADER_METER_COUNT) %
+      DASHBOARD_HEADER_METER_COUNT;
+
+    if (relativeIndex === 0) return "center";
+    if (relativeIndex === 1) return "right";
+    if (relativeIndex === DASHBOARD_HEADER_METER_COUNT - 1) return "left";
+    return "back";
+  };
+  const normalizedDashboardHeaderMeterPanelActiveIndex =
+    ((dashboardHeaderMeterPanelActiveIndex %
+      DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT) +
+      DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT) %
+    DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT;
+  const getDashboardHeaderMeterPanelSectionSlot = (sectionIndex: number) => {
+    const relativeIndex =
+      (sectionIndex -
+        normalizedDashboardHeaderMeterPanelActiveIndex +
+        DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT) %
+      DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT;
+
+    if (relativeIndex === 0) return "center";
+    if (relativeIndex === 1) return "right";
+    if (relativeIndex === DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT - 1) {
+      return "left";
+    }
+    return "back";
+  };
+  const rotateDashboardHeaderMeterPanelSections = (
+    direction: DashboardOrbitDirection,
+  ) => {
+    setDashboardHeaderMeterPanelActiveIndex((currentIndex) =>
+      direction === "left"
+        ? (currentIndex - 1 + DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT) %
+          DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT
+        : (currentIndex + 1) % DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT,
+    );
+  };
+  const dashboardHeaderPrCardCount =
+    dashboardSummary.compoundLiftHighlights.length;
+  const normalizedDashboardHeaderPrActiveIndex =
+    dashboardHeaderPrCardCount > 0
+      ? ((dashboardHeaderPrActiveIndex % dashboardHeaderPrCardCount) +
+          dashboardHeaderPrCardCount) %
+        dashboardHeaderPrCardCount
+      : 0;
+  const getDashboardHeaderPrCardSlot = (cardIndex: number) => {
+    if (dashboardHeaderPrCardCount < 2) return "center";
+
+    const relativeIndex =
+      (cardIndex -
+        normalizedDashboardHeaderPrActiveIndex +
+        dashboardHeaderPrCardCount) %
+      dashboardHeaderPrCardCount;
+
+    if (relativeIndex === 0) return "center";
+    if (relativeIndex === 1) return "right";
+    if (relativeIndex === dashboardHeaderPrCardCount - 1) return "left";
+    return "back";
+  };
+  const rotateDashboardHeaderPrCards = (direction: DashboardOrbitDirection) => {
+    if (dashboardHeaderPrCardCount < 2) return;
+
+    setDashboardHeaderPrActiveIndex((currentIndex) =>
+      direction === "left"
+        ? (currentIndex - 1 + dashboardHeaderPrCardCount) %
+          dashboardHeaderPrCardCount
+        : (currentIndex + 1) % dashboardHeaderPrCardCount,
+    );
+  };
+  const dashboardHeaderCategoryLevelCount = dashboardHeaderCategoryLevels.length;
+  const normalizedDashboardHeaderCategoryLevelActiveIndex =
+    dashboardHeaderCategoryLevelCount > 0
+      ? ((dashboardHeaderCategoryLevelActiveIndex %
+          dashboardHeaderCategoryLevelCount) +
+          dashboardHeaderCategoryLevelCount) %
+        dashboardHeaderCategoryLevelCount
+      : 0;
+  const getDashboardHeaderCategoryLevelSlot = (categoryIndex: number) => {
+    if (dashboardHeaderCategoryLevelCount < 2) return "center";
+
+    const relativeIndex =
+      (categoryIndex -
+        normalizedDashboardHeaderCategoryLevelActiveIndex +
+        dashboardHeaderCategoryLevelCount) %
+      dashboardHeaderCategoryLevelCount;
+
+    if (relativeIndex === 0) return "center";
+    if (relativeIndex === 1) return "right";
+    if (relativeIndex === 2) return "far-right";
+    if (relativeIndex === dashboardHeaderCategoryLevelCount - 1) return "left";
+    if (relativeIndex === dashboardHeaderCategoryLevelCount - 2) {
+      return "far-left";
+    }
+    return "back";
+  };
+  const rotateDashboardHeaderCategoryLevels = (
+    direction: DashboardOrbitDirection,
+  ) => {
+    if (dashboardHeaderCategoryLevelCount < 2) return;
+
+    setDashboardHeaderCategoryLevelActiveIndex((currentIndex) =>
+      direction === "left"
+        ? (currentIndex - 1 + dashboardHeaderCategoryLevelCount) %
+          dashboardHeaderCategoryLevelCount
+        : (currentIndex + 1) % dashboardHeaderCategoryLevelCount,
+    );
+  };
+  const handleDashboardHeaderPrWheel = (
+    event: ReactWheelEvent<HTMLDivElement>,
+  ) => {
+    const primaryDelta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY;
+
+    if (Math.abs(primaryDelta) < 14) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const now = Date.now();
+    if (now - dashboardHeaderPrWheelLockRef.current < 260) return;
+
+    dashboardHeaderPrWheelLockRef.current = now;
+    rotateDashboardHeaderPrCards(primaryDelta > 0 ? "right" : "left");
+  };
+  const handleDashboardHeaderMeterPanelWheel = (
+    event: ReactWheelEvent<HTMLDivElement>,
+  ) => {
+    const primaryDelta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY;
+
+    if (Math.abs(primaryDelta) < 14) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const now = Date.now();
+    if (now - dashboardHeaderMeterPanelWheelLockRef.current < 260) return;
+
+    dashboardHeaderMeterPanelWheelLockRef.current = now;
+    rotateDashboardHeaderMeterPanelSections(
+      primaryDelta > 0 ? "right" : "left",
+    );
+  };
+  const handleDashboardHeaderCategoryLevelWheel = (
+    event: ReactWheelEvent<HTMLDivElement>,
+  ) => {
+    const primaryDelta =
+      Math.abs(event.deltaX) > Math.abs(event.deltaY)
+        ? event.deltaX
+        : event.deltaY;
+
+    if (Math.abs(primaryDelta) < 14) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const now = Date.now();
+    if (now - dashboardHeaderCategoryLevelWheelLockRef.current < 260) return;
+
+    dashboardHeaderCategoryLevelWheelLockRef.current = now;
+    rotateDashboardHeaderCategoryLevels(primaryDelta > 0 ? "right" : "left");
+  };
   const rotateHeroAchievement = (direction: DashboardOrbitDirection) => {
     if (heroAchievementCount < 2) return;
 
@@ -8185,20 +10104,137 @@ export default function UserHomeDashboardPage() {
   const dashboardHeaderActiveJourneyStepLabel =
     getDashboardHeaderActiveJourneyStepLabel();
   const dashboardHeaderNewsHeadlines = useMemo<DashboardHeaderNewsHeadline[]>(
-    () => [
-      { label: activeDashboardHeaderLink.label },
-      { label: activeDashboardHeaderUrgencyTone.label, tone: "alert" },
-      { label: `${dashboardSummary.workoutsThisWeek} sessions / week` },
-      { label: `${momentumEntryStreak} day streak` },
-      { label: `${soundPoints.toLocaleString()} sound points` },
-      { label: `Next: ${dashboardHeaderActiveJourneyStepLabel}` },
-    ],
+    () => {
+      const activeHref = activeDashboardHeaderLink.href;
+      const planSessionsRemaining = Math.max(
+        0,
+        dashboardSummary.planSessionTarget - dashboardPlanSessionsAttended,
+      );
+      const weeklyVolumeLabel = Math.round(
+        dashboardSummary.weeklyVolume,
+      ).toLocaleString();
+      const latestLiftLabel = dashboardSummary.hasStats
+        ? dashboardSummary.latestExercise
+        : "your first logged lift";
+      const stageAdvice =
+        activeHref === ROUTES.dashboard.sessions
+          ? "Start the planned session, then leave one honest note before you exit."
+          : activeHref === ROUTES.dashboard.profile
+            ? "Cleaner profile inputs make every plan adjustment feel smarter."
+            : activeHref === ROUTES.dashboard.goals
+              ? "Pick one outcome and one repeatable behavior for this week."
+              : activeHref === ROUTES.nutritionPortal.home
+                ? "Anchor protein and hydration before chasing perfect numbers."
+                : activeHref === ROUTES.dashboard.recovery
+                  ? "Protect sleep and warmups so tomorrow has something to build on."
+                  : activeHref === ROUTES.performance.home
+                    ? "Compare patterns, not moods; the trend is the signal."
+                    : "Make the next action small enough to start today.";
+      const progressAdvice =
+        activeDashboardHeaderLink.completion < 35
+          ? "Early-stage win: remove friction and count the smallest clean start."
+          : activeDashboardHeaderLink.completion < 70
+            ? "Middle-stage win: repeat the plan before adding complexity."
+            : "Late-stage win: polish consistency and protect recovery.";
+      const makeChyronHeadline = (
+        category: string,
+        label: string,
+        tone?: DashboardHeaderNewsHeadline["tone"],
+      ): DashboardHeaderNewsHeadline => ({
+        category,
+        label,
+        tone,
+      });
+
+      return [
+        makeChyronHeadline(
+          "ADVICE",
+          `${activeDashboardHeaderLink.label} / ${dashboardHeaderActiveJourneyStepLabel}`,
+          "advice",
+        ),
+        makeChyronHeadline(
+          "ALERT",
+          activeDashboardHeaderUrgencyTone.label,
+          "alert",
+        ),
+        makeChyronHeadline("ADVICE", stageAdvice, "advice"),
+        makeChyronHeadline("ADVICE", progressAdvice, "advice"),
+        makeChyronHeadline(
+          "STATUS",
+          `${dashboardPlanSessionsAttended}/${dashboardSummary.planSessionTarget} plan sessions logged; ${planSessionsRemaining} to go`,
+        ),
+        makeChyronHeadline(
+          "STATUS",
+          `${dashboardSummary.workoutsThisWeek} sessions this week / ${soundPoints.toLocaleString()} sound points`,
+        ),
+        makeChyronHeadline(
+          "SIGNAL",
+          `${dashboardSummary.dailySets}/${dashboardSummary.dailySetGoal} daily sets and ${weeklyVolumeLabel} lb weekly volume`,
+        ),
+        makeChyronHeadline(
+          "SIGNAL",
+          `${dashboardSummary.weeklyCaloriesDisplay} weekly calories / weight ${dashboardSummary.weightChangeLabel} (${dashboardSummary.weightChangeTrendLabel})`,
+          "advice",
+        ),
+        makeChyronHeadline(
+          "ADVICE",
+          `${dashboardHeaderActiveJourneyStepLabel}; make it obvious enough to do tired.`,
+          "advice",
+        ),
+        makeChyronHeadline(
+          "ADVICE",
+          `${latestLiftLabel}; add load, reps, control, range, or cleaner rest.`,
+          "advice",
+        ),
+        makeChyronHeadline(
+          "QUOTE",
+          `Ronnie Coleman: "Ain't nothing to it but to do it."`,
+          "quote",
+        ),
+        makeChyronHeadline(
+          "QUOTE",
+          `Muhammad Ali: "Don't count the days, make the days count."`,
+          "quote",
+        ),
+        makeChyronHeadline(
+          "QUOTE",
+          `Arnold Schwarzenegger: "The last three or four reps" are where growth gets earned.`,
+          "quote",
+        ),
+        makeChyronHeadline(
+          "TRIVIA",
+          "progressive overload can be load, reps, sets, control, range, or rest.",
+          "trivia",
+        ),
+        makeChyronHeadline(
+          "TRIVIA",
+          "creatine helps recycle ATP for repeated high-output efforts.",
+          "trivia",
+        ),
+        makeChyronHeadline(
+          "TRIVIA",
+          "soreness is not the scoreboard; performance and recovery trends matter more.",
+          "trivia",
+        ),
+      ];
+    },
     [
+      activeDashboardHeaderLink.completion,
+      activeDashboardHeaderLink.href,
       activeDashboardHeaderLink.label,
       activeDashboardHeaderUrgencyTone.label,
       dashboardHeaderActiveJourneyStepLabel,
+      dashboardPlanSessionsAttended,
+      dashboardSummary.dailySetGoal,
+      dashboardSummary.dailySets,
+      dashboardSummary.hasStats,
+      dashboardSummary.latestExercise,
       dashboardSummary.workoutsThisWeek,
-      momentumEntryStreak,
+      dashboardSummary.planSessionTarget,
+      dashboardSummary.weeklyCaloriesDisplay,
+      dashboardSummary.weeklyVolume,
+      dashboardSummary.weightChangeLabel,
+      dashboardSummary.weightChangeTrendLabel,
       soundPoints,
     ],
   );
@@ -8214,10 +10250,16 @@ export default function UserHomeDashboardPage() {
         dashboardHeaderNewsHeadlineIndexRef.current
       ] || dashboardHeaderNewsHeadlines[0];
     const headlineElement = dashboardHeaderNewsHeadlineRef.current;
+    const kickerElement = dashboardHeaderNewsKickerRef.current;
 
     if (headlineElement && headline) {
       headlineElement.textContent = headline.label;
       headlineElement.dataset.newsTone = headline.tone || "default";
+    }
+
+    if (kickerElement && headline) {
+      kickerElement.textContent = headline.category;
+      kickerElement.dataset.newsTone = headline.tone || "default";
     }
   }, [dashboardHeaderNewsHeadlines]);
 
@@ -8233,6 +10275,7 @@ export default function UserHomeDashboardPage() {
 
     const showNextHeadline = () => {
       const headlineElement = dashboardHeaderNewsHeadlineRef.current;
+      const kickerElement = dashboardHeaderNewsKickerRef.current;
       const headlines = dashboardHeaderNewsHeadlinesRef.current;
       if (!headlineElement || headlines.length < 2) return;
 
@@ -8247,6 +10290,10 @@ export default function UserHomeDashboardPage() {
       void headlineElement.offsetHeight;
       headlineElement.textContent = nextHeadline.label;
       headlineElement.dataset.newsTone = nextHeadline.tone || "default";
+      if (kickerElement) {
+        kickerElement.textContent = nextHeadline.category;
+        kickerElement.dataset.newsTone = nextHeadline.tone || "default";
+      }
       headlineElement.classList.add(
         "dashboard-header-news-chyron__item--entering",
       );
@@ -9225,21 +11272,13 @@ export default function UserHomeDashboardPage() {
   };
 
   const renderDashboardHeaderScrollControls = () => {
-    const {
-      activeJourneyStepIndex: headerJoystickJourneyStepIndex,
-      card: headerJoystickJourneyCard,
-      journeySteps: headerJoystickJourneySteps,
-    } = getDashboardHeaderJourneyState();
-    const canHeaderJoystickScrollUp = Boolean(
-      headerJoystickJourneyCard &&
-        headerJoystickJourneySteps.length > 1 &&
-        headerJoystickJourneyStepIndex > 0,
-    );
-    const canHeaderJoystickScrollDown = Boolean(
-      headerJoystickJourneyCard &&
-        headerJoystickJourneySteps.length > 1 &&
-        headerJoystickJourneyStepIndex < headerJoystickJourneySteps.length - 1,
-    );
+    const { activeJourneyStepIndex, journeySteps } =
+      getDashboardHeaderJourneyState();
+    const canHeaderJoystickScrollUp =
+      journeySteps.length > 1 && activeJourneyStepIndex > 0;
+    const canHeaderJoystickScrollDown =
+      journeySteps.length > 1 &&
+      activeJourneyStepIndex < journeySteps.length - 1;
     const scrollButtonTiltX =
       dashboardHeaderScrollButtonActiveDirection === "up"
         ? "-22deg"
@@ -9256,7 +11295,7 @@ export default function UserHomeDashboardPage() {
     return (
       <button
         aria-label="Scroll dashboard selector"
-        className={`dashboard-header-scroll-button relative z-10 grid h-[3.35rem] w-[3.35rem] shrink-0 translate-x-8 -translate-y-2 place-items-center overflow-hidden rounded-[24px] border border-cyan-100/16 bg-slate-950/26 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-y-2.5 hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:420px] [touch-action:none] ${
+        className={`dashboard-header-selector-joystick dashboard-header-scroll-button relative z-30 -mr-5 grid h-[3.35rem] w-[3.35rem] shrink-0 translate-x-5 -translate-y-1.5 place-items-center overflow-hidden rounded-[24px] border border-cyan-100/16 bg-slate-950/26 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-y-2 hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:420px] [touch-action:none] ${
           dashboardHeaderScrollButtonDragging
             ? "dashboard-header-scroll-button--dragging cursor-grabbing border-amber-100/44 bg-amber-300/10"
             : "cursor-pointer"
@@ -9389,6 +11428,103 @@ export default function UserHomeDashboardPage() {
             v
           </span>
         ) : null}
+      </button>
+    );
+  };
+
+  const renderDashboardHeaderMenuOrbitControl = () => {
+    const menuOrbitTiltX = "7deg";
+    const menuOrbitTiltY =
+      dashboardHeaderMenuOrbitActiveDirection === "left"
+        ? "-22deg"
+        : dashboardHeaderMenuOrbitActiveDirection === "right"
+          ? "22deg"
+          : "0deg";
+
+    return (
+      <button
+        aria-label="Spin main header menu horizontally"
+        className={`dashboard-header-menu-orbit-control dashboard-header-scroll-button dashboard-header-scroll-button--horizontal grid place-items-center overflow-hidden border border-cyan-100/16 bg-slate-950/26 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:420px] [touch-action:none] ${
+          dashboardHeaderMenuOrbitDragging
+            ? "dashboard-header-scroll-button--dragging cursor-grabbing border-amber-100/44 bg-amber-300/10"
+            : "cursor-pointer"
+        } ${
+          dashboardHeaderMenuOrbitActiveDirection
+            ? `dashboard-header-scroll-button--${dashboardHeaderMenuOrbitActiveDirection}`
+            : ""
+        }`}
+        data-dashboard-header-menu-orbit-control="true"
+        onClick={(event) => {
+          if (dashboardHeaderMenuOrbitPointerMovedRef.current) {
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+
+          runDashboardHeaderMenuOrbitDirection("right");
+        }}
+        onBlur={resetDashboardHeaderMenuOrbitDrag}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            runDashboardHeaderMenuOrbitDirection("left");
+          }
+
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            runDashboardHeaderMenuOrbitDirection("right");
+          }
+        }}
+        onLostPointerCapture={handleDashboardHeaderMenuOrbitPointerEnd}
+        onPointerCancel={handleDashboardHeaderMenuOrbitPointerEnd}
+        onPointerDown={handleDashboardHeaderMenuOrbitPointerDown}
+        onPointerLeave={(event) => {
+          if (dashboardHeaderMenuOrbitDragging && event.buttons === 0) {
+            handleDashboardHeaderMenuOrbitPointerEnd(event);
+          }
+        }}
+        onPointerMove={handleDashboardHeaderMenuOrbitPointerMove}
+        onPointerUp={handleDashboardHeaderMenuOrbitPointerEnd}
+        onWheel={handleDashboardHeaderMenuOrbitWheel}
+        data-dashboard-tooltip="Spin main header menu"
+        style={
+          {
+            ...activeDashboardHeaderTone.iconEffectStyle,
+            ...dashboardHeaderMenuOrbitPreviewTone,
+            "--dashboard-header-scroll-button-roll": `${dashboardHeaderMenuOrbitRoll}deg`,
+            "--dashboard-header-scroll-button-tilt-x": menuOrbitTiltX,
+            "--dashboard-header-scroll-button-tilt-y": menuOrbitTiltY,
+            "--dashboard-analog-offset-x": `${dashboardHeaderMenuOrbitOffset.x}px`,
+            "--dashboard-analog-offset-y": `${dashboardHeaderMenuOrbitOffset.y}px`,
+          } as CSSProperties
+        }
+        type="button"
+      >
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__field"
+        />
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--left"
+        >
+          &lt;
+        </span>
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__ball"
+        >
+          <span className="dashboard-header-scroll-button__grid" />
+          <span className="dashboard-header-scroll-button__latitudes" />
+          <span className="dashboard-header-scroll-button__core" />
+          <span className="dashboard-header-scroll-button__spark" />
+        </span>
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--right"
+        >
+          &gt;
+        </span>
       </button>
     );
   };
@@ -10586,7 +12722,19 @@ export default function UserHomeDashboardPage() {
                     </div>
                   </div>
                 </div>
-                <div className="grid w-full shrink-0 gap-2 sm:grid-cols-2 md:w-auto md:grid-cols-1">
+                <div className="grid w-full shrink-0 gap-2 sm:grid-cols-3 md:w-auto md:grid-cols-1">
+                  <div className="rounded-2xl border border-emerald-200/22 bg-emerald-300/10 px-3 py-2.5">
+                    <div className="text-[8px] font-black uppercase tracking-[0.14em] text-emerald-100/70">
+                      Emeralds
+                    </div>
+                    <div className="mt-1 flex items-center gap-2 text-lg font-black text-white sm:text-xl">
+                      <span
+                        aria-hidden="true"
+                        className="dashboard-emerald-gem h-7 w-7"
+                      />
+                      {soundEmeralds.toLocaleString()}
+                    </div>
+                  </div>
                   <div className="rounded-2xl border border-amber-200/22 bg-amber-300/10 px-3 py-2.5">
                     <div className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/70">
                       Sound Points
@@ -10603,10 +12751,10 @@ export default function UserHomeDashboardPage() {
                       <Image
                         alt=""
                         aria-hidden="true"
-                        className="h-5 w-5 rounded-full object-contain"
-                        height={20}
-                        src="/sound-fitness-logo.png"
-                        width={20}
+                        className="h-8 w-8 rounded-full object-contain drop-shadow-[0_0_14px_rgba(34,211,238,0.28)]"
+                        height={32}
+                        src="/sound-token.png"
+                        width={32}
                       />
                       {soundTokens.toLocaleString()}
                     </div>
@@ -10729,18 +12877,1064 @@ export default function UserHomeDashboardPage() {
     );
   };
 
+  const renderDashboardHeaderCategoryActorFigure = () => (
+    <svg
+      aria-hidden="true"
+      className="dashboard-header-category-actor__figure"
+      focusable="false"
+      viewBox="0 0 64 64"
+    >
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--squat-up">
+        <line x1="14" x2="50" y1="16" y2="16" />
+        <circle cx="32" cy="10.5" r="4.3" />
+        <line x1="32" x2="32" y1="15" y2="31" />
+        <line x1="32" x2="18" y1="20" y2="16" />
+        <line x1="32" x2="46" y1="20" y2="16" />
+        <polyline points="32 31 25 40 23 52" />
+        <polyline points="32 31 39 40 41 52" />
+        <line x1="20" x2="28" y1="52" y2="52" />
+        <line x1="36" x2="44" y1="52" y2="52" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--squat-down">
+        <line x1="12" x2="52" y1="21" y2="21" />
+        <circle cx="32" cy="15.5" r="4.3" />
+        <line x1="32" x2="32" y1="20" y2="36" />
+        <line x1="32" x2="17" y1="24" y2="21" />
+        <line x1="32" x2="47" y1="24" y2="21" />
+        <polyline points="32 36 22 43 17 52" />
+        <polyline points="32 36 42 43 47 52" />
+        <line x1="14" x2="24" y1="52" y2="52" />
+        <line x1="40" x2="50" y1="52" y2="52" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--jack-closed">
+        <circle cx="32" cy="10.5" r="4.3" />
+        <line x1="32" x2="32" y1="15" y2="32" />
+        <line x1="32" x2="24" y1="21" y2="39" />
+        <line x1="32" x2="40" y1="21" y2="39" />
+        <line x1="32" x2="28" y1="32" y2="52" />
+        <line x1="32" x2="36" y1="32" y2="52" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--jack-open">
+        <circle cx="32" cy="8.5" r="4.3" />
+        <line x1="32" x2="32" y1="13" y2="31" />
+        <line x1="32" x2="17" y1="20" y2="7" />
+        <line x1="32" x2="47" y1="20" y2="7" />
+        <line x1="32" x2="19" y1="31" y2="52" />
+        <line x1="32" x2="45" y1="31" y2="52" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--leg-extension-bent">
+        <line x1="16" x2="49" y1="36" y2="36" />
+        <circle cx="30" cy="13" r="4.3" />
+        <line x1="30" x2="25" y1="17.5" y2="32" />
+        <line x1="27" x2="18" y1="24" y2="36" />
+        <line x1="27" x2="42" y1="33" y2="38" />
+        <polyline points="42 38 44 47 50 52" />
+        <line x1="18" x2="22" y1="36" y2="52" />
+        <line x1="45" x2="49" y1="36" y2="52" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--leg-extension-straight">
+        <line x1="16" x2="49" y1="36" y2="36" />
+        <circle cx="30" cy="13" r="4.3" />
+        <line x1="30" x2="25" y1="17.5" y2="32" />
+        <line x1="27" x2="18" y1="24" y2="36" />
+        <line x1="27" x2="42" y1="33" y2="38" />
+        <line x1="42" x2="56" y1="38" y2="37" />
+        <line x1="18" x2="22" y1="36" y2="52" />
+        <line x1="45" x2="49" y1="36" y2="52" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--situp-down">
+        <circle cx="18" cy="38" r="4.3" />
+        <line x1="22" x2="42" y1="39" y2="42" />
+        <polyline points="17 35 12 31 15 28" />
+        <polyline points="19 36 15 31 18 28" />
+        <polyline points="42 42 48 34 55 34" />
+        <polyline points="42 42 51 48 57 48" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--situp-up">
+        <circle cx="28" cy="22" r="4.3" />
+        <line x1="30" x2="42" y1="26" y2="41" />
+        <polyline points="27 20 21 16 23 12" />
+        <polyline points="29 20 25 15 28 12" />
+        <polyline points="42 41 48 34 55 34" />
+        <polyline points="42 41 51 48 57 48" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--press-rack">
+        <line x1="17" x2="47" y1="22" y2="22" />
+        <circle cx="32" cy="12" r="4.3" />
+        <line x1="32" x2="32" y1="16.5" y2="33" />
+        <polyline points="32 23 23 28 17 22" />
+        <polyline points="32 23 41 28 47 22" />
+        <line x1="32" x2="25" y1="33" y2="52" />
+        <line x1="32" x2="39" y1="33" y2="52" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--press-overhead">
+        <line x1="16" x2="48" y1="7" y2="7" />
+        <circle cx="32" cy="17" r="4.3" />
+        <line x1="32" x2="32" y1="21.5" y2="36" />
+        <line x1="32" x2="22" y1="24" y2="7" />
+        <line x1="32" x2="42" y1="24" y2="7" />
+        <line x1="32" x2="25" y1="36" y2="52" />
+        <line x1="32" x2="39" y1="36" y2="52" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--pull-reach">
+        <line x1="12" x2="52" y1="15" y2="15" />
+        <circle cx="32" cy="24" r="4.3" />
+        <line x1="32" x2="32" y1="28.5" y2="42" />
+        <line x1="32" x2="22" y1="31" y2="16" />
+        <line x1="32" x2="42" y1="31" y2="16" />
+        <line x1="32" x2="25" y1="42" y2="54" />
+        <line x1="32" x2="39" y1="42" y2="54" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--pull-row">
+        <line x1="12" x2="52" y1="15" y2="15" />
+        <circle cx="32" cy="19" r="4.3" />
+        <line x1="32" x2="32" y1="23.5" y2="39" />
+        <line x1="32" x2="22" y1="27" y2="22" />
+        <line x1="32" x2="42" y1="27" y2="22" />
+        <line x1="32" x2="24" y1="39" y2="53" />
+        <line x1="32" x2="40" y1="39" y2="53" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--curl-low">
+        <circle cx="32" cy="10.5" r="4.3" />
+        <line x1="32" x2="32" y1="15" y2="32" />
+        <line x1="32" x2="20" y1="21" y2="38" />
+        <line x1="32" x2="44" y1="21" y2="38" />
+        <line x1="32" x2="25" y1="32" y2="52" />
+        <line x1="32" x2="39" y1="32" y2="52" />
+        <line x1="18" x2="24" y1="39" y2="39" />
+        <line x1="40" x2="46" y1="39" y2="39" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--curl-high">
+        <circle cx="32" cy="10.5" r="4.3" />
+        <line x1="32" x2="32" y1="15" y2="32" />
+        <polyline points="32 21 22 29 22 20" />
+        <polyline points="32 21 42 29 42 20" />
+        <line x1="32" x2="25" y1="32" y2="52" />
+        <line x1="32" x2="39" y1="32" y2="52" />
+        <line x1="19" x2="25" y1="20" y2="20" />
+        <line x1="39" x2="45" y1="20" y2="20" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--clean-pull">
+        <line x1="17" x2="47" y1="42" y2="42" />
+        <circle cx="29" cy="14" r="4.3" />
+        <line x1="30" x2="35" y1="18.5" y2="34" />
+        <line x1="33" x2="24" y1="25" y2="42" />
+        <line x1="35" x2="44" y1="25" y2="42" />
+        <polyline points="35 34 25 43 23 54" />
+        <polyline points="35 34 43 43 45 54" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--clean-rack">
+        <line x1="17" x2="47" y1="23" y2="23" />
+        <circle cx="32" cy="12" r="4.3" />
+        <line x1="32" x2="32" y1="16.5" y2="34" />
+        <polyline points="20 23 30 26 24 31" />
+        <polyline points="44 23 34 26 40 31" />
+        <line x1="32" x2="25" y1="34" y2="52" />
+        <line x1="32" x2="39" y1="34" y2="52" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--mobility-left">
+        <circle cx="32" cy="11" r="4.3" />
+        <line x1="32" x2="29" y1="15.5" y2="33" />
+        <line x1="31" x2="18" y1="21" y2="12" />
+        <line x1="31" x2="44" y1="21" y2="30" />
+        <line x1="29" x2="20" y1="33" y2="52" />
+        <line x1="29" x2="41" y1="33" y2="52" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--mobility-right">
+        <circle cx="32" cy="11" r="4.3" />
+        <line x1="32" x2="35" y1="15.5" y2="33" />
+        <line x1="33" x2="46" y1="21" y2="12" />
+        <line x1="33" x2="20" y1="21" y2="30" />
+        <line x1="35" x2="23" y1="33" y2="52" />
+        <line x1="35" x2="44" y1="33" y2="52" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--neck-center">
+        <circle cx="32" cy="11" r="4.3" />
+        <line x1="32" x2="32" y1="15.5" y2="34" />
+        <line x1="32" x2="23" y1="22" y2="32" />
+        <line x1="32" x2="41" y1="22" y2="32" />
+        <line x1="32" x2="26" y1="34" y2="52" />
+        <line x1="32" x2="38" y1="34" y2="52" />
+        <path d="M25 8 C28 4 36 4 39 8" />
+      </g>
+      <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--neck-tilt">
+        <circle cx="36" cy="12" r="4.3" />
+        <line x1="33" x2="32" y1="16" y2="34" />
+        <line x1="32" x2="23" y1="22" y2="32" />
+        <line x1="32" x2="41" y1="22" y2="32" />
+        <line x1="32" x2="26" y1="34" y2="52" />
+        <line x1="32" x2="38" y1="34" y2="52" />
+        <path d="M29 8 C32 5 39 6 42 11" />
+      </g>
+    </svg>
+  );
+
+  const renderDashboardHeaderTimeoutPortalMeter = () => {
+    if (!dashboardHeaderTimeoutPortalMeter) return null;
+
+    const portalActualClass = "dashboard-header-timeout-meter-portal__actual";
+
+    if (dashboardHeaderTimeoutPortalMeter.id === "sessions") {
+      return (
+        <div
+          aria-hidden="true"
+          className={`${portalActualClass} dashboard-header-week-sessions dashboard-header-meter-scroller__meter dashboard-header-meter-scroller__meter--center text-emerald-50`}
+          role="meter"
+          style={
+            {
+              "--dashboard-week-session-bar": `${dashboardSummary.weeklySessionProgress}%`,
+            } as CSSProperties
+          }
+        >
+          <span aria-hidden="true" className="dashboard-header-week-sessions__graph">
+            <span
+              className={`dashboard-header-week-sessions__bar ${
+                dashboardSummary.workoutsThisWeek > 0
+                  ? "dashboard-header-week-sessions__bar--active"
+                  : ""
+              }`}
+            >
+              <span className="dashboard-header-week-sessions__fill" />
+              <span aria-hidden="true" className="dashboard-header-week-sessions__goal-lines">
+                {Array.from(
+                  { length: dashboardSummary.weeklySessionGoal },
+                  (_, goalIndex) => (
+                    <span
+                      className={`dashboard-header-week-sessions__goal-section ${
+                        goalIndex < dashboardSummary.workoutsThisWeek
+                          ? "dashboard-header-week-sessions__goal-section--filled"
+                          : ""
+                      }`}
+                      data-session-level={goalIndex + 1}
+                      key={`portal-weekly-session-goal-section-${goalIndex + 1}`}
+                      style={
+                        {
+                          "--dashboard-week-session-section-bottom": `${
+                            (goalIndex / dashboardSummary.weeklySessionGoal) * 100
+                          }%`,
+                          "--dashboard-week-session-section-height": `${
+                            100 / dashboardSummary.weeklySessionGoal
+                          }%`,
+                        } as CSSProperties
+                      }
+                    />
+                  ),
+                )}
+              </span>
+            </span>
+            <span aria-hidden="true" className="dashboard-header-week-sessions__opening-sheen" />
+          </span>
+          <span className="dashboard-header-week-sessions__label">
+            Sessions / Week
+          </span>
+          <span className="dashboard-header-meter-deadline dashboard-header-meter-deadline--week">
+            Reset {dashboardWeeklySessionResetLabel}
+          </span>
+        </div>
+      );
+    }
+
+    if (dashboardHeaderTimeoutPortalMeter.id === "plan") {
+      return (
+        <div
+          aria-hidden="true"
+          className={`${portalActualClass} dashboard-header-plan-attendance dashboard-header-streak-fire dashboard-header-meter-scroller__meter dashboard-header-meter-scroller__meter--center text-amber-50`}
+          role="meter"
+          style={
+            {
+              "--dashboard-header-plan-attendance-progress": `${dashboardSummary.planSessionProgress}%`,
+            } as CSSProperties
+          }
+        >
+          <span aria-hidden="true" className="dashboard-header-streak-fire__flame" />
+          <span aria-hidden="true" className="dashboard-header-streak-fire__embers" />
+          <span aria-hidden="true" className="dashboard-header-streak-fire__gauge">
+            <svg
+              aria-hidden="true"
+              className="dashboard-header-streak-fire__gauge-svg"
+              viewBox="0 0 96 96"
+            >
+              <circle
+                cx="48"
+                cy="48"
+                fill="rgba(2,6,23,0.42)"
+                r="41"
+                stroke="rgba(224,242,254,0.08)"
+                strokeWidth="1"
+              />
+              <circle
+                cx="48"
+                cy="48"
+                fill="none"
+                pathLength={100}
+                r="35.5"
+                stroke="rgba(15,23,42,0.78)"
+                strokeWidth="10"
+              />
+              <circle
+                className="dashboard-header-plan-attendance__progress-ring"
+                cx="48"
+                cy="48"
+                fill="none"
+                pathLength={100}
+                r="35.5"
+                stroke="url(#dashboardHeaderPortalPlanAttendanceGradient)"
+                strokeDasharray="100"
+                strokeDashoffset={100 - dashboardSummary.planSessionProgress}
+                strokeLinecap="round"
+                strokeWidth="10"
+                transform="rotate(-90 48 48)"
+              />
+              {Array.from({
+                length: dashboardSummary.planSessionTarget,
+              }).map((_, tickIndex) => {
+                const tickAngle =
+                  tickIndex * (360 / dashboardSummary.planSessionTarget);
+                const isFilledTick = tickIndex < dashboardPlanSessionsAttended;
+
+                return (
+                  <line
+                    key={`dashboard-header-portal-plan-attendance-tick-${tickIndex}`}
+                    stroke={
+                      isFilledTick
+                        ? "rgba(254,240,138,0.92)"
+                        : "rgba(148,163,184,0.36)"
+                    }
+                    strokeLinecap="round"
+                    strokeWidth={isFilledTick ? 2.1 : 1.25}
+                    transform={`rotate(${tickAngle} 48 48)`}
+                    x1="48"
+                    x2="48"
+                    y1="7"
+                    y2={isFilledTick ? "18" : "15"}
+                  />
+                );
+              })}
+              <circle
+                cx="48"
+                cy="48"
+                fill="rgba(2,6,23,0.86)"
+                r="25.5"
+                stroke="rgba(125,211,252,0.26)"
+                strokeWidth="1.4"
+              />
+              <circle
+                cx="48"
+                cy="48"
+                fill="none"
+                r="30"
+                stroke="rgba(255,255,255,0.12)"
+                strokeDasharray="1.6 5.2"
+                strokeLinecap="round"
+                strokeWidth="1"
+              />
+              <circle
+                className="dashboard-header-plan-attendance__spark"
+                cx="48"
+                cy="12.5"
+                fill="rgb(250,204,21)"
+                opacity={dashboardPlanSessionsAttended > 0 ? 1 : 0}
+                r="3.2"
+                stroke="rgba(254,249,195,0.9)"
+                strokeWidth="1"
+                transform={`rotate(${dashboardSummary.planSessionProgress * 3.6} 48 48)`}
+              />
+              <defs>
+                <linearGradient
+                  id="dashboardHeaderPortalPlanAttendanceGradient"
+                  x1="14"
+                  x2="82"
+                  y1="82"
+                  y2="14"
+                  gradientUnits="userSpaceOnUse"
+                >
+                  <stop offset="0%" stopColor="rgb(34,211,238)" />
+                  <stop offset="42%" stopColor="rgb(52,211,153)" />
+                  <stop offset="72%" stopColor="rgb(250,204,21)" />
+                  <stop offset="100%" stopColor="rgb(250,204,21)" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </span>
+          <span className="dashboard-header-streak-fire__content">
+            <span className="dashboard-header-streak-fire__value">
+              {`${dashboardPlanSessionsAttended}/${dashboardSummary.planSessionTarget}`}
+            </span>
+            <span className="dashboard-header-streak-fire__label">
+              Plan Sessions
+            </span>
+          </span>
+          <span className="dashboard-header-meter-deadline dashboard-header-meter-deadline--streak">
+            {dashboardPlanAttendanceCaption}
+          </span>
+        </div>
+      );
+    }
+
+    if (dashboardHeaderTimeoutPortalMeter.id === "sets") {
+      return (
+        <div
+          aria-hidden="true"
+          className={`${portalActualClass} dashboard-header-sets-meter dashboard-header-sets-meter--standalone text-emerald-50`}
+          role="meter"
+        >
+          <span className="dashboard-header-sets-meter__tower">
+            <span className="dashboard-header-sets-meter__tallies">
+              {dashboardSummary.dailySetTallyMarks.map((mark, markIndex) => (
+                <span
+                  aria-hidden="true"
+                  className={`dashboard-header-sets-meter__tally dashboard-header-sets-meter__tally--${mark.group} ${
+                    mark.filled
+                      ? "dashboard-header-sets-meter__tally--filled"
+                      : "dashboard-header-sets-meter__tally--empty"
+                  }`}
+                  key={`dashboard-header-portal-daily-set-tally-${mark.id}-${markIndex}`}
+                />
+              ))}
+            </span>
+          </span>
+          <span className="dashboard-header-sets-meter__value">
+            {dashboardSummary.dailySets}
+          </span>
+          <span className="dashboard-header-sets-meter__label">Daily Sets</span>
+          <span className="dashboard-header-meter-deadline dashboard-header-meter-deadline--sets">
+            Goal {dashboardSummary.dailySetGoal}
+          </span>
+        </div>
+      );
+    }
+
+    if (dashboardHeaderTimeoutPortalMeter.id === "pr") {
+      return (
+        <div
+          aria-hidden="true"
+          className={`${portalActualClass} dashboard-header-compound-pr-meter text-cyan-50`}
+          role="group"
+          style={
+            {
+              "--dashboard-header-pr-progress": `${dashboardSummary.prProgress}%`,
+            } as CSSProperties
+          }
+        >
+          <span className="dashboard-header-compound-pr-meter__header">
+            <span aria-hidden="true" className="dashboard-header-compound-pr-meter__badge">
+              PR
+            </span>
+            <span className="dashboard-header-compound-pr-meter__heading-copy">
+              <span className="dashboard-header-compound-pr-meter__eyebrow">
+                30 Day Best
+              </span>
+              <span className="dashboard-header-compound-pr-meter__heading">
+                Compound Lifts
+              </span>
+            </span>
+          </span>
+          <span className="dashboard-header-compound-pr-meter__orbiter">
+            <span className="dashboard-header-compound-pr-meter__list">
+              {dashboardSummary.compoundLiftHighlights.map((highlight, index) => {
+                const prCardSlot = getDashboardHeaderPrCardSlot(index);
+
+                return (
+                  <span
+                    className={`dashboard-header-compound-pr-meter__item dashboard-header-compound-pr-meter__item--${highlight.tone} dashboard-header-compound-pr-meter__item--slot-${prCardSlot}`}
+                    key={`dashboard-header-portal-compound-pr-${highlight.tone}`}
+                  >
+                    <span className="dashboard-header-compound-pr-meter__rank">
+                      {highlight.rank}
+                    </span>
+                    <span className="dashboard-header-compound-pr-meter__copy">
+                      <span className="dashboard-header-compound-pr-meter__title">
+                        {highlight.label}
+                      </span>
+                      <span className="dashboard-header-compound-pr-meter__detail">
+                        {highlight.detail}
+                      </span>
+                      <span className="dashboard-header-compound-pr-meter__stats">
+                        <span className="dashboard-header-compound-pr-meter__stat">
+                          <span className="dashboard-header-compound-pr-meter__stat-label">
+                            Volume %
+                          </span>
+                          <span className="dashboard-header-compound-pr-meter__stat-value">
+                            {highlight.volumeLabel}
+                          </span>
+                        </span>
+                        <span className="dashboard-header-compound-pr-meter__stat">
+                          <span className="dashboard-header-compound-pr-meter__stat-label">
+                            Sets
+                          </span>
+                          <span className="dashboard-header-compound-pr-meter__stat-value">
+                            {highlight.setsLabel}
+                          </span>
+                        </span>
+                      </span>
+                    </span>
+                    <span className="dashboard-header-compound-pr-meter__value">
+                      {highlight.value}
+                    </span>
+                  </span>
+                );
+              })}
+            </span>
+          </span>
+        </div>
+      );
+    }
+
+    if (dashboardHeaderTimeoutPortalMeter.id === "achievements") {
+      return (
+        <span
+          aria-hidden="true"
+          className={`${portalActualClass} dashboard-header-achievement-cloud-trigger dashboard-header-achievement-meter dashboard-header-achievement-meter--standalone dashboard-header-achievement-cloud-trigger--revealing text-amber-50`}
+          style={
+            {
+              "--dashboard-header-achievement-active-duration": `${DASHBOARD_HEADER_ACHIEVEMENT_ROTATE_MS}ms`,
+            } as CSSProperties
+          }
+        >
+          <span aria-hidden="true" className="dashboard-header-achievement-cloud-trigger__light" />
+          <span aria-hidden="true" className="dashboard-header-achievement-cloud-trigger__menu-flash" />
+          <span aria-hidden="true" className="dashboard-header-achievement-cloud-trigger__clouds">
+            <span />
+            <span />
+            <span />
+            <span />
+          </span>
+          <span
+            aria-hidden="true"
+            className="dashboard-header-achievement-meter__progress-shell"
+            style={
+              {
+                "--dashboard-header-achievement-progress": `${headerAchievementProgress}%`,
+              } as CSSProperties
+            }
+          >
+            <span aria-hidden="true" className="dashboard-header-achievement-meter__track" />
+            <span aria-hidden="true" className="dashboard-header-achievement-meter__progress-list">
+              {activeHeaderAchievement ? (
+                <span
+                  aria-hidden="true"
+                  className="dashboard-header-achievement-meter__progress-item"
+                  key={`dashboard-header-portal-achievement-${activeHeaderAchievement.label}`}
+                  style={
+                    {
+                      "--dashboard-header-achievement-item-progress": `${activeHeaderAchievementProgress}%`,
+                    } as CSSProperties
+                  }
+                >
+                  <span className="dashboard-header-achievement-meter__progress-icon">
+                    {activeHeaderAchievement.icon}
+                  </span>
+                  <span className="dashboard-header-achievement-meter__progress-copy">
+                    <span className="dashboard-header-achievement-meter__progress-title">
+                      {activeHeaderAchievement.label}
+                    </span>
+                    <span className="dashboard-header-achievement-meter__progress-meta">
+                      <span>
+                        {Math.round(activeHeaderAchievementProgress)}%{" "}
+                        {activeHeaderAchievement.statusLabel}
+                      </span>
+                      <span>{activeHeaderAchievementEstimate.label}</span>
+                    </span>
+                    <span className="dashboard-header-achievement-meter__progress-bar">
+                      <span />
+                    </span>
+                  </span>
+                </span>
+              ) : null}
+            </span>
+          </span>
+        </span>
+      );
+    }
+
+    return (
+      <div
+        aria-hidden="true"
+        className={`${portalActualClass} dashboard-header-fuel-meter dashboard-header-fuel-meter--${
+          dashboardHeaderTimeoutPortalMeter.id === "weight"
+            ? `weight dashboard-header-fuel-meter--${dashboardSummary.weightChangeTone}`
+            : "calories"
+        }`}
+        role="meter"
+        style={
+          {
+            "--dashboard-header-fuel-progress": `${
+              dashboardHeaderTimeoutPortalMeter.id === "weight"
+                ? dashboardSummary.weightChangeProgress
+                : dashboardSummary.weeklyCaloriesProgress
+            }%`,
+          } as CSSProperties
+        }
+      >
+        <span aria-hidden="true" className="dashboard-header-fuel-meter__ring">
+          <span className="dashboard-header-fuel-meter__value">
+            {dashboardHeaderTimeoutPortalMeter.id === "weight"
+              ? dashboardSummary.weightChangeLabel
+              : dashboardSummary.weeklyCaloriesDisplay}
+          </span>
+        </span>
+        <span className="dashboard-header-fuel-meter__label">
+          {dashboardHeaderTimeoutPortalMeter.id === "weight"
+            ? "Weight +/-"
+            : "Weekly Calories"}
+        </span>
+        <span className="dashboard-header-fuel-meter__meta">
+          {dashboardHeaderTimeoutPortalMeter.id === "weight"
+            ? dashboardSummary.weightChangeTrendLabel
+            : "Total Week"}
+        </span>
+      </div>
+    );
+  };
+
   const renderDashboardOrbiterTopMenu = () => (
     <div
-      className={`dashboard-header-vortex-shell dashboard-header-vortex-shell--${dashboardHeaderVortexPhase} sticky top-0 z-[120] mb-0 w-full shrink-0 overflow-visible border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl ${
-        dashboardHeaderVortexMode
-          ? `dashboard-header-vortex-shell--${dashboardHeaderVortexMode}`
+      className={`dashboard-header-vortex-shell dashboard-header-vortex-shell--${dashboardHeaderVortexPhase} ${
+        dashboardHeaderTimedOut
+          ? "dashboard-header-vortex-shell--timed-out"
           : ""
-      }`}
+      } sticky top-0 z-[120] mb-0 w-full shrink-0 overflow-visible border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl`}
+      data-dashboard-header-timeout={dashboardHeaderTimedOut ? "true" : "false"}
+      onFocusCapture={wakeDashboardHeaderMenu}
+      onMouseEnter={wakeDashboardHeaderMenu}
+      onPointerDown={wakeDashboardHeaderMenu}
+      onPointerMove={wakeDashboardHeaderMenu}
     >
       <span
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/55 to-transparent"
       />
+      <div aria-hidden="true" className="dashboard-header-ambient-field">
+        <span className="dashboard-header-ambient-field__grid-wall" />
+        <span className="dashboard-header-ambient-field__grid" />
+        <span className="dashboard-header-ambient-field__aura dashboard-header-ambient-field__aura--cyan" />
+        <span className="dashboard-header-ambient-field__aura dashboard-header-ambient-field__aura--gold" />
+        <span className="dashboard-header-ambient-field__beam" />
+        <span className="dashboard-header-ambient-field__rail" />
+        <span className="dashboard-header-ambient-scene dashboard-header-ambient-scene--mountains" />
+        <span className="dashboard-header-ambient-scene dashboard-header-ambient-scene--forest" />
+        <span className="dashboard-header-ambient-scene dashboard-header-ambient-scene--city">
+          <span className="dashboard-header-ambient-city__buildings" />
+          <span className="dashboard-header-ambient-city__space-needle" />
+          <span className="dashboard-header-ambient-city__dome" />
+          <span className="dashboard-header-ambient-city__ferris-wheel" />
+        </span>
+        <span className="dashboard-header-ambient-field__meteor dashboard-header-ambient-field__meteor--one" />
+        <span className="dashboard-header-ambient-field__meteor dashboard-header-ambient-field__meteor--two" />
+        <span className="dashboard-header-ambient-field__meteor dashboard-header-ambient-field__meteor--three" />
+        <span className="dashboard-header-ambient-field__meteor dashboard-header-ambient-field__meteor--four" />
+        {dashboardHeaderCategoryLevels.map((categoryActor, categoryActorIndex) => (
+          <span
+            className={`dashboard-header-category-actor dashboard-header-category-actor--${categoryActor.id}`}
+            data-category-level={`${categoryActor.label} level ${categoryActor.level}`}
+            key={categoryActor.id}
+            style={
+              {
+                "--dashboard-header-category-appear-delay": `${
+                  dashboardHeaderCategoryFloorSlots[
+                    categoryActorIndex % dashboardHeaderCategoryFloorSlots.length
+                  ].delay
+                }s`,
+                "--dashboard-header-category-color": categoryActor.color,
+                "--dashboard-header-category-floor-left": `${
+                  dashboardHeaderCategoryFloorSlots[
+                    categoryActorIndex % dashboardHeaderCategoryFloorSlots.length
+                  ].left
+                }%`,
+                "--dashboard-header-category-floor-top": `${
+                  dashboardHeaderCategoryFloorSlots[
+                    categoryActorIndex % dashboardHeaderCategoryFloorSlots.length
+                  ].top
+                }%`,
+                "--dashboard-header-category-level": `${categoryActor.level}%`,
+                "--dashboard-header-category-left": `${categoryActor.left}%`,
+                "--dashboard-header-category-top": `${categoryActor.top}%`,
+              } as CSSProperties
+            }
+          >
+            <svg
+              aria-hidden="true"
+              className="dashboard-header-category-actor__figure"
+              focusable="false"
+              viewBox="0 0 64 64"
+            >
+              <line
+                className="dashboard-header-category-actor__prop"
+                x1="14"
+                x2="50"
+                y1="17"
+                y2="17"
+              />
+              <g className="dashboard-header-category-actor__body">
+                <circle
+                  className="dashboard-header-category-actor__head"
+                  cx="32"
+                  cy="12"
+                  r="4.4"
+                />
+                <line
+                  className="dashboard-header-category-actor__torso"
+                  x1="32"
+                  x2="32"
+                  y1="17"
+                  y2="32"
+                />
+                <line
+                  className="dashboard-header-category-actor__arm dashboard-header-category-actor__arm--front"
+                  x1="32"
+                  x2="20"
+                  y1="22"
+                  y2="31"
+                />
+                <line
+                  className="dashboard-header-category-actor__arm dashboard-header-category-actor__arm--back"
+                  x1="32"
+                  x2="44"
+                  y1="22"
+                  y2="31"
+                />
+                <line
+                  className="dashboard-header-category-actor__leg dashboard-header-category-actor__leg--front"
+                  x1="32"
+                  x2="22"
+                  y1="32"
+                  y2="50"
+                />
+                <line
+                  className="dashboard-header-category-actor__leg dashboard-header-category-actor__leg--back"
+                  x1="32"
+                  x2="42"
+                  y1="32"
+                  y2="50"
+                />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--squat-up">
+                <line x1="14" x2="50" y1="16" y2="16" />
+                <circle cx="32" cy="10.5" r="4.3" />
+                <line x1="32" x2="32" y1="15" y2="31" />
+                <line x1="32" x2="18" y1="20" y2="16" />
+                <line x1="32" x2="46" y1="20" y2="16" />
+                <polyline points="32 31 25 40 23 52" />
+                <polyline points="32 31 39 40 41 52" />
+                <line x1="20" x2="28" y1="52" y2="52" />
+                <line x1="36" x2="44" y1="52" y2="52" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--squat-down">
+                <line x1="12" x2="52" y1="21" y2="21" />
+                <circle cx="32" cy="15.5" r="4.3" />
+                <line x1="32" x2="32" y1="20" y2="36" />
+                <line x1="32" x2="17" y1="24" y2="21" />
+                <line x1="32" x2="47" y1="24" y2="21" />
+                <polyline points="32 36 22 43 17 52" />
+                <polyline points="32 36 42 43 47 52" />
+                <line x1="14" x2="24" y1="52" y2="52" />
+                <line x1="40" x2="50" y1="52" y2="52" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--jack-closed">
+                <circle cx="32" cy="10.5" r="4.3" />
+                <line x1="32" x2="32" y1="15" y2="32" />
+                <line x1="32" x2="24" y1="21" y2="39" />
+                <line x1="32" x2="40" y1="21" y2="39" />
+                <line x1="32" x2="28" y1="32" y2="52" />
+                <line x1="32" x2="36" y1="32" y2="52" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--jack-open">
+                <circle cx="32" cy="8.5" r="4.3" />
+                <line x1="32" x2="32" y1="13" y2="31" />
+                <line x1="32" x2="17" y1="20" y2="7" />
+                <line x1="32" x2="47" y1="20" y2="7" />
+                <line x1="32" x2="19" y1="31" y2="52" />
+                <line x1="32" x2="45" y1="31" y2="52" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--leg-extension-bent">
+                <line x1="16" x2="49" y1="36" y2="36" />
+                <circle cx="30" cy="13" r="4.3" />
+                <line x1="30" x2="25" y1="17.5" y2="32" />
+                <line x1="27" x2="18" y1="24" y2="36" />
+                <line x1="27" x2="42" y1="33" y2="38" />
+                <polyline points="42 38 44 47 50 52" />
+                <line x1="18" x2="22" y1="36" y2="52" />
+                <line x1="45" x2="49" y1="36" y2="52" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--leg-extension-straight">
+                <line x1="16" x2="49" y1="36" y2="36" />
+                <circle cx="30" cy="13" r="4.3" />
+                <line x1="30" x2="25" y1="17.5" y2="32" />
+                <line x1="27" x2="18" y1="24" y2="36" />
+                <line x1="27" x2="42" y1="33" y2="38" />
+                <line x1="42" x2="56" y1="38" y2="37" />
+                <line x1="18" x2="22" y1="36" y2="52" />
+                <line x1="45" x2="49" y1="36" y2="52" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--situp-down">
+                <circle cx="18" cy="38" r="4.3" />
+                <line x1="22" x2="42" y1="39" y2="42" />
+                <polyline points="17 35 12 31 15 28" />
+                <polyline points="19 36 15 31 18 28" />
+                <polyline points="42 42 48 34 55 34" />
+                <polyline points="42 42 51 48 57 48" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--situp-up">
+                <circle cx="28" cy="22" r="4.3" />
+                <line x1="30" x2="42" y1="26" y2="41" />
+                <polyline points="27 20 21 16 23 12" />
+                <polyline points="29 20 25 15 28 12" />
+                <polyline points="42 41 48 34 55 34" />
+                <polyline points="42 41 51 48 57 48" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--press-rack">
+                <line x1="17" x2="47" y1="22" y2="22" />
+                <circle cx="32" cy="12" r="4.3" />
+                <line x1="32" x2="32" y1="16.5" y2="33" />
+                <polyline points="32 23 23 28 17 22" />
+                <polyline points="32 23 41 28 47 22" />
+                <line x1="32" x2="25" y1="33" y2="52" />
+                <line x1="32" x2="39" y1="33" y2="52" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--press-overhead">
+                <line x1="16" x2="48" y1="7" y2="7" />
+                <circle cx="32" cy="17" r="4.3" />
+                <line x1="32" x2="32" y1="21.5" y2="36" />
+                <line x1="32" x2="22" y1="24" y2="7" />
+                <line x1="32" x2="42" y1="24" y2="7" />
+                <line x1="32" x2="25" y1="36" y2="52" />
+                <line x1="32" x2="39" y1="36" y2="52" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--pull-reach">
+                <line x1="12" x2="52" y1="15" y2="15" />
+                <circle cx="32" cy="24" r="4.3" />
+                <line x1="32" x2="32" y1="28.5" y2="42" />
+                <line x1="32" x2="22" y1="31" y2="16" />
+                <line x1="32" x2="42" y1="31" y2="16" />
+                <line x1="32" x2="25" y1="42" y2="54" />
+                <line x1="32" x2="39" y1="42" y2="54" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--pull-row">
+                <line x1="12" x2="52" y1="15" y2="15" />
+                <circle cx="32" cy="19" r="4.3" />
+                <line x1="32" x2="32" y1="23.5" y2="39" />
+                <line x1="32" x2="22" y1="27" y2="22" />
+                <line x1="32" x2="42" y1="27" y2="22" />
+                <line x1="32" x2="24" y1="39" y2="53" />
+                <line x1="32" x2="40" y1="39" y2="53" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--curl-low">
+                <circle cx="32" cy="10.5" r="4.3" />
+                <line x1="32" x2="32" y1="15" y2="32" />
+                <line x1="32" x2="20" y1="21" y2="38" />
+                <line x1="32" x2="44" y1="21" y2="38" />
+                <line x1="32" x2="25" y1="32" y2="52" />
+                <line x1="32" x2="39" y1="32" y2="52" />
+                <line x1="18" x2="24" y1="39" y2="39" />
+                <line x1="40" x2="46" y1="39" y2="39" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--curl-high">
+                <circle cx="32" cy="10.5" r="4.3" />
+                <line x1="32" x2="32" y1="15" y2="32" />
+                <polyline points="32 21 22 29 22 20" />
+                <polyline points="32 21 42 29 42 20" />
+                <line x1="32" x2="25" y1="32" y2="52" />
+                <line x1="32" x2="39" y1="32" y2="52" />
+                <line x1="19" x2="25" y1="20" y2="20" />
+                <line x1="39" x2="45" y1="20" y2="20" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--clean-pull">
+                <line x1="17" x2="47" y1="42" y2="42" />
+                <circle cx="29" cy="14" r="4.3" />
+                <line x1="30" x2="35" y1="18.5" y2="34" />
+                <line x1="33" x2="24" y1="25" y2="42" />
+                <line x1="35" x2="44" y1="25" y2="42" />
+                <polyline points="35 34 25 43 23 54" />
+                <polyline points="35 34 43 43 45 54" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--clean-rack">
+                <line x1="17" x2="47" y1="23" y2="23" />
+                <circle cx="32" cy="12" r="4.3" />
+                <line x1="32" x2="32" y1="16.5" y2="34" />
+                <polyline points="20 23 30 26 24 31" />
+                <polyline points="44 23 34 26 40 31" />
+                <line x1="32" x2="25" y1="34" y2="52" />
+                <line x1="32" x2="39" y1="34" y2="52" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--mobility-left">
+                <circle cx="32" cy="11" r="4.3" />
+                <line x1="32" x2="29" y1="15.5" y2="33" />
+                <line x1="31" x2="18" y1="21" y2="12" />
+                <line x1="31" x2="44" y1="21" y2="30" />
+                <line x1="29" x2="20" y1="33" y2="52" />
+                <line x1="29" x2="41" y1="33" y2="52" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--mobility-right">
+                <circle cx="32" cy="11" r="4.3" />
+                <line x1="32" x2="35" y1="15.5" y2="33" />
+                <line x1="33" x2="46" y1="21" y2="12" />
+                <line x1="33" x2="20" y1="21" y2="30" />
+                <line x1="35" x2="23" y1="33" y2="52" />
+                <line x1="35" x2="44" y1="33" y2="52" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--neck-center">
+                <circle cx="32" cy="11" r="4.3" />
+                <line x1="32" x2="32" y1="15.5" y2="34" />
+                <line x1="32" x2="23" y1="22" y2="32" />
+                <line x1="32" x2="41" y1="22" y2="32" />
+                <line x1="32" x2="26" y1="34" y2="52" />
+                <line x1="32" x2="38" y1="34" y2="52" />
+                <path d="M25 8 C28 4 36 4 39 8" />
+              </g>
+              <g className="dashboard-header-category-actor__pose dashboard-header-category-actor__pose--neck-tilt">
+                <circle cx="36" cy="12" r="4.3" />
+                <line x1="33" x2="32" y1="16" y2="34" />
+                <line x1="32" x2="23" y1="22" y2="32" />
+                <line x1="32" x2="41" y1="22" y2="32" />
+                <line x1="32" x2="26" y1="34" y2="52" />
+                <line x1="32" x2="38" y1="34" y2="52" />
+                <path d="M29 8 C32 5 39 6 42 11" />
+              </g>
+            </svg>
+            <span className="dashboard-header-category-actor__label">
+              {categoryActor.shortLabel}
+            </span>
+            <span className="dashboard-header-category-actor__meter">
+              <span />
+            </span>
+            <span className="dashboard-header-category-actor__level">
+              LV {Math.max(1, Math.round(categoryActor.level / 10))}
+            </span>
+          </span>
+        ))}
+        <span className="dashboard-header-ambient-field__node dashboard-header-ambient-field__node--one" />
+        <span className="dashboard-header-ambient-field__node dashboard-header-ambient-field__node--two" />
+        <span className="dashboard-header-ambient-field__node dashboard-header-ambient-field__node--three" />
+        <span className="dashboard-header-ambient-field__node dashboard-header-ambient-field__node--four" />
+      </div>
+      <div aria-hidden="true" className="dashboard-header-category-overlay">
+        {dashboardHeaderCategoryLevels.map((categoryActor, categoryActorIndex) => {
+          const categoryActorFloorSlot =
+            dashboardHeaderCategoryFloorSlots[
+              categoryActorIndex % dashboardHeaderCategoryFloorSlots.length
+            ];
+
+          return (
+            <span
+              className={`dashboard-header-category-actor dashboard-header-category-actor--${categoryActor.id}`}
+              data-category-level={`${categoryActor.label} level ${categoryActor.level}`}
+              key={`dashboard-header-category-overlay-${categoryActor.id}`}
+              style={
+                {
+                  "--dashboard-header-category-appear-delay": `${categoryActorFloorSlot.delay}s`,
+                  "--dashboard-header-category-color": categoryActor.color,
+                  "--dashboard-header-category-floor-left": `${categoryActorFloorSlot.left}%`,
+                  "--dashboard-header-category-floor-top": `${categoryActorFloorSlot.top}%`,
+                  "--dashboard-header-category-level": `${categoryActor.level}%`,
+                  "--dashboard-header-category-left": `${categoryActor.left}%`,
+                  "--dashboard-header-category-top": `${categoryActor.top}%`,
+                } as CSSProperties
+              }
+            >
+              {renderDashboardHeaderCategoryActorFigure()}
+              <span className="dashboard-header-category-actor__label">
+                {categoryActor.shortLabel}
+              </span>
+              <span className="dashboard-header-category-actor__meter">
+                <span />
+              </span>
+              <span className="dashboard-header-category-actor__level">
+                LV {Math.max(1, Math.round(categoryActor.level / 10))}
+              </span>
+            </span>
+          );
+        })}
+      </div>
+      <div aria-hidden="true" className="dashboard-header-idle-training-floor">
+        <span className="dashboard-header-idle-training-floor__ground" />
+        <span className="dashboard-header-idle-station-track">
+          {dashboardHeaderIdleEquipmentStations.map((station) => {
+            const stationCategory = dashboardHeaderCategoryLevels.find(
+              (categoryActor) => categoryActor.id === station.categoryId,
+            );
+
+            return (
+              <span
+                className={`dashboard-header-idle-station dashboard-header-idle-station--${station.equipmentId} dashboard-header-idle-station--category-${station.categoryId}`}
+                key={`dashboard-header-idle-station-${station.id}`}
+                style={
+                  {
+                    "--dashboard-header-category-color":
+                      stationCategory?.color ?? station.color,
+                    "--dashboard-header-category-level": `${
+                      stationCategory?.level ?? station.progress
+                    }%`,
+                    "--dashboard-header-idle-station-color": station.color,
+                    "--dashboard-header-idle-station-delay": `${station.delay}s`,
+                    "--dashboard-header-idle-station-left": `${station.left}%`,
+                    "--dashboard-header-idle-station-level": `${station.progress}%`,
+                  } as CSSProperties
+                }
+              >
+                <span className="dashboard-header-idle-station__equipment">
+                  {renderDashboardHeaderIdleEquipmentIcon(station.equipmentId)}
+                </span>
+                <span
+                  className={`dashboard-header-idle-station__category dashboard-header-category-actor dashboard-header-category-actor--${station.categoryId}`}
+                  data-category-level={`${
+                    stationCategory?.label ?? station.label
+                  } level ${station.progress}`}
+                >
+                  {renderDashboardHeaderCategoryActorFigure()}
+                  <span className="dashboard-header-category-actor__label">
+                    {stationCategory?.shortLabel ?? station.label}
+                  </span>
+                  <span className="dashboard-header-category-actor__meter">
+                    <span />
+                  </span>
+                  <span className="dashboard-header-category-actor__level">
+                    LV {station.level}
+                  </span>
+                </span>
+                <span className="dashboard-header-idle-station__label">
+                  {station.label}
+                </span>
+              </span>
+            );
+          })}
+        </span>
+        <span className="dashboard-header-idle-trainer">
+          <span className="dashboard-header-idle-trainer__head" />
+          <span className="dashboard-header-idle-trainer__torso" />
+          <span className="dashboard-header-idle-trainer__arm dashboard-header-idle-trainer__arm--front" />
+          <span className="dashboard-header-idle-trainer__arm dashboard-header-idle-trainer__arm--back" />
+          <span className="dashboard-header-idle-trainer__leg dashboard-header-idle-trainer__leg--front" />
+          <span className="dashboard-header-idle-trainer__leg dashboard-header-idle-trainer__leg--back" />
+        </span>
+      </div>
+      {dashboardHeaderTimedOut && dashboardHeaderTimeoutPortalMeter ? (
+        <div
+          aria-hidden="true"
+          className={`dashboard-header-timeout-meter-portal ${
+            dashboardHeaderTimeoutPortalOpen
+              ? "dashboard-header-timeout-meter-portal--open"
+              : ""
+          }`}
+          data-meter-tone={dashboardHeaderTimeoutPortalMeter.tone}
+          style={
+            {
+              "--dashboard-header-timeout-meter-left": `${dashboardHeaderTimeoutPortalPosition.x}%`,
+              "--dashboard-header-timeout-meter-progress": `${dashboardHeaderTimeoutPortalMeter.progress}%`,
+              "--dashboard-header-timeout-meter-top": `${dashboardHeaderTimeoutPortalPosition.y}%`,
+            } as CSSProperties
+          }
+        >
+          <div className="dashboard-header-timeout-meter-portal__vortex">
+            <div className="dashboard-header-timeout-meter-portal__core" />
+          </div>
+          <div
+            className="dashboard-header-timeout-meter-portal__card"
+            key={dashboardHeaderTimeoutPortalMeter.id}
+          >
+            {renderDashboardHeaderTimeoutPortalMeter()}
+          </div>
+        </div>
+      ) : null}
       <div className="relative mx-auto flex min-h-[88px] w-full max-w-[1840px] items-center gap-2 px-3 pb-7 pt-2.5 sm:gap-3 sm:px-4 sm:pb-8 sm:pt-3 md:px-6 xl:px-8 2xl:px-10">
         <Link
           aria-label="Open Sound Fitness dashboard"
@@ -10763,9 +13957,19 @@ export default function UserHomeDashboardPage() {
         </Link>
 
         <div
-          aria-label="Dashboard selector"
-          className="ml-1 flex w-fit max-w-[calc(100vw-7.5rem)] shrink-0 select-none items-center gap-2 bg-transparent p-0 shadow-none md:max-w-[min(64vw,620px)] lg:max-w-none"
+          aria-label="Main header menu"
+          className="dashboard-header-main-orbit-stage dashboard-header-main-orbit-stage--stable min-w-0 flex-1"
         >
+        <div
+          aria-label="Header block 1, dashboard menu"
+          className={`dashboard-header-menu-block dashboard-header-menu-block--dashboard dashboard-header-menu-block--slot-${getDashboardHeaderMenuBlockSlot(
+            0,
+          )}`}
+        >
+          <div
+            aria-label="Dashboard selector"
+            className="ml-1 flex w-fit max-w-[calc(100vw-7.5rem)] shrink-0 select-none items-center gap-2 bg-transparent p-0 shadow-none md:max-w-[min(64vw,620px)] lg:max-w-none"
+          >
           <div
             aria-label={`${activeDashboardHeaderLink.label} dashboard tab`}
             className={`dashboard-header-orbit-system dashboard-header-orbit-system--${dashboardHeaderVortexPhase} flex min-h-[62px] w-auto min-w-max shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-1.5 py-2 text-left text-cyan-50 shadow-none transition ${
@@ -10876,105 +14080,617 @@ export default function UserHomeDashboardPage() {
               </Link>
             </div>
           </div>
+          </div>
         </div>
 
-        <div className="min-w-0 flex-1" />
-
         <div
-          aria-label={`${dashboardSummary.workoutsThisWeek} sessions this week`}
-          className="dashboard-header-week-sessions hidden h-14 min-w-[3.55rem] shrink-0 flex-col items-center justify-center bg-transparent px-0 text-center text-emerald-50 md:flex"
-          data-dashboard-tooltip={`${dashboardSummary.workoutsThisWeek} sessions this week`}
+          aria-label="Header block 2, achievements and PR table"
+          className={`dashboard-header-menu-block dashboard-header-menu-block--rewards dashboard-header-menu-block--slot-${getDashboardHeaderMenuBlockSlot(
+            1,
+          )}`}
         >
-          <span className="dashboard-header-week-sessions__value">
-            {dashboardSummary.workoutsThisWeek}
-          </span>
-          <span
-            aria-hidden="true"
-            className="dashboard-header-week-sessions__graph"
-          >
-            {dashboardSummary.weeklySessionBars.map((bar, barIndex) => (
-              <span
-                className={`dashboard-header-week-sessions__bar ${
-                  bar.active
-                    ? "dashboard-header-week-sessions__bar--active"
-                    : ""
-                }`}
-                key={`${bar.label}-${barIndex}-session-bar`}
-                style={
-                  {
-                    "--dashboard-week-session-bar": `${bar.value}%`,
-                    "--dashboard-week-session-delay": `${barIndex * 85}ms`,
-                  } as CSSProperties
-                }
-              >
-                <span />
-              </span>
-            ))}
-          </span>
-          <span className="dashboard-header-week-sessions__label">
-            Sessions / Week
-          </span>
-        </div>
-
         <div
-          aria-label={`${momentumEntryStreak} day streak, ${momentumStreakDaysRemaining} days to ${momentumStreakTarget}`}
-          aria-valuemax={momentumStreakTarget}
-          aria-valuemin={0}
-          aria-valuenow={momentumEntryStreak}
-          className="dashboard-header-streak-fire relative hidden h-14 min-w-[3.55rem] shrink-0 place-items-center overflow-visible bg-transparent px-0 text-center text-amber-50 md:grid"
-          role="meter"
+          aria-label={`Compound lift PR meter. ${dashboardSummary.compoundLiftHighlights
+            .map(
+              (highlight) =>
+                `${highlight.rank}. ${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`,
+            )
+            .join(". ")}`}
+          className="dashboard-header-compound-pr-meter hidden h-[5.55rem] min-w-[10.2rem] shrink-0 flex-col items-stretch justify-start gap-1 bg-transparent px-0 text-cyan-50 xl:flex"
+          data-dashboard-tooltip="Compound PR meter: 30 day best weight and date"
+          role="group"
           style={
             {
-              "--dashboard-header-streak-progress": `${Math.max(
-                8,
-                momentumMeterScore,
-              )}%`,
+              "--dashboard-header-pr-progress": `${dashboardSummary.prProgress}%`,
             } as CSSProperties
           }
         >
+          <span className="dashboard-header-compound-pr-meter__header">
+            <span
+              aria-hidden="true"
+              className="dashboard-header-compound-pr-meter__badge"
+            >
+              PR
+            </span>
+            <span className="dashboard-header-compound-pr-meter__heading-copy">
+              <span className="dashboard-header-compound-pr-meter__eyebrow">
+                30 Day Best
+              </span>
+              <span className="dashboard-header-compound-pr-meter__heading">
+                Compound Lifts
+              </span>
+            </span>
+          </span>
+          <div
+            aria-label="Drag or scroll through 30 day compound PR cards"
+            className="dashboard-header-compound-pr-meter__orbiter"
+            onClickCapture={(event) => {
+              if (dashboardHeaderPrPointerMovedRef.current) {
+                event.preventDefault();
+                event.stopPropagation();
+                dashboardHeaderPrPointerMovedRef.current = false;
+              }
+            }}
+            onKeyDown={(event) =>
+              handleDashboardOrbitKeyDown(event, rotateDashboardHeaderPrCards)
+            }
+            onPointerCancel={(event) => {
+              dashboardHeaderPrPointerStartRef.current = null;
+              if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                event.currentTarget.releasePointerCapture?.(event.pointerId);
+              }
+            }}
+            onPointerDown={(event) =>
+              handleDashboardOrbitPointerDown(
+                event,
+                dashboardHeaderPrPointerStartRef,
+                dashboardHeaderPrPointerMovedRef,
+              )
+            }
+            onPointerMove={(event) =>
+              handleDashboardOrbitPointerMove(
+                event,
+                dashboardHeaderPrPointerStartRef,
+                dashboardHeaderPrPointerMovedRef,
+                rotateDashboardHeaderPrCards,
+                34,
+              )
+            }
+            onPointerUp={(event) =>
+              handleDashboardOrbitPointerUp(
+                event,
+                dashboardHeaderPrPointerStartRef,
+                dashboardHeaderPrPointerMovedRef,
+                rotateDashboardHeaderPrCards,
+                setDashboardHeaderPrActiveIndex,
+              )
+            }
+            onWheel={handleDashboardHeaderPrWheel}
+            role="group"
+            tabIndex={0}
+          >
+            <span className="dashboard-header-compound-pr-meter__list">
+              {dashboardSummary.compoundLiftHighlights.map((highlight, index) => {
+                const prCardSlot = getDashboardHeaderPrCardSlot(index);
+                const isActivePrCard = prCardSlot === "center";
+
+                return (
+              <button
+                aria-label={`${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`}
+                aria-pressed={isActivePrCard}
+                className={`dashboard-header-compound-pr-meter__item dashboard-header-compound-pr-meter__item--${highlight.tone} dashboard-header-compound-pr-meter__item--slot-${prCardSlot}`}
+                data-dashboard-orbit-card-index={index}
+                key={`dashboard-header-compound-pr-${highlight.tone}`}
+                onClick={() => setDashboardHeaderPrActiveIndex(index)}
+                tabIndex={isActivePrCard ? 0 : -1}
+                type="button"
+              >
+                <span className="dashboard-header-compound-pr-meter__rank">
+                  {highlight.rank}
+                </span>
+                <span className="dashboard-header-compound-pr-meter__copy">
+                  <span className="dashboard-header-compound-pr-meter__title">
+                    {highlight.label}
+                  </span>
+                  <span className="dashboard-header-compound-pr-meter__detail">
+                    {highlight.detail}
+                  </span>
+                  <span className="dashboard-header-compound-pr-meter__stats">
+                    <span className="dashboard-header-compound-pr-meter__stat">
+                      <span className="dashboard-header-compound-pr-meter__stat-label">
+                        Volume %
+                      </span>
+                      <span className="dashboard-header-compound-pr-meter__stat-value">
+                        {highlight.volumeLabel}
+                      </span>
+                    </span>
+                    <span className="dashboard-header-compound-pr-meter__stat">
+                      <span className="dashboard-header-compound-pr-meter__stat-label">
+                        Sets
+                      </span>
+                      <span className="dashboard-header-compound-pr-meter__stat-value">
+                        {highlight.setsLabel}
+                      </span>
+                    </span>
+                  </span>
+                </span>
+                <span
+                  aria-label={`${highlight.detail} trend ${highlight.value}`}
+                  className="dashboard-header-compound-pr-meter__value"
+                >
+                  {highlight.value}
+                </span>
+              </button>
+                );
+              })}
+            </span>
+          </div>
+        </div>
+
+        <Link
+          aria-label={`Open achievements, ${headerAchievementsEarned} of ${headerAchievementTotal} earned, ${Math.round(
+            headerAchievementProgress,
+          )}% progress`}
+          className={`dashboard-header-achievement-cloud-trigger dashboard-header-achievement-meter dashboard-header-achievement-meter--standalone ${
+            dashboardHeaderAchievementRevealActive
+              ? "dashboard-header-achievement-cloud-trigger--revealing"
+              : ""
+          } hidden h-[4.65rem] min-w-[12rem] shrink-0 flex-col items-center justify-center bg-transparent px-0 text-center text-amber-50 md:flex`}
+          data-dashboard-tooltip={`Achievements: ${headerAchievementsEarned}/${headerAchievementTotal} earned${
+            headerAchievementNext ? `, next ${headerAchievementNext.label}` : ""
+          }. ${activeHeaderAchievementEstimate.fullLabel}`}
+          href={ROUTES.dashboard.achievements}
+          onClick={openDashboardAchievementsFromHeader}
+        >
           <span
             aria-hidden="true"
-            className="dashboard-header-streak-fire__flame"
-            style={momentumStreakFlameStyle}
+            className="dashboard-header-achievement-cloud-trigger__light"
           />
           <span
             aria-hidden="true"
-            className="dashboard-header-streak-fire__embers"
-            style={momentumStreakEmberStyle}
+            className="dashboard-header-achievement-cloud-trigger__menu-flash"
           />
           <span
             aria-hidden="true"
-            className="dashboard-header-streak-fire__meter"
+            className="dashboard-header-achievement-cloud-trigger__clouds"
           >
-            <span className="dashboard-header-streak-fire__meter-band" />
-            <span className="dashboard-header-streak-fire__meter-fill" />
+            <span />
+            <span />
+            <span />
+            <span />
           </span>
           <span
-            aria-hidden="true"
-            className="dashboard-header-streak-fire__status-pill"
+            aria-label={`${Math.round(headerAchievementProgress)} percent achievement progress`}
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={Math.round(headerAchievementProgress)}
+            className="dashboard-header-achievement-meter__progress-shell"
+            role="meter"
+            style={
+              {
+                "--dashboard-header-achievement-progress": `${headerAchievementProgress}%`,
+                "--dashboard-header-achievement-active-duration": `${DASHBOARD_HEADER_ACHIEVEMENT_ROTATE_MS}ms`,
+              } as CSSProperties
+            }
           >
-            <span>{momentumGoalLabel}</span>
-            <span>{momentumSignalLabel}</span>
+            <span
+              aria-hidden="true"
+              className="dashboard-header-achievement-meter__track"
+            />
+            <span
+              aria-hidden="true"
+              className="dashboard-header-achievement-meter__progress-list"
+            >
+              {activeHeaderAchievement ? (
+                <span
+                  aria-hidden="true"
+                  className="dashboard-header-achievement-meter__progress-item"
+                  key={`dashboard-header-achievement-active-${activeHeaderAchievement.label}`}
+                  style={
+                    {
+                      "--dashboard-header-achievement-item-progress": `${activeHeaderAchievementProgress}%`,
+                    } as CSSProperties
+                  }
+                >
+                  <span className="dashboard-header-achievement-meter__progress-icon">
+                    {activeHeaderAchievement.icon}
+                  </span>
+                  <span className="dashboard-header-achievement-meter__progress-copy">
+                    <span className="dashboard-header-achievement-meter__progress-title">
+                      {activeHeaderAchievement.label}
+                    </span>
+                    <span className="dashboard-header-achievement-meter__progress-meta">
+                      <span>
+                        {Math.round(activeHeaderAchievementProgress)}%{" "}
+                        {activeHeaderAchievement.statusLabel}
+                      </span>
+                      <span>{activeHeaderAchievementEstimate.label}</span>
+                    </span>
+                    <span className="dashboard-header-achievement-meter__progress-bar">
+                      <span />
+                    </span>
+                  </span>
+                </span>
+              ) : null}
+            </span>
           </span>
-          <span className="dashboard-header-streak-fire__content">
-            <span className="dashboard-header-streak-fire__value">
-              {momentumEntryStreak}
+        </Link>
+        </div>
+
+        <div className="dashboard-header-menu-spacer min-w-0 flex-1" />
+
+        <div
+          aria-label="Header block 3, sets and orbital meters"
+          className={`dashboard-header-menu-block dashboard-header-menu-block--progress dashboard-header-menu-block--slot-${getDashboardHeaderMenuBlockSlot(
+            2,
+          )}`}
+        >
+        <div
+          aria-label={`${dashboardSummary.dailySets} daily sets out of ${dashboardSummary.dailySetGoal} target sets. ${dashboardSummary.dailySetGroupSummary}`}
+          aria-valuemax={dashboardSummary.dailySetGoal}
+          aria-valuemin={0}
+          aria-valuenow={Math.min(
+            dashboardSummary.dailySets,
+            dashboardSummary.dailySetGoal,
+          )}
+          className="dashboard-header-sets-meter dashboard-header-sets-meter--standalone relative hidden h-[4.65rem] min-w-[5.25rem] shrink-0 place-items-center overflow-visible bg-transparent px-0 text-center text-emerald-50 lg:grid"
+          data-dashboard-tooltip={`${dashboardSummary.dailySets} daily sets. ${dashboardSummary.dailySetGroupSummary}`}
+          role="meter"
+        >
+          <span className="dashboard-header-sets-meter__tower">
+            <span className="dashboard-header-sets-meter__tallies">
+              {dashboardSummary.dailySetTallyMarks.map((mark, markIndex) => (
+                <span
+                  aria-hidden="true"
+                  className={`dashboard-header-sets-meter__tally dashboard-header-sets-meter__tally--${mark.group} ${
+                    mark.filled
+                      ? "dashboard-header-sets-meter__tally--filled"
+                      : "dashboard-header-sets-meter__tally--empty"
+                  }`}
+                  key={`dashboard-header-daily-set-tally-${mark.id}-${markIndex}`}
+                />
+              ))}
             </span>
-            <span className="dashboard-header-streak-fire__label">
-              Streak
-            </span>
+          </span>
+          <span className="dashboard-header-sets-meter__value">
+            {dashboardSummary.dailySets}
+          </span>
+          <span className="dashboard-header-sets-meter__label">Daily Sets</span>
+          <span className="dashboard-header-meter-deadline dashboard-header-meter-deadline--sets">
+            Goal {dashboardSummary.dailySetGoal}
           </span>
         </div>
 
         <div
-          className="relative hidden shrink-0 overflow-visible pb-3 md:block"
+          aria-label="Header progress meters"
+          className={`dashboard-header-meter-scroller ${
+            dashboardHeaderMeterRailActive
+              && dashboardHeaderMenuActiveIndex ===
+                DASHBOARD_HEADER_PROGRESS_BLOCK_INDEX
+              ? "dashboard-header-meter-scroller--rail-active"
+              : ""
+          } hidden h-[5.45rem] shrink-0 md:block`}
+        >
+          <div className="dashboard-header-meter-scroller__track">
+            <div
+              aria-label={`${dashboardSummary.workoutsThisWeek} of ${dashboardSummary.weeklySessionGoal} weekly sessions logged, resets ${dashboardWeeklySessionResetFullLabel}`}
+              aria-valuemax={dashboardSummary.weeklySessionGoal}
+              aria-valuemin={0}
+              aria-valuenow={Math.min(
+                dashboardSummary.workoutsThisWeek,
+                dashboardSummary.weeklySessionGoal,
+              )}
+              className={`dashboard-header-week-sessions dashboard-header-meter-scroller__meter dashboard-header-meter-scroller__meter--${getDashboardHeaderMeterSlot(
+                1,
+              )} hidden h-14 min-w-[6.8rem] shrink-0 flex-col items-center justify-center bg-transparent px-0 text-center text-emerald-50 md:flex`}
+              data-dashboard-tooltip={`${dashboardSummary.workoutsThisWeek} of ${dashboardSummary.weeklySessionGoal} weekly sessions logged. Resets ${dashboardWeeklySessionResetFullLabel}`}
+              role="meter"
+              style={
+                {
+                  "--dashboard-week-session-bar": `${dashboardSummary.weeklySessionProgress}%`,
+                } as CSSProperties
+              }
+            >
+              <span
+                aria-hidden="true"
+                className="dashboard-header-week-sessions__graph"
+              >
+                <span
+                  className={`dashboard-header-week-sessions__bar ${
+                    dashboardSummary.workoutsThisWeek > 0
+                      ? "dashboard-header-week-sessions__bar--active"
+                      : ""
+                  }`}
+                >
+                  <span className="dashboard-header-week-sessions__fill" />
+                  <span
+                    aria-hidden="true"
+                    className="dashboard-header-week-sessions__goal-lines"
+                  >
+                    {Array.from(
+                      { length: dashboardSummary.weeklySessionGoal },
+                      (_, goalIndex) => (
+                        <span
+                          className={`dashboard-header-week-sessions__goal-section ${
+                            goalIndex < dashboardSummary.workoutsThisWeek
+                              ? "dashboard-header-week-sessions__goal-section--filled"
+                              : ""
+                          }`}
+                          data-session-level={goalIndex + 1}
+                          key={`weekly-session-goal-section-${goalIndex + 1}`}
+                          style={
+                            {
+                              "--dashboard-week-session-section-bottom": `${
+                                (goalIndex / dashboardSummary.weeklySessionGoal) *
+                                100
+                              }%`,
+                              "--dashboard-week-session-section-height": `${
+                                100 / dashboardSummary.weeklySessionGoal
+                              }%`,
+                            } as CSSProperties
+                          }
+                        />
+                      ),
+                    )}
+                  </span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="dashboard-header-week-sessions__opening-sheen"
+                />
+              </span>
+              <span className="dashboard-header-week-sessions__label">
+                Sessions / Week
+              </span>
+              <span
+                aria-label={`Weekly session reset ${dashboardWeeklySessionResetFullLabel}`}
+                className="dashboard-header-meter-deadline dashboard-header-meter-deadline--week"
+              >
+                Reset {dashboardWeeklySessionResetLabel}
+              </span>
+            </div>
+
+            <div
+              aria-label={`${dashboardPlanAttendanceDescription}, ${dashboardPlanSessionsRemaining} sessions remaining`}
+              aria-valuemax={dashboardSummary.planSessionTarget}
+              aria-valuemin={0}
+              aria-valuenow={dashboardPlanSessionsAttended}
+              className={`dashboard-header-plan-attendance dashboard-header-streak-fire dashboard-header-meter-scroller__meter dashboard-header-meter-scroller__meter--${getDashboardHeaderMeterSlot(
+                0,
+              )} relative hidden h-14 min-w-[6.6rem] shrink-0 place-items-center overflow-visible bg-transparent px-0 text-center text-amber-50 md:grid`}
+              data-dashboard-tooltip={`${dashboardPlanAttendanceDescription}. ${dashboardPlanAttendanceCaption}.`}
+              role="meter"
+              style={
+                {
+                  "--dashboard-header-plan-attendance-progress": `${dashboardSummary.planSessionProgress}%`,
+                } as CSSProperties
+              }
+            >
+              <span
+                aria-hidden="true"
+                className="dashboard-header-streak-fire__flame"
+              />
+              <span
+                aria-hidden="true"
+                className="dashboard-header-streak-fire__embers"
+              />
+              <span
+                aria-hidden="true"
+                className="dashboard-header-streak-fire__gauge"
+              >
+                <svg
+                  aria-hidden="true"
+                  className="dashboard-header-streak-fire__gauge-svg"
+                  viewBox="0 0 96 96"
+                >
+                  <circle
+                    cx="48"
+                    cy="48"
+                    fill="rgba(2,6,23,0.42)"
+                    r="41"
+                    stroke="rgba(224,242,254,0.08)"
+                    strokeWidth="1"
+                  />
+                  <circle
+                    cx="48"
+                    cy="48"
+                    fill="none"
+                    pathLength={100}
+                    r="35.5"
+                    stroke="rgba(15,23,42,0.78)"
+                    strokeWidth="10"
+                  />
+                  <circle
+                    className="dashboard-header-plan-attendance__progress-ring"
+                    cx="48"
+                    cy="48"
+                    fill="none"
+                    pathLength={100}
+                    r="35.5"
+                    stroke="url(#dashboardHeaderPlanAttendanceGradient)"
+                    strokeDasharray="100"
+                    strokeDashoffset={100 - dashboardSummary.planSessionProgress}
+                    strokeLinecap="round"
+                    strokeWidth="10"
+                    transform="rotate(-90 48 48)"
+                  />
+                  {Array.from({
+                    length: dashboardSummary.planSessionTarget,
+                  }).map((_, tickIndex) => {
+                    const tickAngle =
+                      tickIndex * (360 / dashboardSummary.planSessionTarget);
+                    const isFilledTick =
+                      tickIndex < dashboardPlanSessionsAttended;
+
+                    return (
+                      <line
+                        key={`dashboard-header-plan-attendance-tick-${tickIndex}`}
+                        stroke={
+                          isFilledTick
+                            ? "rgba(254,240,138,0.92)"
+                            : "rgba(148,163,184,0.36)"
+                        }
+                        strokeLinecap="round"
+                        strokeWidth={isFilledTick ? 2.1 : 1.25}
+                        transform={`rotate(${tickAngle} 48 48)`}
+                        x1="48"
+                        x2="48"
+                        y1="7"
+                        y2={isFilledTick ? "18" : "15"}
+                      />
+                    );
+                  })}
+                  <circle
+                    cx="48"
+                    cy="48"
+                    fill="rgba(2,6,23,0.86)"
+                    r="25.5"
+                    stroke="rgba(125,211,252,0.26)"
+                    strokeWidth="1.4"
+                  />
+                  <circle
+                    cx="48"
+                    cy="48"
+                    fill="none"
+                    r="30"
+                    stroke="rgba(255,255,255,0.12)"
+                    strokeDasharray="1.6 5.2"
+                    strokeLinecap="round"
+                    strokeWidth="1"
+                  />
+                  <circle
+                    className="dashboard-header-plan-attendance__spark"
+                    cx="48"
+                    cy="12.5"
+                    fill="rgb(250,204,21)"
+                    opacity={dashboardPlanSessionsAttended > 0 ? 1 : 0}
+                    r="3.2"
+                    stroke="rgba(254,249,195,0.9)"
+                    strokeWidth="1"
+                    transform={`rotate(${
+                      dashboardSummary.planSessionProgress * 3.6
+                    } 48 48)`}
+                  />
+                  <defs>
+                    <linearGradient
+                      id="dashboardHeaderPlanAttendanceGradient"
+                      x1="14"
+                      x2="82"
+                      y1="82"
+                      y2="14"
+                      gradientUnits="userSpaceOnUse"
+                    >
+                      <stop offset="0%" stopColor="rgb(34,211,238)" />
+                      <stop offset="42%" stopColor="rgb(52,211,153)" />
+                      <stop offset="72%" stopColor="rgb(250,204,21)" />
+                      <stop offset="100%" stopColor="rgb(250,204,21)" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </span>
+              <span className="dashboard-header-streak-fire__content">
+                <span className="dashboard-header-streak-fire__value">
+                  {`${dashboardPlanSessionsAttended}/${dashboardSummary.planSessionTarget}`}
+                </span>
+                <span className="dashboard-header-streak-fire__label">
+                  Plan Sessions
+                </span>
+              </span>
+              <span
+                aria-label={dashboardPlanAttendanceDescription}
+                className="dashboard-header-meter-deadline dashboard-header-meter-deadline--streak"
+              >
+                {dashboardPlanAttendanceCaption}
+              </span>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <div
+          aria-label="Header block 4, weekly calories and weight change"
+          className={`dashboard-header-menu-block dashboard-header-menu-block--fuel dashboard-header-menu-block--slot-${getDashboardHeaderMenuBlockSlot(
+            3,
+          )}`}
+        >
+          <div className="dashboard-header-fuel-meters">
+            <div
+              aria-label={`${dashboardSummary.weeklyCaloriesDisplay} total weekly calories`}
+              aria-valuemax={dashboardSummary.weeklyCaloriesGoal}
+              aria-valuemin={0}
+              aria-valuenow={dashboardSummary.weeklyCalories}
+              className="dashboard-header-fuel-meter dashboard-header-fuel-meter--calories"
+              data-dashboard-tooltip={`${dashboardSummary.weeklyCaloriesDisplay} total weekly calories`}
+              role="meter"
+              style={
+                {
+                  "--dashboard-header-fuel-progress": `${dashboardSummary.weeklyCaloriesProgress}%`,
+                } as CSSProperties
+              }
+            >
+              <span
+                aria-hidden="true"
+                className="dashboard-header-fuel-meter__ring"
+              >
+                <span className="dashboard-header-fuel-meter__value">
+                  {dashboardSummary.weeklyCaloriesDisplay}
+                </span>
+              </span>
+              <span className="dashboard-header-fuel-meter__label">
+                Weekly Calories
+              </span>
+              <span className="dashboard-header-fuel-meter__meta">
+                Total Week
+              </span>
+            </div>
+
+            <div
+              aria-label={`Weight change ${dashboardSummary.weightChangeLabel}, ${dashboardSummary.weightChangeTrendLabel}`}
+              aria-valuemax={5}
+              aria-valuemin={-5}
+              aria-valuenow={Number(dashboardSummary.weightChange.toFixed(1))}
+              className={`dashboard-header-fuel-meter dashboard-header-fuel-meter--weight dashboard-header-fuel-meter--${dashboardSummary.weightChangeTone}`}
+              data-dashboard-tooltip={`Weight change ${dashboardSummary.weightChangeLabel}. ${dashboardSummary.weightChangeTrendLabel}`}
+              role="meter"
+              style={
+                {
+                  "--dashboard-header-fuel-progress": `${dashboardSummary.weightChangeProgress}%`,
+                } as CSSProperties
+              }
+            >
+              <span
+                aria-hidden="true"
+                className="dashboard-header-fuel-meter__ring"
+              >
+                <span className="dashboard-header-fuel-meter__value">
+                  {dashboardSummary.weightChangeLabel}
+                </span>
+              </span>
+              <span className="dashboard-header-fuel-meter__label">
+                Weight +/-
+              </span>
+              <span className="dashboard-header-fuel-meter__meta">
+                {dashboardSummary.weightChangeTrendLabel}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div
+          aria-label="Header block 5, profile"
+          className={`dashboard-header-menu-block dashboard-header-menu-block--profile dashboard-header-menu-block--slot-${getDashboardHeaderMenuBlockSlot(
+            4,
+          )} shrink-0 overflow-visible pb-3`}
+          data-profile-actions-open={
+            dashboardProfileActionsOpen ? "true" : "false"
+          }
         >
           <div className="flex min-h-[58px] items-center gap-2">
             <button
               aria-controls="dashboard-profile-hub-orbital-overlay"
               aria-expanded={dashboardProfileHubOpen}
               aria-label={`Open profile hub, Sound Fitness level ${soundFitnessLevel}`}
-              className="flex min-h-[58px] shrink-0 items-center rounded-[22px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:bg-transparent"
+              className="dashboard-profile-hub-trigger relative isolate flex min-h-[58px] shrink-0 items-center rounded-[22px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:bg-transparent"
               data-dashboard-tooltip={`Profile hub, level ${soundFitnessLevel}`}
               onClick={openDashboardProfileHub}
               type="button"
@@ -11019,22 +14735,32 @@ export default function UserHomeDashboardPage() {
               <button
                 aria-controls="dashboard-points-dropdown"
                 aria-expanded={dashboardPointsDropdownOpen}
-                aria-label={`Open Sound Points rewards, ${soundPoints.toLocaleString()} points and ${soundTokens.toLocaleString()} tokens`}
-                className="dashboard-profile-points-trigger flex min-h-[58px] min-w-[82px] shrink-0 flex-col items-start justify-center gap-1 rounded-[18px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:border-amber-200/18 hover:bg-amber-300/8"
+                aria-label={`Open Sound Points rewards, ${soundPoints.toLocaleString()} points, ${soundTokens.toLocaleString()} tokens, and ${soundEmeralds.toLocaleString()} emeralds`}
+                className="dashboard-profile-points-trigger flex min-h-[68px] min-w-[88px] shrink-0 flex-col items-start justify-center gap-0.5 rounded-[18px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:border-emerald-200/18 hover:bg-emerald-300/8"
                 data-dashboard-tooltip="Sound Points"
                 onClick={toggleDashboardPointsDropdown}
                 type="button"
               >
                 <span className="flex items-center gap-1.5">
+                  <span className="sr-only">Emeralds</span>
+                  <span
+                    aria-hidden="true"
+                    className="dashboard-emerald-gem h-[1.125rem] w-[1.125rem]"
+                  />
+                  <span className="text-xs font-black leading-none text-white">
+                    {soundEmeralds.toLocaleString()}
+                  </span>
+                </span>
+                <span className="flex items-center gap-1.5">
                   <span className="sr-only">Tokens</span>
                   <Image
                     alt=""
-                    className="h-4 w-4 rounded-full border border-cyan-200/20 bg-slate-950 object-contain p-0.5"
-                    height={16}
-                    src="/sound-fitness-logo.png"
-                    width={16}
+                    className="h-8 w-8 rounded-full object-contain drop-shadow-[0_0_14px_rgba(34,211,238,0.28)]"
+                    height={32}
+                    src="/sound-token.png"
+                    width={32}
                   />
-                  <span className="text-xs font-black leading-none text-white">
+                  <span className="text-sm font-black leading-none text-white">
                     {soundTokens.toLocaleString()}
                   </span>
                 </span>
@@ -11057,63 +14783,284 @@ export default function UserHomeDashboardPage() {
               {dashboardPointsDropdownOpen ? (
                 <div
                   aria-label="Sound Points rewards"
-                  className="dashboard-profile-points-dropdown absolute right-0 top-[calc(100%+0.55rem)] z-[160] w-[17.5rem] overflow-hidden rounded-[22px] border border-amber-200/24 bg-slate-950/92 p-3 text-slate-200 shadow-[0_22px_70px_rgba(0,0,0,0.46),0_0_34px_rgba(250,204,21,0.12),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-2xl"
+                  className="dashboard-profile-points-dropdown absolute right-0 top-[calc(100%+0.55rem)] z-[160] w-[21rem] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-[22px] border border-amber-200/24 bg-slate-950/92 p-3 text-slate-200 shadow-[0_22px_70px_rgba(0,0,0,0.46),0_0_34px_rgba(250,204,21,0.12),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-2xl"
                   id="dashboard-points-dropdown"
                   role="region"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0">
                       <div className="text-[9px] font-black uppercase tracking-[0.18em] text-amber-100">
                         Sound Rewards
                       </div>
                       <div className="mt-1 text-[11px] font-bold leading-4 text-slate-400">
-                        Points, tokens, and level progress.
-                      </div>
-                    </div>
-                    <span className="rounded-full border border-cyan-200/24 bg-cyan-300/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
-                      LV {soundFitnessLevel}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-2">
-                    <div className="rounded-2xl border border-amber-200/18 bg-amber-300/8 p-2">
-                      <div className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/72">
-                        Points
-                      </div>
-                      <div className="mt-1 text-lg font-black leading-none text-white">
-                        {soundPoints.toLocaleString()}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-cyan-200/18 bg-cyan-300/8 p-2">
-                      <div className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/72">
-                        Tokens
-                      </div>
-                      <div className="mt-1 text-lg font-black leading-none text-white">
-                        {soundTokens.toLocaleString()}
+                        Level progress, Emeralds, Sound Coins, and Sound Points.
                       </div>
                     </div>
                   </div>
 
                   <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
-                    <div className="flex items-center justify-between gap-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">
-                      <span>Level progress</span>
-                      <span>{Math.round(soundFitnessLevelProgress)}%</span>
-                    </div>
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-900/80">
-                      <span
-                        className="block h-full rounded-full bg-[linear-gradient(90deg,rgba(250,204,21,0.92),rgba(103,232,249,0.92))] shadow-[0_0_14px_rgba(250,204,21,0.28)]"
-                        style={{ width: `${soundFitnessLevelProgress}%` }}
-                      />
-                    </div>
-                    <div className="mt-2 text-[10px] font-bold text-slate-400">
-                      {soundPointsToNextLevel.toLocaleString()} points to LV{" "}
-                      {soundFitnessLevel + 1}
+                    <div className="flex items-center gap-3">
+                      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-cyan-200/28 bg-cyan-300/10 text-cyan-50 shadow-[0_0_16px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.10)]">
+                        <span className="flex flex-col items-center leading-none">
+                          <span className="text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/74">
+                            LV
+                          </span>
+                          <span className="mt-0.5 text-sm font-black">
+                            {soundFitnessLevel}
+                          </span>
+                        </span>
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">
+                          <span>Level progress</span>
+                          <span>{Math.round(soundFitnessLevelProgress)}%</span>
+                        </div>
+                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-900/80">
+                          <span
+                            className="block h-full rounded-full bg-[linear-gradient(90deg,rgba(250,204,21,0.92),rgba(103,232,249,0.92))] shadow-[0_0_14px_rgba(250,204,21,0.28)]"
+                            style={{ width: `${soundFitnessLevelProgress}%` }}
+                          />
+                        </div>
+                        <div className="mt-2 text-[10px] font-bold text-slate-400">
+                          {soundPointsToNextLevel.toLocaleString()} points to LV{" "}
+                          {soundFitnessLevel + 1}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mt-3 flex gap-2">
+                  <div className="mt-3 flex flex-col gap-2">
+                    <section className="rounded-2xl border border-emerald-200/22 bg-emerald-300/8 p-2.5">
+                      <div className="flex items-start gap-3">
+                        <div className="flex shrink-0 flex-col items-center gap-1">
+                          <span
+                            aria-hidden="true"
+                            className="dashboard-emerald-cut-float"
+                          >
+                            <svg
+                              className="dashboard-emerald-cut-gem"
+                              viewBox="0 0 64 64"
+                            >
+                              <defs>
+                                <linearGradient
+                                  id="dashboardEmeraldOuter"
+                                  x1="12"
+                                  x2="54"
+                                  y1="7"
+                                  y2="58"
+                                >
+                                  <stop offset="0" stopColor="#ecfdf5" />
+                                  <stop offset="0.24" stopColor="#5eead4" />
+                                  <stop offset="0.56" stopColor="#10b981" />
+                                  <stop offset="1" stopColor="#022c22" />
+                                </linearGradient>
+                                <linearGradient
+                                  id="dashboardEmeraldTable"
+                                  x1="20"
+                                  x2="46"
+                                  y1="12"
+                                  y2="45"
+                                >
+                                  <stop offset="0" stopColor="#d1fae5" />
+                                  <stop offset="0.44" stopColor="#34d399" />
+                                  <stop offset="1" stopColor="#047857" />
+                                </linearGradient>
+                              </defs>
+                              <path
+                                d="M18 4h28l14 14v28L46 60H18L4 46V18L18 4Z"
+                                fill="url(#dashboardEmeraldOuter)"
+                              />
+                              <path
+                                d="M22 13h20l9 9v20l-9 9H22l-9-9V22l9-9Z"
+                                fill="url(#dashboardEmeraldTable)"
+                                opacity="0.94"
+                              />
+                              <path
+                                d="M18 4 22 13 13 22 4 18Z"
+                                fill="#a7f3d0"
+                                opacity="0.88"
+                              />
+                              <path
+                                d="M46 4 42 13 51 22 60 18Z"
+                                fill="#6ee7b7"
+                                opacity="0.78"
+                              />
+                              <path
+                                d="M60 46 51 42 42 51 46 60Z"
+                                fill="#065f46"
+                                opacity="0.8"
+                              />
+                              <path
+                                d="M4 46 13 42 22 51 18 60Z"
+                                fill="#047857"
+                                opacity="0.72"
+                              />
+                              <path
+                                d="M22 13h20l-10 13Z"
+                                fill="#ecfdf5"
+                                opacity="0.54"
+                              />
+                              <path
+                                d="M13 22 32 26 22 51Z"
+                                fill="#059669"
+                                opacity="0.56"
+                              />
+                              <path
+                                d="M51 22 32 26 42 51Z"
+                                fill="#14b8a6"
+                                opacity="0.46"
+                              />
+                              <path
+                                d="M22 51 32 26 42 51Z"
+                                fill="#064e3b"
+                                opacity="0.48"
+                              />
+                              <path
+                                d="M18 4h28l14 14v28L46 60H18L4 46V18L18 4Z"
+                                fill="none"
+                                stroke="rgba(236,253,245,0.78)"
+                                strokeWidth="2"
+                              />
+                              <path
+                                d="M20 10 11 19"
+                                fill="none"
+                                stroke="rgba(255,255,255,0.72)"
+                                strokeLinecap="round"
+                                strokeWidth="3"
+                              />
+                            </svg>
+                          </span>
+                          <Image
+                            alt=""
+                            aria-hidden="true"
+                            className="h-16 w-16 rounded-2xl object-cover drop-shadow-[0_0_20px_rgba(16,185,129,0.34)]"
+                            height={64}
+                            src="/sound-emerald-crystals.png"
+                            width={64}
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-[8px] font-black uppercase tracking-[0.14em] text-emerald-100/72">
+                                Emeralds
+                              </div>
+                              <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-emerald-50/80">
+                                Premium collectible
+                              </div>
+                            </div>
+                            <div className="text-2xl font-black leading-none text-white">
+                              {soundEmeralds.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="mt-2 grid gap-1 text-[10px] font-bold leading-4 text-slate-300">
+                            <div>
+                              <span className="font-black uppercase tracking-[0.1em] text-emerald-100">
+                                Earn:
+                              </span>{" "}
+                              Convert every 25 Sound Coins and unlock major milestones.
+                            </div>
+                            <div>
+                              <span className="font-black uppercase tracking-[0.1em] text-emerald-100">
+                                Use:
+                              </span>{" "}
+                              Redeem for top-tier perks, premium challenges, and rare rewards.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-cyan-200/18 bg-cyan-300/8 p-2.5">
+                      <div className="flex items-start gap-3">
+                        <Image
+                          alt=""
+                          aria-hidden="true"
+                          className="mt-0.5 h-9 w-9 shrink-0 rounded-full object-contain drop-shadow-[0_0_14px_rgba(34,211,238,0.28)]"
+                          height={36}
+                          src="/sound-token.png"
+                          width={36}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/72">
+                                Sound Coins
+                              </div>
+                              <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-cyan-50/80">
+                                Training currency
+                              </div>
+                            </div>
+                            <div className="text-2xl font-black leading-none text-white">
+                              {soundTokens.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="mt-2 grid gap-1 text-[10px] font-bold leading-4 text-slate-300">
+                            <div>
+                              <span className="font-black uppercase tracking-[0.1em] text-cyan-100">
+                                Earn:
+                              </span>{" "}
+                              Complete workouts, save templates, and keep stats active.
+                            </div>
+                            <div>
+                              <span className="font-black uppercase tracking-[0.1em] text-cyan-100">
+                                Use:
+                              </span>{" "}
+                              Trade toward Emeralds, unlock boosts, and claim reward drops.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-amber-200/18 bg-amber-300/8 p-2.5">
+                      <div className="flex items-start gap-3">
+                        <svg
+                          aria-hidden="true"
+                          className="mt-1 h-8 w-8 shrink-0 text-amber-200 drop-shadow-[0_0_12px_rgba(250,204,21,0.28)]"
+                          fill="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path d="M13.5 2 4.8 13.2h6.1L9.7 22 19.2 9.6h-6.4L13.5 2Z" />
+                        </svg>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/72">
+                                Sound Points
+                              </div>
+                              <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-amber-50/80">
+                                Progress score
+                              </div>
+                            </div>
+                            <div className="text-2xl font-black leading-none text-white">
+                              {soundPoints.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="mt-2 grid gap-1 text-[10px] font-bold leading-4 text-slate-300">
+                            <div>
+                              <span className="font-black uppercase tracking-[0.1em] text-amber-100">
+                                Earn:
+                              </span>{" "}
+                              Log sets, complete sessions, build plans, and track progress.
+                            </div>
+                            <div>
+                              <span className="font-black uppercase tracking-[0.1em] text-amber-100">
+                                Use:
+                              </span>{" "}
+                              Raise your level, open achievements, and guide reward unlocks.
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-end gap-3">
                     <Link
-                      className="flex-1 rounded-2xl border border-amber-200/24 bg-amber-300/10 px-3 py-2 text-center text-[9px] font-black uppercase tracking-[0.12em] text-amber-100 transition hover:border-cyan-200/40 hover:bg-cyan-300/10 hover:text-cyan-100"
+                      aria-label="Open achievements"
+                      className="inline-grid h-10 w-10 place-items-center bg-transparent text-amber-100 transition hover:-translate-y-0.5 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/55"
+                      data-dashboard-tooltip="Achievements"
                       href={ROUTES.dashboard.achievements}
                       onClick={() => {
                         markDashboardDestinationVisited(
@@ -11122,17 +15069,19 @@ export default function UserHomeDashboardPage() {
                         setDashboardPointsDropdownOpen(false);
                       }}
                     >
-                      Achievements
+                      <DashboardTabIcon className="h-5 w-5" name="Achievements" />
                     </Link>
                     <Link
-                      className="flex-1 rounded-2xl border border-cyan-200/24 bg-cyan-300/10 px-3 py-2 text-center text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-amber-200/40 hover:bg-amber-300/10 hover:text-amber-100"
+                      aria-label="Open stats"
+                      className="inline-grid h-10 w-10 place-items-center bg-transparent text-cyan-100 transition hover:-translate-y-0.5 hover:text-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/55"
+                      data-dashboard-tooltip="Stats"
                       href={ROUTES.dashboard.stats}
                       onClick={() => {
                         markDashboardDestinationVisited(ROUTES.dashboard.stats);
                         setDashboardPointsDropdownOpen(false);
                       }}
                     >
-                      Stats
+                      <DashboardTabIcon className="h-5 w-5" name="Stats" />
                     </Link>
                   </div>
                 </div>
@@ -11158,10 +15107,12 @@ export default function UserHomeDashboardPage() {
               const nextOpen = !dashboardProfileActionsOpen;
               setDashboardProfileActionsOpen(nextOpen);
               setDashboardPointsDropdownOpen(false);
+              setDashboardHeaderMeterMenuOpen(false);
               if (!nextOpen) {
                 setDashboardMusicDropdownOpen(false);
               }
             }}
+            style={{ left: "2.55rem" }}
             tabIndex={dashboardProfileActionsOpen ? -1 : 0}
             type="button"
           >
@@ -11175,6 +15126,7 @@ export default function UserHomeDashboardPage() {
             data-profile-actions-open={
               dashboardProfileActionsOpen ? "true" : "false"
             }
+            style={{ left: "-0.95rem" }}
           >
             <Link
               aria-label="Open groups"
@@ -11212,6 +15164,7 @@ export default function UserHomeDashboardPage() {
             data-profile-actions-open={
               dashboardProfileActionsOpen ? "true" : "false"
             }
+            style={{ left: "-0.95rem" }}
           >
             <div
               className="dashboard-music-control"
@@ -11657,16 +15610,911 @@ export default function UserHomeDashboardPage() {
         </div>
       </div>
       <div
-        aria-label={`Dashboard news: ${activeDashboardHeaderLink.label}. ${activeDashboardHeaderUrgencyTone.label}. ${dashboardSummary.workoutsThisWeek} sessions this week. ${momentumEntryStreak} day streak. ${soundPoints.toLocaleString()} sound points. ${dashboardHeaderActiveJourneyStepLabel} next.`}
+        className="dashboard-header-meter-menu-shell"
+        ref={dashboardHeaderMeterMenuRef}
+      >
+        <button
+          aria-controls="dashboard-header-meter-panel"
+          aria-expanded={dashboardHeaderMeterMenuOpen}
+          aria-label={
+            dashboardHeaderMeterMenuOpen
+              ? "Close header meter menu"
+              : "Open header meter menu"
+          }
+          className="dashboard-header-meter-menu-trigger"
+          data-dashboard-tooltip="Meters"
+          onClick={() => {
+            setDashboardProfileHubOpen(false);
+            setDashboardProfileActionsOpen(false);
+            setDashboardPointsDropdownOpen(false);
+            setDashboardMusicDropdownOpen(false);
+            setDashboardHeaderMeterMenuOpen((open) => !open);
+          }}
+          type="button"
+        >
+          <svg
+            aria-hidden="true"
+            className="dashboard-header-meter-menu-trigger__icon"
+            viewBox="0 0 48 48"
+          >
+            <path
+              d="M13 35V21m11 14V12m11 23V18"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth="4"
+            />
+            <path
+              d="M9 38h30"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeWidth="3"
+            />
+          </svg>
+          <span aria-hidden="true" className="dashboard-header-meter-menu-trigger__pulse" />
+        </button>
+
+        {dashboardHeaderMeterMenuOpen && typeof document !== "undefined"
+          ? createPortal(
+          <aside
+            aria-label="Stacked dashboard meters"
+            className="dashboard-header-meter-panel"
+            id="dashboard-header-meter-panel"
+            role="region"
+          >
+            <div className="dashboard-header-meter-panel__heading">
+              <div>
+                <div className="dashboard-header-meter-panel__eyebrow">
+                  Meter Stack
+                </div>
+                <div className="dashboard-header-meter-panel__title">
+                  Training Signals
+                </div>
+              </div>
+              <button
+                aria-label="Close meter menu"
+                className="dashboard-header-meter-panel__close"
+                onClick={() => setDashboardHeaderMeterMenuOpen(false)}
+                type="button"
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path
+                    d="m7 7 10 10M17 7 7 17"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeWidth="2.4"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="dashboard-header-category-levels-menu">
+              <div className="dashboard-header-category-levels-menu__summary">
+                <span className="dashboard-header-category-levels-menu__summary-copy">
+                  <span>Category Levels</span>
+                  <span>All movement rings</span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="dashboard-header-category-levels-menu__summary-count"
+                >
+                  {dashboardHeaderCategoryLevels.length}
+                </span>
+              </div>
+
+              <div
+                aria-label="Drag or scroll through category level animations"
+                className="dashboard-header-category-levels-menu__orbit"
+                id="dashboard-header-category-levels-orbit"
+                onClickCapture={(event) => {
+                  if (dashboardHeaderCategoryLevelPointerMovedRef.current) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    dashboardHeaderCategoryLevelPointerMovedRef.current = false;
+                  }
+                }}
+                onKeyDown={(event) =>
+                  handleDashboardOrbitKeyDown(
+                    event,
+                    rotateDashboardHeaderCategoryLevels,
+                  )
+                }
+                onPointerCancel={(event) => {
+                  dashboardHeaderCategoryLevelPointerStartRef.current = null;
+                  if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                    event.currentTarget.releasePointerCapture?.(event.pointerId);
+                  }
+                }}
+                onPointerDown={(event) =>
+                  handleDashboardOrbitPointerDown(
+                    event,
+                    dashboardHeaderCategoryLevelPointerStartRef,
+                    dashboardHeaderCategoryLevelPointerMovedRef,
+                  )
+                }
+                onPointerMove={(event) =>
+                  handleDashboardOrbitPointerMove(
+                    event,
+                    dashboardHeaderCategoryLevelPointerStartRef,
+                    dashboardHeaderCategoryLevelPointerMovedRef,
+                    rotateDashboardHeaderCategoryLevels,
+                    24,
+                  )
+                }
+                onPointerUp={(event) =>
+                  handleDashboardOrbitPointerUp(
+                    event,
+                    dashboardHeaderCategoryLevelPointerStartRef,
+                    dashboardHeaderCategoryLevelPointerMovedRef,
+                    rotateDashboardHeaderCategoryLevels,
+                    setDashboardHeaderCategoryLevelActiveIndex,
+                  )
+                }
+                onWheel={handleDashboardHeaderCategoryLevelWheel}
+                role="group"
+                tabIndex={0}
+              >
+                {dashboardHeaderCategoryLevels.map((categoryLevel, index) => {
+                  const categoryLevelNumber = Math.max(
+                    1,
+                    Math.round(categoryLevel.level / 10),
+                  );
+                  const categoryLevelSlot =
+                    getDashboardHeaderCategoryLevelSlot(index);
+                  const isActiveCategoryLevel = categoryLevelSlot === "center";
+
+                  return (
+                    <button
+                      aria-label={`${categoryLevel.label}, level ${categoryLevelNumber}, ${categoryLevel.level}% progress`}
+                      aria-pressed={isActiveCategoryLevel}
+                      className={`dashboard-header-category-levels-menu__item dashboard-header-category-levels-menu__item--slot-${categoryLevelSlot}`}
+                      data-dashboard-orbit-card-index={index}
+                      key={`dashboard-header-category-levels-menu-${categoryLevel.id}`}
+                      onClick={() =>
+                        setDashboardHeaderCategoryLevelActiveIndex(index)
+                      }
+                      style={
+                        {
+                          "--dashboard-header-category-color":
+                            categoryLevel.color,
+                          "--dashboard-header-category-level": `${categoryLevel.level}%`,
+                        } as CSSProperties
+                      }
+                      tabIndex={isActiveCategoryLevel ? 0 : -1}
+                      type="button"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`dashboard-header-category-levels-menu__actor dashboard-header-category-actor dashboard-header-category-actor--${categoryLevel.id}`}
+                      >
+                        <span className="dashboard-header-category-actor__meter">
+                          <span />
+                        </span>
+                        {renderDashboardHeaderCategoryActorFigure()}
+                      </span>
+                      <span className="dashboard-header-category-levels-menu__item-copy">
+                        <span className="dashboard-header-category-levels-menu__item-title">
+                          <span>{categoryLevel.label}</span>
+                          <span className="dashboard-header-category-levels-menu__level-text">
+                            LV {categoryLevelNumber}
+                          </span>
+                        </span>
+                        <span className="dashboard-header-category-levels-menu__item-meta">
+                          {categoryLevel.level}% progress
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div
+              aria-label="Drag or scroll through dashboard meter groups"
+              className="dashboard-header-meter-panel__stack dashboard-header-meter-panel__stack--orbit"
+              onClickCapture={(event) => {
+                if (dashboardHeaderMeterPanelPointerMovedRef.current) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  dashboardHeaderMeterPanelPointerMovedRef.current = false;
+                }
+              }}
+              onKeyDown={(event) =>
+                handleDashboardOrbitKeyDown(
+                  event,
+                  rotateDashboardHeaderMeterPanelSections,
+                )
+              }
+              onPointerCancel={(event) => {
+                dashboardHeaderMeterPanelPointerStartRef.current = null;
+                if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture?.(event.pointerId);
+                }
+              }}
+              onPointerDown={(event) =>
+                handleDashboardOrbitPointerDown(
+                  event,
+                  dashboardHeaderMeterPanelPointerStartRef,
+                  dashboardHeaderMeterPanelPointerMovedRef,
+                )
+              }
+              onPointerMove={(event) =>
+                handleDashboardOrbitPointerMove(
+                  event,
+                  dashboardHeaderMeterPanelPointerStartRef,
+                  dashboardHeaderMeterPanelPointerMovedRef,
+                  rotateDashboardHeaderMeterPanelSections,
+                  38,
+                )
+              }
+              onPointerUp={(event) =>
+                handleDashboardOrbitPointerUp(
+                  event,
+                  dashboardHeaderMeterPanelPointerStartRef,
+                  dashboardHeaderMeterPanelPointerMovedRef,
+                  rotateDashboardHeaderMeterPanelSections,
+                  setDashboardHeaderMeterPanelActiveIndex,
+                )
+              }
+              onWheel={handleDashboardHeaderMeterPanelWheel}
+              role="group"
+              tabIndex={0}
+            >
+              <section
+                aria-label="Achievements and compound PR meters"
+                className={`dashboard-header-meter-panel__section dashboard-header-meter-panel__section--slot-${getDashboardHeaderMeterPanelSectionSlot(
+                  0,
+                )}`}
+                data-dashboard-orbit-card-index={0}
+              >
+                <div className="dashboard-header-meter-panel__section-label">
+                  Achievements + PR
+                </div>
+                <div
+                  aria-label={`Compound lift PR meter. ${dashboardSummary.compoundLiftHighlights
+                    .map(
+                      (highlight) =>
+                        `${highlight.rank}. ${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`,
+                    )
+                    .join(". ")}`}
+                  className="dashboard-header-compound-pr-meter dashboard-header-meter-panel__wide-meter text-cyan-50"
+                  data-dashboard-tooltip="Compound PR meter: 30 day best weight and date"
+                  role="group"
+                  style={
+                    {
+                      "--dashboard-header-pr-progress": `${dashboardSummary.prProgress}%`,
+                    } as CSSProperties
+                  }
+                >
+                  <span className="dashboard-header-compound-pr-meter__header">
+                    <span
+                      aria-hidden="true"
+                      className="dashboard-header-compound-pr-meter__badge"
+                    >
+                      PR
+                    </span>
+                    <span className="dashboard-header-compound-pr-meter__heading-copy">
+                      <span className="dashboard-header-compound-pr-meter__eyebrow">
+                        30 Day Best
+                      </span>
+                      <span className="dashboard-header-compound-pr-meter__heading">
+                        Compound Lifts
+                      </span>
+                    </span>
+                  </span>
+                  <div
+                    aria-label="Drag or scroll through 30 day compound PR cards"
+                    className="dashboard-header-compound-pr-meter__orbiter"
+                    onClickCapture={(event) => {
+                      if (dashboardHeaderPrPointerMovedRef.current) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        dashboardHeaderPrPointerMovedRef.current = false;
+                      }
+                    }}
+                    onKeyDown={(event) =>
+                      handleDashboardOrbitKeyDown(
+                        event,
+                        rotateDashboardHeaderPrCards,
+                      )
+                    }
+                    onPointerCancel={(event) => {
+                      dashboardHeaderPrPointerStartRef.current = null;
+                      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                        event.currentTarget.releasePointerCapture?.(
+                          event.pointerId,
+                        );
+                      }
+                    }}
+                    onPointerDown={(event) =>
+                      handleDashboardOrbitPointerDown(
+                        event,
+                        dashboardHeaderPrPointerStartRef,
+                        dashboardHeaderPrPointerMovedRef,
+                      )
+                    }
+                    onPointerMove={(event) =>
+                      handleDashboardOrbitPointerMove(
+                        event,
+                        dashboardHeaderPrPointerStartRef,
+                        dashboardHeaderPrPointerMovedRef,
+                        rotateDashboardHeaderPrCards,
+                        34,
+                      )
+                    }
+                    onPointerUp={(event) =>
+                      handleDashboardOrbitPointerUp(
+                        event,
+                        dashboardHeaderPrPointerStartRef,
+                        dashboardHeaderPrPointerMovedRef,
+                        rotateDashboardHeaderPrCards,
+                        setDashboardHeaderPrActiveIndex,
+                      )
+                    }
+                    onWheel={handleDashboardHeaderPrWheel}
+                    role="group"
+                    tabIndex={0}
+                  >
+                    <span className="dashboard-header-compound-pr-meter__list">
+                      {dashboardSummary.compoundLiftHighlights.map(
+                        (highlight, index) => {
+                          const prCardSlot = getDashboardHeaderPrCardSlot(index);
+                          const isActivePrCard = prCardSlot === "center";
+
+                          return (
+                            <button
+                              aria-label={`${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`}
+                              aria-pressed={isActivePrCard}
+                              className={`dashboard-header-compound-pr-meter__item dashboard-header-compound-pr-meter__item--${highlight.tone} dashboard-header-compound-pr-meter__item--slot-${prCardSlot}`}
+                              data-dashboard-orbit-card-index={index}
+                              key={`dashboard-header-meter-panel-compound-pr-${highlight.tone}`}
+                              onClick={() =>
+                                setDashboardHeaderPrActiveIndex(index)
+                              }
+                              tabIndex={isActivePrCard ? 0 : -1}
+                              type="button"
+                            >
+                              <span className="dashboard-header-compound-pr-meter__rank">
+                                {highlight.rank}
+                              </span>
+                              <span className="dashboard-header-compound-pr-meter__copy">
+                                <span className="dashboard-header-compound-pr-meter__title">
+                                  {highlight.label}
+                                </span>
+                                <span className="dashboard-header-compound-pr-meter__detail">
+                                  {highlight.detail}
+                                </span>
+                                <span className="dashboard-header-compound-pr-meter__stats">
+                                  <span className="dashboard-header-compound-pr-meter__stat">
+                                    <span className="dashboard-header-compound-pr-meter__stat-label">
+                                      Volume %
+                                    </span>
+                                    <span className="dashboard-header-compound-pr-meter__stat-value">
+                                      {highlight.volumeLabel}
+                                    </span>
+                                  </span>
+                                  <span className="dashboard-header-compound-pr-meter__stat">
+                                    <span className="dashboard-header-compound-pr-meter__stat-label">
+                                      Sets
+                                    </span>
+                                    <span className="dashboard-header-compound-pr-meter__stat-value">
+                                      {highlight.setsLabel}
+                                    </span>
+                                  </span>
+                                </span>
+                              </span>
+                              <span
+                                aria-label={`${highlight.detail} trend ${highlight.value}`}
+                                className="dashboard-header-compound-pr-meter__value"
+                              >
+                                {highlight.value}
+                              </span>
+                            </button>
+                          );
+                        },
+                      )}
+                    </span>
+                  </div>
+                </div>
+
+                <Link
+                  aria-label={`Open achievements, ${headerAchievementsEarned} of ${headerAchievementTotal} earned, ${Math.round(
+                    headerAchievementProgress,
+                  )}% progress`}
+                  className={`dashboard-header-achievement-cloud-trigger dashboard-header-achievement-meter dashboard-header-achievement-meter--standalone ${
+                    dashboardHeaderAchievementRevealActive
+                      ? "dashboard-header-achievement-cloud-trigger--revealing"
+                      : ""
+                  } dashboard-header-meter-panel__wide-meter text-amber-50`}
+                  data-dashboard-tooltip={`Achievements: ${headerAchievementsEarned}/${headerAchievementTotal} earned${
+                    headerAchievementNext
+                      ? `, next ${headerAchievementNext.label}`
+                      : ""
+                  }. ${activeHeaderAchievementEstimate.fullLabel}`}
+                  href={ROUTES.dashboard.achievements}
+                  onClick={openDashboardAchievementsFromHeader}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="dashboard-header-achievement-cloud-trigger__light"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="dashboard-header-achievement-cloud-trigger__menu-flash"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="dashboard-header-achievement-cloud-trigger__clouds"
+                  >
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  <span
+                    aria-label={`${Math.round(headerAchievementProgress)} percent achievement progress`}
+                    aria-valuemax={100}
+                    aria-valuemin={0}
+                    aria-valuenow={Math.round(headerAchievementProgress)}
+                    className="dashboard-header-achievement-meter__progress-shell"
+                    role="meter"
+                    style={
+                      {
+                        "--dashboard-header-achievement-progress": `${headerAchievementProgress}%`,
+                        "--dashboard-header-achievement-active-duration": `${DASHBOARD_HEADER_ACHIEVEMENT_ROTATE_MS}ms`,
+                      } as CSSProperties
+                    }
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="dashboard-header-achievement-meter__track"
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="dashboard-header-achievement-meter__progress-list"
+                    >
+                      {activeHeaderAchievement ? (
+                        <span
+                          aria-hidden="true"
+                          className="dashboard-header-achievement-meter__progress-item"
+                          key={`dashboard-header-meter-panel-achievement-${activeHeaderAchievement.label}`}
+                          style={
+                            {
+                              "--dashboard-header-achievement-item-progress": `${activeHeaderAchievementProgress}%`,
+                            } as CSSProperties
+                          }
+                        >
+                          <span className="dashboard-header-achievement-meter__progress-icon">
+                            {activeHeaderAchievement.icon}
+                          </span>
+                          <span className="dashboard-header-achievement-meter__progress-copy">
+                            <span className="dashboard-header-achievement-meter__progress-title">
+                              {activeHeaderAchievement.label}
+                            </span>
+                            <span className="dashboard-header-achievement-meter__progress-meta">
+                              <span>
+                                {Math.round(activeHeaderAchievementProgress)}%{" "}
+                                {activeHeaderAchievement.statusLabel}
+                              </span>
+                              <span>{activeHeaderAchievementEstimate.label}</span>
+                            </span>
+                            <span className="dashboard-header-achievement-meter__progress-bar">
+                              <span />
+                            </span>
+                          </span>
+                        </span>
+                      ) : null}
+                    </span>
+                  </span>
+                </Link>
+              </section>
+
+              <section
+                aria-label="Daily sets and plan session meters"
+                className={`dashboard-header-meter-panel__section dashboard-header-meter-panel__section--slot-${getDashboardHeaderMeterPanelSectionSlot(
+                  1,
+                )}`}
+                data-dashboard-orbit-card-index={1}
+              >
+                <div className="dashboard-header-meter-panel__section-label">
+                  Daily + Plan
+                </div>
+                <div
+                  aria-label={`${dashboardSummary.dailySets} daily sets out of ${dashboardSummary.dailySetGoal} target sets. ${dashboardSummary.dailySetGroupSummary}`}
+                  aria-valuemax={dashboardSummary.dailySetGoal}
+                  aria-valuemin={0}
+                  aria-valuenow={Math.min(
+                    dashboardSummary.dailySets,
+                    dashboardSummary.dailySetGoal,
+                  )}
+                  className="dashboard-header-sets-meter dashboard-header-sets-meter--standalone dashboard-header-meter-panel__compact-meter text-emerald-50"
+                  data-dashboard-tooltip={`${dashboardSummary.dailySets} daily sets. ${dashboardSummary.dailySetGroupSummary}`}
+                  role="meter"
+                >
+                  <span className="dashboard-header-sets-meter__tower">
+                    <span className="dashboard-header-sets-meter__tallies">
+                      {dashboardSummary.dailySetTallyMarks.map(
+                        (mark, markIndex) => (
+                          <span
+                            aria-hidden="true"
+                            className={`dashboard-header-sets-meter__tally dashboard-header-sets-meter__tally--${mark.group} ${
+                              mark.filled
+                                ? "dashboard-header-sets-meter__tally--filled"
+                                : "dashboard-header-sets-meter__tally--empty"
+                            }`}
+                            key={`dashboard-header-meter-panel-daily-set-tally-${mark.id}-${markIndex}`}
+                          />
+                        ),
+                      )}
+                    </span>
+                  </span>
+                  <span className="dashboard-header-sets-meter__value">
+                    {dashboardSummary.dailySets}
+                  </span>
+                  <span className="dashboard-header-sets-meter__label">
+                    Daily Sets
+                  </span>
+                  <span className="dashboard-header-meter-deadline dashboard-header-meter-deadline--sets">
+                    Goal {dashboardSummary.dailySetGoal}
+                  </span>
+                </div>
+
+                <div
+                  aria-label="Header progress meters"
+                  className={`dashboard-header-meter-scroller ${
+                    dashboardHeaderMeterRailActive
+                      ? "dashboard-header-meter-scroller--rail-active"
+                      : ""
+                  }`}
+                >
+                  <div className="dashboard-header-meter-scroller__track">
+                    <div
+                      aria-label={`${dashboardSummary.workoutsThisWeek} of ${dashboardSummary.weeklySessionGoal} weekly sessions logged, resets ${dashboardWeeklySessionResetFullLabel}`}
+                      aria-valuemax={dashboardSummary.weeklySessionGoal}
+                      aria-valuemin={0}
+                      aria-valuenow={Math.min(
+                        dashboardSummary.workoutsThisWeek,
+                        dashboardSummary.weeklySessionGoal,
+                      )}
+                      className={`dashboard-header-week-sessions dashboard-header-meter-scroller__meter dashboard-header-meter-scroller__meter--${getDashboardHeaderMeterSlot(
+                        1,
+                      )} text-emerald-50`}
+                      data-dashboard-tooltip={`${dashboardSummary.workoutsThisWeek} of ${dashboardSummary.weeklySessionGoal} weekly sessions logged. Resets ${dashboardWeeklySessionResetFullLabel}`}
+                      role="meter"
+                      style={
+                        {
+                          "--dashboard-week-session-bar": `${dashboardSummary.weeklySessionProgress}%`,
+                        } as CSSProperties
+                      }
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="dashboard-header-week-sessions__graph"
+                      >
+                        <span
+                          className={`dashboard-header-week-sessions__bar ${
+                            dashboardSummary.workoutsThisWeek > 0
+                              ? "dashboard-header-week-sessions__bar--active"
+                              : ""
+                          }`}
+                        >
+                          <span className="dashboard-header-week-sessions__fill" />
+                          <span
+                            aria-hidden="true"
+                            className="dashboard-header-week-sessions__goal-lines"
+                          >
+                            {Array.from(
+                              { length: dashboardSummary.weeklySessionGoal },
+                              (_, goalIndex) => (
+                                <span
+                                  className={`dashboard-header-week-sessions__goal-section ${
+                                    goalIndex < dashboardSummary.workoutsThisWeek
+                                      ? "dashboard-header-week-sessions__goal-section--filled"
+                                      : ""
+                                  }`}
+                                  data-session-level={goalIndex + 1}
+                                  key={`meter-panel-weekly-session-goal-section-${goalIndex + 1}`}
+                                  style={
+                                    {
+                                      "--dashboard-week-session-section-bottom": `${
+                                        (goalIndex /
+                                          dashboardSummary.weeklySessionGoal) *
+                                        100
+                                      }%`,
+                                      "--dashboard-week-session-section-height": `${
+                                        100 /
+                                        dashboardSummary.weeklySessionGoal
+                                      }%`,
+                                    } as CSSProperties
+                                  }
+                                />
+                              ),
+                            )}
+                          </span>
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className="dashboard-header-week-sessions__opening-sheen"
+                        />
+                      </span>
+                      <span className="dashboard-header-week-sessions__label">
+                        Sessions / Week
+                      </span>
+                      <span
+                        aria-label={`Weekly session reset ${dashboardWeeklySessionResetFullLabel}`}
+                        className="dashboard-header-meter-deadline dashboard-header-meter-deadline--week"
+                      >
+                        Reset {dashboardWeeklySessionResetLabel}
+                      </span>
+                    </div>
+
+                    <div
+                      aria-label={`${dashboardPlanAttendanceDescription}, ${dashboardPlanSessionsRemaining} sessions remaining`}
+                      aria-valuemax={dashboardSummary.planSessionTarget}
+                      aria-valuemin={0}
+                      aria-valuenow={dashboardPlanSessionsAttended}
+                      className={`dashboard-header-plan-attendance dashboard-header-streak-fire dashboard-header-meter-scroller__meter dashboard-header-meter-scroller__meter--${getDashboardHeaderMeterSlot(
+                        0,
+                      )} text-amber-50`}
+                      data-dashboard-tooltip={`${dashboardPlanAttendanceDescription}. ${dashboardPlanAttendanceCaption}.`}
+                      role="meter"
+                      style={
+                        {
+                          "--dashboard-header-plan-attendance-progress": `${dashboardSummary.planSessionProgress}%`,
+                        } as CSSProperties
+                      }
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="dashboard-header-streak-fire__flame"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className="dashboard-header-streak-fire__embers"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className="dashboard-header-streak-fire__gauge"
+                      >
+                        <svg
+                          aria-hidden="true"
+                          className="dashboard-header-streak-fire__gauge-svg"
+                          viewBox="0 0 96 96"
+                        >
+                          <circle
+                            cx="48"
+                            cy="48"
+                            fill="rgba(2,6,23,0.42)"
+                            r="41"
+                            stroke="rgba(224,242,254,0.08)"
+                            strokeWidth="1"
+                          />
+                          <circle
+                            cx="48"
+                            cy="48"
+                            fill="none"
+                            pathLength={100}
+                            r="35.5"
+                            stroke="rgba(15,23,42,0.78)"
+                            strokeWidth="10"
+                          />
+                          <circle
+                            className="dashboard-header-plan-attendance__progress-ring"
+                            cx="48"
+                            cy="48"
+                            fill="none"
+                            pathLength={100}
+                            r="35.5"
+                            stroke="url(#dashboardHeaderPanelPlanAttendanceGradient)"
+                            strokeDasharray="100"
+                            strokeDashoffset={
+                              100 - dashboardSummary.planSessionProgress
+                            }
+                            strokeLinecap="round"
+                            strokeWidth="10"
+                            transform="rotate(-90 48 48)"
+                          />
+                          {Array.from({
+                            length: dashboardSummary.planSessionTarget,
+                          }).map((_, tickIndex) => {
+                            const tickAngle =
+                              tickIndex *
+                              (360 / dashboardSummary.planSessionTarget);
+                            const isFilledTick =
+                              tickIndex < dashboardPlanSessionsAttended;
+
+                            return (
+                              <line
+                                key={`dashboard-header-meter-panel-plan-attendance-tick-${tickIndex}`}
+                                stroke={
+                                  isFilledTick
+                                    ? "rgba(254,240,138,0.92)"
+                                    : "rgba(148,163,184,0.36)"
+                                }
+                                strokeLinecap="round"
+                                strokeWidth={isFilledTick ? 2.1 : 1.25}
+                                transform={`rotate(${tickAngle} 48 48)`}
+                                x1="48"
+                                x2="48"
+                                y1="7"
+                                y2={isFilledTick ? "18" : "15"}
+                              />
+                            );
+                          })}
+                          <circle
+                            cx="48"
+                            cy="48"
+                            fill="rgba(2,6,23,0.86)"
+                            r="25.5"
+                            stroke="rgba(125,211,252,0.26)"
+                            strokeWidth="1.4"
+                          />
+                          <circle
+                            cx="48"
+                            cy="48"
+                            fill="none"
+                            r="30"
+                            stroke="rgba(255,255,255,0.12)"
+                            strokeDasharray="1.6 5.2"
+                            strokeLinecap="round"
+                            strokeWidth="1"
+                          />
+                          <circle
+                            className="dashboard-header-plan-attendance__spark"
+                            cx="48"
+                            cy="12.5"
+                            fill="rgb(250,204,21)"
+                            opacity={dashboardPlanSessionsAttended > 0 ? 1 : 0}
+                            r="3.2"
+                            stroke="rgba(254,249,195,0.9)"
+                            strokeWidth="1"
+                            transform={`rotate(${
+                              dashboardSummary.planSessionProgress * 3.6
+                            } 48 48)`}
+                          />
+                          <defs>
+                            <linearGradient
+                              id="dashboardHeaderPanelPlanAttendanceGradient"
+                              x1="14"
+                              x2="82"
+                              y1="82"
+                              y2="14"
+                              gradientUnits="userSpaceOnUse"
+                            >
+                              <stop offset="0%" stopColor="rgb(34,211,238)" />
+                              <stop offset="42%" stopColor="rgb(52,211,153)" />
+                              <stop offset="72%" stopColor="rgb(250,204,21)" />
+                              <stop offset="100%" stopColor="rgb(250,204,21)" />
+                            </linearGradient>
+                          </defs>
+                        </svg>
+                      </span>
+                      <span className="dashboard-header-streak-fire__content">
+                        <span className="dashboard-header-streak-fire__value">
+                          {`${dashboardPlanSessionsAttended}/${dashboardSummary.planSessionTarget}`}
+                        </span>
+                        <span className="dashboard-header-streak-fire__label">
+                          Plan Sessions
+                        </span>
+                      </span>
+                      <span
+                        aria-label={dashboardPlanAttendanceDescription}
+                        className="dashboard-header-meter-deadline dashboard-header-meter-deadline--streak"
+                      >
+                        {dashboardPlanAttendanceCaption}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section
+                aria-label="Fuel and body meters"
+                className={`dashboard-header-meter-panel__section dashboard-header-meter-panel__section--slot-${getDashboardHeaderMeterPanelSectionSlot(
+                  2,
+                )}`}
+                data-dashboard-orbit-card-index={2}
+              >
+                <div className="dashboard-header-meter-panel__section-label">
+                  Fuel + Body
+                </div>
+                <div className="dashboard-header-fuel-meters">
+                  <div
+                    aria-label={`${dashboardSummary.weeklyCaloriesDisplay} total weekly calories`}
+                    aria-valuemax={dashboardSummary.weeklyCaloriesGoal}
+                    aria-valuemin={0}
+                    aria-valuenow={dashboardSummary.weeklyCalories}
+                    className="dashboard-header-fuel-meter dashboard-header-fuel-meter--calories"
+                    data-dashboard-tooltip={`${dashboardSummary.weeklyCaloriesDisplay} total weekly calories`}
+                    role="meter"
+                    style={
+                      {
+                        "--dashboard-header-fuel-progress": `${dashboardSummary.weeklyCaloriesProgress}%`,
+                      } as CSSProperties
+                    }
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="dashboard-header-fuel-meter__ring"
+                    >
+                      <span className="dashboard-header-fuel-meter__value">
+                        {dashboardSummary.weeklyCaloriesDisplay}
+                      </span>
+                    </span>
+                    <span className="dashboard-header-fuel-meter__label">
+                      Weekly Calories
+                    </span>
+                    <span className="dashboard-header-fuel-meter__meta">
+                      Total Week
+                    </span>
+                  </div>
+
+                  <div
+                    aria-label={`Weight change ${dashboardSummary.weightChangeLabel}, ${dashboardSummary.weightChangeTrendLabel}`}
+                    aria-valuemax={5}
+                    aria-valuemin={-5}
+                    aria-valuenow={Number(
+                      dashboardSummary.weightChange.toFixed(1),
+                    )}
+                    className={`dashboard-header-fuel-meter dashboard-header-fuel-meter--weight dashboard-header-fuel-meter--${dashboardSummary.weightChangeTone}`}
+                    data-dashboard-tooltip={`Weight change ${dashboardSummary.weightChangeLabel}. ${dashboardSummary.weightChangeTrendLabel}`}
+                    role="meter"
+                    style={
+                      {
+                        "--dashboard-header-fuel-progress": `${dashboardSummary.weightChangeProgress}%`,
+                      } as CSSProperties
+                    }
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="dashboard-header-fuel-meter__ring"
+                    >
+                      <span className="dashboard-header-fuel-meter__value">
+                        {dashboardSummary.weightChangeLabel}
+                      </span>
+                    </span>
+                    <span className="dashboard-header-fuel-meter__label">
+                      Weight +/-
+                    </span>
+                    <span className="dashboard-header-fuel-meter__meta">
+                      {dashboardSummary.weightChangeTrendLabel}
+                    </span>
+                  </div>
+                </div>
+              </section>
+            </div>
+          </aside>,
+              document.body,
+            )
+          : null}
+      </div>
+      </div>
+      <div
+        aria-label={`Dashboard chyron with coaching advice, athlete quotes, and training trivia for ${activeDashboardHeaderLink.label}. Current headline: ${dashboardHeaderNewsHeadlines[0]?.label || ""}. ${dashboardPlanAttendanceDescription}.`}
         className="dashboard-header-news-chyron"
       >
-        <span className="dashboard-header-news-chyron__label">SFN</span>
+        <span aria-hidden="true" className="dashboard-header-news-chyron__gems">
+          <span className="dashboard-header-news-chyron__gem dashboard-header-news-chyron__gem--one" />
+          <span className="dashboard-header-news-chyron__gem dashboard-header-news-chyron__gem--two" />
+          <span className="dashboard-header-news-chyron__gem dashboard-header-news-chyron__gem--three" />
+          <span className="dashboard-header-news-chyron__gem dashboard-header-news-chyron__gem--rock" />
+          <span className="dashboard-header-news-chyron__gem dashboard-header-news-chyron__gem--five" />
+        </span>
+        <span className="dashboard-header-news-chyron__label">SOUND</span>
         <span aria-hidden="true" className="dashboard-header-news-chyron__light" />
         <div
           aria-hidden="true"
           className="dashboard-header-news-chyron__viewport"
         >
-          <span className="dashboard-header-news-chyron__kicker">Live</span>
+          <span
+            className="dashboard-header-news-chyron__kicker"
+            data-news-tone={dashboardHeaderNewsHeadlines[0]?.tone || "default"}
+            ref={dashboardHeaderNewsKickerRef}
+          >
+            {dashboardHeaderNewsHeadlines[0]?.category}
+          </span>
           <span className="dashboard-header-news-chyron__divider" />
           <div className="dashboard-header-news-chyron__track">
             <span
@@ -12232,11 +17080,12 @@ export default function UserHomeDashboardPage() {
               : achievement.status === "locked"
                 ? "Locked"
                 : `${Math.round(achievementProgress)}% complete`);
+          const achievementEstimate = getHeaderAchievementEstimate(achievement);
 
           return (
             <Link
               aria-current={isActiveAchievement ? "step" : undefined}
-              aria-label={`Open ${achievement.label} achievements`}
+              aria-label={`Open ${achievement.label} achievements, ${achievementEstimate.fullLabel}`}
               className={`group/hero-achievement absolute left-1/2 top-1/2 flex cursor-pointer flex-col items-center justify-center text-center transition duration-300 ${
                 isActiveAchievement
                   ? "h-[136px] w-[min(52vw,184px)] overflow-visible rounded-[24px] border border-cyan-100/30 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.18),transparent_36%),radial-gradient(circle_at_88%_12%,rgba(250,204,21,0.13),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.74))] px-2.5 py-2 shadow-[0_18px_44px_rgba(0,0,0,0.30),0_0_28px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl sm:h-[140px]"
@@ -12314,6 +17163,11 @@ export default function UserHomeDashboardPage() {
                       {achievementProgressLabel}
                     </span>
                   </div>
+                  {achievement.variant !== "cta" ? (
+                    <p className="mt-1 truncate text-center text-[8px] font-black leading-3 text-emerald-100/85">
+                      Plan {achievementEstimate.label}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
             </Link>

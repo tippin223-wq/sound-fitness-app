@@ -307,6 +307,7 @@ export default function DashboardOrbitalHeader({
   const profileDisplay = getProfileDisplay(profile, authProfile);
   const firstName = getProfileFirstName(profileDisplay.name);
   const soundTokens = Math.max(0, Math.round(soundPoints / 15));
+  const soundEmeralds = Math.max(0, Math.floor(soundTokens / 25));
   const activeLink =
     dashboardOrbitalHeaderLinks[
       ((activeIndex % dashboardOrbitalHeaderLinks.length) +
@@ -475,6 +476,16 @@ export default function DashboardOrbitalHeader({
               </span>
             </span>
             <span className="flex items-center gap-3">
+              <span className="hidden items-center gap-1.5 xl:flex">
+                <span className="sr-only">Emeralds</span>
+                <span
+                  aria-hidden="true"
+                  className="dashboard-emerald-gem h-5 w-5"
+                />
+                <span className="text-sm font-black leading-none text-white">
+                  {soundEmeralds.toLocaleString()}
+                </span>
+              </span>
               <span className="flex items-center gap-1.5">
                 <span className="sr-only">Sound Points</span>
                 <DashboardTabIcon
@@ -490,10 +501,10 @@ export default function DashboardOrbitalHeader({
                 <Image
                   alt=""
                   aria-hidden="true"
-                  className="h-5 w-5 rounded-full border border-cyan-200/24 bg-slate-950 object-contain p-0.5 shadow-[0_0_12px_rgba(34,211,238,0.20)]"
-                  height={20}
-                  src="/sound-fitness-logo.png"
-                  width={20}
+                  className="h-8 w-8 rounded-full object-contain drop-shadow-[0_0_14px_rgba(34,211,238,0.28)]"
+                  height={32}
+                  src="/sound-token.png"
+                  width={32}
                 />
                 <span className="text-sm font-black leading-none text-white">
                   {soundTokens.toLocaleString()}
@@ -536,7 +547,19 @@ export default function DashboardOrbitalHeader({
                     </p>
                   </div>
                 </div>
-                <div className="hidden shrink-0 gap-2 sm:grid sm:grid-cols-2">
+                <div className="hidden shrink-0 gap-2 sm:grid sm:grid-cols-3">
+                  <div className="rounded-2xl border border-emerald-200/22 bg-emerald-300/10 px-3 py-2 text-right">
+                    <div className="text-[8px] font-black uppercase tracking-[0.14em] text-emerald-100/70">
+                      Emeralds
+                    </div>
+                    <div className="mt-1 flex items-center justify-end gap-2 text-lg font-black leading-none text-white">
+                      <span
+                        aria-hidden="true"
+                        className="dashboard-emerald-gem h-8 w-8"
+                      />
+                      {soundEmeralds.toLocaleString()}
+                    </div>
+                  </div>
                   <div className="rounded-2xl border border-amber-200/22 bg-amber-300/10 px-3 py-2 text-right">
                     <div className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/70">
                       Points
@@ -549,7 +572,15 @@ export default function DashboardOrbitalHeader({
                     <div className="text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/70">
                       Tokens
                     </div>
-                    <div className="text-lg font-black text-white">
+                    <div className="mt-1 flex items-center justify-end gap-2 text-lg font-black leading-none text-white">
+                      <Image
+                        alt=""
+                        aria-hidden="true"
+                        className="h-8 w-8 rounded-full object-contain drop-shadow-[0_0_14px_rgba(34,211,238,0.28)]"
+                        height={32}
+                        src="/sound-token.png"
+                        width={32}
+                      />
                       {soundTokens.toLocaleString()}
                     </div>
                   </div>
