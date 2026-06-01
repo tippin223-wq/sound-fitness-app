@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   type ChangeEvent as ReactChangeEvent,
   type CSSProperties,
@@ -183,14 +183,42 @@ const DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT = 3;
 const DASHBOARD_HEADER_MENU_BLOCK_COUNT = 5;
 const DASHBOARD_HEADER_PROGRESS_BLOCK_INDEX = 2;
 const DASHBOARD_HEADER_IDLE_TIMEOUT_MS = 20000;
+const DASHBOARD_HEADER_IDLE_RUN_MS = 3800;
+const DASHBOARD_HEADER_IDLE_WORK_MS = 4800;
+const dashboardHeaderRunnerCharacter = {
+  accent: "#10b981",
+  hair: "#111827",
+  id: "sound-runner",
+  logoSrc: "/sound-fitness-logo.png",
+  name: "Sound Runner",
+  outline: "rgba(15, 23, 42, 0.82)",
+  shirtEnd: "#22d3ee",
+  shirtMid: "#a5f3fc",
+  shirtStart: "#ffffff",
+  shoe: "#111827",
+  shoeSole: "#f8fafc",
+  shorts: "#0f172a",
+  skin: "#f2b28b",
+  sock: "#e0f2fe",
+  trim: "#facc15",
+} as const;
 const DASHBOARD_HEADER_METER_AUTOSCROLL_MS = 6200;
 const DASHBOARD_HEADER_METER_RAIL_PULSE_MS = 1400;
 const DASHBOARD_HEADER_ACHIEVEMENT_ROTATE_MS = 4600;
+const DASHBOARD_HEADER_COMPOUND_PR_AUTOSCROLL_MS = 4800;
 const DASHBOARD_HEADER_TIMEOUT_PORTAL_VISIBLE_MS = 15000;
-const DASHBOARD_HEADER_TIMEOUT_PORTAL_BREAK_MS = 30000;
+const DASHBOARD_HEADER_TIMEOUT_PORTAL_BREAK_MS = 15000;
 const DASHBOARD_HEADER_TIMEOUT_PORTAL_INTERVAL_MS =
   DASHBOARD_HEADER_TIMEOUT_PORTAL_VISIBLE_MS +
   DASHBOARD_HEADER_TIMEOUT_PORTAL_BREAK_MS;
+const dashboardHeaderTimeoutPortalSafeZones = [
+  { xMax: 30, xMin: 18, yMax: 56, yMin: 30 },
+  { xMax: 58, xMin: 42, yMax: 58, yMin: 36 },
+  { xMax: 82, xMin: 70, yMax: 56, yMin: 30 },
+  { xMax: 66, xMin: 34, yMax: 28, yMin: 20 },
+  { xMax: 32, xMin: 20, yMax: 68, yMin: 60 },
+  { xMax: 80, xMin: 68, yMax: 68, yMin: 60 },
+] as const;
 const dashboardHeaderCategoryLevels = [
   {
     color: "rgba(110, 231, 183, 0.96)",
@@ -297,12 +325,27 @@ const dashboardHeaderCategoryFloorSlots = [
   { delay: 25.6, left: 62, top: 54 },
 ] as const;
 
+const getDashboardHeaderCategoryMeterFill = (level: number) =>
+  `${Math.max(8, Math.min(68, Math.round(level * 0.74)))}%`;
+
+const getDashboardHeaderTimeoutPortalPosition = () => {
+  const zone =
+    dashboardHeaderTimeoutPortalSafeZones[
+      Math.floor(Math.random() * dashboardHeaderTimeoutPortalSafeZones.length)
+    ];
+
+  return {
+    x: zone.xMin + Math.random() * (zone.xMax - zone.xMin),
+    y: zone.yMin + Math.random() * (zone.yMax - zone.yMin),
+  };
+};
+
 const dashboardHeaderIdleEquipmentStations = [
   {
     categoryId: "lower-compound",
     color: "rgba(110, 231, 183, 0.96)",
-    delay: 0,
     equipmentId: "rack",
+    exerciseLabel: "Squat",
     id: "lower-compound",
     label: "Squat Rack",
     left: 14,
@@ -312,8 +355,8 @@ const dashboardHeaderIdleEquipmentStations = [
   {
     categoryId: "lower-isolation",
     color: "rgba(190, 242, 100, 0.92)",
-    delay: 6,
     equipmentId: "leg-machine",
+    exerciseLabel: "Leg Extension",
     id: "lower-isolation",
     label: "Leg Machine",
     left: 30,
@@ -323,8 +366,8 @@ const dashboardHeaderIdleEquipmentStations = [
   {
     categoryId: "core",
     color: "rgba(153, 246, 228, 0.94)",
-    delay: 12,
     equipmentId: "mat",
+    exerciseLabel: "Sit-Up",
     id: "core",
     label: "Core Mat",
     left: 46,
@@ -334,10 +377,10 @@ const dashboardHeaderIdleEquipmentStations = [
   {
     categoryId: "upper-push",
     color: "rgba(186, 230, 253, 0.96)",
-    delay: 18,
-    equipmentId: "bench",
+    equipmentId: "press",
+    exerciseLabel: "Overhead Press",
     id: "upper-push",
-    label: "Bench",
+    label: "Press Rack",
     left: 62,
     level: 6,
     progress: 62,
@@ -345,8 +388,8 @@ const dashboardHeaderIdleEquipmentStations = [
   {
     categoryId: "upper-pull",
     color: "rgba(199, 210, 254, 0.96)",
-    delay: 24,
     equipmentId: "pull",
+    exerciseLabel: "Pull / Row",
     id: "upper-pull",
     label: "Pull Tower",
     left: 76,
@@ -356,8 +399,8 @@ const dashboardHeaderIdleEquipmentStations = [
   {
     categoryId: "arm-isolation",
     color: "rgba(216, 180, 254, 0.96)",
-    delay: 30,
     equipmentId: "bells",
+    exerciseLabel: "Curl",
     id: "arm-isolation",
     label: "Dumbbells",
     left: 88,
@@ -367,10 +410,10 @@ const dashboardHeaderIdleEquipmentStations = [
   {
     categoryId: "athletic",
     color: "rgba(253, 186, 116, 0.96)",
-    delay: 42,
     equipmentId: "cones",
+    exerciseLabel: "Jumping Jack",
     id: "athletic",
-    label: "Agility",
+    label: "Agility Cones",
     left: 114,
     level: 7,
     progress: 71,
@@ -378,10 +421,10 @@ const dashboardHeaderIdleEquipmentStations = [
   {
     categoryId: "integrated",
     color: "rgba(251, 207, 232, 0.94)",
-    delay: 48,
     equipmentId: "platform",
+    exerciseLabel: "Clean",
     id: "integrated",
-    label: "Clean Pad",
+    label: "Clean Platform",
     left: 130,
     level: 4,
     progress: 44,
@@ -389,8 +432,8 @@ const dashboardHeaderIdleEquipmentStations = [
   {
     categoryId: "mobility",
     color: "rgba(207, 250, 254, 0.96)",
-    delay: 54,
     equipmentId: "mobility",
+    exerciseLabel: "Mobility Flow",
     id: "mobility",
     label: "Mobility Rail",
     left: 146,
@@ -400,8 +443,8 @@ const dashboardHeaderIdleEquipmentStations = [
   {
     categoryId: "cervical",
     color: "rgba(226, 232, 240, 0.9)",
-    delay: 60,
     equipmentId: "neck",
+    exerciseLabel: "Neck Iso",
     id: "cervical",
     label: "Neck Station",
     left: 162,
@@ -409,6 +452,103 @@ const dashboardHeaderIdleEquipmentStations = [
     progress: 38,
   },
 ] as const;
+
+const dashboardHeaderIdleOrbitSlots = [
+  {
+    blur: 0,
+    brightness: 1.1,
+    opacity: 1,
+    scale: 1.08,
+    x: 0,
+    y: 0.08,
+    z: 4.8,
+    zIndex: 80,
+  },
+  {
+    blur: 0,
+    brightness: 0.88,
+    opacity: 0.76,
+    scale: 0.78,
+    x: 7.2,
+    y: -0.22,
+    z: 1.75,
+    zIndex: 62,
+  },
+  {
+    blur: 0.03,
+    brightness: 0.5,
+    opacity: 0,
+    scale: 0.46,
+    x: 10.6,
+    y: -1.12,
+    z: -2.4,
+    zIndex: 8,
+  },
+  {
+    blur: 0.04,
+    brightness: 0.38,
+    opacity: 0,
+    scale: 0.34,
+    x: 7.4,
+    y: -1.82,
+    z: -4.8,
+    zIndex: 6,
+  },
+  {
+    blur: 0.05,
+    brightness: 0.3,
+    opacity: 0,
+    scale: 0.28,
+    x: 3.1,
+    y: -2.22,
+    z: -6.2,
+    zIndex: 4,
+  },
+  {
+    blur: 0.05,
+    brightness: 0.28,
+    opacity: 0,
+    scale: 0.28,
+    x: 0,
+    y: -2.42,
+    z: -7.2,
+    zIndex: 2,
+  },
+] as const;
+
+const getDashboardHeaderIdleOrbitDelta = (
+  stationIndex: number,
+  centerIndex: number,
+  stationCount: number,
+) => {
+  if (stationCount <= 0) return 0;
+
+  let delta = stationIndex - centerIndex;
+  const halfStationCount = stationCount / 2;
+
+  if (delta > halfStationCount) {
+    delta -= stationCount;
+  } else if (delta < -halfStationCount) {
+    delta += stationCount;
+  }
+
+  return delta;
+};
+
+const getDashboardHeaderIdleOrbitPlacement = (delta: number) => {
+  const direction = Math.sign(delta);
+  const slot =
+    dashboardHeaderIdleOrbitSlots[
+      Math.min(Math.abs(delta), dashboardHeaderIdleOrbitSlots.length - 1)
+    ];
+  const rotateY = direction === 0 ? 0 : -direction * Math.min(54, Math.abs(delta) * 17);
+
+  return {
+    ...slot,
+    rotateY,
+    x: slot.x * direction,
+  };
+};
 
 type DashboardHeaderIdleEquipmentId =
   (typeof dashboardHeaderIdleEquipmentStations)[number]["equipmentId"];
@@ -433,6 +573,25 @@ const renderDashboardHeaderIdleEquipmentIcon = (
           <path className="dashboard-header-equipment-pad" d="M30 47H66V58H30Z" />
           <path className="dashboard-header-equipment-detail" d="M29 27H39M57 27H67M29 39H39M57 39H67" />
           <path className="dashboard-header-equipment-highlight" d="M24 17V54M72 17V54M35 49H61" />
+        </svg>
+      );
+    case "press":
+      return (
+        <svg
+          aria-hidden="true"
+          className="dashboard-header-idle-station__equipment-icon"
+          focusable="false"
+          viewBox="0 0 96 64"
+        >
+          <ellipse className="dashboard-header-equipment-shadow" cx="48" cy="58" rx="38" ry="5" />
+          <path className="dashboard-header-equipment-metal" d="M24 58V16M72 58V16M24 20H72" />
+          <path className="dashboard-header-equipment-metal" d="M16 13H80" />
+          <path className="dashboard-header-equipment-rubber" d="M7 8H17V20H7Z" />
+          <path className="dashboard-header-equipment-rubber" d="M79 8H89V20H79Z" />
+          <path className="dashboard-header-equipment-frame" d="M34 58L44 36M62 58L52 36M34 36H62" />
+          <path className="dashboard-header-equipment-pad" d="M37 50H59V58H37Z" />
+          <path className="dashboard-header-equipment-detail" d="M29 28H41M55 28H67M30 39H66" />
+          <path className="dashboard-header-equipment-highlight" d="M29 18V54M67 18V54M21 13H75" />
         </svg>
       );
     case "leg-machine":
@@ -468,24 +627,6 @@ const renderDashboardHeaderIdleEquipmentIcon = (
           <circle className="dashboard-header-equipment-rubber" cx="38" cy="27" r="6" />
           <path className="dashboard-header-equipment-metal" d="M42 31C51 35 58 39 67 43M36 32L28 40" />
           <path className="dashboard-header-equipment-detail" d="M56 38L71 31M57 39L77 48" />
-        </svg>
-      );
-    case "bench":
-      return (
-        <svg
-          aria-hidden="true"
-          className="dashboard-header-idle-station__equipment-icon"
-          focusable="false"
-          viewBox="0 0 96 64"
-        >
-          <ellipse className="dashboard-header-equipment-shadow" cx="48" cy="58" rx="37" ry="5" />
-          <path className="dashboard-header-equipment-metal" d="M20 18H76" />
-          <path className="dashboard-header-equipment-rubber" d="M10 12H18V24H10Z" />
-          <path className="dashboard-header-equipment-rubber" d="M78 12H86V24H78Z" />
-          <path className="dashboard-header-equipment-pad" d="M27 39L67 32L72 40L31 48Z" />
-          <path className="dashboard-header-equipment-frame" d="M34 46L27 58M64 39L71 58M47 18V33" />
-          <path className="dashboard-header-equipment-highlight" d="M34 39L64 34" />
-          <path className="dashboard-header-equipment-detail" d="M18 58H78" />
         </svg>
       );
     case "pull":
@@ -2474,6 +2615,17 @@ type DashboardNavigationCard = {
   tone: DashboardCardTone;
 };
 
+type AdminServiceCard = DashboardNavigationCard & {
+  audience: string;
+  delivery: string;
+  facilitation: string[];
+  price: string;
+  resourceHub: string;
+  resources: string[];
+  setup: string;
+  specialties?: string[];
+};
+
 type DashboardWeeklyRecapCard = {
   description: string;
   metric: string;
@@ -2496,6 +2648,57 @@ type DashboardMySoundCard = {
     label: string;
     value: string;
   }>;
+  title: string;
+  tone: DashboardCardTone;
+};
+
+type AdminMessageThread = {
+  action: string;
+  channel: string;
+  person: string;
+  preview: string;
+  priority: string;
+  received: string;
+};
+
+type AdminMessageChannel = {
+  actions: string[];
+  connected: string;
+  description: string;
+  href: string;
+  icon: string;
+  lastSync: string;
+  responseWindow: string;
+  source: string;
+  status: string;
+  threads: AdminMessageThread[];
+  title: string;
+  tone: DashboardCardTone;
+  unread: number;
+};
+
+type AdminSoundAssetItem = {
+  detail: string;
+  format: string;
+  name: string;
+  status: string;
+};
+
+type AdminSoundAssetCard = DashboardNavigationCard & {
+  assetCount: string;
+  assets: AdminSoundAssetItem[];
+  destination: string;
+  formats: string[];
+  primaryAction: string;
+  workflow: string[];
+};
+
+type AdminSettingsSection = {
+  detail: string;
+  icon: string;
+  items: string[];
+  metric: string;
+  status: string;
   title: string;
   tone: DashboardCardTone;
 };
@@ -3235,7 +3438,2025 @@ const dashboardJourneyStepStyles: Record<DashboardJourneyStepState, string> = {
     "border-white/10 bg-white/[0.025] text-slate-500 opacity-60 hover:border-white/15 hover:opacity-80",
 };
 
+const adminCustomerJourneyCards = [
+  {
+    accent: "from-cyan-300/20 via-sky-300/8 to-transparent",
+    contactLabel: "Reach",
+    contextLabel: "Source",
+    dateLabel: "Last seen",
+    detailIntro:
+      "Top-of-funnel people and local segments that have crossed the Sound Fitness radar.",
+    detailTitle: "Impression Pipeline",
+    emoji: "👀",
+    helper: "Top-of-funnel reach from site visits, social views, and local discovery.",
+    href: ROUTES.admin.leadMap,
+    label: "Impression",
+    metric: "2.4k",
+    nextStepLabel: "Next action",
+    primaryLabel: "Person / segment",
+    stage: "impression",
+    status: "Awareness",
+    statusLabel: "Signal",
+  },
+  {
+    accent: "from-emerald-300/20 via-cyan-300/8 to-transparent",
+    contactLabel: "Email",
+    contextLabel: "Interest tag",
+    dateLabel: "Opt-in date",
+    detailIntro:
+      "Known prospects who joined the list or raised a hand for content, coaching, or nutrition support.",
+    detailTitle: "Interest / Email List",
+    emoji: "💌",
+    helper: "People who showed intent through email capture, content opt-ins, or lead forms.",
+    href: ROUTES.admin.leads,
+    label: "Interest / Email List",
+    metric: "168",
+    nextStepLabel: "Nurture step",
+    primaryLabel: "Name",
+    stage: "interest",
+    status: "Nurture",
+    statusLabel: "Lead quality",
+  },
+  {
+    accent: "from-amber-300/20 via-sky-300/8 to-transparent",
+    contactLabel: "Contact",
+    contextLabel: "Intro type",
+    dateLabel: "Scheduled for",
+    detailIntro:
+      "Booked intro sessions that need prep, confirmation, and clean handoff notes.",
+    detailTitle: "Scheduled Free Intros",
+    emoji: "📅",
+    helper: "Prospects booked for a free intro, consult, assessment, or discovery session.",
+    href: ROUTES.admin.crmDashboard,
+    label: "Scheduled Free Intro",
+    metric: "12",
+    nextStepLabel: "Prep action",
+    primaryLabel: "Name",
+    stage: "scheduledIntro",
+    status: "Booked",
+    statusLabel: "Prep status",
+  },
+  {
+    accent: "from-violet-300/20 via-fuchsia-300/8 to-transparent",
+    contactLabel: "Contact",
+    contextLabel: "Outcome",
+    dateLabel: "Follow-up due",
+    detailIntro:
+      "Completed free intros that need follow-up, close support, or next-step scheduling.",
+    detailTitle: "Free Intro Follow Up",
+    emoji: "✅",
+    helper: "Free intros completed and waiting on follow-up, close, or next step.",
+    href: ROUTES.admin.followUps,
+    label: "Free Intro Completed / Follow Up",
+    metric: "7",
+    nextStepLabel: "Next step",
+    primaryLabel: "Name",
+    stage: "introFollowUp",
+    status: "Follow up",
+    statusLabel: "Close stage",
+  },
+  {
+    accent: "from-sky-300/20 via-cyan-300/8 to-transparent",
+    contactLabel: "Contact",
+    contextLabel: "Package",
+    dateLabel: "Next session",
+    detailIntro:
+      "Active client relationships, package context, balances, and service notes.",
+    detailTitle: "In-Home Client List",
+    emoji: "🏠",
+    helper:
+      "Current in-home training clients, packages, balances, and coaching relationships.",
+    href: ROUTES.admin.clients,
+    label: "In-Home Client List",
+    metric: "41",
+    nextStepLabel: "Coach action",
+    primaryLabel: "Client",
+    stage: "clients",
+    status: "Active",
+    statusLabel: "Account status",
+  },
+  {
+    accent: "from-indigo-300/20 via-cyan-300/8 to-transparent",
+    contactLabel: "Email / phone",
+    contextLabel: "Role / plan",
+    dateLabel: "Created / last active",
+    detailIntro:
+      "Member and staff app accounts with basic profile info, login access, role, status, and support notes.",
+    detailTitle: "App User List",
+    emoji: "📱",
+    helper:
+      "See basic account info and create, edit, or manage app user access.",
+    href: ROUTES.admin.clients,
+    label: "App User List",
+    metric: "58",
+    nextStepLabel: "Account action",
+    primaryLabel: "Full name",
+    stage: "appUsers",
+    status: "Accounts",
+    statusLabel: "Login status",
+  },
+  {
+    accent: "from-rose-300/20 via-amber-300/8 to-transparent",
+    contactLabel: "Contact",
+    contextLabel: "Reason",
+    dateLabel: "Last session",
+    detailIntro:
+      "Dormant clients who need a personal check-in, win-back offer, or reactivation plan.",
+    detailTitle: "Inactive Client List",
+    emoji: "🌙",
+    helper: "Past or dormant clients who need win-back, check-in, or reactivation.",
+    href: `${ROUTES.admin.clients}?status=inactive`,
+    label: "Inactive Client List",
+    metric: "9",
+    nextStepLabel: "Reactivation step",
+    primaryLabel: "Client",
+    stage: "inactiveClients",
+    status: "Re-engage",
+    statusLabel: "Reactivation fit",
+  },
+] as const;
+
+const adminDashboardHeroAlerts = [
+  "2 clients low on sessions",
+  "1 overdue payment",
+  "3 leads not contacted",
+  "4 follow-ups due today",
+] as const;
+
+const adminDashboardHeroFocus = [
+  "Contact all new leads",
+  "Complete all follow-ups",
+  "Check session balances",
+  "Push 1-2 closes",
+] as const;
+
+const adminImpressionSocialLinks = [
+  {
+    detail: "Main trust and short-form reach",
+    href: "https://www.instagram.com/",
+    label: "Instagram",
+    status: "Needs post",
+  },
+  {
+    detail: "Local credibility and reposts",
+    href: "https://www.facebook.com/",
+    label: "Facebook Page",
+    status: "Active",
+  },
+  {
+    detail: "Neighborhood trust and local leads",
+    href: "https://nextdoor.com/",
+    label: "Nextdoor",
+    status: "Review",
+  },
+  {
+    detail: "Reviews, maps, and local search",
+    href: "https://business.google.com/",
+    label: "Google Business",
+    status: "Active",
+  },
+  {
+    detail: "Demos, proof, and longer education",
+    href: "https://studio.youtube.com/",
+    label: "YouTube Studio",
+    status: "Setup",
+  },
+  {
+    detail: "Optional short-form reach",
+    href: "https://www.tiktok.com/",
+    label: "TikTok",
+    status: "Setup",
+  },
+] as const;
+
+const adminInterestSourceLinks = [
+  {
+    detail: "Sound Fitness inbox for direct replies and prospect email.",
+    href: "https://mail.zoho.com/",
+    label: "Zoho Email",
+    status: "Inbox",
+  },
+  {
+    detail: "Website content, pages, and form-source review.",
+    href: "https://wordpress.com/",
+    label: "WordPress",
+    status: "Website",
+  },
+] as const;
+
+const adminInterestTableFooterLinks = [
+  {
+    detail: "Public Sound Fitness website.",
+    href: "https://thesoundfitness.com/",
+    label: "thesoundfitness.com",
+    status: "Site",
+  },
+  {
+    detail: "User assessment flow for app prospects.",
+    href: "https://thesoundfitness.app/onboarding/assessment",
+    label: "App user assessment",
+    status: "PAR-Q style",
+  },
+] as const;
+
+type AdminJourneyStageKey = (typeof adminCustomerJourneyCards)[number]["stage"];
+
+type AdminJourneyRecord = {
+  contact: string;
+  context: string;
+  date: string;
+  id: string;
+  nextStep: string;
+  notes: string;
+  owner: string;
+  primary: string;
+  status: string;
+};
+
+type AdminJourneyDraft = Omit<AdminJourneyRecord, "id">;
+type AdminJourneyFieldKey = keyof AdminJourneyDraft;
+type AdminJourneyActiveCell = {
+  field: AdminJourneyFieldKey;
+  stage: AdminJourneyStageKey;
+} | null;
+
+const adminJourneyStageVisuals: Record<
+  AdminJourneyStageKey,
+  {
+    badges: string[];
+    imageAlt: string;
+    imageSrc: string;
+    recordEmoji: string;
+  }
+> = {
+  appUsers: {
+    badges: ["📱 App", "🔐 Access", "🧑‍💻 Accounts"],
+    imageAlt: "Sound Fitness app accounts",
+    imageSrc: "/sound-token.png",
+    recordEmoji: "📱",
+  },
+  clients: {
+    badges: ["🏠 In-home", "💪 Training", "📦 Packages"],
+    imageAlt: "Sound Fitness active clients",
+    imageSrc: "/sound-fitness-logo.png",
+    recordEmoji: "🏋️",
+  },
+  impression: {
+    badges: ["👀 Reach", "📣 Social", "🌐 Discovery"],
+    imageAlt: "Sound Fitness impressions",
+    imageSrc: "/sound-emerald-crystals.png",
+    recordEmoji: "👀",
+  },
+  inactiveClients: {
+    badges: ["🌙 Dormant", "🔁 Win-back", "💬 Check-in"],
+    imageAlt: "Sound Fitness inactive clients",
+    imageSrc: "/sound-token.png",
+    recordEmoji: "🌙",
+  },
+  interest: {
+    badges: ["💌 Email", "✨ Intent", "📝 Forms"],
+    imageAlt: "Sound Fitness interest list",
+    imageSrc: "/sound-fitness-logo.png",
+    recordEmoji: "💌",
+  },
+  introFollowUp: {
+    badges: ["✅ Completed", "📞 Follow-up", "💼 Proposal"],
+    imageAlt: "Sound Fitness intro follow up",
+    imageSrc: "/sound-token.png",
+    recordEmoji: "✅",
+  },
+  scheduledIntro: {
+    badges: ["📅 Booked", "🧾 Intake", "🧰 Prep"],
+    imageAlt: "Sound Fitness scheduled free intro",
+    imageSrc: "/sound-fitness-logo.png",
+    recordEmoji: "📅",
+  },
+};
+
+const adminJourneyFieldVisuals: Record<
+  AdminJourneyFieldKey,
+  {
+    emoji: string;
+  }
+> = {
+  contact: { emoji: "📬" },
+  context: { emoji: "🧭" },
+  date: { emoji: "📅" },
+  nextStep: { emoji: "➡️" },
+  notes: { emoji: "📝" },
+  owner: { emoji: "🧢" },
+  primary: { emoji: "👤" },
+  status: { emoji: "🏷️" },
+};
+
+const getAdminJourneyCellEmoji = (
+  stage: AdminJourneyStageKey,
+  field: AdminJourneyFieldKey,
+  value: string,
+) => {
+  const lowerValue = value.toLowerCase();
+
+  if (field === "primary") return adminJourneyStageVisuals[stage].recordEmoji;
+  if (field === "date") return "📅";
+  if (field === "owner") return "🧢";
+  if (field === "notes") return "📝";
+
+  if (field === "contact") {
+    if (lowerValue.includes("instagram")) return "📸";
+    if (lowerValue.includes("website")) return "🌐";
+    if (lowerValue.includes("@")) return "✉️";
+    if (lowerValue.includes("phone") || lowerValue.includes("(")) return "☎️";
+    return "📬";
+  }
+
+  if (field === "context") {
+    if (lowerValue.includes("reel")) return "🎬";
+    if (lowerValue.includes("pricing")) return "💵";
+    if (lowerValue.includes("nutrition") || lowerValue.includes("meal")) return "🥗";
+    if (lowerValue.includes("assessment") || lowerValue.includes("screen")) return "🧪";
+    if (lowerValue.includes("package") || lowerValue.includes("plan")) return "📦";
+    if (lowerValue.includes("schedule")) return "🕒";
+    return "🧭";
+  }
+
+  if (field === "status") {
+    if (lowerValue.includes("warm") || lowerValue.includes("high")) return "🔥";
+    if (lowerValue.includes("confirmed") || lowerValue.includes("active")) return "✅";
+    if (lowerValue.includes("prep")) return "🧰";
+    if (lowerValue.includes("proposal")) return "💼";
+    if (lowerValue.includes("due")) return "⏰";
+    if (lowerValue.includes("win")) return "🔁";
+    return "🏷️";
+  }
+
+  if (field === "nextStep") {
+    if (lowerValue.includes("send")) return "📤";
+    if (lowerValue.includes("invite")) return "💌";
+    if (lowerValue.includes("confirm")) return "✅";
+    if (lowerValue.includes("retarget")) return "🎯";
+    if (lowerValue.includes("review")) return "🔎";
+    if (lowerValue.includes("offer")) return "🤝";
+    return "➡️";
+  }
+
+  return "🔎";
+};
+
+const getAdminJourneyLinkEmoji = (label: string) => {
+  const lowerLabel = label.toLowerCase();
+
+  if (lowerLabel.includes("instagram")) return "📸";
+  if (lowerLabel.includes("facebook")) return "👍";
+  if (lowerLabel.includes("nextdoor")) return "🏘️";
+  if (lowerLabel.includes("google")) return "⭐";
+  if (lowerLabel.includes("youtube")) return "▶️";
+  if (lowerLabel.includes("tiktok")) return "🎵";
+  if (lowerLabel.includes("email") || lowerLabel.includes("zoho")) return "✉️";
+  if (lowerLabel.includes("wordpress") || lowerLabel.includes("site")) return "🌐";
+  if (lowerLabel.includes("assessment")) return "🧪";
+
+  return "🔗";
+};
+
+const emptyAdminJourneyDraft: AdminJourneyDraft = {
+  contact: "",
+  context: "",
+  date: "",
+  nextStep: "",
+  notes: "",
+  owner: "Joey",
+  primary: "",
+  status: "",
+};
+
+const createEmptyAdminJourneyDrafts = () =>
+  Object.fromEntries(
+    adminCustomerJourneyCards.map((card) => [
+      card.stage,
+      { ...emptyAdminJourneyDraft },
+    ]),
+  ) as Record<AdminJourneyStageKey, AdminJourneyDraft>;
+
+const createInitialAdminJourneyRecordIndices = () =>
+  Object.fromEntries(
+    adminCustomerJourneyCards.map((card) => [card.stage, 0]),
+  ) as Record<AdminJourneyStageKey, number>;
+
+const createInitialAdminJourneyTableCollapseState = () =>
+  Object.fromEntries(
+    adminCustomerJourneyCards.map((card) => [card.stage, true]),
+  ) as Record<AdminJourneyStageKey, boolean>;
+
+const adminJourneySeedRows: Record<AdminJourneyStageKey, AdminJourneyRecord[]> =
+  {
+    appUsers: [
+      {
+        contact: "ava@example.com / (206) 555-0188",
+        context: "Client / in-home plan",
+        date: "Created Apr 12, 2026 / active May 31",
+        id: "app-users-ava",
+        nextStep: "Confirm notifications",
+        notes: "Account ID SF-1042. Uses workouts, progress check-ins, and messaging.",
+        owner: "Joey",
+        primary: "Ava Martinez",
+        status: "Active",
+      },
+      {
+        contact: "coach@example.com / staff line",
+        context: "Coach / admin dashboard",
+        date: "Created May 3, 2026 / active May 30",
+        id: "app-users-coach",
+        nextStep: "Review admin permissions",
+        notes: "Account ID SF-STAFF-02. Client visibility enabled, billing controls pending.",
+        owner: "Joey",
+        primary: "Coach Account",
+        status: "Permission review",
+      },
+    ],
+    clients: [
+      {
+        contact: "ava@example.com",
+        context: "2x weekly strength",
+        date: "Jun 4, 2026",
+        id: "clients-ava",
+        nextStep: "Review new block",
+        notes: "Wants pull-up progression added.",
+        owner: "Joey",
+        primary: "Ava Martinez",
+        status: "Current",
+      },
+      {
+        contact: "marcus@example.com",
+        context: "Hybrid coaching",
+        date: "Jun 6, 2026",
+        id: "clients-marcus",
+        nextStep: "Confirm nutrition check-in",
+        notes: "Travel week, needs flexible session windows.",
+        owner: "Joey",
+        primary: "Marcus Lee",
+        status: "Package active",
+      },
+    ],
+    impression: [
+      {
+        contact: "Instagram reach",
+        context: "Local reel viewers",
+        date: "May 30, 2026",
+        id: "impression-local-reels",
+        nextStep: "Invite to intro post",
+        notes: "High saves on knee-friendly lower-body reel.",
+        owner: "Joey",
+        primary: "North Seattle lifters",
+        status: "Warm signal",
+      },
+      {
+        contact: "Website",
+        context: "Pricing page visits",
+        date: "May 29, 2026",
+        id: "impression-pricing",
+        nextStep: "Retarget free intro CTA",
+        notes: "Returning visitors from organic search.",
+        owner: "Joey",
+        primary: "Strength coaching visitors",
+        status: "Researching",
+      },
+    ],
+    inactiveClients: [
+      {
+        contact: "nina@example.com",
+        context: "Schedule changed",
+        date: "Mar 18, 2026",
+        id: "inactive-nina",
+        nextStep: "Send 2-week restart option",
+        notes: "Preferred mornings, liked small strength goals.",
+        owner: "Joey",
+        primary: "Nina Patel",
+        status: "Good fit",
+      },
+      {
+        contact: "owen@example.com",
+        context: "Completed block",
+        date: "Feb 27, 2026",
+        id: "inactive-owen",
+        nextStep: "Check in on summer goal",
+        notes: "Responded well to performance tracking.",
+        owner: "Joey",
+        primary: "Owen Brooks",
+        status: "Win-back",
+      },
+    ],
+    interest: [
+      {
+        contact: "sam@example.com",
+        context: "Workout builder guide",
+        date: "May 31, 2026",
+        id: "interest-sam",
+        nextStep: "Send intro invite",
+        notes: "Asked about strength plus nutrition support.",
+        owner: "Joey",
+        primary: "Sam Carter",
+        status: "High intent",
+      },
+      {
+        contact: "lena@example.com",
+        context: "Email list",
+        date: "May 28, 2026",
+        id: "interest-lena",
+        nextStep: "Add to 3-email nurture",
+        notes: "Clicked mobility and pain-tracking content.",
+        owner: "Joey",
+        primary: "Lena Ruiz",
+        status: "Nurture",
+      },
+    ],
+    introFollowUp: [
+      {
+        contact: "devon@example.com",
+        context: "Great fit, budget pending",
+        date: "Jun 1, 2026",
+        id: "followup-devon",
+        nextStep: "Send starter package",
+        notes: "Goal is pain-free barbell training.",
+        owner: "Joey",
+        primary: "Devon Kim",
+        status: "Proposal",
+      },
+      {
+        contact: "maya@example.com",
+        context: "Needs schedule options",
+        date: "Jun 2, 2026",
+        id: "followup-maya",
+        nextStep: "Offer Tue/Thu slots",
+        notes: "Interested in accountability and meal prep.",
+        owner: "Joey",
+        primary: "Maya Stone",
+        status: "Follow-up due",
+      },
+    ],
+    scheduledIntro: [
+      {
+        contact: "alex@example.com",
+        context: "Free intro consult",
+        date: "Jun 3, 2026 10:30 AM",
+        id: "scheduled-alex",
+        nextStep: "Send intake reminder",
+        notes: "Wants strength training after PT.",
+        owner: "Joey",
+        primary: "Alex Morgan",
+        status: "Confirmed",
+      },
+      {
+        contact: "taylor@example.com",
+        context: "Assessment",
+        date: "Jun 5, 2026 4:00 PM",
+        id: "scheduled-taylor",
+        nextStep: "Prep movement screen",
+        notes: "Interested in fat loss without burnout.",
+        owner: "Joey",
+        primary: "Taylor Nguyen",
+        status: "Prep needed",
+      },
+    ],
+  };
+
+const adminFinanceTabs = [
+  {
+    detail:
+      "Collected and expected money from packages, recurring plans, intros, and product/service add-ons.",
+    key: "income",
+    label: "Income",
+    metric: "$18.4k",
+    rows: [
+      {
+        amount: "$9.6k",
+        category: "In-home training packages",
+        nextAction: "Confirm renewals",
+        notes: "6 active packages, 2 renewal conversations this week.",
+        status: "Collected",
+      },
+      {
+        amount: "$4.2k",
+        category: "Recurring memberships",
+        nextAction: "Review failed cards",
+        notes: "Monthly app and coaching plans.",
+        status: "Auto-pay",
+      },
+      {
+        amount: "$1.1k",
+        category: "Intro conversions",
+        nextAction: "Follow up on 3 proposals",
+        notes: "Projected close value from free intro follow-up.",
+        status: "Pipeline",
+      },
+      {
+        amount: "$3.5k",
+        category: "Corporate / group sessions",
+        nextAction: "Send June invoice",
+        notes: "Local partner sessions and small group blocks.",
+        status: "Invoice due",
+      },
+    ],
+    status: "Month to date",
+  },
+  {
+    detail:
+      "Operating spend for software, equipment, marketing, rent, contractor support, and client delivery.",
+    key: "expenses",
+    label: "Expenses",
+    metric: "$6.8k",
+    rows: [
+      {
+        amount: "$1.2k",
+        category: "Software / subscriptions",
+        nextAction: "Audit unused tools",
+        notes: "App platform, booking, email, design, and admin stack.",
+        status: "Recurring",
+      },
+      {
+        amount: "$2.1k",
+        category: "Rent / facilities",
+        nextAction: "Confirm June schedule",
+        notes: "Training space, cleaning, and access costs.",
+        status: "Fixed",
+      },
+      {
+        amount: "$950",
+        category: "Equipment",
+        nextAction: "Log depreciation",
+        notes: "Dumbbells, bands, storage, and assessment tools.",
+        status: "Variable",
+      },
+      {
+        amount: "$2.55k",
+        category: "Marketing / lead gen",
+        nextAction: "Compare CAC",
+        notes: "Ads, social content, events, and local partnerships.",
+        status: "Active",
+      },
+    ],
+    status: "Month to date",
+  },
+  {
+    detail:
+      "Business-owned value such as cash, receivables, equipment, content, app assets, and client pipeline value.",
+    key: "assets",
+    label: "Assets",
+    metric: "$42.7k",
+    rows: [
+      {
+        amount: "$18.9k",
+        category: "Cash on hand",
+        nextAction: "Reconcile bank balance",
+        notes: "Operating reserve and tax holdback.",
+        status: "Liquid",
+      },
+      {
+        amount: "$8.4k",
+        category: "Accounts receivable",
+        nextAction: "Send reminders",
+        notes: "Open invoices and unpaid package balances.",
+        status: "Collecting",
+      },
+      {
+        amount: "$6.2k",
+        category: "Equipment value",
+        nextAction: "Update inventory",
+        notes: "Training tools and replaceable assets.",
+        status: "Owned",
+      },
+      {
+        amount: "$9.2k",
+        category: "Pipeline value",
+        nextAction: "Move warm leads",
+        notes: "Estimated value from scheduled intros and proposals.",
+        status: "Projected",
+      },
+    ],
+    status: "Snapshot",
+  },
+  {
+    detail:
+      "Open obligations, upcoming payments, card balances, taxes payable, and vendor commitments.",
+    key: "liabilities",
+    label: "Liabilities",
+    metric: "$7.9k",
+    rows: [
+      {
+        amount: "$2.4k",
+        category: "Credit card balance",
+        nextAction: "Pay down by June 7",
+        notes: "Mostly marketing and equipment spend.",
+        status: "Open",
+      },
+      {
+        amount: "$3.1k",
+        category: "Tax reserve",
+        nextAction: "Move to tax account",
+        notes: "Estimated federal, state, and local set-aside.",
+        status: "Reserve",
+      },
+      {
+        amount: "$1.2k",
+        category: "Vendor invoices",
+        nextAction: "Approve payments",
+        notes: "Contract support and content production.",
+        status: "Due",
+      },
+      {
+        amount: "$1.2k",
+        category: "Refund / credit exposure",
+        nextAction: "Review inactive accounts",
+        notes: "Unused session credits and package adjustments.",
+        status: "Monitor",
+      },
+    ],
+    status: "Open balance",
+  },
+  {
+    detail:
+      "Coach pay, contractor payouts, commissions, owner draw, and payroll-related tasks.",
+    key: "payroll",
+    label: "Payroll",
+    metric: "$4.6k",
+    rows: [
+      {
+        amount: "$2.8k",
+        category: "Coach payouts",
+        nextAction: "Approve sessions",
+        notes: "Session delivery and client notes reconciled.",
+        status: "Pending",
+      },
+      {
+        amount: "$850",
+        category: "Contractor support",
+        nextAction: "Check invoices",
+        notes: "Admin, content, and specialist support.",
+        status: "Review",
+      },
+      {
+        amount: "$650",
+        category: "Commissions",
+        nextAction: "Tie to closed clients",
+        notes: "Referral and conversion bonuses.",
+        status: "Calculated",
+      },
+      {
+        amount: "$300",
+        category: "Owner draw placeholder",
+        nextAction: "Confirm cash target",
+        notes: "Not automated; manual planning line.",
+        status: "Planned",
+      },
+    ],
+    status: "Next run",
+  },
+  {
+    detail:
+      "Quarterly estimates, sales tax notes, write-offs, and bookkeeping cleanup that should not drift.",
+    key: "taxes",
+    label: "Taxes",
+    metric: "$3.1k",
+    rows: [
+      {
+        amount: "$1.8k",
+        category: "Estimated tax",
+        nextAction: "Prep quarterly payment",
+        notes: "Projection from month-to-date net income.",
+        status: "Due soon",
+      },
+      {
+        amount: "$620",
+        category: "Sales tax",
+        nextAction: "Review taxable sales",
+        notes: "Products and non-training revenue lines.",
+        status: "Review",
+      },
+      {
+        amount: "$480",
+        category: "Deductions to categorize",
+        nextAction: "Tag receipts",
+        notes: "Meals, mileage, equipment, software, and events.",
+        status: "Cleanup",
+      },
+      {
+        amount: "$200",
+        category: "Bookkeeping support",
+        nextAction: "Send monthly packet",
+        notes: "Statements, invoices, receipts, and payroll summary.",
+        status: "Open",
+      },
+    ],
+    status: "Reserve",
+  },
+] as const;
+
+type AdminFinanceTabKey = (typeof adminFinanceTabs)[number]["key"];
+
+const adminFinanceChartMonths = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+const adminFinanceMonthOptions = Array.from({ length: 60 }, (_, index) => {
+  const monthIndex = index % adminFinanceChartMonths.length;
+  const year = 2026 + Math.floor(index / adminFinanceChartMonths.length);
+
+  return {
+    index,
+    key: `${year}-${String(monthIndex + 1).padStart(2, "0")}`,
+    label: `${adminFinanceChartMonths[monthIndex]} ${year}`,
+    monthIndex,
+    year,
+  };
+});
+
+const adminFinanceYearOptions = Array.from(
+  new Set(adminFinanceMonthOptions.map((monthOption) => monthOption.year)),
+);
+
+const adminFinance2026ChartSeries: Record<
+  AdminFinanceTabKey,
+  {
+    color: string;
+    values: number[];
+  }
+> = {
+  assets: {
+    color: "#38bdf8",
+    values: [24.2, 26.4, 28.1, 30.5, 34.2, 36.7, 37.4, 38.8, 39.5, 40.4, 41.6, 42.7],
+  },
+  expenses: {
+    color: "#f87171",
+    values: [2.6, 3.1, 3.8, 4.6, 5.4, 6.8, 7.2, 7.8, 8.4, 9.1, 9.7, 10.3],
+  },
+  income: {
+    color: "#34d399",
+    values: [4.8, 5.6, 6.2, 7.4, 9.1, 10.4, 11.8, 13.0, 14.2, 15.6, 17.2, 18.4],
+  },
+  liabilities: {
+    color: "#a78bfa",
+    values: [5.8, 6.1, 6.4, 6.7, 7.3, 7.9, 8.1, 8.0, 7.8, 7.6, 7.4, 7.2],
+  },
+  payroll: {
+    color: "#fbbf24",
+    values: [2.1, 2.4, 2.8, 3.2, 3.7, 4.6, 4.8, 5.0, 5.3, 5.6, 5.8, 6.0],
+  },
+  taxes: {
+    color: "#fb7185",
+    values: [1.1, 1.3, 1.6, 2.0, 2.5, 3.1, 3.4, 3.8, 4.0, 4.4, 4.7, 5.1],
+  },
+};
+
+const adminFinanceProjectionGrowth: Record<AdminFinanceTabKey, number> = {
+  assets: 0.1,
+  expenses: 0.08,
+  income: 0.12,
+  liabilities: 0.03,
+  payroll: 0.07,
+  taxes: 0.09,
+};
+
+const parseAdminFinanceAmountToK = (amount: string) => {
+  const numericAmount = Number(amount.replace(/[$,k]/gi, ""));
+
+  if (!Number.isFinite(numericAmount)) return 0;
+
+  return amount.toLowerCase().includes("k")
+    ? numericAmount
+    : numericAmount / 1000;
+};
+
+const formatAdminFinanceAmountFromK = (amountInK: number) => {
+  if (amountInK < 1) {
+    return `$${Math.round(amountInK * 1000).toLocaleString()}`;
+  }
+
+  return `$${amountInK.toFixed(amountInK >= 10 ? 1 : 2).replace(/\.0+$/, "").replace(/(\.\d)0$/, "$1")}k`;
+};
+
+const getAdminFinanceProjectedMonthValue = (
+  tabKey: AdminFinanceTabKey,
+  monthOptionIndex: number,
+) => {
+  const monthIndex = monthOptionIndex % adminFinanceChartMonths.length;
+  const yearOffset = Math.floor(monthOptionIndex / adminFinanceChartMonths.length);
+  const baseValue = adminFinance2026ChartSeries[tabKey].values[monthIndex] ?? 0;
+  const growthRate = adminFinanceProjectionGrowth[tabKey] ?? 0.06;
+
+  return Number((baseValue * Math.pow(1 + growthRate, yearOffset)).toFixed(2));
+};
+
+const adminSettingsSections: AdminSettingsSection[] = [
+  {
+    detail: "Instagram, Facebook, YouTube, TikTok, and lead source sync.",
+    icon: "feed",
+    items: ["OAuth channels", "Webhook status", "Inbox routing"],
+    metric: "3 feeds",
+    status: "Connectors",
+    title: "Social Channels",
+    tone: "cyan",
+  },
+  {
+    detail: "Coach access, lead owners, permissions, and admin seats.",
+    icon: "groups",
+    items: ["Admin roles", "Coach assignment", "Access review"],
+    metric: "Team",
+    status: "Access",
+    title: "Roles & Access",
+    tone: "sky",
+  },
+  {
+    detail: "Rules that move people through the customer journey.",
+    icon: "logic",
+    items: ["Stage triggers", "Follow-up windows", "Source mapping"],
+    metric: "7 stages",
+    status: "Journey",
+    title: "Engagement Rules",
+    tone: "emerald",
+  },
+  {
+    detail: "Alerts for comments, messages, intros, and stale follow-ups.",
+    icon: "messages",
+    items: ["Message alerts", "Intro reminders", "Follow-up queue"],
+    metric: "Live",
+    status: "Alerts",
+    title: "Notifications",
+    tone: "amber",
+  },
+  {
+    detail: "Export, import, retention, and customer data controls.",
+    icon: "stats",
+    items: ["CSV export", "Import review", "Retention policy"],
+    metric: "Data",
+    status: "Privacy",
+    title: "Data & Privacy",
+    tone: "violet",
+  },
+  {
+    detail: "Admin-controlled defaults for public site and client intake.",
+    icon: "settings",
+    items: ["Site defaults", "Intro form", "Lead capture"],
+    metric: "Site",
+    status: "Defaults",
+    title: "Site Controls",
+    tone: "fuchsia",
+  },
+];
+
+const adminServiceCards: AdminServiceCard[] = [
+  {
+    audience: "Busy adults who want coaching at home with clear progression.",
+    delivery:
+      "Coach travels to the client, brings the session structure, tracks the plan, and updates the next training focus.",
+    description:
+      "Private strength, mobility, and conditioning sessions delivered in the client's home.",
+    facilitation: [
+      "Intro call and movement screen",
+      "Home space and equipment notes",
+      "Session plan, coaching cues, and progress tracking",
+      "Renewal and package review cadence",
+    ],
+    href: ROUTES.admin.sales,
+    icon: "workout",
+    journeySteps: [
+      {
+        completion: 90,
+        href: ROUTES.admin.leads,
+        icon: "profile",
+        label: "Fit Check",
+        state: "complete",
+      },
+      {
+        completion: 78,
+        href: ROUTES.admin.crmDashboard,
+        icon: "form",
+        label: "Assessment",
+        state: "active",
+      },
+      {
+        completion: 70,
+        href: ROUTES.admin.clients,
+        icon: "calendar",
+        label: "Schedule",
+        state: "default",
+      },
+      {
+        completion: 62,
+        href: ROUTES.admin.reports,
+        icon: "stats",
+        label: "Progress",
+        state: "default",
+      },
+    ],
+    price: "12 sessions $1,380 / 24 sessions $2,640",
+    resourceHub: "Sales script, intro form, 12/24 package sheet",
+    resources: [
+      "In-home readiness checklist",
+      "12-session package - $1,380",
+      "24-session package - $2,640",
+      "Progress review template",
+    ],
+    setup:
+      "Best managed through intro booking, client profile, invoices, and recurring package review.",
+    specialties: ["Strength", "General fitness", "Accountability"],
+    status: "Core service",
+    title: "In-Home Training",
+    tone: "cyan",
+  },
+  {
+    audience: "Clients who need guided mobility, recovery support, and relief-focused sessions.",
+    delivery:
+      "Hands-on assisted stretch sessions with intake notes, comfort boundaries, mobility targets, and follow-up recommendations.",
+    description:
+      "Assisted stretch sessions for mobility, recovery, stiffness, and movement quality.",
+    facilitation: [
+      "Mobility intake and contraindication screen",
+      "Comfort scale and session consent notes",
+      "Targeted stretch flow by region",
+      "Follow-up mobility homework",
+    ],
+    href: ROUTES.admin.templates,
+    icon: "recovery",
+    journeySteps: [
+      {
+        completion: 82,
+        href: ROUTES.admin.leadProfile,
+        icon: "form",
+        label: "Screen",
+        state: "complete",
+      },
+      {
+        completion: 70,
+        href: ROUTES.admin.templates,
+        icon: "recovery",
+        label: "Protocol",
+        state: "active",
+      },
+      {
+        completion: 58,
+        href: ROUTES.admin.clients,
+        icon: "calendar",
+        label: "Session",
+        state: "default",
+      },
+      {
+        completion: 42,
+        href: ROUTES.admin.followUps,
+        icon: "messages",
+        label: "Follow Up",
+        state: "default",
+      },
+    ],
+    price: "From $75/session",
+    resourceHub: "Stretch intake, protocol cards, follow-up templates",
+    resources: [
+      "Mobility region library",
+      "Comfort and consent note",
+      "Stretch homework templates",
+    ],
+    setup:
+      "Keep it tied to client notes, repeatable protocol templates, and follow-up reminders.",
+    specialties: ["Mobility", "Recovery", "Stiffness support"],
+    status: "Recovery",
+    title: "Assisted Stretch",
+    tone: "sky",
+  },
+  {
+    audience: "Clients who need simple eating structure, habits, and accountability.",
+    delivery:
+      "Nutrition goals, meal rhythm, grocery guidance, and recurring check-ins connected to training context.",
+    description:
+      "Nutrition coaching for habits, meals, macros, grocery flow, and practical consistency.",
+    facilitation: [
+      "Nutrition intake and goal target",
+      "Meal rhythm and grocery strategy",
+      "Protein, hydration, and habit tracking",
+      "Weekly review with adjustment notes",
+    ],
+    href: ROUTES.admin.templates,
+    icon: "nutrition",
+    journeySteps: [
+      {
+        completion: 84,
+        href: ROUTES.admin.leadProfile,
+        icon: "form",
+        label: "Intake",
+        state: "complete",
+      },
+      {
+        completion: 76,
+        href: ROUTES.admin.templates,
+        icon: "goals",
+        label: "Targets",
+        state: "active",
+      },
+      {
+        completion: 64,
+        href: ROUTES.admin.templates,
+        icon: "meals",
+        label: "Meal Flow",
+        state: "default",
+      },
+      {
+        completion: 52,
+        href: ROUTES.admin.followUps,
+        icon: "stats",
+        label: "Review",
+        state: "default",
+      },
+    ],
+    price: "From $149/mo",
+    resourceHub: "Nutrition intake, meal templates, grocery guide",
+    resources: [
+      "Macro and habit setup sheet",
+      "Meal template library",
+      "Weekly nutrition review prompt",
+    ],
+    setup:
+      "Works as a stand-alone service or add-on to in-home, app, or online coaching.",
+    specialties: ["Habits", "Macros", "Meal planning"],
+    status: "Fuel",
+    title: "Nutrition Coaching",
+    tone: "emerald",
+  },
+  {
+    audience: "Users who want the Sound Fitness plan, tracking, and support tools without full coaching.",
+    delivery:
+      "Account creation, plan access, workout tools, progress tracking, education, and app support resources.",
+    description:
+      "The Sound Fitness app as a managed account, plan, tracking, and resource experience.",
+    facilitation: [
+      "Create app account and assign role",
+      "Set starting plan and habit tools",
+      "Send onboarding and app guide",
+      "Monitor account status and support notes",
+    ],
+    href: ROUTES.admin.clients,
+    icon: "app",
+    journeySteps: [
+      {
+        completion: 76,
+        href: ROUTES.admin.clients,
+        icon: "app",
+        label: "Account",
+        state: "active",
+      },
+      {
+        completion: 62,
+        href: ROUTES.admin.templates,
+        icon: "plan",
+        label: "Assign Plan",
+        state: "default",
+      },
+      {
+        completion: 54,
+        href: ROUTES.admin.templates,
+        icon: "education",
+        label: "Guide",
+        state: "default",
+      },
+      {
+        completion: 44,
+        href: ROUTES.admin.reports,
+        icon: "stats",
+        label: "Usage",
+        state: "default",
+      },
+    ],
+    price: "From $29/mo",
+    resourceHub: "Account setup, app guide, plan templates",
+    resources: [
+      "New account checklist",
+      "App onboarding message",
+      "Plan assignment templates",
+    ],
+    setup:
+      "Manage from the App User List with account status, plan role, and support history.",
+    specialties: ["Self-guided", "Tracking", "Education"],
+    status: "Digital",
+    title: "Sound Fitness App",
+    tone: "violet",
+  },
+  {
+    audience: "Remote clients who need programming, feedback, and accountability without in-person sessions.",
+    delivery:
+      "App account plus online coaching rhythm, asynchronous feedback, program updates, and check-ins.",
+    description:
+      "App access paired with online coaching, custom plans, review notes, and accountability.",
+    facilitation: [
+      "Online intake and goal map",
+      "Plan build in the app",
+      "Weekly check-in and message support",
+      "Monthly review and program update",
+    ],
+    href: ROUTES.admin.crmDashboard,
+    icon: "messages",
+    journeySteps: [
+      {
+        completion: 86,
+        href: ROUTES.admin.leadProfile,
+        icon: "form",
+        label: "Intake",
+        state: "complete",
+      },
+      {
+        completion: 74,
+        href: ROUTES.admin.templates,
+        icon: "builder",
+        label: "Program",
+        state: "active",
+      },
+      {
+        completion: 62,
+        href: ROUTES.admin.clients,
+        icon: "messages",
+        label: "Support",
+        state: "default",
+      },
+      {
+        completion: 56,
+        href: ROUTES.admin.reports,
+        icon: "stats",
+        label: "Review",
+        state: "default",
+      },
+    ],
+    price: "From $199/mo",
+    resourceHub: "Online intake, coaching workflow, review template",
+    resources: [
+      "Online coaching agreement",
+      "Weekly check-in prompt",
+      "Progress review template",
+    ],
+    setup:
+      "Connect account management, messaging, templates, and follow-up reminders.",
+    specialties: ["Remote coaching", "Accountability", "Program updates"],
+    status: "Hybrid",
+    title: "App + Online Coaching",
+    tone: "fuchsia",
+  },
+  {
+    audience:
+      "Athletes, mobility-focused clients, and people cleared for advanced post-rehab support.",
+    delivery:
+      "Custom plan design around sport demands, mobility needs, training access, and cleared support constraints.",
+    description:
+      "Custom programming for sports, mobility, advanced support after rehab clearance, and special cases.",
+    facilitation: [
+      "Goal, sport, and history intake",
+      "Constraint and access map",
+      "Custom program build",
+      "Video, stats, and progression review",
+    ],
+    href: ROUTES.admin.devMovementIntelligence,
+    icon: "performance",
+    journeySteps: [
+      {
+        completion: 80,
+        href: ROUTES.admin.leadProfile,
+        icon: "tests",
+        label: "Screen",
+        state: "complete",
+      },
+      {
+        completion: 72,
+        href: ROUTES.admin.templates,
+        icon: "builder",
+        label: "Build",
+        state: "active",
+      },
+      {
+        completion: 60,
+        href: ROUTES.admin.devMovementIntelligence,
+        icon: "performance",
+        label: "Review",
+        state: "default",
+      },
+      {
+        completion: 50,
+        href: ROUTES.admin.reports,
+        icon: "stats",
+        label: "Progress",
+        state: "default",
+      },
+    ],
+    price: "From $249/mo",
+    resourceHub: "Sport screen, mobility screen, advanced support notes",
+    resources: [
+      "Sport demand profile",
+      "Mobility assessment template",
+      "Post-rehab clearance note tracker",
+    ],
+    setup:
+      "Best managed with clear scope, coach notes, video review, and progression checkpoints.",
+    specialties: ["Sports", "Mobility", "Advanced post-rehab support"],
+    status: "Custom",
+    title: "Custom Programming",
+    tone: "amber",
+  },
+];
+
+const adminMessageChannels: AdminMessageChannel[] = [
+  {
+    actions: ["Reply in app", "Assign coach", "Mark resolved"],
+    connected: "Live app inbox",
+    description:
+      "Messages sent through the Sound Fitness app by clients, app users, and coaching accounts.",
+    href: ROUTES.dashboard.coachMessaging,
+    icon: "messages",
+    lastSync: "Live",
+    responseWindow: "Same day",
+    source: "Sound Fitness app",
+    status: "Needs replies",
+    threads: [
+      {
+        action: "Reply with next-session options",
+        channel: "App DM",
+        person: "Ava Martinez",
+        preview: "Can we move Thursday's in-home session to Friday morning?",
+        priority: "High",
+        received: "12 min ago",
+      },
+      {
+        action: "Send form cue video",
+        channel: "App DM",
+        person: "Marcus Lee",
+        preview: "My left knee felt weird after split squats. Should I swap them?",
+        priority: "Coach review",
+        received: "41 min ago",
+      },
+      {
+        action: "Confirm nutrition check-in",
+        channel: "App DM",
+        person: "Nina Patel",
+        preview: "I logged meals this week. Can you look at protein and snacks?",
+        priority: "Medium",
+        received: "2 hr ago",
+      },
+    ],
+    title: "App Messages",
+    tone: "cyan",
+    unread: 4,
+  },
+  {
+    actions: ["Open review", "Attach notes", "Send feedback"],
+    connected: "Video review queue",
+    description:
+      "Video review submissions from form checks, movement notes, and client-uploaded clips.",
+    href: ROUTES.dashboard.videoReview,
+    icon: "form",
+    lastSync: "6 min ago",
+    responseWindow: "24 hours",
+    source: "Video review",
+    status: "Review queue",
+    threads: [
+      {
+        action: "Review squat depth and bracing",
+        channel: "Video upload",
+        person: "Owen Brooks",
+        preview: "Back squat side angle uploaded with two working sets.",
+        priority: "Review today",
+        received: "28 min ago",
+      },
+      {
+        action: "Check shoulder position",
+        channel: "Video upload",
+        person: "Sam Carter",
+        preview: "Overhead press clip attached after today's workout.",
+        priority: "Technique",
+        received: "1 hr ago",
+      },
+    ],
+    title: "Video Reviews",
+    tone: "amber",
+    unread: 2,
+  },
+  {
+    actions: ["Reply from portal", "Create lead", "Tag source"],
+    connected: "Social portal",
+    description:
+      "Messages and comments from social platforms that can become leads, follow-ups, or client support items.",
+    href: ROUTES.admin.socialPortal,
+    icon: "feed",
+    lastSync: "Planned OAuth",
+    responseWindow: "2-4 hours",
+    source: "Instagram, Facebook, TikTok, YouTube",
+    status: "Platform inbox",
+    threads: [
+      {
+        action: "Invite to free intro",
+        channel: "Instagram DM",
+        person: "North Seattle lifter",
+        preview: "Do you do training at apartment gyms or only houses?",
+        priority: "Lead",
+        received: "53 min ago",
+      },
+      {
+        action: "Answer assisted stretch question",
+        channel: "Facebook comment",
+        person: "Local parent",
+        preview: "Is assisted stretch good for low back stiffness?",
+        priority: "Public reply",
+        received: "2 hr ago",
+      },
+      {
+        action: "Save as content idea",
+        channel: "YouTube comment",
+        person: "Mobility viewer",
+        preview: "Can you make a video for tight hips after long desk days?",
+        priority: "Content",
+        received: "Yesterday",
+      },
+    ],
+    title: "Platform Messages",
+    tone: "fuchsia",
+    unread: 5,
+  },
+  {
+    actions: ["Open lead", "Schedule intro", "Send template"],
+    connected: "Website and email forms",
+    description:
+      "Contact form messages, email replies, and website inquiries that need a sales or support response.",
+    href: ROUTES.admin.leads,
+    icon: "post",
+    lastSync: "15 min ago",
+    responseWindow: "Same day",
+    source: "Website, email, lead forms",
+    status: "Lead inbox",
+    threads: [
+      {
+        action: "Send intro booking link",
+        channel: "Website form",
+        person: "Jamie R.",
+        preview: "Looking for in-home training for strength and weight loss.",
+        priority: "New lead",
+        received: "34 min ago",
+      },
+      {
+        action: "Clarify pricing and schedule",
+        channel: "Email",
+        person: "Taylor M.",
+        preview: "Can you send info on app + online coaching?",
+        priority: "Sales",
+        received: "3 hr ago",
+      },
+    ],
+    title: "Email / Site",
+    tone: "emerald",
+    unread: 3,
+  },
+];
+
+const adminSoundAssetCards: AdminSoundAssetCard[] = [
+  {
+    assetCount: "24 elements",
+    assets: [
+      {
+        detail: "Primary, stacked, badge, and one-color marks.",
+        format: "SVG / PNG",
+        name: "Logo System",
+        status: "Ready",
+      },
+      {
+        detail: "Mascot poses, tiny helpers, and campaign characters for app, social, and merch.",
+        format: "PNG",
+        name: "Mascots",
+        status: "Build",
+      },
+      {
+        detail: "Core navy, cyan, emerald, amber, neutral, and alert colors with dark-mode pairings.",
+        format: "Tokens",
+        name: "Color Palette",
+        status: "Ready",
+      },
+      {
+        detail: "Positioning, tone, taglines, service promises, CTAs, and short social copy.",
+        format: "Copy",
+        name: "Brand Messaging",
+        status: "Draft",
+      },
+      {
+        detail: "Type scale, icon direction, glow rules, badge styling, and motion language.",
+        format: "Guide",
+        name: "Typography & Voice",
+        status: "Draft",
+      },
+      {
+        detail: "Patterns, badges, separators, cards, status chips, and repeatable brand motifs.",
+        format: "UI Kit",
+        name: "Visual Elements",
+        status: "Planning",
+      },
+    ],
+    description:
+      "Complete Sound Fitness brand kit for logos, mascots, colors, messaging, voice, and visual elements.",
+    destination: "Website, app shell, social profiles, merch, campaigns, admin previews",
+    formats: ["Logos", "Mascots", "Colors", "Messaging"],
+    href: ROUTES.admin.templates,
+    icon: "soundworld",
+    journeySteps: [
+      {
+        completion: 88,
+        href: ROUTES.admin.templates,
+        icon: "soundworld",
+        label: "Brand kit",
+        state: "active",
+      },
+      {
+        completion: 68,
+        href: ROUTES.admin.postHub,
+        icon: "feed",
+        label: "Mascots",
+        state: "default",
+      },
+      {
+        completion: 56,
+        href: ROUTES.public.home,
+        icon: "form",
+        label: "Messaging",
+        state: "default",
+      },
+    ],
+    primaryAction: "Open brand kit",
+    status: "Brand Kit",
+    title: "Branding",
+    tone: "cyan",
+    workflow: [
+      "Store master files",
+      "Define color tokens",
+      "Build mascot set",
+      "Document brand voice",
+      "Keep launch-ready exports",
+    ],
+  },
+  {
+    assetCount: "9 banners",
+    assets: [
+      {
+        detail: "Wide hero art for homepage and landing sections.",
+        format: "WebP / PNG",
+        name: "Website Hero Banners",
+        status: "Planning",
+      },
+      {
+        detail: "Promo strips for services, intros, and seasonal campaigns.",
+        format: "PNG",
+        name: "Campaign Banners",
+        status: "Draft",
+      },
+      {
+        detail: "Profile and cover images for connected channels.",
+        format: "PNG",
+        name: "Social Covers",
+        status: "Ready",
+      },
+    ],
+    description:
+      "Banners and hero graphics for the website, social channels, offers, and campaigns.",
+    destination: "Homepage, landing pages, social covers, campaign sections",
+    formats: ["16:9", "Ultra-wide", "Square", "Mobile crop"],
+    href: ROUTES.admin.postHub,
+    icon: "feed",
+    journeySteps: [
+      {
+        completion: 76,
+        href: ROUTES.admin.postHub,
+        icon: "feed",
+        label: "Covers",
+        state: "active",
+      },
+      {
+        completion: 62,
+        href: ROUTES.public.home,
+        icon: "dashboard",
+        label: "Hero",
+        state: "default",
+      },
+      {
+        completion: 50,
+        href: ROUTES.admin.socialPortal,
+        icon: "post",
+        label: "Channels",
+        state: "default",
+      },
+    ],
+    primaryAction: "Plan banners",
+    status: "Visuals",
+    title: "Banners",
+    tone: "sky",
+    workflow: [
+      "Choose placement",
+      "Set aspect ratio",
+      "Generate or upload asset",
+      "Approve for website or social",
+    ],
+  },
+  {
+    assetCount: "6 mockups",
+    assets: [
+      {
+        detail: "Front/back tee mockups with Sound badge placement.",
+        format: "PNG",
+        name: "T-Shirt Mockups",
+        status: "Draft",
+      },
+      {
+        detail: "Hoodie and crewneck mockup frames for future store drops.",
+        format: "PSD / PNG",
+        name: "Layered Apparel",
+        status: "Needs upload",
+      },
+      {
+        detail: "Size, color, print area, and vendor notes.",
+        format: "Sheet",
+        name: "Production Notes",
+        status: "Planning",
+      },
+    ],
+    description:
+      "Shirt, hoodie, and merch mockups for future Sound Fitness store products.",
+    destination: "Store, product previews, social drops, client rewards",
+    formats: ["PNG", "Mockup", "Print notes", "Product crop"],
+    href: ROUTES.admin.sales,
+    icon: "packages",
+    journeySteps: [
+      {
+        completion: 68,
+        href: ROUTES.admin.sales,
+        icon: "packages",
+        label: "Store",
+        state: "active",
+      },
+      {
+        completion: 48,
+        href: ROUTES.admin.templates,
+        icon: "post",
+        label: "Mockups",
+        state: "default",
+      },
+      {
+        completion: 34,
+        href: ROUTES.admin.reports,
+        icon: "stats",
+        label: "Drops",
+        state: "default",
+      },
+    ],
+    primaryAction: "Open mockups",
+    status: "Store",
+    title: "Shirt Mockups",
+    tone: "amber",
+    workflow: [
+      "Upload blank mockups",
+      "Attach logo variations",
+      "Create store preview",
+      "Track drop readiness",
+    ],
+  },
+  {
+    assetCount: "Future hub",
+    assets: [
+      {
+        detail: "Generated images for homepage sections, service pages, and campaigns.",
+        format: "AI image",
+        name: "Website AI Assets",
+        status: "Next",
+      },
+      {
+        detail: "Prompt library for consistent Sound Fitness visual direction.",
+        format: "Prompt",
+        name: "Prompt Bank",
+        status: "Planning",
+      },
+      {
+        detail: "Approved generated assets with usage notes and source prompts.",
+        format: "Library",
+        name: "AI Approvals",
+        status: "Planned",
+      },
+    ],
+    description:
+      "Planning space for AI-generated Sound assets that will be nested into the website and campaigns.",
+    destination: "Website root, service pages, ads, content, store",
+    formats: ["Prompt", "Generated image", "WebP", "Approval notes"],
+    href: ROUTES.public.home,
+    icon: "insights",
+    journeySteps: [
+      {
+        completion: 42,
+        href: ROUTES.public.home,
+        icon: "dashboard",
+        label: "Website",
+        state: "active",
+      },
+      {
+        completion: 30,
+        href: ROUTES.admin.aiPrompt,
+        icon: "insights",
+        label: "Prompts",
+        state: "default",
+      },
+      {
+        completion: 18,
+        href: ROUTES.admin.postHub,
+        icon: "post",
+        label: "Approve",
+        state: "default",
+      },
+    ],
+    primaryAction: "Plan AI assets",
+    status: "AI",
+    title: "AI Website Assets",
+    tone: "violet",
+    workflow: [
+      "Write prompt direction",
+      "Generate candidate assets",
+      "Approve brand fit",
+      "Place into website sections",
+    ],
+  },
+  {
+    assetCount: "Store plan",
+    assets: [
+      {
+        detail: "Product photos, mockups, names, descriptions, and price notes.",
+        format: "Catalog",
+        name: "Product Library",
+        status: "Planning",
+      },
+      {
+        detail: "Drop banners, product posts, and reward tie-ins.",
+        format: "Content",
+        name: "Launch Kit",
+        status: "Draft",
+      },
+      {
+        detail: "Inventory, vendor, fulfillment, and sale status notes.",
+        format: "Tracker",
+        name: "Store Ops",
+        status: "Planned",
+      },
+    ],
+    description:
+      "Store planning for future Sound Fitness merch, products, drops, and rewards.",
+    destination: "Store page, product cards, client rewards, campaigns",
+    formats: ["Catalog", "Mockup", "Copy", "Price sheet"],
+    href: ROUTES.admin.sales,
+    icon: "packages",
+    journeySteps: [
+      {
+        completion: 46,
+        href: ROUTES.admin.sales,
+        icon: "packages",
+        label: "Products",
+        state: "active",
+      },
+      {
+        completion: 34,
+        href: ROUTES.admin.invoices,
+        icon: "stats",
+        label: "Pricing",
+        state: "default",
+      },
+      {
+        completion: 28,
+        href: ROUTES.admin.postHub,
+        icon: "feed",
+        label: "Launch",
+        state: "default",
+      },
+    ],
+    primaryAction: "Build store plan",
+    status: "Commerce",
+    title: "Store",
+    tone: "emerald",
+    workflow: [
+      "Create product concept",
+      "Attach mockups and pricing",
+      "Plan launch content",
+      "Track store readiness",
+    ],
+  },
+  {
+    assetCount: "Blog queue",
+    assets: [
+      {
+        detail: "Education, service, nutrition, mobility, and app articles.",
+        format: "Post",
+        name: "Blog Drafts",
+        status: "Draft",
+      },
+      {
+        detail: "SEO titles, keywords, snippets, and internal links.",
+        format: "SEO",
+        name: "Search Notes",
+        status: "Planning",
+      },
+      {
+        detail: "Images and banners attached to each article.",
+        format: "Media",
+        name: "Post Assets",
+        status: "Needs media",
+      },
+    ],
+    description:
+      "Blog planning and article assets for the public website, education, SEO, and service pages.",
+    destination: "Website blog, learning content, service support pages",
+    formats: ["Draft", "SEO notes", "Hero image", "Social excerpt"],
+    href: ROUTES.admin.postHub,
+    icon: "post",
+    journeySteps: [
+      {
+        completion: 54,
+        href: ROUTES.admin.postHub,
+        icon: "post",
+        label: "Drafts",
+        state: "active",
+      },
+      {
+        completion: 38,
+        href: ROUTES.learning.home,
+        icon: "education",
+        label: "Education",
+        state: "default",
+      },
+      {
+        completion: 30,
+        href: ROUTES.public.home,
+        icon: "dashboard",
+        label: "Website",
+        state: "default",
+      },
+    ],
+    primaryAction: "Open blog queue",
+    status: "Blog",
+    title: "Blogs",
+    tone: "fuchsia",
+    workflow: [
+      "Capture topic",
+      "Attach media",
+      "Draft article",
+      "Prepare website/social version",
+    ],
+  },
+  {
+    assetCount: "Content hub",
+    assets: [
+      {
+        detail: "Short-form posts, reels, captions, and platform-specific hooks.",
+        format: "Social",
+        name: "Social Content",
+        status: "Active",
+      },
+      {
+        detail: "Service explainers, app tips, nutrition prompts, and client education.",
+        format: "Script",
+        name: "Content Scripts",
+        status: "Draft",
+      },
+      {
+        detail: "Reusable snippets for email, website, and social campaigns.",
+        format: "Copy",
+        name: "Copy Blocks",
+        status: "Ready",
+      },
+    ],
+    description:
+      "Content planning for social, website copy, service education, blogs, and future campaigns.",
+    destination: "Post hub, social portal, email, website, campaigns",
+    formats: ["Caption", "Script", "Image", "Campaign copy"],
+    href: ROUTES.admin.postHub,
+    icon: "feed",
+    journeySteps: [
+      {
+        completion: 72,
+        href: ROUTES.admin.postHub,
+        icon: "feed",
+        label: "Posts",
+        state: "active",
+      },
+      {
+        completion: 58,
+        href: ROUTES.admin.socialPortal,
+        icon: "messages",
+        label: "Channels",
+        state: "default",
+      },
+      {
+        completion: 44,
+        href: ROUTES.admin.templates,
+        icon: "library",
+        label: "Templates",
+        state: "default",
+      },
+    ],
+    primaryAction: "Open content hub",
+    status: "Content",
+    title: "Content",
+    tone: "sky",
+    workflow: [
+      "Plan topic",
+      "Choose channel",
+      "Attach visuals",
+      "Publish or schedule",
+    ],
+  },
+];
+
+const adminMarketingCampaignCards: DashboardNavigationCard[] = [
+  {
+    description:
+      "Plan Zoho email sends, nurture sequences, intro follow-ups, and interest-list campaign copy.",
+    href: "https://mail.zoho.com/",
+    icon: "messages",
+    journeySteps: [
+      {
+        completion: 78,
+        href: ROUTES.admin.leads,
+        icon: "groups",
+        label: "Audience",
+        state: "complete",
+      },
+      {
+        completion: 68,
+        href: ROUTES.admin.postHub,
+        icon: "post",
+        label: "Draft",
+        state: "active",
+      },
+      {
+        completion: 54,
+        href: "https://mail.zoho.com/",
+        icon: "messages",
+        label: "Send",
+        state: "default",
+      },
+      {
+        completion: 42,
+        href: ROUTES.admin.reports,
+        icon: "stats",
+        label: "Track",
+        state: "default",
+      },
+    ],
+    status: "Nurture",
+    title: "Email Marketing",
+    tone: "cyan",
+  },
+  {
+    description:
+      "Build social campaigns for Instagram, Facebook, Nextdoor, reels, local offers, and post-intro pushes.",
+    href: ROUTES.admin.socialPortal,
+    icon: "feed",
+    journeySteps: [
+      {
+        completion: 74,
+        href: ROUTES.admin.postHub,
+        icon: "feed",
+        label: "Idea",
+        state: "complete",
+      },
+      {
+        completion: 64,
+        href: ROUTES.admin.postHub,
+        icon: "soundworld",
+        label: "Assets",
+        state: "active",
+      },
+      {
+        completion: 50,
+        href: ROUTES.admin.socialPortal,
+        icon: "calendar",
+        label: "Schedule",
+        state: "default",
+      },
+      {
+        completion: 36,
+        href: ROUTES.admin.followUps,
+        icon: "messages",
+        label: "Engage",
+        state: "default",
+      },
+    ],
+    status: "Campaigns",
+    title: "Social Campaigns",
+    tone: "fuchsia",
+  },
+];
+
 export default function UserHomeDashboardPage() {
+  const pathname = usePathname();
+  const isAdminPreview = pathname === "/main-dashboard-preview";
   const router = useRouter();
   const [dashboardToday] = useState<Date>(() => new Date());
   const [firstName, setFirstName] = useState("Member");
@@ -3284,7 +5505,7 @@ export default function UserHomeDashboardPage() {
   const [manualStatsAdderCollapsed, setManualStatsAdderCollapsed] =
     useState(true);
   const [activeDashboardOrbiterRow, setActiveDashboardOrbiterRow] =
-    useState(0);
+    useState(() => (isAdminPreview ? 1 : 0));
   const [activeDashboardHeaderIndex, setActiveDashboardHeaderIndex] =
     useState(0);
   const [dashboardFoundationProgress, setDashboardFoundationProgress] =
@@ -3327,6 +5548,12 @@ export default function UserHomeDashboardPage() {
     useState(false);
   const [dashboardHeaderTimedOut, setDashboardHeaderTimedOut] =
     useState(false);
+  const [
+    dashboardHeaderIdleStationIndex,
+    setDashboardHeaderIdleStationIndex,
+  ] = useState(0);
+  const [dashboardHeaderIdlePhase, setDashboardHeaderIdlePhase] =
+    useState<"work" | "run">("work");
   const [
     dashboardHeaderTimeoutPortalOpen,
     setDashboardHeaderTimeoutPortalOpen,
@@ -3382,10 +5609,76 @@ export default function UserHomeDashboardPage() {
   const [dashboardPageAnalogOffset, setDashboardPageAnalogOffset] =
     useState<DashboardVerticalPointerStart>({ x: 0, y: 0 });
   const [activeCommandCenterIndex, setActiveCommandCenterIndex] = useState(0);
+  const [activeAdminServiceIndex, setActiveAdminServiceIndex] = useState(0);
+  const [adminServiceDetailsOpen, setAdminServiceDetailsOpen] =
+    useState(false);
   const [activeDailyToolIndex, setActiveDailyToolIndex] = useState(0);
+  const [activeAdminJourneyIndex, setActiveAdminJourneyIndex] = useState(0);
+  const [activeAdminJourneyDetailStage, setActiveAdminJourneyDetailStage] =
+    useState<AdminJourneyStageKey | null>(null);
+  const [activeAdminJourneyAddStage, setActiveAdminJourneyAddStage] =
+    useState<AdminJourneyStageKey | null>(null);
+  const [activeAdminJourneyEditStage, setActiveAdminJourneyEditStage] =
+    useState<AdminJourneyStageKey | null>(null);
+  const [activeAdminJourneyCell, setActiveAdminJourneyCell] =
+    useState<AdminJourneyActiveCell>(null);
+  const [
+    collapsedAdminJourneyColumns,
+    setCollapsedAdminJourneyColumns,
+  ] = useState<Record<AdminJourneyFieldKey, boolean>>({
+    contact: false,
+    context: false,
+    date: false,
+    nextStep: false,
+    notes: false,
+    owner: false,
+    primary: false,
+    status: false,
+  });
+  const [
+    collapsedAdminJourneyTables,
+    setCollapsedAdminJourneyTables,
+  ] = useState<Record<AdminJourneyStageKey, boolean>>(() =>
+    createInitialAdminJourneyTableCollapseState(),
+  );
+  const [adminJourneyDrafts, setAdminJourneyDrafts] = useState<
+    Record<AdminJourneyStageKey, AdminJourneyDraft>
+  >(() => createEmptyAdminJourneyDrafts());
+  const [adminJourneyRows, setAdminJourneyRows] = useState<
+    Record<AdminJourneyStageKey, AdminJourneyRecord[]>
+  >(() =>
+    Object.fromEntries(
+      Object.entries(adminJourneySeedRows).map(([stage, rows]) => [
+        stage,
+        rows.map((row) => ({ ...row })),
+      ]),
+    ) as Record<AdminJourneyStageKey, AdminJourneyRecord[]>,
+  );
+  const [activeAdminJourneyRecordIndices, setActiveAdminJourneyRecordIndices] =
+    useState<Record<AdminJourneyStageKey, number>>(() =>
+      createInitialAdminJourneyRecordIndices(),
+    );
+  const [adminFinanceWorkspaceOpen, setAdminFinanceWorkspaceOpen] =
+    useState(false);
+  const [activeAdminFinanceTab, setActiveAdminFinanceTab] =
+    useState<AdminFinanceTabKey>("income");
+  const [activeAdminFinanceMonthKey, setActiveAdminFinanceMonthKey] =
+    useState(adminFinanceMonthOptions[5]?.key ?? "2026-06");
   const [activeWeeklyRecapIndex, setActiveWeeklyRecapIndex] = useState(0);
   const [activeMySoundIndex, setActiveMySoundIndex] = useState(0);
+  const [activeAdminMessageIndex, setActiveAdminMessageIndex] = useState(0);
+  const [adminMessageDetailsOpen, setAdminMessageDetailsOpen] =
+    useState(false);
   const [activeSystemCenterIndex, setActiveSystemCenterIndex] = useState(0);
+  const [activeAdminSoundAssetIndex, setActiveAdminSoundAssetIndex] =
+    useState(0);
+  const [adminSoundAssetDetailsOpen, setAdminSoundAssetDetailsOpen] =
+    useState(false);
+  const [
+    activeAdminMarketingCampaignIndex,
+    setActiveAdminMarketingCampaignIndex,
+  ] = useState(0);
+  const [activeAdminSettingsIndex, setActiveAdminSettingsIndex] = useState(0);
   const [
     activeDashboardFloatingMetricIndex,
     setActiveDashboardFloatingMetricIndex,
@@ -3462,6 +5755,23 @@ export default function UserHomeDashboardPage() {
   const dashboardOrbiterRowChangeLockRef = useRef(0);
   const commandCenterPointerStartRef = useRef<number | null>(null);
   const commandCenterPointerMovedRef = useRef(false);
+  const adminServicePointerStartRef = useRef<number | null>(null);
+  const adminServicePointerMovedRef = useRef(false);
+  const adminJourneyPointerStartRef = useRef<number | null>(null);
+  const adminJourneyPointerMovedRef = useRef(false);
+  const adminJourneyDetailStagePointerStartRef = useRef<number | null>(null);
+  const adminJourneyDetailStagePointerMovedRef = useRef(false);
+  const adminJourneyDetailStageJoystickPointerStartRef =
+    useRef<DashboardVerticalPointerStart | null>(null);
+  const adminJourneyDetailStageJoystickPointerMovedRef = useRef(false);
+  const adminJourneyRecordScrollerRef = useRef<HTMLDivElement | null>(null);
+  const adminJourneyRecordPointerStartRef =
+    useRef<DashboardVerticalPointerStart | null>(null);
+  const adminJourneyRecordPointerMovedRef = useRef(false);
+  const adminJourneyJoystickPointerStartRef =
+    useRef<DashboardVerticalPointerStart | null>(null);
+  const adminJourneyJoystickPointerMovedRef = useRef(false);
+  const adminJourneyRecordWheelLockRef = useRef(0);
   const dashboardHeaderScrollButtonPointerStartRef =
     useRef<DashboardVerticalPointerStart | null>(null);
   const dashboardHeaderScrollButtonPointerMovedRef = useRef(false);
@@ -3509,10 +5819,18 @@ export default function UserHomeDashboardPage() {
   const weeklyRecapPointerMovedRef = useRef(false);
   const mySoundPointerStartRef = useRef<number | null>(null);
   const mySoundPointerMovedRef = useRef(false);
+  const adminMessagePointerStartRef = useRef<number | null>(null);
+  const adminMessagePointerMovedRef = useRef(false);
   const dashboardMusicStationPointerStartRef = useRef<number | null>(null);
   const dashboardMusicStationPointerMovedRef = useRef(false);
   const systemCenterPointerStartRef = useRef<number | null>(null);
   const systemCenterPointerMovedRef = useRef(false);
+  const adminSoundAssetPointerStartRef = useRef<number | null>(null);
+  const adminSoundAssetPointerMovedRef = useRef(false);
+  const adminMarketingCampaignPointerStartRef = useRef<number | null>(null);
+  const adminMarketingCampaignPointerMovedRef = useRef(false);
+  const adminSettingsPointerStartRef = useRef<number | null>(null);
+  const adminSettingsPointerMovedRef = useRef(false);
   const dashboardCardWheelLockRef = useRef(0);
   const heroAchievementPointerStartRef = useRef<number | null>(null);
   const heroAchievementPointerMovedRef = useRef(false);
@@ -3531,6 +5849,26 @@ export default function UserHomeDashboardPage() {
   const dashboardMusicAutoplayModeRef =
     useRef<DashboardMusicAutoplayMode>("off");
   const dashboardTooltipTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (
+      !activeAdminJourneyCell ||
+      activeAdminJourneyEditStage !== activeAdminJourneyCell.stage
+    ) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      const activeInput = document.querySelector<
+        HTMLInputElement | HTMLTextAreaElement
+      >(
+        `[data-admin-journey-stage="${activeAdminJourneyCell.stage}"][data-admin-journey-field="${activeAdminJourneyCell.field}"]`,
+      );
+
+      activeInput?.focus({ preventScroll: true });
+      activeInput?.select?.();
+    });
+  }, [activeAdminJourneyCell, activeAdminJourneyEditStage]);
 
   const clearDashboardTooltipTimer = () => {
     if (dashboardTooltipTimerRef.current !== null) {
@@ -4629,8 +6967,21 @@ export default function UserHomeDashboardPage() {
   const activeCommandCenter =
     dashboardCommandCenterCards[activeCommandCenterIndex] ||
     dashboardCommandCenterCards[0];
+  const activeAdminService =
+    adminServiceCards[activeAdminServiceIndex] || adminServiceCards[0];
+  const activeAdminMessage =
+    adminMessageChannels[activeAdminMessageIndex] || adminMessageChannels[0];
+  const adminMessageUnreadTotal = adminMessageChannels.reduce(
+    (total, channel) => total + channel.unread,
+    0,
+  );
   const activeSystemCenter =
     dashboardSystemCards[activeSystemCenterIndex] || dashboardSystemCards[0];
+  const activeAdminSoundAsset =
+    adminSoundAssetCards[activeAdminSoundAssetIndex] || adminSoundAssetCards[0];
+  const adminSoundAssetCountLabel = adminSoundAssetCards
+    .map((card) => card.assetCount)
+    .join(" / ");
   const dashboardOrbiterRows = [
     {
       completion: 100,
@@ -4640,27 +6991,40 @@ export default function UserHomeDashboardPage() {
       title: "Weekly Snapshot",
     },
     {
-      completion: manualStatsLogs.length ? 100 : 58,
-      helper:
-        "Manual stats, video review form checks, import tools, library attach, and recent saves.",
+      completion: isAdminPreview
+        ? 74
+        : manualStatsLogs.length
+          ? 100
+          : 58,
+      helper: isAdminPreview
+        ? "People grouped by journey stage from first impression through reactivation."
+        : "Manual stats, video review form checks, import tools, library attach, and recent saves.",
       icon: "stats",
-      title: "Daily Tools",
+      title: isAdminPreview ? "User Engagement" : "Daily Tools",
     },
     {
-      completion: exerciseStats.length ? 82 : 36,
-      helper:
-        "Last 7 days of training volume, nutrition consistency, and recovery readiness.",
-      icon: "performance",
-      title: "Weekly Recap",
+      completion: isAdminPreview ? 71 : exerciseStats.length ? 82 : 36,
+      helper: isAdminPreview
+        ? "Income, expenses, assets, liabilities, payroll, and tax planning tabs."
+        : "Last 7 days of training volume, nutrition consistency, and recovery readiness.",
+      icon: isAdminPreview ? "stats" : "performance",
+      title: isAdminPreview ? "Finances" : "Weekly Recap",
     },
     {
-      completion: Math.round(
-        ((activeCommandCenterIndex + 1) / dashboardCommandCenterCards.length) *
-          100,
-      ),
-      helper: "Core command centers.",
-      icon: "dashboard",
-      title: "Dashboards",
+      completion: isAdminPreview
+        ? Math.round(
+            ((activeAdminServiceIndex + 1) / adminServiceCards.length) * 100,
+          )
+        : Math.round(
+            ((activeCommandCenterIndex + 1) /
+              dashboardCommandCenterCards.length) *
+              100,
+          ),
+      helper: isAdminPreview
+        ? "Services, resources, facilitation workflow, and price references."
+        : "Core command centers.",
+      icon: isAdminPreview ? "packages" : "dashboard",
+      title: isAdminPreview ? "Services" : "Dashboards",
     },
     {
       completion: 72,
@@ -4669,37 +7033,71 @@ export default function UserHomeDashboardPage() {
       title: "Calendar",
     },
     {
-      completion:
-        exerciseStats.length || savedTemplates.length || manualStatsLogs.length
+      completion: isAdminPreview
+        ? Math.round(
+            ((activeAdminMessageIndex + 1) / adminMessageChannels.length) *
+              100,
+          )
+        : exerciseStats.length || savedTemplates.length || manualStatsLogs.length
           ? 76
           : 34,
-      helper:
-        "Personalized insight cards that connect dashboard signals to relevant content.",
-      icon: "soundworld",
-      logo: "sound",
-      title: "My Sound",
+      helper: isAdminPreview
+        ? `${adminMessageUnreadTotal} unread across app, video review, social, and site inboxes.`
+        : "Personalized insight cards that connect dashboard signals to relevant content.",
+      icon: isAdminPreview ? "messages" : "soundworld",
+      logo: isAdminPreview ? undefined : "sound",
+      title: isAdminPreview ? "My Messages" : "My Sound",
     },
     {
-      completion: Math.round(
-        ((activeSystemCenterIndex + 1) / dashboardSystemCards.length) * 100,
-      ),
-      helper:
-        "Goals, insights, stats, progress, appointments, messages, packages, and achievements.",
-      icon: "app",
-      title: "System Row",
+      completion: isAdminPreview
+        ? Math.round(
+            ((activeAdminSoundAssetIndex + 1) /
+              adminSoundAssetCards.length) *
+              100,
+          )
+        : Math.round(
+            ((activeSystemCenterIndex + 1) / dashboardSystemCards.length) *
+              100,
+          ),
+      helper: isAdminPreview
+        ? "Branding, banners, shirt mockups, AI website assets, store, blogs, and content."
+        : "Goals, insights, stats, progress, appointments, messages, packages, and achievements.",
+      icon: isAdminPreview ? "soundworld" : "app",
+      title: isAdminPreview ? "Sound Assets" : "System Row",
     },
+    ...(isAdminPreview
+      ? [
+          {
+            completion: Math.round(
+              ((activeAdminMarketingCampaignIndex + 1) /
+                adminMarketingCampaignCards.length) *
+                100,
+            ),
+            helper:
+              "Email marketing and social campaign planning in one quick row.",
+            icon: "feed",
+            title: "Marketing",
+          },
+        ]
+      : []),
     {
-      completion: activeSessionTemplate
-        ? 76
-        : favoriteWorkoutTemplates.length
-          ? 64
-          : exerciseStats.length
-            ? 54
-            : 28,
-      helper:
-        "A dynamic plan snapshot laid out as a horizontal Master Training Journey timeline.",
-      icon: "plan",
-      title: "Master Training Journey",
+      completion: isAdminPreview
+        ? Math.round(
+            ((activeAdminSettingsIndex + 1) / adminSettingsSections.length) *
+              100,
+          )
+        : activeSessionTemplate
+          ? 76
+          : favoriteWorkoutTemplates.length
+            ? 64
+            : exerciseStats.length
+              ? 54
+              : 28,
+      helper: isAdminPreview
+        ? "Operations settings for integrations, roles, journey rules, notifications, data, and site controls."
+        : "A dynamic plan snapshot laid out as a horizontal Master Training Journey timeline.",
+      icon: isAdminPreview ? "settings" : "plan",
+      title: isAdminPreview ? "Settings" : "Master Training Journey",
     },
   ];
   const getDashboardRowUrgencyTone = (completion: number) =>
@@ -4919,11 +7317,35 @@ export default function UserHomeDashboardPage() {
       activeCommandCenterIndex,
       dashboardCommandCenterCards.length,
     );
+  const getAdminServicesOrbitDistance = (index: number) =>
+    getDashboardOrbitDistance(
+      index,
+      activeAdminServiceIndex,
+      adminServiceCards.length,
+    );
   const getSystemCenterOrbitDistance = (index: number) =>
     getDashboardOrbitDistance(
       index,
       activeSystemCenterIndex,
       dashboardSystemCards.length,
+    );
+  const getAdminSoundAssetOrbitDistance = (index: number) =>
+    getDashboardOrbitDistance(
+      index,
+      activeAdminSoundAssetIndex,
+      adminSoundAssetCards.length,
+    );
+  const getAdminMarketingCampaignOrbitDistance = (index: number) =>
+    getDashboardOrbitDistance(
+      index,
+      activeAdminMarketingCampaignIndex,
+      adminMarketingCampaignCards.length,
+    );
+  const getAdminSettingsOrbitDistance = (index: number) =>
+    getDashboardOrbitDistance(
+      index,
+      activeAdminSettingsIndex,
+      adminSettingsSections.length,
     );
   const rotateCommandCenter = (direction: DashboardOrbitDirection) => {
     setActiveCommandCenterIndex((currentIndex) => {
@@ -4936,6 +7358,23 @@ export default function UserHomeDashboardPage() {
       );
     });
   };
+  const rotateAdminServicesOrbit = (direction: DashboardOrbitDirection) => {
+    setAdminServiceDetailsOpen(false);
+    setActiveAdminServiceIndex((currentIndex) => {
+      const nextIndex =
+        direction === "left" ? currentIndex - 1 : currentIndex + 1;
+
+      return (
+        (nextIndex + adminServiceCards.length) % adminServiceCards.length
+      );
+    });
+  };
+  const openAdminServiceDetails = (serviceIndex: number) => {
+    setActiveAdminServiceIndex(serviceIndex);
+    setAdminMessageDetailsOpen(false);
+    setAdminSoundAssetDetailsOpen(false);
+    setAdminServiceDetailsOpen(true);
+  };
   const rotateSystemCenter = (direction: DashboardOrbitDirection) => {
     setActiveSystemCenterIndex((currentIndex) => {
       const nextIndex =
@@ -4943,6 +7382,42 @@ export default function UserHomeDashboardPage() {
 
       return (
         (nextIndex + dashboardSystemCards.length) % dashboardSystemCards.length
+      );
+    });
+  };
+  const rotateAdminSoundAssets = (direction: DashboardOrbitDirection) => {
+    setAdminSoundAssetDetailsOpen(false);
+    setActiveAdminSoundAssetIndex((currentIndex) => {
+      const nextIndex =
+        direction === "left" ? currentIndex - 1 : currentIndex + 1;
+
+      return (
+        (nextIndex + adminSoundAssetCards.length) %
+        adminSoundAssetCards.length
+      );
+    });
+  };
+  const rotateAdminMarketingCampaignOrbit = (
+    direction: DashboardOrbitDirection,
+  ) => {
+    setActiveAdminMarketingCampaignIndex((currentIndex) => {
+      const nextIndex =
+        direction === "left" ? currentIndex - 1 : currentIndex + 1;
+
+      return (
+        (nextIndex + adminMarketingCampaignCards.length) %
+        adminMarketingCampaignCards.length
+      );
+    });
+  };
+  const rotateAdminSettingsOrbit = (direction: DashboardOrbitDirection) => {
+    setActiveAdminSettingsIndex((currentIndex) => {
+      const nextIndex =
+        direction === "left" ? currentIndex - 1 : currentIndex + 1;
+
+      return (
+        (nextIndex + adminSettingsSections.length) %
+        adminSettingsSections.length
       );
     });
   };
@@ -4954,6 +7429,560 @@ export default function UserHomeDashboardPage() {
           dashboardDailyToolCount
         : (currentIndex + 1) % dashboardDailyToolCount,
     );
+  };
+  const adminJourneyCardCount = adminCustomerJourneyCards.length;
+  const getAdminJourneyOrbitDistance = (index: number) =>
+    index - activeAdminJourneyIndex;
+  const rotateAdminJourneyOrbit = (direction: DashboardOrbitDirection) => {
+    setActiveAdminJourneyIndex((currentIndex) =>
+      Math.max(
+        0,
+        Math.min(
+          adminJourneyCardCount - 1,
+          currentIndex + (direction === "left" ? -1 : 1),
+        ),
+      ),
+    );
+  };
+  const selectAdminJourneyRecord = (
+    stage: AdminJourneyStageKey,
+    index: number,
+  ) => {
+    const recordCount = adminJourneyRows[stage]?.length ?? 0;
+    if (!recordCount) return;
+
+    setActiveAdminJourneyRecordIndices((currentIndices) => ({
+      ...currentIndices,
+      [stage]: Math.max(0, Math.min(recordCount - 1, index)),
+    }));
+  };
+  const rotateAdminJourneyRecord = (
+    stage: AdminJourneyStageKey,
+    direction: "down" | "up",
+  ) => {
+    const recordCount = adminJourneyRows[stage]?.length ?? 0;
+    if (recordCount < 2) return;
+
+    setActiveAdminJourneyRecordIndices((currentIndices) => {
+      const currentIndex = Math.max(
+        0,
+        Math.min(recordCount - 1, currentIndices[stage] ?? 0),
+      );
+      const nextIndex =
+        direction === "up"
+          ? (currentIndex - 1 + recordCount) % recordCount
+          : (currentIndex + 1) % recordCount;
+
+      return {
+        ...currentIndices,
+        [stage]: nextIndex,
+      };
+    });
+  };
+  const scrollAdminJourneyRecordColumns = (
+    direction: DashboardOrbitDirection,
+  ) => {
+    const scroller = adminJourneyRecordScrollerRef.current;
+    if (!scroller) return;
+
+    scroller.scrollBy({
+      behavior: "smooth",
+      left: direction === "left" ? -320 : 320,
+    });
+  };
+  const moveAdminJourneyJoystick = (
+    stage: AdminJourneyStageKey,
+    direction: DashboardScrollButtonDirection,
+  ) => {
+    if (direction === "up" || direction === "down") {
+      rotateAdminJourneyRecord(stage, direction);
+      return;
+    }
+
+    scrollAdminJourneyRecordColumns(direction);
+  };
+  const getAdminJourneyJoystickDirection = (
+    deltaX: number,
+    deltaY: number,
+  ): DashboardScrollButtonDirection | null => {
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+
+    if (Math.max(absDeltaX, absDeltaY) < 10) return null;
+
+    return absDeltaX > absDeltaY
+      ? deltaX > 0
+        ? "right"
+        : "left"
+      : deltaY > 0
+        ? "down"
+        : "up";
+  };
+  const handleAdminJourneyJoystickPointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    adminJourneyJoystickPointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+    adminJourneyJoystickPointerMovedRef.current = false;
+    event.currentTarget.focus({ preventScroll: true });
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const handleAdminJourneyJoystickPointerMove = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    stage: AdminJourneyStageKey,
+  ) => {
+    const start = adminJourneyJoystickPointerStartRef.current;
+    if (!start) return;
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    const direction = getAdminJourneyJoystickDirection(deltaX, deltaY);
+
+    if (!direction || Math.max(Math.abs(deltaX), Math.abs(deltaY)) < 34) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    adminJourneyJoystickPointerMovedRef.current = true;
+    moveAdminJourneyJoystick(stage, direction);
+    adminJourneyJoystickPointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+  };
+  const handleAdminJourneyJoystickPointerEnd = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    stage: AdminJourneyStageKey,
+  ) => {
+    const start = adminJourneyJoystickPointerStartRef.current;
+    adminJourneyJoystickPointerStartRef.current = null;
+
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+
+    if (adminJourneyJoystickPointerMovedRef.current) {
+      event.preventDefault();
+      window.setTimeout(() => {
+        adminJourneyJoystickPointerMovedRef.current = false;
+      }, 0);
+      return;
+    }
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const startX = start?.x ?? event.clientX;
+    const startY = start?.y ?? event.clientY;
+    const direction = getAdminJourneyJoystickDirection(
+      startX - (rect.left + rect.width / 2),
+      startY - (rect.top + rect.height / 2),
+    );
+
+    if (direction) {
+      event.preventDefault();
+      moveAdminJourneyJoystick(stage, direction);
+    }
+  };
+  const handleAdminJourneyJoystickKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    stage: AdminJourneyStageKey,
+  ) => {
+    const keyDirectionMap: Partial<
+      Record<string, DashboardScrollButtonDirection>
+    > = {
+      ArrowDown: "down",
+      ArrowLeft: "left",
+      ArrowRight: "right",
+      ArrowUp: "up",
+    };
+    const direction = keyDirectionMap[event.key];
+    if (!direction) return;
+
+    event.preventDefault();
+    moveAdminJourneyJoystick(stage, direction);
+  };
+  const getAdminJourneyRecordDistance = (
+    stage: AdminJourneyStageKey,
+    index: number,
+  ) => {
+    const recordCount = adminJourneyRows[stage]?.length ?? 0;
+    const activeIndex = Math.max(
+      0,
+      Math.min(recordCount - 1, activeAdminJourneyRecordIndices[stage] ?? 0),
+    );
+
+    return getDashboardOrbitDistance(index, activeIndex, recordCount || 1);
+  };
+  const handleAdminJourneyRecordWheel = (
+    event: ReactWheelEvent<HTMLDivElement>,
+    stage: AdminJourneyStageKey,
+  ) => {
+    const primaryDelta =
+      Math.abs(event.deltaY) >= Math.abs(event.deltaX)
+        ? event.deltaY
+        : event.shiftKey
+          ? event.deltaX
+          : 0;
+
+    if (Math.abs(primaryDelta) < 18) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const now = Date.now();
+    if (now - adminJourneyRecordWheelLockRef.current < 240) return;
+
+    adminJourneyRecordWheelLockRef.current = now;
+    rotateAdminJourneyRecord(stage, primaryDelta > 0 ? "down" : "up");
+  };
+  const handleAdminJourneyRecordPointerDown = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+
+    const target = event.target;
+    if (
+      target instanceof HTMLElement &&
+      target.closest("input,select,textarea,button,[contenteditable='true']")
+    ) {
+      return;
+    }
+
+    adminJourneyRecordPointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+    adminJourneyRecordPointerMovedRef.current = false;
+    event.currentTarget.focus({ preventScroll: true });
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+  const handleAdminJourneyRecordPointerMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+    stage: AdminJourneyStageKey,
+  ) => {
+    const start = adminJourneyRecordPointerStartRef.current;
+    if (!start) return;
+
+    const deltaX = event.clientX - start.x;
+    const deltaY = event.clientY - start.y;
+    const absDeltaX = Math.abs(deltaX);
+    const absDeltaY = Math.abs(deltaY);
+    const strongestDelta = Math.max(absDeltaX, absDeltaY);
+    if (strongestDelta < 58) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    adminJourneyRecordPointerMovedRef.current = true;
+    if (absDeltaX > absDeltaY * 1.08) {
+      scrollAdminJourneyRecordColumns(deltaX > 0 ? "left" : "right");
+    } else {
+      rotateAdminJourneyRecord(stage, deltaY > 0 ? "up" : "down");
+    }
+    adminJourneyRecordPointerStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+    };
+  };
+  const handleAdminJourneyRecordPointerEnd = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    adminJourneyRecordPointerStartRef.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+
+    if (adminJourneyRecordPointerMovedRef.current) {
+      event.preventDefault();
+      window.setTimeout(() => {
+        adminJourneyRecordPointerMovedRef.current = false;
+      }, 0);
+    }
+  };
+  const handleAdminJourneyRecordKeyDown = (
+    event: ReactKeyboardEvent<HTMLDivElement>,
+    stage: AdminJourneyStageKey,
+  ) => {
+    const target = event.target;
+    if (
+      target instanceof HTMLElement &&
+      target.closest("input,select,textarea,[contenteditable='true']")
+    ) {
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      rotateAdminJourneyRecord(stage, "up");
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      rotateAdminJourneyRecord(stage, "down");
+    }
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      scrollAdminJourneyRecordColumns("left");
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      scrollAdminJourneyRecordColumns("right");
+    }
+  };
+  const updateAdminJourneyDraft = (
+    stage: AdminJourneyStageKey,
+    field: keyof AdminJourneyDraft,
+    value: string,
+  ) => {
+    setAdminJourneyDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [stage]: {
+        ...currentDrafts[stage],
+        [field]: value,
+      },
+    }));
+  };
+  const updateAdminJourneyRecordCell = (
+    stage: AdminJourneyStageKey,
+    recordIndex: number,
+    field: AdminJourneyFieldKey,
+    value: string,
+  ) => {
+    setAdminJourneyRows((currentRows) => ({
+      ...currentRows,
+      [stage]: (currentRows[stage] ?? []).map((row, index) =>
+        index === recordIndex
+          ? {
+              ...row,
+              [field]: value,
+            }
+          : row,
+      ),
+    }));
+    setActiveAdminJourneyRecordIndices((currentIndices) => ({
+      ...currentIndices,
+      [stage]: recordIndex,
+    }));
+    setActiveAdminJourneyCell({
+      field,
+      stage,
+    });
+
+    if (activeAdminJourneyEditStage === stage) {
+      setAdminJourneyDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [stage]: {
+          ...currentDrafts[stage],
+          [field]: value,
+        },
+      }));
+    }
+  };
+  const focusAdminJourneyRecordCell = (
+    stage: AdminJourneyStageKey,
+    recordIndex: number,
+    field: AdminJourneyFieldKey,
+  ) => {
+    setActiveAdminJourneyRecordIndices((currentIndices) => ({
+      ...currentIndices,
+      [stage]: recordIndex,
+    }));
+    setActiveAdminJourneyCell({
+      field,
+      stage,
+    });
+  };
+  const toggleAdminJourneyAdd = (stage: AdminJourneyStageKey) => {
+    const shouldOpen = activeAdminJourneyAddStage !== stage;
+
+    setActiveAdminJourneyEditStage(null);
+    setActiveAdminJourneyAddStage(shouldOpen ? stage : null);
+    setActiveAdminJourneyCell(null);
+
+    if (shouldOpen) {
+      setCollapsedAdminJourneyTables((currentTables) => ({
+        ...currentTables,
+        [stage]: false,
+      }));
+      setAdminJourneyDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [stage]: { ...emptyAdminJourneyDraft },
+      }));
+    }
+  };
+  const addAdminJourneyRow = (stage: AdminJourneyStageKey) => {
+    const draft = adminJourneyDrafts[stage];
+    const fallbackDate = new Date().toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+    const nextRecord: AdminJourneyRecord = {
+      contact: draft.contact.trim() || "Add contact",
+      context: draft.context.trim() || "Needs context",
+      date: draft.date.trim() || fallbackDate,
+      id: `${stage}-${Date.now()}`,
+      nextStep: draft.nextStep.trim() || "Define next step",
+      notes: draft.notes.trim() || "New entry added from admin dashboard.",
+      owner: draft.owner.trim() || "Joey",
+      primary: draft.primary.trim() || "New person",
+      status: draft.status.trim() || "New",
+    };
+
+    setAdminJourneyRows((currentRows) => ({
+      ...currentRows,
+      [stage]: [nextRecord, ...(currentRows[stage] ?? [])],
+    }));
+    setActiveAdminJourneyRecordIndices((currentIndices) => ({
+      ...currentIndices,
+      [stage]: 0,
+    }));
+    setActiveAdminJourneyEditStage(null);
+    setActiveAdminJourneyAddStage(null);
+    setActiveAdminJourneyCell(null);
+    setAdminJourneyDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [stage]: { ...emptyAdminJourneyDraft },
+    }));
+  };
+  const startEditAdminJourneyRow = (
+    stage: AdminJourneyStageKey,
+    focusedField?: AdminJourneyFieldKey,
+    recordIndex?: number,
+  ) => {
+    const rows = adminJourneyRows[stage] ?? [];
+    const activeIndex = Math.max(
+      0,
+      Math.min(
+        rows.length - 1,
+        typeof recordIndex === "number"
+          ? recordIndex
+          : activeAdminJourneyRecordIndices[stage] ?? 0,
+      ),
+    );
+    const activeRecord = rows[activeIndex];
+    if (!activeRecord) return;
+
+    if (typeof recordIndex === "number") {
+      setActiveAdminJourneyRecordIndices((currentIndices) => ({
+        ...currentIndices,
+        [stage]: activeIndex,
+      }));
+    }
+
+    setAdminJourneyDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [stage]: {
+        contact: activeRecord.contact,
+        context: activeRecord.context,
+        date: activeRecord.date,
+        nextStep: activeRecord.nextStep,
+        notes: activeRecord.notes,
+        owner: activeRecord.owner,
+        primary: activeRecord.primary,
+        status: activeRecord.status,
+      },
+    }));
+    setCollapsedAdminJourneyTables((currentTables) => ({
+      ...currentTables,
+      [stage]: false,
+    }));
+    setActiveAdminJourneyAddStage(null);
+    setActiveAdminJourneyEditStage(stage);
+    setActiveAdminJourneyCell(
+      focusedField
+        ? {
+            field: focusedField,
+            stage,
+          }
+        : null,
+    );
+  };
+  const toggleAdminJourneyColumn = (field: AdminJourneyFieldKey) => {
+    setCollapsedAdminJourneyColumns((currentColumns) => ({
+      ...currentColumns,
+      [field]: !currentColumns[field],
+    }));
+  };
+  const toggleAdminJourneyTable = (stage: AdminJourneyStageKey) => {
+    const shouldCollapse = !collapsedAdminJourneyTables[stage];
+
+    if (shouldCollapse) {
+      setActiveAdminJourneyAddStage(null);
+      setActiveAdminJourneyEditStage(null);
+      setActiveAdminJourneyCell(null);
+    }
+
+    setCollapsedAdminJourneyTables((currentTables) => ({
+      ...currentTables,
+      [stage]: !currentTables[stage],
+    }));
+  };
+  const updateAdminJourneyRow = (stage: AdminJourneyStageKey) => {
+    const draft = adminJourneyDrafts[stage];
+    const rows = adminJourneyRows[stage] ?? [];
+    const activeIndex = Math.max(
+      0,
+      Math.min(rows.length - 1, activeAdminJourneyRecordIndices[stage] ?? 0),
+    );
+    const activeRecord = rows[activeIndex];
+    if (!activeRecord) return;
+
+    const nextRecord: AdminJourneyRecord = {
+      ...activeRecord,
+      contact: draft.contact.trim() || activeRecord.contact,
+      context: draft.context.trim() || activeRecord.context,
+      date: draft.date.trim() || activeRecord.date,
+      nextStep: draft.nextStep.trim() || activeRecord.nextStep,
+      notes: draft.notes.trim() || activeRecord.notes,
+      owner: draft.owner.trim() || activeRecord.owner,
+      primary: draft.primary.trim() || activeRecord.primary,
+      status: draft.status.trim() || activeRecord.status,
+    };
+
+    setAdminJourneyRows((currentRows) => ({
+      ...currentRows,
+      [stage]: (currentRows[stage] ?? []).map((row, index) =>
+        index === activeIndex ? nextRecord : row,
+      ),
+    }));
+    setActiveAdminJourneyEditStage(null);
+    setActiveAdminJourneyCell(null);
+    setAdminJourneyDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [stage]: { ...emptyAdminJourneyDraft },
+    }));
+  };
+  const deleteAdminJourneyRow = (stage: AdminJourneyStageKey) => {
+    const rows = adminJourneyRows[stage] ?? [];
+    const activeIndex = Math.max(
+      0,
+      Math.min(rows.length - 1, activeAdminJourneyRecordIndices[stage] ?? 0),
+    );
+    if (!rows[activeIndex]) return;
+
+    const nextRows = rows.filter((_, index) => index !== activeIndex);
+
+    setAdminJourneyRows((currentRows) => ({
+      ...currentRows,
+      [stage]: nextRows,
+    }));
+    setActiveAdminJourneyRecordIndices((currentIndices) => ({
+      ...currentIndices,
+      [stage]: Math.max(0, Math.min(nextRows.length - 1, activeIndex)),
+    }));
+    setActiveAdminJourneyAddStage(null);
+    setActiveAdminJourneyEditStage(null);
+    setActiveAdminJourneyCell(null);
+    setAdminJourneyDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [stage]: { ...emptyAdminJourneyDraft },
+    }));
   };
   const rotateDashboardMusicStationOrbit = (
     direction: DashboardOrbitDirection,
@@ -5002,6 +8031,7 @@ export default function UserHomeDashboardPage() {
     pointerMovedRef: DashboardPointerMovedRef,
     rotateOrbit: (direction: DashboardOrbitDirection) => void,
     setActiveIndex?: (index: number) => void,
+    onCardTap?: (index: number) => void,
   ) => {
     const startX = pointerStartRef.current;
     pointerStartRef.current = null;
@@ -5035,8 +8065,9 @@ export default function UserHomeDashboardPage() {
       const cardIndex =
         typeof cardIndexValue === "string" ? Number(cardIndexValue) : NaN;
 
-      if (setActiveIndex && Number.isInteger(cardIndex)) {
-        setActiveIndex(cardIndex);
+      if (Number.isInteger(cardIndex)) {
+        onCardTap?.(cardIndex);
+        setActiveIndex?.(cardIndex);
       }
 
       return;
@@ -5924,6 +8955,7 @@ export default function UserHomeDashboardPage() {
       {
         entries: {
           estimatedMax: number;
+          reps: number;
           score: number;
           sets: number;
           timestamp: number;
@@ -5974,6 +9006,7 @@ export default function UserHomeDashboardPage() {
 
       compoundLift.entries.push({
         estimatedMax,
+        reps,
         score,
         sets,
         timestamp,
@@ -5990,6 +9023,7 @@ export default function UserHomeDashboardPage() {
     const prProgress = clampDashboardPercent((recentPrCount / prTarget) * 100);
     const compoundLiftSummaries: {
       bestScore: number;
+      bestThirtyDayReps: number;
       bestWeight: number;
       bestThirtyDayTimestamp: number | null;
       bestThirtyDayWeight: number;
@@ -6049,6 +9083,7 @@ export default function UserHomeDashboardPage() {
 
       compoundLiftSummaries.push({
         bestScore: bestEntry.score,
+        bestThirtyDayReps: bestThirtyDayEntry?.reps ?? 0,
         bestWeight: bestEntry.weight,
         bestThirtyDayTimestamp: bestThirtyDayEntry?.timestamp ?? null,
         bestThirtyDayWeight: bestThirtyDayEntry?.weight ?? 0,
@@ -6078,7 +9113,10 @@ export default function UserHomeDashboardPage() {
     };
     const heaviestCompoundLift = pickCompoundLift(
       [...compoundLiftSummaries].sort(
-        (a, b) => b.bestWeight - a.bestWeight || b.bestScore - a.bestScore,
+        (a, b) =>
+          b.bestThirtyDayWeight - a.bestThirtyDayWeight ||
+          b.bestWeight - a.bestWeight ||
+          b.bestScore - a.bestScore,
       ),
     );
     const mostImprovedCompoundLift = pickCompoundLift(
@@ -6100,7 +9138,12 @@ export default function UserHomeDashboardPage() {
       summary: (typeof compoundLiftSummaries)[number] | null,
     ) => {
       if (!summary) return "--";
-      const load = summary.bestWeight > 0 ? summary.bestWeight : summary.bestScore;
+      const load =
+        summary.bestThirtyDayWeight > 0
+          ? summary.bestThirtyDayWeight
+          : summary.bestWeight > 0
+            ? summary.bestWeight
+            : summary.bestScore;
       return load > 0 ? `${Math.round(load).toLocaleString()} lb` : "--";
     };
     const formatCompoundLiftChange = (
@@ -6116,6 +9159,12 @@ export default function UserHomeDashboardPage() {
       summary && summary.bestThirtyDayWeight > 0
         ? `${Math.round(summary.bestThirtyDayWeight).toLocaleString()} lb`
         : "-- lb";
+    const formatCompoundLiftThirtyDayReps = (
+      summary: (typeof compoundLiftSummaries)[number] | null,
+    ) =>
+      summary && summary.bestThirtyDayReps > 0
+        ? `${Math.round(summary.bestThirtyDayReps).toLocaleString()}`
+        : "--";
     const formatCompoundLiftThirtyDayDate = (
       summary: (typeof compoundLiftSummaries)[number] | null,
     ) =>
@@ -6143,6 +9192,7 @@ export default function UserHomeDashboardPage() {
         detail: "Heaviest Lift",
         label: heaviestCompoundLift?.name || "Log heavy lift",
         rank: 1,
+        repsLabel: formatCompoundLiftThirtyDayReps(heaviestCompoundLift),
         setsLabel: formatCompoundLiftSets(heaviestCompoundLift),
         tone: "heavy",
         value: formatCompoundLiftLoad(heaviestCompoundLift),
@@ -6155,6 +9205,7 @@ export default function UserHomeDashboardPage() {
         detail: "Most Improved",
         label: mostImprovedCompoundLift?.name || "Build trend",
         rank: 2,
+        repsLabel: formatCompoundLiftThirtyDayReps(mostImprovedCompoundLift),
         setsLabel: formatCompoundLiftSets(mostImprovedCompoundLift),
         tone: "improved",
         value: formatCompoundLiftChange(mostImprovedCompoundLift),
@@ -6167,6 +9218,9 @@ export default function UserHomeDashboardPage() {
         detail: "Needs Work",
         label: needsImprovementCompoundLift?.name || "Add compound",
         rank: 3,
+        repsLabel: formatCompoundLiftThirtyDayReps(
+          needsImprovementCompoundLift,
+        ),
         setsLabel: formatCompoundLiftSets(needsImprovementCompoundLift),
         tone: "needs",
         value: formatCompoundLiftChange(needsImprovementCompoundLift),
@@ -6707,6 +9761,14 @@ export default function UserHomeDashboardPage() {
     if (card.title === "Appointments") return 25;
     if (card.title === "Messages") return 35;
     if (card.title === "Packages") return 42;
+    if (card.journeySteps?.length) {
+      return clampDashboardPercent(
+        card.journeySteps.reduce(
+          (total, step) => total + getDashboardJourneyStepCompletion(step),
+          0,
+        ) / card.journeySteps.length,
+      );
+    }
 
     return 20;
   };
@@ -7587,21 +10649,33 @@ export default function UserHomeDashboardPage() {
   };
   const dashboardFloatingSnapshotActiveCard =
     clampedDashboardOrbiterRow === 3
-      ? activeCommandCenter
+      ? isAdminPreview
+        ? activeAdminService
+        : activeCommandCenter
       : clampedDashboardOrbiterRow === 6
-        ? activeSystemCenter
+        ? isAdminPreview
+          ? activeAdminSoundAsset
+          : activeSystemCenter
         : null;
   const dashboardFloatingSnapshotRowCards =
     clampedDashboardOrbiterRow === 3
-      ? dashboardCommandCenterCards
+      ? isAdminPreview
+        ? adminServiceCards
+        : dashboardCommandCenterCards
       : clampedDashboardOrbiterRow === 6
-        ? dashboardSystemCards
+        ? isAdminPreview
+          ? adminSoundAssetCards
+          : dashboardSystemCards
         : [];
   const dashboardFloatingSnapshotActiveCardIndex =
     clampedDashboardOrbiterRow === 3
-      ? activeCommandCenterIndex
+      ? isAdminPreview
+        ? activeAdminServiceIndex
+        : activeCommandCenterIndex
       : clampedDashboardOrbiterRow === 6
-        ? activeSystemCenterIndex
+        ? isAdminPreview
+          ? activeAdminSoundAssetIndex
+          : activeSystemCenterIndex
         : -1;
   const dashboardFloatingSnapshotCompletion =
     dashboardFloatingSnapshotActiveCard
@@ -7980,6 +11054,12 @@ export default function UserHomeDashboardPage() {
       activeMySoundIndex,
       dashboardMySoundCards.length,
     );
+  const getAdminMessageOrbitDistance = (index: number) =>
+    getDashboardOrbitDistance(
+      index,
+      activeAdminMessageIndex,
+      adminMessageChannels.length,
+    );
   const rotateMySound = (direction: DashboardOrbitDirection) => {
     setActiveMySoundIndex((currentIndex) => {
       const nextIndex =
@@ -7988,6 +11068,18 @@ export default function UserHomeDashboardPage() {
       return (
         (nextIndex + dashboardMySoundCards.length) %
         dashboardMySoundCards.length
+      );
+    });
+  };
+  const rotateAdminMessages = (direction: DashboardOrbitDirection) => {
+    setAdminMessageDetailsOpen(false);
+    setActiveAdminMessageIndex((currentIndex) => {
+      const nextIndex =
+        direction === "left" ? currentIndex - 1 : currentIndex + 1;
+
+      return (
+        (nextIndex + adminMessageChannels.length) %
+        adminMessageChannels.length
       );
     });
   };
@@ -8548,6 +11640,54 @@ export default function UserHomeDashboardPage() {
     dashboardHeaderHasLiveHighlight,
     dashboardHeaderMenuActiveIndex,
   ]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (!dashboardHeaderTimedOut) {
+      setDashboardHeaderIdleStationIndex(0);
+      setDashboardHeaderIdlePhase("work");
+      return;
+    }
+
+    const idleSequenceTimeout = window.setTimeout(
+      () => {
+        if (dashboardHeaderIdlePhase === "work") {
+          setDashboardHeaderIdlePhase("run");
+          return;
+        }
+
+        setDashboardHeaderIdleStationIndex(
+          (currentIndex) =>
+            (currentIndex + 1) % dashboardHeaderIdleEquipmentStations.length,
+        );
+        setDashboardHeaderIdlePhase("work");
+      },
+      dashboardHeaderIdlePhase === "work"
+        ? DASHBOARD_HEADER_IDLE_WORK_MS
+        : DASHBOARD_HEADER_IDLE_RUN_MS,
+    );
+
+    return () => {
+      window.clearTimeout(idleSequenceTimeout);
+    };
+  }, [dashboardHeaderIdlePhase, dashboardHeaderTimedOut]);
+  const dashboardHeaderIdleStationCount =
+    dashboardHeaderIdleEquipmentStations.length;
+  const normalizedDashboardHeaderIdleStationIndex =
+    dashboardHeaderIdleStationCount > 0
+      ? ((dashboardHeaderIdleStationIndex % dashboardHeaderIdleStationCount) +
+          dashboardHeaderIdleStationCount) %
+        dashboardHeaderIdleStationCount
+      : 0;
+  const dashboardHeaderIdleNextStationIndex =
+    dashboardHeaderIdleStationCount > 0
+      ? (normalizedDashboardHeaderIdleStationIndex + 1) %
+        dashboardHeaderIdleStationCount
+      : 0;
+  const dashboardHeaderIdleOrbitStationIndex =
+    dashboardHeaderIdlePhase === "run"
+      ? dashboardHeaderIdleNextStationIndex
+      : normalizedDashboardHeaderIdleStationIndex;
   const activeDashboardHeaderUrgencyTone = getDashboardRowUrgencyTone(
     activeDashboardHeaderLink.completion,
   );
@@ -9040,6 +12180,11 @@ export default function UserHomeDashboardPage() {
     }
 
     if (clampedDashboardOrbiterRow === 1) {
+      if (isAdminPreview) {
+        rotateAdminJourneyOrbit(direction);
+        return true;
+      }
+
       rotateDailyToolOrbit(direction);
       return true;
     }
@@ -9050,6 +12195,11 @@ export default function UserHomeDashboardPage() {
     }
 
     if (clampedDashboardOrbiterRow === 3) {
+      if (isAdminPreview) {
+        rotateAdminServicesOrbit(direction);
+        return true;
+      }
+
       rotateCommandCenter(direction);
       return true;
     }
@@ -9060,12 +12210,32 @@ export default function UserHomeDashboardPage() {
     }
 
     if (clampedDashboardOrbiterRow === 5) {
+      if (isAdminPreview) {
+        rotateAdminMessages(direction);
+        return true;
+      }
+
       rotateMySound(direction);
       return true;
     }
 
     if (clampedDashboardOrbiterRow === 6) {
+      if (isAdminPreview) {
+        rotateAdminSoundAssets(direction);
+        return true;
+      }
+
       rotateSystemCenter(direction);
+      return true;
+    }
+
+    if (clampedDashboardOrbiterRow === 7 && isAdminPreview) {
+      rotateAdminMarketingCampaignOrbit(direction);
+      return true;
+    }
+
+    if (clampedDashboardOrbiterRow === 8 && isAdminPreview) {
+      rotateAdminSettingsOrbit(direction);
       return true;
     }
 
@@ -9580,10 +12750,9 @@ export default function UserHomeDashboardPage() {
     }
 
     const openPortal = (advanceMeter: boolean) => {
-      setDashboardHeaderTimeoutPortalPosition({
-        x: 36 + Math.random() * 28,
-        y: 36 + Math.random() * 8,
-      });
+      setDashboardHeaderTimeoutPortalPosition(
+        getDashboardHeaderTimeoutPortalPosition(),
+      );
 
       if (advanceMeter) {
         setDashboardHeaderTimeoutMeterIndex(
@@ -9718,6 +12887,21 @@ export default function UserHomeDashboardPage() {
         : (currentIndex + 1) % dashboardHeaderPrCardCount,
     );
   };
+  useEffect(() => {
+    if (dashboardHeaderPrCardCount < 2) return;
+
+    const intervalId = window.setInterval(() => {
+      if (document.hidden) return;
+
+      setDashboardHeaderPrActiveIndex(
+        (currentIndex) => (currentIndex + 1) % dashboardHeaderPrCardCount,
+      );
+    }, DASHBOARD_HEADER_COMPOUND_PR_AUTOSCROLL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [dashboardHeaderPrCardCount]);
   const dashboardHeaderCategoryLevelCount = dashboardHeaderCategoryLevels.length;
   const normalizedDashboardHeaderCategoryLevelActiveIndex =
     dashboardHeaderCategoryLevelCount > 0
@@ -12166,6 +15350,7 @@ export default function UserHomeDashboardPage() {
 
   const renderDashboardFloatingSnapshotHeader = () => {
     if (
+      isAdminPreview ||
       clampedDashboardOrbiterRow <= 2 ||
       clampedDashboardOrbiterRow === 4 ||
       clampedDashboardOrbiterRow === 5
@@ -12273,12 +15458,20 @@ export default function UserHomeDashboardPage() {
                         key={`${dashboardFloatingSnapshotEyebrow}-${card.title}`}
                         onClick={() => {
                           if (clampedDashboardOrbiterRow === 3) {
-                            setActiveCommandCenterIndex(cardIndex);
+                            if (isAdminPreview) {
+                              setActiveAdminServiceIndex(cardIndex);
+                            } else {
+                              setActiveCommandCenterIndex(cardIndex);
+                            }
                             return;
                           }
 
                           if (clampedDashboardOrbiterRow === 6) {
-                            setActiveSystemCenterIndex(cardIndex);
+                            if (isAdminPreview) {
+                              setActiveAdminSoundAssetIndex(cardIndex);
+                            } else {
+                              setActiveSystemCenterIndex(cardIndex);
+                            }
                           }
                         }}
                         style={{
@@ -13352,10 +16545,26 @@ export default function UserHomeDashboardPage() {
                       <span className="dashboard-header-compound-pr-meter__stats">
                         <span className="dashboard-header-compound-pr-meter__stat">
                           <span className="dashboard-header-compound-pr-meter__stat-label">
-                            Volume %
+                            Weight
                           </span>
                           <span className="dashboard-header-compound-pr-meter__stat-value">
-                            {highlight.volumeLabel}
+                            {highlight.weightLabel}
+                          </span>
+                        </span>
+                        <span className="dashboard-header-compound-pr-meter__stat">
+                          <span className="dashboard-header-compound-pr-meter__stat-label">
+                            Reps
+                          </span>
+                          <span className="dashboard-header-compound-pr-meter__stat-value">
+                            {highlight.repsLabel}
+                          </span>
+                        </span>
+                        <span className="dashboard-header-compound-pr-meter__stat">
+                          <span className="dashboard-header-compound-pr-meter__stat-label">
+                            Date
+                          </span>
+                          <span className="dashboard-header-compound-pr-meter__stat-value">
+                            {highlight.dateLabel}
                           </span>
                         </span>
                         <span className="dashboard-header-compound-pr-meter__stat">
@@ -13364,6 +16573,14 @@ export default function UserHomeDashboardPage() {
                           </span>
                           <span className="dashboard-header-compound-pr-meter__stat-value">
                             {highlight.setsLabel}
+                          </span>
+                        </span>
+                        <span className="dashboard-header-compound-pr-meter__stat">
+                          <span className="dashboard-header-compound-pr-meter__stat-label">
+                            Volume
+                          </span>
+                          <span className="dashboard-header-compound-pr-meter__stat-value">
+                            {highlight.volumeLabel}
                           </span>
                         </span>
                       </span>
@@ -13384,7 +16601,7 @@ export default function UserHomeDashboardPage() {
       return (
         <span
           aria-hidden="true"
-          className={`${portalActualClass} dashboard-header-achievement-cloud-trigger dashboard-header-achievement-meter dashboard-header-achievement-meter--standalone dashboard-header-achievement-cloud-trigger--revealing text-amber-50`}
+          className={`${portalActualClass} dashboard-header-achievement-cloud-trigger dashboard-header-achievement-meter dashboard-header-achievement-meter--standalone text-amber-50`}
           style={
             {
               "--dashboard-header-achievement-active-duration": `${DASHBOARD_HEADER_ACHIEVEMENT_ROTATE_MS}ms`,
@@ -13547,6 +16764,8 @@ export default function UserHomeDashboardPage() {
                   ].top
                 }%`,
                 "--dashboard-header-category-level": `${categoryActor.level}%`,
+                "--dashboard-header-category-meter-level":
+                  getDashboardHeaderCategoryMeterFill(categoryActor.level),
                 "--dashboard-header-category-left": `${categoryActor.left}%`,
                 "--dashboard-header-category-top": `${categoryActor.top}%`,
               } as CSSProperties
@@ -13826,6 +17045,8 @@ export default function UserHomeDashboardPage() {
                   "--dashboard-header-category-floor-left": `${categoryActorFloorSlot.left}%`,
                   "--dashboard-header-category-floor-top": `${categoryActorFloorSlot.top}%`,
                   "--dashboard-header-category-level": `${categoryActor.level}%`,
+                  "--dashboard-header-category-meter-level":
+                    getDashboardHeaderCategoryMeterFill(categoryActor.level),
                   "--dashboard-header-category-left": `${categoryActor.left}%`,
                   "--dashboard-header-category-top": `${categoryActor.top}%`,
                 } as CSSProperties
@@ -13848,63 +17069,253 @@ export default function UserHomeDashboardPage() {
       <div aria-hidden="true" className="dashboard-header-idle-training-floor">
         <span className="dashboard-header-idle-training-floor__ground" />
         <span className="dashboard-header-idle-station-track">
-          {dashboardHeaderIdleEquipmentStations.map((station) => {
+          {dashboardHeaderIdleEquipmentStations.map((station, stationIndex) => {
             const stationCategory = dashboardHeaderCategoryLevels.find(
               (categoryActor) => categoryActor.id === station.categoryId,
             );
+            const stationCategoryProgress =
+              stationCategory?.level ?? station.progress;
+            const stationLevelNumber = Math.max(
+              1,
+              Math.round(stationCategoryProgress / 10),
+            );
+            const isActiveIdleStation =
+              dashboardHeaderIdlePhase === "work" &&
+              stationIndex === normalizedDashboardHeaderIdleStationIndex;
+            const isArrivingIdleStation = false;
+            const stationOrbitDelta = getDashboardHeaderIdleOrbitDelta(
+              stationIndex,
+              dashboardHeaderIdleOrbitStationIndex,
+              dashboardHeaderIdleStationCount,
+            );
+            const isVisibleIdleOrbitStation = Math.abs(stationOrbitDelta) <= 1;
+            const stationOrbitPlacement =
+              getDashboardHeaderIdleOrbitPlacement(stationOrbitDelta);
 
             return (
               <span
-                className={`dashboard-header-idle-station dashboard-header-idle-station--${station.equipmentId} dashboard-header-idle-station--category-${station.categoryId}`}
+                className={`dashboard-header-idle-station dashboard-header-idle-station--${station.equipmentId} dashboard-header-idle-station--category-${station.categoryId} ${
+                  isActiveIdleStation
+                    ? "dashboard-header-idle-station--active"
+                    : ""
+                } ${
+                  isArrivingIdleStation
+                    ? "dashboard-header-idle-station--arriving"
+                    : ""
+                }`}
                 key={`dashboard-header-idle-station-${station.id}`}
                 style={
                   {
                     "--dashboard-header-category-color":
                       stationCategory?.color ?? station.color,
-                    "--dashboard-header-category-level": `${
-                      stationCategory?.level ?? station.progress
-                    }%`,
+                    "--dashboard-header-category-level": `${stationCategoryProgress}%`,
+                    "--dashboard-header-category-meter-level":
+                      getDashboardHeaderCategoryMeterFill(stationCategoryProgress),
                     "--dashboard-header-idle-station-color": station.color,
-                    "--dashboard-header-idle-station-delay": `${station.delay}s`,
                     "--dashboard-header-idle-station-left": `${station.left}%`,
                     "--dashboard-header-idle-station-level": `${station.progress}%`,
+                    "--dashboard-header-idle-work-duration": `${DASHBOARD_HEADER_IDLE_WORK_MS}ms`,
+                    "--dashboard-header-idle-orbit-blur": `${stationOrbitPlacement.blur}rem`,
+                    "--dashboard-header-idle-orbit-brightness":
+                      stationOrbitPlacement.brightness,
+                    "--dashboard-header-idle-orbit-opacity":
+                      stationOrbitPlacement.opacity,
+                    "--dashboard-header-idle-orbit-rotate-y": `${stationOrbitPlacement.rotateY}deg`,
+                    "--dashboard-header-idle-orbit-scale":
+                      stationOrbitPlacement.scale,
+                    "--dashboard-header-idle-orbit-x": `${stationOrbitPlacement.x}rem`,
+                    "--dashboard-header-idle-orbit-y": `${stationOrbitPlacement.y}rem`,
+                    "--dashboard-header-idle-orbit-z": `${stationOrbitPlacement.z}rem`,
+                    "--dashboard-header-idle-orbit-visibility":
+                      isVisibleIdleOrbitStation ? "visible" : "hidden",
+                    "--dashboard-header-idle-orbit-z-index":
+                      stationOrbitPlacement.zIndex,
                   } as CSSProperties
                 }
               >
+                <span className="dashboard-header-idle-station__meta">
+                  <span className="dashboard-header-idle-station__label">
+                    {station.label}
+                  </span>
+                  <span className="dashboard-header-idle-station__level">
+                    LV {station.level}
+                  </span>
+                </span>
                 <span className="dashboard-header-idle-station__equipment">
                   {renderDashboardHeaderIdleEquipmentIcon(station.equipmentId)}
                 </span>
                 <span
                   className={`dashboard-header-idle-station__category dashboard-header-category-actor dashboard-header-category-actor--${station.categoryId}`}
                   data-category-level={`${
-                    stationCategory?.label ?? station.label
-                  } level ${station.progress}`}
+                    stationCategory?.label ?? station.exerciseLabel
+                  } level ${stationCategoryProgress}`}
                 >
                   {renderDashboardHeaderCategoryActorFigure()}
                   <span className="dashboard-header-category-actor__label">
-                    {stationCategory?.shortLabel ?? station.label}
+                    {stationCategory?.shortLabel ?? station.exerciseLabel}
                   </span>
                   <span className="dashboard-header-category-actor__meter">
                     <span />
                   </span>
                   <span className="dashboard-header-category-actor__level">
-                    LV {station.level}
+                    LV {stationLevelNumber}
                   </span>
-                </span>
-                <span className="dashboard-header-idle-station__label">
-                  {station.label}
                 </span>
               </span>
             );
           })}
         </span>
-        <span className="dashboard-header-idle-trainer">
-          <span className="dashboard-header-idle-trainer__head" />
-          <span className="dashboard-header-idle-trainer__torso" />
-          <span className="dashboard-header-idle-trainer__arm dashboard-header-idle-trainer__arm--front" />
-          <span className="dashboard-header-idle-trainer__arm dashboard-header-idle-trainer__arm--back" />
-          <span className="dashboard-header-idle-trainer__leg dashboard-header-idle-trainer__leg--front" />
-          <span className="dashboard-header-idle-trainer__leg dashboard-header-idle-trainer__leg--back" />
+        <span
+          className={`dashboard-header-idle-trainer dashboard-header-idle-trainer--${dashboardHeaderIdlePhase}`}
+          data-character={dashboardHeaderRunnerCharacter.id}
+          data-character-name={dashboardHeaderRunnerCharacter.name}
+          style={
+            {
+              "--dashboard-header-idle-run-duration": `${DASHBOARD_HEADER_IDLE_RUN_MS}ms`,
+              "--dashboard-header-runner-accent": dashboardHeaderRunnerCharacter.accent,
+              "--dashboard-header-runner-hair": dashboardHeaderRunnerCharacter.hair,
+              "--dashboard-header-runner-outline": dashboardHeaderRunnerCharacter.outline,
+              "--dashboard-header-runner-shirt-end": dashboardHeaderRunnerCharacter.shirtEnd,
+              "--dashboard-header-runner-shirt-mid": dashboardHeaderRunnerCharacter.shirtMid,
+              "--dashboard-header-runner-shirt-start": dashboardHeaderRunnerCharacter.shirtStart,
+              "--dashboard-header-runner-shoe": dashboardHeaderRunnerCharacter.shoe,
+              "--dashboard-header-runner-shoe-sole": dashboardHeaderRunnerCharacter.shoeSole,
+              "--dashboard-header-runner-shorts": dashboardHeaderRunnerCharacter.shorts,
+              "--dashboard-header-runner-skin": dashboardHeaderRunnerCharacter.skin,
+              "--dashboard-header-runner-sock": dashboardHeaderRunnerCharacter.sock,
+              "--dashboard-header-runner-trim": dashboardHeaderRunnerCharacter.trim,
+            } as CSSProperties
+          }
+        >
+          <span className="dashboard-header-idle-trainer__aura dashboard-header-idle-trainer__aura--one" />
+          <span className="dashboard-header-idle-trainer__aura dashboard-header-idle-trainer__aura--two" />
+          <span className="dashboard-header-idle-trainer__spark dashboard-header-idle-trainer__spark--one" />
+          <span className="dashboard-header-idle-trainer__spark dashboard-header-idle-trainer__spark--two" />
+          <svg
+            aria-hidden="true"
+            className="dashboard-header-idle-trainer__figure"
+            focusable="false"
+            viewBox="0 0 72 84"
+          >
+            <defs>
+              <linearGradient
+                gradientUnits="userSpaceOnUse"
+                id="dashboard-header-idle-trainer-suit"
+                x1="18"
+                x2="58"
+                y1="8"
+                y2="76"
+              >
+                <stop stopColor="var(--dashboard-header-runner-shirt-start)" />
+                <stop offset="0.48" stopColor="var(--dashboard-header-runner-shirt-mid)" />
+                <stop offset="1" stopColor="var(--dashboard-header-runner-shirt-end)" />
+              </linearGradient>
+            </defs>
+            <g className="dashboard-header-idle-trainer__runner-frame dashboard-header-idle-trainer__runner-frame--work">
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-arm--back dashboard-header-idle-trainer__runner-back" d="M34 33 L25 42 L23 52" />
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-arm--front" d="M44 33 L53 41 L56 50" />
+              <circle className="dashboard-header-idle-trainer__runner-wristband dashboard-header-idle-trainer__runner-back" cx="23" cy="52" r="2.35" />
+              <circle className="dashboard-header-idle-trainer__runner-wristband" cx="56" cy="50" r="2.35" />
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-leg--back dashboard-header-idle-trainer__runner-back" d="M35 52 L30 64 L27 74" />
+              <path className="dashboard-header-idle-trainer__runner-sock dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--back dashboard-header-idle-trainer__runner-back" d="M27 67 L27 74" />
+              <path className="dashboard-header-idle-trainer__runner-shoe dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--back dashboard-header-idle-trainer__runner-back" d="M21 75 H31" />
+              <path className="dashboard-header-idle-trainer__runner-shoe-sole dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--back dashboard-header-idle-trainer__runner-back" d="M20 77 H32" />
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-leg--front" d="M44 52 L50 64 L55 74" />
+              <path className="dashboard-header-idle-trainer__runner-sock dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--front" d="M55 67 L55 74" />
+              <path className="dashboard-header-idle-trainer__runner-shoe dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--front" d="M51 75 H63" />
+              <path className="dashboard-header-idle-trainer__runner-shoe-sole dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--front" d="M50 77 H64" />
+              <path className="dashboard-header-idle-trainer__runner-shirt" d="M31 21 Q38 17 46 22 L50 43 Q40 49 30 43 Z" />
+              <path className="dashboard-header-idle-trainer__runner-shirt-panel" d="M34 24 Q39 27 47 24" />
+              <path className="dashboard-header-idle-trainer__runner-shirt-trim" d="M33 43 Q40 46 48 43" />
+              <circle className="dashboard-header-idle-trainer__runner-shirt-logo-badge" cx="40" cy="33" r="6.1" />
+              <image className="dashboard-header-idle-trainer__runner-shirt-logo" href={dashboardHeaderRunnerCharacter.logoSrc} x="34" y="27" width="12" height="12" preserveAspectRatio="xMidYMid meet" />
+              <path className="dashboard-header-idle-trainer__runner-shorts" d="M31 43 H49 L46 54 H34 Z" />
+              <circle className="dashboard-header-idle-trainer__runner-head" cx="38" cy="11" r="7" />
+              <path className="dashboard-header-idle-trainer__runner-hair" d="M31 10 Q34 2 42 4 Q47 6 47 13 Q42 10 36 10 Q33 13 31 10 Z" />
+              <path className="dashboard-header-idle-trainer__runner-headband" d="M32 10 Q38 7 46 10" />
+              <path className="dashboard-header-idle-trainer__runner-face-line" d="M40 10 H46" />
+              <circle className="dashboard-header-idle-trainer__runner-eye" cx="43.5" cy="10.2" r="0.9" />
+              <circle className="dashboard-header-idle-trainer__runner-core" cx="40" cy="32" r="2.6" />
+            </g>
+            <g className="dashboard-header-idle-trainer__runner-frame dashboard-header-idle-trainer__runner-frame--stride-a">
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-arm--back dashboard-header-idle-trainer__runner-back" d="M34 33 L25 42 L18 52" />
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-arm--front" d="M44 33 L55 31 L62 39" />
+              <circle className="dashboard-header-idle-trainer__runner-wristband dashboard-header-idle-trainer__runner-back" cx="18" cy="52" r="2.35" />
+              <circle className="dashboard-header-idle-trainer__runner-wristband" cx="62" cy="39" r="2.35" />
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-leg--back dashboard-header-idle-trainer__runner-back" d="M36 52 L27 61 L16 69" />
+              <path className="dashboard-header-idle-trainer__runner-sock dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--back dashboard-header-idle-trainer__runner-back" d="M16 63 L16 69" />
+              <path className="dashboard-header-idle-trainer__runner-shoe dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--back dashboard-header-idle-trainer__runner-back" d="M9 70 H22" />
+              <path className="dashboard-header-idle-trainer__runner-shoe-sole dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--back dashboard-header-idle-trainer__runner-back" d="M8 72 H23" />
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-leg--front" d="M45 52 L55 57 L64 65" />
+              <path className="dashboard-header-idle-trainer__runner-sock dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--front" d="M64 60 L64 66" />
+              <path className="dashboard-header-idle-trainer__runner-shoe dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--front" d="M60 66 H71" />
+              <path className="dashboard-header-idle-trainer__runner-shoe-sole dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--front" d="M59 68 H72" />
+              <path className="dashboard-header-idle-trainer__runner-shirt" d="M32 20 Q41 17 49 23 L51 43 Q41 50 31 43 Z" />
+              <path className="dashboard-header-idle-trainer__runner-shirt-panel" d="M35 24 Q42 27 50 24" />
+              <path className="dashboard-header-idle-trainer__runner-shirt-trim" d="M34 43 Q42 47 50 43" />
+              <circle className="dashboard-header-idle-trainer__runner-shirt-logo-badge" cx="42" cy="33" r="6.1" />
+              <image className="dashboard-header-idle-trainer__runner-shirt-logo" href={dashboardHeaderRunnerCharacter.logoSrc} x="36" y="27" width="12" height="12" preserveAspectRatio="xMidYMid meet" />
+              <path className="dashboard-header-idle-trainer__runner-shorts" d="M32 43 H50 L47 54 H35 Z" />
+              <circle className="dashboard-header-idle-trainer__runner-head" cx="40" cy="11" r="7" />
+              <path className="dashboard-header-idle-trainer__runner-hair" d="M33 10 Q36 2 44 4 Q49 6 49 13 Q44 10 38 10 Q35 13 33 10 Z" />
+              <path className="dashboard-header-idle-trainer__runner-headband" d="M34 10 Q40 7 48 10" />
+              <path className="dashboard-header-idle-trainer__runner-face-line" d="M42 10 H48" />
+              <circle className="dashboard-header-idle-trainer__runner-eye" cx="45.5" cy="10.2" r="0.9" />
+              <circle className="dashboard-header-idle-trainer__runner-core" cx="42" cy="32" r="2.6" />
+            </g>
+            <g className="dashboard-header-idle-trainer__runner-frame dashboard-header-idle-trainer__runner-frame--stride-b">
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-arm--back dashboard-header-idle-trainer__runner-back" d="M34 33 L25 36 L19 45" />
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-arm--front" d="M44 33 L52 41 L54 51" />
+              <circle className="dashboard-header-idle-trainer__runner-wristband dashboard-header-idle-trainer__runner-back" cx="19" cy="45" r="2.35" />
+              <circle className="dashboard-header-idle-trainer__runner-wristband" cx="54" cy="51" r="2.35" />
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-leg--back dashboard-header-idle-trainer__runner-back" d="M36 52 L28 60 L24 70" />
+              <path className="dashboard-header-idle-trainer__runner-sock dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--back dashboard-header-idle-trainer__runner-back" d="M24 64 L24 70" />
+              <path className="dashboard-header-idle-trainer__runner-shoe dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--back dashboard-header-idle-trainer__runner-back" d="M18 72 H30" />
+              <path className="dashboard-header-idle-trainer__runner-shoe-sole dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--back dashboard-header-idle-trainer__runner-back" d="M17 74 H31" />
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-leg--front" d="M45 52 L50 62 L43 73" />
+              <path className="dashboard-header-idle-trainer__runner-sock dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--front" d="M43 67 L43 73" />
+              <path className="dashboard-header-idle-trainer__runner-shoe dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--front" d="M38 74 H51" />
+              <path className="dashboard-header-idle-trainer__runner-shoe-sole dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--front" d="M37 76 H52" />
+              <path className="dashboard-header-idle-trainer__runner-shirt" d="M32 20 Q41 17 49 23 L51 43 Q41 50 31 43 Z" />
+              <path className="dashboard-header-idle-trainer__runner-shirt-panel" d="M35 24 Q42 27 50 24" />
+              <path className="dashboard-header-idle-trainer__runner-shirt-trim" d="M34 43 Q42 47 50 43" />
+              <circle className="dashboard-header-idle-trainer__runner-shirt-logo-badge" cx="42" cy="33" r="6.1" />
+              <image className="dashboard-header-idle-trainer__runner-shirt-logo" href={dashboardHeaderRunnerCharacter.logoSrc} x="36" y="27" width="12" height="12" preserveAspectRatio="xMidYMid meet" />
+              <path className="dashboard-header-idle-trainer__runner-shorts" d="M32 43 H50 L47 54 H35 Z" />
+              <circle className="dashboard-header-idle-trainer__runner-head" cx="40" cy="10" r="7" />
+              <path className="dashboard-header-idle-trainer__runner-hair" d="M33 9 Q36 1 44 3 Q49 5 49 12 Q44 9 38 9 Q35 12 33 9 Z" />
+              <path className="dashboard-header-idle-trainer__runner-headband" d="M34 9 Q40 6 48 9" />
+              <path className="dashboard-header-idle-trainer__runner-face-line" d="M42 9 H48" />
+              <circle className="dashboard-header-idle-trainer__runner-eye" cx="45.5" cy="9.2" r="0.9" />
+              <circle className="dashboard-header-idle-trainer__runner-core" cx="42" cy="32" r="2.6" />
+            </g>
+            <g className="dashboard-header-idle-trainer__runner-frame dashboard-header-idle-trainer__runner-frame--stride-c">
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-arm--back dashboard-header-idle-trainer__runner-back" d="M34 33 L44 40 L55 48" />
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-arm--front" d="M44 33 L34 42 L24 51" />
+              <circle className="dashboard-header-idle-trainer__runner-wristband dashboard-header-idle-trainer__runner-back" cx="55" cy="48" r="2.35" />
+              <circle className="dashboard-header-idle-trainer__runner-wristband" cx="24" cy="51" r="2.35" />
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-leg--back dashboard-header-idle-trainer__runner-back" d="M36 52 L47 57 L62 65" />
+              <path className="dashboard-header-idle-trainer__runner-sock dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--back dashboard-header-idle-trainer__runner-back" d="M62 59 L62 65" />
+              <path className="dashboard-header-idle-trainer__runner-shoe dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--back dashboard-header-idle-trainer__runner-back" d="M58 66 H70" />
+              <path className="dashboard-header-idle-trainer__runner-shoe-sole dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--back dashboard-header-idle-trainer__runner-back" d="M57 68 H71" />
+              <path className="dashboard-header-idle-trainer__runner-stroke dashboard-header-idle-trainer__runner-limb dashboard-header-idle-trainer__runner-leg--front" d="M45 52 L35 63 L27 74" />
+              <path className="dashboard-header-idle-trainer__runner-sock dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--front" d="M27 68 L27 74" />
+              <path className="dashboard-header-idle-trainer__runner-shoe dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--front" d="M21 75 H33" />
+              <path className="dashboard-header-idle-trainer__runner-shoe-sole dashboard-header-idle-trainer__runner-foot dashboard-header-idle-trainer__runner-foot--front" d="M20 77 H34" />
+              <path className="dashboard-header-idle-trainer__runner-shirt" d="M31 21 Q38 17 46 22 L50 43 Q40 49 30 43 Z" />
+              <path className="dashboard-header-idle-trainer__runner-shirt-panel" d="M34 24 Q39 27 47 24" />
+              <path className="dashboard-header-idle-trainer__runner-shirt-trim" d="M33 43 Q40 46 48 43" />
+              <circle className="dashboard-header-idle-trainer__runner-shirt-logo-badge" cx="40" cy="33" r="6.1" />
+              <image className="dashboard-header-idle-trainer__runner-shirt-logo" href={dashboardHeaderRunnerCharacter.logoSrc} x="34" y="27" width="12" height="12" preserveAspectRatio="xMidYMid meet" />
+              <path className="dashboard-header-idle-trainer__runner-shorts" d="M31 43 H49 L46 54 H34 Z" />
+              <circle className="dashboard-header-idle-trainer__runner-head" cx="38" cy="11" r="7" />
+              <path className="dashboard-header-idle-trainer__runner-hair" d="M31 10 Q34 2 42 4 Q47 6 47 13 Q42 10 36 10 Q33 13 31 10 Z" />
+              <path className="dashboard-header-idle-trainer__runner-headband" d="M32 10 Q38 7 46 10" />
+              <path className="dashboard-header-idle-trainer__runner-face-line" d="M40 10 H46" />
+              <circle className="dashboard-header-idle-trainer__runner-eye" cx="43.5" cy="10.2" r="0.9" />
+              <circle className="dashboard-header-idle-trainer__runner-core" cx="40" cy="32" r="2.6" />
+            </g>
+          </svg>
         </span>
       </div>
       {dashboardHeaderTimedOut && dashboardHeaderTimeoutPortalMeter ? (
@@ -14093,7 +17504,7 @@ export default function UserHomeDashboardPage() {
           aria-label={`Compound lift PR meter. ${dashboardSummary.compoundLiftHighlights
             .map(
               (highlight) =>
-                `${highlight.rank}. ${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`,
+                `${highlight.rank}. ${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.weightLabel}, ${highlight.repsLabel} reps, best on ${highlight.dateLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`,
             )
             .join(". ")}`}
           className="dashboard-header-compound-pr-meter hidden h-[5.55rem] min-w-[10.2rem] shrink-0 flex-col items-stretch justify-start gap-1 bg-transparent px-0 text-cyan-50 xl:flex"
@@ -14176,7 +17587,7 @@ export default function UserHomeDashboardPage() {
 
                 return (
               <button
-                aria-label={`${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`}
+                aria-label={`${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.weightLabel}, ${highlight.repsLabel} reps, best on ${highlight.dateLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`}
                 aria-pressed={isActivePrCard}
                 className={`dashboard-header-compound-pr-meter__item dashboard-header-compound-pr-meter__item--${highlight.tone} dashboard-header-compound-pr-meter__item--slot-${prCardSlot}`}
                 data-dashboard-orbit-card-index={index}
@@ -14198,10 +17609,26 @@ export default function UserHomeDashboardPage() {
                   <span className="dashboard-header-compound-pr-meter__stats">
                     <span className="dashboard-header-compound-pr-meter__stat">
                       <span className="dashboard-header-compound-pr-meter__stat-label">
-                        Volume %
+                        Weight
                       </span>
                       <span className="dashboard-header-compound-pr-meter__stat-value">
-                        {highlight.volumeLabel}
+                        {highlight.weightLabel}
+                      </span>
+                    </span>
+                    <span className="dashboard-header-compound-pr-meter__stat">
+                      <span className="dashboard-header-compound-pr-meter__stat-label">
+                        Reps
+                      </span>
+                      <span className="dashboard-header-compound-pr-meter__stat-value">
+                        {highlight.repsLabel}
+                      </span>
+                    </span>
+                    <span className="dashboard-header-compound-pr-meter__stat">
+                      <span className="dashboard-header-compound-pr-meter__stat-label">
+                        Date
+                      </span>
+                      <span className="dashboard-header-compound-pr-meter__stat-value">
+                        {highlight.dateLabel}
                       </span>
                     </span>
                     <span className="dashboard-header-compound-pr-meter__stat">
@@ -14210,6 +17637,14 @@ export default function UserHomeDashboardPage() {
                       </span>
                       <span className="dashboard-header-compound-pr-meter__stat-value">
                         {highlight.setsLabel}
+                      </span>
+                    </span>
+                    <span className="dashboard-header-compound-pr-meter__stat">
+                      <span className="dashboard-header-compound-pr-meter__stat-label">
+                        Volume
+                      </span>
+                      <span className="dashboard-header-compound-pr-meter__stat-value">
+                        {highlight.volumeLabel}
                       </span>
                     </span>
                   </span>
@@ -15780,6 +19215,8 @@ export default function UserHomeDashboardPage() {
                           "--dashboard-header-category-color":
                             categoryLevel.color,
                           "--dashboard-header-category-level": `${categoryLevel.level}%`,
+                          "--dashboard-header-category-meter-level":
+                            getDashboardHeaderCategoryMeterFill(categoryLevel.level),
                         } as CSSProperties
                       }
                       tabIndex={isActiveCategoryLevel ? 0 : -1}
@@ -15864,7 +19301,7 @@ export default function UserHomeDashboardPage() {
             >
               <section
                 aria-label="Achievements and compound PR meters"
-                className={`dashboard-header-meter-panel__section dashboard-header-meter-panel__section--slot-${getDashboardHeaderMeterPanelSectionSlot(
+                className={`dashboard-header-meter-panel__section dashboard-header-meter-panel__section--achievements dashboard-header-meter-panel__section--slot-${getDashboardHeaderMeterPanelSectionSlot(
                   0,
                 )}`}
                 data-dashboard-orbit-card-index={0}
@@ -15876,7 +19313,7 @@ export default function UserHomeDashboardPage() {
                   aria-label={`Compound lift PR meter. ${dashboardSummary.compoundLiftHighlights
                     .map(
                       (highlight) =>
-                        `${highlight.rank}. ${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`,
+                        `${highlight.rank}. ${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.weightLabel}, ${highlight.repsLabel} reps, best on ${highlight.dateLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`,
                     )
                     .join(". ")}`}
                   className="dashboard-header-compound-pr-meter dashboard-header-meter-panel__wide-meter text-cyan-50"
@@ -15965,7 +19402,7 @@ export default function UserHomeDashboardPage() {
 
                           return (
                             <button
-                              aria-label={`${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`}
+                              aria-label={`${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.weightLabel}, ${highlight.repsLabel} reps, best on ${highlight.dateLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`}
                               aria-pressed={isActivePrCard}
                               className={`dashboard-header-compound-pr-meter__item dashboard-header-compound-pr-meter__item--${highlight.tone} dashboard-header-compound-pr-meter__item--slot-${prCardSlot}`}
                               data-dashboard-orbit-card-index={index}
@@ -15989,10 +19426,26 @@ export default function UserHomeDashboardPage() {
                                 <span className="dashboard-header-compound-pr-meter__stats">
                                   <span className="dashboard-header-compound-pr-meter__stat">
                                     <span className="dashboard-header-compound-pr-meter__stat-label">
-                                      Volume %
+                                      Weight
                                     </span>
                                     <span className="dashboard-header-compound-pr-meter__stat-value">
-                                      {highlight.volumeLabel}
+                                      {highlight.weightLabel}
+                                    </span>
+                                  </span>
+                                  <span className="dashboard-header-compound-pr-meter__stat">
+                                    <span className="dashboard-header-compound-pr-meter__stat-label">
+                                      Reps
+                                    </span>
+                                    <span className="dashboard-header-compound-pr-meter__stat-value">
+                                      {highlight.repsLabel}
+                                    </span>
+                                  </span>
+                                  <span className="dashboard-header-compound-pr-meter__stat">
+                                    <span className="dashboard-header-compound-pr-meter__stat-label">
+                                      Date
+                                    </span>
+                                    <span className="dashboard-header-compound-pr-meter__stat-value">
+                                      {highlight.dateLabel}
                                     </span>
                                   </span>
                                   <span className="dashboard-header-compound-pr-meter__stat">
@@ -16001,6 +19454,14 @@ export default function UserHomeDashboardPage() {
                                     </span>
                                     <span className="dashboard-header-compound-pr-meter__stat-value">
                                       {highlight.setsLabel}
+                                    </span>
+                                  </span>
+                                  <span className="dashboard-header-compound-pr-meter__stat">
+                                    <span className="dashboard-header-compound-pr-meter__stat-label">
+                                      Volume
+                                    </span>
+                                    <span className="dashboard-header-compound-pr-meter__stat-value">
+                                      {highlight.volumeLabel}
                                     </span>
                                   </span>
                                 </span>
@@ -16113,7 +19574,7 @@ export default function UserHomeDashboardPage() {
 
               <section
                 aria-label="Daily sets and plan session meters"
-                className={`dashboard-header-meter-panel__section dashboard-header-meter-panel__section--slot-${getDashboardHeaderMeterPanelSectionSlot(
+                className={`dashboard-header-meter-panel__section dashboard-header-meter-panel__section--daily dashboard-header-meter-panel__section--slot-${getDashboardHeaderMeterPanelSectionSlot(
                   1,
                 )}`}
                 data-dashboard-orbit-card-index={1}
@@ -16412,7 +19873,7 @@ export default function UserHomeDashboardPage() {
 
               <section
                 aria-label="Fuel and body meters"
-                className={`dashboard-header-meter-panel__section dashboard-header-meter-panel__section--slot-${getDashboardHeaderMeterPanelSectionSlot(
+                className={`dashboard-header-meter-panel__section dashboard-header-meter-panel__section--fuel dashboard-header-meter-panel__section--slot-${getDashboardHeaderMeterPanelSectionSlot(
                   2,
                 )}`}
                 data-dashboard-orbit-card-index={2}
@@ -17179,7 +20640,66 @@ export default function UserHomeDashboardPage() {
     </div>
   );
 
-  const renderDashboardHeroRow = () => (
+  const renderDashboardHeroRow = () => {
+    if (isAdminPreview) {
+      return (
+        <div
+          aria-label="Admin orbital hero row"
+          data-dashboard-orbiter-row="0"
+          className="relative z-10 mx-auto w-full max-w-[1080px] overflow-visible rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(15,23,42,0.72)),radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.14),transparent_34%),radial-gradient(circle_at_92%_18%,rgba(244,114,182,0.12),transparent_30%)] px-4 py-4 shadow-2xl shadow-black/20 backdrop-blur sm:rounded-[30px] sm:px-5 lg:px-6"
+        >
+          <div className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-300">
+            Coach Dashboard
+          </div>
+
+          <h1 className="mt-2 break-words text-3xl font-black uppercase tracking-tight text-white sm:text-4xl">
+            Run your business from here.
+          </h1>
+
+          <p className="mt-2 max-w-2xl text-sm leading-5 text-slate-300">
+            Leads, clients, money, and follow-ups - all in one place.
+          </p>
+
+          <div className="mt-5 grid gap-3 text-sm font-semibold">
+            <div
+              aria-label="Attention needed"
+              className="flex flex-wrap gap-x-5 gap-y-2 text-rose-200"
+            >
+              <span className="text-[11px] font-black uppercase tracking-[0.22em] text-rose-300">
+                Attention
+              </span>
+              {adminDashboardHeroAlerts.map((alert) => (
+                <span key={alert} className="inline-flex items-center gap-2">
+                  <span className="text-amber-300" aria-hidden="true">
+                    !
+                  </span>
+                  {alert}
+                </span>
+              ))}
+            </div>
+
+            <div
+              aria-label="Daily focus"
+              className="flex flex-wrap gap-x-5 gap-y-2 text-sky-100"
+            >
+              <span className="text-[11px] font-black uppercase tracking-[0.22em] text-sky-300">
+                Daily Focus
+              </span>
+              {adminDashboardHeroFocus.map((focusItem) => (
+                <span key={focusItem} className="inline-flex items-center gap-2">
+                  <span className="text-sky-300" aria-hidden="true">
+                    -
+                  </span>
+                  {focusItem}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
     <div
       aria-label="Dashboard hero row"
       data-dashboard-orbiter-row="0"
@@ -17523,7 +21043,8 @@ export default function UserHomeDashboardPage() {
 
       {renderDashboardHeroAchievementOrbit()}
     </div>
-  );
+    );
+  };
 
   const renderDashboardRowTitle = ({
     accentClassName,
@@ -17553,7 +21074,1815 @@ export default function UserHomeDashboardPage() {
     </div>
   );
 
+  const renderAdminJourneyDetailOverlay = () => {
+    if (!isAdminPreview || !activeAdminJourneyDetailStage) return null;
+
+    const card = adminCustomerJourneyCards.find(
+      (journeyCard) => journeyCard.stage === activeAdminJourneyDetailStage,
+    );
+    if (!card) return null;
+
+    const stageVisual = adminJourneyStageVisuals[card.stage];
+    const rows = adminJourneyRows[card.stage] ?? [];
+    const draft = adminJourneyDrafts[card.stage];
+    const activeRecordIndex = rows.length
+      ? Math.max(
+          0,
+          Math.min(
+            rows.length - 1,
+            activeAdminJourneyRecordIndices[card.stage] ?? 0,
+          ),
+        )
+      : 0;
+    const activeRecord = rows[activeRecordIndex] ?? null;
+    const adminJourneyEditorMode =
+      activeAdminJourneyEditStage === card.stage
+        ? "edit"
+        : activeAdminJourneyAddStage === card.stage
+          ? "add"
+          : null;
+    const isAdminJourneyTableCollapsed =
+      collapsedAdminJourneyTables[card.stage] ?? false;
+    const isAppUserStage = card.stage === "appUsers";
+    const adminJourneyRecordKind = isAppUserStage ? "account" : "person";
+    const adminJourneyRecordPlural = isAppUserStage
+      ? "app accounts"
+      : "user records";
+    const adminJourneyAddAction = isAppUserStage
+      ? "Create account"
+      : "Add person";
+    const adminJourneyEditAction = isAppUserStage
+      ? "Edit selected account"
+      : "Edit selected person";
+    const adminJourneyNotesPlaceholder = isAppUserStage
+      ? "Phone, account ID, member type, onboarding notes, permissions, or support detail"
+      : "Context, objections, preferences, or follow-up detail";
+    const adminJourneyFormInputs = [
+      {
+        field: "primary",
+        label: card.primaryLabel,
+        placeholder: isAppUserStage ? "Full name" : "Name or segment",
+      },
+      {
+        field: "contact",
+        label: card.contactLabel,
+        placeholder: isAppUserStage
+          ? "Email, phone, or login"
+          : "Email, phone, or reach",
+      },
+      {
+        field: "context",
+        label: card.contextLabel,
+        placeholder: isAppUserStage
+          ? "Role, access level, or plan"
+          : "Source, package, outcome, or reason",
+      },
+      {
+        field: "status",
+        label: card.statusLabel,
+        placeholder: isAppUserStage
+          ? "Active, invited, locked, or needs setup"
+          : "Status",
+      },
+      {
+        field: "date",
+        label: card.dateLabel,
+        placeholder: isAppUserStage
+          ? "Created date or last active"
+          : "Date or session time",
+      },
+      {
+        field: "nextStep",
+        label: card.nextStepLabel,
+        placeholder: isAppUserStage
+          ? "Invite, reset password, verify email, or review access"
+          : "Next action",
+      },
+      {
+        field: "owner",
+        label: "Owner",
+        placeholder: isAppUserStage ? "Account owner" : "Owner",
+      },
+    ] satisfies Array<{
+      field: AdminJourneyFieldKey;
+      label: string;
+      placeholder: string;
+    }>;
+    const collapsedAdminJourneyColumnWidth = "minmax(2.35rem,2.35rem)";
+    const adminJourneyColumns = [
+      {
+        collapsedWidth: collapsedAdminJourneyColumnWidth,
+        controlTone: "border-cyan-200/28 bg-cyan-300/10 text-cyan-100",
+        field: "primary",
+        label: card.primaryLabel,
+        minWidth: 160,
+        tone:
+          "border-cyan-100/16 bg-cyan-300/[0.045] text-white hover:border-cyan-100/42 hover:bg-cyan-300/10",
+        width: "minmax(10rem,1.12fr)",
+      },
+      {
+        collapsedWidth: collapsedAdminJourneyColumnWidth,
+        controlTone: "border-sky-200/26 bg-sky-300/10 text-sky-100",
+        field: "contact",
+        label: card.contactLabel,
+        minWidth: 160,
+        tone:
+          "border-sky-100/14 bg-sky-300/[0.04] text-cyan-100 hover:border-sky-100/34 hover:bg-sky-300/10",
+        width: "minmax(10rem,1fr)",
+      },
+      {
+        collapsedWidth: collapsedAdminJourneyColumnWidth,
+        controlTone: "border-emerald-200/28 bg-emerald-300/10 text-emerald-100",
+        field: "context",
+        label: card.contextLabel,
+        minWidth: 160,
+        tone:
+          "border-emerald-100/14 bg-emerald-300/[0.04] text-slate-100 hover:border-emerald-100/34 hover:bg-emerald-300/10",
+        width: "minmax(10rem,1fr)",
+      },
+      {
+        collapsedWidth: collapsedAdminJourneyColumnWidth,
+        controlTone: "border-lime-200/26 bg-lime-300/10 text-lime-100",
+        field: "status",
+        label: card.statusLabel,
+        minWidth: 128,
+        tone:
+          "border-lime-100/14 bg-lime-300/[0.04] text-emerald-100 hover:border-lime-100/34 hover:bg-lime-300/10",
+        width: "minmax(8rem,0.76fr)",
+      },
+      {
+        collapsedWidth: collapsedAdminJourneyColumnWidth,
+        controlTone: "border-violet-200/24 bg-violet-300/10 text-violet-100",
+        field: "date",
+        label: card.dateLabel,
+        minWidth: 144,
+        tone:
+          "border-violet-100/14 bg-violet-300/[0.04] text-slate-200 hover:border-violet-100/34 hover:bg-violet-300/10",
+        width: "minmax(9rem,0.9fr)",
+      },
+      {
+        collapsedWidth: collapsedAdminJourneyColumnWidth,
+        controlTone: "border-amber-200/28 bg-amber-300/10 text-amber-100",
+        field: "nextStep",
+        label: card.nextStepLabel,
+        minWidth: 176,
+        tone:
+          "border-amber-100/16 bg-amber-300/[0.05] text-amber-50 hover:border-amber-100/40 hover:bg-amber-300/11",
+        width: "minmax(11rem,1.12fr)",
+      },
+      {
+        collapsedWidth: collapsedAdminJourneyColumnWidth,
+        controlTone: "border-orange-200/24 bg-orange-300/10 text-orange-100",
+        field: "owner",
+        label: "Owner",
+        minWidth: 112,
+        tone:
+          "border-orange-100/14 bg-orange-300/[0.04] text-slate-100 hover:border-orange-100/34 hover:bg-orange-300/10",
+        width: "minmax(7rem,0.68fr)",
+      },
+      {
+        collapsedWidth: collapsedAdminJourneyColumnWidth,
+        controlTone: "border-fuchsia-200/24 bg-fuchsia-300/10 text-fuchsia-100",
+        field: "notes",
+        label: "Notes",
+        minWidth: 224,
+        tone:
+          "border-fuchsia-100/14 bg-fuchsia-300/[0.04] text-slate-300 hover:border-fuchsia-100/34 hover:bg-fuchsia-300/10",
+        width: "minmax(14rem,1.35fr)",
+      },
+    ] satisfies Array<{
+      collapsedWidth: string;
+      controlTone: string;
+      field: AdminJourneyFieldKey;
+      label: string;
+      minWidth: number;
+      tone: string;
+      width: string;
+    }>;
+    const adminJourneyGridColumns = adminJourneyColumns.map((column) => ({
+      ...column,
+      collapsed: collapsedAdminJourneyColumns[column.field],
+    }));
+    const adminJourneyGridTemplateColumns = adminJourneyGridColumns
+      .map((column) => (column.collapsed ? column.collapsedWidth : column.width))
+      .join(" ");
+    const adminJourneyTableMinWidth = Math.max(
+      760,
+      adminJourneyGridColumns.reduce(
+        (total, column) => total + (column.collapsed ? 38 : column.minWidth),
+        0,
+      ),
+    );
+    const activeAdminJourneyDetailIndex = Math.max(
+      0,
+      adminCustomerJourneyCards.findIndex(
+        (journeyCard) => journeyCard.stage === card.stage,
+      ),
+    );
+    const selectAdminJourneyDetailStage = (
+      journeyCard: (typeof adminCustomerJourneyCards)[number],
+      index: number,
+    ) => {
+      setActiveAdminJourneyAddStage(null);
+      setActiveAdminJourneyEditStage(null);
+      setActiveAdminJourneyCell(null);
+      setActiveAdminJourneyDetailStage(journeyCard.stage);
+      setActiveAdminJourneyIndex(index);
+    };
+    const rotateAdminJourneyDetailStage = (
+      direction: DashboardOrbitDirection,
+    ) => {
+      const nextIndex = Math.max(
+        0,
+        Math.min(
+          adminJourneyCardCount - 1,
+          activeAdminJourneyDetailIndex + (direction === "left" ? -1 : 1),
+        ),
+      );
+      const nextCard = adminCustomerJourneyCards[nextIndex];
+
+      if (nextCard && nextIndex !== activeAdminJourneyDetailIndex) {
+        selectAdminJourneyDetailStage(nextCard, nextIndex);
+      }
+    };
+    const getAdminJourneyDetailStageDistance = (index: number) =>
+      index - activeAdminJourneyDetailIndex;
+    const getAdminJourneyDetailStageJoystickDirection = (deltaX: number) => {
+      if (Math.abs(deltaX) < 10) return null;
+
+      return deltaX > 0 ? "right" : "left";
+    };
+    const handleAdminJourneyDetailStageJoystickPointerDown = (
+      event: ReactPointerEvent<HTMLButtonElement>,
+    ) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+
+      event.stopPropagation();
+      adminJourneyDetailStageJoystickPointerStartRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+      adminJourneyDetailStageJoystickPointerMovedRef.current = false;
+      event.currentTarget.focus({ preventScroll: true });
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    };
+    const handleAdminJourneyDetailStageJoystickPointerMove = (
+      event: ReactPointerEvent<HTMLButtonElement>,
+    ) => {
+      const start = adminJourneyDetailStageJoystickPointerStartRef.current;
+      if (!start) return;
+
+      const deltaX = event.clientX - start.x;
+      const direction =
+        getAdminJourneyDetailStageJoystickDirection(deltaX);
+
+      if (!direction || Math.abs(deltaX) < 30) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      adminJourneyDetailStageJoystickPointerMovedRef.current = true;
+      rotateAdminJourneyDetailStage(direction);
+      adminJourneyDetailStageJoystickPointerStartRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+    };
+    const handleAdminJourneyDetailStageJoystickPointerEnd = (
+      event: ReactPointerEvent<HTMLButtonElement>,
+    ) => {
+      const start = adminJourneyDetailStageJoystickPointerStartRef.current;
+      adminJourneyDetailStageJoystickPointerStartRef.current = null;
+      event.stopPropagation();
+
+      if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+        event.currentTarget.releasePointerCapture?.(event.pointerId);
+      }
+
+      if (adminJourneyDetailStageJoystickPointerMovedRef.current) {
+        event.preventDefault();
+        window.setTimeout(() => {
+          adminJourneyDetailStageJoystickPointerMovedRef.current = false;
+        }, 0);
+        return;
+      }
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const startX = start?.x ?? event.clientX;
+      const direction = getAdminJourneyDetailStageJoystickDirection(
+        startX - (rect.left + rect.width / 2),
+      );
+
+      if (direction) {
+        event.preventDefault();
+        rotateAdminJourneyDetailStage(direction);
+      }
+    };
+    const handleAdminJourneyDetailStageJoystickKeyDown = (
+      event: ReactKeyboardEvent<HTMLButtonElement>,
+    ) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      rotateAdminJourneyDetailStage(
+        event.key === "ArrowLeft" ? "left" : "right",
+      );
+    };
+
+    return (
+      <div
+        aria-label={`${card.label} details`}
+        aria-modal="true"
+        className="fixed inset-0 z-[240] overflow-hidden bg-slate-950/96 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl"
+        role="dialog"
+      >
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${card.accent}`}
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-cyan-200/70 via-emerald-200/50 to-transparent"
+        />
+        <div className="relative z-10 flex h-full min-h-0 flex-col px-4 py-4 sm:px-6 lg:px-8">
+          <header className="flex flex-col gap-4 border-b border-white/10 pb-4 min-[920px]:flex-row min-[920px]:items-start min-[920px]:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                User Engagement / {card.status}
+              </p>
+              <h2 className="mt-2 text-3xl font-black uppercase tracking-[0.06em] text-white sm:text-4xl">
+                {card.detailTitle}
+              </h2>
+              <p className="mt-2 max-w-[54rem] text-sm font-semibold leading-6 text-slate-300">
+                {card.detailIntro}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {stageVisual.badges.map((badge) => (
+                  <span
+                    className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100"
+                    key={`${card.stage}-${badge}`}
+                  >
+                    {badge}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="relative grid h-12 w-12 place-items-center overflow-hidden rounded-2xl border border-cyan-100/24 bg-cyan-300/10 shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+                <Image
+                  alt=""
+                  className="h-8 w-8 object-contain opacity-85"
+                  height={32}
+                  src={stageVisual.imageSrc}
+                  width={32}
+                />
+                <span className="absolute -bottom-1 -right-1 grid h-6 w-6 place-items-center rounded-full border border-white/10 bg-slate-950 text-sm">
+                  {card.emoji}
+                </span>
+              </span>
+              <span className="rounded-2xl border border-cyan-100/20 bg-slate-950/64 px-4 py-3 text-left shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+                <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                  Records
+                </span>
+                <span className="mt-1 block text-2xl font-black text-white">
+                  {rows.length}
+                </span>
+              </span>
+              <button
+                aria-label="Close customer journey details"
+                className="grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-slate-950/70 text-xl font-black text-cyan-100 shadow-[0_18px_40px_rgba(0,0,0,0.24)] transition hover:border-rose-200/35 hover:bg-rose-300/10 hover:text-rose-100 active:scale-95"
+                onClick={() => {
+                  setActiveAdminJourneyAddStage(null);
+                  setActiveAdminJourneyEditStage(null);
+                  setActiveAdminJourneyCell(null);
+                  setActiveAdminJourneyDetailStage(null);
+                }}
+                type="button"
+              >
+                x
+              </button>
+            </div>
+          </header>
+
+          <div
+            aria-label="User engagement stage scroller"
+            className="relative mt-3 h-[5.25rem] overflow-visible outline-none [perspective:980px] [touch-action:none] focus-visible:ring-2 focus-visible:ring-cyan-200/45"
+            onClickCapture={(event) => {
+              if (adminJourneyDetailStagePointerMovedRef.current) {
+                event.preventDefault();
+                event.stopPropagation();
+                adminJourneyDetailStagePointerMovedRef.current = false;
+              }
+            }}
+            onKeyDown={(event) =>
+              handleDashboardOrbitKeyDown(event, rotateAdminJourneyDetailStage)
+            }
+            onPointerCancel={(event) => {
+              adminJourneyDetailStagePointerStartRef.current = null;
+              if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                event.currentTarget.releasePointerCapture?.(event.pointerId);
+              }
+            }}
+            onPointerDown={(event) =>
+              handleDashboardOrbitPointerDown(
+                event,
+                adminJourneyDetailStagePointerStartRef,
+                adminJourneyDetailStagePointerMovedRef,
+              )
+            }
+            onPointerMove={(event) =>
+              handleDashboardOrbitPointerMove(
+                event,
+                adminJourneyDetailStagePointerStartRef,
+                adminJourneyDetailStagePointerMovedRef,
+                rotateAdminJourneyDetailStage,
+                46,
+              )
+            }
+            onPointerUp={(event) =>
+              handleDashboardOrbitPointerUp(
+                event,
+                adminJourneyDetailStagePointerStartRef,
+                adminJourneyDetailStagePointerMovedRef,
+                rotateAdminJourneyDetailStage,
+                undefined,
+                (cardIndex) => {
+                  const selectedCard = adminCustomerJourneyCards[cardIndex];
+                  if (selectedCard) {
+                    selectAdminJourneyDetailStage(selectedCard, cardIndex);
+                  }
+                },
+              )
+            }
+            onWheel={(event) =>
+              handleDashboardOrbitWheel(event, rotateAdminJourneyDetailStage)
+            }
+            onWheelCapture={(event) =>
+              handleDashboardOrbitWheel(event, rotateAdminJourneyDetailStage)
+            }
+            tabIndex={0}
+          >
+            <button
+              aria-label="Engagement stage horizontal joystick"
+              className="group/stagejoystick absolute right-0 top-1/2 z-50 grid h-11 w-[6.75rem] -translate-y-1/2 place-items-center overflow-hidden rounded-full border border-cyan-200/24 bg-slate-950/82 text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14),inset_0_0_18px_rgba(34,211,238,0.08)] outline-none backdrop-blur transition hover:border-emerald-200/45 hover:bg-emerald-300/10 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-cyan-200/45 [touch-action:none]"
+              onKeyDown={handleAdminJourneyDetailStageJoystickKeyDown}
+              onPointerCancel={(event) => {
+                event.stopPropagation();
+                adminJourneyDetailStageJoystickPointerStartRef.current = null;
+                if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture?.(event.pointerId);
+                }
+              }}
+              onPointerDown={
+                handleAdminJourneyDetailStageJoystickPointerDown
+              }
+              onPointerMove={
+                handleAdminJourneyDetailStageJoystickPointerMove
+              }
+              onPointerUp={handleAdminJourneyDetailStageJoystickPointerEnd}
+              type="button"
+            >
+              <span
+                aria-hidden="true"
+                className="absolute inset-y-2 left-1/2 w-px bg-cyan-200/16"
+              />
+              <span
+                aria-hidden="true"
+                className="absolute left-3 text-[10px] font-black text-cyan-100/60 transition group-hover/stagejoystick:text-cyan-100"
+              >
+                &lt;
+              </span>
+              <span
+                aria-hidden="true"
+                className="absolute right-3 text-[10px] font-black text-cyan-100/60 transition group-hover/stagejoystick:text-cyan-100"
+              >
+                &gt;
+              </span>
+              <span className="grid h-8 w-8 place-items-center rounded-full border border-cyan-100/30 bg-cyan-300/14 text-[9px] font-black uppercase tracking-[0.08em] text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.16)] transition group-hover/stagejoystick:border-cyan-100/48 group-hover/stagejoystick:bg-cyan-300/18">
+                {activeAdminJourneyDetailIndex + 1}
+              </span>
+            </button>
+
+            <div className="relative h-full w-full [transform-style:preserve-3d]">
+              {adminCustomerJourneyCards.map((journeyCard, index) => {
+                const distance = getAdminJourneyDetailStageDistance(index);
+                const direction = Math.sign(distance);
+                const stageSlots = [
+                  {
+                    opacity: 1,
+                    rotateY: 0,
+                    scale: 1,
+                    x: 0,
+                    z: 92,
+                    zIndex: 50,
+                  },
+                  {
+                    opacity: 0.9,
+                    rotateY: 16,
+                    scale: 0.88,
+                    x: 152,
+                    z: 44,
+                    zIndex: 44,
+                  },
+                  {
+                    opacity: 0.72,
+                    rotateY: 27,
+                    scale: 0.76,
+                    x: 276,
+                    z: 18,
+                    zIndex: 38,
+                  },
+                  {
+                    opacity: 0.54,
+                    rotateY: 36,
+                    scale: 0.66,
+                    x: 376,
+                    z: -4,
+                    zIndex: 32,
+                  },
+                  {
+                    opacity: 0.38,
+                    rotateY: 42,
+                    scale: 0.58,
+                    x: 452,
+                    z: -22,
+                    zIndex: 26,
+                  },
+                  {
+                    opacity: 0.26,
+                    rotateY: 47,
+                    scale: 0.51,
+                    x: 510,
+                    z: -38,
+                    zIndex: 20,
+                  },
+                  {
+                    opacity: 0.18,
+                    rotateY: 52,
+                    scale: 0.45,
+                    x: 556,
+                    z: -52,
+                    zIndex: 14,
+                  },
+                ];
+                const absDistance = Math.min(
+                  Math.abs(distance),
+                  stageSlots.length - 1,
+                );
+                const slot = stageSlots[absDistance];
+                const isActive = journeyCard.stage === card.stage;
+                const journeyStageVisual =
+                  adminJourneyStageVisuals[journeyCard.stage];
+
+                return (
+                  <button
+                    aria-current={isActive ? "step" : undefined}
+                    aria-label={`Open ${journeyCard.label}`}
+                    className={`absolute left-1/2 top-1/2 flex h-11 w-[min(44vw,11.25rem)] -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-2 rounded-full border px-3 text-[9px] font-black uppercase tracking-[0.12em] shadow-xl outline-none backdrop-blur transition-[border-color,background-color,color,box-shadow] focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:w-[11.75rem] ${
+                      isActive
+                        ? "border-cyan-100/55 bg-cyan-300/16 text-cyan-50 shadow-cyan-950/26"
+                        : "border-white/10 bg-slate-950/70 text-slate-400 hover:border-cyan-200/32 hover:text-cyan-100"
+                    }`}
+                    data-dashboard-orbit-card-index={index}
+                    key={journeyCard.stage}
+                    onClick={() => {
+                      if (adminJourneyDetailStagePointerMovedRef.current) {
+                        adminJourneyDetailStagePointerMovedRef.current = false;
+                        return;
+                      }
+
+                      selectAdminJourneyDetailStage(journeyCard, index);
+                    }}
+                    style={{
+                      opacity: slot.opacity,
+                      pointerEvents: "auto",
+                      transform: `translate(-50%, -50%) translateX(${
+                        direction * slot.x
+                      }px) translateZ(${slot.z}px) rotateY(${
+                        direction * -slot.rotateY
+                      }deg) scale(${slot.scale})`,
+                      transition:
+                        "transform 500ms cubic-bezier(0.2,0.82,0.2,1), opacity 240ms ease, border-color 180ms ease, background-color 180ms ease, color 180ms ease, box-shadow 180ms ease",
+                      zIndex: slot.zIndex,
+                    }}
+                    tabIndex={isActive || absDistance <= 1 ? 0 : -1}
+                    type="button"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="relative grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.05]"
+                    >
+                      <Image
+                        alt=""
+                        className="h-4 w-4 object-contain opacity-80"
+                        height={16}
+                        src={journeyStageVisual.imageSrc}
+                        width={16}
+                      />
+                      <span className="absolute -right-0.5 -top-0.5 text-[10px] leading-none">
+                        {journeyCard.emoji}
+                      </span>
+                    </span>
+                    <span className="truncate">{journeyCard.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {card.stage === "impression" ? (
+            <div
+              aria-label="Sound social links"
+              className="mt-4 flex flex-wrap gap-2"
+            >
+              {adminImpressionSocialLinks.map((socialLink) => (
+                <a
+                  aria-label={`${socialLink.label}: ${socialLink.detail}`}
+                  className="group/sociallink inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-left transition hover:-translate-y-0.5 hover:border-cyan-200/34 hover:bg-cyan-300/[0.08] active:scale-[0.99]"
+                  href={socialLink.href}
+                  key={socialLink.label}
+                  rel="noreferrer"
+                  target="_blank"
+                  title={socialLink.detail}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-cyan-100/18 bg-cyan-300/10 text-sm"
+                  >
+                    {getAdminJourneyLinkEmoji(socialLink.label)}
+                  </span>
+                  <span className="truncate text-sm font-black text-cyan-50 group-hover/sociallink:text-white">
+                    {socialLink.label}
+                  </span>
+                  <span className="shrink-0 rounded-full border border-cyan-200/20 bg-cyan-300/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100">
+                    {socialLink.status}
+                  </span>
+                </a>
+              ))}
+            </div>
+          ) : null}
+
+          {card.stage === "interest" ? (
+            <div
+              aria-label="Interest source links"
+              className="mt-4 flex flex-wrap gap-2"
+            >
+              {adminInterestSourceLinks.map((sourceLink) => (
+                <a
+                  aria-label={`${sourceLink.label}: ${sourceLink.detail}`}
+                  className="group/sourcelink inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-left transition hover:-translate-y-0.5 hover:border-emerald-200/34 hover:bg-emerald-300/[0.08] active:scale-[0.99]"
+                  href={sourceLink.href}
+                  key={sourceLink.label}
+                  rel="noreferrer"
+                  target="_blank"
+                  title={sourceLink.detail}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-emerald-100/18 bg-emerald-300/10 text-sm"
+                  >
+                    {getAdminJourneyLinkEmoji(sourceLink.label)}
+                  </span>
+                  <span className="truncate text-sm font-black text-emerald-50 group-hover/sourcelink:text-white">
+                    {sourceLink.label}
+                  </span>
+                  <span className="shrink-0 rounded-full border border-emerald-200/20 bg-emerald-300/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-emerald-100">
+                    {sourceLink.status}
+                  </span>
+                </a>
+              ))}
+            </div>
+          ) : null}
+
+          <div
+            className={`mt-4 ${
+              isAdminJourneyTableCollapsed ? "shrink-0" : "min-h-0 flex-1"
+            }`}
+          >
+            <section
+              className={`relative flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/58 shadow-2xl shadow-black/24 ${
+                isAdminJourneyTableCollapsed ? "" : "h-full"
+              }`}
+            >
+              <span className="pointer-events-none absolute right-5 top-5 z-0 hidden h-16 w-16 place-items-center rounded-full border border-white/10 bg-white/[0.035] opacity-60 sm:grid">
+                <Image
+                  alt=""
+                  className="h-10 w-10 object-contain"
+                  height={40}
+                  src={stageVisual.imageSrc}
+                  width={40}
+                />
+              </span>
+              <div className="flex flex-col gap-2 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <button
+                      aria-expanded={!isAdminJourneyTableCollapsed}
+                      aria-label={`${
+                        isAdminJourneyTableCollapsed ? "Expand" : "Collapse"
+                      } ${card.label} table`}
+                      className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-cyan-200/24 bg-cyan-300/10 text-[10px] font-black leading-none text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/48 hover:bg-cyan-300/16 active:scale-95"
+                      onClick={() => toggleAdminJourneyTable(card.stage)}
+                      type="button"
+                    >
+                      {isAdminJourneyTableCollapsed ? "v" : "^"}
+                    </button>
+                    <h3 className="truncate text-lg font-black uppercase tracking-[0.08em] text-white">
+                      {card.label} Table
+                    </h3>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-400">
+                    {isAppUserStage
+                      ? "Review basic account info and create app accounts."
+                      : `${adminJourneyRecordPlural} organized by field, status, owner, and notes.`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">
+                    {rows.length ? activeRecordIndex + 1 : 0} / {rows.length}
+                  </span>
+                  <button
+                    aria-label={`${adminJourneyEditAction} in ${card.label}`}
+                    className="h-9 rounded-2xl border border-amber-100/22 bg-amber-300/10 px-3 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100 shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition hover:border-amber-100/45 hover:bg-amber-300/16 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={!activeRecord}
+                    onClick={() => startEditAdminJourneyRow(card.stage)}
+                    type="button"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    aria-label={`Delete selected ${adminJourneyRecordKind} in ${card.label}`}
+                    className="h-9 rounded-2xl border border-rose-100/22 bg-rose-300/10 px-3 text-[9px] font-black uppercase tracking-[0.12em] text-rose-100 shadow-[0_14px_30px_rgba(0,0,0,0.18)] transition hover:border-rose-100/45 hover:bg-rose-300/16 active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                    disabled={!activeRecord}
+                    onClick={() => deleteAdminJourneyRow(card.stage)}
+                    type="button"
+                  >
+                    Delete
+                  </button>
+                  <button
+                    aria-expanded={adminJourneyEditorMode === "add"}
+                    aria-label={`${adminJourneyAddAction} in ${card.label}`}
+                    className={`grid h-9 w-9 place-items-center rounded-2xl border text-xl font-black leading-none shadow-[0_14px_30px_rgba(0,0,0,0.22)] transition active:scale-95 ${
+                      adminJourneyEditorMode === "add"
+                        ? "border-emerald-100/45 bg-emerald-300/18 text-emerald-50"
+                        : "border-cyan-100/28 bg-cyan-300/12 text-cyan-50 hover:border-emerald-100/45 hover:bg-emerald-300/14"
+                    }`}
+                    onClick={() => toggleAdminJourneyAdd(card.stage)}
+                    type="button"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {isAdminJourneyTableCollapsed ? (
+                <div className="grid gap-3 px-4 py-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {rows.length ? (
+                    rows.slice(0, 4).map((row, index) => {
+                      const rowStatusEmoji = getAdminJourneyCellEmoji(
+                        card.stage,
+                        "status",
+                        row.status,
+                      );
+                      const rowPrimaryEmoji = getAdminJourneyCellEmoji(
+                        card.stage,
+                        "primary",
+                        row.primary,
+                      );
+                      const rowNextStepEmoji = getAdminJourneyCellEmoji(
+                        card.stage,
+                        "nextStep",
+                        row.nextStep,
+                      );
+
+                      return (
+                        <button
+                          aria-label={`Open ${row.primary} in ${card.label}`}
+                          className={`min-w-0 rounded-2xl border px-3 py-2 text-left transition hover:-translate-y-0.5 active:scale-[0.99] ${
+                            index === activeRecordIndex
+                              ? "border-cyan-100/36 bg-cyan-300/10 shadow-[0_0_22px_rgba(34,211,238,0.12)]"
+                              : "border-white/10 bg-white/[0.035] hover:border-cyan-200/26 hover:bg-cyan-300/[0.07]"
+                          }`}
+                          key={`${row.id}-collapsed-table`}
+                          onClick={() => {
+                            setCollapsedAdminJourneyTables((currentTables) => ({
+                              ...currentTables,
+                              [card.stage]: false,
+                            }));
+                            selectAdminJourneyRecord(card.stage, index);
+                          }}
+                          type="button"
+                        >
+                          <span className="flex min-w-0 items-center gap-1.5 truncate text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                            <span aria-hidden="true">{rowStatusEmoji}</span>
+                            <span className="truncate">{row.status}</span>
+                          </span>
+                          <span className="mt-1 flex min-w-0 items-center gap-1.5 truncate text-sm font-black text-white">
+                            <span aria-hidden="true">{rowPrimaryEmoji}</span>
+                            <span className="truncate">{row.primary}</span>
+                          </span>
+                          <span className="mt-1 flex min-w-0 items-center gap-1.5 truncate text-[10px] font-bold text-cyan-100/80">
+                            <span aria-hidden="true">{rowNextStepEmoji}</span>
+                            <span className="truncate">{row.nextStep}</span>
+                          </span>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-white/12 bg-white/[0.025] px-4 py-3 text-sm font-bold text-slate-500">
+                      No {adminJourneyRecordPlural} yet.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {adminJourneyEditorMode ? (
+                    <div className="absolute right-4 top-[4.75rem] z-50 w-[min(54rem,calc(100%-2rem))] rounded-[28px] border border-cyan-100/18 bg-slate-950/94 p-4 shadow-2xl shadow-black/40 backdrop-blur-xl">
+                  <form
+                    aria-label={
+                      adminJourneyEditorMode === "edit"
+                        ? `${adminJourneyEditAction} in ${card.label}`
+                        : `${adminJourneyAddAction} in ${card.label}`
+                    }
+                    className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      if (adminJourneyEditorMode === "edit") {
+                        updateAdminJourneyRow(card.stage);
+                      } else {
+                        addAdminJourneyRow(card.stage);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-3 sm:col-span-2 xl:col-span-4">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                        {adminJourneyEditorMode === "edit"
+                          ? adminJourneyEditAction
+                          : adminJourneyAddAction}
+                      </p>
+                      <button
+                        aria-label={`Close ${adminJourneyRecordKind} form`}
+                        className="grid h-8 w-8 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-sm font-black text-slate-300 transition hover:border-rose-200/35 hover:bg-rose-300/10 hover:text-rose-100"
+                        onClick={() => {
+                          setActiveAdminJourneyAddStage(null);
+                          setActiveAdminJourneyEditStage(null);
+                          setActiveAdminJourneyCell(null);
+                        }}
+                        type="button"
+                      >
+                        x
+                      </button>
+                    </div>
+                    {adminJourneyFormInputs.map((input) => {
+                      const isFocusedCell =
+                        activeAdminJourneyCell?.stage === card.stage &&
+                        activeAdminJourneyCell.field === input.field;
+
+                      return (
+                        <label
+                          className={`grid gap-1.5 rounded-2xl border p-2 text-[9px] font-black uppercase tracking-[0.12em] transition ${
+                            isFocusedCell
+                              ? "border-amber-100/45 bg-amber-300/10 text-amber-100 shadow-[0_0_24px_rgba(251,191,36,0.16)]"
+                              : "border-transparent text-slate-400"
+                          }`}
+                          key={input.field}
+                        >
+                          {input.label}
+                          <input
+                            autoFocus={isFocusedCell}
+                            className={`h-10 rounded-2xl border bg-slate-950/72 px-3 text-sm font-bold normal-case tracking-normal text-white outline-none transition placeholder:text-slate-600 focus:bg-slate-950 ${
+                              isFocusedCell
+                                ? "border-amber-100/55 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.22),0_0_18px_rgba(251,191,36,0.16)]"
+                                : "border-white/10 focus:border-cyan-200/45"
+                            }`}
+                            data-admin-journey-field={input.field}
+                            data-admin-journey-stage={card.stage}
+                            onChange={(event) =>
+                              updateAdminJourneyDraft(
+                                card.stage,
+                                input.field,
+                                event.target.value,
+                              )
+                            }
+                            placeholder={input.placeholder}
+                            value={draft[input.field] ?? ""}
+                          />
+                        </label>
+                      );
+                    })}
+                    <label className="grid gap-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400 sm:col-span-2 xl:col-span-3">
+                      Notes
+                      <textarea
+                        autoFocus={
+                          activeAdminJourneyCell?.stage === card.stage &&
+                          activeAdminJourneyCell.field === "notes"
+                        }
+                        className={`min-h-10 resize-none rounded-2xl border bg-slate-950/72 px-3 py-2 text-sm font-semibold normal-case tracking-normal text-white outline-none transition placeholder:text-slate-600 focus:bg-slate-950 ${
+                          activeAdminJourneyCell?.stage === card.stage &&
+                          activeAdminJourneyCell.field === "notes"
+                            ? "border-amber-100/55 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.22),0_0_18px_rgba(251,191,36,0.16)]"
+                            : "border-white/10 focus:border-cyan-200/45"
+                        }`}
+                        data-admin-journey-field="notes"
+                        data-admin-journey-stage={card.stage}
+                        onChange={(event) =>
+                          updateAdminJourneyDraft(
+                            card.stage,
+                            "notes",
+                            event.target.value,
+                          )
+                        }
+                        placeholder={adminJourneyNotesPlaceholder}
+                        value={draft.notes}
+                      />
+                    </label>
+                    <button
+                      className="h-10 self-end rounded-2xl border border-cyan-100/30 bg-cyan-300/14 px-4 text-sm font-black uppercase tracking-[0.12em] text-cyan-50 shadow-[0_18px_40px_rgba(34,211,238,0.12)] transition hover:border-emerald-200/45 hover:bg-emerald-300/14 active:scale-[0.99]"
+                      type="submit"
+                    >
+                      {adminJourneyEditorMode === "edit"
+                        ? "Save edit"
+                        : adminJourneyAddAction}
+                    </button>
+                  </form>
+                </div>
+              ) : null}
+
+              <div className="grid min-h-0 flex-1 grid-cols-[5.75rem_minmax(0,1fr)] gap-3 p-4">
+                <div
+                  aria-label={`${card.label} 3D table scroller`}
+                  className="order-2 relative min-h-0 overflow-x-auto overflow-y-hidden outline-none [perspective:1450px] [touch-action:none] focus-visible:ring-2 focus-visible:ring-cyan-200/45"
+                  onKeyDown={(event) =>
+                    handleAdminJourneyRecordKeyDown(event, card.stage)
+                  }
+                  onPointerCancel={handleAdminJourneyRecordPointerEnd}
+                  onPointerDown={handleAdminJourneyRecordPointerDown}
+                  onPointerMove={(event) =>
+                    handleAdminJourneyRecordPointerMove(event, card.stage)
+                  }
+                  onPointerUp={handleAdminJourneyRecordPointerEnd}
+                  onWheel={(event) =>
+                    handleAdminJourneyRecordWheel(event, card.stage)
+                  }
+                  ref={adminJourneyRecordScrollerRef}
+                  role="table"
+                  tabIndex={0}
+                >
+                  <div style={{ minWidth: adminJourneyTableMinWidth }}>
+                    <div
+                      className="grid gap-2 border-b border-white/10 px-3 pb-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-500"
+                      role="row"
+                      style={{
+                        gridTemplateColumns: adminJourneyGridTemplateColumns,
+                      }}
+                    >
+                      {adminJourneyGridColumns.map((column) => {
+                        const columnEmoji =
+                          adminJourneyFieldVisuals[column.field].emoji;
+
+                        return (
+                          <span
+                            className={`flex min-w-0 items-center gap-1.5 rounded-xl px-1 py-0.5 ${
+                              column.collapsed
+                                ? "justify-center border border-white/10 bg-white/[0.025] text-cyan-100/70"
+                                : "justify-between"
+                            }`}
+                            key={column.field}
+                            role="columnheader"
+                          >
+                            {column.collapsed ? null : (
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                <span aria-hidden="true">{columnEmoji}</span>
+                                <span className="truncate">{column.label}</span>
+                              </span>
+                            )}
+                            <button
+                              aria-label={
+                                column.collapsed
+                                  ? `Expand ${column.label} column`
+                                  : `Collapse ${column.label} column`
+                              }
+                              className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[9px] font-black leading-none transition hover:-translate-y-0.5 active:scale-95 ${
+                                column.collapsed
+                                  ? "border-cyan-200/28 bg-cyan-300/10 text-cyan-100 hover:border-cyan-100/48"
+                                  : "border-white/10 bg-white/[0.045] text-slate-400 hover:border-cyan-200/34 hover:text-cyan-100"
+                              }`}
+                              onClick={() =>
+                                toggleAdminJourneyColumn(column.field)
+                              }
+                              onPointerDown={(event) => event.stopPropagation()}
+                              type="button"
+                            >
+                              {column.collapsed ? ">" : "<"}
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <div className="relative h-[min(52vh,31rem)] min-h-[25rem] overflow-hidden [transform-style:preserve-3d]">
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute left-0 right-0 top-1/2 h-24 -translate-y-1/2 rounded-[28px] border border-cyan-200/12 bg-cyan-300/[0.025] shadow-[inset_0_0_28px_rgba(34,211,238,0.08)]"
+                      />
+                      {rows.length ? (
+                        rows.map((row, index) => {
+                          const distance = getAdminJourneyRecordDistance(
+                            card.stage,
+                            index,
+                          );
+                          const clampedDistance = Math.max(
+                            -3,
+                            Math.min(3, distance),
+                          );
+                          const absDistance = Math.abs(clampedDistance);
+                          const direction = Math.sign(clampedDistance);
+                          const rowSlots = [
+                            {
+                              opacity: 1,
+                              rotateX: 0,
+                              scale: 1,
+                              y: 0,
+                              z: 92,
+                              zIndex: 50,
+                            },
+                            {
+                              opacity: 0.76,
+                              rotateX: 12,
+                              scale: 0.92,
+                              y: 116,
+                              z: 42,
+                              zIndex: 38,
+                            },
+                            {
+                              opacity: 0.48,
+                              rotateX: 22,
+                              scale: 0.82,
+                              y: 208,
+                              z: 6,
+                              zIndex: 24,
+                            },
+                            {
+                              opacity: 0.26,
+                              rotateX: 32,
+                              scale: 0.72,
+                              y: 284,
+                              z: -22,
+                              zIndex: 12,
+                            },
+                          ];
+                          const slot = rowSlots[absDistance];
+                          const isActive = index === activeRecordIndex;
+
+                          return (
+                            <div
+                              aria-label={`Show ${row.primary}`}
+                              aria-selected={isActive}
+                              className={`absolute left-0 right-0 top-1/2 grid min-h-[122px] gap-2 rounded-[24px] border px-3 py-3 text-left text-sm font-semibold shadow-2xl outline-none transition-[border-color,background-color,box-shadow] duration-300 ${
+                                isActive
+                                  ? "border-cyan-100/42 bg-slate-950/88 text-slate-100 shadow-cyan-950/28"
+                                  : "border-white/10 bg-slate-950/62 text-slate-300 shadow-black/24 hover:border-cyan-200/24"
+                              }`}
+                              key={row.id}
+                              role="row"
+                              style={{
+                                gridTemplateColumns:
+                                  adminJourneyGridTemplateColumns,
+                                opacity: slot.opacity,
+                                pointerEvents: absDistance > 2 ? "none" : "auto",
+                                transform: `translateY(-50%) translateY(${
+                                  direction * slot.y
+                                }px) translateZ(${slot.z}px) rotateX(${
+                                  direction * -slot.rotateX
+                                }deg) scale(${slot.scale})`,
+                                transition:
+                                  "transform 520ms cubic-bezier(0.2, 0.82, 0.2, 1), opacity 260ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease",
+                                zIndex: slot.zIndex,
+                              }}
+                            >
+                              {adminJourneyGridColumns.map((column) => {
+                                const isActiveCell =
+                                  isActive &&
+                                  activeAdminJourneyCell?.stage ===
+                                    card.stage &&
+                                  activeAdminJourneyCell.field ===
+                                    column.field;
+                                const value = row[column.field];
+                                const cellEmoji = getAdminJourneyCellEmoji(
+                                  card.stage,
+                                  column.field,
+                                  value,
+                                );
+
+                                return (
+                                  <div
+                                    aria-label={`${column.label} for ${row.primary}`}
+                                    className={`group/cell grid min-h-[84px] content-start gap-1.5 rounded-[18px] border px-3 py-2 text-left outline-none transition hover:-translate-y-0.5 focus-within:-translate-y-0.5 focus-within:ring-2 focus-within:ring-cyan-100/45 ${
+                                      column.collapsed
+                                        ? "place-items-center px-1 py-1"
+                                        : column.tone
+                                    } ${
+                                      isActiveCell
+                                        ? "ring-2 ring-amber-100/60 shadow-[0_0_24px_rgba(251,191,36,0.22),inset_0_0_0_1px_rgba(251,191,36,0.22)]"
+                                        : isActive && !column.collapsed
+                                          ? "shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+                                          : column.collapsed
+                                            ? "border-transparent bg-transparent"
+                                            : "opacity-90"
+                                    }`}
+                                    key={`${row.id}-${column.field}`}
+                                    role="cell"
+                                  >
+                                    {column.collapsed ? (
+                                      <button
+                                        aria-label={`Expand ${column.label} column`}
+                                        className="grid h-7 w-7 place-items-center rounded-full border border-cyan-200/28 bg-cyan-300/10 text-[10px] font-black text-cyan-100 transition hover:border-cyan-100/48 hover:bg-cyan-300/16 active:scale-95"
+                                        onClick={() =>
+                                          toggleAdminJourneyColumn(column.field)
+                                        }
+                                        onPointerDown={(event) =>
+                                          event.stopPropagation()
+                                        }
+                                        type="button"
+                                      >
+                                        &gt;
+                                      </button>
+                                    ) : (
+                                      <>
+                                        <span className="flex min-w-0 items-center gap-1.5 truncate text-[8px] font-black uppercase tracking-[0.12em] text-slate-500 group-focus-within/cell:text-cyan-100/80 group-hover/cell:text-cyan-100/80">
+                                          <span aria-hidden="true">
+                                            {cellEmoji}
+                                          </span>
+                                          <span className="truncate">
+                                            {column.label}
+                                          </span>
+                                        </span>
+                                        {column.field === "notes" ? (
+                                          <textarea
+                                            aria-label={`Edit ${column.label} for ${row.primary}`}
+                                            className="min-h-[3.1rem] resize-none rounded-xl border border-transparent bg-transparent p-0 text-sm font-semibold leading-5 text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-cyan-200/30 focus:bg-slate-950/28 focus:px-2 focus:py-1"
+                                            onChange={(event) =>
+                                              updateAdminJourneyRecordCell(
+                                                card.stage,
+                                                index,
+                                                column.field,
+                                                event.target.value,
+                                              )
+                                            }
+                                            onFocus={() =>
+                                              focusAdminJourneyRecordCell(
+                                                card.stage,
+                                                index,
+                                                column.field,
+                                              )
+                                            }
+                                            onKeyDown={(event) =>
+                                              event.stopPropagation()
+                                            }
+                                            onPointerDown={(event) =>
+                                              event.stopPropagation()
+                                            }
+                                            placeholder={column.label}
+                                            value={value}
+                                          />
+                                        ) : (
+                                          <input
+                                            aria-label={`Edit ${column.label} for ${row.primary}`}
+                                            className={`h-9 min-w-0 rounded-xl border border-transparent bg-transparent p-0 text-sm leading-5 outline-none transition placeholder:text-slate-600 focus:border-cyan-200/30 focus:bg-slate-950/28 focus:px-2 ${
+                                              column.field === "status"
+                                                ? "font-black uppercase tracking-[0.08em] text-emerald-100"
+                                                : column.field === "primary"
+                                                  ? "font-black text-white"
+                                                  : column.field ===
+                                                        "contact" ||
+                                                      column.field ===
+                                                        "nextStep"
+                                                    ? "font-bold text-cyan-50"
+                                                    : "font-semibold text-slate-300"
+                                            }`}
+                                            onChange={(event) =>
+                                              updateAdminJourneyRecordCell(
+                                                card.stage,
+                                                index,
+                                                column.field,
+                                                event.target.value,
+                                              )
+                                            }
+                                            onFocus={() =>
+                                              focusAdminJourneyRecordCell(
+                                                card.stage,
+                                                index,
+                                                column.field,
+                                              )
+                                            }
+                                            onKeyDown={(event) =>
+                                              event.stopPropagation()
+                                            }
+                                            onPointerDown={(event) =>
+                                              event.stopPropagation()
+                                            }
+                                            placeholder={column.label}
+                                            value={value}
+                                          />
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="absolute inset-0 grid place-items-center rounded-[28px] border border-dashed border-white/12 bg-white/[0.025] text-sm font-bold text-slate-500">
+                          Add the first {adminJourneyRecordKind} to start this
+                          scroller.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  aria-label={`${card.label} joystick`}
+                  className="order-1 flex min-h-0 flex-col items-center justify-center gap-3 rounded-[28px] border border-cyan-100/12 bg-slate-950/62 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                >
+                  <button
+                    aria-label={`${card.label} 4-way joystick`}
+                    className="group/joystick relative grid h-[6.75rem] w-[4.75rem] place-items-center overflow-hidden rounded-[2rem] border border-cyan-100/18 bg-[radial-gradient(circle_at_50%_45%,rgba(34,211,238,0.18),transparent_42%),rgba(2,6,23,0.82)] text-cyan-50 shadow-[0_18px_38px_rgba(0,0,0,0.28),inset_0_0_26px_rgba(34,211,238,0.08)] outline-none transition hover:border-cyan-100/38 hover:bg-cyan-300/10 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-cyan-200/45 [touch-action:none]"
+                    onKeyDown={(event) =>
+                      handleAdminJourneyJoystickKeyDown(event, card.stage)
+                    }
+                    onPointerCancel={(event) => {
+                      adminJourneyJoystickPointerStartRef.current = null;
+                      if (
+                        event.currentTarget.hasPointerCapture?.(
+                          event.pointerId,
+                        )
+                      ) {
+                        event.currentTarget.releasePointerCapture?.(
+                          event.pointerId,
+                        );
+                      }
+                    }}
+                    onPointerDown={handleAdminJourneyJoystickPointerDown}
+                    onPointerMove={(event) =>
+                      handleAdminJourneyJoystickPointerMove(event, card.stage)
+                    }
+                    onPointerUp={(event) =>
+                      handleAdminJourneyJoystickPointerEnd(event, card.stage)
+                    }
+                    type="button"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-x-3 top-1/2 h-px bg-cyan-200/18"
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-y-3 left-1/2 w-px bg-cyan-200/18"
+                    />
+                    <span
+                      aria-hidden="true"
+                      className="absolute top-2 text-[10px] font-black text-cyan-100/55 transition group-hover/joystick:text-cyan-100"
+                    >
+                      ^
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="absolute bottom-2 text-[10px] font-black text-cyan-100/55 transition group-hover/joystick:text-cyan-100"
+                    >
+                      v
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-2 text-[10px] font-black text-cyan-100/55 transition group-hover/joystick:text-cyan-100"
+                    >
+                      &lt;
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="absolute right-2 text-[10px] font-black text-cyan-100/55 transition group-hover/joystick:text-cyan-100"
+                    >
+                      &gt;
+                    </span>
+                    <span className="grid h-12 w-12 place-items-center rounded-full border border-cyan-100/30 bg-cyan-300/14 text-[10px] font-black uppercase tracking-[0.08em] text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.16)] transition group-hover/joystick:border-cyan-100/48 group-hover/joystick:bg-cyan-300/18">
+                      {rows.length ? activeRecordIndex + 1 : 0}
+                    </span>
+                  </button>
+                  <div className="flex max-h-24 flex-col gap-1 overflow-hidden">
+                    {rows.map((row, index) => (
+                      <button
+                        aria-label={`Jump to ${row.primary}`}
+                        aria-pressed={index === activeRecordIndex}
+                        className={`h-2 w-2 rounded-full transition ${
+                          index === activeRecordIndex
+                            ? "bg-cyan-100 shadow-[0_0_10px_rgba(34,211,238,0.7)]"
+                            : "bg-slate-600 hover:bg-cyan-200/60"
+                        }`}
+                        key={`${row.id}-dot`}
+                        onClick={() =>
+                          selectAdminJourneyRecord(card.stage, index)
+                        }
+                        type="button"
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+                </>
+              )}
+            </section>
+          </div>
+
+          {card.stage === "interest" ? (
+            <div
+              aria-label="Interest table links"
+              className="mt-3 flex shrink-0 flex-wrap gap-2"
+            >
+              {adminInterestTableFooterLinks.map((footerLink) => (
+                <a
+                  aria-label={`${footerLink.label}: ${footerLink.detail}`}
+                  className="group/interestfooter inline-flex w-fit max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-left transition hover:-translate-y-0.5 hover:border-cyan-200/34 hover:bg-cyan-300/[0.08] active:scale-[0.99]"
+                  href={footerLink.href}
+                  key={footerLink.label}
+                  rel="noreferrer"
+                  target="_blank"
+                  title={footerLink.detail}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-cyan-100/18 bg-cyan-300/10 text-sm"
+                  >
+                    {getAdminJourneyLinkEmoji(footerLink.label)}
+                  </span>
+                  <span className="truncate text-sm font-black text-cyan-50 group-hover/interestfooter:text-white">
+                    {footerLink.label}
+                  </span>
+                  <span className="shrink-0 rounded-full border border-cyan-200/20 bg-cyan-300/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100">
+                    {footerLink.status}
+                  </span>
+                </a>
+              ))}
+            </div>
+          ) : null}
+
+          {card.stage === "introFollowUp" ? (
+            <div className="mt-3 shrink-0 rounded-[22px] border border-violet-100/18 bg-violet-300/[0.06] px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.06)]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-violet-100">
+                    Follow-up actions
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-slate-200">
+                    Keep post-intro emails and in-home assessment results ready
+                    beside this table.
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <a
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-cyan-100/30 bg-cyan-300/12 px-4 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-50 transition hover:-translate-y-0.5 hover:border-cyan-100/55 hover:bg-cyan-300/18 active:scale-[0.99]"
+                    href="https://mail.zoho.com/"
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    <span aria-hidden="true">✉</span>
+                    Email follow ups
+                  </a>
+                  <Link
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl border border-violet-100/30 bg-violet-300/12 px-4 text-[10px] font-black uppercase tracking-[0.12em] text-violet-50 transition hover:-translate-y-0.5 hover:border-violet-100/55 hover:bg-violet-300/18 active:scale-[0.99]"
+                    href={ROUTES.onboarding.assessment}
+                  >
+                    <span aria-hidden="true">🧪</span>
+                    In-home assessment results form
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {card.stage === "scheduledIntro" ? (
+            <div className="mt-3 shrink-0 rounded-[22px] border border-amber-100/18 bg-amber-300/[0.06] px-4 py-3 shadow-[0_16px_42px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.06)]">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-amber-100">
+                    Free intro prep
+                  </p>
+                  <p className="mt-1 text-sm font-bold text-slate-200">
+                    Send or open the in-home assessment form before the session.
+                  </p>
+                </div>
+                <Link
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-2xl border border-amber-100/30 bg-amber-300/12 px-4 text-[10px] font-black uppercase tracking-[0.12em] text-amber-50 transition hover:-translate-y-0.5 hover:border-amber-100/55 hover:bg-amber-300/18 active:scale-[0.99]"
+                  href={ROUTES.onboarding.assessment}
+                >
+                  <span aria-hidden="true">🧪</span>
+                  In-home assessment form
+                </Link>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
   const renderDashboardDailyToolsRow = () => {
+      if (isAdminPreview) {
+        const adminJourneyActiveCard =
+          adminCustomerJourneyCards[activeAdminJourneyIndex] ||
+          adminCustomerJourneyCards[0];
+        const adminJourneyFirstCard = adminCustomerJourneyCards[0];
+        const adminJourneyLastCard =
+          adminCustomerJourneyCards[adminJourneyCardCount - 1];
+        const adminJourneyRecordCount = adminCustomerJourneyCards.reduce(
+          (total, card) => total + (adminJourneyRows[card.stage]?.length ?? 0),
+          0,
+        );
+        const adminJourneyIsAtStart = activeAdminJourneyIndex <= 0;
+        const adminJourneyIsAtEnd =
+          activeAdminJourneyIndex >= adminJourneyCardCount - 1;
+
+        return (
+        <div
+          aria-label="User Engagement row"
+          data-dashboard-orbiter-row="1"
+          className={`relative flex min-h-0 items-start justify-center pl-36 pr-6 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
+            clampedDashboardOrbiterRow === 1
+              ? "pointer-events-auto opacity-100"
+              : "pointer-events-none opacity-40"
+          }`}
+        >
+          {renderDashboardRowTitle({
+            accentClassName:
+              "bg-emerald-300 shadow-[0_0_14px_rgba(52,211,153,0.65)]",
+            description:
+              "Track people by journey stage from first impression through active, inactive, and re-engagement lists.",
+            kicker: "Customer journey row",
+            title: "User Engagement",
+          })}
+          <div
+            data-dashboard-orbiter-local-scroll="true"
+            className="relative flex h-full min-h-[470px] w-full max-w-[1180px] items-center justify-center overflow-hidden pr-1 [perspective:1500px] [touch-action:none]"
+          >
+            <button
+              aria-label="Open User Engagement workspace"
+              className="hidden"
+              onClick={() =>
+                setActiveAdminJourneyDetailStage(adminJourneyActiveCard.stage)
+              }
+              type="button"
+            >
+              <span className="pointer-events-none absolute inset-x-8 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/80 to-emerald-200/70" />
+              <span className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-cyan-300/14 via-emerald-300/6 to-transparent" />
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                    Customer journey workspace
+                  </p>
+                  <h3 className="mt-2 text-3xl font-black uppercase tracking-[0.06em] text-white sm:text-4xl">
+                    User Engagement
+                  </h3>
+                  <p className="mt-2 max-w-[40rem] text-sm font-semibold leading-6 text-slate-300">
+                    One workspace for impressions, email interest, free intro
+                    scheduling, follow-up, active clients, app accounts, and
+                    inactive clients.
+                  </p>
+                </div>
+                <div className="grid min-w-[12rem] grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2">
+                  <span className="rounded-2xl border border-white/10 bg-white/[0.05] p-3">
+                    <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      Records
+                    </span>
+                    <span className="mt-1 block text-2xl font-black text-white">
+                      {adminJourneyRecordCount}
+                    </span>
+                  </span>
+                  <span className="rounded-2xl border border-white/10 bg-white/[0.05] p-3">
+                    <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      Stages
+                    </span>
+                    <span className="mt-1 block text-2xl font-black text-white">
+                      {adminCustomerJourneyCards.length}
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {adminCustomerJourneyCards.map((card, index) => (
+                  <span
+                    className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/48 px-3 py-2"
+                    key={card.stage}
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-xl border border-cyan-100/20 bg-cyan-300/10 text-[10px] font-black text-cyan-100">
+                        <span aria-hidden="true">{card.emoji}</span>
+                      </span>
+                      <span className="truncate text-xs font-black text-cyan-50">
+                        {card.label}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+                      {adminJourneyRows[card.stage]?.length ?? 0}
+                    </span>
+                  </span>
+                ))}
+              </div>
+              <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                  Starts at{" "}
+                  <span aria-hidden="true">{adminJourneyFirstCard.emoji}</span>{" "}
+                  {adminJourneyFirstCard.label} / ends at{" "}
+                  <span aria-hidden="true">{adminJourneyLastCard.emoji}</span>{" "}
+                  {adminJourneyLastCard.label}
+                </span>
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                  Open full screen -&gt;
+                </span>
+              </div>
+            </button>
+            <button
+              aria-label="Previous customer journey stage"
+              className="absolute left-1 top-1/2 z-50 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/78 text-lg font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:-translate-x-0.5 hover:border-emerald-200/45 hover:bg-emerald-300/10 hover:text-emerald-100 active:scale-95 disabled:pointer-events-none disabled:opacity-35 sm:left-3 sm:h-12 sm:w-12 sm:text-2xl"
+              disabled={adminJourneyIsAtStart}
+              onClick={() => rotateAdminJourneyOrbit("left")}
+              type="button"
+            >
+              &lt;
+            </button>
+            <button
+              aria-label="Next customer journey stage"
+              className="absolute right-1 top-1/2 z-50 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/78 text-lg font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:translate-x-0.5 hover:border-emerald-200/45 hover:bg-emerald-300/10 hover:text-emerald-100 active:scale-95 disabled:pointer-events-none disabled:opacity-35 sm:right-3 sm:h-12 sm:w-12 sm:text-2xl"
+              disabled={adminJourneyIsAtEnd}
+              onClick={() => rotateAdminJourneyOrbit("right")}
+              type="button"
+            >
+              &gt;
+            </button>
+
+            <div
+              aria-label="User engagement horizontal orbit"
+              className="relative h-full min-h-[430px] w-full cursor-grab select-none overflow-visible outline-none [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45"
+              onClickCapture={(event) => {
+                if (adminJourneyPointerMovedRef.current) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  adminJourneyPointerMovedRef.current = false;
+                }
+              }}
+              onKeyDown={(event) =>
+                handleDashboardOrbitKeyDown(event, rotateAdminJourneyOrbit)
+              }
+              onPointerCancel={(event) => {
+                adminJourneyPointerStartRef.current = null;
+                if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture?.(event.pointerId);
+                }
+              }}
+              onPointerDown={(event) =>
+                handleDashboardOrbitPointerDown(
+                  event,
+                  adminJourneyPointerStartRef,
+                  adminJourneyPointerMovedRef,
+                )
+              }
+              onPointerMove={(event) =>
+                handleDashboardOrbitPointerMove(
+                  event,
+                  adminJourneyPointerStartRef,
+                  adminJourneyPointerMovedRef,
+                  rotateAdminJourneyOrbit,
+                  52,
+                )
+              }
+              onPointerUp={(event) =>
+                handleDashboardOrbitPointerUp(
+                  event,
+                  adminJourneyPointerStartRef,
+                  adminJourneyPointerMovedRef,
+                  rotateAdminJourneyOrbit,
+                  setActiveAdminJourneyIndex,
+                  (cardIndex) => {
+                    const tappedCard = adminCustomerJourneyCards[cardIndex];
+                    if (tappedCard) {
+                      setActiveAdminJourneyDetailStage(tappedCard.stage);
+                    }
+                  },
+                )
+              }
+              onWheel={(event) =>
+                handleDashboardOrbitWheel(event, rotateAdminJourneyOrbit)
+              }
+              onWheelCapture={(event) =>
+                handleDashboardOrbitWheel(event, rotateAdminJourneyOrbit)
+              }
+              tabIndex={0}
+            >
+              <div className="pointer-events-none absolute left-1/2 top-[52%] h-[190px] w-[min(940px,78vw)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/12 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.16),rgba(52,211,153,0.08)_46%,transparent_72%)] shadow-[inset_0_0_48px_rgba(34,211,238,0.10),0_0_32px_rgba(16,185,129,0.08)]" />
+              <div className="pointer-events-none absolute left-1/2 top-[52%] h-px w-[min(840px,72vw)] -translate-x-1/2 bg-gradient-to-r from-transparent via-cyan-100/48 to-transparent shadow-[0_0_24px_rgba(34,211,238,0.32)]" />
+              <div className="sr-only">
+                Customer journey stages: impression, interest and email list,
+                scheduled free intro, free intro completed follow up, in-home
+                client list, app user list, inactive client list.
+              </div>
+
+              <div className="relative h-full min-h-[430px] w-full">
+                {adminCustomerJourneyCards.map((card, index) => (
+                  (() => {
+                    const distance = getAdminJourneyOrbitDistance(index);
+                    const clampedDistance = Math.max(
+                      -3,
+                      Math.min(3, distance),
+                    );
+                    const absDistance = Math.abs(clampedDistance);
+                    const direction = Math.sign(clampedDistance);
+                    const orbitSlots = [
+                      {
+                        blur: 0,
+                        opacity: 1,
+                        rotateY: 0,
+                        scale: 1,
+                        x: 0,
+                        y: -12,
+                        z: 118,
+                        zIndex: 50,
+                      },
+                      {
+                        blur: 0,
+                        opacity: 0.84,
+                        rotateY: 22,
+                        scale: 0.84,
+                        x: 255,
+                        y: 14,
+                        z: 54,
+                        zIndex: 38,
+                      },
+                      {
+                        blur: 0.55,
+                        opacity: 0.5,
+                        rotateY: 38,
+                        scale: 0.68,
+                        x: 420,
+                        y: 46,
+                        z: 4,
+                        zIndex: 24,
+                      },
+                      {
+                        blur: 1.2,
+                        opacity: 0.24,
+                        rotateY: 52,
+                        scale: 0.5,
+                        x: 520,
+                        y: 78,
+                        z: -34,
+                        zIndex: 12,
+                      },
+                    ];
+                    const slot = orbitSlots[absDistance];
+                    const isActive = distance === 0;
+                    const isVisible = Math.abs(distance) <= 3;
+                    const cardVisual = adminJourneyStageVisuals[card.stage];
+
+                    return (
+                      <Link
+                        aria-label={
+                          isActive
+                            ? `Open ${card.label} details`
+                            : `Open ${card.label} details`
+                        }
+                        aria-current={isActive ? "step" : undefined}
+                        aria-hidden={!isVisible}
+                        data-dashboard-orbit-card-index={index}
+                        href={card.href}
+                        key={card.label}
+                        onClick={(event) => {
+                          event.preventDefault();
+
+                          if (adminJourneyPointerMovedRef.current) {
+                            adminJourneyPointerMovedRef.current = false;
+                            return;
+                          }
+
+                          if (!isActive) {
+                            setActiveAdminJourneyIndex(index);
+                          }
+
+                          setActiveAdminJourneyDetailStage(card.stage);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            if (!isActive) {
+                              setActiveAdminJourneyIndex(index);
+                            }
+                            setActiveAdminJourneyDetailStage(card.stage);
+                          }
+                        }}
+                        className={`group absolute left-1/2 top-1/2 isolate min-h-[268px] w-[min(70vw,18.5rem)] overflow-hidden rounded-[28px] border p-4 text-left shadow-2xl outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:w-[21rem] lg:w-[23rem] ${
+                          isActive
+                            ? "border-cyan-100/50 bg-slate-950/90 shadow-cyan-950/45"
+                            : "border-white/10 bg-slate-950/68 shadow-black/28 hover:border-cyan-200/32 hover:bg-slate-950/78"
+                        }`}
+                        style={{
+                          filter: `blur(${slot.blur}px)`,
+                          opacity: isVisible ? slot.opacity : 0,
+                          pointerEvents: isVisible ? "auto" : "none",
+                          transform: `translate(-50%, -50%) translateX(${
+                            direction * slot.x
+                          }px) translateY(${slot.y}px) translateZ(${
+                            slot.z
+                          }px) rotateY(${
+                            direction * -slot.rotateY
+                          }deg) scale(${slot.scale})`,
+                          transition:
+                            "transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 320ms ease, filter 320ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease",
+                          zIndex: isVisible ? slot.zIndex : 0,
+                        }}
+                        tabIndex={isActive || (isVisible && absDistance <= 1) ? 0 : -1}
+                      >
+                        <span
+                          className={`pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br ${card.accent}`}
+                        />
+                        <span
+                          aria-hidden="true"
+                          className={`pointer-events-none absolute inset-x-5 top-0 h-px rounded-full ${
+                            isActive
+                              ? "bg-gradient-to-r from-transparent via-cyan-100/80 to-emerald-200/70"
+                              : "bg-gradient-to-r from-transparent via-cyan-200/38 to-transparent"
+                          }`}
+                        />
+                        <div className="flex items-start justify-between gap-3">
+                          <span
+                            className={`grid shrink-0 place-items-center rounded-2xl border text-sm font-black ${
+                              isActive
+                                ? "h-12 w-12 border-cyan-100/35 bg-cyan-300/14 text-cyan-50 shadow-[0_0_22px_rgba(34,211,238,0.18)]"
+                                : "h-10 w-10 border-cyan-100/20 bg-slate-950/56 text-cyan-100"
+                            }`}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className="relative grid h-full w-full place-items-center overflow-hidden rounded-[inherit]"
+                            >
+                              <Image
+                                alt=""
+                                className={`object-contain opacity-80 ${
+                                  isActive ? "h-8 w-8" : "h-6 w-6"
+                                }`}
+                                height={32}
+                                src={cardVisual.imageSrc}
+                                width={32}
+                              />
+                              <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border border-white/10 bg-slate-950 text-xs">
+                                {card.emoji}
+                              </span>
+                            </span>
+                          </span>
+                          <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-slate-300">
+                            {card.status}
+                          </span>
+                        </div>
+                        <div className="mt-4">
+                          <p
+                            className={`font-black text-white ${
+                              isActive ? "text-4xl" : "text-3xl"
+                            }`}
+                          >
+                            {card.metric}
+                          </p>
+                          <h3 className="mt-1 text-lg font-black leading-tight text-cyan-50">
+                            <span className="mr-1.5" aria-hidden="true">
+                              {card.emoji}
+                            </span>
+                            {" "}
+                            {card.label}
+                          </h3>
+                          <p className="mt-2 text-xs font-semibold leading-5 text-slate-400">
+                            {card.helper}
+                          </p>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {cardVisual.badges.slice(0, 3).map((badge) => (
+                            <span
+                              className="rounded-full border border-white/10 bg-white/[0.035] px-2 py-1 text-[7px] font-black uppercase tracking-[0.1em] text-cyan-100"
+                              key={`${card.stage}-orbit-${badge}`}
+                            >
+                              {badge}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="mt-4 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                          Open full screen -&gt;
+                        </p>
+                      </Link>
+                    );
+                  })()
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const getDailyToolOrbitDistance = (index: number) =>
       getDashboardOrbitDistance(
         index,
@@ -18105,6 +23434,1529 @@ export default function UserHomeDashboardPage() {
     );
   };
 
+  const renderAdminFinanceOverlay = () => {
+    if (!isAdminPreview || !adminFinanceWorkspaceOpen) return null;
+
+    const activeFinanceTab =
+      adminFinanceTabs.find((tab) => tab.key === activeAdminFinanceTab) ||
+      adminFinanceTabs[0];
+    const financeRecordCount = adminFinanceTabs.reduce(
+      (total, tab) => total + tab.rows.length,
+      0,
+    );
+    const activeFinanceMonthOption =
+      adminFinanceMonthOptions.find(
+        (monthOption) => monthOption.key === activeAdminFinanceMonthKey,
+      ) ?? adminFinanceMonthOptions[5];
+    const activeFinanceMonthOptionIndex = activeFinanceMonthOption?.index ?? 5;
+    const activeFinanceYear = activeFinanceMonthOption?.year ?? 2026;
+    const activeFinanceMonthIndex =
+      activeFinanceMonthOption?.monthIndex ?? 5;
+    const selectAdminFinancePeriod = (year: number, monthIndex: number) => {
+      const nextMonthOption = adminFinanceMonthOptions.find(
+        (monthOption) =>
+          monthOption.year === year && monthOption.monthIndex === monthIndex,
+      );
+
+      if (nextMonthOption) {
+        setActiveAdminFinanceMonthKey(nextMonthOption.key);
+      }
+    };
+    const financeChartSeries = adminFinanceTabs.map((tab) => ({
+      ...adminFinance2026ChartSeries[tab.key],
+      key: tab.key,
+      label: tab.label,
+    }));
+    const financeCombinedChartValues = adminFinanceChartMonths.map(
+      (_, monthIndex) =>
+        financeChartSeries.reduce(
+          (total, series) => total + series.values[monthIndex],
+          0,
+        ),
+    );
+    const financeChartWidth = 760;
+    const financeChartHeight = 238;
+    const financeChartPadding = {
+      bottom: 34,
+      left: 48,
+      right: 18,
+      top: 18,
+    };
+    const financeChartPlotWidth =
+      financeChartWidth - financeChartPadding.left - financeChartPadding.right;
+    const financeChartPlotHeight =
+      financeChartHeight - financeChartPadding.top - financeChartPadding.bottom;
+    const financeChartMaxValue =
+      Math.ceil(
+        Math.max(
+          ...financeCombinedChartValues,
+          ...financeChartSeries.flatMap((series) => series.values),
+        ) / 10,
+      ) * 10;
+    const formatFinanceChartValue = (value: number) =>
+      `$${value.toFixed(value >= 10 ? 0 : 1)}k`;
+    const getFinanceChartPoint = (value: number, monthIndex: number) => ({
+      x:
+        financeChartPadding.left +
+        (financeChartPlotWidth /
+          Math.max(1, adminFinanceChartMonths.length - 1)) *
+          monthIndex,
+      y:
+        financeChartPadding.top +
+        financeChartPlotHeight -
+        (value / financeChartMaxValue) * financeChartPlotHeight,
+    });
+    const getFinanceChartPath = (values: number[]) =>
+      values
+        .map((value, monthIndex) => {
+          const point = getFinanceChartPoint(value, monthIndex);
+
+          return `${monthIndex === 0 ? "M" : "L"} ${point.x.toFixed(
+            1,
+          )} ${point.y.toFixed(1)}`;
+        })
+        .join(" ");
+    const activeFinanceChartValues =
+      adminFinance2026ChartSeries[activeFinanceTab.key].values;
+    const activeFinanceSelectedMonthValue =
+      getAdminFinanceProjectedMonthValue(
+        activeFinanceTab.key,
+        activeFinanceMonthOptionIndex,
+      );
+    const combinedFinanceSelectedMonthValue = adminFinanceTabs.reduce(
+      (total, tab) =>
+        total +
+        getAdminFinanceProjectedMonthValue(
+          tab.key,
+          activeFinanceMonthOptionIndex,
+        ),
+      0,
+    );
+    const activeFinanceBaseTotal = activeFinanceTab.rows.reduce(
+      (total, row) => total + parseAdminFinanceAmountToK(row.amount),
+      0,
+    );
+    const activeFinanceLedgerRows = activeFinanceTab.rows.map((row) => {
+      const baseAmount = parseAdminFinanceAmountToK(row.amount);
+      const amountShare =
+        activeFinanceBaseTotal > 0
+          ? baseAmount / activeFinanceBaseTotal
+          : 1 / Math.max(1, activeFinanceTab.rows.length);
+
+      return {
+        ...row,
+        amount: formatAdminFinanceAmountFromK(
+          activeFinanceSelectedMonthValue * amountShare,
+        ),
+      };
+    });
+
+    return (
+      <div
+        aria-label="Finances workspace"
+        aria-modal="true"
+        className="fixed inset-0 z-[245] overflow-hidden bg-slate-950/96 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl"
+        role="dialog"
+      >
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_0%,rgba(52,211,153,0.18),transparent_34%),radial-gradient(circle_at_84%_18%,rgba(250,204,21,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.62),rgba(2,6,23,0.92))]"
+        />
+        <div className="relative z-10 flex h-full min-h-0 flex-col px-4 py-4 sm:px-6 lg:px-8">
+          <header className="flex flex-col gap-4 border-b border-white/10 pb-4 min-[920px]:flex-row min-[920px]:items-start min-[920px]:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                Admin finances
+              </p>
+              <h2 className="mt-2 text-3xl font-black uppercase tracking-[0.06em] text-white sm:text-4xl">
+                Finances
+              </h2>
+              <p className="mt-2 max-w-[56rem] text-sm font-semibold leading-6 text-slate-300">
+                Track the money side of the business by income, expenses, assets,
+                liabilities, payroll, and tax planning.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="rounded-2xl border border-emerald-100/20 bg-slate-950/64 px-4 py-3 text-left shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+                <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                  Lines
+                </span>
+                <span className="mt-1 block text-2xl font-black text-white">
+                  {financeRecordCount}
+                </span>
+              </span>
+              <button
+                aria-label="Close finances workspace"
+                className="grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-slate-950/70 text-xl font-black text-cyan-100 shadow-[0_18px_40px_rgba(0,0,0,0.24)] transition hover:border-rose-200/35 hover:bg-rose-300/10 hover:text-rose-100 active:scale-95"
+                onClick={() => setAdminFinanceWorkspaceOpen(false)}
+                type="button"
+              >
+                x
+              </button>
+            </div>
+          </header>
+
+          <section
+            aria-label="2026 finance line graph"
+            className="mt-4 shrink-0 overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/58 p-4 shadow-2xl shadow-black/20"
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                  2026 finance graph
+                </p>
+                <h3 className="mt-1 text-lg font-black uppercase tracking-[0.08em] text-white">
+                  All tabs and combined trend
+                </h3>
+              </div>
+              <div className="flex flex-wrap items-start gap-2">
+                <div className="grid max-w-full gap-2 rounded-2xl border border-white/10 bg-white/[0.035] px-3 py-2">
+                  <span className="text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">
+                    Ledger period
+                  </span>
+                  <div
+                    aria-label="Finance ledger year scroller"
+                    className="flex max-w-[min(28rem,calc(100vw-4rem))] gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]"
+                  >
+                    {adminFinanceYearOptions.map((year) => {
+                      const isActiveYear = year === activeFinanceYear;
+
+                      return (
+                        <button
+                          aria-pressed={isActiveYear}
+                          className={`h-8 shrink-0 rounded-xl border px-3 text-[10px] font-black uppercase tracking-[0.1em] transition hover:-translate-y-0.5 active:scale-[0.98] ${
+                            isActiveYear
+                              ? "border-emerald-100/48 bg-emerald-300/16 text-emerald-50 shadow-[0_0_18px_rgba(52,211,153,0.14)]"
+                              : "border-white/10 bg-slate-950/62 text-slate-400 hover:border-emerald-200/30 hover:text-emerald-100"
+                          }`}
+                          key={`finance-year-${year}`}
+                          onClick={() =>
+                            selectAdminFinancePeriod(
+                              year,
+                              activeFinanceMonthIndex,
+                            )
+                          }
+                          type="button"
+                        >
+                          {year}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div
+                    aria-label="Finance ledger month scroller"
+                    className="flex max-w-[min(38rem,calc(100vw-4rem))] gap-1.5 overflow-x-auto pb-1 [scrollbar-width:thin]"
+                  >
+                    {adminFinanceChartMonths.map((month, monthIndex) => {
+                      const isActiveMonth =
+                        monthIndex === activeFinanceMonthIndex;
+                      const projectedValue = getAdminFinanceProjectedMonthValue(
+                        activeFinanceTab.key,
+                        adminFinanceMonthOptions.find(
+                          (monthOption) =>
+                            monthOption.year === activeFinanceYear &&
+                            monthOption.monthIndex === monthIndex,
+                        )?.index ?? activeFinanceMonthOptionIndex,
+                      );
+
+                      return (
+                        <button
+                          aria-pressed={isActiveMonth}
+                          className={`grid h-10 min-w-[4.25rem] shrink-0 content-center rounded-xl border px-2 text-left transition hover:-translate-y-0.5 active:scale-[0.98] ${
+                            isActiveMonth
+                              ? "border-cyan-100/48 bg-cyan-300/16 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.14)]"
+                              : "border-white/10 bg-slate-950/62 text-slate-400 hover:border-cyan-200/30 hover:text-cyan-100"
+                          }`}
+                          key={`finance-month-${activeFinanceYear}-${month}`}
+                          onClick={() =>
+                            selectAdminFinancePeriod(
+                              activeFinanceYear,
+                              monthIndex,
+                            )
+                          }
+                          type="button"
+                        >
+                          <span className="text-[10px] font-black uppercase tracking-[0.1em]">
+                            {month}
+                          </span>
+                          <span className="text-[8px] font-black uppercase tracking-[0.08em] opacity-70">
+                            {formatFinanceChartValue(projectedValue)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <span className="rounded-2xl border border-emerald-200/22 bg-emerald-300/10 px-3 py-2">
+                  <span className="block text-[8px] font-black uppercase tracking-[0.12em] text-emerald-100/80">
+                    {activeFinanceTab.label} {activeFinanceMonthOption?.label}
+                  </span>
+                  <span className="mt-0.5 block text-lg font-black text-white">
+                    {formatFinanceChartValue(activeFinanceSelectedMonthValue)}
+                  </span>
+                </span>
+                <span className="rounded-2xl border border-amber-200/24 bg-amber-300/10 px-3 py-2">
+                  <span className="block text-[8px] font-black uppercase tracking-[0.12em] text-amber-100/80">
+                    Combined {activeFinanceMonthOption?.label}
+                  </span>
+                  <span className="mt-0.5 block text-lg font-black text-white">
+                    {formatFinanceChartValue(combinedFinanceSelectedMonthValue)}
+                  </span>
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-3 overflow-x-auto pb-1 [scrollbar-width:thin]">
+              <svg
+                aria-hidden="true"
+                className="h-[238px] min-w-[760px] w-full"
+                focusable="false"
+                viewBox={`0 0 ${financeChartWidth} ${financeChartHeight}`}
+              >
+                <rect
+                  fill="rgba(2,6,23,0.36)"
+                  height={financeChartHeight}
+                  rx="18"
+                  width={financeChartWidth}
+                  x="0"
+                  y="0"
+                />
+                {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                  const y =
+                    financeChartPadding.top +
+                    financeChartPlotHeight -
+                    ratio * financeChartPlotHeight;
+                  const value = financeChartMaxValue * ratio;
+
+                  return (
+                    <g key={`finance-grid-${ratio}`}>
+                      <line
+                        stroke="rgba(148,163,184,0.14)"
+                        strokeWidth="1"
+                        x1={financeChartPadding.left}
+                        x2={financeChartWidth - financeChartPadding.right}
+                        y1={y}
+                        y2={y}
+                      />
+                      <text
+                        fill="rgba(203,213,225,0.56)"
+                        fontSize="10"
+                        fontWeight="800"
+                        textAnchor="end"
+                        x={financeChartPadding.left - 10}
+                        y={y + 4}
+                      >
+                        {formatFinanceChartValue(value)}
+                      </text>
+                    </g>
+                  );
+                })}
+                {adminFinanceChartMonths.map((month, monthIndex) => {
+                  const point = getFinanceChartPoint(0, monthIndex);
+
+                  return (
+                    <text
+                      fill="rgba(203,213,225,0.62)"
+                      fontSize="10"
+                      fontWeight="800"
+                      key={`finance-month-${month}`}
+                      textAnchor="middle"
+                      x={point.x}
+                      y={financeChartHeight - 12}
+                    >
+                      {month}
+                    </text>
+                  );
+                })}
+                {financeChartSeries.map((series) => {
+                  const isActiveSeries = series.key === activeFinanceTab.key;
+
+                  return (
+                    <path
+                      d={getFinanceChartPath(series.values)}
+                      fill="none"
+                      key={`finance-line-${series.key}`}
+                      opacity={isActiveSeries ? 0.98 : 0.34}
+                      stroke={series.color}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={isActiveSeries ? 4 : 2}
+                    />
+                  );
+                })}
+                <path
+                  d={getFinanceChartPath(financeCombinedChartValues)}
+                  fill="none"
+                  stroke="#facc15"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="4"
+                />
+                {activeFinanceChartValues.map((value, monthIndex) => {
+                  const point = getFinanceChartPoint(value, monthIndex);
+
+                  return (
+                    <circle
+                      cx={point.x}
+                      cy={point.y}
+                      fill={adminFinance2026ChartSeries[activeFinanceTab.key].color}
+                      key={`finance-active-point-${monthIndex}`}
+                      r={monthIndex === activeFinanceChartValues.length - 1 ? 4.5 : 2.7}
+                      stroke="rgba(255,255,255,0.76)"
+                      strokeWidth="1"
+                    />
+                  );
+                })}
+                {financeCombinedChartValues.map((value, monthIndex) => {
+                  const point = getFinanceChartPoint(value, monthIndex);
+
+                  return (
+                    <circle
+                      cx={point.x}
+                      cy={point.y}
+                      fill="#facc15"
+                      key={`finance-combined-point-${monthIndex}`}
+                      r={monthIndex === financeCombinedChartValues.length - 1 ? 4.8 : 2.6}
+                      stroke="rgba(2,6,23,0.82)"
+                      strokeWidth="1"
+                    />
+                  );
+                })}
+              </svg>
+            </div>
+          </section>
+
+          <div className="mt-3 flex max-w-full gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+            {financeChartSeries.map((series) => {
+              const isActiveTab = series.key === activeFinanceTab.key;
+
+              return (
+                <button
+                  aria-pressed={isActiveTab}
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] transition hover:-translate-y-0.5 active:scale-[0.98] ${
+                    isActiveTab
+                      ? "bg-white/[0.075] text-white"
+                      : "bg-white/[0.03] text-slate-300 hover:bg-white/[0.055]"
+                  }`}
+                  key={series.key}
+                  onClick={() => setActiveAdminFinanceTab(series.key)}
+                  style={{
+                    borderColor: isActiveTab
+                      ? `${series.color}AA`
+                      : `${series.color}44`,
+                    boxShadow: isActiveTab
+                      ? `0 0 22px ${series.color}22`
+                      : "none",
+                    color: isActiveTab ? "#ffffff" : series.color,
+                  }}
+                  type="button"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: series.color }}
+                  />
+                  {series.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <section className="mt-4 min-h-0 flex-1 overflow-hidden">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/58 shadow-2xl shadow-black/24">
+              <div className="flex flex-col gap-2 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-lg font-black uppercase tracking-[0.08em] text-white">
+                    {activeFinanceTab.label} Ledger /{" "}
+                    {activeFinanceMonthOption?.label}
+                  </h3>
+                  <p className="text-xs font-semibold text-slate-400">
+                    Projected line amounts update from the selected month.
+                  </p>
+                </div>
+                <button
+                  className="h-9 rounded-2xl border border-cyan-100/24 bg-cyan-300/10 px-3 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-100/45 hover:bg-cyan-300/16 active:scale-95"
+                  type="button"
+                >
+                  + Add line
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-auto p-4 [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin]">
+                <div className="min-w-[880px]">
+                  <div
+                    className="grid grid-cols-[minmax(12rem,1.2fr)_minmax(7rem,0.55fr)_minmax(7rem,0.65fr)_minmax(12rem,1fr)_minmax(16rem,1.3fr)] gap-2 border-b border-white/10 px-3 pb-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-500"
+                    role="row"
+                  >
+                    {["Category", "Amount", "Status", "Next action", "Notes"].map(
+                      (heading) => (
+                        <span key={heading} role="columnheader">
+                          {heading}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                  <div className="grid gap-2 pt-3" role="table">
+                    {activeFinanceLedgerRows.map((row) => (
+                      <div
+                        className="grid min-h-[86px] grid-cols-[minmax(12rem,1.2fr)_minmax(7rem,0.55fr)_minmax(7rem,0.65fr)_minmax(12rem,1fr)_minmax(16rem,1.3fr)] gap-2 rounded-[22px] border border-white/10 bg-slate-950/62 px-3 py-3 text-sm font-semibold text-slate-300 shadow-xl shadow-black/16"
+                        key={`${activeFinanceTab.key}-${row.category}`}
+                        role="row"
+                      >
+                        <span className="font-black text-white" role="cell">
+                          {row.category}
+                        </span>
+                        <span className="font-black text-emerald-100" role="cell">
+                          {row.amount}
+                        </span>
+                        <span role="cell">
+                          <span className="rounded-full border border-emerald-200/20 bg-emerald-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-100">
+                            {row.status}
+                          </span>
+                        </span>
+                        <span className="text-cyan-50" role="cell">
+                          {row.nextAction}
+                        </span>
+                        <span className="text-slate-400" role="cell">
+                          {row.notes}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAdminServiceDetailOverlay = () => {
+    if (!isAdminPreview || !adminServiceDetailsOpen) return null;
+
+    const activeService = activeAdminService || adminServiceCards[0];
+    const activeServiceCompletion =
+      getDashboardNavigationCardCompletion(activeService);
+
+    return (
+      <div
+        aria-label="Services detail"
+        aria-modal="true"
+        className="fixed inset-0 z-[246] overflow-hidden bg-slate-950/96 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl"
+        role="dialog"
+      >
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_86%_16%,rgba(16,185,129,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.64),rgba(2,6,23,0.92))]"
+        />
+        <div className="relative z-10 flex h-full min-h-0 flex-col px-4 py-4 sm:px-6 lg:px-8">
+          <header className="flex flex-col gap-4 border-b border-white/10 pb-4 min-[920px]:flex-row min-[920px]:items-start min-[920px]:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                Service catalog / {activeService.status}
+              </p>
+              <h2 className="mt-2 text-3xl font-black uppercase tracking-[0.06em] text-white sm:text-4xl">
+                {activeService.title}
+              </h2>
+              <p className="mt-2 max-w-[56rem] text-sm font-semibold leading-6 text-slate-300">
+                {activeService.description}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="rounded-2xl border border-cyan-100/20 bg-slate-950/64 px-4 py-3 text-left shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+                <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                  Readiness
+                </span>
+                <span className="mt-1 block text-2xl font-black text-white">
+                  {activeServiceCompletion}%
+                </span>
+              </span>
+              <button
+                aria-label="Close services detail"
+                className="grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-slate-950/70 text-xl font-black text-cyan-100 shadow-[0_18px_40px_rgba(0,0,0,0.24)] transition hover:border-rose-200/35 hover:bg-rose-300/10 hover:text-rose-100 active:scale-95"
+                onClick={() => setAdminServiceDetailsOpen(false)}
+                type="button"
+              >
+                x
+              </button>
+            </div>
+          </header>
+
+          <div className="mt-3 flex max-w-full gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+            {adminServiceCards.map((service, index) => (
+              <button
+                aria-pressed={service.title === activeService.title}
+                className={`shrink-0 rounded-full border px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] transition ${
+                  service.title === activeService.title
+                    ? "border-cyan-100/45 bg-cyan-300/14 text-cyan-50"
+                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:border-cyan-200/28 hover:text-cyan-100"
+                }`}
+                key={service.title}
+                onClick={() => setActiveAdminServiceIndex(index)}
+                type="button"
+              >
+                {service.title}
+              </button>
+            ))}
+          </div>
+
+          <section className="mt-4 grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[minmax(260px,0.54fr)_minmax(0,1.46fr)]">
+            <aside className="relative overflow-hidden rounded-[28px] border border-cyan-100/16 bg-slate-950/62 p-4 shadow-2xl shadow-black/24">
+              <span className="pointer-events-none absolute inset-x-5 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-200/70 to-emerald-200/55" />
+              <span
+                className={`grid h-16 w-16 place-items-center rounded-[24px] border ${
+                  dashboardIconToneStyles[activeService.tone].active
+                }`}
+                aria-hidden="true"
+              >
+                <DashboardTabIcon
+                  className="h-8 w-8"
+                  label={activeService.title}
+                  name={activeService.icon}
+                />
+              </span>
+              <h3 className="mt-5 text-2xl font-black uppercase tracking-tight text-white">
+                {activeService.price}
+              </h3>
+              <p className="mt-2 text-sm font-semibold leading-5 text-slate-300">
+                {activeService.audience}
+              </p>
+              <div className="mt-5 grid gap-2">
+                {[
+                  { label: "Resource hub", value: activeService.resourceHub },
+                  { label: "Status", value: activeService.status },
+                  { label: "Setup", value: activeService.setup },
+                ].map((item) => (
+                  <span
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2"
+                    key={item.label}
+                  >
+                    <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      {item.label}
+                    </span>
+                    <span className="mt-1 block text-sm font-black leading-5 text-white">
+                      {item.value}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            </aside>
+
+            <div className="min-h-0 overflow-y-auto rounded-[28px] border border-white/10 bg-slate-950/58 p-4 shadow-2xl shadow-black/24 [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin]">
+              <div className="grid gap-4 xl:grid-cols-2">
+                <section className="rounded-[26px] border border-white/10 bg-slate-950/50 p-4">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                    How we facilitate it
+                  </h3>
+                  <p className="mt-2 text-sm font-semibold leading-5 text-slate-300">
+                    {activeService.delivery}
+                  </p>
+                  <div className="mt-3 grid gap-2">
+                    {activeService.facilitation.map((item) => (
+                      <span
+                        className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-2 text-[10px] font-black uppercase tracking-[0.11em] text-slate-300"
+                        key={`${activeService.title}-${item}`}
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="rounded-[26px] border border-white/10 bg-slate-950/50 p-4">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100">
+                    Resources
+                  </h3>
+                  <p className="mt-2 text-sm font-semibold leading-5 text-slate-300">
+                    {activeService.resourceHub}
+                  </p>
+                  <div className="mt-3 grid gap-2">
+                    {activeService.resources.map((item) => (
+                      <span
+                        className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-2 text-[10px] font-black uppercase tracking-[0.11em] text-slate-300"
+                        key={`${activeService.title}-${item}`}
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              </div>
+
+              <section className="mt-4 rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
+                      Specialties
+                    </h3>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {activeService.specialties?.map((specialty) => (
+                        <span
+                          className="rounded-full border border-white/10 bg-slate-950/48 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100"
+                          key={`${activeService.title}-${specialty}`}
+                        >
+                          {specialty}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <Link
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-200/28 bg-cyan-300/10 px-4 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/48 hover:bg-cyan-300/16"
+                    href={activeService.href}
+                  >
+                    Open admin area
+                  </Link>
+                </div>
+              </section>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAdminMessageDetailOverlay = () => {
+    if (!isAdminPreview || !adminMessageDetailsOpen) return null;
+
+    const activeChannel = activeAdminMessage || adminMessageChannels[0];
+
+    return (
+      <div
+        aria-label="Messages detail"
+        aria-modal="true"
+        className="fixed inset-0 z-[246] overflow-hidden bg-slate-950/96 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl"
+        role="dialog"
+      >
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_86%_16%,rgba(244,114,182,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.64),rgba(2,6,23,0.92))]"
+        />
+        <div className="relative z-10 flex h-full min-h-0 flex-col px-4 py-4 sm:px-6 lg:px-8">
+          <header className="flex flex-col gap-4 border-b border-white/10 pb-4 min-[920px]:flex-row min-[920px]:items-start min-[920px]:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                Message command center / {activeChannel.status}
+              </p>
+              <h2 className="mt-2 text-3xl font-black uppercase tracking-[0.06em] text-white sm:text-4xl">
+                {activeChannel.title}
+              </h2>
+              <p className="mt-2 max-w-[56rem] text-sm font-semibold leading-6 text-slate-300">
+                {activeChannel.description}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="rounded-2xl border border-cyan-100/20 bg-slate-950/64 px-4 py-3 text-left shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+                <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                  Unread
+                </span>
+                <span className="mt-1 block text-2xl font-black text-white">
+                  {activeChannel.unread}
+                </span>
+              </span>
+              <button
+                aria-label="Close messages detail"
+                className="grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-slate-950/70 text-xl font-black text-cyan-100 shadow-[0_18px_40px_rgba(0,0,0,0.24)] transition hover:border-rose-200/35 hover:bg-rose-300/10 hover:text-rose-100 active:scale-95"
+                onClick={() => setAdminMessageDetailsOpen(false)}
+                type="button"
+              >
+                x
+              </button>
+            </div>
+          </header>
+
+          <div className="mt-3 flex max-w-full gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+            {adminMessageChannels.map((channel, index) => (
+              <button
+                aria-pressed={channel.title === activeChannel.title}
+                className={`shrink-0 rounded-full border px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] transition ${
+                  channel.title === activeChannel.title
+                    ? "border-cyan-100/45 bg-cyan-300/14 text-cyan-50"
+                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:border-cyan-200/28 hover:text-cyan-100"
+                }`}
+                key={channel.title}
+                onClick={() => setActiveAdminMessageIndex(index)}
+                type="button"
+              >
+                {channel.title}
+              </button>
+            ))}
+          </div>
+
+          <section className="mt-4 grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[minmax(250px,0.48fr)_minmax(0,1.52fr)]">
+            <aside className="relative overflow-hidden rounded-[28px] border border-cyan-100/16 bg-slate-950/62 p-4 shadow-2xl shadow-black/24">
+              <span className="pointer-events-none absolute inset-x-5 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-200/70 to-fuchsia-200/55" />
+              <span
+                className={`grid h-16 w-16 place-items-center rounded-[24px] border ${
+                  dashboardIconToneStyles[activeChannel.tone].active
+                }`}
+                aria-hidden="true"
+              >
+                <DashboardTabIcon
+                  className="h-8 w-8"
+                  label={activeChannel.title}
+                  name={activeChannel.icon}
+                />
+              </span>
+              <div className="mt-5 grid gap-2">
+                {[
+                  { label: "Source", value: activeChannel.source },
+                  { label: "Connection", value: activeChannel.connected },
+                  { label: "Last sync", value: activeChannel.lastSync },
+                  { label: "Response", value: activeChannel.responseWindow },
+                ].map((item) => (
+                  <span
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2"
+                    key={item.label}
+                  >
+                    <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      {item.label}
+                    </span>
+                    <span className="mt-1 block text-sm font-black leading-5 text-white">
+                      {item.value}
+                    </span>
+                  </span>
+                ))}
+              </div>
+              <Link
+                className="mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-2xl border border-cyan-200/28 bg-cyan-300/10 px-4 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/48 hover:bg-cyan-300/16"
+                href={activeChannel.href}
+              >
+                Open source
+              </Link>
+            </aside>
+
+            <div className="min-h-0 overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/58 shadow-2xl shadow-black/24">
+              <div className="flex flex-col gap-2 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-lg font-black uppercase tracking-[0.08em] text-white">
+                    Active Threads
+                  </h3>
+                  <p className="text-xs font-semibold text-slate-400">
+                    See who messaged, where it came from, and what to do next.
+                  </p>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {activeChannel.actions.map((action) => (
+                    <button
+                      className="h-9 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-200 transition hover:border-cyan-100/36 hover:bg-cyan-300/10 hover:text-cyan-50 active:scale-[0.99]"
+                      key={`${activeChannel.title}-${action}`}
+                      type="button"
+                    >
+                      {action}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="min-h-0 overflow-auto p-4 [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin]">
+                <div className="min-w-[900px]">
+                  <div
+                    className="grid grid-cols-[minmax(9rem,0.8fr)_minmax(8rem,0.62fr)_minmax(8rem,0.62fr)_minmax(18rem,1.35fr)_minmax(8rem,0.7fr)_minmax(13rem,1fr)] gap-2 border-b border-white/10 px-3 pb-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-500"
+                    role="row"
+                  >
+                    {[
+                      "Person",
+                      "Channel",
+                      "Received",
+                      "Message",
+                      "Priority",
+                      "Next action",
+                    ].map((heading) => (
+                      <span key={heading} role="columnheader">
+                        {heading}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="grid gap-2 pt-3" role="table">
+                    {activeChannel.threads.map((thread) => (
+                      <div
+                        className="grid min-h-[86px] grid-cols-[minmax(9rem,0.8fr)_minmax(8rem,0.62fr)_minmax(8rem,0.62fr)_minmax(18rem,1.35fr)_minmax(8rem,0.7fr)_minmax(13rem,1fr)] gap-2 rounded-[22px] border border-white/10 bg-slate-950/62 px-3 py-3 text-sm font-semibold text-slate-300 shadow-xl shadow-black/16"
+                        key={`${activeChannel.title}-${thread.person}-${thread.received}`}
+                        role="row"
+                      >
+                        <span className="font-black text-white" role="cell">
+                          {thread.person}
+                        </span>
+                        <span className="text-cyan-50" role="cell">
+                          {thread.channel}
+                        </span>
+                        <span className="text-slate-400" role="cell">
+                          {thread.received}
+                        </span>
+                        <span className="text-slate-300" role="cell">
+                          {thread.preview}
+                        </span>
+                        <span role="cell">
+                          <span className="rounded-full border border-amber-200/22 bg-amber-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-amber-100">
+                            {thread.priority}
+                          </span>
+                        </span>
+                        <span className="text-cyan-50" role="cell">
+                          {thread.action}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAdminSoundAssetDetailOverlay = () => {
+    if (!isAdminPreview || !adminSoundAssetDetailsOpen) return null;
+
+    const activeAsset = activeAdminSoundAsset || adminSoundAssetCards[0];
+
+    return (
+      <div
+        aria-label="Sound Assets detail"
+        aria-modal="true"
+        className="fixed inset-0 z-[246] overflow-hidden bg-slate-950/96 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl"
+        role="dialog"
+      >
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_0%,rgba(52,211,153,0.18),transparent_34%),radial-gradient(circle_at_86%_16%,rgba(34,211,238,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.64),rgba(2,6,23,0.92))]"
+        />
+        <div className="relative z-10 flex h-full min-h-0 flex-col px-4 py-4 sm:px-6 lg:px-8">
+          <header className="flex flex-col gap-4 border-b border-white/10 pb-4 min-[920px]:flex-row min-[920px]:items-start min-[920px]:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                Sound asset library / {activeAsset.status}
+              </p>
+              <h2 className="mt-2 text-3xl font-black uppercase tracking-[0.06em] text-white sm:text-4xl">
+                {activeAsset.title}
+              </h2>
+              <p className="mt-2 max-w-[56rem] text-sm font-semibold leading-6 text-slate-300">
+                {activeAsset.description}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="rounded-2xl border border-emerald-100/20 bg-slate-950/64 px-4 py-3 text-left shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+                <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                  Assets
+                </span>
+                <span className="mt-1 block text-2xl font-black text-white">
+                  {activeAsset.assetCount}
+                </span>
+              </span>
+              <button
+                aria-label="Close sound assets detail"
+                className="grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-slate-950/70 text-xl font-black text-cyan-100 shadow-[0_18px_40px_rgba(0,0,0,0.24)] transition hover:border-rose-200/35 hover:bg-rose-300/10 hover:text-rose-100 active:scale-95"
+                onClick={() => setAdminSoundAssetDetailsOpen(false)}
+                type="button"
+              >
+                x
+              </button>
+            </div>
+          </header>
+
+          <div className="mt-3 flex max-w-full gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
+            {adminSoundAssetCards.map((asset, index) => (
+              <button
+                aria-pressed={asset.title === activeAsset.title}
+                className={`shrink-0 rounded-full border px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] transition ${
+                  asset.title === activeAsset.title
+                    ? "border-emerald-100/45 bg-emerald-300/14 text-emerald-50"
+                    : "border-white/10 bg-white/[0.04] text-slate-400 hover:border-emerald-200/28 hover:text-emerald-100"
+                }`}
+                key={asset.title}
+                onClick={() => setActiveAdminSoundAssetIndex(index)}
+                type="button"
+              >
+                {asset.title}
+              </button>
+            ))}
+          </div>
+
+          <section className="mt-4 grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[minmax(260px,0.52fr)_minmax(0,1.48fr)]">
+            <aside className="relative overflow-hidden rounded-[28px] border border-emerald-100/16 bg-slate-950/62 p-4 shadow-2xl shadow-black/24">
+              <span className="pointer-events-none absolute inset-x-5 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-emerald-200/70 to-cyan-200/55" />
+              <span
+                className={`grid h-16 w-16 place-items-center rounded-[24px] border ${
+                  dashboardIconToneStyles[activeAsset.tone].active
+                }`}
+                aria-hidden="true"
+              >
+                <DashboardTabIcon
+                  className="h-8 w-8"
+                  label={activeAsset.title}
+                  name={activeAsset.icon}
+                />
+              </span>
+              <h3 className="mt-5 text-2xl font-black uppercase tracking-tight text-white">
+                {activeAsset.primaryAction}
+              </h3>
+              <p className="mt-2 text-sm font-semibold leading-5 text-slate-300">
+                {activeAsset.destination}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {activeAsset.formats.map((format) => (
+                  <span
+                    className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100"
+                    key={`${activeAsset.title}-format-${format}`}
+                  >
+                    {format}
+                  </span>
+                ))}
+              </div>
+              <Link
+                className="mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-2xl border border-emerald-200/28 bg-emerald-300/10 px-4 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100 transition hover:-translate-y-0.5 hover:border-emerald-100/48 hover:bg-emerald-300/16"
+                href={activeAsset.href}
+              >
+                Open section
+              </Link>
+            </aside>
+
+            <div className="min-h-0 overflow-y-auto rounded-[28px] border border-white/10 bg-slate-950/58 p-4 shadow-2xl shadow-black/24 [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin]">
+              <section className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/50">
+                <div className="border-b border-white/10 px-4 py-3">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                    Asset list
+                  </h3>
+                  <p className="text-xs font-semibold text-slate-400">
+                    Quick view for what lives in this Sound asset section.
+                  </p>
+                </div>
+                <div className="grid gap-2 p-3">
+                  {activeAsset.assets.map((assetItem) => (
+                    <article
+                      className="grid gap-3 rounded-[22px] border border-white/10 bg-slate-950/62 px-3 py-3 sm:grid-cols-[minmax(9rem,0.9fr)_minmax(7rem,0.5fr)_minmax(7rem,0.5fr)_minmax(0,1.1fr)]"
+                      key={`${activeAsset.title}-${assetItem.name}`}
+                    >
+                      <span>
+                        <span className="block text-sm font-black text-white">
+                          {assetItem.name}
+                        </span>
+                        <span className="mt-1 block text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                          {activeAsset.status}
+                        </span>
+                      </span>
+                      <span className="text-xs font-black uppercase tracking-[0.1em] text-emerald-100">
+                        {assetItem.format}
+                      </span>
+                      <span className="text-xs font-black uppercase tracking-[0.1em] text-amber-100">
+                        {assetItem.status}
+                      </span>
+                      <span className="text-xs font-semibold leading-5 text-slate-400">
+                        {assetItem.detail}
+                      </span>
+                    </article>
+                  ))}
+                </div>
+              </section>
+
+              <section className="mt-4 rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
+                  Workflow
+                </h3>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {activeAsset.workflow.map((step) => (
+                    <span
+                      className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-2 text-[10px] font-black uppercase tracking-[0.11em] text-slate-300"
+                      key={`${activeAsset.title}-${step}`}
+                    >
+                      {step}
+                    </span>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAdminFinanceRow = () => {
+    const activeFinanceTab =
+      adminFinanceTabs.find((tab) => tab.key === activeAdminFinanceTab) ||
+      adminFinanceTabs[0];
+    const financeRecordCount = adminFinanceTabs.reduce(
+      (total, tab) => total + tab.rows.length,
+      0,
+    );
+
+    return (
+      <div
+        aria-label="Finances row"
+        data-dashboard-orbiter-row="2"
+        className={`relative flex min-h-0 items-start justify-center pl-36 pr-6 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
+          clampedDashboardOrbiterRow === 2
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-40"
+        }`}
+      >
+        {renderDashboardRowTitle({
+          accentClassName:
+            "bg-emerald-300 shadow-[0_0_14px_rgba(52,211,153,0.65)]",
+          description:
+            "One finance workspace for income, expenses, assets, liabilities, payroll, and taxes.",
+          kicker: "Business finance row",
+          title: "Finances",
+        })}
+        <div className="relative flex h-full w-full max-w-[1180px] items-center justify-center overflow-hidden pr-1 [perspective:1500px]">
+          <button
+            aria-label="Open Finances workspace"
+            className="group relative isolate w-full max-w-[900px] overflow-hidden rounded-[32px] border border-emerald-100/28 bg-[radial-gradient(circle_at_16%_0%,rgba(52,211,153,0.18),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(250,204,21,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.92))] p-5 text-left shadow-2xl shadow-black/30 outline-none transition hover:-translate-y-1 hover:border-emerald-100/45 hover:shadow-emerald-950/35 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-emerald-200/45 sm:p-6 lg:p-7"
+            onClick={() => setAdminFinanceWorkspaceOpen(true)}
+            type="button"
+          >
+            <span className="pointer-events-none absolute inset-x-8 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-emerald-100/80 to-cyan-200/70" />
+            <span className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-emerald-300/14 via-cyan-300/6 to-transparent" />
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                  Finance command center
+                </p>
+                <h3 className="mt-2 text-3xl font-black uppercase tracking-[0.06em] text-white sm:text-4xl">
+                  Finances
+                </h3>
+                <p className="mt-2 max-w-[42rem] text-sm font-semibold leading-6 text-slate-300">
+                  Manage the money view from one place: income, expenses, assets,
+                  liabilities, payroll, taxes, and future bookkeeping lines.
+                </p>
+              </div>
+              <div className="grid min-w-[12rem] grid-cols-2 gap-2">
+                <span className="rounded-2xl border border-white/10 bg-white/[0.05] p-3">
+                  <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Active tab
+                  </span>
+                  <span className="mt-1 block text-2xl font-black text-white">
+                    {activeFinanceTab.label}
+                  </span>
+                </span>
+                <span className="rounded-2xl border border-white/10 bg-white/[0.05] p-3">
+                  <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Lines
+                  </span>
+                  <span className="mt-1 block text-2xl font-black text-white">
+                    {financeRecordCount}
+                  </span>
+                </span>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {adminFinanceTabs.map((tab) => (
+                <span
+                  className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/48 px-3 py-2"
+                  key={tab.key}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-black text-emerald-50">
+                      {tab.label}
+                    </span>
+                    <span className="mt-0.5 block truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
+                      {tab.status}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm font-black text-white">
+                    {tab.metric}
+                  </span>
+                </span>
+              ))}
+            </div>
+            <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
+              <span className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                Opens on {activeFinanceTab.label}
+              </span>
+              <span className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100">
+                Open full screen -&gt;
+              </span>
+            </div>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAdminServicesRow = () => {
+    const activeService = activeAdminService || adminServiceCards[0];
+    const activeServiceCompletion = getDashboardNavigationCardCompletion(activeService);
+
+    return (
+      <div
+        aria-label="Services row"
+        data-dashboard-orbiter-row="3"
+        className={`relative min-h-0 w-full overflow-hidden pl-36 pr-6 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
+          clampedDashboardOrbiterRow === 3
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-40"
+        }`}
+      >
+        {renderDashboardRowTitle({
+          accentClassName:
+            "bg-sky-300 shadow-[0_0_14px_rgba(56,189,248,0.65)]",
+          description:
+            "Service information, resources, facilitation workflow, and price references for Sound Fitness offers.",
+          kicker: "Service catalog row",
+          title: "Services",
+        })}
+
+        <button
+          aria-label="Previous Services"
+          className="absolute left-[5.75rem] top-[47%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:left-[6.75rem] xl:left-[7.25rem]"
+          onClick={() => rotateAdminServicesOrbit("left")}
+          type="button"
+        >
+          &lt;
+        </button>
+        <button
+          aria-label="Next Services"
+          className="absolute right-2 top-[47%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-4 sm:h-14 sm:w-14 sm:text-3xl lg:right-6 xl:right-8"
+          onClick={() => rotateAdminServicesOrbit("right")}
+          type="button"
+        >
+          &gt;
+        </button>
+
+        <div
+          data-dashboard-orbiter-local-scroll="true"
+          className="h-full w-full overflow-y-auto overscroll-contain pb-3 pr-1 [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
+        >
+          <section className="mx-auto grid min-h-full w-full max-w-[1120px] items-center justify-items-center gap-4 pb-4 pt-16">
+            <div
+              aria-label="Services orbit selector"
+              className="relative z-10 mx-auto h-[410px] w-full max-w-[1120px] cursor-grab select-none overflow-hidden outline-none [perspective:1500px] [touch-action:pan-y] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[460px]"
+              onClickCapture={(event) => {
+                if (adminServicePointerMovedRef.current) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  adminServicePointerMovedRef.current = false;
+                }
+              }}
+              onKeyDown={(event) =>
+                handleDashboardOrbitKeyDown(event, rotateAdminServicesOrbit)
+              }
+              onPointerCancel={(event) => {
+                adminServicePointerStartRef.current = null;
+                if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture?.(event.pointerId);
+                }
+              }}
+              onPointerDown={(event) =>
+                handleDashboardOrbitPointerDown(
+                  event,
+                  adminServicePointerStartRef,
+                  adminServicePointerMovedRef,
+                )
+              }
+              onPointerMove={(event) =>
+                handleDashboardOrbitPointerMove(
+                  event,
+                  adminServicePointerStartRef,
+                  adminServicePointerMovedRef,
+                  rotateAdminServicesOrbit,
+                )
+              }
+              onPointerUp={(event) =>
+                handleDashboardOrbitPointerUp(
+                  event,
+                  adminServicePointerStartRef,
+                  adminServicePointerMovedRef,
+                  rotateAdminServicesOrbit,
+                  undefined,
+                  openAdminServiceDetails,
+                )
+              }
+              onWheel={(event) =>
+                handleDashboardOrbitWheel(event, rotateAdminServicesOrbit)
+              }
+              onWheelCapture={(event) =>
+                handleDashboardOrbitWheel(event, rotateAdminServicesOrbit)
+              }
+              tabIndex={0}
+            >
+              {adminServiceCards.map((service, serviceIndex) => {
+                const distance = getAdminServicesOrbitDistance(serviceIndex);
+                const absDistance = Math.abs(distance);
+                const direction = Math.sign(distance);
+                const orbitSlots = [
+                  {
+                    blur: 0,
+                    opacity: 1,
+                    rotateY: 0,
+                    scale: 1,
+                    x: 0,
+                    y: -8,
+                    zIndex: 44,
+                  },
+                  {
+                    blur: 0,
+                    opacity: 0.76,
+                    rotateY: -16,
+                    scale: 0.78,
+                    x: 190,
+                    y: 18,
+                    zIndex: 32,
+                  },
+                  {
+                    blur: 0.8,
+                    opacity: 0.46,
+                    rotateY: -28,
+                    scale: 0.62,
+                    x: 250,
+                    y: 60,
+                    zIndex: 20,
+                  },
+                  {
+                    blur: 1.5,
+                    opacity: 0.24,
+                    rotateY: -40,
+                    scale: 0.48,
+                    x: 140,
+                    y: 100,
+                    zIndex: 12,
+                  },
+                ];
+                const slot =
+                  orbitSlots[Math.min(absDistance, orbitSlots.length - 1)];
+                const tone = dashboardToneStyles[service.tone];
+                const isActive = distance === 0;
+
+                return (
+                  <button
+                    aria-label={
+                      isActive
+                        ? `Open ${service.title} details`
+                        : `Open ${service.title} service card`
+                    }
+                    aria-expanded={isActive && adminServiceDetailsOpen}
+                    aria-pressed={isActive}
+                    className={`dashboard-orbit-card group absolute left-1/2 top-1/2 w-[270px] cursor-pointer overflow-hidden rounded-[30px] border p-4 text-left shadow-2xl transition-[border-color,background-color,box-shadow] duration-300 active:cursor-grabbing sm:w-[330px] ${
+                      isActive
+                        ? "dashboard-orbit-card--active border-cyan-200/45 bg-slate-950/86 shadow-cyan-950/35"
+                        : "border-white/10 bg-slate-950/64 shadow-black/30 hover:border-cyan-200/28 hover:bg-slate-950/78"
+                    }`}
+                    data-dashboard-orbit-card-index={serviceIndex}
+                    key={service.title}
+                    onClick={() => {
+                      if (adminServicePointerMovedRef.current) {
+                        adminServicePointerMovedRef.current = false;
+                        return;
+                      }
+
+                      openAdminServiceDetails(serviceIndex);
+                    }}
+                    style={{
+                      ...dashboardEffectToneStyles[service.tone],
+                      filter: `blur(${slot.blur}px)`,
+                      opacity: slot.opacity,
+                      transform: `translate(-50%, -50%) translateX(${
+                        direction * slot.x
+                      }px) translateY(${slot.y}px) scale(${
+                        slot.scale
+                      }) rotateY(${direction * slot.rotateY}deg)`,
+                      transition:
+                        "transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 360ms ease, filter 360ms ease",
+                      zIndex: slot.zIndex,
+                    }}
+                    type="button"
+                  >
+                    {isActive ? (
+                      <span
+                        aria-hidden="true"
+                        className="dashboard-orbit-card__effect"
+                      />
+                    ) : null}
+                    <span
+                      className={`absolute left-6 right-6 top-0 z-10 h-[2px] rounded-full ${tone.line}`}
+                    />
+                    <span className="relative z-10 flex items-start justify-between gap-3">
+                      <span
+                        className={`relative flex shrink-0 items-center justify-center rounded-[24px] border ${
+                          isActive ? "h-16 w-16" : "h-14 w-14"
+                        } ${dashboardIconToneStyles[service.tone][
+                          isActive ? "active" : "idle"
+                        ]}`}
+                        aria-hidden="true"
+                      >
+                        <DashboardTabIcon
+                          className={
+                            isActive
+                              ? "h-8 w-8 drop-shadow-[0_0_12px_rgba(255,255,255,0.26)]"
+                              : "h-7 w-7 drop-shadow-[0_0_9px_rgba(255,255,255,0.18)]"
+                          }
+                          label={service.title}
+                          name={service.icon}
+                        />
+                        {renderDashboardCompletionDot(
+                          getDashboardNavigationCardCompletion(service),
+                          isActive,
+                        )}
+                      </span>
+                      <span
+                        className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${
+                          isActive
+                            ? "border-cyan-200/45 bg-cyan-300/12 text-cyan-50"
+                            : "border-white/10 bg-white/[0.04] text-slate-400"
+                        }`}
+                      >
+                        {service.status}
+                      </span>
+                    </span>
+                    <span className="relative z-10 mt-4 block text-xl font-black tracking-tight text-white">
+                      {service.title}
+                    </span>
+                    <span className="relative z-10 mt-2 block text-sm leading-6 text-slate-400">
+                      {service.description}
+                    </span>
+                    <span className="relative z-10 mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2">
+                      <span className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                        Starting price
+                      </span>
+                      <span className="text-sm font-black text-white">
+                        {service.price}
+                      </span>
+                    </span>
+                    <span className="relative z-10 mt-2 inline-flex rounded-full border border-white/10 bg-slate-950/48 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">
+                      Open details
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <aside className="hidden relative min-w-0 overflow-hidden rounded-[34px] border border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.15),transparent_36%),radial-gradient(circle_at_88%_12%,rgba(16,185,129,0.11),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.80),rgba(2,6,23,0.72))] p-4 shadow-2xl shadow-black/28 backdrop-blur-xl sm:p-5">
+              <span className="pointer-events-none absolute inset-x-7 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-200/72 to-emerald-200/52" />
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                    Service information
+                  </p>
+                  <h3 className="mt-2 text-3xl font-black uppercase tracking-[0.06em] text-white">
+                    {activeService.title}
+                  </h3>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-300">
+                    {activeService.description}
+                  </p>
+                </div>
+                <span className="grid h-16 w-16 shrink-0 place-items-center rounded-[24px] border border-cyan-100/28 bg-cyan-300/12 text-cyan-50">
+                  <DashboardTabIcon
+                    className="h-8 w-8"
+                    label={activeService.title}
+                    name={activeService.icon}
+                  />
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-2 sm:grid-cols-3">
+                {[
+                  { label: "Price", value: activeService.price },
+                  { label: "Readiness", value: `${activeServiceCompletion}%` },
+                  { label: "Best for", value: activeService.audience },
+                ].map((item) => (
+                  <div
+                    className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/48 px-3 py-3"
+                    key={item.label}
+                  >
+                    <span className="block truncate text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      {item.label}
+                    </span>
+                    <span className="mt-1 block text-sm font-black leading-5 text-white">
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {adminServiceDetailsOpen ? (
+                <>
+                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                    <section className="rounded-[26px] border border-white/10 bg-slate-950/46 p-4">
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                        How we facilitate it
+                      </h4>
+                      <p className="mt-2 text-sm font-semibold leading-5 text-slate-300">
+                        {activeService.delivery}
+                      </p>
+                      <div className="mt-3 grid gap-2">
+                        {activeService.facilitation.map((item) => (
+                          <span
+                            className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-2 text-[10px] font-black uppercase tracking-[0.11em] text-slate-300"
+                            key={`${activeService.title}-${item}`}
+                          >
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="rounded-[26px] border border-white/10 bg-slate-950/46 p-4">
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100">
+                        Resources
+                      </h4>
+                      <p className="mt-2 text-sm font-semibold leading-5 text-slate-300">
+                        {activeService.resourceHub}
+                      </p>
+                      <div className="mt-3 grid gap-2">
+                        {activeService.resources.map((item) => (
+                          <span
+                            className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-2 text-[10px] font-black uppercase tracking-[0.11em] text-slate-300"
+                            key={`${activeService.title}-${item}`}
+                          >
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+
+                  <div className="mt-4 rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
+                          Setup notes
+                        </h4>
+                        <p className="mt-2 text-sm font-semibold leading-5 text-slate-300">
+                          {activeService.setup}
+                        </p>
+                      </div>
+                      <Link
+                        className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-cyan-200/28 bg-cyan-300/10 px-4 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:-translate-y-0.5 hover:border-cyan-100/48 hover:bg-cyan-300/16"
+                        href={activeService.href}
+                      >
+                        Open admin area
+                      </Link>
+                    </div>
+                    {activeService.specialties?.length ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {activeService.specialties.map((specialty) => (
+                          <span
+                            className="rounded-full border border-white/10 bg-slate-950/48 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100"
+                            key={`${activeService.title}-${specialty}`}
+                          >
+                            {specialty}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              ) : (
+                <div className="mt-4 rounded-[26px] border border-white/10 bg-slate-950/46 p-4">
+                  <div className="flex flex-wrap gap-2">
+                    {activeService.specialties?.map((specialty) => (
+                      <span
+                        className="rounded-full border border-white/10 bg-slate-950/48 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100"
+                        key={`${activeService.title}-closed-${specialty}`}
+                      >
+                        {specialty}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </aside>
+          </section>
+        </div>
+      </div>
+    );
+  };
+
   const renderDashboardWeeklyRecapRow = () => (
     <div
       aria-label="Weekly Recap row"
@@ -18579,6 +25431,415 @@ export default function UserHomeDashboardPage() {
     </div>
   );
 
+  const renderAdminMessagesRow = () => {
+    const activeChannel = activeAdminMessage || adminMessageChannels[0];
+
+    return (
+      <div
+        aria-label="My Messages row"
+        data-dashboard-orbiter-row="5"
+        className={`relative min-h-0 w-full overflow-hidden pl-36 pr-6 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
+          clampedDashboardOrbiterRow === 5
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-40"
+        }`}
+      >
+        {renderDashboardRowTitle({
+          accentClassName:
+            "bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.62)]",
+          description:
+            "Inbox command center for app messages, video reviews, platform replies, and site/email leads.",
+          kicker: "Admin communication row",
+          title: "My Messages",
+        })}
+
+        <button
+          aria-label="Previous message source"
+          className="absolute left-[5.75rem] top-[46%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:left-[6.75rem] xl:left-[7.25rem]"
+          onClick={() => rotateAdminMessages("left")}
+          type="button"
+        >
+          &lt;
+        </button>
+        <button
+          aria-label="Next message source"
+          className="absolute right-2 top-[46%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-4 sm:h-14 sm:w-14 sm:text-3xl lg:right-6 xl:right-8"
+          onClick={() => rotateAdminMessages("right")}
+          type="button"
+        >
+          &gt;
+        </button>
+
+        <div
+          data-dashboard-orbiter-local-scroll="true"
+          className="h-full w-full overflow-y-auto overscroll-contain pb-3 pr-1 [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
+        >
+          <section className="mx-auto grid min-h-full w-full max-w-[1120px] items-center justify-items-center gap-4 pb-4 pt-16">
+            <div
+              aria-label="Message source orbit selector"
+              className="relative z-10 mx-auto h-[410px] w-full max-w-[1120px] cursor-grab select-none overflow-hidden outline-none [perspective:1500px] [touch-action:pan-y] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[460px]"
+              onClickCapture={(event) => {
+                if (adminMessagePointerMovedRef.current) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  adminMessagePointerMovedRef.current = false;
+                }
+              }}
+              onKeyDown={(event) =>
+                handleDashboardOrbitKeyDown(event, rotateAdminMessages)
+              }
+              onPointerCancel={(event) => {
+                adminMessagePointerStartRef.current = null;
+                if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture?.(event.pointerId);
+                }
+              }}
+              onPointerDown={(event) =>
+                handleDashboardOrbitPointerDown(
+                  event,
+                  adminMessagePointerStartRef,
+                  adminMessagePointerMovedRef,
+                )
+              }
+              onPointerMove={(event) =>
+                handleDashboardOrbitPointerMove(
+                  event,
+                  adminMessagePointerStartRef,
+                  adminMessagePointerMovedRef,
+                  rotateAdminMessages,
+                )
+              }
+              onPointerUp={(event) =>
+                handleDashboardOrbitPointerUp(
+                  event,
+                  adminMessagePointerStartRef,
+                  adminMessagePointerMovedRef,
+                  rotateAdminMessages,
+                  setActiveAdminMessageIndex,
+                )
+              }
+              onWheel={(event) =>
+                handleDashboardOrbitWheel(event, rotateAdminMessages)
+              }
+              onWheelCapture={(event) =>
+                handleDashboardOrbitWheel(event, rotateAdminMessages)
+              }
+              tabIndex={0}
+            >
+              {adminMessageChannels.map((channel, channelIndex) => {
+                const distance = getAdminMessageOrbitDistance(channelIndex);
+                const absDistance = Math.abs(distance);
+                const direction = Math.sign(distance);
+                const orbitSlots = [
+                  {
+                    blur: 0,
+                    opacity: 1,
+                    rotateY: 0,
+                    scale: 1,
+                    x: 0,
+                    y: -8,
+                    zIndex: 42,
+                  },
+                  {
+                    blur: 0,
+                    opacity: 0.74,
+                    rotateY: -16,
+                    scale: 0.82,
+                    x: 208,
+                    y: 20,
+                    zIndex: 30,
+                  },
+                  {
+                    blur: 0.8,
+                    opacity: 0.42,
+                    rotateY: -30,
+                    scale: 0.64,
+                    x: 276,
+                    y: 58,
+                    zIndex: 16,
+                  },
+                  {
+                    blur: 1.5,
+                    opacity: 0.22,
+                    rotateY: -42,
+                    scale: 0.48,
+                    x: 170,
+                    y: 96,
+                    zIndex: 8,
+                  },
+                ];
+                const slot =
+                  orbitSlots[Math.min(absDistance, orbitSlots.length - 1)];
+                const tone = dashboardToneStyles[channel.tone];
+                const isActive = distance === 0;
+
+                return (
+                  <button
+                    aria-label={
+                      isActive
+                        ? `${channel.title} selected`
+                        : `Select ${channel.title}`
+                    }
+                    aria-expanded={isActive && adminMessageDetailsOpen}
+                    aria-pressed={isActive}
+                    className={`dashboard-orbit-card group absolute left-1/2 top-1/2 w-[276px] overflow-hidden rounded-[30px] border p-4 text-left shadow-2xl transition-[border-color,background-color,box-shadow] duration-300 sm:w-[340px] ${
+                      isActive
+                        ? "dashboard-orbit-card--active border-cyan-200/45 bg-slate-950/86 shadow-cyan-950/35"
+                        : "border-white/10 bg-slate-950/64 shadow-black/30 hover:border-cyan-200/28 hover:bg-slate-950/78"
+                    }`}
+                    data-dashboard-orbit-card-index={channelIndex}
+                    key={channel.title}
+                    onClick={() => {
+                      if (adminMessagePointerMovedRef.current) {
+                        adminMessagePointerMovedRef.current = false;
+                        return;
+                      }
+
+                      setActiveAdminMessageIndex(channelIndex);
+                      setAdminServiceDetailsOpen(false);
+                      setAdminSoundAssetDetailsOpen(false);
+                      setAdminMessageDetailsOpen(true);
+                    }}
+                    style={{
+                      ...dashboardEffectToneStyles[channel.tone],
+                      filter: `blur(${slot.blur}px)`,
+                      opacity: slot.opacity,
+                      transform: `translate(-50%, -50%) translateX(${
+                        direction * slot.x
+                      }px) translateY(${slot.y}px) scale(${
+                        slot.scale
+                      }) rotateY(${direction * slot.rotateY}deg)`,
+                      transition:
+                        "transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 360ms ease, filter 360ms ease",
+                      zIndex: slot.zIndex,
+                    }}
+                    type="button"
+                  >
+                    {isActive ? (
+                      <span
+                        aria-hidden="true"
+                        className="dashboard-orbit-card__effect"
+                      />
+                    ) : null}
+                    <span
+                      className={`absolute left-6 right-6 top-0 z-10 h-[2px] rounded-full ${tone.line}`}
+                    />
+                    <span className="relative z-10 flex items-start justify-between gap-3">
+                      <span
+                        className={`grid h-14 w-14 shrink-0 place-items-center rounded-[22px] border ${
+                          dashboardIconToneStyles[channel.tone].active
+                        }`}
+                        aria-hidden="true"
+                      >
+                        <DashboardTabIcon
+                          className="h-7 w-7"
+                          label={channel.title}
+                          name={channel.icon}
+                        />
+                      </span>
+                      <span className="rounded-2xl border border-cyan-200/22 bg-cyan-300/10 px-3 py-2 text-center">
+                        <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-cyan-100/74">
+                          Unread
+                        </span>
+                        <span className="block text-2xl font-black text-white">
+                          {channel.unread}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="relative z-10 mt-4 block text-xl font-black tracking-tight text-white">
+                      {channel.title}
+                    </span>
+                    <span className="relative z-10 mt-2 block text-xs font-semibold leading-5 text-slate-400">
+                      {channel.description}
+                    </span>
+                    <span className="relative z-10 mt-3 grid grid-cols-2 gap-2">
+                      <span className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                        <span className="block truncate text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                          Source
+                        </span>
+                        <span className="mt-1 block truncate text-[10px] font-black uppercase tracking-[0.08em] text-cyan-50">
+                          {channel.source}
+                        </span>
+                      </span>
+                      <span className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                        <span className="block truncate text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                          Response
+                        </span>
+                        <span className="mt-1 block truncate text-[10px] font-black uppercase tracking-[0.08em] text-cyan-50">
+                          {channel.responseWindow}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="relative z-10 mt-2 inline-flex rounded-full border border-white/10 bg-slate-950/48 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">
+                      Open full card
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <aside className="hidden relative min-w-0 overflow-hidden rounded-[34px] border border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.16),transparent_34%),radial-gradient(circle_at_86%_14%,rgba(244,114,182,0.11),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.80),rgba(2,6,23,0.72))] p-4 shadow-2xl shadow-black/28 backdrop-blur-xl sm:p-5">
+              <span className="pointer-events-none absolute inset-x-7 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-200/72 to-fuchsia-200/52" />
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                    Message command center
+                  </p>
+                  <h3 className="mt-2 text-3xl font-black uppercase tracking-[0.06em] text-white">
+                    {activeChannel.title}
+                  </h3>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-300">
+                    {activeChannel.description}
+                  </p>
+                </div>
+                <div className="grid shrink-0 grid-cols-2 gap-2">
+                  <span className="rounded-2xl border border-cyan-100/20 bg-cyan-300/10 px-3 py-2 text-center">
+                    <span className="block text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100/74">
+                      Unread
+                    </span>
+                    <span className="block text-2xl font-black text-white">
+                      {activeChannel.unread}
+                    </span>
+                  </span>
+                  <span className="rounded-2xl border border-white/10 bg-slate-950/48 px-3 py-2 text-center">
+                    <span className="block text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                      Total
+                    </span>
+                    <span className="block text-2xl font-black text-white">
+                      {adminMessageUnreadTotal}
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                {[
+                  { label: "Connection", value: activeChannel.connected },
+                  { label: "Last sync", value: activeChannel.lastSync },
+                  { label: "Status", value: activeChannel.status },
+                ].map((item) => (
+                  <span
+                    className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/48 px-3 py-2"
+                    key={item.label}
+                  >
+                    <span className="block truncate text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      {item.label}
+                    </span>
+                    <span className="mt-1 block truncate text-[10px] font-black uppercase tracking-[0.08em] text-cyan-50">
+                      {item.value}
+                    </span>
+                  </span>
+                ))}
+              </div>
+
+              {adminMessageDetailsOpen ? (
+                <>
+                  <section className="mt-4 overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/50">
+                    <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+                      <div>
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                          Active threads
+                        </h4>
+                        <p className="text-xs font-semibold text-slate-400">
+                          See who messaged, where it came from, and what to do next.
+                        </p>
+                      </div>
+                      <Link
+                        className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-2xl border border-cyan-200/28 bg-cyan-300/10 px-3 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:border-cyan-100/48 hover:bg-cyan-300/16"
+                        href={activeChannel.href}
+                      >
+                        Open source
+                      </Link>
+                    </div>
+                    <div className="min-h-0 overflow-auto p-3 [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin]">
+                      <div className="min-w-[760px]">
+                        <div
+                          className="grid grid-cols-[minmax(9rem,0.8fr)_minmax(8rem,0.62fr)_minmax(9rem,0.72fr)_minmax(16rem,1.35fr)_minmax(8rem,0.7fr)_minmax(13rem,1fr)] gap-2 border-b border-white/10 px-3 pb-3 text-[8px] font-black uppercase tracking-[0.12em] text-slate-500"
+                          role="row"
+                        >
+                          {[
+                            "Person",
+                            "Channel",
+                            "Received",
+                            "Message",
+                            "Priority",
+                            "Next action",
+                          ].map((heading) => (
+                            <span key={heading} role="columnheader">
+                              {heading}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="grid gap-2 pt-3" role="table">
+                          {activeChannel.threads.map((thread) => (
+                            <div
+                              className="grid min-h-[82px] grid-cols-[minmax(9rem,0.8fr)_minmax(8rem,0.62fr)_minmax(9rem,0.72fr)_minmax(16rem,1.35fr)_minmax(8rem,0.7fr)_minmax(13rem,1fr)] gap-2 rounded-[22px] border border-white/10 bg-slate-950/62 px-3 py-3 text-sm font-semibold text-slate-300 shadow-xl shadow-black/16"
+                              key={`${activeChannel.title}-${thread.person}-${thread.received}`}
+                              role="row"
+                            >
+                              <span className="font-black text-white" role="cell">
+                                {thread.person}
+                              </span>
+                              <span className="text-cyan-50" role="cell">
+                                {thread.channel}
+                              </span>
+                              <span className="text-slate-400" role="cell">
+                                {thread.received}
+                              </span>
+                              <span className="text-slate-300" role="cell">
+                                {thread.preview}
+                              </span>
+                              <span role="cell">
+                                <span className="rounded-full border border-amber-200/22 bg-amber-300/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-amber-100">
+                                  {thread.priority}
+                                </span>
+                              </span>
+                              <span className="text-cyan-50" role="cell">
+                                {thread.action}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                    {activeChannel.actions.map((action) => (
+                      <button
+                        className="min-h-10 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-200 transition hover:-translate-y-0.5 hover:border-cyan-100/36 hover:bg-cyan-300/10 hover:text-cyan-50 active:scale-[0.99]"
+                        key={`${activeChannel.title}-${action}`}
+                        type="button"
+                      >
+                        {action}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {activeChannel.threads.slice(0, 2).map((thread) => (
+                    <span
+                      className="rounded-2xl border border-white/10 bg-slate-950/46 px-3 py-2"
+                      key={`${activeChannel.title}-closed-${thread.person}`}
+                    >
+                      <span className="block truncate text-[8px] font-black uppercase tracking-[0.13em] text-slate-500">
+                        {thread.channel}
+                      </span>
+                      <span className="mt-1 block truncate text-sm font-black text-white">
+                        {thread.person}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </aside>
+          </section>
+        </div>
+      </div>
+    );
+  };
+
   const renderDashboardMySoundRow = () => (
     <div
       aria-label="My Sound row"
@@ -18800,6 +26061,701 @@ export default function UserHomeDashboardPage() {
       </div>
     </div>
   );
+
+  const renderAdminSoundAssetsRow = () => {
+    const activeAsset = activeAdminSoundAsset || adminSoundAssetCards[0];
+
+    return (
+      <div
+        aria-label="Sound Assets row"
+        data-dashboard-orbiter-row="6"
+        className={`relative min-h-0 w-full overflow-hidden pl-36 pr-6 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
+          clampedDashboardOrbiterRow === 6
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-40"
+        }`}
+      >
+        {renderDashboardRowTitle({
+          accentClassName:
+            "bg-emerald-300 shadow-[0_0_14px_rgba(52,211,153,0.62)]",
+          description:
+            "Branding, banners, shirt mockups, AI website assets, store, blogs, and content in one admin hub.",
+          kicker: "Brand asset row",
+          title: "Sound Assets",
+        })}
+
+        <button
+          aria-label="Previous Sound Assets"
+          className="absolute left-[5.75rem] top-[46%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:left-[6.75rem] xl:left-[7.25rem]"
+          onClick={() => rotateAdminSoundAssets("left")}
+          type="button"
+        >
+          &lt;
+        </button>
+        <button
+          aria-label="Next Sound Assets"
+          className="absolute right-2 top-[46%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-4 sm:h-14 sm:w-14 sm:text-3xl lg:right-6 xl:right-8"
+          onClick={() => rotateAdminSoundAssets("right")}
+          type="button"
+        >
+          &gt;
+        </button>
+
+        <div
+          data-dashboard-orbiter-local-scroll="true"
+          className="h-full w-full overflow-y-auto overscroll-contain pb-3 pr-1 [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
+        >
+          <section className="mx-auto grid min-h-full w-full max-w-[1120px] items-center justify-items-center gap-4 pb-4 pt-16">
+            <div
+              aria-label="Sound Assets orbit selector"
+              className="relative z-10 mx-auto h-[410px] w-full max-w-[1120px] cursor-grab select-none overflow-hidden outline-none [perspective:1500px] [touch-action:pan-y] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[460px]"
+              onClickCapture={(event) => {
+                if (adminSoundAssetPointerMovedRef.current) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  adminSoundAssetPointerMovedRef.current = false;
+                }
+              }}
+              onKeyDown={(event) =>
+                handleDashboardOrbitKeyDown(event, rotateAdminSoundAssets)
+              }
+              onPointerCancel={(event) => {
+                adminSoundAssetPointerStartRef.current = null;
+                if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture?.(event.pointerId);
+                }
+              }}
+              onPointerDown={(event) =>
+                handleDashboardOrbitPointerDown(
+                  event,
+                  adminSoundAssetPointerStartRef,
+                  adminSoundAssetPointerMovedRef,
+                )
+              }
+              onPointerMove={(event) =>
+                handleDashboardOrbitPointerMove(
+                  event,
+                  adminSoundAssetPointerStartRef,
+                  adminSoundAssetPointerMovedRef,
+                  rotateAdminSoundAssets,
+                )
+              }
+              onPointerUp={(event) =>
+                handleDashboardOrbitPointerUp(
+                  event,
+                  adminSoundAssetPointerStartRef,
+                  adminSoundAssetPointerMovedRef,
+                  rotateAdminSoundAssets,
+                  setActiveAdminSoundAssetIndex,
+                )
+              }
+              onWheel={(event) =>
+                handleDashboardOrbitWheel(event, rotateAdminSoundAssets)
+              }
+              onWheelCapture={(event) =>
+                handleDashboardOrbitWheel(event, rotateAdminSoundAssets)
+              }
+              tabIndex={0}
+            >
+              {adminSoundAssetCards.map((asset, assetIndex) => {
+                const distance = getAdminSoundAssetOrbitDistance(assetIndex);
+                const absDistance = Math.abs(distance);
+                const direction = Math.sign(distance);
+                const orbitSlots = [
+                  {
+                    blur: 0,
+                    opacity: 1,
+                    rotateY: 0,
+                    scale: 1,
+                    x: 0,
+                    y: -8,
+                    zIndex: 44,
+                  },
+                  {
+                    blur: 0,
+                    opacity: 0.75,
+                    rotateY: -16,
+                    scale: 0.8,
+                    x: 206,
+                    y: 20,
+                    zIndex: 32,
+                  },
+                  {
+                    blur: 0.8,
+                    opacity: 0.45,
+                    rotateY: -30,
+                    scale: 0.62,
+                    x: 278,
+                    y: 60,
+                    zIndex: 18,
+                  },
+                  {
+                    blur: 1.45,
+                    opacity: 0.24,
+                    rotateY: -42,
+                    scale: 0.48,
+                    x: 172,
+                    y: 98,
+                    zIndex: 10,
+                  },
+                ];
+                const slot =
+                  orbitSlots[Math.min(absDistance, orbitSlots.length - 1)];
+                const tone = dashboardToneStyles[asset.tone];
+                const isActive = distance === 0;
+
+                return (
+                  <button
+                    aria-label={
+                      isActive
+                        ? `${asset.title} selected`
+                        : `Select ${asset.title}`
+                    }
+                    aria-expanded={isActive && adminSoundAssetDetailsOpen}
+                    aria-pressed={isActive}
+                    className={`dashboard-orbit-card group absolute left-1/2 top-1/2 w-[276px] overflow-hidden rounded-[30px] border p-4 text-left shadow-2xl transition-[border-color,background-color,box-shadow] duration-300 sm:w-[340px] ${
+                      isActive
+                        ? "dashboard-orbit-card--active border-cyan-200/45 bg-slate-950/86 shadow-cyan-950/35"
+                        : "border-white/10 bg-slate-950/64 shadow-black/30 hover:border-cyan-200/28 hover:bg-slate-950/78"
+                    }`}
+                    data-dashboard-orbit-card-index={assetIndex}
+                    key={asset.title}
+                    onClick={() => {
+                      if (adminSoundAssetPointerMovedRef.current) {
+                        adminSoundAssetPointerMovedRef.current = false;
+                        return;
+                      }
+
+                      setActiveAdminSoundAssetIndex(assetIndex);
+                      setAdminServiceDetailsOpen(false);
+                      setAdminMessageDetailsOpen(false);
+                      setAdminSoundAssetDetailsOpen(true);
+                    }}
+                    style={{
+                      ...dashboardEffectToneStyles[asset.tone],
+                      filter: `blur(${slot.blur}px)`,
+                      opacity: slot.opacity,
+                      transform: `translate(-50%, -50%) translateX(${
+                        direction * slot.x
+                      }px) translateY(${slot.y}px) scale(${
+                        slot.scale
+                      }) rotateY(${direction * slot.rotateY}deg)`,
+                      transition:
+                        "transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 360ms ease, filter 360ms ease",
+                      zIndex: slot.zIndex,
+                    }}
+                    type="button"
+                  >
+                    {isActive ? (
+                      <span
+                        aria-hidden="true"
+                        className="dashboard-orbit-card__effect"
+                      />
+                    ) : null}
+                    <span
+                      className={`absolute left-6 right-6 top-0 z-10 h-[2px] rounded-full ${tone.line}`}
+                    />
+                    <span className="relative z-10 flex items-start justify-between gap-3">
+                      <span
+                        className={`grid h-14 w-14 shrink-0 place-items-center rounded-[22px] border ${
+                          dashboardIconToneStyles[asset.tone].active
+                        }`}
+                        aria-hidden="true"
+                      >
+                        <DashboardTabIcon
+                          className="h-7 w-7"
+                          label={asset.title}
+                          name={asset.icon}
+                        />
+                      </span>
+                      <span className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-right">
+                        <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                          Assets
+                        </span>
+                        <span className="block text-sm font-black text-white">
+                          {asset.assetCount}
+                        </span>
+                      </span>
+                    </span>
+                    <span className="relative z-10 mt-4 block text-xl font-black tracking-tight text-white">
+                      {asset.title}
+                    </span>
+                    <span className="relative z-10 mt-2 block text-xs font-semibold leading-5 text-slate-400">
+                      {asset.description}
+                    </span>
+                    <span className="relative z-10 mt-3 flex flex-wrap gap-1.5">
+                      {asset.formats.slice(0, 3).map((format) => (
+                        <span
+                          className="rounded-full border border-white/10 bg-slate-950/46 px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100"
+                          key={`${asset.title}-${format}`}
+                        >
+                          {format}
+                        </span>
+                        ))}
+                    </span>
+                    <span className="relative z-10 mt-2 inline-flex rounded-full border border-white/10 bg-slate-950/48 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">
+                      Open full card
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <aside className="hidden relative min-w-0 overflow-hidden rounded-[34px] border border-emerald-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(52,211,153,0.15),transparent_34%),radial-gradient(circle_at_86%_14%,rgba(34,211,238,0.12),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.82),rgba(2,6,23,0.74))] p-4 shadow-2xl shadow-black/28 backdrop-blur-xl sm:p-5">
+              <span className="pointer-events-none absolute inset-x-7 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-emerald-200/72 to-cyan-200/52" />
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                    Sound asset library
+                  </p>
+                  <h3 className="mt-2 text-3xl font-black uppercase tracking-[0.06em] text-white">
+                    {activeAsset.title}
+                  </h3>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-slate-300">
+                    {activeAsset.description}
+                  </p>
+                </div>
+                <span className="grid h-16 w-16 shrink-0 place-items-center rounded-[24px] border border-emerald-100/28 bg-emerald-300/12 text-emerald-50">
+                  <DashboardTabIcon
+                    className="h-8 w-8"
+                    label={activeAsset.title}
+                    name={activeAsset.icon}
+                  />
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-2 sm:grid-cols-3">
+                {[
+                  { label: "Active vault", value: activeAsset.assetCount },
+                  { label: "All hubs", value: `${adminSoundAssetCards.length} sections` },
+                  { label: "Inventory", value: adminSoundAssetCountLabel },
+                ].map((item) => (
+                  <span
+                    className="min-w-0 rounded-2xl border border-white/10 bg-slate-950/48 px-3 py-2"
+                    key={item.label}
+                  >
+                    <span className="block truncate text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                      {item.label}
+                    </span>
+                    <span className="mt-1 block truncate text-[10px] font-black uppercase tracking-[0.08em] text-emerald-50">
+                      {item.value}
+                    </span>
+                  </span>
+                ))}
+              </div>
+
+              {adminSoundAssetDetailsOpen ? (
+                <>
+                  <section className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(220px,0.85fr)]">
+                    <div className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/50">
+                      <div className="border-b border-white/10 px-4 py-3">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                          Asset list
+                        </h4>
+                        <p className="text-xs font-semibold text-slate-400">
+                          Quick view for what lives in this Sound asset section.
+                        </p>
+                      </div>
+                      <div className="grid gap-2 p-3">
+                        {activeAsset.assets.map((assetItem) => (
+                          <article
+                            className="grid gap-3 rounded-[22px] border border-white/10 bg-slate-950/62 px-3 py-3 sm:grid-cols-[minmax(9rem,0.9fr)_minmax(7rem,0.5fr)_minmax(7rem,0.5fr)_minmax(0,1.1fr)]"
+                            key={`${activeAsset.title}-${assetItem.name}`}
+                          >
+                            <span>
+                              <span className="block text-sm font-black text-white">
+                                {assetItem.name}
+                              </span>
+                              <span className="mt-1 block text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                                {activeAsset.status}
+                              </span>
+                            </span>
+                            <span className="text-xs font-black uppercase tracking-[0.1em] text-emerald-100">
+                              {assetItem.format}
+                            </span>
+                            <span className="text-xs font-black uppercase tracking-[0.1em] text-amber-100">
+                              {assetItem.status}
+                            </span>
+                            <span className="text-xs font-semibold leading-5 text-slate-400">
+                              {assetItem.detail}
+                            </span>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3">
+                      <section className="rounded-[26px] border border-white/10 bg-slate-950/50 p-4">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100">
+                          Destination
+                        </h4>
+                        <p className="mt-2 text-sm font-semibold leading-5 text-slate-300">
+                          {activeAsset.destination}
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {activeAsset.formats.map((format) => (
+                            <span
+                              className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-cyan-100"
+                              key={`${activeAsset.title}-format-${format}`}
+                            >
+                              {format}
+                            </span>
+                          ))}
+                        </div>
+                      </section>
+
+                      <section className="rounded-[26px] border border-white/10 bg-slate-950/50 p-4">
+                        <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-amber-100">
+                          Workflow
+                        </h4>
+                        <div className="mt-3 grid gap-2">
+                          {activeAsset.workflow.map((step) => (
+                            <span
+                              className="rounded-2xl border border-white/8 bg-white/[0.035] px-3 py-2 text-[10px] font-black uppercase tracking-[0.11em] text-slate-300"
+                              key={`${activeAsset.title}-${step}`}
+                            >
+                              {step}
+                            </span>
+                          ))}
+                        </div>
+                      </section>
+                    </div>
+                  </section>
+
+                  <div className="mt-4 flex flex-col gap-3 rounded-[26px] border border-white/10 bg-white/[0.04] p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
+                        Next admin action
+                      </h4>
+                      <p className="mt-1 text-sm font-semibold leading-5 text-slate-300">
+                        {activeAsset.primaryAction}
+                      </p>
+                    </div>
+                    <Link
+                      className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-200/28 bg-emerald-300/10 px-4 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100 transition hover:-translate-y-0.5 hover:border-emerald-100/48 hover:bg-emerald-300/16"
+                      href={activeAsset.href}
+                    >
+                      Open section
+                    </Link>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                  {activeAsset.assets.map((assetItem) => (
+                    <span
+                      className="rounded-2xl border border-white/10 bg-slate-950/46 px-3 py-2"
+                      key={`${activeAsset.title}-closed-${assetItem.name}`}
+                    >
+                      <span className="block truncate text-[8px] font-black uppercase tracking-[0.13em] text-slate-500">
+                        {assetItem.format}
+                      </span>
+                      <span className="mt-1 block truncate text-sm font-black text-white">
+                        {assetItem.name}
+                      </span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </aside>
+          </section>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAdminSettingsRow = () => {
+    return (
+      <div
+        aria-label="Admin Settings row"
+        data-dashboard-orbiter-row="8"
+        className={`relative flex min-h-0 items-start justify-center pl-36 pr-6 pt-2 sm:pl-40 sm:pr-10 sm:pt-3 lg:pl-44 lg:pr-12 lg:pt-4 ${
+          clampedDashboardOrbiterRow === 8
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-40"
+        }`}
+      >
+        <div className="pointer-events-none absolute left-36 top-6 z-20 min-w-0 pr-6 sm:left-40 lg:left-44">
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">
+            Settings
+          </div>
+          <p className="mt-1 max-w-[34rem] truncate text-[11px] font-semibold text-slate-400">
+            Admin controls for channels, people, alerts, data, and site defaults.
+          </p>
+        </div>
+
+        <div
+          data-dashboard-orbiter-local-scroll="true"
+          className="h-full w-full max-w-[1180px] overflow-y-auto overscroll-contain pb-3 pr-1 scroll-smooth [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
+        >
+          <section className="flex min-h-full items-center justify-center pb-4 pt-12 lg:pt-16">
+            <section className="relative w-full max-w-[980px] min-w-0 overflow-visible py-4 sm:py-6">
+              <button
+                aria-label="Previous settings card"
+                className="absolute left-0 top-1/2 z-50 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-emerald-200/45 hover:bg-emerald-300/10 hover:text-emerald-100 active:scale-95 sm:h-12 sm:w-12 sm:text-2xl"
+                onClick={() => rotateAdminSettingsOrbit("left")}
+                type="button"
+              >
+                &lt;
+              </button>
+              <button
+                aria-label="Next settings card"
+                className="absolute right-0 top-1/2 z-50 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-emerald-200/45 hover:bg-emerald-300/10 hover:text-emerald-100 active:scale-95 sm:h-12 sm:w-12 sm:text-2xl"
+                onClick={() => rotateAdminSettingsOrbit("right")}
+                type="button"
+              >
+                &gt;
+              </button>
+
+              <div
+                aria-label="Settings horizontal orbit"
+                className="relative z-10 mx-auto h-[410px] w-full max-w-[760px] cursor-grab select-none overflow-visible outline-none [perspective:1500px] [touch-action:pan-y] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[450px]"
+                onClickCapture={(event) => {
+                  if (adminSettingsPointerMovedRef.current) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    adminSettingsPointerMovedRef.current = false;
+                  }
+                }}
+                onKeyDown={(event) =>
+                  handleDashboardOrbitKeyDown(event, rotateAdminSettingsOrbit)
+                }
+                onPointerCancel={(event) => {
+                  adminSettingsPointerStartRef.current = null;
+                  if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                    event.currentTarget.releasePointerCapture?.(event.pointerId);
+                  }
+                }}
+                onPointerDown={(event) =>
+                  handleDashboardOrbitPointerDown(
+                    event,
+                    adminSettingsPointerStartRef,
+                    adminSettingsPointerMovedRef,
+                  )
+                }
+                onPointerMove={(event) =>
+                  handleDashboardOrbitPointerMove(
+                    event,
+                    adminSettingsPointerStartRef,
+                    adminSettingsPointerMovedRef,
+                    rotateAdminSettingsOrbit,
+                  )
+                }
+                onPointerUp={(event) =>
+                  handleDashboardOrbitPointerUp(
+                    event,
+                    adminSettingsPointerStartRef,
+                    adminSettingsPointerMovedRef,
+                    rotateAdminSettingsOrbit,
+                    setActiveAdminSettingsIndex,
+                  )
+                }
+                onWheel={(event) =>
+                  handleDashboardOrbitWheel(event, rotateAdminSettingsOrbit)
+                }
+                onWheelCapture={(event) =>
+                  handleDashboardOrbitWheel(event, rotateAdminSettingsOrbit)
+                }
+                tabIndex={0}
+              >
+                <div className="pointer-events-none absolute left-1/2 top-[51%] h-[188px] w-[min(680px,72vw)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/12 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.16),rgba(52,211,153,0.08)_46%,transparent_72%)] shadow-[inset_0_0_48px_rgba(34,211,238,0.10),0_0_32px_rgba(16,185,129,0.08)]" />
+                <div className="pointer-events-none absolute left-1/2 top-[51%] h-px w-[min(600px,66vw)] -translate-x-1/2 bg-gradient-to-r from-transparent via-cyan-100/48 to-transparent shadow-[0_0_24px_rgba(34,211,238,0.32)]" />
+                <div className="sr-only">
+                  Settings cards: social channels, roles and access, engagement
+                  rules, notifications, data and privacy, and site controls.
+                </div>
+
+                {adminSettingsSections.map((section, sectionIndex) => {
+                  const distance =
+                    getAdminSettingsOrbitDistance(sectionIndex);
+                  const clampedDistance = Math.max(
+                    -3,
+                    Math.min(3, distance),
+                  );
+                  const absDistance = Math.abs(clampedDistance);
+                  const direction = Math.sign(clampedDistance);
+                  const orbitSlots = [
+                    {
+                      blur: 0,
+                      opacity: 1,
+                      rotateY: 0,
+                      scale: 1,
+                      x: 0,
+                      y: -8,
+                      z: 96,
+                      zIndex: 48,
+                    },
+                    {
+                      blur: 0,
+                      opacity: 0.8,
+                      rotateY: 18,
+                      scale: 0.8,
+                      x: 210,
+                      y: 18,
+                      z: 40,
+                      zIndex: 34,
+                    },
+                    {
+                      blur: 0.75,
+                      opacity: 0.46,
+                      rotateY: 32,
+                      scale: 0.63,
+                      x: 286,
+                      y: 58,
+                      z: 0,
+                      zIndex: 20,
+                    },
+                    {
+                      blur: 1.4,
+                      opacity: 0.24,
+                      rotateY: 46,
+                      scale: 0.48,
+                      x: 216,
+                      y: 96,
+                      z: -44,
+                      zIndex: 10,
+                    },
+                  ];
+                  const slot = orbitSlots[absDistance];
+                  const tone = dashboardToneStyles[section.tone];
+                  const isActive = distance === 0;
+
+                  return (
+                    <button
+                      aria-label={
+                        isActive
+                          ? `${section.title} selected`
+                          : `Select ${section.title}`
+                      }
+                      aria-pressed={isActive}
+                      className={`dashboard-orbit-card group absolute left-1/2 top-1/2 min-h-[286px] w-[270px] cursor-pointer overflow-hidden rounded-[30px] border p-4 text-left shadow-2xl outline-none transition-[border-color,background-color,box-shadow] duration-300 active:cursor-grabbing sm:w-[336px] ${
+                        isActive
+                          ? "dashboard-orbit-card--active border-cyan-200/45 bg-slate-950/88 shadow-cyan-950/35"
+                          : "border-white/10 bg-slate-950/64 shadow-black/30 hover:border-cyan-200/28 hover:bg-slate-950/78"
+                      }`}
+                      data-dashboard-orbit-card-index={sectionIndex}
+                      key={section.title}
+                      onClick={() => {
+                        if (adminSettingsPointerMovedRef.current) {
+                          adminSettingsPointerMovedRef.current = false;
+                          return;
+                        }
+
+                        setActiveAdminSettingsIndex(sectionIndex);
+                      }}
+                      style={{
+                        ...dashboardEffectToneStyles[section.tone],
+                        filter: `blur(${slot.blur}px)`,
+                        opacity: slot.opacity,
+                        pointerEvents: absDistance > 2 ? "none" : "auto",
+                        transform: `translate(-50%, -50%) translateX(${
+                          direction * slot.x
+                        }px) translateY(${slot.y}px) translateZ(${
+                          slot.z
+                        }px) scale(${slot.scale}) rotateY(${
+                          direction * -slot.rotateY
+                        }deg)`,
+                        transition:
+                          "transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 360ms ease, filter 360ms ease",
+                        zIndex: slot.zIndex,
+                      }}
+                      tabIndex={isActive || absDistance <= 1 ? 0 : -1}
+                      type="button"
+                    >
+                      {isActive ? (
+                        <span
+                          aria-hidden="true"
+                          className="dashboard-orbit-card__effect"
+                        />
+                      ) : null}
+                      <span
+                        className={`absolute left-6 right-6 top-0 z-10 h-[2px] rounded-full ${tone.line}`}
+                      />
+                      <span className="relative z-10 flex items-start justify-between gap-3">
+                        <span
+                          className={`grid shrink-0 place-items-center rounded-[22px] border ${
+                            isActive ? "h-14 w-14" : "h-12 w-12"
+                          } ${dashboardIconToneStyles[section.tone][
+                            isActive ? "active" : "idle"
+                          ]}`}
+                          aria-hidden="true"
+                        >
+                          <DashboardTabIcon
+                            className={
+                              isActive
+                                ? "h-7 w-7 drop-shadow-[0_0_12px_rgba(255,255,255,0.24)]"
+                                : "h-6 w-6 drop-shadow-[0_0_9px_rgba(255,255,255,0.16)]"
+                            }
+                            label={section.title}
+                            name={section.icon}
+                          />
+                        </span>
+                        <span
+                          className={`rounded-full border px-3 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${
+                            isActive
+                              ? "border-cyan-200/45 bg-cyan-300/12 text-cyan-50"
+                              : "border-white/10 bg-white/[0.04] text-slate-400"
+                          }`}
+                        >
+                          {section.status}
+                        </span>
+                      </span>
+
+                      <span className="relative z-10 mt-4 block text-xl font-black uppercase tracking-[0.04em] text-white">
+                        {section.title}
+                      </span>
+                      <span className="relative z-10 mt-2 block min-h-[3.75rem] text-sm font-semibold leading-5 text-slate-400">
+                        {section.detail}
+                      </span>
+
+                      <span className="relative z-10 mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2">
+                        <span className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
+                          Focus
+                        </span>
+                        <span className="text-sm font-black text-white">
+                          {section.metric}
+                        </span>
+                      </span>
+
+                      <span className="relative z-10 mt-3 grid gap-1.5">
+                        {section.items.map((item) => (
+                          <span
+                            className="rounded-2xl border border-white/8 bg-slate-950/48 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300"
+                            key={`${section.title}-${item}`}
+                          >
+                            {item}
+                          </span>
+                        ))}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mx-auto mt-2 flex max-w-[760px] flex-wrap items-center justify-center gap-2">
+                {adminSettingsSections.map((section, sectionIndex) => {
+                  const isActive = sectionIndex === activeAdminSettingsIndex;
+
+                  return (
+                    <button
+                      aria-label={`Select ${section.title}`}
+                      className={`h-2.5 rounded-full border transition ${
+                        isActive
+                          ? "w-8 border-cyan-100/45 bg-cyan-200 shadow-[0_0_14px_rgba(34,211,238,0.42)]"
+                          : "w-2.5 border-white/10 bg-slate-500/60 hover:border-cyan-200/35 hover:bg-cyan-200/70"
+                      }`}
+                      key={`${section.title}-dot`}
+                      onClick={() => setActiveAdminSettingsIndex(sectionIndex)}
+                      type="button"
+                    />
+                  );
+                })}
+              </div>
+            </section>
+          </section>
+        </div>
+      </div>
+    );
+  };
 
   const renderDashboardMasterJourneyRow = () => (
     <div
@@ -19692,7 +27648,7 @@ export default function UserHomeDashboardPage() {
               {renderDashboardPageAnalog()}
             </div>
           </div>
-          <div className="relative z-10 mt-4 min-h-0 flex-1 overflow-hidden sm:mt-5 lg:mt-5">
+          <div className="relative z-10 mt-0 min-h-0 flex-1 overflow-hidden">
             <div
               className="grid transition-transform duration-[430ms] ease-[cubic-bezier(0.2,0.85,0.25,1)]"
               style={{
@@ -19705,7 +27661,7 @@ export default function UserHomeDashboardPage() {
               }}
             >
               <div
-                className={`flex min-h-0 items-start justify-center pl-36 pr-6 pt-2 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-3 lg:pl-44 lg:pr-12 lg:pt-4 ${
+                className={`flex min-h-0 items-start justify-center pl-36 pr-6 pt-0 transition-opacity duration-300 sm:pl-40 sm:pr-10 lg:pl-44 lg:pr-12 ${
                   clampedDashboardOrbiterRow === 0
                     ? "pointer-events-auto opacity-100"
                     : "pointer-events-none opacity-40"
@@ -19716,44 +27672,74 @@ export default function UserHomeDashboardPage() {
                   className="flex h-full w-full max-w-[1120px] flex-col items-center gap-2 overflow-y-auto overscroll-contain pb-3 pr-1 sm:gap-3 [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
                 >
                   {renderDashboardHeroRow()}
-                  {renderFavoriteWorkoutsCard()}
+                  {isAdminPreview ? null : renderFavoriteWorkoutsCard()}
                 </div>
               </div>
               {renderDashboardDailyToolsRow()}
-              {renderDashboardWeeklyRecapRow()}
-              {renderDashboardOrbitCardRow({
-                cards: dashboardCommandCenterCards,
-                description:
-                  "Rotate through training, fuel, recovery, performance, education, and Sound World command centers.",
-                getDistance: getCommandCenterOrbitDistance,
-                kicker: "Dashboards",
-                pointerMovedRef: commandCenterPointerMovedRef,
-                pointerStartRef: commandCenterPointerStartRef,
-                rotateOrbit: rotateCommandCenter,
-                rowIndex: 3,
-                setActiveIndex: setActiveCommandCenterIndex,
-                title: "Choose Your Command Center",
+              {isAdminPreview
+                ? renderAdminFinanceRow()
+                : renderDashboardWeeklyRecapRow()}
+              {isAdminPreview
+                ? renderAdminServicesRow()
+                : renderDashboardOrbitCardRow({
+                    cards: dashboardCommandCenterCards,
+                    description:
+                      "Rotate through training, fuel, recovery, performance, education, and Sound World command centers.",
+                    getDistance: getCommandCenterOrbitDistance,
+                    kicker: "Dashboards",
+                    pointerMovedRef: commandCenterPointerMovedRef,
+                    pointerStartRef: commandCenterPointerStartRef,
+                    rotateOrbit: rotateCommandCenter,
+                    rowIndex: 3,
+                    setActiveIndex: setActiveCommandCenterIndex,
+                    title: "Choose Your Command Center",
               })}
               {renderDashboardCalendarRow()}
-              {renderDashboardMySoundRow()}
-              {renderDashboardOrbitCardRow({
-                cards: dashboardSystemCards,
-                description:
-                  "Goals, insights, stats, progress, appointments, messages, packages, and achievements live together here.",
-                getDistance: getSystemCenterOrbitDistance,
-                kicker: "Systems",
-                pointerMovedRef: systemCenterPointerMovedRef,
-                pointerStartRef: systemCenterPointerStartRef,
-                rotateOrbit: rotateSystemCenter,
-                rowIndex: 6,
-                setActiveIndex: setActiveSystemCenterIndex,
-                title: "System Row",
-              })}
-              {renderDashboardMasterJourneyRow()}
+              {isAdminPreview
+                ? renderAdminMessagesRow()
+                : renderDashboardMySoundRow()}
+              {isAdminPreview
+                ? renderAdminSoundAssetsRow()
+                : renderDashboardOrbitCardRow({
+                    cards: dashboardSystemCards,
+                    description:
+                      "Goals, insights, stats, progress, appointments, messages, packages, and achievements live together here.",
+                    getDistance: getSystemCenterOrbitDistance,
+                    kicker: "Systems",
+                    pointerMovedRef: systemCenterPointerMovedRef,
+                    pointerStartRef: systemCenterPointerStartRef,
+                    rotateOrbit: rotateSystemCenter,
+                    rowIndex: 6,
+                    setActiveIndex: setActiveSystemCenterIndex,
+                    title: "System Row",
+                  })}
+              {isAdminPreview
+                ? renderDashboardOrbitCardRow({
+                    cards: adminMarketingCampaignCards,
+                    description:
+                      "Email nurture and social campaign planning for Sound Fitness marketing.",
+                    getDistance: getAdminMarketingCampaignOrbitDistance,
+                    kicker: "Campaign row",
+                    pointerMovedRef: adminMarketingCampaignPointerMovedRef,
+                    pointerStartRef: adminMarketingCampaignPointerStartRef,
+                    rotateOrbit: rotateAdminMarketingCampaignOrbit,
+                    rowIndex: 7,
+                    setActiveIndex: setActiveAdminMarketingCampaignIndex,
+                    title: "Marketing Campaigns",
+                  })
+                : null}
+              {isAdminPreview
+                ? renderAdminSettingsRow()
+                : renderDashboardMasterJourneyRow()}
             </div>
           </div>
         </section>
         {renderDashboardProfileHubOverlay()}
+        {renderAdminJourneyDetailOverlay()}
+        {renderAdminFinanceOverlay()}
+        {renderAdminServiceDetailOverlay()}
+        {renderAdminMessageDetailOverlay()}
+        {renderAdminSoundAssetDetailOverlay()}
 
       </div>
       </main>

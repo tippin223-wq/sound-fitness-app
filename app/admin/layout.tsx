@@ -54,6 +54,10 @@ export default function AdminLayout({
 
   if (pathname === ROUTES.admin.login) return <>{children}</>;
 
+  if (pathname === ROUTES.admin.dashboard) {
+    return <ProfileProvider>{children}</ProfileProvider>;
+  }
+
   return (
     <ProfileProvider>
       <ProtectedHeader role="admin" />
