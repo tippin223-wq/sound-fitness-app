@@ -5,12 +5,9 @@ import Link from "next/link";
 import { useRef } from "react";
 
 export type AchievementBadgeCategory =
-  | "goal"
-  | "nutrition"
-  | "performance"
-  | "recovery"
-  | "streak"
-  | "volume";
+  | "consistency"
+  | "intensity"
+  | "recovery";
 
 export type AchievementBadgeStatus =
   | "active"
@@ -67,17 +64,7 @@ const categoryStyles: Record<
     trim: string;
   }
 > = {
-  goal: {
-    badge: "from-sky-200/38 via-cyan-300/20 to-slate-950 border-sky-100/48 text-sky-50",
-    card: "border-sky-300/24 bg-sky-300/9 text-sky-50",
-    glow: "shadow-[0_0_30px_rgba(14,165,233,0.22)]",
-    iconGlow: "bg-sky-200/24 shadow-[0_0_22px_rgba(125,211,252,0.34)]",
-    iconWell: "from-sky-950/86 via-sky-900/54 to-cyan-300/14",
-    rail: "bg-sky-300/70",
-    ring: "rgba(125,211,252,0.95)",
-    trim: "via-sky-100/72",
-  },
-  nutrition: {
+  consistency: {
     badge:
       "from-emerald-200/36 via-lime-300/18 to-slate-950 border-emerald-100/44 text-emerald-50",
     card: "border-emerald-300/24 bg-emerald-300/9 text-emerald-50",
@@ -88,49 +75,27 @@ const categoryStyles: Record<
     ring: "rgba(110,231,183,0.92)",
     trim: "via-emerald-100/66",
   },
-  performance: {
+  intensity: {
     badge:
-      "from-amber-200/42 via-yellow-200/20 to-slate-950 border-amber-100/54 text-amber-50",
-    card: "border-amber-300/28 bg-amber-300/10 text-amber-50",
-    glow: "shadow-[0_0_34px_rgba(250,204,21,0.2)]",
-    iconGlow: "bg-amber-200/24 shadow-[0_0_24px_rgba(250,204,21,0.32)]",
-    iconWell: "from-amber-950/86 via-yellow-900/48 to-amber-300/14",
-    rail: "bg-amber-300/70",
-    ring: "rgba(250,204,21,0.95)",
-    trim: "via-amber-100/72",
+      "from-rose-200/42 via-red-300/22 to-slate-950 border-rose-100/52 text-rose-50",
+    card: "border-rose-300/28 bg-rose-300/10 text-rose-50",
+    glow: "shadow-[0_0_34px_rgba(248,113,113,0.22)]",
+    iconGlow: "bg-rose-200/24 shadow-[0_0_24px_rgba(248,113,113,0.32)]",
+    iconWell: "from-rose-950/86 via-red-900/52 to-rose-300/14",
+    rail: "bg-rose-300/70",
+    ring: "rgba(248,113,113,0.96)",
+    trim: "via-rose-100/72",
   },
   recovery: {
     badge:
-      "from-violet-200/36 via-cyan-300/16 to-slate-950 border-violet-100/44 text-violet-50",
-    card: "border-violet-300/24 bg-violet-300/9 text-violet-50",
-    glow: "shadow-[0_0_30px_rgba(139,92,246,0.17)]",
-    iconGlow: "bg-violet-200/22 shadow-[0_0_22px_rgba(167,139,250,0.28)]",
-    iconWell: "from-violet-950/86 via-violet-900/50 to-cyan-300/12",
-    rail: "bg-violet-300/62",
-    ring: "rgba(196,181,253,0.9)",
-    trim: "via-violet-100/66",
-  },
-  streak: {
-    badge:
-      "from-orange-200/38 via-amber-200/19 to-slate-950 border-orange-100/48 text-orange-50",
-    card: "border-orange-300/25 bg-orange-300/9 text-orange-50",
-    glow: "shadow-[0_0_32px_rgba(251,146,60,0.18)]",
-    iconGlow: "bg-orange-200/23 shadow-[0_0_22px_rgba(251,146,60,0.3)]",
-    iconWell: "from-orange-950/86 via-amber-900/48 to-orange-300/13",
-    rail: "bg-orange-300/66",
-    ring: "rgba(251,146,60,0.94)",
-    trim: "via-orange-100/68",
-  },
-  volume: {
-    badge:
-      "from-cyan-200/40 via-sky-300/20 to-slate-950 border-cyan-100/52 text-cyan-50",
-    card: "border-cyan-300/26 bg-cyan-300/10 text-cyan-50",
-    glow: "shadow-[0_0_32px_rgba(34,211,238,0.2)]",
-    iconGlow: "bg-cyan-200/24 shadow-[0_0_24px_rgba(34,211,238,0.32)]",
-    iconWell: "from-cyan-950/86 via-sky-900/52 to-cyan-300/14",
-    rail: "bg-cyan-300/72",
-    ring: "rgba(34,211,238,0.96)",
-    trim: "via-cyan-100/74",
+      "from-yellow-100/42 via-amber-200/22 to-slate-950 border-yellow-100/52 text-yellow-50",
+    card: "border-yellow-300/28 bg-yellow-300/10 text-yellow-50",
+    glow: "shadow-[0_0_34px_rgba(250,204,21,0.2)]",
+    iconGlow: "bg-yellow-100/24 shadow-[0_0_24px_rgba(250,204,21,0.32)]",
+    iconWell: "from-amber-950/86 via-yellow-900/50 to-yellow-300/14",
+    rail: "bg-yellow-300/70",
+    ring: "rgba(250,204,21,0.95)",
+    trim: "via-yellow-100/72",
   },
 };
 
@@ -153,6 +118,20 @@ const statusStyles: Record<AchievementBadgeStatus, string> = {
 
 const clampProgress = (value: number) => Math.min(Math.max(value, 0), 100);
 
+const normalizeAchievementCategory = (
+  category: unknown,
+): AchievementBadgeCategory => {
+  if (category === "recovery" || category === "nutrition") return "recovery";
+  if (category === "consistency" || category === "goal" || category === "streak") {
+    return "consistency";
+  }
+  if (category === "intensity" || category === "performance" || category === "volume") {
+    return "intensity";
+  }
+
+  return "intensity";
+};
+
 const getAchievementProgress = (item: AchievementBadgeItem) => {
   if (typeof item.progress === "number") return clampProgress(item.progress);
   if (item.status === "completed") return 100;
@@ -168,7 +147,8 @@ export function SoundLogoAchievementBadge({
   compact?: boolean;
   item: AchievementBadgeItem;
 }) {
-  const tone = categoryStyles[item.category];
+  const category = normalizeAchievementCategory(item.category);
+  const tone = categoryStyles[category];
   const status = item.status || "default";
   const progress = getAchievementProgress(item);
   const completed = status === "completed" || progress >= 100;
@@ -280,7 +260,8 @@ function AchievementCard({
   compact: boolean;
   item: AchievementBadgeItem;
 }) {
-  const tone = categoryStyles[item.category];
+  const category = normalizeAchievementCategory(item.category);
+  const tone = categoryStyles[category];
   const status = item.status || "default";
   const progress = getAchievementProgress(item);
   const isCta = item.variant === "cta";
