@@ -32,7 +32,7 @@ import {
   loadWorkoutLogEntriesWithFallback,
   loadWorkoutTemplatesWithFallback,
 } from "@/lib/data/workoutPersistence";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
 import {
   LOCAL_WORKOUT_BUILDER_STORAGE_KEYS,
   readWorkoutBuilderSelectedExercises,
@@ -21956,7 +21956,7 @@ export default function ExerciseLibraryPage() {
 
     const loadProfileSummary = async () => {
       try {
-        const { data: authData } = await supabase.auth.getUser();
+        const { data: authData } = await getSupabaseUser();
         const user = authData.user;
 
         if (!user || !isActive) {

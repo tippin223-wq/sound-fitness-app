@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import { ProfileProvider } from "@/components/profile/ProfileProvider";
 import { ROUTES } from "@/lib/routes";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
 
 export default function MemberDashboardShell({
   children,
@@ -33,7 +33,7 @@ export default function MemberDashboardShell({
       try {
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await getSupabaseUser();
 
         if (!isActive) return;
 

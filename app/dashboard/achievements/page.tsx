@@ -7,7 +7,7 @@ import { ROUTES } from "@/lib/routes";
 
 const featuredAchievements = [
   {
-    category: "volume",
+    category: "intensity",
     href: ROUTES.dashboard.stats,
     icon: "🏋️",
     label: "Volume Milestone",
@@ -16,7 +16,7 @@ const featuredAchievements = [
     statusLabel: "Earned",
   },
   {
-    category: "streak",
+    category: "consistency",
     href: ROUTES.dashboard.sessions,
     icon: "🔥",
     label: "5 Day Streak",
@@ -25,7 +25,7 @@ const featuredAchievements = [
     statusLabel: "Building",
   },
   {
-    category: "performance",
+    category: "intensity",
     href: ROUTES.performance.home,
     icon: "⚡",
     label: "Performance Spark",
@@ -43,7 +43,7 @@ const featuredAchievements = [
     statusLabel: "Stable",
   },
   {
-    category: "nutrition",
+    category: "recovery",
     href: ROUTES.nutritionPortal.home,
     icon: "🍽️",
     label: "Fuel Rhythm",
@@ -52,7 +52,7 @@ const featuredAchievements = [
     statusLabel: "Ready",
   },
   {
-    category: "goal",
+    category: "consistency",
     href: ROUTES.dashboard.goals,
     icon: "🎯",
     label: "Goal Locked",
@@ -64,7 +64,7 @@ const featuredAchievements = [
 
 const lockedAchievements = [
   {
-    category: "streak",
+    category: "consistency",
     href: ROUTES.dashboard.achievements,
     icon: "🔥",
     label: "30 Day Chain",
@@ -73,7 +73,7 @@ const lockedAchievements = [
     statusLabel: "Locked",
   },
   {
-    category: "volume",
+    category: "intensity",
     href: ROUTES.dashboard.achievements,
     icon: "🏋️",
     label: "Phase Crusher",
@@ -82,7 +82,7 @@ const lockedAchievements = [
     statusLabel: "Locked",
   },
   {
-    category: "nutrition",
+    category: "recovery",
     href: ROUTES.dashboard.achievements,
     icon: "💧",
     label: "Hydration Week",
@@ -91,7 +91,7 @@ const lockedAchievements = [
     statusLabel: "Locked",
   },
   {
-    category: "performance",
+    category: "intensity",
     href: ROUTES.dashboard.achievements,
     icon: "🏆",
     label: "PR Week",

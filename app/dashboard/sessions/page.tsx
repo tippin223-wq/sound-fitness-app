@@ -1119,7 +1119,7 @@ export default function SessionsPage() {
     workoutJourneyStages[0];
   const workoutAchievements: AchievementBadgeItem[] = [
     {
-      category: "volume",
+      category: "intensity",
       href: ROUTES.dashboard.achievements,
       icon: "🏋️",
       label: "Volume Milestone",
@@ -1130,7 +1130,7 @@ export default function SessionsPage() {
       statusLabel: workoutStats.totalSets >= 50 ? "Earned" : "In progress",
     },
     {
-      category: "streak",
+      category: "consistency",
       href: ROUTES.dashboard.achievements,
       icon: "🔥",
       label: "7 Day Training Streak",
@@ -1141,7 +1141,7 @@ export default function SessionsPage() {
       statusLabel: workoutRewardStats.trainingStreak >= 7 ? "Earned" : "In progress",
     },
     {
-      category: "volume",
+      category: "intensity",
       href: ROUTES.dashboard.achievements,
       icon: "💪",
       label: "Push Strength Up",
@@ -1152,7 +1152,7 @@ export default function SessionsPage() {
       statusLabel: "In progress",
     },
     {
-      category: "volume",
+      category: "intensity",
       href: ROUTES.dashboard.achievements,
       icon: "🦵",
       label: "Leg Day Completed",
@@ -1163,7 +1163,7 @@ export default function SessionsPage() {
       statusLabel: workoutStats.loggedEntries ? "Earned" : "Locked",
     },
     {
-      category: "performance",
+      category: "intensity",
       href: ROUTES.dashboard.achievements,
       icon: "⚡",
       label: "PR Achieved",
@@ -1174,7 +1174,7 @@ export default function SessionsPage() {
       statusLabel: "In progress",
     },
     {
-      category: "goal",
+      category: "consistency",
       href: ROUTES.dashboard.achievements,
       icon: "🎯",
       label: "Program Consistency",
@@ -1185,7 +1185,7 @@ export default function SessionsPage() {
       statusLabel: percentUsed >= 80 ? "Earned" : "In progress",
     },
     {
-      category: "performance",
+      category: "intensity",
       href: ROUTES.dashboard.achievements,
       icon: "🧠",
       label: "Perfect Form Week",
@@ -1196,7 +1196,7 @@ export default function SessionsPage() {
       statusLabel: "Locked",
     },
     {
-      category: "performance",
+      category: "intensity",
       href: ROUTES.dashboard.achievements,
       icon: "🏃",
       label: "Conditioning Complete",

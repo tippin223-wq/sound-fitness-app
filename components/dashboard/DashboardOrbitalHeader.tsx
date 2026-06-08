@@ -12,7 +12,7 @@ import {
   subscribeToProfileUpdates,
 } from "@/lib/profile-storage";
 import { ROUTES } from "@/lib/routes";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
 
 type DashboardOrbitalHeaderLink = {
   href: string;
@@ -246,7 +246,7 @@ export default function DashboardOrbitalHeader({
     async function loadAuthProfile() {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getSupabaseUser();
 
       if (!isActive) return;
 
@@ -489,7 +489,7 @@ export default function DashboardOrbitalHeader({
               <span className="flex items-center gap-1.5">
                 <span className="sr-only">Sound Points</span>
                 <DashboardTabIcon
-                  className="h-5 w-5 text-amber-200 drop-shadow-[0_0_12px_rgba(250,204,21,0.28)]"
+                  className="h-5 w-5 text-sky-200 drop-shadow-[0_0_12px_rgba(56,189,248,0.36)]"
                   name="Performance"
                 />
                 <span className="text-sm font-black leading-none text-white">
@@ -560,8 +560,8 @@ export default function DashboardOrbitalHeader({
                       {soundEmeralds.toLocaleString()}
                     </div>
                   </div>
-                  <div className="rounded-2xl border border-amber-200/22 bg-amber-300/10 px-3 py-2 text-right">
-                    <div className="text-[8px] font-black uppercase tracking-[0.14em] text-amber-100/70">
+                  <div className="rounded-2xl border border-sky-200/22 bg-sky-300/10 px-3 py-2 text-right">
+                    <div className="text-[8px] font-black uppercase tracking-[0.14em] text-sky-100/70">
                       Points
                     </div>
                     <div className="text-lg font-black text-white">

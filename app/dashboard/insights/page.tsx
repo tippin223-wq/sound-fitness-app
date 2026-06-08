@@ -55,7 +55,7 @@ const hubLinks = [
 
 const insightAchievementPreview = [
   {
-    category: "goal",
+    category: "consistency",
     href: ROUTES.dashboard.achievements,
     icon: "🎯",
     label: "Goal Locked",
@@ -73,7 +73,7 @@ const insightAchievementPreview = [
     statusLabel: "Stable",
   },
   {
-    category: "performance",
+    category: "intensity",
     href: ROUTES.dashboard.achievements,
     icon: "📈",
     label: "Trend Active",

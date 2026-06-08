@@ -20,7 +20,7 @@ import {
   type AchievementBadgeItem,
 } from "@/components/dashboard/SoundAchievementBadgeRow";
 import { useProfile } from "@/components/profile/ProfileProvider";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
 import { ROUTES } from "@/lib/routes";
 import MuscleHeatMap from "@/components/anatomy/MuscleHeatMap";
 import {
@@ -7085,7 +7085,7 @@ export default function ClientProfilePage() {
       }
 
       try {
-        const { data } = await supabase.auth.getUser();
+        const { data } = await getSupabaseUser();
         const metadata = asRecord(data.user?.user_metadata);
         const authEmail = data.user?.email || "";
         const authCreatedAt = data.user?.created_at || "";
@@ -14256,7 +14256,7 @@ export default function ClientProfilePage() {
     ];
     const profileHubAchievements: AchievementBadgeItem[] = [
       {
-        category: "goal",
+        category: "consistency",
         href: ROUTES.dashboard.achievements,
         icon: "ID",
         label: "Profile Built",
@@ -14267,7 +14267,7 @@ export default function ClientProfilePage() {
         statusLabel: profileHubCompletion >= 90 ? "Earned" : "In progress",
       },
       {
-        category: "performance",
+        category: "intensity",
         href: ROUTES.dashboard.achievements,
         icon: "SP",
         label: "Sound Points",
@@ -14278,7 +14278,7 @@ export default function ClientProfilePage() {
         statusLabel: soundPoints >= 1800 ? "Earned" : "In progress",
       },
       {
-        category: "volume",
+        category: "intensity",
         href: ROUTES.dashboard.achievements,
         icon: "ST",
         label: "Token Vault",

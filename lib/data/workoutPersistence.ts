@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
 import {
   readWorkoutBuilderTemplates,
   type LocalWorkoutBuilderSelectedExercise,
@@ -253,7 +253,7 @@ const groupStatEntriesByCompletedAt = (entries: LocalExerciseStatEntry[]) =>
 export const getCurrentAuthenticatedWorkoutProfile = async (): Promise<
   WorkoutPersistenceResult<AuthenticatedWorkoutProfile | null>
 > => {
-  const { data, error } = await supabase.auth.getUser();
+  const { data, error } = await getSupabaseUser();
 
   if (error) {
     return createResult({

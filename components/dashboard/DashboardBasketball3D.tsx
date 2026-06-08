@@ -309,6 +309,7 @@ export default function DashboardBasketball3D({
           }
         });
         texture.dispose();
+        renderer.forceContextLoss();
         renderer.dispose();
       };
     };

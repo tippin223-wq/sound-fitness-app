@@ -263,6 +263,7 @@ export default function DashboardTrophy3D({
         }
         observer.disconnect();
         disposeObject(trophy);
+        renderer.forceContextLoss();
         renderer.dispose();
       };
     };

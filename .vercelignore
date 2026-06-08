@@ -1,0 +1,9 @@
+.codex/
+.codex*.log
+.codex*.out.log
+.codex*.err.log
+codex-dev-server*.log
+codex-dev-server*.out.log
+codex-dev-server*.err.log
+*.local
+.env*

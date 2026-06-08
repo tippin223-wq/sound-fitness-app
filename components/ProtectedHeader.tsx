@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useProfile } from "@/components/profile/ProfileProvider";
 import { ROUTES } from "@/lib/routes";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
 import {
   asRecord,
   getProfileInitials,
@@ -732,7 +732,7 @@ export default function ProtectedHeader({
     async function loadUser() {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getSupabaseUser();
 
       const email = user?.email || "";
       const metadata = asRecord(user?.user_metadata);

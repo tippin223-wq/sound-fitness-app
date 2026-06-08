@@ -1436,7 +1436,7 @@ function TodayTrainingCard({
   return (
     <section className="rounded-[32px] border border-cyan-300/15 bg-cyan-400/10 p-5">
       <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100">
-        Today's Training
+        Today&apos;s Training
       </p>
       {item ? (
         <div className="mt-4">

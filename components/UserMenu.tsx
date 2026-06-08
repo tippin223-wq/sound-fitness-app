@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
 import { ROUTES } from "@/lib/routes";
 
 export default function UserMenu() {
@@ -15,7 +15,7 @@ export default function UserMenu() {
 
   useEffect(() => {
     async function loadUser() {
-      const { data } = await supabase.auth.getUser();
+      const { data } = await getSupabaseUser();
       setUserEmail(data.user?.email ?? null);
     }
 

@@ -4543,7 +4543,7 @@ body:has(.exercise-library-page-theme)::-webkit-scrollbar,
   grid-column: 1 / -1 !important;
   justify-self: center !important;
   max-width: 31rem !important;
-  width: min(100%, 31rem) !important;
+  width: min(100%, 32.5rem) !important;
 }
 
 .dashboard-header-meter-panel__stack--orbit
@@ -15300,6 +15300,269 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   display: none !important;
 }
 
+.dashboard-header-mobile-orbit-joystick {
+  display: none;
+}
+
+@media (max-width: 540px) {
+  .dashboard-header-vortex-shell .dashboard-header-mobile-orbit-joystick {
+    display: grid;
+    flex: 0 0 2.55rem;
+    height: 2.36rem;
+    margin-left: -0.28rem;
+    margin-right: -0.04rem;
+    min-width: 2.55rem;
+    touch-action: manipulation;
+    transform: translateY(-0.52rem);
+    width: 2.55rem;
+    z-index: 86;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-mobile-orbit-joystick
+    .dashboard-header-scroll-button__field {
+    inset: 0.36rem 0.38rem;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-mobile-orbit-joystick
+    .dashboard-header-scroll-button__ball {
+    height: 1.35rem;
+    width: 1.35rem;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-mobile-orbit-joystick
+    .dashboard-header-scroll-button__arrow {
+    font-size: 0.66rem;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-mobile-orbit-joystick
+    .dashboard-header-scroll-button__arrow--left {
+    left: 0.08rem;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-mobile-orbit-joystick
+    .dashboard-header-scroll-button__arrow--right {
+    right: 0.08rem;
+  }
+
+  .dashboard-header-vortex-shell .dashboard-header-main-orbit-stage--stable {
+    flex: 1 1 auto;
+    height: 5.8rem;
+    min-width: 0;
+    overflow: visible;
+    perspective: 72rem;
+    position: relative;
+    transform-style: preserve-3d;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-menu-block--dashboard,
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-menu-block--profile {
+    left: 0;
+    max-width: none;
+    opacity: 1;
+    position: absolute;
+    right: auto;
+    top: 50%;
+    transform: translate3d(0, -50%, 0) scale(1) !important;
+    transform-origin: 0 50%;
+    transition:
+      filter 220ms ease,
+      opacity 220ms ease,
+      transform 420ms cubic-bezier(0.2, 0.82, 0.18, 1),
+      visibility 220ms ease;
+    visibility: visible;
+    width: min(15.8rem, calc(100vw - 10.25rem));
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-menu-block--dashboard {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-menu-block--profile {
+    flex: 0 0 auto;
+    justify-content: flex-start;
+    margin-left: 0;
+    z-index: 96;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="selector"]
+    .dashboard-header-menu-block--dashboard {
+    filter: none;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate3d(0, -50%, 0) scale(1) !important;
+    visibility: visible;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="selector"]
+    .dashboard-header-menu-block--profile {
+    filter: blur(0.04rem) brightness(0.72) saturate(0.82);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(calc(100% + 1rem), -50%, -3rem) rotateY(-20deg)
+      scale(0.86) !important;
+    visibility: hidden;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"]
+    .dashboard-header-menu-block--dashboard {
+    filter: blur(0.04rem) brightness(0.72) saturate(0.82);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate3d(calc(-100% - 1rem), -50%, -3rem) rotateY(20deg)
+      scale(0.86) !important;
+    visibility: hidden;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"]
+    .dashboard-header-menu-block--profile {
+    filter: none;
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate3d(0, -50%, 0) scale(1) !important;
+    visibility: visible;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-menu-block--dashboard
+    > div {
+    margin-left: 0;
+    max-width: 100%;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-orbit-system {
+    gap: 0.38rem;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-joystick {
+    height: 2.62rem;
+    min-width: 3.05rem;
+    transform: translateY(-0.12rem);
+    width: 3.05rem;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-orbit-system
+    > .flex {
+    gap: 0.18rem;
+    justify-content: flex-start;
+    min-width: 0;
+    width: calc(100% - 3.25rem);
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-rail-pocket {
+    min-width: 4.85rem !important;
+    transform: translateX(0.55rem) scale(0.9);
+    transform-origin: center;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-rail-pocket
+    + a {
+    margin-left: -0.72rem;
+    min-width: 0;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-rail-pocket
+    + a
+    span
+    span {
+    max-width: 5.45rem;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-profile-cluster {
+    gap: 0.24rem;
+    min-width: 0;
+    width: 100%;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-hub-trigger {
+    min-height: 3.35rem;
+    padding: 0.15rem;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-sound-level-badge {
+    height: 2.94rem;
+    width: 2.94rem;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-rewards-control {
+    align-items: center;
+    display: flex;
+    gap: 0.14rem;
+    min-width: 0;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-points-trigger {
+    min-height: 3.6rem;
+    min-width: 4.82rem;
+    padding: 0.3rem 0.32rem;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-claim-trigger {
+    height: 3.28rem;
+    min-width: 2.42rem;
+    padding: 0;
+    width: 2.42rem;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-action-gear,
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-upper-actions,
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-quick-actions {
+    display: none !important;
+  }
+}
+
 @container dashboard-header-menu (min-width: 44rem) {
   .dashboard-header-menu-block--slot-left,
   .dashboard-header-menu-block--slot-right {
@@ -23285,6 +23548,12 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   z-index: 240;
 }
 
+.dashboard-header-meter-panel[data-meter-menu-state="closing"] {
+  animation: dashboard-header-meter-panel-close 520ms cubic-bezier(0.58, 0, 0.38, 1)
+    both;
+  pointer-events: none;
+}
+
 .dashboard-header-meter-panel::before {
   background:
     radial-gradient(
@@ -23431,27 +23700,16 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 
 .dashboard-header-category-levels-menu {
   align-self: flex-end;
-  background:
-    radial-gradient(ellipse at 54% 42%, rgba(0, 0, 0, 0.58), transparent 62%),
-    radial-gradient(
-      ellipse at 34% 52%,
-      rgba(34, 211, 238, 0.1),
-      transparent 48%
-    ),
-    radial-gradient(
-      ellipse at 82% 66%,
-      rgba(250, 204, 21, 0.06),
-      transparent 34%
-    );
+  background: transparent;
   display: grid;
   flex: 0 0 auto;
-  gap: 0.34rem;
-  margin-bottom: clamp(0.35rem, 0.9vh, 0.7rem);
-  min-height: clamp(11rem, 20vh, 12.25rem);
+  gap: 0;
+  margin-bottom: clamp(-0.7rem, -0.85vh, -0.34rem);
+  min-height: clamp(9.6rem, 17vh, 11.1rem);
   order: 0;
-  padding: 0 0.08rem 0.65rem;
+  padding: 0;
   position: relative;
-  width: min(100%, 31rem);
+  width: min(100%, 32.5rem);
   z-index: 3;
 }
 
@@ -23522,7 +23780,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  cursor: grab;
+  cursor: default;
   display: block;
   height: clamp(10.55rem, 19vh, 11.55rem);
   isolation: isolate;
@@ -23537,8 +23795,17 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   user-select: none;
 }
 
+.dashboard-header-category-levels-menu__orbit--ufo-chyron {
+  height: clamp(9.6rem, 17vh, 11.1rem);
+  min-height: clamp(9.6rem, 17vh, 11.1rem);
+  padding: 0;
+  pointer-events: none;
+  touch-action: auto;
+  transform-style: preserve-3d;
+}
+
 .dashboard-header-category-levels-menu__orbit:active {
-  cursor: grabbing;
+  cursor: default;
 }
 
 .dashboard-header-category-levels-menu__orbit:focus-visible {
@@ -23725,6 +23992,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   filter: saturate(1.12) brightness(1.08);
   min-height: 8.65rem;
   opacity: 1 !important;
+  overflow: visible;
   padding: 0.7rem 0.78rem;
   transform: translate3d(-50%, -50%, 2.1rem) rotateX(-5deg) rotateY(0deg)
     scale(1);
@@ -23734,13 +24002,44 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 }
 
 .dashboard-header-category-levels-menu__item--slot-center::before {
-  animation: dashboard-header-category-digital-load 5.2s ease-in-out infinite;
-  opacity: 0.62;
+  animation: none;
+  background:
+    radial-gradient(
+      ellipse at 28% 28%,
+      color-mix(
+        in srgb,
+        var(--dashboard-header-category-color) 18%,
+        transparent
+      ),
+      transparent 46%
+    ),
+    linear-gradient(
+      135deg,
+      rgba(2, 6, 23, 0.76),
+      rgba(15, 23, 42, 0.5) 52%,
+      rgba(2, 6, 23, 0.7)
+    );
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--dashboard-header-category-color) 28%,
+      rgba(148, 163, 184, 0.16)
+    );
+  border-radius: 0.78rem;
+  bottom: -0.08rem;
+  height: auto;
+  left: -0.08rem;
+  opacity: 0.72;
+  right: -0.08rem;
+  top: -0.08rem;
+  transform: none;
+  width: auto;
 }
 
 .dashboard-header-category-levels-menu__item--slot-center::after {
-  animation: dashboard-header-category-digital-scan 3.8s linear infinite;
-  opacity: 0.52;
+  animation: dashboard-header-category-digital-scan 4.8s linear infinite;
+  inset: 0.26rem;
+  opacity: 0.16;
 }
 
 .dashboard-header-category-levels-menu__item--slot-left {
@@ -23795,13 +24094,20 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
       0 0 0.2rem color-mix(in srgb, currentColor 36%, transparent)
     )
     drop-shadow(0 0 0.58rem rgba(34, 211, 238, 0.14));
-  height: 3.32rem;
+  height: 5.85rem;
   left: auto;
   opacity: 1;
   position: relative;
   top: auto;
   transform: none;
-  width: 3.32rem;
+  width: 5.25rem;
+}
+
+.dashboard-header-category-levels-menu__item--slot-center
+  .dashboard-header-category-levels-menu__actor.dashboard-header-category-actor {
+  height: 6.75rem;
+  margin-left: -0.24rem;
+  width: 8.8rem;
 }
 
 .dashboard-header-category-levels-menu__actor.dashboard-header-category-actor::before,
@@ -23814,6 +24120,21 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   display: none;
 }
 
+.dashboard-header-category-levels-menu__item--slot-center
+  .dashboard-header-category-levels-menu__actor
+  .dashboard-header-category-actor__meter {
+  display: block !important;
+}
+
+.dashboard-header-category-levels-menu__item--slot-center
+  .dashboard-header-category-levels-menu__actor
+  .dashboard-header-category-actor__meter::before,
+.dashboard-header-category-levels-menu__item--slot-center
+  .dashboard-header-category-levels-menu__actor
+  .dashboard-header-category-actor__meter::after {
+  display: block !important;
+}
+
 .dashboard-header-category-levels-menu__actor
   .dashboard-header-category-actor__meter::after {
   inset: 0.52rem;
@@ -23821,11 +24142,768 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 
 .dashboard-header-category-levels-menu__actor
   .dashboard-header-category-actor__figure {
-  height: 3.04rem;
+  filter:
+    drop-shadow(0 0 0.28rem color-mix(in srgb, currentColor 34%, transparent))
+    drop-shadow(0 0.18rem 0.32rem rgba(2, 6, 23, 0.78));
+  height: 2.86rem;
   left: 50%;
+  top: 0.34rem;
+  transform: translateX(-50%);
+  width: 2.86rem;
+  z-index: 4;
+}
+
+.dashboard-header-category-levels-menu__ufo-webgl {
+  display: block;
+  filter:
+    drop-shadow(
+      0 0 0.82rem color-mix(in srgb, var(--dashboard-header-category-color) 52%, transparent)
+    )
+    drop-shadow(0 0.74rem 1rem rgba(2, 6, 23, 0.86));
+  height: 280px;
+  left: 50%;
+  mix-blend-mode: normal;
+  opacity: 0.98;
+  pointer-events: none;
+  position: absolute;
+  top: calc(50% + 0.16rem);
+  transform: translate(calc(-50% - 12px), -50%);
+  width: 520px;
+  z-index: 1;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  color: #f8fafc;
+  display: block;
+  height: 1px;
+  isolation: isolate;
+  left: 0;
+  line-height: 1;
+  max-width: 1px;
+  opacity: 0;
+  overflow: hidden;
+  padding: 0;
+  perspective: 34rem;
+  pointer-events: none;
+  position: absolute;
+  text-align: center;
+  top: 0;
+  transform: none;
+  transform-style: preserve-3d;
+  white-space: nowrap;
+  will-change: auto;
+  width: 1px;
+  z-index: 1;
+}
+
+.dashboard-header-meter-panel[data-meter-menu-state="closing"]
+  .dashboard-header-category-levels-menu__ufo-chyron {
+  animation: none;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron::before {
+  background:
+    radial-gradient(
+      ellipse at 50% 50%,
+      transparent 48%,
+      color-mix(
+          in srgb,
+          var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 30%,
+          rgba(224, 242, 254, 0.14)
+        )
+        52%,
+      color-mix(
+          in srgb,
+          var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 58%,
+          rgba(226, 232, 240, 0.18)
+        )
+        56%,
+      transparent 64%
+    ),
+    radial-gradient(
+      ellipse at 50% 52%,
+      rgba(2, 6, 23, 0.88),
+      color-mix(
+          in srgb,
+          var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 18%,
+          rgba(15, 23, 42, 0.62)
+        )
+        48%,
+      transparent 74%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.18),
+      rgba(2, 6, 23, 0.68) 42%,
+      color-mix(
+        in srgb,
+        var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 24%,
+        rgba(2, 6, 23, 0.76)
+      )
+    );
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 44%,
+      rgba(226, 232, 240, 0.2)
+    );
+  border-radius: 50%;
+  box-shadow:
+    0 0 0.9rem color-mix(in srgb, var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 34%, transparent),
+    0 0.85rem 1.25rem rgba(0, 0, 0, 0.46),
+    inset 0 0.18rem 0.32rem rgba(255, 255, 255, 0.18),
+    inset 0 -0.5rem 0.72rem rgba(2, 6, 23, 0.86);
+  content: "";
+  height: 4.3rem;
+  left: 50%;
+  opacity: 0.96;
+  pointer-events: none;
+  position: absolute;
+  top: 3.54rem;
+  transform: translate(-50%, -50%) rotateX(56deg) translateZ(0.08rem);
+  transform-origin: 50% 50%;
+  width: 68%;
+  z-index: 1;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron::after {
+  background:
+    radial-gradient(
+      ellipse at 50% 0%,
+      rgba(255, 255, 255, 0.32),
+      transparent 34%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(
+        in srgb,
+        var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 32%,
+        rgba(226, 232, 240, 0.5)
+      ),
+      color-mix(
+          in srgb,
+          var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 34%,
+          rgba(15, 23, 42, 0.92)
+        )
+        44%,
+      rgba(2, 6, 23, 0.94)
+    ),
+    radial-gradient(
+      ellipse at 50% 100%,
+      color-mix(
+        in srgb,
+        var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 48%,
+        transparent
+      ),
+      transparent 70%
+    );
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 46%,
+      rgba(226, 232, 240, 0.22)
+    );
+  border-radius: 9999px;
+  box-shadow:
+    0 0.48rem 0.92rem rgba(0, 0, 0, 0.58),
+    0 0 1.1rem color-mix(in srgb, var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 38%, transparent),
+    inset 0 0.24rem 0.34rem rgba(255, 255, 255, 0.12),
+    inset 0 -0.34rem 0.58rem rgba(2, 6, 23, 0.9);
+  content: "";
+  display: block;
+  height: 0.74rem;
+  left: 50%;
+  opacity: 0.72;
+  pointer-events: none;
+  position: absolute;
+  top: 5.86rem;
+  transform: translateX(-50%) rotateX(64deg) translateZ(1rem);
+  transform-origin: 50% 50%;
+  width: 36%;
+  z-index: 4;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-actor.dashboard-header-category-actor {
+  align-items: center;
+  color: var(--dashboard-header-category-color, rgba(224, 252, 255, 0.96));
+  display: grid;
+  filter:
+    drop-shadow(0 0 0.24rem rgba(207, 250, 254, 0.36))
+    drop-shadow(0 0 0.58rem color-mix(in srgb, currentColor 42%, transparent));
+  height: 2.08rem;
+  justify-items: center;
+  left: 12.5%;
+  min-width: 0;
+  opacity: 1;
+  position: absolute;
+  top: 1.82rem;
+  transform: translate(-50%, -50%) translateZ(2rem) rotateX(-10deg);
+  transition: none;
+  width: 2.26rem;
+  z-index: 8;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-actor.dashboard-header-category-actor::before {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.26), transparent 24%),
+    radial-gradient(
+      circle,
+      color-mix(in srgb, currentColor 28%, rgba(14, 165, 233, 0.16)),
+      rgba(2, 6, 23, 0.74) 68%
+    );
+  border: 1px solid
+    color-mix(in srgb, currentColor 36%, rgba(226, 232, 240, 0.18));
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0.18rem 0.24rem rgba(255, 255, 255, 0.1),
+    inset 0 -0.22rem 0.3rem rgba(2, 6, 23, 0.72),
+    0 0 0.5rem color-mix(in srgb, currentColor 26%, transparent);
+  bottom: auto;
+  filter: none;
+  height: auto;
+  inset: 0.18rem;
+  left: auto;
+  opacity: 0.96;
+  transform: none;
+  width: auto;
+  z-index: 1;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-actor.dashboard-header-category-actor::after {
+  background:
+    conic-gradient(
+      from 140deg,
+      transparent,
+      color-mix(in srgb, currentColor 24%, transparent),
+      transparent 42%
+    ),
+    radial-gradient(circle, color-mix(in srgb, currentColor 16%, transparent), transparent 62%);
+  filter: blur(0.05rem);
+  inset: -0.18rem;
+  opacity: 0.5;
+  transform: none;
+  z-index: 0;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-actor
+  .dashboard-header-category-actor__figure {
+  height: 1.46rem;
+  left: auto;
+  position: relative;
+  top: auto;
+  transform: none;
+  width: 1.46rem;
+  z-index: 3;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-copy {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(2, 6, 23, 0.12),
+      color-mix(
+          in srgb,
+          var(--dashboard-header-category-color) 20%,
+          rgba(15, 23, 42, 0.62)
+        )
+        18%,
+      rgba(2, 6, 23, 0.88) 50%,
+      color-mix(
+          in srgb,
+          var(--dashboard-header-category-color) 20%,
+          rgba(15, 23, 42, 0.62)
+        )
+        82%,
+      rgba(2, 6, 23, 0.12)
+    );
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--dashboard-header-category-color) 42%,
+      rgba(226, 232, 240, 0.2)
+    );
+  border-radius: 9999px;
+  box-shadow:
+    0 0 0.74rem color-mix(in srgb, var(--dashboard-header-category-color) 34%, transparent),
+    0 0 1rem color-mix(in srgb, var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 22%, transparent),
+    0 0.46rem 0.9rem rgba(0, 0, 0, 0.4),
+    inset 0 0.24rem 0.3rem rgba(255, 255, 255, 0.16),
+    inset 0 -0.24rem 0.42rem rgba(2, 6, 23, 0.76);
+  display: block;
+  height: 6.25rem;
+  left: 50%;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  min-width: 0;
+  overflow: hidden;
+  position: absolute;
+  top: 3.62rem;
+  transform: translate(-50%, -50%) rotateX(44deg) translateZ(1.54rem);
+  transform-origin: 50% 50%;
+  width: 74%;
+  z-index: 5;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-copy::before {
+  background:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 0.72rem,
+      rgba(255, 255, 255, 0.12) 0.72rem 0.78rem,
+      transparent 0.78rem 1.28rem
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0 30%,
+      color-mix(
+          in srgb,
+          var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 42%,
+          rgba(255, 255, 255, 0.2)
+        )
+        45%,
+      transparent 62%
+    ),
+    linear-gradient(
+      270deg,
+      transparent 0 34%,
+      color-mix(
+          in srgb,
+          var(--dashboard-header-category-color) 46%,
+          rgba(207, 250, 254, 0.24)
+        )
+        48%,
+      transparent 64%
+    );
+  animation: dashboard-header-category-ufo-chyron-line-flash 5.8s linear infinite;
+  background-position:
+    0 0,
+    -130% 0,
+    130% 0;
+  background-size:
+    1.28rem 100%,
+    220% 100%,
+    240% 100%;
+  content: "";
+  inset: 0;
+  mix-blend-mode: screen;
+  opacity: 0.56;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-copy::after {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 42%),
+    radial-gradient(
+      ellipse at 50% 100%,
+      color-mix(in srgb, var(--dashboard-header-category-color) 18%, transparent),
+      transparent 70%
+    ),
+    linear-gradient(
+      90deg,
+      transparent 0 36%,
+      color-mix(
+          in srgb,
+          var(--dashboard-header-meter-tornado-color, var(--dashboard-header-category-color)) 42%,
+          rgba(255, 255, 255, 0.18)
+        )
+        48%,
+      transparent 64%
+    );
+  animation: dashboard-header-category-ufo-chyron-line-flash-reverse 7.2s
+    linear infinite;
+  background-position:
+    0 0,
+    0 0,
+    118% 0;
+  background-size:
+    100% 100%,
+    100% 100%,
+    230% 100%;
+  content: "";
+  inset: 0.05rem 0.32rem;
+  opacity: 0.64;
+  pointer-events: none;
+  position: absolute;
+  z-index: 5;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-track {
+  align-items: center;
+  --dashboard-header-ufo-chyron-step: 16.8rem;
+  animation: dashboard-header-category-ufo-chyron-orbit-scroll 122s linear infinite;
+  animation-timing-function: linear;
+  display: flex;
+  gap: 0;
+  height: 100%;
+  position: relative;
+  transform: translate3d(0, 0, 0.22rem);
+  width: max-content;
+  will-change: transform;
+  z-index: 3;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-loop {
+  align-items: center;
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0;
+  height: 100%;
+  padding-right: 0;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-packet {
+  align-content: center;
+  align-items: center;
+  background:
+    radial-gradient(
+      ellipse at 16% 50%,
+      color-mix(
+        in srgb,
+        var(--dashboard-header-category-color) 26%,
+        rgba(255, 255, 255, 0.12)
+      ),
+      transparent 42%
+    ),
+    radial-gradient(circle at 12% 16%, rgba(255, 255, 255, 0.22), transparent 28%),
+    linear-gradient(
+      90deg,
+      color-mix(
+        in srgb,
+        var(--dashboard-header-category-color) 32%,
+        rgba(2, 6, 23, 0.72)
+      ),
+      rgba(2, 6, 23, 0.86) 48%,
+      color-mix(
+        in srgb,
+        var(--dashboard-header-category-color) 18%,
+        rgba(15, 23, 42, 0.72)
+      )
+    );
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--dashboard-header-category-color) 42%,
+      rgba(226, 232, 240, 0.12)
+    );
+  border-radius: 0.02rem;
+  box-shadow:
+    0 0 0.58rem color-mix(in srgb, var(--dashboard-header-category-color) 32%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 -0.24rem 0.34rem rgba(2, 6, 23, 0.74),
+    inset 1px 0 0 color-mix(in srgb, var(--dashboard-header-category-color) 32%, transparent);
+  display: grid;
+  flex: 0 0 var(--dashboard-header-ufo-chyron-step);
+  column-gap: 0.5rem;
+  gap: 0.12rem 0.5rem;
+  grid-template-columns: 4.25rem minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  height: calc(100% - 0.28rem);
+  inline-size: var(--dashboard-header-ufo-chyron-step);
+  justify-items: stretch;
+  min-width: var(--dashboard-header-ufo-chyron-step);
+  margin-right: -1px;
+  overflow: hidden;
+  padding: 0.34rem 0.82rem 0.34rem 0.22rem;
+  position: relative;
+  text-align: center;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-packet::before {
+  background:
+    radial-gradient(
+      ellipse at 58% 50%,
+      color-mix(
+        in srgb,
+        var(--dashboard-header-category-color) 66%,
+        rgba(255, 255, 255, 0.22)
+      ),
+      transparent 64%
+    ),
+    linear-gradient(
+      90deg,
+      color-mix(
+        in srgb,
+        var(--dashboard-header-category-color) 74%,
+        rgba(255, 255, 255, 0.22)
+      ),
+      color-mix(
+          in srgb,
+          var(--dashboard-header-category-color) 48%,
+          rgba(15, 23, 42, 0.1)
+        )
+        68%,
+      transparent
+    );
+  border-radius: inherit;
+  box-shadow:
+    inset -0.18rem 0 0.32rem
+      color-mix(
+        in srgb,
+        var(--dashboard-header-category-color) 58%,
+        transparent
+      ),
+    0 0 0.8rem
+      color-mix(
+        in srgb,
+        var(--dashboard-header-category-color) 46%,
+        transparent
+      );
+  filter: saturate(1.36) brightness(1.12);
+  content: "";
+  inset: 0 auto 0 0;
+  opacity: 0.78;
+  pointer-events: none;
+  position: absolute;
+  width: var(--dashboard-header-category-level, 0%);
+  z-index: 1;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-packet::after {
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(
+        in srgb,
+        var(--dashboard-header-category-color) 78%,
+        rgba(255, 255, 255, 0.36)
+      ),
+      transparent
+    );
+  bottom: 0.12rem;
+  box-shadow:
+    0 0 0.46rem
+      color-mix(in srgb, var(--dashboard-header-category-color) 64%, transparent),
+    0 0 0.92rem
+      color-mix(in srgb, var(--dashboard-header-category-color) 34%, transparent);
+  content: "";
+  height: 0.22rem;
+  left: 0;
+  opacity: 1;
+  pointer-events: none;
+  position: absolute;
+  width: var(--dashboard-header-category-level, 0%);
+  z-index: 2;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-reps-gap {
+  align-items: center;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(2, 6, 23, 0.42) 22%,
+      color-mix(
+          in srgb,
+          var(--dashboard-header-category-color) 16%,
+          rgba(2, 6, 23, 0.58)
+        )
+        50%,
+      rgba(2, 6, 23, 0.42) 78%,
+      transparent
+    );
+  bottom: 0.32rem;
+  color: color-mix(
+    in srgb,
+    var(--dashboard-header-category-color) 82%,
+    #ffffff
+  );
+  display: flex;
+  font-size: 0.48rem;
+  font-weight: 950;
+  justify-content: center;
+  left: min(
+    calc(var(--dashboard-header-category-level, 0%) + 0.2rem),
+    calc(100% - 4.65rem)
+  );
+  letter-spacing: 0.08em;
+  line-height: 1;
+  min-height: 0.82rem;
+  overflow: hidden;
+  pointer-events: none;
+  position: absolute;
+  right: 0.44rem;
+  text-align: center;
+  text-shadow:
+    0 0 0.24rem rgba(2, 6, 23, 0.94),
+    0 0 0.46rem
+      color-mix(in srgb, var(--dashboard-header-category-color) 46%, transparent);
+  text-transform: uppercase;
+  white-space: nowrap;
+  z-index: 5;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-packet--active {
+  box-shadow:
+    0 0 0.64rem color-mix(in srgb, var(--dashboard-header-category-color) 32%, transparent),
+    0 0 1.1rem rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.17),
+    inset 0 -0.26rem 0.38rem rgba(2, 6, 23, 0.72);
+  opacity: 1;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-packet--secondary {
+  min-width: 13.6rem;
+  opacity: 0.84;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-tab-actor.dashboard-header-category-actor {
+  --dashboard-header-category-scale: 1;
+  align-self: center;
+  color: var(--dashboard-header-category-color);
+  display: block;
+  filter:
+    drop-shadow(0 0 0.16rem rgba(207, 250, 254, 0.46))
+    drop-shadow(0 0 0.54rem color-mix(in srgb, currentColor 54%, transparent))
+    drop-shadow(0 0.12rem 0.2rem rgba(2, 6, 23, 0.86));
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  height: 4.1rem;
+  justify-self: center;
+  left: auto;
+  opacity: 1;
+  overflow: visible;
+  position: relative;
+  top: auto;
+  transform: none;
+  transform-origin: 50% 50%;
+  transition: none;
+  width: 4.15rem;
+  z-index: 6;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-tab-actor.dashboard-header-category-actor--cervical {
+  opacity: 0.92;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-tab-actor.dashboard-header-category-actor::before,
+.dashboard-header-category-levels-menu__ufo-chyron-tab-actor.dashboard-header-category-actor::after {
+  content: none !important;
+  display: none !important;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-tab-actor
+  .dashboard-header-category-actor__figure {
+  height: 4rem;
+  left: 50%;
+  position: absolute;
   top: 50%;
-  transform: translate(-50%, -50%);
-  width: 3.04rem;
+  transform: translate(-50%, -50%) scale(1.2);
+  transform-origin: 50% 50%;
+  width: 4rem;
+  z-index: 3;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-tab-actor
+  .dashboard-header-category-actor__figure
+  svg {
+  height: 100%;
+  overflow: visible;
+  width: 100%;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-main,
+.dashboard-header-category-levels-menu__ufo-chyron-sub {
+  align-items: center;
+  display: flex;
+  grid-column: 2;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+  text-align: center;
+  width: 100%;
+  z-index: 3;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-main {
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 950;
+  gap: 0.3rem;
+  letter-spacing: 0.09em;
+  text-shadow:
+    0 0 0.32rem rgba(2, 6, 23, 0.96),
+    0 0 0.58rem color-mix(in srgb, var(--dashboard-header-category-color) 44%, transparent);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-main > span:first-child {
+  max-width: 5.9rem;
+  min-width: 0;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-main > span:not(:first-child) {
+  color: color-mix(
+    in srgb,
+    var(--dashboard-header-category-color) 86%,
+    #ffffff
+  );
+  flex: 0 0 auto;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-main > span:nth-child(3) {
+  font-size: 0.55rem;
+  letter-spacing: 0.05em;
+  line-height: 1.05;
+  max-width: 6.6rem;
+  overflow: visible;
+  white-space: normal;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-sub {
+  color: rgba(207, 250, 254, 0.88);
+  font-size: 0.5rem;
+  flex-wrap: wrap;
+  font-weight: 850;
+  gap: 0.26rem;
+  letter-spacing: 0.08em;
+  line-height: 1.08;
+  opacity: 0.9;
+  overflow: visible;
+  row-gap: 0.08rem;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-sub > span {
+  min-width: 0;
+  overflow: visible;
+  text-align: center;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-sub > span:first-child {
+  flex: 0 0 auto;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-sub > span:nth-child(2) {
+  flex: 1 1 5.8rem;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-sub > span:last-child {
+  flex: 0 1 auto;
+}
+
+.dashboard-header-category-levels-menu__item--slot-center
+  > .dashboard-header-category-levels-menu__actor,
+.dashboard-header-category-levels-menu__item--slot-center
+  > .dashboard-header-category-levels-menu__item-copy {
+  z-index: 3;
 }
 
 .dashboard-header-category-levels-menu__actor
@@ -24004,7 +25082,27 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   white-space: nowrap;
 }
 
+.dashboard-header-category-levels-menu__item--slot-center
+  .dashboard-header-category-levels-menu__item-title {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
 .dashboard-header-category-levels-menu__level-text {
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255, 255, 255, 0.28), transparent 0.42rem),
+    linear-gradient(
+      90deg,
+      rgba(2, 6, 23, 0.68),
+      color-mix(in srgb, var(--dashboard-header-category-color) 28%, rgba(15, 23, 42, 0.84)),
+      rgba(2, 6, 23, 0.7)
+    ) !important;
+  border: 1px solid
+    color-mix(in srgb, var(--dashboard-header-category-color) 54%, rgba(226, 232, 240, 0.22)) !important;
+  border-radius: 9999px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 0.46rem color-mix(in srgb, var(--dashboard-header-category-color) 34%, transparent),
+    0 0 0.92rem rgba(34, 211, 238, 0.16) !important;
   color: color-mix(
     in srgb,
     var(--dashboard-header-category-color) 86%,
@@ -24014,8 +25112,10 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   font-size: 0.64rem;
   font-weight: 950;
   letter-spacing: 0.02em;
-  min-width: 0;
+  min-width: 3.35rem;
   overflow: hidden;
+  padding: 0.2rem 0.44rem;
+  position: relative;
   text-shadow:
     0 0 0.24rem rgba(2, 6, 23, 0.94),
     0 0 0.46rem
@@ -24025,7 +25125,27 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
         transparent
       );
   text-overflow: ellipsis;
+  transform: translateY(-0.03rem);
   white-space: nowrap;
+}
+
+.dashboard-header-category-levels-menu__level-text::before {
+  animation: dashboard-header-category-ufo-readout-scan 2.8s linear infinite;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.46), transparent),
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in srgb, var(--dashboard-header-category-color) 32%, transparent),
+      transparent
+    );
+  content: "";
+  inset: -0.18rem -0.52rem;
+  opacity: 0.7;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-90%);
+  z-index: -1;
 }
 
 .dashboard-header-category-levels-menu__item-meta {
@@ -24130,7 +25250,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   margin-right: 0;
   mask-image: none;
   outline: none;
-  overflow: hidden;
+  overflow: visible;
   min-height: 300px;
   order: 1;
   padding: 16px 12px;
@@ -24215,7 +25335,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   opacity: 0.72;
   transform: translate(-50%, -50%) rotateX(10deg) skewX(-3deg);
   width: min(330px, 76%);
-  animation: dashboard-header-meter-tornado-drift 8.6s ease-in-out infinite;
+  animation: dashboard-header-meter-tornado-drift 44s ease-in-out infinite;
 }
 
 .dashboard-header-meter-panel__stack--orbit::after {
@@ -24258,7 +25378,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   opacity: 0.62;
   transform: translate(-50%, -49%) rotateX(12deg) skewX(6deg);
   width: min(260px, 60%);
-  animation: dashboard-header-meter-tornado-stream 5.8s linear infinite;
+  animation: dashboard-header-meter-tornado-stream 40s linear infinite;
 }
 
 .dashboard-header-meter-panel__stack--orbit:has(
@@ -24301,7 +25421,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   animation: none;
   display: block;
   filter: saturate(1.08);
-  inset: 0;
+  inset: -3.15rem 0 0;
   mix-blend-mode: normal;
   overflow: hidden;
   transform-style: preserve-3d;
@@ -24371,7 +25491,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 }
 
 .dashboard-header-meter-tornado::before {
-  animation: dashboard-header-meter-tornado-mouth 6.8s ease-in-out infinite;
+  animation: dashboard-header-meter-tornado-mouth 40s ease-in-out infinite;
   background:
     radial-gradient(
       ellipse at 50% 48%,
@@ -24394,7 +25514,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 }
 
 .dashboard-header-meter-tornado::after {
-  animation: dashboard-header-meter-tornado-ground 5.4s linear infinite;
+  animation: dashboard-header-meter-tornado-ground 46s linear infinite;
   background:
     radial-gradient(
       ellipse at 50% 50%,
@@ -24427,7 +25547,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 }
 
 .dashboard-header-meter-tornado__column {
-  animation: dashboard-header-meter-tornado-column 9.8s ease-in-out infinite;
+  animation: dashboard-header-meter-tornado-column 56s ease-in-out infinite;
   background:
     radial-gradient(
       ellipse at 50% 4%,
@@ -24509,7 +25629,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   --dashboard-meter-tornado-ribbon-color: rgba(224, 242, 254, 0.28);
   --dashboard-meter-tornado-ribbon-opacity: 0.66;
   --dashboard-meter-tornado-ribbon-skew: 7deg;
-  animation: dashboard-header-meter-tornado-ribbon-front 6.8s linear infinite;
+  animation: dashboard-header-meter-tornado-ribbon-front 48s linear infinite;
   filter: none;
 }
 
@@ -24518,7 +25638,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   --dashboard-meter-tornado-ribbon-color: rgba(52, 211, 153, 0.2);
   --dashboard-meter-tornado-ribbon-opacity: 0.44;
   --dashboard-meter-tornado-ribbon-skew: -8deg;
-  animation: dashboard-header-meter-tornado-ribbon-back 8.2s linear infinite
+  animation: dashboard-header-meter-tornado-ribbon-back 54s linear infinite
     reverse;
   filter: blur(0.015rem);
 }
@@ -24549,12 +25669,13 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 }
 
 .dashboard-header-meter-tornado__core-map {
-  animation: dashboard-header-meter-tornado-map-waver 10.8s ease-in-out infinite;
+  animation: dashboard-header-meter-tornado-map-waver 60s ease-in-out infinite;
+  display: none;
   filter: drop-shadow(0 0 0.52rem rgba(125, 211, 252, 0.2))
     drop-shadow(0 0 1rem rgba(34, 211, 238, 0.12));
   height: min(430px, 86%);
   left: 50%;
-  opacity: 0.82;
+  opacity: 0;
   top: 50%;
   transform: translate(-50%, -50%) skewX(-1deg);
   width: min(340px, 78%);
@@ -24572,13 +25693,13 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 }
 
 .dashboard-header-meter-tornado__svg-mouth--outer {
-  animation: dashboard-header-meter-tornado-svg-mouth-outer 4.6s linear infinite;
+  animation: dashboard-header-meter-tornado-svg-mouth-outer 42s linear infinite;
   opacity: 0.82;
   stroke-width: 3.2;
 }
 
 .dashboard-header-meter-tornado__svg-mouth--inner {
-  animation: dashboard-header-meter-tornado-svg-mouth-inner 3.8s ease-in-out
+  animation: dashboard-header-meter-tornado-svg-mouth-inner 38s ease-in-out
     infinite;
   opacity: 0.78;
   stroke: rgba(250, 204, 21, 0.18);
@@ -24599,20 +25720,20 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 
 .dashboard-header-meter-tornado__svg-stream--primary {
   --dashboard-meter-tornado-stream-dash: 136 42 22 58;
-  animation: dashboard-header-meter-tornado-svg-stream-a 5.8s linear infinite;
+  animation: dashboard-header-meter-tornado-svg-stream-a 50s linear infinite;
   opacity: 0.74;
 }
 
 .dashboard-header-meter-tornado__svg-stream--secondary {
   --dashboard-meter-tornado-stream-dash: 108 54 18 64;
-  animation: dashboard-header-meter-tornado-svg-stream-b 7.2s linear infinite
+  animation: dashboard-header-meter-tornado-svg-stream-b 56s linear infinite
     reverse;
   opacity: 0.56;
 }
 
 .dashboard-header-meter-tornado__svg-stream--cut {
   --dashboard-meter-tornado-stream-dash: 22 72;
-  animation: dashboard-header-meter-tornado-svg-stream-cut 4.9s linear infinite;
+  animation: dashboard-header-meter-tornado-svg-stream-cut 46s linear infinite;
   filter: drop-shadow(0 0 0.34rem rgba(224, 242, 254, 0.24));
   opacity: 0.28;
 }
@@ -24656,9 +25777,9 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   --dashboard-meter-tornado-emerald-spin-delay: 0s;
   --dashboard-meter-tornado-emerald-start-y: 2.15rem;
   animation:
-    dashboard-header-meter-tornado-emerald-drift 8.9s
+    dashboard-header-meter-tornado-emerald-drift 58s
       cubic-bezier(0.32, 0, 0.2, 1) infinite,
-    dashboard-header-meter-tornado-emerald-shimmer 2.8s ease-in-out infinite;
+    dashboard-header-meter-tornado-emerald-shimmer 22s ease-in-out infinite;
   animation-delay:
     var(--dashboard-meter-tornado-emerald-drift-delay, 0s),
     var(--dashboard-meter-tornado-emerald-shimmer-delay, 0s);
@@ -24679,19 +25800,24 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 }
 
 .dashboard-header-meter-tornado__emeralds-3d {
-  filter: drop-shadow(0 0 0.24rem var(--dashboard-meter-tornado-gem-glow-soft))
-    drop-shadow(0 0 0.52rem var(--dashboard-meter-tornado-gem-glow));
-  height: 100%;
-  inset: 0;
+  bottom: auto;
+  filter: drop-shadow(0 0 0.38rem var(--dashboard-meter-tornado-gem-glow-soft))
+    drop-shadow(0 0 0.9rem var(--dashboard-meter-tornado-gem-glow))
+    drop-shadow(0 0 1.45rem rgba(125, 211, 252, 0.18));
+  height: 112%;
+  left: -6%;
   mix-blend-mode: screen;
+  opacity: 0.98;
   pointer-events: none;
   position: absolute;
-  width: 100%;
-  z-index: 2;
+  right: auto;
+  top: -6%;
+  width: 112%;
+  z-index: 5;
 }
 
 .dashboard-header-meter-tornado__emerald-core {
-  animation: dashboard-header-meter-tornado-emerald-spin 4.4s linear infinite;
+  animation: dashboard-header-meter-tornado-emerald-spin 34s linear infinite;
   animation-delay: var(--dashboard-meter-tornado-emerald-spin-delay, 0s);
   backface-visibility: visible;
   shape-rendering: geometricPrecision;
@@ -24820,7 +25946,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 }
 
 .dashboard-header-meter-tornado__emerald-glint {
-  animation: dashboard-header-meter-tornado-emerald-glint 2.4s linear infinite;
+  animation: dashboard-header-meter-tornado-emerald-glint 24s linear infinite;
   animation-delay: var(--dashboard-meter-tornado-emerald-shimmer-delay, 0s);
   fill: var(--dashboard-meter-tornado-gem-glint);
   filter: drop-shadow(0 0 0.055rem var(--dashboard-meter-tornado-gem-edge));
@@ -25328,29 +26454,59 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 .dashboard-header-meter-panel__section-label {
   align-items: center;
   box-sizing: border-box;
-  color: #d9f99d;
+  color: rgba(248, 250, 252, 0.98);
   display: inline-flex;
-  font-size: 0.64rem;
+  font-size: 0.76rem;
   font-weight: 950;
   isolation: isolate;
   justify-content: center;
   letter-spacing: 0.16em;
   line-height: 1;
   max-width: 100%;
-  min-height: 1.28rem;
+  min-height: 1.5rem;
   min-width: 0;
   overflow: hidden;
-  padding: 0.26rem 1.1rem;
+  padding: 0.32rem 1.22rem;
   position: relative;
   text-align: center;
   text-shadow:
-    0 0 0.34rem rgba(217, 249, 157, 0.78),
-    0 0 0.82rem rgba(34, 211, 238, 0.34),
+    0 0 0.34rem var(
+      --dashboard-header-meter-section-label-glow,
+      rgba(217, 249, 157, 0.78)
+    ),
+    0 0 0.82rem var(
+      --dashboard-header-meter-section-label-soft,
+      rgba(34, 211, 238, 0.34)
+    ),
     0 0.08rem 0.48rem rgba(2, 6, 23, 0.9);
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
   width: max-content;
+}
+
+.dashboard-header-meter-panel__section--achievements {
+  --dashboard-header-meter-section-label-color: #fb7185;
+  --dashboard-header-meter-section-label-glow: rgba(251, 113, 133, 0.82);
+  --dashboard-header-meter-section-label-line: rgba(251, 113, 133, 0.92);
+  --dashboard-header-meter-section-label-line-alt: rgba(255, 228, 230, 0.74);
+  --dashboard-header-meter-section-label-soft: rgba(244, 63, 94, 0.4);
+}
+
+.dashboard-header-meter-panel__section--daily {
+  --dashboard-header-meter-section-label-color: #60a5fa;
+  --dashboard-header-meter-section-label-glow: rgba(96, 165, 250, 0.82);
+  --dashboard-header-meter-section-label-line: rgba(96, 165, 250, 0.94);
+  --dashboard-header-meter-section-label-line-alt: rgba(219, 234, 254, 0.74);
+  --dashboard-header-meter-section-label-soft: rgba(37, 99, 235, 0.42);
+}
+
+.dashboard-header-meter-panel__section--fuel {
+  --dashboard-header-meter-section-label-color: #facc15;
+  --dashboard-header-meter-section-label-glow: rgba(250, 204, 21, 0.84);
+  --dashboard-header-meter-section-label-line: rgba(250, 204, 21, 0.94);
+  --dashboard-header-meter-section-label-line-alt: rgba(254, 249, 195, 0.76);
+  --dashboard-header-meter-section-label-soft: rgba(234, 179, 8, 0.44);
 }
 
 .dashboard-header-meter-panel__section-label::before,
@@ -25367,19 +26523,31 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   background:
     radial-gradient(
       ellipse at 50% 50%,
-      rgba(217, 249, 157, 0.28),
+      var(
+        --dashboard-header-meter-section-label-soft,
+        rgba(217, 249, 157, 0.28)
+      ),
       transparent 52%
     ),
     radial-gradient(
       ellipse at 50% 62%,
-      rgba(34, 211, 238, 0.24),
+      var(
+        --dashboard-header-meter-section-label-glow,
+        rgba(34, 211, 238, 0.24)
+      ),
       transparent 68%
     ),
     linear-gradient(
       90deg,
       transparent,
-      rgba(250, 204, 21, 0.14),
-      rgba(34, 211, 238, 0.16),
+      var(
+        --dashboard-header-meter-section-label-soft,
+        rgba(250, 204, 21, 0.14)
+      ),
+      var(
+        --dashboard-header-meter-section-label-glow,
+        rgba(34, 211, 238, 0.16)
+      ),
       transparent
     );
   filter: blur(0.12rem);
@@ -25393,14 +26561,26 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(217, 249, 157, 0.92),
-    rgba(34, 211, 238, 0.88),
+    var(
+      --dashboard-header-meter-section-label-line,
+      rgba(217, 249, 157, 0.92)
+    ),
+    var(
+      --dashboard-header-meter-section-label-line-alt,
+      rgba(34, 211, 238, 0.88)
+    ),
     transparent
   );
   bottom: 0.04rem;
   box-shadow:
-    0 0 0.28rem rgba(217, 249, 157, 0.46),
-    0 0 0.46rem rgba(34, 211, 238, 0.34);
+    0 0 0.28rem var(
+      --dashboard-header-meter-section-label-glow,
+      rgba(217, 249, 157, 0.46)
+    ),
+    0 0 0.46rem var(
+      --dashboard-header-meter-section-label-soft,
+      rgba(34, 211, 238, 0.34)
+    );
   height: 1px;
   opacity: 0.82;
   width: 86%;
@@ -25767,6 +26947,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 
 .dashboard-header-meter-panel__section--achievements
   .dashboard-header-compound-pr-meter__shadow-stage {
+  --dashboard-header-pr-category-color: rgba(110, 231, 183, 0.96);
   display: block;
   height: 7.25rem;
   left: -3.55rem;
@@ -25784,11 +26965,190 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   z-index: 7;
 }
 
+.dashboard-header-meter-panel__section--achievements
+  .dashboard-header-compound-pr-meter__shadow-stage::before,
+.dashboard-header-meter-panel__section--achievements
+  .dashboard-header-compound-pr-meter__shadow-stage::after {
+  border-radius: 9999px;
+  content: "";
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+
+.dashboard-header-meter-panel__section--achievements
+  .dashboard-header-compound-pr-meter__shadow-stage::before {
+  animation: dashboard-header-compound-pr-shadow-light-aura 4.8s ease-in-out
+    -0.9s infinite;
+  background:
+    radial-gradient(
+      ellipse at 50% 48%,
+      color-mix(
+        in srgb,
+        var(
+            --dashboard-header-meter-section-label-color,
+            var(--dashboard-header-pr-category-color)
+          )
+          42%,
+        rgba(255, 255, 255, 0.16)
+      ),
+      color-mix(
+          in srgb,
+          var(
+              --dashboard-header-meter-section-label-color,
+              var(--dashboard-header-pr-category-color)
+            )
+            24%,
+          rgba(34, 211, 238, 0.1)
+        )
+        38%,
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse at 50% 86%,
+      color-mix(
+        in srgb,
+        var(
+            --dashboard-header-meter-section-label-color,
+            var(--dashboard-header-pr-category-color)
+          )
+          24%,
+        transparent
+      ),
+      transparent 64%
+    );
+  filter: blur(0.16rem)
+    drop-shadow(
+      0 0 0.56rem
+        color-mix(
+          in srgb,
+          var(
+              --dashboard-header-meter-section-label-color,
+              var(--dashboard-header-pr-category-color)
+            )
+            46%,
+          transparent
+        )
+    );
+  height: 6.25rem;
+  opacity: 0.82;
+  top: 2.76rem;
+  width: 5.95rem;
+  z-index: 1;
+}
+
+.dashboard-header-meter-panel__section--achievements
+  .dashboard-header-compound-pr-meter__shadow-stage::after {
+  background:
+    radial-gradient(
+      ellipse at 50% 50%,
+      color-mix(
+        in srgb,
+        var(
+            --dashboard-header-meter-section-label-color,
+            var(--dashboard-header-pr-category-color)
+          )
+          34%,
+        rgba(2, 6, 23, 0.4)
+      ),
+      transparent 66%
+    ),
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(
+        in srgb,
+        var(
+            --dashboard-header-meter-section-label-color,
+            var(--dashboard-header-pr-category-color)
+          )
+          28%,
+        transparent
+      ),
+      transparent
+    );
+  filter: blur(0.14rem);
+  height: 1.25rem;
+  opacity: 0.58;
+  top: 5.02rem;
+  transform: translate(-50%, -50%) rotateX(64deg) scaleX(1.08);
+  width: 5.2rem;
+  z-index: 2;
+}
+
 .dashboard-header-meter-panel__section--achievements.dashboard-header-meter-panel__section--slot-center
   .dashboard-header-compound-pr-meter__shadow-stage {
   animation: dashboard-header-compound-pr-shadow-stage-enter 620ms ease both;
   opacity: 1;
   transform: translate3d(0, 0, 0);
+}
+
+.dashboard-header-meter-panel__section--achievements
+  .dashboard-header-compound-pr-meter__shadow-color {
+  animation: none;
+  background:
+    radial-gradient(
+      ellipse at 50% 44%,
+      color-mix(
+        in srgb,
+        var(
+            --dashboard-header-meter-section-label-color,
+            var(--dashboard-header-pr-category-color)
+          )
+          64%,
+        rgba(255, 255, 255, 0.18)
+      ),
+      color-mix(
+          in srgb,
+          var(
+              --dashboard-header-meter-section-label-color,
+              var(--dashboard-header-pr-category-color)
+            )
+            34%,
+          transparent
+        )
+        42%,
+      transparent 74%
+    ),
+    radial-gradient(
+      ellipse at 50% 74%,
+      color-mix(
+        in srgb,
+        var(
+            --dashboard-header-meter-section-label-color,
+            var(--dashboard-header-pr-category-color)
+          )
+          38%,
+        rgba(2, 6, 23, 0.22)
+      ),
+      transparent 66%
+    );
+  border-radius: 9999px;
+  display: block;
+  filter: blur(0.34rem)
+    drop-shadow(
+      0 0 0.72rem
+        color-mix(
+          in srgb,
+          var(
+              --dashboard-header-meter-section-label-color,
+              var(--dashboard-header-pr-category-color)
+            )
+            46%,
+          transparent
+        )
+    );
+  height: 5.95rem;
+  left: 50%;
+  mix-blend-mode: screen;
+  opacity: 0.88;
+  pointer-events: none;
+  position: absolute;
+  top: 2.72rem;
+  transform: translate(-50%, -50%) scaleX(0.9);
+  width: 5.85rem;
+  z-index: 2;
 }
 
 .dashboard-header-meter-panel__section--achievements
@@ -25799,17 +27159,18 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
     dashboard-header-compound-pr-shadow-puppet-color-shimmer 2.35s
       ease-in-out -0.85s infinite;
   color: rgba(0, 0, 0, 0.98);
-  filter: drop-shadow(0 0 0.08rem rgba(0, 0, 0, 0.96))
-    drop-shadow(0 0 0.16rem rgba(254, 240, 138, 0.36));
+  filter: drop-shadow(0 0 0.08rem rgba(0, 0, 0, 0.96));
   height: 5.1rem;
+  isolation: isolate;
   left: 50%;
   opacity: 0.98;
+  overflow: visible;
   top: 2.66rem;
   transform: translate3d(-50%, -50%, 0) rotate(0deg) skewX(0deg)
     scale(var(--dashboard-header-category-scale));
   transform-origin: 50% 82%;
   width: 5.65rem;
-  z-index: 4;
+  z-index: 5;
 }
 
 .dashboard-header-meter-panel__section--achievements
@@ -25819,25 +27180,70 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   background:
     radial-gradient(
       ellipse at 50% 47%,
-      rgba(254, 240, 138, 0.36),
-      rgba(34, 211, 238, 0.16) 32%,
+      color-mix(
+        in srgb,
+        var(
+            --dashboard-header-meter-section-label-color,
+            var(--dashboard-header-pr-category-color)
+          )
+          48%,
+        rgba(255, 255, 255, 0.22)
+      ),
+      color-mix(
+          in srgb,
+          var(
+              --dashboard-header-meter-section-label-color,
+              var(--dashboard-header-pr-category-color)
+            )
+            24%,
+          rgba(34, 211, 238, 0.12)
+        )
+        32%,
       transparent 62%
     ),
     radial-gradient(
       ellipse at 50% 58%,
-      rgba(45, 212, 191, 0.18),
+      color-mix(
+        in srgb,
+        var(
+            --dashboard-header-meter-section-label-color,
+            var(--dashboard-header-pr-category-color)
+          )
+          30%,
+        rgba(45, 212, 191, 0.12)
+      ),
       transparent 58%
     ),
     linear-gradient(
       180deg,
       rgba(255, 255, 255, 0.14),
-      rgba(254, 240, 138, 0.12) 42%,
+      color-mix(
+          in srgb,
+          var(
+              --dashboard-header-meter-section-label-color,
+              var(--dashboard-header-pr-category-color)
+            )
+            22%,
+          transparent
+        )
+        42%,
       transparent 82%
     );
   clip-path: polygon(22% 0, 78% 0, 96% 100%, 4% 100%);
   display: block;
-  filter: none;
-  height: 4.72rem;
+  filter: drop-shadow(
+    0 0 0.28rem
+      color-mix(
+        in srgb,
+        var(
+            --dashboard-header-meter-section-label-color,
+            var(--dashboard-header-pr-category-color)
+          )
+          42%,
+        transparent
+      )
+  );
+  height: 5.12rem;
   left: 50%;
   mask-image: radial-gradient(
     ellipse at 50% 50%,
@@ -25846,11 +27252,11 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
     transparent 78%
   );
   mix-blend-mode: screen;
-  opacity: 0.42;
+  opacity: 0.68;
   position: absolute;
   top: 2.66rem;
-  transform: translate3d(-50%, -50%, 0) scaleX(0.72);
-  width: 3.65rem;
+  transform: translate3d(-50%, -50%, 0) scaleX(0.82);
+  width: 4.15rem;
   z-index: 3;
 }
 
@@ -25858,14 +27264,120 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   .dashboard-header-compound-pr-meter__shadow-puppet.dashboard-header-category-actor::before,
 .dashboard-header-meter-panel__section--achievements
   .dashboard-header-compound-pr-meter__shadow-puppet.dashboard-header-category-actor::after {
-  display: none;
+  border-radius: 9999px;
+  content: "";
+  display: block;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+}
+
+.dashboard-header-meter-panel__section--achievements
+  .dashboard-header-compound-pr-meter__shadow-puppet.dashboard-header-category-actor::before {
+  background:
+    radial-gradient(
+      ellipse at 50% 42%,
+      color-mix(
+        in srgb,
+        var(
+            --dashboard-header-meter-section-label-color,
+            var(--dashboard-header-pr-category-color)
+          )
+          62%,
+        rgba(255, 255, 255, 0.18)
+      ),
+      color-mix(
+          in srgb,
+          var(
+              --dashboard-header-meter-section-label-color,
+              var(--dashboard-header-pr-category-color)
+            )
+            36%,
+          transparent
+        )
+        42%,
+      transparent 72%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(
+        in srgb,
+        var(
+            --dashboard-header-meter-section-label-color,
+            var(--dashboard-header-pr-category-color)
+          )
+          22%,
+        rgba(255, 255, 255, 0.08)
+      ),
+      transparent 74%
+    );
+  filter: blur(0.26rem)
+    drop-shadow(
+      0 0 0.46rem
+        color-mix(
+          in srgb,
+          var(
+              --dashboard-header-meter-section-label-color,
+              var(--dashboard-header-pr-category-color)
+            )
+            42%,
+          transparent
+        )
+    );
+  height: 5.55rem;
+  opacity: 0.86;
+  transform: translate(-50%, -50%) scaleX(0.78);
+  width: 4.9rem;
+  z-index: -1;
+}
+
+.dashboard-header-meter-panel__section--achievements
+  .dashboard-header-compound-pr-meter__shadow-puppet.dashboard-header-category-actor::after {
+  background:
+    radial-gradient(
+      ellipse at 50% 50%,
+      color-mix(
+        in srgb,
+        var(
+            --dashboard-header-meter-section-label-color,
+            var(--dashboard-header-pr-category-color)
+          )
+          34%,
+        rgba(2, 6, 23, 0.18)
+      ),
+      transparent 64%
+    ),
+    linear-gradient(
+      90deg,
+      transparent,
+      color-mix(
+        in srgb,
+        var(
+            --dashboard-header-meter-section-label-color,
+            var(--dashboard-header-pr-category-color)
+          )
+          28%,
+        transparent
+      ),
+      transparent
+    );
+  filter: blur(0.18rem);
+  height: 1.34rem;
+  opacity: 0.72;
+  top: 74%;
+  transform: translate(-50%, -50%) rotateX(64deg) scaleX(1.08);
+  width: 5.15rem;
+  z-index: -2;
 }
 
 .dashboard-header-meter-panel__section--achievements
   .dashboard-header-compound-pr-meter__shadow-puppet
   .dashboard-header-category-actor__figure {
   filter: drop-shadow(0 0 0.08rem rgba(0, 0, 0, 0.9));
+  position: relative;
   stroke-width: 4.35;
+  z-index: 2;
 }
 
 .dashboard-header-meter-panel__section--achievements
@@ -26079,12 +27591,45 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 #dashboard-header-meter-panel
   .dashboard-header-meter-panel__section--achievements
   .dashboard-header-compound-pr-meter__item--slot-center:before {
+  background:
+    radial-gradient(
+      ellipse at 58% 50%,
+      color-mix(
+        in srgb,
+        var(--dashboard-header-pr-category-color) 42%,
+        transparent
+      ),
+      transparent 70%
+    ),
+    radial-gradient(
+      ellipse at 30% 50%,
+      var(--dashboard-header-pr-meteor-core-soft),
+      transparent 62%
+    ),
+    linear-gradient(
+      90deg,
+      transparent,
+      var(--dashboard-header-pr-meteor-trail) 42%,
+      rgba(255, 255, 255, 0.34) 72%,
+      transparent
+    ) !important;
   filter: blur(0.14rem)
-    drop-shadow(0 0 0.34rem var(--dashboard-header-pr-meteor-core-soft));
-  left: 0.55rem;
-  opacity: 0.34 !important;
-  transform: translateY(-50%) scaleX(0.74) skewX(-12deg);
-  width: 42%;
+    drop-shadow(0 0 0.34rem var(--dashboard-header-pr-meteor-core-soft))
+    drop-shadow(
+      0 0 0.64rem
+        color-mix(
+          in srgb,
+          var(--dashboard-header-pr-category-color) 26%,
+          transparent
+        )
+    );
+  height: 108%;
+  left: -0.78rem;
+  opacity: 0.58 !important;
+  right: -0.68rem;
+  transform: translateY(-50%) scaleX(0.92) skewX(-8deg);
+  width: auto;
+  z-index: 0;
 }
 
 #dashboard-header-meter-panel
@@ -26097,6 +27642,53 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 
 .dashboard-header-meter-panel__section--achievements.dashboard-header-meter-panel__section--slot-center
   .dashboard-header-compound-pr-meter__item--slot-center {
+  background:
+    radial-gradient(
+      ellipse at 50% 52%,
+      color-mix(
+        in srgb,
+        var(--dashboard-header-pr-category-color) 24%,
+        transparent
+      ),
+      transparent 74%
+    ),
+    radial-gradient(
+      circle at 12% 32%,
+      color-mix(
+        in srgb,
+        var(--dashboard-header-pr-meteor-core) 42%,
+        rgba(255, 255, 255, 0.16)
+      ),
+      transparent 36%
+    ),
+    linear-gradient(
+      112deg,
+      rgba(2, 6, 23, 0.78),
+      color-mix(
+          in srgb,
+          var(--dashboard-header-pr-category-color) 16%,
+          rgba(15, 23, 42, 0.84)
+        )
+        52%,
+      rgba(2, 6, 23, 0.74)
+    ) !important;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--dashboard-header-pr-category-color) 42%,
+      rgba(226, 232, 240, 0.16)
+    ) !important;
+  box-shadow:
+    0 0 0.92rem var(--dashboard-header-pr-meteor-core-soft),
+    0 0 1.85rem
+      color-mix(
+        in srgb,
+        var(--dashboard-header-pr-category-color) 24%,
+        transparent
+      ),
+    0 0.86rem 1.45rem rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -0.72rem 1.05rem rgba(2, 6, 23, 0.66) !important;
   display: grid;
   filter: saturate(1.2) brightness(1.18);
   grid-template-columns: minmax(0, 1fr);
@@ -26576,6 +28168,39 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   .dashboard-header-fuel-meters
   > .dashboard-header-fuel-meter {
   max-width: 31rem;
+}
+
+#dashboard-header-meter-panel
+  .dashboard-header-meter-panel__section--slot-center
+  > :is(
+    .dashboard-header-compound-pr-meter,
+    .dashboard-header-achievement-cloud-trigger,
+    .dashboard-header-meter-scroller,
+    .dashboard-header-sets-meter,
+    .dashboard-header-fuel-meters
+  ) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  filter:
+    drop-shadow(0 1.2rem 2.35rem rgba(0, 0, 0, 0.52))
+    drop-shadow(0 0 2.1rem rgba(2, 6, 23, 0.52));
+  position: relative;
+}
+
+#dashboard-header-meter-panel
+  .dashboard-header-meter-panel__section--fuel.dashboard-header-meter-panel__section--slot-center
+  .dashboard-header-fuel-meter {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  filter:
+    drop-shadow(0 0.85rem 1.35rem rgba(0, 0, 0, 0.34))
+    drop-shadow(0 0 1.15rem rgb(var(--dashboard-header-fuel-color) / 0.12));
 }
 
 .dashboard-header-meter-panel
@@ -27087,24 +28712,75 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 .dashboard-header-meter-panel > .dashboard-header-category-levels-menu {
   display: grid !important;
   flex: 0 0 auto;
-  min-height: clamp(11.2rem, 20.4vh, 12.5rem);
+  min-height: clamp(9.6rem, 17vh, 11.1rem);
   opacity: 1 !important;
   order: 0;
   visibility: visible !important;
-  width: min(100%, 31rem) !important;
-  z-index: 12;
+  width: min(100%, 32.5rem) !important;
+  z-index: 42;
 }
 
 .dashboard-header-meter-panel .dashboard-header-category-levels-menu__orbit {
   display: block !important;
-  height: clamp(10.75rem, 19.4vh, 11.8rem);
-  min-height: 10.75rem;
+  height: clamp(9.6rem, 17vh, 11.1rem);
+  min-height: clamp(9.6rem, 17vh, 11.1rem);
   opacity: 1 !important;
   overflow: visible;
-  pointer-events: auto;
+  pointer-events: none;
   visibility: visible !important;
   width: 100%;
-  z-index: 12;
+  z-index: 42;
+}
+
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  > .dashboard-header-category-levels-menu {
+  z-index: 1 !important;
+}
+
+.dashboard-header-meter-panel .dashboard-header-category-levels-menu__ufo-webgl {
+  height: min(340px, calc(100vh - 8.4rem)) !important;
+  top: calc(50% + 3.35rem) !important;
+  width: min(400px, calc(100vw - 32px)) !important;
+  z-index: 1 !important;
+}
+
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-category-levels-menu__ufo-webgl {
+  height: min(340px, calc(100vh - 8.4rem)) !important;
+  top: calc(50% + 3.35rem) !important;
+  width: min(400px, calc(100vw - 32px)) !important;
+  z-index: 1 !important;
+}
+
+.dashboard-header-meter-panel__stack--orbit {
+  transform-style: preserve-3d;
+  z-index: 8;
+}
+
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__stack--orbit {
+  perspective: none !important;
+  transform-style: flat !important;
+  z-index: 86 !important;
+}
+
+.dashboard-header-meter-panel__stack--orbit
+  .dashboard-header-meter-panel__section--slot-left,
+.dashboard-header-meter-panel__stack--orbit
+  .dashboard-header-meter-panel__section--slot-right,
+.dashboard-header-meter-panel__stack--orbit
+  .dashboard-header-meter-panel__section--slot-back,
+.dashboard-header-meter-panel
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  ) {
+  z-index: 1;
+}
+
+.dashboard-header-meter-panel
+  .dashboard-header-meter-panel__highlight-meter[data-meter-highlighted="true"] {
+  position: relative;
+  z-index: 9;
 }
 
 .dashboard-header-meter-panel
@@ -27115,15 +28791,18 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   visibility: visible !important;
 }
 
-.dashboard-header-meter-panel__stack--orbit
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__stack--orbit
   .dashboard-header-meter-panel__section:not(
     .dashboard-header-meter-panel__section--slot-center
   ),
-.dashboard-header-meter-panel__stack--orbit
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__stack--orbit
   .dashboard-header-meter-panel__section:not(
     .dashboard-header-meter-panel__section--slot-center
   ):hover,
-.dashboard-header-meter-panel__stack--orbit
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__stack--orbit
   .dashboard-header-meter-panel__section:not(
     .dashboard-header-meter-panel__section--slot-center
   ):focus-within {
@@ -27132,13 +28811,214 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   visibility: hidden !important;
 }
 
-.dashboard-header-meter-panel
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
   .dashboard-header-meter-scroller__track
   > :not(.dashboard-header-meter-scroller__meter--center) {
   display: none !important;
   opacity: 0 !important;
   pointer-events: none !important;
   visibility: hidden !important;
+}
+
+.dashboard-header-category-levels-menu[data-meter-highlighted="true"]::after {
+  background: none !important;
+  box-shadow: none !important;
+  content: none !important;
+  filter: none !important;
+  opacity: 0 !important;
+}
+
+.dashboard-header-category-levels-menu[data-meter-highlighted="true"]
+  .dashboard-header-category-levels-menu__ufo-webgl {
+  filter:
+    drop-shadow(
+      0 0 1rem color-mix(in srgb, var(--dashboard-header-category-color) 72%, transparent)
+    )
+    drop-shadow(0 0.78rem 1.1rem rgba(2, 6, 23, 0.88));
+}
+
+.dashboard-header-meter-panel__highlight-meter {
+  cursor: pointer;
+  outline: 0;
+  transition:
+    box-shadow 180ms ease,
+    filter 180ms ease,
+    opacity 180ms ease;
+}
+
+.dashboard-header-meter-panel__highlight-meter[data-meter-highlighted="true"] {
+  box-shadow:
+    0 0 0 1px
+      color-mix(
+        in srgb,
+        var(--dashboard-header-meter-section-label-glow, #67e8f9) 34%,
+        transparent
+      ),
+    0 0 1.35rem
+      color-mix(
+        in srgb,
+        var(--dashboard-header-meter-section-label-soft, #67e8f9) 28%,
+        transparent
+      ),
+    0 1.05rem 2.35rem rgba(2, 6, 23, 0.44) !important;
+  filter: saturate(1.18) brightness(1.12) !important;
+  opacity: 1 !important;
+}
+
+.dashboard-header-meter-panel__section[data-meter-highlighted="true"] {
+  filter: saturate(1.16) brightness(1.12) !important;
+}
+
+.dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__section-label {
+  transform: none;
+}
+
+.dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__section-label::before {
+  opacity: 1;
+  width: min(18rem, 132%);
+}
+
+.dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__section-label::after {
+  opacity: 1;
+  width: 86%;
+}
+
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__section,
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__section::before,
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__section::after,
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__section
+  *,
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__section
+  *::before,
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__section
+  *::after {
+  animation-play-state: paused !important;
+  transform-style: flat !important;
+}
+
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__section--slot-center {
+  filter: saturate(0.96) brightness(0.9) blur(0) !important;
+  opacity: 0.86 !important;
+  transform: translate3d(-50%, -50%, 0) rotateX(-2deg) rotateY(0deg)
+    scale(0.96) !important;
+  z-index: 88 !important;
+}
+
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-category-levels-menu {
+  filter: saturate(0.76) brightness(0.7);
+}
+
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-category-levels-menu__ufo-chyron-track {
+  animation-play-state: paused !important;
+}
+
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-category-levels-menu,
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-category-levels-menu::before,
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-category-levels-menu::after,
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-category-levels-menu
+  *,
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-category-levels-menu
+  *::before,
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-category-levels-menu
+  *::after {
+  animation-play-state: paused !important;
+}
+
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section:not([data-meter-highlighted="true"]),
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section:not([data-meter-highlighted="true"])::before,
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section:not([data-meter-highlighted="true"])::after,
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section:not([data-meter-highlighted="true"])
+  *,
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section:not([data-meter-highlighted="true"])
+  *::before,
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section:not([data-meter-highlighted="true"])
+  *::after {
+  animation-play-state: paused !important;
+}
+
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section:not([data-meter-highlighted="true"]) {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  ) {
+  filter: saturate(0.72) brightness(0.62) blur(0.018rem) !important;
+  opacity: 0.48 !important;
+}
+
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  ),
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  )::before,
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  )::after,
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  )
+  *,
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  )
+  *::before,
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  )
+  *::after {
+  animation-play-state: paused !important;
+}
+
+.dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__section-label {
+  text-shadow:
+    0 0 0.38rem var(--dashboard-header-meter-section-label-glow),
+    0 0 1.05rem var(--dashboard-header-meter-section-label-soft),
+    0 0.08rem 0.48rem rgba(2, 6, 23, 0.92);
 }
 
 .dashboard-header-meter-scroller__track > *:hover,
@@ -28302,6 +30182,19 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   }
 }
 
+@keyframes dashboard-header-meter-panel-close {
+  0% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateX(0) rotateY(0deg) scale(1);
+  }
+  100% {
+    filter: blur(0.12rem);
+    opacity: 0;
+    transform: translateX(calc(100% + 1.35rem)) rotateY(-16deg) scale(0.98);
+  }
+}
+
 @keyframes dashboard-header-meter-tornado-drift {
   0%,
   100% {
@@ -28717,6 +30610,171 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   }
   100% {
     transform: translateX(var(--dashboard-header-category-level, 0%));
+  }
+}
+
+@keyframes dashboard-header-category-ufo-hover {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0) rotate(-1.4deg);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-0.16rem) rotate(1.4deg);
+  }
+}
+
+@keyframes dashboard-header-category-ufo-light {
+  0%,
+  100% {
+    opacity: 0.46;
+    transform: scale(0.78);
+  }
+  46% {
+    opacity: 1;
+    transform: scale(1.35);
+  }
+}
+
+@keyframes dashboard-header-category-ufo-beam {
+  0%,
+  100% {
+    opacity: 0.58;
+    transform: translateX(-50%) scaleX(0.92);
+  }
+  50% {
+    opacity: 0.88;
+    transform: translateX(-50%) scaleX(1.06);
+  }
+}
+
+@keyframes dashboard-header-category-ufo-readout-scan {
+  0% {
+    transform: translateX(-90%);
+  }
+  100% {
+    transform: translateX(90%);
+  }
+}
+
+@keyframes dashboard-header-category-ufo-chyron-dock {
+  0% {
+    filter: blur(0.1rem) saturate(0.72) brightness(0.8);
+    opacity: 0;
+    transform: translate(calc(-50% + 5.6rem), calc(-50% + 1.62rem))
+      rotateZ(4deg) scale(0.88);
+  }
+  62% {
+    filter: blur(0.015rem) saturate(1.12) brightness(1.06);
+    opacity: 0.96;
+    transform: translate(calc(-50% - 0.86rem), calc(-50% - 0.08rem))
+      rotateZ(-0.55deg) scale(1.018);
+  }
+  100% {
+    filter: none;
+    opacity: 1;
+    transform: translate(calc(-50% - 12px), -50%) rotateZ(0) scale(1);
+  }
+}
+
+@keyframes dashboard-header-category-ufo-chyron-undock {
+  0% {
+    filter: none;
+    opacity: 1;
+    transform: translate(calc(-50% - 12px), -50%) rotateZ(0) scale(1);
+  }
+  100% {
+    filter: blur(0.12rem) saturate(0.68) brightness(0.78);
+    opacity: 0;
+    transform: translate(calc(-50% + 5.6rem), calc(-50% + 1.62rem))
+      rotateZ(4deg) scale(0.88);
+  }
+}
+
+@keyframes dashboard-header-category-ufo-chyron-line-flash {
+  0% {
+    background-position:
+      0 0,
+      -130% 0,
+      130% 0;
+  }
+  50% {
+    background-position:
+      0.64rem 0,
+      82% 0,
+      -82% 0;
+  }
+  100% {
+    background-position:
+      1.28rem 0,
+      130% 0,
+      -130% 0;
+  }
+}
+
+@keyframes dashboard-header-category-ufo-chyron-line-flash-reverse {
+  0% {
+    background-position:
+      0 0,
+      0 0,
+      118% 0;
+  }
+  50% {
+    background-position:
+      0 0,
+      0 0,
+      -74% 0;
+  }
+  100% {
+    background-position:
+      0 0,
+      0 0,
+      -118% 0;
+  }
+}
+
+@keyframes dashboard-header-category-ufo-chyron-orbit-scroll {
+  0%,
+  2.05% {
+    transform: translate3d(0, 0, 0.22rem);
+  }
+  10%,
+  12.05% {
+    transform: translate3d(calc(-16.8rem + 1px), 0, 0.22rem);
+  }
+  20%,
+  22.05% {
+    transform: translate3d(calc(-33.6rem + 2px), 0, 0.22rem);
+  }
+  30%,
+  32.05% {
+    transform: translate3d(calc(-50.4rem + 3px), 0, 0.22rem);
+  }
+  40%,
+  42.05% {
+    transform: translate3d(calc(-67.2rem + 4px), 0, 0.22rem);
+  }
+  50%,
+  52.05% {
+    transform: translate3d(calc(-84rem + 5px), 0, 0.22rem);
+  }
+  60%,
+  62.05% {
+    transform: translate3d(calc(-100.8rem + 6px), 0, 0.22rem);
+  }
+  70%,
+  72.05% {
+    transform: translate3d(calc(-117.6rem + 7px), 0, 0.22rem);
+  }
+  80%,
+  82.05% {
+    transform: translate3d(calc(-134.4rem + 8px), 0, 0.22rem);
+  }
+  90%,
+  92.05% {
+    transform: translate3d(calc(-151.2rem + 9px), 0, 0.22rem);
+  }
+  100% {
+    transform: translate3d(calc(-168rem + 10px), 0, 0.22rem);
   }
 }
 
@@ -32945,4 +35003,193 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   .dashboard-header-meter-menu-trigger[aria-expanded="true"]::before {
   animation-play-state: running !important;
+}
+
+#dashboard-header-meter-panel.dashboard-header-meter-panel:not(
+    [data-meter-highlight="ufo"]
+  )
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  ),
+#dashboard-header-meter-panel.dashboard-header-meter-panel:not(
+    [data-meter-highlight="ufo"]
+  )
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  )::before,
+#dashboard-header-meter-panel.dashboard-header-meter-panel:not(
+    [data-meter-highlight="ufo"]
+  )
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  )::after,
+#dashboard-header-meter-panel.dashboard-header-meter-panel:not(
+    [data-meter-highlight="ufo"]
+  )
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  )
+  *,
+#dashboard-header-meter-panel.dashboard-header-meter-panel:not(
+    [data-meter-highlight="ufo"]
+  )
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  )
+  *::before,
+#dashboard-header-meter-panel.dashboard-header-meter-panel:not(
+    [data-meter-highlight="ufo"]
+  )
+  .dashboard-header-meter-panel__section[data-meter-highlighted="true"]
+  .dashboard-header-meter-panel__highlight-meter:not(
+    [data-meter-highlighted="true"]
+  )
+  *::after {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .dashboard-header-meter-panel__stack--orbit::before {
+    animation-duration: 44s !important;
+  }
+
+  .dashboard-header-meter-panel__stack--orbit::after {
+    animation-duration: 40s !important;
+  }
+
+  .dashboard-header-meter-tornado::before {
+    animation-duration: 40s !important;
+  }
+
+  .dashboard-header-meter-tornado::after {
+    animation-duration: 46s !important;
+  }
+
+  .dashboard-header-meter-tornado__column {
+    animation-duration: 56s !important;
+  }
+
+  .dashboard-header-meter-tornado__ribbon--front {
+    animation-duration: 48s !important;
+  }
+
+  .dashboard-header-meter-tornado__ribbon--back {
+    animation-duration: 54s !important;
+  }
+
+  .dashboard-header-meter-tornado__core-map {
+    animation-duration: 60s !important;
+  }
+
+  .dashboard-header-meter-tornado__svg-mouth--outer {
+    animation-duration: 42s !important;
+  }
+
+  .dashboard-header-meter-tornado__svg-mouth--inner {
+    animation-duration: 38s !important;
+  }
+
+  .dashboard-header-meter-tornado__svg-stream--primary {
+    animation-duration: 50s !important;
+  }
+
+  .dashboard-header-meter-tornado__svg-stream--secondary {
+    animation-duration: 56s !important;
+  }
+
+  .dashboard-header-meter-tornado__svg-stream--cut {
+    animation-duration: 46s !important;
+  }
+
+  .dashboard-header-meter-tornado__emerald {
+    animation-duration: 58s, 22s !important;
+  }
+
+  .dashboard-header-meter-tornado__emerald-core {
+    animation-duration: 34s !important;
+  }
+
+  .dashboard-header-meter-tornado__emerald-glint {
+    animation-duration: 24s !important;
+  }
+}
+
+#dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] {
+  isolation: isolate;
+}
+
+#dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  > .dashboard-header-category-levels-menu {
+  z-index: 2 !important;
+}
+
+#dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-category-levels-menu__ufo-webgl {
+  height: min(340px, calc(100vh - 8.4rem)) !important;
+  top: calc(50% + 3.35rem) !important;
+  width: min(400px, calc(100vw - 32px)) !important;
+  z-index: 1 !important;
+}
+
+#dashboard-header-meter-panel.dashboard-header-meter-panel:not(
+    [data-meter-highlight="ufo"]
+  )
+  > .dashboard-header-category-levels-menu {
+  z-index: 2 !important;
+}
+
+#dashboard-header-meter-panel.dashboard-header-meter-panel:not(
+    [data-meter-highlight="ufo"]
+  )
+  .dashboard-header-category-levels-menu__ufo-webgl {
+  height: min(340px, calc(100vh - 8.4rem)) !important;
+  top: calc(50% + 3.35rem) !important;
+  width: min(400px, calc(100vw - 32px)) !important;
+  z-index: 1 !important;
+}
+
+#dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__stack--orbit {
+  perspective: none !important;
+  transform-style: flat !important;
+  z-index: 86 !important;
+}
+
+#dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__section,
+#dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__section *,
+#dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__section::before,
+#dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__section::after {
+  transform-style: flat !important;
+}
+
+#dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__section--slot-center {
+  filter: saturate(0.96) brightness(0.9) blur(0) !important;
+  opacity: 0.86 !important;
+  transform: translate3d(-50%, -50%, 0) rotateX(-2deg) rotateY(0deg)
+    scale(0.96) !important;
+  z-index: 88 !important;
+}
+
+#dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__highlight-meter {
+  z-index: 90 !important;
+}
+
+#dashboard-header-meter-panel.dashboard-header-meter-panel:not(
+    [data-meter-highlight="ufo"]
+  )
+  .dashboard-header-meter-panel__section:not([data-meter-highlighted="true"]) {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }

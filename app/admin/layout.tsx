@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import ProtectedHeader from "@/components/ProtectedHeader";
 import { ProfileProvider } from "@/components/profile/ProfileProvider";
-import { supabase } from "@/lib/supabaseClient";
+import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
 import { ROUTES } from "@/lib/routes";
 
 export default function AdminLayout({
@@ -25,7 +25,7 @@ export default function AdminLayout({
 
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await getSupabaseUser();
 
       if (!user) {
         router.replace(ROUTES.admin.login);

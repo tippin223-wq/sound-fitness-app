@@ -21,16 +21,19 @@ import DashboardCalendar, {
   type DashboardCalendarItem,
 } from "@/components/dashboard/DashboardCalendar";
 import DashboardBasketball3D from "@/components/dashboard/DashboardBasketball3D";
+import DashboardCategoryUfoScene3D from "@/components/dashboard/DashboardCategoryUfoScene3D";
 import BodyCommandCenterCard from "@/components/dashboard/BodyCommandCenterCard";
 import DashboardLogo3D from "@/components/dashboard/DashboardLogo3D";
 import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
 import DashboardTrophy3D from "@/components/dashboard/DashboardTrophy3D";
 import DashboardTornadoEmeralds3D, {
-  DashboardEmeraldCluster3D,
-  DashboardEmerald3D,
+  DashboardGemStage3D,
   type DashboardTornadoGemTone,
 } from "@/components/dashboard/DashboardTornadoEmeralds3D";
-import DashboardTreasureChest3D from "@/components/dashboard/DashboardTreasureChest3D";
+import DashboardSoundPointsTeslaCoil3D from "@/components/dashboard/DashboardSoundPointsTeslaCoil3D";
+import DashboardTreasureChest3D, {
+  DashboardSpinningSoundCoin3D,
+} from "@/components/dashboard/DashboardTreasureChest3D";
 import {
   SoundLogoAchievementBadge,
   type AchievementBadgeCategory,
@@ -189,6 +192,24 @@ const DASHBOARD_WEEKLY_SESSION_GOAL = 7;
 const DASHBOARD_PLAN_SESSION_TARGET = 10;
 const DASHBOARD_HEADER_METER_COUNT = 2;
 const DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT = 3;
+const DASHBOARD_HEADER_METER_PANEL_HIGHLIGHT_TARGETS = [
+  "ufo",
+  "compound-pr",
+  "achievements",
+  "daily-sets",
+  "plan-sessions",
+  "fuel-calories",
+  "weight",
+] as const;
+const DASHBOARD_HEADER_METER_PANEL_KEYBOARD_KEYS = new Set([
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "End",
+  "Escape",
+  "Home",
+]);
 const DASHBOARD_PAGE_ANALOG_LEVEL_TICKS = [0, 20, 40, 60, 80, 100] as const;
 const DASHBOARD_PAGE_ANALOG_LEVEL_REWARDS = [
   { icon: "coin", label: "Sound Coin", threshold: 33 },
@@ -196,10 +217,11 @@ const DASHBOARD_PAGE_ANALOG_LEVEL_REWARDS = [
   { icon: "trophy", label: "Level Up Trophy", threshold: 100 },
 ] as const;
 const DASHBOARD_PROFILE_REWARD_PANELS = [
-  { id: "gems", label: "Gems" },
-  { id: "coins", label: "Coins" },
   { id: "points", label: "Points" },
+  { id: "coins", label: "Coins" },
+  { id: "gems", label: "Gems" },
 ] as const;
+const DASHBOARD_PROFILE_GEM_VAULT_CLOSE_BEFORE_SCROLL_MS = 520;
 const DASHBOARD_HEADER_MENU_BLOCK_COUNT = 5;
 const DASHBOARD_HEADER_PROGRESS_BLOCK_INDEX = 2;
 const DASHBOARD_HEADER_IDLE_TIMEOUT_MS = 60000;
@@ -226,6 +248,18 @@ html body main.dashboard-page--page-analog-active.dashboard-page--page-analog-ac
 html body main.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active .dashboard-header-meter-menu-trigger[aria-expanded="true"]::before {
   animation: dashboard-header-meter-menu-black-hole-spin 3.6s linear infinite !important;
   animation-play-state: running !important;
+}
+`;
+const DASHBOARD_HEADER_METER_UFO_COMPACT_STYLE = `
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] > .dashboard-header-category-levels-menu {
+  z-index: 2 !important;
+}
+
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-category-levels-menu__ufo-webgl {
+  height: min(340px, calc(100vh - 8.4rem)) !important;
+  top: calc(50% + 3.35rem) !important;
+  width: min(400px, calc(100vw - 32px)) !important;
+  z-index: 1 !important;
 }
 `;
 const DASHBOARD_HEADER_NEWS_CHYRON_TIMING_STYLE = `
@@ -303,17 +337,15 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
 
 .dashboard-profile-sound-points-total {
   background:
-    radial-gradient(circle at 18% 0%, rgba(59, 130, 246, 0.42), transparent 34%),
-    radial-gradient(circle at 84% 18%, rgba(14, 165, 233, 0.24), transparent 32%),
-    linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(23, 37, 84, 0.94) 48%, rgba(2, 6, 23, 0.96)) !important;
-  border-color: rgba(96, 165, 250, 0.4) !important;
+    radial-gradient(ellipse at 50% 54%, rgba(2, 6, 23, 0.86), rgba(2, 6, 23, 0.54) 52%, rgba(2, 6, 23, 0.16) 78%, transparent 100%),
+    radial-gradient(ellipse at 50% 90%, rgba(15, 23, 42, 0.64), transparent 58%) !important;
+  border-color: transparent !important;
   box-shadow:
-    0 0 1.4rem rgba(30, 64, 175, 0.36),
-    0 0 0.55rem rgba(255, 255, 255, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    inset 0 -1rem 1.6rem rgba(2, 6, 23, 0.48) !important;
+    0 2.4rem 5.2rem rgba(0, 0, 0, 0.52),
+    0 0 4rem rgba(2, 6, 23, 0.66),
+    inset 0 -2rem 3rem rgba(0, 0, 0, 0.34) !important;
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
 }
 
@@ -326,29 +358,24 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
 }
 
 .dashboard-profile-sound-points-total::before {
-  animation: dashboard-profile-sound-points-prism-edge 3.8s linear infinite;
   background:
-    linear-gradient(90deg, rgba(248, 113, 113, 0.95), rgba(250, 204, 21, 0.98), rgba(52, 211, 153, 0.95), rgba(167, 139, 250, 0.95), rgba(125, 211, 252, 0.98), rgba(251, 146, 60, 0.95)) top / 100% 0.08rem no-repeat,
-    linear-gradient(90deg, rgba(125, 211, 252, 0.98), rgba(255, 255, 255, 0.96), rgba(251, 146, 60, 0.92), rgba(248, 113, 113, 0.9)) bottom / 100% 0.08rem no-repeat,
-    linear-gradient(180deg, rgba(248, 113, 113, 0.92), rgba(52, 211, 153, 0.9), rgba(125, 211, 252, 0.96)) left / 0.08rem 100% no-repeat,
-    linear-gradient(180deg, rgba(250, 204, 21, 0.94), rgba(167, 139, 250, 0.92), rgba(251, 146, 60, 0.94)) right / 0.08rem 100% no-repeat;
-  inset: 0;
-  opacity: 0.9;
+    radial-gradient(ellipse at 50% 58%, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.58) 48%, transparent 76%),
+    radial-gradient(ellipse at 50% 18%, rgba(30, 41, 59, 0.4), transparent 54%);
+  filter: blur(0.4rem);
+  inset: -1.2rem -0.8rem -0.75rem;
+  opacity: 0.96;
   z-index: 0;
 }
 
 .dashboard-profile-sound-points-total::after {
-  animation: dashboard-profile-sound-points-electric-pulse 1.24s ease-in-out infinite;
   background:
-    radial-gradient(circle at 13% 16%, rgba(255, 255, 255, 0.92) 0 0.08rem, transparent 0.22rem),
-    radial-gradient(circle at 88% 18%, rgba(224, 242, 254, 0.82) 0 0.07rem, transparent 0.2rem),
-    radial-gradient(circle at 93% 84%, rgba(255, 255, 255, 0.72) 0 0.055rem, transparent 0.18rem),
-    linear-gradient(90deg, transparent 0 20%, rgba(255, 255, 255, 0.86) 34% 39%, rgba(125, 211, 252, 0.48) 44%, transparent 68%) top left / 84% 0.1rem no-repeat,
-    linear-gradient(180deg, transparent 0 18%, rgba(255, 255, 255, 0.76) 32% 38%, rgba(96, 165, 250, 0.42) 44%, transparent 68%) top left / 0.1rem 82% no-repeat,
-    linear-gradient(90deg, transparent 0 24%, rgba(255, 255, 255, 0.7) 40% 45%, rgba(125, 211, 252, 0.38) 50%, transparent 72%) bottom right / 76% 0.09rem no-repeat;
-  inset: 0.12rem;
+    radial-gradient(circle at 18% 22%, rgba(148, 163, 184, 0.22), transparent 26%),
+    radial-gradient(circle at 82% 18%, rgba(34, 211, 238, 0.12), transparent 24%),
+    radial-gradient(ellipse at 50% 78%, rgba(0, 0, 0, 0.36), transparent 56%);
+  filter: blur(0.18rem);
+  inset: -0.4rem;
   mix-blend-mode: screen;
-  opacity: 0.5;
+  opacity: 0.46;
   z-index: 0;
 }
 
@@ -414,14 +441,28 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
 }
 
 .dashboard-profile-points-dropdown {
-  background:
-    radial-gradient(circle at 14% 0%, rgba(14, 165, 233, 0.16), transparent 32%),
-    radial-gradient(circle at 90% 14%, rgba(250, 204, 21, 0.08), transparent 30%),
-    linear-gradient(180deg, rgb(2, 6, 23), rgb(5, 13, 30) 58%, rgb(2, 6, 23)) !important;
-  background-color: rgb(2, 6, 23) !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
   isolation: isolate;
+  overflow: visible !important;
   transform: translateX(2.15rem);
   z-index: 360 !important;
+}
+
+.dashboard-profile-points-dropdown::before {
+  background:
+    radial-gradient(ellipse at 50% 42%, rgba(2, 6, 23, 0.96), rgba(2, 6, 23, 0.72) 48%, rgba(2, 6, 23, 0.24) 76%, transparent 100%),
+    radial-gradient(ellipse at 50% 86%, rgba(0, 0, 0, 0.72), transparent 62%);
+  border-radius: 2rem;
+  content: "";
+  filter: blur(0.35rem);
+  inset: -0.8rem -0.55rem 0.3rem;
+  opacity: 0.98;
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
 }
 
 @media (max-width: 860px) {
@@ -474,7 +515,7 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
     filter 260ms ease,
     opacity 260ms ease,
     transform 440ms cubic-bezier(0.2, 0.82, 0.18, 1);
-  width: min(18.1rem, 100%);
+  width: min(24rem, 100%);
   will-change: transform, opacity;
   z-index: var(--dashboard-profile-reward-z, 1);
 }
@@ -487,6 +528,7 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
 .dashboard-profile-reward-orbit__panel[data-reward-panel-side="left"],
 .dashboard-profile-reward-orbit__panel[data-reward-panel-side="right"] {
   filter: saturate(0.72) brightness(0.62) blur(0.025rem);
+  opacity: 0;
 }
 
 .dashboard-profile-reward-orbit__panel[data-reward-panel-side="left"] {
@@ -539,7 +581,6 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   margin-top: 0.62rem;
 }
 
-.dashboard-profile-reward-orbit__arrow,
 .dashboard-profile-reward-orbit__dot {
   align-items: center;
   border: 0;
@@ -548,60 +589,268 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   outline: none;
 }
 
-.dashboard-profile-reward-orbit__arrow {
-  background: rgba(15, 23, 42, 0.72);
+.dashboard-profile-reward-orbit__dots {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.42rem;
+}
+
+.dashboard-profile-reward-orbit__dot {
+  background:
+    radial-gradient(circle at 36% 24%, rgba(255, 255, 255, 0.2), transparent 34%),
+    linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(2, 6, 23, 0.72));
   border: 1px solid rgba(125, 211, 252, 0.18);
   border-radius: 9999px;
-  color: rgba(224, 242, 254, 0.88);
-  font-size: 0.82rem;
+  box-shadow:
+    0 0.32rem 0.85rem rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  color: rgba(224, 242, 254, 0.86);
+  height: 1.42rem;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+  width: 1.42rem;
+}
+
+.dashboard-profile-reward-orbit__dot[aria-pressed="true"] {
+  background:
+    radial-gradient(circle at 36% 24%, rgba(255, 255, 255, 0.34), transparent 35%),
+    linear-gradient(145deg, rgba(14, 165, 233, 0.24), rgba(15, 23, 42, 0.9));
+  border-color: rgba(125, 211, 252, 0.55);
+  box-shadow:
+    0 0 0.72rem rgba(125, 211, 252, 0.42),
+    0 0.32rem 0.85rem rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+  transform: translateY(-0.04rem) scale(1.08);
+}
+
+.dashboard-profile-reward-orbit__dot:hover,
+.dashboard-profile-reward-orbit__dot:focus-visible {
+  border-color: rgba(253, 224, 71, 0.44);
+  box-shadow:
+    0 0 0.68rem rgba(250, 204, 21, 0.22),
+    0 0.32rem 0.85rem rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  transform: translateY(-0.04rem);
+}
+
+.dashboard-profile-reward-orbit__dot-logo {
+  display: block;
+  height: 0.86rem;
+  position: relative;
+  width: 0.86rem;
+}
+
+.dashboard-profile-reward-orbit__dot[data-reward-indicator="points"]
+  .dashboard-profile-reward-orbit__dot-logo::before {
+  background: linear-gradient(180deg, #bae6fd, #38bdf8 46%, #2563eb);
+  clip-path: polygon(55% 0, 8% 57%, 44% 57%, 33% 100%, 92% 38%, 56% 38%);
+  content: "";
+  filter:
+    drop-shadow(0 0 0.12rem rgba(255, 255, 255, 0.72))
+    drop-shadow(0 0 0.28rem rgba(56, 189, 248, 0.64));
+  inset: 0.04rem 0.12rem;
+  position: absolute;
+}
+
+.dashboard-profile-reward-orbit__dot[data-reward-indicator="coins"]
+  .dashboard-profile-reward-orbit__dot-logo {
+  background: url("/sound-coins/sound-coin-gold.png") center / contain no-repeat;
+  filter:
+    drop-shadow(0 0 0.12rem rgba(254, 243, 199, 0.7))
+    drop-shadow(0 0 0.26rem rgba(250, 204, 21, 0.44));
+  height: 1rem;
+  width: 1rem;
+}
+
+.dashboard-profile-reward-orbit__dot[data-reward-indicator="gems"]
+  .dashboard-profile-reward-orbit__dot-logo::before {
+  background:
+    linear-gradient(135deg, rgba(236, 253, 245, 0.95), rgba(52, 211, 153, 0.78) 42%, rgba(16, 185, 129, 0.86) 72%, rgba(5, 150, 105, 0.9));
+  clip-path: polygon(50% 0, 92% 32%, 68% 100%, 32% 100%, 8% 32%);
+  content: "";
+  filter:
+    drop-shadow(0 0 0.12rem rgba(236, 253, 245, 0.74))
+    drop-shadow(0 0 0.3rem rgba(52, 211, 153, 0.48));
+  inset: 0.02rem 0.08rem 0.04rem;
+  position: absolute;
+}
+
+.dashboard-profile-reward-actions {
+  align-items: center;
+  display: grid;
+  gap: 0.72rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0.88rem;
+  position: relative;
+  z-index: 16;
+}
+
+.dashboard-profile-reward-action {
+  min-width: 0;
+  position: relative;
+}
+
+.dashboard-profile-reward-action__button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: rgba(224, 242, 254, 0.92);
+  display: inline-flex;
+  font-size: 0.62rem;
   font-weight: 950;
-  height: 1.82rem;
-  line-height: 1;
+  gap: 0.48rem;
+  justify-content: center;
+  letter-spacing: 0.12em;
+  min-height: 2rem;
+  outline: none;
+  padding: 0.35rem 0.28rem;
+  text-shadow: 0 0 0.58rem rgba(125, 211, 252, 0.22);
+  text-transform: uppercase;
+  transition:
+    box-shadow 180ms ease,
+    color 180ms ease,
+    text-shadow 180ms ease,
+    transform 180ms ease;
+  width: 100%;
+}
+
+.dashboard-profile-reward-action__button--store {
+  color: rgba(254, 243, 199, 0.94);
+}
+
+.dashboard-profile-reward-action__button--collection {
+  color: rgba(207, 250, 254, 0.94);
+}
+
+.dashboard-profile-reward-action__button:hover,
+.dashboard-profile-reward-action__button:focus-visible,
+.dashboard-profile-reward-action__button[data-reward-action-open="true"] {
+  box-shadow: none;
+  color: #ffffff;
+  text-shadow:
+    0 0 0.54rem rgba(250, 204, 21, 0.3),
+    0 0 0.72rem rgba(34, 211, 238, 0.3);
+  transform: translateY(-0.05rem);
+}
+
+.dashboard-profile-reward-action__button:focus-visible {
+  outline: 1px solid rgba(125, 211, 252, 0.32);
+  outline-offset: 0.18rem;
+}
+
+.dashboard-profile-reward-action-menu {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(34, 211, 238, 0.2), transparent 34%),
+    radial-gradient(circle at 88% 12%, rgba(250, 204, 21, 0.12), transparent 32%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.94));
+  border: 1px solid rgba(191, 219, 254, 0.18);
+  border-radius: 1rem;
+  bottom: calc(100% + 0.56rem);
+  box-shadow:
+    0 1.3rem 2.8rem rgba(0, 0, 0, 0.42),
+    0 0 1.4rem rgba(34, 211, 238, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  display: grid;
+  gap: 0.4rem;
+  min-width: min(13.4rem, calc(100vw - 2rem));
+  padding: 0.52rem;
+  position: absolute;
+  right: 0;
+  z-index: 24;
+}
+
+.dashboard-profile-reward-action-menu--store {
+  left: 0;
+  right: auto;
+}
+
+.dashboard-profile-reward-action-menu__item {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.52);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  border-radius: 0.78rem;
+  color: rgba(226, 232, 240, 0.9);
+  display: grid;
+  gap: 0.52rem;
+  grid-template-columns: 1.35rem minmax(0, 1fr);
+  min-height: 2.8rem;
+  outline: none;
+  padding: 0.48rem 0.58rem;
+  text-align: left;
   transition:
     background-color 160ms ease,
     border-color 160ms ease,
     color 160ms ease,
     transform 160ms ease;
-  width: 1.82rem;
+  width: 100%;
 }
 
-.dashboard-profile-reward-orbit__arrow:hover,
-.dashboard-profile-reward-orbit__arrow:focus-visible {
-  background: rgba(14, 165, 233, 0.18);
-  border-color: rgba(125, 211, 252, 0.42);
+.dashboard-profile-reward-action-menu__item:hover,
+.dashboard-profile-reward-action-menu__item:focus-visible {
+  background: rgba(14, 165, 233, 0.16);
+  border-color: rgba(125, 211, 252, 0.32);
   color: #ffffff;
-  transform: translateY(-0.05rem);
+  transform: translateY(-0.04rem);
 }
 
-.dashboard-profile-reward-orbit__dots {
-  align-items: center;
-  display: inline-flex;
-  gap: 0.34rem;
+.dashboard-profile-reward-action-menu__item > span {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
 }
 
-.dashboard-profile-reward-orbit__dot {
-  background: rgba(148, 163, 184, 0.3);
-  border-radius: 9999px;
-  height: 0.45rem;
-  transition:
-    background-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 160ms ease,
-    width 160ms ease;
-  width: 0.45rem;
+.dashboard-profile-reward-action-menu__item > span > span:first-child {
+  font-size: 0.6rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-.dashboard-profile-reward-orbit__dot[aria-pressed="true"] {
-  background: #7dd3fc;
-  box-shadow: 0 0 0.42rem rgba(125, 211, 252, 0.74);
-  width: 1.05rem;
+.dashboard-profile-reward-action-menu__item > span > span:last-child {
+  color: rgba(191, 219, 254, 0.68);
+  font-size: 0.52rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.dashboard-profile-reward-action-menu__coin {
+  display: block;
+  filter:
+    drop-shadow(0 0 0.22rem rgba(254, 243, 199, 0.46))
+    drop-shadow(0 0 0.5rem rgba(250, 204, 21, 0.32));
+  height: 1.3rem;
+  pointer-events: none;
+  width: 1.3rem;
 }
 
 .dashboard-profile-points-trigger {
   isolation: isolate;
-  min-width: 6.85rem !important;
+  min-width: 5.15rem !important;
   overflow: visible;
   position: relative;
+}
+
+.dashboard-profile-rewards-control {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.32rem;
 }
 
 .dashboard-profile-points-trigger[data-dropdown-open="true"] {
@@ -658,6 +907,16 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
     --dashboard-profile-points-trigger-orbit-front-y 190ms ease,
     --dashboard-profile-points-trigger-orbit-back-y 190ms ease;
   width: 100%;
+}
+
+.dashboard-profile-points-trigger__shared-gems {
+  display: block;
+  filter:
+    drop-shadow(0 0 0.14rem rgba(255, 255, 255, 0.28))
+    drop-shadow(0 0 0.48rem rgba(52, 211, 153, 0.36));
+  height: 100% !important;
+  pointer-events: none;
+  width: 100% !important;
 }
 
 .dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"]):not([data-motion-paused="true"])
@@ -777,7 +1036,6 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   display: grid;
   gap: 0.18rem;
   min-width: 0;
-  padding-right: 3.72rem;
   position: relative;
   z-index: 2;
 }
@@ -786,7 +1044,258 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   align-items: center;
   display: inline-flex;
   gap: 0.28rem;
+  min-height: 0.9rem;
   min-width: 0;
+}
+
+.dashboard-profile-points-trigger__mini-gems {
+  display: inline-block;
+  flex: 0 0 auto;
+  height: 0.82rem;
+  isolation: isolate;
+  position: relative;
+  width: 1.34rem;
+}
+
+.dashboard-profile-points-trigger__mini-gem {
+  --dashboard-profile-trigger-mini-gem-a: #dbeafe;
+  --dashboard-profile-trigger-mini-gem-b: #60a5fa;
+  --dashboard-profile-trigger-mini-gem-c: #1d4ed8;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92) 0 15%, transparent 16%),
+    linear-gradient(
+      150deg,
+      var(--dashboard-profile-trigger-mini-gem-a) 0%,
+      var(--dashboard-profile-trigger-mini-gem-b) 48%,
+      var(--dashboard-profile-trigger-mini-gem-c) 100%
+    );
+  box-shadow:
+    0 0 0.32rem color-mix(in srgb, var(--dashboard-profile-trigger-mini-gem-b) 52%, transparent),
+    inset 0 0.04rem 0 rgba(255, 255, 255, 0.62);
+  clip-path: polygon(50% 0, 88% 22%, 100% 52%, 50% 100%, 0 52%, 12% 22%);
+  display: block;
+  height: 0.62rem;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 0.56rem;
+}
+
+.dashboard-profile-points-trigger__mini-gem:nth-child(1) {
+  transform: translate(-86%, -48%) rotate(-14deg) scale(0.86);
+  z-index: 1;
+}
+
+.dashboard-profile-points-trigger__mini-gem:nth-child(2) {
+  transform: translate(-50%, -56%) rotate(8deg);
+  z-index: 3;
+}
+
+.dashboard-profile-points-trigger__mini-gem:nth-child(3) {
+  transform: translate(-16%, -44%) rotate(18deg) scale(0.86);
+  z-index: 2;
+}
+
+.dashboard-profile-points-trigger__mini-gem:nth-child(4) {
+  transform: translate(-48%, -18%) rotate(-4deg) scale(0.68);
+  z-index: 4;
+}
+
+.dashboard-profile-points-trigger__mini-gem[data-gem-tone="green"] {
+  --dashboard-profile-trigger-mini-gem-a: #d1fae5;
+  --dashboard-profile-trigger-mini-gem-b: #34d399;
+  --dashboard-profile-trigger-mini-gem-c: #047857;
+}
+
+.dashboard-profile-points-trigger__mini-gem[data-gem-tone="yellow"] {
+  --dashboard-profile-trigger-mini-gem-a: #fef9c3;
+  --dashboard-profile-trigger-mini-gem-b: #facc15;
+  --dashboard-profile-trigger-mini-gem-c: #b45309;
+}
+
+.dashboard-profile-points-trigger__mini-gem[data-gem-tone="red"] {
+  --dashboard-profile-trigger-mini-gem-a: #ffe4e6;
+  --dashboard-profile-trigger-mini-gem-b: #fb7185;
+  --dashboard-profile-trigger-mini-gem-c: #be123c;
+}
+
+.dashboard-profile-points-trigger__mini-gem[data-gem-tone="blue"] {
+  --dashboard-profile-trigger-mini-gem-a: #dbeafe;
+  --dashboard-profile-trigger-mini-gem-b: #60a5fa;
+  --dashboard-profile-trigger-mini-gem-c: #1d4ed8;
+}
+
+.dashboard-profile-points-trigger__sound-coin {
+  background: url("/sound-coins/sound-coin-gold.png?v=2") center / contain no-repeat;
+  display: inline-block;
+  flex: 0 0 auto;
+  filter:
+    drop-shadow(0 0 0.16rem rgba(254, 243, 199, 0.5))
+    drop-shadow(0 0 0.34rem rgba(250, 204, 21, 0.36));
+  height: 0.9rem;
+  width: 0.9rem;
+}
+
+.dashboard-profile-claim-trigger {
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 1.05rem;
+  display: inline-grid;
+  height: 4.25rem;
+  isolation: isolate;
+  justify-items: center;
+  min-width: 3.15rem;
+  outline: none;
+  overflow: visible;
+  padding: 0;
+  position: relative;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.dashboard-profile-claim-trigger:hover,
+.dashboard-profile-claim-trigger:focus-visible,
+.dashboard-profile-claim-trigger[aria-expanded="true"] {
+  background-color: rgba(52, 211, 153, 0.08);
+  border-color: rgba(187, 247, 208, 0.2);
+  transform: translateY(-0.12rem);
+}
+
+.dashboard-profile-points-trigger__claim-package {
+  display: block;
+  filter:
+    drop-shadow(0 0.18rem 0.18rem rgba(2, 6, 23, 0.44))
+    drop-shadow(0 0 0.5rem rgba(16, 185, 129, 0.22));
+  height: 2.86rem;
+  isolation: isolate;
+  pointer-events: none;
+  position: relative;
+  transform: rotate(-2deg) scale(0.96);
+  transition:
+    filter 180ms ease,
+    transform 180ms ease;
+  width: 2.76rem;
+  z-index: 3;
+}
+
+.dashboard-profile-points-trigger__claim-package::before {
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(209, 250, 229, 0.16), transparent 62%),
+    radial-gradient(ellipse at 50% 68%, rgba(34, 211, 238, 0.12), transparent 70%);
+  border: 1px solid rgba(187, 247, 208, 0.14);
+  border-radius: 9999px;
+  content: "";
+  inset: 0.1rem 0.08rem -0.02rem;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
+}
+
+.dashboard-profile-points-trigger__claim-package-box,
+.dashboard-profile-points-trigger__claim-package-lid {
+  background:
+    linear-gradient(90deg, transparent 41%, rgba(254, 240, 138, 0.9) 42% 58%, transparent 59%),
+    linear-gradient(160deg, #34d399 0%, #10b981 42%, #047857 100%);
+  border: 1px solid rgba(209, 250, 229, 0.34);
+  box-shadow:
+    inset 0 0.06rem 0 rgba(255, 255, 255, 0.42),
+    inset 0 -0.18rem 0.24rem rgba(6, 78, 59, 0.44);
+  display: block;
+  left: 50%;
+  position: absolute;
+}
+
+.dashboard-profile-points-trigger__claim-package-lid {
+  border-radius: 0.36rem 0.36rem 0.18rem 0.18rem;
+  height: 0.56rem;
+  top: 0.9rem;
+  transform: translateX(-50%) rotate(-1deg);
+  width: 1.66rem;
+  z-index: 3;
+}
+
+.dashboard-profile-points-trigger__claim-package-box {
+  border-radius: 0.22rem 0.22rem 0.42rem 0.42rem;
+  height: 1.18rem;
+  top: 1.38rem;
+  transform: translateX(-50%);
+  width: 1.48rem;
+  z-index: 2;
+}
+
+.dashboard-profile-points-trigger__claim-package-box::before {
+  background: linear-gradient(
+    180deg,
+    rgba(254, 249, 195, 0.98),
+    rgba(234, 179, 8, 0.82)
+  );
+  border-radius: 9999px;
+  bottom: -0.02rem;
+  content: "";
+  left: 50%;
+  position: absolute;
+  top: -0.58rem;
+  transform: translateX(-50%);
+  width: 0.22rem;
+}
+
+.dashboard-profile-points-trigger__claim-package-bow {
+  background:
+    radial-gradient(circle at 48% 42%, rgba(255, 255, 255, 0.82), transparent 18%),
+    linear-gradient(145deg, #fef08a, #f59e0b 58%, #92400e);
+  border: 1px solid rgba(254, 249, 195, 0.46);
+  border-radius: 60% 42% 58% 44%;
+  box-shadow: 0 0 0.28rem rgba(250, 204, 21, 0.44);
+  display: block;
+  height: 0.58rem;
+  left: 50%;
+  position: absolute;
+  top: 0.55rem;
+  width: 0.72rem;
+  z-index: 4;
+}
+
+.dashboard-profile-points-trigger__claim-package-bow--left {
+  transform: translateX(-0.72rem) rotate(-24deg);
+}
+
+.dashboard-profile-points-trigger__claim-package-bow--right {
+  transform: translateX(0) rotate(24deg) scaleX(-1);
+}
+
+.dashboard-profile-points-trigger__claim-package-spark {
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 9999px;
+  box-shadow:
+    0 0 0.22rem rgba(254, 240, 138, 0.82),
+    0 0 0.44rem rgba(52, 211, 153, 0.36);
+  display: block;
+  height: 0.16rem;
+  position: absolute;
+  width: 0.16rem;
+  z-index: 5;
+}
+
+.dashboard-profile-points-trigger__claim-package-spark--one {
+  right: 0.44rem;
+  top: 0.62rem;
+}
+
+.dashboard-profile-points-trigger__claim-package-spark--two {
+  right: 0.28rem;
+  top: 1.54rem;
+}
+
+.dashboard-profile-claim-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
+  .dashboard-profile-points-trigger__claim-package {
+  filter:
+    drop-shadow(0 0.2rem 0.18rem rgba(2, 6, 23, 0.44))
+    drop-shadow(0 0 0.72rem rgba(52, 211, 153, 0.38))
+    drop-shadow(0 0 0.42rem rgba(250, 204, 21, 0.18));
+  transform: translateY(-0.12rem) rotate(3deg) scale(1.04);
 }
 
 .dashboard-profile-points-trigger__mini-bolt {
@@ -804,9 +1313,9 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   align-items: center;
   display: grid;
   gap: 0.44rem;
-  grid-template-columns: minmax(0, 1fr) 9.35rem;
+  grid-template-columns: minmax(0, 1fr) 13.1rem;
   margin-top: 0.72rem;
-  min-height: 6.45rem;
+  min-height: 7.7rem;
   overflow: visible;
   position: relative;
 }
@@ -834,9 +1343,9 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   min-width: 0;
   padding-right: 1.2rem;
   position: relative;
-  transform: translateY(1.05rem);
+  transform: translateY(2.2rem);
   width: auto;
-  z-index: 4;
+  z-index: 8;
 }
 
 .dashboard-profile-app-gem-orbit__eyebrow {
@@ -868,9 +1377,26 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   overflow: visible;
   perspective: 18rem;
   position: relative;
-  transform: translate(1.42rem, 0.46rem);
+  transform: translate(1.46rem, 0.18rem);
   width: 6.6rem;
   z-index: 2;
+}
+
+.dashboard-profile-app-gem-orbit__shared-gems {
+  display: block;
+  filter:
+    contrast(1.14)
+    saturate(1.2)
+    drop-shadow(0 0 0.34rem rgba(236, 253, 245, 0.3))
+    drop-shadow(0 0 0.78rem rgba(16, 185, 129, 0.48))
+    drop-shadow(0 0 1.2rem rgba(45, 212, 191, 0.22));
+  height: 21.3rem !important;
+  left: -11.95rem;
+  pointer-events: none;
+  position: absolute;
+  top: -1.92rem;
+  width: 24rem !important;
+  z-index: 3;
 }
 
 .dashboard-profile-app-gem-orbit__feature-gem {
@@ -923,6 +1449,7 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   --dashboard-profile-app-gem-orbit-back-y: -0.74rem;
   --dashboard-profile-app-gem-orbit-front-y: 0.92rem;
   --dashboard-profile-app-gem-orbit-x: 2.34rem;
+  display: none;
   height: 100%;
   position: relative;
   transition:
@@ -930,7 +1457,65 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
     --dashboard-profile-app-gem-orbit-front-y 190ms ease,
     --dashboard-profile-app-gem-orbit-back-y 190ms ease;
   width: 100%;
-  z-index: 2;
+  z-index: 4;
+}
+
+.dashboard-profile-app-gem-orbit__readout {
+  display: block;
+  height: 1.28rem;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  right: auto;
+  top: 3.05rem;
+  transform: translateX(-50%);
+  width: 5.55rem;
+  z-index: 10;
+}
+
+.dashboard-profile-app-gem-orbit__readout-item {
+  --dashboard-profile-app-gem-glow: rgba(125, 211, 252, 0.54);
+  animation: dashboard-profile-app-gem-front-readout 6.8s linear infinite;
+  animation-delay: var(--dashboard-profile-app-gem-delay);
+  background:
+    radial-gradient(circle at 16% 50%, var(--dashboard-profile-app-gem-glow), transparent 42%),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.45));
+  border: 1px solid rgba(191, 219, 254, 0.16);
+  border-radius: 0.42rem;
+  box-shadow:
+    0 0 0.42rem rgba(2, 6, 23, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(1.65rem, auto);
+  grid-template-rows: 1fr;
+  gap: 0.34rem;
+  inset: 0;
+  line-height: 1;
+  opacity: 0;
+  padding: 0.22rem 0.34rem;
+  place-items: center start;
+  position: absolute;
+}
+
+.dashboard-profile-app-gem-orbit__readout-item[data-gem-tone="blue"] {
+  --dashboard-profile-app-gem-glow: rgba(37, 99, 235, 0.72);
+}
+
+.dashboard-profile-app-gem-orbit__readout-item[data-gem-tone="green"] {
+  --dashboard-profile-app-gem-glow: rgba(52, 211, 153, 0.64);
+}
+
+.dashboard-profile-app-gem-orbit__readout-item[data-gem-tone="yellow"] {
+  --dashboard-profile-app-gem-glow: rgba(250, 204, 21, 0.64);
+}
+
+.dashboard-profile-app-gem-orbit__readout-item[data-gem-tone="red"] {
+  --dashboard-profile-app-gem-glow: rgba(248, 113, 113, 0.62);
+}
+
+.dashboard-profile-app-gem-orbit__readout-item[data-gem-active="true"] {
+  animation: none;
+  opacity: 1;
 }
 
 .dashboard-profile-app-gem-orbit:is(:hover, :focus-within):not([data-motion-paused="true"])
@@ -947,7 +1532,7 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   --dashboard-profile-app-gem-glow: rgba(125, 211, 252, 0.54);
   --dashboard-profile-app-gem-delay: 0s;
   align-items: center;
-  animation: dashboard-profile-app-gem-carousel 10.8s linear infinite;
+  animation: dashboard-profile-app-gem-carousel 6.8s linear infinite;
   animation-delay: var(--dashboard-profile-app-gem-delay);
   animation-play-state: paused;
   display: grid;
@@ -982,6 +1567,7 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   background: radial-gradient(circle, var(--dashboard-profile-app-gem-glow), transparent 62%);
   border-radius: 9999px;
   content: "";
+  display: none;
   filter: blur(0.32rem);
   inset: 0.28rem;
   opacity: 0.48;
@@ -1001,6 +1587,7 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   );
   border-radius: 9999px;
   content: "";
+  display: none;
   filter: blur(0.05rem)
     drop-shadow(0 0 0.28rem rgba(167, 243, 208, 0.72));
   inset: 0.42rem 0.54rem 1rem;
@@ -1025,15 +1612,13 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
 
 .dashboard-profile-app-gem-orbit__gem-label,
 .dashboard-profile-app-gem-orbit__gem-value {
-  animation: dashboard-profile-app-gem-front-readout 10.8s linear infinite;
-  animation-delay: var(--dashboard-profile-app-gem-delay);
-  max-width: 3.35rem;
-  min-width: 2.65rem;
-  opacity: 0;
+  animation: none;
+  max-width: 100%;
+  min-width: 0;
+  opacity: 1;
   overflow: hidden;
   pointer-events: none;
-  position: absolute;
-  left: calc(50% + 1.78rem);
+  position: static;
   text-align: left;
   text-overflow: ellipsis;
   text-shadow:
@@ -1045,20 +1630,19 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
 
 .dashboard-profile-app-gem-orbit__gem-label {
   color: rgba(239, 246, 255, 0.92);
-  font-size: 0.43rem;
+  font-size: 0.4rem;
   font-weight: 950;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   line-height: 1;
-  top: 1.35rem;
   text-transform: uppercase;
 }
 
 .dashboard-profile-app-gem-orbit__gem-value {
   color: #ffffff;
-  font-size: 0.55rem;
+  font-size: 0.62rem;
   font-weight: 950;
   line-height: 1;
-  top: 1.9rem;
+  text-align: right;
 }
 
 .dashboard-profile-sound-coins-vault {
@@ -1406,31 +1990,42 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
 }
 
 .dashboard-profile-sound-coins-vault__token {
-  background: url("/sound-token.png") center / contain no-repeat;
-  display: inline-block;
+  display: block;
   filter:
     drop-shadow(0 0 0.18rem rgba(254, 243, 199, 0.6))
     drop-shadow(0 0 0.46rem rgba(250, 204, 21, 0.58));
-  height: 1.5rem;
-  width: 1.5rem;
+  height: 1.72rem;
+  pointer-events: none;
+  width: 1.72rem;
 }
 
 .dashboard-profile-sound-coins-vault--showcase {
   grid-template-columns: minmax(0, 1fr);
   justify-items: center;
   min-height: 13.9rem;
-  padding-top: 0.4rem;
-  row-gap: 0;
+  padding-top: 0.18rem;
+  row-gap: 0.16rem;
+}
+
+.dashboard-profile-sound-coins-vault--showcase::before {
+  display: none;
+}
+
+.dashboard-profile-sound-coins-vault--showcase::after {
+  inset: 3.65rem 2.2rem auto 2.2rem;
 }
 
 .dashboard-profile-sound-coins-vault--showcase
   .dashboard-profile-sound-coins-vault__stage {
   height: 8.45rem;
+  margin-top: -0.42rem;
   transform: scale(1.04);
   transform-origin: 50% 68%;
   width: 10.35rem;
 }
 
+.dashboard-profile-sound-coins-vault--showcase
+  .dashboard-profile-sound-coins-vault__stage::before,
 .dashboard-profile-sound-coins-vault--showcase
   .dashboard-profile-sound-coins-vault__stage::after {
   display: none;
@@ -1438,8 +2033,9 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
 
 .dashboard-profile-sound-coins-vault--showcase
   .dashboard-profile-sound-coins-vault__readout {
-  margin-top: -0.8rem;
+  margin-top: 0.05rem;
   text-align: center;
+  z-index: 4;
 }
 
 .dashboard-profile-sound-coins-vault--showcase
@@ -1584,6 +2180,17 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   font-size: 0.39rem;
   font-weight: 950;
   letter-spacing: 0.1em;
+  line-height: 1.05;
+  margin-top: 0.18rem;
+  text-transform: uppercase;
+}
+
+.dashboard-profile-charge-node-master__weekly-goal {
+  color: rgba(191, 219, 254, 0.78);
+  display: block;
+  font-size: 0.4rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
   line-height: 1.05;
   margin-top: 0.18rem;
   text-transform: uppercase;
@@ -1856,6 +2463,378 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+.dashboard-profile-charge-node__points {
+  color: rgba(191, 219, 254, 0.82);
+  display: block;
+  font-size: 0.36rem;
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  margin-top: 0.12rem;
+  text-transform: uppercase;
+}
+
+.dashboard-profile-charge-node-grid__tesla-scene {
+  height: calc(100% + 0.15rem);
+  inset: 0.22rem -0.32rem -0.38rem -0.32rem;
+  pointer-events: none;
+  position: absolute !important;
+  width: calc(100% + 0.64rem);
+  z-index: 1;
+}
+
+.dashboard-profile-charge-node-grid--three {
+  grid-template-rows: repeat(3, minmax(3.58rem, auto));
+  margin-top: 0.82rem !important;
+  min-height: 15rem;
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node-grid__tesla-scene {
+  height: calc(100% - 0.04rem);
+  inset: 0.42rem 1.08rem -0.3rem 1.08rem;
+  width: calc(100% - 2.16rem);
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master,
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node {
+  align-items: end;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  z-index: 3;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master {
+  grid-template-rows: minmax(6.38rem, 1fr) auto;
+  min-height: 9.6rem;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(2.9rem, 1fr) auto;
+  min-height: 4.65rem;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master__readout,
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__readout {
+  align-self: end;
+  display: block !important;
+  grid-column: 1 !important;
+  grid-row: 2 !important;
+  justify-self: center;
+  min-width: max-content;
+  padding: 0 !important;
+  position: relative;
+  text-align: center !important;
+  transform: translateY(-0.04rem);
+  z-index: 5;
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--intensity
+  .dashboard-profile-charge-node__readout,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--recovery
+  .dashboard-profile-charge-node__readout,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--volume
+  .dashboard-profile-charge-node__readout {
+  filter: drop-shadow(0 0 0.16rem rgba(var(--charge-node-rgb), 0.3));
+  text-align: right !important;
+  transform-origin: right center;
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--consistency
+  .dashboard-profile-charge-node__readout,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--knowledge
+  .dashboard-profile-charge-node__readout,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--technique
+  .dashboard-profile-charge-node__readout {
+  filter: drop-shadow(0 0 0.16rem rgba(var(--charge-node-rgb), 0.3));
+  text-align: left !important;
+  transform-origin: left center;
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--intensity
+  .dashboard-profile-charge-node__readout,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--consistency
+  .dashboard-profile-charge-node__readout,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--recovery
+  .dashboard-profile-charge-node__readout,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--knowledge
+  .dashboard-profile-charge-node__readout {
+  align-self: start;
+  grid-row: 1 !important;
+  text-align: inherit !important;
+  transform-origin: left top;
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--intensity
+  .dashboard-profile-charge-node__readout {
+  justify-self: start;
+  opacity: 0.94;
+  text-align: left !important;
+  transform: translate(-0.42rem, -0.12rem) scale(0.96);
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--consistency
+  .dashboard-profile-charge-node__readout {
+  justify-self: end;
+  opacity: 0.94;
+  text-align: right !important;
+  transform: translate(0.42rem, -0.12rem) scale(0.96);
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--recovery
+  .dashboard-profile-charge-node__readout {
+  justify-self: start;
+  opacity: 0.92;
+  text-align: left !important;
+  transform: translate(-0.46rem, 1.38rem) scale(0.92);
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--knowledge
+  .dashboard-profile-charge-node__readout {
+  justify-self: end;
+  opacity: 0.92;
+  text-align: right !important;
+  transform: translate(0.44rem, 1.38rem) scale(0.92);
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--volume
+  .dashboard-profile-charge-node__readout {
+  align-self: end;
+  justify-self: start;
+  opacity: 1;
+  text-align: left !important;
+  transform: translate(-0.48rem, 0.1rem) scale(0.94);
+  transform-origin: left top;
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--technique
+  .dashboard-profile-charge-node__readout {
+  align-self: end;
+  justify-self: end;
+  opacity: 1;
+  text-align: right !important;
+  transform: translate(0.48rem, 0.1rem) scale(0.94);
+  transform-origin: right top;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__value::before,
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__value::after {
+  content: "";
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__value::before {
+  animation: dashboard-profile-charge-level-underline 1.45s ease-in-out infinite;
+  background:
+    linear-gradient(90deg, transparent, rgba(var(--charge-node-rgb), 0.42), rgba(255, 255, 255, 0.86), rgba(var(--charge-node-rgb), 0.86), transparent);
+  border-radius: 9999px;
+  box-shadow:
+    0 0 0.18rem rgba(255, 255, 255, 0.32),
+    0 0 0.42rem rgba(var(--charge-node-rgb), 0.72);
+  bottom: 0.05rem;
+  height: 0.07rem;
+  width: 2.1rem;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__value::after {
+  animation: dashboard-profile-charge-level-dots 1.08s steps(2, end) infinite;
+  background:
+    radial-gradient(circle at 16% 50%, rgba(255, 255, 255, 0.86) 0 0.045rem, transparent 0.12rem),
+    radial-gradient(circle at 50% 50%, rgba(var(--charge-node-rgb), 0.94) 0 0.052rem, transparent 0.13rem),
+    radial-gradient(circle at 84% 50%, rgba(255, 255, 255, 0.72) 0 0.04rem, transparent 0.11rem);
+  bottom: -0.06rem;
+  filter:
+    drop-shadow(0 0 0.12rem rgba(255, 255, 255, 0.48))
+    drop-shadow(0 0 0.28rem rgba(var(--charge-node-rgb), 0.72));
+  height: 0.28rem;
+  width: 1.2rem;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__value,
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__label,
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__points {
+  display: block;
+  grid-column: auto !important;
+  grid-row: auto !important;
+  justify-self: center;
+  max-width: none;
+  padding: 0 !important;
+  position: relative;
+  text-align: inherit !important;
+  z-index: 5;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master__readout {
+  margin-top: 0;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master__value {
+  font-size: 1.24rem;
+  letter-spacing: 0.02em;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master__label {
+  font-size: 0.48rem;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master__weekly-goal {
+  color: rgba(191, 219, 254, 0.84);
+  font-size: 0.35rem;
+  letter-spacing: 0.08em;
+  margin-top: 0.16rem;
+  text-shadow:
+    0 0 0.2rem rgba(255, 255, 255, 0.18),
+    0 0 0.46rem rgba(56, 189, 248, 0.52);
+  white-space: nowrap;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__value {
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  margin-bottom: 0.18rem;
+  margin-top: 0;
+  padding-bottom: 0.24rem !important;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__label {
+  font-size: 0.37rem;
+  line-height: 1;
+  margin-top: 0.06rem !important;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__points {
+  color: rgba(191, 219, 254, 0.84);
+  font-size: 0.34rem;
+  line-height: 1;
+  margin-top: 0.16rem !important;
+  text-shadow:
+    0 0 0.18rem rgba(255, 255, 255, 0.18),
+    0 0 0.38rem rgba(var(--charge-node-rgb), 0.54);
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--intensity
+  .dashboard-profile-charge-node__value,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--consistency
+  .dashboard-profile-charge-node__value,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--recovery
+  .dashboard-profile-charge-node__value,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--knowledge
+  .dashboard-profile-charge-node__value {
+  font-size: 0.82rem;
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--intensity
+  .dashboard-profile-charge-node__label,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--consistency
+  .dashboard-profile-charge-node__label,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--recovery
+  .dashboard-profile-charge-node__label,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--knowledge
+  .dashboard-profile-charge-node__label {
+  font-size: 0.41rem;
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--intensity
+  .dashboard-profile-charge-node__points,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--consistency
+  .dashboard-profile-charge-node__points,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--recovery
+  .dashboard-profile-charge-node__points,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node--knowledge
+  .dashboard-profile-charge-node__points {
+  font-size: 0.37rem;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node::before,
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node::after {
+  animation: none !important;
+  opacity: 0 !important;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master::before,
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master::after {
+  animation: none !important;
+  opacity: 0 !important;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master__core,
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__core {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  grid-column: 1 !important;
+  grid-row: 1 !important;
+  justify-self: center;
+  opacity: 0.02;
+  padding: 0 !important;
+}
+
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master__core::before,
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master__core::after,
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__core::before,
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__core::after,
+.dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master__bolt {
+  opacity: 0;
+}
+
+@keyframes dashboard-profile-charge-level-underline {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: translateX(-50%) scaleX(0.72);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scaleX(1);
+  }
+}
+
+@keyframes dashboard-profile-charge-level-dots {
+  0%,
+  100% {
+    opacity: 0.34;
+  }
+
+  50% {
+    opacity: 0.96;
+  }
 }
 
 @keyframes dashboard-profile-app-gem-carousel {
@@ -3360,6 +4339,7 @@ const dashboardHeaderRunnerCharacter = {
 } as const;
 const DASHBOARD_HEADER_METER_AUTOSCROLL_MS = 6200;
 const DASHBOARD_HEADER_METER_RAIL_PULSE_MS = 1400;
+const DASHBOARD_HEADER_METER_MENU_EXIT_MS = 520;
 const DASHBOARD_HEADER_ACHIEVEMENT_ROTATE_MS = 9200;
 const DASHBOARD_HEADER_COMPOUND_PR_AUTOSCROLL_MS = 4800;
 const DASHBOARD_HEADER_CATEGORY_LEVEL_AUTOSCROLL_MS = 18000;
@@ -3474,54 +4454,92 @@ const dashboardHeaderCategoryLevelDetails = {
   athletic: {
     focus: "Power / speed",
     next: "Cleaner landings",
+    recommendedPatterns: ["Jump", "Sprint", "Throw", "Power"],
     signal: "Explosive base",
   },
   cervical: {
     focus: "Neck control",
     next: "Gentle range",
+    recommendedPatterns: ["Neck flexion", "Neck extension", "Neck rotation"],
     signal: "Foundation",
   },
   core: {
     focus: "Bracing / anti-rotation",
     next: "Add carries",
+    recommendedPatterns: [
+      "Anti-rotation",
+      "Anti-extension",
+      "Carry",
+      "Rotation",
+    ],
     signal: "Stable trunk",
   },
   integrated: {
     focus: "Full-body patterns",
     next: "Link strength",
+    recommendedPatterns: ["Squat to press", "Carry", "Complex", "Crawl"],
     signal: "Coordination",
   },
   "arm-isolation": {
     focus: "Curls / extensions",
     next: "More clean reps",
+    recommendedPatterns: [
+      "Curl",
+      "Triceps extension",
+      "Face pull",
+      "External rotation",
+    ],
     signal: "Accessory base",
   },
   "lower-compound": {
     focus: "Squat / hinge / lunge",
     next: "Push clean load",
+    recommendedPatterns: ["Squat", "Hinge", "Lunge", "Step-up"],
     signal: "Strong base",
   },
   "lower-isolation": {
     focus: "Quads / hamstrings",
     next: "Build volume",
+    recommendedPatterns: [
+      "Leg extension",
+      "Leg curl",
+      "Calf raise",
+      "Hip abduction",
+    ],
     signal: "Machine work",
   },
   mobility: {
     focus: "Range / control",
     next: "Daily flow",
+    recommendedPatterns: [
+      "Hip mobility",
+      "Thoracic mobility",
+      "Shoulder mobility",
+      "Cervical mobility",
+    ],
     signal: "Movement prep",
   },
   "upper-pull": {
     focus: "Rows / pulls",
     next: "Own scap control",
+    recommendedPatterns: ["Horizontal pull", "Vertical pull", "Row", "Pull-up"],
     signal: "Back strength",
   },
   "upper-push": {
     focus: "Press / push-up",
     next: "Stack shoulders",
+    recommendedPatterns: ["Horizontal push", "Vertical push", "Press", "Push-up"],
     signal: "Pressing base",
   },
 } as const;
+
+type DashboardHeaderCategoryLevelId =
+  (typeof dashboardHeaderCategoryLevels)[number]["id"];
+
+type DashboardHeaderRecommendedPattern = {
+  label: string;
+  recentSets: number;
+};
 
 const dashboardHeaderCategoryFloorSlots = [
   { delay: 0, left: 53, top: 55 },
@@ -3539,10 +4557,109 @@ const dashboardHeaderCategoryFloorSlots = [
 const getDashboardHeaderCategoryMeterFill = (level: number) =>
   `${Math.max(8, Math.min(68, Math.round(level * 0.74)))}%`;
 
+const DASHBOARD_HEADER_CATEGORY_REPS_PER_LEVEL_POINT = 3;
+
+const getDashboardHeaderCategoryNextLevelNumber = (level: number) =>
+  Math.min(10, Math.max(1, Math.round(level / 10) + 1));
+
+const getDashboardHeaderCategoryApproxRepsToNextLevel = (level: number) => {
+  const nextLevelNumber = getDashboardHeaderCategoryNextLevelNumber(level);
+  if (nextLevelNumber >= 10 && level >= 95) return 0;
+
+  const nextLevelThreshold = Math.min(100, nextLevelNumber * 10);
+  const levelGap = Math.max(1, nextLevelThreshold - level);
+  const rawReps = levelGap * DASHBOARD_HEADER_CATEGORY_REPS_PER_LEVEL_POINT;
+
+  return Math.max(5, Math.ceil(rawReps / 5) * 5);
+};
+
+const formatDashboardHeaderCategoryRepsToNextLevel = (level: number) => {
+  const repsToNextLevel =
+    getDashboardHeaderCategoryApproxRepsToNextLevel(level);
+
+  if (repsToNextLevel <= 0) return "Max level";
+
+  return `~${repsToNextLevel} reps to LV${getDashboardHeaderCategoryNextLevelNumber(
+    level,
+  )}`;
+};
+
+const formatDashboardHeaderCategoryApproxRepsCount = (level: number) => {
+  const repsToNextLevel =
+    getDashboardHeaderCategoryApproxRepsToNextLevel(level);
+
+  if (repsToNextLevel <= 0) return "Max";
+
+  return `~${repsToNextLevel} reps`;
+};
+
+const formatDashboardHeaderRecommendedPatternLabel = (value?: string) => {
+  const cleanedValue = (value || "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleanedValue) return "Pattern";
+
+  return cleanedValue
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+    .replace(/\bPr\b/g, "PR")
+    .replace(/\bIso\b/g, "Isolation");
+};
+
+const getDashboardHeaderStatRecommendedPatternLabel = (
+  stat: LocalExerciseStatEntry,
+) =>
+  formatDashboardHeaderRecommendedPatternLabel(
+    readDashboardText(
+      stat.pattern,
+      stat.coreMovementPattern,
+      stat.semanticVariationName,
+      stat.exerciseName,
+    ),
+  );
+
 const getDashboardHeaderExerciseCategoryId = (signature: string) => {
   const lowerSignature = signature.toLowerCase();
   const includesAny = (terms: string[]) =>
     terms.some((term) => lowerSignature.includes(term));
+
+  if (includesAny(["neck", "cervical"])) {
+    return "cervical";
+  }
+
+  if (includesAny(["mobility", "stretch", "range of motion", "flow"])) {
+    return "mobility";
+  }
+
+  if (
+    includesAny([
+      "leg extension",
+      "leg curl",
+      "calf",
+      "tibialis",
+      "adduction",
+      "abduction",
+      "kickback",
+      "frog pump",
+    ])
+  ) {
+    return "lower-isolation";
+  }
+
+  if (
+    includesAny([
+      "curl",
+      "triceps",
+      "biceps",
+      "wrist",
+      "face pull",
+      "external rotation",
+      "internal rotation",
+    ])
+  ) {
+    return "arm-isolation";
+  }
 
   if (
     includesAny([
@@ -6457,6 +7574,13 @@ type DashboardPulseIndicatorTone = {
 };
 
 type DashboardOrbitDirection = "left" | "right";
+type DashboardHeaderMeterPanelHighlightTarget =
+  (typeof DASHBOARD_HEADER_METER_PANEL_HIGHLIGHT_TARGETS)[number];
+type DashboardHeaderMeterPanelKeyboardEvent = {
+  key: string;
+  preventDefault: () => void;
+  stopPropagation: () => void;
+};
 
 type DashboardPointerStartRef = {
   current: number | null;
@@ -9384,6 +10508,8 @@ export default function UserHomeDashboardPage() {
   ] = useState<DashboardHorizontalScrollDirection | null>(null);
   const [dashboardHeaderMenuActiveIndex, setDashboardHeaderMenuActiveIndex] =
     useState(0);
+  const [dashboardMobileHeaderOrbitPanel, setDashboardMobileHeaderOrbitPanel] =
+    useState<"selector" | "account">("selector");
   const [dashboardHeaderVortexPulseMode, setDashboardHeaderVortexPulseMode] =
     useState<DashboardHeaderVortexMode | null>(null);
   const [dashboardHeaderVortexSettling, setDashboardHeaderVortexSettling] =
@@ -9421,12 +10547,20 @@ export default function UserHomeDashboardPage() {
     dashboardHeaderMeterPanelActiveIndex,
     setDashboardHeaderMeterPanelActiveIndex,
   ] = useState(0);
+  const [
+    dashboardHeaderMeterPanelHighlightTarget,
+    setDashboardHeaderMeterPanelHighlightTarget,
+  ] = useState<DashboardHeaderMeterPanelHighlightTarget>("ufo");
   const [dashboardHeaderPrActiveIndex, setDashboardHeaderPrActiveIndex] =
     useState(0);
   const [dashboardHeaderMeterRailActive, setDashboardHeaderMeterRailActive] =
     useState(false);
   const [dashboardHeaderMeterMenuOpen, setDashboardHeaderMeterMenuOpen] =
     useState(false);
+  const [
+    dashboardHeaderMeterPanelVisible,
+    setDashboardHeaderMeterPanelVisible,
+  ] = useState(false);
   const [
     dashboardHeaderCategoryLevelActiveIndex,
     setDashboardHeaderCategoryLevelActiveIndex,
@@ -9559,10 +10693,14 @@ export default function UserHomeDashboardPage() {
     useState(false);
   const [dashboardPointsDropdownOpen, setDashboardPointsDropdownOpen] =
     useState(false);
+  const [dashboardPointsActionMenuOpen, setDashboardPointsActionMenuOpen] =
+    useState<"collection" | "store" | null>(null);
   const [
     activeDashboardPointsRewardPanelIndex,
     setActiveDashboardPointsRewardPanelIndex,
   ] = useState(0);
+  const [dashboardGemVaultClosing, setDashboardGemVaultClosing] =
+    useState(false);
   const [dashboardHeaderRewards3DActive, setDashboardHeaderRewards3DActive] =
     useState(false);
   const dashboardPointsMenuHighlighted =
@@ -9616,11 +10754,17 @@ export default function UserHomeDashboardPage() {
     [],
   );
   const dashboardPointsDropdownRef = useRef<HTMLDivElement | null>(null);
+  const activeDashboardPointsRewardPanelIndexRef = useRef(
+    activeDashboardPointsRewardPanelIndex,
+  );
   const dashboardPointsRewardPointerStartRef = useRef<number | null>(null);
   const dashboardPointsRewardPointerMovedRef = useRef(false);
+  const dashboardGemVaultCloseTimeoutRef = useRef<number | null>(null);
   const dashboardMusicDropdownRef = useRef<HTMLDivElement | null>(null);
   const dashboardTrophyMenuRef = useRef<HTMLDivElement | null>(null);
   const dashboardHeaderMeterMenuRef = useRef<HTMLDivElement | null>(null);
+  const dashboardHeaderMeterPanelStackRef = useRef<HTMLDivElement | null>(null);
+  const dashboardHeaderMeterPanelExitTimeoutRef = useRef<number | null>(null);
   const dashboardHeroCardPointerStartRef = useRef<number | null>(null);
   const dashboardHeroCardPointerMovedRef = useRef(false);
   const dashboardHeroCardWheelLockedRef = useRef(false);
@@ -9629,6 +10773,11 @@ export default function UserHomeDashboardPage() {
     useRef<DashboardVerticalPointerStart | null>(null);
   const dashboardOrbiterPointerMovedRef = useRef(false);
   const dashboardOrbiterRowChangeLockRef = useRef(0);
+
+  useEffect(() => {
+    activeDashboardPointsRewardPanelIndexRef.current =
+      activeDashboardPointsRewardPanelIndex;
+  }, [activeDashboardPointsRewardPanelIndex]);
   const commandCenterPointerStartRef = useRef<number | null>(null);
   const commandCenterPointerMovedRef = useRef(false);
   const adminServicePointerStartRef = useRef<number | null>(null);
@@ -11470,18 +12619,56 @@ export default function UserHomeDashboardPage() {
   };
   const dashboardProfileRewardPanelCount =
     DASHBOARD_PROFILE_REWARD_PANELS.length;
+  const clearDashboardGemVaultCloseTimeout = () => {
+    if (dashboardGemVaultCloseTimeoutRef.current === null) return;
+
+    window.clearTimeout(dashboardGemVaultCloseTimeoutRef.current);
+    dashboardGemVaultCloseTimeoutRef.current = null;
+  };
+  const showDashboardPointsRewardPanel = (nextIndex: number) => {
+    const currentRewardPanelIndex =
+      activeDashboardPointsRewardPanelIndexRef.current;
+    const normalizedIndex =
+      (nextIndex + dashboardProfileRewardPanelCount) %
+      dashboardProfileRewardPanelCount;
+    const activeRewardPanel =
+      DASHBOARD_PROFILE_REWARD_PANELS[currentRewardPanelIndex];
+    const nextRewardPanel = DASHBOARD_PROFILE_REWARD_PANELS[normalizedIndex];
+
+    if (normalizedIndex === currentRewardPanelIndex) {
+      if (nextRewardPanel?.id === "gems") {
+        clearDashboardGemVaultCloseTimeout();
+        setDashboardGemVaultClosing(false);
+      }
+      return;
+    }
+
+    if (activeRewardPanel?.id === "gems" && nextRewardPanel?.id !== "gems") {
+      clearDashboardGemVaultCloseTimeout();
+      setDashboardGemVaultClosing(true);
+      dashboardGemVaultCloseTimeoutRef.current = window.setTimeout(() => {
+        activeDashboardPointsRewardPanelIndexRef.current = normalizedIndex;
+        setActiveDashboardPointsRewardPanelIndex(normalizedIndex);
+        setDashboardGemVaultClosing(false);
+        dashboardGemVaultCloseTimeoutRef.current = null;
+      }, DASHBOARD_PROFILE_GEM_VAULT_CLOSE_BEFORE_SCROLL_MS);
+      return;
+    }
+
+    clearDashboardGemVaultCloseTimeout();
+    setDashboardGemVaultClosing(false);
+    activeDashboardPointsRewardPanelIndexRef.current = normalizedIndex;
+    setActiveDashboardPointsRewardPanelIndex(normalizedIndex);
+  };
   const rotateDashboardPointsRewardOrbit = (
     direction: DashboardOrbitDirection,
   ) => {
-    setActiveDashboardPointsRewardPanelIndex((currentIndex) => {
-      const nextIndex =
-        direction === "left" ? currentIndex - 1 : currentIndex + 1;
+    const nextIndex =
+      direction === "left"
+        ? activeDashboardPointsRewardPanelIndexRef.current - 1
+        : activeDashboardPointsRewardPanelIndexRef.current + 1;
 
-      return (
-        (nextIndex + dashboardProfileRewardPanelCount) %
-        dashboardProfileRewardPanelCount
-      );
-    });
+    showDashboardPointsRewardPanel(nextIndex);
   };
   const getDashboardPointsRewardPanelPlacement = (index: number) => {
     const distance = getDashboardOrbitDistance(
@@ -12405,12 +13592,62 @@ export default function UserHomeDashboardPage() {
   }, []);
 
   useEffect(() => {
+    if (dashboardHeaderMeterMenuOpen) {
+      if (dashboardHeaderMeterPanelExitTimeoutRef.current !== null) {
+        window.clearTimeout(dashboardHeaderMeterPanelExitTimeoutRef.current);
+        dashboardHeaderMeterPanelExitTimeoutRef.current = null;
+      }
+
+      if (!dashboardHeaderMeterPanelVisible) {
+        setDashboardHeaderMeterPanelVisible(true);
+      }
+
+      return;
+    }
+
+    if (!dashboardHeaderMeterPanelVisible) return;
+
+    dashboardHeaderMeterPanelExitTimeoutRef.current = window.setTimeout(() => {
+      dashboardHeaderMeterPanelExitTimeoutRef.current = null;
+      setDashboardHeaderMeterPanelVisible(false);
+    }, DASHBOARD_HEADER_METER_MENU_EXIT_MS);
+
+    return () => {
+      if (dashboardHeaderMeterPanelExitTimeoutRef.current !== null) {
+        window.clearTimeout(dashboardHeaderMeterPanelExitTimeoutRef.current);
+        dashboardHeaderMeterPanelExitTimeoutRef.current = null;
+      }
+    };
+  }, [
+    dashboardHeaderMeterMenuOpen,
+    dashboardHeaderMeterPanelVisible,
+  ]);
+
+  useEffect(() => {
+    if (!dashboardHeaderMeterMenuOpen) return;
+
+    setDashboardHeaderMeterPanelActiveIndex(0);
+    setDashboardHeaderMeterPanelHighlightTarget("ufo");
+
+    const focusTimeoutId = window.setTimeout(() => {
+      dashboardHeaderMeterPanelStackRef.current?.focus({ preventScroll: true });
+    }, 80);
+
+    return () => {
+      window.clearTimeout(focusTimeoutId);
+    };
+  }, [dashboardHeaderMeterMenuOpen]);
+
+  useEffect(() => {
     if (dashboardHeaderMotionPaused) {
       setDashboardHeaderMeterRailActive(false);
       return;
     }
 
-    if (!dashboardHeaderMeterMenuOpen) {
+    if (
+      !dashboardHeaderMeterMenuOpen ||
+      dashboardHeaderMeterPanelHighlightTarget !== "plan-sessions"
+    ) {
       setDashboardHeaderMeterRailActive(false);
       return;
     }
@@ -12444,6 +13681,7 @@ export default function UserHomeDashboardPage() {
     };
   }, [
     dashboardHeaderMeterMenuOpen,
+    dashboardHeaderMeterPanelHighlightTarget,
     dashboardHeaderMotionPaused,
   ]);
 
@@ -12536,6 +13774,10 @@ export default function UserHomeDashboardPage() {
         window.clearTimeout(
           dashboardHeaderTimeoutPortalCloseTimeoutRef.current,
         );
+      }
+
+      if (dashboardHeaderMeterPanelExitTimeoutRef.current !== null) {
+        window.clearTimeout(dashboardHeaderMeterPanelExitTimeoutRef.current);
       }
 
       if (dashboardHeaderVortexPulseTimeoutRef.current !== null) {
@@ -12763,11 +14005,17 @@ export default function UserHomeDashboardPage() {
         target instanceof Node &&
         !dashboardPointsDropdownRef.current?.contains(target)
       ) {
+        clearDashboardGemVaultCloseTimeout();
+        setDashboardGemVaultClosing(false);
+        setDashboardPointsActionMenuOpen(null);
         setDashboardPointsDropdownOpen(false);
       }
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        clearDashboardGemVaultCloseTimeout();
+        setDashboardGemVaultClosing(false);
+        setDashboardPointsActionMenuOpen(null);
         setDashboardPointsDropdownOpen(false);
       }
     };
@@ -12782,6 +14030,19 @@ export default function UserHomeDashboardPage() {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [dashboardPointsDropdownOpen]);
+
+  useEffect(() => {
+    if (dashboardPointsDropdownOpen) return;
+
+    clearDashboardGemVaultCloseTimeout();
+  }, [dashboardPointsDropdownOpen]);
+
+  useEffect(
+    () => () => {
+      clearDashboardGemVaultCloseTimeout();
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!dashboardMusicDropdownOpen) return;
@@ -13078,6 +14339,85 @@ export default function UserHomeDashboardPage() {
       .filter((stat) => getDashboardEntryDateKey(stat.date) === todayDateKey)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const categoryPatternScores = new Map<
+      DashboardHeaderCategoryLevelId,
+      Map<
+        string,
+        DashboardHeaderRecommendedPattern & {
+          priority: number;
+        }
+      >
+    >();
+
+    dashboardHeaderCategoryLevels.forEach((category) => {
+      const details = dashboardHeaderCategoryLevelDetails[category.id];
+      const patternScores = new Map<
+        string,
+        DashboardHeaderRecommendedPattern & {
+          priority: number;
+        }
+      >();
+
+      details.recommendedPatterns.forEach((patternLabel, priority) => {
+        patternScores.set(normalizeManualExerciseToken(patternLabel), {
+          label: patternLabel,
+          priority,
+          recentSets: 0,
+        });
+      });
+
+      categoryPatternScores.set(category.id, patternScores);
+    });
+
+    exerciseStats.forEach((stat) => {
+      const timestamp = new Date(stat.date).getTime();
+      if (!Number.isFinite(timestamp) || timestamp < thirtyDaysAgo) return;
+
+      const signature = [
+        stat.exerciseName,
+        stat.body,
+        stat.pattern,
+        stat.coreMovementPattern,
+        stat.semanticVariationName,
+      ]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ");
+      const categoryId = getDashboardHeaderExerciseCategoryId(
+        signature,
+      ) as DashboardHeaderCategoryLevelId;
+      const patternScores = categoryPatternScores.get(categoryId);
+      if (!patternScores) return;
+
+      const patternLabel = getDashboardHeaderStatRecommendedPatternLabel(stat);
+      const patternKey = normalizeManualExerciseToken(patternLabel);
+      const patternScore = patternScores.get(patternKey);
+      if (!patternScore) return;
+
+      patternScore.recentSets += Math.max(1, Math.round(toLoggedNumber(stat.sets)));
+    });
+
+    const categoryPatternRecommendations = dashboardHeaderCategoryLevels.reduce(
+      (recommendations, category) => {
+        const patternScores = categoryPatternScores.get(category.id);
+        const recommendedPattern =
+          patternScores && patternScores.size > 0
+            ? [...patternScores.values()].sort(
+                (a, b) => a.recentSets - b.recentSets || a.priority - b.priority,
+              )[0]
+            : null;
+
+        recommendations[category.id] = {
+          label:
+            recommendedPattern?.label ||
+            dashboardHeaderCategoryLevelDetails[category.id]
+              .recommendedPatterns[0],
+          recentSets: recommendedPattern?.recentSets || 0,
+        };
+
+        return recommendations;
+      },
+      {} as Record<DashboardHeaderCategoryLevelId, DashboardHeaderRecommendedPattern>,
+    );
     const bestExerciseStats = new Map<
       string,
       { score: number; timestamp: number }
@@ -13643,6 +14983,7 @@ export default function UserHomeDashboardPage() {
     return {
       totalLoggedEntries: exerciseStats.length,
       workoutSessionEntries: workoutSessionEntries.length,
+      categoryPatternRecommendations,
       completedWorkouts: workoutDates.length,
       compoundLiftHighlights,
       planSessionsAttended,
@@ -14872,6 +16213,9 @@ export default function UserHomeDashboardPage() {
     setDashboardProfileHubOpen(false);
     setDashboardMusicDropdownOpen(false);
     setDashboardHeaderMeterMenuOpen(false);
+    clearDashboardGemVaultCloseTimeout();
+    setDashboardGemVaultClosing(false);
+    setDashboardPointsActionMenuOpen(null);
     setDashboardPointsDropdownOpen((open) => !open);
   };
   const selectDashboardProfileHubLayer = (layer: number) => {
@@ -16116,6 +17460,18 @@ export default function UserHomeDashboardPage() {
         : (currentIndex + 1) % DASHBOARD_HEADER_MENU_BLOCK_COUNT,
     );
   };
+  const rotateDashboardMobileHeaderOrbit = (direction: "left" | "right") => {
+    setDashboardHeaderSlideDirection(direction);
+    setDashboardMobileHeaderOrbitPanel((currentPanel) =>
+      direction === "left"
+        ? currentPanel === "account"
+          ? "selector"
+          : "account"
+        : currentPanel === "selector"
+          ? "account"
+          : "selector",
+    );
+  };
   const getDashboardHeaderMenuBlockSlot = (blockIndex: number) => {
     const relativeIndex =
       (blockIndex -
@@ -17168,38 +18524,104 @@ export default function UserHomeDashboardPage() {
       Math.ceil(clampDashboardPercent(dashboardTabCompletions.performance) / 34),
     ),
   );
+  const getDashboardLightningLevelProgress = (progressPercent: number) => {
+    const progress = clampDashboardPercent(progressPercent);
+    if (progress <= 0) return 0;
+    if (progress >= 100) return 100;
+
+    const activeLevel = Math.max(1, Math.ceil(progress / 34));
+    const levelStart = (activeLevel - 1) * 34;
+    const levelEnd = Math.min(100, activeLevel * 34);
+
+    return clampDashboardPercent(
+      ((progress - levelStart) / Math.max(1, levelEnd - levelStart)) * 100,
+    );
+  };
+  const dashboardCoreLightningProgress = headerAchievementItems.reduce(
+    (totals, achievement) => {
+      const progress = getHeaderAchievementProgress(achievement);
+      const progressTowardNext =
+        achievement.status === "locked" || progress <= 0
+          ? 0
+          : getDashboardLightningLevelProgress(progress);
+
+      totals[achievement.category].sum += progressTowardNext;
+      totals[achievement.category].total += 1;
+      return totals;
+    },
+    {
+      consistency: { sum: 0, total: 0 },
+      intensity: { sum: 0, total: 0 },
+      recovery: { sum: 0, total: 0 },
+    } as Record<AchievementBadgeCategory, { sum: number; total: number }>,
+  );
+  const getDashboardCoreLightningCategoryProgress = (
+    category: AchievementBadgeCategory,
+  ) => {
+    const progress = dashboardCoreLightningProgress[category];
+    return progress.total > 0
+      ? clampDashboardPercent(progress.sum / progress.total)
+      : 0;
+  };
+  const dashboardCoreLightningPointMultiplier = 100;
   const dashboardCoreLightningItems = [
     {
       count: dashboardCoreLightning.intensity,
       id: "intensity",
       label: "Intensity",
+      points:
+        dashboardCoreLightning.intensity * dashboardCoreLightningPointMultiplier,
+      progress: getDashboardCoreLightningCategoryProgress("intensity"),
     },
     {
       count: dashboardCoreLightning.consistency,
       id: "consistency",
       label: "Consistency",
+      points:
+        dashboardCoreLightning.consistency *
+        dashboardCoreLightningPointMultiplier,
+      progress: getDashboardCoreLightningCategoryProgress("consistency"),
     },
     {
       count: dashboardCoreLightning.recovery,
       id: "recovery",
       label: "Recovery",
+      points:
+        dashboardCoreLightning.recovery * dashboardCoreLightningPointMultiplier,
+      progress: getDashboardCoreLightningCategoryProgress("recovery"),
     },
     {
       count: dashboardKnowledgeLightning,
       id: "knowledge",
       label: "Knowledge",
+      points: dashboardKnowledgeLightning * dashboardCoreLightningPointMultiplier,
+      progress: getDashboardLightningLevelProgress(
+        dashboardTabCompletions.education,
+      ),
     },
     {
       count: dashboardVolumeLightning,
       id: "volume",
       label: "Volume",
+      points: dashboardVolumeLightning * dashboardCoreLightningPointMultiplier,
+      progress: getDashboardLightningLevelProgress(
+        clampDashboardPercent(dashboardSummary.weeklyVolume / 60),
+      ),
     },
     {
       count: dashboardTechniqueLightning,
       id: "technique",
       label: "Technique",
+      points: dashboardTechniqueLightning * dashboardCoreLightningPointMultiplier,
+      progress: getDashboardLightningLevelProgress(
+        dashboardTabCompletions.performance,
+      ),
     },
   ] as const;
+  const [
+    dashboardSafeProminentGemTone,
+    setDashboardSafeProminentGemTone,
+  ] = useState<DashboardTornadoGemTone>("blue");
   const dashboardAppGemOrbitItems: {
     id: string;
     label: string;
@@ -17231,6 +18653,10 @@ export default function UserHomeDashboardPage() {
       valueLabel: dashboardCoreLightning.intensity.toLocaleString(),
     },
   ];
+  const dashboardSafeProminentGemItem =
+    dashboardAppGemOrbitItems.find(
+      (item) => item.tone === dashboardSafeProminentGemTone,
+    ) ?? dashboardAppGemOrbitItems[0];
   const dashboardTrophyObjectiveGroups = [
     {
       helper: "Patron setup and app stewardship.",
@@ -17649,6 +19075,12 @@ export default function UserHomeDashboardPage() {
 
   useEffect(() => {
     if (dashboardHeaderMotionPaused) return;
+    if (
+      dashboardHeaderMeterMenuOpen &&
+      dashboardHeaderMeterPanelHighlightTarget !== "achievements"
+    ) {
+      return;
+    }
     if (headerAchievementItems.length < 2) return;
 
     const intervalId = window.setInterval(() => {
@@ -17661,6 +19093,8 @@ export default function UserHomeDashboardPage() {
       window.clearInterval(intervalId);
     };
   }, [
+    dashboardHeaderMeterMenuOpen,
+    dashboardHeaderMeterPanelHighlightTarget,
     dashboardHeaderMotionPaused,
     headerAchievementItems.length,
   ]);
@@ -17681,12 +19115,124 @@ export default function UserHomeDashboardPage() {
       DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT) +
       DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT) %
     DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT;
+  const dashboardHeaderMeterPanelHighlightKey =
+    dashboardHeaderMeterPanelHighlightTarget;
+  const dashboardHeaderMeterTornadoGemTones = [
+    "red",
+    "blue",
+    "yellow",
+  ] as const satisfies readonly DashboardTornadoGemTone[];
+  const dashboardHeaderMeterTornadoColors = [
+    "#fb7185",
+    "#60a5fa",
+    "#facc15",
+  ] as const;
   const dashboardHeaderMeterTornadoGemTone: DashboardTornadoGemTone =
-    normalizedDashboardHeaderMeterPanelActiveIndex === 0
-      ? "red"
-      : normalizedDashboardHeaderMeterPanelActiveIndex === 2
-        ? "yellow"
-        : "blue";
+    dashboardHeaderMeterTornadoGemTones[
+      normalizedDashboardHeaderMeterPanelActiveIndex
+    ] ?? "blue";
+  const dashboardHeaderMeterTornadoColor =
+    dashboardHeaderMeterTornadoColors[
+      normalizedDashboardHeaderMeterPanelActiveIndex
+    ] ?? "#60a5fa";
+  const getDashboardHeaderMeterPanelTargetSectionIndex = (
+    target: DashboardHeaderMeterPanelHighlightTarget,
+  ) => {
+    if (target === "compound-pr" || target === "achievements") return 0;
+    if (target === "daily-sets" || target === "plan-sessions") return 1;
+    if (target === "fuel-calories" || target === "weight") return 2;
+    return null;
+  };
+  const getDashboardHeaderMeterPanelTargetSectionOffset = (
+    target: DashboardHeaderMeterPanelHighlightTarget,
+  ) => {
+    if (
+      target === "achievements" ||
+      target === "daily-sets" ||
+      target === "weight"
+    ) {
+      return 1;
+    }
+
+    return 0;
+  };
+  const getDashboardHeaderMeterPanelSectionTarget = (
+    sectionIndex: number,
+    targetOffset = 0,
+  ): DashboardHeaderMeterPanelHighlightTarget => {
+    const normalizedSectionIndex =
+      ((sectionIndex % DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT) +
+        DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT) %
+      DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT;
+    if (normalizedSectionIndex === 0) {
+      return targetOffset === 1 ? "achievements" : "compound-pr";
+    }
+
+    if (normalizedSectionIndex === 1) {
+      return targetOffset === 1 ? "daily-sets" : "plan-sessions";
+    }
+
+    return targetOffset === 1 ? "weight" : "fuel-calories";
+  };
+  const setDashboardHeaderMeterPanelHighlight = (
+    target: DashboardHeaderMeterPanelHighlightTarget,
+  ) => {
+    const sectionIndex =
+      getDashboardHeaderMeterPanelTargetSectionIndex(target);
+
+    if (sectionIndex !== null) {
+      setDashboardHeaderMeterPanelActiveIndex(sectionIndex);
+    }
+
+    setDashboardHeaderMeterPanelHighlightTarget(target);
+  };
+  const setDashboardHeaderMeterPanelSectionHighlight = (
+    sectionIndex: number,
+    targetOffset = 0,
+  ) => {
+    setDashboardHeaderMeterPanelHighlight(
+      getDashboardHeaderMeterPanelSectionTarget(sectionIndex, targetOffset),
+    );
+  };
+  const moveDashboardHeaderMeterPanelHighlightVertically = (
+    direction: "down" | "up",
+  ) => {
+    const currentSectionIndex =
+      getDashboardHeaderMeterPanelTargetSectionIndex(
+        dashboardHeaderMeterPanelHighlightTarget,
+      ) ?? normalizedDashboardHeaderMeterPanelActiveIndex;
+    const currentRow =
+      dashboardHeaderMeterPanelHighlightTarget === "ufo"
+        ? 0
+        : getDashboardHeaderMeterPanelTargetSectionOffset(
+            dashboardHeaderMeterPanelHighlightTarget,
+          ) + 1;
+    const nextRow = Math.min(
+      2,
+      Math.max(0, currentRow + (direction === "down" ? 1 : -1)),
+    );
+
+    if (nextRow === 0) {
+      setDashboardHeaderMeterPanelActiveIndex(currentSectionIndex);
+      setDashboardHeaderMeterPanelHighlightTarget("ufo");
+      return;
+    }
+
+    setDashboardHeaderMeterPanelHighlight(
+      getDashboardHeaderMeterPanelSectionTarget(
+        currentSectionIndex,
+        nextRow - 1,
+      ),
+    );
+  };
+  const dashboardHeaderMeterPanelHighlightedSectionIndex =
+    getDashboardHeaderMeterPanelTargetSectionIndex(
+      dashboardHeaderMeterPanelHighlightTarget,
+    );
+  const dashboardHeaderMeterPanelHighlightedSectionOffset =
+    getDashboardHeaderMeterPanelTargetSectionOffset(
+      dashboardHeaderMeterPanelHighlightTarget,
+    );
   const getDashboardHeaderMeterPanelSectionSlot = (sectionIndex: number) => {
     const relativeIndex =
       (sectionIndex -
@@ -17704,13 +19250,111 @@ export default function UserHomeDashboardPage() {
   const rotateDashboardHeaderMeterPanelSections = (
     direction: DashboardOrbitDirection,
   ) => {
-    setDashboardHeaderMeterPanelActiveIndex((currentIndex) =>
-      direction === "left"
-        ? (currentIndex - 1 + DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT) %
-          DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT
-        : (currentIndex + 1) % DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT,
-    );
+    setDashboardHeaderMeterPanelActiveIndex((currentIndex) => {
+      const nextIndex =
+        direction === "left"
+          ? (currentIndex - 1 + DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT) %
+            DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT
+          : (currentIndex + 1) % DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT;
+
+      if (dashboardHeaderMeterPanelHighlightTarget !== "ufo") {
+        setDashboardHeaderMeterPanelHighlightTarget(
+          getDashboardHeaderMeterPanelSectionTarget(
+            nextIndex,
+            dashboardHeaderMeterPanelHighlightedSectionOffset,
+          ),
+        );
+      }
+
+      return nextIndex;
+    });
   };
+  const handleDashboardHeaderMeterPanelKeyboardInput = (
+    event: DashboardHeaderMeterPanelKeyboardEvent,
+  ) => {
+    if (!DASHBOARD_HEADER_METER_PANEL_KEYBOARD_KEYS.has(event.key)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (event.key === "ArrowDown") {
+      moveDashboardHeaderMeterPanelHighlightVertically("down");
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      moveDashboardHeaderMeterPanelHighlightVertically("up");
+      return;
+    }
+
+    if (event.key === "ArrowLeft") {
+      rotateDashboardHeaderMeterPanelSections("left");
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      rotateDashboardHeaderMeterPanelSections("right");
+      return;
+    }
+
+    if (event.key === "Home") {
+      setDashboardHeaderMeterPanelHighlight("ufo");
+      return;
+    }
+
+    if (event.key === "End") {
+      setDashboardHeaderMeterPanelHighlight(
+        getDashboardHeaderMeterPanelSectionTarget(
+          normalizedDashboardHeaderMeterPanelActiveIndex,
+          1,
+        ),
+      );
+      return;
+    }
+
+    if (event.key === "Escape") {
+      setDashboardHeaderMeterMenuOpen(false);
+    }
+  };
+  const handleDashboardHeaderMeterPanelKeyDown = (
+    event: ReactKeyboardEvent<HTMLDivElement>,
+  ) => {
+    handleDashboardHeaderMeterPanelKeyboardInput(event);
+  };
+  useEffect(() => {
+    if (!dashboardHeaderMeterMenuOpen) return;
+
+    const handleDashboardHeaderMeterPanelWindowKeyDown = (
+      event: KeyboardEvent,
+    ) => {
+      if (!DASHBOARD_HEADER_METER_PANEL_KEYBOARD_KEYS.has(event.key)) return;
+
+      handleDashboardHeaderMeterPanelKeyboardInput(event);
+      event.stopImmediatePropagation();
+      dashboardHeaderMeterPanelStackRef.current?.focus({
+        preventScroll: true,
+      });
+    };
+
+    window.addEventListener(
+      "keydown",
+      handleDashboardHeaderMeterPanelWindowKeyDown,
+      true,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "keydown",
+        handleDashboardHeaderMeterPanelWindowKeyDown,
+        true,
+      );
+    };
+  }, [
+    dashboardHeaderMeterMenuOpen,
+    dashboardHeaderMeterPanelHighlightedSectionOffset,
+    dashboardHeaderMeterPanelHighlightTarget,
+    normalizedDashboardHeaderMeterPanelActiveIndex,
+  ]);
   const dashboardHeaderPrCardCount =
     dashboardSummary.compoundLiftHighlights.length;
   const normalizedDashboardHeaderPrActiveIndex =
@@ -17725,6 +19369,11 @@ export default function UserHomeDashboardPage() {
     ] ?? dashboardSummary.compoundLiftHighlights[0];
   const activeDashboardHeaderPrCategoryId =
     activeDashboardHeaderPrHighlight?.categoryId || "lower-compound";
+  const getDashboardHeaderPrCategoryColor = (categoryId?: string) =>
+    dashboardHeaderCategoryLevels.find((category) => category.id === categoryId)
+      ?.color || dashboardHeaderCategoryLevels[0].color;
+  const activeDashboardHeaderPrCategoryColor =
+    getDashboardHeaderPrCategoryColor(activeDashboardHeaderPrCategoryId);
   const getDashboardHeaderPrCardSlot = (cardIndex: number) => {
     if (dashboardHeaderPrCardCount < 2) return "center";
 
@@ -17751,6 +19400,8 @@ export default function UserHomeDashboardPage() {
   };
   useEffect(() => {
     if (dashboardHeaderMotionPaused) return;
+    if (!dashboardHeaderMeterMenuOpen) return;
+    if (dashboardHeaderMeterPanelHighlightTarget !== "compound-pr") return;
     if (dashboardHeaderPrCardCount < 2) return;
 
     const intervalId = window.setInterval(() => {
@@ -17766,6 +19417,8 @@ export default function UserHomeDashboardPage() {
     };
   }, [
     dashboardHeaderPrCardCount,
+    dashboardHeaderMeterMenuOpen,
+    dashboardHeaderMeterPanelHighlightTarget,
     dashboardHeaderMotionPaused,
   ]);
   const dashboardHeaderCategoryLevelCount =
@@ -17777,6 +19430,67 @@ export default function UserHomeDashboardPage() {
           dashboardHeaderCategoryLevelCount) %
         dashboardHeaderCategoryLevelCount
       : 0;
+  const activeDashboardHeaderCategoryLevel =
+    dashboardHeaderCategoryLevels[
+      normalizedDashboardHeaderCategoryLevelActiveIndex
+    ] ?? dashboardHeaderCategoryLevels[0];
+  const activeDashboardHeaderCategoryLevelNumber =
+    activeDashboardHeaderCategoryLevel
+      ? Math.max(1, Math.round(activeDashboardHeaderCategoryLevel.level / 10))
+      : 1;
+  const activeDashboardHeaderCategoryRepsToNextLevelLabel =
+    activeDashboardHeaderCategoryLevel
+      ? formatDashboardHeaderCategoryRepsToNextLevel(
+          activeDashboardHeaderCategoryLevel.level,
+        )
+      : "";
+  const activeDashboardHeaderCategoryLevelDetails =
+    activeDashboardHeaderCategoryLevel
+      ? dashboardHeaderCategoryLevelDetails[activeDashboardHeaderCategoryLevel.id]
+      : null;
+  const activeDashboardHeaderCategoryPatternRecommendation =
+    activeDashboardHeaderCategoryLevel
+      ? dashboardSummary.categoryPatternRecommendations[
+          activeDashboardHeaderCategoryLevel.id
+        ]
+      : null;
+  const activeDashboardHeaderCategoryPatternSetLabel =
+    activeDashboardHeaderCategoryPatternRecommendation &&
+    activeDashboardHeaderCategoryPatternRecommendation.recentSets > 0
+      ? `${activeDashboardHeaderCategoryPatternRecommendation.recentSets} recent set${
+          activeDashboardHeaderCategoryPatternRecommendation.recentSets === 1
+            ? ""
+            : "s"
+        }`
+      : "No recent sets";
+  const dashboardHeaderCategoryUfoChyronItems =
+    dashboardHeaderCategoryLevels.map((category) => {
+      const categoryDetails = dashboardHeaderCategoryLevelDetails[category.id];
+      const categoryPatternRecommendation =
+        dashboardSummary.categoryPatternRecommendations[category.id];
+      const categoryPatternSetLabel =
+        categoryPatternRecommendation &&
+        categoryPatternRecommendation.recentSets > 0
+          ? `${categoryPatternRecommendation.recentSets} recent set${
+              categoryPatternRecommendation.recentSets === 1 ? "" : "s"
+            }`
+          : "Needs reps";
+
+      return {
+        color: category.color,
+        id: category.id,
+        level: category.level,
+        levelNumber: Math.max(1, Math.round(category.level / 10)),
+        recommendedLabel:
+          categoryPatternRecommendation?.label ||
+          categoryDetails.recommendedPatterns[0],
+        recommendedStatus: categoryPatternSetLabel,
+        repsLabel: formatDashboardHeaderCategoryApproxRepsCount(
+          category.level,
+        ),
+        shortLabel: category.shortLabel,
+      };
+    });
   const getDashboardHeaderCategoryLevelSlot = (categoryIndex: number) => {
     if (dashboardHeaderCategoryLevelCount < 2) return "center";
 
@@ -17829,6 +19543,7 @@ export default function UserHomeDashboardPage() {
 
     if (
       !dashboardHeaderMeterMenuOpen ||
+      dashboardHeaderMeterPanelHighlightTarget !== "ufo" ||
       dashboardHeaderCategoryLevelCount < 2
     ) {
       return;
@@ -17851,6 +19566,7 @@ export default function UserHomeDashboardPage() {
   }, [
     dashboardHeaderCategoryLevelCount,
     dashboardHeaderMeterMenuOpen,
+    dashboardHeaderMeterPanelHighlightTarget,
     dashboardHeaderMotionPaused,
   ]);
   useEffect(() => {
@@ -17884,10 +19600,8 @@ export default function UserHomeDashboardPage() {
   const handleDashboardHeaderMeterPanelWheel = (
     event: ReactWheelEvent<HTMLDivElement>,
   ) => {
-    const primaryDelta =
-      Math.abs(event.deltaX) > Math.abs(event.deltaY)
-        ? event.deltaX
-        : event.deltaY;
+    const isHorizontalScroll = Math.abs(event.deltaX) > Math.abs(event.deltaY);
+    const primaryDelta = isHorizontalScroll ? event.deltaX : event.deltaY;
 
     if (Math.abs(primaryDelta) < 14) return;
 
@@ -17898,8 +19612,16 @@ export default function UserHomeDashboardPage() {
     if (now - dashboardHeaderMeterPanelWheelLockRef.current < 260) return;
 
     dashboardHeaderMeterPanelWheelLockRef.current = now;
-    rotateDashboardHeaderMeterPanelSections(
-      primaryDelta > 0 ? "right" : "left",
+
+    if (isHorizontalScroll) {
+      rotateDashboardHeaderMeterPanelSections(
+        primaryDelta > 0 ? "right" : "left",
+      );
+      return;
+    }
+
+    moveDashboardHeaderMeterPanelHighlightVertically(
+      primaryDelta > 0 ? "down" : "up",
     );
   };
   const handleDashboardHeaderCategoryLevelWheel = (
@@ -19677,6 +21399,102 @@ export default function UserHomeDashboardPage() {
         <span
           aria-hidden="true"
           className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--right"
+        >
+          &gt;
+        </span>
+      </button>
+    );
+  };
+
+  const renderDashboardMobileHeaderOrbitJoystick = () => {
+    const accountPanelActive = dashboardMobileHeaderOrbitPanel === "account";
+
+    return (
+      <button
+        aria-label={
+          accountPanelActive
+            ? "Show dashboard selector"
+            : "Show account and points"
+        }
+        aria-pressed={accountPanelActive}
+        className={`dashboard-header-mobile-orbit-joystick dashboard-header-scroll-button dashboard-header-scroll-button--horizontal place-items-center overflow-hidden border border-cyan-100/16 bg-slate-950/32 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:420px] ${
+          accountPanelActive
+            ? "dashboard-header-scroll-button--right"
+            : "dashboard-header-scroll-button--left"
+        }`}
+        data-dashboard-mobile-header-panel={dashboardMobileHeaderOrbitPanel}
+        data-dashboard-tooltip={
+          accountPanelActive ? "Dashboard selector" : "Account and points"
+        }
+        onClick={(event) => {
+          event.preventDefault();
+          rotateDashboardMobileHeaderOrbit(
+            accountPanelActive ? "left" : "right",
+          );
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowLeft") {
+            event.preventDefault();
+            setDashboardHeaderSlideDirection("left");
+            setDashboardMobileHeaderOrbitPanel("selector");
+          }
+
+          if (event.key === "ArrowRight") {
+            event.preventDefault();
+            setDashboardHeaderSlideDirection("right");
+            setDashboardMobileHeaderOrbitPanel("account");
+          }
+        }}
+        style={
+          {
+            ...activeDashboardHeaderTone.iconEffectStyle,
+            ...dashboardHeaderMenuOrbitPreviewTone,
+            "--dashboard-header-scroll-button-roll": accountPanelActive
+              ? "16deg"
+              : "-16deg",
+            "--dashboard-header-scroll-button-tilt-x": "7deg",
+            "--dashboard-header-scroll-button-tilt-y": accountPanelActive
+              ? "16deg"
+              : "-16deg",
+            "--dashboard-analog-offset-x": accountPanelActive
+              ? "5px"
+              : "-5px",
+            "--dashboard-analog-offset-y": "0px",
+            flexBasis: "2.55rem",
+            height: "2.36rem",
+            minWidth: "2.55rem",
+            transform: "translateY(-0.52rem)",
+            width: "2.55rem",
+          } as CSSProperties
+        }
+        type="button"
+      >
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__field"
+          style={{ inset: "0.36rem 0.38rem" }}
+        />
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--left"
+          style={{ fontSize: "0.66rem", left: "0.08rem" }}
+        >
+          &lt;
+        </span>
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__ball"
+          style={{ height: "1.35rem", width: "1.35rem" }}
+        >
+          <span className="dashboard-header-scroll-button__grid" />
+          <span className="dashboard-header-scroll-button__latitudes" />
+          <span className="dashboard-header-scroll-button__core" />
+          <span className="dashboard-header-scroll-button__spark" />
+        </span>
+        <span
+          aria-hidden="true"
+          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--right"
+          style={{ fontSize: "0.66rem", right: "0.08rem" }}
         >
           &gt;
         </span>
@@ -22350,12 +24168,14 @@ export default function UserHomeDashboardPage() {
   const renderDashboardPointsRewardPanelContent = (
     panelId: (typeof DASHBOARD_PROFILE_REWARD_PANELS)[number]["id"],
   ) => {
+    const activeRewardPanelId =
+      DASHBOARD_PROFILE_REWARD_PANELS[activeDashboardPointsRewardPanelIndex]
+        ?.id;
+    const isActiveRewardPanel = panelId === activeRewardPanelId;
+
     if (panelId === "gems") {
       return (
         <div className="dashboard-profile-reward-orbit__panel-body">
-          <span className="dashboard-profile-reward-orbit__panel-kicker">
-            App Gems
-          </span>
           <div className="dashboard-profile-reward-orbit__panel-title">
             Gem Reserves <span>4 types</span>
           </div>
@@ -22367,22 +24187,20 @@ export default function UserHomeDashboardPage() {
             role="group"
             tabIndex={0}
           >
-            <span className="dashboard-profile-app-gem-orbit__copy">
-              <span className="dashboard-profile-app-gem-orbit__eyebrow">
-                App Gems
-              </span>
-              <span className="dashboard-profile-app-gem-orbit__summary">
-                Sapphire, Emerald, Topaz, and Ruby reserves
-              </span>
-            </span>
             <span
               aria-hidden="true"
               className="dashboard-profile-app-gem-orbit__stage-shell"
             >
-              <DashboardEmeraldCluster3D
-                className="dashboard-profile-app-gem-orbit__feature-gem"
-                paused={false}
-              />
+              {isActiveRewardPanel && dashboardPointsDropdownOpen ? (
+                <DashboardGemStage3D
+                  className="dashboard-profile-app-gem-orbit__shared-gems"
+                  onProminentToneChange={setDashboardSafeProminentGemTone}
+                  paused={dashboardHeaderMotionPaused}
+                  tones={dashboardAppGemOrbitItems.map((item) => item.tone)}
+                  vaultOpen={!dashboardGemVaultClosing}
+                  variant="reserves"
+                />
+              ) : null}
               <span className="dashboard-profile-app-gem-orbit__stage">
                 {dashboardAppGemOrbitItems.map((item, index) => (
                   <span
@@ -22391,27 +24209,26 @@ export default function UserHomeDashboardPage() {
                     key={item.id}
                     style={
                       {
-                        "--dashboard-profile-app-gem-delay": `${index * -2.7}s`,
+                        "--dashboard-profile-app-gem-delay": `${index * -1.7}s`,
                       } as CSSProperties
                     }
-                  >
-                    <DashboardEmerald3D
-                      className="dashboard-profile-app-gem-orbit__gem-canvas"
-                      paused={
-                        !dashboardPointsDropdownOpen &&
-                        (dashboardHeaderMotionPaused ||
-                          !dashboardPointsMenuHighlighted)
-                      }
-                      tone={item.tone}
-                    />
-                    <span className="dashboard-profile-app-gem-orbit__gem-label">
-                      {item.label}
-                    </span>
-                    <span className="dashboard-profile-app-gem-orbit__gem-value">
-                      {item.valueLabel}
-                    </span>
-                  </span>
+                  />
                 ))}
+              </span>
+            </span>
+            <span className="dashboard-profile-app-gem-orbit__readout">
+              <span
+                className="dashboard-profile-app-gem-orbit__readout-item"
+                data-gem-active="true"
+                data-gem-tone={dashboardSafeProminentGemItem.tone}
+                key={`dashboard-profile-app-gem-readout-${dashboardSafeProminentGemItem.id}`}
+              >
+                <span className="dashboard-profile-app-gem-orbit__gem-label">
+                  {dashboardSafeProminentGemItem.label}
+                </span>
+                <span className="dashboard-profile-app-gem-orbit__gem-value">
+                  {dashboardSafeProminentGemItem.valueLabel}
+                </span>
               </span>
             </span>
           </div>
@@ -22426,76 +24243,65 @@ export default function UserHomeDashboardPage() {
             Sound Coins
           </span>
           <div className="dashboard-profile-reward-orbit__panel-title">
-            Treasure Chest <span>{soundTokens.toLocaleString()} coins</span>
+            Treasure Chest
           </div>
           <div
             aria-label={`Sound Coins treasure chest ${soundTokens.toLocaleString()}`}
             className="dashboard-profile-sound-coins-vault dashboard-profile-sound-coins-vault--showcase mt-3"
           >
-            <span
-              aria-hidden="true"
-              className="dashboard-profile-sound-coins-vault__stage"
-            >
-              <DashboardTreasureChest3D
-                className="dashboard-profile-sound-coins-vault__scene"
-                paused={dashboardHeaderMotionPaused}
-              />
-            </span>
             <span className="dashboard-profile-sound-coins-vault__readout">
-              <span className="dashboard-profile-sound-coins-vault__eyebrow">
-                Sound Coins
-              </span>
-              <span className="dashboard-profile-sound-coins-vault__label">
-                Treasure chest
-              </span>
               <span className="dashboard-profile-sound-coins-vault__count">
                 <span className="dashboard-profile-sound-coins-vault__value">
                   {soundTokens.toLocaleString()}
                 </span>
-                <span
-                  aria-hidden="true"
-                  className="dashboard-profile-sound-coins-vault__token"
-                />
+                {isActiveRewardPanel && dashboardPointsDropdownOpen ? (
+                  <DashboardSpinningSoundCoin3D
+                    className="dashboard-profile-sound-coins-vault__token"
+                    paused={dashboardHeaderMotionPaused}
+                  />
+                ) : null}
               </span>
+            </span>
+            <span
+              aria-hidden="true"
+              className="dashboard-profile-sound-coins-vault__stage"
+            >
+              {isActiveRewardPanel && dashboardPointsDropdownOpen ? (
+                <DashboardTreasureChest3D
+                  className="dashboard-profile-sound-coins-vault__scene"
+                  open
+                  paused={dashboardHeaderMotionPaused}
+                />
+              ) : null}
             </span>
           </div>
         </div>
       );
     }
 
+    const shouldRenderSoundPointsTeslaScene =
+      isActiveRewardPanel && dashboardPointsDropdownOpen;
+
     return (
       <div className="dashboard-profile-reward-orbit__panel-body">
-        <span
-          aria-hidden="true"
-          className="dashboard-profile-sound-points-total__weekly-fill"
-        />
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-[8px] font-black uppercase tracking-[0.14em] text-blue-100/82">
-              Sound Points
-            </div>
-            <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-blue-200/82">
-              Weekly goal {dashboardWeeklySoundPointLabel}
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <div className="dashboard-profile-sound-points-total__value text-2xl font-black leading-none text-blue-50 drop-shadow-[0_0_14px_rgba(37,99,235,0.42)]">
-              {soundPoints.toLocaleString()}
-            </div>
-            <svg
-              aria-hidden="true"
-              className="dashboard-profile-sound-points-total__bolt h-7 w-7 shrink-0 text-blue-500 drop-shadow-[0_0_12px_rgba(29,78,216,0.74)]"
-              fill="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path d="M13.5 2 4.8 13.2h6.1L9.7 22 19.2 9.6h-6.4L13.5 2Z" />
-            </svg>
-          </div>
-        </div>
-
-        <div className="dashboard-profile-charge-node-grid mt-3 grid">
+        <div
+          className={`dashboard-profile-charge-node-grid ${
+            shouldRenderSoundPointsTeslaScene
+              ? "dashboard-profile-charge-node-grid--three"
+              : ""
+          } mt-3 grid`}
+        >
+          {shouldRenderSoundPointsTeslaScene ? (
+            <DashboardSoundPointsTeslaCoil3D
+              className="dashboard-profile-charge-node-grid__tesla-scene"
+              paused={dashboardHeaderMotionPaused}
+              points={soundPoints}
+              turbines={dashboardCoreLightningItems}
+              weeklyProgress={dashboardWeeklySoundPointProgress}
+            />
+          ) : null}
           <div
-            aria-label={`Sound Points master turbine ${soundPoints.toLocaleString()}`}
+            aria-label={`Sound Points Tesla coil ${soundPoints.toLocaleString()}, weekly goal ${dashboardWeeklySoundPointLabel}`}
             className="dashboard-profile-charge-node-master"
           >
             <span
@@ -22513,11 +24319,18 @@ export default function UserHomeDashboardPage() {
               <span className="dashboard-profile-charge-node-master__label">
                 Sound Points
               </span>
+              <span className="dashboard-profile-charge-node-master__weekly-goal">
+                Weekly Points Goal {dashboardWeeklySoundPointLabel}
+              </span>
             </span>
           </div>
           {dashboardCoreLightningItems.map((item) => (
             <div
-              aria-label={`${item.label} charge ${item.count.toLocaleString()}`}
+              aria-label={
+                shouldRenderSoundPointsTeslaScene
+                  ? `${item.label} turbine level ${item.count.toLocaleString()}, ${item.points.toLocaleString()} points, ${Math.round(item.progress)} percent toward next level`
+                  : `${item.label} charge ${item.count.toLocaleString()}`
+              }
               className={`dashboard-profile-charge-node dashboard-profile-charge-node--${item.id}`}
               key={item.id}
             >
@@ -22527,14 +24340,34 @@ export default function UserHomeDashboardPage() {
               />
               <span
                 className="dashboard-profile-charge-node__readout"
-                title={`${item.count.toLocaleString()} ${item.label}`}
+                title={
+                  shouldRenderSoundPointsTeslaScene
+                    ? `LV ${item.count.toLocaleString()} ${item.label} ${item.points.toLocaleString()} pts / ${Math.round(item.progress)}% to next level`
+                    : `${item.count.toLocaleString()} ${item.label}`
+                }
               >
-                <span className="dashboard-profile-charge-node__value">
-                  {item.count.toLocaleString()}
-                </span>
-                <span className="dashboard-profile-charge-node__label">
-                  {item.label}
-                </span>
+                {shouldRenderSoundPointsTeslaScene ? (
+                  <>
+                    <span className="dashboard-profile-charge-node__value">
+                      LV {item.count.toLocaleString()}
+                    </span>
+                    <span className="dashboard-profile-charge-node__label">
+                      {item.label}
+                    </span>
+                    <span className="dashboard-profile-charge-node__points">
+                      {item.points.toLocaleString()} pts
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="dashboard-profile-charge-node__value">
+                      {item.count.toLocaleString()}
+                    </span>
+                    <span className="dashboard-profile-charge-node__label">
+                      {item.label}
+                    </span>
+                  </>
+                )}
               </span>
             </div>
           ))}
@@ -23988,9 +25821,12 @@ export default function UserHomeDashboardPage() {
           </button>
         </div>
 
+        {renderDashboardMobileHeaderOrbitJoystick()}
+
         <div
           aria-label="Main header menu"
           className="dashboard-header-main-orbit-stage dashboard-header-main-orbit-stage--stable min-w-0 flex-1"
+          data-mobile-header-panel={dashboardMobileHeaderOrbitPanel}
         >
           <div
             aria-label="Header block 1, dashboard menu"
@@ -24792,7 +26628,10 @@ export default function UserHomeDashboardPage() {
                 </span>
               </button>
 
-              <div className="relative" ref={dashboardPointsDropdownRef}>
+              <div
+                className="dashboard-profile-rewards-control relative"
+                ref={dashboardPointsDropdownRef}
+              >
                 <button
                   aria-controls="dashboard-points-dropdown"
                   aria-expanded={dashboardPointsDropdownOpen}
@@ -24816,47 +26655,29 @@ export default function UserHomeDashboardPage() {
                   }
                   type="button"
                 >
-                  <span
-                    aria-hidden="true"
-                    className="dashboard-profile-points-trigger__orbit"
-                  >
-                    <span className="dashboard-profile-points-trigger__orbit-stage">
-                      {dashboardAppGemOrbitItems.map((item, index) => (
-                        <span
-                          className="dashboard-profile-points-trigger__orbit-gem"
-                          data-gem-tone={item.tone}
-                          key={`header-points-trigger-gem-${item.id}`}
-                          style={
-                            {
-                              "--dashboard-profile-points-trigger-gem-delay": `${index * -1.2}s`,
-                              animationPlayState: dashboardPointsDropdownOpen
-                                ? "paused"
-                                : undefined,
-                            } as CSSProperties
-                          }
-                        >
-                          <DashboardEmerald3D
-                            className="dashboard-profile-points-trigger__orbit-canvas"
-                            paused={
-                              dashboardHeaderMotionPaused ||
-                              dashboardPointsDropdownOpen ||
-                              !dashboardPointsMenuHighlighted
-                            }
-                            tone={item.tone}
-                          />
-                        </span>
-                      ))}
-                    </span>
-                  </span>
                   <span className="dashboard-profile-points-trigger__values">
                     <span className="dashboard-profile-points-trigger__value-row text-[10px] font-black leading-none text-white">
                       <span className="sr-only">Emeralds</span>
-                      <span className="text-emerald-100/82">Gems</span>
+                      <span
+                        aria-hidden="true"
+                        className="dashboard-profile-points-trigger__mini-gems"
+                      >
+                        {dashboardAppGemOrbitItems.map((item) => (
+                          <span
+                            className="dashboard-profile-points-trigger__mini-gem"
+                            data-gem-tone={item.tone}
+                            key={`dashboard-profile-points-trigger-mini-gem-${item.id}`}
+                          />
+                        ))}
+                      </span>
                       {soundEmeralds.toLocaleString()}
                     </span>
                     <span className="dashboard-profile-points-trigger__value-row text-xs font-black leading-none text-white">
                       <span className="sr-only">Tokens</span>
-                      <span className="text-amber-100/82">Coins</span>
+                      <span
+                        aria-hidden="true"
+                        className="dashboard-profile-points-trigger__sound-coin"
+                      />
                       {soundTokens.toLocaleString()}
                     </span>
                     <span className="dashboard-profile-points-trigger__value-row text-xs font-black leading-none text-white">
@@ -24872,15 +26693,48 @@ export default function UserHomeDashboardPage() {
                   </span>
                 </button>
 
+                <button
+                  aria-controls="dashboard-points-dropdown"
+                  aria-expanded={dashboardPointsDropdownOpen}
+                  aria-label={`Claim earned rewards, ${soundPoints.toLocaleString()} points, ${soundTokens.toLocaleString()} coins, and ${soundEmeralds.toLocaleString()} gems available`}
+                  className="dashboard-profile-claim-trigger shrink-0 bg-transparent text-slate-200"
+                  data-dashboard-tooltip="Claim Rewards"
+                  data-dropdown-open={
+                    dashboardPointsDropdownOpen ? "true" : "false"
+                  }
+                  onBlur={() => setDashboardHeaderRewards3DActive(false)}
+                  onClick={toggleDashboardPointsDropdown}
+                  onFocus={() => setDashboardHeaderRewards3DActive(true)}
+                  onMouseEnter={() => setDashboardHeaderRewards3DActive(true)}
+                  onMouseLeave={() => setDashboardHeaderRewards3DActive(false)}
+                  onPointerEnter={() => setDashboardHeaderRewards3DActive(true)}
+                  onPointerLeave={() =>
+                    setDashboardHeaderRewards3DActive(false)
+                  }
+                  type="button"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="dashboard-profile-points-trigger__claim-package"
+                  >
+                    <span className="dashboard-profile-points-trigger__claim-package-bow dashboard-profile-points-trigger__claim-package-bow--left" />
+                    <span className="dashboard-profile-points-trigger__claim-package-bow dashboard-profile-points-trigger__claim-package-bow--right" />
+                    <span className="dashboard-profile-points-trigger__claim-package-lid" />
+                    <span className="dashboard-profile-points-trigger__claim-package-box" />
+                    <span className="dashboard-profile-points-trigger__claim-package-spark dashboard-profile-points-trigger__claim-package-spark--one" />
+                    <span className="dashboard-profile-points-trigger__claim-package-spark dashboard-profile-points-trigger__claim-package-spark--two" />
+                  </span>
+                </button>
+
                 {dashboardPointsDropdownOpen ? (
                   <div
                     aria-label="Sound Points rewards"
-                    className="dashboard-profile-points-dropdown absolute right-0 top-[calc(100%+0.55rem)] z-[260] w-[21rem] max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-[22px] border border-sky-200/24 bg-slate-950/92 p-3 text-slate-200 shadow-[0_22px_70px_rgba(0,0,0,0.46),0_0_34px_rgba(56,189,248,0.12),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-2xl"
+                    className="dashboard-profile-points-dropdown absolute right-0 top-[calc(100%+0.55rem)] z-[260] w-[27rem] max-w-[calc(100vw-1.5rem)] overflow-visible p-3 text-slate-200"
                     id="dashboard-points-dropdown"
                     role="region"
                   >
                     <div
-                      aria-label={`Rewards carousel. Current section ${DASHBOARD_PROFILE_REWARD_PANELS[activeDashboardPointsRewardPanelIndex]?.label}. Drag horizontally to rotate Gems, Coins, and Points.`}
+                      aria-label={`Rewards carousel. Current section ${DASHBOARD_PROFILE_REWARD_PANELS[activeDashboardPointsRewardPanelIndex]?.label}. Drag horizontally to rotate Points, Coins, and Gems.`}
                       className="dashboard-profile-reward-orbit"
                       onClickCapture={(event) => {
                         if (dashboardPointsRewardPointerMovedRef.current) {
@@ -24929,7 +26783,7 @@ export default function UserHomeDashboardPage() {
                           dashboardPointsRewardPointerStartRef,
                           dashboardPointsRewardPointerMovedRef,
                           rotateDashboardPointsRewardOrbit,
-                          setActiveDashboardPointsRewardPanelIndex,
+                          showDashboardPointsRewardPanel,
                         )
                       }
                       role="group"
@@ -24946,7 +26800,7 @@ export default function UserHomeDashboardPage() {
                             <section
                               aria-label={`${panel.label} rewards panel`}
                               aria-hidden={!isActive}
-                              className="dashboard-profile-reward-orbit__panel dashboard-profile-sound-points-total rounded-2xl border border-blue-400/28 bg-blue-950/60 p-2.5 shadow-[0_0_24px_rgba(30,64,175,0.28),inset_0_1px_0_rgba(147,197,253,0.12)]"
+                              className="dashboard-profile-reward-orbit__panel dashboard-profile-sound-points-total p-2.5"
                               data-dashboard-orbit-card-index={index}
                               data-reward-panel-active={
                                 isActive ? "true" : "false"
@@ -24970,16 +26824,6 @@ export default function UserHomeDashboardPage() {
                         })}
                       </div>
                       <div className="dashboard-profile-reward-orbit__controls">
-                        <button
-                          aria-label="Previous reward section"
-                          className="dashboard-profile-reward-orbit__arrow"
-                          onClick={() =>
-                            rotateDashboardPointsRewardOrbit("left")
-                          }
-                          type="button"
-                        >
-                          &lt;
-                        </button>
                         <span className="dashboard-profile-reward-orbit__dots">
                           {DASHBOARD_PROFILE_REWARD_PANELS.map(
                             (panel, index) => (
@@ -24990,62 +26834,218 @@ export default function UserHomeDashboardPage() {
                                   activeDashboardPointsRewardPanelIndex
                                 }
                                 className="dashboard-profile-reward-orbit__dot"
+                                data-reward-indicator={panel.id}
                                 key={`dashboard-profile-reward-dot-${panel.id}`}
-                                onClick={() =>
-                                  setActiveDashboardPointsRewardPanelIndex(
-                                    index,
-                                  )
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  showDashboardPointsRewardPanel(index);
+                                }}
+                                onPointerDown={(event) =>
+                                  event.stopPropagation()
+                                }
+                                onPointerUp={(event) =>
+                                  event.stopPropagation()
                                 }
                                 type="button"
-                              />
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className="dashboard-profile-reward-orbit__dot-logo"
+                                />
+                              </button>
                             ),
                           )}
                         </span>
-                        <button
-                          aria-label="Next reward section"
-                          className="dashboard-profile-reward-orbit__arrow"
-                          onClick={() =>
-                            rotateDashboardPointsRewardOrbit("right")
-                          }
-                          type="button"
-                        >
-                          &gt;
-                        </button>
                       </div>
                     </div>
 
-                    <div className="mt-3 flex items-center justify-end gap-3">
-                      <Link
-                        aria-label="Open achievements"
-                        className="inline-grid h-10 w-10 place-items-center bg-transparent text-amber-100 transition hover:-translate-y-0.5 hover:text-cyan-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/55"
-                        data-dashboard-tooltip="Achievements"
-                        href={ROUTES.dashboard.achievements}
-                        onClick={() => {
-                          markDashboardDestinationVisited(
-                            ROUTES.dashboard.achievements,
-                          );
-                          setDashboardPointsDropdownOpen(false);
-                        }}
-                      >
-                        <DashboardTabIcon
-                          className="h-5 w-5"
-                          name="Achievements"
-                        />
-                      </Link>
-                      <Link
-                        aria-label="Open stats"
-                        className="inline-grid h-10 w-10 place-items-center bg-transparent text-cyan-100 transition hover:-translate-y-0.5 hover:text-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/55"
-                        data-dashboard-tooltip="Stats"
-                        href={ROUTES.dashboard.stats}
-                        onClick={() => {
-                          markDashboardDestinationVisited(
-                            ROUTES.dashboard.stats,
-                          );
-                          setDashboardPointsDropdownOpen(false);
-                        }}
-                      >
-                        <DashboardTabIcon className="h-5 w-5" name="Stats" />
-                      </Link>
+                    <div className="dashboard-profile-reward-actions">
+                      <div className="dashboard-profile-reward-action">
+                        <button
+                          aria-controls="dashboard-rewards-store-menu"
+                          aria-expanded={
+                            dashboardPointsActionMenuOpen === "store"
+                          }
+                          className="dashboard-profile-reward-action__button dashboard-profile-reward-action__button--store"
+                          data-reward-action-open={
+                            dashboardPointsActionMenuOpen === "store"
+                              ? "true"
+                              : "false"
+                          }
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setDashboardPointsActionMenuOpen((openMenu) =>
+                              openMenu === "store" ? null : "store",
+                            );
+                          }}
+                          type="button"
+                        >
+                          <DashboardTabIcon
+                            className="h-4 w-4"
+                            name="Packages"
+                          />
+                          <span>Rewards Store</span>
+                        </button>
+
+                        {dashboardPointsActionMenuOpen === "store" ? (
+                          <div
+                            aria-label="Rewards Store menu"
+                            className="dashboard-profile-reward-action-menu dashboard-profile-reward-action-menu--store"
+                            id="dashboard-rewards-store-menu"
+                            role="menu"
+                          >
+                            <button
+                              className="dashboard-profile-reward-action-menu__item"
+                              onClick={() => {
+                                showDashboardPointsRewardPanel(0);
+                                setDashboardPointsActionMenuOpen(null);
+                              }}
+                              role="menuitem"
+                              type="button"
+                            >
+                              <DashboardTabIcon
+                                className="h-4 w-4"
+                                name="Performance"
+                              />
+                              <span>
+                                <span>Point Boosts</span>
+                                <span>{soundPoints.toLocaleString()} pts</span>
+                              </span>
+                            </button>
+                            <button
+                              className="dashboard-profile-reward-action-menu__item"
+                              onClick={() => {
+                                showDashboardPointsRewardPanel(1);
+                                setDashboardPointsActionMenuOpen(null);
+                              }}
+                              role="menuitem"
+                              type="button"
+                            >
+                              <DashboardSpinningSoundCoin3D
+                                className="dashboard-profile-reward-action-menu__coin"
+                                paused={dashboardHeaderMotionPaused}
+                              />
+                              <span>
+                                <span>Coin Vault</span>
+                                <span>{soundTokens.toLocaleString()} coins</span>
+                              </span>
+                            </button>
+                            <button
+                              className="dashboard-profile-reward-action-menu__item"
+                              onClick={() => {
+                                showDashboardPointsRewardPanel(2);
+                                setDashboardPointsActionMenuOpen(null);
+                              }}
+                              role="menuitem"
+                              type="button"
+                            >
+                              <DashboardTabIcon className="h-4 w-4" name="App" />
+                              <span>
+                                <span>Gem Reserves</span>
+                                <span>{soundEmeralds.toLocaleString()} gems</span>
+                              </span>
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="dashboard-profile-reward-action">
+                        <button
+                          aria-controls="dashboard-reward-collection-menu"
+                          aria-expanded={
+                            dashboardPointsActionMenuOpen === "collection"
+                          }
+                          className="dashboard-profile-reward-action__button dashboard-profile-reward-action__button--collection"
+                          data-reward-action-open={
+                            dashboardPointsActionMenuOpen === "collection"
+                              ? "true"
+                              : "false"
+                          }
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setDashboardPointsActionMenuOpen((openMenu) =>
+                              openMenu === "collection" ? null : "collection",
+                            );
+                          }}
+                          type="button"
+                        >
+                          <DashboardTabIcon
+                            className="h-4 w-4"
+                            name="Achievements"
+                          />
+                          <span>My Collection</span>
+                        </button>
+
+                        {dashboardPointsActionMenuOpen === "collection" ? (
+                          <div
+                            aria-label="My Collection menu"
+                            className="dashboard-profile-reward-action-menu dashboard-profile-reward-action-menu--collection"
+                            id="dashboard-reward-collection-menu"
+                            role="menu"
+                          >
+                            <Link
+                              className="dashboard-profile-reward-action-menu__item"
+                              href={ROUTES.dashboard.achievements}
+                              onClick={() => {
+                                markDashboardDestinationVisited(
+                                  ROUTES.dashboard.achievements,
+                                );
+                                setDashboardPointsActionMenuOpen(null);
+                                setDashboardPointsDropdownOpen(false);
+                              }}
+                              role="menuitem"
+                            >
+                              <DashboardTabIcon
+                                className="h-4 w-4"
+                                name="Achievements"
+                              />
+                              <span>
+                                <span>Achievements</span>
+                                <span>Badges</span>
+                              </span>
+                            </Link>
+                            <Link
+                              className="dashboard-profile-reward-action-menu__item"
+                              href={ROUTES.dashboard.stats}
+                              onClick={() => {
+                                markDashboardDestinationVisited(
+                                  ROUTES.dashboard.stats,
+                                );
+                                setDashboardPointsActionMenuOpen(null);
+                                setDashboardPointsDropdownOpen(false);
+                              }}
+                              role="menuitem"
+                            >
+                              <DashboardTabIcon className="h-4 w-4" name="Stats" />
+                              <span>
+                                <span>Stats</span>
+                                <span>Progress</span>
+                              </span>
+                            </Link>
+                            <Link
+                              className="dashboard-profile-reward-action-menu__item"
+                              href={ROUTES.dashboard.profile}
+                              onClick={() => {
+                                markDashboardDestinationVisited(
+                                  ROUTES.dashboard.profile,
+                                );
+                                setDashboardPointsActionMenuOpen(null);
+                                setDashboardPointsDropdownOpen(false);
+                              }}
+                              role="menuitem"
+                            >
+                              <DashboardTabIcon
+                                className="h-4 w-4"
+                                name="Profile"
+                              />
+                              <span>
+                                <span>Profile</span>
+                                <span>Hub</span>
+                              </span>
+                            </Link>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 ) : null}
@@ -25635,11 +27635,16 @@ export default function UserHomeDashboardPage() {
             />
           </button>
 
-          {dashboardHeaderMeterMenuOpen && typeof document !== "undefined"
+          {(dashboardHeaderMeterMenuOpen || dashboardHeaderMeterPanelVisible) &&
+          typeof document !== "undefined"
             ? createPortal(
                 <aside
                   aria-label="Stacked dashboard meters"
                   className="dashboard-header-meter-panel"
+                  data-meter-highlight={dashboardHeaderMeterPanelHighlightKey}
+                  data-meter-menu-state={
+                    dashboardHeaderMeterMenuOpen ? "open" : "closing"
+                  }
                   id="dashboard-header-meter-panel"
                   role="region"
                 >
@@ -25670,7 +27675,32 @@ export default function UserHomeDashboardPage() {
                     </button>
                   </div>
 
-                  <div className="dashboard-header-category-levels-menu">
+                  <div
+                    aria-label="Highlight UFO category display"
+                    aria-pressed={
+                      dashboardHeaderMeterPanelHighlightTarget === "ufo"
+                    }
+                    className="dashboard-header-category-levels-menu"
+                    data-meter-highlight-target="ufo"
+                    data-meter-highlighted={
+                      dashboardHeaderMeterPanelHighlightTarget === "ufo"
+                        ? "true"
+                        : "false"
+                    }
+                    onClick={() => setDashboardHeaderMeterPanelHighlight("ufo")}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setDashboardHeaderMeterPanelHighlight("ufo");
+                        return;
+                      }
+
+                      handleDashboardHeaderMeterPanelKeyDown(event);
+                    }}
+                    onWheel={handleDashboardHeaderMeterPanelWheel}
+                    role="button"
+                    tabIndex={0}
+                  >
                     <div className="dashboard-header-category-levels-menu__summary">
                       <span className="dashboard-header-category-levels-menu__summary-copy">
                         <span>Category Levels</span>
@@ -25685,160 +27715,177 @@ export default function UserHomeDashboardPage() {
                     </div>
 
                     <div
-                      aria-label="Drag or scroll through category level animations"
-                      className="dashboard-header-category-levels-menu__orbit"
+                      aria-label="Active category level signal"
+                      className="dashboard-header-category-levels-menu__orbit dashboard-header-category-levels-menu__orbit--ufo-chyron"
                       id="dashboard-header-category-levels-orbit"
-                      onClickCapture={(event) => {
-                        if (
-                          dashboardHeaderCategoryLevelPointerMovedRef.current
-                        ) {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          dashboardHeaderCategoryLevelPointerMovedRef.current = false;
-                        }
-                      }}
-                      onKeyDown={(event) => {
-                        if (
-                          event.key === "ArrowLeft" ||
-                          event.key === "ArrowRight"
-                        ) {
-                          pauseDashboardHeaderCategoryLevelAutoOrbit();
-                        }
-
-                        handleDashboardOrbitKeyDown(
-                          event,
-                          rotateDashboardHeaderCategoryLevels,
-                        );
-                      }}
-                      onPointerCancel={(event) => {
-                        dashboardHeaderCategoryLevelPointerStartRef.current =
-                          null;
-                        if (
-                          event.currentTarget.hasPointerCapture?.(
-                            event.pointerId,
-                          )
-                        ) {
-                          event.currentTarget.releasePointerCapture?.(
-                            event.pointerId,
-                          );
-                        }
-                      }}
-                      onPointerDown={(event) => {
-                        pauseDashboardHeaderCategoryLevelAutoOrbit();
-                        handleDashboardOrbitPointerDown(
-                          event,
-                          dashboardHeaderCategoryLevelPointerStartRef,
-                          dashboardHeaderCategoryLevelPointerMovedRef,
-                        );
-                      }}
-                      onPointerMove={(event) =>
-                        handleDashboardOrbitPointerMove(
-                          event,
-                          dashboardHeaderCategoryLevelPointerStartRef,
-                          dashboardHeaderCategoryLevelPointerMovedRef,
-                          rotateDashboardHeaderCategoryLevels,
-                          24,
-                        )
+                      style={
+                        activeDashboardHeaderCategoryLevel
+                          ? ({
+                              "--dashboard-header-category-color":
+                                activeDashboardHeaderCategoryLevel.color,
+                              "--dashboard-header-category-level": `${activeDashboardHeaderCategoryLevel.level}%`,
+                              "--dashboard-header-category-meter-level":
+                                getDashboardHeaderCategoryMeterFill(
+                                  activeDashboardHeaderCategoryLevel.level,
+                                ),
+                              "--dashboard-header-meter-tornado-color":
+                                dashboardHeaderMeterTornadoColor,
+                            } as CSSProperties)
+                          : undefined
                       }
-                      onPointerUp={(event) =>
-                        handleDashboardOrbitPointerUp(
-                          event,
-                          dashboardHeaderCategoryLevelPointerStartRef,
-                          dashboardHeaderCategoryLevelPointerMovedRef,
-                          rotateDashboardHeaderCategoryLevels,
-                          setDashboardHeaderCategoryLevelActiveIndex,
-                        )
-                      }
-                      onWheel={handleDashboardHeaderCategoryLevelWheel}
-                      role="group"
-                      tabIndex={0}
                     >
-                      {dashboardHeaderCategoryLevels.map(
-                        (categoryLevel, index) => {
-                          const categoryLevelNumber = Math.max(
-                            1,
-                            Math.round(categoryLevel.level / 10),
-                          );
-                          const categoryLevelSlot =
-                            getDashboardHeaderCategoryLevelSlot(index);
-                          const isActiveCategoryLevel =
-                            categoryLevelSlot === "center";
-                          const categoryLevelDetails =
-                            dashboardHeaderCategoryLevelDetails[
-                              categoryLevel.id
-                            ];
+                      {activeDashboardHeaderCategoryLevel ? (
+                        <DashboardCategoryUfoScene3D
+                          activeCategoryId={activeDashboardHeaderCategoryLevel.id}
+                          beamColor={dashboardHeaderMeterTornadoColor}
+                          chyronItems={dashboardHeaderCategoryUfoChyronItems}
+                          color={activeDashboardHeaderCategoryLevel.color}
+                          isActive={
+                            dashboardHeaderMeterPanelHighlightTarget === "ufo"
+                          }
+                          isOpen={dashboardHeaderMeterMenuOpen}
+                          progress={activeDashboardHeaderCategoryLevel.level}
+                        />
+                      ) : null}
+                      {activeDashboardHeaderCategoryLevel &&
+                      activeDashboardHeaderCategoryLevelDetails ? (
+                        <div
+                          aria-label={`${activeDashboardHeaderCategoryLevel.label} level ${activeDashboardHeaderCategoryLevelNumber}, ${activeDashboardHeaderCategoryLevel.level}% progress, ${activeDashboardHeaderCategoryRepsToNextLevelLabel}, recommended pattern ${activeDashboardHeaderCategoryPatternRecommendation?.label || activeDashboardHeaderCategoryLevelDetails.recommendedPatterns[0]}, ${activeDashboardHeaderCategoryPatternSetLabel}`}
+                          aria-live="polite"
+                          className="dashboard-header-category-levels-menu__ufo-chyron"
+                          role="status"
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="dashboard-header-category-levels-menu__ufo-chyron-copy"
+                          >
+                            <span className="dashboard-header-category-levels-menu__ufo-chyron-track">
+                              {[0, 1].map((loopIndex) => (
+                                <span
+                                  className="dashboard-header-category-levels-menu__ufo-chyron-loop"
+                                  key={`dashboard-header-category-ufo-chyron-loop-${loopIndex}`}
+                                >
+                                  {dashboardHeaderCategoryLevels.map((category) => {
+                                    const categoryLevelNumber = Math.max(
+                                      1,
+                                      Math.round(category.level / 10),
+                                    );
+                                    const categoryDetails =
+                                      dashboardHeaderCategoryLevelDetails[
+                                        category.id
+                                      ];
+                                    const categoryPatternRecommendation =
+                                      dashboardSummary
+                                        .categoryPatternRecommendations[
+                                        category.id
+                                      ];
+                                    const categoryPatternLabel =
+                                      categoryPatternRecommendation?.label ||
+                                      categoryDetails.recommendedPatterns[0];
+                                    const categoryPatternSetLabel =
+                                      categoryPatternRecommendation &&
+                                      categoryPatternRecommendation.recentSets > 0
+                                        ? `${categoryPatternRecommendation.recentSets} set${
+                                            categoryPatternRecommendation.recentSets ===
+                                            1
+                                              ? ""
+                                              : "s"
+                                          }`
+                                        : "Needs reps";
+                                    const categoryRepsToNextLevelCountLabel =
+                                      formatDashboardHeaderCategoryApproxRepsCount(
+                                        category.level,
+                                      );
+                                    const categoryRepsGapLabelLeft = `${Math.min(
+                                      category.level + 1,
+                                      82,
+                                    )}%`;
+                                    const categoryIsActive =
+                                      category.id ===
+                                      activeDashboardHeaderCategoryLevel.id;
 
-                          return (
-                            <button
-                              aria-label={`${categoryLevel.label}, level ${categoryLevelNumber}, ${categoryLevel.level}% progress. ${categoryLevelDetails.focus}. ${categoryLevelDetails.signal}. Next: ${categoryLevelDetails.next}.`}
-                              aria-pressed={isActiveCategoryLevel}
-                              className={`dashboard-header-category-levels-menu__item dashboard-header-category-levels-menu__item--slot-${categoryLevelSlot}`}
-                              data-dashboard-orbit-card-index={index}
-                              key={`dashboard-header-category-levels-menu-${categoryLevel.id}`}
-                              onClick={() => {
-                                pauseDashboardHeaderCategoryLevelAutoOrbit();
-                                setDashboardHeaderCategoryLevelActiveIndex(
-                                  index,
-                                );
-                              }}
-                              style={
-                                {
-                                  "--dashboard-header-category-color":
-                                    categoryLevel.color,
-                                  "--dashboard-header-category-level": `${categoryLevel.level}%`,
-                                  "--dashboard-header-category-meter-level":
-                                    getDashboardHeaderCategoryMeterFill(
-                                      categoryLevel.level,
-                                    ),
-                                } as CSSProperties
-                              }
-                              tabIndex={isActiveCategoryLevel ? 0 : -1}
-                              type="button"
-                            >
-                              <span
-                                aria-hidden="true"
-                                className={`dashboard-header-category-levels-menu__actor dashboard-header-category-actor dashboard-header-category-actor--${categoryLevel.id}`}
-                              >
-                                <span className="dashboard-header-category-actor__meter">
-                                  <span />
+                                    return (
+                                      <span
+                                        className={`dashboard-header-category-levels-menu__ufo-chyron-packet ${
+                                          categoryIsActive
+                                            ? "dashboard-header-category-levels-menu__ufo-chyron-packet--active"
+                                            : ""
+                                        }`}
+                                        key={`dashboard-header-category-ufo-chyron-${loopIndex}-${category.id}`}
+                                        style={
+                                          {
+                                            "--dashboard-header-category-color":
+                                              category.color,
+                                            "--dashboard-header-category-level": `${category.level}%`,
+                                            "--dashboard-header-category-meter-level":
+                                              getDashboardHeaderCategoryMeterFill(
+                                                category.level,
+                                              ),
+                                          } as CSSProperties
+                                        }
+                                      >
+                                        <span
+                                          className={`dashboard-header-category-levels-menu__ufo-chyron-tab-actor dashboard-header-category-actor dashboard-header-category-actor--${category.id}`}
+                                        >
+                                          {renderDashboardHeaderCategoryActorFigure()}
+                                        </span>
+                                        <span
+                                          className="dashboard-header-category-levels-menu__ufo-chyron-reps-gap"
+                                          style={
+                                            {
+                                              alignItems: "center",
+                                              background:
+                                                "linear-gradient(90deg, transparent, rgba(2, 6, 23, 0.42) 22%, rgba(2, 6, 23, 0.62) 50%, rgba(2, 6, 23, 0.42) 78%, transparent)",
+                                              bottom: "0.32rem",
+                                              color: category.color,
+                                              display: "flex",
+                                              fontSize: "0.48rem",
+                                              fontWeight: 950,
+                                              justifyContent: "center",
+                                              left: categoryRepsGapLabelLeft,
+                                              letterSpacing: "0.08em",
+                                              lineHeight: 1,
+                                              minHeight: "0.82rem",
+                                              overflow: "hidden",
+                                              pointerEvents: "none",
+                                              position: "absolute",
+                                              right: "0.44rem",
+                                              textAlign: "center",
+                                              textShadow:
+                                                "0 0 0.24rem rgba(2, 6, 23, 0.94), 0 0 0.46rem currentColor",
+                                              textTransform: "uppercase",
+                                              whiteSpace: "nowrap",
+                                              zIndex: 5,
+                                            } as CSSProperties
+                                          }
+                                        >
+                                          {categoryRepsToNextLevelCountLabel}
+                                        </span>
+                                        <span className="dashboard-header-category-levels-menu__ufo-chyron-main">
+                                          <span>{category.shortLabel}</span>
+                                          <span>LV {categoryLevelNumber}</span>
+                                        </span>
+                                        <span className="dashboard-header-category-levels-menu__ufo-chyron-sub">
+                                          <span>Recommended</span>
+                                          <span>{categoryPatternLabel}</span>
+                                          <span>{categoryPatternSetLabel}</span>
+                                        </span>
+                                      </span>
+                                    );
+                                  })}
                                 </span>
-                                {renderDashboardHeaderCategoryActorFigure()}
-                              </span>
-                              <span className="dashboard-header-category-levels-menu__item-copy">
-                                <span className="dashboard-header-category-levels-menu__item-title">
-                                  <span>{categoryLevel.label}</span>
-                                  <span className="dashboard-header-category-levels-menu__level-text">
-                                    LV {categoryLevelNumber}
-                                  </span>
-                                </span>
-                                <span className="dashboard-header-category-levels-menu__item-meta">
-                                  {categoryLevel.level}% progress
-                                </span>
-                                <span className="dashboard-header-category-levels-menu__item-details">
-                                  <span>
-                                    <span>Focus</span>
-                                    <span>{categoryLevelDetails.focus}</span>
-                                  </span>
-                                  <span>
-                                    <span>Signal</span>
-                                    <span>{categoryLevelDetails.signal}</span>
-                                  </span>
-                                  <span>
-                                    <span>Next</span>
-                                    <span>{categoryLevelDetails.next}</span>
-                                  </span>
-                                </span>
-                              </span>
-                            </button>
-                          );
-                        },
-                      )}
+                              ))}
+                            </span>
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
 
                   <div
                     aria-label="Drag or scroll through dashboard meter groups"
                     className="dashboard-header-meter-panel__stack dashboard-header-meter-panel__stack--orbit"
+                    data-meter-highlight={dashboardHeaderMeterPanelHighlightKey}
                     onClickCapture={(event) => {
                       if (dashboardHeaderMeterPanelPointerMovedRef.current) {
                         event.preventDefault();
@@ -25846,12 +27893,7 @@ export default function UserHomeDashboardPage() {
                         dashboardHeaderMeterPanelPointerMovedRef.current = false;
                       }
                     }}
-                    onKeyDown={(event) =>
-                      handleDashboardOrbitKeyDown(
-                        event,
-                        rotateDashboardHeaderMeterPanelSections,
-                      )
-                    }
+                    onKeyDown={handleDashboardHeaderMeterPanelKeyDown}
                     onPointerCancel={(event) => {
                       dashboardHeaderMeterPanelPointerStartRef.current = null;
                       if (
@@ -25884,10 +27926,12 @@ export default function UserHomeDashboardPage() {
                         dashboardHeaderMeterPanelPointerStartRef,
                         dashboardHeaderMeterPanelPointerMovedRef,
                         rotateDashboardHeaderMeterPanelSections,
-                        setDashboardHeaderMeterPanelActiveIndex,
+                        undefined,
+                        setDashboardHeaderMeterPanelSectionHighlight,
                       )
                     }
                     onWheel={handleDashboardHeaderMeterPanelWheel}
+                    ref={dashboardHeaderMeterPanelStackRef}
                     role="group"
                     tabIndex={0}
                   >
@@ -25897,6 +27941,12 @@ export default function UserHomeDashboardPage() {
                         0,
                       )}`}
                       data-dashboard-orbit-card-index={0}
+                      data-meter-highlight-target="section-0"
+                      data-meter-highlighted={
+                        dashboardHeaderMeterPanelHighlightedSectionIndex === 0
+                          ? "true"
+                          : "false"
+                      }
                     >
                       <div className="dashboard-header-meter-panel__section-label">
                         Achievements + PR
@@ -25908,8 +27958,22 @@ export default function UserHomeDashboardPage() {
                               `${highlight.rank}. ${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.weightLabel}, ${highlight.repsLabel} reps, best on ${highlight.dateLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`,
                           )
                           .join(". ")}`}
-                        className="dashboard-header-compound-pr-meter dashboard-header-meter-panel__wide-meter text-cyan-50"
+                        aria-pressed={
+                          dashboardHeaderMeterPanelHighlightTarget ===
+                          "compound-pr"
+                        }
+                        className="dashboard-header-compound-pr-meter dashboard-header-meter-panel__highlight-meter dashboard-header-meter-panel__wide-meter text-cyan-50"
                         data-dashboard-tooltip="Compound PR meter: 30 day best weight and date"
+                        data-meter-highlight-target="compound-pr"
+                        data-meter-highlighted={
+                          dashboardHeaderMeterPanelHighlightTarget ===
+                          "compound-pr"
+                            ? "true"
+                            : "false"
+                        }
+                        onClick={() =>
+                          setDashboardHeaderMeterPanelHighlight("compound-pr")
+                        }
                         role="group"
                         style={
                           {
@@ -25921,7 +27985,17 @@ export default function UserHomeDashboardPage() {
                           aria-hidden="true"
                           className="dashboard-header-compound-pr-meter__shadow-stage"
                           key={`dashboard-header-compound-pr-shadow-${normalizedDashboardHeaderPrActiveIndex}-${activeDashboardHeaderPrCategoryId}`}
+                          style={
+                            {
+                              "--dashboard-header-pr-category-color":
+                                activeDashboardHeaderPrCategoryColor,
+                            } as CSSProperties
+                          }
                         >
+                          <span
+                            aria-hidden="true"
+                            className="dashboard-header-compound-pr-meter__shadow-color"
+                          />
                           <span
                             className={`dashboard-header-compound-pr-meter__shadow-puppet dashboard-header-category-actor dashboard-header-category-actor--${activeDashboardHeaderPrCategoryId}`}
                           >
@@ -26011,6 +28085,10 @@ export default function UserHomeDashboardPage() {
                                 const prCardSlot =
                                   getDashboardHeaderPrCardSlot(index);
                                 const isActivePrCard = prCardSlot === "center";
+                                const prCardCategoryColor =
+                                  getDashboardHeaderPrCategoryColor(
+                                    highlight.categoryId,
+                                  );
 
                                 return (
                                   <button
@@ -26021,6 +28099,12 @@ export default function UserHomeDashboardPage() {
                                     key={`dashboard-header-meter-panel-compound-pr-${highlight.tone}`}
                                     onClick={() =>
                                       setDashboardHeaderPrActiveIndex(index)
+                                    }
+                                    style={
+                                      {
+                                        "--dashboard-header-pr-category-color":
+                                          prCardCategoryColor,
+                                      } as CSSProperties
                                     }
                                     tabIndex={isActivePrCard ? 0 : -1}
                                     type="button"
@@ -26096,7 +28180,11 @@ export default function UserHomeDashboardPage() {
                         aria-label={`Open achievements, ${headerAchievementsEarned} of ${headerAchievementTotal} earned, ${Math.round(
                           headerAchievementProgress,
                         )}% progress`}
-                        className={`dashboard-header-achievement-cloud-trigger dashboard-header-achievement-meter dashboard-header-achievement-meter--standalone ${
+                        aria-pressed={
+                          dashboardHeaderMeterPanelHighlightTarget ===
+                          "achievements"
+                        }
+                        className={`dashboard-header-achievement-cloud-trigger dashboard-header-achievement-meter dashboard-header-achievement-meter--standalone dashboard-header-meter-panel__highlight-meter ${
                           dashboardHeaderAchievementRevealActive
                             ? "dashboard-header-achievement-cloud-trigger--revealing"
                             : ""
@@ -26106,8 +28194,28 @@ export default function UserHomeDashboardPage() {
                             ? `, next ${headerAchievementNext.label}`
                             : ""
                         }. ${activeHeaderAchievementEstimate.fullLabel}`}
+                        data-meter-highlight-target="achievements"
+                        data-meter-highlighted={
+                          dashboardHeaderMeterPanelHighlightTarget ===
+                          "achievements"
+                            ? "true"
+                            : "false"
+                        }
                         href={ROUTES.dashboard.achievements}
-                        onClick={openDashboardAchievementsFromHeader}
+                        onClick={(event) => {
+                          if (
+                            dashboardHeaderMeterPanelHighlightTarget !==
+                            "achievements"
+                          ) {
+                            event.preventDefault();
+                            setDashboardHeaderMeterPanelHighlight(
+                              "achievements",
+                            );
+                            return;
+                          }
+
+                          openDashboardAchievementsFromHeader(event);
+                        }}
                       >
                         <span
                           aria-hidden="true"
@@ -26194,6 +28302,12 @@ export default function UserHomeDashboardPage() {
                         1,
                       )}`}
                       data-dashboard-orbit-card-index={1}
+                      data-meter-highlight-target="section-1"
+                      data-meter-highlighted={
+                        dashboardHeaderMeterPanelHighlightedSectionIndex === 1
+                          ? "true"
+                          : "false"
+                      }
                     >
                       <div className="dashboard-header-meter-panel__section-label">
                         Daily + Plan
@@ -26206,8 +28320,18 @@ export default function UserHomeDashboardPage() {
                           dashboardSummary.dailySets,
                           dashboardSummary.dailySetGoal,
                         )}
-                        className="dashboard-header-sets-meter dashboard-header-sets-meter--standalone dashboard-header-meter-panel__compact-meter text-emerald-50"
+                        className="dashboard-header-sets-meter dashboard-header-sets-meter--standalone dashboard-header-meter-panel__compact-meter dashboard-header-meter-panel__highlight-meter text-emerald-50"
                         data-dashboard-tooltip={`${dashboardSummary.dailySets} daily sets. ${dashboardSummary.dailySetGroupSummary}`}
+                        data-meter-highlight-target="daily-sets"
+                        data-meter-highlighted={
+                          dashboardHeaderMeterPanelHighlightTarget ===
+                          "daily-sets"
+                            ? "true"
+                            : "false"
+                        }
+                        onClick={() =>
+                          setDashboardHeaderMeterPanelHighlight("daily-sets")
+                        }
                         role="meter"
                       >
                         <span className="dashboard-header-sets-meter__tower">
@@ -26240,11 +28364,21 @@ export default function UserHomeDashboardPage() {
 
                       <div
                         aria-label="Header progress meters"
-                        className={`dashboard-header-meter-scroller ${
+                        className={`dashboard-header-meter-scroller dashboard-header-meter-panel__highlight-meter ${
                           dashboardHeaderMeterRailActive
                             ? "dashboard-header-meter-scroller--rail-active"
                             : ""
                         }`}
+                        data-meter-highlight-target="plan-sessions"
+                        data-meter-highlighted={
+                          dashboardHeaderMeterPanelHighlightTarget ===
+                          "plan-sessions"
+                            ? "true"
+                            : "false"
+                        }
+                        onClick={() =>
+                          setDashboardHeaderMeterPanelHighlight("plan-sessions")
+                        }
                       >
                         <div className="dashboard-header-meter-scroller__track">
                           <div
@@ -26483,6 +28617,12 @@ export default function UserHomeDashboardPage() {
                         2,
                       )}`}
                       data-dashboard-orbit-card-index={2}
+                      data-meter-highlight-target="section-2"
+                      data-meter-highlighted={
+                        dashboardHeaderMeterPanelHighlightedSectionIndex === 2
+                          ? "true"
+                          : "false"
+                      }
                     >
                       <div className="dashboard-header-meter-panel__section-label">
                         Fuel + Body
@@ -26493,8 +28633,20 @@ export default function UserHomeDashboardPage() {
                           aria-valuemax={dashboardSummary.weeklyCaloriesGoal}
                           aria-valuemin={0}
                           aria-valuenow={dashboardSummary.weeklyCalories}
-                          className="dashboard-header-fuel-meter dashboard-header-fuel-meter--calories"
+                          className="dashboard-header-fuel-meter dashboard-header-fuel-meter--calories dashboard-header-meter-panel__highlight-meter"
                           data-dashboard-tooltip={`${dashboardSummary.weeklyCaloriesDisplay} total weekly calories`}
+                          data-meter-highlight-target="fuel-calories"
+                          data-meter-highlighted={
+                            dashboardHeaderMeterPanelHighlightTarget ===
+                            "fuel-calories"
+                              ? "true"
+                              : "false"
+                          }
+                          onClick={() =>
+                            setDashboardHeaderMeterPanelHighlight(
+                              "fuel-calories",
+                            )
+                          }
                           role="meter"
                           style={
                             {
@@ -26525,8 +28677,18 @@ export default function UserHomeDashboardPage() {
                           aria-valuenow={Number(
                             dashboardSummary.weightChange.toFixed(1),
                           )}
-                          className={`dashboard-header-fuel-meter dashboard-header-fuel-meter--weight dashboard-header-fuel-meter--${dashboardSummary.weightChangeTone}`}
+                          className={`dashboard-header-fuel-meter dashboard-header-fuel-meter--weight dashboard-header-meter-panel__highlight-meter dashboard-header-fuel-meter--${dashboardSummary.weightChangeTone}`}
                           data-dashboard-tooltip={`Weight change ${dashboardSummary.weightChangeLabel}. ${dashboardSummary.weightChangeTrendLabel}`}
+                          data-meter-highlight-target="weight"
+                          data-meter-highlighted={
+                            dashboardHeaderMeterPanelHighlightTarget ===
+                            "weight"
+                              ? "true"
+                              : "false"
+                          }
+                          onClick={() =>
+                            setDashboardHeaderMeterPanelHighlight("weight")
+                          }
                           role="meter"
                           style={
                             {
@@ -26556,6 +28718,7 @@ export default function UserHomeDashboardPage() {
                       aria-hidden="true"
                       className="dashboard-header-meter-tornado"
                       data-gem-tone={dashboardHeaderMeterTornadoGemTone}
+                      style={{ zIndex: 6 }}
                     >
                       <span className="dashboard-header-meter-tornado__ribbon dashboard-header-meter-tornado__ribbon--front" />
                       <span className="dashboard-header-meter-tornado__ribbon dashboard-header-meter-tornado__ribbon--back" />
@@ -26563,6 +28726,7 @@ export default function UserHomeDashboardPage() {
                         aria-hidden="true"
                         className="dashboard-header-meter-tornado__core-map"
                         preserveAspectRatio="none"
+                        style={{ display: "none", opacity: 0 }}
                         viewBox="0 0 320 460"
                       >
                         <defs>
@@ -35084,6 +37248,7 @@ export default function UserHomeDashboardPage() {
         }}
       >
         <style>{DASHBOARD_HEADER_METER_MENU_TRIGGER_STYLE}</style>
+        <style>{DASHBOARD_HEADER_METER_UFO_COMPACT_STYLE}</style>
         <style>{DASHBOARD_HEADER_NEWS_CHYRON_TIMING_STYLE}</style>
         <style>{DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE}</style>
         <style>{DASHBOARD_PAGE_LEVEL_METER_TAB_STYLE}</style>
