@@ -26169,7 +26169,7 @@ export default function UserHomeDashboardPage() {
           onPointerEnter={() => setDashboardHeaderLogoClusterHighlighted(true)}
           onPointerLeave={() => setDashboardHeaderLogoClusterHighlighted(false)}
         >
-          {clampedDashboardOrbiterRow === 0 && !dashboardHeaderTimedOut ? (
+          {clampedDashboardOrbiterRow === 0 ? (
             <>
               <button
                 aria-controls="dashboard-trophy-menu"
