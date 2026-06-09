@@ -27,6 +27,31 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.dashboard-webgl-snapshot-layer {
+  display: block !important;
+  object-fit: contain;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transition:
+    opacity 180ms ease,
+    visibility 180ms ease;
+  visibility: hidden;
+  z-index: 8;
+}
+
+.dashboard-webgl-snapshot-host[data-dashboard-webgl-snapshot-visible="true"]
+  > .dashboard-webgl-snapshot-layer {
+  opacity: 1;
+  visibility: visible;
+}
+
+.dashboard-webgl-snapshot-host[data-dashboard-webgl-snapshot-visible="true"]
+  > canvas {
+  opacity: 0 !important;
+  visibility: hidden;
+}
+
 .exercise-library-page-theme {
   background:
     radial-gradient(
@@ -8575,6 +8600,7 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 .dashboard-header-category-overlay {
   contain: paint;
   bottom: 1.6rem;
+  display: none;
   inset-inline: 0;
   opacity: 1;
   overflow: hidden;
@@ -8624,6 +8650,12 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   .dashboard-header-idle-training-floor {
   opacity: 1;
   visibility: visible;
+}
+
+main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
+  .dashboard-header-vortex-shell
+  .dashboard-header-idle-training-floor {
+  z-index: 240 !important;
 }
 
 .dashboard-header-idle-training-floor *,
@@ -12670,21 +12702,30 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 .dashboard-header-ambient-field__meteor {
   --dashboard-header-meteor-delay: 0s;
   --dashboard-header-meteor-duration: 32s;
+  --dashboard-header-meteor-core-a: rgba(209, 250, 229, 0.98);
+  --dashboard-header-meteor-core-b: rgba(16, 185, 129, 0.94);
+  --dashboard-header-meteor-core-c: rgba(4, 120, 87, 0.98);
+  --dashboard-header-meteor-core-d: rgba(187, 247, 208, 0.88);
+  --dashboard-header-meteor-glow: rgba(16, 185, 129, 0.55);
+  --dashboard-header-meteor-glow-soft: rgba(52, 211, 153, 0.22);
   --dashboard-header-meteor-scale: 1;
+  --dashboard-header-meteor-trail-a: rgba(209, 250, 229, 0.92);
+  --dashboard-header-meteor-trail-b: rgba(16, 185, 129, 0.48);
+  --dashboard-header-meteor-trail-c: rgba(16, 185, 129, 0.04);
   animation: dashboard-header-ambient-meteor
     var(--dashboard-header-meteor-duration) ease-in-out infinite;
   animation-delay: var(--dashboard-header-meteor-delay);
   background: linear-gradient(
     90deg,
     rgba(255, 255, 255, 0.96) 0%,
-    rgba(209, 250, 229, 0.92) 9%,
-    rgba(16, 185, 129, 0.48) 38%,
-    rgba(16, 185, 129, 0.04) 72%,
+    var(--dashboard-header-meteor-trail-a) 9%,
+    var(--dashboard-header-meteor-trail-b) 38%,
+    var(--dashboard-header-meteor-trail-c) 72%,
     transparent 100%
   );
   border-radius: 9999px;
-  filter: drop-shadow(0 0 0.32rem rgba(16, 185, 129, 0.55))
-    drop-shadow(0 0 0.7rem rgba(52, 211, 153, 0.22));
+  filter: drop-shadow(0 0 0.32rem var(--dashboard-header-meteor-glow))
+    drop-shadow(0 0 0.7rem var(--dashboard-header-meteor-glow-soft));
   height: 0.12rem;
   left: var(--dashboard-header-meteor-left, 72%);
   opacity: 0;
@@ -12707,10 +12748,10 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   background:
     linear-gradient(
       135deg,
-      rgba(209, 250, 229, 0.98),
-      rgba(16, 185, 129, 0.94) 38%,
-      rgba(4, 120, 87, 0.98) 72%,
-      rgba(187, 247, 208, 0.88)
+      var(--dashboard-header-meteor-core-a),
+      var(--dashboard-header-meteor-core-b) 38%,
+      var(--dashboard-header-meteor-core-c) 72%,
+      var(--dashboard-header-meteor-core-d)
     ),
     linear-gradient(
       45deg,
@@ -12718,10 +12759,10 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
       rgba(255, 255, 255, 0.78) 43% 50%,
       transparent 51% 100%
     );
-  border: 1px solid rgba(209, 250, 229, 0.74);
+  border: 1px solid var(--dashboard-header-meteor-core-a);
   box-shadow:
-    0 0 0.24rem rgba(209, 250, 229, 0.74),
-    0 0 0.85rem rgba(16, 185, 129, 0.54);
+    0 0 0.24rem var(--dashboard-header-meteor-core-a),
+    0 0 0.85rem var(--dashboard-header-meteor-glow);
   height: 0.55rem;
   left: -0.18rem;
   top: 50%;
@@ -12732,7 +12773,7 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 .dashboard-header-ambient-field__meteor::after {
   background:
     radial-gradient(circle, rgba(255, 255, 255, 0.95), transparent 18%),
-    radial-gradient(circle, rgba(16, 185, 129, 0.62), transparent 56%);
+    radial-gradient(circle, var(--dashboard-header-meteor-glow), transparent 56%);
   border-radius: 9999px;
   filter: blur(0.03rem);
   height: 1.35rem;
@@ -12740,6 +12781,48 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   top: 50%;
   transform: translateY(-50%);
   width: 1.35rem;
+}
+
+.dashboard-header-ambient-field__meteor--blue {
+  --dashboard-header-meteor-core-a: rgba(224, 242, 254, 0.98);
+  --dashboard-header-meteor-core-b: rgba(56, 189, 248, 0.94);
+  --dashboard-header-meteor-core-c: rgba(37, 99, 235, 0.98);
+  --dashboard-header-meteor-core-d: rgba(191, 219, 254, 0.9);
+  --dashboard-header-meteor-glow: rgba(56, 189, 248, 0.64);
+  --dashboard-header-meteor-glow-soft: rgba(59, 130, 246, 0.32);
+  --dashboard-header-meteor-trail-a: rgba(224, 242, 254, 0.92);
+  --dashboard-header-meteor-trail-b: rgba(56, 189, 248, 0.5);
+  --dashboard-header-meteor-trail-c: rgba(59, 130, 246, 0.06);
+}
+
+.dashboard-header-ambient-field__meteor--red {
+  --dashboard-header-meteor-core-a: rgba(254, 226, 226, 0.98);
+  --dashboard-header-meteor-core-b: rgba(248, 113, 113, 0.94);
+  --dashboard-header-meteor-core-c: rgba(185, 28, 28, 0.98);
+  --dashboard-header-meteor-core-d: rgba(254, 202, 202, 0.9);
+  --dashboard-header-meteor-glow: rgba(248, 113, 113, 0.6);
+  --dashboard-header-meteor-glow-soft: rgba(239, 68, 68, 0.3);
+  --dashboard-header-meteor-trail-a: rgba(254, 226, 226, 0.88);
+  --dashboard-header-meteor-trail-b: rgba(248, 113, 113, 0.48);
+  --dashboard-header-meteor-trail-c: rgba(239, 68, 68, 0.06);
+}
+
+.dashboard-header-ambient-field__meteor--yellow {
+  --dashboard-header-meteor-core-a: rgba(254, 249, 195, 0.98);
+  --dashboard-header-meteor-core-b: rgba(250, 204, 21, 0.95);
+  --dashboard-header-meteor-core-c: rgba(180, 83, 9, 0.98);
+  --dashboard-header-meteor-core-d: rgba(253, 224, 71, 0.92);
+  --dashboard-header-meteor-glow: rgba(250, 204, 21, 0.62);
+  --dashboard-header-meteor-glow-soft: rgba(245, 158, 11, 0.3);
+  --dashboard-header-meteor-trail-a: rgba(254, 249, 195, 0.9);
+  --dashboard-header-meteor-trail-b: rgba(250, 204, 21, 0.5);
+  --dashboard-header-meteor-trail-c: rgba(245, 158, 11, 0.07);
+}
+
+.dashboard-header-ambient-field__meteor--impact::after {
+  animation: dashboard-header-ambient-meteor-impact-core
+    var(--dashboard-header-meteor-duration) ease-in-out infinite;
+  animation-delay: var(--dashboard-header-meteor-delay);
 }
 
 .dashboard-header-ambient-field__meteor--one {
@@ -12780,6 +12863,88 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   --dashboard-header-meteor-scale: 0.58;
   --dashboard-header-meteor-top: 36%;
   --dashboard-header-meteor-width: 4.8rem;
+}
+
+.dashboard-header-ambient-field__meteor-burst {
+  --dashboard-header-meteor-burst-color: rgba(56, 189, 248, 0.84);
+  --dashboard-header-meteor-burst-delay: -17s;
+  --dashboard-header-meteor-burst-duration: 36s;
+  animation: dashboard-header-ambient-meteor-floor-burst
+    var(--dashboard-header-meteor-burst-duration) ease-in-out infinite;
+  animation-delay: var(--dashboard-header-meteor-burst-delay);
+  background:
+    radial-gradient(
+      ellipse at 50% 50%,
+      rgba(255, 255, 255, 0.9) 0 8%,
+      var(--dashboard-header-meteor-burst-color) 12% 26%,
+      transparent 56%
+    ),
+    radial-gradient(
+      ellipse at 50% 50%,
+      var(--dashboard-header-meteor-burst-color),
+      transparent 68%
+    );
+  border-radius: 9999px;
+  bottom: var(--dashboard-header-meteor-burst-bottom, clamp(2.15rem, 20%, 2.75rem));
+  filter: blur(0.015rem)
+    drop-shadow(0 0 0.34rem var(--dashboard-header-meteor-burst-color));
+  height: 0.42rem;
+  left: var(--dashboard-header-meteor-burst-left, 42%);
+  opacity: 0;
+  transform: translate3d(-50%, 0, 0) scaleX(0.28);
+  transform-origin: 50% 50%;
+  width: var(--dashboard-header-meteor-burst-width, 3.2rem);
+  z-index: 3;
+}
+
+.dashboard-header-ambient-field__meteor-burst::before,
+.dashboard-header-ambient-field__meteor-burst::after {
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.86),
+      var(--dashboard-header-meteor-burst-color),
+      transparent
+    );
+  border-radius: 9999px;
+  content: "";
+  height: 0.08rem;
+  left: 50%;
+  opacity: 0;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(var(--dashboard-header-meteor-burst-ray-rotate, 0deg))
+    scaleX(0.2);
+  width: 3.8rem;
+}
+
+.dashboard-header-ambient-field__meteor-burst::after {
+  --dashboard-header-meteor-burst-ray-rotate: 90deg;
+  width: 2rem;
+}
+
+.dashboard-header-ambient-field__meteor-burst--blue {
+  --dashboard-header-meteor-burst-color: rgba(56, 189, 248, 0.88);
+  --dashboard-header-meteor-burst-delay: -17s;
+  --dashboard-header-meteor-burst-duration: 36s;
+  --dashboard-header-meteor-burst-left: 44%;
+}
+
+.dashboard-header-ambient-field__meteor-burst--red {
+  --dashboard-header-meteor-burst-color: rgba(248, 113, 113, 0.86);
+  --dashboard-header-meteor-burst-delay: -27s;
+  --dashboard-header-meteor-burst-duration: 44s;
+  --dashboard-header-meteor-burst-left: 32%;
+  --dashboard-header-meteor-burst-width: 2.7rem;
+}
+
+.dashboard-header-ambient-field__meteor-burst--yellow {
+  --dashboard-header-meteor-burst-color: rgba(250, 204, 21, 0.88);
+  --dashboard-header-meteor-burst-delay: -39s;
+  --dashboard-header-meteor-burst-duration: 52s;
+  --dashboard-header-meteor-burst-left: 26%;
+  --dashboard-header-meteor-burst-width: 3rem;
 }
 
 .dashboard-header-ambient-stick {
@@ -13439,6 +13604,19 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   display: none;
 }
 
+.dashboard-header-vortex-shell
+  .dashboard-header-category-overlay
+  > .dashboard-header-category-actor--center-stage {
+  animation: dashboard-header-category-center-stage 5.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 0.32rem rgba(207, 250, 254, 0.52))
+    drop-shadow(0 0 0.86rem color-mix(in srgb, currentColor 58%, transparent));
+  left: 50%;
+  opacity: 0.82;
+  top: 52%;
+  transform: translate3d(-50%, -50%, 0)
+    scale(var(--dashboard-header-category-scale, 0.64));
+}
+
 .dashboard-header-category-actor::before,
 .dashboard-header-category-actor::after {
   content: "";
@@ -14033,6 +14211,25 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   }
 }
 
+@keyframes dashboard-header-category-center-stage {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0.24rem rgba(207, 250, 254, 0.42))
+      drop-shadow(0 0 0.64rem color-mix(in srgb, currentColor 48%, transparent));
+    opacity: 0.76;
+    transform: translate3d(-50%, calc(-50% + 0.08rem), 0)
+      scale(calc(var(--dashboard-header-category-scale, 0.64) * 0.96));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 0.34rem rgba(207, 250, 254, 0.58))
+      drop-shadow(0 0 0.92rem color-mix(in srgb, currentColor 64%, transparent));
+    opacity: 0.88;
+    transform: translate3d(-50%, calc(-50% - 0.08rem), 0)
+      scale(var(--dashboard-header-category-scale, 0.64));
+  }
+}
+
 .dashboard-header-ambient-field__node {
   animation: dashboard-header-ambient-node 4.8s ease-in-out infinite;
   background: radial-gradient(
@@ -14127,8 +14324,32 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
     opacity 520ms ease;
 }
 
+.dashboard-header-trophy-selector__icon {
+  isolation: isolate;
+}
+
 .dashboard-header-trophy-selector__shadow {
   transition: opacity 520ms ease;
+}
+
+.dashboard-header-trophy-3d {
+  grid-area: 1 / 1;
+  position: relative;
+  z-index: 2;
+}
+
+.dashboard-header-vortex-shell--timed-out
+  .dashboard-header-trophy-selector__icon[data-dashboard-webgl-snapshot="true"]
+  > .dashboard-webgl-snapshot-layer {
+  opacity: 1;
+  visibility: visible;
+}
+
+.dashboard-header-vortex-shell--timed-out
+  .dashboard-header-trophy-selector__icon[data-dashboard-webgl-snapshot="true"]
+  .dashboard-header-trophy-3d {
+  opacity: 0 !important;
+  visibility: hidden;
 }
 
 .dashboard-header-trophy-menu {
@@ -14480,6 +14701,12 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   position: absolute;
 }
 
+.dashboard-header-logo-3d__depth,
+.dashboard-header-logo-3d__sheen {
+  -webkit-mask: url("/sound-fitness-logo.png") center / contain no-repeat;
+  mask: url("/sound-fitness-logo.png") center / contain no-repeat;
+}
+
 .dashboard-header-logo-3d__depth {
   background: url("/sound-fitness-logo.png") center / contain no-repeat;
   opacity: 0.42;
@@ -14506,6 +14733,176 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   user-select: none;
   width: 100%;
   z-index: 2;
+}
+
+.dashboard-header-logo-3d__webgl {
+  display: block;
+  height: 100% !important;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity 180ms ease;
+  width: 100% !important;
+  z-index: 5;
+}
+
+.dashboard-header-logo-3d__webgl[data-webgl-ready="true"]:not(
+    [data-webgl-fallback="true"]
+  ) {
+  opacity: 1;
+}
+
+.dashboard-header-logo-3d__webgl[data-webgl-fallback="true"] {
+  opacity: 0 !important;
+}
+
+.dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-fallback="true"]
+  )
+  > .dashboard-webgl-snapshot-layer,
+.dashboard-header-trophy-selector__icon:has(
+    .dashboard-header-trophy-3d[data-webgl-fallback="true"]
+  )
+  > .dashboard-webgl-snapshot-layer {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-fallback="true"]
+  )
+  .dashboard-header-logo-3d__depth--back {
+  opacity: 0.5 !important;
+}
+
+.dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-fallback="true"]
+  )
+  .dashboard-header-logo-3d__depth--mid {
+  opacity: 0.54 !important;
+}
+
+.dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-fallback="true"]
+  )
+  .dashboard-header-logo-3d__image {
+  opacity: 1 !important;
+}
+
+.dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-fallback="true"]
+  )
+  .dashboard-header-logo-3d__sheen {
+  opacity: 0.46 !important;
+}
+
+.dashboard-header-trophy-selector__icon:has(
+    .dashboard-header-trophy-3d[data-webgl-fallback="true"]
+  )
+  .dashboard-header-trophy-3d {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.dashboard-header-logo-3d[data-dashboard-webgl-snapshot-visible="true"]
+  .dashboard-header-logo-3d__depth,
+.dashboard-header-logo-3d[data-dashboard-webgl-snapshot-visible="true"]
+  .dashboard-header-logo-3d__image,
+.dashboard-header-logo-3d[data-dashboard-webgl-snapshot-visible="true"]
+  .dashboard-header-logo-3d__sheen,
+.dashboard-header-vortex-shell--timed-out
+  .dashboard-header-logo-3d[data-dashboard-webgl-snapshot="true"]
+  .dashboard-header-logo-3d__depth,
+.dashboard-header-vortex-shell--timed-out
+  .dashboard-header-logo-3d[data-dashboard-webgl-snapshot="true"]
+  .dashboard-header-logo-3d__image,
+.dashboard-header-vortex-shell--timed-out
+  .dashboard-header-logo-3d[data-dashboard-webgl-snapshot="true"]
+  .dashboard-header-logo-3d__sheen {
+  opacity: 0 !important;
+}
+
+.dashboard-header-vortex-shell--timed-out
+  .dashboard-header-logo-3d[data-dashboard-webgl-snapshot="true"]
+  > .dashboard-webgl-snapshot-layer {
+  opacity: 1;
+  visibility: visible;
+}
+
+.dashboard-header-vortex-shell--timed-out
+  .dashboard-header-logo-3d[data-dashboard-webgl-snapshot="true"]
+  .dashboard-header-logo-3d__webgl {
+  opacity: 0 !important;
+  visibility: hidden;
+}
+
+.dashboard-header-vortex-shell
+  .dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-fallback="true"]
+  )
+  > .dashboard-webgl-snapshot-layer {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.dashboard-header-vortex-shell
+  .dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-fallback="true"]
+  )
+  .dashboard-header-logo-3d__depth--back {
+  opacity: 0.5 !important;
+}
+
+.dashboard-header-vortex-shell
+  .dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-fallback="true"]
+  )
+  .dashboard-header-logo-3d__depth--mid {
+  opacity: 0.54 !important;
+}
+
+.dashboard-header-vortex-shell
+  .dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-fallback="true"]
+  )
+  .dashboard-header-logo-3d__image {
+  opacity: 1 !important;
+}
+
+.dashboard-header-vortex-shell
+  .dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-fallback="true"]
+  )
+  .dashboard-header-logo-3d__sheen {
+  opacity: 0.46 !important;
+}
+
+.dashboard-header-logo-3d[data-dashboard-webgl-child-ready="true"]
+  .dashboard-header-logo-3d__depth,
+.dashboard-header-logo-3d[data-dashboard-webgl-child-ready="true"]
+  .dashboard-header-logo-3d__image,
+.dashboard-header-logo-3d[data-dashboard-webgl-child-ready="true"]
+  .dashboard-header-logo-3d__sheen,
+.dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-ready="true"]:not(
+        [data-webgl-fallback="true"]
+      )
+  )
+  .dashboard-header-logo-3d__depth,
+.dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-ready="true"]:not(
+        [data-webgl-fallback="true"]
+      )
+  )
+  .dashboard-header-logo-3d__image,
+.dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-ready="true"]:not(
+        [data-webgl-fallback="true"]
+      )
+  )
+  .dashboard-header-logo-3d__sheen {
+  opacity: 0 !important;
 }
 
 .dashboard-header-logo-3d__sheen {
@@ -14616,6 +15013,19 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   opacity: 0.16;
 }
 
+.dashboard-header-logo-cluster:has(
+    .dashboard-header-logo-3d[data-dashboard-webgl-snapshot-visible="true"]
+  )
+  .dashboard-header-logo-smoke--behind-idle,
+.dashboard-header-vortex-shell--timed-out
+  .dashboard-header-logo-cluster:has(
+    .dashboard-header-logo-3d[data-dashboard-webgl-snapshot="true"]
+  )
+  .dashboard-header-logo-smoke--behind-idle {
+  filter: blur(0.04rem) drop-shadow(0 0 0.45rem rgba(229, 231, 235, 0.3));
+  opacity: 0.58;
+}
+
 .dashboard-header-logo-smoke::before {
   animation: dashboard-header-logo-smoke-spout 2.8s ease-in-out infinite;
   animation-play-state: paused;
@@ -14717,15 +15127,15 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 }
 
 .dashboard-header-vortex-shell--timed-out .dashboard-header-trophy-selector {
-  filter: brightness(0.42) saturate(0.62) blur(0.2px) !important;
-  opacity: 0.2;
+  filter: brightness(0.92) saturate(1.02) !important;
+  opacity: 0.62 !important;
   pointer-events: none;
-  z-index: 0;
+  z-index: 4 !important;
 }
 
 .dashboard-header-vortex-shell--timed-out
   .dashboard-header-trophy-selector__shadow {
-  opacity: 0.14;
+  opacity: 0.34 !important;
 }
 
 .dashboard-header-vortex-shell--timed-out .dashboard-header-trophy-3d {
@@ -15278,8 +15688,82 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   .dashboard-header-menu-block--dashboard {
   flex: 1 1 auto;
   justify-content: flex-start;
-  max-width: min(34rem, calc(100% - 12.5rem));
+  max-width: min(41rem, calc(100% - 14rem));
   width: auto;
+}
+
+.dashboard-header-dashboard-selector {
+  align-items: center;
+  gap: clamp(0.08rem, 0.28vw, 0.24rem);
+}
+
+.dashboard-header-selector-category-dock {
+  align-items: center;
+  display: grid;
+  flex: 0 0 3.15rem;
+  height: 4.45rem;
+  isolation: isolate;
+  justify-items: center;
+  margin-left: -0.68rem;
+  overflow: visible;
+  pointer-events: none;
+  position: relative;
+  width: 3.15rem;
+  z-index: 3;
+}
+
+.dashboard-header-selector-category-dock::before {
+  bottom: 0.18rem;
+  content: "";
+  display: none;
+  height: 0;
+  left: 50%;
+  opacity: 0;
+  position: absolute;
+  transform: translateX(-50%);
+  width: 0;
+  z-index: -1;
+}
+
+.dashboard-header-selector-category-dock
+  .dashboard-header-category-actor {
+  --dashboard-header-category-dock-scale: 0.5;
+  animation: dashboard-header-category-menu-dock-pulse 5.8s ease-in-out
+    infinite;
+  filter: drop-shadow(0 0 0.28rem rgba(207, 250, 254, 0.52))
+    drop-shadow(0 0 0.78rem color-mix(in srgb, currentColor 56%, transparent));
+  left: auto;
+  opacity: 0.9;
+  position: relative;
+  top: auto;
+  transform: translate3d(0, 0, 0)
+    scale(var(--dashboard-header-category-dock-scale));
+  transform-origin: 50% 82%;
+  z-index: 1;
+}
+
+.dashboard-header-selector-category-dock
+  .dashboard-header-category-actor__meter {
+  display: none;
+}
+
+@keyframes dashboard-header-category-menu-dock-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 0.24rem rgba(207, 250, 254, 0.42))
+      drop-shadow(0 0 0.62rem color-mix(in srgb, currentColor 48%, transparent));
+    opacity: 0.84;
+    transform: translate3d(0, 0.04rem, 0)
+      scale(calc(var(--dashboard-header-category-dock-scale) * 0.98));
+  }
+
+  50% {
+    filter: drop-shadow(0 0 0.34rem rgba(207, 250, 254, 0.58))
+      drop-shadow(0 0 0.84rem color-mix(in srgb, currentColor 62%, transparent));
+    opacity: 0.94;
+    transform: translate3d(0, -0.06rem, 0)
+      scale(var(--dashboard-header-category-dock-scale));
+  }
 }
 
 .dashboard-header-main-orbit-stage--stable
@@ -15304,7 +15788,7 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   display: none;
 }
 
-@media (max-width: 540px) {
+@media (max-width: 940px) {
   .dashboard-header-vortex-shell .dashboard-header-mobile-orbit-joystick {
     display: grid;
     flex: 0 0 2.55rem;
@@ -15349,6 +15833,58 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
     right: 0.08rem;
   }
 
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell--timed-out
+    .dashboard-header-idle-training-floor {
+    z-index: 240 !important;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell--timed-out
+    .dashboard-header-main-orbit-stage--stable {
+    filter: brightness(0.36) saturate(0.54) blur(0.05rem);
+    opacity: 0;
+    pointer-events: none;
+    visibility: hidden;
+    z-index: 0 !important;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell--timed-out
+    .dashboard-header-mobile-orbit-joystick {
+    filter: brightness(0.9) saturate(1.1);
+    opacity: 0.72;
+    pointer-events: none;
+    visibility: visible;
+    z-index: 86 !important;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell--timed-out
+    .dashboard-header-mobile-orbit-joystick
+    .dashboard-header-scroll-button__webgl {
+    opacity: 0 !important;
+    visibility: hidden;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell--timed-out
+    .dashboard-header-mobile-orbit-joystick[data-dashboard-webgl-snapshot="true"]
+    > .dashboard-webgl-snapshot-layer {
+    opacity: 1;
+    visibility: visible;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell--timed-out
+    .dashboard-header-mobile-orbit-joystick
+    .dashboard-header-scroll-button__bubble-fallback {
+    animation-play-state: paused;
+    opacity: 0.9 !important;
+    visibility: visible !important;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell--timed-out
+    .dashboard-header-mobile-orbit-joystick[data-dashboard-webgl-snapshot="true"]
+    .dashboard-header-scroll-button__bubble-fallback {
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+
   .dashboard-header-vortex-shell .dashboard-header-main-orbit-stage--stable {
     flex: 1 1 auto;
     height: 5.8rem;
@@ -15379,7 +15915,7 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
       transform 420ms cubic-bezier(0.2, 0.82, 0.18, 1),
       visibility 220ms ease;
     visibility: visible;
-    width: min(15.8rem, calc(100vw - 10.25rem));
+    width: min(27.5rem, calc(100vw - 10.25rem));
   }
 
   .dashboard-header-vortex-shell
@@ -15392,9 +15928,11 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable
     .dashboard-header-menu-block--profile {
+    --dashboard-mobile-account-inset: clamp(0.9rem, 3.2vw, 1.28rem);
     flex: 0 0 auto;
     justify-content: flex-start;
     margin-left: 0;
+    padding-left: var(--dashboard-mobile-account-inset);
     z-index: 96;
   }
 
@@ -15452,54 +15990,133 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-dashboard-selector {
+    display: grid !important;
+    flex: 0 1 auto;
+    gap: 0.2rem;
+    grid-template-columns: minmax(0, auto) 2.6rem;
+    justify-content: flex-start;
+    max-width: min(22.6rem, calc(100vw - 10.25rem));
+    width: fit-content;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
     .dashboard-header-orbit-system {
-    gap: 0.38rem;
-    min-width: 0;
-    width: 100%;
+    display: grid !important;
+    flex: 0 1 auto;
+    flex-shrink: 1 !important;
+    gap: 0.28rem;
+    grid-template-columns: 3.05rem minmax(0, 15.2rem);
+    max-width: min(18.85rem, calc(100vw - 12rem));
+    min-width: 0 !important;
+    padding-left: 0;
+    padding-right: 0.18rem;
+    width: fit-content;
   }
 
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable
     .dashboard-header-selector-joystick {
     height: 2.62rem;
+    margin-right: 0 !important;
     min-width: 3.05rem;
-    transform: translateY(-0.12rem);
+    transform: translate3d(0, -0.12rem, 0) !important;
     width: 3.05rem;
   }
 
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable
-    .dashboard-header-orbit-system
-    > .flex {
-    gap: 0.18rem;
+    .dashboard-header-selector-body {
+    display: grid !important;
+    flex: 0 1 auto !important;
+    gap: 0.28rem;
+    grid-template-columns: 6.65rem minmax(0, 6.2rem);
     justify-content: flex-start;
-    min-width: 0;
-    width: calc(100% - 3.25rem);
+    min-width: 0 !important;
+    overflow: visible;
+    width: min(13.35rem, calc(100vw - 15.55rem));
   }
 
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable
     .dashboard-header-rail-pocket {
-    min-width: 4.85rem !important;
-    transform: translateX(0.55rem) scale(0.9);
+    flex: 0 0 6.65rem;
+    min-width: 6.65rem !important;
+    overflow: visible;
+    transform: translateX(0.22rem) scale(0.9);
     transform-origin: center;
+    width: 6.65rem;
   }
 
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable
-    .dashboard-header-rail-pocket
-    + a {
-    margin-left: -0.72rem;
+    .dashboard-header-rail-core-field {
+    left: -0.78rem !important;
+    top: -0.98rem !important;
+    transform: scale(1);
+    transform-origin: 50% 50%;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-page-orbit-rail {
+    left: -0.86rem !important;
+    top: -1.02rem !important;
+    transform: scale(1);
+    transform-origin: 50% 50%;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-copy {
+    flex: 0 1 auto;
+    margin-left: 0;
+    max-width: 6.2rem;
+    min-width: 0 !important;
+    overflow: hidden;
+    width: 100%;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-copy
+    > span {
+    display: block;
+    max-width: 100%;
     min-width: 0;
+    overflow: hidden;
   }
 
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable
-    .dashboard-header-rail-pocket
-    + a
-    span
-    span {
-    max-width: 5.45rem;
+    .dashboard-header-selector-copy
+    > span
+    > span {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-category-dock {
+    align-self: center;
+    flex-basis: 2.6rem;
+    height: 4.45rem;
+    margin-left: -0.12rem;
+    margin-right: 0;
+    order: 0;
+    width: 2.6rem;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-category-dock
+    .dashboard-header-category-actor {
+    --dashboard-header-category-dock-scale: 0.48;
   }
 
   .dashboard-header-vortex-shell
@@ -15529,7 +16146,7 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
     .dashboard-profile-rewards-control {
     align-items: center;
     display: flex;
-    gap: 0.14rem;
+    gap: 0.18rem;
     min-width: 0;
   }
 
@@ -15544,10 +16161,26 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable
     .dashboard-profile-claim-trigger {
-    height: 3.28rem;
-    min-width: 2.42rem;
+    height: 3.02rem;
+    min-width: 2.58rem;
     padding: 0;
-    width: 2.42rem;
+    width: 2.58rem;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-claim-trigger--webgl {
+    height: 3.02rem;
+    margin-inline-end: 0.34rem;
+    min-width: 2.58rem;
+    width: 2.58rem;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-points-trigger__claim-webgl {
+    height: 2.94rem !important;
+    width: 2.94rem !important;
   }
 
   .dashboard-header-vortex-shell
@@ -16158,7 +16791,305 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 
 .dashboard-header-scroll-button {
   isolation: isolate;
+  position: relative;
   transform-style: preserve-3d;
+}
+
+.dashboard-header-scroll-button:has(.dashboard-header-scroll-button__webgl) {
+  --dashboard-scroll-bubble-size: min(78%, 2.92rem);
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  overflow: visible;
+  transform-style: preserve-3d;
+}
+
+.dashboard-header-scroll-button:has(.dashboard-header-scroll-button__webgl):hover,
+.dashboard-header-scroll-button:has(.dashboard-header-scroll-button__webgl):focus-visible {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.dashboard-header-scroll-button:has(.dashboard-header-scroll-button__webgl)::before,
+.dashboard-header-scroll-button:has(.dashboard-header-scroll-button__webgl)::after {
+  border-radius: 9999px;
+  content: "";
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transition:
+    filter 240ms ease,
+    opacity 240ms ease,
+    transform 240ms ease;
+}
+
+.dashboard-header-scroll-button:has(.dashboard-header-scroll-button__webgl)::before {
+  aspect-ratio: 1;
+  background:
+    radial-gradient(
+      circle at 31% 23%,
+      rgba(255, 255, 255, 0.34),
+      transparent 18%
+    ),
+    radial-gradient(
+      circle at 64% 76%,
+      var(--dashboard-header-journey-motion-alt, rgba(250, 204, 21, 0.16)),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 50% 46%,
+      var(--dashboard-header-journey-motion, rgba(34, 211, 238, 0.18)),
+      rgba(8, 47, 73, 0.2) 58%,
+      rgba(2, 6, 23, 0.26) 100%
+    );
+  border: 1px solid rgba(207, 250, 254, 0.18);
+  box-shadow:
+    0 0 0.72rem var(--dashboard-header-journey-shadow, rgba(34, 211, 238, 0.12)),
+    0 0.58rem 1rem rgba(0, 0, 0, 0.22),
+    inset 0 0.08rem 0.22rem rgba(255, 255, 255, 0.2),
+    inset 0 -0.36rem 0.62rem rgba(2, 6, 23, 0.28);
+  height: var(--dashboard-scroll-bubble-size);
+  opacity: 0.72;
+  transform: translate3d(-50%, -50%, -8px) scale(0.98);
+  width: var(--dashboard-scroll-bubble-size);
+  z-index: 1;
+}
+
+.dashboard-header-scroll-button:has(.dashboard-header-scroll-button__webgl)::after {
+  background:
+    radial-gradient(
+      ellipse at center,
+      rgba(255, 255, 255, 0.7),
+      rgba(255, 255, 255, 0.18) 42%,
+      transparent 72%
+    );
+  filter: blur(0.2px);
+  height: 22%;
+  opacity: 0.42;
+  transform: translate3d(-92%, -102%, 2px) rotate(-28deg);
+  width: 31%;
+  z-index: 2;
+}
+
+.dashboard-header-scroll-button--horizontal:has(
+    .dashboard-header-scroll-button__webgl
+  ) {
+  --dashboard-scroll-bubble-size: min(62%, 2.34rem);
+}
+
+.dashboard-header-mobile-orbit-joystick:has(
+    .dashboard-header-scroll-button__webgl
+  ) {
+  --dashboard-scroll-bubble-size: 1.92rem;
+}
+
+.dashboard-header-scroll-button--page:has(
+    .dashboard-header-scroll-button__webgl
+  ) {
+  --dashboard-scroll-bubble-size: min(82%, 3.58rem);
+}
+
+.dashboard-header-scroll-button--dragging:has(
+    .dashboard-header-scroll-button__webgl
+  )::before,
+.dashboard-header-scroll-button--left:has(
+    .dashboard-header-scroll-button__webgl
+  )::before,
+.dashboard-header-scroll-button--right:has(
+    .dashboard-header-scroll-button__webgl
+  )::before,
+.dashboard-header-scroll-button--up:has(
+    .dashboard-header-scroll-button__webgl
+  )::before,
+.dashboard-header-scroll-button--down:has(
+    .dashboard-header-scroll-button__webgl
+  )::before,
+.dashboard-header-scroll-button:has(
+    .dashboard-header-scroll-button__webgl
+  ):is(:hover, :focus-visible)::before {
+  filter: saturate(1.16) brightness(1.12);
+  opacity: 0.88;
+  transform: translate3d(-50%, -50%, -8px) scale(1.06);
+}
+
+.dashboard-header-scroll-button:has(
+    .dashboard-header-scroll-button__bubble-fallback
+  )::before,
+.dashboard-header-scroll-button:has(
+    .dashboard-header-scroll-button__bubble-fallback
+  )::after {
+  content: none !important;
+  display: none !important;
+}
+
+.dashboard-header-scroll-button__bubble-fallback {
+  --dashboard-scroll-bubble-nudge-x: 0rem;
+  --dashboard-scroll-bubble-nudge-y: 0rem;
+  --dashboard-scroll-bubble-scale: 1;
+  animation: dashboard-header-scroll-bubble-rest 3.8s ease-in-out infinite;
+  aspect-ratio: 1;
+  background:
+    radial-gradient(
+      circle at 28% 20%,
+      rgba(255, 255, 255, 0.72),
+      rgba(255, 255, 255, 0.24) 15%,
+      transparent 26%
+    ),
+    radial-gradient(
+      circle at 68% 72%,
+      var(--dashboard-header-journey-motion-alt, rgba(250, 204, 21, 0.24)),
+      transparent 35%
+    ),
+    radial-gradient(
+      circle at 48% 44%,
+      var(--dashboard-header-journey-motion, rgba(34, 211, 238, 0.28)),
+      rgba(14, 165, 233, 0.22) 40%,
+      rgba(2, 6, 23, 0.3) 78%
+    );
+  border: 1px solid rgba(207, 250, 254, 0.26);
+  border-radius: 9999px;
+  box-shadow:
+    0 0 0.72rem var(--dashboard-header-journey-shadow, rgba(34, 211, 238, 0.18)),
+    0 0.78rem 1.08rem rgba(0, 0, 0, 0.24),
+    inset 0 0.08rem 0.22rem rgba(255, 255, 255, 0.34),
+    inset 0 -0.42rem 0.7rem rgba(2, 6, 23, 0.32);
+  display: block;
+  height: var(--dashboard-scroll-bubble-size);
+  left: 50%;
+  opacity: 0.78;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform:
+    translate3d(-50%, -50%, 10px)
+    translate(var(--dashboard-analog-offset-x, 0px), var(--dashboard-analog-offset-y, 0px))
+    translate(var(--dashboard-scroll-bubble-nudge-x), var(--dashboard-scroll-bubble-nudge-y))
+    rotateX(var(--dashboard-header-scroll-button-tilt-x, 0deg))
+    rotateY(var(--dashboard-header-scroll-button-tilt-y, 0deg))
+    rotateZ(var(--dashboard-header-scroll-button-roll, 0deg))
+    scale(var(--dashboard-scroll-bubble-scale));
+  transform-style: preserve-3d;
+  transition:
+    filter 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+  width: var(--dashboard-scroll-bubble-size);
+  will-change: opacity, transform;
+  z-index: 4;
+}
+
+.dashboard-header-scroll-button__bubble-fallback::before,
+.dashboard-header-scroll-button__bubble-fallback::after {
+  border-radius: inherit;
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.dashboard-header-scroll-button__bubble-fallback::before {
+  background:
+    conic-gradient(
+      from 210deg,
+      transparent,
+      rgba(255, 255, 255, 0.28),
+      transparent 34%,
+      var(--dashboard-header-journey-motion, rgba(34, 211, 238, 0.18)),
+      transparent 68%
+    );
+  filter: blur(0.01rem);
+  opacity: 0.56;
+  transform: translateZ(3px) rotate(-18deg) scale(0.88);
+}
+
+.dashboard-header-scroll-button__bubble-fallback::after {
+  background:
+    radial-gradient(
+      ellipse at 34% 24%,
+      rgba(255, 255, 255, 0.82),
+      rgba(255, 255, 255, 0.16) 24%,
+      transparent 46%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.18),
+      transparent 36%,
+      rgba(2, 6, 23, 0.22) 100%
+    );
+  opacity: 0.62;
+  transform: translateZ(6px) scale(0.82);
+}
+
+.dashboard-header-scroll-button__bubble-fallback[data-horizontal="true"] {
+  --dashboard-scroll-bubble-scale: 0.94;
+}
+
+.dashboard-header-scroll-button__bubble-fallback[data-compact="true"] {
+  --dashboard-scroll-bubble-scale: 0.88;
+}
+
+.dashboard-header-scroll-button__bubble-fallback[data-direction="left"] {
+  --dashboard-scroll-bubble-nudge-x: -0.16rem;
+}
+
+.dashboard-header-scroll-button__bubble-fallback[data-direction="right"] {
+  --dashboard-scroll-bubble-nudge-x: 0.16rem;
+}
+
+.dashboard-header-scroll-button__bubble-fallback[data-direction="up"] {
+  --dashboard-scroll-bubble-nudge-y: -0.16rem;
+}
+
+.dashboard-header-scroll-button__bubble-fallback[data-direction="down"] {
+  --dashboard-scroll-bubble-nudge-y: 0.16rem;
+}
+
+.dashboard-header-scroll-button__bubble-fallback[data-active="true"],
+.dashboard-header-scroll-button:is(:hover, :focus-visible)
+  .dashboard-header-scroll-button__bubble-fallback {
+  --dashboard-scroll-bubble-scale: 1.08;
+  filter: saturate(1.2) brightness(1.16);
+  opacity: 0.94;
+}
+
+.dashboard-header-scroll-button__bubble-fallback[data-paused="true"] {
+  animation-play-state: paused;
+}
+
+.dashboard-header-scroll-button:has(
+    .dashboard-header-scroll-button__webgl[data-webgl-ready="true"]:not(
+        [data-webgl-fallback="true"]
+      )
+  )
+  .dashboard-header-scroll-button__bubble-fallback {
+  opacity: 0 !important;
+  visibility: hidden;
+}
+
+.dashboard-header-scroll-button__webgl {
+  backface-visibility: visible;
+  display: block;
+  height: calc(100% + 0.2rem) !important;
+  inset: -0.1rem;
+  opacity: 0.98;
+  pointer-events: none;
+  position: absolute;
+  transform: translateZ(14px);
+  will-change: opacity, transform;
+  width: calc(100% + 0.2rem) !important;
+  z-index: 5;
+}
+
+.dashboard-header-scroll-button__webgl[data-webgl-fallback="true"] {
+  opacity: 0.08;
+}
+
+.dashboard-header-scroll-button--page .dashboard-header-scroll-button__webgl {
+  height: calc(100% + 0.6rem) !important;
+  inset: -0.3rem;
+  width: calc(100% + 0.6rem) !important;
 }
 
 .dashboard-header-scroll-button--horizontal {
@@ -18084,14 +19015,45 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   );
 }
 
+.dashboard-profile-action-gear > svg {
+  transform-origin: 50% 50%;
+  transition:
+    filter 160ms ease,
+    transform 180ms ease;
+}
+
+.dashboard-profile-action-gear__webgl {
+  display: block;
+  height: 2.5rem !important;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2.5rem !important;
+  z-index: 1;
+}
+
 .dashboard-profile-action-gear:hover,
 .dashboard-profile-action-gear:focus-visible,
 .dashboard-profile-action-gear[aria-expanded="true"] {
   color: #ffffff;
-  filter: drop-shadow(0 0 10px rgba(148, 163, 184, 0.36))
-    drop-shadow(0 0 18px rgba(34, 211, 238, 0.16));
+  filter:
+    drop-shadow(0 0 10px rgba(255, 255, 255, 0.34))
+    drop-shadow(0 0 18px rgba(103, 232, 249, 0.38))
+    drop-shadow(0 0 28px rgba(250, 204, 21, 0.16));
   outline: none;
-  transform: rotate(24deg) scale(1.08);
+  transform: rotate(24deg) scale(1.16);
+}
+
+.dashboard-profile-action-gear:hover > svg,
+.dashboard-profile-action-gear:focus-visible > svg,
+.dashboard-profile-action-gear[aria-expanded="true"] > svg {
+  animation: dashboard-profile-action-gear-highlight 760ms ease-in-out
+    infinite;
+  filter:
+    drop-shadow(0 0 0.26rem rgba(255, 255, 255, 0.58))
+    drop-shadow(0 0 0.56rem rgba(103, 232, 249, 0.52));
 }
 
 .dashboard-profile-action-gear:hover::before,
@@ -18106,20 +19068,19 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 .dashboard-profile-action-gear:focus-visible::after,
 .dashboard-profile-action-gear[aria-expanded="true"]::after {
   animation-play-state: running;
-  opacity: 0.84;
+  opacity: 1;
 }
 
 .dashboard-profile-action-gear[aria-expanded="true"] {
-  opacity: 0;
+  opacity: 0.92;
   pointer-events: none;
-  transform: rotate(18deg) scale(0.72);
-  visibility: hidden;
+  transform: rotate(30deg) scale(1.08);
+  visibility: visible;
 }
 
 .dashboard-profile-action-gear[aria-expanded="true"]::before,
 .dashboard-profile-action-gear[aria-expanded="true"]::after {
-  animation-play-state: paused;
-  opacity: 0;
+  animation-play-state: running;
 }
 
 .dashboard-profile-quick-action {
@@ -23370,46 +24331,29 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 
 .dashboard-header-meter-menu-trigger {
   align-items: center;
-  background:
-    radial-gradient(
-      circle at 50% 50%,
-      #000 0 38%,
-      rgba(2, 6, 23, 0.98) 49%,
-      rgba(8, 47, 73, 0.68) 66%,
-      rgba(34, 211, 238, 0.16) 82%,
-      transparent 88%
-    ),
-    radial-gradient(circle at 50% 50%, rgba(34, 211, 238, 0.2), transparent 78%);
-  border: 1px solid rgba(125, 211, 252, 0.22);
+  background: transparent;
+  border: 0;
   border-radius: 9999px;
-  box-shadow:
-    0 0 1.25rem rgba(34, 211, 238, 0.18),
-    0 0 2rem rgba(0, 0, 0, 0.42),
-    inset 0 0 0.8rem rgba(0, 0, 0, 0.82),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  box-shadow: none;
   color: #cffafe;
   display: grid;
   height: 3.15rem;
   isolation: isolate;
   justify-items: center;
   outline: none;
-  overflow: hidden;
+  overflow: visible;
+  padding: 0;
   place-items: center;
   position: relative;
   transition:
-    border-color 180ms ease,
-    box-shadow 180ms ease,
-    color 180ms ease,
     transform 180ms ease;
   width: 3.15rem;
 }
 
 .dashboard-header-meter-menu-trigger::before,
 .dashboard-header-meter-menu-trigger::after {
-  border-radius: inherit;
-  content: "";
-  pointer-events: none;
-  position: absolute;
+  content: none;
+  display: none;
 }
 
 .dashboard-header-meter-menu-trigger::before {
@@ -23481,13 +24425,14 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 .dashboard-header-meter-menu-trigger:hover,
 .dashboard-header-meter-menu-trigger:focus-visible,
 .dashboard-header-meter-menu-trigger[aria-expanded="true"] {
-  border-color: rgba(254, 240, 138, 0.46);
-  box-shadow:
-    0 0 1.2rem rgba(34, 211, 238, 0.22),
-    0 0 1.45rem rgba(250, 204, 21, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
   color: #fef3c7;
   transform: translateY(-0.08rem);
+}
+
+.dashboard-header-vortex-shell--timed-out .dashboard-header-meter-menu-trigger {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
 
 .dashboard-header-meter-menu-trigger__icon {
@@ -23497,6 +24442,266 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   position: relative;
   width: 1.45rem;
   z-index: 3;
+}
+
+.dashboard-header-meter-menu-trigger__webgl-icon {
+  display: block;
+  filter:
+    contrast(1.08)
+    saturate(1.18)
+    drop-shadow(0 0 0.22rem rgba(207, 250, 254, 0.44))
+    drop-shadow(0 0 0.58rem rgba(34, 211, 238, 0.28));
+  height: 3.15rem;
+  pointer-events: none;
+  position: relative;
+  width: 3.15rem;
+  z-index: 3;
+}
+
+.dashboard-header-meter-menu-trigger:hover
+  .dashboard-header-meter-menu-trigger__webgl-icon,
+.dashboard-header-meter-menu-trigger:focus-visible
+  .dashboard-header-meter-menu-trigger__webgl-icon,
+.dashboard-header-meter-menu-trigger[aria-expanded="true"]
+  .dashboard-header-meter-menu-trigger__webgl-icon {
+  filter:
+    brightness(1.16)
+    contrast(1.12)
+    saturate(1.36)
+    drop-shadow(0 0 0.24rem rgba(254, 240, 138, 0.34))
+    drop-shadow(0 0 0.34rem rgba(207, 250, 254, 0.7))
+    drop-shadow(0 0 0.74rem rgba(34, 211, 238, 0.5));
+}
+
+.dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-fallback="true"] {
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.18), transparent 62%);
+  border-radius: 999px;
+  opacity: 0.34;
+}
+
+.dashboard-header-meter-menu-trigger__flip {
+  display: grid;
+  height: 1.72rem;
+  place-items: center;
+  position: relative;
+  transform-style: preserve-3d;
+  width: 1.72rem;
+  z-index: 3;
+}
+
+.dashboard-header-meter-menu-trigger:hover
+  .dashboard-header-meter-menu-trigger__flip,
+.dashboard-header-meter-menu-trigger:focus-visible
+  .dashboard-header-meter-menu-trigger__flip,
+.dashboard-header-meter-menu-trigger[aria-expanded="true"]
+  .dashboard-header-meter-menu-trigger__flip {
+  animation: dashboard-header-meter-menu-trigger-flip-y 1.65s
+    cubic-bezier(0.18, 0.84, 0.2, 1) infinite;
+}
+
+.dashboard-header-meter-menu-trigger__face {
+  backface-visibility: hidden;
+  display: grid;
+  inset: 0;
+  place-items: center;
+  position: absolute;
+  transform-style: preserve-3d;
+}
+
+.dashboard-header-meter-menu-trigger__face--front {
+  transform: rotateY(0deg) translateZ(0.05rem);
+}
+
+.dashboard-header-meter-menu-trigger__face--back {
+  color: #bae6fd;
+  filter:
+    drop-shadow(0 0 0.24rem rgba(186, 230, 253, 0.5))
+    drop-shadow(0 0 0.52rem rgba(34, 211, 238, 0.36));
+  transform: rotateY(180deg) translateZ(0.05rem);
+}
+
+.dashboard-header-meter-menu-trigger__bar {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
+
+.dashboard-header-meter-menu-trigger:hover
+  .dashboard-header-meter-menu-trigger__bar--one,
+.dashboard-header-meter-menu-trigger:focus-visible
+  .dashboard-header-meter-menu-trigger__bar--one,
+.dashboard-header-meter-menu-trigger[aria-expanded="true"]
+  .dashboard-header-meter-menu-trigger__bar--one {
+  animation: dashboard-header-meter-menu-bar-jumble-one 560ms steps(2, end)
+    infinite;
+}
+
+.dashboard-header-meter-menu-trigger:hover
+  .dashboard-header-meter-menu-trigger__bar--two,
+.dashboard-header-meter-menu-trigger:focus-visible
+  .dashboard-header-meter-menu-trigger__bar--two,
+.dashboard-header-meter-menu-trigger[aria-expanded="true"]
+  .dashboard-header-meter-menu-trigger__bar--two {
+  animation: dashboard-header-meter-menu-bar-jumble-two 620ms steps(2, end)
+    infinite;
+}
+
+.dashboard-header-meter-menu-trigger:hover
+  .dashboard-header-meter-menu-trigger__bar--three,
+.dashboard-header-meter-menu-trigger:focus-visible
+  .dashboard-header-meter-menu-trigger__bar--three,
+.dashboard-header-meter-menu-trigger[aria-expanded="true"]
+  .dashboard-header-meter-menu-trigger__bar--three {
+  animation: dashboard-header-meter-menu-bar-jumble-three 520ms steps(2, end)
+    infinite;
+}
+
+.dashboard-header-meter-menu-trigger__ufo {
+  height: 0.72rem;
+  left: 50%;
+  position: absolute;
+  top: 0.22rem;
+  transform: translateX(-50%);
+  width: 1.34rem;
+}
+
+.dashboard-header-meter-menu-trigger__ufo::before,
+.dashboard-header-meter-menu-trigger__ufo::after {
+  content: "";
+  position: absolute;
+}
+
+.dashboard-header-meter-menu-trigger__ufo::before {
+  background:
+    radial-gradient(circle at 50% 28%, rgba(224, 242, 254, 0.92), transparent 26%),
+    linear-gradient(180deg, rgba(103, 232, 249, 0.84), rgba(14, 116, 144, 0.7));
+  border: 1px solid rgba(224, 242, 254, 0.42);
+  border-radius: 50% 50% 46% 46%;
+  box-shadow:
+    0 0 0.26rem rgba(34, 211, 238, 0.44),
+    inset 0 0.08rem 0.18rem rgba(255, 255, 255, 0.28);
+  height: 0.42rem;
+  left: 0.22rem;
+  top: 0.08rem;
+  width: 0.9rem;
+}
+
+.dashboard-header-meter-menu-trigger__ufo::after {
+  background:
+    radial-gradient(circle at 24% 52%, rgba(254, 240, 138, 0.9) 0 0.04rem, transparent 0.05rem),
+    radial-gradient(circle at 50% 52%, rgba(186, 230, 253, 0.9) 0 0.04rem, transparent 0.05rem),
+    radial-gradient(circle at 76% 52%, rgba(52, 211, 153, 0.88) 0 0.04rem, transparent 0.05rem),
+    linear-gradient(180deg, rgba(224, 242, 254, 0.78), rgba(8, 47, 73, 0.96));
+  border: 1px solid rgba(125, 211, 252, 0.46);
+  border-radius: 999px;
+  bottom: 0;
+  box-shadow:
+    0 0 0.24rem rgba(34, 211, 238, 0.46),
+    inset 0 0.06rem 0.12rem rgba(255, 255, 255, 0.32);
+  height: 0.3rem;
+  left: 0.06rem;
+  width: 1.22rem;
+}
+
+.dashboard-header-meter-menu-trigger__ufo-dome {
+  background: radial-gradient(circle, rgba(224, 242, 254, 0.68), transparent 72%);
+  border-radius: 999px;
+  filter: blur(0.06rem);
+  inset: -0.02rem 0.22rem 0.18rem;
+  opacity: 0.72;
+  position: absolute;
+}
+
+.dashboard-header-meter-menu-trigger__ufo-beam {
+  background:
+    linear-gradient(180deg, rgba(186, 230, 253, 0.32), transparent 76%),
+    radial-gradient(ellipse at 50% 100%, rgba(34, 211, 238, 0.24), transparent 70%);
+  clip-path: polygon(38% 0, 62% 0, 88% 100%, 12% 100%);
+  filter: blur(0.02rem);
+  height: 0.92rem;
+  left: 50%;
+  opacity: 0;
+  position: absolute;
+  top: 0.45rem;
+  transform: translateX(-50%);
+  width: 1.08rem;
+}
+
+.dashboard-header-meter-menu-trigger:hover
+  .dashboard-header-meter-menu-trigger__ufo-beam,
+.dashboard-header-meter-menu-trigger:focus-visible
+  .dashboard-header-meter-menu-trigger__ufo-beam,
+.dashboard-header-meter-menu-trigger[aria-expanded="true"]
+  .dashboard-header-meter-menu-trigger__ufo-beam {
+  animation: dashboard-header-meter-menu-ufo-beam 820ms ease-in-out infinite;
+}
+
+.dashboard-header-meter-menu-trigger__item {
+  background:
+    linear-gradient(135deg, rgba(224, 242, 254, 0.98), rgba(34, 211, 238, 0.76)),
+    rgba(34, 211, 238, 0.7);
+  border: 1px solid rgba(224, 242, 254, 0.58);
+  border-radius: 0.08rem;
+  box-shadow:
+    0 0 0.16rem rgba(34, 211, 238, 0.58),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  height: 0.24rem;
+  opacity: 0;
+  position: absolute;
+  top: 0.88rem;
+  transform: translateY(-0.2rem) rotate(0deg) scale(0.62);
+  width: 0.24rem;
+}
+
+.dashboard-header-meter-menu-trigger__item--one {
+  left: 0.5rem;
+}
+
+.dashboard-header-meter-menu-trigger__item--two {
+  left: 0.77rem;
+}
+
+.dashboard-header-meter-menu-trigger__item--three {
+  left: 0.62rem;
+}
+
+.dashboard-header-meter-menu-trigger__item--four {
+  left: 0.9rem;
+}
+
+.dashboard-header-meter-menu-trigger:hover
+  .dashboard-header-meter-menu-trigger__item,
+.dashboard-header-meter-menu-trigger:focus-visible
+  .dashboard-header-meter-menu-trigger__item,
+.dashboard-header-meter-menu-trigger[aria-expanded="true"]
+  .dashboard-header-meter-menu-trigger__item {
+  animation: dashboard-header-meter-menu-ufo-drop 1.05s linear infinite;
+}
+
+.dashboard-header-meter-menu-trigger:hover
+  .dashboard-header-meter-menu-trigger__item--two,
+.dashboard-header-meter-menu-trigger:focus-visible
+  .dashboard-header-meter-menu-trigger__item--two,
+.dashboard-header-meter-menu-trigger[aria-expanded="true"]
+  .dashboard-header-meter-menu-trigger__item--two {
+  animation-delay: 160ms;
+}
+
+.dashboard-header-meter-menu-trigger:hover
+  .dashboard-header-meter-menu-trigger__item--three,
+.dashboard-header-meter-menu-trigger:focus-visible
+  .dashboard-header-meter-menu-trigger__item--three,
+.dashboard-header-meter-menu-trigger[aria-expanded="true"]
+  .dashboard-header-meter-menu-trigger__item--three {
+  animation-delay: 330ms;
+}
+
+.dashboard-header-meter-menu-trigger:hover
+  .dashboard-header-meter-menu-trigger__item--four,
+.dashboard-header-meter-menu-trigger:focus-visible
+  .dashboard-header-meter-menu-trigger__item--four,
+.dashboard-header-meter-menu-trigger[aria-expanded="true"]
+  .dashboard-header-meter-menu-trigger__item--four {
+  animation-delay: 510ms;
 }
 
 .dashboard-header-meter-menu-trigger__pulse {
@@ -28734,22 +29939,27 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 
 .dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
   > .dashboard-header-category-levels-menu {
-  z-index: 1 !important;
+  z-index: 120 !important;
 }
 
 .dashboard-header-meter-panel .dashboard-header-category-levels-menu__ufo-webgl {
-  height: min(340px, calc(100vh - 8.4rem)) !important;
+  height: min(620px, calc(100vh - 2.2rem)) !important;
   top: calc(50% + 3.35rem) !important;
-  width: min(400px, calc(100vw - 32px)) !important;
-  z-index: 1 !important;
+  width: min(720px, calc(100vw - 24px)) !important;
+  z-index: 12 !important;
+}
+
+.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  > .dashboard-header-category-levels-menu {
+  z-index: 120 !important;
 }
 
 .dashboard-header-meter-panel[data-meter-highlight="ufo"]
   .dashboard-header-category-levels-menu__ufo-webgl {
-  height: min(340px, calc(100vh - 8.4rem)) !important;
+  height: min(620px, calc(100vh - 2.2rem)) !important;
   top: calc(50% + 3.35rem) !important;
-  width: min(400px, calc(100vw - 32px)) !important;
-  z-index: 1 !important;
+  width: min(720px, calc(100vw - 24px)) !important;
+  z-index: 12 !important;
 }
 
 .dashboard-header-meter-panel__stack--orbit {
@@ -29462,12 +30672,23 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
     rgba(2, 6, 23, 0.46) 68%,
     rgba(2, 6, 23, 0.16)
   );
+  overflow: visible !important;
   transition:
     border-color 190ms ease,
     box-shadow 190ms ease,
     filter 190ms ease,
     transform 190ms ease;
   transform-style: preserve-3d;
+}
+
+.dashboard-sound-level-badge__webgl {
+  display: block;
+  height: calc(100% + 0.32rem) !important;
+  inset: -0.16rem;
+  pointer-events: none;
+  position: absolute;
+  width: calc(100% + 0.32rem) !important;
+  z-index: 10;
 }
 
 .dashboard-sound-level-badge::before {
@@ -29488,14 +30709,16 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 .dashboard-profile-hub-trigger:focus-visible .dashboard-sound-level-badge,
 .dashboard-profile-hub-trigger[aria-expanded="true"]
   .dashboard-sound-level-badge {
+  animation: dashboard-sound-level-badge-highlight 1.32s ease-in-out infinite;
   border-color: rgba(15, 23, 42, 0.88);
   box-shadow:
-    0 0 0 1px rgba(2, 6, 23, 0.86),
-    0 0 24px rgba(2, 6, 23, 0.74),
-    0 0 34px rgba(15, 23, 42, 0.46),
+    0 0 0 1px rgba(207, 250, 254, 0.5),
+    0 0 16px rgba(103, 232, 249, 0.62),
+    0 0 28px rgba(250, 204, 21, 0.32),
+    0 0 42px rgba(2, 6, 23, 0.64),
     inset 0 0 20px rgba(2, 6, 23, 0.82),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  filter: saturate(0.88) contrast(1.08);
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  filter: saturate(1.18) contrast(1.12);
   transform: translateY(-0.04rem) scale(1.06);
 }
 
@@ -29511,7 +30734,10 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 }
 
 .dashboard-sound-level-badge img {
-  transition: filter 190ms ease;
+  transform-origin: 50% 52%;
+  transition:
+    filter 190ms ease,
+    transform 190ms ease;
 }
 
 .dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge img,
@@ -29519,12 +30745,15 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 .dashboard-profile-hub-trigger[aria-expanded="true"]
   .dashboard-sound-level-badge
   img {
+  animation: dashboard-sound-level-logo-highlight 1.12s ease-in-out infinite;
   filter: brightness(0.82) drop-shadow(0 0 10px rgba(2, 6, 23, 0.88))
-    drop-shadow(0 0 18px rgba(15, 23, 42, 0.64));
+    drop-shadow(0 0 18px rgba(15, 23, 42, 0.64))
+    drop-shadow(0 0 0.72rem rgba(103, 232, 249, 0.34));
 }
 
 .dashboard-sound-level-badge::after {
   animation: dashboard-sound-level-badge-orbit 4.8s linear infinite;
+  animation-play-state: paused;
   background: conic-gradient(
     from 180deg,
     transparent,
@@ -29539,7 +30768,27 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   opacity: 0.22;
   pointer-events: none;
   position: absolute;
-  z-index: -1;
+  z-index: 24;
+  -webkit-mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 0.34rem),
+    #000 calc(100% - 0.18rem),
+    transparent 100%
+  );
+  mask: radial-gradient(
+    farthest-side,
+    transparent calc(100% - 0.34rem),
+    #000 calc(100% - 0.18rem),
+    transparent 100%
+  );
+}
+
+.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge::after,
+.dashboard-profile-hub-trigger:focus-visible .dashboard-sound-level-badge::after,
+.dashboard-profile-hub-trigger[aria-expanded="true"]
+  .dashboard-sound-level-badge::after {
+  animation-play-state: running;
+  opacity: 0.72;
 }
 
 .dashboard-sound-level-badge__band,
@@ -29556,57 +30805,67 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 
 .dashboard-sound-level-badge__band {
   background:
-    linear-gradient(180deg, rgba(15, 23, 42, 0.1), rgba(2, 6, 23, 0.62)),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.06), rgba(2, 6, 23, 0.34)),
     radial-gradient(
       ellipse at center,
-      rgba(34, 211, 238, 0.38),
-      rgba(15, 23, 42, 0.4) 62%,
-      rgba(2, 6, 23, 0.76)
+      rgba(34, 211, 238, 0.18),
+      rgba(15, 23, 42, 0.2) 62%,
+      rgba(2, 6, 23, 0.38)
     );
-  border-top: 1px solid rgba(125, 211, 252, 0.36);
+  border-top: 1px solid rgba(125, 211, 252, 0.22);
   box-shadow:
-    0 -4px 14px rgba(34, 211, 238, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    0 -4px 14px rgba(34, 211, 238, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  opacity: 0.72;
 }
 
 .dashboard-sound-level-badge__band::after {
   background:
-    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.24), transparent),
+    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent),
     repeating-linear-gradient(
       90deg,
       transparent 0 0.32rem,
-      rgba(125, 211, 252, 0.18) 0.34rem 0.38rem
+      rgba(125, 211, 252, 0.09) 0.34rem 0.38rem
     );
   border-radius: inherit;
   content: "";
   inset: 0;
-  opacity: 0.46;
+  opacity: 0.32;
   pointer-events: none;
   position: absolute;
 }
 
 .dashboard-sound-level-badge__fill {
   animation: dashboard-sound-level-fill-pulse 2.8s ease-in-out infinite;
+  animation-play-state: paused;
   background:
-    linear-gradient(90deg, rgba(250, 204, 21, 0.92), rgba(103, 232, 249, 0.86)),
+    linear-gradient(90deg, rgba(250, 204, 21, 0.52), rgba(103, 232, 249, 0.44)),
     radial-gradient(
       circle at 24% 50%,
-      rgba(255, 255, 255, 0.72),
+      rgba(255, 255, 255, 0.34),
       transparent 38%
     );
   box-shadow:
-    0 0 16px rgba(250, 204, 21, 0.42),
-    0 0 20px rgba(34, 211, 238, 0.26);
+    0 0 10px rgba(250, 204, 21, 0.2),
+    0 0 14px rgba(34, 211, 238, 0.14);
   clip-path: inset(
     0 calc(100% - var(--dashboard-sound-level-progress)) 0 0 round 0 0 9999px
       9999px
   );
-  opacity: 0.9;
+  opacity: 0.62;
   overflow: hidden;
+}
+
+.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge__fill,
+.dashboard-profile-hub-trigger:focus-visible .dashboard-sound-level-badge__fill,
+.dashboard-profile-hub-trigger[aria-expanded="true"]
+  .dashboard-sound-level-badge__fill {
+  animation-play-state: running;
 }
 
 .dashboard-sound-level-badge__fill::before {
   animation: dashboard-sound-level-fill-scan 1.75s ease-in-out infinite;
+  animation-play-state: paused;
   background: linear-gradient(
     100deg,
     transparent 0%,
@@ -29622,8 +30881,17 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   transform: translateX(-52%) skewX(-18deg);
 }
 
+.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge__fill::before,
+.dashboard-profile-hub-trigger:focus-visible
+  .dashboard-sound-level-badge__fill::before,
+.dashboard-profile-hub-trigger[aria-expanded="true"]
+  .dashboard-sound-level-badge__fill::before {
+  animation-play-state: running;
+}
+
 .dashboard-sound-level-badge__fill::after {
   animation: dashboard-sound-level-fill-spark 2.35s linear infinite;
+  animation-play-state: paused;
   background:
     radial-gradient(
       circle at 18% 64%,
@@ -29645,6 +30913,14 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   opacity: 0.62;
   pointer-events: none;
   position: absolute;
+}
+
+.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge__fill::after,
+.dashboard-profile-hub-trigger:focus-visible
+  .dashboard-sound-level-badge__fill::after,
+.dashboard-profile-hub-trigger[aria-expanded="true"]
+  .dashboard-sound-level-badge__fill::after {
+  animation-play-state: running;
 }
 
 .dashboard-sound-level-badge__label {
@@ -29691,6 +30967,34 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 .dashboard-header-vortex-shell--idle .dashboard-sound-level-badge__fill::before,
 .dashboard-header-vortex-shell--idle .dashboard-sound-level-badge__fill::after {
   animation: none !important;
+}
+
+.dashboard-header-vortex-shell--idle
+  .dashboard-profile-hub-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
+  .dashboard-sound-level-badge::after {
+  animation: dashboard-sound-level-badge-orbit 4.8s linear infinite !important;
+  animation-play-state: running !important;
+}
+
+.dashboard-header-vortex-shell--idle
+  .dashboard-profile-hub-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
+  .dashboard-sound-level-badge__fill {
+  animation: dashboard-sound-level-fill-pulse 2.8s ease-in-out infinite !important;
+  animation-play-state: running !important;
+}
+
+.dashboard-header-vortex-shell--idle
+  .dashboard-profile-hub-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
+  .dashboard-sound-level-badge__fill::before {
+  animation: dashboard-sound-level-fill-scan 1.75s ease-in-out infinite !important;
+  animation-play-state: running !important;
+}
+
+.dashboard-header-vortex-shell--idle
+  .dashboard-profile-hub-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
+  .dashboard-sound-level-badge__fill::after {
+  animation: dashboard-sound-level-fill-spark 2.35s linear infinite !important;
+  animation-play-state: running !important;
 }
 
 .dashboard-orbit-card__effect::before,
@@ -30157,6 +31461,101 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 @keyframes dashboard-header-meter-menu-trigger-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes dashboard-header-meter-menu-trigger-flip-y {
+  0%,
+  18% {
+    transform: rotateY(0deg);
+  }
+
+  46%,
+  58% {
+    transform: rotateY(180deg);
+  }
+
+  100% {
+    transform: rotateY(360deg);
+  }
+}
+
+@keyframes dashboard-header-meter-menu-bar-jumble-one {
+  0%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+
+  34% {
+    transform: translateY(0.16rem) scaleY(0.58);
+  }
+
+  68% {
+    transform: translateY(-0.08rem) scaleY(1.22);
+  }
+}
+
+@keyframes dashboard-header-meter-menu-bar-jumble-two {
+  0%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+
+  28% {
+    transform: translateY(-0.18rem) scaleY(0.76);
+  }
+
+  64% {
+    transform: translateY(0.12rem) scaleY(1.18);
+  }
+}
+
+@keyframes dashboard-header-meter-menu-bar-jumble-three {
+  0%,
+  100% {
+    transform: translateY(0) scaleY(1);
+  }
+
+  36% {
+    transform: translateY(-0.12rem) scaleY(1.34);
+  }
+
+  72% {
+    transform: translateY(0.18rem) scaleY(0.64);
+  }
+}
+
+@keyframes dashboard-header-meter-menu-ufo-beam {
+  0%,
+  100% {
+    opacity: 0.18;
+    transform: translateX(-50%) scaleX(0.72);
+  }
+
+  48% {
+    opacity: 0.72;
+    transform: translateX(-50%) scaleX(1.08);
+  }
+}
+
+@keyframes dashboard-header-meter-menu-ufo-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.12rem) rotate(0deg) scale(0.52);
+  }
+
+  16% {
+    opacity: 0.92;
+  }
+
+  76% {
+    opacity: 0.9;
+    transform: translateY(0.56rem) rotate(168deg) scale(0.92);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(0.8rem) rotate(240deg) scale(0.56);
   }
 }
 
@@ -31395,16 +32794,97 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   }
   78% {
     opacity: 0.2;
-    transform: translate3d(-20rem, 5.2rem, 0)
+    transform: translate3d(-20rem, 3.65rem, 0)
       rotate(var(--dashboard-header-meteor-angle, -18deg))
       scale(var(--dashboard-header-meteor-scale, 1));
   }
   82%,
   100% {
     opacity: 0;
-    transform: translate3d(-27rem, 7.2rem, 0)
+    transform: translate3d(-27rem, 4.85rem, 0)
       rotate(var(--dashboard-header-meteor-angle, -18deg))
       scale(var(--dashboard-header-meteor-scale, 1));
+  }
+}
+
+@keyframes dashboard-header-ambient-meteor-impact-core {
+  0%,
+  72% {
+    filter: blur(0.03rem);
+    opacity: 0.42;
+    transform: translateY(-50%) scale(1);
+  }
+
+  78% {
+    filter: blur(0.01rem);
+    opacity: 0.95;
+    transform: translateY(-50%) scale(1.12);
+  }
+
+  80% {
+    filter: blur(0.04rem);
+    opacity: 0.86;
+    transform: translateY(-50%) scale(2.8, 0.58);
+  }
+
+  84%,
+  100% {
+    filter: blur(0.1rem);
+    opacity: 0;
+    transform: translateY(-50%) scale(3.6, 0.36);
+  }
+}
+
+@keyframes dashboard-header-ambient-meteor-floor-burst {
+  0%,
+  76% {
+    opacity: 0;
+    transform: translate3d(-50%, 0, 0) scaleX(0.2) scaleY(0.42);
+  }
+
+  79% {
+    opacity: 0.92;
+    transform: translate3d(-50%, 0, 0) scaleX(0.78) scaleY(0.8);
+  }
+
+  81% {
+    opacity: 0.76;
+    transform: translate3d(-50%, 0, 0) scaleX(1.18) scaleY(1);
+  }
+
+  86%,
+  100% {
+    opacity: 0;
+    transform: translate3d(-50%, 0.1rem, 0) scaleX(1.52) scaleY(0.52);
+  }
+}
+
+.dashboard-header-ambient-field__meteor-burst::before,
+.dashboard-header-ambient-field__meteor-burst::after {
+  animation: dashboard-header-ambient-meteor-floor-burst-ray
+    var(--dashboard-header-meteor-burst-duration) ease-in-out infinite;
+  animation-delay: var(--dashboard-header-meteor-burst-delay);
+}
+
+@keyframes dashboard-header-ambient-meteor-floor-burst-ray {
+  0%,
+  76% {
+    opacity: 0;
+    transform: translate(-50%, -50%)
+      rotate(var(--dashboard-header-meteor-burst-ray-rotate, 0deg)) scaleX(0.2);
+  }
+
+  80% {
+    opacity: 0.72;
+    transform: translate(-50%, -50%)
+      rotate(var(--dashboard-header-meteor-burst-ray-rotate, 0deg)) scaleX(1);
+  }
+
+  86%,
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%)
+      rotate(var(--dashboard-header-meteor-burst-ray-rotate, 0deg)) scaleX(1.44);
   }
 }
 
@@ -32332,6 +33812,25 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   }
 }
 
+@keyframes dashboard-header-scroll-bubble-rest {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0.72rem var(--dashboard-header-journey-shadow, rgba(34, 211, 238, 0.18)),
+      0 0.78rem 1.08rem rgba(0, 0, 0, 0.24),
+      inset 0 0.08rem 0.22rem rgba(255, 255, 255, 0.34),
+      inset 0 -0.42rem 0.7rem rgba(2, 6, 23, 0.32);
+  }
+
+  50% {
+    box-shadow:
+      0 0 0.94rem var(--dashboard-header-journey-shadow, rgba(34, 211, 238, 0.24)),
+      0 0.78rem 1.08rem rgba(0, 0, 0, 0.24),
+      inset 0 0.1rem 0.26rem rgba(255, 255, 255, 0.4),
+      inset 0 -0.42rem 0.7rem rgba(2, 6, 23, 0.28);
+  }
+}
+
 @keyframes dashboard-header-scroll-button-grid-vortex {
   to {
     transform: rotate(360deg);
@@ -32495,6 +33994,34 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 @keyframes dashboard-profile-quick-action-orbit-ring {
   100% {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes dashboard-profile-action-gear-highlight {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+  38% {
+    transform: rotate(18deg) scale(1.12);
+  }
+  64% {
+    transform: rotate(-8deg) scale(1.04);
+  }
+}
+
+@keyframes dashboard-sound-level-logo-highlight {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+  }
+
+  42% {
+    transform: translateY(-0.06rem) rotate(-4deg) scale(1.08);
+  }
+
+  70% {
+    transform: translateY(0.02rem) rotate(3deg) scale(1.03);
   }
 }
 
@@ -33543,6 +35070,22 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   }
 }
 
+@keyframes dashboard-sound-level-badge-highlight {
+  0%,
+  100% {
+    filter: saturate(1.12) contrast(1.1) brightness(1.06);
+    transform: translateY(-0.04rem) scale(1.06) rotate(0deg);
+  }
+  48% {
+    filter: saturate(1.34) contrast(1.18) brightness(1.22);
+    transform: translateY(-0.12rem) scale(1.13) rotate(-3deg);
+  }
+  72% {
+    filter: saturate(1.22) contrast(1.14) brightness(1.14);
+    transform: translateY(-0.06rem) scale(1.08) rotate(2deg);
+  }
+}
+
 @keyframes dashboard-sound-level-fill-pulse {
   0%,
   100% {
@@ -34285,6 +35828,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   .dashboard-profile-action-gear,
   .dashboard-profile-action-gear::before,
   .dashboard-profile-action-gear::after,
+  .dashboard-profile-action-gear > svg,
   .dashboard-profile-hub-trigger::after,
   .dashboard-emerald-cut-float,
   .dashboard-emerald-cut-float::after,
@@ -34305,6 +35849,10 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   .dashboard-profile-quick-action__bars span,
   .dashboard-header-main-orbit-stage,
   .dashboard-header-meter-menu-trigger::before,
+  .dashboard-header-meter-menu-trigger__flip,
+  .dashboard-header-meter-menu-trigger__bar,
+  .dashboard-header-meter-menu-trigger__ufo-beam,
+  .dashboard-header-meter-menu-trigger__item,
   .dashboard-header-meter-menu-trigger__pulse,
   .dashboard-header-meter-panel,
   .dashboard-header-meter-panel__stack--orbit::before,
@@ -34369,6 +35917,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
   .dashboard-header-sets-meter__fill::after,
   .dashboard-header-streak-fire__meter-fill,
   .dashboard-header-streak-fire__meter-fill::after,
+  .dashboard-sound-level-badge,
   .dashboard-sound-level-badge::after,
   .dashboard-sound-level-badge__fill,
   .dashboard-sound-level-badge__fill::before,
@@ -35125,32 +36674,32 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 
 #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
   > .dashboard-header-category-levels-menu {
-  z-index: 2 !important;
+  z-index: 120 !important;
 }
 
 #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
   .dashboard-header-category-levels-menu__ufo-webgl {
-  height: min(340px, calc(100vh - 8.4rem)) !important;
+  height: min(620px, calc(100vh - 2.2rem)) !important;
   top: calc(50% + 3.35rem) !important;
-  width: min(400px, calc(100vw - 32px)) !important;
-  z-index: 1 !important;
+  width: min(720px, calc(100vw - 24px)) !important;
+  z-index: 12 !important;
 }
 
 #dashboard-header-meter-panel.dashboard-header-meter-panel:not(
     [data-meter-highlight="ufo"]
   )
   > .dashboard-header-category-levels-menu {
-  z-index: 2 !important;
+  z-index: 120 !important;
 }
 
 #dashboard-header-meter-panel.dashboard-header-meter-panel:not(
     [data-meter-highlight="ufo"]
   )
   .dashboard-header-category-levels-menu__ufo-webgl {
-  height: min(340px, calc(100vh - 8.4rem)) !important;
+  height: min(620px, calc(100vh - 2.2rem)) !important;
   top: calc(50% + 3.35rem) !important;
-  width: min(400px, calc(100vw - 32px)) !important;
-  z-index: 1 !important;
+  width: min(720px, calc(100vw - 24px)) !important;
+  z-index: 12 !important;
 }
 
 #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]

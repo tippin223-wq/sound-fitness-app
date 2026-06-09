@@ -2,6 +2,13 @@
 
 import { useEffect, useRef } from "react";
 import type { BufferGeometry, Material, Object3D } from "three";
+import {
+  createDashboardWebGlRenderer,
+  loadDashboardThree,
+  setDashboardWebGlCanvasActive,
+  waitForDashboardPriorityWebGlRetry,
+  waitForDashboardWebGlStart,
+} from "./dashboardWebGlRenderer";
 
 type ThreeModule = typeof import("three");
 
@@ -11,6 +18,22 @@ type MaterialObject = Object3D & {
 
 type GeometryObject = Object3D & {
   geometry?: BufferGeometry;
+};
+
+const TROPHY_REST_ROTATION = {
+  x: 0,
+  y: 0,
+  z: 0,
+} as const;
+const TROPHY_WEBGL_MAX_START_ATTEMPTS = 8;
+
+const getShortestRotationDelta = (delta: number) =>
+  Math.atan2(Math.sin(delta), Math.cos(delta));
+
+const settleRotation = (current: number, target: number, ease: number) => {
+  const delta = getShortestRotationDelta(target - current);
+  if (Math.abs(delta) < 0.004) return target;
+  return current + delta * ease;
 };
 
 const disposeObject = (object: Object3D) => {
@@ -173,28 +196,52 @@ export default function DashboardTrophy3D({
   paused?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const frameIdRef = useRef(0);
+  const pausedRef = useRef(paused);
+  const renderFrameRef = useRef<((time: number) => void) | null>(null);
+
+  useEffect(() => {
+    pausedRef.current = paused;
+
+    setDashboardWebGlCanvasActive(canvasRef.current, !paused);
+    if (frameIdRef.current === 0 && renderFrameRef.current) {
+      frameIdRef.current = window.requestAnimationFrame(renderFrameRef.current);
+    }
+  }, [paused]);
 
   useEffect(() => {
     let cancelled = false;
     let cleanup = () => {};
 
     const startScene = async () => {
-      const THREE = await import("three");
-      if (cancelled || !canvasRef.current) return;
+      let startAttempt = 0;
 
-      const canvas = canvasRef.current;
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
-      camera.position.set(0, 0.02, 5.15);
-      camera.lookAt(0, -0.02, 0);
+      while (!cancelled && canvasRef.current) {
+        await waitForDashboardWebGlStart({ priority: true });
+        if (cancelled || !canvasRef.current) return;
 
-      const renderer = new THREE.WebGLRenderer({
-        alpha: true,
-        antialias: true,
-        canvas,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false,
-      });
+        const THREE = await loadDashboardThree();
+        if (cancelled || !canvasRef.current) return;
+
+        const canvas = canvasRef.current;
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
+        camera.position.set(0, 0.02, 5.15);
+        camera.lookAt(0, -0.02, 0);
+
+        const renderer = createDashboardWebGlRenderer(THREE, canvas, {
+          alpha: true,
+          antialias: true,
+          powerPreference: "high-performance",
+          preserveDrawingBuffer: false,
+        });
+        if (!renderer) {
+          if (startAttempt >= TROPHY_WEBGL_MAX_START_ATTEMPTS) return;
+
+          await waitForDashboardPriorityWebGlRetry(startAttempt);
+          startAttempt += 1;
+          continue;
+        }
       renderer.setClearColor(0x000000, 0);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.85));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -237,35 +284,83 @@ export default function DashboardTrophy3D({
       observer.observe(canvas);
       resize();
 
-      let frameId = 0;
       const startedAt = performance.now();
-      const render = (time: number) => {
-        const seconds = (time - startedAt) / 1000;
-        trophy.rotation.set(
-          -0.15 + Math.sin(seconds * 0.26) * 0.014,
-          seconds * 0.18,
-          Math.sin(seconds * 0.22) * 0.009,
-        );
-        renderer.render(scene, camera);
-        if (paused) return;
+      let lastFrameTime = 0;
 
-        frameId = window.requestAnimationFrame(render);
+      const scheduleRender = () => {
+        if (frameIdRef.current !== 0) return;
+        frameIdRef.current = window.requestAnimationFrame(render);
       };
 
-      if (paused) {
-        render(startedAt);
-      } else {
-        frameId = window.requestAnimationFrame(render);
-      }
-      cleanup = () => {
-        if (frameId !== 0) {
-          window.cancelAnimationFrame(frameId);
+      const render = (time: number) => {
+        frameIdRef.current = 0;
+
+        const frameDeltaSeconds =
+          lastFrameTime > 0 ? Math.min(0.048, (time - lastFrameTime) / 1000) : 0.0167;
+        lastFrameTime = time;
+        const seconds = (time - startedAt) / 1000;
+        const isPaused = pausedRef.current;
+        if (isPaused) {
+          trophy.rotation.x = settleRotation(
+            trophy.rotation.x,
+            TROPHY_REST_ROTATION.x,
+            0.22,
+          );
+          trophy.rotation.y = settleRotation(
+            trophy.rotation.y,
+            TROPHY_REST_ROTATION.y,
+            0.28,
+          );
+          trophy.rotation.z = settleRotation(
+            trophy.rotation.z,
+            TROPHY_REST_ROTATION.z,
+            0.24,
+          );
+        } else {
+          trophy.rotation.set(
+            Math.sin(seconds * 0.26) * 0.018,
+            trophy.rotation.y + frameDeltaSeconds * 0.18,
+            Math.sin(seconds * 0.22) * 0.009,
+          );
         }
+
+        const restingForward =
+          isPaused &&
+          Math.abs(getShortestRotationDelta(TROPHY_REST_ROTATION.x - trophy.rotation.x)) < 0.008 &&
+          Math.abs(getShortestRotationDelta(TROPHY_REST_ROTATION.y - trophy.rotation.y)) < 0.008 &&
+          Math.abs(getShortestRotationDelta(TROPHY_REST_ROTATION.z - trophy.rotation.z)) < 0.008;
+        if (restingForward) {
+          trophy.rotation.set(
+            TROPHY_REST_ROTATION.x,
+            TROPHY_REST_ROTATION.y,
+            TROPHY_REST_ROTATION.z,
+          );
+        }
+
+        setDashboardWebGlCanvasActive(canvas, !isPaused || !restingForward);
+        renderer.render(scene, camera);
+
+        if (!isPaused || !restingForward) {
+          scheduleRender();
+        }
+      };
+
+      renderFrameRef.current = render;
+      scheduleRender();
+
+      cleanup = () => {
+        if (frameIdRef.current !== 0) {
+          window.cancelAnimationFrame(frameIdRef.current);
+          frameIdRef.current = 0;
+        }
+        renderFrameRef.current = null;
         observer.disconnect();
         disposeObject(trophy);
         renderer.forceContextLoss();
         renderer.dispose();
       };
+      return;
+      }
     };
 
     startScene();
@@ -274,7 +369,7 @@ export default function DashboardTrophy3D({
       cancelled = true;
       cleanup();
     };
-  }, [paused]);
+  }, []);
 
   return (
     <canvas

@@ -1,7 +1,18 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { BufferGeometry, Material, Object3D, Texture } from "three";
+import type {
+  BufferGeometry,
+  Material,
+  Object3D,
+  Texture,
+} from "three";
+import {
+  createDashboardWebGlRenderer,
+  loadDashboardThree,
+  setDashboardWebGlCanvasActive,
+  waitForDashboardWebGlStart,
+} from "./dashboardWebGlRenderer";
 
 type ThreeModule = typeof import("three");
 
@@ -17,6 +28,7 @@ type DashboardTreasureChest3DProps = {
   className?: string;
   open?: boolean;
   paused?: boolean;
+  variant?: "icon" | "showcase";
 };
 
 type DashboardSpinningSoundCoin3DProps = {
@@ -39,6 +51,8 @@ const coinTextureSources = {
 const configureSoundCoinTexture = (THREE: ThreeModule, texture: Texture) => {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
+  texture.center.set(0.5, 0.5);
+  texture.rotation = Math.PI / 2;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.magFilter = THREE.LinearFilter;
   return texture;
@@ -53,8 +67,24 @@ const overflowCoinSpecs = [
 
 const TREASURE_CHEST_LID_CLOSED_ROTATION = 0.04;
 const TREASURE_CHEST_LID_OPEN_ROTATION = -0.68;
+const GIFT_BOX_LID_CLOSED_ROTATION = 0.02;
+const GIFT_BOX_LID_OPEN_ROTATION = -0.16;
 const TREASURE_ROOM_FLOOR_SCALE = 1.72;
 const TREASURE_ROOM_WALL_SCALE = 1.82;
+const SOUND_COIN_REST_ROTATION = {
+  x: -0.06,
+  y: 0,
+  z: 0,
+} as const;
+
+const getShortestRotationDelta = (delta: number) =>
+  Math.atan2(Math.sin(delta), Math.cos(delta));
+
+const settleRotation = (current: number, target: number, ease: number) => {
+  const delta = getShortestRotationDelta(target - current);
+  if (Math.abs(delta) < 0.004) return target;
+  return current + delta * ease;
+};
 
 const disposeObject = (object: Object3D) => {
   object.traverse((child) => {
@@ -84,6 +114,71 @@ const makeBox = (
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
   mesh.position.set(...position);
   mesh.rotation.set(...rotation);
+  return mesh;
+};
+
+const makeRoundedBox = (
+  THREE: ThreeModule,
+  width: number,
+  height: number,
+  depth: number,
+  radius: number,
+  material: Material,
+  position: [number, number, number],
+  rotation: [number, number, number] = [0, 0, 0],
+) => {
+  const halfWidth = width / 2;
+  const halfHeight = height / 2;
+  const cornerRadius = Math.min(radius, halfWidth - 0.01, halfHeight - 0.01);
+  const shape = new THREE.Shape();
+
+  shape.moveTo(-halfWidth + cornerRadius, -halfHeight);
+  shape.lineTo(halfWidth - cornerRadius, -halfHeight);
+  shape.quadraticCurveTo(halfWidth, -halfHeight, halfWidth, -halfHeight + cornerRadius);
+  shape.lineTo(halfWidth, halfHeight - cornerRadius);
+  shape.quadraticCurveTo(halfWidth, halfHeight, halfWidth - cornerRadius, halfHeight);
+  shape.lineTo(-halfWidth + cornerRadius, halfHeight);
+  shape.quadraticCurveTo(-halfWidth, halfHeight, -halfWidth, halfHeight - cornerRadius);
+  shape.lineTo(-halfWidth, -halfHeight + cornerRadius);
+  shape.quadraticCurveTo(-halfWidth, -halfHeight, -halfWidth + cornerRadius, -halfHeight);
+
+  const bevelSize = Math.min(cornerRadius * 0.38, depth * 0.16);
+  const geometry = new THREE.ExtrudeGeometry(shape, {
+    bevelEnabled: true,
+    bevelSegments: 7,
+    bevelSize,
+    bevelThickness: bevelSize,
+    depth,
+    steps: 1,
+  });
+  geometry.translate(0, 0, -depth / 2);
+
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(...position);
+  mesh.rotation.set(...rotation);
+  return mesh;
+};
+
+const makeDomedLid = (
+  THREE: ThreeModule,
+  width: number,
+  radius: number,
+  material: Material,
+  position: [number, number, number],
+) => {
+  const geometry = new THREE.CylinderGeometry(
+    radius,
+    radius,
+    width,
+    64,
+    1,
+    false,
+    0,
+    Math.PI,
+  );
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(...position);
+  mesh.rotation.z = Math.PI / 2;
   return mesh;
 };
 
@@ -188,44 +283,46 @@ const createTreasureChestScene = (
   THREE: ThreeModule,
   textures: Record<keyof typeof coinTextureSources, Texture>,
   open: boolean,
+  variant: "icon" | "showcase",
 ) => {
+  const iconVariant = variant === "icon";
   const group = new THREE.Group();
-  group.rotation.set(-0.04, -0.22, 0);
-  group.position.set(0, -0.02, 0);
+  group.rotation.set(-0.04, iconVariant ? -0.14 : -0.22, 0);
+  group.position.set(0, iconVariant ? -0.24 : -0.02, 0);
 
   const wood = new THREE.MeshPhysicalMaterial({
     clearcoat: 0.98,
     clearcoatRoughness: 0.06,
-    color: new THREE.Color("#cbd5e1"),
-    emissive: new THREE.Color("#0f3a4f"),
-    emissiveIntensity: 0.12,
-    metalness: 0.92,
+    color: new THREE.Color(iconVariant ? "#f4f7fb" : "#cbd5e1"),
+    emissive: new THREE.Color(iconVariant ? "#1aa7b8" : "#0f3a4f"),
+    emissiveIntensity: iconVariant ? 0.26 : 0.12,
+    metalness: iconVariant ? 0.82 : 0.92,
     roughness: 0.12,
   });
   const darkWood = new THREE.MeshPhysicalMaterial({
     clearcoat: 0.9,
     clearcoatRoughness: 0.08,
-    color: new THREE.Color("#263241"),
-    emissive: new THREE.Color("#061827"),
-    emissiveIntensity: 0.1,
+    color: new THREE.Color(iconVariant ? "#516274" : "#263241"),
+    emissive: new THREE.Color(iconVariant ? "#0f3f55" : "#061827"),
+    emissiveIntensity: iconVariant ? 0.22 : 0.1,
     metalness: 0.9,
     roughness: 0.14,
   });
   const goldMetal = new THREE.MeshPhysicalMaterial({
     clearcoat: 1,
     clearcoatRoughness: 0.05,
-    color: new THREE.Color("#f8fafc"),
-    emissive: new THREE.Color("#38bdf8"),
-    emissiveIntensity: 0.12,
+    color: new THREE.Color(iconVariant ? "#fff7d6" : "#f8fafc"),
+    emissive: new THREE.Color(iconVariant ? "#facc15" : "#38bdf8"),
+    emissiveIntensity: iconVariant ? 0.34 : 0.12,
     metalness: 0.98,
     roughness: 0.08,
   });
   const deepGold = new THREE.MeshPhysicalMaterial({
     clearcoat: 0.95,
     clearcoatRoughness: 0.07,
-    color: new THREE.Color("#5eead4"),
-    emissive: new THREE.Color("#0891b2"),
-    emissiveIntensity: 0.18,
+    color: new THREE.Color(iconVariant ? "#fef08a" : "#5eead4"),
+    emissive: new THREE.Color(iconVariant ? "#f59e0b" : "#0891b2"),
+    emissiveIntensity: iconVariant ? 0.36 : 0.18,
     metalness: 0.9,
     roughness: 0.1,
   });
@@ -325,7 +422,9 @@ const createTreasureChestScene = (
     facet.rotation.z = rotation;
     floorGroup.add(facet);
   });
-  group.add(floorGroup);
+  if (!iconVariant) {
+    group.add(floorGroup);
+  }
 
   const roomGroup = new THREE.Group();
   roomGroup.position.set(0, -0.04, -1.18);
@@ -392,7 +491,9 @@ const createTreasureChestScene = (
     wallLine.position.set(x, 0.08, 0.02);
     roomGroup.add(wallLine);
   });
-  group.add(roomGroup);
+  if (!iconVariant) {
+    group.add(roomGroup);
+  }
 
   const contactShadow = new THREE.Mesh(
     new THREE.CircleGeometry(1.55, 56),
@@ -407,7 +508,9 @@ const createTreasureChestScene = (
   contactShadow.position.set(0.08, -0.82, 1.08);
   contactShadow.rotation.set(-1.08, 0, 0.02);
   contactShadow.scale.set(2.34, 0.42, 1);
-  group.add(contactShadow);
+  if (!iconVariant) {
+    group.add(contactShadow);
+  }
 
   const floorGlow = new THREE.Mesh(
     new THREE.CircleGeometry(2.08, 72),
@@ -422,7 +525,9 @@ const createTreasureChestScene = (
   floorGlow.position.set(0, -0.9, 1.16);
   floorGlow.rotation.set(-1.08, 0, 0.02);
   floorGlow.scale.set(2.84, 0.42, 1);
-  group.add(floorGlow);
+  if (!iconVariant) {
+    group.add(floorGlow);
+  }
 
   const floorShardMaterial = new THREE.MeshPhysicalMaterial({
     clearcoat: 0.9,
@@ -448,23 +553,25 @@ const createTreasureChestScene = (
     shard.position.set(x, y, z);
     shard.rotation.set(0.36, rotation, 0.18);
     shard.scale.y = 0.36;
-    group.add(shard);
+    if (!iconVariant) {
+      group.add(shard);
+    }
   });
 
   const chestGroup = new THREE.Group();
-  chestGroup.position.set(0, 0.36, -0.06);
-  chestGroup.scale.set(0.94, 1.02, 0.94);
+  chestGroup.position.set(0, iconVariant ? 0.16 : 0.36, -0.06);
+  chestGroup.scale.setScalar(iconVariant ? 1.08 : 0.94);
   group.add(chestGroup);
 
   const base = new THREE.Group();
-  base.add(makeBox(THREE, 3.8, 1.18, 1.92, wood, [0, -0.72, 0]));
-  base.add(makeBox(THREE, 3.92, 0.14, 2.04, goldMetal, [0, -0.16, 0.04]));
-  base.add(makeBox(THREE, 3.92, 0.16, 2.04, deepGold, [0, -1.25, 0.04]));
-  base.add(makeBox(THREE, 0.16, 1.28, 2.06, goldMetal, [-1.38, -0.7, 0.04]));
-  base.add(makeBox(THREE, 0.16, 1.28, 2.06, goldMetal, [1.38, -0.7, 0.04]));
-  base.add(makeBox(THREE, 0.2, 1.34, 2.08, deepGold, [0, -0.7, 0.04]));
-  base.add(makeBox(THREE, 3.28, 0.12, 0.08, darkWood, [0, -0.74, 1.02]));
-  base.add(makeBox(THREE, 3.28, 0.12, 0.08, darkWood, [0, -0.94, 1.02]));
+  base.add(makeRoundedBox(THREE, 3.8, 1.18, 1.92, 0.32, wood, [0, -0.72, 0]));
+  base.add(makeRoundedBox(THREE, 3.92, 0.16, 2.04, 0.08, goldMetal, [0, -0.16, 0.04]));
+  base.add(makeRoundedBox(THREE, 3.92, 0.18, 2.04, 0.09, deepGold, [0, -1.25, 0.04]));
+  base.add(makeRoundedBox(THREE, 0.22, 1.24, 2.02, 0.1, goldMetal, [-1.38, -0.7, 0.04]));
+  base.add(makeRoundedBox(THREE, 0.22, 1.24, 2.02, 0.1, goldMetal, [1.38, -0.7, 0.04]));
+  base.add(makeRoundedBox(THREE, 0.24, 1.26, 2.04, 0.1, deepGold, [0, -0.7, 0.04]));
+  base.add(makeRoundedBox(THREE, 3.28, 0.12, 0.08, 0.04, darkWood, [0, -0.74, 1.02]));
+  base.add(makeRoundedBox(THREE, 3.28, 0.12, 0.08, 0.04, darkWood, [0, -0.94, 1.02]));
   base.add(makeBox(THREE, 3.12, 0.34, 1.42, interior, [0, -0.08, -0.02]));
   const frontPanelMaterial = new THREE.MeshPhysicalMaterial({
     clearcoat: 0.96,
@@ -475,11 +582,11 @@ const createTreasureChestScene = (
     metalness: 0.9,
     roughness: 0.12,
   });
-  base.add(makeBox(THREE, 2.86, 0.5, 0.07, frontPanelMaterial, [0, -0.72, 1.08]));
-  base.add(makeBox(THREE, 2.62, 0.07, 0.1, goldMetal, [0, -0.42, 1.13]));
-  base.add(makeBox(THREE, 2.62, 0.07, 0.1, deepGold, [0, -1.02, 1.13]));
-  base.add(makeBox(THREE, 0.1, 0.5, 0.1, goldMetal, [-1.08, -0.72, 1.14]));
-  base.add(makeBox(THREE, 0.1, 0.5, 0.1, goldMetal, [1.08, -0.72, 1.14]));
+  base.add(makeRoundedBox(THREE, 2.86, 0.52, 0.09, 0.16, frontPanelMaterial, [0, -0.72, 1.08]));
+  base.add(makeRoundedBox(THREE, 2.62, 0.08, 0.1, 0.04, goldMetal, [0, -0.42, 1.13]));
+  base.add(makeRoundedBox(THREE, 2.62, 0.08, 0.1, 0.04, deepGold, [0, -1.02, 1.13]));
+  base.add(makeRoundedBox(THREE, 0.12, 0.5, 0.1, 0.05, goldMetal, [-1.08, -0.72, 1.14]));
+  base.add(makeRoundedBox(THREE, 0.12, 0.5, 0.1, 0.05, goldMetal, [1.08, -0.72, 1.14]));
   chestGroup.add(base);
 
   const lid = new THREE.Group();
@@ -487,17 +594,17 @@ const createTreasureChestScene = (
   lid.rotation.x = open
     ? TREASURE_CHEST_LID_OPEN_ROTATION
     : TREASURE_CHEST_LID_CLOSED_ROTATION;
-  lid.add(makeBox(THREE, 3.96, 0.52, 1.76, wood, [0, 0, 0]));
-  lid.add(makeBox(THREE, 4.08, 0.12, 1.86, goldMetal, [0, 0.27, 0]));
-  lid.add(makeBox(THREE, 3.58, 0.08, 1.5, darkWood, [0, 0.05, 0.05]));
-  lid.add(makeBox(THREE, 0.16, 0.62, 1.9, goldMetal, [-1.46, 0, 0]));
-  lid.add(makeBox(THREE, 0.16, 0.62, 1.9, goldMetal, [1.46, 0, 0]));
-  lid.add(makeBox(THREE, 4.0, 0.1, 0.12, deepGold, [0, -0.26, 0.9]));
-  lid.add(makeBox(THREE, 3.35, 0.07, 0.12, goldMetal, [0, 0.28, 0.7]));
+  lid.add(makeDomedLid(THREE, 3.96, 0.9, wood, [0, -0.28, 0]));
+  lid.add(makeDomedLid(THREE, 3.58, 0.72, darkWood, [0, -0.18, 0.05]));
+  lid.add(makeRoundedBox(THREE, 4.08, 0.18, 1.94, 0.1, goldMetal, [0, -0.38, 0]));
+  lid.add(makeRoundedBox(THREE, 0.22, 0.72, 1.9, 0.1, goldMetal, [-1.46, -0.02, 0]));
+  lid.add(makeRoundedBox(THREE, 0.22, 0.72, 1.9, 0.1, goldMetal, [1.46, -0.02, 0]));
+  lid.add(makeRoundedBox(THREE, 4.0, 0.12, 0.14, 0.06, deepGold, [0, -0.28, 0.9]));
+  lid.add(makeRoundedBox(THREE, 3.35, 0.08, 0.14, 0.04, goldMetal, [0, 0.22, 0.7]));
   chestGroup.add(lid);
 
   const lock = new THREE.Group();
-  lock.add(makeBox(THREE, 0.52, 0.6, 0.08, goldMetal, [0, -0.62, 1.04]));
+  lock.add(makeRoundedBox(THREE, 0.56, 0.6, 0.1, 0.14, goldMetal, [0, -0.62, 1.04]));
   const keyhole = new THREE.Mesh(
     new THREE.CircleGeometry(0.07, 18),
     new THREE.MeshBasicMaterial({ color: new THREE.Color("#3b1602") }),
@@ -627,8 +734,135 @@ const createTreasureChestScene = (
     return glint;
   });
 
-  group.scale.setScalar(0.78);
+  group.scale.setScalar(iconVariant ? 1.02 : 0.78);
   return { glints, group, lid, textures: [...Object.values(textures), floorTexture] };
+};
+
+const createGiftBoxScene = (THREE: ThreeModule) => {
+  const group = new THREE.Group();
+  group.position.set(0, -0.04, 0);
+  group.rotation.set(-0.14, -0.28, 0.08);
+  group.scale.setScalar(0.68);
+
+  const boxMaterial = new THREE.MeshPhysicalMaterial({
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.1,
+    color: new THREE.Color("#b8892f"),
+    emissive: new THREE.Color("#3a2409"),
+    emissiveIntensity: 0.07,
+    metalness: 0.46,
+    roughness: 0.22,
+  });
+  const sideMaterial = new THREE.MeshPhysicalMaterial({
+    clearcoat: 0.82,
+    clearcoatRoughness: 0.14,
+    color: new THREE.Color("#6f4c16"),
+    emissive: new THREE.Color("#251506"),
+    emissiveIntensity: 0.06,
+    metalness: 0.38,
+    roughness: 0.26,
+  });
+  const lidMaterial = new THREE.MeshPhysicalMaterial({
+    clearcoat: 0.94,
+    clearcoatRoughness: 0.08,
+    color: new THREE.Color("#cba45d"),
+    emissive: new THREE.Color("#4a2b08"),
+    emissiveIntensity: 0.08,
+    metalness: 0.48,
+    roughness: 0.18,
+  });
+  const ribbonMaterial = new THREE.MeshPhysicalMaterial({
+    clearcoat: 0.82,
+    clearcoatRoughness: 0.12,
+    color: new THREE.Color("#8f1d1d"),
+    emissive: new THREE.Color("#3f0707"),
+    emissiveIntensity: 0.12,
+    metalness: 0.28,
+    roughness: 0.24,
+  });
+  const bowMaterial = new THREE.MeshPhysicalMaterial({
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.1,
+    color: new THREE.Color("#b82b24"),
+    emissive: new THREE.Color("#5b0d0d"),
+    emissiveIntensity: 0.14,
+    metalness: 0.25,
+    roughness: 0.2,
+  });
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: new THREE.Color("#d6b35f"),
+    depthWrite: false,
+    opacity: 0.12,
+    side: THREE.DoubleSide,
+    transparent: true,
+  });
+
+  const base = makeRoundedBox(THREE, 2.25, 1.5, 1.72, 0.18, boxMaterial, [0, -0.38, 0]);
+  group.add(base);
+
+  const sideShade = makeRoundedBox(THREE, 0.08, 1.34, 1.58, 0.04, sideMaterial, [1.16, -0.38, 0.02]);
+  sideShade.rotation.y = -0.02;
+  group.add(sideShade);
+
+  const lidGroup = new THREE.Group();
+  group.add(lidGroup);
+
+  const lid = makeRoundedBox(THREE, 2.58, 0.42, 1.94, 0.14, lidMaterial, [0, 0.52, 0.02]);
+  lidGroup.add(lid);
+
+  const verticalRibbon = makeRoundedBox(THREE, 0.32, 1.72, 1.86, 0.05, ribbonMaterial, [0, -0.27, 0.08]);
+  group.add(verticalRibbon);
+
+  const horizontalRibbon = makeRoundedBox(THREE, 2.66, 0.28, 1.98, 0.05, ribbonMaterial, [0, -0.14, 0.1]);
+  group.add(horizontalRibbon);
+
+  const lidRibbon = makeRoundedBox(THREE, 0.34, 0.5, 2.04, 0.05, ribbonMaterial, [0, 0.55, 0.08]);
+  lidGroup.add(lidRibbon);
+
+  const bowCore = new THREE.Mesh(new THREE.SphereGeometry(0.22, 28, 20), bowMaterial);
+  bowCore.position.set(0, 0.92, 0.32);
+  bowCore.scale.set(0.9, 0.66, 0.54);
+  lidGroup.add(bowCore);
+
+  const leftLoop = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.07, 16, 40), bowMaterial);
+  leftLoop.position.set(-0.3, 0.94, 0.28);
+  leftLoop.rotation.set(0.4, 0.18, -0.48);
+  leftLoop.scale.set(1.04, 0.68, 0.62);
+  lidGroup.add(leftLoop);
+
+  const rightLoop = new THREE.Mesh(new THREE.TorusGeometry(0.27, 0.07, 16, 40), bowMaterial);
+  rightLoop.position.set(0.3, 0.94, 0.28);
+  rightLoop.rotation.set(0.4, -0.18, 0.48);
+  rightLoop.scale.set(1.04, 0.68, 0.62);
+  lidGroup.add(rightLoop);
+
+  const leftTail = makeRoundedBox(THREE, 0.16, 0.54, 0.1, 0.05, ribbonMaterial, [-0.22, 0.66, 0.54], [0.08, 0, 0.34]);
+  const rightTail = makeRoundedBox(THREE, 0.16, 0.54, 0.1, 0.05, ribbonMaterial, [0.22, 0.66, 0.54], [0.08, 0, -0.34]);
+  lidGroup.add(leftTail, rightTail);
+
+  const floorGlow = new THREE.Mesh(new THREE.CircleGeometry(1.42, 56), glowMaterial);
+  floorGlow.position.set(0, -1.18, 0.22);
+  floorGlow.rotation.set(-1.12, 0, 0.04);
+  floorGlow.scale.set(1.5, 0.42, 1);
+  group.add(floorGlow);
+
+  const glintMaterial = new THREE.MeshBasicMaterial({
+    color: new THREE.Color("#fef3c7"),
+    opacity: 0.72,
+    transparent: true,
+  });
+  const glints = [
+    new THREE.Vector3(-0.72, 0.34, 0.88),
+    new THREE.Vector3(0.56, 0.6, 0.86),
+    new THREE.Vector3(0.04, 1.18, 0.48),
+  ].map((position) => {
+    const glint = new THREE.Mesh(new THREE.TetrahedronGeometry(0.08, 0), glintMaterial);
+    glint.position.copy(position);
+    group.add(glint);
+    return glint;
+  });
+
+  return { glints, group, lid: lidGroup, textures: [] as Texture[] };
 };
 
 export function DashboardSpinningSoundCoin3D({
@@ -640,6 +874,7 @@ export function DashboardSpinningSoundCoin3D({
 
   useEffect(() => {
     pausedRef.current = paused;
+    setDashboardWebGlCanvasActive(canvasRef.current, !paused);
   }, [paused]);
 
   useEffect(() => {
@@ -647,7 +882,10 @@ export function DashboardSpinningSoundCoin3D({
     let cleanup = () => {};
 
     const startScene = async () => {
-      const THREE = await import("three");
+      await waitForDashboardWebGlStart();
+      if (cancelled || !canvasRef.current) return;
+
+      const THREE = await loadDashboardThree();
       if (cancelled || !canvasRef.current) return;
 
       const canvas = canvasRef.current;
@@ -656,13 +894,14 @@ export function DashboardSpinningSoundCoin3D({
       camera.position.set(0, 0.04, 3.15);
       camera.lookAt(0, 0, 0);
 
-      const renderer = new THREE.WebGLRenderer({
+      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
         alpha: true,
         antialias: true,
-        canvas,
         powerPreference: "high-performance",
         preserveDrawingBuffer: false,
       });
+      if (!renderer) return;
+      setDashboardWebGlCanvasActive(canvas, !pausedRef.current);
       renderer.setClearColor(0x000000, 0);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -769,13 +1008,41 @@ export function DashboardSpinningSoundCoin3D({
       resize();
 
       let frameId = 0;
+      let lastFrameTime = 0;
+      let coinSpinRotation: number = SOUND_COIN_REST_ROTATION.y;
+      let coinPulseTime = 0;
       const renderFrame = (time: number) => {
+        const frameDelta =
+          lastFrameTime > 0 ? Math.min(48, time - lastFrameTime) : 16.67;
+        lastFrameTime = time;
+
         if (!pausedRef.current) {
-          coinGroup.rotation.y = -0.35 + time * 0.0022;
-          coinGroup.rotation.x = -0.08 + Math.sin(time * 0.0014) * 0.06;
-          coinGroup.rotation.z = 0.14 + Math.sin(time * 0.0018) * 0.05;
-          glint.scale.setScalar(0.78 + Math.sin(time * 0.0042) * 0.22);
+          coinPulseTime += frameDelta;
+          coinSpinRotation += frameDelta * 0.0022;
+          coinGroup.rotation.y = coinSpinRotation;
+          coinGroup.rotation.x =
+            -0.08 + Math.sin(coinPulseTime * 0.0014) * 0.06;
+          coinGroup.rotation.z =
+            0.14 + Math.sin(coinPulseTime * 0.0018) * 0.05;
+          glint.scale.setScalar(
+            0.78 + Math.sin(coinPulseTime * 0.0042) * 0.22,
+          );
           glint.rotation.y += 0.04;
+        } else {
+          coinGroup.rotation.x +=
+            (SOUND_COIN_REST_ROTATION.x - coinGroup.rotation.x) * 0.14;
+          coinGroup.rotation.y = settleRotation(
+            coinGroup.rotation.y,
+            SOUND_COIN_REST_ROTATION.y,
+            0.16,
+          );
+          coinGroup.rotation.z = settleRotation(
+            coinGroup.rotation.z,
+            SOUND_COIN_REST_ROTATION.z,
+            0.14,
+          );
+          coinSpinRotation = coinGroup.rotation.y;
+          glint.scale.setScalar(0.84 + Math.sin(time * 0.002) * 0.06);
         }
 
         renderer.render(scene, camera);
@@ -816,6 +1083,7 @@ export default function DashboardTreasureChest3D({
   className,
   open = true,
   paused = false,
+  variant = "showcase",
 }: DashboardTreasureChest3DProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const openRef = useRef(open);
@@ -834,62 +1102,76 @@ export default function DashboardTreasureChest3D({
     let cleanup = () => {};
 
     const startScene = async () => {
-      const THREE = await import("three");
+      await waitForDashboardWebGlStart();
+      if (cancelled || !canvasRef.current) return;
+
+      const THREE = await loadDashboardThree();
       if (cancelled || !canvasRef.current) return;
 
       const canvas = canvasRef.current;
       const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 40);
-      camera.position.set(0, 1.05, 6.6);
-      camera.lookAt(0, -0.28, 0);
+      const camera = new THREE.PerspectiveCamera(variant === "icon" ? 26 : 32, 1, 0.1, 40);
+      camera.position.set(0, variant === "icon" ? 0.5 : 1.05, variant === "icon" ? 5.15 : 6.6);
+      camera.lookAt(0, variant === "icon" ? -0.28 : -0.28, 0);
 
-      const renderer = new THREE.WebGLRenderer({
+      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
         alpha: true,
         antialias: true,
-        canvas,
         powerPreference: "high-performance",
         preserveDrawingBuffer: false,
       });
+      if (!renderer) return;
       renderer.setClearColor(0x000000, 0);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.85));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-      const textureLoader = new THREE.TextureLoader();
-      const textures = Object.fromEntries(
-        Object.entries(coinTextureSources).map(([tone, src]) => {
-          const texture = configureSoundCoinTexture(THREE, textureLoader.load(src));
-          return [tone, texture];
-        }),
-      ) as Record<keyof typeof coinTextureSources, Texture>;
+      const textures =
+        variant === "icon"
+          ? ({} as Record<keyof typeof coinTextureSources, Texture>)
+          : (Object.fromEntries(
+              Object.entries(coinTextureSources).map(([tone, src]) => {
+                const texture = configureSoundCoinTexture(
+                  THREE,
+                  new THREE.TextureLoader().load(src),
+                );
+                return [tone, texture];
+              }),
+            ) as Record<keyof typeof coinTextureSources, Texture>);
 
-      scene.add(new THREE.AmbientLight(new THREE.Color("#e0f2fe"), 1.32));
+      scene.add(new THREE.AmbientLight(new THREE.Color("#fff7d6"), variant === "icon" ? 2.05 : 1.32));
 
-      const keyLight = new THREE.DirectionalLight(0xffffff, 2.25);
+      const keyLight = new THREE.DirectionalLight(0xffffff, variant === "icon" ? 3.4 : 2.25);
       keyLight.position.set(-2.4, 4.2, 4.4);
       scene.add(keyLight);
 
-      const warmLight = new THREE.PointLight(new THREE.Color("#fbbf24"), 2.2, 7.5);
+      const warmLight = new THREE.PointLight(new THREE.Color("#fbbf24"), variant === "icon" ? 3.6 : 2.2, 7.5);
       warmLight.position.set(0, 1.1, 2.8);
       scene.add(warmLight);
 
-      const blueRim = new THREE.PointLight(new THREE.Color("#38bdf8"), 2.15, 6);
+      const blueRim = new THREE.PointLight(new THREE.Color("#38bdf8"), variant === "icon" ? 1.35 : 2.15, 6);
       blueRim.position.set(2.4, 0.2, 2.2);
       scene.add(blueRim);
 
-      const chromeSweep = new THREE.PointLight(new THREE.Color("#e0f2fe"), 1.65, 5.4);
-      chromeSweep.position.set(-1.8, -0.42, 3.2);
-      scene.add(chromeSweep);
+      if (variant !== "icon") {
+        const chromeSweep = new THREE.PointLight(new THREE.Color("#e0f2fe"), 1.65, 5.4);
+        chromeSweep.position.set(-1.8, -0.42, 3.2);
+        scene.add(chromeSweep);
+      }
 
       const {
         glints,
         group,
         lid,
         textures: usedTextures,
-      } = createTreasureChestScene(
-        THREE,
-        textures,
-        openRef.current,
-      );
+      } =
+        variant === "icon"
+          ? createGiftBoxScene(THREE)
+          : createTreasureChestScene(
+              THREE,
+              textures,
+              openRef.current,
+              variant,
+            );
       scene.add(group);
 
       const resize = () => {
@@ -907,9 +1189,14 @@ export default function DashboardTreasureChest3D({
 
       let frameId = 0;
       const renderFrame = (time: number) => {
-        const lidTarget = openRef.current
-          ? TREASURE_CHEST_LID_OPEN_ROTATION
-          : TREASURE_CHEST_LID_CLOSED_ROTATION;
+        const lidTarget =
+          variant === "icon"
+            ? openRef.current
+              ? GIFT_BOX_LID_OPEN_ROTATION
+              : GIFT_BOX_LID_CLOSED_ROTATION
+            : openRef.current
+              ? TREASURE_CHEST_LID_OPEN_ROTATION
+              : TREASURE_CHEST_LID_CLOSED_ROTATION;
 
         if (pausedRef.current) {
           lid.rotation.x = lidTarget;
@@ -949,7 +1236,7 @@ export default function DashboardTreasureChest3D({
       cancelled = true;
       cleanup();
     };
-  }, []);
+  }, [variant]);
 
   return (
     <canvas
@@ -957,6 +1244,7 @@ export default function DashboardTreasureChest3D({
       className={className}
       data-treasure-chest-open={open ? "true" : "false"}
       data-treasure-chest-renderer="three"
+      data-treasure-chest-variant={variant}
       ref={canvasRef}
       role="img"
     />

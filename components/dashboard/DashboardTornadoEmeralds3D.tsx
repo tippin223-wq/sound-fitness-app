@@ -6,8 +6,13 @@ import type {
   Group,
   Material,
   Object3D,
-  WebGLRenderer,
 } from "three";
+import {
+  createDashboardWebGlRenderer,
+  loadDashboardThree,
+  setDashboardWebGlCanvasActive,
+  waitForDashboardWebGlStart,
+} from "./dashboardWebGlRenderer";
 
 type ThreeModule = typeof import("three");
 export type DashboardTornadoGemTone = "green" | "red" | "yellow" | "blue";
@@ -339,7 +344,10 @@ export default function DashboardTornadoEmeralds3D({
     let contextRestartId = 0;
 
     const startScene = async () => {
-      const THREE = await import("three");
+      await waitForDashboardWebGlStart();
+      if (cancelled || !canvasRef.current) return;
+
+      const THREE = await loadDashboardThree();
       if (cancelled || !canvasRef.current) return;
 
       const canvas = canvasRef.current;
@@ -362,17 +370,14 @@ export default function DashboardTornadoEmeralds3D({
       camera.position.set(0, 0.08, 5.05);
       camera.lookAt(0, 0.02, 0);
 
-      let renderer: WebGLRenderer;
-      try {
-        renderer = new THREE.WebGLRenderer({
-          alpha: true,
-          antialias: true,
-          canvas,
-          powerPreference: "high-performance",
-          premultipliedAlpha: false,
-          preserveDrawingBuffer: false,
-        });
-      } catch {
+      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
+        alpha: true,
+        antialias: true,
+        powerPreference: "high-performance",
+        premultipliedAlpha: false,
+        preserveDrawingBuffer: false,
+      });
+      if (!renderer) {
         canvas.removeEventListener("webglcontextlost", handleContextLost);
         return;
       }
@@ -863,10 +868,18 @@ export function DashboardGemStage3D({
 
   useEffect(() => {
     pausedRef.current = paused;
+    setDashboardWebGlCanvasActive(
+      canvasRef.current,
+      !paused || vaultOpenRef.current,
+    );
   }, [paused]);
 
   useEffect(() => {
     vaultOpenRef.current = vaultOpen;
+    setDashboardWebGlCanvasActive(
+      canvasRef.current,
+      !pausedRef.current || vaultOpen,
+    );
   }, [vaultOpen]);
 
   useEffect(() => {
@@ -875,7 +888,10 @@ export function DashboardGemStage3D({
     let contextRestartId = 0;
 
     const startScene = async () => {
-      const THREE = await import("three");
+      await waitForDashboardWebGlStart();
+      if (cancelled || !canvasRef.current) return;
+
+      const THREE = await loadDashboardThree();
       if (cancelled || !canvasRef.current) return;
 
       const canvas = canvasRef.current;
@@ -894,13 +910,17 @@ export function DashboardGemStage3D({
       camera.position.set(0, variant === "reserves" ? -0.72 : 0.03, 6.34);
       camera.lookAt(0, variant === "reserves" ? -0.98 : 0, 0);
 
-      const renderer = new THREE.WebGLRenderer({
+      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
         alpha: true,
         antialias: true,
-        canvas,
         powerPreference: "high-performance",
         preserveDrawingBuffer: false,
       });
+      if (!renderer) return;
+      setDashboardWebGlCanvasActive(
+        canvas,
+        !pausedRef.current || vaultOpenRef.current,
+      );
       renderer.setClearColor(0x000000, 0);
       renderer.setPixelRatio(
         Math.min(window.devicePixelRatio || 1, variant === "reserves" ? 1.28 : 1.15),
@@ -1794,7 +1814,10 @@ export function DashboardEmerald3D({
     let contextRestartId = 0;
 
     const startScene = async () => {
-      const THREE = await import("three");
+      await waitForDashboardWebGlStart();
+      if (cancelled || !canvasRef.current) return;
+
+      const THREE = await loadDashboardThree();
       if (cancelled || !canvasRef.current) return;
 
       const canvas = canvasRef.current;
@@ -1816,13 +1839,16 @@ export function DashboardEmerald3D({
       camera.position.set(0, 0.02, 4.4);
       camera.lookAt(0, 0.02, 0);
 
-      const renderer = new THREE.WebGLRenderer({
+      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
         alpha: true,
         antialias: true,
-        canvas,
         powerPreference: "high-performance",
         preserveDrawingBuffer: false,
       });
+      if (!renderer) {
+        canvas.removeEventListener("webglcontextlost", handleContextLost);
+        return;
+      }
       renderer.setClearColor(0x000000, 0);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1954,7 +1980,10 @@ export function DashboardEmeraldCluster3D({
     let contextRestartId = 0;
 
     const startScene = async () => {
-      const THREE = await import("three");
+      await waitForDashboardWebGlStart();
+      if (cancelled || !canvasRef.current) return;
+
+      const THREE = await loadDashboardThree();
       if (cancelled || !canvasRef.current) return;
 
       const canvas = canvasRef.current;
@@ -1976,13 +2005,16 @@ export function DashboardEmeraldCluster3D({
       camera.position.set(0, 0.1, 5);
       camera.lookAt(0, 0.02, 0);
 
-      const renderer = new THREE.WebGLRenderer({
+      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
         alpha: true,
         antialias: true,
-        canvas,
         powerPreference: "high-performance",
         preserveDrawingBuffer: false,
       });
+      if (!renderer) {
+        canvas.removeEventListener("webglcontextlost", handleContextLost);
+        return;
+      }
       renderer.setClearColor(0x000000, 0);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
       renderer.outputColorSpace = THREE.SRGBColorSpace;

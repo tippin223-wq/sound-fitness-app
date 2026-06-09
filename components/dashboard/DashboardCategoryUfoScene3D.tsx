@@ -2,7 +2,12 @@
 
 import { useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
-import type { BufferGeometry, Material, Object3D, WebGLRenderer } from "three";
+import type { BufferGeometry, Material, Object3D } from "three";
+import {
+  createDashboardWebGlRenderer,
+  loadDashboardThree,
+  waitForDashboardWebGlStart,
+} from "./dashboardWebGlRenderer";
 
 type ThreeModule = typeof import("three");
 
@@ -837,45 +842,26 @@ export default function DashboardCategoryUfoScene3D({
     let cleanup = () => {};
 
     const startScene = async () => {
-      const THREE = await import("three");
+      await waitForDashboardWebGlStart();
+      if (cancelled || !canvasRef.current) return;
+
+      const THREE = await loadDashboardThree();
       if (cancelled || !canvasRef.current) return;
 
       const canvas = canvasRef.current;
-      const contextAttributes = {
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 24);
+      camera.position.set(0, -0.1, 5.6);
+      camera.lookAt(0, -0.36, 0);
+
+      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
         alpha: true,
         antialias: true,
-        powerPreference: "high-performance" as WebGLPowerPreference,
+        powerPreference: "high-performance",
         premultipliedAlpha: false,
         preserveDrawingBuffer: false,
-      };
-      const context = (canvas.getContext("webgl2", contextAttributes) ||
-        canvas.getContext("webgl", contextAttributes)) as
-        | WebGLRenderingContext
-        | null;
-
-      if (!context) {
-        canvas.dataset.categoryUfoRenderer = "unavailable";
-        canvas.style.opacity = "0";
-        return;
-      }
-
-      const scene = new THREE.Scene();
-      const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 18);
-      camera.position.set(0, 0.1, 5.2);
-      camera.lookAt(0, 0.02, 0);
-
-      let renderer: WebGLRenderer;
-      try {
-        renderer = new THREE.WebGLRenderer({
-          alpha: true,
-          antialias: true,
-          canvas,
-          context,
-          powerPreference: "high-performance",
-          premultipliedAlpha: false,
-          preserveDrawingBuffer: false,
-        });
-      } catch {
+      });
+      if (!renderer) {
         canvas.dataset.categoryUfoRenderer = "unavailable";
         canvas.style.opacity = "0";
         return;
@@ -883,6 +869,7 @@ export default function DashboardCategoryUfoScene3D({
 
       canvas.dataset.categoryUfoRenderer = "three";
       canvas.dataset.categoryUfoInstance = String(Math.round(performance.now()));
+      canvas.style.opacity = "";
       renderer.setClearColor(0x000000, 0);
       renderer.setClearAlpha(0);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.14));
@@ -1404,6 +1391,7 @@ export default function DashboardCategoryUfoScene3D({
       const projectorMaterial = new THREE.MeshBasicMaterial({
         blending: THREE.AdditiveBlending,
         color: beamAccent,
+        depthTest: false,
         depthWrite: false,
         opacity: 0.24,
         transparent: true,
@@ -1412,6 +1400,8 @@ export default function DashboardCategoryUfoScene3D({
         clearcoat: 1,
         clearcoatRoughness: 0.02,
         color: beamAccent.clone().lerp(whiteColor, 0.26),
+        depthTest: false,
+        depthWrite: false,
         emissive: beamAccent.clone().multiplyScalar(0.72),
         emissiveIntensity: 0.66,
         metalness: 0.88,
@@ -1423,6 +1413,8 @@ export default function DashboardCategoryUfoScene3D({
         clearcoat: 0.86,
         clearcoatRoughness: 0.06,
         color: beamAccent.clone().lerp(whiteColor, 0.18),
+        depthTest: false,
+        depthWrite: false,
         emissive: beamAccent.clone().multiplyScalar(0.78),
         emissiveIntensity: 0.72,
         metalness: 0.42,
@@ -1434,8 +1426,18 @@ export default function DashboardCategoryUfoScene3D({
       const emitterBeamMaterial = new THREE.MeshBasicMaterial({
         blending: THREE.AdditiveBlending,
         color: beamAccent,
+        depthTest: false,
         depthWrite: false,
         opacity: 0.035,
+        side: THREE.DoubleSide,
+        transparent: true,
+      });
+      const pickupLaserMaterial = new THREE.MeshBasicMaterial({
+        blending: THREE.AdditiveBlending,
+        color: beamAccent,
+        depthTest: false,
+        depthWrite: false,
+        opacity: 0,
         side: THREE.DoubleSide,
         transparent: true,
       });
@@ -1443,6 +1445,8 @@ export default function DashboardCategoryUfoScene3D({
         clearcoat: 0.92,
         clearcoatRoughness: 0.04,
         color: beamAccent.clone().lerp(whiteColor, 0.2),
+        depthTest: false,
+        depthWrite: false,
         emissive: beamAccent.clone().multiplyScalar(0.72),
         emissiveIntensity: 0.68,
         metalness: 0.28,
@@ -1454,6 +1458,8 @@ export default function DashboardCategoryUfoScene3D({
         clearcoat: 1,
         clearcoatRoughness: 0.03,
         color: beamAccent.clone().lerp(whiteColor, 0.28),
+        depthTest: false,
+        depthWrite: false,
         emissive: beamAccent.clone().multiplyScalar(0.82),
         emissiveIntensity: 0.72,
         metalness: 0.58,
@@ -1464,10 +1470,12 @@ export default function DashboardCategoryUfoScene3D({
       const vortexCoreMaterial = new THREE.MeshBasicMaterial({
         blending: THREE.AdditiveBlending,
         color: beamAccent,
+        depthTest: false,
         depthWrite: false,
         opacity: 0.16,
         transparent: true,
       });
+      const pickupEffectRenderOrder = 90;
       const projectorReflector = new THREE.Mesh(
         new THREE.TorusGeometry(0.5, 0.028, 12, 128),
         projectorReflectorMaterial,
@@ -1475,6 +1483,7 @@ export default function DashboardCategoryUfoScene3D({
       projectorReflector.position.set(0, -0.73, 0.08);
       projectorReflector.rotation.x = Math.PI / 2;
       projectorReflector.scale.set(0.82, 0.38, 1);
+      projectorReflector.renderOrder = pickupEffectRenderOrder;
       ship.add(projectorReflector);
       const projector = new THREE.Mesh(
         new THREE.TorusGeometry(0.38, 0.017, 8, 96),
@@ -1483,28 +1492,66 @@ export default function DashboardCategoryUfoScene3D({
       projector.position.set(0, -0.81, 0.08);
       projector.rotation.x = Math.PI / 2;
       projector.scale.set(0.8, 0.38, 1);
+      projector.renderOrder = pickupEffectRenderOrder + 1;
       ship.add(projector);
 
+      const emitterThroatHalfHeight = 0.06;
       const emitterThroat = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.3, 0.36, 0.12, 64, 1, true),
+        new THREE.CylinderGeometry(
+          0.3,
+          0.36,
+          emitterThroatHalfHeight * 2,
+          64,
+          1,
+          true,
+        ),
         emitterThroatMaterial,
       );
       emitterThroat.position.set(0, -0.9, 0.08);
       emitterThroat.scale.set(1, 1, 0.36);
+      emitterThroat.renderOrder = pickupEffectRenderOrder + 2;
       ship.add(emitterThroat);
 
+      const emitterBeamHalfHeight = 0.48;
       const emitterBeam = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.06, 0.34, 0.96, 64, 1, true),
+        new THREE.CylinderGeometry(
+          0.06,
+          0.34,
+          emitterBeamHalfHeight * 2,
+          64,
+          1,
+          true,
+        ),
         emitterBeamMaterial,
       );
       emitterBeam.position.set(0, -1.3, 0.08);
       emitterBeam.scale.set(1, 1, 0.22);
+      emitterBeam.renderOrder = pickupEffectRenderOrder + 3;
       ship.add(emitterBeam);
+
+      const pickupLaserHalfHeight = 3.1;
+      const pickupLaser = new THREE.Mesh(
+        new THREE.ConeGeometry(
+          0.58,
+          pickupLaserHalfHeight * 2,
+          64,
+          1,
+          true,
+        ),
+        pickupLaserMaterial,
+      );
+      pickupLaser.position.set(0, -3.58, 0.12);
+      pickupLaser.scale.set(0.72, 1, 0.22);
+      pickupLaser.renderOrder = pickupEffectRenderOrder + 14;
+      pickupLaser.visible = false;
+      ship.add(pickupLaser);
 
       const grabObjectMaterials = [
         new THREE.MeshPhysicalMaterial({
           clearcoat: 0.9,
           color: new THREE.Color("#f0abfc"),
+          depthTest: false,
+          depthWrite: false,
           emissive: new THREE.Color("#ec4899"),
           emissiveIntensity: 0.46,
           metalness: 0.34,
@@ -1513,6 +1560,8 @@ export default function DashboardCategoryUfoScene3D({
         new THREE.MeshPhysicalMaterial({
           clearcoat: 0.86,
           color: new THREE.Color("#fde68a"),
+          depthTest: false,
+          depthWrite: false,
           emissive: new THREE.Color("#f59e0b"),
           emissiveIntensity: 0.34,
           metalness: 0.56,
@@ -1521,6 +1570,8 @@ export default function DashboardCategoryUfoScene3D({
         new THREE.MeshPhysicalMaterial({
           clearcoat: 1,
           color: new THREE.Color("#a7f3d0"),
+          depthTest: false,
+          depthWrite: false,
           emissive: new THREE.Color("#14b8a6"),
           emissiveIntensity: 0.42,
           metalness: 0.22,
@@ -1530,12 +1581,15 @@ export default function DashboardCategoryUfoScene3D({
       ];
       const grabObjectLineMaterial = new THREE.LineBasicMaterial({
         color: new THREE.Color("#e0f2fe"),
-        transparent: true,
+        depthTest: false,
+        depthWrite: false,
         opacity: 0.62,
+        transparent: true,
       });
       const grabObjectGlowMaterial = new THREE.MeshBasicMaterial({
         blending: THREE.AdditiveBlending,
         color: beamAccent.clone(),
+        depthTest: false,
         depthWrite: false,
         opacity: 0.3,
         transparent: true,
@@ -1543,14 +1597,16 @@ export default function DashboardCategoryUfoScene3D({
       const grabFloorPadMaterial = new THREE.MeshBasicMaterial({
         blending: THREE.AdditiveBlending,
         color: beamAccent.clone(),
+        depthTest: false,
         depthWrite: false,
         opacity: 0.2,
         transparent: true,
       });
       const grabObjectGroup = new THREE.Group();
+      grabObjectGroup.renderOrder = pickupEffectRenderOrder + 8;
       ship.add(grabObjectGroup);
 
-      const grabFloorY = -3.72;
+      const grabFloorY = -5.88;
       const grabObjectRestPositions = [
         new THREE.Vector3(-0.52, grabFloorY + 0.14, 0.62),
         new THREE.Vector3(0.06, grabFloorY + 0.16, 0.58),
@@ -1564,7 +1620,7 @@ export default function DashboardCategoryUfoScene3D({
         pad.position.set(restPosition.x, grabFloorY, restPosition.z);
         pad.rotation.x = Math.PI / 2;
         pad.scale.set(1.28, 0.44, 1);
-        pad.renderOrder = 59;
+        pad.renderOrder = pickupEffectRenderOrder + 8;
         grabObjectGroup.add(pad);
 
         return pad;
@@ -1572,14 +1628,14 @@ export default function DashboardCategoryUfoScene3D({
       const grabObjects = grabObjectRestPositions.map((restPosition, index) => {
         const object = new THREE.Group();
         object.position.copy(restPosition);
-        object.renderOrder = 62;
+        object.renderOrder = pickupEffectRenderOrder + 10;
 
         if (index === 0) {
           const prism = new THREE.Mesh(
             new THREE.IcosahedronGeometry(0.16, 0),
             grabObjectMaterials[index],
           );
-          prism.renderOrder = 62;
+          prism.renderOrder = pickupEffectRenderOrder + 10;
           object.add(prism);
 
           const ring = new THREE.Mesh(
@@ -1587,7 +1643,7 @@ export default function DashboardCategoryUfoScene3D({
             grabObjectGlowMaterial,
           );
           ring.rotation.x = Math.PI / 2;
-          ring.renderOrder = 63;
+          ring.renderOrder = pickupEffectRenderOrder + 11;
           object.add(ring);
         } else if (index === 1) {
           const crate = new THREE.Mesh(
@@ -1595,21 +1651,21 @@ export default function DashboardCategoryUfoScene3D({
             grabObjectMaterials[index],
           );
           crate.rotation.set(0.32, 0.26, 0.14);
-          crate.renderOrder = 62;
+          crate.renderOrder = pickupEffectRenderOrder + 10;
           object.add(crate);
 
           const edges = new THREE.LineSegments(
             new THREE.EdgesGeometry(crate.geometry),
             grabObjectLineMaterial,
           );
-          edges.renderOrder = 63;
+          edges.renderOrder = pickupEffectRenderOrder + 11;
           object.add(edges);
         } else {
           const orb = new THREE.Mesh(
             new THREE.SphereGeometry(0.14, 24, 14),
             grabObjectMaterials[index],
           );
-          orb.renderOrder = 62;
+          orb.renderOrder = pickupEffectRenderOrder + 10;
           object.add(orb);
 
           const orbit = new THREE.Mesh(
@@ -1617,7 +1673,7 @@ export default function DashboardCategoryUfoScene3D({
             grabObjectGlowMaterial,
           );
           orbit.rotation.x = Math.PI / 2.35;
-          orbit.renderOrder = 63;
+          orbit.renderOrder = pickupEffectRenderOrder + 11;
           object.add(orbit);
         }
 
@@ -1638,7 +1694,7 @@ export default function DashboardCategoryUfoScene3D({
         new THREE.CylinderGeometry(0.04, 0.12, 1, 32, 1, true),
         tractorGrabMaterial,
       );
-      tractorGrabBeam.renderOrder = 64;
+      tractorGrabBeam.renderOrder = pickupEffectRenderOrder + 12;
       tractorGrabBeam.visible = false;
       ship.add(tractorGrabBeam);
 
@@ -1655,7 +1711,7 @@ export default function DashboardCategoryUfoScene3D({
         tractorClawMaterial,
       );
       tractorClaw.rotation.x = Math.PI / 2;
-      tractorClaw.renderOrder = 65;
+      tractorClaw.renderOrder = pickupEffectRenderOrder + 13;
       tractorClaw.visible = false;
       ship.add(tractorClaw);
 
@@ -1668,6 +1724,7 @@ export default function DashboardCategoryUfoScene3D({
 
       const vortexGroup = new THREE.Group();
       vortexGroup.position.set(0, -0.86, 0.06);
+      vortexGroup.renderOrder = pickupEffectRenderOrder + 4;
       ship.add(vortexGroup);
 
       const createVortexRibbon = (phase: number) => {
@@ -1693,6 +1750,7 @@ export default function DashboardCategoryUfoScene3D({
           ),
           vortexRibbonMaterial,
         );
+        ribbon.renderOrder = pickupEffectRenderOrder + 4;
         vortexGroup.add(ribbon);
 
         return ribbon;
@@ -1709,6 +1767,7 @@ export default function DashboardCategoryUfoScene3D({
       );
       vortexCore.position.set(0, -0.42, 0.06);
       vortexCore.scale.set(1, 1, 0.28);
+      vortexCore.renderOrder = pickupEffectRenderOrder + 7;
       vortexGroup.add(vortexCore);
       const vortexRings = Array.from({ length: 5 }, (_, index) => {
         const ring = new THREE.Mesh(
@@ -1718,6 +1777,7 @@ export default function DashboardCategoryUfoScene3D({
         ring.position.set(0, -0.08 - index * 0.16, 0.06);
         ring.rotation.x = Math.PI / 2;
         ring.scale.set(1, 0.36 + index * 0.025, 1);
+        ring.renderOrder = pickupEffectRenderOrder + 5;
         vortexGroup.add(ring);
 
         return ring;
@@ -1730,7 +1790,7 @@ export default function DashboardCategoryUfoScene3D({
         renderer.setSize(width, height, false);
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
-        ship.scale.setScalar(0.66 * clampNumber(330 / height, 0.5, 1));
+        ship.scale.setScalar(0.66 * clampNumber(390 / height, 0.56, 1));
       };
 
       const observer = new ResizeObserver(resize);
@@ -1824,6 +1884,32 @@ export default function DashboardCategoryUfoScene3D({
             ? (1 - grabFadeProgress * 0.72) *
               (0.72 + Math.sin(seconds * 10.5) * 0.12)
             : 0;
+        const emitterThroatY =
+          -1.09 -
+          tornadoDeployProgress * 0.07 +
+          tornadoSync * 0.01 -
+          grabReachProgress * 0.1;
+        const emitterThroatScaleX =
+          0.52 + tornadoDeployProgress * (0.42 + tornadoSync * 0.045);
+        const emitterThroatScaleY =
+          0.26 +
+          tornadoDeployProgress *
+            (0.46 + tornadoSync * 0.035 + grabReachProgress * 0.86);
+        const emitterThroatScaleZ =
+          0.16 + tornadoDeployProgress * (0.16 + tornadoSync * 0.035);
+        const throatExitY =
+          emitterThroatY - emitterThroatHalfHeight * emitterThroatScaleY - 0.01;
+        const throatExitZ = 0.08;
+        const pickupColumnTopY = throatExitY + 0.03;
+        const pickupColumnFloorY = grabFloorY + 0.04;
+        const pickupColumnLength = Math.max(
+          0.1,
+          pickupColumnTopY - pickupColumnFloorY,
+        );
+        const pickupColumnDeployScale =
+          0.12 + tornadoDeployProgress * 0.88;
+        const pickupColumnBottomY =
+          pickupColumnTopY - pickupColumnLength * pickupColumnDeployScale;
         const rawChyronItems = chyronItemsRef.current;
         const resolvedChyronItems =
           rawChyronItems.length > 0
@@ -2064,7 +2150,7 @@ export default function DashboardCategoryUfoScene3D({
 
         if (grabIsActive && grabReachProgress > 0.01) {
           const selectedObject = grabObjects[activeGrabObjectIndex];
-          grabBeamStartPoint.set(0, -1.18, 0.44);
+          grabBeamStartPoint.set(0, throatExitY, 0.44);
           grabBeamEndPoint.copy(selectedObject.position);
           grabBeamEndPoint.y += 0.025;
           grabBeamEndPoint.lerp(grabBeamStartPoint, 1 - grabReachProgress);
@@ -2218,36 +2304,51 @@ export default function DashboardCategoryUfoScene3D({
           (0.32 + levelGlow * 0.14 + tornadoSync * 0.18) *
           tornadoDeployProgress;
         emitterThroat.visible = tornadoIsDeployed;
-        emitterThroat.position.y =
-          -1.09 -
-          tornadoDeployProgress * 0.07 +
-          tornadoSync * 0.01 -
-          grabReachProgress * 0.1;
+        emitterThroat.position.y = emitterThroatY;
         emitterThroat.scale.set(
-          0.52 + tornadoDeployProgress * (0.42 + tornadoSync * 0.045),
-          0.26 +
-            tornadoDeployProgress *
-              (0.46 + tornadoSync * 0.035 + grabReachProgress * 0.86),
-          0.16 + tornadoDeployProgress * (0.16 + tornadoSync * 0.035),
+          emitterThroatScaleX,
+          emitterThroatScaleY,
+          emitterThroatScaleZ,
         );
+        const emitterBeamScaleY =
+          0.13 + tornadoDeployProgress * (0.5 + tornadoSync * 0.05);
         emitterBeam.visible = tornadoIsDeployed;
         emitterBeam.position.y =
-          -1.28 - tornadoDeployProgress * 0.18 + tornadoSync * 0.01;
+          throatExitY - emitterBeamHalfHeight * emitterBeamScaleY + 0.018;
         emitterBeam.scale.set(
           0.3 + tornadoDeployProgress * (0.3 + tornadoSync * 0.1),
-          0.13 + tornadoDeployProgress * (0.5 + tornadoSync * 0.05),
+          emitterBeamScaleY,
           0.08 + tornadoDeployProgress * (0.1 + tornadoSync * 0.04),
         );
         emitterBeamMaterial.opacity =
           (0.045 + levelGlow * 0.02 + tornadoSync * 0.055) *
           tornadoDeployProgress;
+        const pickupLaserScaleY =
+          (pickupColumnTopY - pickupColumnBottomY) /
+          (pickupLaserHalfHeight * 2);
+        pickupLaser.visible = tornadoIsDeployed;
+        pickupLaser.position.y = (pickupColumnTopY + pickupColumnBottomY) / 2;
+        pickupLaser.scale.set(
+          0.62 + tornadoDeployProgress * (0.2 + tornadoSync * 0.05),
+          pickupLaserScaleY,
+          0.18 + tornadoDeployProgress * 0.08,
+        );
+        pickupLaserMaterial.color
+          .copy(beamAccent)
+          .lerp(whiteColor, 0.12 + tornadoSync * 0.12);
+        pickupLaserMaterial.opacity =
+          (0.1 + levelGlow * 0.035 + tornadoSync * 0.075) *
+          tornadoDeployProgress;
         vortexGroup.visible = tornadoIsDeployed;
-        vortexGroup.position.y =
-          -1.02 - tornadoDeployProgress * 0.08 + tornadoSync * 0.008;
+        vortexGroup.position.set(0, pickupColumnTopY - 0.018, throatExitZ - 0.02);
         vortexGroup.rotation.y = seconds * 0.095;
         vortexGroup.scale.set(
           0.4 + tornadoDeployProgress * (0.5 + tornadoSync * 0.055),
-          0.1 + tornadoDeployProgress * (0.54 + tornadoSync * 0.05),
+          Math.max(
+            0.12,
+            (pickupColumnLength / 0.82) *
+              (0.12 + tornadoDeployProgress * (0.88 + tornadoSync * 0.025)),
+          ),
           0.4 + tornadoDeployProgress * (0.5 + tornadoSync * 0.045),
         );
         vortexCore.rotation.y = -seconds * 0.14;

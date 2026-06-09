@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { BufferGeometry, Material, Object3D, Texture } from "three";
+import type {
+  BufferGeometry,
+  Material,
+  Object3D,
+  Texture,
+} from "three";
+import {
+  createDashboardWebGlRenderer,
+  loadDashboardThree,
+  waitForDashboardWebGlStart,
+} from "./dashboardWebGlRenderer";
 
 type ThreeModule = typeof import("three");
 
@@ -166,7 +176,10 @@ export default function DashboardBasketball3D({
     let cleanup = () => {};
 
     const startScene = async () => {
-      const THREE = await import("three");
+      await waitForDashboardWebGlStart();
+      if (cancelled || !canvasRef.current) return;
+
+      const THREE = await loadDashboardThree();
       if (cancelled || !canvasRef.current) return;
 
       const canvas = canvasRef.current;
@@ -180,13 +193,16 @@ export default function DashboardBasketball3D({
       };
       canvas.addEventListener("webglcontextlost", handleContextLost, false);
 
-      const renderer = new THREE.WebGLRenderer({
+      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
         alpha: true,
         antialias: true,
-        canvas,
         powerPreference: "high-performance",
         preserveDrawingBuffer: false,
       });
+      if (!renderer) {
+        canvas.removeEventListener("webglcontextlost", handleContextLost, false);
+        return;
+      }
       renderer.setClearColor(0x000000, 0);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.outputColorSpace = THREE.SRGBColorSpace;

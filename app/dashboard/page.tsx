@@ -20,12 +20,18 @@ import { createPortal } from "react-dom";
 import DashboardCalendar, {
   type DashboardCalendarItem,
 } from "@/components/dashboard/DashboardCalendar";
-import DashboardBasketball3D from "@/components/dashboard/DashboardBasketball3D";
 import DashboardCategoryUfoScene3D from "@/components/dashboard/DashboardCategoryUfoScene3D";
 import BodyCommandCenterCard from "@/components/dashboard/BodyCommandCenterCard";
+import DashboardLightningBolt3D from "@/components/dashboard/DashboardLightningBolt3D";
 import DashboardLogo3D from "@/components/dashboard/DashboardLogo3D";
+import DashboardMeterMenuIcon3D from "@/components/dashboard/DashboardMeterMenuIcon3D";
+import DashboardProfileIcon3D, {
+  DashboardGearIcon3D,
+} from "@/components/dashboard/DashboardProfileActionIcons3D";
+import DashboardScrollButton3D from "@/components/dashboard/DashboardScrollButton3D";
 import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
 import DashboardTrophy3D from "@/components/dashboard/DashboardTrophy3D";
+import DashboardWebGlPreloader from "@/components/dashboard/DashboardWebGlPreloader";
 import DashboardTornadoEmeralds3D, {
   DashboardGemStage3D,
   type DashboardTornadoGemTone,
@@ -252,14 +258,14 @@ html body main.dashboard-page--page-analog-active.dashboard-page--page-analog-ac
 `;
 const DASHBOARD_HEADER_METER_UFO_COMPACT_STYLE = `
 html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] > .dashboard-header-category-levels-menu {
-  z-index: 2 !important;
+  z-index: 120 !important;
 }
 
 html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-category-levels-menu__ufo-webgl {
-  height: min(340px, calc(100vh - 8.4rem)) !important;
+  height: min(620px, calc(100vh - 2.2rem)) !important;
   top: calc(50% + 3.35rem) !important;
-  width: min(400px, calc(100vw - 32px)) !important;
-  z-index: 1 !important;
+  width: min(720px, calc(100vw - 24px)) !important;
+  z-index: 12 !important;
 }
 `;
 const DASHBOARD_HEADER_NEWS_CHYRON_TIMING_STYLE = `
@@ -296,6 +302,136 @@ const DASHBOARD_HEADER_NEWS_CHYRON_TIMING_STYLE = `
 
 .dashboard-header-vortex-shell--points-dropdown-open .dashboard-profile-points-dropdown {
   z-index: 680 !important;
+}
+
+.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-profile-claim-dropdown {
+  z-index: 690 !important;
+}
+`;
+const DASHBOARD_HEADER_NARROW_MOBILE_MENU_STYLE = `
+@media (max-width: 430px) {
+  .dashboard-header-vortex-shell {
+    --dashboard-header-narrow-meter-size: 2.92rem;
+  }
+
+  .dashboard-header-vortex-shell .dashboard-header-mobile-orbit-joystick {
+    margin-left: -0.46rem !important;
+    margin-right: -0.24rem !important;
+  }
+
+  .dashboard-header-vortex-shell .dashboard-header-main-orbit-stage--stable {
+    margin-left: -0.28rem !important;
+  }
+
+  .dashboard-header-vortex-shell .dashboard-header-meter-menu-shell {
+    height: var(--dashboard-header-narrow-meter-size) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    position: absolute !important;
+    right: clamp(0.24rem, 1.7vw, 0.42rem) !important;
+    top: 50% !important;
+    transform: translate3d(0.72rem, -50%, -2rem) scale(0.74) !important;
+    transition:
+      opacity 180ms ease,
+      transform 260ms cubic-bezier(0.2, 0.82, 0.18, 1),
+      visibility 180ms ease !important;
+    visibility: hidden !important;
+    width: var(--dashboard-header-narrow-meter-size) !important;
+    z-index: 178 !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"]
+    + .dashboard-header-meter-menu-shell {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: translate3d(0, -50%, 0) scale(0.9) !important;
+    visibility: visible !important;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell--timed-out
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"]
+    + .dashboard-header-meter-menu-shell {
+    opacity: 0.48 !important;
+    transform: translate3d(0, -50%, 0) scale(0.84) !important;
+    visibility: visible !important;
+  }
+
+  .dashboard-header-vortex-shell .dashboard-header-meter-menu-trigger {
+    height: var(--dashboard-header-narrow-meter-size) !important;
+    width: var(--dashboard-header-narrow-meter-size) !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-menu-block--dashboard,
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-menu-block--profile {
+    width: min(28rem, calc(100vw - 7.75rem)) !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-dashboard-selector {
+    max-width: min(24.35rem, calc(100vw - 7.75rem)) !important;
+    transform: translateX(-0.34rem) !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-orbit-system {
+    gap: 0.18rem !important;
+    grid-template-columns: 2.86rem minmax(0, 15.7rem) !important;
+    max-width: min(20.2rem, calc(100vw - 9.45rem)) !important;
+    padding-right: 0 !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-joystick {
+    min-width: 2.86rem !important;
+    transform: translate3d(-0.18rem, -0.12rem, 0) !important;
+    width: 2.86rem !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-body {
+    grid-template-columns: 6.35rem minmax(0, 7.15rem) !important;
+    width: min(13.95rem, calc(100vw - 13.15rem)) !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-rail-pocket {
+    flex-basis: 6.35rem !important;
+    min-width: 6.35rem !important;
+    transform: translateX(0.04rem) scale(0.88) !important;
+    width: 6.35rem !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-copy {
+    max-width: 7.15rem !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-category-dock {
+    flex-basis: 2.25rem !important;
+    height: 4.1rem !important;
+    margin-left: -0.35rem !important;
+    width: 2.25rem !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-category-dock
+    .dashboard-header-category-actor {
+    --dashboard-header-category-dock-scale: 0.42;
+  }
 }
 `;
 const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
@@ -474,6 +610,81 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
 .dashboard-profile-points-dropdown > * {
   position: relative;
   z-index: 1;
+}
+
+.dashboard-profile-claim-dropdown {
+  animation: dashboard-profile-claim-dropdown-open 220ms
+    cubic-bezier(0.16, 0.82, 0.2, 1) both;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(30, 41, 59, 0.52), transparent 48%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.96), rgba(0, 0, 0, 0.9));
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 1.1rem;
+  box-shadow:
+    0 1.25rem 2.8rem rgba(0, 0, 0, 0.68),
+    0 0 2rem rgba(2, 6, 23, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  isolation: isolate;
+  overflow: hidden;
+  transform-origin: calc(100% - 1.9rem) 0;
+}
+
+.dashboard-profile-claim-dropdown::before,
+.dashboard-profile-claim-dropdown::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+}
+
+.dashboard-profile-claim-dropdown::before {
+  background:
+    radial-gradient(ellipse at 50% 72%, rgba(0, 0, 0, 0.88), transparent 66%),
+    radial-gradient(circle at 18% 18%, rgba(214, 179, 95, 0.12), transparent 32%),
+    radial-gradient(circle at 84% 26%, rgba(127, 29, 29, 0.18), transparent 34%);
+  filter: blur(0.22rem);
+  inset: -0.45rem;
+  opacity: 0.92;
+  z-index: 0;
+}
+
+.dashboard-profile-claim-dropdown::after {
+  background:
+    linear-gradient(90deg, transparent, rgba(254, 243, 199, 0.14), transparent),
+    radial-gradient(ellipse at 50% 100%, rgba(15, 23, 42, 0.8), transparent 64%);
+  inset: 0;
+  opacity: 0.72;
+  z-index: 0;
+}
+
+.dashboard-profile-claim-dropdown > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dashboard-profile-claim-dropdown__message {
+  color: rgba(226, 232, 240, 0.92);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.25;
+  margin: 0;
+  text-align: center;
+  text-shadow:
+    0 0 0.5rem rgba(0, 0, 0, 0.95),
+    0 0 0.9rem rgba(214, 179, 95, 0.16);
+  text-transform: uppercase;
+}
+
+@keyframes dashboard-profile-claim-dropdown-open {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -0.24rem, 0) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
 }
 
 .dashboard-profile-reward-orbit {
@@ -850,7 +1061,7 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
 .dashboard-profile-rewards-control {
   align-items: center;
   display: inline-flex;
-  gap: 0.32rem;
+  gap: 0.34rem;
 }
 
 .dashboard-profile-points-trigger[data-dropdown-open="true"] {
@@ -1048,6 +1259,351 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
   min-width: 0;
 }
 
+.dashboard-profile-points-trigger__webgl-shell {
+  align-items: center;
+  display: inline-grid;
+  flex: 0 0 auto;
+  height: 0.96rem;
+  isolation: isolate;
+  justify-items: center;
+  overflow: visible;
+  position: relative;
+  transform-origin: 50% 50%;
+  transition:
+    filter 180ms ease,
+    transform 180ms ease;
+  width: 1.02rem;
+}
+
+.dashboard-profile-points-trigger__webgl-shell::before {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.18), transparent 32%),
+    radial-gradient(circle at 50% 50%, var(--dashboard-reward-icon-glow, rgba(34, 211, 238, 0.32)), transparent 68%);
+  border-radius: 999px;
+  content: "";
+  filter: blur(0.08rem);
+  inset: -0.36rem;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transform: scale(0.72);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+  z-index: -1;
+}
+
+.dashboard-profile-points-trigger__webgl-shell canvas {
+  display: block;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform-origin: 50% 50%;
+  transition:
+    filter 180ms ease,
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.dashboard-profile-points-trigger__webgl-shell--gems {
+  --dashboard-reward-icon-glow: rgba(52, 211, 153, 0.46);
+  height: 1.02rem;
+  margin-left: -0.04rem;
+  width: 1.22rem;
+}
+
+.dashboard-profile-points-trigger__webgl-shell--coin {
+  --dashboard-reward-icon-glow: rgba(250, 204, 21, 0.46);
+}
+
+.dashboard-profile-points-trigger__webgl-shell--points {
+  --dashboard-reward-icon-glow: rgba(56, 189, 248, 0.5);
+  height: 0.84rem;
+  margin-top: 0.08rem;
+  width: 0.98rem;
+}
+
+.dashboard-profile-points-trigger__webgl-gems {
+  filter:
+    contrast(1.08)
+    saturate(1.16)
+    drop-shadow(0 0 0.12rem rgba(236, 253, 245, 0.38))
+    drop-shadow(0 0 0.34rem rgba(52, 211, 153, 0.38));
+  height: 2.6rem !important;
+  transform: translate(-50%, -50%) scale(0.58);
+  width: 3rem !important;
+}
+
+.dashboard-profile-points-trigger__webgl-coin {
+  filter:
+    drop-shadow(0 0 0.12rem rgba(254, 243, 199, 0.5))
+    drop-shadow(0 0 0.34rem rgba(250, 204, 21, 0.42));
+  height: 1.62rem !important;
+  transform: translate(-50%, -50%) scale(0.82);
+  width: 1.62rem !important;
+}
+
+.dashboard-profile-points-trigger__webgl-points {
+  filter:
+    contrast(1.05)
+    saturate(1.2)
+    drop-shadow(0 0 0.14rem rgba(224, 242, 254, 0.42))
+    drop-shadow(0 0 0.34rem rgba(56, 189, 248, 0.46));
+  height: 1.55rem !important;
+  transform: translate(-50%, -50%) scale(0.78);
+  width: 1.85rem !important;
+}
+
+.dashboard-profile-points-trigger__webgl-bolt {
+  filter:
+    contrast(1.08)
+    saturate(1.24)
+    drop-shadow(0 0 0.16rem rgba(224, 242, 254, 0.44))
+    drop-shadow(0 0 0.42rem rgba(56, 189, 248, 0.5));
+  height: 1.18rem !important;
+  transform: translate(-50%, -43%) scale(0.6);
+  width: 1.18rem !important;
+}
+
+.dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
+  .dashboard-profile-points-trigger__webgl-shell {
+  filter: brightness(1.15) saturate(1.16);
+  transform: translateY(-0.05rem) scale(1.14);
+}
+
+.dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
+  .dashboard-profile-points-trigger__webgl-shell::before {
+  opacity: 1;
+  transform: scale(1.18);
+}
+
+.dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
+  .dashboard-profile-points-trigger__webgl-shell--points {
+  transform: translateY(0.02rem) scale(1.04);
+}
+
+.dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
+  .dashboard-profile-points-trigger__webgl-gems {
+  filter:
+    contrast(1.18)
+    saturate(1.35)
+    drop-shadow(0 0 0.2rem rgba(236, 253, 245, 0.7))
+    drop-shadow(0 0 0.58rem rgba(52, 211, 153, 0.68))
+    drop-shadow(0 0 0.9rem rgba(45, 212, 191, 0.26));
+  transform: translate(-50%, -50%) scale(0.76) rotate(-4deg);
+}
+
+.dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
+  .dashboard-profile-points-trigger__webgl-coin {
+  filter:
+    brightness(1.14)
+    saturate(1.18)
+    drop-shadow(0 0 0.2rem rgba(254, 243, 199, 0.74))
+    drop-shadow(0 0 0.62rem rgba(250, 204, 21, 0.62));
+  transform: translate(-50%, -50%) scale(0.94) rotate(6deg);
+}
+
+.dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
+  .dashboard-profile-points-trigger__webgl-points {
+  filter:
+    brightness(1.16)
+    contrast(1.1)
+    saturate(1.4)
+    drop-shadow(0 0 0.2rem rgba(224, 242, 254, 0.72))
+    drop-shadow(0 0 0.66rem rgba(56, 189, 248, 0.72))
+    drop-shadow(0 0 0.86rem rgba(37, 99, 235, 0.28));
+  transform: translate(-50%, -50%) scale(0.88) rotate(-3deg);
+}
+
+.dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
+  .dashboard-profile-points-trigger__webgl-bolt {
+  filter:
+    brightness(1.24)
+    saturate(1.44)
+    drop-shadow(0 0 0.14rem rgba(254, 240, 138, 0.52))
+    drop-shadow(0 0 0.2rem rgba(224, 242, 254, 0.78))
+    drop-shadow(0 0 0.58rem rgba(56, 189, 248, 0.76))
+    drop-shadow(0 0 0.8rem rgba(37, 99, 235, 0.32));
+  transform: translate(-50%, -43%) scale(0.66);
+}
+
+.dashboard-header-trophy-3d[data-webgl-fallback="true"],
+.dashboard-header-scroll-button__basketball-3d[data-webgl-fallback="true"],
+.dashboard-profile-app-gem-orbit__shared-gems[data-webgl-fallback="true"],
+.dashboard-profile-sound-coins-vault__token[data-webgl-fallback="true"],
+.dashboard-profile-sound-coins-vault__scene[data-webgl-fallback="true"],
+.dashboard-profile-charge-node-grid__tesla-scene[data-webgl-fallback="true"],
+.dashboard-profile-points-trigger__webgl-gems[data-webgl-fallback="true"],
+.dashboard-profile-points-trigger__webgl-coin[data-webgl-fallback="true"],
+.dashboard-profile-points-trigger__webgl-points[data-webgl-fallback="true"],
+.dashboard-profile-points-trigger__webgl-bolt[data-webgl-fallback="true"],
+.dashboard-profile-points-trigger__claim-webgl[data-webgl-fallback="true"] {
+  background-image: none !important;
+}
+
+.dashboard-profile-points-trigger__webgl-bolt[data-webgl-fallback="true"] {
+  background-image: linear-gradient(
+    145deg,
+    #e0f2fe 0 8%,
+    #38bdf8 28%,
+    #2563eb 74%,
+    #0f172a 100%
+  ) !important;
+  clip-path: polygon(50% 0, 12% 52%, 42% 52%, 30% 100%, 88% 38%, 58% 38%);
+}
+
+.dashboard-header-idle-streak-meter {
+  bottom: -0.36rem;
+  color: rgba(254, 243, 199, 0.96);
+  display: grid;
+  opacity: 0;
+  pointer-events: none;
+  place-items: center;
+  position: absolute;
+  transform: translateY(0.34rem) scale(0.86);
+  transform-origin: 50% 78%;
+  transition:
+    opacity 520ms ease,
+    transform 640ms cubic-bezier(0.16, 0.86, 0.2, 1),
+    visibility 520ms ease;
+  visibility: hidden;
+  width: 5.8rem;
+  z-index: 32;
+}
+
+.dashboard-header-idle-streak-meter--left {
+  left: clamp(0.72rem, 4vw, 3.85rem);
+}
+
+.dashboard-header-idle-streak-meter--right {
+  right: clamp(0.72rem, 4vw, 3.85rem);
+}
+
+.dashboard-header-vortex-shell--timed-out
+  .dashboard-header-idle-streak-meter {
+  opacity: 0.96;
+  transform: translateY(0) scale(1);
+  visibility: visible;
+}
+
+.dashboard-header-idle-streak-meter__halo {
+  background:
+    radial-gradient(ellipse at 50% 58%, rgba(250, 204, 21, 0.24), transparent 52%),
+    radial-gradient(ellipse at 50% 46%, rgba(34, 211, 238, 0.18), transparent 62%);
+  border-radius: 9999px;
+  filter: blur(0.16rem);
+  inset: -0.38rem -0.24rem -0.18rem;
+  position: absolute;
+}
+
+.dashboard-header-idle-streak-meter__card {
+  display: grid;
+  filter:
+    drop-shadow(0 0 0.46rem rgba(250, 204, 21, 0.2))
+    drop-shadow(0 0.28rem 0.64rem rgba(0, 0, 0, 0.42));
+  place-items: center;
+  position: relative;
+  width: 100%;
+}
+
+.dashboard-header-idle-streak-meter--weekly
+  .dashboard-header-idle-streak-meter__halo {
+  background:
+    radial-gradient(ellipse at 50% 58%, rgba(52, 211, 153, 0.22), transparent 54%),
+    radial-gradient(ellipse at 50% 46%, rgba(103, 232, 249, 0.2), transparent 64%);
+}
+
+.dashboard-header-idle-streak-meter--weekly
+  .dashboard-header-idle-streak-meter__card {
+  filter:
+    drop-shadow(0 0 0.46rem rgba(45, 212, 191, 0.2))
+    drop-shadow(0 0.28rem 0.64rem rgba(0, 0, 0, 0.42));
+}
+
+.dashboard-header-idle-streak-meter__actual {
+  display: grid !important;
+  height: 5.35rem;
+  min-width: 5.4rem !important;
+  place-items: center;
+  width: 5.4rem;
+}
+
+.dashboard-header-idle-streak-meter
+  .dashboard-header-plan-attendance::before {
+  inset: 0.24rem -0.32rem -0.08rem;
+}
+
+.dashboard-header-idle-streak-meter
+  .dashboard-header-plan-attendance
+  .dashboard-header-streak-fire__gauge {
+  height: 4.08rem;
+  top: 0.04rem;
+  width: 4.08rem;
+}
+
+.dashboard-header-idle-streak-meter
+  .dashboard-header-plan-attendance
+  .dashboard-header-streak-fire__content {
+  top: 1.32rem;
+}
+
+.dashboard-header-idle-streak-meter
+  .dashboard-header-plan-attendance
+  .dashboard-header-streak-fire__value {
+  font-size: 0.76rem;
+}
+
+.dashboard-header-idle-streak-meter
+  .dashboard-header-plan-attendance
+  .dashboard-header-streak-fire__label {
+  font-size: 0.31rem;
+  max-width: 3.45rem;
+}
+
+.dashboard-header-idle-streak-meter
+  .dashboard-header-plan-attendance
+  .dashboard-header-meter-deadline--streak {
+  font-size: 0.34rem;
+  top: calc(100% - 0.22rem);
+}
+
+.dashboard-header-idle-streak-meter
+  .dashboard-header-idle-weekly-meter
+  .dashboard-header-week-sessions__graph {
+  height: 3.72rem;
+  margin-top: 0.1rem;
+  min-width: 4.08rem;
+  transform: scale(0.92);
+  transform-origin: 50% 64%;
+  width: 4.08rem;
+}
+
+.dashboard-header-idle-streak-meter
+  .dashboard-header-idle-weekly-meter
+  .dashboard-header-week-sessions__label {
+  color: rgba(220, 252, 231, 0.96);
+  font-size: 0.34rem;
+  max-width: 4.4rem;
+  text-shadow:
+    0 0 0.18rem rgba(0, 0, 0, 0.9),
+    0 0 0.24rem rgba(52, 211, 153, 0.24);
+}
+
+.dashboard-header-idle-streak-meter
+  .dashboard-header-idle-weekly-meter
+  .dashboard-header-meter-deadline--week {
+  font-size: 0.34rem;
+  margin-top: -0.04rem;
+  max-width: 4.65rem;
+}
+
+@media (max-width: 980px) {
+  .dashboard-header-idle-streak-meter {
+    display: none;
+  }
+}
+
 .dashboard-profile-points-trigger__mini-gems {
   display: inline-block;
   flex: 0 0 auto;
@@ -1156,12 +1712,110 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
     transform 180ms ease;
 }
 
+.dashboard-profile-claim-trigger--webgl {
+  background: transparent !important;
+  border-color: transparent !important;
+  border-radius: 0;
+  height: 3.72rem;
+  margin-inline-end: 0.34rem;
+  min-width: 3.24rem;
+  padding: 0;
+  width: 3.24rem;
+}
+
+.dashboard-profile-claim-trigger--webgl::before {
+  background:
+    radial-gradient(ellipse at 50% 48%, rgba(254, 240, 138, 0.2), transparent 36%),
+    radial-gradient(ellipse at 50% 58%, rgba(52, 211, 153, 0.34), transparent 68%),
+    radial-gradient(ellipse at 50% 72%, rgba(34, 211, 238, 0.16), transparent 76%);
+  border-radius: 999px;
+  content: "";
+  filter: blur(0.18rem);
+  inset: 0.18rem -0.22rem 0.08rem;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transform: scale(0.72);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+  z-index: 0;
+}
+
 .dashboard-profile-claim-trigger:hover,
 .dashboard-profile-claim-trigger:focus-visible,
 .dashboard-profile-claim-trigger[aria-expanded="true"] {
   background-color: rgba(52, 211, 153, 0.08);
   border-color: rgba(187, 247, 208, 0.2);
   transform: translateY(-0.12rem);
+}
+
+.dashboard-profile-claim-trigger--webgl:hover,
+.dashboard-profile-claim-trigger--webgl:focus-visible,
+.dashboard-profile-claim-trigger--webgl[aria-expanded="true"] {
+  background-color: transparent !important;
+  border-color: transparent !important;
+  transform: translateY(0.02rem) scale(1.02);
+}
+
+.dashboard-profile-claim-trigger--webgl:hover::before,
+.dashboard-profile-claim-trigger--webgl:focus-visible::before,
+.dashboard-profile-claim-trigger--webgl[aria-expanded="true"]::before {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.dashboard-profile-points-trigger__claim-webgl {
+  display: block;
+  filter:
+    brightness(1.12)
+    contrast(1.08)
+    saturate(1.06)
+    drop-shadow(0 0.18rem 0.18rem rgba(2, 6, 23, 0.44))
+    drop-shadow(0 0 0.34rem rgba(214, 179, 95, 0.36))
+    drop-shadow(0 0 0.54rem rgba(127, 29, 29, 0.3));
+  height: 3.42rem !important;
+  pointer-events: none;
+  position: relative;
+  transform: translateY(0.18rem) scale(0.86);
+  transition:
+    filter 180ms ease,
+    transform 180ms ease;
+  width: 3.42rem !important;
+  z-index: 2;
+}
+
+.dashboard-profile-claim-trigger--webgl:hover
+  .dashboard-profile-points-trigger__claim-webgl,
+.dashboard-profile-claim-trigger--webgl:focus-visible
+  .dashboard-profile-points-trigger__claim-webgl,
+.dashboard-profile-claim-trigger--webgl[aria-expanded="true"]
+  .dashboard-profile-points-trigger__claim-webgl {
+  filter:
+    brightness(1.22)
+    contrast(1.12)
+    saturate(1.18)
+    drop-shadow(0 0.2rem 0.22rem rgba(2, 6, 23, 0.48))
+    drop-shadow(0 0 0.5rem rgba(254, 240, 138, 0.5))
+    drop-shadow(0 0 0.62rem rgba(185, 28, 28, 0.42))
+    drop-shadow(0 0 0.44rem rgba(34, 211, 238, 0.2));
+  animation: dashboard-profile-gift-pressure 920ms ease-in-out infinite;
+  transform: translateY(0.12rem) scaleX(1.12) scaleY(0.94) rotate(1deg);
+}
+
+@keyframes dashboard-profile-gift-pressure {
+  0%,
+  100% {
+    transform: translateY(0.14rem) scaleX(1.04) scaleY(0.98) rotate(0deg);
+  }
+
+  38% {
+    transform: translateY(0.1rem) scaleX(1.16) scaleY(0.92) rotate(-1.2deg);
+  }
+
+  68% {
+    transform: translateY(0.13rem) scaleX(1.1) scaleY(0.96) rotate(1.1deg);
+  }
 }
 
 .dashboard-profile-points-trigger__claim-package {
@@ -4342,13 +4996,14 @@ const DASHBOARD_HEADER_METER_RAIL_PULSE_MS = 1400;
 const DASHBOARD_HEADER_METER_MENU_EXIT_MS = 520;
 const DASHBOARD_HEADER_ACHIEVEMENT_ROTATE_MS = 9200;
 const DASHBOARD_HEADER_COMPOUND_PR_AUTOSCROLL_MS = 4800;
-const DASHBOARD_HEADER_CATEGORY_LEVEL_AUTOSCROLL_MS = 18000;
+const DASHBOARD_HEADER_CATEGORY_LEVEL_AUTOSCROLL_MS = 6400;
 const DASHBOARD_HEADER_CATEGORY_LEVEL_MANUAL_PAUSE_MS = 7000;
 const DASHBOARD_HEADER_TIMEOUT_PORTAL_VISIBLE_MS = 15000;
 const DASHBOARD_HEADER_TIMEOUT_PORTAL_BREAK_MS = 15000;
 const DASHBOARD_HEADER_TIMEOUT_PORTAL_INTERVAL_MS =
   DASHBOARD_HEADER_TIMEOUT_PORTAL_VISIBLE_MS +
   DASHBOARD_HEADER_TIMEOUT_PORTAL_BREAK_MS;
+const DASHBOARD_HEADER_TIMEOUT_PORTAL_ENABLED = false;
 const dashboardHeaderTimeoutPortalSafeZones = [
   { xMax: 30, xMin: 18, yMax: 56, yMin: 30 },
   { xMax: 58, xMin: 42, yMax: 58, yMin: 36 },
@@ -10558,9 +11213,14 @@ export default function UserHomeDashboardPage() {
   const [dashboardHeaderMeterMenuOpen, setDashboardHeaderMeterMenuOpen] =
     useState(false);
   const [
+    dashboardHeaderMeterMenuHighlighted,
+    setDashboardHeaderMeterMenuHighlighted,
+  ] = useState(false);
+  const [
     dashboardHeaderMeterPanelVisible,
     setDashboardHeaderMeterPanelVisible,
   ] = useState(false);
+  const dashboardHeaderMeterMenuIconActive = dashboardHeaderMeterMenuHighlighted;
   const [
     dashboardHeaderCategoryLevelActiveIndex,
     setDashboardHeaderCategoryLevelActiveIndex,
@@ -10691,8 +11351,20 @@ export default function UserHomeDashboardPage() {
     useState(false);
   const [dashboardProfileActionsOpen, setDashboardProfileActionsOpen] =
     useState(false);
+  const [
+    dashboardProfileHubHighlighted,
+    setDashboardProfileHubHighlighted,
+  ] = useState(false);
+  const [
+    dashboardProfileGearHighlighted,
+    setDashboardProfileGearHighlighted,
+  ] = useState(false);
   const [dashboardPointsDropdownOpen, setDashboardPointsDropdownOpen] =
     useState(false);
+  const [
+    dashboardClaimRewardsDropdownOpen,
+    setDashboardClaimRewardsDropdownOpen,
+  ] = useState(false);
   const [dashboardPointsActionMenuOpen, setDashboardPointsActionMenuOpen] =
     useState<"collection" | "store" | null>(null);
   const [
@@ -10703,8 +11375,10 @@ export default function UserHomeDashboardPage() {
     useState(false);
   const [dashboardHeaderRewards3DActive, setDashboardHeaderRewards3DActive] =
     useState(false);
+  const dashboardProfileRewardDropdownOpen =
+    dashboardPointsDropdownOpen || dashboardClaimRewardsDropdownOpen;
   const dashboardPointsMenuHighlighted =
-    dashboardHeaderRewards3DActive || dashboardPointsDropdownOpen;
+    dashboardHeaderRewards3DActive || dashboardProfileRewardDropdownOpen;
   const [dashboardMusicDropdownOpen, setDashboardMusicDropdownOpen] =
     useState(false);
   const [dashboardMusicEnabled, setDashboardMusicEnabled] = useState(false);
@@ -11094,6 +11768,7 @@ export default function UserHomeDashboardPage() {
     setDashboardProfileHubOpen(false);
     setDashboardProfileActionsOpen(false);
     setDashboardPointsDropdownOpen(false);
+    setDashboardClaimRewardsDropdownOpen(false);
     setDashboardHeaderMeterMenuOpen(false);
     setDashboardMusicDropdownOpen(false);
     setDashboardHeaderLogoClusterHighlighted(true);
@@ -11104,6 +11779,7 @@ export default function UserHomeDashboardPage() {
     setDashboardProfileHubOpen(false);
     setDashboardProfileActionsOpen(false);
     setDashboardPointsDropdownOpen(false);
+    setDashboardClaimRewardsDropdownOpen(false);
     setDashboardHeaderMeterMenuOpen(false);
     setDashboardMusicDropdownOpen(false);
     setDashboardHeroWidgetsDrawerOpen((open) => !open);
@@ -11965,6 +12641,7 @@ export default function UserHomeDashboardPage() {
     setDashboardHeroWidgetsDrawerOpen(false);
     setDashboardProfileHubOpen(false);
     setDashboardPointsDropdownOpen(false);
+    setDashboardClaimRewardsDropdownOpen(false);
     setDashboardHeaderMeterMenuOpen(false);
     setDashboardMusicDropdownOpen((open) => !open);
   };
@@ -13846,6 +14523,7 @@ export default function UserHomeDashboardPage() {
     setDashboardTrophyMenuOpen(false);
     setDashboardProfileActionsOpen(false);
     setDashboardPointsDropdownOpen(false);
+    setDashboardClaimRewardsDropdownOpen(false);
     setDashboardHeaderMeterMenuOpen(false);
     setDashboardMusicDropdownOpen(false);
 
@@ -13890,6 +14568,7 @@ export default function UserHomeDashboardPage() {
 
     setDashboardTrophyMenuOpen(false);
     setDashboardPointsDropdownOpen(false);
+    setDashboardClaimRewardsDropdownOpen(false);
     setDashboardMusicDropdownOpen(false);
 
     const closeOnOutside = (event: MouseEvent | TouchEvent) => {
@@ -13965,6 +14644,7 @@ export default function UserHomeDashboardPage() {
     if (!dashboardProfileActionsOpen) return;
 
     setDashboardTrophyMenuOpen(false);
+    setDashboardClaimRewardsDropdownOpen(false);
 
     const closeOnOutside = (event: MouseEvent | TouchEvent) => {
       const target = event.target;
@@ -14030,6 +14710,35 @@ export default function UserHomeDashboardPage() {
       window.removeEventListener("keydown", closeOnEscape);
     };
   }, [dashboardPointsDropdownOpen]);
+
+  useEffect(() => {
+    if (!dashboardClaimRewardsDropdownOpen) return;
+
+    const closeOnOutside = (event: MouseEvent | TouchEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        !dashboardPointsDropdownRef.current?.contains(target)
+      ) {
+        setDashboardClaimRewardsDropdownOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setDashboardClaimRewardsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutside);
+    document.addEventListener("touchstart", closeOnOutside);
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutside);
+      document.removeEventListener("touchstart", closeOnOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [dashboardClaimRewardsDropdownOpen]);
 
   useEffect(() => {
     if (dashboardPointsDropdownOpen) return;
@@ -16197,6 +16906,7 @@ export default function UserHomeDashboardPage() {
     setDashboardTrophyMenuOpen(false);
     setDashboardHeroWidgetsDrawerOpen(false);
     setDashboardPointsDropdownOpen(false);
+    setDashboardClaimRewardsDropdownOpen(false);
     setDashboardMusicDropdownOpen(false);
     setDashboardHeaderMeterMenuOpen(false);
     setActiveDashboardProfileHubLayer(0);
@@ -16211,12 +16921,25 @@ export default function UserHomeDashboardPage() {
     setDashboardTrophyMenuOpen(false);
     setDashboardHeroWidgetsDrawerOpen(false);
     setDashboardProfileHubOpen(false);
+    setDashboardClaimRewardsDropdownOpen(false);
     setDashboardMusicDropdownOpen(false);
     setDashboardHeaderMeterMenuOpen(false);
     clearDashboardGemVaultCloseTimeout();
     setDashboardGemVaultClosing(false);
     setDashboardPointsActionMenuOpen(null);
     setDashboardPointsDropdownOpen((open) => !open);
+  };
+  const toggleDashboardClaimRewardsDropdown = () => {
+    setDashboardTrophyMenuOpen(false);
+    setDashboardHeroWidgetsDrawerOpen(false);
+    setDashboardProfileHubOpen(false);
+    setDashboardMusicDropdownOpen(false);
+    setDashboardHeaderMeterMenuOpen(false);
+    clearDashboardGemVaultCloseTimeout();
+    setDashboardGemVaultClosing(false);
+    setDashboardPointsActionMenuOpen(null);
+    setDashboardPointsDropdownOpen(false);
+    setDashboardClaimRewardsDropdownOpen((open) => !open);
   };
   const selectDashboardProfileHubLayer = (layer: number) => {
     setActiveDashboardProfileHubLayer(Math.max(0, Math.min(2, layer)));
@@ -18906,14 +19629,6 @@ export default function UserHomeDashboardPage() {
         value: `${dashboardSummary.workoutsThisWeek}/${dashboardSummary.weeklySessionGoal}`,
       },
       {
-        id: "plan",
-        meta: dashboardPlanAttendanceCaption,
-        progress: dashboardSummary.planSessionProgress,
-        title: "Plan Sessions",
-        tone: "amber",
-        value: `${dashboardPlanSessionsAttended}/${dashboardSummary.planSessionTarget}`,
-      },
-      {
         id: "sets",
         meta: dashboardSummary.dailySetGroupSummary,
         progress: clampDashboardPercent(
@@ -19004,6 +19719,11 @@ export default function UserHomeDashboardPage() {
     };
 
     clearPortalTimers();
+
+    if (!DASHBOARD_HEADER_TIMEOUT_PORTAL_ENABLED) {
+      setDashboardHeaderTimeoutPortalOpen(false);
+      return;
+    }
 
     if (dashboardHeaderMotionPaused) return;
 
@@ -19541,11 +20261,7 @@ export default function UserHomeDashboardPage() {
   useEffect(() => {
     if (dashboardHeaderMotionPaused) return;
 
-    if (
-      !dashboardHeaderMeterMenuOpen ||
-      dashboardHeaderMeterPanelHighlightTarget !== "ufo" ||
-      dashboardHeaderCategoryLevelCount < 2
-    ) {
+    if (dashboardHeaderCategoryLevelCount < 2) {
       return;
     }
 
@@ -19565,8 +20281,6 @@ export default function UserHomeDashboardPage() {
     };
   }, [
     dashboardHeaderCategoryLevelCount,
-    dashboardHeaderMeterMenuOpen,
-    dashboardHeaderMeterPanelHighlightTarget,
     dashboardHeaderMotionPaused,
   ]);
   useEffect(() => {
@@ -21238,73 +21952,18 @@ export default function UserHomeDashboardPage() {
         }
         type="button"
       >
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__field"
+        <DashboardScrollButton3D
+          active={
+            dashboardHeaderScrollButtonDragging ||
+            Boolean(dashboardHeaderScrollButtonActiveDirection)
+          }
+          activeDirection={dashboardHeaderScrollButtonActiveDirection}
+          className="dashboard-header-scroll-button__webgl"
+          paused={dashboardHeaderMotionPaused}
+          showDown={canHeaderJoystickScrollDown}
+          showUp={canHeaderJoystickScrollUp}
+          tone={dashboardHeaderScrollButtonPreviewLink.toneKey}
         />
-        {canHeaderJoystickScrollUp ? (
-          <span
-            aria-hidden="true"
-            className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--up"
-          >
-            ^
-          </span>
-        ) : null}
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--left"
-        >
-          &lt;
-        </span>
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__ball"
-          style={{
-            background:
-              "radial-gradient(circle at 34% 26%, rgba(255,255,255,0.78), transparent 18%), radial-gradient(circle at 42% 38%, rgba(255,255,255,0.24), transparent 28%), radial-gradient(circle at 50% 52%, var(--dashboard-header-scroll-preview-core, rgba(34,211,238,0.90)), transparent 24%), radial-gradient(circle at 50% 52%, var(--dashboard-header-scroll-preview-core-soft, rgba(14,165,233,0.34)), transparent 50%), radial-gradient(circle at 62% 72%, var(--dashboard-header-scroll-preview-accent, rgba(34,211,238,0.44)), transparent 34%), conic-gradient(from 20deg, rgba(8,47,73,0.98), var(--dashboard-header-scroll-preview-accent, rgba(34,211,238,0.62)), var(--dashboard-header-scroll-preview-core, rgba(250,204,21,0.62)), rgba(15,23,42,0.96), rgba(8,47,73,0.98))",
-            borderColor:
-              "var(--dashboard-header-scroll-preview-ring, rgba(207,250,254,0.28))",
-            boxShadow:
-              "0 0 18px var(--dashboard-header-scroll-preview-shadow, rgba(34,211,238,0.22)), 0 8px 18px rgba(0,0,0,0.30), inset 0 1px 0 rgba(255,255,255,0.28), inset 0 -10px 16px rgba(2,6,23,0.48)",
-          }}
-        >
-          <span className="dashboard-header-scroll-button__grid" />
-          <span className="dashboard-header-scroll-button__latitudes" />
-          <span
-            className="dashboard-header-scroll-button__core"
-            style={{
-              background:
-                "radial-gradient(circle at 50% 45%, rgba(255,255,255,0.88) 0 0.12rem, transparent 0.14rem), radial-gradient(circle, var(--dashboard-header-scroll-preview-core, rgba(34,211,238,0.92)), transparent 62%), conic-gradient(from 180deg, var(--dashboard-header-scroll-preview-core, rgba(250,204,21,0.88)), var(--dashboard-header-scroll-preview-accent, rgba(34,211,238,0.82)), var(--dashboard-header-scroll-preview-core-soft, rgba(99,102,241,0.56)), var(--dashboard-header-scroll-preview-core, rgba(250,204,21,0.88)))",
-              borderColor:
-                "var(--dashboard-header-scroll-preview-ring, rgba(255,255,255,0.36))",
-              boxShadow:
-                "0 0 12px var(--dashboard-header-scroll-preview-shadow, rgba(250,204,21,0.46)), 0 0 18px var(--dashboard-header-scroll-preview-core, rgba(34,211,238,0.32)), inset 0 1px 0 rgba(255,255,255,0.44)",
-            }}
-          />
-          <span
-            className="dashboard-header-scroll-button__spark"
-            style={{
-              background:
-                "var(--dashboard-header-scroll-preview-core, rgba(250,204,21,0.92))",
-              boxShadow:
-                "0 0 10px var(--dashboard-header-scroll-preview-shadow, rgba(250,204,21,0.85)), 0 0 18px var(--dashboard-header-scroll-preview-accent, rgba(34,211,238,0.36))",
-            }}
-          />
-        </span>
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--right"
-        >
-          &gt;
-        </span>
-        {canHeaderJoystickScrollDown ? (
-          <span
-            aria-hidden="true"
-            className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--down"
-          >
-            v
-          </span>
-        ) : null}
       </button>
     );
   };
@@ -21377,31 +22036,17 @@ export default function UserHomeDashboardPage() {
         }
         type="button"
       >
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__field"
+        <DashboardScrollButton3D
+          active={
+            dashboardHeaderMenuOrbitDragging ||
+            Boolean(dashboardHeaderMenuOrbitActiveDirection)
+          }
+          activeDirection={dashboardHeaderMenuOrbitActiveDirection}
+          className="dashboard-header-scroll-button__webgl"
+          horizontal
+          paused={dashboardHeaderMotionPaused}
+          tone={dashboardHeaderMenuOrbitPreviewLink.toneKey}
         />
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--left"
-        >
-          &lt;
-        </span>
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__ball"
-        >
-          <span className="dashboard-header-scroll-button__grid" />
-          <span className="dashboard-header-scroll-button__latitudes" />
-          <span className="dashboard-header-scroll-button__core" />
-          <span className="dashboard-header-scroll-button__spark" />
-        </span>
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--right"
-        >
-          &gt;
-        </span>
       </button>
     );
   };
@@ -21469,35 +22114,15 @@ export default function UserHomeDashboardPage() {
         }
         type="button"
       >
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__field"
-          style={{ inset: "0.36rem 0.38rem" }}
+        <DashboardScrollButton3D
+          active
+          activeDirection={accountPanelActive ? "right" : "left"}
+          className="dashboard-header-scroll-button__webgl"
+          compact
+          horizontal
+          paused={dashboardHeaderMotionPaused}
+          tone={dashboardHeaderMenuOrbitPreviewLink.toneKey}
         />
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--left"
-          style={{ fontSize: "0.66rem", left: "0.08rem" }}
-        >
-          &lt;
-        </span>
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__ball"
-          style={{ height: "1.35rem", width: "1.35rem" }}
-        >
-          <span className="dashboard-header-scroll-button__grid" />
-          <span className="dashboard-header-scroll-button__latitudes" />
-          <span className="dashboard-header-scroll-button__core" />
-          <span className="dashboard-header-scroll-button__spark" />
-        </span>
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--right"
-          style={{ fontSize: "0.66rem", right: "0.08rem" }}
-        >
-          &gt;
-        </span>
       </button>
     );
   };
@@ -21941,138 +22566,15 @@ export default function UserHomeDashboardPage() {
         }
         type="button"
       >
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute rounded-[inherit]"
-          style={{
-            background:
-              "radial-gradient(ellipse at 50% 14%, rgba(255,255,255,0.2), transparent 28%), conic-gradient(from 215deg, rgba(34,211,238,0.1), rgba(207,250,254,0.32), rgba(251,191,36,0.18), rgba(15,23,42,0.14), rgba(34,211,238,0.1))",
-            inset: "-0.22rem",
-            opacity: 0.9,
-            transform: "translateZ(-18px) rotateX(58deg) scaleY(0.86)",
-            zIndex: 0,
-          }}
+        <DashboardScrollButton3D
+          active={dashboardPageAnalogBallActive}
+          activeDirection={dashboardPageAnalogActiveDirection}
+          className="dashboard-header-scroll-button__webgl dashboard-header-scroll-button__webgl--page"
+          paused={dashboardHeaderMotionPaused}
+          showDown={canPageJoystickScrollDown}
+          showUp={canPageJoystickScrollUp}
+          tone={activeDashboardHeaderLink.toneKey}
         />
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute rounded-[20px]"
-          style={{
-            background:
-              "linear-gradient(145deg, rgba(255,255,255,0.18), transparent 36%), radial-gradient(circle at 72% 78%, rgba(34,211,238,0.16), transparent 34%)",
-            boxShadow:
-              "inset 0 0.08rem 0 rgba(255,255,255,0.2), inset 0 -0.24rem 0.5rem rgba(2,6,23,0.36)",
-            inset: "0.24rem",
-            opacity: 0.8,
-            transform: "translateZ(2px)",
-            zIndex: 2,
-          }}
-        />
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__field"
-          style={{
-            background:
-              "radial-gradient(ellipse at 50% 52%, rgba(2,6,23,0.42), transparent 68%), radial-gradient(ellipse at 50% 24%, rgba(125,211,252,0.2), transparent 54%), linear-gradient(180deg, rgba(15,23,42,0.18), rgba(2,6,23,0.52))",
-            border: "1px solid rgba(207,250,254,0.14)",
-            boxShadow:
-              "inset 0 0.32rem 0.72rem rgba(255,255,255,0.08), inset 0 -0.4rem 0.7rem rgba(0,0,0,0.34), 0 0.5rem 0.82rem rgba(0,0,0,0.26)",
-            inset: "0.52rem",
-            opacity: 0.95,
-            transform: "translateZ(8px) rotateX(22deg)",
-            zIndex: 4,
-          }}
-        />
-        {canPageJoystickScrollUp ? (
-          <span
-            aria-hidden="true"
-            className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--up"
-          >
-            ^
-          </span>
-        ) : null}
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--left"
-        >
-          &lt;
-        </span>
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-1/2 rounded-full"
-          style={{
-            background:
-              "radial-gradient(ellipse at center, rgba(0,0,0,0.56), rgba(2,6,23,0.22) 46%, transparent 72%)",
-            filter: "blur(0.08rem)",
-            height: "1.12rem",
-            opacity: 0.72,
-            transform:
-              "translate(-50%, -50%) translateY(1.46rem) rotateX(64deg) scaleX(1.34)",
-            width: "3rem",
-            zIndex: 8,
-          }}
-        />
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__ball"
-          style={{
-            background:
-              "radial-gradient(circle at 30% 20%, rgba(224,247,255,0.98) 0 0.24rem, transparent 0.48rem), radial-gradient(circle at 36% 31%, rgba(125,211,252,0.72), transparent 26%), radial-gradient(circle at 48% 45%, rgba(14,165,233,0.98), transparent 38%), radial-gradient(circle at 72% 78%, rgba(3,7,18,0.86), transparent 58%), conic-gradient(from 34deg, #082f49, #0ea5e9, #67e8f9, #0369a1, #020617, #082f49)",
-            borderColor: "rgba(125,211,252,0.54)",
-            boxShadow:
-              "0 0 1.35rem rgba(34,211,238,0.34), 0 0.68rem 1rem rgba(0,0,0,0.5), 0 0.14rem 0.2rem rgba(255,255,255,0.22), inset 0.16rem 0.2rem 0.22rem rgba(224,247,255,0.5), inset -0.38rem -0.56rem 0.86rem rgba(3,7,18,0.78)",
-            animation: dashboardPageAnalogBallActive ? undefined : "none",
-            height: "3.02rem",
-            overflow: "hidden",
-            transformStyle: "preserve-3d",
-            width: "3.02rem",
-          }}
-        >
-          <DashboardBasketball3D
-            active={dashboardPageAnalogBallActive}
-            direction={dashboardPageAnalogActiveDirection}
-          />
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute rounded-full"
-            style={{
-              background:
-                "radial-gradient(circle at 50% 50%, transparent 0 38%, rgba(125,211,252,0.18) 52%, rgba(2,6,23,0.36) 78%), linear-gradient(145deg, rgba(255,255,255,0.2), transparent 42%)",
-              inset: "0.14rem",
-              opacity: 0.72,
-              zIndex: 11,
-            }}
-          />
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute rounded-full"
-            style={{
-              background:
-                "radial-gradient(circle at center, rgba(255,255,255,0.82), rgba(207,250,254,0.24) 42%, transparent 66%)",
-              filter: "blur(0.015rem)",
-              height: "0.92rem",
-              left: "0.62rem",
-              opacity: 0.7,
-              top: "0.46rem",
-              transform: "rotate(-22deg) scaleX(1.18)",
-              width: "0.58rem",
-              zIndex: 13,
-            }}
-          />
-        </span>
-        <span
-          aria-hidden="true"
-          className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--right"
-        >
-          &gt;
-        </span>
-        {canPageJoystickScrollDown ? (
-          <span
-            aria-hidden="true"
-            className="dashboard-header-scroll-button__arrow dashboard-header-scroll-button__arrow--down"
-          >
-            v
-          </span>
-        ) : null}
       </button>
     );
   };
@@ -23666,6 +24168,221 @@ export default function UserHomeDashboardPage() {
     </svg>
   );
 
+  const renderDashboardHeaderIdleStreakMeter = (side: "left" | "right") => {
+    const isWeeklyMeter = side === "right";
+
+    if (isWeeklyMeter) {
+      return (
+        <div
+          aria-hidden="true"
+          className={`dashboard-header-idle-streak-meter dashboard-header-idle-streak-meter--${side} dashboard-header-idle-streak-meter--weekly`}
+        >
+          <span className="dashboard-header-idle-streak-meter__halo" />
+          <div className="dashboard-header-idle-streak-meter__card">
+            <div
+              className="dashboard-header-idle-streak-meter__actual dashboard-header-idle-weekly-meter dashboard-header-week-sessions dashboard-header-meter-scroller__meter dashboard-header-meter-scroller__meter--center text-emerald-50"
+              role="meter"
+              style={
+                {
+                  "--dashboard-week-session-bar": `${dashboardSummary.weeklySessionProgress}%`,
+                } as CSSProperties
+              }
+            >
+              <span
+                aria-hidden="true"
+                className="dashboard-header-week-sessions__graph"
+              >
+                <span
+                  className={`dashboard-header-week-sessions__bar ${
+                    dashboardSummary.workoutsThisWeek > 0
+                      ? "dashboard-header-week-sessions__bar--active"
+                      : ""
+                  }`}
+                >
+                  <span className="dashboard-header-week-sessions__fill" />
+                  <span
+                    aria-hidden="true"
+                    className="dashboard-header-week-sessions__goal-lines"
+                  >
+                    {renderDashboardWeeklySessionGoalSections(
+                      "idle-weekly-session-goal-section",
+                    )}
+                  </span>
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="dashboard-header-week-sessions__opening-sheen"
+                />
+              </span>
+              <span className="dashboard-header-week-sessions__label">
+                {`${dashboardSummary.workoutsThisWeek}/${dashboardSummary.weeklySessionGoal} Week`}
+              </span>
+              <span className="dashboard-header-meter-deadline dashboard-header-meter-deadline--week">
+                Reset {dashboardWeeklySessionResetLabel}
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const gradientId = `dashboardHeaderIdlePlanAttendanceGradient-${side}`;
+
+    return (
+      <div
+        aria-hidden="true"
+        className={`dashboard-header-idle-streak-meter dashboard-header-idle-streak-meter--${side} dashboard-header-idle-streak-meter--plan`}
+      >
+        <span className="dashboard-header-idle-streak-meter__halo" />
+        <div className="dashboard-header-idle-streak-meter__card">
+          <div
+            className="dashboard-header-idle-streak-meter__actual dashboard-header-plan-attendance dashboard-header-streak-fire dashboard-header-meter-scroller__meter dashboard-header-meter-scroller__meter--center text-amber-50"
+            role="meter"
+            style={
+              {
+                "--dashboard-header-plan-attendance-progress": `${dashboardSummary.planSessionProgress}%`,
+              } as CSSProperties
+            }
+          >
+            <span
+              aria-hidden="true"
+              className="dashboard-header-streak-fire__flame"
+            />
+            <span
+              aria-hidden="true"
+              className="dashboard-header-streak-fire__embers"
+            />
+            <span
+              aria-hidden="true"
+              className="dashboard-header-streak-fire__gauge"
+            >
+              <svg
+                aria-hidden="true"
+                className="dashboard-header-streak-fire__gauge-svg"
+                viewBox="0 0 96 96"
+              >
+                <circle
+                  cx="48"
+                  cy="48"
+                  fill="rgba(2,6,23,0.42)"
+                  r="41"
+                  stroke="rgba(224,242,254,0.08)"
+                  strokeWidth="1"
+                />
+                <circle
+                  cx="48"
+                  cy="48"
+                  fill="none"
+                  pathLength={100}
+                  r="35.5"
+                  stroke="rgba(15,23,42,0.78)"
+                  strokeWidth="10"
+                />
+                <circle
+                  className="dashboard-header-plan-attendance__progress-ring"
+                  cx="48"
+                  cy="48"
+                  fill="none"
+                  pathLength={100}
+                  r="35.5"
+                  stroke={`url(#${gradientId})`}
+                  strokeDasharray="100"
+                  strokeDashoffset={100 - dashboardSummary.planSessionProgress}
+                  strokeLinecap="round"
+                  strokeWidth="10"
+                  transform="rotate(-90 48 48)"
+                />
+                {Array.from({
+                  length: dashboardSummary.planSessionTarget,
+                }).map((_, tickIndex) => {
+                  const tickAngle =
+                    tickIndex * (360 / dashboardSummary.planSessionTarget);
+                  const isFilledTick =
+                    tickIndex < dashboardPlanSessionsAttended;
+
+                  return (
+                    <line
+                      key={`dashboard-header-idle-plan-attendance-${side}-tick-${tickIndex}`}
+                      stroke={
+                        isFilledTick
+                          ? "rgba(254,240,138,0.92)"
+                          : "rgba(148,163,184,0.36)"
+                      }
+                      strokeLinecap="round"
+                      strokeWidth={isFilledTick ? 2.1 : 1.25}
+                      transform={`rotate(${tickAngle} 48 48)`}
+                      x1="48"
+                      x2="48"
+                      y1="7"
+                      y2={isFilledTick ? "18" : "15"}
+                    />
+                  );
+                })}
+                <circle
+                  cx="48"
+                  cy="48"
+                  fill="rgba(2,6,23,0.86)"
+                  r="25.5"
+                  stroke="rgba(125,211,252,0.26)"
+                  strokeWidth="1.4"
+                />
+                <circle
+                  cx="48"
+                  cy="48"
+                  fill="none"
+                  r="30"
+                  stroke="rgba(255,255,255,0.12)"
+                  strokeDasharray="1.6 5.2"
+                  strokeLinecap="round"
+                  strokeWidth="1"
+                />
+                <circle
+                  className="dashboard-header-plan-attendance__spark"
+                  cx="48"
+                  cy="12.5"
+                  fill="rgb(250,204,21)"
+                  opacity={dashboardPlanSessionsAttended > 0 ? 1 : 0}
+                  r="3.2"
+                  stroke="rgba(254,249,195,0.9)"
+                  strokeWidth="1"
+                  transform={`rotate(${
+                    dashboardSummary.planSessionProgress * 3.6
+                  } 48 48)`}
+                />
+                <defs>
+                  <linearGradient
+                    gradientUnits="userSpaceOnUse"
+                    id={gradientId}
+                    x1="14"
+                    x2="82"
+                    y1="82"
+                    y2="14"
+                  >
+                    <stop offset="0%" stopColor="rgb(34,211,238)" />
+                    <stop offset="42%" stopColor="rgb(52,211,153)" />
+                    <stop offset="72%" stopColor="rgb(250,204,21)" />
+                    <stop offset="100%" stopColor="rgb(250,204,21)" />
+                  </linearGradient>
+                </defs>
+              </svg>
+            </span>
+            <span className="dashboard-header-streak-fire__content">
+              <span className="dashboard-header-streak-fire__value">
+                {`${dashboardPlanSessionsAttended}/${dashboardSummary.planSessionTarget}`}
+              </span>
+              <span className="dashboard-header-streak-fire__label">
+                Plan Sessions
+              </span>
+            </span>
+            <span className="dashboard-header-meter-deadline dashboard-header-meter-deadline--streak">
+              {dashboardPlanAttendanceCaption}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderDashboardHeaderTimeoutPortalMeter = () => {
     if (!dashboardHeaderTimeoutPortalMeter) return null;
 
@@ -24390,6 +25107,10 @@ export default function UserHomeDashboardPage() {
         dashboardPointsDropdownOpen
           ? "dashboard-header-vortex-shell--points-dropdown-open"
           : ""
+      } ${
+        dashboardClaimRewardsDropdownOpen
+          ? "dashboard-header-vortex-shell--claim-dropdown-open"
+          : ""
       } sticky top-0 z-[120] mb-0 w-full shrink-0 overflow-visible border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl`}
       data-dashboard-header-timeout={dashboardHeaderTimedOut ? "true" : "false"}
       onBlurCapture={handleDashboardHeaderSurfaceBlur}
@@ -24422,9 +25143,12 @@ export default function UserHomeDashboardPage() {
           <span className="dashboard-header-ambient-city__ferris-wheel" />
         </span>
         <span className="dashboard-header-ambient-field__meteor dashboard-header-ambient-field__meteor--one" />
-        <span className="dashboard-header-ambient-field__meteor dashboard-header-ambient-field__meteor--two" />
-        <span className="dashboard-header-ambient-field__meteor dashboard-header-ambient-field__meteor--three" />
-        <span className="dashboard-header-ambient-field__meteor dashboard-header-ambient-field__meteor--four" />
+        <span className="dashboard-header-ambient-field__meteor dashboard-header-ambient-field__meteor--two dashboard-header-ambient-field__meteor--blue dashboard-header-ambient-field__meteor--impact" />
+        <span className="dashboard-header-ambient-field__meteor dashboard-header-ambient-field__meteor--three dashboard-header-ambient-field__meteor--red dashboard-header-ambient-field__meteor--impact" />
+        <span className="dashboard-header-ambient-field__meteor dashboard-header-ambient-field__meteor--four dashboard-header-ambient-field__meteor--yellow dashboard-header-ambient-field__meteor--impact" />
+        <span className="dashboard-header-ambient-field__meteor-burst dashboard-header-ambient-field__meteor-burst--blue" />
+        <span className="dashboard-header-ambient-field__meteor-burst dashboard-header-ambient-field__meteor-burst--red" />
+        <span className="dashboard-header-ambient-field__meteor-burst dashboard-header-ambient-field__meteor-burst--yellow" />
         {dashboardHeaderCategoryLevels.map(
           (categoryActor, categoryActorIndex) => (
             <span
@@ -24717,49 +25441,49 @@ export default function UserHomeDashboardPage() {
         <span className="dashboard-header-ambient-field__node dashboard-header-ambient-field__node--four" />
       </div>
       <div aria-hidden="true" className="dashboard-header-category-overlay">
-        {dashboardHeaderCategoryLevels.map(
-          (categoryActor, categoryActorIndex) => {
-            const categoryActorFloorSlot =
-              dashboardHeaderCategoryFloorSlots[
-                categoryActorIndex % dashboardHeaderCategoryFloorSlots.length
-              ];
-
-            return (
-              <span
-                className={`dashboard-header-category-actor dashboard-header-category-actor--${categoryActor.id}`}
-                data-category-level={`${categoryActor.label} level ${categoryActor.level}`}
-                key={`dashboard-header-category-overlay-${categoryActor.id}`}
-                style={
-                  {
-                    "--dashboard-header-category-appear-delay": `${categoryActorFloorSlot.delay}s`,
-                    "--dashboard-header-category-color": categoryActor.color,
-                    "--dashboard-header-category-floor-left": `${categoryActorFloorSlot.left}%`,
-                    "--dashboard-header-category-floor-top": `${categoryActorFloorSlot.top}%`,
-                    "--dashboard-header-category-level": `${categoryActor.level}%`,
-                    "--dashboard-header-category-meter-level":
-                      getDashboardHeaderCategoryMeterFill(categoryActor.level),
-                    "--dashboard-header-category-left": `${categoryActor.left}%`,
-                    "--dashboard-header-category-top": `${categoryActor.top}%`,
-                  } as CSSProperties
-                }
-              >
-                {renderDashboardHeaderCategoryActorFigure()}
-                <span className="dashboard-header-category-actor__label">
-                  {categoryActor.shortLabel}
-                </span>
-                <span className="dashboard-header-category-actor__meter">
-                  <span />
-                </span>
-                <span className="dashboard-header-category-actor__level">
-                  LV {Math.max(1, Math.round(categoryActor.level / 10))}
-                </span>
-              </span>
-            );
-          },
-        )}
+        {activeDashboardHeaderCategoryLevel ? (
+          <span
+            className={`dashboard-header-category-actor dashboard-header-category-actor--center-stage dashboard-header-category-actor--${activeDashboardHeaderCategoryLevel.id}`}
+            data-category-level={`${activeDashboardHeaderCategoryLevel.label} level ${activeDashboardHeaderCategoryLevel.level}`}
+            key={`dashboard-header-category-overlay-center-${activeDashboardHeaderCategoryLevel.id}`}
+            style={
+              {
+                "--dashboard-header-category-color":
+                  activeDashboardHeaderCategoryLevel.color,
+                "--dashboard-header-category-floor-left": "50%",
+                "--dashboard-header-category-floor-top": "52%",
+                "--dashboard-header-category-level": `${activeDashboardHeaderCategoryLevel.level}%`,
+                "--dashboard-header-category-meter-level":
+                  getDashboardHeaderCategoryMeterFill(
+                    activeDashboardHeaderCategoryLevel.level,
+                  ),
+                "--dashboard-header-category-left": "50%",
+                "--dashboard-header-category-scale": "0.64",
+                "--dashboard-header-category-top": "52%",
+              } as CSSProperties
+            }
+          >
+            {renderDashboardHeaderCategoryActorFigure()}
+            <span className="dashboard-header-category-actor__label">
+              {activeDashboardHeaderCategoryLevel.shortLabel}
+            </span>
+            <span className="dashboard-header-category-actor__meter">
+              <span />
+            </span>
+            <span className="dashboard-header-category-actor__level">
+              LV{" "}
+              {Math.max(
+                1,
+                Math.round(activeDashboardHeaderCategoryLevel.level / 10),
+              )}
+            </span>
+          </span>
+        ) : null}
       </div>
       <div aria-hidden="true" className="dashboard-header-idle-training-floor">
         <span className="dashboard-header-idle-training-floor__ground" />
+        {renderDashboardHeaderIdleStreakMeter("left")}
+        {renderDashboardHeaderIdleStreakMeter("right")}
         <span className="dashboard-header-idle-station-track">
           {dashboardHeaderIdleEquipmentStations.map((station, stationIndex) => {
             const stationCategory = dashboardHeaderCategoryLevels.find(
@@ -25386,7 +26110,9 @@ export default function UserHomeDashboardPage() {
           </svg>
         </span>
       </div>
-      {dashboardHeaderTimedOut && dashboardHeaderTimeoutPortalMeter ? (
+      {DASHBOARD_HEADER_TIMEOUT_PORTAL_ENABLED &&
+      dashboardHeaderTimedOut &&
+      dashboardHeaderTimeoutPortalMeter ? (
         <div
           aria-hidden="true"
           className={`dashboard-header-timeout-meter-portal ${
@@ -25426,7 +26152,7 @@ export default function UserHomeDashboardPage() {
           data-logo-cluster-highlighted={
             dashboardHeaderLogoClusterAnimating ? "true" : "false"
           }
-          className={`relative isolate grid min-h-[58px] shrink-0 place-items-center overflow-visible ${
+          className={`dashboard-header-logo-cluster relative isolate grid min-h-[58px] shrink-0 place-items-center overflow-visible ${
             clampedDashboardOrbiterRow === 0 ? "w-[4.75rem]" : "w-12"
           }`}
           ref={dashboardTrophyMenuRef}
@@ -25443,7 +26169,7 @@ export default function UserHomeDashboardPage() {
           onPointerEnter={() => setDashboardHeaderLogoClusterHighlighted(true)}
           onPointerLeave={() => setDashboardHeaderLogoClusterHighlighted(false)}
         >
-          {clampedDashboardOrbiterRow === 0 ? (
+          {clampedDashboardOrbiterRow === 0 && !dashboardHeaderTimedOut ? (
             <>
               <button
                 aria-controls="dashboard-trophy-menu"
@@ -25491,7 +26217,7 @@ export default function UserHomeDashboardPage() {
                 />
                 <span
                   aria-hidden="true"
-                  className="relative grid h-11 w-11 place-items-center"
+                  className="dashboard-header-trophy-selector__icon relative grid h-11 w-11 place-items-center"
                   style={
                     {
                       transformOrigin: "50% 50%",
@@ -25836,7 +26562,7 @@ export default function UserHomeDashboardPage() {
           >
             <div
               aria-label="Dashboard selector"
-              className="ml-1 flex w-fit max-w-[calc(100vw-7.5rem)] shrink-0 select-none items-center gap-2 bg-transparent p-0 shadow-none md:max-w-[min(64vw,620px)] lg:max-w-none"
+              className="dashboard-header-dashboard-selector ml-1 flex w-fit max-w-[calc(100vw-7.5rem)] shrink-0 select-none items-center gap-2 bg-transparent p-0 shadow-none md:max-w-[min(64vw,720px)] lg:max-w-none"
             >
               <div
                 aria-label={`${activeDashboardHeaderLink.label} dashboard tab`}
@@ -25853,7 +26579,7 @@ export default function UserHomeDashboardPage() {
                 role="group"
               >
                 {renderDashboardHeaderScrollControls()}
-                <div className="flex min-w-[204px] shrink-0 items-center justify-center gap-1.5">
+                <div className="dashboard-header-selector-body flex min-w-[204px] shrink-0 items-center justify-center gap-1.5">
                   <div
                     className="dashboard-header-rail-pocket relative flex h-[4.35rem] min-w-[6.05rem] shrink-0 translate-x-3 items-center justify-center text-cyan-100"
                     style={activeDashboardHeaderTone.iconEffectStyle}
@@ -25907,7 +26633,7 @@ export default function UserHomeDashboardPage() {
                   </div>
                   <Link
                     aria-label={`Open ${activeDashboardHeaderLink.label}`}
-                    className="-ml-1 block whitespace-nowrap rounded-xl px-1 py-1 transition hover:-translate-y-0.5 hover:bg-white/[0.04]"
+                    className="dashboard-header-selector-copy -ml-1 block whitespace-nowrap rounded-xl px-1 py-1 transition hover:-translate-y-0.5 hover:bg-white/[0.04]"
                     draggable={false}
                     href={activeDashboardHeaderLink.href}
                     onClick={() =>
@@ -25951,6 +26677,39 @@ export default function UserHomeDashboardPage() {
                   </Link>
                 </div>
               </div>
+              {activeDashboardHeaderCategoryLevel ? (
+                <span
+                  aria-hidden="true"
+                  className="dashboard-header-selector-category-dock"
+                  style={
+                    {
+                      "--dashboard-header-category-color":
+                        activeDashboardHeaderCategoryLevel.color,
+                      "--dashboard-header-category-level": `${activeDashboardHeaderCategoryLevel.level}%`,
+                      "--dashboard-header-category-meter-level":
+                        getDashboardHeaderCategoryMeterFill(
+                          activeDashboardHeaderCategoryLevel.level,
+                        ),
+                    } as CSSProperties
+                  }
+                >
+                  <span
+                    className={`dashboard-header-category-actor dashboard-header-category-actor--menu-dock dashboard-header-category-actor--${activeDashboardHeaderCategoryLevel.id}`}
+                    data-category-level={`${activeDashboardHeaderCategoryLevel.label} level ${activeDashboardHeaderCategoryLevel.level}`}
+                  >
+                    {renderDashboardHeaderCategoryActorFigure()}
+                    <span className="dashboard-header-category-actor__label">
+                      {activeDashboardHeaderCategoryLevel.shortLabel}
+                    </span>
+                    <span className="dashboard-header-category-actor__meter">
+                      <span />
+                    </span>
+                    <span className="dashboard-header-category-actor__level">
+                      LV {activeDashboardHeaderCategoryLevelNumber}
+                    </span>
+                  </span>
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -26576,14 +27335,14 @@ export default function UserHomeDashboardPage() {
               dashboardProfileActionsOpen ? "true" : "false"
             }
             style={
-              dashboardPointsDropdownOpen
+              dashboardProfileRewardDropdownOpen
                 ? ({ zIndex: 420 } as CSSProperties)
                 : undefined
             }
           >
             <div
               className={`dashboard-header-profile-cluster relative flex min-h-[58px] shrink-0 items-center gap-2 ${
-                dashboardPointsDropdownOpen ? "z-[230]" : "z-[95]"
+                dashboardProfileRewardDropdownOpen ? "z-[230]" : "z-[95]"
               }`}
             >
               <button
@@ -26592,7 +27351,13 @@ export default function UserHomeDashboardPage() {
                 aria-label={`Open profile hub, Sound Fitness level ${soundFitnessLevel}`}
                 className="dashboard-profile-hub-trigger relative isolate flex min-h-[58px] shrink-0 items-center rounded-[22px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:bg-transparent"
                 data-dashboard-tooltip={`Profile hub, level ${soundFitnessLevel}`}
+                onBlur={() => setDashboardProfileHubHighlighted(false)}
                 onClick={openDashboardProfileHub}
+                onFocus={() => setDashboardProfileHubHighlighted(true)}
+                onMouseEnter={() => setDashboardProfileHubHighlighted(true)}
+                onMouseLeave={() => setDashboardProfileHubHighlighted(false)}
+                onPointerEnter={() => setDashboardProfileHubHighlighted(true)}
+                onPointerLeave={() => setDashboardProfileHubHighlighted(false)}
                 type="button"
               >
                 <span
@@ -26607,12 +27372,13 @@ export default function UserHomeDashboardPage() {
                     } as CSSProperties
                   }
                 >
-                  <Image
-                    alt=""
-                    className="relative z-10 h-11 w-11 rounded-full object-contain"
-                    height={44}
-                    src="/sound-fitness-logo.png"
-                    width={44}
+                  <DashboardProfileIcon3D
+                    active={
+                      dashboardProfileHubHighlighted || dashboardProfileHubOpen
+                    }
+                    className="dashboard-sound-level-badge__webgl"
+                    levelProgress={soundFitnessLevelProgress}
+                    paused={dashboardHeaderMotionPaused}
                   />
                   <span className="dashboard-sound-level-badge__band pointer-events-none absolute inset-x-0.5 bottom-0.5 z-20 h-[40%] rounded-b-full border-t border-cyan-200/35 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.38),rgba(15,23,42,0.42)_62%,rgba(2,6,23,0.78))] shadow-[0_-4px_14px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.20)]" />
                   <span
@@ -26635,14 +27401,16 @@ export default function UserHomeDashboardPage() {
                 <button
                   aria-controls="dashboard-points-dropdown"
                   aria-expanded={dashboardPointsDropdownOpen}
-                  aria-label={`Open Sound Points rewards, ${soundPoints.toLocaleString()} points, ${soundTokens.toLocaleString()} tokens, ${soundEmeralds.toLocaleString()} emeralds, ${dashboardCoreLightning.intensity.toLocaleString()} intensity lightning, ${dashboardCoreLightning.consistency.toLocaleString()} consistency lightning, ${dashboardCoreLightning.recovery.toLocaleString()} recovery lightning, ${dashboardKnowledgeLightning.toLocaleString()} knowledge lightning, ${dashboardVolumeLightning.toLocaleString()} volume lightning, and ${dashboardTechniqueLightning.toLocaleString()} technique lightning`}
+                  aria-label={`Open Sound Points rewards, ${soundPoints.toLocaleString()} points, ${soundTokens.toLocaleString()} sound coins, ${soundEmeralds.toLocaleString()} emeralds, ${dashboardCoreLightning.intensity.toLocaleString()} intensity lightning, ${dashboardCoreLightning.consistency.toLocaleString()} consistency lightning, ${dashboardCoreLightning.recovery.toLocaleString()} recovery lightning, ${dashboardKnowledgeLightning.toLocaleString()} knowledge lightning, ${dashboardVolumeLightning.toLocaleString()} volume lightning, and ${dashboardTechniqueLightning.toLocaleString()} technique lightning`}
                   className="dashboard-profile-points-trigger flex min-h-[68px] min-w-[88px] shrink-0 flex-col items-start justify-center gap-0.5 rounded-[18px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:border-emerald-200/18 hover:bg-emerald-300/8"
                   data-dashboard-tooltip="Sound Points"
                   data-dropdown-open={
                     dashboardPointsDropdownOpen ? "true" : "false"
                   }
                   data-motion-paused={
-                    dashboardHeaderMotionPaused ? "true" : "false"
+                    !dashboardPointsMenuHighlighted || dashboardHeaderMotionPaused
+                      ? "true"
+                      : "false"
                   }
                   onBlur={() => setDashboardHeaderRewards3DActive(false)}
                   onClick={toggleDashboardPointsDropdown}
@@ -26660,33 +27428,49 @@ export default function UserHomeDashboardPage() {
                       <span className="sr-only">Emeralds</span>
                       <span
                         aria-hidden="true"
-                        className="dashboard-profile-points-trigger__mini-gems"
+                        className="dashboard-profile-points-trigger__webgl-shell dashboard-profile-points-trigger__webgl-shell--gems"
                       >
-                        {dashboardAppGemOrbitItems.map((item) => (
-                          <span
-                            className="dashboard-profile-points-trigger__mini-gem"
-                            data-gem-tone={item.tone}
-                            key={`dashboard-profile-points-trigger-mini-gem-${item.id}`}
-                          />
-                        ))}
+                        <DashboardGemStage3D
+                          className="dashboard-profile-points-trigger__webgl-gems"
+                          paused={
+                            !dashboardPointsMenuHighlighted ||
+                            dashboardHeaderMotionPaused
+                          }
+                          tones={dashboardAppGemOrbitItems.map(
+                            (item) => item.tone,
+                          )}
+                          vaultOpen={dashboardPointsMenuHighlighted}
+                        />
                       </span>
                       {soundEmeralds.toLocaleString()}
                     </span>
                     <span className="dashboard-profile-points-trigger__value-row text-xs font-black leading-none text-white">
-                      <span className="sr-only">Tokens</span>
+                      <span className="sr-only">Sound Coins</span>
                       <span
                         aria-hidden="true"
-                        className="dashboard-profile-points-trigger__sound-coin"
-                      />
+                        className="dashboard-profile-points-trigger__webgl-shell dashboard-profile-points-trigger__webgl-shell--coin"
+                      >
+                        <DashboardSpinningSoundCoin3D
+                          className="dashboard-profile-points-trigger__webgl-coin"
+                          paused={
+                            !dashboardPointsMenuHighlighted ||
+                            dashboardHeaderMotionPaused
+                          }
+                        />
+                      </span>
                       {soundTokens.toLocaleString()}
                     </span>
                     <span className="dashboard-profile-points-trigger__value-row text-xs font-black leading-none text-white">
                       <span className="sr-only">Points</span>
                       <span
                         aria-hidden="true"
-                        className="dashboard-profile-points-trigger__mini-bolt"
+                        className="dashboard-profile-points-trigger__webgl-shell dashboard-profile-points-trigger__webgl-shell--points"
                       >
-                        {renderDashboardSoundPointsLightningIcon(1)}
+                        <DashboardLightningBolt3D
+                          active={dashboardPointsMenuHighlighted}
+                          className="dashboard-profile-points-trigger__webgl-bolt"
+                          paused={dashboardHeaderMotionPaused}
+                        />
                       </span>
                       {soundPoints.toLocaleString()}
                     </span>
@@ -26694,16 +27478,16 @@ export default function UserHomeDashboardPage() {
                 </button>
 
                 <button
-                  aria-controls="dashboard-points-dropdown"
-                  aria-expanded={dashboardPointsDropdownOpen}
+                  aria-controls="dashboard-claim-rewards-dropdown"
+                  aria-expanded={dashboardClaimRewardsDropdownOpen}
                   aria-label={`Claim earned rewards, ${soundPoints.toLocaleString()} points, ${soundTokens.toLocaleString()} coins, and ${soundEmeralds.toLocaleString()} gems available`}
-                  className="dashboard-profile-claim-trigger shrink-0 bg-transparent text-slate-200"
+                  className="dashboard-profile-claim-trigger dashboard-profile-claim-trigger--webgl shrink-0 text-slate-200"
                   data-dashboard-tooltip="Claim Rewards"
                   data-dropdown-open={
-                    dashboardPointsDropdownOpen ? "true" : "false"
+                    dashboardClaimRewardsDropdownOpen ? "true" : "false"
                   }
                   onBlur={() => setDashboardHeaderRewards3DActive(false)}
-                  onClick={toggleDashboardPointsDropdown}
+                  onClick={toggleDashboardClaimRewardsDropdown}
                   onFocus={() => setDashboardHeaderRewards3DActive(true)}
                   onMouseEnter={() => setDashboardHeaderRewards3DActive(true)}
                   onMouseLeave={() => setDashboardHeaderRewards3DActive(false)}
@@ -26713,18 +27497,30 @@ export default function UserHomeDashboardPage() {
                   }
                   type="button"
                 >
-                  <span
-                    aria-hidden="true"
-                    className="dashboard-profile-points-trigger__claim-package"
-                  >
-                    <span className="dashboard-profile-points-trigger__claim-package-bow dashboard-profile-points-trigger__claim-package-bow--left" />
-                    <span className="dashboard-profile-points-trigger__claim-package-bow dashboard-profile-points-trigger__claim-package-bow--right" />
-                    <span className="dashboard-profile-points-trigger__claim-package-lid" />
-                    <span className="dashboard-profile-points-trigger__claim-package-box" />
-                    <span className="dashboard-profile-points-trigger__claim-package-spark dashboard-profile-points-trigger__claim-package-spark--one" />
-                    <span className="dashboard-profile-points-trigger__claim-package-spark dashboard-profile-points-trigger__claim-package-spark--two" />
-                  </span>
+                  <DashboardTreasureChest3D
+                    className="dashboard-profile-points-trigger__claim-webgl"
+                    open={dashboardPointsMenuHighlighted}
+                    paused={
+                      !dashboardPointsMenuHighlighted ||
+                      dashboardHeaderMotionPaused
+                    }
+                    variant="icon"
+                  />
                 </button>
+
+                {dashboardClaimRewardsDropdownOpen ? (
+                  <div
+                    aria-label="Claim rewards"
+                    aria-live="polite"
+                    className="dashboard-profile-claim-dropdown absolute right-0 top-[calc(100%+0.5rem)] z-[270] w-[15rem] max-w-[calc(100vw-1.5rem)] px-4 py-4 text-slate-100"
+                    id="dashboard-claim-rewards-dropdown"
+                    role="region"
+                  >
+                    <p className="dashboard-profile-claim-dropdown__message">
+                      No new rewards at this time
+                    </p>
+                  </div>
+                ) : null}
 
                 {dashboardPointsDropdownOpen ? (
                   <div
@@ -27066,6 +27862,7 @@ export default function UserHomeDashboardPage() {
                   ? "Hide shortcuts"
                   : "Profile shortcuts"
               }
+              onBlur={() => setDashboardProfileGearHighlighted(false)}
               onClick={() => {
                 const nextOpen = !dashboardProfileActionsOpen;
                 setDashboardTrophyMenuOpen(false);
@@ -27077,11 +27874,22 @@ export default function UserHomeDashboardPage() {
                   setDashboardMusicDropdownOpen(false);
                 }
               }}
+              onFocus={() => setDashboardProfileGearHighlighted(true)}
+              onMouseEnter={() => setDashboardProfileGearHighlighted(true)}
+              onMouseLeave={() => setDashboardProfileGearHighlighted(false)}
+              onPointerEnter={() => setDashboardProfileGearHighlighted(true)}
+              onPointerLeave={() => setDashboardProfileGearHighlighted(false)}
               style={{ left: "2.55rem" }}
               tabIndex={dashboardProfileActionsOpen ? -1 : 0}
               type="button"
             >
-              <DashboardTabIcon className="h-3.5 w-3.5" name="Settings" />
+              <DashboardGearIcon3D
+                active={
+                  dashboardProfileGearHighlighted || dashboardProfileActionsOpen
+                }
+                className="dashboard-profile-action-gear__webgl"
+                paused={dashboardHeaderMotionPaused}
+              />
             </button>
 
             <div
@@ -27598,40 +28406,27 @@ export default function UserHomeDashboardPage() {
             }
             className="dashboard-header-meter-menu-trigger"
             data-dashboard-tooltip="Meters"
+            onBlur={() => setDashboardHeaderMeterMenuHighlighted(false)}
             onClick={() => {
               setDashboardTrophyMenuOpen(false);
               setDashboardHeroWidgetsDrawerOpen(false);
               setDashboardProfileHubOpen(false);
               setDashboardProfileActionsOpen(false);
               setDashboardPointsDropdownOpen(false);
+              setDashboardClaimRewardsDropdownOpen(false);
               setDashboardMusicDropdownOpen(false);
               setDashboardHeaderMeterMenuOpen((open) => !open);
             }}
+            onFocus={() => setDashboardHeaderMeterMenuHighlighted(true)}
+            onMouseEnter={() => setDashboardHeaderMeterMenuHighlighted(true)}
+            onMouseLeave={() => setDashboardHeaderMeterMenuHighlighted(false)}
+            onPointerEnter={() => setDashboardHeaderMeterMenuHighlighted(true)}
+            onPointerLeave={() => setDashboardHeaderMeterMenuHighlighted(false)}
             type="button"
           >
-            <svg
-              aria-hidden="true"
-              className="dashboard-header-meter-menu-trigger__icon"
-              viewBox="0 0 48 48"
-            >
-              <path
-                d="M13 35V21m11 14V12m11 23V18"
-                fill="none"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeWidth="4"
-              />
-              <path
-                d="M9 38h30"
-                fill="none"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeWidth="3"
-              />
-            </svg>
-            <span
-              aria-hidden="true"
-              className="dashboard-header-meter-menu-trigger__pulse"
+            <DashboardMeterMenuIcon3D
+              active={dashboardHeaderMeterMenuIconActive}
+              className="dashboard-header-meter-menu-trigger__webgl-icon"
             />
           </button>
 
@@ -29194,11 +29989,11 @@ export default function UserHomeDashboardPage() {
       <div
         aria-label={`Dashboard chyron with coaching advice, athlete quotes, and training trivia for ${activeDashboardHeaderLink.label}. Current headline: ${dashboardHeaderNewsHeadlines[0]?.label || ""}. ${dashboardPlanAttendanceDescription}.`}
         className={`dashboard-header-news-chyron ${
-          dashboardHeaderMeterMenuOpen || dashboardPointsDropdownOpen
+          dashboardHeaderMeterMenuOpen || dashboardProfileRewardDropdownOpen
             ? "dashboard-header-news-chyron--paused"
             : ""
         } ${
-          dashboardPointsDropdownOpen
+          dashboardProfileRewardDropdownOpen
             ? "dashboard-header-news-chyron--points-dropdown-open"
             : ""
         }`}
@@ -33043,22 +33838,6 @@ export default function UserHomeDashboardPage() {
             aria-label="Daily Tools horizontal 3D scroller"
             className="relative flex min-h-full items-center justify-center pb-4"
           >
-            <button
-              aria-label="Previous daily tool"
-              className="absolute left-1 top-1/2 z-40 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/78 text-lg font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
-              onClick={() => rotateDailyToolOrbit("left")}
-              type="button"
-            >
-              &lt;
-            </button>
-            <button
-              aria-label="Next daily tool"
-              className="absolute right-1 top-1/2 z-40 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/78 text-lg font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
-              onClick={() => rotateDailyToolOrbit("right")}
-              type="button"
-            >
-              &gt;
-            </button>
             <div className="relative h-[320px] w-full max-w-[920px] [transform-style:preserve-3d]">
               <article
                 className={`absolute left-1/2 top-1/2 flex overflow-hidden border border-cyan-300/24 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.16),transparent_34%),radial-gradient(circle_at_92%_12%,rgba(250,204,21,0.12),transparent_30%),rgba(15,23,42,0.72)] shadow-2xl shadow-black/25 backdrop-blur transition-[height,width,border-radius,box-shadow] duration-300 ${
@@ -35158,22 +35937,6 @@ export default function UserHomeDashboardPage() {
         kicker: "7 day review row",
         title: "Weekly Recap",
       })}
-      <button
-        aria-label="Previous weekly recap card"
-        className="absolute left-[5.75rem] top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:left-[6.75rem] xl:left-[7.25rem]"
-        onClick={() => rotateWeeklyRecap("left")}
-        type="button"
-      >
-        &lt;
-      </button>
-      <button
-        aria-label="Next weekly recap card"
-        className="absolute right-2 top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-4 sm:h-14 sm:w-14 sm:text-3xl lg:right-6 xl:right-8"
-        onClick={() => rotateWeeklyRecap("right")}
-        type="button"
-      >
-        &gt;
-      </button>
 
       <div className="sr-only">
         Weekly Recap. Last 7 days. Training volume, nutrition consistency,
@@ -37196,6 +37959,7 @@ export default function UserHomeDashboardPage() {
 
   return (
     <>
+      <DashboardWebGlPreloader />
       <main
         className={`h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#020713] text-white ${
           dashboardHeaderTimedOut ? "dashboard-page--idle-menu-open" : ""
@@ -37250,6 +38014,7 @@ export default function UserHomeDashboardPage() {
         <style>{DASHBOARD_HEADER_METER_MENU_TRIGGER_STYLE}</style>
         <style>{DASHBOARD_HEADER_METER_UFO_COMPACT_STYLE}</style>
         <style>{DASHBOARD_HEADER_NEWS_CHYRON_TIMING_STYLE}</style>
+        <style>{DASHBOARD_HEADER_NARROW_MOBILE_MENU_STYLE}</style>
         <style>{DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE}</style>
         <style>{DASHBOARD_PAGE_LEVEL_METER_TAB_STYLE}</style>
         <style>{DASHBOARD_PAGE_LEVEL_REWARD_MARKER_STYLE}</style>
@@ -37873,6 +38638,8 @@ export default function UserHomeDashboardPage() {
                             : absDistance === 1
                               ? 0.68
                               : 0.34;
+                      if (isActive) return null;
+
                       return (
                         <button
                           aria-label={`Show ${row.title} row`}
