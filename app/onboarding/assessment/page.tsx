@@ -10,6 +10,37 @@ const steps = [
   "Recommendation",
 ];
 
+type CardOptionProps = {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  sublabel?: string;
+};
+
+function CardOption({
+  label,
+  selected,
+  onClick,
+  sublabel,
+}: CardOptionProps) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-[24px] border p-4 text-left transition ${
+        selected
+          ? "border-sky-400/40 bg-sky-500/10 shadow-lg shadow-sky-500/10"
+          : "border-white/10 bg-slate-950/55 hover:bg-slate-900"
+      }`}
+    >
+      <div className="text-base font-semibold text-white">{label}</div>
+      {sublabel ? (
+        <div className="mt-1 text-sm text-slate-400">{sublabel}</div>
+      ) : null}
+    </button>
+  );
+}
+
 export default function AssessmentPage() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
@@ -21,7 +52,7 @@ export default function AssessmentPage() {
     painSeverity: "",
     experience: "",
     confidence: "",
-    trainingPlace: "",
+    trainingPlace: "In-home",
     sessionsPerWeek: "",
     daysAvailable: "",
   });
@@ -56,48 +87,20 @@ export default function AssessmentPage() {
     };
   }, [form]);
 
-  const CardOption = ({
-    label,
-    selected,
-    onClick,
-    sublabel,
-  }: {
-    label: string;
-    selected: boolean;
-    onClick: () => void;
-    sublabel?: string;
-  }) => (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-[24px] border p-4 text-left transition ${
-        selected
-          ? "border-sky-400/40 bg-sky-500/10 shadow-lg shadow-sky-500/10"
-          : "border-white/10 bg-slate-950/55 hover:bg-slate-900"
-      }`}
-    >
-      <div className="text-base font-semibold text-white">{label}</div>
-      {sublabel ? (
-        <div className="mt-1 text-sm text-slate-400">{sublabel}</div>
-      ) : null}
-    </button>
-  );
-
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.16),_transparent_28%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
         <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
           <section className="rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-2xl shadow-black/20 backdrop-blur lg:p-8">
             <div className="text-[11px] uppercase tracking-[0.24em] text-sky-300">
-              Sound Fitness Assessment
+              In-Home Pre-Assessment
             </div>
             <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
-              Build your best starting point
+              Build your first in-home plan
             </h1>
             <p className="mt-4 max-w-xl text-base leading-7 text-slate-300">
-              This is not a boring intake form. It is the first step in building
-              a plan that fits your goals, your body, your schedule, and your
-              real life.
+              This form helps us understand your goals, your body, your home
+              setup, and your schedule before we design the first session.
             </p>
 
             <div className="mt-6 rounded-[28px] border border-sky-400/20 bg-sky-500/10 p-5">
@@ -106,14 +109,14 @@ export default function AssessmentPage() {
               </div>
               <div className="mt-3 space-y-3 text-sm text-slate-100">
                 <div>
-                  • A clearer starting point based on goals, pain points, and
-                  training history
+                  A clearer starting point based on goals, pain points, home
+                  setup, and training history
                 </div>
                 <div>
-                  • A more personalized recommendation instead of a generic
+                  A more personalized recommendation instead of a generic
                   workout plan
                 </div>
-                <div>• Better coaching decisions from day one</div>
+                <div>Better coaching decisions from day one</div>
               </div>
             </div>
 

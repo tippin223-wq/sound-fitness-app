@@ -135,29 +135,42 @@ const createEmeraldGeometry = (
   options: { sharpTop?: boolean } = {},
 ) => {
   const sharpTop = options.sharpTop ?? false;
-  const ring = (width: number, depth: number, y: number) => [
-    [-width * 0.5, y, depth * 0.5],
-    [width * 0.5, y, depth * 0.5],
-    [width * 0.62, y, 0],
-    [width * 0.5, y, -depth * 0.5],
-    [-width * 0.5, y, -depth * 0.5],
-    [-width * 0.62, y, 0],
-  ];
+  const segmentCount = 8;
+  const ring = (width: number, depth: number, y: number, phase = Math.PI / 8) =>
+    Array.from({ length: segmentCount }, (_, index) => {
+      const angle = phase + (index / segmentCount) * Math.PI * 2;
+      const shoulder = index % 2 === 0 ? 1 : 0.92;
+      return [
+        Math.cos(angle) * width * 0.5 * shoulder,
+        y,
+        Math.sin(angle) * depth * 0.5 * (index % 2 === 0 ? 0.9 : 1),
+      ];
+    });
 
+  const tableY = sharpTop ? 0.64 : 0.5;
   const table = ring(
-    sharpTop ? 0.34 : 0.62,
-    sharpTop ? 0.18 : 0.32,
-    sharpTop ? 0.62 : 0.48,
+    sharpTop ? 0.28 : 0.48,
+    sharpTop ? 0.2 : 0.34,
+    tableY,
   );
   const crown = ring(
-    sharpTop ? 1.04 : 0.96,
-    sharpTop ? 0.54 : 0.5,
-    sharpTop ? 0.15 : 0.2,
+    sharpTop ? 0.96 : 0.92,
+    sharpTop ? 0.64 : 0.62,
+    sharpTop ? 0.18 : 0.2,
+    Math.PI / 8 + Math.PI / segmentCount / 2,
   );
-  const girdle = ring(1.16, 0.58, -0.06);
-  const pavilion = ring(0.62, 0.3, -0.42);
-  const tip = [[0, -0.72, 0]];
-  const vertices = [...table, ...crown, ...girdle, ...pavilion, ...tip];
+  const girdle = ring(1.18, 0.78, -0.08);
+  const pavilion = ring(0.5, 0.36, -0.46, Math.PI / 8 + Math.PI / segmentCount / 2);
+  const topCenterIndex = segmentCount * 4;
+  const tipIndex = topCenterIndex + 1;
+  const vertices = [
+    ...table,
+    ...crown,
+    ...girdle,
+    ...pavilion,
+    [0, tableY, 0],
+    [0, -0.84, 0],
+  ];
   const positions: number[] = [];
   const normals: number[] = [];
   const colors: number[] = [];
@@ -191,35 +204,55 @@ const createEmeraldGeometry = (
     }
   };
 
-  addTriangle(0, 1, 5, topColor, 0.1);
-  addTriangle(1, 2, 5, topColor, 0.18);
-  addTriangle(2, 3, 5, lightColor, 0.08);
-  addTriangle(3, 4, 5, topColor, 0.04);
-
-  for (let index = 0; index < 6; index += 1) {
-    const next = (index + 1) % 6;
-    const shade = index < 2 ? lightColor : index < 4 ? midColor : darkColor;
-    addTriangle(index, next, 6 + next, shade, index === 1 ? 0.22 : 0);
-    addTriangle(index, 6 + next, 6 + index, shade, index === 5 ? 0.12 : 0);
+  for (let index = 0; index < segmentCount; index += 1) {
+    const next = (index + 1) % segmentCount;
+    addTriangle(topCenterIndex, index, next, topColor, index % 3 === 1 ? 0.2 : 0.08);
   }
 
-  for (let index = 0; index < 6; index += 1) {
-    const next = (index + 1) % 6;
+  for (let index = 0; index < segmentCount; index += 1) {
+    const next = (index + 1) % segmentCount;
+    const shade =
+      index % 4 === 0
+        ? lightColor
+        : index % 4 === 1
+          ? topColor
+          : index % 4 === 2
+            ? midColor
+            : darkColor;
+    addTriangle(index, next, segmentCount + next, shade, index === 1 ? 0.24 : 0.04);
+    addTriangle(index, segmentCount + next, segmentCount + index, shade, index === 6 ? 0.16 : 0);
+  }
+
+  for (let index = 0; index < segmentCount; index += 1) {
+    const next = (index + 1) % segmentCount;
+    const shade =
+      index % 4 === 0
+        ? midColor
+        : index % 4 === 1
+          ? lightColor
+          : index % 4 === 2
+            ? darkColor
+            : midColor;
+    addTriangle(segmentCount + index, segmentCount + next, segmentCount * 2 + next, shade, index === 0 ? 0.16 : 0);
+    addTriangle(segmentCount + index, segmentCount * 2 + next, segmentCount * 2 + index, shade, index === 5 ? 0.1 : 0);
+  }
+
+  for (let index = 0; index < segmentCount; index += 1) {
+    const next = (index + 1) % segmentCount;
     const shade = index % 2 === 0 ? midColor : darkColor;
-    addTriangle(6 + index, 6 + next, 12 + next, shade, index === 0 ? 0.12 : 0);
-    addTriangle(6 + index, 12 + next, 12 + index, shade, index === 4 ? 0.08 : 0);
+    addTriangle(segmentCount * 2 + index, segmentCount * 2 + next, segmentCount * 3 + next, shade, index === 2 ? 0.14 : 0);
+    addTriangle(segmentCount * 2 + index, segmentCount * 3 + next, segmentCount * 3 + index, shade);
   }
 
-  for (let index = 0; index < 6; index += 1) {
-    const next = (index + 1) % 6;
-    const shade = index % 2 === 0 ? midColor : darkColor;
-    addTriangle(12 + index, 12 + next, 18 + next, shade, index === 2 ? 0.12 : 0);
-    addTriangle(12 + index, 18 + next, 18 + index, shade);
-  }
-
-  for (let index = 0; index < 6; index += 1) {
-    const next = (index + 1) % 6;
-    addTriangle(18 + index, 18 + next, 24, index % 2 === 0 ? darkColor : midColor);
+  for (let index = 0; index < segmentCount; index += 1) {
+    const next = (index + 1) % segmentCount;
+    addTriangle(
+      segmentCount * 3 + index,
+      segmentCount * 3 + next,
+      tipIndex,
+      index % 2 === 0 ? darkColor : midColor,
+      index === 1 ? 0.08 : 0,
+    );
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -1284,6 +1317,26 @@ export function DashboardGemStage3D({
           side: THREE.DoubleSide,
           transparent: true,
         });
+        const reserveBaseMaterial = new THREE.MeshPhysicalMaterial({
+          clearcoat: 0.72,
+          clearcoatRoughness: 0.18,
+          color: 0x0e4a5f,
+          depthWrite: false,
+          emissive: new THREE.Color(0x07364d),
+          emissiveIntensity: 0.34,
+          flatShading: true,
+          metalness: 0.24,
+          opacity: 0.88,
+          roughness: 0.4,
+          transparent: true,
+        });
+        const reserveBaseRimMaterial = new THREE.MeshBasicMaterial({
+          blending: THREE.AdditiveBlending,
+          color: new THREE.Color(0x7dd3fc),
+          depthWrite: false,
+          opacity: 0.36,
+          transparent: true,
+        });
         const reserveDustMaterial = new THREE.MeshPhysicalMaterial({
           clearcoat: 1,
           clearcoatRoughness: 0.08,
@@ -1297,6 +1350,85 @@ export function DashboardGemStage3D({
           transparent: true,
           transmission: 0.1,
         });
+        const alienMossMaterial = new THREE.MeshPhysicalMaterial({
+          clearcoat: 0.4,
+          clearcoatRoughness: 0.28,
+          color: 0x083344,
+          depthWrite: false,
+          emissive: new THREE.Color(0x0f766e),
+          emissiveIntensity: 0.38,
+          metalness: 0.08,
+          opacity: 0.76,
+          roughness: 0.42,
+          side: THREE.DoubleSide,
+          transparent: true,
+        });
+        const alienDesertMaterial = new THREE.MeshPhysicalMaterial({
+          clearcoat: 0.36,
+          clearcoatRoughness: 0.24,
+          color: 0xcaa15b,
+          depthWrite: false,
+          emissive: new THREE.Color(0x6f3b12),
+          emissiveIntensity: 0.22,
+          metalness: 0.04,
+          opacity: 0.7,
+          roughness: 0.56,
+          side: THREE.DoubleSide,
+          transparent: true,
+        });
+        const alienWaterMaterial = new THREE.MeshPhysicalMaterial({
+          clearcoat: 1,
+          clearcoatRoughness: 0.04,
+          color: 0x67e8f9,
+          depthWrite: false,
+          emissive: new THREE.Color(0x0891b2),
+          emissiveIntensity: 0.48,
+          metalness: 0.02,
+          opacity: 0.56,
+          roughness: 0.08,
+          side: THREE.DoubleSide,
+          transparent: true,
+        });
+        const alienFlowerStemMaterial = new THREE.MeshBasicMaterial({
+          color: new THREE.Color("#5eead4"),
+          depthWrite: false,
+          opacity: 0.72,
+          transparent: true,
+        });
+        const alienFlowerCenterMaterial = new THREE.MeshBasicMaterial({
+          color: new THREE.Color("#fff7ad"),
+          depthWrite: false,
+          opacity: 0.9,
+          transparent: true,
+        });
+        const alienFlowerPetalMaterials = [
+          new THREE.MeshBasicMaterial({
+            color: new THREE.Color("#67e8f9"),
+            depthWrite: false,
+            opacity: 0.82,
+            transparent: true,
+          }),
+          new THREE.MeshBasicMaterial({
+            color: new THREE.Color("#c4b5fd"),
+            depthWrite: false,
+            opacity: 0.78,
+            transparent: true,
+          }),
+          new THREE.MeshBasicMaterial({
+            color: new THREE.Color("#f0abfc"),
+            depthWrite: false,
+            opacity: 0.74,
+            transparent: true,
+          }),
+        ];
+        const alienFlowerStemGeometry = new THREE.CylinderGeometry(
+          0.014,
+          0.02,
+          1,
+          6,
+        );
+        const alienFlowerPetalGeometry = new THREE.SphereGeometry(0.034, 12, 8);
+        const alienFlowerCenterGeometry = new THREE.SphereGeometry(0.027, 12, 8);
         const reserveBedShardSpecs: Array<
           readonly [number, number, number, number, number]
         > = [
@@ -1454,6 +1586,218 @@ export function DashboardGemStage3D({
           },
         ];
 
+        const reserveBackgroundClusterConfigs: Array<{
+          origin: VectorTuple;
+          palette: (typeof gemTonePalettes)[DashboardTornadoGemTone];
+          rotation: number;
+          scale: number;
+        }> = [
+          {
+            origin: [-2.02, -1.91, -0.5],
+            palette: gemTonePalettes.green,
+            rotation: 0.22,
+            scale: 0.42,
+          },
+          {
+            origin: [-0.74, -1.86, -0.58],
+            palette: {
+              ambient: "#f5d0fe",
+              dark: "#701a75",
+              edge: "#fae8ff",
+              emissive: "#4a044e",
+              glint: "#fff7ff",
+              light: "#f0abfc",
+              mid: "#d946ef",
+              rim: "#f472b6",
+              top: "#fdf4ff",
+              warm: "#fbcfe8",
+            },
+            rotation: -0.1,
+            scale: 0.38,
+          },
+          {
+            origin: [0.74, -1.88, -0.58],
+            palette: {
+              ambient: "#cffafe",
+              dark: "#164e63",
+              edge: "#ecfeff",
+              emissive: "#083344",
+              glint: "#ffffff",
+              light: "#67e8f9",
+              mid: "#06b6d4",
+              rim: "#22d3ee",
+              top: "#f0fdff",
+              warm: "#a5f3fc",
+            },
+            rotation: 0.12,
+            scale: 0.4,
+          },
+          {
+            origin: [2.02, -1.92, -0.48],
+            palette: {
+              ambient: "#ddd6fe",
+              dark: "#3b0764",
+              edge: "#ede9fe",
+              emissive: "#2e1065",
+              glint: "#fbfaff",
+              light: "#c084fc",
+              mid: "#8b5cf6",
+              rim: "#a855f7",
+              top: "#f5f3ff",
+              warm: "#e9d5ff",
+            },
+            rotation: -0.24,
+            scale: 0.39,
+          },
+        ];
+
+        const reserveBackgroundCrystalSpecs: Array<{
+          offset: VectorTuple;
+          rotation: VectorTuple;
+          scale: VectorTuple;
+          spin: number;
+        }> = [
+          {
+            offset: [0, 0, 0],
+            rotation: [0.1, -0.24, -0.04],
+            scale: [0.34, 0.56, 0.34],
+            spin: 0.26,
+          },
+          {
+            offset: [-0.24, -0.18, 0.08],
+            rotation: [0.22, -0.72, 0.22],
+            scale: [0.2, 0.34, 0.2],
+            spin: 0.22,
+          },
+          {
+            offset: [0.26, -0.2, 0.06],
+            rotation: [0.16, 0.64, -0.22],
+            scale: [0.2, 0.32, 0.2],
+            spin: 0.24,
+          },
+        ];
+
+        reserveBackgroundClusterConfigs.forEach((clusterConfig, clusterIndex) => {
+          const palette = clusterConfig.palette;
+          const backgroundPatchGroup = new THREE.Group();
+          backgroundPatchGroup.position.set(...clusterConfig.origin);
+          backgroundPatchGroup.rotation.y = clusterConfig.rotation;
+          backgroundPatchGroup.scale.setScalar(clusterConfig.scale);
+          scene.add(backgroundPatchGroup);
+
+          const backgroundBaseMaterial = new THREE.MeshPhysicalMaterial({
+            clearcoat: 0.88,
+            clearcoatRoughness: 0.12,
+            color: new THREE.Color(palette.mid),
+            depthWrite: false,
+            emissive: new THREE.Color(palette.dark),
+            emissiveIntensity: 0.48,
+            flatShading: true,
+            metalness: 0.1,
+            opacity: 0.82,
+            roughness: 0.3,
+            transparent: true,
+          });
+          const backgroundBaseLightMaterial = new THREE.MeshPhysicalMaterial({
+            clearcoat: 1,
+            clearcoatRoughness: 0.08,
+            color: new THREE.Color(palette.light),
+            depthWrite: false,
+            emissive: new THREE.Color(palette.rim),
+            emissiveIntensity: 0.34,
+            flatShading: true,
+            metalness: 0.1,
+            opacity: 0.66,
+            roughness: 0.22,
+            transparent: true,
+          });
+          const backgroundBaseGlowMaterial = new THREE.MeshBasicMaterial({
+            blending: THREE.AdditiveBlending,
+            color: new THREE.Color(palette.rim),
+            depthWrite: false,
+            opacity: 0.16,
+            transparent: true,
+          });
+
+          const backgroundBase = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(0.42, 0),
+            backgroundBaseMaterial,
+          );
+          backgroundBase.position.set(0, -0.46, -0.08);
+          backgroundBase.rotation.set(0.12, clusterIndex * 0.34, -0.04);
+          backgroundBase.scale.set(1.36, 0.24, 0.62);
+          backgroundBase.renderOrder = 1;
+          backgroundPatchGroup.add(backgroundBase);
+
+          const backgroundBaseCap = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.36, 0.48, 0.12, 8),
+            backgroundBaseLightMaterial,
+          );
+          backgroundBaseCap.position.set(0.02, -0.39, -0.06);
+          backgroundBaseCap.rotation.set(0.08, Math.PI / 8, -0.04);
+          backgroundBaseCap.scale.set(1.22, 0.4, 0.58);
+          backgroundBaseCap.renderOrder = 2;
+          backgroundPatchGroup.add(backgroundBaseCap);
+
+          const backgroundBaseGlow = new THREE.Mesh(
+            new THREE.CircleGeometry(0.72, 44),
+            backgroundBaseGlowMaterial,
+          );
+          backgroundBaseGlow.position.set(0, -0.52, -0.08);
+          backgroundBaseGlow.rotation.x = -Math.PI / 2;
+          backgroundBaseGlow.scale.set(1.18, 0.38, 1);
+          backgroundBaseGlow.renderOrder = 0;
+          backgroundPatchGroup.add(backgroundBaseGlow);
+
+          const backgroundGeometry = createEmeraldGeometry(THREE, palette, {
+            sharpTop: true,
+          });
+
+          reserveBackgroundCrystalSpecs.forEach((spec, specIndex) => {
+            const connector = new THREE.Mesh(
+              new THREE.OctahedronGeometry(0.18, 0),
+              specIndex === 0 ? backgroundBaseLightMaterial : backgroundBaseMaterial,
+            );
+            connector.position.set(
+              spec.offset[0] * 0.82,
+              -0.36 + specIndex * 0.004,
+              spec.offset[2] * 0.72 - 0.06,
+            );
+            connector.rotation.set(
+              0.28 + specIndex * 0.1,
+              spec.rotation[1] * 0.34,
+              spec.rotation[2] * 0.5,
+            );
+            connector.scale.set(1, 0.26, 0.52);
+            connector.renderOrder = 3;
+            backgroundPatchGroup.add(connector);
+
+            const group = createEmeraldGroup(THREE, backgroundGeometry, palette);
+            const clusterPosition: VectorTuple = [
+              clusterConfig.origin[0] + spec.offset[0] * clusterConfig.scale,
+              clusterConfig.origin[1] + spec.offset[1] * clusterConfig.scale,
+              clusterConfig.origin[2] + spec.offset[2] * clusterConfig.scale,
+            ];
+            const clusterScale: VectorTuple = [
+              spec.scale[0] * clusterConfig.scale,
+              spec.scale[1] * clusterConfig.scale,
+              spec.scale[2] * clusterConfig.scale,
+            ];
+            group.position.set(...clusterPosition);
+            group.rotation.set(...spec.rotation);
+            group.scale.set(...clusterScale);
+            setGroupOpacity(group, 0.78);
+            setGroupRenderOrder(group, 9);
+            scene.add(group);
+            clusterGems.push({
+              basePosition: clusterPosition,
+              baseRotation: spec.rotation,
+              group,
+              spin: spec.spin + clusterIndex * 0.02,
+            });
+          });
+        });
+
         reserveClusterConfigs.forEach((clusterConfig, clusterIndex) => {
           const palette = gemTonePalettes[clusterConfig.tone];
           const patchGroup = new THREE.Group();
@@ -1463,17 +1807,41 @@ export function DashboardGemStage3D({
           patchGroup.scale.setScalar(clusterConfig.scale);
           scene.add(patchGroup);
 
+          const thickBase = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.82, 1.02, 0.32, 56),
+            reserveBaseMaterial,
+          );
+          thickBase.position.set(bedOffsetX, -0.78, -0.42);
+          thickBase.rotation.set(0.04, -0.18 + clusterIndex * 0.16, 0.02);
+          thickBase.scale.set(1.42, 1, 0.5);
+          thickBase.renderOrder = -10;
+          patchGroup.add(thickBase);
+
+          const thickBaseRim = new THREE.Mesh(
+            new THREE.TorusGeometry(0.84, 0.035, 10, 64),
+            reserveBaseRimMaterial,
+          );
+          thickBaseRim.position.set(bedOffsetX, -0.61, -0.42);
+          thickBaseRim.rotation.set(
+            Math.PI / 2,
+            0,
+            -0.18 + clusterIndex * 0.16,
+          );
+          thickBaseRim.scale.set(1.42, 0.5, 1);
+          thickBaseRim.renderOrder = -9;
+          patchGroup.add(thickBaseRim);
+
           const reservePlatform = new THREE.Mesh(
             createReserveBedGeometry(clusterIndex),
             reserveBedMaterial,
           );
-          reservePlatform.position.set(bedOffsetX, -0.7, -0.42);
+          reservePlatform.position.set(bedOffsetX, -0.6, -0.42);
           reservePlatform.rotation.set(
             0.04,
             -0.18 + clusterIndex * 0.16,
             0.02,
           );
-          reservePlatform.scale.set(1.24, 1, 0.96);
+          reservePlatform.scale.set(1.34, 1, 1.02);
           reservePlatform.renderOrder = -8;
           patchGroup.add(reservePlatform);
 
@@ -1491,6 +1859,224 @@ export function DashboardGemStage3D({
           clusterGlow.scale.set(0.96, 0.24, 1);
           clusterGlow.renderOrder = -7;
           patchGroup.add(clusterGlow);
+
+          const crystalBaseMaterial = new THREE.MeshPhysicalMaterial({
+            clearcoat: 0.86,
+            clearcoatRoughness: 0.12,
+            color: new THREE.Color(palette.mid),
+            emissive: new THREE.Color(palette.dark),
+            emissiveIntensity: 0.52,
+            flatShading: true,
+            metalness: 0.1,
+            opacity: 0.88,
+            roughness: 0.28,
+            transparent: true,
+          });
+          const crystalBaseLightMaterial = new THREE.MeshPhysicalMaterial({
+            clearcoat: 1,
+            clearcoatRoughness: 0.08,
+            color: new THREE.Color(palette.light),
+            emissive: new THREE.Color(palette.rim),
+            emissiveIntensity: 0.38,
+            flatShading: true,
+            metalness: 0.12,
+            opacity: 0.72,
+            roughness: 0.2,
+            transparent: true,
+          });
+          const crystalBaseGlowMaterial = new THREE.MeshBasicMaterial({
+            blending: THREE.AdditiveBlending,
+            color: new THREE.Color(palette.rim),
+            depthWrite: false,
+            opacity: 0.18,
+            transparent: true,
+          });
+          const crystalBaseGroup = new THREE.Group();
+          crystalBaseGroup.position.set(bedOffsetX * 0.3, -0.49, 0.08);
+          crystalBaseGroup.rotation.set(0.06, 0.1 - clusterIndex * 0.08, -0.02);
+          crystalBaseGroup.renderOrder = 3;
+          patchGroup.add(crystalBaseGroup);
+
+          const crystalBaseCore = new THREE.Mesh(
+            new THREE.DodecahedronGeometry(0.42, 0),
+            crystalBaseMaterial,
+          );
+          crystalBaseCore.position.set(0, -0.02, 0);
+          crystalBaseCore.rotation.set(0.18, 0.46 + clusterIndex * 0.2, 0.08);
+          crystalBaseCore.scale.set(1.42, 0.26, 0.68);
+          crystalBaseCore.renderOrder = 3;
+          crystalBaseGroup.add(crystalBaseCore);
+
+          const crystalBaseCap = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.38, 0.5, 0.13, 8),
+            crystalBaseLightMaterial,
+          );
+          crystalBaseCap.position.set(0.02, 0.05, 0.01);
+          crystalBaseCap.rotation.set(
+            0.08,
+            Math.PI / 8 + clusterIndex * 0.18,
+            -0.03,
+          );
+          crystalBaseCap.scale.set(1.32, 0.44, 0.6);
+          crystalBaseCap.renderOrder = 4;
+          crystalBaseGroup.add(crystalBaseCap);
+
+          const crystalBaseGlow = new THREE.Mesh(
+            new THREE.CircleGeometry(0.74, 48),
+            crystalBaseGlowMaterial,
+          );
+          crystalBaseGlow.position.set(0, -0.09, 0);
+          crystalBaseGlow.rotation.x = -Math.PI / 2;
+          crystalBaseGlow.scale.set(1.24, 0.44, 1);
+          crystalBaseGlow.renderOrder = 2;
+          crystalBaseGroup.add(crystalBaseGlow);
+
+          reserveClusterCrystalSpecs.forEach((spec, specIndex) => {
+            const connector = new THREE.Mesh(
+              new THREE.OctahedronGeometry(0.22, 0),
+              specIndex === 0 ? crystalBaseLightMaterial : crystalBaseMaterial,
+            );
+            connector.position.set(
+              spec.offset[0] * 0.9,
+              -0.01 + specIndex * 0.006,
+              spec.offset[2] * 0.72,
+            );
+            connector.rotation.set(
+              0.34 + specIndex * 0.12,
+              spec.rotation[1] * 0.34,
+              spec.rotation[2] * 0.48,
+            );
+            connector.scale.set(
+              1.12 - Math.min(specIndex, 2) * 0.1,
+              0.28,
+              0.58 + specIndex * 0.04,
+            );
+            connector.renderOrder = 5;
+            crystalBaseGroup.add(connector);
+          });
+
+          const desertPatch = new THREE.Mesh(
+            new THREE.CircleGeometry(1, 42, Math.PI * 0.1, Math.PI * 1.62),
+            alienDesertMaterial,
+          );
+          desertPatch.position.set(-0.18 + bedOffsetX * 0.42, -0.605, -0.35);
+          desertPatch.rotation.set(-Math.PI / 2, 0, -0.16 + clusterIndex * 0.18);
+          desertPatch.scale.set(0.9, 0.23, 1);
+          desertPatch.renderOrder = -6;
+          patchGroup.add(desertPatch);
+
+          const waterPatch = new THREE.Mesh(
+            new THREE.CircleGeometry(1, 42, -Math.PI * 0.05, Math.PI * 1.32),
+            alienWaterMaterial,
+          );
+          waterPatch.position.set(0.26 + bedOffsetX * 0.26, -0.595, -0.28);
+          waterPatch.rotation.set(-Math.PI / 2, 0, 0.12 - clusterIndex * 0.08);
+          waterPatch.scale.set(0.5, 0.13, 1);
+          waterPatch.renderOrder = -5;
+          patchGroup.add(waterPatch);
+
+          [-0.54, -0.36, 0.58].forEach((x, ridgeIndex) => {
+            const dune = new THREE.Mesh(
+              new THREE.PlaneGeometry(0.34 - ridgeIndex * 0.04, 0.018),
+              new THREE.MeshBasicMaterial({
+                color: new THREE.Color("#fde68a"),
+                depthWrite: false,
+                opacity: 0.34,
+                transparent: true,
+              }),
+            );
+            dune.position.set(x + bedOffsetX * 0.34, -0.574, -0.47 + ridgeIndex * 0.12);
+            dune.rotation.set(-Math.PI / 2, 0, -0.16 + ridgeIndex * 0.18);
+            dune.renderOrder = -4;
+            patchGroup.add(dune);
+          });
+
+          [-0.08, 0.08, 0.24].forEach((x, rippleIndex) => {
+            const ripple = new THREE.Mesh(
+              new THREE.PlaneGeometry(0.24 - rippleIndex * 0.04, 0.014),
+              new THREE.MeshBasicMaterial({
+                color: new THREE.Color("#ecfeff"),
+                depthWrite: false,
+                opacity: 0.42,
+                transparent: true,
+              }),
+            );
+            ripple.position.set(x + bedOffsetX * 0.24, -0.566, -0.23 + rippleIndex * 0.038);
+            ripple.rotation.set(-Math.PI / 2, 0, 0.08 - rippleIndex * 0.12);
+            ripple.renderOrder = -3;
+            patchGroup.add(ripple);
+          });
+
+          const alienMoss = new THREE.Mesh(
+            new THREE.CircleGeometry(1, 42),
+            alienMossMaterial,
+          );
+          alienMoss.position.set(bedOffsetX * 0.36, -0.59, -0.34);
+          alienMoss.rotation.x = -Math.PI / 2;
+          alienMoss.scale.set(0.86, 0.2, 1);
+          alienMoss.renderOrder = -6;
+          patchGroup.add(alienMoss);
+
+          const alienFlowerSpecs: Array<{
+            height: number;
+            lean: number;
+            materialIndex: number;
+            x: number;
+            z: number;
+          }> = [
+            { height: 0.24, lean: -0.3, materialIndex: 0, x: -0.72, z: -0.38 },
+            { height: 0.18, lean: 0.2, materialIndex: 1, x: -0.56, z: -0.22 },
+            { height: 0.28, lean: -0.14, materialIndex: 2, x: -0.34, z: -0.5 },
+            { height: 0.22, lean: 0.26, materialIndex: 0, x: 0.42, z: -0.44 },
+            { height: 0.17, lean: -0.2, materialIndex: 1, x: 0.62, z: -0.22 },
+          ];
+
+          alienFlowerSpecs.forEach(({ height, lean, materialIndex, x, z }, flowerIndex) => {
+            const flower = new THREE.Group();
+            flower.position.set(x + bedOffsetX * 0.36, -0.56, z);
+            flower.rotation.set(0.08, 0.16 * flowerIndex, lean);
+            flower.renderOrder = -2;
+
+            const stem = new THREE.Mesh(
+              alienFlowerStemGeometry,
+              alienFlowerStemMaterial,
+            );
+            stem.position.y = height * 0.5;
+            stem.scale.set(1, height, 1);
+            stem.renderOrder = -2;
+            flower.add(stem);
+
+            const bloomY = height + 0.012;
+            const petalCount = 5;
+            for (let petalIndex = 0; petalIndex < petalCount; petalIndex += 1) {
+              const angle = (petalIndex / petalCount) * Math.PI * 2;
+              const petal = new THREE.Mesh(
+                alienFlowerPetalGeometry,
+                alienFlowerPetalMaterials[
+                  (materialIndex + petalIndex) % alienFlowerPetalMaterials.length
+                ],
+              );
+              petal.position.set(
+                Math.cos(angle) * 0.044,
+                bloomY + Math.sin(angle) * 0.014,
+                0.014 + Math.cos(angle) * 0.01,
+              );
+              petal.rotation.set(0.18, angle * 0.24, angle);
+              petal.scale.set(1.75, 0.7, 0.54);
+              petal.renderOrder = -1;
+              flower.add(petal);
+            }
+
+            const center = new THREE.Mesh(
+              alienFlowerCenterGeometry,
+              alienFlowerCenterMaterial,
+            );
+            center.position.set(0, bloomY, 0.026);
+            center.renderOrder = 0;
+            flower.add(center);
+
+            patchGroup.add(flower);
+          });
 
           [
             [-0.42, -0.52, -0.34, 0.08],
@@ -1636,10 +2222,20 @@ export function DashboardGemStage3D({
           orbitElapsedSeconds += frameDeltaSeconds;
         }
         const orbitSeconds = orbitElapsedSeconds;
+        const isSingleTriggerGem =
+          variant === "trigger" && resolvedTones.length === 1;
         const orbitSpeed = variant === "reserves" ? 1 / 6.8 : 1 / 4.8;
         const orbitCenterX = variant === "reserves" ? 0.2 : 0;
-        const radiusX = variant === "reserves" ? 0.48 : 0.78;
-        const radiusY = variant === "reserves" ? 0.16 : 0.38;
+        const radiusX = isSingleTriggerGem
+          ? 0
+          : variant === "reserves"
+            ? 0.48
+            : 0.78;
+        const radiusY = isSingleTriggerGem
+          ? 0
+          : variant === "reserves"
+            ? 0.16
+            : 0.38;
         const vaultOpenProgress = vaultOpenAmount;
         const vaultOpenEase = 1 - (1 - vaultOpenProgress) ** 3;
 
@@ -1684,15 +2280,17 @@ export function DashboardGemStage3D({
             ? phase
             : (phase + orbitSeconds * orbitSpeed) % 1;
           const angle = Math.PI / 2 - progress * Math.PI * 2;
-          const front = (Math.sin(angle) + 1) / 2;
+          const front = isSingleTriggerGem ? 1 : (Math.sin(angle) + 1) / 2;
           const vaultIngress =
             variant === "reserves" ? clamp01((0.56 - front) / 0.56) : 0;
           const x = orbitCenterX + Math.cos(angle) * radiusX;
           const y =
-            Math.sin(angle) * radiusY +
+            (isSingleTriggerGem ? 0.02 : Math.sin(angle) * radiusY) +
             (variant === "reserves" ? -0.52 : 0);
           const z =
-            variant === "reserves"
+            isSingleTriggerGem
+              ? 0.28
+              : variant === "reserves"
               ? -0.28 + Math.sin(angle) * 0.14
               : Math.sin(angle) * 0.58;
           const visibleX =
@@ -1702,8 +2300,8 @@ export function DashboardGemStage3D({
           const visibleY = variant === "reserves" ? y - vaultIngress * 0.54 : y;
           const visibleZ = variant === "reserves" ? z - vaultIngress * 0.42 : z;
           const scaleBase =
-            (variant === "reserves" ? 0.31 : 0.32) +
-            front * (variant === "reserves" ? 0.1 : 0.1);
+            (variant === "reserves" ? 0.31 : isSingleTriggerGem ? 0.72 : 0.32) +
+            front * (variant === "reserves" ? 0.1 : isSingleTriggerGem ? 0.12 : 0.1);
           const scale =
             variant === "reserves"
               ? scaleBase * (1 - vaultIngress * 0.18)
@@ -1722,9 +2320,14 @@ export function DashboardGemStage3D({
 
           group.position.set(visibleX, visibleY, visibleZ);
           group.rotation.set(
-            0.1 + Math.sin(orbitSeconds * 0.78 + index) * 0.05,
-            orbitSeconds * spin + phase * Math.PI * 2,
-            -0.04 + Math.cos(orbitSeconds * 0.62 + index) * 0.05,
+            isSingleTriggerGem
+              ? 0.06
+              : 0.1 + Math.sin(orbitSeconds * 0.78 + index) * 0.05,
+            orbitSeconds * (isSingleTriggerGem ? spin * 1.5 : spin) +
+              phase * Math.PI * 2,
+            isSingleTriggerGem
+              ? -0.02
+              : -0.04 + Math.cos(orbitSeconds * 0.62 + index) * 0.05,
           );
           group.scale.setScalar(scale);
           group.visible = !hiddenBehindSafeLip;

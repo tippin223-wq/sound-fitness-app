@@ -21,9 +21,9 @@ type GeometryObject = Object3D & {
 };
 
 const TROPHY_REST_ROTATION = {
-  x: 0,
-  y: 0,
-  z: 0,
+  x: -0.045,
+  y: -0.22,
+  z: 0.018,
 } as const;
 const TROPHY_WEBGL_MAX_START_ATTEMPTS = 8;
 
@@ -56,97 +56,148 @@ const createTrophyGroup = (THREE: ThreeModule) => {
   const trophy = new THREE.Group();
 
   const silver = new THREE.MeshPhysicalMaterial({
-    clearcoat: 0.95,
-    clearcoatRoughness: 0.16,
-    color: new THREE.Color("#f8fafc"),
-    emissive: new THREE.Color("#94a3b8"),
-    emissiveIntensity: 0.08,
-    metalness: 0.64,
-    roughness: 0.18,
+    clearcoat: 1,
+    clearcoatRoughness: 0.12,
+    color: new THREE.Color("#d8e4ee"),
+    emissive: new THREE.Color("#0f2233"),
+    emissiveIntensity: 0.04,
+    metalness: 0.86,
+    roughness: 0.22,
   });
   const darkSilver = new THREE.MeshPhysicalMaterial({
-    clearcoat: 0.7,
-    clearcoatRoughness: 0.28,
-    color: new THREE.Color("#94a3b8"),
-    emissive: new THREE.Color("#1e293b"),
-    emissiveIntensity: 0.06,
-    metalness: 0.58,
-    roughness: 0.32,
+    clearcoat: 0.86,
+    clearcoatRoughness: 0.2,
+    color: new THREE.Color("#46586b"),
+    emissive: new THREE.Color("#07111d"),
+    emissiveIntensity: 0.05,
+    metalness: 0.78,
+    roughness: 0.31,
   });
   const innerMetal = new THREE.MeshPhysicalMaterial({
-    clearcoat: 0.75,
-    clearcoatRoughness: 0.24,
-    color: new THREE.Color("#64748b"),
-    emissive: new THREE.Color("#172033"),
+    clearcoat: 0.9,
+    clearcoatRoughness: 0.18,
+    color: new THREE.Color("#203248"),
+    emissive: new THREE.Color("#04111f"),
     emissiveIntensity: 0.08,
-    metalness: 0.56,
-    roughness: 0.26,
+    metalness: 0.7,
+    roughness: 0.28,
+  });
+  const cyanGlass = new THREE.MeshBasicMaterial({
+    blending: THREE.AdditiveBlending,
+    color: new THREE.Color("#38dfff"),
+    depthWrite: false,
+    opacity: 0.1,
+    transparent: true,
+  });
+  const cyanEdge = new THREE.MeshBasicMaterial({
+    blending: THREE.AdditiveBlending,
+    color: new THREE.Color("#7dd3fc"),
+    depthWrite: false,
+    opacity: 0.22,
+    transparent: true,
+  });
+  const reflectionMaterial = new THREE.MeshBasicMaterial({
+    blending: THREE.AdditiveBlending,
+    color: new THREE.Color("#bff6ff"),
+    depthWrite: false,
+    opacity: 0.44,
+    transparent: true,
   });
   const glintMaterial = new THREE.MeshBasicMaterial({
     color: new THREE.Color("#ffffff"),
-    opacity: 0.78,
+    opacity: 0.46,
     transparent: true,
   });
   const edgeMaterial = new THREE.LineBasicMaterial({
-    color: new THREE.Color("#f8fafc"),
-    opacity: 0.36,
+    color: new THREE.Color("#d8f3ff"),
+    opacity: 0.2,
     transparent: true,
   });
 
+  const backGlow = new THREE.Mesh(new THREE.CircleGeometry(1.1, 64), cyanGlass);
+  backGlow.position.set(0, -0.08, -0.52);
+
+  const backRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.92, 0.018, 8, 72),
+    cyanEdge,
+  );
+  backRing.position.set(0, -0.08, -0.5);
+
   const cupPoints = [
-    new THREE.Vector2(0.18, -0.36),
-    new THREE.Vector2(0.32, -0.18),
-    new THREE.Vector2(0.48, 0.2),
-    new THREE.Vector2(0.58, 0.48),
-    new THREE.Vector2(0.64, 0.64),
+    new THREE.Vector2(0.16, -0.4),
+    new THREE.Vector2(0.27, -0.32),
+    new THREE.Vector2(0.38, -0.05),
+    new THREE.Vector2(0.53, 0.32),
+    new THREE.Vector2(0.61, 0.6),
+    new THREE.Vector2(0.66, 0.68),
   ];
-  const cupGeometry = new THREE.LatheGeometry(cupPoints, 56);
+  const cupGeometry = new THREE.LatheGeometry(cupPoints, 72);
   const cup = new THREE.Mesh(cupGeometry, silver);
 
   const cupEdges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(cupGeometry, 24),
+    new THREE.EdgesGeometry(cupGeometry, 28),
     edgeMaterial,
   );
 
   const rim = new THREE.Mesh(
-    new THREE.TorusGeometry(0.64, 0.052, 14, 72),
+    new THREE.TorusGeometry(0.66, 0.052, 16, 84),
     silver,
   );
   rim.rotation.x = Math.PI / 2;
-  rim.position.y = 0.64;
+  rim.position.y = 0.68;
 
-  const inner = new THREE.Mesh(new THREE.CircleGeometry(0.52, 56), innerMetal);
-  inner.rotation.x = -Math.PI / 2;
-  inner.position.y = 0.642;
-
-  const stem = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.095, 0.13, 0.62, 28),
+  const lowerCupBand = new THREE.Mesh(
+    new THREE.TorusGeometry(0.25, 0.028, 12, 56),
     darkSilver,
   );
-  stem.position.y = -0.68;
+  lowerCupBand.rotation.x = Math.PI / 2;
+  lowerCupBand.position.y = -0.38;
+
+  const inner = new THREE.Mesh(new THREE.CircleGeometry(0.54, 72), innerMetal);
+  inner.rotation.x = -Math.PI / 2;
+  inner.position.y = 0.688;
+
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.135, 0.58, 36),
+    darkSilver,
+  );
+  stem.position.y = -0.7;
 
   const base = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.5, 0.58, 0.16, 36),
+    new THREE.CylinderGeometry(0.47, 0.59, 0.17, 48),
     darkSilver,
   );
   base.position.y = -1.05;
 
+  const basePlinth = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.62, 0.72, 0.13, 48),
+    darkSilver,
+  );
+  basePlinth.position.y = -1.2;
+
   const baseRim = new THREE.Mesh(
-    new THREE.TorusGeometry(0.5, 0.045, 12, 52),
+    new THREE.TorusGeometry(0.49, 0.044, 12, 64),
     silver,
   );
   baseRim.rotation.x = Math.PI / 2;
   baseRim.position.y = -0.96;
 
+  const footGlow = new THREE.Mesh(
+    new THREE.TorusGeometry(0.68, 0.018, 8, 72),
+    cyanEdge,
+  );
+  footGlow.rotation.x = Math.PI / 2;
+  footGlow.position.y = -1.11;
+
   const createHandle = (side: -1 | 1) => {
     const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(side * 0.55, 0.44, 0),
-      new THREE.Vector3(side * 0.86, 0.34, -0.02),
-      new THREE.Vector3(side * 0.9, 0.02, -0.03),
-      new THREE.Vector3(side * 0.55, -0.12, 0),
+      new THREE.Vector3(side * 0.57, 0.5, -0.02),
+      new THREE.Vector3(side * 0.88, 0.37, -0.08),
+      new THREE.Vector3(side * 0.92, 0.02, -0.08),
+      new THREE.Vector3(side * 0.56, -0.16, -0.02),
     ]);
     const handle = new THREE.Mesh(
-      new THREE.TubeGeometry(curve, 36, 0.038, 10, false),
+      new THREE.TubeGeometry(curve, 44, 0.036, 12, false),
       silver,
     );
     const handleEdge = new THREE.LineSegments(
@@ -157,35 +208,62 @@ const createTrophyGroup = (THREE: ThreeModule) => {
     return handle;
   };
 
+  const faceReflection = new THREE.Mesh(
+    new THREE.SphereGeometry(0.06, 16, 8),
+    reflectionMaterial,
+  );
+  faceReflection.position.set(-0.23, 0.27, 0.52);
+  faceReflection.scale.set(0.68, 2.5, 0.22);
+  faceReflection.rotation.z = -0.35;
+
+  const rimReflection = new THREE.Mesh(
+    new THREE.SphereGeometry(0.042, 12, 8),
+    reflectionMaterial,
+  );
+  rimReflection.position.set(0.24, 0.58, 0.48);
+  rimReflection.scale.set(1.6, 0.52, 0.2);
+
   const frontGlint = new THREE.Mesh(
-    new THREE.SphereGeometry(0.045, 12, 8),
+    new THREE.SphereGeometry(0.038, 12, 8),
     glintMaterial,
   );
-  frontGlint.position.set(-0.2, 0.46, 0.48);
+  frontGlint.position.set(-0.32, 0.5, 0.48);
   frontGlint.scale.set(1, 0.62, 0.72);
 
   const bodyGlint = new THREE.Mesh(
-    new THREE.SphereGeometry(0.036, 12, 8),
+    new THREE.SphereGeometry(0.028, 12, 8),
     glintMaterial,
   );
-  bodyGlint.position.set(0.17, 0.04, 0.47);
+  bodyGlint.position.set(0.14, -0.08, 0.48);
   bodyGlint.scale.set(0.72, 1.45, 0.5);
 
   trophy.add(
+    backGlow,
+    backRing,
     cup,
     cupEdges,
     rim,
+    lowerCupBand,
     inner,
     createHandle(-1),
     createHandle(1),
     stem,
     base,
+    basePlinth,
     baseRim,
+    footGlow,
+    faceReflection,
+    rimReflection,
     frontGlint,
     bodyGlint,
   );
-  trophy.scale.setScalar(0.98);
-  trophy.position.set(0, -0.04, 0);
+  trophy.scale.setScalar(0.88);
+  trophy.position.set(0, -0.02, 0);
+  trophy.rotation.set(
+    TROPHY_REST_ROTATION.x,
+    TROPHY_REST_ROTATION.y,
+    TROPHY_REST_ROTATION.z,
+  );
 
   return trophy;
 };
@@ -203,7 +281,7 @@ export default function DashboardTrophy3D({
   useEffect(() => {
     pausedRef.current = paused;
 
-    setDashboardWebGlCanvasActive(canvasRef.current, !paused);
+    setDashboardWebGlCanvasActive(canvasRef.current, true);
     if (frameIdRef.current === 0 && renderFrameRef.current) {
       frameIdRef.current = window.requestAnimationFrame(renderFrameRef.current);
     }
@@ -246,15 +324,23 @@ export default function DashboardTrophy3D({
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.85));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-      scene.add(new THREE.AmbientLight(new THREE.Color("#e0f2fe"), 1.62));
+      scene.add(new THREE.HemisphereLight("#d9f7ff", "#020617", 1.08));
+      scene.add(new THREE.AmbientLight(new THREE.Color("#dbeafe"), 0.72));
 
       const keyLight = new THREE.DirectionalLight(0xffffff, 2.35);
-      keyLight.position.set(-1.4, 2.95, 3.4);
+      keyLight.position.set(-1.55, 2.9, 3.3);
       scene.add(keyLight);
+
+      const sideShade = new THREE.DirectionalLight(
+        new THREE.Color("#0ea5e9"),
+        0.72,
+      );
+      sideShade.position.set(2.2, -0.8, 1.35);
+      scene.add(sideShade);
 
       const rimLight = new THREE.PointLight(
         new THREE.Color("#bae6fd"),
-        2.8,
+        2.4,
         5.4,
       );
       rimLight.position.set(1.6, 0.2, 2.4);
@@ -262,7 +348,7 @@ export default function DashboardTrophy3D({
 
       const coolBackLight = new THREE.PointLight(
         new THREE.Color("#38bdf8"),
-        1.05,
+        1.35,
         4.2,
       );
       coolBackLight.position.set(-1.2, -1.2, -0.9);
@@ -337,7 +423,7 @@ export default function DashboardTrophy3D({
           );
         }
 
-        setDashboardWebGlCanvasActive(canvas, !isPaused || !restingForward);
+        setDashboardWebGlCanvasActive(canvas, true);
         renderer.render(scene, camera);
 
         if (!isPaused || !restingForward) {
@@ -381,7 +467,7 @@ export default function DashboardTrophy3D({
       style={{
         display: "block",
         filter:
-          "drop-shadow(0 0 0.36rem rgba(226,232,240,0.66)) drop-shadow(0 0 0.72rem rgba(34,211,238,0.22))",
+          "drop-shadow(0 0.16rem 0.24rem rgba(2,6,23,0.52)) drop-shadow(0 0 0.42rem rgba(56,189,248,0.3))",
         height: "100%",
         pointerEvents: "none",
         width: "100%",

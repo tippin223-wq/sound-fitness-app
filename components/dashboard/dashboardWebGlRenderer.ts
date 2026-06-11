@@ -2,11 +2,11 @@ import type { WebGLRenderer, WebGLRendererParameters } from "three";
 
 type ThreeModule = typeof import("three");
 
-let nextDashboardWebGlStartAt = 0;
 let dashboardThreePromise: Promise<ThreeModule> | null = null;
 let dashboardWebGlPreloadPromise: Promise<boolean> | null = null;
 
 const DASHBOARD_WEBGL_STILL_DELAY_MS = 900;
+const DASHBOARD_WEBGL_AUTO_STILL_ENABLED = false;
 const DASHBOARD_WEBGL_WAKE_HOLD_MS = 1400;
 const DASHBOARD_WEBGL_SNAPSHOT_CLASS = "dashboard-webgl-snapshot-layer";
 const DASHBOARD_WEBGL_SNAPSHOT_STORAGE_PREFIX = "dashboard-webgl-snapshot:";
@@ -172,6 +172,11 @@ function ensureDashboardWebGlSnapshotLayer(canvas: HTMLCanvasElement) {
     layer.className = DASHBOARD_WEBGL_SNAPSHOT_CLASS;
     layer.decoding = "async";
     layer.draggable = false;
+    layer.onerror = () => {
+      delete layer?.dataset.dashboardWebglSnapshotValid;
+      layer?.removeAttribute("src");
+      setDashboardWebGlSnapshotVisible(canvas, false);
+    };
     parent.appendChild(layer);
   }
 
@@ -186,9 +191,19 @@ function setDashboardWebGlSnapshotVisible(
   visible: boolean,
 ) {
   const parent = canvas.parentElement;
-  if (!parent || !getDashboardWebGlSnapshotLayer(canvas)) return;
+  const layer = getDashboardWebGlSnapshotLayer(canvas);
+  if (!parent || !layer) return;
 
   if (visible) {
+    const snapshotSource = layer.getAttribute("src") || "";
+    if (
+      layer.dataset.dashboardWebglSnapshotValid !== "true" ||
+      !snapshotSource.startsWith("data:image/")
+    ) {
+      cleanupDashboardWebGlSnapshotArtifacts(canvas);
+      return;
+    }
+
     canvas.dataset.dashboardWebglSnapshotVisible = "true";
     parent.dataset.dashboardWebglSnapshotVisible = "true";
     return;
@@ -228,8 +243,15 @@ function captureDashboardWebGlSnapshot(
 
   if (!force && canvas.dataset.dashboardWebglSnapshot === "true") {
     const existingLayer = getDashboardWebGlSnapshotLayer(canvas);
-    if (existingLayer) positionDashboardWebGlSnapshotLayer(canvas, existingLayer);
-    return true;
+    const existingSnapshotSource = existingLayer?.getAttribute("src") || "";
+    if (
+      existingLayer &&
+      existingLayer.dataset.dashboardWebglSnapshotValid === "true" &&
+      existingSnapshotSource.startsWith("data:image/")
+    ) {
+      positionDashboardWebGlSnapshotLayer(canvas, existingLayer);
+      return true;
+    }
   }
 
   let snapshotUrl = "";
@@ -245,6 +267,7 @@ function captureDashboardWebGlSnapshot(
   if (!layer) return false;
 
   layer.src = snapshotUrl;
+  layer.dataset.dashboardWebglSnapshotValid = "true";
   positionDashboardWebGlSnapshotLayer(canvas, layer);
   writeDashboardWebGlCachedSnapshot(canvas, snapshotUrl);
   return true;
@@ -258,6 +281,7 @@ function restoreDashboardWebGlCachedSnapshot(canvas: HTMLCanvasElement) {
   if (!layer) return false;
 
   layer.src = snapshotUrl;
+  layer.dataset.dashboardWebglSnapshotValid = "true";
   positionDashboardWebGlSnapshotLayer(canvas, layer);
   return true;
 }
@@ -316,6 +340,11 @@ const attachDashboardWebGlSnapshotCapture = (
   };
 
   const requestStillSnapshot = () => {
+    if (!DASHBOARD_WEBGL_AUTO_STILL_ENABLED) {
+      clearStillTimeout();
+      return;
+    }
+
     if (
       shouldStayLive() ||
       canvas.dataset.dashboardWebglStill === "true" ||
@@ -360,7 +389,8 @@ const attachDashboardWebGlSnapshotCapture = (
   }) as WebGLRenderer["setSize"];
 
   renderer.render = ((...args: Parameters<WebGLRenderer["render"]>) => {
-    const liveForMotion = shouldStayLive();
+    const liveForMotion =
+      shouldStayLive() || !DASHBOARD_WEBGL_AUTO_STILL_ENABLED;
 
     if (liveForMotion) {
       clearStillTimeout();
@@ -405,29 +435,12 @@ const attachDashboardWebGlSnapshotCapture = (
   }) as WebGLRenderer["dispose"];
 };
 
-const waitForDashboardBrowserIdle = (timeout = 420) =>
-  new Promise<void>((resolve) => {
-    if (typeof window === "undefined") {
-      resolve();
-      return;
-    }
-
-    if ("requestIdleCallback" in window) {
-      window.requestIdleCallback(() => resolve(), { timeout });
-      return;
-    }
-
-    globalThis.setTimeout(resolve, Math.min(timeout, 120));
-  });
-
 export const preloadDashboardWebGlRuntime = () => {
   if (typeof window === "undefined" || typeof document === "undefined") {
     return Promise.resolve(false);
   }
 
   dashboardWebGlPreloadPromise ??= (async () => {
-    await waitForDashboardBrowserIdle(560);
-
     const THREE = await loadDashboardThree();
     const canvas = document.createElement("canvas");
     canvas.height = 16;
@@ -478,7 +491,8 @@ export const waitForDashboardWebGlStart = async ({
 }: {
   priority?: boolean;
 } = {}) => {
-  await preloadDashboardWebGlRuntime();
+  void preloadDashboardWebGlRuntime();
+  await loadDashboardThree();
 
   return new Promise<void>((resolve) => {
     if (typeof window === "undefined") {
@@ -486,19 +500,7 @@ export const waitForDashboardWebGlStart = async ({
       return;
     }
 
-    if (priority) {
-      void waitForDashboardBrowserIdle(120).then(resolve);
-      return;
-    }
-
-    const now = performance.now();
-    const scheduledAt = Math.max(now, nextDashboardWebGlStartAt);
-    nextDashboardWebGlStartAt = scheduledAt + 80;
-    const delay = Math.min(1200, scheduledAt - now);
-
-    window.setTimeout(() => {
-      void waitForDashboardBrowserIdle(240).then(resolve);
-    }, delay);
+    requestAnimationFrame(() => resolve());
   });
 };
 
