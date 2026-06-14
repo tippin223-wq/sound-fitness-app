@@ -25,6 +25,10 @@ function getLoginPath(pathname: string) {
   return "/login";
 }
 
+function matchesRouteBoundary(pathname: string, route: string) {
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
 export async function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
@@ -37,7 +41,7 @@ export async function proxy(request: NextRequest) {
   }
 
   const isProtected = protectedRoutes.some((route) =>
-    pathname.startsWith(route),
+    matchesRouteBoundary(pathname, route),
   );
 
   if (!isProtected) {

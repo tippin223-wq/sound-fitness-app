@@ -19,6 +19,7 @@ type DashboardGearIcon3DProps = {
   active?: boolean;
   className?: string;
   paused?: boolean;
+  spinSpeed?: number;
 };
 
 type MaterialObject = Object3D & {
@@ -294,10 +295,12 @@ export function DashboardGearIcon3D({
   active = false,
   className = "",
   paused = false,
+  spinSpeed = 1,
 }: DashboardGearIcon3DProps) {
   const activeRef = useRef(active);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pausedRef = useRef(paused);
+  const spinSpeedRef = useRef(spinSpeed);
 
   useEffect(() => {
     activeRef.current = active;
@@ -306,6 +309,10 @@ export function DashboardGearIcon3D({
   useEffect(() => {
     pausedRef.current = paused;
   }, [paused]);
+
+  useEffect(() => {
+    spinSpeedRef.current = clampNumber(spinSpeed, 0, 2);
+  }, [spinSpeed]);
 
   useEffect(() => {
     let cancelled = false;
@@ -439,7 +446,7 @@ export function DashboardGearIcon3D({
         const seconds = time / 1000;
         const activeMotion = activeRef.current && !pausedRef.current;
         charge += ((activeMotion ? 1 : 0) - charge) * Math.min(1, frameDelta * 0.016);
-        spin += frameDelta * (0.00022 + charge * 0.0034);
+        spin += frameDelta * (0.00022 + charge * 0.0034) * spinSpeedRef.current;
 
         root.rotation.z = spin;
         root.rotation.x = 0.18 + Math.sin(seconds * 2.2) * 0.08 * charge;

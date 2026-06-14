@@ -1,9 +1,6 @@
-import MainDashboardPage from "@/app/dashboard/page";
+import { redirect } from "next/navigation";
+import { ROUTES } from "@/lib/routes";
 
 export default function MainDashboardPreviewPage() {
-  return (
-    <div className="main-dashboard-preview-embed">
-      <MainDashboardPage />
-    </div>
-  );
+  redirect(ROUTES.public.memberDashboardPreview);
 }

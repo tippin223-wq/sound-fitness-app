@@ -43,13 +43,12 @@ const disposeObject = (object: Object3D) => {
 const createBoltShape = (THREE: ThreeModule) => {
   const shape = new THREE.Shape();
   const points = [
-    [-0.1, 1.03],
-    [-0.72, 0.08],
-    [-0.24, 0.08],
-    [-0.5, -1.02],
-    [0.72, -0.12],
-    [0.18, -0.12],
-    [0.46, 1.03],
+    [0.08, 1.14],
+    [-0.66, 0.08],
+    [-0.2, 0.08],
+    [-0.47, -1],
+    [0.68, -0.1],
+    [0.21, -0.1],
   ] as const;
 
   shape.moveTo(points[0][0], points[0][1]);
@@ -89,7 +88,7 @@ export default function DashboardLightningBolt3D({
       const canvas = canvasRef.current;
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 14);
-      camera.position.set(0, 0.02, 4.2);
+      camera.position.set(0, 0.02, 4.35);
       camera.lookAt(0, 0, 0);
 
       const renderer = createDashboardWebGlRenderer(THREE, canvas, {
@@ -101,7 +100,9 @@ export default function DashboardLightningBolt3D({
       if (!renderer) return;
 
       renderer.setClearColor(0x000000, 0);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.7));
+      renderer.setPixelRatio(
+        Math.min(Math.max(window.devicePixelRatio || 1, 1.6), 2.2),
+      );
       renderer.outputColorSpace = THREE.SRGBColorSpace;
 
       scene.add(new THREE.AmbientLight(new THREE.Color("#e0f2fe"), 1.05));
@@ -120,14 +121,14 @@ export default function DashboardLightningBolt3D({
 
       const group = new THREE.Group();
       group.position.y = -0.08;
-      group.rotation.set(0.05, 0.18, 0);
+      group.rotation.set(0.04, 0.04, 0);
       scene.add(group);
 
       const boltGeometry = new THREE.ExtrudeGeometry(createBoltShape(THREE), {
         bevelEnabled: true,
-        bevelSegments: 5,
-        bevelSize: 0.045,
-        bevelThickness: 0.05,
+        bevelSegments: 7,
+        bevelSize: 0.038,
+        bevelThickness: 0.046,
         depth: 0.22,
       });
       boltGeometry.center();
@@ -143,7 +144,7 @@ export default function DashboardLightningBolt3D({
       });
 
       const bolt = new THREE.Mesh(boltGeometry, boltMaterial);
-      bolt.rotation.z = -0.04;
+      bolt.rotation.z = 0;
       group.add(bolt);
 
       const glowMaterial = new THREE.MeshBasicMaterial({
@@ -209,7 +210,7 @@ export default function DashboardLightningBolt3D({
       const edgeGeometry = new THREE.EdgesGeometry(boltGeometry, 18);
       const edgeMaterial = new THREE.LineBasicMaterial({
         color: new THREE.Color("#e0f2fe"),
-        opacity: 0.56,
+        opacity: 0.42,
         transparent: true,
       });
       const edge = new THREE.LineSegments(edgeGeometry, edgeMaterial);
@@ -263,15 +264,15 @@ export default function DashboardLightningBolt3D({
 
         const pulse = charge * (0.026 + Math.sin(seconds * 8.2) * 0.01);
         group.scale.setScalar(0.78 + pulse);
-        group.rotation.x = 0.05 + Math.sin(seconds * 1.8) * 0.018 * charge;
-        group.rotation.y = 0.18 + Math.sin(seconds * 1.45) * 0.028 * charge;
+        group.rotation.x = 0.04 + Math.sin(seconds * 1.8) * 0.014 * charge;
+        group.rotation.y = 0.04 + Math.sin(seconds * 1.45) * 0.012 * charge;
         group.rotation.z = 0;
 
         boltMaterial.emissiveIntensity =
           0.28 + charge * (0.74 + Math.sin(seconds * 10.5) * 0.12);
         glowMaterial.opacity =
           0.12 + charge * (0.2 + Math.sin(seconds * 7) * 0.05);
-        edgeMaterial.opacity = 0.5 + charge * 0.36;
+        edgeMaterial.opacity = 0.34 + charge * 0.24;
         cyanLight.intensity = 2.6 + charge * 1.8;
         blueLight.intensity = 1.7 + charge * 1.1;
 

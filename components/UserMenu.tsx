@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
 import { ROUTES } from "@/lib/routes";
+import { ArrowRight, LogIn, Sparkles } from "lucide-react";
 
 export default function UserMenu() {
   const router = useRouter();
@@ -56,19 +57,44 @@ export default function UserMenu() {
 
   if (!userEmail) {
     return (
-      <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center sm:justify-center sm:gap-3">
+      <div className="relative grid w-full isolate grid-cols-2 gap-1.5 overflow-hidden rounded-[1.65rem] border border-sky-200/18 bg-[linear-gradient(135deg,rgba(14,34,60,0.82),rgba(2,8,22,0.9)_48%,rgba(4,19,38,0.86))] p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.32),0_0_0_1px_rgba(14,165,233,0.09),inset_0_1px_0_rgba(255,255,255,0.11)] backdrop-blur-xl sm:w-auto sm:min-w-[430px]">
+        <span className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/70 to-transparent" />
+        <span className="pointer-events-none absolute -left-10 top-1/2 h-24 w-24 -translate-y-1/2 rounded-full bg-cyan-300/10 blur-2xl" />
+        <span className="pointer-events-none absolute -right-8 top-0 h-20 w-28 rounded-full bg-sky-400/14 blur-2xl" />
+
         <Link
           href={ROUTES.auth.login}
-          className="inline-flex min-h-[44px] items-center justify-center rounded-xl border border-white/15 bg-white/[0.03] px-3 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-white transition hover:border-sky-400/50 hover:bg-sky-500/10 sm:px-5 sm:text-xs sm:tracking-[0.18em]"
+          className="group relative inline-flex min-h-[54px] items-center justify-center gap-2 overflow-hidden rounded-[1.25rem] border border-white/10 bg-white/[0.045] px-2.5 py-2.5 text-center text-[10px] font-black uppercase tracking-[0.09em] text-slate-100 shadow-[0_10px_24px_rgba(2,6,23,0.18),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-200 hover:-translate-y-0.5 hover:border-sky-200/40 hover:bg-sky-300/10 hover:text-white hover:shadow-[0_16px_34px_rgba(2,6,23,0.24),inset_0_1px_0_rgba(255,255,255,0.12)] focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 sm:px-4 sm:text-[11px] sm:tracking-[0.13em]"
         >
-          Member Sign In
+          <span className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-sky-100/55 to-transparent opacity-0 transition group-hover:opacity-100" />
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-sky-100/18 bg-sky-300/10 text-sky-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] transition group-hover:bg-sky-300/16">
+            <LogIn
+              aria-hidden="true"
+              className="h-4 w-4 transition group-hover:translate-x-0.5"
+              strokeWidth={2.6}
+            />
+          </span>
+          <span className="min-w-0">Member Sign In</span>
         </Link>
 
         <Link
-          href={ROUTES.onboarding.home}
-          className="inline-flex min-h-[44px] items-center justify-center rounded-xl bg-sky-500 px-3 py-3 text-center text-[10px] font-black uppercase tracking-[0.12em] text-white shadow-[0_0_35px_rgba(14,165,233,0.35)] transition hover:bg-sky-400 sm:px-5 sm:text-xs sm:tracking-[0.18em]"
+          href={ROUTES.onboarding.assessment}
+          className="group relative inline-flex min-h-[54px] items-center justify-center gap-2 overflow-hidden rounded-[1.25rem] border border-cyan-100/28 bg-[linear-gradient(135deg,#0ea5e9,#22d3ee_48%,#38bdf8)] px-2.5 py-2.5 text-center text-[10px] font-black uppercase tracking-[0.09em] text-white shadow-[0_18px_42px_rgba(14,165,233,0.34),inset_0_1px_0_rgba(255,255,255,0.24)] transition duration-200 hover:-translate-y-0.5 hover:border-cyan-50/45 hover:brightness-110 hover:shadow-[0_22px_52px_rgba(34,211,238,0.42),inset_0_1px_0_rgba(255,255,255,0.32)] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/75 sm:px-4 sm:text-[11px] sm:tracking-[0.13em]"
         >
-          Start Free Intro
+          <span className="pointer-events-none absolute inset-y-0 left-0 w-1/2 -translate-x-full bg-gradient-to-r from-transparent via-white/22 to-transparent transition duration-700 group-hover:translate-x-[220%]" />
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/28 bg-white/18 text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.28)]">
+            <Sparkles
+              aria-hidden="true"
+              className="h-4 w-4"
+              strokeWidth={2.6}
+            />
+          </span>
+          <span className="min-w-0">Start Free Intro</span>
+          <ArrowRight
+            aria-hidden="true"
+            className="hidden h-4 w-4 shrink-0 transition group-hover:translate-x-0.5 sm:block"
+            strokeWidth={2.8}
+          />
         </Link>
       </div>
     );

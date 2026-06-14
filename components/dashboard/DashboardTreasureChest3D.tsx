@@ -34,6 +34,8 @@ type DashboardTreasureChest3DProps = {
 type DashboardSpinningSoundCoin3DProps = {
   className?: string;
   paused?: boolean;
+  tone?: SoundCoinTone;
+  variant?: "sound" | "treasure";
 };
 
 const coinTextureSources = {
@@ -1093,6 +1095,8 @@ const createGiftBoxScene = (THREE: ThreeModule) => {
 export function DashboardSpinningSoundCoin3D({
   className,
   paused = false,
+  tone = "gold",
+  variant = "sound",
 }: DashboardSpinningSoundCoin3DProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pausedRef = useRef(paused);
@@ -1131,10 +1135,18 @@ export function DashboardSpinningSoundCoin3D({
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
 
+      const tokenTextureSource =
+        variant === "treasure"
+          ? treasureCoinTextureSources[tone]
+          : coinTextureSources[tone];
+      const tokenStyle =
+        variant === "treasure"
+          ? coinMetalEdgeStyles[treasureCoinEdgeMetalByTone[tone]]
+          : coinToneStyles[tone];
       const textureLoader = new THREE.TextureLoader();
       const coinTexture = configureSoundCoinTexture(
         THREE,
-        textureLoader.load(coinTextureSources.gold),
+        textureLoader.load(tokenTextureSource),
       );
 
       scene.add(new THREE.AmbientLight(new THREE.Color("#fff4cc"), 1.22));
@@ -1143,7 +1155,11 @@ export function DashboardSpinningSoundCoin3D({
       keyLight.position.set(-1.5, 2.2, 3.2);
       scene.add(keyLight);
 
-      const warmLight = new THREE.PointLight(new THREE.Color("#f59e0b"), 2.4, 4.6);
+      const warmLight = new THREE.PointLight(
+        new THREE.Color(tokenStyle.glow),
+        variant === "treasure" ? 1.85 : 2.4,
+        4.6,
+      );
       warmLight.position.set(0.9, -0.6, 2.2);
       scene.add(warmLight);
 
@@ -1158,9 +1174,9 @@ export function DashboardSpinningSoundCoin3D({
       const sideMaterial = new THREE.MeshPhysicalMaterial({
         clearcoat: 0.72,
         clearcoatRoughness: 0.12,
-        color: new THREE.Color("#f6b21f"),
-        emissive: new THREE.Color("#8a3d05"),
-        emissiveIntensity: 0.14,
+        color: new THREE.Color(tokenStyle.side),
+        emissive: new THREE.Color(tokenStyle.glow),
+        emissiveIntensity: variant === "treasure" ? 0.08 : 0.14,
         metalness: 0.82,
         roughness: 0.18,
       });
@@ -1179,14 +1195,14 @@ export function DashboardSpinningSoundCoin3D({
       const rimMaterial = new THREE.MeshPhysicalMaterial({
         clearcoat: 0.94,
         clearcoatRoughness: 0.1,
-        color: new THREE.Color("#fff1a8"),
-        emissive: new THREE.Color("#a16207"),
-        emissiveIntensity: 0.16,
+        color: new THREE.Color(tokenStyle.rim),
+        emissive: new THREE.Color(tokenStyle.glow),
+        emissiveIntensity: variant === "treasure" ? 0.12 : 0.16,
         metalness: 0.88,
         roughness: 0.14,
       });
       const glintMaterial = new THREE.MeshBasicMaterial({
-        color: new THREE.Color("#fff7d6"),
+        color: new THREE.Color(tokenStyle.rim),
         opacity: 0.86,
         transparent: true,
       });
@@ -1292,13 +1308,15 @@ export function DashboardSpinningSoundCoin3D({
       cancelled = true;
       cleanup();
     };
-  }, []);
+  }, [tone, variant]);
 
   return (
     <canvas
       aria-hidden="true"
       className={className}
       data-sound-coin-renderer="three"
+      data-token-tone={tone}
+      data-token-variant={variant}
       ref={canvasRef}
     />
   );
@@ -1501,7 +1519,7 @@ export default function DashboardTreasureChest3D({
 
   return (
     <canvas
-      aria-label="3D treasure chest overflowing with Sound Coins"
+      aria-label="3D treasure chest overflowing with Treasure Tokens"
       className={className}
       data-treasure-chest-open={open ? "true" : "false"}
       data-treasure-chest-renderer="three"

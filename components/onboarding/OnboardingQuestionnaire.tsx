@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { ROUTES } from "@/lib/routes";
 
 type AssessmentAnswers = {
   goal: string;
@@ -475,10 +476,10 @@ export default function OnboardingQuestionnaire() {
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <Link
-                href="/signup"
+                href={ROUTES.onboarding.subscription}
                 className="rounded-2xl bg-cyan-300 px-4 py-3 text-center text-xs font-black uppercase tracking-[0.14em] text-slate-950"
               >
-                Create Account
+                Choose Plan & Pay
               </Link>
               <Link
                 href="/login"

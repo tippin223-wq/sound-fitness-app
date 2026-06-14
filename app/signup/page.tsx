@@ -55,8 +55,8 @@ export default function SignupPage() {
   return (
     <AuthCard
       eyebrow="Create Account"
-      title="Start your portal"
-      subtitle="Create member access after your assessment. Your profile and plan can keep building from there."
+      title="Create your paid member account"
+      subtitle="Use this step after checkout so your private dashboard can attach to the membership you purchased."
       icon="SF"
       footer={
         <p className="text-center text-xs leading-6 text-slate-500">

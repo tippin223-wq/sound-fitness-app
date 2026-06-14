@@ -4,6 +4,7 @@ type ValueOf<T> = T[keyof T];
 
 export const PUBLIC_ROUTES = {
   home: route("/"),
+  memberDashboardPreview: route("/member-dashboard-preview"),
   start: route("/start"),
 } as const;
 
@@ -115,6 +116,7 @@ export const ADMIN_ROUTES = {
   leadProfile: route("/admin/lead-profile"),
   leads: route("/admin/leads"),
   login: route("/admin/login"),
+  mainDashboardPreview: route("/admin/main-dashboard-preview"),
   postHub: route("/admin/post-hub"),
   referrals: route("/admin/referrals"),
   reports: route("/admin/reports"),

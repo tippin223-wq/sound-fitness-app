@@ -30,13 +30,17 @@ function parseInternalPath(nextPath: string | null) {
   }
 }
 
+function matchesRouteBoundary(pathname: string, route: string) {
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
 function isAllowedForRole(role: AuthRole, pathname: string) {
   if (publicAuthPaths.has(pathname)) return false;
-  if (role === "admin") return pathname.startsWith(ROUTES.admin.home);
-  if (role === "coach") return pathname.startsWith(ROUTES.coach.home);
+  if (role === "admin") return matchesRouteBoundary(pathname, ROUTES.admin.home);
+  if (role === "coach") return matchesRouteBoundary(pathname, ROUTES.coach.home);
   return (
-    pathname.startsWith(ROUTES.dashboard.home) ||
-    pathname.startsWith(ROUTES.performance.home)
+    matchesRouteBoundary(pathname, ROUTES.dashboard.home) ||
+    matchesRouteBoundary(pathname, ROUTES.performance.home)
   );
 }
 

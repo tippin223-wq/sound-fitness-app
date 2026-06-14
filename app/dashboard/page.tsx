@@ -221,7 +221,7 @@ const DASHBOARD_HEADER_METER_PANEL_KEYBOARD_KEYS = new Set([
 ]);
 const DASHBOARD_PAGE_ANALOG_LEVEL_TICKS = [0, 20, 40, 60, 80, 100] as const;
 const DASHBOARD_PAGE_ANALOG_LEVEL_REWARDS = [
-  { icon: "coin", label: "Sound Coin", threshold: 33 },
+  { icon: "coin", label: "Treasure Tokens", threshold: 33 },
   { icon: "emerald", label: "Emerald", threshold: 66 },
   { icon: "trophy", label: "Level Up Trophy", threshold: 100 },
 ] as const;
@@ -11508,7 +11508,7 @@ const adminMarketingCampaignCards: DashboardNavigationCard[] = [
 
 export default function UserHomeDashboardPage() {
   const pathname = usePathname();
-  const isAdminPreview = pathname === "/main-dashboard-preview";
+  const isAdminPreview = pathname === ROUTES.admin.mainDashboardPreview;
   const router = useRouter();
   const { profile: sharedProfile } = useProfile();
   const [dashboardToday] = useState<Date>(() => new Date());
@@ -25760,13 +25760,13 @@ export default function UserHomeDashboardPage() {
       return (
         <div className="dashboard-profile-reward-orbit__panel-body dashboard-profile-reward-orbit__panel-body--coins-room">
           <span className="dashboard-profile-reward-orbit__panel-kicker">
-            Sound Coins
+            Treasure Tokens
           </span>
           <div className="dashboard-profile-reward-orbit__panel-title">
             Treasure Chest
           </div>
           <div
-            aria-label={`Sound Coins treasure chest ${soundTokens.toLocaleString()}`}
+            aria-label={`Treasure Tokens treasure chest ${soundTokens.toLocaleString()}`}
             className="dashboard-profile-sound-coins-vault dashboard-profile-sound-coins-vault--showcase mt-3"
           >
             <span className="dashboard-profile-sound-coins-vault__readout">
@@ -28267,7 +28267,7 @@ export default function UserHomeDashboardPage() {
                 <button
                   aria-controls="dashboard-points-dropdown"
                   aria-expanded={dashboardPointsDropdownOpen}
-                  aria-label={`Open Sound Points rewards, ${soundPoints.toLocaleString()} points, ${soundTokens.toLocaleString()} sound coins, ${soundEmeralds.toLocaleString()} emeralds, ${dashboardCoreLightning.intensity.toLocaleString()} intensity lightning, ${dashboardCoreLightning.consistency.toLocaleString()} consistency lightning, ${dashboardCoreLightning.recovery.toLocaleString()} recovery lightning, ${dashboardKnowledgeLightning.toLocaleString()} knowledge lightning, ${dashboardVolumeLightning.toLocaleString()} volume lightning, and ${dashboardTechniqueLightning.toLocaleString()} technique lightning`}
+                  aria-label={`Open Sound Points rewards, ${soundPoints.toLocaleString()} points, ${soundTokens.toLocaleString()} treasure tokens, ${soundEmeralds.toLocaleString()} emeralds, ${dashboardCoreLightning.intensity.toLocaleString()} intensity lightning, ${dashboardCoreLightning.consistency.toLocaleString()} consistency lightning, ${dashboardCoreLightning.recovery.toLocaleString()} recovery lightning, ${dashboardKnowledgeLightning.toLocaleString()} knowledge lightning, ${dashboardVolumeLightning.toLocaleString()} volume lightning, and ${dashboardTechniqueLightning.toLocaleString()} technique lightning`}
                   className="dashboard-profile-points-trigger flex min-h-[68px] min-w-[88px] shrink-0 flex-col items-start justify-center gap-0.5 rounded-[18px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:border-emerald-200/18 hover:bg-emerald-300/8"
                   data-dashboard-tooltip="Sound Points"
                   data-dropdown-open={
@@ -28311,7 +28311,7 @@ export default function UserHomeDashboardPage() {
                       {soundEmeralds.toLocaleString()}
                     </span>
                     <span className="dashboard-profile-points-trigger__value-row text-xs font-black leading-none text-white">
-                      <span className="sr-only">Sound Coins</span>
+                      <span className="sr-only">Treasure Tokens</span>
                       <span
                         aria-hidden="true"
                         className="dashboard-profile-points-trigger__webgl-shell dashboard-profile-points-trigger__webgl-shell--coin"
