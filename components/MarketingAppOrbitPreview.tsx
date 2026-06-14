@@ -368,35 +368,240 @@ function AppStillShell({
   );
 }
 
-function MiniStat({
-  label,
-  value,
-  tone = "sky",
-}: {
-  label: string;
-  value: string;
-  tone?: "amber" | "emerald" | "sky";
-}) {
-  const toneClass =
-    tone === "amber"
-      ? "text-amber-100 bg-amber-200/10 border-amber-200/18"
-      : tone === "emerald"
-        ? "text-emerald-100 bg-emerald-300/10 border-emerald-200/18"
-        : "text-sky-100 bg-sky-400/10 border-sky-300/18";
+type InteractiveTone = "amber" | "emerald" | "sky" | "violet";
 
+function interactiveToneClasses(tone: InteractiveTone) {
+  if (tone === "amber") {
+    return "border-amber-200/24 bg-amber-200/10 text-amber-100 focus-within:border-amber-100/55 focus-within:shadow-[0_0_18px_rgba(250,204,21,0.14)]";
+  }
+
+  if (tone === "emerald") {
+    return "border-emerald-200/24 bg-emerald-300/10 text-emerald-100 focus-within:border-emerald-100/55 focus-within:shadow-[0_0_18px_rgba(16,185,129,0.14)]";
+  }
+
+  if (tone === "violet") {
+    return "border-violet-200/24 bg-violet-300/10 text-violet-100 focus-within:border-violet-100/55 focus-within:shadow-[0_0_18px_rgba(139,92,246,0.16)]";
+  }
+
+  return "border-sky-300/24 bg-sky-400/10 text-sky-100 focus-within:border-sky-100/55 focus-within:shadow-[0_0_18px_rgba(14,165,233,0.16)]";
+}
+
+function interactiveCheckedClasses(tone: InteractiveTone) {
+  if (tone === "amber") {
+    return "peer-checked:border-amber-100/70 peer-checked:bg-amber-200/24 peer-checked:text-amber-50";
+  }
+
+  if (tone === "emerald") {
+    return "peer-checked:border-emerald-100/70 peer-checked:bg-emerald-300/24 peer-checked:text-emerald-50";
+  }
+
+  if (tone === "violet") {
+    return "peer-checked:border-violet-100/70 peer-checked:bg-violet-300/24 peer-checked:text-violet-50";
+  }
+
+  return "peer-checked:border-sky-100/70 peer-checked:bg-sky-300/24 peer-checked:text-sky-50";
+}
+
+function stopInteractivePointer(event: PointerEvent<HTMLElement>) {
+  event.stopPropagation();
+}
+
+function InteractiveControlPanel({
+  children,
+  className = "",
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <div className={`rounded-lg border p-2.5 ${toneClass}`}>
-      <div className="text-[8px] font-black uppercase tracking-[0.14em] opacity-70">
-        {label}
-      </div>
-      <div className="mt-1 text-xs font-black leading-4 text-white">
-        {value}
-      </div>
+    <div
+      className={className}
+      onPointerDown={stopInteractivePointer}
+      onPointerUp={stopInteractivePointer}
+    >
+      {children}
     </div>
   );
 }
 
-function ProfileStill() {
+function InteractiveTextField({
+  defaultValue,
+  disabled,
+  inputMode,
+  label,
+  tone = "sky",
+}: {
+  defaultValue: string;
+  disabled?: boolean;
+  inputMode?: "numeric" | "text";
+  label: string;
+  tone?: InteractiveTone;
+}) {
+  return (
+    <label
+      className={`block rounded-lg border p-1.5 transition ${interactiveToneClasses(
+        tone,
+      )}`}
+    >
+      <span className="block text-[7px] font-black uppercase tracking-[0.14em] opacity-72">
+        {label}
+      </span>
+      <input
+        className="mt-1 w-full min-w-0 rounded-md border border-white/8 bg-slate-950/44 px-2 py-1 text-[10px] font-black leading-none text-white outline-none placeholder:text-slate-500 disabled:opacity-100"
+        defaultValue={defaultValue}
+        disabled={disabled}
+        inputMode={inputMode}
+      />
+    </label>
+  );
+}
+
+function InteractiveSelectField({
+  defaultValue,
+  disabled,
+  label,
+  options,
+  tone = "sky",
+}: {
+  defaultValue: string;
+  disabled?: boolean;
+  label: string;
+  options: readonly string[];
+  tone?: InteractiveTone;
+}) {
+  return (
+    <label
+      className={`block rounded-lg border p-1.5 transition ${interactiveToneClasses(
+        tone,
+      )}`}
+    >
+      <span className="block text-[7px] font-black uppercase tracking-[0.14em] opacity-72">
+        {label}
+      </span>
+      <select
+        className="mt-1 w-full min-w-0 rounded-md border border-white/8 bg-slate-950/44 px-2 py-1 text-[10px] font-black leading-none text-white outline-none disabled:opacity-100"
+        defaultValue={defaultValue}
+        disabled={disabled}
+      >
+        {options.map((option) => (
+          <option key={option}>{option}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function InteractiveChipGroup({
+  defaultChecked,
+  disabled,
+  label,
+  name,
+  options,
+  tone = "sky",
+}: {
+  defaultChecked: readonly string[];
+  disabled?: boolean;
+  label: string;
+  name: string;
+  options: readonly string[];
+  tone?: InteractiveTone;
+}) {
+  const checkedClass = interactiveCheckedClasses(tone);
+
+  return (
+    <fieldset
+      className={`rounded-lg border p-1.5 transition ${interactiveToneClasses(
+        tone,
+      )}`}
+      disabled={disabled}
+    >
+      <legend className="px-0.5 text-[7px] font-black uppercase tracking-[0.14em] opacity-72">
+        {label}
+      </legend>
+      <div className="mt-1 flex flex-wrap gap-1">
+        {options.map((option) => (
+          <label className="min-w-0 cursor-pointer" key={option}>
+            <input
+              className="peer sr-only"
+              defaultChecked={defaultChecked.includes(option)}
+              name={name}
+              type="checkbox"
+            />
+            <span
+              className={`block rounded-full border border-white/10 bg-slate-950/42 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] text-slate-400 transition ${checkedClass}`}
+            >
+              {option}
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
+function InteractiveRangeField({
+  defaultValue,
+  disabled,
+  label,
+  tone = "sky",
+  valueLabel,
+}: {
+  defaultValue: number;
+  disabled?: boolean;
+  label: string;
+  tone?: InteractiveTone;
+  valueLabel: string;
+}) {
+  const accentClass =
+    tone === "amber"
+      ? "accent-amber-200"
+      : tone === "emerald"
+        ? "accent-emerald-300"
+        : tone === "violet"
+          ? "accent-violet-300"
+          : "accent-cyan-300";
+
+  return (
+    <label
+      className={`block rounded-lg border p-1.5 transition ${interactiveToneClasses(
+        tone,
+      )}`}
+    >
+      <span className="flex items-center justify-between gap-2 text-[7px] font-black uppercase tracking-[0.14em] opacity-72">
+        <span>{label}</span>
+        <span className="text-white">{valueLabel}</span>
+      </span>
+      <input
+        className={`mt-1.5 h-2 w-full ${accentClass} disabled:opacity-100`}
+        defaultValue={defaultValue}
+        disabled={disabled}
+        max={100}
+        min={0}
+        type="range"
+      />
+    </label>
+  );
+}
+
+function InteractiveActionButton({
+  children,
+  disabled,
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      className="inline-flex min-h-7 items-center justify-center rounded-lg border border-cyan-100/22 bg-cyan-300/12 px-2.5 text-[8px] font-black uppercase tracking-[0.16em] text-cyan-50 transition hover:border-cyan-100/50 hover:bg-cyan-200/18 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/55 active:scale-[0.98] disabled:opacity-100"
+      disabled={disabled}
+      type="button"
+    >
+      {children}
+    </button>
+  );
+}
+
+function ProfileStill({ disabled = false }: { disabled?: boolean }) {
   return (
     <AppStillShell
       accent="from-sky-300 via-cyan-300 to-emerald-300"
@@ -405,43 +610,63 @@ function ProfileStill() {
       title="Maya R."
     >
       <div className="grid h-full grid-cols-[0.82fr_1.18fr] gap-3">
-        <div className="flex flex-col justify-between rounded-lg border border-white/10 bg-white/[0.04] p-3">
-          <div>
-            <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-sky-200/35 bg-[radial-gradient(circle_at_42%_30%,rgba(125,211,252,0.34),rgba(15,23,42,0.78))] text-xl font-black text-white shadow-[0_0_28px_rgba(14,165,233,0.2)]">
+        <InteractiveControlPanel className="flex flex-col justify-between rounded-lg border border-white/10 bg-white/[0.04] p-3">
+          <div className="space-y-2">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-sky-200/35 bg-[radial-gradient(circle_at_42%_30%,rgba(125,211,252,0.34),rgba(15,23,42,0.78))] text-lg font-black text-white shadow-[0_0_28px_rgba(14,165,233,0.2)]">
               MR
             </div>
-            <div className="mt-3 text-center text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
-              Level 12
-            </div>
+            <InteractiveTextField
+              defaultValue="Maya R."
+              disabled={disabled}
+              label="Name"
+            />
           </div>
-          <div className="rounded-md bg-slate-950/54 p-2 text-center">
-            <div className="text-xl font-black text-emerald-100">82%</div>
-            <div className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
-              Ready
-            </div>
-          </div>
-        </div>
+          <InteractiveRangeField
+            defaultValue={82}
+            disabled={disabled}
+            label="Readiness"
+            tone="emerald"
+            valueLabel="82%"
+          />
+        </InteractiveControlPanel>
 
-        <div className="grid gap-2">
-          <MiniStat label="Home setup" value="Dumbbells, bands, mat" />
-          <MiniStat
+        <InteractiveControlPanel className="grid gap-1.5">
+          <InteractiveTextField
+            defaultValue="Dumbbells, bands, mat"
+            disabled={disabled}
+            label="Home setup"
+          />
+          <InteractiveTextField
+            defaultValue="Low-back friendly cues"
+            disabled={disabled}
             label="Limits"
             tone="amber"
-            value="Low-back friendly cues"
           />
-          <MiniStat
+          <InteractiveSelectField
+            defaultValue="Direct plan + form notes"
+            disabled={disabled}
             label="Support style"
+            options={[
+              "Direct plan + form notes",
+              "Encouraging check-ins",
+              "Independent mode",
+            ]}
             tone="emerald"
-            value="Direct plan + form notes"
           />
-          <MiniStat label="Schedule" value="3 training windows" />
-        </div>
+          <InteractiveChipGroup
+            defaultChecked={["AM", "PM"]}
+            disabled={disabled}
+            label="Training windows"
+            name="profile-training-windows"
+            options={["AM", "Midday", "PM"]}
+          />
+        </InteractiveControlPanel>
       </div>
     </AppStillShell>
   );
 }
 
-function GoalsStill() {
+function GoalsStill({ disabled = false }: { disabled?: boolean }) {
   return (
     <AppStillShell
       accent="from-amber-200 via-lime-200 to-emerald-300"
@@ -450,42 +675,53 @@ function GoalsStill() {
       title="Target board"
     >
       <div className="grid h-full gap-3">
-        <div className="rounded-lg border border-amber-200/18 bg-amber-200/10 p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-[8px] font-black uppercase tracking-[0.16em] text-amber-100/70">
-                Primary goal
-              </div>
-              <div className="mt-1 text-sm font-black leading-5 text-white">
-                Lose 12 lb + gain lean muscle
-              </div>
-            </div>
-            <div className="rounded-full bg-slate-950/55 px-2.5 py-1 text-xs font-black text-amber-100">
-              64%
-            </div>
-          </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-950/60">
-            <div className="h-full w-[64%] rounded-full bg-gradient-to-r from-cyan-300 via-emerald-200 to-amber-200" />
-          </div>
-          <div className="mt-2 flex justify-between text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
-            <span>Start</span>
-            <span>Check-in</span>
-            <span>Aug 30, 2026</span>
-          </div>
-        </div>
+        <InteractiveControlPanel className="grid grid-cols-[1.35fr_0.65fr] gap-2">
+          <InteractiveTextField
+            defaultValue="Lose 12 lb + gain muscle"
+            disabled={disabled}
+            label="Primary goal"
+            tone="amber"
+          />
+          <InteractiveTextField
+            defaultValue="Aug 30"
+            disabled={disabled}
+            label="Target"
+            tone="emerald"
+          />
+        </InteractiveControlPanel>
 
-        <div className="grid grid-cols-2 gap-2">
-          <MiniStat label="Mobility" value="4 days per week" tone="emerald" />
-          <MiniStat label="Pain cap" value="Stay under 2/10" tone="sky" />
-          <MiniStat label="Nutrition" value="Protein target set" tone="amber" />
-          <MiniStat label="Coach review" value="Draft ready" tone="emerald" />
-        </div>
+        <InteractiveControlPanel>
+          <InteractiveRangeField
+            defaultValue={64}
+            disabled={disabled}
+            label="Goal progress"
+            tone="amber"
+            valueLabel="5 lb to go"
+          />
+        </InteractiveControlPanel>
+
+        <InteractiveControlPanel className="grid grid-cols-2 gap-2">
+          <InteractiveChipGroup
+            defaultChecked={["Mobility", "Protein"]}
+            disabled={disabled}
+            label="Habits"
+            name="goal-habits"
+            options={["Mobility", "Protein", "Sleep"]}
+            tone="emerald"
+          />
+          <InteractiveTextField
+            defaultValue="Stay under 2/10"
+            disabled={disabled}
+            label="Pain cap"
+            tone="sky"
+          />
+        </InteractiveControlPanel>
       </div>
     </AppStillShell>
   );
 }
 
-function PlanStill() {
+function PlanStill({ disabled = false }: { disabled?: boolean }) {
   const planDays = [
     ["Mon", "Lower body strength", "Squat pattern + core"],
     ["Wed", "Mobility reset", "Hips, t-spine, breath"],
@@ -500,37 +736,60 @@ function PlanStill() {
       title="Training week"
     >
       <div className="grid h-full grid-cols-[1fr_0.9fr] gap-3">
-        <div className="space-y-2">
+        <InteractiveControlPanel className="space-y-2">
           {planDays.map(([day, title, detail]) => (
-            <div
-              className="grid grid-cols-[2.1rem_1fr] gap-2 rounded-lg border border-white/10 bg-white/[0.04] p-2.5"
+            <label
+              className="group grid cursor-pointer grid-cols-[2.1rem_1fr] gap-2 rounded-lg border border-white/10 bg-white/[0.04] p-2.5 transition focus-within:border-sky-100/55"
               key={day}
             >
+              <input
+                className="peer sr-only"
+                defaultChecked
+                disabled={disabled}
+                type="checkbox"
+              />
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-400/12 text-[10px] font-black uppercase text-sky-100">
                 {day}
               </div>
               <div className="min-w-0">
-                <div className="truncate text-xs font-black text-white">
+                <div className="truncate text-xs font-black text-white peer-checked:text-cyan-50">
                   {title}
                 </div>
                 <div className="mt-0.5 truncate text-[9px] font-bold text-slate-500">
                   {detail}
                 </div>
               </div>
-            </div>
+            </label>
           ))}
-        </div>
-        <div className="grid gap-2">
-          <MiniStat label="Equipment" value="Dumbbells + bands" />
-          <MiniStat label="Recovery" value="Sleep + soreness aware" tone="amber" />
-          <MiniStat label="Status" value="Needs coach approval" tone="emerald" />
-        </div>
+        </InteractiveControlPanel>
+        <InteractiveControlPanel className="grid gap-2">
+          <InteractiveSelectField
+            defaultValue="Strength + mobility"
+            disabled={disabled}
+            label="Plan focus"
+            options={["Strength + mobility", "Mobility base", "Full body build"]}
+          />
+          <InteractiveChipGroup
+            defaultChecked={["Dumbbells", "Bands"]}
+            disabled={disabled}
+            label="Equipment"
+            name="plan-equipment"
+            options={["Dumbbells", "Bands", "Mat"]}
+          />
+          <InteractiveSelectField
+            defaultValue="Needs coach approval"
+            disabled={disabled}
+            label="Status"
+            options={["Draft saved", "Needs coach approval", "Ready"]}
+            tone="emerald"
+          />
+        </InteractiveControlPanel>
       </div>
     </AppStillShell>
   );
 }
 
-function WorkoutBuilderStill() {
+function WorkoutBuilderStill({ disabled = false }: { disabled?: boolean }) {
   return (
     <AppStillShell
       accent="from-violet-200 via-cyan-300 to-emerald-300"
@@ -539,40 +798,53 @@ function WorkoutBuilderStill() {
       title="5 exercise build"
     >
       <div className="grid h-full grid-cols-[0.88fr_1.12fr] gap-3">
-        <div className="flex flex-col justify-between rounded-lg border border-cyan-200/16 bg-cyan-300/8 p-3">
-          <div>
-            <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100">
-              <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
-              Match rules
-            </div>
-            <div className="mt-3 space-y-2">
-              {["Low-back friendly", "Home equipment", "Strength + mobility"].map(
-                (rule) => (
-                  <div
-                    className="rounded-md border border-white/10 bg-slate-950/50 px-2.5 py-2 text-[10px] font-bold text-slate-200"
-                    key={rule}
-                  >
-                    {rule}
-                  </div>
-                ),
-              )}
-            </div>
+        <InteractiveControlPanel className="grid gap-2">
+          <InteractiveSelectField
+            defaultValue="Strength + mobility"
+            disabled={disabled}
+            label="Session focus"
+            options={["Strength + mobility", "Upper body", "Recovery reset"]}
+            tone="violet"
+          />
+          <InteractiveTextField
+            defaultValue="Goblet squat"
+            disabled={disabled}
+            label="Exercise"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <InteractiveTextField
+              defaultValue="3"
+              disabled={disabled}
+              inputMode="numeric"
+              label="Sets"
+              tone="emerald"
+            />
+            <InteractiveTextField
+              defaultValue="10"
+              disabled={disabled}
+              inputMode="numeric"
+              label="Reps"
+              tone="amber"
+            />
           </div>
-          <div className="rounded-md bg-slate-950/60 p-2">
-            <div className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
-              Match score
-            </div>
-            <div className="mt-1 text-2xl font-black text-cyan-100">91%</div>
-          </div>
-        </div>
+          <InteractiveActionButton disabled={disabled}>
+            Add move
+          </InteractiveActionButton>
+        </InteractiveControlPanel>
 
-        <div className="space-y-1">
+        <InteractiveControlPanel className="space-y-1">
           {workoutRecommendations.map((exercise, index) => (
-            <div
-              className="grid grid-cols-[1.25rem_1fr_auto] items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1"
+            <label
+              className="grid cursor-pointer grid-cols-[1.25rem_1fr_auto] items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 transition focus-within:border-cyan-100/50"
               key={exercise.name}
             >
-              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-[9px] font-black text-white">
+              <input
+                className="peer sr-only"
+                defaultChecked={index < 3}
+                disabled={disabled}
+                type="checkbox"
+              />
+              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-[9px] font-black text-white transition peer-checked:bg-emerald-300 peer-checked:text-slate-950">
                 {index + 1}
               </div>
               <div className="min-w-0">
@@ -591,15 +863,15 @@ function WorkoutBuilderStill() {
                   {exercise.dose}
                 </div>
               </div>
-            </div>
+            </label>
           ))}
-        </div>
+        </InteractiveControlPanel>
       </div>
     </AppStillShell>
   );
 }
 
-function WorkoutStill() {
+function WorkoutStill({ disabled = false }: { disabled?: boolean }) {
   return (
     <AppStillShell
       accent="from-emerald-200 via-cyan-300 to-sky-400"
@@ -608,14 +880,20 @@ function WorkoutStill() {
       title="Complete workout"
     >
       <div className="grid h-full grid-cols-[1fr_0.9fr] gap-3">
-        <div className="space-y-2">
+        <InteractiveControlPanel className="space-y-2">
           {workoutRecommendations.map((exercise, index) => {
             const isDone = index < 3;
             return (
-              <div
-                className="grid grid-cols-[1.4rem_1fr_auto] items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] p-2"
+              <label
+                className="grid cursor-pointer grid-cols-[1.4rem_1fr_auto] items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] p-2 transition focus-within:border-emerald-100/50"
                 key={exercise.name}
               >
+                <input
+                  className="peer sr-only"
+                  defaultChecked={isDone}
+                  disabled={disabled}
+                  type="checkbox"
+                />
                 <div
                   className={`flex h-5 w-5 items-center justify-center rounded-full border text-[9px] font-black ${
                     isDone
@@ -636,22 +914,42 @@ function WorkoutStill() {
                 <div className="text-[9px] font-black uppercase tracking-[0.08em] text-slate-400">
                   {isDone ? "Done" : "Next"}
                 </div>
-              </div>
+              </label>
             );
           })}
-        </div>
-        <div className="grid gap-2">
-          <MiniStat label="Elapsed" value="32:18" tone="emerald" />
-          <MiniStat label="Current" value="Step-up set 2" />
-          <MiniStat label="Coach note" value="Keep ribs stacked" tone="amber" />
-          <MiniStat label="Session" value="68% complete" tone="emerald" />
-        </div>
+        </InteractiveControlPanel>
+        <InteractiveControlPanel className="grid gap-2">
+          <InteractiveTextField
+            defaultValue="32:18"
+            disabled={disabled}
+            label="Elapsed"
+            tone="emerald"
+          />
+          <InteractiveTextField
+            defaultValue="Step-up set 2"
+            disabled={disabled}
+            label="Current"
+          />
+          <InteractiveTextField
+            defaultValue="Keep ribs stacked"
+            disabled={disabled}
+            label="Coach note"
+            tone="amber"
+          />
+          <InteractiveRangeField
+            defaultValue={68}
+            disabled={disabled}
+            label="Session"
+            tone="emerald"
+            valueLabel="68%"
+          />
+        </InteractiveControlPanel>
       </div>
     </AppStillShell>
   );
 }
 
-function ResultsStill() {
+function ResultsStill({ disabled = false }: { disabled?: boolean }) {
   const metrics = [
     ["Readiness", "87%", "w-[87%]"],
     ["Effort", "7/10", "w-[70%]"],
@@ -666,66 +964,77 @@ function ResultsStill() {
       title="Next best move"
     >
       <div className="grid h-full grid-cols-[0.95fr_1.05fr] gap-3">
-        <div className="space-y-2 rounded-lg border border-white/10 bg-white/[0.04] p-3">
-          {metrics.map(([label, value, width]) => (
-            <div key={label}>
-              <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
-                <span>{label}</span>
-                <span className="text-slate-200">{value}</span>
-              </div>
-              <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-slate-950/70">
-                <div
-                  className={`h-full rounded-full bg-gradient-to-r from-cyan-300 via-emerald-200 to-amber-200 ${width}`}
-                />
-              </div>
-            </div>
+        <InteractiveControlPanel className="space-y-2">
+          {metrics.map(([label, value], index) => (
+            <InteractiveRangeField
+              defaultValue={index === 0 ? 87 : index === 1 ? 70 : 24}
+              disabled={disabled}
+              key={label}
+              label={label}
+              tone={index === 2 ? "amber" : "sky"}
+              valueLabel={value}
+            />
           ))}
-        </div>
+        </InteractiveControlPanel>
 
-        <div className="grid gap-2">
-          <MiniStat
+        <InteractiveControlPanel className="grid gap-2">
+          <InteractiveTextField
+            defaultValue="Completed 5/5 movements"
+            disabled={disabled}
             label="Result"
-            value="Completed 5/5 movements"
             tone="emerald"
           />
-          <MiniStat
+          <InteractiveSelectField
+            defaultValue="Add 5 lb to goblet squat"
+            disabled={disabled}
             label="Recommendation"
-            value="Add 5 lb to goblet squat"
+            options={[
+              "Add 5 lb to goblet squat",
+              "Repeat baseline",
+              "Schedule recovery reset",
+            ]}
             tone="sky"
           />
-          <MiniStat
+          <InteractiveTextField
+            defaultValue="Movement baseline review"
+            disabled={disabled}
             label="Next objective"
-            value="Movement baseline review"
             tone="amber"
           />
-        </div>
+        </InteractiveControlPanel>
       </div>
     </AppStillShell>
   );
 }
 
-function PreviewStill({ slide }: { slide: AppPreviewSlide }) {
+function PreviewStill({
+  disabled = false,
+  slide,
+}: {
+  disabled?: boolean;
+  slide: AppPreviewSlide;
+}) {
   if (slide.id === "profile") {
-    return <ProfileStill />;
+    return <ProfileStill disabled={disabled} />;
   }
 
   if (slide.id === "goals") {
-    return <GoalsStill />;
+    return <GoalsStill disabled={disabled} />;
   }
 
   if (slide.id === "plan") {
-    return <PlanStill />;
+    return <PlanStill disabled={disabled} />;
   }
 
   if (slide.id === "builder") {
-    return <WorkoutBuilderStill />;
+    return <WorkoutBuilderStill disabled={disabled} />;
   }
 
   if (slide.id === "workout") {
-    return <WorkoutStill />;
+    return <WorkoutStill disabled={disabled} />;
   }
 
-  return <ResultsStill />;
+  return <ResultsStill disabled={disabled} />;
 }
 
 export default function MarketingAppOrbitPreview() {
@@ -1026,7 +1335,7 @@ export default function MarketingAppOrbitPreview() {
                   </div>
                 </div>
                 <div className="h-[366px] sm:h-[328px]">
-                  <PreviewStill slide={slide} />
+                  <PreviewStill disabled={!isActive} slide={slide} />
                 </div>
               </article>
             );

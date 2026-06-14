@@ -1,38 +1,19 @@
 import Image from "next/image";
 import Link from "next/link";
-import { DashboardEmerald3D } from "@/components/dashboard/DashboardTornadoEmeralds3D";
-import { DashboardGearIcon3D } from "@/components/dashboard/DashboardProfileActionIcons3D";
-import DashboardLightningBolt3D from "@/components/dashboard/DashboardLightningBolt3D";
-import DashboardMeterMenuIcon3D from "@/components/dashboard/DashboardMeterMenuIcon3D";
 import {
   ArrowRight,
-  CalendarDays,
-  BarChart3,
-  ChevronDown,
   ClipboardCheck,
-  ClipboardList,
-  Dumbbell,
-  FileCheck2,
-  Gem,
-  HeartPulse,
   Home,
-  Library,
   LogIn,
-  MessageCircle,
   MessagesSquare,
-  NotebookPen,
   ShieldCheck,
   Smartphone,
   Sparkles,
-  Target,
-  Trophy,
   type LucideIcon,
   UserPlus,
-  Utensils,
-  Video,
-  WalletCards,
 } from "lucide-react";
 import MarketingAppOrbitPreview from "@/components/MarketingAppOrbitPreview";
+import MemberAppFeatureAccordion from "@/components/MemberAppFeatureAccordion";
 import MemberAppPricingSelector from "@/components/MemberAppPricingSelector";
 import ProfileRewardOrbit from "@/components/ProfileRewardOrbit";
 import { DashboardSpinningSoundCoin3D } from "@/components/dashboard/DashboardTreasureChest3D";
@@ -44,212 +25,11 @@ type IconFeature = {
   Icon: LucideIcon;
 };
 
-type PreviewModule = {
-  eyebrow: string;
-  title: string;
-  text: string;
-  Icon: LucideIcon;
-};
-
-type PreviewFeatureColumn = {
-  label: string;
-  detail: string;
-  Icon: LucideIcon;
-  glowClass: string;
-  columnAccentClass: string;
-  visual: "plan" | "support" | "rewards";
-  modules: PreviewModule[];
-};
-
 type PreviewRow = {
   label: string;
   value: string;
   Icon: LucideIcon;
 };
-
-const previewModules: PreviewModule[] = [
-  {
-    eyebrow: "Plan",
-    title: "Training Plan",
-    text: "Workouts, phases, session notes, coach priorities, and next steps stay organized between visits.",
-    Icon: ClipboardList,
-  },
-  {
-    eyebrow: "Progress",
-    title: "Metrics Snapshot",
-    text: "Readiness, recent wins, soreness, strength work, mobility, and consistency trends stay visible.",
-    Icon: BarChart3,
-  },
-  {
-    eyebrow: "Coach",
-    title: "Messaging",
-    text: "Members can ask questions, send updates, and keep coach decisions tied to the real training week.",
-    Icon: MessageCircle,
-  },
-  {
-    eyebrow: "Recovery",
-    title: "Next Best Action",
-    text: "Mobility, hydration, sleep, readiness, and session feedback point members toward the next move.",
-    Icon: HeartPulse,
-  },
-  {
-    eyebrow: "Library",
-    title: "Exercise Library",
-    text: "Movement demos, substitutions, warm-ups, and pain-aware options help members train with clarity.",
-    Icon: Library,
-  },
-  {
-    eyebrow: "Technique",
-    title: "Video + Form Checks",
-    text: "Technique support can be tied to Gems, form review requests, and coach feedback loops.",
-    Icon: Video,
-  },
-  {
-    eyebrow: "Nutrition",
-    title: "Meals + Hydration",
-    text: "Nutrition habits, hydration, meal ideas, grocery planning, and recovery inputs can live beside training.",
-    Icon: Utensils,
-  },
-  {
-    eyebrow: "Sessions",
-    title: "Calendar + Notes",
-    text: "Upcoming sessions, workout history, booking context, and coach notes stay easy to find.",
-    Icon: CalendarDays,
-  },
-  {
-    eyebrow: "Check-ins",
-    title: "Body Context",
-    text: "Sleep, soreness, energy, pain notes, wins, and movement context help the plan adapt.",
-    Icon: FileCheck2,
-  },
-  {
-    eyebrow: "Goals",
-    title: "Milestones",
-    text: "Goals, streaks, achievements, habits, and training milestones give progress more shape.",
-    Icon: Target,
-  },
-  {
-    eyebrow: "Rewards",
-    title: "Sparks + Gems + Tokens",
-    text: "Sound Sparks, Gems, and Treasure Tokens give members a rewards layer for action and support.",
-    Icon: WalletCards,
-  },
-  {
-    eyebrow: "Profile",
-    title: "Member Hub",
-    text: "Profile details, preferences, equipment, limitations, and support style create a better coaching picture.",
-    Icon: NotebookPen,
-  },
-  {
-    eyebrow: "Training",
-    title: "Strength Work",
-    text: "Workout structure, technique cues, exercise progressions, equipment, and strength targets stay connected.",
-    Icon: Dumbbell,
-  },
-  {
-    eyebrow: "Wins",
-    title: "Achievements",
-    text: "Badges, consistency wins, streaks, and completion moments help members see follow-through.",
-    Icon: Trophy,
-  },
-];
-
-const featureColumns: PreviewFeatureColumn[] = [
-  {
-    label: "Plan",
-    detail: "Workouts",
-    Icon: ClipboardList,
-    glowClass: "bg-sky-400/18 text-sky-100",
-    columnAccentClass: "from-sky-300 via-cyan-300 to-sky-600",
-    visual: "plan",
-    modules: getPreviewModules([
-      "Training Plan",
-      "Exercise Library",
-      "Calendar + Notes",
-      "Strength Work",
-    ]),
-  },
-  {
-    label: "Support",
-    detail: "Coach notes",
-    Icon: MessagesSquare,
-    glowClass: "bg-cyan-300/16 text-cyan-100",
-    columnAccentClass: "from-cyan-200 via-teal-300 to-sky-500",
-    visual: "support",
-    modules: getPreviewModules([
-      "Messaging",
-      "Video + Form Checks",
-      "Next Best Action",
-      "Body Context",
-      "Member Hub",
-    ]),
-  },
-  {
-    label: "Rewards",
-    detail: "Sparks + gems",
-    Icon: Gem,
-    glowClass: "bg-amber-200/14 text-amber-100",
-    columnAccentClass: "from-amber-200 via-cyan-200 to-emerald-300",
-    visual: "rewards",
-    modules: getPreviewModules([
-      "Metrics Snapshot",
-      "Meals + Hydration",
-      "Milestones",
-      "Achievements",
-      "Sparks + Gems + Tokens",
-    ]),
-  },
-];
-
-function getPreviewModules(titles: string[]) {
-  return titles.map((title) => {
-    const matchedModule = previewModules.find((item) => item.title === title);
-
-    if (!matchedModule) {
-      throw new Error(`Missing preview module: ${title}`);
-    }
-
-    return matchedModule;
-  });
-}
-
-function FeatureColumnWebGlIcon({
-  visual,
-}: {
-  visual: PreviewFeatureColumn["visual"];
-}) {
-  if (visual === "plan") {
-    return (
-      <DashboardMeterMenuIcon3D
-        active
-        className="h-12 w-12 drop-shadow-[0_0_16px_rgba(56,189,248,0.32)]"
-      />
-    );
-  }
-
-  if (visual === "support") {
-    return (
-      <DashboardGearIcon3D
-        active
-        className="h-12 w-12 drop-shadow-[0_0_16px_rgba(103,232,249,0.34)]"
-        spinSpeed={0.08}
-      />
-    );
-  }
-
-  return (
-    <span className="relative block h-12 w-14 [perspective:760px]">
-      <DashboardLightningBolt3D
-        active
-        className="absolute left-0 top-1 h-11 w-11 drop-shadow-[0_0_16px_rgba(56,189,248,0.34)]"
-      />
-      <DashboardEmerald3D
-        className="absolute right-0 top-2 h-10 w-10 drop-shadow-[0_0_16px_rgba(52,211,153,0.32)]"
-        tone="green"
-      />
-    </span>
-  );
-}
 
 const previewRows: PreviewRow[] = [
   {
@@ -276,21 +56,18 @@ const previewRows: PreviewRow[] = [
 
 const goalMilestones = [
   {
-    kicker: "Milestone 01",
     label: "Baseline",
-    detail: "Start",
+    Icon: Home,
     tone: "start",
   },
   {
-    kicker: "Milestone 02",
-    label: "-7 lbs",
-    detail: "Logged",
+    label: "Logged",
+    Icon: ClipboardCheck,
     tone: "checkin",
   },
   {
-    kicker: "Milestone 03",
     label: "Reveal",
-    detail: "Ahead",
+    Icon: Sparkles,
     tone: "reveal",
   },
 ] as const;
@@ -492,6 +269,26 @@ export default function MemberDashboardPreviewPage() {
           isolation: isolate;
         }
 
+        .goal-milestone-card__stone {
+          background:
+            radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.5), transparent 22%),
+            radial-gradient(circle at 68% 74%, rgba(15, 23, 42, 0.56), transparent 38%),
+            linear-gradient(145deg, rgba(203, 213, 225, 0.32), rgba(71, 85, 105, 0.48) 48%, rgba(15, 23, 42, 0.82));
+          box-shadow:
+            inset 0 1px 2px rgba(255, 255, 255, 0.28),
+            inset 0 -2px 4px rgba(15, 23, 42, 0.54),
+            0 0 12px rgba(148, 163, 184, 0.18);
+        }
+
+        .goal-milestone-card__stone::after {
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.34), transparent 42%);
+          border-radius: inherit;
+          content: "";
+          inset: 2px;
+          opacity: 0.7;
+          position: absolute;
+        }
+
         .goal-milestone-card::before {
           background:
             radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.16), transparent 32%),
@@ -516,22 +313,40 @@ export default function MemberDashboardPreviewPage() {
             linear-gradient(135deg, rgba(250, 204, 21, 0.14), rgba(14, 165, 233, 0.12), rgba(15, 23, 42, 0.9));
         }
 
+        .goal-milestone-card--checkin .goal-milestone-card__stone {
+          box-shadow:
+            inset 0 1px 2px rgba(255, 255, 255, 0.28),
+            inset 0 -2px 4px rgba(15, 23, 42, 0.54),
+            0 0 14px rgba(45, 212, 191, 0.2);
+        }
+
+        .goal-milestone-card--reveal .goal-milestone-card__stone {
+          box-shadow:
+            inset 0 1px 2px rgba(255, 255, 255, 0.3),
+            inset 0 -2px 4px rgba(15, 23, 42, 0.52),
+            0 0 15px rgba(250, 204, 21, 0.2);
+        }
+
         @keyframes sound-rainbow-glyph-color {
           0% {
             color: #67e8f9;
             filter: drop-shadow(0 0 6px rgba(103, 232, 249, 0.38));
           }
-          24% {
-            color: #a78bfa;
-            filter: drop-shadow(0 0 7px rgba(167, 139, 250, 0.38));
+          58% {
+            color: #bae6fd;
+            filter: drop-shadow(0 0 5px rgba(125, 211, 252, 0.24));
           }
-          48% {
-            color: #f0abfc;
-            filter: drop-shadow(0 0 7px rgba(240, 171, 252, 0.36));
+          76% {
+            color: #ffffff;
+            filter:
+              drop-shadow(0 0 6px rgba(255, 255, 255, 0.5))
+              drop-shadow(0 0 12px rgba(125, 211, 252, 0.26));
           }
-          72% {
+          88% {
             color: #fde68a;
-            filter: drop-shadow(0 0 8px rgba(253, 230, 138, 0.34));
+            filter:
+              drop-shadow(0 0 7px rgba(253, 230, 138, 0.34))
+              drop-shadow(0 0 14px rgba(125, 211, 252, 0.22));
           }
           100% {
             color: #67e8f9;
@@ -551,15 +366,15 @@ export default function MemberDashboardPreviewPage() {
 
         @keyframes sound-rainbow-letter-wave {
           0%,
-          52%,
+          48%,
           100% {
             baseline-shift: 0;
             filter:
-              brightness(1.08)
+              brightness(1.12)
               drop-shadow(0 1px 0 rgba(2, 7, 19, 0.9));
             transform: translateY(0);
           }
-          18% {
+          14% {
             baseline-shift: 4px;
             filter:
               brightness(1.65)
@@ -567,7 +382,7 @@ export default function MemberDashboardPreviewPage() {
               drop-shadow(0 0 4px rgba(255, 255, 255, 0.62));
             transform: translateY(-2.6px);
           }
-          34% {
+          28% {
             baseline-shift: -1px;
             filter:
               brightness(1.22)
@@ -576,21 +391,83 @@ export default function MemberDashboardPreviewPage() {
           }
         }
 
-        .sound-rainbow-cta {
-          background:
-            radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.36), transparent 30%),
-            linear-gradient(135deg, rgba(8, 145, 178, 0.92) 0%, rgba(37, 99, 235, 0.9) 52%, rgba(67, 56, 202, 0.88) 100%);
-          box-shadow:
-            0 10px 22px rgba(37, 99, 235, 0.22),
-            0 0 26px rgba(125, 211, 252, 0.12),
-            inset 0 1px 0 rgba(255, 255, 255, 0.38);
-          isolation: isolate;
+        @keyframes sound-rainbow-button-finale {
+          0%,
+          64%,
+          100% {
+            border-color: rgba(224, 242, 254, 0.35);
+            box-shadow:
+              0 10px 22px rgba(15, 23, 42, 0.32),
+              0 0 24px rgba(37, 99, 235, 0.16),
+              inset 0 1px 0 rgba(255, 255, 255, 0.28);
+          }
+          76% {
+            border-color: rgba(186, 230, 253, 0.66);
+            box-shadow:
+              0 12px 28px rgba(14, 165, 233, 0.24),
+              0 0 34px rgba(125, 211, 252, 0.24),
+              0 0 44px rgba(255, 255, 255, 0.1),
+              inset 0 1px 0 rgba(255, 255, 255, 0.46);
+          }
+          88% {
+            border-color: rgba(254, 240, 138, 0.58);
+            box-shadow:
+              0 10px 24px rgba(15, 23, 42, 0.3),
+              0 0 24px rgba(250, 204, 21, 0.12),
+              0 0 34px rgba(125, 211, 252, 0.16),
+              inset 0 1px 0 rgba(255, 255, 255, 0.36);
+          }
         }
 
-        .sound-rainbow-cta::before,
-        .sound-rainbow-cta::after {
+        @keyframes sound-rainbow-button-wash {
+          0%,
+          68%,
+          100% {
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          76% {
+            opacity: 0.38;
+            transform: scale(1);
+          }
+          88% {
+            opacity: 0.12;
+            transform: scale(1.05);
+          }
+        }
+
+        .sound-rainbow-cta {
+          animation: sound-rainbow-button-finale 3.4s ease-in-out infinite;
+          background:
+            radial-gradient(circle at 20% 18%, rgba(255, 255, 255, 0.22), transparent 28%),
+            radial-gradient(circle at 50% 32%, rgba(125, 211, 252, 0.2), transparent 42%),
+            linear-gradient(120deg, rgba(15, 23, 42, 0.98) 0%, rgba(37, 99, 235, 0.9) 42%, rgba(14, 165, 233, 0.84) 52%, rgba(37, 99, 235, 0.9) 62%, rgba(15, 23, 42, 0.98) 100%);
+          background-size: 100% 100%;
+          box-shadow:
+            0 10px 22px rgba(15, 23, 42, 0.32),
+            0 0 24px rgba(37, 99, 235, 0.16),
+            inset 0 1px 0 rgba(255, 255, 255, 0.28);
+          isolation: isolate;
+          will-change: border-color, box-shadow;
+        }
+
+        .sound-rainbow-cta::before {
           content: none !important;
           display: none !important;
+        }
+
+        .sound-rainbow-cta::after {
+          animation: sound-rainbow-button-wash 3.4s ease-in-out infinite;
+          background:
+            radial-gradient(ellipse at 50% 50%, rgba(255, 255, 255, 0.28), transparent 45%),
+            radial-gradient(ellipse at 50% 50%, rgba(125, 211, 252, 0.18), transparent 64%);
+          border-radius: inherit;
+          content: "";
+          inset: 1px;
+          opacity: 0;
+          pointer-events: none;
+          position: absolute;
+          z-index: 1;
         }
 
         .sound-rainbow-cta > * {
@@ -600,13 +477,13 @@ export default function MemberDashboardPreviewPage() {
 
         .sound-rainbow-cta .sound-rainbow-cta__glyph,
         .sound-rainbow-cta .sound-rainbow-cta__arrow {
-          animation: sound-rainbow-glyph-color 3.8s ease-in-out infinite;
+          animation: sound-rainbow-glyph-color 3.4s ease-in-out infinite;
           will-change: color, filter, transform;
         }
 
         .sound-rainbow-cta .sound-rainbow-cta__arrow {
           animation:
-            sound-rainbow-glyph-color 3.8s ease-in-out infinite reverse,
+            sound-rainbow-glyph-color 3.4s ease-in-out infinite,
             sound-rainbow-arrow-nudge 1.9s ease-in-out infinite;
         }
 
@@ -632,7 +509,7 @@ export default function MemberDashboardPreviewPage() {
         }
 
         .sound-rainbow-wordart__letter {
-          animation: sound-rainbow-letter-wave 1.85s ease-in-out infinite;
+          animation: sound-rainbow-letter-wave 3.4s ease-in-out infinite;
           display: inline-block;
           transform-box: fill-box;
           transform-origin: center;
@@ -758,33 +635,30 @@ export default function MemberDashboardPreviewPage() {
           transform: translateY(0);
         }
 
+        .member-feature-panel:not([open]) > .member-feature-panel__body {
+          display: none;
+        }
+
         .member-feature-panel__body {
           transform-origin: top center;
+        }
+
+        .member-feature-panel[open] .member-feature-panel__body {
+          animation: member-feature-panel-body-reveal 320ms cubic-bezier(0.2, 0.9, 0.22, 1);
         }
 
         .member-feature-panel[open] .member-feature-panel__chevron {
           transform: rotate(180deg);
         }
 
-        @media (min-width: 768px) {
-          .member-feature-panel:not([open]) > :not(summary) {
-            display: block;
+        @keyframes member-feature-panel-body-reveal {
+          0% {
+            opacity: 0;
+            transform: translateY(-8px) scaleY(0.98);
           }
-
-          .member-feature-panel:not([open]) > .member-feature-panel__body {
-            display: grid;
-          }
-
-          .member-feature-panel::details-content {
-            block-size: auto;
-            content-visibility: visible;
+          100% {
             opacity: 1;
-            overflow: visible;
-            transform: translateY(0);
-          }
-
-          .member-feature-panel .member-feature-panel__chevron {
-            transform: rotate(180deg);
+            transform: translateY(0) scaleY(1);
           }
         }
 
@@ -817,6 +691,8 @@ export default function MemberDashboardPreviewPage() {
           .member-hero-meteor,
           .goal-progress-bar__sweep,
           .goal-progress-bar__active-node,
+          .sound-rainbow-cta,
+          .sound-rainbow-cta::after,
           .sound-rainbow-cta__glyph,
           .sound-rainbow-cta__arrow,
           .sound-rainbow-wordart__letter,
@@ -939,7 +815,7 @@ export default function MemberDashboardPreviewPage() {
                         <tspan
                           className="sound-rainbow-wordart__letter"
                           key={`${letter}-${index}`}
-                          style={{ animationDelay: `${index * 0.06}s` }}
+                          style={{ animationDelay: `${index * 0.08}s` }}
                         >
                           {letter}
                         </tspan>
@@ -959,7 +835,7 @@ export default function MemberDashboardPreviewPage() {
                         <tspan
                           className="sound-rainbow-wordart__letter"
                           key={`${letter}-${index}`}
-                          style={{ animationDelay: `${(index + rainbowWordartTopLetters.length) * 0.06}s` }}
+                          style={{ animationDelay: `${(index + rainbowWordartTopLetters.length) * 0.08}s` }}
                         >
                           {letter}
                         </tspan>
@@ -1225,26 +1101,27 @@ export default function MemberDashboardPreviewPage() {
                         className="mt-2 grid grid-cols-3 gap-1.5"
                         aria-label="Goal milestones"
                       >
-                        {goalMilestones.map((milestone) => (
-                          <div
-                            key={milestone.kicker}
-                            className={`goal-milestone-card goal-milestone-card--${milestone.tone} relative min-w-0 rounded-md border border-cyan-100/10 px-1.5 py-1.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_14px_rgba(14,165,233,0.08)]`}
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="mx-auto mb-1 block h-1.5 w-1.5 rounded-full bg-cyan-200 shadow-[0_0_10px_rgba(103,232,249,0.5)]"
-                            />
-                            <div className="truncate text-[6px] font-black uppercase tracking-[0.12em] text-slate-500 sm:text-[7px]">
-                              {milestone.kicker}
+                        {goalMilestones.map((milestone) => {
+                          const Icon = milestone.Icon;
+
+                          return (
+                            <div
+                              key={milestone.label}
+                              className={`goal-milestone-card goal-milestone-card--${milestone.tone} relative flex min-w-0 items-center gap-1.5 rounded-md border border-cyan-100/10 px-1.5 py-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_14px_rgba(14,165,233,0.08)]`}
+                            >
+                              <span className="goal-milestone-card__stone relative grid h-5 w-5 shrink-0 place-items-center rounded-full border border-white/15 text-cyan-100">
+                                <Icon
+                                  aria-hidden="true"
+                                  className="relative z-10 h-3 w-3 drop-shadow-[0_0_6px_rgba(103,232,249,0.32)]"
+                                  strokeWidth={2.4}
+                                />
+                              </span>
+                              <span className="min-w-0 truncate text-[8px] font-black uppercase tracking-[0.1em] text-sky-50 sm:text-[9px]">
+                                {milestone.label}
+                              </span>
                             </div>
-                            <div className="mt-0.5 truncate text-[9px] font-black uppercase tracking-[0.08em] text-sky-50 sm:text-[10px]">
-                              {milestone.label}
-                            </div>
-                            <div className="truncate text-[7px] font-black uppercase tracking-[0.08em] text-amber-100/80">
-                              {milestone.detail}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                       <div className="mt-1.5 text-right text-[8px] font-black uppercase tracking-[0.14em] text-amber-100 drop-shadow-[0_0_8px_rgba(250,204,21,0.2)]">
                         5 lb to go!
@@ -1336,99 +1213,33 @@ export default function MemberDashboardPreviewPage() {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            {featureColumns.map((column) => {
-              return (
-                <details
-                  key={column.label}
-                  className="member-feature-panel relative min-w-0 overflow-hidden rounded-lg border border-sky-300/14 bg-[linear-gradient(180deg,rgba(11,25,43,0.7),rgba(2,7,19,0.34))] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-                  name="member-feature-panels"
-                >
-                  <summary className="relative flex cursor-pointer select-none items-center gap-3 border-b border-sky-300/10 px-3 pb-3 pt-4 transition hover:bg-sky-300/5 focus:outline-none focus-visible:bg-sky-300/8 focus-visible:ring-2 focus-visible:ring-cyan-200/45">
-                    <span
-                      aria-hidden="true"
-                      className={`pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${column.columnAccentClass}`}
-                    />
-                    <span className="flex h-12 w-14 shrink-0 items-center justify-center">
-                      <FeatureColumnWebGlIcon visual={column.visual} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[11px] font-black uppercase tracking-[0.14em] text-white">
-                        {column.label}
-                      </div>
-                      <div className="mt-1 truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">
-                        {column.detail}
-                      </div>
-                    </div>
-                    <ChevronDown
-                      aria-hidden="true"
-                      className="member-feature-panel__chevron h-4 w-4 shrink-0 text-cyan-100/80 transition-transform duration-200"
-                      strokeWidth={2.5}
-                    />
-                  </summary>
-                  <div className="pointer-events-none absolute -right-9 -top-9 h-24 w-24 rounded-full border border-sky-200/10 bg-cyan-200/5" />
-                  <div className="member-feature-panel__body grid gap-0 px-3 pb-2">
-                    {column.modules.map((module) => {
-                      const Icon = module.Icon;
+          <MemberAppFeatureAccordion />
 
-                      return (
-                        <article
-                          key={module.title}
-                          className="group relative border-t border-sky-300/10 py-1.5 transition first:border-t-0"
-                        >
-                          <div className="flex items-start gap-2">
-                            <Icon
-                              aria-hidden="true"
-                              className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-200/80"
-                              strokeWidth={2.25}
-                            />
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-                                <div className="text-[8px] font-black uppercase tracking-[0.14em] text-sky-300">
-                                  {module.eyebrow}
-                                </div>
-                                <h4 className="text-[13px] font-black uppercase leading-none tracking-[0.045em] text-white">
-                                  {module.title}
-                                </h4>
-                              </div>
-                              <p className="mt-0.5 text-xs leading-5 text-slate-400">
-                                {module.text}
-                              </p>
-                            </div>
-                          </div>
-                        </article>
-                      );
-                    })}
+          <article className="group relative mt-3 pb-3 pt-5">
+            <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/80 to-transparent shadow-[0_0_16px_rgba(251,191,36,0.35)]" />
+            <div className="flex items-start gap-2.5">
+              <Sparkles
+                aria-hidden="true"
+                className="mt-0.5 h-4 w-4 shrink-0 text-amber-200/90"
+                strokeWidth={2.35}
+              />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <div className="text-[9px] font-black uppercase tracking-[0.16em] text-amber-200">
+                    More
                   </div>
-                </details>
-              );
-            })}
-            <article className="group relative pt-5 pb-3 md:col-span-3">
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-amber-200/80 to-transparent shadow-[0_0_16px_rgba(251,191,36,0.35)]" />
-              <div className="flex items-start gap-2.5">
-                <Sparkles
-                  aria-hidden="true"
-                  className="mt-0.5 h-4 w-4 shrink-0 text-amber-200/90"
-                  strokeWidth={2.35}
-                />
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                    <div className="text-[9px] font-black uppercase tracking-[0.16em] text-amber-200">
-                      More
-                    </div>
-                    <h3 className="text-sm font-black uppercase tracking-[0.05em] text-white">
-                      And so much more
-                    </h3>
-                  </div>
-                  <p className="mt-1 text-sm leading-6 text-slate-300">
-                    The preview only shows the core tools. The full app can keep
-                    expanding with rewards, reminders, support flows, and
-                    coaching details around the way you train.
-                  </p>
+                  <h3 className="text-sm font-black uppercase tracking-[0.05em] text-white">
+                    And so much more
+                  </h3>
                 </div>
+                <p className="mt-1 text-sm leading-6 text-slate-300">
+                  The preview only shows the core tools. The full app can keep
+                  expanding with rewards, reminders, support flows, and coaching
+                  details around the way you train.
+                </p>
               </div>
-            </article>
-          </div>
+            </div>
+          </article>
         </div>
       </section>
 

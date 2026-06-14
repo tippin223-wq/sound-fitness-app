@@ -30,6 +30,7 @@ type AppSignupOption = {
   text: string;
   selectionText: string;
   bestFor: string;
+  badge: string;
   asset: string;
   assetAlt: string;
   Icon: LucideIcon;
@@ -53,6 +54,7 @@ const appSignupOptions: AppSignupOption[] = [
     selectionText:
       "App Only keeps dashboard access, progress tracking, plan visibility, and self-guided tools focused for independent training.",
     bestFor: "Best for independent training",
+    badge: "Independent training",
     asset: "/sound-fitness-logo.png",
     assetAlt: "Sound Fitness logo",
     Icon: Smartphone,
@@ -73,6 +75,7 @@ const appSignupOptions: AppSignupOption[] = [
     selectionText:
       "Hybrid includes blue Sound Sparks, Gems for technique support, and Treasure Tokens for in-app purchases.",
     bestFor: "Rewards + technique support",
+    badge: "Most flexible",
     asset: "/sound-coins/sound-coin-gold.png",
     assetAlt: "Treasure Token",
     Icon: Zap,
@@ -95,6 +98,7 @@ const appSignupOptions: AppSignupOption[] = [
     selectionText:
       "Online Coaching adds remote programming, check-ins, messaging, and a larger Sound Sparks, Gems, and Treasure Tokens bundle.",
     bestFor: "Coach-led + more rewards",
+    badge: "Coach-led rewards",
     asset: "/sound-emerald-crystals.png",
     assetAlt: "Sound Fitness gems",
     Icon: UsersRound,
@@ -180,6 +184,7 @@ export default function MemberAppPricingSelector() {
           {appSignupOptions.map((option) => {
             const Icon = option.Icon;
             const isSelected = option.id === selectedPlanId;
+            const badgeText = isSelected ? option.badge : "";
             const signupCtaTone =
               option.id === "app-only"
                 ? "border-emerald-100/30 bg-[linear-gradient(135deg,#34d399_0%,#22d3ee_100%)] shadow-[0_0_30px_rgba(16,185,129,0.24)] hover:shadow-[0_0_42px_rgba(45,212,191,0.36)]"
@@ -207,9 +212,7 @@ export default function MemberAppPricingSelector() {
                   "group relative cursor-pointer overflow-hidden rounded-2xl border p-5 shadow-[0_24px_70px_rgba(0,0,0,0.26)] transition hover:-translate-y-1 focus-within:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950",
                   isSelected
                     ? "border-cyan-200/75 bg-sky-500/18 ring-2 ring-cyan-300/65 ring-offset-2 ring-offset-slate-950 shadow-[0_0_0_1px_rgba(186,230,253,0.18),0_28px_86px_rgba(14,165,233,0.28)]"
-                    : option.featured
-                      ? "border-amber-200/45 bg-[linear-gradient(180deg,rgba(20,43,67,0.94),rgba(6,20,36,0.88))] hover:border-amber-100/70 focus-within:border-amber-100/70"
-                      : "border-sky-400/18 bg-slate-950/70 hover:border-sky-300/45 hover:bg-sky-500/12 focus-within:border-sky-300/45 focus-within:bg-sky-500/12",
+                    : "border-sky-400/18 bg-slate-950/70 hover:border-sky-300/45 hover:bg-sky-500/12 focus-within:border-sky-300/45 focus-within:bg-sky-500/12",
                 ].join(" ")}
               >
                 <span
@@ -228,36 +231,34 @@ export default function MemberAppPricingSelector() {
                   height={150}
                   className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 object-contain opacity-[0.09] transition group-hover:scale-110 group-hover:opacity-[0.14]"
                 />
-                {isSelected ? (
-                  <div className="absolute right-4 top-4 rounded-full border border-cyan-100/45 bg-cyan-200/14 px-3 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.18)]">
-                    Selected
-                  </div>
-                ) : option.featured ? (
-                  <div className="absolute right-4 top-4 rounded-full border border-amber-200/45 bg-amber-200/12 px-3 py-1 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100">
-                    Most flexible
-                  </div>
-                ) : null}
                 <div className="relative flex h-full min-h-[320px] flex-col justify-between gap-6">
                   <div>
+                    <div className="mb-3 flex h-7 items-start justify-end">
+                      {badgeText ? (
+                        <div className="pricing-card__badge max-w-[10.5rem] rounded-full border border-cyan-100/45 bg-cyan-200/14 px-3 py-1 text-center text-[9px] font-black uppercase leading-tight tracking-[0.12em] text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.18)]">
+                          {badgeText}
+                        </div>
+                      ) : null}
+                    </div>
                     {option.id === "app-only" ? (
                       <DashboardPhone3D
                         active
-                        className="-ml-1 h-14 w-14 drop-shadow-[0_0_22px_rgba(125,211,252,0.36)] transition group-hover:drop-shadow-[0_0_30px_rgba(52,211,153,0.46)]"
+                        className="pricing-card__icon -ml-1 h-14 w-14 drop-shadow-[0_0_22px_rgba(125,211,252,0.36)] transition group-hover:drop-shadow-[0_0_30px_rgba(52,211,153,0.46)]"
                       />
                     ) : option.id === "hybrid-app" ? (
                       <DashboardLightningBolt3D
                         active
-                        className="-ml-1 h-14 w-14 drop-shadow-[0_0_22px_rgba(56,189,248,0.44)] transition group-hover:drop-shadow-[0_0_30px_rgba(125,211,252,0.58)]"
+                        className="pricing-card__icon -ml-1 h-14 w-14 drop-shadow-[0_0_22px_rgba(56,189,248,0.44)] transition group-hover:drop-shadow-[0_0_30px_rgba(125,211,252,0.58)]"
                       />
                     ) : option.id === "online-coaching" ? (
                       <DashboardWhistle3D
                         active
-                        className="-ml-2 h-20 w-32 drop-shadow-[0_0_24px_rgba(125,211,252,0.4)] transition group-hover:drop-shadow-[0_0_34px_rgba(186,230,253,0.56)] sm:h-24 sm:w-36"
+                        className="pricing-card__icon -ml-2 h-20 w-32 drop-shadow-[0_0_24px_rgba(125,211,252,0.4)] transition group-hover:drop-shadow-[0_0_34px_rgba(186,230,253,0.56)] sm:h-24 sm:w-36"
                       />
                     ) : (
                       <Icon
                         aria-hidden="true"
-                        className="h-12 w-12 text-sky-100 drop-shadow-[0_0_18px_rgba(125,211,252,0.34)] transition group-hover:text-white group-hover:drop-shadow-[0_0_24px_rgba(125,211,252,0.48)]"
+                        className="pricing-card__icon h-12 w-12 text-sky-100 drop-shadow-[0_0_18px_rgba(125,211,252,0.34)] transition group-hover:text-white group-hover:drop-shadow-[0_0_24px_rgba(125,211,252,0.48)]"
                         strokeWidth={2.15}
                       />
                     )}
