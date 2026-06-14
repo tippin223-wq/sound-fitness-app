@@ -296,6 +296,9 @@ const goalProgressPhotos = [
   },
 ] as const;
 
+const rainbowWordartTopLetters = "START FREE".split("");
+const rainbowWordartBottomLetters = "INTRO".split("");
+
 const realLifeBenefits: IconFeature[] = [
   {
     title: "No Commute",
@@ -567,6 +570,33 @@ export default function MemberDashboardPreviewPage() {
           }
         }
 
+        @keyframes sound-rainbow-letter-wave {
+          0%,
+          52%,
+          100% {
+            baseline-shift: 0;
+            filter:
+              brightness(1.08)
+              drop-shadow(0 1px 0 rgba(2, 7, 19, 0.9));
+            transform: translateY(0);
+          }
+          18% {
+            baseline-shift: 4px;
+            filter:
+              brightness(1.65)
+              drop-shadow(0 1px 0 rgba(2, 7, 19, 0.95))
+              drop-shadow(0 0 4px rgba(255, 255, 255, 0.62));
+            transform: translateY(-2.6px);
+          }
+          34% {
+            baseline-shift: -1px;
+            filter:
+              brightness(1.22)
+              drop-shadow(0 1px 0 rgba(2, 7, 19, 0.9));
+            transform: translateY(0.9px);
+          }
+        }
+
         .sound-rainbow-cta {
           background:
             radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.36), transparent 30%),
@@ -620,6 +650,14 @@ export default function MemberDashboardPreviewPage() {
           stroke-linejoin: round;
           stroke-width: 2.15px;
           text-transform: uppercase;
+        }
+
+        .sound-rainbow-wordart__letter {
+          animation: sound-rainbow-letter-wave 1.85s ease-in-out infinite;
+          display: inline-block;
+          transform-box: fill-box;
+          transform-origin: center;
+          will-change: baseline-shift, filter, transform;
         }
 
         .sound-rainbow-wordart__text--bottom {
@@ -735,6 +773,7 @@ export default function MemberDashboardPreviewPage() {
           .goal-progress-bar__active-node,
           .sound-rainbow-cta__glyph,
           .sound-rainbow-cta__arrow,
+          .sound-rainbow-wordart__letter,
           .sound-app-cta__label::after,
           .soft-urgency-dot {
             animation: none;
@@ -848,8 +887,17 @@ export default function MemberDashboardPreviewPage() {
                       startOffset="50%"
                       textAnchor="middle"
                       textLength="78"
+                      xmlSpace="preserve"
                     >
-                      START FREE
+                      {rainbowWordartTopLetters.map((letter, index) => (
+                        <tspan
+                          className="sound-rainbow-wordart__letter"
+                          key={`${letter}-${index}`}
+                          style={{ animationDelay: `${index * 0.06}s` }}
+                        >
+                          {letter}
+                        </tspan>
+                      ))}
                     </textPath>
                   </text>
                   <text className="sound-rainbow-wordart__text sound-rainbow-wordart__text--bottom">
@@ -859,8 +907,17 @@ export default function MemberDashboardPreviewPage() {
                       startOffset="50%"
                       textAnchor="middle"
                       textLength="44"
+                      xmlSpace="preserve"
                     >
-                      INTRO
+                      {rainbowWordartBottomLetters.map((letter, index) => (
+                        <tspan
+                          className="sound-rainbow-wordart__letter"
+                          key={`${letter}-${index}`}
+                          style={{ animationDelay: `${(index + rainbowWordartTopLetters.length) * 0.06}s` }}
+                        >
+                          {letter}
+                        </tspan>
+                      ))}
                     </textPath>
                   </text>
                 </svg>
@@ -926,94 +983,14 @@ export default function MemberDashboardPreviewPage() {
             </div>
 
             <aside className="relative overflow-hidden rounded-2xl border border-sky-400/20 bg-[radial-gradient(circle_at_14%_0%,rgba(34,211,238,0.16),transparent_32%),radial-gradient(circle_at_86%_8%,rgba(250,204,21,0.10),transparent_28%),rgba(2,7,19,0.78)] p-5 shadow-[0_28px_80px_rgba(2,6,23,0.36)]">
-              <svg
+              <Image
                 aria-hidden="true"
-                className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rotate-[-8deg] opacity-[0.12] mix-blend-screen"
-                role="img"
-                viewBox="0 0 220 220"
-              >
-                <defs>
-                  <radialGradient
-                    cx="42%"
-                    cy="30%"
-                    id="memberKettlebellGlow"
-                    r="68%"
-                  >
-                    <stop offset="0%" stopColor="#e0f2fe" />
-                    <stop offset="42%" stopColor="#38bdf8" />
-                    <stop offset="100%" stopColor="#0f172a" />
-                  </radialGradient>
-                  <linearGradient
-                    id="memberKettlebellEdge"
-                    x1="42"
-                    x2="176"
-                    y1="24"
-                    y2="196"
-                  >
-                    <stop offset="0%" stopColor="#fef3c7" />
-                    <stop offset="42%" stopColor="#67e8f9" />
-                    <stop offset="100%" stopColor="#1d4ed8" />
-                  </linearGradient>
-                  <filter
-                    colorInterpolationFilters="sRGB"
-                    id="memberKettlebellBlur"
-                    x="-20%"
-                    y="-20%"
-                    width="140%"
-                    height="140%"
-                  >
-                    <feGaussianBlur stdDeviation="3" />
-                  </filter>
-                </defs>
-                <ellipse
-                  cx="112"
-                  cy="122"
-                  fill="#38bdf8"
-                  filter="url(#memberKettlebellBlur)"
-                  opacity="0.26"
-                  rx="72"
-                  ry="78"
-                />
-                <path
-                  d="M52 124c0-43 24-76 60-76s60 33 60 76c0 46-22 78-60 78s-60-32-60-78Z"
-                  fill="url(#memberKettlebellGlow)"
-                  opacity="0.82"
-                  stroke="url(#memberKettlebellEdge)"
-                  strokeWidth="2.4"
-                />
-                <path
-                  d="M73 90V68c0-27 16-44 39-44s39 17 39 44v22h-24V68c0-13-6-21-15-21s-15 8-15 21v22H73Z"
-                  fill="#020713"
-                  opacity="0.9"
-                  stroke="url(#memberKettlebellEdge)"
-                  strokeLinejoin="round"
-                  strokeWidth="3"
-                />
-                <path
-                  d="M82 86V69c0-21 12-34 30-34s30 13 30 34v17"
-                  fill="none"
-                  opacity="0.42"
-                  stroke="#e0f2fe"
-                  strokeLinecap="round"
-                  strokeWidth="4"
-                />
-                <path
-                  d="M76 121c6-23 18-36 37-40"
-                  fill="none"
-                  opacity="0.34"
-                  stroke="#f8fafc"
-                  strokeLinecap="round"
-                  strokeWidth="5"
-                />
-                <path
-                  d="M140 84c18 15 27 35 27 60"
-                  fill="none"
-                  opacity="0.2"
-                  stroke="#fef3c7"
-                  strokeLinecap="round"
-                  strokeWidth="4"
-                />
-              </svg>
+                alt=""
+                className="pointer-events-none absolute -right-24 -top-20 h-72 w-72 rotate-[-9deg] object-contain opacity-[0.18] mix-blend-screen sm:-right-28 sm:-top-24 sm:h-80 sm:w-80"
+                height={768}
+                src="/member-preview-kettlebell-render.png"
+                width={768}
+              />
       <div className="relative">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
