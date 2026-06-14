@@ -252,7 +252,7 @@ export default function MemberAppPricingSelector() {
                     ) : option.id === "online-coaching" ? (
                       <DashboardWhistle3D
                         active
-                        className="-ml-2 h-16 w-24 drop-shadow-[0_0_24px_rgba(125,211,252,0.4)] transition group-hover:drop-shadow-[0_0_34px_rgba(186,230,253,0.56)] sm:h-20 sm:w-28"
+                        className="-ml-2 h-20 w-32 drop-shadow-[0_0_24px_rgba(125,211,252,0.4)] transition group-hover:drop-shadow-[0_0_34px_rgba(186,230,253,0.56)] sm:h-24 sm:w-36"
                       />
                     ) : (
                       <Icon

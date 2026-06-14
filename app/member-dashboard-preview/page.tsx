@@ -274,25 +274,24 @@ const previewRows: PreviewRow[] = [
   },
 ];
 
-const goalProgressPhotos = [
+const goalMilestones = [
   {
-    label: "Jun 1 progress photo",
-    src: "/sample-member-maya.jpg",
-    objectPosition: "50% 30%",
+    kicker: "Milestone 01",
+    label: "Baseline",
+    detail: "Start",
     tone: "start",
-    positionClass: "left-0 -translate-x-1/2",
   },
   {
-    label: "Jul 15 progress photo",
-    src: "/sample-member-maya.jpg",
-    objectPosition: "54% 24%",
+    kicker: "Milestone 02",
+    label: "-7 lbs",
+    detail: "Logged",
     tone: "checkin",
-    positionClass: "left-1/2 -translate-x-1/2",
   },
   {
-    label: "Aug 30 reveal photo",
+    kicker: "Milestone 03",
+    label: "Reveal",
+    detail: "Ahead",
     tone: "reveal",
-    positionClass: "right-0 translate-x-1/2",
   },
 ] as const;
 
@@ -489,52 +488,32 @@ export default function MemberDashboardPreviewPage() {
           animation: goal-progress-node-pulse 2.2s ease-in-out infinite;
         }
 
-        .goal-progress-photo-node {
+        .goal-milestone-card {
           isolation: isolate;
         }
 
-        .goal-progress-photo-node::before {
+        .goal-milestone-card::before {
           background:
-            radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.42), transparent 28%),
-            linear-gradient(135deg, rgba(34, 211, 238, 0.7), rgba(253, 230, 138, 0.52));
+            radial-gradient(circle at 24% 18%, rgba(255, 255, 255, 0.16), transparent 32%),
+            linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(15, 23, 42, 0.88));
           border-radius: inherit;
           content: "";
-          inset: -2px;
+          inset: 0;
           opacity: 0.9;
           position: absolute;
-          z-index: -2;
+          z-index: -1;
         }
 
-        .goal-progress-photo-node::after {
-          background: linear-gradient(135deg, rgba(255, 255, 255, 0.34), transparent 38%);
-          border-radius: inherit;
-          content: "";
-          inset: 2px;
-          opacity: 0.54;
-          pointer-events: none;
-          position: absolute;
-          z-index: 2;
-        }
-
-        .goal-progress-photo-node--checkin::before {
+        .goal-milestone-card--checkin::before {
           background:
-            radial-gradient(circle at 36% 22%, rgba(255, 255, 255, 0.46), transparent 28%),
-            linear-gradient(135deg, rgba(253, 230, 138, 0.76), rgba(34, 211, 238, 0.58));
+            radial-gradient(circle at 28% 20%, rgba(255, 255, 255, 0.18), transparent 32%),
+            linear-gradient(135deg, rgba(20, 184, 166, 0.2), rgba(250, 204, 21, 0.12), rgba(15, 23, 42, 0.88));
         }
 
-        .goal-progress-photo-node--reveal {
+        .goal-milestone-card--reveal::before {
           background:
-            radial-gradient(circle at 50% 42%, rgba(253, 230, 138, 0.24), transparent 42%),
-            linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(14, 165, 233, 0.2));
-          box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.16),
-            0 0 18px rgba(250, 204, 21, 0.15);
-        }
-
-        .goal-progress-photo-node--reveal::before {
-          background:
-            radial-gradient(circle at 32% 24%, rgba(255, 255, 255, 0.54), transparent 26%),
-            linear-gradient(135deg, rgba(250, 204, 21, 0.85), rgba(56, 189, 248, 0.72));
+            radial-gradient(circle at 30% 20%, rgba(254, 240, 138, 0.2), transparent 32%),
+            linear-gradient(135deg, rgba(250, 204, 21, 0.14), rgba(14, 165, 233, 0.12), rgba(15, 23, 42, 0.9));
         }
 
         @keyframes sound-rainbow-glyph-color {
@@ -738,8 +717,75 @@ export default function MemberDashboardPreviewPage() {
           display: none;
         }
 
+        .member-feature-panel {
+          interpolate-size: allow-keywords;
+          transition:
+            background 280ms ease,
+            border-color 280ms ease,
+            box-shadow 280ms ease,
+            transform 280ms ease;
+        }
+
+        .member-feature-panel[open] {
+          background:
+            radial-gradient(circle at 16% 0%, rgba(34, 211, 238, 0.18), transparent 34%),
+            linear-gradient(180deg, rgba(13, 38, 62, 0.86), rgba(2, 7, 19, 0.46));
+          border-color: rgba(125, 211, 252, 0.32);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.08),
+            0 0 0 1px rgba(34, 211, 238, 0.08),
+            0 18px 42px rgba(8, 47, 73, 0.22);
+          transform: translateY(-1px);
+        }
+
+        .member-feature-panel::details-content {
+          block-size: 0;
+          content-visibility: hidden;
+          opacity: 0;
+          overflow: clip;
+          transform: translateY(-10px);
+          transition:
+            block-size 380ms cubic-bezier(0.2, 0.9, 0.22, 1),
+            content-visibility 380ms allow-discrete,
+            opacity 260ms ease,
+            transform 380ms cubic-bezier(0.2, 0.9, 0.22, 1);
+        }
+
+        .member-feature-panel[open]::details-content {
+          block-size: auto;
+          content-visibility: visible;
+          opacity: 1;
+          transform: translateY(0);
+        }
+
+        .member-feature-panel__body {
+          transform-origin: top center;
+        }
+
         .member-feature-panel[open] .member-feature-panel__chevron {
           transform: rotate(180deg);
+        }
+
+        @media (min-width: 768px) {
+          .member-feature-panel:not([open]) > :not(summary) {
+            display: block;
+          }
+
+          .member-feature-panel:not([open]) > .member-feature-panel__body {
+            display: grid;
+          }
+
+          .member-feature-panel::details-content {
+            block-size: auto;
+            content-visibility: visible;
+            opacity: 1;
+            overflow: visible;
+            transform: translateY(0);
+          }
+
+          .member-feature-panel .member-feature-panel__chevron {
+            transform: rotate(180deg);
+          }
         }
 
         @keyframes soft-urgency-pulse {
@@ -782,10 +828,10 @@ export default function MemberDashboardPreviewPage() {
       `}</style>
 
       <header className="sticky top-0 z-[80] border-b border-white/10 bg-[#020713]/78 shadow-[0_18px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-        <div className="relative mx-auto flex w-full flex-col gap-3 px-5 py-2.5 sm:min-h-[8rem] sm:px-8 md:grid md:min-h-[7.5rem] md:grid-cols-[minmax(0,max-content)_minmax(20rem,1fr)] md:items-start md:gap-x-6">
+        <div className="relative mx-auto flex w-full flex-col gap-3 px-5 py-2.5 sm:min-h-[8rem] sm:px-8 lg:grid lg:min-h-[7.5rem] lg:grid-cols-[minmax(0,max-content)_minmax(31rem,1fr)] lg:items-start lg:gap-x-8">
           <Link
             href={ROUTES.public.home}
-            className="group flex w-fit max-w-full min-w-0 items-center justify-center gap-2.5 self-center text-center sm:self-start sm:justify-start sm:text-left md:justify-self-start"
+            className="group flex w-fit max-w-full min-w-0 items-center justify-center gap-2.5 self-center text-center sm:self-start sm:justify-start sm:text-left lg:justify-self-start"
           >
             <Image
               src="/sound-fitness-logo.png"
@@ -809,8 +855,8 @@ export default function MemberDashboardPreviewPage() {
             </div>
           </Link>
 
-          <div className="flex w-full min-w-0 flex-col items-end gap-2 min-[560px]:grid min-[560px]:grid-cols-[minmax(0,1fr)_auto] min-[560px]:items-center min-[560px]:gap-x-3 min-[560px]:gap-y-0 md:pt-1">
-            <div className="z-10 flex w-full min-w-0 flex-row justify-center gap-1.5 min-[560px]:justify-end min-[560px]:pr-1 md:justify-end">
+          <div className="flex w-full min-w-0 flex-col items-end gap-2 min-[560px]:grid min-[560px]:grid-cols-[minmax(0,1fr)_auto] min-[560px]:items-center min-[560px]:gap-x-3 min-[560px]:gap-y-0 lg:min-w-[31rem] lg:pt-1">
+            <div className="z-10 flex w-full min-w-0 flex-row justify-center gap-1.5 min-[560px]:justify-end min-[560px]:pr-1 lg:justify-end">
               <Link
                 href="#member-app-preview"
                 className="sound-app-cta group relative inline-flex min-h-[40px] min-w-[8.35rem] shrink-0 items-center justify-center overflow-hidden rounded-[0.72rem] border border-emerald-100/35 px-3 py-1.5 text-center text-[9px] font-black uppercase tracking-[0.08em] text-emerald-950 transition duration-200 hover:-translate-y-0.5 hover:border-emerald-50/60 hover:brightness-110 hover:shadow-[0_14px_30px_rgba(52,211,153,0.32),0_0_32px_rgba(45,212,191,0.18),inset_0_1px_0_rgba(255,255,255,0.48)] focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-100/75 sm:min-w-[9.5rem] sm:text-[10px] sm:tracking-[0.09em]"
@@ -1175,37 +1221,29 @@ export default function MemberDashboardPreviewPage() {
                           <span className="absolute inset-1 rounded-full bg-slate-950/55" />
                         </span>
                       </div>
-                      <div className="relative mt-2 h-9 sm:h-10">
-                        {goalProgressPhotos.map((checkpoint) => (
-                          <span
-                            key={checkpoint.label}
-                            className={`absolute top-0 ${checkpoint.positionClass}`}
+                      <div
+                        className="mt-2 grid grid-cols-3 gap-1.5"
+                        aria-label="Goal milestones"
+                      >
+                        {goalMilestones.map((milestone) => (
+                          <div
+                            key={milestone.kicker}
+                            className={`goal-milestone-card goal-milestone-card--${milestone.tone} relative min-w-0 rounded-md border border-cyan-100/10 px-1.5 py-1.5 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.07),0_0_14px_rgba(14,165,233,0.08)]`}
                           >
                             <span
-                              className={`goal-progress-photo-node goal-progress-photo-node--${checkpoint.tone} relative flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-slate-950/80 shadow-[0_0_14px_rgba(34,211,238,0.12)] sm:h-9 sm:w-9`}
-                              aria-label={checkpoint.label}
-                            >
-                              {"src" in checkpoint ? (
-                                <Image
-                                  src={checkpoint.src}
-                                  alt=""
-                                  fill
-                                  sizes="36px"
-                                  className="object-cover"
-                                  style={{
-                                    objectPosition: checkpoint.objectPosition,
-                                  }}
-                                />
-                              ) : (
-                                <span
-                                  aria-hidden="true"
-                                  className="relative z-10 text-xl font-black leading-none text-amber-100 drop-shadow-[0_0_8px_rgba(250,204,21,0.35)]"
-                                >
-                                  +
-                                </span>
-                              )}
-                            </span>
-                          </span>
+                              aria-hidden="true"
+                              className="mx-auto mb-1 block h-1.5 w-1.5 rounded-full bg-cyan-200 shadow-[0_0_10px_rgba(103,232,249,0.5)]"
+                            />
+                            <div className="truncate text-[6px] font-black uppercase tracking-[0.12em] text-slate-500 sm:text-[7px]">
+                              {milestone.kicker}
+                            </div>
+                            <div className="mt-0.5 truncate text-[9px] font-black uppercase tracking-[0.08em] text-sky-50 sm:text-[10px]">
+                              {milestone.label}
+                            </div>
+                            <div className="truncate text-[7px] font-black uppercase tracking-[0.08em] text-amber-100/80">
+                              {milestone.detail}
+                            </div>
+                          </div>
                         ))}
                       </div>
                       <div className="mt-1.5 text-right text-[8px] font-black uppercase tracking-[0.14em] text-amber-100 drop-shadow-[0_0_8px_rgba(250,204,21,0.2)]">
@@ -1304,6 +1342,7 @@ export default function MemberDashboardPreviewPage() {
                 <details
                   key={column.label}
                   className="member-feature-panel relative min-w-0 overflow-hidden rounded-lg border border-sky-300/14 bg-[linear-gradient(180deg,rgba(11,25,43,0.7),rgba(2,7,19,0.34))] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+                  name="member-feature-panels"
                 >
                   <summary className="relative flex cursor-pointer select-none items-center gap-3 border-b border-sky-300/10 px-3 pb-3 pt-4 transition hover:bg-sky-300/5 focus:outline-none focus-visible:bg-sky-300/8 focus-visible:ring-2 focus-visible:ring-cyan-200/45">
                     <span

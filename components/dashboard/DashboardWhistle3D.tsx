@@ -40,18 +40,28 @@ const disposeObject = (object: Object3D) => {
   });
 };
 
-const createWhistleShape = (THREE: ThreeModule) => {
+const createWhistleMouthpieceShape = (THREE: ThreeModule) => {
   const shape = new THREE.Shape();
 
-  shape.moveTo(-0.94, -0.3);
-  shape.bezierCurveTo(-1.16, -0.24, -1.17, 0.2, -0.92, 0.36);
-  shape.bezierCurveTo(-0.64, 0.54, -0.2, 0.47, 0.12, 0.31);
-  shape.lineTo(0.9, 0.22);
-  shape.lineTo(1.2, 0.08);
-  shape.lineTo(1.2, -0.1);
-  shape.lineTo(0.94, -0.22);
-  shape.lineTo(0.14, -0.19);
-  shape.bezierCurveTo(-0.22, -0.43, -0.66, -0.49, -0.94, -0.3);
+  shape.moveTo(-0.5, -0.16);
+  shape.lineTo(0.42, -0.13);
+  shape.lineTo(0.64, -0.03);
+  shape.lineTo(0.64, 0.08);
+  shape.lineTo(0.42, 0.17);
+  shape.lineTo(-0.5, 0.15);
+  shape.closePath();
+
+  return shape;
+};
+
+const createMouthpieceCutShape = (THREE: ThreeModule) => {
+  const shape = new THREE.Shape();
+
+  shape.moveTo(-0.22, -0.065);
+  shape.lineTo(0.2, -0.05);
+  shape.lineTo(0.26, 0.02);
+  shape.lineTo(0.2, 0.09);
+  shape.lineTo(-0.22, 0.07);
   shape.closePath();
 
   return shape;
@@ -88,7 +98,7 @@ export default function DashboardWhistle3D({
       const canvas = canvasRef.current;
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 14);
-      camera.position.set(0, 0.02, 4.2);
+      camera.position.set(0, 0.02, 3.65);
       camera.lookAt(0, 0, 0);
 
       const renderer = createDashboardWebGlRenderer(THREE, canvas, {
@@ -120,41 +130,62 @@ export default function DashboardWhistle3D({
       scene.add(goldLight);
 
       const group = new THREE.Group();
-      group.scale.setScalar(1.02);
-      group.rotation.set(0.02, -0.16, -0.07);
+      group.scale.set(1.12, 1.05, 1);
+      group.rotation.set(0.03, -0.14, -0.05);
       scene.add(group);
-
-      const whistleGeometry = new THREE.ExtrudeGeometry(createWhistleShape(THREE), {
-        bevelEnabled: true,
-        bevelSegments: 4,
-        bevelSize: 0.026,
-        bevelThickness: 0.042,
-        depth: 0.28,
-      });
-      whistleGeometry.center();
 
       const whistleMaterial = new THREE.MeshPhysicalMaterial({
         clearcoat: 0.85,
         clearcoatRoughness: 0.15,
-        color: new THREE.Color("#dbeafe"),
+        color: new THREE.Color("#bfdbfe"),
         emissive: new THREE.Color("#075985"),
         emissiveIntensity: 0.1,
         metalness: 0.62,
-        roughness: 0.18,
+        roughness: 0.14,
       });
-      const whistle = new THREE.Mesh(whistleGeometry, whistleMaterial);
-      group.add(whistle);
+
+      const chamberGeometry = new THREE.CylinderGeometry(0.43, 0.43, 0.26, 64);
+      chamberGeometry.rotateX(Math.PI / 2);
+      const chamber = new THREE.Mesh(chamberGeometry, whistleMaterial);
+      chamber.position.set(-0.5, 0.005, 0.01);
+      group.add(chamber);
+
+      const mouthpieceGeometry = new THREE.ExtrudeGeometry(
+        createWhistleMouthpieceShape(THREE),
+        {
+          bevelEnabled: true,
+          bevelSegments: 3,
+          bevelSize: 0.018,
+          bevelThickness: 0.028,
+          depth: 0.24,
+        },
+      );
+      mouthpieceGeometry.center();
+      const mouthpiece = new THREE.Mesh(mouthpieceGeometry, whistleMaterial);
+      mouthpiece.position.set(0.34, 0.01, 0.01);
+      group.add(mouthpiece);
+
+      const bridge = new THREE.Mesh(
+        new THREE.BoxGeometry(0.42, 0.25, 0.22),
+        whistleMaterial,
+      );
+      bridge.position.set(-0.14, -0.03, 0.01);
+      bridge.rotation.z = -0.035;
+      group.add(bridge);
 
       const glowMaterial = new THREE.MeshBasicMaterial({
         blending: THREE.AdditiveBlending,
         color: new THREE.Color("#7dd3fc"),
         depthWrite: false,
-        opacity: 0.15,
+        opacity: 0.08,
         transparent: true,
       });
-      const glow = new THREE.Mesh(whistleGeometry.clone(), glowMaterial);
-      glow.position.z = -0.08;
-      glow.scale.set(1.12, 1.12, 1.02);
+      const glow = new THREE.Mesh(
+        new THREE.CircleGeometry(0.74, 64),
+        glowMaterial,
+      );
+      glow.position.set(0.04, 0.01, -0.2);
+      glow.scale.set(1.38, 0.54, 1);
       group.add(glow);
 
       const openingMaterial = new THREE.MeshBasicMaterial({
@@ -163,28 +194,28 @@ export default function DashboardWhistle3D({
         transparent: true,
       });
       const opening = new THREE.Mesh(
-        new THREE.CircleGeometry(0.21, 40),
+        new THREE.CircleGeometry(0.235, 56),
         openingMaterial,
       );
-      opening.position.set(-0.41, 0.01, 0.16);
+      opening.position.set(-0.52, 0.015, 0.19);
       group.add(opening);
 
       const rim = new THREE.Mesh(
-        new THREE.TorusGeometry(0.22, 0.025, 12, 48),
+        new THREE.TorusGeometry(0.255, 0.03, 14, 64),
         new THREE.MeshPhysicalMaterial({
           clearcoat: 0.82,
-          color: new THREE.Color("#bfdbfe"),
+          color: new THREE.Color("#dbeafe"),
           emissive: new THREE.Color("#0ea5e9"),
-          emissiveIntensity: 0.12,
+          emissiveIntensity: 0.18,
           metalness: 0.7,
-          roughness: 0.16,
+          roughness: 0.12,
         }),
       );
-      rim.position.set(-0.41, 0.01, 0.18);
+      rim.position.set(-0.52, 0.015, 0.21);
       group.add(rim);
 
       const pea = new THREE.Mesh(
-        new THREE.SphereGeometry(0.072, 24, 16),
+        new THREE.SphereGeometry(0.066, 24, 16),
         new THREE.MeshPhysicalMaterial({
           clearcoat: 0.5,
           color: new THREE.Color("#fde68a"),
@@ -194,48 +225,67 @@ export default function DashboardWhistle3D({
           roughness: 0.24,
         }),
       );
-      pea.position.set(-0.35, -0.02, 0.2);
+      pea.position.set(-0.48, -0.015, 0.235);
       group.add(pea);
 
       const slot = new THREE.Mesh(
-        new THREE.BoxGeometry(0.5, 0.05, 0.024),
+        new THREE.BoxGeometry(0.56, 0.05, 0.03),
         new THREE.MeshBasicMaterial({
           color: new THREE.Color("#082f49"),
           opacity: 0.9,
           transparent: true,
         }),
       );
-      slot.position.set(0.58, 0.14, 0.19);
-      slot.rotation.z = -0.06;
+      slot.position.set(0.46, 0.14, 0.23);
+      slot.rotation.z = -0.04;
       group.add(slot);
 
-      const mouthpieceCut = new THREE.Mesh(
-        new THREE.BoxGeometry(0.36, 0.07, 0.032),
+      const chamberSeam = new THREE.Mesh(
+        new THREE.BoxGeometry(0.035, 0.42, 0.028),
         new THREE.MeshBasicMaterial({
-          color: new THREE.Color("#020617"),
-          opacity: 0.64,
+          blending: THREE.AdditiveBlending,
+          color: new THREE.Color("#bfdbfe"),
+          opacity: 0.34,
           transparent: true,
         }),
       );
-      mouthpieceCut.position.set(0.96, -0.02, 0.205);
-      mouthpieceCut.rotation.z = -0.03;
+      chamberSeam.position.set(-0.04, 0.01, 0.235);
+      chamberSeam.rotation.z = -0.04;
+      group.add(chamberSeam);
+
+      const mouthpieceCut = new THREE.Mesh(
+        new THREE.ExtrudeGeometry(createMouthpieceCutShape(THREE), {
+          bevelEnabled: true,
+          bevelSegments: 1,
+          bevelSize: 0.006,
+          bevelThickness: 0.012,
+          depth: 0.025,
+        }),
+        new THREE.MeshBasicMaterial({
+          color: new THREE.Color("#020617"),
+          opacity: 0.9,
+          transparent: true,
+        }),
+      );
+      mouthpieceCut.position.set(0.79, -0.035, 0.155);
+      mouthpieceCut.rotation.z = -0.015;
       group.add(mouthpieceCut);
 
       const mouthpieceHighlight = new THREE.Mesh(
-        new THREE.BoxGeometry(0.48, 0.022, 0.02),
+        new THREE.BoxGeometry(0.58, 0.024, 0.024),
         new THREE.MeshBasicMaterial({
           blending: THREE.AdditiveBlending,
           color: new THREE.Color("#e0f2fe"),
-          opacity: 0.55,
+          opacity: 0.7,
           transparent: true,
         }),
       );
-      mouthpieceHighlight.position.set(0.72, 0.23, 0.22);
-      mouthpieceHighlight.rotation.z = -0.07;
+      mouthpieceHighlight.position.set(0.4, 0.185, 0.16);
+      mouthpieceHighlight.rotation.z = -0.045;
       group.add(mouthpieceHighlight);
 
       const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(0.22, 0.026, 12, 48),
+        new THREE.TorusGeometry(0.21, 0.025, 12, 48),
         new THREE.MeshPhysicalMaterial({
           clearcoat: 0.7,
           color: new THREE.Color("#e0f2fe"),
@@ -245,20 +295,35 @@ export default function DashboardWhistle3D({
           roughness: 0.18,
         }),
       );
-      ring.position.set(-0.87, 0.39, 0.02);
-      ring.rotation.z = -0.08;
+      ring.position.set(-0.92, 0.38, 0.03);
+      ring.rotation.z = -0.04;
       group.add(ring);
 
-      const edge = new THREE.LineSegments(
-        new THREE.EdgesGeometry(whistleGeometry, 10),
+      const mouthpieceEdge = new THREE.LineSegments(
+        new THREE.EdgesGeometry(mouthpieceGeometry, 8),
         new THREE.LineBasicMaterial({
           color: new THREE.Color("#f0f9ff"),
-          opacity: 0.56,
+          opacity: 0.78,
           transparent: true,
         }),
       );
-      edge.position.z = 0.015;
-      group.add(edge);
+      mouthpieceEdge.position.copy(mouthpiece.position);
+      mouthpieceEdge.rotation.copy(mouthpiece.rotation);
+      mouthpieceEdge.position.z += 0.018;
+      group.add(mouthpieceEdge);
+
+      const bridgeEdge = new THREE.LineSegments(
+        new THREE.EdgesGeometry(bridge.geometry, 16),
+        new THREE.LineBasicMaterial({
+          color: new THREE.Color("#bae6fd"),
+          opacity: 0.46,
+          transparent: true,
+        }),
+      );
+      bridgeEdge.position.copy(bridge.position);
+      bridgeEdge.rotation.copy(bridge.rotation);
+      bridgeEdge.position.z += 0.018;
+      group.add(bridgeEdge);
 
       const waveMaterial = new THREE.MeshBasicMaterial({
         blending: THREE.AdditiveBlending,
@@ -309,17 +374,18 @@ export default function DashboardWhistle3D({
 
         group.position.y = Math.sin(seconds * 1.1) * 0.025 * charge;
         group.rotation.x = 0.02 + Math.sin(seconds * 1.35) * 0.04 * charge;
-        group.rotation.y = -0.16 + Math.sin(seconds * 0.9) * 0.16 * charge;
-        group.rotation.z = -0.07 + Math.sin(seconds * 1.2) * 0.025 * charge;
+        group.rotation.y = -0.14 + Math.sin(seconds * 0.9) * 0.16 * charge;
+        group.rotation.z = -0.05 + Math.sin(seconds * 1.2) * 0.025 * charge;
 
         whistleMaterial.emissiveIntensity =
           0.08 + charge * (0.16 + Math.sin(seconds * 2.8) * 0.03);
-        glowMaterial.opacity = 0.09 + charge * (0.1 + Math.sin(seconds * 2.6) * 0.02);
+        glowMaterial.opacity =
+          0.04 + charge * (0.06 + Math.sin(seconds * 2.6) * 0.015);
         cyanLight.intensity = 2.1 + charge * 1.1;
         goldLight.intensity = 1.35 + charge * 0.6;
 
-        pea.position.x = -0.35 + Math.sin(seconds * 3.1) * 0.018 * charge;
-        pea.position.y = -0.02 + Math.cos(seconds * 2.8) * 0.012 * charge;
+        pea.position.x = -0.48 + Math.sin(seconds * 3.1) * 0.018 * charge;
+        pea.position.y = -0.015 + Math.cos(seconds * 2.8) * 0.012 * charge;
 
         waves.forEach((wave) => {
           const material = wave.material as Material & { opacity: number };

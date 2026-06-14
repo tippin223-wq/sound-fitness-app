@@ -136,21 +136,21 @@ export default function ProfileRewardOrbit() {
       aria-label="Profile reward currency orbit"
       className="mt-4 overflow-hidden"
     >
-      <div className="min-w-0 text-center">
-        <div className="mx-auto max-w-full whitespace-nowrap text-[9.5px] font-black uppercase leading-[1.35] tracking-[0.16em] text-sky-50 drop-shadow-[0_0_12px_rgba(125,211,252,0.34)] [word-spacing:0.12em] min-[420px]:text-[10px] min-[420px]:tracking-[0.18em] sm:text-[11px] sm:tracking-[0.2em]">
+      <div className="min-w-0 px-2 text-center">
+        <div className="mx-auto max-w-[18rem] text-balance text-[9.5px] font-black uppercase leading-[1.25] tracking-[0.1em] text-sky-50 drop-shadow-[0_0_12px_rgba(125,211,252,0.34)] [word-spacing:0.08em] min-[420px]:text-[10px] min-[420px]:tracking-[0.12em] sm:text-[10.5px] sm:tracking-[0.14em]">
           Earn rewards for your workouts
         </div>
-        <div className="relative isolate mx-auto mt-2 inline-flex flex-wrap items-baseline justify-center gap-x-2.5 gap-y-1 px-5 py-1.5">
+        <div className="relative isolate mx-auto mt-2 flex max-w-full flex-wrap items-baseline justify-center gap-x-2.5 gap-y-1 px-3 py-1.5">
           <span
             aria-hidden="true"
-            className={`pointer-events-none absolute -inset-x-5 -inset-y-1 -z-10 blur-sm ${activeReward.shadeClassName}`}
+            className={`pointer-events-none absolute inset-x-0 -inset-y-1 -z-10 blur-sm ${activeReward.shadeClassName}`}
           />
           <span
             aria-hidden="true"
             className={`pointer-events-none absolute inset-x-2 bottom-1 -z-10 h-px bg-gradient-to-r ${activeReward.accentClassName} opacity-70`}
           />
           <span
-            className={`relative bg-gradient-to-r ${activeReward.accentClassName} bg-clip-text text-xs font-black uppercase tracking-[0.1em] text-transparent drop-shadow-[0_0_8px_rgba(224,242,254,0.34)]`}
+            className={`relative min-w-0 bg-gradient-to-r ${activeReward.accentClassName} bg-clip-text text-[11px] font-black uppercase tracking-[0.08em] text-transparent drop-shadow-[0_0_8px_rgba(224,242,254,0.34)] min-[420px]:text-xs`}
           >
             {activeReward.label}
           </span>
