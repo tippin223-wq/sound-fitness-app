@@ -1,9 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
 
 type CalendarView = "week" | "month";
+type CalendarOrbitCommand = {
+  direction: "left" | "right";
+  sequence: number;
+};
 
 export type DashboardCalendarItem = {
   date?: string;
@@ -11,6 +15,7 @@ export type DashboardCalendarItem = {
   dateLabel?: string;
   title: string;
   type:
+    | "cardio"
     | "check-in"
     | "completed"
     | "nutrition"
@@ -23,6 +28,7 @@ export type DashboardCalendarItem = {
 
 type DashboardCalendarProps = {
   items?: DashboardCalendarItem[];
+  orbitCommand?: CalendarOrbitCommand | null;
 };
 
 type CalendarEvent = DashboardCalendarItem & {
@@ -52,6 +58,7 @@ const detailDateFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 const typeStyles: Record<DashboardCalendarItem["type"], string> = {
+  cardio: "border-orange-300/30 bg-orange-300/10 text-orange-100",
   "check-in": "border-violet-300/30 bg-violet-300/10 text-violet-100",
   completed: "border-emerald-300/30 bg-emerald-300/10 text-emerald-100",
   nutrition: "border-amber-300/30 bg-amber-300/10 text-amber-100",
@@ -62,6 +69,7 @@ const typeStyles: Record<DashboardCalendarItem["type"], string> = {
 };
 
 const dotStyles: Record<DashboardCalendarItem["type"], string> = {
+  cardio: "bg-orange-300 shadow-[0_0_12px_rgba(253,186,116,0.6)]",
   "check-in": "bg-violet-300 shadow-[0_0_12px_rgba(196,181,253,0.6)]",
   completed: "bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.6)]",
   nutrition: "bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.6)]",
@@ -72,6 +80,7 @@ const dotStyles: Record<DashboardCalendarItem["type"], string> = {
 };
 
 const typeLabels: Record<DashboardCalendarItem["type"], string> = {
+  cardio: "Cardio",
   "check-in": "Check-in",
   completed: "Completed",
   nutrition: "Nutrition",
@@ -80,6 +89,60 @@ const typeLabels: Record<DashboardCalendarItem["type"], string> = {
   training: "Workout",
   workout: "Workout",
 };
+
+// The four quick-add sections, shown as full color-coded words above the
+// calendar markers and offered as add options on a selected day.
+const calendarAddOptions = [
+  { key: "cardio", label: "Cardio", title: "Cardio session", type: "cardio" },
+  { key: "meal", label: "Meal", title: "Meal", type: "nutrition" },
+  { key: "strength", label: "Strength", title: "Strength workout", type: "workout" },
+  { key: "recovery", label: "Recovery", title: "Recovery block", type: "recovery" },
+] as const satisfies readonly {
+  key: string;
+  label: string;
+  title: string;
+  type: DashboardCalendarItem["type"];
+}[];
+
+const USER_ENTRIES_STORAGE_KEY = "soundFitnessDashboardCalendarEntries";
+
+const userEntryTypes = new Set<DashboardCalendarItem["type"]>(
+  calendarAddOptions.map((option) => option.type),
+);
+
+function loadUserEntries(): DashboardCalendarItem[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = window.localStorage.getItem(USER_ENTRIES_STORAGE_KEY);
+    if (!raw) return [];
+
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed.filter(
+      (entry): entry is DashboardCalendarItem =>
+        Boolean(entry) &&
+        typeof entry === "object" &&
+        typeof (entry as DashboardCalendarItem).title === "string" &&
+        typeof (entry as DashboardCalendarItem).date === "string" &&
+        userEntryTypes.has((entry as DashboardCalendarItem).type),
+    );
+  } catch {
+    return [];
+  }
+}
+
+function saveUserEntries(entries: DashboardCalendarItem[]) {
+  try {
+    window.localStorage.setItem(
+      USER_ENTRIES_STORAGE_KEY,
+      JSON.stringify(entries),
+    );
+  } catch {
+    // Storage full or unavailable; entries still live in memory this session.
+  }
+}
 
 const dailyTimelineSlots = [
   {
@@ -198,6 +261,17 @@ function toDateKey(date: Date) {
 function parseEventDate(value?: string) {
   if (!value) return null;
 
+  // Plain YYYY-MM-DD must be read as a local date; new Date() would treat it
+  // as UTC midnight and shift it back a day in western timezones.
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (isoMatch) {
+    return new Date(
+      Number(isoMatch[1]),
+      Number(isoMatch[2]) - 1,
+      Number(isoMatch[3]),
+    );
+  }
+
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : startOfDay(parsed);
 }
@@ -265,8 +339,12 @@ function normalizeItems(
   items: DashboardCalendarItem[] | undefined,
   cursorDate: Date,
   today: Date,
+  userEntries: DashboardCalendarItem[] = [],
 ): CalendarEvent[] {
-  const source = items?.length ? items : buildFallbackItems(today);
+  const source = [
+    ...(items?.length ? items : buildFallbackItems(today)),
+    ...userEntries,
+  ];
   const activeWeek = startOfWeek(cursorDate);
 
   return source.map((item, index) => {
@@ -290,20 +368,46 @@ function groupEventsByDate(events: CalendarEvent[]) {
   }, {});
 }
 
-export default function DashboardCalendar({ items }: DashboardCalendarProps) {
+export default function DashboardCalendar({
+  items,
+  orbitCommand,
+}: DashboardCalendarProps) {
   const [today] = useState<Date>(() => startOfDay(new Date()));
   const [view, setView] = useState<CalendarView>("week");
   const [cursorDate, setCursorDate] = useState<Date | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDayDropdownOpen, setSelectedDayDropdownOpen] = useState(false);
+  const [userEntries, setUserEntries] = useState<DashboardCalendarItem[]>([]);
+  const consumedOrbitCommandRef = useRef<number | null>(null);
   const activeToday = today;
   const activeCursorDate = cursorDate || activeToday;
   const activeSelectedDate = selectedDate || activeToday;
 
+  useEffect(() => {
+    setUserEntries(loadUserEntries());
+  }, []);
+
   const eventsByDate = useMemo(
-    () => groupEventsByDate(normalizeItems(items, activeCursorDate, activeToday)),
-    [activeCursorDate, activeToday, items],
+    () =>
+      groupEventsByDate(
+        normalizeItems(items, activeCursorDate, activeToday, userEntries),
+      ),
+    [activeCursorDate, activeToday, items, userEntries],
   );
+
+  function addUserEntry(option: (typeof calendarAddOptions)[number]) {
+    const entry: DashboardCalendarItem = {
+      date: toDateKey(activeSelectedDate),
+      status: "Planned",
+      title: option.title,
+      type: option.type,
+    };
+    setUserEntries((previous) => {
+      const next = [...previous, entry];
+      saveUserEntries(next);
+      return next;
+    });
+  }
 
   const dayRailDays = useMemo(() => getDayRailDays(activeToday), [activeToday]);
   const monthDays = useMemo(() => getMonthDays(activeCursorDate), [activeCursorDate]);
@@ -401,12 +505,20 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
     setCursorDate(nextDay);
   }
 
+  useEffect(() => {
+    if (!orbitCommand || view !== "week" || !calendarReady) return;
+    if (consumedOrbitCommandRef.current === orbitCommand.sequence) return;
+
+    consumedOrbitCommandRef.current = orbitCommand.sequence;
+    scrollWeekDays(orbitCommand.direction === "right" ? "next" : "previous");
+  }, [calendarReady, orbitCommand, view]);
+
   return (
     <section
-      className={`dashboard-calendar-card relative overflow-hidden border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/15 backdrop-blur ${
+      className={`dashboard-calendar-card relative w-full overflow-hidden border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/15 backdrop-blur ${
         view === "month"
           ? "rounded-[26px] p-3 sm:p-4"
-          : "rounded-[32px] p-4 sm:p-5"
+          : "flex min-h-[calc(100svh-12rem)] flex-col rounded-[32px] p-4 sm:p-5"
       }`}
     >
       <div
@@ -414,10 +526,21 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
           view === "month" ? "gap-2" : "gap-3"
         }`}
       >
-        <div className="min-w-0 min-[760px]:max-w-[560px]">
-          <p className="text-[11px] font-black uppercase tracking-[0.24em] text-amber-300">
-            Dashboard Calendar
-          </p>
+        <div className="min-w-0 min-[760px]:max-w-[640px]">
+          <div className="flex min-w-0 flex-col gap-1 min-[560px]:flex-row min-[560px]:items-baseline min-[560px]:gap-3">
+            <p className="shrink-0 text-[11px] font-black uppercase tracking-[0.24em] text-amber-300">
+              Dashboard Calendar
+            </p>
+            <p
+              className={`min-w-0 max-w-full whitespace-nowrap font-black uppercase leading-none tracking-normal text-cyan-50 [text-shadow:0_0_24px_rgba(34,211,238,0.16)] ${
+                view === "month"
+                  ? "text-[clamp(1rem,3vw,1.5rem)]"
+                  : "text-[clamp(1.2rem,4.5vw,2.75rem)]"
+              }`}
+            >
+              {calendarDateLabel}
+            </p>
+          </div>
           <h2
             className={`font-black tracking-tight text-white ${
               view === "month" ? "mt-1 text-xl sm:text-2xl" : "mt-2 text-2xl"
@@ -425,15 +548,6 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
           >
             Training, recovery, and nutrition markers
           </h2>
-          <p
-            className={`font-black uppercase leading-none tracking-tight text-cyan-50 [text-shadow:0_0_24px_rgba(34,211,238,0.16)] ${
-              view === "month"
-                ? "mt-2 text-xl sm:text-2xl"
-                : "mt-3 text-4xl sm:text-5xl lg:text-6xl"
-            }`}
-          >
-            {calendarDateLabel}
-          </p>
         </div>
 
         <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end min-[760px]:ml-auto min-[760px]:pt-1">
@@ -491,11 +605,30 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
       </div>
 
       <div
-        className={`dashboard-calendar-main grid ${
-          view === "month" ? "mt-4 gap-3" : "mt-7 gap-6"
+        className={`flex flex-wrap items-center gap-1.5 ${
+          view === "month" ? "mt-2" : "mt-3"
         }`}
       >
-        <div className="min-w-0">
+        {calendarAddOptions.map((option) => (
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${typeStyles[option.type]}`}
+            key={option.key}
+          >
+            <span
+              aria-hidden="true"
+              className={`h-1.5 w-1.5 rounded-full ${dotStyles[option.type]}`}
+            />
+            {option.label}
+          </span>
+        ))}
+      </div>
+
+      <div
+        className={`dashboard-calendar-main grid min-h-0 ${
+          view === "month" ? "mt-3 gap-3" : "mt-4 flex-1 gap-6"
+        }`}
+      >
+        <div className={`min-w-0 ${view === "week" ? "flex min-h-0 flex-col" : ""}`}>
           {showBackToToday ? (
             <div
               className={`flex justify-center ${
@@ -514,31 +647,13 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
           ) : null}
 
           {view === "week" ? (
-            <div className="relative">
-              <button
-                type="button"
-                aria-label="Scroll days left"
-                className="absolute left-0 top-1/2 z-20 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/78 text-lg font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
-                disabled={!calendarReady}
-                onClick={() => scrollWeekDays("previous")}
-              >
-                &lt;
-              </button>
-              <button
-                type="button"
-                aria-label="Scroll days right"
-                className="absolute right-0 top-1/2 z-20 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/78 text-lg font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95"
-                disabled={!calendarReady}
-                onClick={() => scrollWeekDays("next")}
-              >
-                &gt;
-              </button>
+            <div className="relative flex min-h-[360px] flex-1 flex-col">
               <div
                 aria-label="Calendar day orbital scroller"
-                className="relative h-[250px] overflow-hidden rounded-[30px] border border-cyan-100/10 bg-slate-950/30 px-12 py-4 [perspective:1300px] [scrollbar-width:none] sm:h-[264px] [&::-webkit-scrollbar]:hidden"
+                className="relative min-h-[360px] flex-1 overflow-visible px-12 py-4 [perspective:1300px] [scrollbar-width:none] sm:min-h-[420px] lg:min-h-[calc(100svh-24rem)] [&::-webkit-scrollbar]:hidden"
               >
-                <div className="pointer-events-none absolute inset-y-4 left-0 z-10 w-24 bg-gradient-to-r from-slate-950/95 via-slate-950/58 to-transparent" />
-                <div className="pointer-events-none absolute inset-y-4 right-0 z-10 w-24 bg-gradient-to-l from-slate-950/95 via-slate-950/58 to-transparent" />
+                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-slate-950/82 via-slate-950/38 to-transparent" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-slate-950/82 via-slate-950/38 to-transparent" />
                 <div className="pointer-events-none absolute inset-x-14 top-1/2 h-px bg-gradient-to-r from-transparent via-cyan-200/35 to-transparent" />
                 <div className="absolute inset-x-12 top-1/2 h-[224px] -translate-y-1/2 [transform-style:preserve-3d]">
                   {dayRailDays.map((day, dayIndex) => {
@@ -577,9 +692,13 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
 
                         return slotKind === "meal"
                           ? event.type === "nutrition"
-                          : ["completed", "performance", "training", "workout"].includes(
-                              event.type,
-                            );
+                          : [
+                              "cardio",
+                              "completed",
+                              "performance",
+                              "training",
+                              "workout",
+                            ].includes(event.type);
                       });
 
                       if (matchIndex < 0) return null;
@@ -826,6 +945,25 @@ export default function DashboardCalendar({ items }: DashboardCalendarProps) {
                   check-in data can land here safely.
                 </div>
               )}
+            </div>
+
+            <div className="border-t border-white/10 p-3">
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">
+                Add to this day
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {calendarAddOptions.map((option) => (
+                  <button
+                    aria-label={`Add ${option.label} on ${detailDateFormatter.format(activeSelectedDate)}`}
+                    className={`rounded-xl border px-3 py-2 text-left text-[10px] font-black uppercase tracking-[0.12em] transition hover:-translate-y-0.5 hover:brightness-125 ${typeStyles[option.type]}`}
+                    key={option.key}
+                    onClick={() => addUserEntry(option)}
+                    type="button"
+                  >
+                    + {option.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
