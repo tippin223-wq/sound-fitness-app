@@ -200,10 +200,6 @@ const PLAN_COLUMN_BG: Record<AppPlanId, string> = {
   "online-coaching": "bg-amber-400/10",
 };
 
-const CHECKOUT_APP_PLANS = APP_PLANS.filter(
-  (plan) => plan.id === "online-coaching",
-);
-
 export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
   const [isFooterLogoHighlighted, setIsFooterLogoHighlighted] = useState(false);
   const [planId, setPlanId] = useState<AppPlanId>(initialPlan);
@@ -392,19 +388,32 @@ export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
                 Available plan
               </p>
               <div className="mt-4 grid grid-cols-1 gap-3">
-                {CHECKOUT_APP_PLANS.map((plan) => {
+                {APP_PLANS.map((plan) => {
+                  const isAvailable = plan.id === "online-coaching";
                   const isSelected = plan.id === planId;
                   const theme = PLAN_THEMES[plan.id];
                   return (
                     <button
                       key={plan.id}
                       type="button"
-                      onClick={() => setPlanId(plan.id)}
-                      aria-pressed={isSelected}
+                      onClick={() => {
+                        if (isAvailable) setPlanId(plan.id);
+                      }}
+                      disabled={!isAvailable}
+                      aria-pressed={isAvailable && isSelected}
+                      aria-label={
+                        isAvailable
+                          ? `Select ${plan.name}`
+                          : `${plan.name} coming soon`
+                      }
                       className={`w-full rounded-xl border p-4 text-left transition ${
-                        isSelected
+                        isAvailable && isSelected
                           ? theme.selectedCard
-                          : "border-white/10 bg-slate-950/55 hover:border-white/25 hover:bg-white/[0.07]"
+                          : "border-white/10 bg-slate-950/55"
+                      } ${
+                        isAvailable
+                          ? "hover:border-white/25 hover:bg-white/[0.07]"
+                          : "cursor-not-allowed opacity-60"
                       }`}
                     >
                       <div className="flex items-start gap-3">
@@ -426,20 +435,27 @@ export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
                             <h2 className="text-base font-black text-white">
                               {plan.name}
                             </h2>
-                            <span
-                              className={`shrink-0 text-lg font-black ${theme.price}`}
-                            >
-                              {plan.price}
-                              <span className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                                {plan.cadence}
+                            <div className="ml-auto flex shrink-0 items-center gap-2">
+                              {!isAvailable ? (
+                                <span className="rounded-full border border-amber-200/35 bg-amber-300/12 px-2 py-1 text-[8px] font-black uppercase leading-none tracking-[0.1em] text-amber-100">
+                                  Coming soon
+                                </span>
+                              ) : null}
+                              <span
+                                className={`text-lg font-black ${theme.price}`}
+                              >
+                                {plan.price}
+                                <span className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+                                  {plan.cadence}
+                                </span>
                               </span>
-                            </span>
+                            </div>
                           </div>
                           <p className="mt-1 text-xs font-bold text-sky-200">
                             {plan.summary}
                           </p>
                         </div>
-                        {isSelected ? (
+                        {isAvailable && isSelected ? (
                           <CheckCircle2
                             aria-hidden="true"
                             className={`h-4 w-4 shrink-0 ${theme.check}`}
@@ -612,16 +628,10 @@ export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
               </div>
             </div>
 
-            <Link
-              href={ROUTES.public.home}
-              className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400 transition hover:text-slate-200"
-            >
-              <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
-              Back to results
-            </Link>
           </div>
 
-          <div className="relative min-h-[26rem] min-w-0 overflow-hidden rounded-lg border border-sky-200/30 bg-[#06101d] p-1 shadow-[0_0_0_1px_rgba(56,189,248,0.08),0_26px_60px_rgba(0,0,0,0.46)]">
+          <div className="min-w-0 space-y-4">
+            <div className="relative min-h-[26rem] overflow-hidden rounded-lg border border-sky-200/30 bg-[#06101d] p-1 shadow-[0_0_0_1px_rgba(56,189,248,0.08),0_26px_60px_rgba(0,0,0,0.46)]">
             <span
               aria-hidden="true"
               className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-sky-100 to-amber-200/80"
@@ -689,6 +699,15 @@ export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
             ) : null}
               </div>
             </div>
+            </div>
+
+            <Link
+              href={ROUTES.public.home}
+              className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400 transition hover:text-slate-200"
+            >
+              <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
+              Back to results
+            </Link>
           </div>
         </div>
       </section>

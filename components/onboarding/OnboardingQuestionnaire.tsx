@@ -1392,6 +1392,7 @@ export default function OnboardingQuestionnaire() {
   const [isVolumeMenuOpen, setIsVolumeMenuOpen] = useState(false);
   const [isTrackOpen, setIsTrackOpen] = useState(false);
   const [showAssessmentConfirm, setShowAssessmentConfirm] = useState(false);
+  const [showLoginConfirm, setShowLoginConfirm] = useState(false);
   const [purchaseComingSoonPlanId, setPurchaseComingSoonPlanId] =
     useState<"online-coaching" | null>(null);
   // Whether the results email actually went out. Starts unknown so the result
@@ -1505,6 +1506,15 @@ export default function OnboardingQuestionnaire() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [showAssessmentConfirm]);
+
+  useEffect(() => {
+    if (!showLoginConfirm) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setShowLoginConfirm(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [showLoginConfirm]);
 
   useEffect(() => {
     // Drive the track pill's music visualizer while it's open: draw frequency
@@ -2175,8 +2185,78 @@ export default function OnboardingQuestionnaire() {
             </div>
           ) : null}
 
+          {showLoginConfirm ? (
+            <div
+              className="fixed inset-0 z-[90] flex items-center justify-center p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="sound-login-confirm-title"
+              onClick={() => setShowLoginConfirm(false)}
+            >
+              <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" />
+              <div
+                className="relative z-10 w-full max-w-md rounded-2xl border border-amber-200/30 bg-[radial-gradient(circle_at_14%_0%,rgba(251,191,36,0.12),transparent_46%),linear-gradient(180deg,rgba(15,23,42,0.96),rgba(2,7,19,0.96))] p-4 shadow-2xl shadow-black/50 sm:p-5"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowLoginConfirm(false)}
+                  aria-label="Close"
+                  className="absolute right-2.5 top-2.5 grid h-7 w-7 place-items-center rounded-full border border-white/20 bg-slate-950/55 text-white transition hover:bg-slate-950/85 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/70 sm:right-3 sm:top-3 sm:h-8 sm:w-8"
+                >
+                  <X aria-hidden="true" className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                </button>
+
+                <div className="flex items-start gap-3 pr-8">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-amber-200/30 bg-amber-300/10 text-amber-100">
+                    <ShieldCheck aria-hidden="true" className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h3
+                      id="sound-login-confirm-title"
+                      className="text-sm font-black uppercase leading-tight tracking-tight text-white sm:text-base"
+                    >
+                      Leave your plan setup?
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">
+                      Your assessment is already in progress. Signing in will
+                      take you away from this page and your current plan
+                      progress will be lost.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginConfirm(false)}
+                    className="inline-flex min-h-10 items-center justify-center rounded-lg border border-white/12 bg-white/[0.05] px-4 text-[11px] font-black uppercase tracking-[0.14em] text-slate-200 transition hover:border-white/25 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/70"
+                  >
+                    Keep building
+                  </button>
+                  <Link
+                    href={loginHref}
+                    onClick={() => {
+                      window.localStorage.removeItem(STORAGE_KEY);
+                      setShowLoginConfirm(false);
+                    }}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-amber-300 px-4 text-[11px] font-black uppercase tracking-[0.14em] text-slate-950 transition hover:bg-amber-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-100/80"
+                  >
+                    Go to sign in
+                    <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <Link
             href={loginHref}
+            onClick={(event) => {
+              if (stage === "welcome") return;
+              event.preventDefault();
+              setShowLoginConfirm(true);
+            }}
             className="sound-member-login-link absolute right-4 top-4 z-20 inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-sky-100 transition hover:text-white sm:right-5 sm:top-5"
           >
             <UserRound

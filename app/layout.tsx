@@ -1,4 +1,5 @@
 import "./globals.css";
+import IntroAssessmentMusicStopper from "@/components/onboarding/IntroAssessmentMusicStopper";
 
 export const metadata = {
   title: "Sound Fitness",
@@ -15,7 +16,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <IntroAssessmentMusicStopper />
+        {children}
+      </body>
     </html>
   );
 }
