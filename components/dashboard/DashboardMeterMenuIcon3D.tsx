@@ -6,7 +6,6 @@ import {
   createDashboardWebGlRenderer,
   loadDashboardThree,
   setDashboardWebGlCanvasActive,
-  waitForDashboardWebGlStart,
 } from "./dashboardWebGlRenderer";
 
 type ThreeModule = typeof import("three");
@@ -14,6 +13,7 @@ type ThreeModule = typeof import("three");
 type DashboardMeterMenuIcon3DProps = {
   active?: boolean;
   className?: string;
+  frameless?: boolean;
   paused?: boolean;
 };
 
@@ -67,6 +67,7 @@ const createRoundedBox = (
 export default function DashboardMeterMenuIcon3D({
   active = false,
   className = "",
+  frameless = false,
   paused = false,
 }: DashboardMeterMenuIcon3DProps) {
   const activeRef = useRef(active);
@@ -88,9 +89,6 @@ export default function DashboardMeterMenuIcon3D({
     let cleanup = () => {};
 
     const startScene = async () => {
-      await waitForDashboardWebGlStart();
-      if (cancelled || !canvasRef.current) return;
-
       const THREE = await loadDashboardThree();
       if (cancelled || !canvasRef.current) return;
 
@@ -107,6 +105,8 @@ export default function DashboardMeterMenuIcon3D({
         preserveDrawingBuffer: false,
       });
       if (!renderer) return;
+      canvas.dataset.webglReady = "true";
+      delete canvas.dataset.webglFallback;
       setDashboardWebGlCanvasActive(
         canvas,
         activeRef.current && !pausedRef.current,
@@ -140,17 +140,17 @@ export default function DashboardMeterMenuIcon3D({
       const frontFaceMaterial = new THREE.MeshPhysicalMaterial({
         clearcoat: 0.9,
         clearcoatRoughness: 0.12,
-        color: new THREE.Color("#031523"),
+        color: new THREE.Color("#020617"),
         emissive: new THREE.Color("#083344"),
-        emissiveIntensity: 0.26,
+        emissiveIntensity: 0.28,
         metalness: 0.4,
         roughness: 0.18,
       });
       const backFaceMaterial = new THREE.MeshPhysicalMaterial({
         clearcoat: 0.86,
         clearcoatRoughness: 0.12,
-        color: new THREE.Color("#07111f"),
-        emissive: new THREE.Color("#111827"),
+        color: new THREE.Color("#020617"),
+        emissive: new THREE.Color("#082f49"),
         emissiveIntensity: 0.22,
         metalness: 0.34,
         roughness: 0.2,
@@ -182,6 +182,7 @@ export default function DashboardMeterMenuIcon3D({
       );
       edgeGeometry.rotateX(Math.PI / 2);
       const edgeWall = new THREE.Mesh(edgeGeometry, sideWallMaterial);
+      edgeWall.visible = !frameless;
       flipGroup.add(edgeWall);
 
       const frontGroup = new THREE.Group();
@@ -196,10 +197,14 @@ export default function DashboardMeterMenuIcon3D({
       const faceGeometry = new THREE.CircleGeometry(1.14, 96);
       const frontFace = new THREE.Mesh(faceGeometry, frontFaceMaterial);
       frontFace.position.z = -0.025;
+      frontFace.visible = !frameless;
+      frontFace.renderOrder = 1;
       frontGroup.add(frontFace);
 
       const backFace = new THREE.Mesh(faceGeometry, backFaceMaterial);
       backFace.position.z = -0.025;
+      backFace.visible = !frameless;
+      backFace.renderOrder = 1;
       backGroup.add(backFace);
 
       const frontOuterRing = new THREE.Mesh(
@@ -207,6 +212,8 @@ export default function DashboardMeterMenuIcon3D({
         ringMaterial,
       );
       frontOuterRing.position.z = 0.015;
+      frontOuterRing.visible = !frameless;
+      frontOuterRing.renderOrder = 2;
       frontGroup.add(frontOuterRing);
 
       const backOuterRing = new THREE.Mesh(
@@ -214,6 +221,8 @@ export default function DashboardMeterMenuIcon3D({
         ringMaterial,
       );
       backOuterRing.position.z = 0.015;
+      backOuterRing.visible = !frameless;
+      backOuterRing.renderOrder = 2;
       backGroup.add(backOuterRing);
 
       const innerRingMaterial = new THREE.MeshBasicMaterial({
@@ -228,6 +237,7 @@ export default function DashboardMeterMenuIcon3D({
         innerRingMaterial,
       );
       frontInnerRing.position.z = 0.02;
+      frontInnerRing.visible = !frameless;
       frontGroup.add(frontInnerRing);
 
       const backInnerRing = new THREE.Mesh(
@@ -235,6 +245,7 @@ export default function DashboardMeterMenuIcon3D({
         innerRingMaterial,
       );
       backInnerRing.position.z = 0.02;
+      backInnerRing.visible = !frameless;
       backGroup.add(backInnerRing);
 
       const barMaterial = new THREE.MeshPhysicalMaterial({
@@ -292,6 +303,7 @@ export default function DashboardMeterMenuIcon3D({
       );
       frontGlow.position.set(0, -0.04, 0);
       frontGlow.scale.set(0.86, 0.64, 1);
+      frontGlow.visible = !frameless;
       frontGroup.add(frontGlow);
 
       const saucerMaterial = new THREE.MeshPhysicalMaterial({
@@ -340,6 +352,11 @@ export default function DashboardMeterMenuIcon3D({
       const ufoGroup = new THREE.Group();
       ufoGroup.position.set(0, 0.36, 0.08);
       backGroup.add(ufoGroup);
+
+      if (frameless) {
+        frontGroup.scale.setScalar(1.26);
+        backGroup.scale.setScalar(1.16);
+      }
 
       const saucer = new THREE.Mesh(
         new THREE.SphereGeometry(0.58, 48, 18),
@@ -421,13 +438,15 @@ export default function DashboardMeterMenuIcon3D({
 
         flipGroup.rotation.y = flipRotation;
         flipGroup.rotation.x = Math.sin(seconds * 1.8) * 0.03 * charge;
-        root.scale.setScalar(0.98 + Math.sin(seconds * 8) * 0.022 * charge);
+        root.scale.setScalar(
+          (frameless ? 1.1 : 1.08) + Math.sin(seconds * 8) * 0.022 * charge,
+        );
         ringMaterial.emissiveIntensity =
-          0.34 + charge * (0.58 + Math.sin(seconds * 8.6) * 0.12);
-        sideWallMaterial.emissiveIntensity = 0.2 + charge * 0.36;
-        frontFaceMaterial.emissiveIntensity = 0.24 + charge * 0.3;
-        backFaceMaterial.emissiveIntensity = 0.2 + charge * 0.28;
-        innerRingMaterial.opacity = 0.16 + charge * 0.24;
+          0.54 + charge * (0.58 + Math.sin(seconds * 8.6) * 0.12);
+        sideWallMaterial.emissiveIntensity = 0.22 + charge * 0.34;
+        frontFaceMaterial.emissiveIntensity = 0.28 + charge * 0.26;
+        backFaceMaterial.emissiveIntensity = 0.22 + charge * 0.24;
+        innerRingMaterial.opacity = 0.24 + charge * 0.24;
 
         bars.forEach((bar, index) => {
           const baseHeight = bar.userData.baseHeight as number;
@@ -474,6 +493,7 @@ export default function DashboardMeterMenuIcon3D({
       cleanup = () => {
         window.cancelAnimationFrame(frameId);
         observer.disconnect();
+        delete canvas.dataset.webglReady;
         disposeObject(scene);
         renderer.forceContextLoss();
         renderer.dispose();

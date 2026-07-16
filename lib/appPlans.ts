@@ -36,6 +36,9 @@ export const APP_PLANS: AppPlan[] = [
     benefits: [
       "Dashboard + tracking tools",
       "Plan visibility between sessions",
+      "Exercise library + workout builder",
+      "Habit tracker + progress journal",
+      "Recovery + mobility library",
       "Self-guided app support",
     ],
   },
@@ -55,6 +58,7 @@ export const APP_PLANS: AppPlan[] = [
       "Blue Sound Points rewards",
       "Gems for technique support",
       "Treasure Tokens for in-app purchases",
+      "Levels + achievement rewards",
     ],
   },
   {
@@ -69,9 +73,11 @@ export const APP_PLANS: AppPlan[] = [
     stripePriceEnv: "STRIPE_PRICE_ONLINE_COACHING",
     Icon: UsersRound,
     benefits: [
+      "Everything in Hybrid App",
       "Coach-led programming",
       "Check-ins and app messaging",
-      "Dashboard + progress tracking",
+      "Video form review",
+      "Training calendar + session planning",
       "Larger Sound Points, Gems, and Treasure Tokens bundle",
     ],
   },

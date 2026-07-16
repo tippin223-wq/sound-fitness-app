@@ -141,12 +141,17 @@ export default function DashboardLogo3D({
         if (cancelled || !canvasRef.current) return;
 
         const canvas = canvasRef.current;
-        const renderer = createDashboardWebGlRenderer(THREE, canvas, {
-          alpha: true,
-          antialias: true,
-          powerPreference: "high-performance",
-          preserveDrawingBuffer: false,
-        });
+        const renderer = createDashboardWebGlRenderer(
+          THREE,
+          canvas,
+          {
+            alpha: true,
+            antialias: true,
+            powerPreference: "high-performance",
+            preserveDrawingBuffer: false,
+          },
+          { priority: true },
+        );
         if (!renderer) {
           if (startAttempt >= LOGO_WEBGL_MAX_START_ATTEMPTS) return;
 

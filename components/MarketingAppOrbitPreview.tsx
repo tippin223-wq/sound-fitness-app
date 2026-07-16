@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Dumbbell,
-  Sparkles,
   Target,
   UserRound,
   type LucideIcon,

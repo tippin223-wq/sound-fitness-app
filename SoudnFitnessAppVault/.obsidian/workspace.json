@@ -1,0 +1,202 @@
+{
+  "main": {
+    "id": "e4ea11aa46e09e7e",
+    "type": "split",
+    "children": [
+      {
+        "id": "75d1e28a214430f0",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "bf1a2c05d3350ce0",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "app-reference/User Preferences.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "User Preferences"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "8b5bbbcd11a8870f",
+    "type": "split",
+    "children": [
+      {
+        "id": "1a83b9774296637c",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "133cbe8a41e07633",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "1ffd2bca63244484",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "1ce5197035a305d2",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "38ccc652e84b7629",
+    "type": "split",
+    "children": [
+      {
+        "id": "205459db4cbaeaa2",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "055be26e3ccb6f27",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "app-reference/User Preferences.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for User Preferences"
+            }
+          },
+          {
+            "id": "ad64f8cdfec5342f",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "app-reference/User Preferences.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from User Preferences"
+            }
+          },
+          {
+            "id": "5fbb5f3305b12724",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "9b125277ffb3ebba",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "6d1dd0425ff39eeb",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "app-reference/User Preferences.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of User Preferences"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "bf1a2c05d3350ce0",
+  "lastOpenFiles": [
+    "app-reference/Routes and Areas.md",
+    "Codex Start Here.md",
+    "Welcome.md",
+    "Review Log.md",
+    "app-reference/Screenshot Workflow.md",
+    "app-reference/User Preferences.md",
+    "app-reference/App Map.md",
+    "decisions",
+    "app-reference",
+    "notes",
+    "screenshots/reviewed",
+    "screenshots/inbox",
+    "screenshots"
+  ]
+}

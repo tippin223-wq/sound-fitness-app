@@ -21,15 +21,6 @@ export default async function SubscriptionPage({
   const initialPlan: AppPlanId = isAppPlanId(requestedPlan)
     ? requestedPlan
     : DEFAULT_APP_PLAN_ID;
-  const publishableKey =
-    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ??
-    process.env.STRIPE_PUBLISHABLE_KEY ??
-    "";
 
-  return (
-    <SubscriptionCheckoutClient
-      initialPlan={initialPlan}
-      publishableKey={publishableKey}
-    />
-  );
+  return <SubscriptionCheckoutClient initialPlan={initialPlan} />;
 }

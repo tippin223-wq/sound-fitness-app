@@ -25,6 +25,14 @@ function getLoginPath(pathname: string) {
   return "/login";
 }
 
+function getLoggedOutEntryPath(pathname: string) {
+  if (pathname.startsWith("/admin") || pathname.startsWith("/coach")) {
+    return getLoginPath(pathname);
+  }
+
+  return "/";
+}
+
 function matchesRouteBoundary(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
@@ -78,10 +86,10 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    const loginUrl = request.nextUrl.clone();
-    loginUrl.pathname = getLoginPath(pathname);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
+    const loggedOutEntryUrl = request.nextUrl.clone();
+    loggedOutEntryUrl.pathname = getLoggedOutEntryPath(pathname);
+    loggedOutEntryUrl.searchParams.set("next", pathname);
+    return NextResponse.redirect(loggedOutEntryUrl);
   }
 
   return response;

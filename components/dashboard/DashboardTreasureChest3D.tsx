@@ -1314,7 +1314,7 @@ export function DashboardSpinningSoundCoin3D({
     <canvas
       aria-hidden="true"
       className={className}
-      data-sound-coin-renderer="three"
+      data-sound-coin-renderer={`sound-coin-${variant}-${tone}-v2`}
       data-token-tone={tone}
       data-token-variant={variant}
       ref={canvasRef}

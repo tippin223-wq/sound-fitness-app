@@ -307,12 +307,17 @@ export default function DashboardTrophy3D({
         camera.position.set(0, 0.02, 5.15);
         camera.lookAt(0, -0.02, 0);
 
-        const renderer = createDashboardWebGlRenderer(THREE, canvas, {
-          alpha: true,
-          antialias: true,
-          powerPreference: "high-performance",
-          preserveDrawingBuffer: false,
-        });
+        const renderer = createDashboardWebGlRenderer(
+          THREE,
+          canvas,
+          {
+            alpha: true,
+            antialias: true,
+            powerPreference: "high-performance",
+            preserveDrawingBuffer: false,
+          },
+          { priority: true },
+        );
         if (!renderer) {
           if (startAttempt >= TROPHY_WEBGL_MAX_START_ATTEMPTS) return;
 

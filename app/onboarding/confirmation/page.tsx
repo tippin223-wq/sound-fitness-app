@@ -1,7 +1,13 @@
 import Link from "next/link";
-import { CheckCircle2, ClipboardList, UserPlus } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ClipboardList,
+  UserPlus,
+} from "lucide-react";
 import { getAppPlan, isAppPlanId } from "@/lib/appPlans";
 import { ROUTES } from "@/lib/routes";
+import { getStripeClient } from "@/lib/stripe";
 
 type ConfirmationPageProps = {
   searchParams: Promise<{
@@ -9,6 +15,36 @@ type ConfirmationPageProps = {
     session_id?: string | string[];
   }>;
 };
+
+type PaymentCheck =
+  | { state: "paid"; email: string | null }
+  | { state: "unpaid" }
+  | { state: "unverified" }; // no session, or Stripe not configured
+
+async function verifyPayment(
+  sessionId: string | undefined,
+): Promise<PaymentCheck> {
+  if (!sessionId) return { state: "unverified" };
+  if (!process.env.STRIPE_SECRET_KEY) return { state: "unverified" };
+
+  try {
+    const stripe = getStripeClient();
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    // A Checkout Session can be complete while an asynchronous payment is
+    // still processing. `payment_status` is Stripe's fulfillment signal.
+    const isPaid =
+      session.payment_status === "paid" ||
+      session.payment_status === "no_payment_required";
+
+    return isPaid
+      ? { state: "paid", email: session.customer_details?.email ?? null }
+      : { state: "unpaid" };
+  } catch {
+    // Couldn't reach Stripe — fall back to the neutral state rather than
+    // blocking a member who may have genuinely paid.
+    return { state: "unverified" };
+  }
+}
 
 export default async function ConfirmationPage({
   searchParams,
@@ -20,31 +56,72 @@ export default async function ConfirmationPage({
   const sessionId = Array.isArray(params.session_id)
     ? params.session_id[0]
     : params.session_id;
-  const selectedPlan = getAppPlan(isAppPlanId(requestedPlan) ? requestedPlan : null);
-  const hasCheckoutSession = Boolean(sessionId);
+  const selectedPlan = getAppPlan(
+    isAppPlanId(requestedPlan) ? requestedPlan : null,
+  );
+
+  const payment = await verifyPayment(sessionId);
+  const isPaid = payment.state === "paid";
+  const isUnpaid = payment.state === "unpaid";
+
+  const signupHref = sessionId
+    ? (`${ROUTES.auth.signup}?session_id=${encodeURIComponent(
+        sessionId,
+      )}&plan=${selectedPlan.id}` as const)
+    : ROUTES.auth.signup;
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] px-5 py-10 text-white">
       <section className="mx-auto max-w-4xl space-y-6">
-        <div className="rounded-[32px] border border-emerald-400/20 bg-emerald-500/10 p-8 text-center shadow-2xl">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-400 text-slate-950 shadow-lg">
-            <CheckCircle2 aria-hidden="true" className="h-10 w-10" />
+        <div
+          className={`rounded-[32px] border p-8 text-center shadow-2xl ${
+            isUnpaid
+              ? "border-amber-400/25 bg-amber-500/10"
+              : "border-emerald-400/20 bg-emerald-500/10"
+          }`}
+        >
+          <div
+            className={`mx-auto flex h-20 w-20 items-center justify-center rounded-full text-slate-950 shadow-lg ${
+              isUnpaid ? "bg-amber-400" : "bg-emerald-400"
+            }`}
+          >
+            {isUnpaid ? (
+              <AlertTriangle aria-hidden="true" className="h-10 w-10" />
+            ) : (
+              <CheckCircle2 aria-hidden="true" className="h-10 w-10" />
+            )}
           </div>
 
-          <p className="mt-6 text-[11px] font-black uppercase tracking-[0.28em] text-emerald-300">
-            {hasCheckoutSession ? "Checkout complete" : "Onboarding received"}
+          <p
+            className={`mt-6 text-[11px] font-black uppercase tracking-[0.28em] ${
+              isUnpaid ? "text-amber-300" : "text-emerald-300"
+            }`}
+          >
+            {isPaid
+              ? "Payment confirmed"
+              : isUnpaid
+                ? "Payment not completed"
+                : "Checkout received"}
           </p>
 
           <h1 className="mt-3 text-4xl font-black uppercase tracking-tight sm:text-5xl">
-            {hasCheckoutSession
-              ? "Your membership is ready for account setup."
-              : "You are on the path."}
+            {isPaid
+              ? "You're enrolled — create your account."
+              : isUnpaid
+                ? "Finish payment to enroll."
+                : "You're almost there."}
           </h1>
 
           <p className="mx-auto mt-4 max-w-2xl text-slate-200">
-            {hasCheckoutSession
-              ? `Stripe returned your ${selectedPlan.name} checkout session. Next, create your account so the private dashboard can attach to the membership.`
-              : "Your onboarding step was received. Complete the assessment or create an account when you are ready."}
+            {isPaid
+              ? `Your ${selectedPlan.name} membership is active${
+                  payment.state === "paid" && payment.email
+                    ? ` for ${payment.email}`
+                    : ""
+                }. Create your account to open your private dashboard.`
+              : isUnpaid
+                ? "Your checkout session didn't complete payment. Head back to checkout to finish enrolling in your plan."
+                : "Complete checkout to activate your membership, then create your account to open your dashboard."}
           </p>
         </div>
 
@@ -52,10 +129,10 @@ export default async function ConfirmationPage({
           {[
             [
               "1",
-              "Payment confirmed",
-              hasCheckoutSession
-                ? "Stripe sent the checkout session back to Sound Fitness."
-                : "Choose a plan when you are ready for member access.",
+              "Payment",
+              isPaid
+                ? "Confirmed by Stripe — your membership is active."
+                : "Complete secure checkout to activate your plan.",
             ],
             [
               "2",
@@ -65,7 +142,7 @@ export default async function ConfirmationPage({
             [
               "3",
               "Dashboard setup",
-              "Training, progress, rewards, and coach context live in one place.",
+              "Training, progress, rewards, and coach context in one place.",
             ],
           ].map(([number, title, text]) => (
             <div
@@ -75,7 +152,6 @@ export default async function ConfirmationPage({
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-500 font-black text-white">
                 {number}
               </div>
-
               <h2 className="mt-4 text-lg font-black uppercase tracking-[0.06em]">
                 {title}
               </h2>
@@ -86,9 +162,8 @@ export default async function ConfirmationPage({
 
         <div className="rounded-[28px] border border-white/10 bg-white/[0.05] p-6 shadow-2xl">
           <p className="text-[11px] font-black uppercase tracking-[0.24em] text-sky-300">
-            Selected access
+            Selected membership
           </p>
-
           <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-2xl font-black">{selectedPlan.name}</h2>
@@ -105,22 +180,26 @@ export default async function ConfirmationPage({
               </div>
             </div>
           </div>
-
-          {sessionId ? (
-            <div className="mt-5 rounded-xl border border-white/10 bg-slate-950/60 p-4 text-xs font-bold leading-5 text-slate-400">
-              Stripe session: <span className="text-slate-200">{sessionId}</span>
-            </div>
-          ) : null}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Link
-            href={ROUTES.auth.signup}
-            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-sky-500 px-5 py-4 text-center font-black uppercase tracking-[0.1em] text-white shadow-lg shadow-sky-500/20 hover:bg-sky-400"
-          >
-            <UserPlus aria-hidden="true" className="h-5 w-5" />
-            Create Account
-          </Link>
+          {isUnpaid ? (
+            <Link
+              href={`${ROUTES.onboarding.checkout}?plan=${selectedPlan.id}`}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-400 px-5 py-4 text-center font-black uppercase tracking-[0.1em] text-slate-950 shadow-lg shadow-amber-500/20 hover:bg-amber-300"
+            >
+              <AlertTriangle aria-hidden="true" className="h-5 w-5" />
+              Return to Checkout
+            </Link>
+          ) : (
+            <Link
+              href={signupHref}
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-sky-500 px-5 py-4 text-center font-black uppercase tracking-[0.1em] text-white shadow-lg shadow-sky-500/20 hover:bg-sky-400"
+            >
+              <UserPlus aria-hidden="true" className="h-5 w-5" />
+              Create Account
+            </Link>
+          )}
 
           <Link
             href={ROUTES.onboarding.assessment}

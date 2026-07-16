@@ -2,6 +2,17 @@ const route = <T extends `/${string}`>(path: T) => path;
 
 type ValueOf<T> = T[keyof T];
 
+/**
+ * The public marketing site. These are NOT app routes — they leave this app.
+ * `domain` is what we show users; `freeAssessment` is where we actually send
+ * them, so the displayed address stays honest while the click lands on the
+ * right page.
+ */
+export const MARKETING_SITE = {
+  domain: "thesoundfitness.com",
+  freeAssessment: "https://thesoundfitness.com/free-assessment",
+} as const;
+
 export const PUBLIC_ROUTES = {
   home: route("/"),
   memberDashboardPreview: route("/member-dashboard-preview"),
@@ -9,6 +20,7 @@ export const PUBLIC_ROUTES = {
 } as const;
 
 export const AUTH_ROUTES = {
+  callback: route("/auth/callback"),
   login: route("/login"),
   signup: route("/signup"),
   forgotPassword: route("/forgot-password"),
@@ -20,6 +32,7 @@ export const ONBOARDING_ROUTES = {
   home: route("/onboarding"),
   assessment: route("/onboarding/assessment"),
   subscription: route("/onboarding/subscription"),
+  checkout: route("/onboarding/checkout"),
   intakeCheckIn: route("/onboarding/intake-check-in"),
   confirmation: route("/onboarding/confirmation"),
 } as const;
@@ -123,6 +136,7 @@ export const ADMIN_ROUTES = {
   sales: route("/admin/sales"),
   siteMap: route("/admin/site-map"),
   socialPortal: route("/admin/social-portal"),
+  submissions: route("/admin/submissions"),
   templates: route("/admin/templates"),
   devMovementIntelligence: route("/admin/dev/movement-intelligence"),
 } as const;
@@ -174,6 +188,7 @@ export const PROTECTED_ROUTE_PREFIXES = [
 ] as const;
 
 export const PUBLIC_AUTH_ROUTES = [
+  AUTH_ROUTES.callback,
   AUTH_ROUTES.login,
   ADMIN_ROUTES.login,
   COACH_ROUTES.login,

@@ -675,6 +675,7 @@ export default function ProtectedHeader({
       ? [
           { label: "Admin", href: ROUTES.admin.home, accent: "cyan" },
           { label: "Dashboard", href: ROUTES.admin.dashboard, accent: "sky" },
+          { label: "Submissions", href: ROUTES.admin.submissions, accent: "cyan" },
           { label: "Leads", href: ROUTES.admin.leads, accent: "emerald" },
           { label: "CRM", href: ROUTES.admin.crmDashboard, accent: "violet" },
           { label: "Clients", href: ROUTES.admin.clients, accent: "amber" },

@@ -42,6 +42,16 @@ export async function POST(request: Request) {
     );
   }
 
+  if (body.planId !== "online-coaching") {
+    return NextResponse.json(
+      {
+        error:
+          "Online Coaching is the only Sound Fitness enrollment option available right now.",
+      },
+      { status: 400 },
+    );
+  }
+
   const selectedPlan = getAppPlan(body.planId);
   const priceId = getPlanPriceId(selectedPlan.id);
 

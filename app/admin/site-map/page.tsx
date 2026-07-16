@@ -354,6 +354,13 @@ const siteMap: PageNode[] = [
         "Lead pipeline.",
       ),
       route(
+        "Submissions",
+        ROUTES.admin.submissions,
+        "Admin Portal",
+        "Active Secondary",
+        "Onboarding assessment submissions inbox.",
+      ),
+      route(
         "CRM Dashboard",
         ROUTES.admin.crmDashboard,
         "Admin Portal",

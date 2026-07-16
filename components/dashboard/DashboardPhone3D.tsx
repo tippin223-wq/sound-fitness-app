@@ -205,27 +205,139 @@ export default function DashboardPhone3D({
       homeDot.position.set(0, -0.61, 0.17);
       group.add(homeDot);
 
-      const appElements = [
-        { color: "#67e8f9", h: 0.035, phase: 0.1, w: 0.38, x: 0, y: 0.39 },
-        { color: "#34d399", h: 0.12, phase: 0.9, w: 0.055, x: -0.16, y: 0.18 },
-        { color: "#fef08a", h: 0.2, phase: 1.6, w: 0.055, x: -0.05, y: 0.14 },
-        { color: "#22d3ee", h: 0.28, phase: 2.2, w: 0.055, x: 0.06, y: 0.1 },
-        { color: "#60a5fa", h: 0.18, phase: 2.9, w: 0.055, x: 0.17, y: 0.15 },
-        { color: "#bae6fd", h: 0.035, phase: 3.5, w: 0.34, x: 0.02, y: -0.18 },
-        { color: "#67e8f9", h: 0.035, phase: 4.1, w: 0.24, x: -0.03, y: -0.31 },
-      ].map(({ color, h, phase, w, x, y }) => {
+      const screenContent = new THREE.Group();
+      screenContent.position.set(0, 0.08, 0.18);
+      group.add(screenContent);
+
+      const addScreenElement = (
+        parent: InstanceType<ThreeModule["Group"]>,
+        {
+          color,
+          h,
+          opacity = 0.74,
+          phase,
+          w,
+          x,
+          y,
+          z = 0,
+        }: {
+          color: string;
+          h: number;
+          opacity?: number;
+          phase: number;
+          w: number;
+          x: number;
+          y: number;
+          z?: number;
+        },
+      ) => {
         const material = new THREE.MeshBasicMaterial({
           color: new THREE.Color(color),
-          opacity: 0.74,
+          opacity,
           transparent: true,
         });
         const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
-        mesh.position.set(x, y, 0.18);
+        mesh.position.set(x, y, z);
         mesh.userData.baseScaleY = 1;
         mesh.userData.phase = phase;
-        group.add(mesh);
+        parent.add(mesh);
         return mesh;
+      };
+
+      const appElements = [
+        addScreenElement(screenContent, {
+          color: "#67e8f9",
+          h: 0.035,
+          phase: 0.1,
+          w: 0.38,
+          x: 0,
+          y: 0.31,
+        }),
+      ];
+
+      const chartGroup = new THREE.Group();
+      chartGroup.position.set(0, 0.04, 0.018);
+      chartGroup.scale.y = -1;
+      screenContent.add(chartGroup);
+
+      appElements.push(
+        addScreenElement(chartGroup, {
+          color: "#0f3b5b",
+          h: 0.34,
+          opacity: 0.42,
+          phase: 0.35,
+          w: 0.43,
+          x: 0,
+          y: 0,
+          z: -0.012,
+        }),
+      );
+
+      [-0.02, 0.07].forEach((finalY, index) => {
+        appElements.push(
+          addScreenElement(chartGroup, {
+            color: "#7dd3fc",
+            h: 0.006,
+            opacity: 0.3,
+            phase: 0.45 + index * 0.14,
+            w: 0.36,
+            x: 0.01,
+            y: -finalY,
+            z: 0.006,
+          }),
+        );
       });
+
+      appElements.push(
+        addScreenElement(chartGroup, {
+          color: "#bae6fd",
+          h: 0.008,
+          opacity: 0.54,
+          phase: 0.72,
+          w: 0.4,
+          x: 0.01,
+          y: 0.13,
+          z: 0.01,
+        }),
+      );
+
+      [
+        { color: "#34d399", h: 0.12, phase: 0.9, x: -0.16 },
+        { color: "#fef08a", h: 0.2, phase: 1.6, x: -0.05 },
+        { color: "#22d3ee", h: 0.28, phase: 2.2, x: 0.06 },
+        { color: "#60a5fa", h: 0.18, phase: 2.9, x: 0.17 },
+      ].forEach(({ color, h, phase, x }) => {
+        appElements.push(
+          addScreenElement(chartGroup, {
+            color,
+            h,
+            phase,
+            w: 0.055,
+            x,
+            y: 0.13 - h / 2,
+            z: 0.024,
+          }),
+        );
+      });
+
+      appElements.push(
+        addScreenElement(screenContent, {
+          color: "#bae6fd",
+          h: 0.035,
+          phase: 3.5,
+          w: 0.34,
+          x: 0.02,
+          y: -0.26,
+        }),
+        addScreenElement(screenContent, {
+          color: "#67e8f9",
+          h: 0.035,
+          phase: 4.1,
+          w: 0.24,
+          x: -0.03,
+          y: -0.36,
+        }),
+      );
 
       const scanDot = new THREE.Mesh(
         new THREE.CircleGeometry(0.035, 24),
@@ -236,8 +348,8 @@ export default function DashboardPhone3D({
           transparent: true,
         }),
       );
-      scanDot.position.set(-0.2, -0.02, 0.19);
-      group.add(scanDot);
+      scanDot.position.set(-0.2, -0.08, 0.035);
+      screenContent.add(scanDot);
 
       const resize = () => {
         const rect = canvas.getBoundingClientRect();
@@ -261,7 +373,11 @@ export default function DashboardPhone3D({
         lastFrameTime = time;
 
         const seconds = time / 1000;
-        const targetCharge = activeRef.current && !pausedRef.current ? 1 : 0;
+        const targetCharge = activeRef.current
+          ? pausedRef.current
+            ? 0.72
+            : 1
+          : 0;
         charge += (targetCharge - charge) * Math.min(1, frameDelta * 0.01);
 
         group.position.y = Math.sin(seconds * 1.2) * 0.025 * charge;

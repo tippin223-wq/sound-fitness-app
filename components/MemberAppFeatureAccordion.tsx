@@ -1,32 +1,37 @@
-import { DashboardEmerald3D } from "@/components/dashboard/DashboardTornadoEmeralds3D";
-import { DashboardGearIcon3D } from "@/components/dashboard/DashboardProfileActionIcons3D";
-import DashboardLightningBolt3D from "@/components/dashboard/DashboardLightningBolt3D";
-import DashboardMeterMenuIcon3D from "@/components/dashboard/DashboardMeterMenuIcon3D";
+"use client";
+
 import {
-  BarChart3,
-  CalendarDays,
-  ChevronDown,
-  ClipboardList,
-  Dumbbell,
-  FileCheck2,
-  Gem,
-  HeartPulse,
-  Library,
-  MessageCircle,
-  NotebookPen,
-  Target,
-  Trophy,
-  type LucideIcon,
-  Utensils,
-  Video,
-  WalletCards,
-} from "lucide-react";
+  DashboardCheckinsRowIcon3D,
+  DashboardGoalsRowIcon3D,
+  DashboardLibraryRowIcon3D,
+  DashboardMessagingRowIcon3D,
+  DashboardNutritionRowIcon3D,
+  DashboardPlanRowIcon3D,
+  DashboardProfileRowIcon3D,
+  DashboardProgressRowIcon3D,
+  DashboardRecoveryRowIcon3D,
+  DashboardRewardsRowIcon3D,
+  DashboardSessionsRowIcon3D,
+  DashboardStrengthRowIcon3D,
+  DashboardTechniqueRowIcon3D,
+  DashboardWinsRowIcon3D,
+} from "@/components/dashboard/DashboardFeatureRowIcons3D";
+import { DashboardGearIcon3D } from "@/components/dashboard/DashboardProfileActionIcons3D";
+import DashboardMeterMenuIcon3D from "@/components/dashboard/DashboardMeterMenuIcon3D";
+import { ChevronDown } from "lucide-react";
+import { useEffect, useState, type ComponentType } from "react";
+
+type FeatureRowIconComponent = ComponentType<{
+  active?: boolean;
+  className?: string;
+  paused?: boolean;
+}>;
 
 type PreviewModule = {
   eyebrow: string;
   title: string;
   text: string;
-  Icon: LucideIcon;
+  RowIcon: FeatureRowIconComponent;
 };
 
 type PreviewFeatureColumn = {
@@ -42,85 +47,85 @@ const previewModules: PreviewModule[] = [
     eyebrow: "Plan",
     title: "Training Plan",
     text: "Workouts, phases, session notes, coach priorities, and next steps stay organized between visits.",
-    Icon: ClipboardList,
+    RowIcon: DashboardPlanRowIcon3D,
   },
   {
     eyebrow: "Progress",
     title: "Metrics Snapshot",
     text: "Readiness, recent wins, soreness, strength work, mobility, and consistency trends stay visible.",
-    Icon: BarChart3,
+    RowIcon: DashboardProgressRowIcon3D,
   },
   {
     eyebrow: "Coach",
     title: "Messaging",
     text: "Members can ask questions, send updates, and keep coach decisions tied to the real training week.",
-    Icon: MessageCircle,
+    RowIcon: DashboardMessagingRowIcon3D,
   },
   {
     eyebrow: "Recovery",
     title: "Next Best Action",
     text: "Mobility, hydration, sleep, readiness, and session feedback point members toward the next move.",
-    Icon: HeartPulse,
+    RowIcon: DashboardRecoveryRowIcon3D,
   },
   {
     eyebrow: "Library",
     title: "Exercise Library",
     text: "Movement demos, substitutions, warm-ups, and pain-aware options help members train with clarity.",
-    Icon: Library,
+    RowIcon: DashboardLibraryRowIcon3D,
   },
   {
     eyebrow: "Technique",
     title: "Video + Form Checks",
     text: "Technique support can be tied to Gems, form review requests, and coach feedback loops.",
-    Icon: Video,
+    RowIcon: DashboardTechniqueRowIcon3D,
   },
   {
     eyebrow: "Nutrition",
     title: "Meals + Hydration",
     text: "Nutrition habits, hydration, meal ideas, grocery planning, and recovery inputs can live beside training.",
-    Icon: Utensils,
+    RowIcon: DashboardNutritionRowIcon3D,
   },
   {
     eyebrow: "Sessions",
     title: "Calendar + Notes",
     text: "Upcoming sessions, workout history, booking context, and coach notes stay easy to find.",
-    Icon: CalendarDays,
+    RowIcon: DashboardSessionsRowIcon3D,
   },
   {
     eyebrow: "Check-ins",
     title: "Body Context",
     text: "Sleep, soreness, energy, pain notes, wins, and movement context help the plan adapt.",
-    Icon: FileCheck2,
+    RowIcon: DashboardCheckinsRowIcon3D,
   },
   {
     eyebrow: "Goals",
     title: "Milestones",
     text: "Goals, streaks, achievements, habits, and training milestones give progress more shape.",
-    Icon: Target,
+    RowIcon: DashboardGoalsRowIcon3D,
   },
   {
     eyebrow: "Rewards",
     title: "Sparks + Gems + Tokens",
     text: "Sound Sparks, Gems, and Treasure Tokens give members a rewards layer for action and support.",
-    Icon: WalletCards,
+    RowIcon: DashboardRewardsRowIcon3D,
   },
   {
     eyebrow: "Profile",
     title: "Member Hub",
     text: "Profile details, preferences, equipment, limitations, and support style create a better coaching picture.",
-    Icon: NotebookPen,
+    RowIcon: DashboardProfileRowIcon3D,
   },
   {
     eyebrow: "Training",
     title: "Strength Work",
     text: "Workout structure, technique cues, exercise progressions, equipment, and strength targets stay connected.",
-    Icon: Dumbbell,
+    RowIcon: DashboardStrengthRowIcon3D,
   },
   {
     eyebrow: "Wins",
     title: "Achievements",
     text: "Badges, consistency wins, streaks, and completion moments help members see follow-through.",
-    Icon: Trophy,
+    RowIcon: DashboardWinsRowIcon3D,
   },
 ];
 
@@ -165,6 +170,8 @@ const featureColumns: PreviewFeatureColumn[] = [
   },
 ];
 
+const FEATURE_ROTATION_MS = 7000;
+
 function getPreviewModules(titles: string[]) {
   return titles.map((title) => {
     const matchedModule = previewModules.find((item) => item.title === title);
@@ -186,7 +193,7 @@ function FeatureColumnWebGlIcon({
     return (
       <DashboardMeterMenuIcon3D
         active
-        className="h-12 w-12 drop-shadow-[0_0_16px_rgba(56,189,248,0.32)]"
+        className="h-16 w-16 drop-shadow-[0_0_20px_rgba(56,189,248,0.4)]"
       />
     );
   }
@@ -195,44 +202,112 @@ function FeatureColumnWebGlIcon({
     return (
       <DashboardGearIcon3D
         active
-        className="h-12 w-12 drop-shadow-[0_0_16px_rgba(103,232,249,0.34)]"
+        className="h-16 w-16 drop-shadow-[0_0_20px_rgba(103,232,249,0.42)]"
         spinSpeed={0.08}
       />
     );
   }
 
   return (
-    <span className="relative block h-12 w-14 [perspective:760px]">
-      <DashboardLightningBolt3D
-        active
-        className="absolute left-0 top-1 h-11 w-11 drop-shadow-[0_0_16px_rgba(56,189,248,0.34)]"
-      />
-      <DashboardEmerald3D
-        className="absolute right-0 top-2 h-10 w-10 drop-shadow-[0_0_16px_rgba(52,211,153,0.32)]"
-        tone="green"
-      />
-    </span>
+    <DashboardRewardsRowIcon3D
+      active
+      className="h-16 w-16 drop-shadow-[0_0_22px_rgba(52,211,153,0.42)]"
+    />
   );
 }
 
 export default function MemberAppFeatureAccordion() {
+  const [activeColumnIndex, setActiveColumnIndex] = useState(0);
+  const [rotationCycle, setRotationCycle] = useState(0);
+  const [rotationProgress, setRotationProgress] = useState(0);
+
+  useEffect(() => {
+    const startedAt = Date.now();
+
+    const tick = () => {
+      const now = Date.now();
+      const elapsed = now - startedAt;
+
+      if (elapsed >= FEATURE_ROTATION_MS) {
+        setActiveColumnIndex((currentIndex) =>
+          (currentIndex + 1) % featureColumns.length,
+        );
+        setRotationProgress(0);
+        return;
+      }
+
+      setRotationProgress(elapsed / FEATURE_ROTATION_MS);
+    };
+
+    tick();
+    const intervalId = window.setInterval(tick, 80);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeColumnIndex, rotationCycle]);
+
+  const selectColumn = (index: number) => {
+    setActiveColumnIndex(index);
+    setRotationCycle((currentCycle) => currentCycle + 1);
+    setRotationProgress(0);
+  };
+
   return (
     <div className="mt-5 grid items-start gap-3 md:grid-cols-3">
-      {featureColumns.map((column) => {
+      {featureColumns.map((column, index) => {
+        const isActive = activeColumnIndex === index;
+        const timerDashOffset = isActive ? 1 - rotationProgress : 1;
+
         return (
           <details
             key={column.label}
             className="member-feature-panel relative min-w-0 overflow-hidden rounded-lg border border-sky-300/14 bg-[linear-gradient(180deg,rgba(11,25,43,0.7),rgba(2,7,19,0.34))] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+            data-member-feature-active={isActive ? "true" : "false"}
             data-member-feature-panel={column.label.toLowerCase()}
             name="member-feature-panels"
-            open={column.label === "Plan"}
+            open={isActive}
           >
-            <summary className="relative flex cursor-pointer select-none items-center gap-3 border-b border-sky-300/10 px-3 pb-3 pt-4 transition hover:bg-sky-300/5 focus:outline-none focus-visible:bg-sky-300/8 focus-visible:ring-2 focus-visible:ring-cyan-200/45">
+            <summary
+              aria-controls={`member-feature-panel-${column.label.toLowerCase()}`}
+              aria-expanded={isActive}
+              className="relative flex cursor-pointer select-none items-center gap-3 border-b border-sky-300/10 px-3 pb-3 pt-4 pr-9 transition hover:bg-sky-300/5 focus:outline-none focus-visible:bg-sky-300/8 focus-visible:ring-2 focus-visible:ring-cyan-200/45"
+              onClick={(event) => {
+                event.preventDefault();
+                selectColumn(index);
+              }}
+            >
               <span
                 aria-hidden="true"
                 className={`pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${column.columnAccentClass}`}
               />
-              <span className="flex h-12 w-14 shrink-0 items-center justify-center">
+              <span
+                aria-hidden="true"
+                className="member-feature-panel__timer"
+              >
+                <svg
+                  className="member-feature-panel__timer-ring"
+                  focusable="false"
+                  viewBox="0 0 32 32"
+                >
+                  <circle
+                    className="member-feature-panel__timer-track"
+                    cx="16"
+                    cy="16"
+                    pathLength="1"
+                    r="12"
+                  />
+                  <circle
+                    className="member-feature-panel__timer-bar"
+                    cx="16"
+                    cy="16"
+                    pathLength="1"
+                    r="12"
+                    style={{
+                      strokeDashoffset: timerDashOffset,
+                    }}
+                  />
+                </svg>
+              </span>
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center">
                 <FeatureColumnWebGlIcon visual={column.visual} />
               </span>
               <span className="min-w-0 flex-1">
@@ -255,19 +330,20 @@ export default function MemberAppFeatureAccordion() {
               id={`member-feature-panel-${column.label.toLowerCase()}`}
             >
               {column.modules.map((module) => {
-                const Icon = module.Icon;
+                const RowIcon = module.RowIcon;
 
                 return (
                   <article
                     key={module.title}
-                    className="group relative border-t border-sky-300/10 py-1.5 transition first:border-t-0"
+                    className="group relative border-t border-sky-300/10 py-2.5 transition first:border-t-0"
                   >
-                    <div className="flex items-start gap-2">
-                      <Icon
-                        aria-hidden="true"
-                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cyan-200/80"
-                        strokeWidth={2.25}
-                      />
+                    <div className="flex items-start gap-3">
+                      <span className="-ml-1 mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center">
+                        <RowIcon
+                          active
+                          className="h-9 w-9 drop-shadow-[0_0_14px_rgba(103,232,249,0.42)]"
+                        />
+                      </span>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                           <div className="text-[8px] font-black uppercase tracking-[0.14em] text-sky-300">

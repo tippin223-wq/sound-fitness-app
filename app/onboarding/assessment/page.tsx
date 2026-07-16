@@ -1,9 +1,11 @@
 "use client";
 
-import UserMenu from "@/components/UserMenu";
-import { ROUTES } from "@/lib/routes";
-import Image from "next/image";
-import Link from "next/link";
+import AssessmentWebGlIcon, {
+  type AssessmentIconGlyph,
+  type AssessmentIconTone,
+} from "@/components/AssessmentWebGlIcon";
+import MarketingHeader from "@/components/MarketingHeader";
+import MarketingSectionHeading3D from "@/components/MarketingSectionHeading3D";
 import {
   Activity,
   ArrowLeft,
@@ -32,9 +34,11 @@ import {
   Home,
   Mail,
   MapPinned,
+  Mars,
   Megaphone,
   MessageCircle,
   MoveHorizontal,
+  NonBinary,
   Phone,
   Rocket,
   Ruler,
@@ -42,6 +46,7 @@ import {
   Scale,
   ScanHeart,
   ShieldCheck,
+  ShieldOff,
   Sparkles,
   Stethoscope,
   Target,
@@ -49,9 +54,17 @@ import {
   Users,
   Utensils,
   UserRound,
+  Venus,
   type LucideIcon,
 } from "lucide-react";
-import { type CSSProperties, useMemo, useState } from "react";
+import React, {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 const steps: { label: string; helper: string; Icon: LucideIcon }[] = [
   {
@@ -264,37 +277,90 @@ const cardToneClasses: Record<
 > = {
   sky: {
     selected:
-      "border-sky-300/55 bg-sky-400/12 shadow-[0_0_26px_rgba(14,165,233,0.18)]",
+      "border-sky-200/70 bg-sky-400/18 shadow-[0_0_30px_rgba(14,165,233,0.25),inset_0_1px_0_rgba(255,255,255,0.14)]",
     unselected:
-      "border-white/10 bg-slate-950/58 hover:border-sky-300/30 hover:bg-sky-500/8",
+      "border-sky-300/18 bg-sky-900/22 hover:border-sky-200/55 hover:bg-sky-500/14 hover:shadow-[0_0_22px_rgba(14,165,233,0.16)] active:border-sky-100/70 active:bg-sky-400/20",
     iconSelected: "text-sky-100",
     iconUnselected: "text-slate-500 group-hover:text-sky-100",
   },
   emerald: {
     selected:
-      "border-emerald-300/55 bg-emerald-400/12 shadow-[0_0_26px_rgba(16,185,129,0.18)]",
+      "border-emerald-200/70 bg-emerald-400/18 shadow-[0_0_30px_rgba(16,185,129,0.24),inset_0_1px_0_rgba(255,255,255,0.14)]",
     unselected:
-      "border-white/10 bg-slate-950/58 hover:border-emerald-300/30 hover:bg-emerald-500/8",
+      "border-emerald-300/18 bg-emerald-900/20 hover:border-emerald-200/55 hover:bg-emerald-500/14 hover:shadow-[0_0_22px_rgba(16,185,129,0.15)] active:border-emerald-100/70 active:bg-emerald-400/20",
     iconSelected: "text-emerald-100",
     iconUnselected: "text-slate-500 group-hover:text-emerald-100",
   },
   amber: {
     selected:
-      "border-amber-200/60 bg-amber-300/12 shadow-[0_0_26px_rgba(250,204,21,0.16)]",
+      "border-amber-100/75 bg-amber-300/18 shadow-[0_0_30px_rgba(250,204,21,0.22),inset_0_1px_0_rgba(255,255,255,0.14)]",
     unselected:
-      "border-white/10 bg-slate-950/58 hover:border-amber-200/35 hover:bg-amber-300/8",
+      "border-amber-200/18 bg-amber-950/20 hover:border-amber-100/55 hover:bg-amber-300/14 hover:shadow-[0_0_22px_rgba(250,204,21,0.13)] active:border-amber-50/70 active:bg-amber-300/20",
     iconSelected: "text-amber-100",
     iconUnselected: "text-slate-500 group-hover:text-amber-100",
   },
   rose: {
     selected:
-      "border-rose-300/55 bg-rose-400/12 shadow-[0_0_26px_rgba(251,113,133,0.16)]",
+      "border-rose-200/70 bg-rose-400/18 shadow-[0_0_30px_rgba(251,113,133,0.22),inset_0_1px_0_rgba(255,255,255,0.14)]",
     unselected:
-      "border-white/10 bg-slate-950/58 hover:border-rose-300/30 hover:bg-rose-500/8",
+      "border-rose-300/18 bg-rose-950/20 hover:border-rose-200/55 hover:bg-rose-500/14 hover:shadow-[0_0_22px_rgba(251,113,133,0.13)] active:border-rose-100/70 active:bg-rose-400/20",
     iconSelected: "text-rose-100",
     iconUnselected: "text-slate-500 group-hover:text-rose-100",
   },
 };
+
+const assessmentIconGlyphs = new Map<LucideIcon, AssessmentIconGlyph>([
+  [Activity, "activity"],
+  [ArrowLeft, "arrow-left"],
+  [ArrowRight, "arrow-right"],
+  [BadgeCheck, "check"],
+  [BedDouble, "bed"],
+  [BicepsFlexed, "dumbbell"],
+  [Bone, "ruler"],
+  [BriefcaseBusiness, "clipboard"],
+  [CalendarClock, "clock"],
+  [CalendarDays, "calendar"],
+  [Check, "check"],
+  [CheckCircle2, "check"],
+  [ChevronDown, "chevron"],
+  [CircleAlert, "alert"],
+  [Clock3, "clock"],
+  [ClipboardCheck, "check"],
+  [ClipboardList, "clipboard"],
+  [Dumbbell, "dumbbell"],
+  [Footprints, "activity"],
+  [Gauge, "target"],
+  [Globe2, "globe"],
+  [GraduationCap, "clipboard"],
+  [HandHelping, "heart"],
+  [HeartPulse, "heart"],
+  [Home, "home"],
+  [Mail, "mail"],
+  [MapPinned, "pin"],
+  [Megaphone, "message"],
+  [MessageCircle, "message"],
+  [MoveHorizontal, "activity"],
+  [Phone, "phone"],
+  [Rocket, "bolt"],
+  [Ruler, "ruler"],
+  [Salad, "leaf"],
+  [Scale, "scale"],
+  [ScanHeart, "heart"],
+  [ShieldCheck, "shield"],
+  [Sparkles, "spark"],
+  [Stethoscope, "heart"],
+  [Target, "target"],
+  [Trophy, "trophy"],
+  [Users, "users"],
+  [Utensils, "leaf"],
+  [UserRound, "person"],
+]);
+
+const getAssessmentIconGlyph = (Icon?: LucideIcon): AssessmentIconGlyph =>
+  (Icon ? assessmentIconGlyphs.get(Icon) : undefined) ?? "spark";
+
+const getAssessmentIconTone = (tone?: CardTone): AssessmentIconTone =>
+  tone ?? "sky";
 
 const yesNoOptions: ChoiceOption[] = [
   { label: "Yes", Icon: CheckCircle2, tone: "emerald" },
@@ -340,10 +406,10 @@ const cityNeighborhoodOptions = [
 ];
 
 const genderOptions: ChoiceOption[] = [
-  { label: "Male", Icon: UserRound, tone: "sky" },
-  { label: "Female", Icon: UserRound, tone: "rose" },
-  { label: "Non-binary / Gender diverse", Icon: Users, tone: "emerald" },
-  { label: "Prefer not to share", Icon: ShieldCheck, tone: "amber" },
+  { label: "Male", Icon: Mars, tone: "sky" },
+  { label: "Female", Icon: Venus, tone: "rose" },
+  { label: "Non-binary / Gender diverse", Icon: NonBinary, tone: "emerald" },
+  { label: "Prefer not to share", Icon: ShieldOff, tone: "amber" },
 ];
 
 const goalOptions: ChoiceOption[] = [
@@ -1025,19 +1091,17 @@ function CardOption({
       type="button"
       onClick={onClick}
       className={[
-        "group flex min-h-24 w-full items-start gap-3 rounded-lg border p-4 text-left transition",
+        "group flex min-h-24 w-full items-start gap-3 rounded-lg border p-4 text-left transition duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60",
         selected ? toneClasses.selected : toneClasses.unselected,
       ].join(" ")}
     >
       {Icon ? (
-        <span
-          className={[
-            "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center transition",
-            selected ? toneClasses.iconSelected : toneClasses.iconUnselected,
-          ].join(" ")}
-        >
-          <Icon aria-hidden="true" className="h-5 w-5" strokeWidth={2.4} />
-        </span>
+        <AssessmentWebGlIcon
+          active={selected}
+          className="mt-0.5 h-8 w-8"
+          glyph={getAssessmentIconGlyph(Icon)}
+          tone={getAssessmentIconTone(tone)}
+        />
       ) : null}
       <span className="min-w-0">
         <span className="block break-words text-sm font-black uppercase leading-tight tracking-[0.08em] text-white">
@@ -1060,80 +1124,21 @@ function SeverityFace({
   className?: string;
   mood: (typeof painSeverityOptions)[number]["mood"];
 }) {
-  const face = {
-    happy: {
-      bg: "from-emerald-200 via-cyan-200 to-sky-300",
-      eyeY: 20,
-      mouth: "M16 29 C20 36 32 36 36 29",
-      browLeft: "M14 15 C17 13 20 13 23 15",
-      browRight: "M29 15 C32 13 35 13 38 15",
-    },
-    soft: {
-      bg: "from-cyan-200 via-sky-200 to-blue-300",
-      eyeY: 20,
-      mouth: "M17 30 C21 34 31 34 35 30",
-      browLeft: "M14 16 C17 15 20 15 23 16",
-      browRight: "M29 16 C32 15 35 15 38 16",
-    },
-    neutral: {
-      bg: "from-yellow-100 via-amber-200 to-orange-300",
-      eyeY: 21,
-      mouth: "M17 31 L35 31",
-      browLeft: "M14 16 L23 16",
-      browRight: "M29 16 L38 16",
-    },
-    uneasy: {
-      bg: "from-amber-200 via-orange-300 to-rose-300",
-      eyeY: 21,
-      mouth: "M16 35 C21 30 31 30 36 35",
-      browLeft: "M14 16 L23 18",
-      browRight: "M29 18 L38 16",
-    },
-    sad: {
-      bg: "from-orange-200 via-rose-300 to-pink-400",
-      eyeY: 22,
-      mouth: "M15 37 C20 28 32 28 37 37",
-      browLeft: "M14 17 L23 20",
-      browRight: "M29 20 L38 17",
-    },
+  const icon = {
+    happy: { glyph: "check", tone: "emerald" },
+    soft: { glyph: "heart", tone: "sky" },
+    neutral: { glyph: "target", tone: "amber" },
+    uneasy: { glyph: "alert", tone: "amber" },
+    sad: { glyph: "alert", tone: "rose" },
   }[mood];
 
   return (
-    <span
-      className={[
-        "inline-flex items-center justify-center rounded-full bg-gradient-to-br shadow-[0_0_0_4px_rgba(14,165,233,0.2),0_0_28px_rgba(125,211,252,0.38)] ring-1 ring-white/35",
-        face.bg,
-        className,
-      ].join(" ")}
-    >
-      <svg
-        aria-hidden="true"
-        className="h-[78%] w-[78%] text-slate-950"
-        fill="none"
-        viewBox="0 0 52 52"
-      >
-        <path
-          d={face.browLeft}
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeWidth="3.2"
-        />
-        <path
-          d={face.browRight}
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeWidth="3.2"
-        />
-        <circle cx="19" cy={face.eyeY} fill="currentColor" r="2.8" />
-        <circle cx="33" cy={face.eyeY} fill="currentColor" r="2.8" />
-        <path
-          d={face.mouth}
-          stroke="currentColor"
-          strokeLinecap="round"
-          strokeWidth="3.6"
-        />
-      </svg>
-    </span>
+    <AssessmentWebGlIcon
+      active
+      className={className}
+      glyph={icon.glyph as AssessmentIconGlyph}
+      tone={icon.tone as AssessmentIconTone}
+    />
   );
 }
 
@@ -1167,11 +1172,13 @@ function SeveritySlider({
   const isSliderActive = isDragging || isFocused;
 
   return (
-    <div className="rounded-lg border border-white/10 bg-slate-950/58 p-4">
+    <div className="rounded-lg border border-cyan-200/18 bg-[linear-gradient(135deg,rgba(8,47,73,0.46),rgba(15,23,42,0.76)_54%,rgba(30,64,175,0.18))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_18px_46px_rgba(2,6,23,0.24)]">
       <div
         className={[
           "relative py-5 transition",
-          isFocused ? "rounded-lg ring-2 ring-sky-300/60" : "",
+          isFocused
+            ? "rounded-lg bg-sky-400/8 ring-2 ring-sky-200/70 shadow-[0_0_28px_rgba(34,211,238,0.16)]"
+            : "",
         ].join(" ")}
       >
         <input
@@ -1289,6 +1296,32 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+type AssessmentDeckDragState = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+};
+
+function isAssessmentDeckInteractiveTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+
+  return Boolean(
+    target.closest(
+      [
+        "a",
+        "button",
+        "input",
+        "label",
+        "select",
+        "textarea",
+        "[role='button']",
+        ".assessment-scale-range",
+        ".assessment-severity-range",
+      ].join(","),
+    ),
+  );
+}
+
 function FormSection({
   children,
   eyebrow,
@@ -1301,11 +1334,17 @@ function FormSection({
   title: string;
 }) {
   return (
-    <section className="rounded-lg border border-white/10 bg-slate-950/36 p-4 sm:p-5">
+    <section
+      className="assessment-section-card rounded-lg border border-white/10 bg-slate-950/36 p-4 sm:p-5"
+      data-assessment-section-card="true"
+    >
       <div className="mb-4 flex items-start gap-3">
-        <div className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center text-sky-200 drop-shadow-[0_0_14px_rgba(125,211,252,0.35)]">
-          <Icon aria-hidden="true" className="h-6 w-6" strokeWidth={2.4} />
-        </div>
+        <AssessmentWebGlIcon
+          active
+          className="mt-0.5 h-12 w-12"
+          glyph={getAssessmentIconGlyph(Icon)}
+          tone="sky"
+        />
         <div className="min-w-0">
           <div className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-300">
             {eyebrow}
@@ -1358,17 +1397,17 @@ function TextInputField({
       <FieldLabel>{label}</FieldLabel>
       <div
         className={[
-          "group relative mt-2 overflow-hidden rounded-2xl border bg-slate-950/66 shadow-[inset_0_1px_0_rgba(255,255,255,0.055),0_16px_34px_rgba(2,6,23,0.22)] transition duration-200",
+          "group relative mt-2 overflow-hidden rounded-2xl border bg-[linear-gradient(135deg,rgba(8,47,73,0.52),rgba(15,23,42,0.74)_54%,rgba(30,64,175,0.2))] shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_16px_34px_rgba(2,6,23,0.22)] transition duration-200 focus-within:-translate-y-0.5 active:scale-[0.998]",
           isInvalid
-            ? "border-rose-300/55 focus-within:border-rose-300/85 focus-within:shadow-[0_0_0_3px_rgba(251,113,133,0.12)]"
+            ? "border-rose-300/60 bg-rose-950/22 focus-within:border-rose-200/90 focus-within:bg-rose-500/14 focus-within:shadow-[0_0_0_3px_rgba(251,113,133,0.14),0_0_26px_rgba(251,113,133,0.14)]"
             : hasValue
-              ? "border-cyan-300/35 bg-cyan-950/18 focus-within:border-cyan-200/65 focus-within:shadow-[0_0_0_3px_rgba(34,211,238,0.1)]"
-              : "border-white/10 hover:border-sky-300/30 focus-within:border-sky-300/60 focus-within:shadow-[0_0_0_3px_rgba(56,189,248,0.1)]",
+              ? "border-cyan-200/48 bg-cyan-700/16 focus-within:border-cyan-100/80 focus-within:bg-cyan-400/14 focus-within:shadow-[0_0_0_3px_rgba(34,211,238,0.13),0_0_28px_rgba(34,211,238,0.16)]"
+              : "border-sky-200/18 hover:border-sky-200/48 hover:bg-sky-500/10 focus-within:border-sky-100/75 focus-within:bg-sky-400/14 focus-within:shadow-[0_0_0_3px_rgba(56,189,248,0.13),0_0_26px_rgba(56,189,248,0.15)]",
         ].join(" ")}
       >
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(56,189,248,0.18),transparent_38%),linear-gradient(180deg,rgba(255,255,255,0.045),transparent)] opacity-70 transition group-focus-within:opacity-100"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(125,211,252,0.28),transparent_38%),radial-gradient(circle_at_88%_110%,rgba(250,204,21,0.12),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.065),transparent)] opacity-80 transition group-hover:opacity-100 group-focus-within:opacity-100"
         />
         <div
           aria-hidden="true"
@@ -1432,66 +1471,218 @@ function DropdownSelect({
   value: string;
 }) {
   const hasValue = value !== "";
+  const [isOpen, setIsOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const options = useMemo(
+    () =>
+      React.Children.toArray(children).flatMap((child) => {
+        if (
+          !React.isValidElement<{
+            children?: React.ReactNode;
+            disabled?: boolean;
+            value?: string;
+          }>(child)
+        ) {
+          return [];
+        }
+
+        const optionValue = String(child.props.value ?? "");
+        const optionLabel = React.Children.toArray(child.props.children)
+          .map((item) =>
+            typeof item === "string" || typeof item === "number"
+              ? String(item)
+              : "",
+          )
+          .join("")
+          .trim();
+
+        return [
+          {
+            disabled: Boolean(child.props.disabled),
+            label: optionLabel || optionValue,
+            value: optionValue,
+          },
+        ];
+      }),
+    [children],
+  );
+  const selectedOption = options.find((option) => option.value === value);
+  const displayValue = selectedOption?.label ?? placeholder;
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        rootRef.current &&
+        event.target instanceof Node &&
+        !rootRef.current.contains(event.target)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+        buttonRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
 
   return (
     <div
+      ref={rootRef}
       className={[
-        "group relative min-w-0 overflow-hidden rounded-2xl border bg-slate-950/62 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_16px_36px_rgba(2,6,23,0.24)] transition duration-200",
-        hasValue
-          ? "border-cyan-300/45 bg-cyan-950/26"
-          : "border-white/10 hover:border-sky-300/35 hover:bg-slate-900/55",
+        "group relative min-w-0",
         className,
       ].join(" ")}
     >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(56,189,248,0.2),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.045),transparent)] opacity-75 transition group-hover:opacity-100"
-      />
-      <div
-        aria-hidden="true"
-        className={[
-          "pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent transition",
-          hasValue
-            ? "via-cyan-200/70 to-transparent opacity-100"
-            : "via-sky-300/35 to-transparent opacity-65",
-        ].join(" ")}
-      />
-      <div
-        aria-hidden="true"
-        className={[
-          "pointer-events-none absolute left-4 top-1/2 z-10 flex h-5 w-5 -translate-y-1/2 items-center justify-center transition",
-          hasValue
-            ? "text-cyan-100 drop-shadow-[0_0_10px_rgba(125,211,252,0.35)]"
-            : "text-slate-500 group-hover:text-sky-200",
-        ].join(" ")}
-      >
-        <Icon className="h-4 w-4" strokeWidth={2.4} />
-      </div>
-      <div className="pointer-events-none absolute left-11 right-9 top-2.5 z-10 truncate text-[9px] font-black uppercase tracking-[0.18em] text-sky-300/80">
-        {label}
-      </div>
-      <select
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-expanded={isOpen}
+        aria-haspopup="listbox"
         aria-label={ariaLabel}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onClick={() => setIsOpen((open) => !open)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setIsOpen(true);
+          }
+        }}
         className={[
-          "relative z-10 h-[68px] w-full min-w-0 appearance-none bg-transparent pb-2 pl-11 pr-9 pt-7 text-xs font-black uppercase outline-none transition sm:text-sm",
-          hasValue ? "text-white" : "text-slate-500 group-hover:text-slate-400",
+          "relative grid h-[68px] w-full min-w-0 grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-3 overflow-hidden rounded-2xl border px-4 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_16px_36px_rgba(2,6,23,0.24)] transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-100/70 active:scale-[0.998]",
+          hasValue
+            ? "border-cyan-200/55 bg-[linear-gradient(135deg,rgba(8,145,178,0.2),rgba(15,23,42,0.76)_54%,rgba(20,184,166,0.16))] shadow-[inset_0_1px_0_rgba(255,255,255,0.11),0_0_24px_rgba(34,211,238,0.12)]"
+            : "border-sky-200/18 bg-[linear-gradient(135deg,rgba(8,47,73,0.48),rgba(15,23,42,0.72)_54%,rgba(49,46,129,0.18))] hover:border-sky-200/50 hover:bg-sky-500/12",
+          isOpen
+            ? "border-cyan-100/75 bg-cyan-400/14 shadow-[0_0_0_3px_rgba(56,189,248,0.12),0_0_28px_rgba(56,189,248,0.18)]"
+            : "",
         ].join(" ")}
       >
-        <option value="" className="bg-slate-950 text-slate-400">
-          {placeholder}
-        </option>
-        {children}
-      </select>
-      <div className="pointer-events-none absolute right-3 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-slate-950/70 text-sky-200/70 transition group-focus-within:border-sky-300/45 group-focus-within:bg-sky-300/10 group-focus-within:text-sky-100">
-        <ChevronDown
+        <div
           aria-hidden="true"
-          className="h-3.5 w-3.5"
-          strokeWidth={2.4}
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(125,211,252,0.3),transparent_42%),radial-gradient(circle_at_92%_105%,rgba(250,204,21,0.12),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.07),transparent)] opacity-80 transition group-hover:opacity-100"
         />
-      </div>
-      <div className="pointer-events-none absolute inset-x-4 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-300/55 to-transparent opacity-0 transition group-focus-within:opacity-100" />
+        <div
+          aria-hidden="true"
+          className={[
+            "pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-transparent transition",
+            hasValue || isOpen
+              ? "via-cyan-200/70 to-transparent opacity-100"
+              : "via-sky-300/35 to-transparent opacity-65",
+          ].join(" ")}
+        />
+        <AssessmentWebGlIcon
+          active={isOpen || hasValue}
+          className="relative z-10 h-8 w-8"
+          glyph={getAssessmentIconGlyph(Icon)}
+          tone={hasValue || isOpen ? "sky" : "slate"}
+        />
+        <span className="relative z-10 min-w-0">
+          <span className="block truncate text-[9px] font-black uppercase tracking-[0.18em] text-sky-300/80">
+            {label}
+          </span>
+          <span
+            className={[
+              "mt-1 block truncate text-sm font-black uppercase tracking-[0.08em] transition sm:text-base",
+              hasValue ? "text-white" : "text-slate-500 group-hover:text-slate-400",
+            ].join(" ")}
+          >
+            {displayValue}
+          </span>
+        </span>
+        <AssessmentWebGlIcon
+          active={isOpen}
+          className={[
+            "relative z-10 h-8 w-8 transition-transform duration-200",
+            isOpen ? "rotate-180" : "",
+          ].join(" ")}
+          glyph="chevron"
+          tone={isOpen ? "sky" : "slate"}
+        />
+        <div className="pointer-events-none absolute inset-x-4 bottom-0 h-px bg-gradient-to-r from-transparent via-cyan-300/55 to-transparent opacity-0 transition group-focus-within:opacity-100" />
+      </button>
+
+      {isOpen ? (
+        <div
+          className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-[90] max-h-72 overflow-hidden rounded-2xl border border-cyan-200/28 bg-[radial-gradient(circle_at_18%_0%,rgba(14,165,233,0.22),transparent_36%),linear-gradient(145deg,rgba(5,12,28,0.98),rgba(8,28,48,0.98)_55%,rgba(2,6,23,0.98))] p-1.5 shadow-[0_22px_70px_rgba(0,0,0,0.52),0_0_26px_rgba(14,165,233,0.16)] backdrop-blur-xl"
+          role="listbox"
+          aria-label={ariaLabel}
+        >
+          <div className="max-h-64 overflow-y-auto pr-1">
+            <button
+              type="button"
+              role="option"
+              aria-selected={!hasValue}
+              onClick={() => {
+                onChange("");
+                setIsOpen(false);
+                buttonRef.current?.focus();
+              }}
+              className={[
+                "flex w-full min-w-0 items-center justify-between gap-3 rounded-xl px-3 py-3 text-left text-sm font-black uppercase tracking-[0.08em] transition",
+                !hasValue
+                  ? "bg-cyan-300/16 text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                  : "text-slate-400 hover:bg-sky-300/10 hover:text-sky-100",
+              ].join(" ")}
+            >
+              <span className="min-w-0 truncate">{placeholder}</span>
+              {!hasValue ? (
+                <AssessmentWebGlIcon
+                  active
+                  className="h-7 w-7"
+                  glyph="check"
+                  tone="sky"
+                />
+              ) : null}
+            </button>
+            {options.map((option) => {
+              const selected = option.value === value;
+
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  disabled={option.disabled}
+                  onClick={() => {
+                    onChange(option.value);
+                    setIsOpen(false);
+                    buttonRef.current?.focus();
+                  }}
+                  className={[
+                    "flex w-full min-w-0 items-center justify-between gap-3 rounded-xl px-3 py-3 text-left text-sm font-black uppercase tracking-[0.08em] transition disabled:cursor-not-allowed disabled:opacity-40",
+                    selected
+                      ? "bg-cyan-300/16 text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_18px_rgba(34,211,238,0.12)]"
+                      : "text-slate-300 hover:bg-sky-300/10 hover:text-sky-100",
+                  ].join(" ")}
+                >
+                  <span className="min-w-0 truncate">{option.label}</span>
+                  {selected ? (
+                    <AssessmentWebGlIcon
+                      active
+                      className="h-7 w-7"
+                      glyph="check"
+                      tone="sky"
+                    />
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1635,15 +1826,15 @@ function TextAreaField({
       <FieldLabel>{label}</FieldLabel>
       <div
         className={[
-          "group relative mt-2 overflow-hidden rounded-2xl border bg-slate-950/66 shadow-[inset_0_1px_0_rgba(255,255,255,0.055),0_16px_34px_rgba(2,6,23,0.22)] transition duration-200",
+          "group relative mt-2 overflow-hidden rounded-2xl border bg-[linear-gradient(135deg,rgba(8,47,73,0.52),rgba(15,23,42,0.74)_54%,rgba(30,64,175,0.2))] shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_16px_34px_rgba(2,6,23,0.22)] transition duration-200 focus-within:-translate-y-0.5 active:scale-[0.998]",
           hasValue
-            ? "border-cyan-300/35 bg-cyan-950/18 focus-within:border-cyan-200/65 focus-within:shadow-[0_0_0_3px_rgba(34,211,238,0.1)]"
-            : "border-white/10 hover:border-sky-300/30 focus-within:border-sky-300/60 focus-within:shadow-[0_0_0_3px_rgba(56,189,248,0.1)]",
+            ? "border-cyan-200/48 bg-cyan-700/16 focus-within:border-cyan-100/80 focus-within:bg-cyan-400/14 focus-within:shadow-[0_0_0_3px_rgba(34,211,238,0.13),0_0_28px_rgba(34,211,238,0.16)]"
+            : "border-sky-200/18 hover:border-sky-200/48 hover:bg-sky-500/10 focus-within:border-sky-100/75 focus-within:bg-sky-400/14 focus-within:shadow-[0_0_0_3px_rgba(56,189,248,0.13),0_0_26px_rgba(56,189,248,0.15)]",
         ].join(" ")}
       >
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(56,189,248,0.16),transparent_40%),linear-gradient(180deg,rgba(255,255,255,0.04),transparent)] opacity-70 transition group-focus-within:opacity-100"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(125,211,252,0.26),transparent_40%),radial-gradient(circle_at_92%_108%,rgba(250,204,21,0.12),transparent_42%),linear-gradient(180deg,rgba(255,255,255,0.065),transparent)] opacity-80 transition group-hover:opacity-100 group-focus-within:opacity-100"
         />
         <div
           aria-hidden="true"
@@ -1694,11 +1885,13 @@ function ChoiceGroup({
 
 function SlimChoiceGroup({
   columns = "sm:grid-cols-2",
+  iconStyle = "webgl",
   onChange,
   options,
   value,
 }: {
   columns?: string;
+  iconStyle?: "plain" | "webgl";
   onChange: (value: string) => void;
   options: ChoiceOption[];
   value: string;
@@ -1715,18 +1908,27 @@ function SlimChoiceGroup({
             type="button"
             onClick={() => onChange(label)}
             className={[
-              "group flex min-h-12 items-center gap-2 rounded-lg border px-3 py-2 text-left transition",
+              "group flex min-h-12 items-center gap-2 rounded-lg border px-3 py-2 text-left transition duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60",
               selected ? toneClasses.selected : toneClasses.unselected,
             ].join(" ")}
           >
-            <Icon
-              aria-hidden="true"
-              className={[
-                "h-4 w-4 shrink-0 transition",
-                selected ? toneClasses.iconSelected : toneClasses.iconUnselected,
-              ].join(" ")}
-              strokeWidth={2.4}
-            />
+            {iconStyle === "plain" ? (
+              <Icon
+                aria-hidden="true"
+                className={[
+                  "h-5 w-5 shrink-0 transition",
+                  selected ? toneClasses.iconSelected : toneClasses.iconUnselected,
+                ].join(" ")}
+                strokeWidth={2.7}
+              />
+            ) : (
+              <AssessmentWebGlIcon
+                active={selected}
+                className="h-7 w-7"
+                glyph={getAssessmentIconGlyph(Icon)}
+                tone={getAssessmentIconTone(tone)}
+              />
+            )}
             <span className="min-w-0 break-words text-xs font-black uppercase leading-tight tracking-[0.08em] text-white">
               {label}
             </span>
@@ -1739,11 +1941,13 @@ function SlimChoiceGroup({
 
 function MultiChoiceGroup({
   columns = "md:grid-cols-2",
+  iconStyle = "webgl",
   onToggle,
   options,
   values,
 }: {
   columns?: string;
+  iconStyle?: "plain" | "webgl";
   onToggle: (value: string) => void;
   options: ChoiceOption[];
   values: string[];
@@ -1760,22 +1964,27 @@ function MultiChoiceGroup({
             type="button"
             onClick={() => onToggle(label)}
             className={[
-              "group flex min-h-20 w-full items-start gap-3 rounded-lg border p-4 text-left transition",
+              "group flex min-h-20 w-full items-start gap-3 rounded-lg border p-4 text-left transition duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/60",
               selected ? toneClasses.selected : toneClasses.unselected,
             ].join(" ")}
           >
-            <span
-              className={[
-                "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center transition",
-                selected ? toneClasses.iconSelected : toneClasses.iconUnselected,
-              ].join(" ")}
-            >
-              {selected ? (
-                <Check aria-hidden="true" className="h-5 w-5" strokeWidth={2.5} />
-              ) : (
-                <Icon aria-hidden="true" className="h-5 w-5" strokeWidth={2.4} />
-              )}
-            </span>
+            {iconStyle === "plain" ? (
+              <Icon
+                aria-hidden="true"
+                className={[
+                  "mt-0.5 h-6 w-6 shrink-0 transition",
+                  selected ? toneClasses.iconSelected : toneClasses.iconUnselected,
+                ].join(" ")}
+                strokeWidth={2.7}
+              />
+            ) : (
+              <AssessmentWebGlIcon
+                active={selected}
+                className="mt-0.5 h-8 w-8"
+                glyph={selected ? "check" : getAssessmentIconGlyph(Icon)}
+                tone={selected ? "emerald" : getAssessmentIconTone(tone)}
+              />
+            )}
             <span className="min-w-0">
               <span className="block break-words text-sm font-black uppercase leading-tight tracking-[0.08em] text-white">
                 {label}
@@ -1820,7 +2029,7 @@ function AvailabilityGrid({
 
   return (
     <div
-      className="rounded-lg border border-sky-400/25 bg-slate-950/55 p-3 shadow-[0_18px_55px_rgba(14,165,233,0.08)]"
+      className="rounded-lg border border-sky-200/24 bg-[linear-gradient(135deg,rgba(8,47,73,0.46),rgba(15,23,42,0.78)_54%,rgba(20,184,166,0.14))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.09),0_18px_55px_rgba(14,165,233,0.1)]"
       data-availability-grid="true"
       onPointerCancel={() => setDragMode(null)}
       onPointerLeave={() => setDragMode(null)}
@@ -1829,10 +2038,11 @@ function AvailabilityGrid({
     >
       <div className="flex flex-col gap-2 border-b border-white/10 pb-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-          <CalendarClock
-            aria-hidden="true"
-            className="h-4 w-4 text-cyan-300"
-            strokeWidth={2.4}
+          <AssessmentWebGlIcon
+            active
+            className="h-8 w-8"
+            glyph="clock"
+            tone="sky"
           />
           <span>Click or drag across 30-minute windows that could work.</span>
         </div>
@@ -1846,9 +2056,9 @@ function AvailabilityGrid({
           {availabilityDays.map((day) => (
             <div
               key={day}
-              className="overflow-hidden rounded-lg border border-white/10 bg-white/[0.03]"
+              className="overflow-hidden rounded-lg border border-sky-200/16 bg-sky-950/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.055)]"
             >
-              <div className="sticky top-0 z-10 border-b border-white/10 bg-slate-950/95 px-1 py-2 text-center">
+              <div className="sticky top-0 z-10 border-b border-sky-200/14 bg-sky-950/92 px-1 py-2 text-center">
                 <span className="text-[8px] font-black uppercase tracking-[0.08em] text-sky-200 sm:text-[9px] lg:text-[10px]">
                   <span className="sm:hidden">{day.slice(0, 3)}</span>
                   <span className="hidden sm:inline">{day}</span>
@@ -1887,8 +2097,8 @@ function AvailabilityGrid({
                       className={[
                         "min-h-7 select-none rounded-md border px-0.5 py-1 text-center text-[8px] font-black uppercase tracking-[0.02em] transition sm:text-[9px]",
                         selected
-                          ? "border-cyan-200/70 bg-cyan-300/20 text-cyan-50 shadow-[0_0_16px_rgba(34,211,238,0.2)]"
-                          : "border-white/8 bg-slate-950/75 text-slate-400 hover:border-cyan-300/40 hover:bg-cyan-300/10 hover:text-cyan-50",
+                          ? "border-cyan-100/80 bg-cyan-300/28 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.24),inset_0_1px_0_rgba(255,255,255,0.16)]"
+                          : "border-sky-200/10 bg-sky-950/54 text-slate-300 hover:border-cyan-200/50 hover:bg-cyan-300/14 hover:text-cyan-50 active:scale-[0.96]",
                       ].join(" ")}
                     >
                       {slot.label}
@@ -1941,7 +2151,7 @@ function ScaleChoiceGroup({
   };
 
   return (
-    <div className="rounded-lg border border-white/10 bg-slate-950/50 p-4">
+    <div className="rounded-lg border border-sky-200/20 bg-[linear-gradient(135deg,rgba(8,47,73,0.46),rgba(15,23,42,0.78)_54%,rgba(30,64,175,0.16))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_16px_44px_rgba(2,6,23,0.22)]">
       <div className="flex justify-between text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
         <span>{lowLabel}</span>
         <span>{highLabel}</span>
@@ -1956,7 +2166,7 @@ function ScaleChoiceGroup({
                 "h-1.5 w-1.5 rounded-full border transition",
                 index + 1 <= selectedValue
                   ? "border-cyan-100/60 bg-cyan-100"
-                  : "border-white/15 bg-slate-950",
+                  : "border-sky-200/18 bg-sky-950/72",
               ].join(" ")}
             />
           ))}
@@ -2005,7 +2215,7 @@ function ScaleChoiceGroup({
         />
       </div>
 
-      <div className="rounded-lg border border-sky-300/20 bg-sky-400/10 px-4 py-3">
+      <div className="rounded-lg border border-sky-200/28 bg-sky-400/14 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
         <div className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-200/70">
           Current answer
         </div>
@@ -2027,7 +2237,12 @@ export default function AssessmentPage() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormState>(defaultForm);
   const [showStepErrors, setShowStepErrors] = useState(false);
+  const [showIntegrityWarning, setShowIntegrityWarning] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [activeDeckSectionIndex, setActiveDeckSectionIndex] = useState(0);
+  const [deckSectionCount, setDeckSectionCount] = useState(0);
+  const assessmentDeckRef = useRef<HTMLDivElement | null>(null);
+  const deckDragRef = useRef<AssessmentDeckDragState | null>(null);
 
   const progress = useMemo(
     () => Math.round(((step + 1) / steps.length) * 100),
@@ -2035,10 +2250,29 @@ export default function AssessmentPage() {
   );
   const activeStep = steps[step];
   const ActiveStepIcon = activeStep.Icon;
+  const railNodePosition = (index: number) =>
+    steps.length === 1 ? 50 : 8 + (index / (steps.length - 1)) * 84;
+  const activeRailPosition = railNodePosition(step);
 
   const setValue = (key: keyof FormState, value: string) => {
     setIsSubmitted(false);
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+  const setWelcomeAgreement = (value: string) => {
+    setIsSubmitted(false);
+    setShowStepErrors(false);
+    setForm((prev) => ({ ...prev, welcomeAgreement: value }));
+
+    if (value === "No") {
+      setShowIntegrityWarning(true);
+    } else {
+      setShowIntegrityWarning(false);
+    }
+  };
+  const resetWelcomeAgreement = () => {
+    setIsSubmitted(false);
+    setShowIntegrityWarning(false);
+    setForm((prev) => ({ ...prev, welcomeAgreement: "" }));
   };
   const toggleArrayValue = (key: ArrayFieldKey, value: string) => {
     setIsSubmitted(false);
@@ -2140,9 +2374,10 @@ export default function AssessmentPage() {
     [form, step],
   );
   const hasStepValidationIssues = stepValidationIssues.length > 0;
+  const isIntegrityLocked = form.welcomeAgreement === "No";
   const visibleStepIssues = stepValidationIssues.slice(0, 6);
   const hiddenStepIssueCount = Math.max(stepValidationIssues.length - 6, 0);
-  const next = () => {
+  const next = useCallback(() => {
     if (hasStepValidationIssues) {
       setShowStepErrors(true);
       return;
@@ -2150,7 +2385,7 @@ export default function AssessmentPage() {
 
     setShowStepErrors(false);
     setStep((value) => Math.min(value + 1, steps.length - 1));
-  };
+  }, [hasStepValidationIssues]);
   const submitAssessment = () => {
     if (hasStepValidationIssues) {
       setShowStepErrors(true);
@@ -2161,12 +2396,179 @@ export default function AssessmentPage() {
     setShowStepErrors(false);
     setIsSubmitted(true);
   };
-  const back = () => {
+  const back = useCallback(() => {
     setShowStepErrors(false);
     setStep((value) => Math.max(value - 1, 0));
+  }, []);
+  const getDeckSections = useCallback(() => {
+    const deck = assessmentDeckRef.current;
+
+    if (!deck) return [];
+
+    return Array.from(
+      deck.querySelectorAll<HTMLElement>("[data-assessment-section-card]"),
+    );
+  }, []);
+  const scrollToDeckSection = useCallback(
+    (index: number) => {
+      const deck = assessmentDeckRef.current;
+      const sections = getDeckSections();
+      const targetSection = sections[index];
+
+      if (!deck || !targetSection) return;
+
+      const deckRect = deck.getBoundingClientRect();
+      const sectionRect = targetSection.getBoundingClientRect();
+      const targetTop = Math.max(
+        0,
+        deck.scrollTop + sectionRect.top - deckRect.top - 14,
+      );
+
+      deck.style.setProperty("scroll-snap-type", "none", "important");
+      deck.scrollTop = targetTop;
+      window.setTimeout(() => {
+        deck.style.removeProperty("scroll-snap-type");
+      }, 90);
+      setActiveDeckSectionIndex(index);
+    },
+    [getDeckSections],
+  );
+  const goToPreviousDeckPane = useCallback(() => {
+    const sections = getDeckSections();
+    const currentIndex = Math.min(activeDeckSectionIndex, sections.length - 1);
+
+    if (currentIndex > 0) {
+      scrollToDeckSection(currentIndex - 1);
+      return;
+    }
+
+    back();
+  }, [activeDeckSectionIndex, back, getDeckSections, scrollToDeckSection]);
+  const goToNextDeckPane = useCallback(() => {
+    const sections = getDeckSections();
+    const currentIndex = Math.min(activeDeckSectionIndex, sections.length - 1);
+
+    if (currentIndex < sections.length - 1) {
+      scrollToDeckSection(currentIndex + 1);
+      return;
+    }
+
+    if (step < steps.length - 1) {
+      next();
+    }
+  }, [activeDeckSectionIndex, getDeckSections, next, scrollToDeckSection, step]);
+  const handleDeckPointerDown = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
+    if (isAssessmentDeckInteractiveTarget(event.target)) return;
+
+    deckDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
   };
+  const finishDeckDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const dragState = deckDragRef.current;
+
+    if (!dragState || dragState.pointerId !== event.pointerId) return;
+
+    deckDragRef.current = null;
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    const deltaX = event.clientX - dragState.startX;
+    const deltaY = event.clientY - dragState.startY;
+    const absX = Math.abs(deltaX);
+    const absY = Math.abs(deltaY);
+    const dragDistance = Math.max(absX, absY);
+
+    if (dragDistance < 64) return;
+
+    if (absX > absY) {
+      if (deltaX < 0) {
+        goToNextDeckPane();
+      } else {
+        goToPreviousDeckPane();
+      }
+      return;
+    }
+
+    if (deltaY < 0) {
+      goToNextDeckPane();
+    } else {
+      goToPreviousDeckPane();
+    }
+  };
+  const cancelDeckDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (
+      deckDragRef.current &&
+      deckDragRef.current.pointerId === event.pointerId &&
+      event.currentTarget.hasPointerCapture(event.pointerId)
+    ) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+
+    deckDragRef.current = null;
+  };
+  useEffect(() => {
+    const deck = assessmentDeckRef.current;
+
+    if (!deck) return;
+
+    deck.scrollTo({ top: 0 });
+    setActiveDeckSectionIndex(0);
+    setDeckSectionCount(getDeckSections().length);
+  }, [getDeckSections, step]);
+  useEffect(() => {
+    const deck = assessmentDeckRef.current;
+
+    if (!deck) return;
+
+    const updateActiveSection = () => {
+      const sections = getDeckSections();
+      setDeckSectionCount(sections.length);
+
+      if (sections.length === 0) {
+        setActiveDeckSectionIndex(0);
+        return;
+      }
+
+      const deckRect = deck.getBoundingClientRect();
+      const nextIndex = sections.reduce(
+        (nearestIndex, section, sectionIndex) => {
+          const nearestSection = sections[nearestIndex];
+          const sectionDistance = Math.abs(
+            section.getBoundingClientRect().top - deckRect.top,
+          );
+          const nearestDistance = Math.abs(
+            nearestSection.getBoundingClientRect().top - deckRect.top,
+          );
+
+          return sectionDistance < nearestDistance
+            ? sectionIndex
+            : nearestIndex;
+        },
+        0,
+      );
+
+      setActiveDeckSectionIndex(nextIndex);
+    };
+
+    updateActiveSection();
+    deck.addEventListener("scroll", updateActiveSection, { passive: true });
+    window.addEventListener("resize", updateActiveSection);
+
+    return () => {
+      deck.removeEventListener("scroll", updateActiveSection);
+      window.removeEventListener("resize", updateActiveSection);
+    };
+  }, [getDeckSections, step, showStepErrors, isSubmitted]);
   const selectedTrainingPlaces = form.trainingPlaces ?? defaultTrainingPlaces;
-  const answerSummaryItems = useMemo(
+  const stepStatusItems = useMemo(
     () => {
       const legalName = `${form.firstName} ${form.lastName}`.trim();
       const displayName =
@@ -2202,14 +2604,15 @@ export default function AssessmentPage() {
         form.serviceInterests.length > 0
           ? formatSummaryList(form.serviceInterests, "Service pending")
           : formatSummaryList(selectedTrainingPlaces, "Location pending");
+      const experienceValue =
+        form.experience || form.fitnessLevel || "Experience pending";
+      const experienceDetail =
+        form.activeDays ||
+        (form.recentTraining.length > 0
+          ? formatSummaryList(form.recentTraining, "Training noted")
+          : "Training context pending");
 
       return [
-        {
-          Icon: UserRound,
-          detail: contactDetail,
-          label: "Contact",
-          value: displayName,
-        },
         {
           Icon: Target,
           detail: goalDetail,
@@ -2223,16 +2626,27 @@ export default function AssessmentPage() {
           value: bodyValue,
         },
         {
+          Icon: UserRound,
+          detail: experienceDetail,
+          label: "Experience",
+          value: experienceValue,
+        },
+        {
           Icon: CalendarDays,
           detail: scheduleDetail,
           label: "Schedule",
           value: scheduleValue,
         },
+        {
+          Icon: UserRound,
+          detail: contactDetail,
+          label: "Next Steps",
+          value: displayName,
+        },
       ];
     },
     [form, selectedTrainingPlaces],
   );
-
   const recommendation = useMemo(() => {
     const goal =
       form.goal.length > 0 ? form.goal.join(" + ") : "Strength + mobility";
@@ -2260,209 +2674,214 @@ export default function AssessmentPage() {
       ],
     };
   }, [form, selectedTrainingPlaces]);
+  const visibleDeckSectionCount = Math.max(deckSectionCount, 1);
+  const canMoveToPreviousDeckPane = step > 0 || activeDeckSectionIndex > 0;
+  const canMoveToNextDeckPane =
+    step < steps.length - 1 ||
+    activeDeckSectionIndex < visibleDeckSectionCount - 1;
 
   return (
     <main className="min-h-screen overflow-x-clip bg-[#020713] text-white">
       <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_14%_0%,rgba(14,165,233,0.22),transparent_32%),radial-gradient(circle_at_88%_10%,rgba(250,204,21,0.12),transparent_28%),linear-gradient(180deg,#020713_0%,#07111f_52%,#020713_100%)]" />
 
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#020713]/78 shadow-[0_18px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-5 py-3 sm:px-8 md:flex-row md:items-center md:justify-between">
-          <Link
-            href={ROUTES.public.home}
-            className="group flex min-w-0 items-center justify-center gap-3 text-center md:justify-start md:text-left"
-          >
-            <Image
-              src="/sound-fitness-logo.png"
-              alt="Sound Fitness"
-              width={56}
-              height={56}
-              className="h-16 w-16 shrink-0 object-contain transition duration-300 group-hover:scale-105 sm:h-20 sm:w-20"
-            />
+      <MarketingHeader />
 
-            <div className="min-w-0">
-              <div className="bg-gradient-to-r from-white via-slate-200 to-sky-100 bg-clip-text text-2xl font-black uppercase leading-none tracking-[0.13em] text-transparent sm:text-3xl">
-                Sound Fitness
-              </div>
-              <div className="mt-1 text-[9px] font-black uppercase leading-none tracking-[0.2em] text-sky-300 sm:text-[10px]">
-                In-home training & assisted stretch
-              </div>
-              <div className="mt-2 h-px w-full bg-gradient-to-r from-sky-400 via-amber-200 to-transparent opacity-70" />
-              <div className="mt-2 inline-flex rounded-full border border-sky-400/25 bg-sky-500/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-sky-100">
-                In-home training + app
-              </div>
-            </div>
-          </Link>
-
-          <div className="w-full md:w-auto">
-            <UserMenu />
-          </div>
-        </div>
-      </header>
-
-      <section className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-10">
-        <div className="space-y-6">
-          <div className="relative overflow-hidden rounded-2xl border border-sky-300/28 bg-[linear-gradient(135deg,rgba(8,22,41,0.94),rgba(5,13,29,0.88)_52%,rgba(12,41,68,0.8))] shadow-[0_34px_110px_rgba(2,6,23,0.46)]">
-            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(115deg,rgba(125,211,252,0.11),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.045),transparent_42%),repeating-linear-gradient(90deg,rgba(148,163,184,0.045)_0_1px,transparent_1px_96px)]" />
-            <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/70 to-transparent" />
-            <div className="relative grid gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.46fr)] lg:items-stretch lg:p-6">
+      <section className="assessment-popup-page mx-auto max-w-7xl px-5 pb-8 pt-6 sm:px-8 lg:pb-10 lg:pt-7">
+        <div className="space-y-4">
+          <div className="relative overflow-visible py-2 lg:py-4">
+            <div className="pointer-events-none absolute inset-x-[-1.25rem] top-[-2.75rem] h-[30rem] bg-[radial-gradient(circle_at_14%_14%,rgba(14,165,233,0.22),transparent_34%),radial-gradient(circle_at_74%_8%,rgba(250,204,21,0.12),transparent_30%),linear-gradient(180deg,rgba(8,22,41,0.44),transparent_76%)] opacity-90" />
+            <div className="pointer-events-none absolute inset-x-4 top-[4.85rem] h-px bg-gradient-to-r from-transparent via-cyan-200/40 to-transparent" />
+            <div className="relative">
               <div className="flex min-w-0 flex-col justify-between">
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-sky-400/25 bg-sky-500/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-sky-100">
-                    <span className="h-2 w-2 rounded-full bg-sky-400" />
-                    In-home pre-assessment
+                  <div className="flex max-w-full flex-col items-start gap-2">
+                    <div
+                      className="dashboard-header-urgency-blinker inline-flex max-w-full items-center gap-2 rounded-full border border-sky-300/30 bg-sky-500/8 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.15em] text-sky-100"
+                      data-dashboard-urgency="needs-attention"
+                      data-dashboard-urgency-status="watch"
+                      data-motion-paused="false"
+                    >
+                      <span className="dashboard-header-urgency-blinker__dot h-2 w-2 rounded-full bg-sky-300" />
+                      <span className="dashboard-header-urgency-blinker__label">
+                        Required before scheduling
+                      </span>
+                    </div>
+                    <div className="w-[14.5rem] max-w-full">
+                      <MarketingSectionHeading3D
+                        className="h-7 sm:h-8"
+                        label="In-home pre-assessment"
+                        lines={["In-home pre-assessment"]}
+                        scale="eyebrow"
+                        variant="cyan"
+                      />
+                    </div>
                   </div>
 
-                  <h1 className="mt-4 max-w-4xl bg-gradient-to-r from-white via-sky-100 to-cyan-100 bg-clip-text text-4xl font-black uppercase leading-[0.92] tracking-tight text-transparent sm:text-5xl lg:text-6xl">
+                  <h1 className="sr-only">
                     Start with the right first session.
                   </h1>
+                  <div
+                    aria-hidden="true"
+                    className="mt-2 max-w-[calc(100vw-2.5rem)] sm:max-w-[46rem] lg:max-w-[56rem]"
+                  >
+                    <MarketingSectionHeading3D
+                      className="h-[220px] sm:h-[300px] lg:h-[335px]"
+                      label="Start with the right first session."
+                      lines={["Start with", "the right", "first session."]}
+                      scale="hero"
+                      variant="ice"
+                    />
+                  </div>
                   <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300 sm:text-base sm:leading-7">
                     Share your goals, limitations, space, schedule, and training
                     history so the first in-home session starts with context.
                   </p>
                 </div>
-                <div className="mt-6 max-w-3xl">
-                  <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                    <span>Progress</span>
-                    <span className="text-sky-100">{progress}%</span>
-                  </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-sky-400 via-cyan-300 to-amber-200 shadow-[0_0_24px_rgba(34,211,238,0.24)] transition-all duration-300"
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-slate-400">
-                    <span>
-                      Step {step + 1} of {steps.length}
-                    </span>
-                    <span>Private intake</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-slate-950/48 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_18px_60px_rgba(2,6,23,0.28)]">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-sky-300/24 bg-sky-400/10 text-sky-100 shadow-[0_0_28px_rgba(14,165,233,0.16)]">
-                    <ActiveStepIcon
-                      aria-hidden="true"
-                      className="h-7 w-7"
-                      strokeWidth={2.35}
-                    />
-                  </div>
-                  <div className="min-w-0">
+                <div className="mt-7 max-w-5xl">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-300">
-                      Current step
+                      Progress rail
                     </div>
-                    <div className="mt-1 text-2xl font-black uppercase leading-none tracking-[0.06em] text-white">
-                      {activeStep.label}
+                    <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em]">
+                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-slate-300">
+                        Step {step + 1} of {steps.length}
+                      </span>
+                      <span className="rounded-full border border-cyan-200/20 bg-cyan-300/10 px-2.5 py-1 text-cyan-100">
+                        {progress}%
+                      </span>
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-400">
-                      {activeStep.helper}
-                    </p>
                   </div>
-                </div>
 
-                <div className="mt-5">
-                  <div className="flex items-center justify-between gap-3 text-[10px] font-black uppercase tracking-[0.18em]">
-                    <span className="text-sky-300">Answer summary</span>
-                    <span className="text-slate-500">Updates live</span>
-                  </div>
-                  <div className="mt-3 divide-y divide-white/10 overflow-hidden rounded-xl border border-white/10 bg-slate-950/48">
-                    {answerSummaryItems.map(({ detail, Icon, label, value }) => {
-                      const SummaryIcon = Icon;
-
-                      return (
-                        <div
-                          key={label}
-                          className="flex items-start gap-3 px-3 py-3"
-                        >
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center text-sky-100 drop-shadow-[0_0_12px_rgba(125,211,252,0.34)]">
-                            <SummaryIcon
-                              aria-hidden="true"
-                              className="h-5 w-5"
-                              strokeWidth={2.35}
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <div className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">
-                              {label}
-                            </div>
-                            <div className="mt-1 break-words text-sm font-black leading-5 text-white">
-                              {value}
-                            </div>
-                            <div className="mt-0.5 break-words text-xs font-bold leading-5 text-slate-400">
-                              {detail}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="relative border-t border-white/10 bg-slate-950/20 p-3 sm:p-4">
-              <div
-                aria-label="Assessment progress"
-                className="grid grid-cols-2 gap-2 md:grid-cols-5"
-                role="list"
-              >
-                {steps.map(({ label, Icon }, index) => {
-                  const isCurrent = index === step;
-                  const isComplete = index < step;
-
-                  return (
+                  <div className="-mx-5 overflow-x-auto px-5 pb-2 sm:mx-0 sm:overflow-visible sm:px-0 sm:pb-0">
                     <div
-                      key={label}
-                      aria-current={isCurrent ? "step" : undefined}
-                      role="listitem"
-                      className={[
-                        "flex min-h-12 cursor-default items-center justify-center gap-2 rounded-xl border px-3 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition",
-                        isCurrent
-                          ? "border-sky-300/55 bg-sky-400/14 shadow-[0_0_26px_rgba(14,165,233,0.14)]"
-                          : isComplete
-                            ? "border-emerald-300/28 bg-emerald-400/10"
-                            : "border-white/10 bg-slate-950/54",
-                      ].join(" ")}
+                      aria-label="Assessment progress"
+                      className="relative mt-4 min-h-[14.5rem] min-w-[46rem] sm:min-w-0"
+                      role="list"
                     >
-                      <span
-                        className={[
-                          "flex h-5 w-5 shrink-0 items-center justify-center",
-                          isCurrent
-                            ? "text-sky-100 drop-shadow-[0_0_12px_rgba(125,211,252,0.42)]"
-                            : isComplete
-                              ? "text-emerald-200 drop-shadow-[0_0_10px_rgba(110,231,183,0.34)]"
-                              : "text-slate-500",
-                        ].join(" ")}
+                      <div className="absolute inset-x-0 top-1/2 h-5 -translate-y-1/2 overflow-hidden rounded-full border border-white/10 bg-slate-900/80 shadow-[inset_0_1px_8px_rgba(2,6,23,0.78)]">
+                        <div className="absolute inset-0 bg-[repeating-linear-gradient(90deg,rgba(255,255,255,0.08)_0_1px,transparent_1px_18px)] opacity-70" />
+                        <div
+                          className="relative h-full overflow-hidden rounded-full bg-gradient-to-r from-sky-400 via-cyan-200 to-amber-200 shadow-[0_0_22px_rgba(34,211,238,0.24)] transition-all duration-500"
+                          style={{ width: `${activeRailPosition}%` }}
+                        >
+                          <div className="absolute inset-0 bg-[linear-gradient(110deg,transparent,rgba(255,255,255,0.42),transparent)] opacity-50" />
+                        </div>
+                      </div>
+
+                      <div className="pointer-events-none absolute inset-x-1 top-1/2 h-px -translate-y-1/2">
+                        {steps.map(({ label }, index) => {
+                          const nodePosition = railNodePosition(index);
+                          const isNodeComplete = index <= step;
+
+                          return (
+                            <span
+                              key={label}
+                              className={[
+                                "absolute top-1/2 h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border transition",
+                                isNodeComplete
+                                  ? "border-cyan-100/80 bg-cyan-100 shadow-[0_0_14px_rgba(125,211,252,0.48)]"
+                                  : "border-slate-500/50 bg-slate-800",
+                              ].join(" ")}
+                              style={{ left: `${nodePosition}%` }}
+                            />
+                          );
+                        })}
+                      </div>
+
+                      <div
+                        className="pointer-events-none absolute top-1/2 h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border border-amber-100/75 bg-[radial-gradient(circle,#fff7cc_0%,#67e8f9_36%,#0f172a_72%)] shadow-[0_0_18px_rgba(253,224,71,0.38),0_0_26px_rgba(34,211,238,0.34)] transition-all duration-500"
+                        style={{ left: `${activeRailPosition}%` }}
                       >
-                        {isComplete ? (
-                          <Check aria-hidden="true" className="h-4 w-4" />
-                        ) : (
-                          <Icon aria-hidden="true" className="h-4 w-4" />
-                        )}
-                      </span>
-                      <span className="min-w-0 break-words text-[11px] font-black uppercase leading-tight tracking-[0.08em] text-white">
-                        {label}
-                      </span>
+                        <span className="absolute inset-1 rounded-full border border-white/30" />
+                      </div>
+
+                      {steps.map(({ label, Icon }, index) => {
+                        const isCurrent = index === step;
+                        const isComplete = index < step;
+                        const status = stepStatusItems[index];
+                        const nodePosition = railNodePosition(index);
+                        const isTop = index % 2 === 0;
+                        const xTransform =
+                          index === 0
+                            ? "translateX(0)"
+                            : index === steps.length - 1
+                              ? "translateX(-100%)"
+                              : "translateX(-50%)";
+
+                        return (
+                          <div
+                            key={label}
+                            aria-current={isCurrent ? "step" : undefined}
+                            className={[
+                              "absolute z-10 flex min-h-[4.6rem] w-[8.9rem] cursor-default items-start gap-2 rounded-xl border px-2.5 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition sm:w-[10.25rem] sm:px-3 sm:py-2.5",
+                              isTop ? "top-0" : "bottom-0",
+                              isCurrent
+                                ? "border-sky-300/65 bg-sky-400/16 shadow-[0_0_28px_rgba(14,165,233,0.18)]"
+                                : isComplete
+                                  ? "border-emerald-300/28 bg-emerald-400/10"
+                                  : "border-white/10 bg-slate-950/58",
+                            ].join(" ")}
+                            role="listitem"
+                            style={{
+                              left: `${nodePosition}%`,
+                              transform: xTransform,
+                            }}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={[
+                                "absolute left-1/2 h-6 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-cyan-100/34 to-transparent",
+                                isTop
+                                  ? "bottom-[-1.65rem]"
+                                  : "top-[-1.65rem]",
+                              ].join(" ")}
+                            />
+                            <AssessmentWebGlIcon
+                              active={isCurrent || isComplete}
+                              className="h-7 w-7"
+                              glyph={isComplete ? "check" : getAssessmentIconGlyph(Icon)}
+                              tone={isCurrent ? "sky" : isComplete ? "emerald" : "slate"}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block break-words text-[10px] font-black uppercase leading-tight tracking-[0.08em] text-white sm:text-[11px]">
+                                {label}
+                              </span>
+                              <span
+                                className={[
+                                  "mt-1 block truncate text-[9px] font-bold leading-4 sm:text-[10px]",
+                                  isCurrent
+                                    ? "text-sky-100"
+                                    : isComplete
+                                      ? "text-emerald-100"
+                                      : "text-slate-500",
+                                ].join(" ")}
+                              >
+                                {status?.value}
+                              </span>
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
           <section className="min-w-0">
-            <div className="rounded-lg border border-white/10 bg-white/[0.045] shadow-[0_28px_80px_rgba(2,6,23,0.28)] backdrop-blur">
+            <div
+              aria-label="In-home pre-assessment page deck"
+              className="assessment-popup-shell relative flex min-h-0 flex-col overflow-hidden rounded-lg border border-white/10 bg-white/[0.045] shadow-[0_28px_80px_rgba(2,6,23,0.28)] backdrop-blur"
+            >
               <div className="flex flex-col gap-4 border-b border-white/10 p-5 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center text-sky-100 drop-shadow-[0_0_14px_rgba(125,211,252,0.45)]">
-                    <ActiveStepIcon
-                      aria-hidden="true"
-                      className="h-7 w-7"
-                      strokeWidth={2.4}
-                    />
-                  </div>
+                  <AssessmentWebGlIcon
+                    active
+                    className="h-12 w-12"
+                    glyph={getAssessmentIconGlyph(ActiveStepIcon)}
+                    tone="sky"
+                  />
                   <div>
                     <div className="text-[10px] font-black uppercase tracking-[0.18em] text-sky-300">
                       Step {step + 1} of {steps.length}
@@ -2473,13 +2892,117 @@ export default function AssessmentPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 rounded-lg border border-emerald-300/20 bg-emerald-300/8 px-3 py-2 text-xs font-bold leading-5 text-emerald-100">
-                  <ShieldCheck aria-hidden="true" className="h-4 w-4" />
-                  Private intake details
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="rounded-lg border border-cyan-200/20 bg-cyan-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.13em] text-cyan-100">
+                    Section {activeDeckSectionIndex + 1} of{" "}
+                    {visibleDeckSectionCount}
+                  </div>
+                  <div className="flex items-center gap-2 rounded-lg border border-emerald-300/20 bg-emerald-300/8 px-3 py-2 text-xs font-bold leading-5 text-emerald-100">
+                    <AssessmentWebGlIcon
+                      active
+                      className="h-7 w-7"
+                      glyph="shield"
+                      tone="emerald"
+                    />
+                    Private intake details
+                  </div>
                 </div>
               </div>
 
-              <div className="p-5 lg:p-7">{renderStep()}</div>
+              <button
+                type="button"
+                aria-label="Previous assessment section or page"
+                className="assessment-popup-arrow assessment-popup-arrow--previous"
+                disabled={!canMoveToPreviousDeckPane}
+                onClick={goToPreviousDeckPane}
+              >
+                <AssessmentWebGlIcon
+                  active={canMoveToPreviousDeckPane}
+                  className="h-9 w-9"
+                  glyph="arrow-left"
+                  tone={canMoveToPreviousDeckPane ? "sky" : "slate"}
+                />
+              </button>
+
+              <button
+                type="button"
+                aria-label="Next assessment section or page"
+                className="assessment-popup-arrow assessment-popup-arrow--next"
+                disabled={!canMoveToNextDeckPane || isIntegrityLocked}
+                onClick={goToNextDeckPane}
+              >
+                <AssessmentWebGlIcon
+                  active={canMoveToNextDeckPane && !isIntegrityLocked}
+                  className="h-9 w-9"
+                  glyph="arrow-right"
+                  tone={
+                    canMoveToNextDeckPane && !isIntegrityLocked
+                      ? "sky"
+                      : "slate"
+                  }
+                />
+              </button>
+
+              <div
+                ref={assessmentDeckRef}
+                className="assessment-popup-stage p-5 lg:p-7"
+                onPointerCancel={cancelDeckDrag}
+                onPointerDown={handleDeckPointerDown}
+                onPointerUp={finishDeckDrag}
+              >
+                {isIntegrityLocked ? (
+                  <div className="mb-5 rounded-2xl border border-amber-200/28 bg-amber-300/10 p-4 text-sm leading-6 text-amber-50 shadow-[0_18px_48px_rgba(2,6,23,0.2)]">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex items-start gap-3">
+                        <AssessmentWebGlIcon
+                          active
+                          className="mt-0.5 h-8 w-8"
+                          glyph="alert"
+                          tone="amber"
+                        />
+                        <div>
+                          <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">
+                            Assessment locked
+                          </div>
+                          <div className="mt-1 text-slate-200">
+                            Answers are disabled until the welcome agreement is
+                            reset.
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setShowIntegrityWarning(true)}
+                          className="rounded-lg border border-white/10 bg-white/[0.05] px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-100 transition hover:bg-white/10"
+                        >
+                          Review
+                        </button>
+                        <button
+                          type="button"
+                          onClick={resetWelcomeAgreement}
+                          className="rounded-lg bg-amber-200 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-950 transition hover:brightness-110"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                <fieldset
+                  disabled={isIntegrityLocked}
+                  className={[
+                    "min-w-0 transition duration-300",
+                    isIntegrityLocked
+                      ? "pointer-events-none select-none opacity-45 grayscale"
+                      : "",
+                  ].join(" ")}
+                >
+                  <legend className="sr-only">Assessment answers</legend>
+                  {renderStep()}
+                </fieldset>
+              </div>
 
               <div className="border-t border-white/10 p-5">
                 {showStepErrors && hasStepValidationIssues ? (
@@ -2488,9 +3011,11 @@ export default function AssessmentPage() {
                     className="mb-4 rounded-2xl border border-amber-200/28 bg-amber-300/10 p-4 text-sm leading-6 text-amber-50 shadow-[0_18px_48px_rgba(2,6,23,0.2)]"
                   >
                     <div className="flex items-start gap-3">
-                      <CircleAlert
-                        aria-hidden="true"
-                        className="mt-0.5 h-5 w-5 shrink-0 text-amber-200"
+                      <AssessmentWebGlIcon
+                        active
+                        className="mt-0.5 h-8 w-8"
+                        glyph="alert"
+                        tone="amber"
                       />
                       <div className="min-w-0">
                         <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">
@@ -2531,7 +3056,12 @@ export default function AssessmentPage() {
                     disabled={step === 0}
                     className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-black uppercase tracking-[0.1em] text-slate-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+                    <AssessmentWebGlIcon
+                      active={step > 0}
+                      className="h-7 w-7"
+                      glyph="arrow-left"
+                      tone={step > 0 ? "sky" : "slate"}
+                    />
                     Back
                   </button>
 
@@ -2540,29 +3070,44 @@ export default function AssessmentPage() {
                       type="button"
                       data-required-pending={hasStepValidationIssues}
                       onClick={next}
+                      disabled={isIntegrityLocked}
                       className={[
                         "inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-black uppercase tracking-[0.1em] text-white shadow-[0_0_30px_rgba(14,165,233,0.28)] transition",
-                        hasStepValidationIssues
+                        isIntegrityLocked
+                          ? "cursor-not-allowed bg-slate-700 text-slate-400 shadow-none"
+                          : hasStepValidationIssues
                           ? "bg-sky-500 hover:bg-sky-400"
                           : "bg-emerald-500 hover:bg-emerald-400",
                       ].join(" ")}
                     >
                       Continue
-                      <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                      <AssessmentWebGlIcon
+                        active={!isIntegrityLocked}
+                        className="h-7 w-7"
+                        glyph="arrow-right"
+                        tone={hasStepValidationIssues ? "sky" : "emerald"}
+                      />
                     </button>
                   ) : (
                     <button
                       type="button"
                       onClick={submitAssessment}
-                      disabled={isSubmitted}
+                      disabled={isSubmitted || isIntegrityLocked}
                       className={[
                         "inline-flex items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-black uppercase tracking-[0.1em] text-white shadow-[0_0_30px_rgba(14,165,233,0.28)] transition",
-                        isSubmitted
+                        isIntegrityLocked
+                          ? "cursor-not-allowed bg-slate-700 text-slate-400 shadow-none"
+                          : isSubmitted
                           ? "cursor-default bg-emerald-500/80"
                           : "bg-sky-500 hover:bg-sky-400",
                       ].join(" ")}
                     >
-                      <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                      <AssessmentWebGlIcon
+                        active={!isIntegrityLocked}
+                        className="h-7 w-7"
+                        glyph="check"
+                        tone="emerald"
+                      />
                       {isSubmitted ? "Submitted" : "Submit pre-assessment"}
                     </button>
                   )}
@@ -2572,6 +3117,62 @@ export default function AssessmentPage() {
           </section>
         </div>
       </section>
+
+      {showIntegrityWarning ? (
+        <div
+          aria-labelledby="integrity-warning-title"
+          aria-modal="true"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/78 px-5 py-8 backdrop-blur-md"
+          role="dialog"
+        >
+          <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-amber-200/35 bg-[linear-gradient(145deg,rgba(24,19,9,0.98),rgba(8,14,25,0.98)_52%,rgba(35,18,13,0.95))] p-5 shadow-[0_30px_110px_rgba(0,0,0,0.58)] sm:p-6">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_16%_0%,rgba(251,191,36,0.18),transparent_34%),radial-gradient(circle_at_86%_18%,rgba(248,113,113,0.16),transparent_30%)]" />
+            <div className="relative flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-amber-100/30 bg-amber-300/12 text-amber-100 shadow-[0_0_30px_rgba(251,191,36,0.18)]">
+                <AssessmentWebGlIcon
+                  active
+                  className="h-12 w-12"
+                  glyph="alert"
+                  tone="amber"
+                />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-200">
+                  Form locked
+                </div>
+                <h2
+                  id="integrity-warning-title"
+                  className="mt-2 text-2xl font-black uppercase leading-none tracking-[0.06em] text-white"
+                >
+                  Honest answers are required.
+                </h2>
+                <p className="mt-3 text-sm leading-6 text-slate-200">
+                  Selecting no pauses the assessment and disables the answers.
+                  Sound Fitness can only use this form if you agree to complete
+                  it honestly and to the best of your ability.
+                </p>
+              </div>
+            </div>
+
+            <div className="relative mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setShowIntegrityWarning(false)}
+                className="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] px-5 py-3 text-xs font-black uppercase tracking-[0.14em] text-slate-200 transition hover:bg-white/10"
+              >
+                Keep locked
+              </button>
+              <button
+                type="button"
+                onClick={resetWelcomeAgreement}
+                className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-amber-200 via-cyan-200 to-sky-400 px-5 py-3 text-xs font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_0_30px_rgba(125,211,252,0.24)] transition hover:brightness-110"
+              >
+                Reset answer
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 
@@ -2606,7 +3207,7 @@ export default function AssessmentPage() {
                     { label: "No", Icon: CircleAlert, tone: "rose" },
                   ]}
                   value={form.welcomeAgreement}
-                  onChange={(value) => setValue("welcomeAgreement", value)}
+                  onChange={setWelcomeAgreement}
                 />
               </div>
 
@@ -2756,6 +3357,7 @@ export default function AssessmentPage() {
                 <FieldLabel>Gender (if you&apos;d prefer to share)</FieldLabel>
                 <SlimChoiceGroup
                   columns="sm:grid-cols-2 xl:grid-cols-4"
+                  iconStyle="plain"
                   options={genderOptions}
                   value={form.gender}
                   onChange={(value) => setValue("gender", value)}
@@ -2816,6 +3418,7 @@ export default function AssessmentPage() {
                 </FieldLabel>
                 <MultiChoiceGroup
                   columns="md:grid-cols-2 xl:grid-cols-3"
+                  iconStyle="plain"
                   options={goalOptions}
                   values={form.goal}
                   onToggle={(value) => toggleArrayValue("goal", value)}
@@ -3504,9 +4107,11 @@ export default function AssessmentPage() {
                     included with your in-home training.
                   </p>
                 </div>
-                <CheckCircle2
-                  aria-hidden="true"
-                  className="h-10 w-10 shrink-0 text-emerald-300"
+                <AssessmentWebGlIcon
+                  active
+                  className="h-12 w-12"
+                  glyph="check"
+                  tone="emerald"
                 />
               </div>
             </div>
@@ -3524,9 +4129,11 @@ export default function AssessmentPage() {
                     {recommendation.subtitle}
                   </p>
                 </div>
-                <CheckCircle2
-                  aria-hidden="true"
-                  className="h-10 w-10 shrink-0 text-emerald-300"
+                <AssessmentWebGlIcon
+                  active
+                  className="h-12 w-12"
+                  glyph="check"
+                  tone="emerald"
                 />
               </div>
             </div>
@@ -3537,9 +4144,11 @@ export default function AssessmentPage() {
                   key={item}
                   className="flex items-start gap-3 rounded-lg border border-white/10 bg-slate-950/58 px-4 py-4 text-sm leading-7 text-slate-200"
                 >
-                  <Check
-                    aria-hidden="true"
-                    className="mt-1 h-4 w-4 shrink-0 text-cyan-300"
+                  <AssessmentWebGlIcon
+                    active
+                    className="mt-0.5 h-8 w-8"
+                    glyph="check"
+                    tone="sky"
                   />
                   <span>{item}</span>
                 </div>

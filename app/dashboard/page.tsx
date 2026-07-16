@@ -10,6 +10,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
   type WheelEvent as ReactWheelEvent,
   useEffect,
   useMemo,
@@ -23,6 +24,7 @@ import DashboardCalendar, {
 import DashboardCategoryUfoScene3D from "@/components/dashboard/DashboardCategoryUfoScene3D";
 import BodyCommandCenterCard from "@/components/dashboard/BodyCommandCenterCard";
 import DashboardLightningBolt3D from "@/components/dashboard/DashboardLightningBolt3D";
+import DashboardLevelMeterBar3D from "@/components/dashboard/DashboardLevelMeterBar3D";
 import DashboardLogo3D from "@/components/dashboard/DashboardLogo3D";
 import DashboardMeterMenuIcon3D from "@/components/dashboard/DashboardMeterMenuIcon3D";
 import DashboardProfileIcon3D, {
@@ -239,26 +241,96 @@ const DASHBOARD_HEADER_IDLE_TIMEOUT_MS = 60000;
 const DASHBOARD_HEADER_NEWS_HEADLINE_INTERVAL_MS = 6400;
 const DASHBOARD_HEADER_NEWS_HEADLINE_ENTER_MS = 520;
 const DASHBOARD_HEADER_METER_MENU_TRIGGER_STYLE = `
-.dashboard-header-meter-menu-trigger::before {
-  animation: none !important;
-  animation-play-state: paused !important;
-  transform: rotate(0deg);
+.dashboard-header-meter-menu-shell {
+  --dashboard-header-meter-button-size: clamp(2.58rem, 5vw, 3.15rem) !important;
+  aspect-ratio: 1 / 1 !important;
+  height: var(--dashboard-header-meter-button-size) !important;
+  width: var(--dashboard-header-meter-button-size) !important;
 }
 
-.dashboard-header-meter-menu-trigger:hover::before,
-.dashboard-header-meter-menu-trigger:focus-visible::before,
-.dashboard-header-meter-menu-trigger[aria-expanded="true"]::before,
-main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open .dashboard-header-meter-menu-trigger:hover::before,
-main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open .dashboard-header-meter-menu-trigger:focus-visible::before,
-main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open .dashboard-header-meter-menu-trigger[aria-expanded="true"]::before,
-html body main.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open .dashboard-header-meter-menu-trigger:hover::before,
-html body main.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open .dashboard-header-meter-menu-trigger:focus-visible::before,
-html body main.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open .dashboard-header-meter-menu-trigger[aria-expanded="true"]::before,
-html body main.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active .dashboard-header-meter-menu-trigger:hover::before,
-html body main.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active .dashboard-header-meter-menu-trigger:focus-visible::before,
-html body main.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active .dashboard-header-meter-menu-trigger[aria-expanded="true"]::before {
-  animation: dashboard-header-meter-menu-black-hole-spin 3.6s linear infinite !important;
-  animation-play-state: running !important;
+.dashboard-header-meter-menu-trigger,
+.dashboard-header-meter-menu-trigger.dashboard-webgl-snapshot-host,
+.dashboard-header-meter-menu-trigger[data-dashboard-webgl-snapshot-visible="true"] {
+  aspect-ratio: 1 / 1 !important;
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  clip-path: none !important;
+  contain: none !important;
+  height: var(--dashboard-header-meter-button-size) !important;
+  overflow: visible !important;
+  width: var(--dashboard-header-meter-button-size) !important;
+}
+
+.dashboard-header-meter-menu-trigger::before {
+  animation: none !important;
+  content: none !important;
+  display: none !important;
+}
+
+.dashboard-header-meter-menu-trigger::after {
+  background: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  content: none !important;
+  display: none !important;
+  opacity: 0 !important;
+}
+
+.dashboard-header-meter-menu-trigger > .dashboard-header-meter-menu-trigger__fallback {
+  display: grid !important;
+  inset: 0 !important;
+  opacity: 0 !important;
+  place-items: center !important;
+  pointer-events: none !important;
+  position: absolute !important;
+  visibility: hidden !important;
+  z-index: 2 !important;
+}
+
+.dashboard-header-meter-menu-trigger:not(
+    :has(> .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-ready="true"])
+  )
+  > .dashboard-header-meter-menu-trigger__fallback,
+.dashboard-header-meter-menu-trigger:has(
+    > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-fallback="true"]
+  )
+  > .dashboard-header-meter-menu-trigger__fallback {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.dashboard-header-meter-menu-trigger:has(
+    > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-ready="true"]:not([data-webgl-fallback="true"])
+  )
+  > .dashboard-header-meter-menu-trigger__fallback {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+
+.dashboard-header-meter-menu-trigger > .dashboard-header-meter-menu-trigger__webgl-icon {
+  height: var(--dashboard-header-meter-button-size) !important;
+  width: var(--dashboard-header-meter-button-size) !important;
+}
+
+html[data-dashboard-webgl="warming"]
+  body
+  .dashboard-header-meter-menu-trigger
+  > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-ready="true"]:not([data-webgl-fallback="true"]) {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+@media (max-width: 760px) {
+  .dashboard-header-meter-menu-shell {
+    --dashboard-header-meter-button-size: clamp(2.46rem, 7.4vw, 3rem) !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .dashboard-header-meter-menu-shell {
+    --dashboard-header-meter-button-size: var(--dashboard-header-narrow-meter-size, 2.72rem) !important;
+  }
 }
 `;
 const DASHBOARD_HEADER_METER_UFO_COMPACT_STYLE = `
@@ -271,6 +343,25 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
   top: calc(50% + 3.35rem) !important;
   width: min(720px, calc(100vw - 24px)) !important;
   z-index: 12 !important;
+}
+
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-panel__stack--orbit::before,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-panel__stack--orbit::after,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado::before,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado::after,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado__core-map,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado__svg-mouth,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado__svg-stream,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado__svg-rings ellipse,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado__emerald,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado__emerald-core,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado__emerald-glint,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado__column,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado__ribbon,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado__base,
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-meter-tornado__debris {
+  animation-play-state: paused !important;
 }
 `;
 const DASHBOARD_HEADER_NEWS_CHYRON_TIMING_STYLE = `
@@ -1256,6 +1347,13 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
 }
 
 .dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"]):not([data-motion-paused="true"])
+  .dashboard-profile-points-trigger__orbit-stage {
+  --dashboard-profile-points-trigger-orbit-back-y: -0.58rem;
+  --dashboard-profile-points-trigger-orbit-front-y: 0.72rem;
+  --dashboard-profile-points-trigger-orbit-x: 1.68rem;
+}
+
+.dashboard-profile-points-trigger[data-dropdown-open="true"]
   .dashboard-profile-points-trigger__orbit-stage {
   --dashboard-profile-points-trigger-orbit-back-y: -0.58rem;
   --dashboard-profile-points-trigger-orbit-front-y: 0.72rem;
@@ -4246,7 +4344,7 @@ const DASHBOARD_PAGE_LEVEL_METER_TAB_STYLE = `
   justify-content: center !important;
   min-height: 0 !important;
   min-width: 0 !important;
-  overflow: hidden !important;
+  overflow: visible !important;
   padding: 0 0.22rem 0 0.32rem !important;
   position: relative !important;
   transform-origin: 100% 50% !important;
@@ -4307,36 +4405,167 @@ main.dashboard-page--level-meter-tab-highlighted .dashboard-page-level-meter-con
 
 .dashboard-page-level-meter-tab::after {
   background:
-    radial-gradient(circle at 34% 28%, rgba(224, 242, 254, 0.24), transparent 34%),
-    radial-gradient(circle at 46% 56%, rgba(34, 211, 238, 0.18), transparent 58%),
-    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(2, 6, 23, 0.92));
-  border: 1px solid rgba(125, 211, 252, 0.22);
+    radial-gradient(circle at 42% 20%, rgba(224, 242, 254, 0.18), transparent 34%),
+    radial-gradient(circle at 48% 62%, rgba(34, 211, 238, 0.12), transparent 56%),
+    linear-gradient(135deg, rgba(0, 0, 0, 0.78), rgba(2, 6, 23, 0.88));
+  border: 0;
   border-radius: 9999px;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.16),
-    inset 0 -0.7rem 1.2rem rgba(2, 6, 23, 0.62);
+    0 0.2rem 0.7rem rgba(0, 0, 0, 0.34),
+    inset 0 0.08rem 0.18rem rgba(255, 255, 255, 0.08),
+    inset 0 -0.7rem 1.2rem rgba(0, 0, 0, 0.76);
   content: "";
-  bottom: 0.76rem;
-  left: 0.76rem;
+  bottom: 0.72rem;
+  left: 0.68rem;
+  opacity: 0.92;
   pointer-events: none;
   position: absolute;
   right: auto;
-  top: 0.76rem;
-  width: calc(clamp(5rem, 7.6vw, 5.8rem) - 1.52rem);
+  top: 0.72rem;
+  width: calc(clamp(5rem, 7.6vw, 5.8rem) - 1.36rem);
   z-index: 0;
 }
 
 .dashboard-page-level-meter-tab__label,
 .dashboard-page-level-meter-tab__value {
-  position: relative;
-  z-index: 2;
+  left: 50%;
+  position: absolute !important;
+  transform: translateX(-50%);
+  z-index: 4;
+}
+
+.dashboard-page-level-meter-tab__label {
+  bottom: clamp(0.66rem, 1vw, 0.82rem);
+}
+
+.dashboard-page-level-meter-tab__value {
+  top: clamp(0.62rem, 0.95vw, 0.78rem);
 }
 
 .dashboard-page-level-meter-tab__value {
   align-items: center !important;
   display: flex !important;
+  flex-direction: column !important;
+  gap: 0.03rem !important;
   justify-content: center !important;
   margin-top: 0.1rem;
+}
+
+.dashboard-page-level-meter-tab__to-go {
+  color: rgba(186, 230, 253, 0.92);
+  display: block;
+  font-size: clamp(0.34rem, 0.66vw, 0.43rem);
+  font-weight: 950;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-shadow: 0 0 0.38rem rgba(34, 211, 238, 0.34);
+  white-space: nowrap;
+}
+
+.dashboard-page-level-meter-tab__next-reward {
+  align-items: center;
+  background:
+    radial-gradient(circle at 42% 30%, rgba(255, 255, 255, 0.28), transparent 36%),
+    radial-gradient(circle at 50% 52%, rgba(34, 211, 238, 0.2), transparent 62%),
+    linear-gradient(135deg, rgba(2, 6, 23, 0.86), rgba(15, 23, 42, 0.48));
+  border: 1px solid rgba(186, 230, 253, 0.22);
+  border-radius: 9999px;
+  box-shadow:
+    0 0 0.38rem rgba(34, 211, 238, 0.26),
+    0 0 0.72rem rgba(250, 204, 21, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -0.4rem 0.7rem rgba(2, 6, 23, 0.6);
+  display: grid;
+  height: clamp(1.18rem, 1.95vw, 1.38rem);
+  justify-items: center;
+  left: calc(100% - clamp(0.28rem, 0.58vw, 0.46rem));
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: clamp(1.18rem, 1.95vw, 1.38rem);
+  z-index: 6;
+}
+
+.dashboard-page-level-meter-tab__next-reward::before {
+  animation: none;
+  background:
+    radial-gradient(circle, rgba(236, 254, 255, 0.62), transparent 58%),
+    radial-gradient(circle, rgba(34, 211, 238, 0.34), transparent 68%);
+  border-radius: inherit;
+  content: "";
+  filter: blur(0.08rem);
+  inset: -0.2rem;
+  opacity: 0.18;
+  pointer-events: none;
+  position: absolute;
+  transform: scale(0.9);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+  z-index: -1;
+}
+
+.dashboard-page-level-meter-control:not(.dashboard-page-level-meter-control--open)
+  .dashboard-page-level-meter-tab:hover
+  .dashboard-page-level-meter-tab__next-reward::before,
+main.dashboard-page--level-meter-tab-highlighted
+  .dashboard-page-level-meter-control:not(.dashboard-page-level-meter-control--open)
+  .dashboard-page-level-meter-tab
+  .dashboard-page-level-meter-tab__next-reward::before,
+.dashboard-page-level-meter-control:not(.dashboard-page-level-meter-control--open)
+  .dashboard-page-level-meter-tab:focus-visible
+  .dashboard-page-level-meter-tab__next-reward::before {
+  animation: dashboard-page-level-next-reward-pulse 1.9s ease-in-out infinite;
+  opacity: 0.62;
+}
+
+.dashboard-page-level-meter-tab__next-reward .dashboard-page-analog-rail__reward-icon {
+  background: none !important;
+  box-shadow: none !important;
+  height: clamp(0.78rem, 1.24vw, 0.94rem);
+  margin: 0 !important;
+  width: clamp(0.78rem, 1.24vw, 0.94rem);
+}
+
+.dashboard-page-level-meter-tab__next-reward .dashboard-page-analog-rail__reward-icon::before,
+.dashboard-page-level-meter-tab__next-reward .dashboard-page-analog-rail__reward-icon::after {
+  display: none !important;
+}
+
+.dashboard-page-level-meter-tab__next-reward .dashboard-page-analog-rail__reward-svg {
+  height: 100%;
+  width: 100%;
+}
+
+.dashboard-page-level-meter-tab__next-reward--coin {
+  border-color: rgba(250, 204, 21, 0.34);
+  box-shadow:
+    0 0 0.42rem rgba(250, 204, 21, 0.24),
+    0 0 0.78rem rgba(34, 211, 238, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -0.4rem 0.7rem rgba(2, 6, 23, 0.6);
+}
+
+.dashboard-page-level-meter-tab__next-reward--emerald {
+  border-color: rgba(52, 211, 153, 0.34);
+}
+
+.dashboard-page-level-meter-tab__next-reward--trophy {
+  border-color: rgba(253, 230, 138, 0.4);
+}
+
+@keyframes dashboard-page-level-next-reward-pulse {
+  0%,
+  100% {
+    opacity: 0.36;
+    transform: scale(0.88);
+  }
+
+  50% {
+    opacity: 0.82;
+    transform: scale(1.08);
+  }
 }
 
 .dashboard-page-level-sound-points {
@@ -4680,13 +4909,50 @@ const DASHBOARD_PAGE_LEVEL_REWARD_MARKER_STYLE = `
 
 .dashboard-page-analog-rail__reward-icon {
   align-items: center;
+  border-radius: 9999px;
   display: block;
   display: grid;
   height: 1.34rem;
+  isolation: isolate;
   justify-items: center;
+  overflow: hidden;
   position: relative;
   width: 1.34rem;
   z-index: 2;
+}
+
+.dashboard-page-analog-rail__reward-inner-fill {
+  background:
+    radial-gradient(
+      ellipse at 50% 14%,
+      rgba(255, 255, 255, 0.58),
+      transparent 32%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--dashboard-page-analog-reward-accent) 78%, white 12%),
+      color-mix(in srgb, var(--dashboard-page-analog-reward-accent) 66%, rgba(34, 211, 238, 0.4)) 52%,
+      color-mix(in srgb, var(--dashboard-page-analog-reward-accent) 72%, rgba(250, 204, 21, 0.2))
+    );
+  border-radius: inherit;
+  bottom: 0;
+  box-shadow:
+    0 0 0.24rem color-mix(in srgb, var(--dashboard-page-analog-reward-accent) 34%, transparent),
+    inset 0 0.12rem 0.22rem rgba(255, 255, 255, 0.18),
+    inset 0 -0.18rem 0.26rem rgba(2, 6, 23, 0.46);
+  display: block;
+  height: 100%;
+  left: 0;
+  opacity: 0.78;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  transform: scaleY(var(--dashboard-page-analog-reward-inner-fill, 1));
+  transform-origin: bottom center;
+  transition:
+    opacity 220ms ease,
+    transform 420ms cubic-bezier(0.2, 0.82, 0.2, 1);
+  z-index: 1;
 }
 
 .dashboard-page-analog-rail__reward-svg {
@@ -4961,6 +5227,46 @@ const DASHBOARD_PAGE_LEVEL_METER_CHARGED_STYLE = `
   background: transparent !important;
   border-color: transparent !important;
   box-shadow: none !important;
+}
+
+.dashboard-page-level-meter-webgl {
+  display: block;
+  height: 23.2rem;
+  left: 50%;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transition: opacity 180ms ease;
+  width: 4.3rem;
+  z-index: 3;
+}
+
+.dashboard-page-level-meter-control--open .dashboard-page-level-meter-webgl[data-webgl-ready="true"] {
+  opacity: 1;
+}
+
+.dashboard-page-level-meter-control--open .dashboard-page-analog-rail__rewards {
+  z-index: 8;
+}
+
+.dashboard-page-level-meter-control--open .dashboard-page-analog-rail__reward {
+  z-index: 8;
+}
+
+.dashboard-page-level-meter-control--open .dashboard-page-analog-rail__reward--level-up {
+  z-index: 10;
+}
+
+.dashboard-page-level-meter-control--open .dashboard-page-analog-dock:has(.dashboard-page-level-meter-webgl[data-webgl-ready="true"]) .dashboard-page-analog-rail__fill {
+  animation: none !important;
+  opacity: 0 !important;
+}
+
+.dashboard-page-level-meter-control--open .dashboard-page-analog-dock:has(.dashboard-page-level-meter-webgl[data-webgl-ready="true"]) .dashboard-page-analog-rail__fill::before,
+.dashboard-page-level-meter-control--open .dashboard-page-analog-dock:has(.dashboard-page-level-meter-webgl[data-webgl-ready="true"]) .dashboard-page-analog-rail__fill::after {
+  display: none !important;
 }
 
 .dashboard-page-level-meter-control--open .dashboard-page-analog-rail::before {
@@ -8550,6 +8856,7 @@ type DashboardWeeklyRecapCard = {
 };
 
 type DashboardMySoundCard = {
+  completion: number;
   description: string;
   href: string;
   icon: string;
@@ -9330,6 +9637,63 @@ const dashboardHeaderToneStyles: Record<
       "border-violet-200/26 bg-violet-300/8 shadow-[0_0_30px_rgba(167,139,250,0.12),inset_0_1px_0_rgba(255,255,255,0.10)]",
   },
 };
+
+const dashboardHeaderSelectorMeteorStreaks = [
+  {
+    delay: "-0.35s",
+    duration: "4.8s",
+    scale: "0.72",
+    startX: "98%",
+    startY: "-18%",
+    travelX: "-12rem",
+    travelY: "4.9rem",
+  },
+  {
+    delay: "-1.75s",
+    duration: "5.6s",
+    scale: "0.54",
+    startX: "82%",
+    startY: "4%",
+    travelX: "-9.4rem",
+    travelY: "3.35rem",
+  },
+  {
+    delay: "-2.9s",
+    duration: "6.4s",
+    scale: "0.62",
+    startX: "110%",
+    startY: "26%",
+    travelX: "-13.5rem",
+    travelY: "4.1rem",
+  },
+  {
+    delay: "-4.2s",
+    duration: "7.1s",
+    scale: "0.46",
+    startX: "70%",
+    startY: "-10%",
+    travelX: "-8.2rem",
+    travelY: "3.05rem",
+  },
+  {
+    delay: "-5.05s",
+    duration: "5.2s",
+    scale: "0.5",
+    startX: "104%",
+    startY: "12%",
+    travelX: "-11.3rem",
+    travelY: "3.82rem",
+  },
+  {
+    delay: "-6.15s",
+    duration: "6.8s",
+    scale: "0.42",
+    startX: "88%",
+    startY: "46%",
+    travelX: "-9rem",
+    travelY: "2.9rem",
+  },
+] as const;
 
 type DashboardEffectToneStyle = CSSProperties & {
   "--dashboard-effect-accent": string;
@@ -11680,6 +12044,13 @@ export default function UserHomeDashboardPage() {
   ] = useState<DashboardScrollButtonDirection | null>(null);
   const [dashboardPageAnalogOffset, setDashboardPageAnalogOffset] =
     useState<DashboardVerticalPointerStart>({ x: 0, y: 0 });
+  const [
+    dashboardCalendarOrbitCommand,
+    setDashboardCalendarOrbitCommand,
+  ] = useState<{
+    direction: DashboardOrbitDirection;
+    sequence: number;
+  } | null>(null);
   const dashboardPageAnalogInUse =
     dashboardPageAnalogHovered ||
     dashboardPageAnalogDragging ||
@@ -11833,6 +12204,12 @@ export default function UserHomeDashboardPage() {
     dashboardPointsDropdownOpen || dashboardClaimRewardsDropdownOpen;
   const dashboardPointsMenuHighlighted =
     dashboardHeaderRewards3DActive || dashboardProfileRewardDropdownOpen;
+  const dashboardPointsTriggerGlowActive =
+    dashboardHeaderRewards3DActive || dashboardPointsDropdownOpen;
+  const dashboardPointsTriggerMotionPaused =
+    dashboardHeaderMotionPaused ||
+    dashboardPointsDropdownOpen ||
+    !dashboardHeaderRewards3DActive;
   const [dashboardMusicDropdownOpen, setDashboardMusicDropdownOpen] =
     useState(false);
   const [dashboardMusicEnabled, setDashboardMusicEnabled] = useState(false);
@@ -13383,6 +13760,7 @@ export default function UserHomeDashboardPage() {
           icon: "+",
           label: "Low urgency",
           ring: "border-emerald-200/35 bg-emerald-300/10",
+          status: "idle" as const,
           text: "text-emerald-100",
         }
       : completion >= 50
@@ -13391,6 +13769,7 @@ export default function UserHomeDashboardPage() {
             icon: ">",
             label: "Active",
             ring: "border-cyan-200/35 bg-cyan-300/10",
+            status: "watch" as const,
             text: "text-cyan-100",
           }
         : {
@@ -13398,12 +13777,27 @@ export default function UserHomeDashboardPage() {
             icon: "!",
             label: "Needs attention",
             ring: "border-amber-200/35 bg-amber-300/10",
+            status: "attention" as const,
             text: "text-amber-100",
           };
+  const dashboardMySoundUrgencyTone = {
+    dot: "bg-fuchsia-200 shadow-[0_0_14px_rgba(217,70,239,0.62)]",
+    icon: "~",
+    label: "Insight active",
+    ring: "border-fuchsia-200/35 bg-fuchsia-300/10",
+    status: "watch" as const,
+    text: "text-fuchsia-100",
+  };
   const clampedDashboardOrbiterRow = Math.max(
     0,
     Math.min(dashboardOrbiterRows.length - 1, activeDashboardOrbiterRow),
   );
+  const dashboardMySoundRowIndex = dashboardOrbiterRows.findIndex(
+    (row) => row.title === "My Sound",
+  );
+  const dashboardMySoundRowActive =
+    dashboardMySoundRowIndex >= 0 &&
+    clampedDashboardOrbiterRow === dashboardMySoundRowIndex;
   const dashboardHeaderLogoClusterAnimating =
     clampedDashboardOrbiterRow === 0 &&
     dashboardHeaderLogoClusterHighlighted &&
@@ -13483,6 +13877,44 @@ export default function UserHomeDashboardPage() {
     event.stopPropagation();
     setDashboardOrbiterRow(nextRow);
   };
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleDashboardGlobalWheel = (event: WheelEvent) => {
+      if (event.defaultPrevented || event.ctrlKey || event.metaKey) return;
+
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest("input,select,textarea,[contenteditable='true']")
+      ) {
+        return;
+      }
+
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY) * 1.2) return;
+
+      const direction = event.deltaY > 18 ? 1 : event.deltaY < -18 ? -1 : 0;
+      if (direction === 0) return;
+
+      const didMove = moveDashboardOrbiterRow(direction);
+      if (!didMove) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+    };
+
+    window.addEventListener("wheel", handleDashboardGlobalWheel, {
+      capture: true,
+      passive: false,
+    });
+
+    return () => {
+      window.removeEventListener("wheel", handleDashboardGlobalWheel, {
+        capture: true,
+      });
+    };
+  }, [clampedDashboardOrbiterRow, dashboardOrbiterRows.length]);
   const handleDashboardOrbiterKeyDown = (
     event: ReactKeyboardEvent<HTMLElement>,
   ) => {
@@ -13619,11 +14051,7 @@ export default function UserHomeDashboardPage() {
     return true;
   };
   const getDashboardHeroCardOrbitDistance = (index: number) =>
-    getDashboardOrbitDistance(
-      index,
-      activeDashboardHeroCardIndex,
-      dashboardHeroCardCount,
-    );
+    index - activeDashboardHeroCardIndex;
   const handleDashboardHeroCardWheel = (
     event: ReactWheelEvent<HTMLDivElement>,
   ) => {
@@ -16999,6 +17427,16 @@ export default function UserHomeDashboardPage() {
       return `${reward.label} ${rewardPosition}, ${rewardPointsRequired.toLocaleString()} points required, ${rewardUnlockStatus}`;
     },
   ).join(", ");
+  const dashboardNextLevelReward =
+    DASHBOARD_PAGE_ANALOG_LEVEL_REWARDS.find(
+      (reward) => soundFitnessLevelProgress < reward.threshold,
+    ) ??
+    DASHBOARD_PAGE_ANALOG_LEVEL_REWARDS[
+      DASHBOARD_PAGE_ANALOG_LEVEL_REWARDS.length - 1
+    ];
+  const dashboardNextLevelRewardPoints = Math.round(
+    (soundFitnessLevelSize * dashboardNextLevelReward.threshold) / 100,
+  );
   const dashboardLevelTabProgressDegrees = `${Math.round(
     soundFitnessLevelProgress * 1.8,
   )}deg`;
@@ -17829,6 +18267,14 @@ export default function UserHomeDashboardPage() {
       activeWeeklyRecapIndex,
       dashboardWeeklyRecapCards.length,
     );
+  const getWeeklyRecapIndicatorLabel = (title: string) => {
+    if (title.includes("Training")) return "Volume";
+    if (title.includes("Nutrition")) return "Fuel";
+    if (title.includes("Recovery")) return "Recovery";
+    if (title.includes("Activity")) return "Activity";
+
+    return title;
+  };
   const rotateWeeklyRecap = (direction: DashboardOrbitDirection) => {
     setActiveWeeklyRecapIndex((currentIndex) => {
       const nextIndex =
@@ -17867,8 +18313,26 @@ export default function UserHomeDashboardPage() {
   };
   const dashboardNutritionFavorites =
     dashboardLibraryFavoriteIds.nutrition?.length || 0;
+  const dashboardPerformanceSignalCompletion = clampDashboardPercent(
+    dashboardSummary.hasStats
+      ? Math.max(
+          35,
+          Math.min(
+            100,
+            dashboardSummary.totalLoggedEntries * 12 +
+              dashboardSummary.uniqueExerciseCount * 8,
+          ),
+        )
+      : 18,
+  );
+  const dashboardGoalSignalCompletion = clampDashboardPercent(
+    (dashboardFoundationProgress.goalsCompletion +
+      dashboardFoundationProgress.profileCompletion) /
+      2,
+  );
   const dashboardMySoundCards: DashboardMySoundCard[] = [
     {
+      completion: dashboardSummary.weeklySessionProgress,
       description:
         "Sessions, templates, and weekly volume are shaping the next training prompt.",
       href: ROUTES.dashboard.sessions,
@@ -17907,6 +18371,7 @@ export default function UserHomeDashboardPage() {
       tone: "cyan",
     },
     {
+      completion: dashboardNutritionAverage,
       description:
         "Fuel content is weighted toward the habits with the biggest gap this week.",
       href: ROUTES.nutrition.home,
@@ -17933,6 +18398,7 @@ export default function UserHomeDashboardPage() {
       tone: "emerald",
     },
     {
+      completion: dashboardRecoveryAverage,
       description:
         "Recovery suggestions respond to recent training heat and readiness.",
       href: ROUTES.dashboard.recovery,
@@ -17963,6 +18429,7 @@ export default function UserHomeDashboardPage() {
       tone: "amber",
     },
     {
+      completion: dashboardPerformanceSignalCompletion,
       description:
         "Performance content follows volume, exercise variety, and logged stats.",
       href: ROUTES.dashboard.performance,
@@ -17989,6 +18456,7 @@ export default function UserHomeDashboardPage() {
       tone: "sky",
     },
     {
+      completion: dashboardGoalSignalCompletion,
       description:
         "Goal and profile context decide how specific the plan recommendations can get.",
       href: ROUTES.dashboard.goals,
@@ -18024,6 +18492,7 @@ export default function UserHomeDashboardPage() {
       tone: "violet",
     },
     {
+      completion: soundFitnessLevelProgress,
       description:
         "Rewards and community prompts are tuned from points, streaks, and unlocked milestones.",
       href: ROUTES.dashboard.achievements,
@@ -18404,6 +18873,11 @@ export default function UserHomeDashboardPage() {
     dashboardFloatingSnapshotActiveCard?.title ||
     dashboardFloatingSnapshotRow?.title ||
     "Weekly Snapshot";
+  const dashboardFloatingSnapshotTitleRepeatsEyebrow =
+    dashboardFloatingSnapshotTitle.trim().toLowerCase() ===
+    (dashboardFloatingSnapshotRow?.title || "Weekly Snapshot")
+      .trim()
+      .toLowerCase();
   const dashboardFloatingSnapshotRowTone = getDashboardRowUrgencyTone(
     dashboardFloatingSnapshotRow?.completion || 0,
   );
@@ -18798,6 +19272,16 @@ export default function UserHomeDashboardPage() {
   const activeDashboardHeaderUrgencyTone = getDashboardRowUrgencyTone(
     activeDashboardHeaderLink.completion,
   );
+  const dashboardHeaderUrgencyBlinkPaused =
+    dashboardHeaderMeterMenuOpen ||
+    dashboardProfileRewardDropdownOpen ||
+    dashboardPointsActionMenuOpen !== null ||
+    dashboardMusicDropdownOpen ||
+    dashboardTrophyMenuOpen ||
+    dashboardHeroWidgetsDrawerOpen ||
+    dashboardProfileHubOpen ||
+    dashboardProfileActionsOpen ||
+    dashboardPointsMenuHighlighted;
   const nextDashboardHeaderLink =
     dashboardHeaderLinks[
       (activeDashboardHeaderNormalizedIndex + 1) % dashboardHeaderLinks.length
@@ -19322,7 +19806,10 @@ export default function UserHomeDashboardPage() {
     }
 
     if (clampedDashboardOrbiterRow === 4) {
-      rotateDashboardConsistencyMonth(direction === "left" ? -1 : 1);
+      setDashboardCalendarOrbitCommand((currentCommand) => ({
+        direction,
+        sequence: (currentCommand?.sequence ?? 0) + 1,
+      }));
       return true;
     }
 
@@ -22796,10 +23283,20 @@ export default function UserHomeDashboardPage() {
 
   const renderDashboardPageLevelRewardIcon = (
     icon: (typeof DASHBOARD_PAGE_ANALOG_LEVEL_REWARDS)[number]["icon"],
+    fillRatio = 1,
   ) => {
+    const rewardInnerFill = Math.max(0.04, Math.min(1, fillRatio));
+    const rewardIconStyle = {
+      "--dashboard-page-analog-reward-inner-fill": rewardInnerFill,
+    } as CSSProperties;
+
     if (icon === "coin") {
       return (
-        <span className="dashboard-page-analog-rail__reward-icon">
+        <span
+          className="dashboard-page-analog-rail__reward-icon"
+          style={rewardIconStyle}
+        >
+          <span className="dashboard-page-analog-rail__reward-inner-fill" />
           <svg
             aria-hidden="true"
             className="dashboard-page-analog-rail__reward-svg"
@@ -22829,7 +23326,11 @@ export default function UserHomeDashboardPage() {
 
     if (icon === "emerald") {
       return (
-        <span className="dashboard-page-analog-rail__reward-icon">
+        <span
+          className="dashboard-page-analog-rail__reward-icon"
+          style={rewardIconStyle}
+        >
+          <span className="dashboard-page-analog-rail__reward-inner-fill" />
           <svg
             aria-hidden="true"
             className="dashboard-page-analog-rail__reward-svg"
@@ -22854,7 +23355,11 @@ export default function UserHomeDashboardPage() {
     }
 
     return (
-      <span className="dashboard-page-analog-rail__reward-icon">
+      <span
+        className="dashboard-page-analog-rail__reward-icon"
+        style={rewardIconStyle}
+      >
+        <span className="dashboard-page-analog-rail__reward-inner-fill" />
         <svg
           aria-hidden="true"
           className="dashboard-page-analog-rail__reward-svg"
@@ -22939,6 +23444,19 @@ export default function UserHomeDashboardPage() {
         }
         type="button"
       >
+        <span
+          aria-hidden="true"
+          className={`dashboard-page-level-meter-tab__next-reward dashboard-page-level-meter-tab__next-reward--${dashboardNextLevelReward.icon}`}
+          data-dashboard-tooltip={`Next reward: ${
+            dashboardNextLevelReward.label
+          } at ${dashboardNextLevelRewardPoints.toLocaleString()} points`}
+        >
+          {renderDashboardPageLevelRewardIcon(
+            dashboardNextLevelReward.icon,
+            soundFitnessLevelProgress /
+              Math.max(1, dashboardNextLevelReward.threshold),
+          )}
+        </span>
         <span className="dashboard-page-level-meter-tab__label">
           LV {soundFitnessLevel}
         </span>
@@ -22952,6 +23470,9 @@ export default function UserHomeDashboardPage() {
             soundPointsToNextLevel,
             "dashboard-page-level-sound-points--tab",
           )}
+          <span className="dashboard-page-level-meter-tab__to-go">
+            PTS TO GO!
+          </span>
         </span>
       </button>
       <div
@@ -22975,6 +23496,12 @@ export default function UserHomeDashboardPage() {
             } as CSSProperties
           }
         >
+          <DashboardLevelMeterBar3D
+            active={dashboardPageLevelMeterOpen}
+            className="dashboard-page-level-meter-webgl"
+            paused={!dashboardPageLevelMeterOpen}
+            progress={soundFitnessLevelProgress}
+          />
           <span
             aria-label={`Level ${soundFitnessLevel} progress, ${Math.round(
               soundFitnessLevelProgress,
@@ -22989,6 +23516,20 @@ export default function UserHomeDashboardPage() {
             }`}
             className="dashboard-page-analog-rail"
             role="meter"
+          />
+          <span
+            aria-hidden="true"
+            className="dashboard-page-analog-rail__fill"
+            style={{
+              bottom: "1.34rem",
+              boxShadow:
+                "0 0 0.28rem rgba(34,211,238,0.26), 0 0 0.48rem rgba(250,204,21,0.12)",
+              top: "auto",
+              transform: `translateX(-50%) scaleY(${dashboardAnalogLevelFill})`,
+              transformOrigin: "bottom center",
+              transition:
+                "transform 420ms cubic-bezier(0.2, 0.82, 0.2, 1)",
+            }}
           />
           <span
             aria-hidden="true"
@@ -23033,6 +23574,9 @@ export default function UserHomeDashboardPage() {
               );
               const rewardUnlocked =
                 soundFitnessLevelProgress >= reward.threshold;
+              const rewardInnerFillRatio = rewardUnlocked
+                ? 1
+                : soundFitnessLevelProgress / Math.max(1, reward.threshold);
               const rewardPointsRequired = Math.round(
                 (soundFitnessLevelSize * reward.threshold) / 100,
               );
@@ -23061,7 +23605,10 @@ export default function UserHomeDashboardPage() {
                     } as CSSProperties
                   }
                 >
-                  {renderDashboardPageLevelRewardIcon(reward.icon)}
+                  {renderDashboardPageLevelRewardIcon(
+                    reward.icon,
+                    rewardInnerFillRatio,
+                  )}
                   <span className="dashboard-page-analog-rail__reward-points">
                     {renderDashboardLevelSoundPoints(
                       rewardPointsRequired,
@@ -23072,20 +23619,6 @@ export default function UserHomeDashboardPage() {
               );
             })}
           </span>
-          <span
-            aria-hidden="true"
-            className="dashboard-page-analog-rail__fill"
-            style={{
-              bottom: "1.34rem",
-              boxShadow:
-                "0 0 0.28rem rgba(34,211,238,0.26), 0 0 0.48rem rgba(250,204,21,0.12)",
-              top: "auto",
-              transform: `translateX(-50%) scaleY(${dashboardAnalogLevelFill})`,
-              transformOrigin: "bottom center",
-              transition:
-                "transform 420ms cubic-bezier(0.2, 0.82, 0.2, 1)",
-            }}
-          />
           <span
             aria-hidden="true"
             className="dashboard-page-analog-rail__scanner"
@@ -23521,7 +24054,7 @@ export default function UserHomeDashboardPage() {
                 </span>
                 {renderDashboardCompletionDot(
                   getDashboardJourneyStepCompletion(step),
-                  isActiveJourneyStep || step.state === "complete",
+                  isActiveJourneyStep,
                   "-bottom-1 -right-1 z-30",
                 )}
               </Link>
@@ -23563,23 +24096,6 @@ export default function UserHomeDashboardPage() {
           : "pointer-events-none opacity-40"
       }`}
     >
-      <button
-        aria-label={`Previous ${title}`}
-        className="absolute left-[5.75rem] top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 hover:shadow-[0_0_38px_rgba(250,204,21,0.18)] active:scale-95 sm:left-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:left-[6.75rem] xl:left-[7.25rem]"
-        onClick={() => rotateOrbit("left")}
-        type="button"
-      >
-        &lt;
-      </button>
-      <button
-        aria-label={`Next ${title}`}
-        className="absolute right-2 top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 hover:shadow-[0_0_38px_rgba(250,204,21,0.18)] active:scale-95 sm:right-4 sm:h-14 sm:w-14 sm:text-3xl lg:right-6 xl:right-8"
-        onClick={() => rotateOrbit("right")}
-        type="button"
-      >
-        &gt;
-      </button>
-
       <div className="sr-only">
         {kicker}. {title}. {description}
       </div>
@@ -23801,8 +24317,17 @@ export default function UserHomeDashboardPage() {
       return null;
     }
 
+    const isDashboardCommandSnapshot = clampedDashboardOrbiterRow === 3;
+    const isDashboardSystemSnapshot = clampedDashboardOrbiterRow === 6;
+
     return (
-      <div className="pointer-events-none absolute inset-x-0 top-[118px] z-[70] px-3 sm:top-[122px] sm:px-5 lg:top-[126px] lg:px-8">
+      <div
+        className={`pointer-events-none absolute inset-x-0 z-[70] px-3 sm:px-5 lg:px-8 ${
+          isDashboardSystemSnapshot
+            ? "top-[138px] sm:top-[142px] lg:top-[146px]"
+            : "top-[118px] sm:top-[122px] lg:top-[126px]"
+        }`}
+      >
         <section className="pointer-events-auto relative mx-auto max-w-[1280px] overflow-visible px-1 py-2 sm:px-2 sm:py-3">
           <span
             aria-hidden="true"
@@ -23816,7 +24341,13 @@ export default function UserHomeDashboardPage() {
             aria-hidden="true"
             className="pointer-events-none absolute left-0 top-10 h-16 w-[min(32rem,68vw)] bg-[linear-gradient(90deg,rgba(34,211,238,0.10),rgba(15,23,42,0.03),transparent)] blur-xl"
           />
-          <div className="relative z-10 flex flex-col gap-2 min-[760px]:flex-row min-[760px]:items-center min-[760px]:justify-between">
+          <div
+            className={`relative z-10 flex flex-col gap-2 min-[760px]:flex-row min-[760px]:items-center ${
+              isDashboardCommandSnapshot
+                ? "min-[760px]:justify-center min-[760px]:gap-12 min-[1040px]:gap-16"
+                : "min-[760px]:justify-between"
+            }`}
+          >
             <div className="min-w-0 min-[760px]:max-w-[390px] min-[1040px]:max-w-[540px]">
               <div className="min-w-0">
                 {clampedDashboardOrbiterRow === 0 ? null : (
@@ -23838,7 +24369,8 @@ export default function UserHomeDashboardPage() {
                     </span>
                   </div>
                 )}
-                {clampedDashboardOrbiterRow === 0 ? null : (
+                {clampedDashboardOrbiterRow === 0 ||
+                dashboardFloatingSnapshotTitleRepeatsEyebrow ? null : (
                   <h2 className="mt-0.5 truncate text-lg font-black uppercase tracking-[0.08em] text-white sm:text-xl">
                     {dashboardFloatingSnapshotTitle}
                   </h2>
@@ -23949,122 +24481,128 @@ export default function UserHomeDashboardPage() {
               </div>
             </div>
 
-            <div className="dashboard-constellation-orbit relative min-h-[108px] min-w-0 flex-1 overflow-visible [perspective:780px] min-[760px]:max-w-[250px] min-[1040px]:max-w-[280px]">
-              <span
-                aria-hidden="true"
-                className="dashboard-constellation-orbit__field"
-              />
-              <div aria-live="polite" className="sr-only">
-                {activeDashboardFloatingMetric
-                  ? `${activeDashboardFloatingMetric.label}: ${activeDashboardFloatingMetric.value}`
-                  : "Dashboard metric orbit"}
-              </div>
-              <div className="pointer-events-none absolute left-1/2 top-1/2 h-[94px] w-px -translate-x-1/2 -translate-y-1/2 bg-gradient-to-b from-transparent via-cyan-200/24 to-transparent shadow-[0_0_18px_rgba(34,211,238,0.20)]" />
-              <div
-                aria-label={`${dashboardFloatingSnapshotTitle} metric orbit`}
-                className="absolute inset-0 [transform-style:preserve-3d]"
-              >
-                {dashboardFloatingSnapshotMetrics.map((metric, metricIndex) => {
-                  const activeMetricIndex =
-                    activeDashboardFloatingMetricIndex %
-                    Math.max(1, dashboardFloatingSnapshotMetrics.length);
-                  const distance = getDashboardOrbitDistance(
-                    metricIndex,
-                    activeMetricIndex,
-                    dashboardFloatingSnapshotMetrics.length,
-                  );
-                  const clampedDistance = Math.max(-2, Math.min(2, distance));
-                  const absDistance = Math.abs(clampedDistance);
-                  const isActive = distance === 0;
-                  const direction = Math.sign(clampedDistance);
-                  const metricTone = ["cyan", "amber", "emerald", "violet"][
-                    metricIndex % 4
-                  ] as DashboardCardTone;
-                  const metricUrgencyTone = getDashboardRowUrgencyTone(
-                    getDashboardFloatingMetricCompletion(metric),
-                  );
-                  const ySlots = [0, 35, 66];
-                  const y = direction * ySlots[absDistance];
-                  const x = isActive ? 0 : absDistance * 7;
-                  const scale = isActive ? 1 : absDistance === 1 ? 0.84 : 0.68;
-                  const opacity = isActive
-                    ? 1
-                    : absDistance === 1
-                      ? 0.72
-                      : 0.34;
-                  const rotateX = direction * -18;
+            {isDashboardSystemSnapshot ? null : (
+              <div className="dashboard-constellation-orbit relative min-h-[108px] min-w-0 flex-1 overflow-visible [perspective:780px] min-[760px]:max-w-[250px] min-[1040px]:max-w-[280px]">
+                <span
+                  aria-hidden="true"
+                  className="dashboard-constellation-orbit__field"
+                />
+                <div aria-live="polite" className="sr-only">
+                  {activeDashboardFloatingMetric
+                    ? `${activeDashboardFloatingMetric.label}: ${activeDashboardFloatingMetric.value}`
+                    : "Dashboard metric orbit"}
+                </div>
+                <div className="pointer-events-none absolute left-1/2 top-1/2 h-[94px] w-px -translate-x-1/2 -translate-y-1/2 bg-gradient-to-b from-transparent via-cyan-200/24 to-transparent shadow-[0_0_18px_rgba(34,211,238,0.20)]" />
+                <div
+                  aria-label={`${dashboardFloatingSnapshotTitle} metric orbit`}
+                  className="absolute inset-0 [transform-style:preserve-3d]"
+                >
+                  {dashboardFloatingSnapshotMetrics.map((metric, metricIndex) => {
+                    const activeMetricIndex =
+                      activeDashboardFloatingMetricIndex %
+                      Math.max(1, dashboardFloatingSnapshotMetrics.length);
+                    const distance = getDashboardOrbitDistance(
+                      metricIndex,
+                      activeMetricIndex,
+                      dashboardFloatingSnapshotMetrics.length,
+                    );
+                    const clampedDistance = Math.max(-2, Math.min(2, distance));
+                    const absDistance = Math.abs(clampedDistance);
+                    const isActive = distance === 0;
+                    const direction = Math.sign(clampedDistance);
+                    const metricTone = ["cyan", "amber", "emerald", "violet"][
+                      metricIndex % 4
+                    ] as DashboardCardTone;
+                    const metricUrgencyTone = getDashboardRowUrgencyTone(
+                      getDashboardFloatingMetricCompletion(metric),
+                    );
+                    const ySlots = [0, 35, 66];
+                    const y = direction * ySlots[absDistance];
+                    const x = isActive ? 0 : absDistance * 7;
+                    const scale = isActive
+                      ? 1
+                      : absDistance === 1
+                        ? 0.84
+                        : 0.68;
+                    const opacity = isActive
+                      ? 1
+                      : absDistance === 1
+                        ? 0.72
+                        : 0.34;
+                    const rotateX = direction * -18;
 
-                  return (
-                    <button
-                      aria-label={`Show ${metric.label} metric, ${metric.value}, ${metricUrgencyTone.label}`}
-                      aria-pressed={isActive}
-                      className={`dashboard-constellation-metric group absolute left-1/2 top-1/2 isolate flex h-10 items-center justify-between gap-3 overflow-visible rounded-2xl border px-3 text-left shadow-[0_16px_42px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl transition-[width,border-color,background-color,box-shadow,filter] duration-300 ${
-                        isActive
-                          ? `dashboard-constellation-metric--active ${dashboardIconToneStyles[metricTone].active} w-[208px]`
-                          : `${dashboardIconToneStyles[metricTone].idle} w-[174px] hover:brightness-125`
-                      }`}
-                      key={`${dashboardFloatingSnapshotTitle}-${metric.label}`}
-                      onClick={() =>
-                        setActiveDashboardFloatingMetricIndex(metricIndex)
-                      }
-                      style={{
-                        opacity,
-                        transform: `translate(-50%, -50%) translateX(${x}px) translateY(${y}px) translateZ(${
-                          isActive ? 62 : 18 - absDistance * 8
-                        }px) rotateX(${rotateX}deg) scale(${scale})`,
-                        transition:
-                          "transform 560ms cubic-bezier(0.2, 0.82, 0.2, 1), opacity 320ms ease, width 260ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease",
-                        zIndex: 30 - absDistance,
-                      }}
-                      type="button"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="dashboard-constellation-metric__zoom"
-                      />
-                      <span
-                        aria-hidden="true"
-                        className="dashboard-constellation-metric__lines"
-                      />
-                      <span
-                        aria-hidden="true"
-                        className="dashboard-constellation-metric__stars"
-                      />
-                      <span
-                        aria-hidden="true"
-                        className={`absolute inset-x-5 top-0 z-10 h-px rounded-full ${dashboardToneStyles[metricTone].line}`}
-                      />
-                      <span className="relative z-10 min-w-0">
-                        <span className="block truncate text-[7px] font-black uppercase tracking-[0.14em] text-slate-300/80">
-                          {metric.label}
-                        </span>
-                        <span className="block truncate text-sm font-black tracking-tight text-white">
-                          {metric.value}
-                        </span>
-                      </span>
-                      <span
-                        aria-hidden="true"
-                        className={`relative z-10 grid h-4 w-4 shrink-0 place-items-center rounded-full border bg-slate-950/72 text-[7px] font-black leading-none text-slate-950 ring-1 ring-white/10 ${
+                    return (
+                      <button
+                        aria-label={`Show ${metric.label} metric, ${metric.value}, ${metricUrgencyTone.label}`}
+                        aria-pressed={isActive}
+                        className={`dashboard-constellation-metric group absolute left-1/2 top-1/2 isolate flex h-10 items-center justify-between gap-3 overflow-visible rounded-2xl border px-3 text-left shadow-[0_16px_42px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl transition-[width,border-color,background-color,box-shadow,filter] duration-300 ${
                           isActive
-                            ? `${metricUrgencyTone.ring} ${metricUrgencyTone.text}`
-                            : "border-white/10 text-slate-500"
+                            ? `dashboard-constellation-metric--active ${dashboardIconToneStyles[metricTone].active} w-[208px]`
+                            : `${dashboardIconToneStyles[metricTone].idle} w-[174px] hover:brightness-125`
                         }`}
+                        key={`${dashboardFloatingSnapshotTitle}-${metric.label}`}
+                        onClick={() =>
+                          setActiveDashboardFloatingMetricIndex(metricIndex)
+                        }
+                        style={{
+                          opacity,
+                          transform: `translate(-50%, -50%) translateX(${x}px) translateY(${y}px) translateZ(${
+                            isActive ? 62 : 18 - absDistance * 8
+                          }px) rotateX(${rotateX}deg) scale(${scale})`,
+                          transition:
+                            "transform 560ms cubic-bezier(0.2, 0.82, 0.2, 1), opacity 320ms ease, width 260ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease",
+                          zIndex: 30 - absDistance,
+                        }}
+                        type="button"
                       >
                         <span
-                          className={`grid h-3 w-3 place-items-center rounded-full text-slate-950 ${
+                          aria-hidden="true"
+                          className="dashboard-constellation-metric__zoom"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="dashboard-constellation-metric__lines"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="dashboard-constellation-metric__stars"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className={`absolute inset-x-5 top-0 z-10 h-px rounded-full ${dashboardToneStyles[metricTone].line}`}
+                        />
+                        <span className="relative z-10 min-w-0">
+                          <span className="block truncate text-[7px] font-black uppercase tracking-[0.14em] text-slate-300/80">
+                            {metric.label}
+                          </span>
+                          <span className="block truncate text-sm font-black tracking-tight text-white">
+                            {metric.value}
+                          </span>
+                        </span>
+                        <span
+                          aria-hidden="true"
+                          className={`relative z-10 grid h-4 w-4 shrink-0 place-items-center rounded-full border bg-slate-950/72 text-[7px] font-black leading-none text-slate-950 ring-1 ring-white/10 ${
                             isActive
-                              ? metricUrgencyTone.dot
-                              : `${metricUrgencyTone.dot} opacity-45 grayscale`
+                              ? `${metricUrgencyTone.ring} ${metricUrgencyTone.text}`
+                              : "border-white/10 text-slate-500"
                           }`}
                         >
-                          {isActive ? metricUrgencyTone.icon : ""}
+                          <span
+                            className={`grid h-3 w-3 place-items-center rounded-full text-slate-950 ${
+                              isActive
+                                ? metricUrgencyTone.dot
+                                : `${metricUrgencyTone.dot} opacity-45 grayscale`
+                            }`}
+                          >
+                            {isActive ? metricUrgencyTone.icon : ""}
+                          </span>
                         </span>
-                      </span>
-                    </button>
-                  );
-                })}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </section>
       </div>
@@ -27428,7 +27966,41 @@ export default function UserHomeDashboardPage() {
                 role="group"
               >
                 {renderDashboardHeaderScrollControls()}
-                <div className="dashboard-header-selector-body flex min-w-[204px] shrink-0 items-center justify-center gap-1.5">
+                <div
+                  className="dashboard-header-selector-body flex min-w-[204px] shrink-0 items-center justify-center gap-1.5"
+                  style={activeDashboardHeaderTone.iconEffectStyle}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="dashboard-header-selector-meteor-field"
+                  >
+                    {dashboardHeaderSelectorMeteorStreaks.map(
+                      (meteorStreak, meteorStreakIndex) => (
+                        <span
+                          className="dashboard-header-selector-meteor"
+                          key={`dashboard-header-selector-meteor-${meteorStreakIndex}`}
+                          style={
+                            {
+                              "--dashboard-header-selector-meteor-delay":
+                                meteorStreak.delay,
+                              "--dashboard-header-selector-meteor-duration":
+                                meteorStreak.duration,
+                              "--dashboard-header-selector-meteor-scale":
+                                meteorStreak.scale,
+                              "--dashboard-header-selector-meteor-start-x":
+                                meteorStreak.startX,
+                              "--dashboard-header-selector-meteor-start-y":
+                                meteorStreak.startY,
+                              "--dashboard-header-selector-meteor-travel-x":
+                                meteorStreak.travelX,
+                              "--dashboard-header-selector-meteor-travel-y":
+                                meteorStreak.travelY,
+                            } as CSSProperties
+                          }
+                        />
+                      ),
+                    )}
+                  </span>
                   <div
                     className="dashboard-header-rail-pocket relative flex h-[4.35rem] min-w-[6.05rem] shrink-0 translate-x-3 items-center justify-center text-cyan-100"
                     style={activeDashboardHeaderTone.iconEffectStyle}
@@ -27509,16 +28081,25 @@ export default function UserHomeDashboardPage() {
                         {getDashboardHeaderActiveJourneyStepLabel()}
                       </span>
                       <span
-                        className={`mt-1 inline-flex max-w-[118px] items-center gap-1 rounded-full border px-1.5 py-0.5 text-[6px] font-black uppercase tracking-[0.08em] ${activeDashboardHeaderUrgencyTone.ring} ${activeDashboardHeaderUrgencyTone.text}`}
+                        className={`dashboard-header-urgency-blinker mt-1 inline-flex max-w-[118px] items-center gap-1 rounded-full border px-1.5 py-0.5 text-[6px] font-black uppercase tracking-[0.08em] ${activeDashboardHeaderUrgencyTone.ring} ${activeDashboardHeaderUrgencyTone.text}`}
+                        data-dashboard-urgency={activeDashboardHeaderUrgencyTone.label
+                          .toLowerCase()
+                          .replace(/\s+/g, "-")}
+                        data-dashboard-urgency-status={
+                          activeDashboardHeaderUrgencyTone.status
+                        }
                         data-dashboard-tooltip={
                           activeDashboardHeaderUrgencyTone.label
+                        }
+                        data-motion-paused={
+                          dashboardHeaderUrgencyBlinkPaused ? "true" : "false"
                         }
                       >
                         <span
                           aria-hidden="true"
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${activeDashboardHeaderUrgencyTone.dot}`}
+                          className={`dashboard-header-urgency-blinker__dot h-1.5 w-1.5 shrink-0 rounded-full ${activeDashboardHeaderUrgencyTone.dot}`}
                         />
-                        <span className="truncate">
+                        <span className="dashboard-header-urgency-blinker__label truncate">
                           {activeDashboardHeaderUrgencyTone.label}
                         </span>
                       </span>
@@ -28211,7 +28792,7 @@ export default function UserHomeDashboardPage() {
               >
                 <span
                   aria-hidden="true"
-                  className={`dashboard-sound-level-badge relative isolate grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center overflow-hidden rounded-full border border-cyan-200/30 bg-slate-950 p-0.5 shadow-[0_0_20px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)] ${
+                  className={`dashboard-sound-level-badge relative isolate grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-full border border-cyan-200/30 bg-slate-950 p-0.5 shadow-[0_0_20px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)] ${
                     dashboardProfileHasCustomIcon
                       ? "dashboard-sound-level-badge--has-avatar"
                       : ""
@@ -28225,6 +28806,8 @@ export default function UserHomeDashboardPage() {
                     } as CSSProperties
                   }
                 >
+                  <span className="dashboard-sound-level-badge__shadow pointer-events-none absolute -inset-4 z-0 rounded-full" />
+                  <span className="dashboard-sound-level-badge__vignette pointer-events-none absolute -inset-1.5 z-10 rounded-full" />
                   {dashboardProfileHasCustomIcon ? (
                     <img
                       alt=""
@@ -28249,13 +28832,100 @@ export default function UserHomeDashboardPage() {
                       paused={dashboardHeaderMotionPaused}
                     />
                   )}
-                  <span className="dashboard-sound-level-badge__band pointer-events-none absolute inset-x-0.5 bottom-0.5 z-20 h-[40%] rounded-b-full border-t border-cyan-200/35 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.38),rgba(15,23,42,0.42)_62%,rgba(2,6,23,0.78))] shadow-[0_-4px_14px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.20)]" />
-                  <span
-                    className="dashboard-sound-level-badge__fill pointer-events-none absolute bottom-0.5 left-0.5 z-20 h-[40%] overflow-hidden rounded-b-full bg-[linear-gradient(90deg,rgba(250,204,21,0.92),rgba(103,232,249,0.86))] opacity-90 shadow-[0_0_16px_rgba(250,204,21,0.42),0_0_20px_rgba(34,211,238,0.26)]"
-                  />
+                  <svg
+                    aria-hidden="true"
+                    className="dashboard-sound-level-badge__level-ring pointer-events-none absolute -left-1.5 -top-1.5 z-30 h-[4rem] w-[4rem] overflow-visible"
+                    viewBox="0 0 96 96"
+                  >
+                    <defs>
+                      <linearGradient
+                        gradientUnits="userSpaceOnUse"
+                        id="dashboardProfileLevelTraceGradient"
+                        x1="43"
+                        x2="84"
+                        y1="84"
+                        y2="43"
+                      >
+                        <stop offset="0%" stopColor="#0284c7" />
+                        <stop offset="32%" stopColor="#22d3ee" />
+                        <stop offset="68%" stopColor="#67e8f9" />
+                        <stop offset="100%" stopColor="#fde68a" />
+                      </linearGradient>
+                      <filter
+                        height="160%"
+                        id="dashboardProfileLevelTraceGlow"
+                        width="160%"
+                        x="-30%"
+                        y="-30%"
+                      >
+                        <feGaussianBlur
+                          in="SourceGraphic"
+                          result="blur"
+                          stdDeviation="2.1"
+                        />
+                        <feMerge>
+                          <feMergeNode in="blur" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+                    <path
+                      d="M 46 81.9 A 38 38 0 1 1 81.9 46"
+                      fill="none"
+                      stroke="rgba(2, 6, 23, 0.92)"
+                      strokeLinecap="butt"
+                      strokeWidth="8"
+                    />
+                    <path
+                      d="M 46 81.9 A 38 38 0 1 1 81.9 46"
+                      fill="none"
+                      stroke="rgba(148, 163, 184, 0.34)"
+                      strokeLinecap="butt"
+                      strokeWidth="5.5"
+                    />
+                    <path
+                      d="M 46 81.9 A 38 38 0 1 1 81.9 46"
+                      fill="none"
+                      filter="url(#dashboardProfileLevelTraceGlow)"
+                      opacity="0.38"
+                      pathLength={100}
+                      stroke="url(#dashboardProfileLevelTraceGradient)"
+                      strokeDasharray={`${Math.max(
+                        10,
+                        Math.round(soundFitnessLevelProgress),
+                      )} 100`}
+                      strokeLinecap="butt"
+                      strokeWidth="7"
+                    />
+                    <path
+                      d="M 46 81.9 A 38 38 0 1 1 81.9 46"
+                      fill="none"
+                      pathLength={100}
+                      stroke="url(#dashboardProfileLevelTraceGradient)"
+                      strokeDasharray={`${Math.max(
+                        10,
+                        Math.round(soundFitnessLevelProgress),
+                      )} 100`}
+                      strokeLinecap="butt"
+                      strokeWidth="4.25"
+                    />
+                  </svg>
                   <span className="dashboard-sound-level-badge__label pointer-events-none absolute bottom-[0.16rem] z-30 flex items-baseline justify-center gap-[0.08rem] font-black leading-none tracking-[0.04em] text-white [text-shadow:0_0_8px_rgba(2,6,23,0.96),0_0_10px_rgba(250,204,21,0.62)]">
                     <span className="text-[0.42rem]">LV</span>
                     <span className="text-[0.78rem]">{soundFitnessLevel}</span>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="dashboard-profile-coach-badge absolute -bottom-1.5 -right-1.5 z-40 h-8 w-8 rounded-full border border-sky-300/70 bg-slate-950/80 p-[1px] shadow-[0_0_14px_rgba(56,189,248,0.28)]"
+                  >
+                    <Image
+                      alt=""
+                      className="dashboard-profile-coach-badge__avatar h-full w-full rounded-full object-cover object-center brightness-110 contrast-105 saturate-110 drop-shadow-[0_0_14px_rgba(125,211,252,0.5)]"
+                      draggable={false}
+                      height={64}
+                      src="/sound-coach-avatar-face-centered.png"
+                      width={64}
+                    />
                   </span>
                 </span>
               </button>
@@ -28274,9 +28944,7 @@ export default function UserHomeDashboardPage() {
                     dashboardPointsDropdownOpen ? "true" : "false"
                   }
                   data-motion-paused={
-                    !dashboardPointsMenuHighlighted || dashboardHeaderMotionPaused
-                      ? "true"
-                      : "false"
+                    dashboardPointsTriggerMotionPaused ? "true" : "false"
                   }
                   onBlur={() => setDashboardHeaderRewards3DActive(false)}
                   onClick={toggleDashboardPointsDropdown}
@@ -28298,14 +28966,11 @@ export default function UserHomeDashboardPage() {
                       >
                         <DashboardGemStage3D
                           className="dashboard-profile-points-trigger__webgl-gems"
-                          paused={
-                            !dashboardPointsMenuHighlighted ||
-                            dashboardHeaderMotionPaused
-                          }
+                          paused={dashboardPointsTriggerMotionPaused}
                           tones={dashboardAppGemOrbitItems.map(
                             (item) => item.tone,
                           )}
-                          vaultOpen={dashboardPointsMenuHighlighted}
+                          vaultOpen={dashboardPointsTriggerGlowActive}
                         />
                       </span>
                       {soundEmeralds.toLocaleString()}
@@ -28318,10 +28983,7 @@ export default function UserHomeDashboardPage() {
                       >
                         <DashboardSpinningSoundCoin3D
                           className="dashboard-profile-points-trigger__webgl-coin"
-                          paused={
-                            !dashboardPointsMenuHighlighted ||
-                            dashboardHeaderMotionPaused
-                          }
+                          paused={dashboardPointsTriggerMotionPaused}
                         />
                       </span>
                       {soundTokens.toLocaleString()}
@@ -28333,9 +28995,9 @@ export default function UserHomeDashboardPage() {
                         className="dashboard-profile-points-trigger__webgl-shell dashboard-profile-points-trigger__webgl-shell--points"
                       >
                         <DashboardLightningBolt3D
-                          active={dashboardPointsMenuHighlighted}
+                          active={dashboardPointsTriggerGlowActive}
                           className="dashboard-profile-points-trigger__webgl-bolt"
-                          paused={dashboardHeaderMotionPaused}
+                          paused={dashboardPointsTriggerMotionPaused}
                         />
                       </span>
                       {soundPoints.toLocaleString()}
@@ -28783,7 +29445,7 @@ export default function UserHomeDashboardPage() {
               onMouseLeave={() => setDashboardProfileGearHighlighted(false)}
               onPointerEnter={() => setDashboardProfileGearHighlighted(true)}
               onPointerLeave={() => setDashboardProfileGearHighlighted(false)}
-              style={{ left: "2.55rem" }}
+              style={{ left: "-0.45rem", right: "auto" }}
               tabIndex={dashboardProfileActionsOpen ? -1 : 0}
               type="button"
             >
@@ -29332,6 +29994,75 @@ export default function UserHomeDashboardPage() {
               active={dashboardHeaderMeterMenuIconActive}
               className="dashboard-header-meter-menu-trigger__webgl-icon"
             />
+            <span
+              aria-hidden="true"
+              className="dashboard-header-meter-menu-trigger__fallback"
+            >
+              <span className="dashboard-header-meter-menu-trigger__flip">
+                <span className="dashboard-header-meter-menu-trigger__face dashboard-header-meter-menu-trigger__face--front">
+                  <svg
+                    className="dashboard-header-meter-menu-trigger__bars"
+                    viewBox="0 0 64 64"
+                  >
+                    <defs>
+                      <linearGradient
+                        id="dashboard-meter-menu-bars-gradient"
+                        x1="0"
+                        x2="1"
+                        y1="0"
+                        y2="1"
+                      >
+                        <stop offset="0%" stopColor="#e0f2fe" />
+                        <stop offset="44%" stopColor="#67e8f9" />
+                        <stop offset="100%" stopColor="#0891b2" />
+                      </linearGradient>
+                    </defs>
+                    <rect
+                      className="dashboard-header-meter-menu-trigger__bar dashboard-header-meter-menu-trigger__bar--one"
+                      height="22"
+                      rx="4"
+                      width="10"
+                      x="11"
+                      y="30"
+                    />
+                    <rect
+                      className="dashboard-header-meter-menu-trigger__bar dashboard-header-meter-menu-trigger__bar--two"
+                      height="35"
+                      rx="4"
+                      width="10"
+                      x="27"
+                      y="17"
+                    />
+                    <rect
+                      className="dashboard-header-meter-menu-trigger__bar dashboard-header-meter-menu-trigger__bar--three"
+                      height="27"
+                      rx="4"
+                      width="10"
+                      x="43"
+                      y="25"
+                    />
+                    <rect
+                      className="dashboard-header-meter-menu-trigger__base-bar"
+                      height="4"
+                      rx="2"
+                      width="48"
+                      x="8"
+                      y="54"
+                    />
+                  </svg>
+                </span>
+                <span className="dashboard-header-meter-menu-trigger__face dashboard-header-meter-menu-trigger__face--back">
+                  <span className="dashboard-header-meter-menu-trigger__ufo">
+                    <span className="dashboard-header-meter-menu-trigger__ufo-dome" />
+                  </span>
+                  <span className="dashboard-header-meter-menu-trigger__ufo-beam" />
+                  <span className="dashboard-header-meter-menu-trigger__item dashboard-header-meter-menu-trigger__item--one" />
+                  <span className="dashboard-header-meter-menu-trigger__item dashboard-header-meter-menu-trigger__item--two" />
+                  <span className="dashboard-header-meter-menu-trigger__item dashboard-header-meter-menu-trigger__item--three" />
+                  <span className="dashboard-header-meter-menu-trigger__item dashboard-header-meter-menu-trigger__item--four" />
+                </span>
+              </span>
+            </span>
           </button>
 
           {(dashboardHeaderMeterMenuOpen || dashboardHeaderMeterPanelVisible) &&
@@ -30416,6 +31147,13 @@ export default function UserHomeDashboardPage() {
                     <span
                       aria-hidden="true"
                       className="dashboard-header-meter-tornado"
+                      data-tornado-paused={
+                        dashboardHeaderMotionPaused ||
+                        dashboardPointsMenuHighlighted ||
+                        dashboardHeaderMeterPanelHighlightTarget === "ufo"
+                          ? "true"
+                          : "false"
+                      }
                       data-gem-tone={dashboardHeaderMeterTornadoGemTone}
                       style={{ zIndex: 6 }}
                     >
@@ -30878,7 +31616,8 @@ export default function UserHomeDashboardPage() {
                       <DashboardTornadoEmeralds3D
                         paused={
                           dashboardHeaderMotionPaused ||
-                          dashboardPointsMenuHighlighted
+                          dashboardPointsMenuHighlighted ||
+                          dashboardHeaderMeterPanelHighlightTarget === "ufo"
                         }
                         tone={dashboardHeaderMeterTornadoGemTone}
                       />
@@ -32142,12 +32881,15 @@ export default function UserHomeDashboardPage() {
       );
     }
 
-    const dashboardHeroPanels = [
-      { id: "command", label: "Command Center" },
-      { id: "meters", label: "Meters" },
+    const dashboardHeroPanels: Array<{
+      id: "body" | "challenges" | "constellation" | "command" | "meters";
+      label: string;
+    }> = [
       { id: "body", label: "Body Command Center" },
       { id: "constellation", label: "Training Constellation" },
-    ] as const;
+      { id: "meters", label: "Meters" },
+      { id: "challenges", label: "Challenge Reward Track" },
+    ];
 
     const dashboardTrainingConstellationLegend = [
       {
@@ -32171,6 +32913,8 @@ export default function UserHomeDashboardPage() {
     const dashboardTrainingConstellationNodes = [
       {
         id: "n1",
+        label: "Session",
+        status: "Trained",
         x: 10,
         y: 39,
         fill: "rgb(250,204,21)",
@@ -32178,6 +32922,8 @@ export default function UserHomeDashboardPage() {
       },
       {
         id: "n2",
+        label: "Plan",
+        status: "Planned",
         x: 21,
         y: 23,
         fill: "rgb(34,211,238)",
@@ -32185,6 +32931,8 @@ export default function UserHomeDashboardPage() {
       },
       {
         id: "n3",
+        label: "Recover",
+        status: "Recovery",
         x: 34,
         y: 31,
         fill: "rgb(52,211,153)",
@@ -32192,6 +32940,8 @@ export default function UserHomeDashboardPage() {
       },
       {
         id: "n4",
+        label: "Streak",
+        status: "Trained",
         x: 47,
         y: 15,
         fill: "rgb(250,204,21)",
@@ -32199,6 +32949,8 @@ export default function UserHomeDashboardPage() {
       },
       {
         id: "n5",
+        label: "Next",
+        status: "Planned",
         x: 62,
         y: 26,
         fill: "rgb(34,211,238)",
@@ -32206,6 +32958,8 @@ export default function UserHomeDashboardPage() {
       },
       {
         id: "n6",
+        label: "Gap",
+        status: "Missed",
         x: 76,
         y: 18,
         fill: "rgb(244,114,182)",
@@ -32213,11 +32967,27 @@ export default function UserHomeDashboardPage() {
       },
       {
         id: "n7",
+        label: "Ready",
+        status: "Recovery",
         x: 88,
         y: 36,
         fill: "rgb(52,211,153)",
         glow: "rgba(52,211,153,0.7)",
       },
+    ] as const;
+
+    const dashboardTrainingConstellationFieldStars = [
+      { x: 7, y: 12, r: 0.34, opacity: 0.62 },
+      { x: 14, y: 51, r: 0.25, opacity: 0.48 },
+      { x: 19, y: 8, r: 0.42, opacity: 0.72 },
+      { x: 29, y: 46, r: 0.3, opacity: 0.54 },
+      { x: 40, y: 8, r: 0.22, opacity: 0.42 },
+      { x: 51, y: 45, r: 0.36, opacity: 0.64 },
+      { x: 57, y: 11, r: 0.25, opacity: 0.52 },
+      { x: 69, y: 48, r: 0.28, opacity: 0.5 },
+      { x: 82, y: 9, r: 0.4, opacity: 0.68 },
+      { x: 93, y: 22, r: 0.24, opacity: 0.46 },
+      { x: 95, y: 51, r: 0.32, opacity: 0.58 },
     ] as const;
 
     const dashboardTrainingConstellationChallenges = [
@@ -32238,14 +33008,144 @@ export default function UserHomeDashboardPage() {
       },
     ] as const;
 
+    const renderDashboardCommandCenterSummaryPanel = () => (
+      <div className="relative min-w-0 pr-11">
+        <div className="absolute right-3 top-3 z-30">
+          <button
+            aria-controls="dashboard-hero-widgets-drawer"
+            aria-expanded={dashboardHeroWidgetsDrawerOpen}
+            aria-label={
+              dashboardHeroWidgetsDrawerOpen
+                ? "Close widgets drawer"
+                : "Open widgets drawer"
+            }
+            className="dashboard-hero-widgets-drawer-trigger group grid h-8 w-8 place-items-center rounded-[13px] border border-cyan-100/18 bg-slate-950/58 text-cyan-100 shadow-[0_16px_34px_rgba(0,0,0,0.26),0_0_20px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.08)] outline-none transition hover:-translate-y-0.5 hover:border-cyan-100/42 hover:bg-cyan-300/12 hover:text-cyan-50 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/50"
+            data-dashboard-tooltip="Widgets"
+            onClick={(event) => {
+              event.stopPropagation();
+              toggleDashboardHeroWidgetsDrawer();
+            }}
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              className="dashboard-hero-widgets-drawer-trigger__icon h-4.5 w-4.5"
+              viewBox="0 0 64 64"
+            >
+              <path
+                d="M14 23.5 32 13l18 10.5-18 10.5L14 23.5Z"
+                fill="none"
+                stroke="currentColor"
+                strokeLinejoin="round"
+                strokeWidth="4"
+              />
+              <path
+                d="M14 24v18.5L32 53l18-10.5V24M32 34v18"
+                fill="none"
+                stroke="currentColor"
+                strokeLinejoin="round"
+                strokeWidth="4"
+              />
+              <path
+                d="m25 42 7 7 7-7"
+                fill="none"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="4"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="relative z-10 grid min-w-0 gap-2">
+          <div className="min-w-0">
+            <div className="text-[clamp(0.45rem,0.85vw,0.6rem)] font-black uppercase tracking-[0.22em] text-sky-400">
+              Sound Fitness Command Center
+            </div>
+            <h3 className="mt-1 max-w-[36rem] break-words text-[clamp(1.35rem,2.7vw,2.45rem)] font-black uppercase leading-none tracking-normal text-white [text-shadow:0_0_22px_rgba(34,211,238,0.2)]">
+              Welcome back, <span className="text-sky-400">{firstName}</span>
+            </h3>
+          </div>
+
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <Image
+                alt=""
+                className="h-8 w-8 shrink-0 rounded-full border border-cyan-100/28 bg-slate-950/72 object-contain p-1 shadow-[0_0_18px_rgba(34,211,238,0.16)]"
+                height={32}
+                src="/sound-fitness-logo.png"
+                width={32}
+              />
+              <div className="min-w-0">
+                <div className="truncate text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
+                  Active Profile
+                </div>
+                <div className="mt-0.5 truncate text-[10px] font-semibold text-slate-400">
+                  {dashboardConsistencyStage} stage
+                </div>
+              </div>
+            </div>
+            <div className="shrink-0 rounded-full border border-amber-300/25 bg-amber-300/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.1)]">
+              {dashboardProfileHubCompletion}% ready
+            </div>
+          </div>
+
+          <div className="dashboard-hero-active-profile grid w-full max-w-[44rem] gap-2 border-t border-white/10 pt-2 min-[760px]:grid-cols-2">
+            <Link
+              className="group block min-w-0 text-left transition hover:translate-x-0.5"
+              href={ROUTES.dashboard.goals}
+            >
+              <span className="flex min-w-0 items-center justify-between gap-2">
+                <span className="truncate text-[9px] font-black uppercase tracking-[0.15em] text-slate-500">
+                  Goal Focus
+                </span>
+                <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
+                  {dashboardFoundationProgress.goalsCompletion}% goals
+                </span>
+              </span>
+              <span className="mt-1 block truncate text-sm font-black text-white group-hover:text-cyan-100">
+                {dashboardActiveProfileGoalFocus}
+              </span>
+            </Link>
+
+            <Link
+              className="group block min-w-0 border-t border-white/10 pt-2 text-left transition hover:translate-x-0.5 min-[760px]:border-l min-[760px]:border-t-0 min-[760px]:pl-3 min-[760px]:pt-0"
+              href={dashboardActiveProfileNextHref}
+            >
+              <span className="flex min-w-0 items-center justify-between gap-2">
+                <span className="truncate text-[9px] font-black uppercase tracking-[0.15em] text-slate-500">
+                  Position
+                </span>
+                <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                  {dashboardActiveProfileNextStep}
+                </span>
+              </span>
+              <span className="mt-1 block truncate text-sm font-black text-white group-hover:text-cyan-100">
+                {masterJourneyCurrentFocus}
+              </span>
+              <span className="mt-0.5 block truncate text-[10px] font-semibold text-slate-400">
+                {dashboardActiveProfilePlanDetail}
+              </span>
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+
     const renderDashboardBodyCommandPanel = () => (
-      <BodyCommandCenterCard bodyMapHref={ROUTES.dashboard.exerciseLibrary} />
+      <BodyCommandCenterCard
+        bodyMapHref={ROUTES.dashboard.exerciseLibrary}
+        commandCenterSlot={renderDashboardCommandCenterSummaryPanel()}
+      />
     );
 
     const renderDashboardTrainingConstellationPanel = () => (
-      <div className="dashboard-hero-card dashboard-hero-card--training-constellation relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-cyan-100/16 bg-[radial-gradient(circle_at_50%_-10%,rgba(56,189,248,0.2),transparent_33%),radial-gradient(circle_at_12%_70%,rgba(52,211,153,0.1),transparent_30%),radial-gradient(circle_at_88%_34%,rgba(251,191,36,0.12),transparent_26%),linear-gradient(135deg,rgba(8,13,28,0.9),rgba(2,6,23,0.8))] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.34),0_0_42px_rgba(56,189,248,0.11),inset_0_1px_0_rgba(255,255,255,0.09)] backdrop-blur-xl sm:p-4">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_26%,rgba(255,255,255,0.24)_0_1px,transparent_2px),radial-gradient(circle_at_74%_42%,rgba(125,211,252,0.3)_0_1px,transparent_2px),radial-gradient(circle_at_45%_72%,rgba(251,191,36,0.24)_0_1px,transparent_2px)] opacity-50" />
+      <div className="dashboard-hero-card dashboard-hero-card--training-constellation relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-cyan-100/16 bg-[radial-gradient(circle_at_48%_12%,rgba(56,189,248,0.22),transparent_38%),radial-gradient(circle_at_12%_70%,rgba(52,211,153,0.12),transparent_32%),radial-gradient(circle_at_88%_34%,rgba(251,191,36,0.14),transparent_30%),linear-gradient(135deg,rgba(8,13,28,0.92),rgba(2,6,23,0.84))] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.34),0_0_42px_rgba(56,189,248,0.11),inset_0_1px_0_rgba(255,255,255,0.09)] backdrop-blur-xl sm:p-4">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_26%,rgba(255,255,255,0.24)_0_1px,transparent_2px),radial-gradient(circle_at_74%_42%,rgba(125,211,252,0.3)_0_1px,transparent_2px),radial-gradient(circle_at_45%_72%,rgba(251,191,36,0.24)_0_1px,transparent_2px),linear-gradient(90deg,rgba(125,211,252,0.045)_1px,transparent_1px),linear-gradient(180deg,rgba(125,211,252,0.035)_1px,transparent_1px)] bg-[length:auto,auto,auto,42px_42px,42px_42px] opacity-60" />
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/70 to-transparent" />
+        <div className="pointer-events-none absolute -left-28 top-1/4 h-80 w-80 rounded-full bg-cyan-300/10 blur-3xl" />
+        <div className="pointer-events-none absolute -right-24 bottom-4 h-72 w-72 rounded-full bg-amber-300/8 blur-3xl" />
 
         <div className="relative z-10 flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
@@ -32271,12 +33171,12 @@ export default function UserHomeDashboardPage() {
           </div>
         </div>
 
-        <div className="relative z-10 mt-2 min-h-[96px] flex-1 overflow-hidden rounded-[20px] border border-white/10 bg-slate-950/28">
+        <div className="relative z-10 mt-3 min-h-[320px] flex-1 overflow-hidden rounded-[24px] border border-cyan-100/14 bg-[radial-gradient(ellipse_at_50%_44%,rgba(14,165,233,0.12),transparent_58%),linear-gradient(135deg,rgba(2,6,23,0.38),rgba(15,23,42,0.18))] shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_0_40px_rgba(34,211,238,0.08)]">
           <svg
             aria-label="Training progress constellation"
             className="absolute inset-0 h-full w-full"
             preserveAspectRatio="none"
-            viewBox="0 0 100 56"
+            viewBox="0 0 100 64"
           >
             <defs>
               <linearGradient
@@ -32290,13 +33190,74 @@ export default function UserHomeDashboardPage() {
                 <stop offset="48%" stopColor="rgba(125,211,252,0.74)" />
                 <stop offset="100%" stopColor="rgba(251,191,36,0.26)" />
               </linearGradient>
+              <linearGradient
+                id="dashboard-training-constellation-core"
+                x1="0"
+                x2="1"
+                y1="0"
+                y2="0"
+              >
+                <stop offset="0%" stopColor="rgba(34,211,238,0)" />
+                <stop offset="18%" stopColor="rgba(34,211,238,0.42)" />
+                <stop offset="52%" stopColor="rgba(255,255,255,0.78)" />
+                <stop offset="82%" stopColor="rgba(251,191,36,0.42)" />
+                <stop offset="100%" stopColor="rgba(251,191,36,0)" />
+              </linearGradient>
+              <filter id="dashboard-training-constellation-glow">
+                <feGaussianBlur result="blur" stdDeviation="1.6" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
             </defs>
+            <ellipse
+              cx="50"
+              cy="32"
+              fill="none"
+              opacity="0.24"
+              rx="43"
+              ry="23"
+              stroke="rgba(125,211,252,0.26)"
+              strokeDasharray="1.5 3"
+              strokeWidth="0.35"
+            />
+            <ellipse
+              cx="50"
+              cy="32"
+              fill="none"
+              opacity="0.18"
+              rx="32"
+              ry="16"
+              stroke="rgba(251,191,36,0.3)"
+              strokeDasharray="1 3.5"
+              strokeWidth="0.3"
+            />
+            {dashboardTrainingConstellationFieldStars.map((star) => (
+              <circle
+                cx={star.x}
+                cy={star.y}
+                fill="rgba(226,232,240,0.92)"
+                key={`${star.x}-${star.y}`}
+                opacity={star.opacity}
+                r={star.r}
+              />
+            ))}
+            <path
+              d="M-2 49 C18 33 29 39 43 23 S72 16 102 36"
+              fill="none"
+              opacity="0.18"
+              stroke="url(#dashboard-training-constellation-core)"
+              strokeLinecap="round"
+              strokeWidth="8"
+            />
             <path
               d="M10 39 L21 23 L34 31 L47 15 L62 26 L76 18 L88 36 M34 31 L62 26 M21 23 L47 15 M62 26 L88 36"
               fill="none"
               stroke="url(#dashboard-training-constellation-line)"
               strokeLinecap="round"
-              strokeWidth="0.7"
+              strokeWidth="0.95"
+              filter="url(#dashboard-training-constellation-glow)"
             />
             {dashboardTrainingConstellationNodes.map((node) => (
               <g key={node.id}>
@@ -32310,53 +33271,153 @@ export default function UserHomeDashboardPage() {
                 <circle
                   cx={node.x}
                   cy={node.y}
-                  fill={node.fill}
-                  r="1.75"
-                  style={{ filter: `drop-shadow(0 0 6px ${node.glow})` }}
+                  fill="none"
+                  opacity="0.34"
+                  r="7.2"
+                  stroke={node.fill}
+                  strokeDasharray="1.2 2.2"
+                  strokeWidth="0.32"
                 />
+                <circle
+                  cx={node.x}
+                  cy={node.y}
+                  fill={node.fill}
+                  r="2.25"
+                  style={{ filter: `drop-shadow(0 0 8px ${node.glow})` }}
+                />
+                <text
+                  fill="rgba(241,245,249,0.92)"
+                  fontSize="2.2"
+                  fontWeight="900"
+                  letterSpacing="0.12"
+                  textAnchor="middle"
+                  x={node.x}
+                  y={node.y + 9.4}
+                >
+                  {node.label}
+                </text>
+                <text
+                  fill="rgba(148,163,184,0.88)"
+                  fontSize="1.35"
+                  fontWeight="800"
+                  letterSpacing="0.1"
+                  textAnchor="middle"
+                  x={node.x}
+                  y={node.y + 12.1}
+                >
+                  {node.status}
+                </text>
               </g>
             ))}
           </svg>
-          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.05),rgba(2,6,23,0.32))]" />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.02),rgba(2,6,23,0.26))]" />
+          <div className="pointer-events-none absolute left-4 top-4 max-w-[14rem] rounded-2xl border border-white/10 bg-slate-950/38 px-3 py-2 shadow-[0_18px_34px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur">
+            <div className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100/72">
+              Live training path
+            </div>
+            <div className="mt-1 text-[10px] font-semibold leading-snug text-slate-300">
+              Sessions, recovery, and planned work plotted as one momentum map.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    const renderDashboardChallengesPanel = () => (
+      <div className="dashboard-hero-card dashboard-hero-card--training-challenges relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-amber-100/18 bg-[radial-gradient(circle_at_16%_2%,rgba(251,191,36,0.18),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(34,211,238,0.18),transparent_30%),radial-gradient(circle_at_50%_104%,rgba(52,211,153,0.12),transparent_34%),linear-gradient(135deg,rgba(8,13,28,0.94),rgba(2,6,23,0.86))] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.34),0_0_42px_rgba(251,191,36,0.12),inset_0_1px_0_rgba(255,255,255,0.09)] backdrop-blur-xl sm:p-4">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(251,191,36,0.05)_1px,transparent_1px),linear-gradient(180deg,rgba(125,211,252,0.055)_1px,transparent_1px)] bg-[length:34px_34px] opacity-60" />
+        <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-amber-100/72 to-transparent" />
+        <div className="pointer-events-none absolute -right-20 -top-24 h-60 w-60 rounded-full bg-amber-300/10 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-28 left-1/2 h-64 w-80 -translate-x-1/2 rounded-full bg-cyan-300/10 blur-3xl" />
+
+        <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[8px] font-black uppercase tracking-[0.22em] text-amber-100/78">
+              Reward Track
+            </div>
+            <h2 className="mt-1 break-words text-[clamp(1.5rem,3vw,2.65rem)] font-black uppercase leading-none tracking-normal text-white [text-shadow:0_0_24px_rgba(251,191,36,0.16)]">
+              CHALLENGES
+            </h2>
+          </div>
+          <div className="inline-flex min-h-8 items-center justify-center rounded-full border border-cyan-100/24 bg-cyan-300/10 px-3 text-[8px] font-black uppercase tracking-[0.14em] text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.14)]">
+            {dashboardTrainingConstellationChallenges.length} active
+          </div>
         </div>
 
-        <div className="relative z-10 mt-2 grid gap-1.5">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100">
-              Challenges
-            </h3>
-            <span className="text-[7px] font-black uppercase tracking-[0.14em] text-amber-100/78">
-              Reward track
-            </span>
-          </div>
-          {dashboardTrainingConstellationChallenges.map((challenge) => (
-            <div
-              className="grid gap-1.5 rounded-[12px] border border-white/10 bg-slate-950/36 px-2.5 py-1.5 min-[720px]:grid-cols-[minmax(0,1fr)_minmax(82px,0.28fr)] min-[720px]:items-center"
-              key={challenge.label}
-            >
-              <div className="min-w-0">
-                <div className="truncate text-[9px] font-black text-white">
-                  {challenge.label}
+        <div className="relative z-10 mt-3 grid min-h-0 flex-1 gap-3 overflow-x-hidden overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(251,191,36,0.32)_rgba(15,23,42,0.5)] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-amber-200/34 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/46">
+          <div className="grid gap-3 min-[860px]:grid-cols-[minmax(0,1fr)_minmax(220px,0.42fr)]">
+            <div className="grid content-start gap-2">
+              {dashboardTrainingConstellationChallenges.map((challenge, index) => (
+                <div
+                  className="group relative overflow-hidden rounded-[18px] border border-white/10 bg-slate-950/44 px-3 py-3 shadow-[0_16px_34px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.07)] transition hover:-translate-y-0.5 hover:border-amber-100/34 hover:bg-slate-950/56"
+                  key={challenge.label}
+                >
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(251,191,36,0.13),transparent_34%),linear-gradient(90deg,rgba(34,211,238,0.07),transparent_54%)] opacity-80" />
+                  <div className="relative z-10 flex items-start gap-3">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border border-amber-100/22 bg-amber-300/10 text-sm font-black text-amber-100 shadow-[0_0_20px_rgba(251,191,36,0.14)]">
+                      {String(index + 1).padStart(2, "0")}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                        <h3 className="min-w-0 text-sm font-black uppercase leading-tight tracking-normal text-white">
+                          {challenge.label}
+                        </h3>
+                        <span className="inline-flex min-h-6 shrink-0 items-center justify-center rounded-full border border-amber-100/24 bg-amber-300/10 px-2.5 text-[8px] font-black uppercase tracking-[0.1em] text-amber-100">
+                          {challenge.reward}
+                        </span>
+                      </div>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-900/90">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-amber-200 via-cyan-200 to-emerald-200 shadow-[0_0_16px_rgba(251,191,36,0.26),0_0_18px_rgba(34,211,238,0.18)]"
+                          style={{ width: `${challenge.progress}%` }}
+                        />
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-2 text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                        <span>Progress</span>
+                        <span className="text-cyan-100">{challenge.progress}%</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-800/90">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-300 to-amber-200 shadow-[0_0_14px_rgba(34,211,238,0.32)]"
-                    style={{ width: `${challenge.progress}%` }}
-                  />
-                </div>
-              </div>
-              <div className="inline-flex min-h-6 items-center justify-center rounded-full border border-amber-100/24 bg-amber-300/10 px-2.5 text-[7px] font-black uppercase tracking-[0.1em] text-amber-100">
-                {challenge.reward}
-              </div>
+              ))}
             </div>
-          ))}
+
+            <aside className="relative overflow-hidden rounded-[22px] border border-cyan-100/16 bg-slate-950/42 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.16),transparent_44%),radial-gradient(circle_at_50%_100%,rgba(251,191,36,0.13),transparent_42%)]" />
+              <div className="relative z-10">
+                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100/68">
+                  Current Push
+                </div>
+                <div className="mt-2 text-3xl font-black leading-none text-white">
+                  48%
+                </div>
+                <div className="mt-1 text-[10px] font-bold leading-snug text-slate-400">
+                  Average challenge progress across the active reward track.
+                </div>
+                <div className="mt-4 grid gap-2 text-[9px] font-black uppercase tracking-[0.12em]">
+                  <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2 text-slate-400">
+                    <span>Sound points</span>
+                    <span className="text-amber-100">+200 SP</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2 text-slate-400">
+                    <span>Badge</span>
+                    <span className="text-cyan-100">Plan</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2 text-slate-400">
+                    <span>Status</span>
+                    <span className="text-emerald-100">Moving</span>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
         </div>
 
         <Link
-          className="relative z-10 mt-2 inline-flex min-h-10 w-full items-center justify-center rounded-[16px] border border-cyan-100/38 bg-cyan-300/14 px-5 text-xs font-black uppercase tracking-[0.16em] text-cyan-50 shadow-[0_18px_36px_rgba(0,0,0,0.26),0_0_28px_rgba(34,211,238,0.18),inset_0_1px_0_rgba(255,255,255,0.1)] transition hover:-translate-y-0.5 hover:border-cyan-100/64 hover:bg-cyan-300/20 active:scale-[0.99]"
+          className="relative z-10 mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-[16px] border border-amber-100/34 bg-amber-300/12 px-5 text-xs font-black uppercase tracking-[0.16em] text-amber-50 shadow-[0_18px_36px_rgba(0,0,0,0.26),0_0_28px_rgba(251,191,36,0.12),inset_0_1px_0_rgba(255,255,255,0.1)] transition hover:-translate-y-0.5 hover:border-amber-100/60 hover:bg-amber-300/18 active:scale-[0.99]"
           href={ROUTES.dashboard.progress}
         >
-          VIEW CONSTELLATION
+          OPEN REWARD TRACK
         </Link>
       </div>
     );
@@ -32365,7 +33426,10 @@ export default function UserHomeDashboardPage() {
       <div
         aria-label="Dashboard hero horizontal orbit"
         data-dashboard-orbiter-row="0"
-        className="dashboard-hero-horizontal-orbit relative z-10 mx-auto w-full max-w-[1040px] shrink-0 overflow-visible"
+        className="dashboard-hero-horizontal-orbit relative z-10 mx-auto w-full max-w-[1180px] shrink-0 overflow-visible"
+        style={{
+          height: "clamp(560px, calc(100dvh - 10rem), 880px)",
+        }}
       >
         <div className="sr-only">
           Hero card orbit. Current card:{" "}
@@ -32435,32 +33499,40 @@ export default function UserHomeDashboardPage() {
             const absDistance = Math.abs(distance);
             const isActivePanel = distance === 0;
             const direction = Math.sign(distance);
-            const panelX = isActivePanel ? 0 : distance * 330;
-            const panelY = isActivePanel ? 0 : Math.min(absDistance, 2) * 22;
+            const panelX = isActivePanel ? 0 : distance * 348;
+            const panelY = 0;
             const panelScale = isActivePanel
               ? 1
               : absDistance === 1
                 ? 0.84
                 : 0.72;
             const panelRotateY = isActivePanel ? 0 : direction * -24;
+            const panelOpacity = isActivePanel ? 1 : 0;
+            const isPanelVisible = isActivePanel;
 
             return (
               <section
                 aria-hidden={!isActivePanel}
                 aria-label={panel.label}
-                className={`absolute inset-0 flex min-w-full shrink-0 items-start ${
+                className={`absolute inset-0 flex min-w-full shrink-0 ${
+                  panel.id === "body" ||
+                  panel.id === "challenges" ||
+                  panel.id === "constellation"
+                    ? "items-stretch"
+                    : "items-start"
+                } ${
                   panel.id === "command" ? "justify-start" : "justify-center"
                 } [transform-style:preserve-3d]`}
                 data-dashboard-orbit-card-index={panelIndex}
                 key={panel.id}
                 style={{
-                  filter: `blur(${isActivePanel ? 0 : absDistance === 1 ? 0.9 : 1.8}px)`,
-                  opacity: isActivePanel ? 1 : 0,
+                  filter: `blur(${isActivePanel ? 0 : 1.8}px)`,
+                  opacity: panelOpacity,
                   pointerEvents: isActivePanel ? "auto" : "none",
                   transform: `translateX(${panelX}px) translateY(${panelY}px) scale(${panelScale}) rotateY(${panelRotateY}deg)`,
                   transition:
                     "transform 620ms cubic-bezier(0.2, 0.82, 0.2, 1), opacity 360ms ease, filter 360ms ease",
-                  visibility: isActivePanel ? "visible" : "hidden",
+                  visibility: isPanelVisible ? "visible" : "hidden",
                   zIndex: isActivePanel ? 30 : 12 - absDistance,
                 }}
               >
@@ -32558,9 +33630,13 @@ export default function UserHomeDashboardPage() {
                             >
                               <div className="rounded-2xl border border-cyan-100/18 bg-[#101927]/95 px-2.5 pb-2.5 pt-2.5 shadow-[0_18px_46px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
                                 <div className="grid gap-2">
-                                  {dashboardStatusDropdownItems.map((item) => (
+                                  {dashboardStatusDropdownItems.map((item, itemIndex) => (
                                     <div
-                                      className="min-w-0 rounded-xl border border-white/10 bg-slate-950/42 px-3 py-2"
+                                      className={`min-w-0 px-1.5 py-1.5 ${
+                                        itemIndex > 0
+                                          ? "border-t border-white/10"
+                                          : ""
+                                      }`}
                                       key={item.label}
                                     >
                                       <div className="truncate text-[8px] font-black uppercase tracking-[0.16em] text-slate-500">
@@ -32606,7 +33682,7 @@ export default function UserHomeDashboardPage() {
 
                                 <div
                                   aria-label="Training calendar month orbit"
-                                  className="relative mt-2 h-[158px] overflow-hidden rounded-xl border border-white/8 bg-slate-950/28 px-8 py-2 [perspective:760px]"
+                                  className="relative mt-2 h-[158px] px-8 py-2 [perspective:760px]"
                                 >
                                   <button
                                     aria-label="Previous calendar month"
@@ -32777,20 +33853,6 @@ export default function UserHomeDashboardPage() {
                                   </button>
                                 </div>
 
-                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                  <Link
-                                    className="inline-flex min-h-9 items-center rounded-xl border border-cyan-200/24 bg-cyan-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100 transition hover:border-cyan-100/45 hover:bg-cyan-300/18"
-                                    href={nextAction.href}
-                                  >
-                                    {nextAction.cta}
-                                  </Link>
-                                  <Link
-                                    className="inline-flex min-h-9 items-center rounded-xl border border-amber-200/24 bg-amber-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100 transition hover:border-amber-100/45 hover:bg-amber-300/18"
-                                    href={ROUTES.dashboard.goals}
-                                  >
-                                    Plan goals
-                                  </Link>
-                                </div>
                               </div>
                             </aside>
                           </div>
@@ -32842,6 +33904,8 @@ export default function UserHomeDashboardPage() {
                   renderDashboardHeroAchievementOrbit()
                 ) : panel.id === "body" ? (
                   renderDashboardBodyCommandPanel()
+                ) : panel.id === "challenges" ? (
+                  renderDashboardChallengesPanel()
                 ) : (
                   renderDashboardTrainingConstellationPanel()
                 )}
@@ -32856,21 +33920,47 @@ export default function UserHomeDashboardPage() {
   const renderDashboardRowTitle = ({
     accentClassName,
     description,
+    footer,
     kicker,
     title,
+    urgencyMotionPaused = true,
+    urgencyTone,
   }: {
     accentClassName: string;
     description: string;
+    footer?: ReactNode;
     kicker: string;
     title: string;
+    urgencyMotionPaused?: boolean;
+    urgencyTone?: ReturnType<typeof getDashboardRowUrgencyTone>;
   }) => (
     <div className="pointer-events-none absolute left-36 top-5 z-30 w-[min(34rem,calc(100%-12rem))] min-w-0 sm:left-40 lg:left-44">
-      <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-slate-950/54 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-slate-300 shadow-[0_14px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur">
-        <span
-          aria-hidden="true"
-          className={`h-2 w-2 shrink-0 rounded-full ${accentClassName}`}
-        />
-        <span className="truncate">{kicker}</span>
+      <div className="flex max-w-full flex-wrap items-center gap-2">
+        <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-slate-950/54 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-slate-300 shadow-[0_14px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur">
+          <span
+            aria-hidden="true"
+            className={`h-2 w-2 shrink-0 rounded-full ${accentClassName}`}
+          />
+          <span className="truncate">{kicker}</span>
+        </div>
+        {urgencyTone ? (
+          <span
+            className={`dashboard-header-urgency-blinker dashboard-row-urgency-blinker inline-flex max-w-[10rem] items-center gap-1 rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] ${urgencyTone.ring} ${urgencyTone.text}`}
+            data-dashboard-urgency={urgencyTone.label
+              .toLowerCase()
+              .replace(/\s+/g, "-")}
+            data-dashboard-urgency-status={urgencyTone.status}
+            data-motion-paused={urgencyMotionPaused ? "true" : "false"}
+          >
+            <span
+              aria-hidden="true"
+              className={`dashboard-header-urgency-blinker__dot h-1.5 w-1.5 shrink-0 rounded-full ${urgencyTone.dot}`}
+            />
+            <span className="dashboard-header-urgency-blinker__label truncate">
+              {urgencyTone.label}
+            </span>
+          </span>
+        ) : null}
       </div>
       <h2 className="mt-2 text-2xl font-black uppercase leading-none tracking-[0.08em] text-white [text-shadow:0_0_24px_rgba(34,211,238,0.12)] sm:text-3xl">
         {title}
@@ -32878,6 +33968,7 @@ export default function UserHomeDashboardPage() {
       <p className="mt-1 max-w-[32rem] text-xs font-semibold leading-5 text-slate-300">
         {description}
       </p>
+      {footer ? <div className="mt-2">{footer}</div> : null}
     </div>
   );
 
@@ -36842,8 +37933,50 @@ export default function UserHomeDashboardPage() {
         accentClassName: "bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.62)]",
         description:
           "Last 7 days: training volume, nutrition consistency, readiness, and recent activity.",
+        footer: (
+          <div
+            aria-label="Weekly recap card indicators"
+            className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1.5"
+          >
+            {dashboardWeeklyRecapCards.map((card, index) => {
+              const isActive = index === activeWeeklyRecapIndex;
+              const tone = dashboardHeaderToneStyles[card.tone];
+
+              return (
+                <button
+                  aria-label={`Show ${card.title}`}
+                  aria-pressed={isActive}
+                  className={`group/weekly-indicator inline-flex h-7 min-w-0 items-center gap-1.5 rounded-full border px-2.5 text-[8px] font-black uppercase tracking-[0.12em] transition-[border-color,background-color,color,transform,box-shadow] duration-200 ${
+                    isActive
+                      ? `${tone.shell} ${tone.labelText} scale-[1.02]`
+                      : "border-white/10 bg-slate-950/44 text-slate-400 hover:border-cyan-200/28 hover:bg-cyan-300/8 hover:text-cyan-100"
+                  }`}
+                  key={`weekly-recap-title-indicator-${card.title}`}
+                  onClick={() => setActiveWeeklyRecapIndex(index)}
+                  type="button"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`h-1.5 rounded-full transition-[width,background-color,box-shadow,opacity] duration-200 ${
+                      isActive ? `w-7 ${tone.pointsLine}` : "w-3 bg-white/18"
+                    }`}
+                  />
+                  <span className="truncate">
+                    {getWeeklyRecapIndicatorLabel(card.title)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ),
         kicker: "7 day review row",
         title: "Weekly Recap",
+        urgencyMotionPaused:
+          clampedDashboardOrbiterRow !== 2 ||
+          dashboardHeaderUrgencyBlinkPaused,
+        urgencyTone: getDashboardRowUrgencyTone(
+          dashboardOrbiterRows[2]?.completion ?? 0,
+        ),
       })}
 
       <div className="sr-only">
@@ -37300,9 +38433,12 @@ export default function UserHomeDashboardPage() {
         data-dashboard-orbiter-local-scroll="true"
         className="h-full w-full max-w-[1180px] overflow-y-auto overscroll-contain pr-1 scroll-smooth [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
       >
-        <section className="pb-4">
-          <div className="mx-auto w-full max-w-[1120px]">
-            <DashboardCalendar items={dashboardCalendarItems} />
+        <section className="flex min-h-full pb-4">
+          <div className="mx-auto flex min-h-full w-full max-w-[1120px]">
+            <DashboardCalendar
+              items={dashboardCalendarItems}
+              orbitCommand={dashboardCalendarOrbitCommand}
+            />
           </div>
         </section>
       </div>
@@ -37739,23 +38875,12 @@ export default function UserHomeDashboardPage() {
           "Personalized dashboard signals, content paths, and next-best actions.",
         kicker: "Personal insight row",
         title: "My Sound",
+        urgencyMotionPaused:
+          dashboardMySoundRowIndex < 0 ||
+          clampedDashboardOrbiterRow !== dashboardMySoundRowIndex ||
+          dashboardHeaderUrgencyBlinkPaused,
+        urgencyTone: dashboardMySoundUrgencyTone,
       })}
-      <button
-        aria-label="Previous My Sound insight"
-        className="absolute left-[5.75rem] top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:left-[6.75rem] xl:left-[7.25rem]"
-        onClick={() => rotateMySound("left")}
-        type="button"
-      >
-        &lt;
-      </button>
-      <button
-        aria-label="Next My Sound insight"
-        className="absolute right-2 top-[44%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-4 sm:h-14 sm:w-14 sm:text-3xl lg:right-6 xl:right-8"
-        onClick={() => rotateMySound("right")}
-        type="button"
-      >
-        &gt;
-      </button>
 
       <div className="sr-only">
         My Sound. Personalized insights for dashboard content.
@@ -37903,7 +39028,7 @@ export default function UserHomeDashboardPage() {
               />
               <div className="relative z-10 flex items-start justify-between gap-3">
                 <span
-                  className={`grid h-12 w-12 shrink-0 place-items-center rounded-[20px] border ${
+                  className={`relative grid h-12 w-12 shrink-0 place-items-center rounded-[20px] border ${
                     dashboardIconToneStyles[card.tone].active
                   }`}
                   aria-hidden="true"
@@ -37913,6 +39038,11 @@ export default function UserHomeDashboardPage() {
                     label={card.title}
                     name={card.icon}
                   />
+                  {renderDashboardCompletionDot(
+                    card.completion,
+                    isActive && dashboardMySoundRowActive,
+                    "-bottom-1 -right-1 z-30",
+                  )}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/72">
@@ -38895,6 +40025,8 @@ export default function UserHomeDashboardPage() {
           dashboardPointsMenuHighlighted
             ? "dashboard-page--points-menu-highlighted"
             : ""
+        } ${
+          dashboardPointsDropdownOpen ? "dashboard-page--points-dropdown-open" : ""
         }`}
         onBlurCapture={hideDashboardTooltip}
         onFocusCapture={(event) => {
@@ -39553,10 +40685,10 @@ export default function UserHomeDashboardPage() {
                         <button
                           aria-label={`Show ${row.title} row`}
                           aria-pressed={isActive}
-                          className={`dashboard-page-orbit-node pointer-events-auto absolute left-1/2 top-1/2 grid h-12 w-12 origin-center place-items-center overflow-hidden rounded-[18px] border p-1 text-left shadow-none transition-[border-color,background-color] duration-300 ${
+                          className={`dashboard-page-orbit-node pointer-events-auto absolute left-1/2 top-1/2 grid h-12 w-12 origin-center place-items-center overflow-visible border-0 bg-transparent p-0 text-left shadow-none outline-none transition-[color,filter] duration-300 focus-visible:ring-2 focus-visible:ring-cyan-100/45 ${
                             isActive
-                              ? `dashboard-page-orbit-node--active ${urgencyTone.ring} ${urgencyTone.text} border-cyan-100/34 shadow-none`
-                              : "dashboard-page-orbit-node--ghost border-white/12 bg-slate-950/52 text-slate-300 hover:border-cyan-200/30 hover:bg-cyan-300/10 hover:text-cyan-100"
+                              ? `dashboard-page-orbit-node--active ${urgencyTone.text} text-cyan-50`
+                              : "dashboard-page-orbit-node--ghost text-slate-300 hover:text-cyan-100"
                           }`}
                           key={row.title}
                           onClick={() => setDashboardOrbiterRow(index)}
@@ -39579,10 +40711,10 @@ export default function UserHomeDashboardPage() {
                           />
                           <span
                             aria-hidden="true"
-                            className={`relative grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-2xl border ${
+                            className={`relative grid h-9 w-9 shrink-0 place-items-center overflow-visible ${
                               isActive
-                                ? "border-cyan-100/34 bg-cyan-300/14 text-cyan-50 shadow-none"
-                                : "border-white/12 bg-slate-950/66 text-slate-300"
+                                ? "text-cyan-50 drop-shadow-[0_0_12px_rgba(103,232,249,0.44)]"
+                                : "text-slate-300 drop-shadow-[0_0_10px_rgba(15,23,42,0.72)]"
                             }`}
                           >
                             {row.logo === "sound" ? (
@@ -39595,13 +40727,13 @@ export default function UserHomeDashboardPage() {
                               />
                             ) : (
                               <DashboardTabIcon
-                                className="h-4 w-4"
+                                className="h-5 w-5"
                                 label={row.title}
                                 name={row.icon}
                               />
                             )}
                             <span
-                              className={`absolute -bottom-0.5 -right-0.5 grid h-4 w-4 place-items-center rounded-full text-[7px] font-black leading-none text-slate-950 ${
+                              className={`absolute -bottom-1 left-1/2 grid h-4 w-4 -translate-x-1/2 place-items-center rounded-full text-[7px] font-black leading-none text-slate-950 ${
                                 isActive
                                   ? urgencyTone.dot
                                   : `${urgencyTone.dot} opacity-70`
@@ -39641,7 +40773,7 @@ export default function UserHomeDashboardPage() {
                 >
                   <div
                     data-dashboard-orbiter-local-scroll="true"
-                    className="flex h-full w-full max-w-[1040px] flex-col items-center overflow-x-hidden overflow-y-auto overscroll-contain pb-3 pr-1 pt-4 [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
+                    className="flex h-full w-full max-w-[1180px] flex-col items-center overflow-x-hidden overflow-y-auto overscroll-contain pb-3 pr-1 pt-4 [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
                   >
                     {renderDashboardHeroRow()}
                   </div>

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import {
   ArrowRight,
   Check,
@@ -19,7 +18,7 @@ import {
   DashboardGemStage3D,
 } from "@/components/dashboard/DashboardTornadoEmeralds3D";
 import DashboardWhistle3D from "@/components/dashboard/DashboardWhistle3D";
-import { ROUTES } from "@/lib/routes";
+import TrainingPurchaseComingSoonModal from "@/components/onboarding/TrainingPurchaseComingSoonModal";
 
 type AppSignupOption = {
   id: "app-only" | "hybrid-app" | "online-coaching";
@@ -54,7 +53,7 @@ const appSignupOptions: AppSignupOption[] = [
     selectionText:
       "App Only keeps dashboard access, progress tracking, plan visibility, and self-guided tools focused for independent training.",
     bestFor: "Best for independent training",
-    badge: "Independent training",
+    badge: "Most affordable",
     asset: "/sound-fitness-logo.png",
     assetAlt: "Sound Fitness logo",
     Icon: Smartphone,
@@ -98,7 +97,7 @@ const appSignupOptions: AppSignupOption[] = [
     selectionText:
       "Online Coaching adds remote programming, check-ins, messaging, and a larger Sound Sparks, Gems, and Treasure Tokens bundle.",
     bestFor: "Coach-led + more rewards",
-    badge: "Coach-led rewards",
+    badge: "Most guided",
     asset: "/sound-emerald-crystals.png",
     assetAlt: "Sound Fitness gems",
     Icon: UsersRound,
@@ -127,6 +126,8 @@ function PricingBlueGemWebGl() {
 export default function MemberAppPricingSelector() {
   const [selectedPlanId, setSelectedPlanId] =
     useState<AppSignupOption["id"]>("app-only");
+  const [comingSoonPlanId, setComingSoonPlanId] =
+    useState<AppSignupOption["id"] | null>(null);
 
   const selectedPlan = useMemo(
     () =>
@@ -180,7 +181,7 @@ export default function MemberAppPricingSelector() {
           </div>
         </div>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-3" role="listbox" aria-label="Preview support plans">
+        <div className="sound-divider-row mt-8 grid gap-4 md:grid-cols-3" role="listbox" aria-label="Preview support plans">
           {appSignupOptions.map((option) => {
             const Icon = option.Icon;
             const isSelected = option.id === selectedPlanId;
@@ -191,6 +192,18 @@ export default function MemberAppPricingSelector() {
                 : option.id === "hybrid-app"
                   ? "border-amber-100/36 bg-[linear-gradient(135deg,#22d3ee_0%,#2dd4bf_48%,#facc15_100%)] shadow-[0_0_30px_rgba(34,211,238,0.24)] hover:shadow-[0_0_42px_rgba(250,204,21,0.28)]"
                   : "border-fuchsia-100/32 bg-[linear-gradient(135deg,#38bdf8_0%,#8b5cf6_48%,#f472b6_100%)] shadow-[0_0_30px_rgba(125,211,252,0.22)] hover:shadow-[0_0_42px_rgba(168,85,247,0.34)]";
+            const bestForShade =
+              option.id === "app-only"
+                ? "from-emerald-300/28 via-cyan-300/18 to-transparent"
+                : option.id === "hybrid-app"
+                  ? "from-amber-200/34 via-cyan-300/18 to-transparent"
+                  : "from-fuchsia-300/26 via-sky-300/18 to-transparent";
+            const bestForText =
+              option.id === "app-only"
+                ? "text-emerald-50"
+                : option.id === "hybrid-app"
+                  ? "text-amber-50"
+                  : "text-fuchsia-50";
 
             return (
               <article
@@ -224,22 +237,36 @@ export default function MemberAppPricingSelector() {
                       : "",
                   ].join(" ")}
                 />
-                <Image
-                  src={option.asset}
-                  alt=""
-                  width={150}
-                  height={150}
-                  className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 object-contain opacity-[0.09] transition group-hover:scale-110 group-hover:opacity-[0.14]"
-                />
+                {option.id === "hybrid-app" ? (
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 rounded-full opacity-[0.11] transition group-hover:scale-110 group-hover:opacity-[0.17]"
+                  >
+                    <span className="absolute inset-1 rounded-full bg-amber-200/20 blur-xl" />
+                    <Image
+                      src={option.asset}
+                      alt=""
+                      width={150}
+                      height={150}
+                      className="relative h-full w-full rounded-full object-cover [clip-path:circle(47%_at_50%_50%)] [mask-image:radial-gradient(circle_at_center,black_0_66%,transparent_72%)]"
+                    />
+                  </div>
+                ) : (
+                  <Image
+                    src={option.asset}
+                    alt=""
+                    width={150}
+                    height={150}
+                    className="pointer-events-none absolute -right-10 -top-10 h-36 w-36 object-contain opacity-[0.09] transition group-hover:scale-110 group-hover:opacity-[0.14]"
+                  />
+                )}
                 <div className="relative flex h-full min-h-[320px] flex-col justify-between gap-6">
-                  <div>
-                    <div className="mb-3 flex h-7 items-start justify-end">
-                      {badgeText ? (
-                        <div className="pricing-card__badge max-w-[10.5rem] rounded-full border border-cyan-100/45 bg-cyan-200/14 px-3 py-1 text-center text-[9px] font-black uppercase leading-tight tracking-[0.12em] text-cyan-100 shadow-[0_0_18px_rgba(34,211,238,0.18)]">
-                          {badgeText}
-                        </div>
-                      ) : null}
+                  {badgeText ? (
+                    <div className="pricing-card__badge absolute right-4 top-4 z-20 max-w-[11.5rem] rounded-full border border-amber-100/55 bg-[linear-gradient(135deg,rgba(120,83,18,0.72),rgba(250,204,21,0.3)_48%,rgba(255,237,213,0.18))] px-3.5 py-1 text-center text-[9px] font-black uppercase leading-tight tracking-[0.12em] text-amber-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.32),0_0_20px_rgba(250,204,21,0.22)]">
+                      {badgeText}
                     </div>
+                  ) : null}
+                  <div>
                     {option.id === "app-only" ? (
                       <DashboardPhone3D
                         active
@@ -253,7 +280,7 @@ export default function MemberAppPricingSelector() {
                     ) : option.id === "online-coaching" ? (
                       <DashboardWhistle3D
                         active
-                        className="pricing-card__icon -ml-2 h-20 w-32 drop-shadow-[0_0_24px_rgba(125,211,252,0.4)] transition group-hover:drop-shadow-[0_0_34px_rgba(186,230,253,0.56)] sm:h-24 sm:w-36"
+                        className="pricing-card__icon -ml-3 -mt-1 h-24 w-40 drop-shadow-[0_0_24px_rgba(125,211,252,0.4)] transition group-hover:drop-shadow-[0_0_34px_rgba(186,230,253,0.56)] sm:h-28 sm:w-44"
                       />
                     ) : (
                       <Icon
@@ -262,7 +289,7 @@ export default function MemberAppPricingSelector() {
                         strokeWidth={2.15}
                       />
                     )}
-                    <div className="mt-4 h-1.5 w-20 rounded-full bg-gradient-to-r from-amber-200 via-cyan-300 to-sky-500 shadow-[0_0_18px_rgba(125,211,252,0.34)]" />
+                    <div className="sound-energy-divider mt-4 h-1.5 w-20 rounded-full bg-gradient-to-r from-amber-200 via-cyan-300 to-sky-500 shadow-[0_0_18px_rgba(125,211,252,0.34)]" />
                     <div className="mt-5 text-sm font-black uppercase tracking-[0.12em] text-white">
                       {option.title}
                     </div>
@@ -280,8 +307,29 @@ export default function MemberAppPricingSelector() {
                     <p className="mt-3 text-sm leading-6 text-slate-300">
                       {option.text}
                     </p>
-                    <div className="mt-4 text-xs font-black uppercase leading-5 tracking-[0.12em] text-sky-100">
-                      {option.bestFor}
+                    <div className="mt-4">
+                      <span
+                        className={[
+                          "pricing-card__best-for relative isolate inline-block max-w-full text-xs font-black uppercase leading-5 tracking-[0.12em]",
+                          bestForText,
+                        ].join(" ")}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={[
+                            "pointer-events-none absolute -inset-x-2 -inset-y-1 -z-10 bg-gradient-to-r blur-md",
+                            bestForShade,
+                          ].join(" ")}
+                        />
+                        <span
+                          aria-hidden="true"
+                          className={[
+                            "pointer-events-none absolute -inset-x-1.5 bottom-0 -z-10 h-2 bg-gradient-to-r opacity-70",
+                            bestForShade,
+                          ].join(" ")}
+                        />
+                        {option.bestFor}
+                      </span>
                     </div>
                     <ul
                       aria-label={`${option.title} benefits`}
@@ -320,12 +368,16 @@ export default function MemberAppPricingSelector() {
                       })}
                     </ul>
                   </div>
-                  <Link
-                    href={`${ROUTES.onboarding.subscription}?plan=${option.id}`}
+                  <button
+                    type="button"
                     aria-label={`Sign up for ${option.title}`}
-                    onClick={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedPlanId(option.id);
+                      setComingSoonPlanId(option.id);
+                    }}
                     onFocus={() => setSelectedPlanId(option.id)}
-                    className={`group/cta relative isolate inline-flex min-h-14 items-center justify-between gap-3 overflow-hidden rounded-xl border px-4 py-3 text-left text-slate-950 transition duration-300 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/80 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 ${signupCtaTone}`}
+                    className={`group/cta relative isolate inline-flex min-h-14 w-fit max-w-full items-center justify-start gap-4 self-start overflow-hidden rounded-xl border px-5 py-3 text-left text-slate-950 transition duration-300 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/80 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 lg:w-full lg:self-stretch lg:justify-between ${signupCtaTone}`}
                   >
                     <span
                       aria-hidden="true"
@@ -350,13 +402,17 @@ export default function MemberAppPricingSelector() {
                         strokeWidth={2.8}
                       />
                     </span>
-                  </Link>
+                  </button>
                 </div>
               </article>
             );
           })}
         </div>
       </div>
+      <TrainingPurchaseComingSoonModal
+        planId={comingSoonPlanId}
+        onClose={() => setComingSoonPlanId(null)}
+      />
     </>
   );
 }

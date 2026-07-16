@@ -4,17 +4,219 @@ type ThreeModule = typeof import("three");
 
 let dashboardThreePromise: Promise<ThreeModule> | null = null;
 let dashboardWebGlPreloadPromise: Promise<boolean> | null = null;
+let dashboardWebGlStartQueue: Promise<void> = Promise.resolve();
 
-const DASHBOARD_WEBGL_STILL_DELAY_MS = 900;
-const DASHBOARD_WEBGL_AUTO_STILL_ENABLED = false;
+const DASHBOARD_WEBGL_STILL_DELAY_MS = 980;
+const DASHBOARD_WEBGL_AUTO_STILL_ENABLED = true;
+const DASHBOARD_WEBGL_RELEASE_STILL_CONTEXT_ENABLED = false;
 const DASHBOARD_WEBGL_WAKE_HOLD_MS = 1400;
+const DASHBOARD_WEBGL_START_SPACING_MS = 80;
+const DASHBOARD_WEBGL_DEFAULT_RENDERER_BUDGET = 8;
+const DASHBOARD_WEBGL_LOW_POWER_RENDERER_BUDGET = 5;
+const DASHBOARD_WEBGL_BUDGET_WAIT_MS = 900;
+const DASHBOARD_WEBGL_PRIORITY_BUDGET_WAIT_MS = 1800;
+const DASHBOARD_WEBGL_SNAPSHOT_SPACING_MS = 70;
 const DASHBOARD_WEBGL_SNAPSHOT_CLASS = "dashboard-webgl-snapshot-layer";
 const DASHBOARD_WEBGL_SNAPSHOT_STORAGE_PREFIX = "dashboard-webgl-snapshot:";
+const DASHBOARD_WEBGL_MIN_SNAPSHOT_URL_LENGTH = 1800;
+export const DASHBOARD_WEBGL_IMAGE_MODE_EVENT =
+  "sound-fitness-dashboard-webgl-image-mode-change";
+export const DASHBOARD_WEBGL_IMAGE_MODE_STORAGE_KEY =
+  "sound-fitness-dashboard-webgl-image-mode";
 const DASHBOARD_PRIORITY_WEBGL_RETRY_DELAYS_MS = [320, 900, 1800, 3600, 7200];
+const DASHBOARD_WEBGL_SNAPSHOT_DATASET_KEYS = [
+  "basketballRenderer",
+  "categoryUfoRenderer",
+  "dashboardDumbbellRenderer",
+  "dashboardFeatureRowIconRenderer",
+  "dashboardGearIconRenderer",
+  "dashboardProfileIconRenderer",
+  "dashboardRealLifeIconRenderer",
+  "dashboardScrollButtonRenderer",
+  "dashboardSparklesRenderer",
+  "lightningBoltRenderer",
+  "logoRenderer",
+  "marketingCtaRenderer",
+  "meterMenuIconRenderer",
+  "phoneRenderer",
+  "soundCoinRenderer",
+  "soundPointsTeslaRenderer",
+  "stepNumberRenderer",
+  "tornadoRenderer",
+  "treasureChestRenderer",
+  "trophyRenderer",
+  "whistleRenderer",
+] as const;
+
+const dashboardWebGlActiveRenderers = new Set<WebGLRenderer>();
+const dashboardWebGlBudgetWaiters: {
+  resolve: () => void;
+  timeoutId: ReturnType<typeof globalThis.setTimeout>;
+}[] = [];
+let dashboardWebGlLastSnapshotCaptureAt = 0;
 
 export const loadDashboardThree = () => {
   dashboardThreePromise ??= import("three");
   return dashboardThreePromise;
+};
+
+function getDashboardWebGlRendererBudget() {
+  if (typeof window === "undefined") {
+    return DASHBOARD_WEBGL_DEFAULT_RENDERER_BUDGET;
+  }
+
+  const deviceMemory =
+    "deviceMemory" in navigator && typeof navigator.deviceMemory === "number"
+      ? navigator.deviceMemory
+      : null;
+  const lowPowerDevice =
+    window.matchMedia("(max-width: 767px)").matches ||
+    (deviceMemory !== null && deviceMemory <= 4) ||
+    navigator.hardwareConcurrency <= 4;
+
+  return lowPowerDevice
+    ? DASHBOARD_WEBGL_LOW_POWER_RENDERER_BUDGET
+    : DASHBOARD_WEBGL_DEFAULT_RENDERER_BUDGET;
+}
+
+function syncDashboardWebGlBudgetState() {
+  if (typeof document === "undefined") return;
+
+  document.documentElement.dataset.dashboardWebglActiveRenderers = String(
+    dashboardWebGlActiveRenderers.size,
+  );
+  document.documentElement.dataset.dashboardWebglRendererBudget = String(
+    getDashboardWebGlRendererBudget(),
+  );
+}
+
+/**
+ * Decorative canvases may not take the last slot in the budget — it's held for
+ * callers that ask with `priority` (brand marks: the header wordmark, the
+ * dashboard logo). Without this, whoever mounts first wins, and a page with
+ * enough decoration starves the logo into its flat-text fallback.
+ */
+const DASHBOARD_WEBGL_PRIORITY_RESERVED_SLOTS = 1;
+
+function hasDashboardWebGlRendererCapacity(priority = false) {
+  const budget = getDashboardWebGlRendererBudget();
+  const limit = priority
+    ? budget
+    : Math.max(1, budget - DASHBOARD_WEBGL_PRIORITY_RESERVED_SLOTS);
+
+  return dashboardWebGlActiveRenderers.size < limit;
+}
+
+function resolveNextDashboardWebGlBudgetWaiter() {
+  if (!hasDashboardWebGlRendererCapacity()) return;
+
+  const waiter = dashboardWebGlBudgetWaiters.shift();
+  if (!waiter) return;
+
+  globalThis.clearTimeout(waiter.timeoutId);
+  waiter.resolve();
+}
+
+function waitForDashboardWebGlRendererCapacity(priority: boolean) {
+  if (hasDashboardWebGlRendererCapacity(priority)) {
+    syncDashboardWebGlBudgetState();
+    return Promise.resolve();
+  }
+
+  const timeoutMs = priority
+    ? DASHBOARD_WEBGL_PRIORITY_BUDGET_WAIT_MS
+    : DASHBOARD_WEBGL_BUDGET_WAIT_MS;
+
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      const index = dashboardWebGlBudgetWaiters.findIndex(
+        (waiter) => waiter.resolve === finish,
+      );
+      if (index >= 0) {
+        dashboardWebGlBudgetWaiters.splice(index, 1);
+      }
+      syncDashboardWebGlBudgetState();
+      resolve();
+    };
+    const timeoutId = globalThis.setTimeout(finish, timeoutMs);
+
+    if (priority) {
+      dashboardWebGlBudgetWaiters.unshift({ resolve: finish, timeoutId });
+    } else {
+      dashboardWebGlBudgetWaiters.push({ resolve: finish, timeoutId });
+    }
+  });
+}
+
+function trackDashboardWebGlRenderer(
+  renderer: WebGLRenderer,
+  canvas: HTMLCanvasElement,
+) {
+  let released = false;
+  dashboardWebGlActiveRenderers.add(renderer);
+  delete canvas.dataset.webglBudgetDeferred;
+  syncDashboardWebGlBudgetState();
+
+  return () => {
+    if (released) return;
+
+    released = true;
+    dashboardWebGlActiveRenderers.delete(renderer);
+    delete canvas.dataset.webglBudgetDeferred;
+    syncDashboardWebGlBudgetState();
+    resolveNextDashboardWebGlBudgetWaiter();
+  };
+}
+
+export const isDashboardWebGlImageModeEnabled = () => {
+  if (typeof document === "undefined") return false;
+
+  return document.documentElement.dataset.dashboardWebglImageMode === "still";
+};
+
+export const setDashboardWebGlImageMode = (enabled: boolean) => {
+  if (typeof document === "undefined") return;
+
+  document.documentElement.dataset.dashboardWebglImageMode = enabled
+    ? "still"
+    : "live";
+
+  try {
+    window.localStorage.setItem(
+      DASHBOARD_WEBGL_IMAGE_MODE_STORAGE_KEY,
+      enabled ? "still" : "live",
+    );
+  } catch {
+    // Render mode persistence is best-effort.
+  }
+
+  window.dispatchEvent(
+    new CustomEvent(DASHBOARD_WEBGL_IMAGE_MODE_EVENT, {
+      detail: { enabled },
+    }),
+  );
+};
+
+export const syncDashboardWebGlImageModeFromStorage = () => {
+  if (typeof document === "undefined") return false;
+
+  let enabled = false;
+  try {
+    enabled =
+      window.localStorage.getItem(DASHBOARD_WEBGL_IMAGE_MODE_STORAGE_KEY) ===
+      "still";
+  } catch {
+    enabled = false;
+  }
+
+  document.documentElement.dataset.dashboardWebglImageMode = enabled
+    ? "still"
+    : "live";
+
+  return enabled;
 };
 
 export const markDashboardWebGlFallback = (canvas: HTMLCanvasElement) => {
@@ -23,6 +225,7 @@ export const markDashboardWebGlFallback = (canvas: HTMLCanvasElement) => {
   delete canvas.dataset.dashboardWebglActive;
   delete canvas.dataset.dashboardWebglStill;
   delete canvas.dataset.dashboardWebglStillPending;
+  delete canvas.dataset.dashboardWebglSnapshotQueued;
   delete canvas.dataset.webglContext;
   syncDashboardWebGlChildReady(canvas, false);
 
@@ -43,6 +246,7 @@ export const clearDashboardWebGlFallback = (canvas: HTMLCanvasElement) => {
 
 export const wakeDashboardWebGlCanvas = (canvas: HTMLCanvasElement | null) => {
   if (!canvas) return;
+  if (isDashboardWebGlImageModeEnabled()) return;
 
   delete canvas.dataset.dashboardWebglStill;
   delete canvas.dataset.dashboardWebglStillPending;
@@ -60,6 +264,8 @@ export const setDashboardWebGlCanvasActive = (
   } else {
     delete canvas.dataset.dashboardWebglActive;
   }
+
+  if (isDashboardWebGlImageModeEnabled()) return;
 
   wakeDashboardWebGlCanvas(canvas);
 };
@@ -87,19 +293,23 @@ function getDashboardWebGlSnapshotCacheKey(canvas: HTMLCanvasElement) {
   const explicitKey = canvas.dataset.dashboardWebglSnapshotKey;
   if (explicitKey) return explicitKey;
 
+  for (const key of DASHBOARD_WEBGL_SNAPSHOT_DATASET_KEYS) {
+    const value = canvas.dataset[key];
+    if (value) return `${key}:${value}`;
+  }
+
+  for (const [key, value] of Object.entries(canvas.dataset)) {
+    if (!value || key === "webglContext") continue;
+    if (key.endsWith("Renderer")) return `${key}:${value}`;
+  }
+
   const className =
     typeof canvas.className === "string" ? canvas.className.trim() : "";
   if (className) {
     return className.split(/\s+/)[0] ?? "";
   }
 
-  return (
-    canvas.dataset.logoRenderer ||
-    canvas.dataset.trophyRenderer ||
-    canvas.dataset.dashboardScrollButtonRenderer ||
-    canvas.dataset.webglContext ||
-    ""
-  );
+  return canvas.dataset.webglContext || "";
 }
 
 function readDashboardWebGlCachedSnapshot(canvas: HTMLCanvasElement) {
@@ -148,7 +358,14 @@ function writeDashboardWebGlCachedSnapshot(
   if (typeof window === "undefined") return;
 
   const cacheKey = getDashboardWebGlSnapshotCacheKey(canvas);
-  if (!cacheKey || !snapshotUrl.startsWith("data:image/png;base64,")) return;
+  if (
+    !cacheKey ||
+    !snapshotUrl.startsWith("data:image/png;base64,") ||
+    snapshotUrl.length < DASHBOARD_WEBGL_MIN_SNAPSHOT_URL_LENGTH
+  ) {
+    removeDashboardWebGlCachedSnapshot(canvas);
+    return;
+  }
 
   try {
     window.sessionStorage.setItem(
@@ -173,6 +390,7 @@ function ensureDashboardWebGlSnapshotLayer(canvas: HTMLCanvasElement) {
     layer.decoding = "async";
     layer.draggable = false;
     layer.onerror = () => {
+      removeDashboardWebGlCachedSnapshot(canvas);
       delete layer?.dataset.dashboardWebglSnapshotValid;
       layer?.removeAttribute("src");
       setDashboardWebGlSnapshotVisible(canvas, false);
@@ -213,9 +431,31 @@ function setDashboardWebGlSnapshotVisible(
   delete parent.dataset.dashboardWebglSnapshotVisible;
 }
 
+function setDashboardWebGlReleasedSnapshotStyles(
+  canvas: HTMLCanvasElement,
+  released: boolean,
+) {
+  const layer = getDashboardWebGlSnapshotLayer(canvas);
+
+  if (released) {
+    canvas.style.setProperty("opacity", "0", "important");
+    canvas.style.setProperty("visibility", "hidden", "important");
+    if (layer) {
+      layer.style.setProperty("opacity", "1", "important");
+      layer.style.setProperty("visibility", "visible", "important");
+    }
+    return;
+  }
+
+  canvas.style.removeProperty("opacity");
+  canvas.style.removeProperty("visibility");
+  layer?.style.removeProperty("opacity");
+  layer?.style.removeProperty("visibility");
+}
+
 function positionDashboardWebGlSnapshotLayer(
   canvas: HTMLCanvasElement,
-  layer: HTMLImageElement,
+  layer: HTMLElement,
 ) {
   const parent = canvas.parentElement;
   if (!parent) return;
@@ -254,6 +494,18 @@ function captureDashboardWebGlSnapshot(
     }
   }
 
+  const now = performance.now();
+  if (
+    now - dashboardWebGlLastSnapshotCaptureAt <
+    DASHBOARD_WEBGL_SNAPSHOT_SPACING_MS
+  ) {
+    canvas.dataset.dashboardWebglSnapshotQueued = "true";
+    return false;
+  }
+
+  dashboardWebGlLastSnapshotCaptureAt = now;
+  delete canvas.dataset.dashboardWebglSnapshotQueued;
+
   let snapshotUrl = "";
   try {
     snapshotUrl = canvas.toDataURL("image/png");
@@ -261,7 +513,14 @@ function captureDashboardWebGlSnapshot(
     return false;
   }
 
-  if (!snapshotUrl || snapshotUrl === "data:,") return false;
+  if (
+    !snapshotUrl ||
+    snapshotUrl === "data:," ||
+    snapshotUrl.length < DASHBOARD_WEBGL_MIN_SNAPSHOT_URL_LENGTH
+  ) {
+    removeDashboardWebGlCachedSnapshot(canvas);
+    return false;
+  }
 
   const layer = ensureDashboardWebGlSnapshotLayer(canvas);
   if (!layer) return false;
@@ -276,6 +535,13 @@ function captureDashboardWebGlSnapshot(
 function restoreDashboardWebGlCachedSnapshot(canvas: HTMLCanvasElement) {
   const snapshotUrl = readDashboardWebGlCachedSnapshot(canvas);
   if (!snapshotUrl) return false;
+  if (
+    !snapshotUrl.startsWith("data:image/png;base64,") ||
+    snapshotUrl.length < DASHBOARD_WEBGL_MIN_SNAPSHOT_URL_LENGTH
+  ) {
+    removeDashboardWebGlCachedSnapshot(canvas);
+    return false;
+  }
 
   const layer = ensureDashboardWebGlSnapshotLayer(canvas);
   if (!layer) return false;
@@ -301,9 +567,13 @@ function cleanupDashboardWebGlSnapshotArtifacts(canvas: HTMLCanvasElement) {
   parent.classList.remove("dashboard-webgl-snapshot-host");
   delete parent.dataset.dashboardWebglSnapshot;
   delete parent.dataset.dashboardWebglSnapshotPositioned;
+  delete parent.dataset.dashboardWebglSnapshotReleased;
   delete parent.dataset.dashboardWebglSnapshotVisible;
+  delete canvas.dataset.dashboardWebglSnapshotReleased;
   delete canvas.dataset.dashboardWebglSnapshotVisible;
+  delete canvas.dataset.dashboardWebglSnapshotQueued;
   delete canvas.dataset.dashboardWebglSnapshot;
+  setDashboardWebGlReleasedSnapshotStyles(canvas, false);
 }
 
 function syncDashboardWebGlChildReady(canvas: HTMLCanvasElement, ready: boolean) {
@@ -323,11 +593,14 @@ function syncDashboardWebGlChildReady(canvas: HTMLCanvasElement, ready: boolean)
 const attachDashboardWebGlSnapshotCapture = (
   renderer: WebGLRenderer,
   canvas: HTMLCanvasElement,
+  releaseRendererSlot: () => void,
 ) => {
   const originalRender = renderer.render.bind(renderer);
   const originalDispose = renderer.dispose.bind(renderer);
+  const originalForceContextLoss = renderer.forceContextLoss.bind(renderer);
   const originalSetSize = renderer.setSize.bind(renderer);
   let stillTimeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
+  let releasedStillContext = false;
   let wakeUntil = 0;
 
   const shouldStayLive = () => canvas.dataset.dashboardWebglActive === "true";
@@ -345,8 +618,9 @@ const attachDashboardWebGlSnapshotCapture = (
       return;
     }
 
+    const imageMode = isDashboardWebGlImageModeEnabled();
     if (
-      shouldStayLive() ||
+      (!imageMode && shouldStayLive()) ||
       canvas.dataset.dashboardWebglStill === "true" ||
       canvas.dataset.dashboardWebglStillPending === "true"
     ) {
@@ -357,21 +631,71 @@ const attachDashboardWebGlSnapshotCapture = (
 
     stillTimeoutId = globalThis.setTimeout(() => {
       stillTimeoutId = null;
-      if (shouldStayLive() || performance.now() < wakeUntil) {
+      if (
+        !isDashboardWebGlImageModeEnabled() &&
+        (shouldStayLive() || performance.now() < wakeUntil)
+      ) {
         requestStillSnapshot();
         return;
       }
 
-      captureDashboardWebGlSnapshot(canvas, true);
       canvas.dataset.dashboardWebglStillPending = "true";
     }, DASHBOARD_WEBGL_STILL_DELAY_MS);
   };
 
   const wakeLiveCanvas = () => {
+    if (isDashboardWebGlImageModeEnabled()) {
+      clearStillTimeout();
+      canvas.dataset.dashboardWebglStillPending = "true";
+      return;
+    }
+
+    if (releasedStillContext) {
+      setDashboardWebGlSnapshotVisible(canvas, true);
+      return;
+    }
+
     wakeUntil = performance.now() + DASHBOARD_WEBGL_WAKE_HOLD_MS;
     clearStillTimeout();
     wakeDashboardWebGlCanvas(canvas);
     requestStillSnapshot();
+  };
+
+  const releaseStillContext = () => {
+    if (
+      releasedStillContext ||
+      shouldStayLive() ||
+      canvas.dataset.dashboardWebglStill !== "true" ||
+      canvas.dataset.webglFallback === "true"
+    ) {
+      return;
+    }
+
+    const layer = getDashboardWebGlSnapshotLayer(canvas);
+    const snapshotSource = layer?.getAttribute("src") || "";
+    if (
+      !layer ||
+      layer.dataset.dashboardWebglSnapshotValid !== "true" ||
+      !snapshotSource.startsWith("data:image/")
+    ) {
+      return;
+    }
+
+    releasedStillContext = true;
+    clearStillTimeout();
+    canvas.dataset.dashboardWebglSnapshotReleased = "true";
+    if (canvas.parentElement) {
+      canvas.parentElement.dataset.dashboardWebglSnapshotReleased = "true";
+    }
+    setDashboardWebGlSnapshotVisible(canvas, true);
+    setDashboardWebGlReleasedSnapshotStyles(canvas, true);
+    try {
+      originalForceContextLoss();
+    } catch {
+      // Some browsers may reject forced loss after a context has already gone.
+    }
+    originalDispose();
+    releaseRendererSlot();
   };
 
   const interactiveTarget = canvas.parentElement ?? canvas;
@@ -383,14 +707,55 @@ const attachDashboardWebGlSnapshotCapture = (
   });
   interactiveTarget.addEventListener("focusin", wakeLiveCanvas);
 
+  const syncImageMode = () => {
+    clearStillTimeout();
+
+    if (isDashboardWebGlImageModeEnabled()) {
+      delete canvas.dataset.dashboardWebglStill;
+      canvas.dataset.dashboardWebglStillPending = "true";
+      const layer = getDashboardWebGlSnapshotLayer(canvas);
+      const snapshotSource = layer?.getAttribute("src") || "";
+      if (
+        layer?.dataset.dashboardWebglSnapshotValid === "true" &&
+        snapshotSource.startsWith("data:image/")
+      ) {
+        setDashboardWebGlSnapshotVisible(canvas, true);
+      }
+      return;
+    }
+
+    delete canvas.dataset.dashboardWebglStill;
+    delete canvas.dataset.dashboardWebglStillPending;
+    delete canvas.dataset.dashboardWebglSnapshotReleased;
+    if (canvas.parentElement) {
+      delete canvas.parentElement.dataset.dashboardWebglSnapshotReleased;
+    }
+    setDashboardWebGlReleasedSnapshotStyles(canvas, false);
+    setDashboardWebGlSnapshotVisible(canvas, false);
+    wakeDashboardWebGlCanvas(canvas);
+  };
+
+  window.addEventListener(DASHBOARD_WEBGL_IMAGE_MODE_EVENT, syncImageMode);
+  syncImageMode();
+
   renderer.setSize = ((...args: Parameters<WebGLRenderer["setSize"]>) => {
     wakeLiveCanvas();
     return originalSetSize(...args);
   }) as WebGLRenderer["setSize"];
 
   renderer.render = ((...args: Parameters<WebGLRenderer["render"]>) => {
-    const liveForMotion =
-      shouldStayLive() || !DASHBOARD_WEBGL_AUTO_STILL_ENABLED;
+    if (releasedStillContext) {
+      canvas.dataset.dashboardWebglSnapshotReleased = "true";
+      if (canvas.parentElement) {
+        canvas.parentElement.dataset.dashboardWebglSnapshotReleased = "true";
+      }
+      setDashboardWebGlSnapshotVisible(canvas, true);
+      setDashboardWebGlReleasedSnapshotStyles(canvas, true);
+      return;
+    }
+
+    const imageMode = isDashboardWebGlImageModeEnabled();
+    const liveForMotion = !imageMode && shouldStayLive();
 
     if (liveForMotion) {
       clearStillTimeout();
@@ -403,10 +768,23 @@ const attachDashboardWebGlSnapshotCapture = (
     originalRender(...args);
     canvas.dataset.webglReady = "true";
     syncDashboardWebGlChildReady(canvas, true);
-    captureDashboardWebGlSnapshot(
+    const capturedSnapshot = captureDashboardWebGlSnapshot(
       canvas,
-      canvas.dataset.dashboardWebglStillPending === "true",
+      imageMode || canvas.dataset.dashboardWebglStillPending === "true",
     );
+
+    if (imageMode) {
+      if (capturedSnapshot) {
+        canvas.dataset.dashboardWebglStill = "true";
+        delete canvas.dataset.dashboardWebglStillPending;
+        setDashboardWebGlSnapshotVisible(canvas, true);
+      } else {
+        delete canvas.dataset.dashboardWebglStill;
+        canvas.dataset.dashboardWebglStillPending = "true";
+        setDashboardWebGlSnapshotVisible(canvas, false);
+      }
+      return;
+    }
 
     if (liveForMotion) {
       setDashboardWebGlSnapshotVisible(canvas, false);
@@ -414,9 +792,18 @@ const attachDashboardWebGlSnapshotCapture = (
     }
 
     if (canvas.dataset.dashboardWebglStillPending === "true") {
+      if (!capturedSnapshot) {
+        delete canvas.dataset.dashboardWebglStillPending;
+        requestStillSnapshot();
+        return;
+      }
+
       canvas.dataset.dashboardWebglStill = "true";
       delete canvas.dataset.dashboardWebglStillPending;
       setDashboardWebGlSnapshotVisible(canvas, true);
+      if (DASHBOARD_WEBGL_RELEASE_STILL_CONTEXT_ENABLED) {
+        globalThis.setTimeout(releaseStillContext, 0);
+      }
     } else {
       requestStillSnapshot();
     }
@@ -427,12 +814,22 @@ const attachDashboardWebGlSnapshotCapture = (
     interactiveTarget.removeEventListener("pointerenter", wakeLiveCanvas);
     interactiveTarget.removeEventListener("pointerdown", wakeLiveCanvas);
     interactiveTarget.removeEventListener("focusin", wakeLiveCanvas);
+    window.removeEventListener(DASHBOARD_WEBGL_IMAGE_MODE_EVENT, syncImageMode);
     delete canvas.dataset.webglReady;
     delete canvas.dataset.dashboardWebglActive;
+    delete canvas.dataset.dashboardWebglSnapshotReleased;
+    setDashboardWebGlReleasedSnapshotStyles(canvas, false);
     syncDashboardWebGlChildReady(canvas, false);
     cleanupDashboardWebGlSnapshotArtifacts(canvas);
+    releaseRendererSlot();
+    if (releasedStillContext) return;
     return originalDispose();
   }) as WebGLRenderer["dispose"];
+
+  renderer.forceContextLoss = (() => {
+    releaseRendererSlot();
+    return originalForceContextLoss();
+  }) as WebGLRenderer["forceContextLoss"];
 };
 
 export const preloadDashboardWebGlRuntime = () => {
@@ -494,22 +891,39 @@ export const waitForDashboardWebGlStart = async ({
   void preloadDashboardWebGlRuntime();
   await loadDashboardThree();
 
-  return new Promise<void>((resolve) => {
-    if (typeof window === "undefined") {
-      resolve();
-      return;
-    }
+  const startDelay = priority ? 0 : DASHBOARD_WEBGL_START_SPACING_MS;
+  const queuedStart = dashboardWebGlStartQueue.then(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          window.setTimeout(resolve, startDelay);
+        });
+      }),
+  );
 
-    requestAnimationFrame(() => resolve());
-  });
+  const budgetedStart = queuedStart.then(() =>
+    waitForDashboardWebGlRendererCapacity(priority),
+  );
+
+  dashboardWebGlStartQueue = budgetedStart.catch(() => undefined);
+  return budgetedStart;
 };
 
 export const createDashboardWebGlRenderer = (
   THREE: ThreeModule,
   canvas: HTMLCanvasElement,
   options: Omit<WebGLRendererParameters, "canvas" | "context">,
+  { priority = false }: { priority?: boolean } = {},
 ): WebGLRenderer | null => {
   clearDashboardWebGlFallback(canvas);
+  delete canvas.dataset.webglBudgetDeferred;
+
+  if (!hasDashboardWebGlRendererCapacity(priority)) {
+    canvas.dataset.webglBudgetDeferred = "true";
+    markDashboardWebGlFallback(canvas);
+    syncDashboardWebGlBudgetState();
+    return null;
+  }
 
   try {
     const contextAttributes: WebGLContextAttributes = {
@@ -544,7 +958,8 @@ export const createDashboardWebGlRenderer = (
       context: context as WebGLRenderingContext,
       preserveDrawingBuffer: true,
     });
-    attachDashboardWebGlSnapshotCapture(renderer, canvas);
+    const releaseRendererSlot = trackDashboardWebGlRenderer(renderer, canvas);
+    attachDashboardWebGlSnapshotCapture(renderer, canvas, releaseRendererSlot);
 
     return renderer;
   } catch {

@@ -53,6 +53,14 @@ const defaultAdminSystems: AdminLink[] = [
     color: "text-rose-300",
   },
   {
+    id: "submissions",
+    title: "Submissions",
+    href: "/admin/submissions",
+    badge: "Inbox",
+    desc: "Collect onboarding assessment submissions, contact details, and result summaries.",
+    color: "text-cyan-300",
+  },
+  {
     id: "lead-map",
     title: "Lead Map",
     href: "/admin/lead-map",
@@ -480,6 +488,12 @@ export default function AdminHomePage() {
                   className="rounded-[22px] border border-white/10 bg-slate-950/55 px-4 py-4 text-sm font-medium text-white hover:border-sky-400/40 hover:bg-sky-500/10"
                 >
                   🗺️ Lead Map
+                </a>
+                <a
+                  href="/admin/submissions"
+                  className="rounded-[22px] border border-white/10 bg-slate-950/55 px-4 py-4 text-sm font-medium text-white hover:border-cyan-400/40 hover:bg-cyan-500/10"
+                >
+                  Submission Inbox
                 </a>
                 <a
                   href="/admin/leads"
