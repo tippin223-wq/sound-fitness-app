@@ -3,9 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import {
-  EmbeddedCheckout,
-  EmbeddedCheckoutProvider,
-} from "@stripe/react-stripe-js";
+  CheckoutElementsProvider,
+  ContactDetailsElement,
+  ExpressCheckoutElement,
+  PaymentElement,
+  useCheckoutElements,
+} from "@stripe/react-stripe-js/checkout";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -15,7 +18,14 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import AssessmentWebGlIcon, {
   type AssessmentIconGlyph,
 } from "@/components/AssessmentWebGlIcon";
@@ -41,6 +51,30 @@ type CheckoutState =
   | { status: "error"; message: string };
 
 const stripePromise = getStripe();
+
+const STRIPE_CHECKOUT_APPEARANCE = {
+  theme: "night" as const,
+  variables: {
+    colorPrimary: "#f97316",
+    colorBackground: "#07111f",
+    colorText: "#f8fafc",
+    colorTextSecondary: "#cbd5e1",
+    colorTextPlaceholder: "#94a3b8",
+    colorSuccess: "#34d399",
+    colorDanger: "#fb7185",
+    colorWarning: "#fbbf24",
+    iconColor: "#7dd3fc",
+    fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+    fontSizeBase: "16px",
+    fontWeightMedium: "600",
+    fontWeightBold: "700",
+    spacingUnit: "4px",
+    borderRadius: "6px",
+    buttonColorBackground: "#f97316",
+    buttonColorText: "#111827",
+    buttonFontWeight: "800",
+  },
+};
 
 // 3D glyph per plan for the card icons (the lucide icons remain the fallback
 // wherever a WebGL context isn't warranted, e.g. the transient info popup).
@@ -245,9 +279,14 @@ export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
     return () => window.clearTimeout(checkoutStartTimer);
   }, [planId, startCheckout]);
 
-  const embeddedOptions = useMemo(
+  const checkoutOptions = useMemo(
     () =>
-      state.status === "ready" ? { clientSecret: state.clientSecret } : null,
+      state.status === "ready"
+        ? {
+            clientSecret: state.clientSecret,
+            elementsOptions: { appearance: STRIPE_CHECKOUT_APPEARANCE },
+          }
+        : null,
     [state],
   );
 
@@ -639,25 +678,14 @@ export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
               </CheckoutStatus>
             ) : null}
 
-            {embeddedOptions ? (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 border-b border-orange-300/35 pb-2">
-                  <ShieldCheck
-                    aria-hidden="true"
-                    className="h-4 w-4 text-orange-300"
-                  />
-                  <h2 className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-100">
-                    Secure enrollment
-                  </h2>
-                </div>
-                <EmbeddedCheckoutProvider
-                  key={embeddedOptions.clientSecret}
-                  stripe={stripePromise}
-                  options={embeddedOptions}
-                >
-                  <EmbeddedCheckout />
-                </EmbeddedCheckoutProvider>
-              </div>
+            {checkoutOptions ? (
+              <CheckoutElementsProvider
+                key={checkoutOptions.clientSecret}
+                stripe={stripePromise}
+                options={checkoutOptions}
+              >
+                <DarkStripeCheckout />
+              </CheckoutElementsProvider>
             ) : null}
               </div>
             </div>
@@ -805,6 +833,84 @@ export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
           })()
         : null}
     </main>
+  );
+}
+
+function DarkStripeCheckout() {
+  const checkoutState = useCheckoutElements();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const confirm = useCallback(
+    async (event?: Parameters<
+      NonNullable<React.ComponentProps<typeof ExpressCheckoutElement>["onConfirm"]>
+    >[0]) => {
+      if (checkoutState.type !== "success") return;
+
+      setIsSubmitting(true);
+      setSubmitError(null);
+
+      try {
+        const result = await checkoutState.checkout.confirm(
+          event ? { expressCheckoutConfirmEvent: event } : undefined,
+        );
+
+        if (result.type === "error") {
+          setSubmitError(
+            result.error.message ?? "We couldn't confirm your enrollment.",
+          );
+        }
+      } catch {
+        setSubmitError("We couldn't confirm your enrollment. Please try again.");
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [checkoutState],
+  );
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await confirm();
+  };
+
+  const isLoading = checkoutState.type === "loading";
+  const checkoutError =
+    checkoutState.type === "error" ? checkoutState.error.message : null;
+
+  return (
+    <form className="space-y-4" onSubmit={handleSubmit}>
+      <ExpressCheckoutElement
+        onConfirm={confirm}
+      />
+
+      <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+        <span className="h-px flex-1 bg-slate-600/70" />
+        <span>Or pay by card</span>
+        <span className="h-px flex-1 bg-slate-600/70" />
+      </div>
+
+      <ContactDetailsElement />
+      <PaymentElement options={{ layout: "accordion" }} />
+
+      {checkoutError || submitError ? (
+        <p className="text-sm font-medium leading-6 text-rose-200">
+          {submitError ?? checkoutError}
+        </p>
+      ) : null}
+
+      <button
+        type="submit"
+        disabled={isLoading || isSubmitting || checkoutState.type === "error"}
+        className="inline-flex min-h-12 w-full items-center justify-center rounded-md bg-orange-500 px-4 text-xs font-black uppercase tracking-[0.14em] text-slate-950 transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {isSubmitting
+          ? "Confirming enrollment..."
+          : isLoading
+            ? "Preparing secure payment..."
+            : "Complete enrollment"}
+      </button>
+    </form>
   );
 }
 
