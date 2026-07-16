@@ -640,13 +640,24 @@ export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
             ) : null}
 
             {embeddedOptions ? (
-              <EmbeddedCheckoutProvider
-                key={embeddedOptions.clientSecret}
-                stripe={stripePromise}
-                options={embeddedOptions}
-              >
-                <EmbeddedCheckout />
-              </EmbeddedCheckoutProvider>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 border-b border-orange-300/35 pb-2">
+                  <ShieldCheck
+                    aria-hidden="true"
+                    className="h-4 w-4 text-orange-300"
+                  />
+                  <h2 className="text-[11px] font-black uppercase tracking-[0.16em] text-orange-100">
+                    Secure enrollment
+                  </h2>
+                </div>
+                <EmbeddedCheckoutProvider
+                  key={embeddedOptions.clientSecret}
+                  stripe={stripePromise}
+                  options={embeddedOptions}
+                >
+                  <EmbeddedCheckout />
+                </EmbeddedCheckoutProvider>
+              </div>
             ) : null}
               </div>
             </div>
