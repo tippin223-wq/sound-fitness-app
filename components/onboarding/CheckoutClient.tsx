@@ -582,17 +582,17 @@ export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
             </Link>
           </div>
 
-          <div className="relative min-h-[26rem] min-w-0 overflow-hidden rounded-2xl border border-sky-200/30 bg-[#06101d] p-px shadow-[0_0_0_1px_rgba(56,189,248,0.08),0_26px_60px_rgba(0,0,0,0.46)]">
+          <div className="relative min-h-[26rem] min-w-0 overflow-hidden rounded-lg border border-sky-200/30 bg-[#06101d] p-1 shadow-[0_0_0_1px_rgba(56,189,248,0.08),0_26px_60px_rgba(0,0,0,0.46)]">
             <span
               aria-hidden="true"
               className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-sky-100 to-amber-200/80"
             />
-            <div className="relative min-h-[calc(26rem-2px)] overflow-hidden rounded-[calc(1rem-1px)] border border-white/[0.07] bg-[linear-gradient(155deg,rgba(16,41,71,0.94),rgba(7,17,31,0.98)_48%,rgba(9,18,31,0.96))] p-2 sm:p-4">
+            <div className="relative min-h-[calc(26rem-10px)] overflow-hidden rounded-md border-2 border-orange-400/95 bg-[linear-gradient(155deg,rgba(16,41,71,0.94),rgba(7,17,31,0.98)_48%,rgba(9,18,31,0.96))] p-2 shadow-[inset_0_0_0_1px_rgba(255,237,213,0.5),inset_0_0_22px_rgba(234,88,12,0.14)] sm:p-4">
               <span
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-x-0 top-0 h-20 bg-[linear-gradient(180deg,rgba(125,211,252,0.08),transparent)]"
               />
-              <div className="relative z-10 min-h-[calc(26rem-18px)] sm:min-h-[calc(26rem-34px)]">
+              <div className="relative z-10 min-h-[calc(26rem-30px)] sm:min-h-[calc(26rem-46px)]">
             {state.status === "loading" || state.status === "idle" ? (
               <CheckoutStatus>
                 <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-sky-300/40 border-t-sky-200" />
