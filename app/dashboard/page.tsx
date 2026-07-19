@@ -4,6 +4,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsUpDown,
+  Filter,
+  Maximize2,
+  Minimize2,
+  Pencil,
+  Plus,
+  X,
+} from "lucide-react";
+import {
   type ChangeEvent as ReactChangeEvent,
   type CSSProperties,
   type FocusEvent as ReactFocusEvent,
@@ -9818,6 +9830,1127 @@ const dashboardJourneyStepStyles: Record<DashboardJourneyStepState, string> = {
     "border-white/10 bg-white/[0.025] text-slate-500 opacity-60 hover:border-white/15 hover:opacity-80",
 };
 
+type AdminUserListStage = {
+  fields: Array<{ key: string; label: string }>;
+  helper: string;
+  icon: string;
+  key: string;
+  label: string;
+  short: string;
+};
+
+const adminUserListStages = [
+  {
+    fields: [
+      { key: "name", label: "Name" },
+      { key: "platform", label: "Platform" },
+      { key: "content", label: "Content seen" },
+      { key: "timesSeen", label: "Times seen" },
+      { key: "date", label: "Last seen" },
+      { key: "note", label: "Note" },
+    ],
+    helper: "Saw the content.",
+    icon: "stats",
+    key: "impressions",
+    label: "Impressions",
+    short: "Impr",
+  },
+  {
+    fields: [
+      { key: "name", label: "Name" },
+      { key: "platform", label: "Platform" },
+      { key: "interaction", label: "Interaction" },
+      { key: "content", label: "On which content" },
+      { key: "date", label: "Date" },
+      { key: "note", label: "What they said" },
+    ],
+    helper: "Liked, commented, shared, or replied.",
+    icon: "messages",
+    key: "engagement",
+    label: "Engagement",
+    short: "Engage",
+  },
+  {
+    fields: [
+      { key: "name", label: "Name" },
+      { key: "source", label: "Source" },
+      { key: "goal", label: "Primary goal" },
+      { key: "timeline", label: "Wants to start" },
+      { key: "date", label: "Submitted" },
+      { key: "note", label: "What they asked for" },
+    ],
+    helper: "Completed the interest form.",
+    icon: "form",
+    key: "interest",
+    label: "Interest Form",
+    short: "Interest",
+  },
+  {
+    fields: [
+      { key: "name", label: "Name" },
+      { key: "source", label: "Signup source" },
+      { key: "status", label: "Status" },
+      { key: "date", label: "Subscribed" },
+      { key: "note", label: "Tags / interests" },
+    ],
+    helper: "Subscribed to email communication.",
+    icon: "mail",
+    key: "email",
+    label: "Email List",
+    short: "Email",
+  },
+  {
+    fields: [
+      { key: "name", label: "Name" },
+      { key: "date", label: "Assessment date" },
+      { key: "status", label: "Status" },
+      { key: "goal", label: "Primary goal" },
+      { key: "space", label: "Training space" },
+      { key: "equipment", label: "Equipment on hand" },
+      { key: "note", label: "Notes" },
+    ],
+    helper: "Booked or completed an in-home assessment.",
+    icon: "tests",
+    key: "assessment",
+    label: "In-Home Assessment",
+    short: "Assess",
+  },
+  {
+    fields: [
+      { key: "name", label: "Name" },
+      { key: "email", label: "Email" },
+      { key: "goal", label: "Primary goal" },
+      { key: "result", label: "Recommended plan" },
+      { key: "status", label: "Results email" },
+      { key: "date", label: "Completed" },
+      { key: "note", label: "Quiz notes" },
+    ],
+    helper: "Online quiz submissions and recommended plans.",
+    icon: "form",
+    key: "appQuiz",
+    label: "App Quiz",
+    short: "Quiz",
+  },
+  {
+    fields: [
+      { key: "name", label: "Name" },
+      { key: "plan", label: "Plan / package" },
+      { key: "rate", label: "Rate" },
+      { key: "start", label: "Start date" },
+      { key: "nextSession", label: "Next session" },
+      { key: "goal", label: "Primary goal" },
+      { key: "note", label: "Schedule / focus" },
+    ],
+    helper: "Active and paying client.",
+    icon: "groups",
+    key: "clients",
+    label: "Clients",
+    short: "Clients",
+  },
+  {
+    fields: [
+      { key: "name", label: "Name" },
+      { key: "email", label: "Email" },
+      { key: "role", label: "App role" },
+      { key: "plan", label: "Membership" },
+      { key: "status", label: "Account status" },
+      { key: "lastActive", label: "Last active" },
+      { key: "note", label: "Support notes" },
+    ],
+    helper: "App accounts, membership access, and support context.",
+    icon: "groups",
+    key: "appUsers",
+    label: "App Users",
+    short: "Users",
+  },
+  {
+    fields: [
+      { key: "name", label: "Name" },
+      { key: "lastStage", label: "Last stage reached" },
+      { key: "lastContact", label: "Last contact" },
+      { key: "reason", label: "Why they went cold" },
+      { key: "plan", label: "Re-engage plan" },
+    ],
+    helper: "Past contact ready for re-engagement.",
+    icon: "recovery",
+    key: "previously",
+    label: "Previously Engaged",
+    short: "Past",
+  },
+  {
+    fields: [
+      { key: "name", label: "Name" },
+      { key: "role", label: "Role" },
+      { key: "specialty", label: "Specialty" },
+      { key: "availability", label: "Availability" },
+      { key: "status", label: "Status" },
+      { key: "note", label: "Notes" },
+    ],
+    helper: "Coach directory and staffing information.",
+    icon: "groups",
+    key: "coaches",
+    label: "Coaches",
+    short: "Coaches",
+  },
+  {
+    fields: [
+      { key: "name", label: "Name" },
+      { key: "property", label: "Property / portfolio" },
+      { key: "units", label: "Units" },
+      { key: "role", label: "Role" },
+      { key: "status", label: "Partnership status" },
+      { key: "note", label: "Partnership notes" },
+    ],
+    helper: "Apartment-manager partnerships and resident wellness opportunities.",
+    icon: "groups",
+    key: "apartmentManagers",
+    label: "Apartment Managers",
+    short: "Apts",
+  },
+  {
+    fields: [
+      { key: "name", label: "Name" },
+      { key: "practice", label: "Practice" },
+      { key: "specialty", label: "Specialty" },
+      { key: "role", label: "Role" },
+      { key: "status", label: "Referral status" },
+      { key: "note", label: "Referral notes" },
+    ],
+    helper: "Physician relationships, referrals, and clinical coordination.",
+    icon: "groups",
+    key: "physicians",
+    label: "Physicians",
+    short: "MDs",
+  },
+] satisfies readonly AdminUserListStage[];
+
+type AdminUserListStageKey = (typeof adminUserListStages)[number]["key"];
+
+const adminUserListStageTabTones: Record<
+  AdminUserListStageKey,
+  {
+    active: string;
+    idle: string;
+    surface: string;
+    tableAccent: string;
+    tableHighlight: string;
+    tableHover: string;
+    tableRule: string;
+  }
+> = {
+  apartmentManagers: {
+    active:
+      "border-lime-100/72 bg-lime-300/22 text-lime-50 shadow-[0_0_18px_rgba(163,230,53,0.28),inset_0_1px_0_rgba(255,255,255,0.14)]",
+    idle: "border-lime-200/24 bg-lime-300/[0.08] text-lime-200/75",
+    surface:
+      "border-lime-100/42 bg-[radial-gradient(circle_at_12%_0%,rgba(163,230,53,0.16),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.92),rgba(2,6,23,0.9))] shadow-[0_22px_58px_rgba(0,0,0,0.34),0_0_32px_rgba(163,230,53,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]",
+    tableAccent: "text-lime-100",
+    tableHighlight:
+      "bg-lime-300/[0.10] text-lime-50 shadow-[inset_0_0_0_1px_rgba(163,230,53,0.2)]",
+    tableHover: "hover:bg-lime-300/[0.06]",
+    tableRule: "border-lime-100/24",
+  },
+  coaches: {
+    active:
+      "border-rose-100/72 bg-rose-300/22 text-rose-50 shadow-[0_0_18px_rgba(251,113,133,0.28),inset_0_1px_0_rgba(255,255,255,0.14)]",
+    idle: "border-rose-200/24 bg-rose-300/[0.08] text-rose-200/75",
+    surface:
+      "border-rose-100/42 bg-[radial-gradient(circle_at_12%_0%,rgba(251,113,133,0.16),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.92),rgba(2,6,23,0.9))] shadow-[0_22px_58px_rgba(0,0,0,0.34),0_0_32px_rgba(251,113,133,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]",
+    tableAccent: "text-rose-100",
+    tableHighlight:
+      "bg-rose-300/[0.10] text-rose-50 shadow-[inset_0_0_0_1px_rgba(251,113,133,0.2)]",
+    tableHover: "hover:bg-rose-300/[0.06]",
+    tableRule: "border-rose-100/24",
+  },
+  physicians: {
+    active:
+      "border-red-100/72 bg-red-300/22 text-red-50 shadow-[0_0_18px_rgba(252,165,165,0.28),inset_0_1px_0_rgba(255,255,255,0.14)]",
+    idle: "border-red-200/24 bg-red-300/[0.08] text-red-200/75",
+    surface:
+      "border-red-100/42 bg-[radial-gradient(circle_at_12%_0%,rgba(252,165,165,0.16),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.92),rgba(2,6,23,0.9))] shadow-[0_22px_58px_rgba(0,0,0,0.34),0_0_32px_rgba(252,165,165,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]",
+    tableAccent: "text-red-100",
+    tableHighlight:
+      "bg-red-300/[0.10] text-red-50 shadow-[inset_0_0_0_1px_rgba(252,165,165,0.2)]",
+    tableHover: "hover:bg-red-300/[0.06]",
+    tableRule: "border-red-100/24",
+  },
+  assessment: {
+    active:
+      "border-emerald-100/72 bg-emerald-300/22 text-emerald-50 shadow-[0_0_18px_rgba(52,211,153,0.28),inset_0_1px_0_rgba(255,255,255,0.14)]",
+    idle: "border-emerald-200/24 bg-emerald-300/[0.08] text-emerald-200/75",
+    surface:
+      "border-emerald-100/42 bg-[radial-gradient(circle_at_12%_0%,rgba(52,211,153,0.16),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.92),rgba(2,6,23,0.9))] shadow-[0_22px_58px_rgba(0,0,0,0.34),0_0_32px_rgba(52,211,153,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]",
+    tableAccent: "text-emerald-100",
+    tableHighlight:
+      "bg-emerald-300/[0.10] text-emerald-50 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.2)]",
+    tableHover: "hover:bg-emerald-300/[0.06]",
+    tableRule: "border-emerald-100/24",
+  },
+  appQuiz: {
+    active:
+      "border-teal-100/72 bg-teal-300/22 text-teal-50 shadow-[0_0_18px_rgba(45,212,191,0.28),inset_0_1px_0_rgba(255,255,255,0.14)]",
+    idle: "border-teal-200/24 bg-teal-300/[0.08] text-teal-200/75",
+    surface:
+      "border-teal-100/42 bg-[radial-gradient(circle_at_12%_0%,rgba(45,212,191,0.16),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.92),rgba(2,6,23,0.9))] shadow-[0_22px_58px_rgba(0,0,0,0.34),0_0_32px_rgba(45,212,191,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]",
+    tableAccent: "text-teal-100",
+    tableHighlight:
+      "bg-teal-300/[0.10] text-teal-50 shadow-[inset_0_0_0_1px_rgba(45,212,191,0.2)]",
+    tableHover: "hover:bg-teal-300/[0.06]",
+    tableRule: "border-teal-100/24",
+  },
+  clients: {
+    active:
+      "border-violet-100/72 bg-violet-300/22 text-violet-50 shadow-[0_0_18px_rgba(167,139,250,0.28),inset_0_1px_0_rgba(255,255,255,0.14)]",
+    idle: "border-violet-200/24 bg-violet-300/[0.08] text-violet-200/75",
+    surface:
+      "border-violet-100/42 bg-[radial-gradient(circle_at_12%_0%,rgba(167,139,250,0.16),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.92),rgba(2,6,23,0.9))] shadow-[0_22px_58px_rgba(0,0,0,0.34),0_0_32px_rgba(167,139,250,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]",
+    tableAccent: "text-violet-100",
+    tableHighlight:
+      "bg-violet-300/[0.10] text-violet-50 shadow-[inset_0_0_0_1px_rgba(167,139,250,0.2)]",
+    tableHover: "hover:bg-violet-300/[0.06]",
+    tableRule: "border-violet-100/24",
+  },
+  appUsers: {
+    active:
+      "border-indigo-100/72 bg-indigo-300/22 text-indigo-50 shadow-[0_0_18px_rgba(129,140,248,0.28),inset_0_1px_0_rgba(255,255,255,0.14)]",
+    idle: "border-indigo-200/24 bg-indigo-300/[0.08] text-indigo-200/75",
+    surface:
+      "border-indigo-100/42 bg-[radial-gradient(circle_at_12%_0%,rgba(129,140,248,0.16),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.92),rgba(2,6,23,0.9))] shadow-[0_22px_58px_rgba(0,0,0,0.34),0_0_32px_rgba(129,140,248,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]",
+    tableAccent: "text-indigo-100",
+    tableHighlight:
+      "bg-indigo-300/[0.10] text-indigo-50 shadow-[inset_0_0_0_1px_rgba(129,140,248,0.2)]",
+    tableHover: "hover:bg-indigo-300/[0.06]",
+    tableRule: "border-indigo-100/24",
+  },
+  email: {
+    active:
+      "border-sky-100/72 bg-sky-300/22 text-sky-50 shadow-[0_0_18px_rgba(56,189,248,0.28),inset_0_1px_0_rgba(255,255,255,0.14)]",
+    idle: "border-sky-200/24 bg-sky-300/[0.08] text-sky-200/75",
+    surface:
+      "border-sky-100/42 bg-[radial-gradient(circle_at_12%_0%,rgba(56,189,248,0.16),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.92),rgba(2,6,23,0.9))] shadow-[0_22px_58px_rgba(0,0,0,0.34),0_0_32px_rgba(56,189,248,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]",
+    tableAccent: "text-sky-100",
+    tableHighlight:
+      "bg-sky-300/[0.10] text-sky-50 shadow-[inset_0_0_0_1px_rgba(56,189,248,0.2)]",
+    tableHover: "hover:bg-sky-300/[0.06]",
+    tableRule: "border-sky-100/24",
+  },
+  engagement: {
+    active:
+      "border-fuchsia-100/72 bg-fuchsia-300/22 text-fuchsia-50 shadow-[0_0_18px_rgba(232,121,249,0.28),inset_0_1px_0_rgba(255,255,255,0.14)]",
+    idle: "border-fuchsia-200/24 bg-fuchsia-300/[0.08] text-fuchsia-200/75",
+    surface:
+      "border-fuchsia-100/42 bg-[radial-gradient(circle_at_12%_0%,rgba(232,121,249,0.16),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.92),rgba(2,6,23,0.9))] shadow-[0_22px_58px_rgba(0,0,0,0.34),0_0_32px_rgba(232,121,249,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]",
+    tableAccent: "text-fuchsia-100",
+    tableHighlight:
+      "bg-fuchsia-300/[0.10] text-fuchsia-50 shadow-[inset_0_0_0_1px_rgba(232,121,249,0.2)]",
+    tableHover: "hover:bg-fuchsia-300/[0.06]",
+    tableRule: "border-fuchsia-100/24",
+  },
+  impressions: {
+    active:
+      "border-cyan-100/72 bg-cyan-300/22 text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.28),inset_0_1px_0_rgba(255,255,255,0.14)]",
+    idle: "border-cyan-200/24 bg-cyan-300/[0.08] text-cyan-200/75",
+    surface:
+      "border-cyan-100/42 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.16),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.92),rgba(2,6,23,0.9))] shadow-[0_22px_58px_rgba(0,0,0,0.34),0_0_32px_rgba(34,211,238,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]",
+    tableAccent: "text-cyan-100",
+    tableHighlight:
+      "bg-cyan-300/[0.10] text-cyan-50 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.2)]",
+    tableHover: "hover:bg-cyan-300/[0.06]",
+    tableRule: "border-cyan-100/24",
+  },
+  interest: {
+    active:
+      "border-amber-100/72 bg-amber-300/22 text-amber-50 shadow-[0_0_18px_rgba(251,191,36,0.28),inset_0_1px_0_rgba(255,255,255,0.14)]",
+    idle: "border-amber-200/24 bg-amber-300/[0.08] text-amber-200/75",
+    surface:
+      "border-amber-100/42 bg-[radial-gradient(circle_at_12%_0%,rgba(251,191,36,0.16),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.92),rgba(2,6,23,0.9))] shadow-[0_22px_58px_rgba(0,0,0,0.34),0_0_32px_rgba(251,191,36,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]",
+    tableAccent: "text-amber-100",
+    tableHighlight:
+      "bg-amber-300/[0.10] text-amber-50 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.2)]",
+    tableHover: "hover:bg-amber-300/[0.06]",
+    tableRule: "border-amber-100/24",
+  },
+  previously: {
+    active:
+      "border-orange-100/72 bg-orange-300/22 text-orange-50 shadow-[0_0_18px_rgba(251,146,60,0.28),inset_0_1px_0_rgba(255,255,255,0.14)]",
+    idle: "border-orange-200/24 bg-orange-300/[0.08] text-orange-200/75",
+    surface:
+      "border-orange-100/42 bg-[radial-gradient(circle_at_12%_0%,rgba(251,146,60,0.16),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.92),rgba(2,6,23,0.9))] shadow-[0_22px_58px_rgba(0,0,0,0.34),0_0_32px_rgba(251,146,60,0.12),inset_0_1px_0_rgba(255,255,255,0.08)]",
+    tableAccent: "text-orange-100",
+    tableHighlight:
+      "bg-orange-300/[0.10] text-orange-50 shadow-[inset_0_0_0_1px_rgba(251,146,60,0.2)]",
+    tableHover: "hover:bg-orange-300/[0.06]",
+    tableRule: "border-orange-100/24",
+  },
+};
+
+type AdminUserListRecord = {
+  addedAt: string;
+  clientId: string;
+  details: Record<string, string>;
+  id: string;
+  isLiveDirectory?: boolean;
+  isMock?: boolean;
+  name: string;
+  profile?: Record<string, string>;
+  reached: string;
+  stage: AdminUserListStageKey;
+};
+
+type AdminUserListDraft = {
+  details: Record<string, string>;
+  name: string;
+  profile: Record<string, string>;
+  stage: AdminUserListStageKey;
+};
+
+type AdminUserListFilter = {
+  fieldKey: string;
+  stage: AdminUserListStageKey;
+  value: string;
+};
+
+const ADMIN_USER_LIST_STORAGE_KEY = "soundFitnessAdminUserListRecords";
+
+const createAdminUserListClientId = () =>
+  `SF-${Date.now().toString(36).toUpperCase()}-${Math.random()
+    .toString(36)
+    .slice(2, 8)
+    .toUpperCase()}`;
+
+const adminUserProfileGroups = [
+  {
+    fields: [
+      { key: "handle", label: "Social handle" },
+      { key: "email", label: "Email" },
+      { key: "phone", label: "Phone" },
+      { key: "preferredContact", label: "Preferred contact" },
+    ],
+    label: "Contact",
+  },
+  {
+    fields: [
+      { key: "address", label: "Street" },
+      { key: "city", label: "City" },
+      { key: "state", label: "State" },
+      { key: "zip", label: "ZIP" },
+      { key: "accessNotes", label: "Access notes" },
+    ],
+    label: "Address",
+  },
+  {
+    fields: [
+      { key: "dob", label: "Date of birth" },
+      { key: "emergencyName", label: "Emergency contact" },
+      { key: "emergencyPhone", label: "Emergency phone" },
+    ],
+    label: "Personal",
+  },
+  {
+    fields: [
+      { key: "injuries", label: "Injuries / conditions" },
+      { key: "medications", label: "Medications" },
+    ],
+    label: "Health",
+  },
+  {
+    fields: [
+      { key: "billingMethod", label: "Payment method" },
+      { key: "billingCycle", label: "Billing cycle" },
+      { key: "billingStatus", label: "Billing status" },
+      { key: "billingNote", label: "Billing notes" },
+    ],
+    label: "Billing",
+  },
+  {
+    fields: [
+      { key: "waiver", label: "Liability waiver" },
+      { key: "marketingConsent", label: "Marketing consent" },
+      { key: "photoRelease", label: "Photo / video release" },
+    ],
+    label: "Privacy & consent",
+  },
+  {
+    fields: [
+      { key: "privateNotes", label: "Private notes" },
+    ],
+    label: "Private notes",
+  },
+] as const;
+
+const adminCoachProfileGroups = [
+  {
+    fields: [
+      { key: "email", label: "Work email" },
+      { key: "phone", label: "Mobile phone" },
+      { key: "preferredContact", label: "Preferred contact" },
+      { key: "timeZone", label: "Time zone" },
+    ],
+    label: "Contact & scheduling",
+  },
+  {
+    fields: [
+      { key: "employmentType", label: "Employment type" },
+      { key: "hireDate", label: "Hire date" },
+      { key: "manager", label: "Manager" },
+      { key: "serviceArea", label: "Service area" },
+    ],
+    label: "Employment",
+  },
+  {
+    fields: [
+      { key: "certifications", label: "Certifications" },
+      { key: "trainingStyle", label: "Training style" },
+      { key: "languages", label: "Languages" },
+      { key: "yearsExperience", label: "Years of experience" },
+    ],
+    label: "Expertise",
+  },
+  {
+    fields: [
+      { key: "workDays", label: "Work days" },
+      { key: "workHours", label: "Working hours" },
+      { key: "sessionCapacity", label: "Session capacity" },
+      { key: "clientLoad", label: "Current client load" },
+    ],
+    label: "Availability & capacity",
+  },
+  {
+    fields: [
+      { key: "contractStatus", label: "Contract status" },
+      { key: "cprExpiry", label: "CPR / AED expiry" },
+      { key: "insuranceStatus", label: "Insurance status" },
+      { key: "backgroundCheck", label: "Background check" },
+    ],
+    label: "Credentials & compliance",
+  },
+  {
+    fields: [
+      { key: "payStructure", label: "Pay structure" },
+      { key: "compensationRate", label: "Compensation rate" },
+      { key: "paymentMethod", label: "Payment method" },
+      { key: "equipmentNotes", label: "Equipment / setup notes" },
+    ],
+    label: "Compensation & operations",
+  },
+  {
+    fields: [{ key: "privateNotes", label: "Private notes" }],
+    label: "Private notes",
+  },
+] as const;
+
+const getAdminProfileGroups = (stage: AdminUserListStageKey) =>
+  stage === "coaches" ? adminCoachProfileGroups : adminUserProfileGroups;
+
+const adminUserListSeedRowsRaw: Array<
+  Omit<AdminUserListRecord, "clientId">
+> = [
+  {
+    addedAt: "Jun 14",
+    details: {
+      content: "Reel",
+      note: "Saved the reel",
+      platform: "Instagram",
+      timesSeen: "4",
+    },
+    id: "impressions-jess-nguyen",
+    name: "Jess Nguyen",
+    profile: { handle: "@fitmom_seattle" },
+    reached: "Impr",
+    stage: "impressions",
+  },
+  {
+    addedAt: "Jun 12",
+    details: {
+      content: "Reel",
+      platform: "TikTok",
+      timesSeen: "2",
+    },
+    id: "impressions-casey-brooks",
+    name: "Casey Brooks",
+    profile: { handle: "@run_pnw" },
+    reached: "Impr",
+    stage: "impressions",
+  },
+  {
+    addedAt: "Jun 13",
+    details: {
+      content: "Feed post",
+      interaction: "Comment",
+      note: "Asked about form",
+      platform: "Instagram",
+    },
+    id: "engagement-lynn-alvarez",
+    name: "Lynn Alvarez",
+    profile: { handle: "@lifting_lynn" },
+    reached: "Engage",
+    stage: "engagement",
+  },
+  {
+    addedAt: "Jun 11",
+    details: {
+      content: "Feed post",
+      interaction: "Share",
+      platform: "Facebook",
+    },
+    id: "engagement-marcus-bell",
+    name: "Marcus Bell",
+    profile: { handle: "@marcusbell" },
+    reached: "Engage",
+    stage: "engagement",
+  },
+  {
+    addedAt: "Jun 10",
+    details: {
+      goal: "Strength",
+      note: "Wants 2x / week",
+      source: "Instagram",
+      timeline: "This month",
+    },
+    id: "interest-priya-shah",
+    name: "Priya Shah",
+    profile: {
+      city: "Seattle",
+      email: "priya@email.com",
+      marketingConsent: "Opted in",
+      phone: "206-555-0132",
+      preferredContact: "Text",
+      waiver: "Not sent",
+    },
+    reached: "Interest",
+    stage: "interest",
+  },
+  {
+    addedAt: "Jun 8",
+    details: {
+      goal: "Weight loss",
+      source: "Referral",
+      timeline: "Just exploring",
+    },
+    id: "interest-devon-clark",
+    name: "Devon Clark",
+    profile: {
+      email: "devon@email.com",
+      marketingConsent: "Unknown",
+      waiver: "Not sent",
+    },
+    reached: "Interest",
+    stage: "interest",
+  },
+  {
+    addedAt: "Jun 9",
+    details: {
+      note: "Opens every send",
+      source: "Free mobility guide",
+      status: "Subscribed",
+    },
+    id: "email-rachel-kim",
+    name: "Rachel Kim",
+    profile: { email: "rachel@email.com", marketingConsent: "Opted in" },
+    reached: "Email",
+    stage: "email",
+  },
+  {
+    addedAt: "Jun 7",
+    details: {
+      source: "Website form",
+      status: "Subscribed",
+    },
+    id: "email-tom-reyes",
+    name: "Tom Reyes",
+    profile: { email: "tom@email.com", marketingConsent: "Opted in" },
+    reached: "Email",
+    stage: "email",
+  },
+  {
+    addedAt: "Jun 6",
+    details: {
+      equipment: "Dumbbells, bands, bench",
+      goal: "Mobility",
+      note: "Park in the driveway",
+      space: "Home gym",
+      status: "Booked",
+    },
+    id: "assessment-ana-ruiz",
+    name: "Ana Ruiz",
+    profile: {
+      address: "88 Lake Rd",
+      city: "Seattle",
+      emergencyName: "Luis Ruiz (spouse)",
+      emergencyPhone: "206-555-0141",
+      email: "ana@email.com",
+      injuries: "Left shoulder impingement",
+      marketingConsent: "Opted in",
+      phone: "206-555-0140",
+      photoRelease: "Yes",
+      preferredContact: "Text",
+      state: "WA",
+      waiver: "Signed",
+      zip: "98115",
+    },
+    reached: "Assess",
+    stage: "assessment",
+  },
+  {
+    addedAt: "Jun 5",
+    details: {
+      equipment: "Bring bands",
+      goal: "Post-injury / rehab",
+      space: "Basement",
+      status: "Completed",
+    },
+    id: "assessment-greg-palmer",
+    name: "Greg Palmer",
+    profile: {
+      address: "12 Pine St",
+      city: "Bellevue",
+      injuries: "ACL repair, 8 months post-op",
+      medications: "Anti-inflammatory",
+      phone: "206-555-0177",
+      photoRelease: "No",
+      state: "WA",
+      waiver: "Signed",
+      zip: "98004",
+    },
+    reached: "Assess",
+    stage: "assessment",
+  },
+  {
+    addedAt: "Jul 16",
+    details: {
+      date: "Jul 16",
+      email: "morgan@email.com",
+      goal: "Build strength",
+      note: "Prefers three evening sessions each week.",
+      result: "Online Coaching",
+      status: "Sent",
+    },
+    id: "app-quiz-morgan-price",
+    name: "Morgan Price",
+    profile: {
+      email: "morgan@email.com",
+      marketingConsent: "Opted in",
+      preferredContact: "Email",
+    },
+    reached: "Quiz",
+    stage: "appQuiz",
+  },
+  {
+    addedAt: "Jul 15",
+    details: {
+      date: "Jul 15",
+      email: "taylor@email.com",
+      goal: "Move better",
+      note: "Needs a low-impact starting plan.",
+      result: "Mobility Starter",
+      status: "Sent",
+    },
+    id: "app-quiz-taylor-ross",
+    name: "Taylor Ross",
+    profile: {
+      email: "taylor@email.com",
+      marketingConsent: "Unknown",
+      preferredContact: "Text",
+    },
+    reached: "Quiz",
+    stage: "appQuiz",
+  },
+  {
+    addedAt: "Jun 4",
+    details: {
+      goal: "Strength",
+      note: "Tue / Thu / Sat AM",
+      plan: "3x / week",
+      rate: "$320 / mo",
+    },
+    id: "clients-sara-lin",
+    name: "Sara Lin",
+    profile: {
+      accessNotes: "Gate code 4417 - friendly dog",
+      address: "410 Cedar Ave",
+      billingCycle: "Monthly",
+      billingMethod: "Card",
+      billingStatus: "Current",
+      city: "Seattle",
+      email: "sara@email.com",
+      emergencyName: "Dana Lin (sister)",
+      emergencyPhone: "206-555-0189",
+      marketingConsent: "Opted in",
+      phone: "206-555-0188",
+      photoRelease: "Yes",
+      preferredContact: "Text",
+      state: "WA",
+      waiver: "Signed",
+      zip: "98103",
+    },
+    reached: "Clients",
+    stage: "clients",
+  },
+  {
+    addedAt: "Jun 2",
+    details: {
+      goal: "General fitness",
+      plan: "2x / week",
+      rate: "$240 / mo",
+    },
+    id: "clients-mike-doyle",
+    name: "Mike Doyle",
+    profile: {
+      address: "77 Maple Ct",
+      billingCycle: "Per session",
+      billingMethod: "Venmo",
+      billingNote: "2 sessions unpaid",
+      billingStatus: "Past due",
+      city: "Shoreline",
+      marketingConsent: "Opted out",
+      phone: "206-555-0199",
+      state: "WA",
+      waiver: "Signed",
+      zip: "98133",
+    },
+    reached: "Clients",
+    stage: "clients",
+  },
+  {
+    addedAt: "Jul 14",
+    details: {
+      email: "sara@email.com",
+      lastActive: "Today",
+      note: "Active in-home member. Prefers text reminders.",
+      plan: "Online Coaching",
+      role: "Member",
+      status: "Active",
+    },
+    id: "app-user-sara-lin",
+    isMock: true,
+    name: "Sara Lin",
+    profile: {
+      email: "sara@email.com",
+      preferredContact: "Text",
+    },
+    reached: "Users",
+    stage: "appUsers",
+  },
+  {
+    addedAt: "Jul 12",
+    details: {
+      email: "mike@email.com",
+      lastActive: "3 days ago",
+      note: "Needs help with an upcoming schedule change.",
+      plan: "Free Intro",
+      role: "Member",
+      status: "Active",
+    },
+    id: "app-user-mike-doyle",
+    isMock: true,
+    name: "Mike Doyle",
+    profile: {
+      email: "mike@email.com",
+      preferredContact: "Email",
+    },
+    reached: "Users",
+    stage: "appUsers",
+  },
+  {
+    addedAt: "May 31",
+    details: {
+      lastContact: "2025-05-02",
+      lastStage: "Client",
+      plan: "Offer virtual sessions",
+      reason: "Moved away",
+    },
+    id: "previously-jenna-west",
+    name: "Jenna West",
+    profile: {
+      billingStatus: "N/A",
+      city: "Portland",
+      email: "jenna@email.com",
+      phone: "206-555-0155",
+      state: "OR",
+      waiver: "Signed",
+    },
+    reached: "Clients",
+    stage: "previously",
+  },
+  {
+    addedAt: "May 28",
+    details: {
+      lastStage: "In-home assessment",
+      plan: "Re-engage in Q3",
+      reason: "Budget",
+    },
+    id: "previously-carlos-mena",
+    name: "Carlos Mena",
+    profile: { marketingConsent: "Unknown", waiver: "Not sent" },
+    reached: "Assess",
+    stage: "previously",
+  },
+  {
+    addedAt: "Jul 16",
+    details: {
+      note: "Planning a resident mobility series for the fall wellness calendar.",
+      property: "Cedar & Stone Apartments",
+      role: "Community Manager",
+      status: "Discovery call booked",
+      units: "184",
+    },
+    id: "apartment-manager-dana-cho-template",
+    isMock: true,
+    name: "Dana Cho",
+    profile: {
+      city: "Seattle",
+      email: "dana.cho@cedarstone.example",
+      phone: "206-555-0138",
+      preferredContact: "Email",
+    },
+    reached: "Partners",
+    stage: "apartmentManagers",
+  },
+  {
+    addedAt: "Jul 10",
+    details: {
+      note: "Sent resident amenity overview and requested a property walkthrough.",
+      property: "Harborview Lofts",
+      role: "Regional Property Manager",
+      status: "Proposal sent",
+      units: "312",
+    },
+    id: "apartment-manager-marco-reed-template",
+    isMock: true,
+    name: "Marco Reed",
+    profile: {
+      city: "Bellevue",
+      email: "marco.reed@harborview.example",
+      phone: "425-555-0172",
+      preferredContact: "Phone",
+    },
+    reached: "Partners",
+    stage: "apartmentManagers",
+  },
+  {
+    addedAt: "Jul 15",
+    details: {
+      note: "Exploring a referral pathway for post-physical-therapy strength support.",
+      practice: "North Sound Sports Medicine",
+      role: "Physical Medicine Physician",
+      specialty: "Sports medicine",
+      status: "Intro meeting set",
+    },
+    id: "physician-rina-patel-template",
+    isMock: true,
+    name: "Dr. Rina Patel",
+    profile: {
+      city: "Seattle",
+      email: "rina.patel@northsound.example",
+      phone: "206-555-0164",
+      preferredContact: "Email",
+    },
+    reached: "Physicians",
+    stage: "physicians",
+  },
+  {
+    addedAt: "Jul 9",
+    details: {
+      note: "Shared service overview for patients returning to everyday movement.",
+      practice: "Eastside Family & Rehab",
+      role: "Family Medicine Physician",
+      specialty: "Primary care",
+      status: "Follow up next month",
+    },
+    id: "physician-eli-warren-template",
+    isMock: true,
+    name: "Dr. Eli Warren",
+    profile: {
+      city: "Kirkland",
+      email: "eli.warren@eastside.example",
+      phone: "425-555-0186",
+      preferredContact: "Phone",
+    },
+    reached: "Physicians",
+    stage: "physicians",
+  },
+  {
+    addedAt: "Jul 17",
+    details: {
+      availability: "Mon - Thu, 7 AM - 4 PM",
+      note: "Starter template - tailor territory, client load, and pay details.",
+      role: "Lead coach",
+      specialty: "Strength, in-home training, and movement quality",
+      status: "Active",
+    },
+    id: "coach-avery-brooks-template",
+    isMock: true,
+    name: "Avery Brooks",
+    profile: {
+      backgroundCheck: "Cleared - renew 2027",
+      certifications: "NASM-CPT, CPR / AED",
+      clientLoad: "12 active clients",
+      compensationRate: "$55 / session",
+      contractStatus: "Signed",
+      cprExpiry: "2027-04-30",
+      email: "avery.brooks@thesoundfitness.app",
+      employmentType: "Employee",
+      equipmentNotes: "Carries bands, kettlebells, and mobility kit.",
+      hireDate: "2026-07-17",
+      insuranceStatus: "On file - current",
+      languages: "English",
+      manager: "Head coach",
+      payStructure: "Per session + monthly bonus",
+      paymentMethod: "Payroll",
+      phone: "206-555-0118",
+      preferredContact: "Text",
+      serviceArea: "Seattle and Eastside",
+      sessionCapacity: "20 sessions / week",
+      timeZone: "Pacific Time",
+      trainingStyle: "Progressive strength with form-first coaching",
+      workDays: "Monday - Thursday",
+      workHours: "7 AM - 4 PM",
+      yearsExperience: "8 years",
+    },
+    reached: "Coaches",
+    stage: "coaches",
+  },
+  {
+    addedAt: "Jul 17",
+    details: {
+      availability: "Tue - Sat, 10 AM - 7 PM",
+      note: "Starter template - customize the coaching scope and credential dates.",
+      role: "Coach",
+      specialty: "Mobility, recovery, and return-to-training",
+      status: "Active",
+    },
+    id: "coach-jordan-lee-template",
+    isMock: true,
+    name: "Jordan Lee",
+    profile: {
+      backgroundCheck: "Cleared - renew 2027",
+      certifications: "ACE-CPT, FRCms, CPR / AED",
+      clientLoad: "9 active clients",
+      compensationRate: "$48 / session",
+      contractStatus: "Signed",
+      cprExpiry: "2026-11-15",
+      email: "jordan.lee@thesoundfitness.app",
+      employmentType: "Contractor",
+      equipmentNotes: "Carries mobility tools, bands, and recovery kit.",
+      hireDate: "2026-07-17",
+      insuranceStatus: "On file - current",
+      languages: "English, Korean",
+      manager: "Head coach",
+      payStructure: "Per session",
+      paymentMethod: "Direct deposit",
+      phone: "206-555-0126",
+      preferredContact: "Email",
+      serviceArea: "Seattle, Shoreline, and virtual",
+      sessionCapacity: "16 sessions / week",
+      timeZone: "Pacific Time",
+      trainingStyle: "Mobility-led strength and recovery support",
+      workDays: "Tuesday - Saturday",
+      workHours: "10 AM - 7 PM",
+      yearsExperience: "5 years",
+    },
+    reached: "Coaches",
+    stage: "coaches",
+  },
+];
+
+const adminUserListSeedRows: AdminUserListRecord[] =
+  adminUserListSeedRowsRaw.map((record, index) => ({
+    ...record,
+    clientId: `SF-${String(index + 1).padStart(5, "0")}`,
+  }));
+
+const adminUserListMockRecordIds = new Set(
+  adminUserListSeedRows.filter((record) => record.isMock).map((record) => record.id),
+);
+
+const getAdminUserListTextRecord = (value: unknown) =>
+  Object.fromEntries(
+    Object.entries(asRecord(value)).flatMap(([key, entry]) =>
+      typeof entry === "string" ? [[key, entry]] : [],
+    ),
+  );
+
+const readAdminUserListRecords = (): AdminUserListRecord[] | null => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const parsed = safeJsonParse(
+      window.localStorage.getItem(ADMIN_USER_LIST_STORAGE_KEY),
+    );
+    if (!Array.isArray(parsed)) return null;
+
+    const stageKeys = new Set(adminUserListStages.map((stage) => stage.key));
+    const savedRecords = parsed.flatMap((value, index) => {
+      const record = asRecord(value);
+      const stage = record.stage;
+      const name = record.name;
+      if (
+        typeof stage !== "string" ||
+        !stageKeys.has(stage) ||
+        typeof name !== "string" ||
+        !name.trim()
+      ) {
+        return [];
+      }
+
+      const id =
+        typeof record.id === "string" ? record.id : `${stage}-${index}-${name}`;
+
+      return [
+        {
+          addedAt:
+            typeof record.addedAt === "string" ? record.addedAt : "Added",
+          clientId:
+            typeof record.clientId === "string" && record.clientId.trim()
+              ? record.clientId.trim()
+              : createAdminUserListClientId(),
+          details: getAdminUserListTextRecord(record.details),
+          id,
+          isLiveDirectory: record.isLiveDirectory === true,
+          isMock: record.isMock === true || adminUserListMockRecordIds.has(id),
+          name: name.trim(),
+          profile: getAdminUserListTextRecord(record.profile),
+          reached:
+            typeof record.reached === "string" ? record.reached : "Added",
+          stage: stage as AdminUserListStageKey,
+        },
+      ];
+    });
+    const savedRecordIds = new Set(savedRecords.map((record) => record.id));
+    const supplementalTemplates = adminUserListSeedRows.filter(
+      (record) =>
+        (record.stage === "coaches" ||
+          record.stage === "appQuiz" ||
+          record.stage === "appUsers" ||
+          record.stage === "apartmentManagers" ||
+          record.stage === "physicians") &&
+        !savedRecordIds.has(record.id),
+    );
+
+    return [...savedRecords, ...supplementalTemplates];
+  } catch {
+    return null;
+  }
+};
+
+const writeAdminUserListRecords = (records: AdminUserListRecord[]) => {
+  if (typeof window === "undefined") return;
+
+  window.localStorage.setItem(
+    ADMIN_USER_LIST_STORAGE_KEY,
+    JSON.stringify(records),
+  );
+};
+
+const createAdminUserListDraft = (
+  stage: AdminUserListStageKey,
+): AdminUserListDraft => ({
+  details: {},
+  name: "",
+  profile: {},
+  stage,
+});
+
 const adminCustomerJourneyCards = [
   {
     accent: "from-cyan-300/20 via-sky-300/8 to-transparent",
@@ -10064,6 +11197,27 @@ type AdminJourneyActiveCell = {
   field: AdminJourneyFieldKey;
   stage: AdminJourneyStageKey;
 } | null;
+type AdminJourneyPersonReference = {
+  recordId: string;
+  stage: AdminJourneyStageKey;
+};
+type AdminJourneyOrbitLayout = "compact" | "medium" | "wide";
+
+const getAdminJourneyOrbitLayout = (
+  viewportWidth: number,
+): AdminJourneyOrbitLayout => {
+  if (viewportWidth < 720) return "compact";
+  if (viewportWidth < 1180) return "medium";
+  return "wide";
+};
+
+const getAdminJourneyPersonKey = (record: AdminJourneyRecord) => {
+  const email = record.contact.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
+
+  return email
+    ? `email:${email.toLowerCase()}`
+    : `name:${record.primary.trim().toLowerCase()}`;
+};
 
 const adminJourneyStageVisuals: Record<
   AdminJourneyStageKey,
@@ -10452,10 +11606,10 @@ const adminFinanceTabs = [
   },
   {
     detail:
-      "Operating spend for software, equipment, marketing, rent, contractor support, and client delivery.",
+      "Operating spend, debt, payroll, and tax obligations that need active cash-flow attention.",
     key: "expenses",
-    label: "Expenses",
-    metric: "$6.8k",
+    label: "Expenses & debt",
+    metric: "$22.4k",
     rows: [
       {
         amount: "$1.2k",
@@ -10485,54 +11639,6 @@ const adminFinanceTabs = [
         notes: "Ads, social content, events, and local partnerships.",
         status: "Active",
       },
-    ],
-    status: "Month to date",
-  },
-  {
-    detail:
-      "Business-owned value such as cash, receivables, equipment, content, app assets, and client pipeline value.",
-    key: "assets",
-    label: "Assets",
-    metric: "$42.7k",
-    rows: [
-      {
-        amount: "$18.9k",
-        category: "Cash on hand",
-        nextAction: "Reconcile bank balance",
-        notes: "Operating reserve and tax holdback.",
-        status: "Liquid",
-      },
-      {
-        amount: "$8.4k",
-        category: "Accounts receivable",
-        nextAction: "Send reminders",
-        notes: "Open invoices and unpaid package balances.",
-        status: "Collecting",
-      },
-      {
-        amount: "$6.2k",
-        category: "Equipment value",
-        nextAction: "Update inventory",
-        notes: "Training tools and replaceable assets.",
-        status: "Owned",
-      },
-      {
-        amount: "$9.2k",
-        category: "Pipeline value",
-        nextAction: "Move warm leads",
-        notes: "Estimated value from scheduled intros and proposals.",
-        status: "Projected",
-      },
-    ],
-    status: "Snapshot",
-  },
-  {
-    detail:
-      "Open obligations, upcoming payments, card balances, taxes payable, and vendor commitments.",
-    key: "liabilities",
-    label: "Liabilities",
-    metric: "$7.9k",
-    rows: [
       {
         amount: "$2.4k",
         category: "Credit card balance",
@@ -10561,16 +11667,6 @@ const adminFinanceTabs = [
         notes: "Unused session credits and package adjustments.",
         status: "Monitor",
       },
-    ],
-    status: "Open balance",
-  },
-  {
-    detail:
-      "Coach pay, contractor payouts, commissions, owner draw, and payroll-related tasks.",
-    key: "payroll",
-    label: "Payroll",
-    metric: "$4.6k",
-    rows: [
       {
         amount: "$2.8k",
         category: "Coach payouts",
@@ -10599,16 +11695,6 @@ const adminFinanceTabs = [
         notes: "Not automated; manual planning line.",
         status: "Planned",
       },
-    ],
-    status: "Next run",
-  },
-  {
-    detail:
-      "Quarterly estimates, sales tax notes, write-offs, and bookkeeping cleanup that should not drift.",
-    key: "taxes",
-    label: "Taxes",
-    metric: "$3.1k",
-    rows: [
       {
         amount: "$1.8k",
         category: "Estimated tax",
@@ -10638,7 +11724,45 @@ const adminFinanceTabs = [
         status: "Open",
       },
     ],
-    status: "Reserve",
+    status: "Watch closely",
+  },
+  {
+    detail:
+      "A complete financial position: current income, operating spend, obligations, owned value, and next financial actions.",
+    key: "total",
+    label: "Total",
+    metric: "$11.6k",
+    rows: [
+      {
+        amount: "$18.4k",
+        category: "Income collected",
+        nextAction: "Confirm renewals",
+        notes: "Month-to-date packages, memberships, intros, and group sessions.",
+        status: "Inflow",
+      },
+      {
+        amount: "$6.8k",
+        category: "Operating expenses",
+        nextAction: "Audit recurring spend",
+        notes: "Facilities, software, equipment, and marketing delivery costs.",
+        status: "Outflow",
+      },
+      {
+        amount: "$7.9k",
+        category: "Debt and liabilities",
+        nextAction: "Prioritize June payments",
+        notes: "Cards, invoices, tax reserve, and client credit exposure.",
+        status: "Obligation",
+      },
+      {
+        amount: "$42.7k",
+        category: "Business assets",
+        nextAction: "Reconcile monthly snapshot",
+        notes: "Cash, receivables, equipment value, and qualified pipeline.",
+        status: "Position",
+      },
+    ],
+    status: "Net month to date",
   },
 ] as const;
 
@@ -10683,41 +11807,24 @@ const adminFinance2026ChartSeries: Record<
     values: number[];
   }
 > = {
-  assets: {
-    color: "#38bdf8",
-    values: [
-      24.2, 26.4, 28.1, 30.5, 34.2, 36.7, 37.4, 38.8, 39.5, 40.4, 41.6, 42.7,
-    ],
-  },
   expenses: {
     color: "#f87171",
-    values: [2.6, 3.1, 3.8, 4.6, 5.4, 6.8, 7.2, 7.8, 8.4, 9.1, 9.7, 10.3],
+    values: [8.4, 10.1, 12.6, 14.8, 16.1, 22.4, 23.2, 24.6, 25.4, 26.8, 28.3, 29.5],
   },
   income: {
     color: "#34d399",
     values: [4.8, 5.6, 6.2, 7.4, 9.1, 10.4, 11.8, 13.0, 14.2, 15.6, 17.2, 18.4],
   },
-  liabilities: {
-    color: "#a78bfa",
-    values: [5.8, 6.1, 6.4, 6.7, 7.3, 7.9, 8.1, 8.0, 7.8, 7.6, 7.4, 7.2],
-  },
-  payroll: {
-    color: "#fbbf24",
-    values: [2.1, 2.4, 2.8, 3.2, 3.7, 4.6, 4.8, 5.0, 5.3, 5.6, 5.8, 6.0],
-  },
-  taxes: {
-    color: "#fb7185",
-    values: [1.1, 1.3, 1.6, 2.0, 2.5, 3.1, 3.4, 3.8, 4.0, 4.4, 4.7, 5.1],
+  total: {
+    color: "#38bdf8",
+    values: [2.2, 2.5, 2.7, 2.8, 3.7, 11.6, 12.4, 13.0, 13.7, 14.4, 15.2, 16.1],
   },
 };
 
 const adminFinanceProjectionGrowth: Record<AdminFinanceTabKey, number> = {
-  assets: 0.1,
   expenses: 0.08,
   income: 0.12,
-  liabilities: 0.03,
-  payroll: 0.07,
-  taxes: 0.09,
+  total: 0.1,
 };
 
 const parseAdminFinanceAmountToK = (amount: string) => {
@@ -11320,6 +12427,72 @@ const adminMessageChannels: AdminMessageChannel[] = [
     tone: "emerald",
     unread: 3,
   },
+  {
+    actions: ["Open full result", "Email result", "Create member"],
+    connected: "Assessment result inbox",
+    description:
+      "Completed app plan quizzes, recommended starting lanes, and the result emails sent to each person.",
+    href: ROUTES.admin.submissions,
+    icon: "form",
+    lastSync: "Live when submissions are connected",
+    responseWindow: "Same day",
+    source: "App plan quiz",
+    status: "Results ready",
+    threads: [
+      {
+        action: "Review recommended plan",
+        channel: "App quiz",
+        person: "Morgan Price",
+        preview: "Strength focus - Online Coaching recommendation sent.",
+        priority: "New result",
+        received: "Today",
+      },
+      {
+        action: "Confirm follow-up",
+        channel: "App quiz",
+        person: "Taylor Ross",
+        preview: "Mobility focus - Mobility Starter recommendation sent.",
+        priority: "Follow up",
+        received: "Yesterday",
+      },
+    ],
+    title: "Quiz Results",
+    tone: "violet",
+    unread: 2,
+  },
+  {
+    actions: ["Open assessment", "Assign coach", "Schedule follow-up"],
+    connected: "In-home assessment queue",
+    description:
+      "Booked and completed in-home assessments, including training space, equipment, and coach follow-up notes.",
+    href: ROUTES.admin.clients,
+    icon: "tests",
+    lastSync: "Admin list",
+    responseWindow: "24 hours",
+    source: "In-home assessment",
+    status: "Coach follow-up",
+    threads: [
+      {
+        action: "Confirm assessment visit",
+        channel: "In-home assessment",
+        person: "Ana Ruiz",
+        preview: "Mobility focus - home gym assessment is booked.",
+        priority: "Booked",
+        received: "Jul 16",
+      },
+      {
+        action: "Build starting plan",
+        channel: "In-home assessment",
+        person: "Greg Palmer",
+        preview: "Post-injury support - assessment is complete and ready for programming.",
+        priority: "Coach review",
+        received: "Jul 12",
+      },
+    ],
+    title: "In-Home Results",
+    tone: "sky",
+    unread: 2,
+  },
 ];
 
 const adminSoundAssetCards: AdminSoundAssetCard[] = [
@@ -11868,6 +13041,84 @@ const adminMarketingCampaignCards: DashboardNavigationCard[] = [
     title: "Social Campaigns",
     tone: "fuchsia",
   },
+  {
+    description:
+      "Create printed leave-behinds, referral cards, flyers, partner packets, and local campaign materials that are ready to distribute.",
+    href: ROUTES.admin.templates,
+    icon: "post",
+    journeySteps: [
+      {
+        completion: 72,
+        href: ROUTES.admin.leads,
+        icon: "groups",
+        label: "Audience",
+        state: "complete",
+      },
+      {
+        completion: 62,
+        href: ROUTES.admin.templates,
+        icon: "post",
+        label: "Design",
+        state: "active",
+      },
+      {
+        completion: 48,
+        href: ROUTES.admin.templates,
+        icon: "packages",
+        label: "Print",
+        state: "default",
+      },
+      {
+        completion: 34,
+        href: ROUTES.admin.followUps,
+        icon: "feed",
+        label: "Distribute",
+        state: "default",
+      },
+    ],
+    status: "Print",
+    title: "Stationery Marketing",
+    tone: "amber",
+  },
+  {
+    description:
+      "Plan Sound Fitness apparel, reward items, store drops, product mockups, inventory notes, and launch-ready merchandise.",
+    href: ROUTES.admin.templates,
+    icon: "packages",
+    journeySteps: [
+      {
+        completion: 64,
+        href: ROUTES.admin.templates,
+        icon: "packages",
+        label: "Products",
+        state: "complete",
+      },
+      {
+        completion: 56,
+        href: ROUTES.admin.templates,
+        icon: "feed",
+        label: "Mockups",
+        state: "active",
+      },
+      {
+        completion: 38,
+        href: ROUTES.admin.reports,
+        icon: "stats",
+        label: "Inventory",
+        state: "default",
+      },
+      {
+        completion: 26,
+        href: ROUTES.admin.postHub,
+        icon: "calendar",
+        label: "Drop",
+        state: "default",
+      },
+    ],
+    status: "Merch",
+    title: "Merch",
+    tone: "violet",
+  },
 ];
 
 export default function UserHomeDashboardPage() {
@@ -12051,6 +13302,7 @@ export default function UserHomeDashboardPage() {
     direction: DashboardOrbitDirection;
     sequence: number;
   } | null>(null);
+  const [adminCalendarCollapsed, setAdminCalendarCollapsed] = useState(false);
   const dashboardPageAnalogInUse =
     dashboardPageAnalogHovered ||
     dashboardPageAnalogDragging ||
@@ -12095,8 +13347,48 @@ export default function UserHomeDashboardPage() {
   const [adminServiceDetailsOpen, setAdminServiceDetailsOpen] = useState(false);
   const [activeDailyToolIndex, setActiveDailyToolIndex] = useState(0);
   const [activeAdminJourneyIndex, setActiveAdminJourneyIndex] = useState(0);
+  const [
+    activeAdminUserListStageIndex,
+    setActiveAdminUserListStageIndex,
+  ] = useState(0);
+  const [
+    activeAdminUserListColumnIndex,
+    setActiveAdminUserListColumnIndex,
+  ] = useState(0);
+  const [activeAdminUserListCell, setActiveAdminUserListCell] = useState<{
+    columnIndex: number;
+    rowIndex: number;
+  } | null>(null);
+  const [adminUserListCellEditor, setAdminUserListCellEditor] = useState<{
+    fieldKey: string;
+    rowId: string;
+  } | null>(null);
+  const [adminUserListCellEditorValue, setAdminUserListCellEditorValue] =
+    useState("");
+  const [adminUserListFilter, setAdminUserListFilter] =
+    useState<AdminUserListFilter | null>(null);
+  const [adminUserListFilterMenuOpen, setAdminUserListFilterMenuOpen] =
+    useState<string | null>(null);
+  const [adminUserListExpanded, setAdminUserListExpanded] = useState(false);
+  const [activeAdminUserListRecord, setActiveAdminUserListRecord] =
+    useState<AdminUserListRecord | null>(null);
+  const [adminUserListRecordProfileDraft, setAdminUserListRecordProfileDraft] =
+    useState<Record<string, string> | null>(null);
+  const [adminUserListRecords, setAdminUserListRecords] = useState<
+    AdminUserListRecord[]
+  >(adminUserListSeedRows);
+  const [adminUserListDraft, setAdminUserListDraft] =
+    useState<AdminUserListDraft | null>(null);
+  const [adminUserListStageMenuOpen, setAdminUserListStageMenuOpen] =
+    useState(false);
+  const [adminUserListStorageReady, setAdminUserListStorageReady] =
+    useState(false);
+  const [adminJourneyOrbitLayout, setAdminJourneyOrbitLayout] =
+    useState<AdminJourneyOrbitLayout>("wide");
   const [activeAdminJourneyDetailStage, setActiveAdminJourneyDetailStage] =
     useState<AdminJourneyStageKey | null>(null);
+  const [activeAdminJourneyPerson, setActiveAdminJourneyPerson] =
+    useState<AdminJourneyPersonReference | null>(null);
   const [activeAdminJourneyAddStage, setActiveAdminJourneyAddStage] =
     useState<AdminJourneyStageKey | null>(null);
   const [activeAdminJourneyEditStage, setActiveAdminJourneyEditStage] =
@@ -12137,6 +13429,8 @@ export default function UserHomeDashboardPage() {
       createInitialAdminJourneyRecordIndices(),
     );
   const [adminFinanceWorkspaceOpen, setAdminFinanceWorkspaceOpen] =
+    useState(false);
+  const [adminFinanceRowExpanded, setAdminFinanceRowExpanded] =
     useState(false);
   const [activeAdminFinanceTab, setActiveAdminFinanceTab] =
     useState<AdminFinanceTabKey>("income");
@@ -12289,13 +13583,12 @@ export default function UserHomeDashboardPage() {
   const commandCenterPointerMovedRef = useRef(false);
   const adminServicePointerStartRef = useRef<number | null>(null);
   const adminServicePointerMovedRef = useRef(false);
-  const adminJourneyPointerStartRef = useRef<number | null>(null);
-  const adminJourneyPointerMovedRef = useRef(false);
   const adminJourneyDetailStagePointerStartRef = useRef<number | null>(null);
   const adminJourneyDetailStagePointerMovedRef = useRef(false);
   const adminJourneyDetailStageJoystickPointerStartRef =
     useRef<DashboardVerticalPointerStart | null>(null);
   const adminJourneyDetailStageJoystickPointerMovedRef = useRef(false);
+  const adminUserListTableScrollerRef = useRef<HTMLDivElement | null>(null);
   const adminJourneyRecordScrollerRef = useRef<HTMLDivElement | null>(null);
   const adminJourneyRecordPointerStartRef =
     useRef<DashboardVerticalPointerStart | null>(null);
@@ -12396,6 +13689,83 @@ export default function UserHomeDashboardPage() {
   const dashboardMusicAutoplayModeRef =
     useRef<DashboardMusicAutoplayMode>("off");
   const dashboardTooltipTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    const savedRecords = readAdminUserListRecords();
+    if (savedRecords) {
+      setAdminUserListRecords(savedRecords);
+    }
+    setAdminUserListStorageReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!adminUserListStorageReady) return;
+
+    writeAdminUserListRecords(
+      adminUserListRecords.filter((record) => !record.isLiveDirectory),
+    );
+  }, [adminUserListRecords, adminUserListStorageReady]);
+
+  useEffect(() => {
+    if (!isAdminPreview || !adminUserListStorageReady) return;
+
+    let cancelled = false;
+
+    const loadLiveAdminDirectory = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session?.access_token) return;
+
+      const response = await fetch("/api/admin/directory", {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!response.ok || cancelled) return;
+
+      const payload = (await response.json()) as {
+        records?: Array<Omit<AdminUserListRecord, "clientId">>;
+      };
+      if (!Array.isArray(payload.records)) return;
+
+      setAdminUserListRecords((records) => {
+        const savedRecords = records.filter(
+          (record) => !record.isLiveDirectory,
+        );
+        const liveRecords = payload.records!.map((record) => ({
+          ...record,
+          clientId: `LIVE-${record.id.replace(/[^a-z0-9]/gi, "").slice(-10).toUpperCase()}`,
+          isLiveDirectory: true,
+        }));
+
+        return [...liveRecords, ...savedRecords];
+      });
+    };
+
+    void loadLiveAdminDirectory().catch((error) => {
+      console.error("[admin/directory] Could not load the live directory:", error);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adminUserListStorageReady, isAdminPreview]);
+
+  useEffect(() => {
+    const syncAdminJourneyOrbitLayout = () => {
+      const nextLayout = getAdminJourneyOrbitLayout(window.innerWidth);
+      setAdminJourneyOrbitLayout((currentLayout) =>
+        currentLayout === nextLayout ? currentLayout : nextLayout,
+      );
+    };
+
+    syncAdminJourneyOrbitLayout();
+    window.addEventListener("resize", syncAdminJourneyOrbitLayout);
+
+    return () => {
+      window.removeEventListener("resize", syncAdminJourneyOrbitLayout);
+    };
+  }, []);
 
   useEffect(() => {
     activeDashboardHeroCardIndexRef.current = activeDashboardHeroCardIndex;
@@ -13649,7 +15019,14 @@ export default function UserHomeDashboardPage() {
       title: "Weekly Snapshot",
     },
     {
-      completion: isAdminPreview ? 74 : manualStatsLogs.length ? 100 : 58,
+      completion: isAdminPreview
+        ? Math.round(
+            ((activeAdminUserListStageIndex + 1) / adminUserListStages.length) *
+              100,
+          )
+        : manualStatsLogs.length
+          ? 100
+          : 58,
       helper: isAdminPreview
         ? "People grouped by journey stage from first impression through reactivation."
         : "Manual stats, video review form checks, import tools, library attach, and recent saves.",
@@ -13659,7 +15036,7 @@ export default function UserHomeDashboardPage() {
     {
       completion: isAdminPreview ? 71 : exerciseStats.length ? 82 : 36,
       helper: isAdminPreview
-        ? "Income, expenses, assets, liabilities, payroll, and tax planning tabs."
+        ? "Income, expenses and debt, plus a total financial position ledger."
         : "Last 7 days of training volume, nutrition consistency, and recovery readiness.",
       icon: isAdminPreview ? "stats" : "performance",
       title: isAdminPreview ? "Finances" : "Weekly Recap",
@@ -13727,9 +15104,9 @@ export default function UserHomeDashboardPage() {
                 100,
             ),
             helper:
-              "Email marketing and social campaign planning in one quick row.",
+              "Email, social, print, and merchandise planning in one quick row.",
             icon: "feed",
-            title: "Marketing",
+            title: "Marketing Campaigns",
           },
         ]
       : []),
@@ -14276,18 +15653,118 @@ export default function UserHomeDashboardPage() {
     );
   };
   const adminJourneyCardCount = adminCustomerJourneyCards.length;
+  const adminUserListStageCount = adminUserListStages.length;
   const getAdminJourneyOrbitDistance = (index: number) =>
     index - activeAdminJourneyIndex;
   const rotateAdminJourneyOrbit = (direction: DashboardOrbitDirection) => {
-    setActiveAdminJourneyIndex((currentIndex) =>
+    setActiveAdminUserListStageIndex((currentIndex) =>
       Math.max(
         0,
         Math.min(
-          adminJourneyCardCount - 1,
+          adminUserListStageCount - 1,
           currentIndex + (direction === "left" ? -1 : 1),
         ),
       ),
     );
+  };
+  const selectAdminUserListStage = (stageIndex: number) => {
+    setActiveAdminUserListStageIndex(
+      Math.max(0, Math.min(adminUserListStageCount - 1, stageIndex)),
+    );
+    setActiveAdminUserListColumnIndex(0);
+    setActiveAdminUserListCell(null);
+    setAdminUserListCellEditor(null);
+    setAdminUserListFilter(null);
+    setAdminUserListFilterMenuOpen(null);
+  };
+  const openAdminUserListStage = (stageIndex: number) => {
+    selectAdminUserListStage(stageIndex);
+    setAdminUserListExpanded(true);
+  };
+  const previewAdminUserListStage = (stageIndex: number) => {
+    selectAdminUserListStage(stageIndex);
+    setAdminUserListExpanded(false);
+  };
+  const openAdminUserListAddForm = (stage: AdminUserListStageKey) => {
+    setAdminUserListDraft(createAdminUserListDraft(stage));
+    setAdminUserListStageMenuOpen(false);
+    setAdminUserListExpanded(true);
+  };
+  const addAdminUserListRecord = () => {
+    const draft = adminUserListDraft;
+    const name = draft?.name.trim();
+    if (!draft || !name) return;
+
+    const stage = adminUserListStages.find(
+      (entry) => entry.key === draft.stage,
+    );
+    if (!stage) return;
+
+    const record: AdminUserListRecord = {
+      addedAt: new Intl.DateTimeFormat("en-US", {
+        day: "numeric",
+        month: "short",
+      }).format(new Date()),
+      clientId: createAdminUserListClientId(),
+      details: Object.fromEntries(
+        Object.entries(draft.details).map(([key, value]) => [
+          key,
+          value.trim(),
+        ]),
+      ),
+      id: `${stage.key}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      name,
+      profile: Object.fromEntries(
+        Object.entries(draft.profile).map(([key, value]) => [
+          key,
+          value.trim(),
+        ]),
+      ),
+      reached: stage.short,
+      stage: stage.key,
+    };
+
+    setAdminUserListRecords((records) => [record, ...records]);
+    setActiveAdminUserListStageIndex(
+      adminUserListStages.findIndex((entry) => entry.key === stage.key),
+    );
+    setAdminUserListExpanded(true);
+    setAdminUserListDraft(null);
+  };
+  const openAdminUserListRecord = (record: AdminUserListRecord) => {
+    setActiveAdminUserListRecord(record);
+    setAdminUserListRecordProfileDraft(null);
+  };
+  const closeAdminUserListRecord = () => {
+    setActiveAdminUserListRecord(null);
+    setAdminUserListRecordProfileDraft(null);
+  };
+  const beginAdminUserListRecordProfileEdit = () => {
+    const record = activeAdminUserListRecord;
+    if (!record) return;
+
+    setAdminUserListRecordProfileDraft({ ...(record.profile ?? {}) });
+  };
+  const saveAdminUserListRecordProfile = () => {
+    const record = activeAdminUserListRecord;
+    const draft = adminUserListRecordProfileDraft;
+    if (!record || !draft) return;
+
+    const profile = Object.fromEntries(
+      Object.entries(draft).flatMap(([key, value]) => {
+        const trimmedValue = value.trim();
+        return trimmedValue ? [[key, trimmedValue]] : [];
+      }),
+    );
+    const updatedRecord: AdminUserListRecord = { ...record, profile };
+
+    setAdminUserListRecords((records) =>
+      records.map((entry) =>
+        entry.id === updatedRecord.id ? updatedRecord : entry,
+      ),
+    );
+    setActiveAdminUserListRecord(updatedRecord);
+    setAdminUserListRecordProfileDraft(null);
   };
   const selectAdminJourneyRecord = (
     stage: AdminJourneyStageKey,
@@ -14300,6 +15777,20 @@ export default function UserHomeDashboardPage() {
       ...currentIndices,
       [stage]: Math.max(0, Math.min(recordCount - 1, index)),
     }));
+  };
+  const openAdminJourneyPersonDetail = (
+    stage: AdminJourneyStageKey,
+    recordId: string,
+  ) => {
+    const recordIndex = (adminJourneyRows[stage] ?? []).findIndex(
+      (record) => record.id === recordId,
+    );
+
+    if (recordIndex >= 0) {
+      selectAdminJourneyRecord(stage, recordIndex);
+    }
+
+    setActiveAdminJourneyPerson({ recordId, stage });
   };
   const rotateAdminJourneyRecord = (
     stage: AdminJourneyStageKey,
@@ -17447,6 +18938,40 @@ export default function UserHomeDashboardPage() {
   const dashboardAnalogLevelMarkerY = `${
     1.34 + (1 - dashboardAnalogLevelFill) * 19.9
   }rem`;
+  const adminLifetimeEarningsK = adminFinance2026ChartSeries.income.values.reduce(
+    (total, income) => total + income,
+    0,
+  );
+  const adminNextEarningsMilestoneK =
+    (Math.floor(adminLifetimeEarningsK / 50) + 1) * 50;
+  const adminEarningsMilestoneStartK = Math.max(
+    0,
+    adminNextEarningsMilestoneK - 50,
+  );
+  const adminLifetimeEarningsProgress = clampDashboardPercent(
+    ((adminLifetimeEarningsK - adminEarningsMilestoneStartK) /
+      Math.max(1, adminNextEarningsMilestoneK - adminEarningsMilestoneStartK)) *
+      100,
+  );
+  const adminLifetimeEarningsFill = Math.max(
+    0.04,
+    Math.min(1, adminLifetimeEarningsProgress / 100),
+  );
+  const adminLifetimeEarningsLabel = formatAdminFinanceAmountFromK(
+    adminLifetimeEarningsK,
+  );
+  const adminNextEarningsMilestoneLabel = formatAdminFinanceAmountFromK(
+    adminNextEarningsMilestoneK,
+  );
+  const adminEarningsToMilestoneLabel = formatAdminFinanceAmountFromK(
+    Math.max(0, adminNextEarningsMilestoneK - adminLifetimeEarningsK),
+  );
+  const adminEarningsMarkerY = `${
+    1.34 + (1 - adminLifetimeEarningsFill) * 19.9
+  }rem`;
+  const adminEarningsTabProgressDegrees = `${Math.round(
+    adminLifetimeEarningsProgress * 1.8,
+  )}deg`;
   const activeDashboardMusicStations = dashboardMusicStations.filter(
     (station) => dashboardMusicStationIds.includes(station.id),
   );
@@ -18940,7 +20465,90 @@ export default function UserHomeDashboardPage() {
     setActiveDashboardFloatingMetricIndex(0);
   }, [clampedDashboardOrbiterRow, dashboardFloatingSnapshotTitle]);
 
-  const dashboardHeaderLinks: DashboardHeaderLink[] = [
+  const dashboardHeaderLinks: DashboardHeaderLink[] = isAdminPreview
+    ? [
+        {
+          completion: 100,
+          href: ROUTES.admin.home,
+          icon: "dashboard",
+          label: "Command Center",
+          meta: "Admin",
+          points: 0,
+          tone: "border-cyan-200/30 bg-cyan-300/10 text-cyan-100 hover:border-cyan-100/45 hover:bg-cyan-300/16",
+          toneKey: "cyan",
+        },
+        {
+          completion: 84,
+          href: ROUTES.admin.submissions,
+          icon: "form",
+          label: "Submissions",
+          meta: "Inbox",
+          points: 0,
+          tone: "border-sky-200/28 bg-sky-300/10 text-sky-100 hover:border-sky-100/45 hover:bg-sky-300/16",
+          toneKey: "sky",
+        },
+        {
+          completion: 76,
+          href: ROUTES.admin.leads,
+          icon: "groups",
+          label: "Leads",
+          meta: "Pipeline",
+          points: 0,
+          tone: "border-rose-200/28 bg-rose-300/10 text-rose-100 hover:border-rose-100/45 hover:bg-rose-300/16",
+          toneKey: "fuchsia",
+        },
+        {
+          completion: 71,
+          href: ROUTES.admin.crmDashboard,
+          icon: "insights",
+          label: "CRM",
+          meta: "Revenue",
+          points: 0,
+          tone: "border-violet-200/28 bg-violet-300/10 text-violet-100 hover:border-violet-100/45 hover:bg-violet-300/16",
+          toneKey: "violet",
+        },
+        {
+          completion: 68,
+          href: ROUTES.admin.clients,
+          icon: "profile",
+          label: "Clients",
+          meta: "Coaching",
+          points: 0,
+          tone: "border-emerald-200/28 bg-emerald-300/10 text-emerald-100 hover:border-emerald-100/45 hover:bg-emerald-300/16",
+          toneKey: "emerald",
+        },
+        {
+          completion: 62,
+          href: ROUTES.admin.postHub,
+          icon: "post",
+          label: "Post Hub",
+          meta: "Content",
+          points: 0,
+          tone: "border-pink-200/28 bg-pink-300/10 text-pink-100 hover:border-pink-100/45 hover:bg-pink-300/16",
+          toneKey: "fuchsia",
+        },
+        {
+          completion: 56,
+          href: ROUTES.admin.followUps,
+          icon: "messages",
+          label: "Follow-Ups",
+          meta: "Action",
+          points: 0,
+          tone: "border-amber-200/30 bg-amber-300/10 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/16",
+          toneKey: "amber",
+        },
+        {
+          completion: 48,
+          href: ROUTES.admin.reports,
+          icon: "stats",
+          label: "Reports",
+          meta: "Insights",
+          points: 0,
+          tone: "border-blue-200/28 bg-blue-300/10 text-blue-100 hover:border-blue-100/45 hover:bg-blue-300/16",
+          toneKey: "sky",
+        },
+      ]
+    : [
     {
       completion: dashboardTabCompletions.workout,
       href: ROUTES.dashboard.sessions,
@@ -19021,7 +20629,7 @@ export default function UserHomeDashboardPage() {
       tone: "border-pink-200/28 bg-pink-300/10 text-pink-100 hover:border-pink-100/45 hover:bg-pink-300/16",
       toneKey: "fuchsia",
     },
-  ];
+      ];
   const activeDashboardHeaderNormalizedIndex =
     ((activeDashboardHeaderIndex % dashboardHeaderLinks.length) +
       dashboardHeaderLinks.length) %
@@ -19084,7 +20692,7 @@ export default function UserHomeDashboardPage() {
     setDashboardHeaderIdlePhase("work");
   };
   const startDashboardHeaderIdleTimeout = () => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || isAdminPreview) return;
 
     clearDashboardHeaderIdleTimeout();
     dashboardHeaderIdleTimeoutRef.current = window.setTimeout(() => {
@@ -19187,6 +20795,14 @@ export default function UserHomeDashboardPage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    if (isAdminPreview) {
+      clearDashboardHeaderIdleTimeout();
+      setDashboardHeaderTimedOut(false);
+      setDashboardHeaderIdleStationIndex(0);
+      setDashboardHeaderIdlePhase("work");
+      return;
+    }
+
     if (dashboardPageLevelMeterOpen || dashboardPageLevelMeterTabHighlighted) {
       clearDashboardHeaderIdleTimeout();
       setDashboardHeaderTimedOut(false);
@@ -19214,6 +20830,7 @@ export default function UserHomeDashboardPage() {
     dashboardHeaderMenuActiveIndex,
     dashboardPageLevelMeterOpen,
     dashboardPageLevelMeterTabHighlighted,
+    isAdminPreview,
   ]);
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -23406,6 +25023,175 @@ export default function UserHomeDashboardPage() {
   );
 
   const renderDashboardPageLevelMeter = () => (
+    isAdminPreview ? (
+      <div
+        className={`dashboard-page-level-meter-control dashboard-page-level-meter-control--earnings pointer-events-auto absolute right-3 top-1/2 z-[78] -translate-y-1/2 ${
+          dashboardPageLevelMeterOpen
+            ? "dashboard-page-level-meter-control--open"
+            : ""
+        }`}
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        onPointerMove={(event) => event.stopPropagation()}
+        onPointerUp={(event) => event.stopPropagation()}
+        onWheel={(event) => event.stopPropagation()}
+      >
+        <button
+          aria-controls="dashboard-page-level-meter-panel"
+          aria-expanded={dashboardPageLevelMeterOpen}
+          aria-label={`${
+            dashboardPageLevelMeterOpen ? "Close" : "Open"
+          } lifetime earnings meter`}
+          className="dashboard-page-level-meter-tab"
+          data-dashboard-tooltip={
+            dashboardPageLevelMeterOpen
+              ? "Close lifetime earnings"
+              : "Open lifetime earnings"
+          }
+          onBlur={() => setDashboardPageLevelMeterTabHighlighted(false)}
+          onClick={() =>
+            setDashboardPageLevelMeterOpen((currentOpen) => !currentOpen)
+          }
+          onFocus={() => setDashboardPageLevelMeterTabHighlighted(true)}
+          onPointerEnter={() => setDashboardPageLevelMeterTabHighlighted(true)}
+          onPointerLeave={() => setDashboardPageLevelMeterTabHighlighted(false)}
+          style={
+            {
+              "--dashboard-page-level-tab-progress": `${adminLifetimeEarningsProgress}%`,
+              "--dashboard-page-level-tab-progress-deg":
+                adminEarningsTabProgressDegrees,
+            } as CSSProperties
+          }
+          type="button"
+        >
+          <span
+            aria-hidden="true"
+            className="dashboard-page-level-meter-tab__next-reward dashboard-page-level-meter-tab__next-reward--coin"
+          >
+            {renderDashboardPageLevelRewardIcon("coin", 1)}
+          </span>
+          <span className="dashboard-page-level-meter-tab__label">
+            EARNED
+          </span>
+          <span
+            aria-label={`Lifetime earnings ${adminLifetimeEarningsLabel}`}
+            className="dashboard-page-level-meter-tab__value"
+          >
+            {adminLifetimeEarningsLabel}
+            <span className="dashboard-page-level-meter-tab__to-go">
+              LIFETIME
+            </span>
+          </span>
+        </button>
+        <div
+          aria-hidden={!dashboardPageLevelMeterOpen}
+          className="dashboard-page-level-meter-panel"
+          id="dashboard-page-level-meter-panel"
+          onClick={() => setDashboardPageLevelMeterOpen(false)}
+          onPointerDown={() => setDashboardPageLevelMeterOpen(false)}
+        >
+          <div
+            aria-label={`Lifetime earnings ${adminLifetimeEarningsLabel}. ${adminEarningsToMilestoneLabel} to the ${adminNextEarningsMilestoneLabel} milestone.`}
+            className="dashboard-page-analog-dock pointer-events-none relative"
+            style={
+              {
+                "--dashboard-analog-level-fill": adminLifetimeEarningsFill,
+                "--dashboard-analog-level-marker-y": adminEarningsMarkerY,
+                "--dashboard-page-orbit-fill": adminLifetimeEarningsFill,
+                "--dashboard-page-orbit-marker-y": adminEarningsMarkerY,
+              } as CSSProperties
+            }
+          >
+            <DashboardLevelMeterBar3D
+              active={dashboardPageLevelMeterOpen}
+              className="dashboard-page-level-meter-webgl"
+              paused={!dashboardPageLevelMeterOpen}
+              progress={adminLifetimeEarningsProgress}
+            />
+            <span
+              aria-label={`Lifetime earnings progress: ${adminLifetimeEarningsLabel}. ${adminEarningsToMilestoneLabel} to ${adminNextEarningsMilestoneLabel}.`}
+              aria-valuemax={adminNextEarningsMilestoneK}
+              aria-valuemin={adminEarningsMilestoneStartK}
+              aria-valuenow={adminLifetimeEarningsK}
+              aria-valuetext={`${adminLifetimeEarningsLabel} lifetime earnings, ${adminEarningsToMilestoneLabel} to ${adminNextEarningsMilestoneLabel}`}
+              className="dashboard-page-analog-rail"
+              role="meter"
+            />
+            <span
+              aria-hidden="true"
+              className="dashboard-page-analog-rail__fill"
+              style={{
+                bottom: "1.34rem",
+                boxShadow:
+                  "0 0 0.28rem rgba(52,211,153,0.34), 0 0 0.48rem rgba(250,204,21,0.16)",
+                top: "auto",
+                transform: `translateX(-50%) scaleY(${adminLifetimeEarningsFill})`,
+                transformOrigin: "bottom center",
+                transition:
+                  "transform 420ms cubic-bezier(0.2, 0.82, 0.2, 1)",
+              }}
+            />
+            <span
+              aria-hidden="true"
+              className="dashboard-page-analog-rail__cap dashboard-page-analog-rail__cap--top"
+            >
+              {adminNextEarningsMilestoneLabel}
+            </span>
+            <span
+              aria-hidden="true"
+              className="dashboard-page-analog-rail__ticks"
+            >
+              {DASHBOARD_PAGE_ANALOG_LEVEL_TICKS.map((tick) => {
+                const tickRatio = Math.max(0.04, Math.min(1, tick / 100));
+
+                return (
+                  <span
+                    className={`dashboard-page-analog-rail__tick ${
+                      adminLifetimeEarningsProgress >= tick
+                        ? "dashboard-page-analog-rail__tick--filled"
+                        : ""
+                    }`}
+                    key={`dashboard-admin-earnings-tick-${tick}`}
+                    style={
+                      {
+                        "--dashboard-analog-level-tick-y": `${
+                          1.34 + (1 - tickRatio) * 19.9
+                        }rem`,
+                      } as CSSProperties
+                    }
+                  />
+                );
+              })}
+            </span>
+            <span
+              aria-hidden="true"
+              className="dashboard-page-analog-rail__scanner"
+            />
+            <span
+              aria-hidden="true"
+              className="dashboard-page-analog-rail__marker"
+            >
+              <span
+                aria-hidden="true"
+                className="dashboard-page-analog-rail__marker-smoke"
+              />
+              <span
+                aria-label={`Lifetime earnings ${adminLifetimeEarningsLabel}`}
+                className="dashboard-page-analog-rail__marker-value"
+              >
+                {adminLifetimeEarningsLabel}
+              </span>
+            </span>
+            <span
+              aria-hidden="true"
+              className="dashboard-page-analog-rail__badge"
+            >
+              EARNED
+            </span>
+          </div>
+        </div>
+      </div>
+    ) : (
     <div
       className={`dashboard-page-level-meter-control pointer-events-auto absolute right-3 top-1/2 z-[78] -translate-y-1/2 ${
         dashboardPageLevelMeterOpen
@@ -23652,6 +25438,7 @@ export default function UserHomeDashboardPage() {
         </div>
       </div>
     </div>
+    )
   );
 
   const renderDashboardPageAnalog = () => {
@@ -23670,12 +25457,10 @@ export default function UserHomeDashboardPage() {
         : dashboardPageAnalogActiveDirection === "right"
           ? "22deg"
           : "0deg";
-    const dashboardPageAnalogBallActive = dashboardPageAnalogInUse;
-
     return (
       <button
         aria-label="Scroll dashboard page rows"
-        className={`dashboard-header-scroll-button dashboard-header-scroll-button--page pointer-events-auto relative z-10 grid h-[4.35rem] w-[4.35rem] shrink-0 translate-x-12 place-items-center overflow-visible rounded-[28px] border border-cyan-100/16 bg-slate-950/26 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-y-0.5 hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:620px] [touch-action:none] ${
+        className={`dashboard-header-scroll-button dashboard-header-scroll-button--page pointer-events-auto relative z-10 grid h-[4.35rem] w-[4.35rem] shrink-0 translate-x-0 min-[720px]:translate-x-12 place-items-center overflow-visible rounded-[28px] border border-cyan-100/16 bg-slate-950/26 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-y-0.5 hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:620px] [touch-action:none] ${
           dashboardPageAnalogDragging
             ? "dashboard-header-scroll-button--dragging cursor-grabbing border-amber-100/44 bg-amber-300/10"
             : "cursor-pointer"
@@ -23766,15 +25551,33 @@ export default function UserHomeDashboardPage() {
         }
         type="button"
       >
-        <DashboardScrollButton3D
-          active={dashboardPageAnalogBallActive}
-          activeDirection={dashboardPageAnalogActiveDirection}
-          className="dashboard-header-scroll-button__webgl dashboard-header-scroll-button__webgl--page"
-          paused={dashboardHeaderMotionPaused}
-          showDown={canPageJoystickScrollDown}
-          showUp={canPageJoystickScrollUp}
-          tone={activeDashboardHeaderLink.toneKey}
-        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 z-10 grid place-items-center"
+        >
+          <span className="absolute inset-[0.58rem] rounded-full border border-cyan-100/28 bg-[radial-gradient(circle_at_32%_24%,rgba(224,247,255,0.56),transparent_16%),radial-gradient(circle_at_54%_62%,rgba(14,165,233,0.62),rgba(8,47,73,0.78)_58%,rgba(2,6,23,0.9)_100%)] shadow-[0_0_1.1rem_rgba(34,211,238,0.4),inset_0.16rem_0.2rem_0.24rem_rgba(224,247,255,0.42),inset_-0.38rem_-0.52rem_0.76rem_rgba(2,6,23,0.78)]" />
+          <span className="absolute h-3.5 w-3.5 rounded-full border border-cyan-50/65 bg-cyan-100 shadow-[0_0_0.8rem_rgba(34,211,238,0.92),inset_0_0.08rem_0.22rem_rgba(255,255,255,0.82)]" />
+          <span
+            className={`absolute left-1/2 top-[0.18rem] -translate-x-1/2 text-[0.9rem] font-black leading-none drop-shadow-[0_0_0.42rem_rgba(34,211,238,0.72)] ${
+              canPageJoystickScrollUp ? "text-cyan-50" : "text-slate-600"
+            }`}
+          >
+            ^
+          </span>
+          <span
+            className={`absolute bottom-[0.18rem] left-1/2 -translate-x-1/2 text-[0.9rem] font-black leading-none drop-shadow-[0_0_0.42rem_rgba(34,211,238,0.72)] ${
+              canPageJoystickScrollDown ? "text-cyan-50" : "text-slate-600"
+            }`}
+          >
+            v
+          </span>
+          <span className="absolute left-[0.16rem] top-1/2 -translate-y-1/2 text-[0.9rem] font-black leading-none text-cyan-50 drop-shadow-[0_0_0.42rem_rgba(34,211,238,0.72)]">
+            &lt;
+          </span>
+          <span className="absolute right-[0.16rem] top-1/2 -translate-y-1/2 text-[0.9rem] font-black leading-none text-cyan-50 drop-shadow-[0_0_0.42rem_rgba(34,211,238,0.72)]">
+            &gt;
+          </span>
+        </span>
       </button>
     );
   };
@@ -24075,6 +25878,7 @@ export default function UserHomeDashboardPage() {
     rotateOrbit,
     rowIndex,
     setActiveIndex,
+    showRowTitle = false,
     title,
   }: {
     cards: DashboardNavigationCard[];
@@ -24086,6 +25890,7 @@ export default function UserHomeDashboardPage() {
     rotateOrbit: (direction: DashboardOrbitDirection) => void;
     rowIndex: number;
     setActiveIndex: (index: number) => void;
+    showRowTitle?: boolean;
     title: string;
   }) => (
     <div
@@ -24096,6 +25901,15 @@ export default function UserHomeDashboardPage() {
           : "pointer-events-none opacity-40"
       }`}
     >
+      {showRowTitle
+        ? renderDashboardRowTitle({
+            accentClassName:
+              "bg-fuchsia-300 shadow-[0_0_14px_rgba(217,70,239,0.58)]",
+            description,
+            kicker,
+            title,
+          })
+        : null}
       <div className="sr-only">
         {kicker}. {title}. {description}
       </div>
@@ -27902,7 +29716,9 @@ export default function UserHomeDashboardPage() {
                 return;
               }
 
-              router.push(ROUTES.dashboard.home);
+              router.push(
+                isAdminPreview ? ROUTES.admin.home : ROUTES.dashboard.home,
+              );
             }}
             onFocus={() => setDashboardHeaderLogoClusterHighlighted(true)}
             onMouseEnter={() => setDashboardHeaderLogoClusterHighlighted(true)}
@@ -28014,7 +29830,11 @@ export default function UserHomeDashboardPage() {
                       {renderDashboardHeaderJourneyTabs("points")}
                     </div>
                     <Link
-                      aria-label={`Open ${activeDashboardHeaderLink.label}, ${activeDashboardHeaderLink.points.toLocaleString()} points`}
+                      aria-label={
+                        isAdminPreview
+                          ? `Open ${activeDashboardHeaderLink.label}`
+                          : `Open ${activeDashboardHeaderLink.label}, ${activeDashboardHeaderLink.points.toLocaleString()} points`
+                      }
                       className="dashboard-header-rail-points-core absolute left-[2.02rem] top-[1.3rem] z-[4] inline-flex max-w-[3.9rem] -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 overflow-hidden whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[11px] font-black leading-none tracking-tight text-cyan-50 transition hover:brightness-125 active:scale-95"
                       draggable={false}
                       href={activeDashboardHeaderLink.href}
@@ -28042,9 +29862,19 @@ export default function UserHomeDashboardPage() {
                           />
                         ))}
                       </span>
-                      {renderDashboardSoundPointsLightningIcon(0.88)}
+                      {isAdminPreview ? (
+                        <DashboardTabIcon
+                          className="relative z-10 h-3 w-3"
+                          label={activeDashboardHeaderLink.label}
+                          name={activeDashboardHeaderLink.icon}
+                        />
+                      ) : (
+                        renderDashboardSoundPointsLightningIcon(0.88)
+                      )}
                       <span className="relative z-10 truncate">
-                        {activeDashboardHeaderLink.points.toLocaleString()}
+                        {isAdminPreview
+                          ? "ADMIN"
+                          : activeDashboardHeaderLink.points.toLocaleString()}
                       </span>
                       <span
                         aria-hidden="true"
@@ -28107,7 +29937,7 @@ export default function UserHomeDashboardPage() {
                   </Link>
                 </div>
               </div>
-              {activeDashboardHeaderCategoryLevel ? (
+              {!isAdminPreview && activeDashboardHeaderCategoryLevel ? (
                 <span
                   aria-hidden="true"
                   className="dashboard-header-selector-category-dock"
@@ -33923,18 +35753,116 @@ export default function UserHomeDashboardPage() {
     footer,
     kicker,
     title,
+    compact = false,
     urgencyMotionPaused = true,
     urgencyTone,
   }: {
     accentClassName: string;
+    compact?: boolean;
     description: string;
     footer?: ReactNode;
     kicker: string;
     title: string;
     urgencyMotionPaused?: boolean;
     urgencyTone?: ReturnType<typeof getDashboardRowUrgencyTone>;
-  }) => (
-    <div className="pointer-events-none absolute left-36 top-5 z-30 w-[min(34rem,calc(100%-12rem))] min-w-0 sm:left-40 lg:left-44">
+  }) => {
+    const rowIndex = isAdminPreview
+      ? dashboardOrbiterRows.findIndex((row) => row.title === title)
+      : -1;
+    const rowHorizontalIndicatorItems =
+      rowIndex === clampedDashboardOrbiterRow
+        ? rowIndex === 1
+          ? adminUserListStages.map((stage, index) => ({
+              active: index === activeAdminUserListStageIndex,
+              icon: stage.icon,
+              id: stage.key,
+              isEmoji: false,
+              label: stage.label,
+            }))
+          : rowIndex === 2
+            ? [
+                {
+                  active: activeAdminFinanceTab === "income",
+                  icon: "stats",
+                  id: "income",
+                  isEmoji: false,
+                  label: "Income",
+                },
+                {
+                  active: activeAdminFinanceTab === "expenses",
+                  icon: "recovery",
+                  id: "expenses",
+                  isEmoji: false,
+                  label: "Expenses",
+                },
+                {
+                  active: activeAdminFinanceTab === "total",
+                  icon: "goals",
+                  id: "total",
+                  isEmoji: false,
+                  label: "Total",
+                },
+              ]
+          : rowIndex === 3
+            ? adminServiceCards.map((card, index) => ({
+                active: index === activeAdminServiceIndex,
+                icon: card.icon,
+                id: card.title,
+                isEmoji: false,
+                label: card.title,
+              }))
+            : rowIndex === 5
+              ? adminMessageChannels.map((channel, index) => ({
+                  active: index === activeAdminMessageIndex,
+                  icon: channel.icon,
+                  id: channel.title,
+                  isEmoji: false,
+                  label: channel.title,
+                }))
+              : rowIndex === 6
+                ? adminSoundAssetCards.map((card, index) => ({
+                    active: index === activeAdminSoundAssetIndex,
+                    icon: card.icon,
+                    id: card.title,
+                    isEmoji: false,
+                    label: card.title,
+                  }))
+                : rowIndex === 7
+                  ? adminMarketingCampaignCards.map((card, index) => ({
+                      active: index === activeAdminMarketingCampaignIndex,
+                      icon: card.icon,
+                      id: card.title,
+                      isEmoji: false,
+                      label: card.title,
+                    }))
+                  : rowIndex === 8
+                    ? adminSettingsSections.map((section, index) => ({
+                        active: index === activeAdminSettingsIndex,
+                        icon: section.icon,
+                        id: section.title,
+                        isEmoji: false,
+                        label: section.title,
+                      }))
+                    : []
+        : [];
+
+    if (compact) {
+      return (
+        <div className="sr-only">
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className={`pointer-events-none absolute left-36 top-5 z-30 w-[min(34rem,calc(100%-12rem))] min-w-0 transition-[opacity,transform] duration-300 sm:left-40 lg:left-44 ${
+          isAdminPreview
+            ? "max-sm:left-24 max-sm:w-[calc(100%-9rem)]"
+            : ""
+        }`}
+      >
       <div className="flex max-w-full flex-wrap items-center gap-2">
         <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-slate-950/54 px-3 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-slate-300 shadow-[0_14px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur">
           <span
@@ -33962,15 +35890,226 @@ export default function UserHomeDashboardPage() {
           </span>
         ) : null}
       </div>
-      <h2 className="mt-2 text-2xl font-black uppercase leading-none tracking-[0.08em] text-white [text-shadow:0_0_24px_rgba(34,211,238,0.12)] sm:text-3xl">
+      <h2 className="mt-2 text-2xl font-black uppercase leading-none tracking-[0.08em] text-white [text-shadow:0_0_24px_rgba(34,211,238,0.12)] transition-all duration-300 sm:text-3xl">
         {title}
       </h2>
       <p className="mt-1 max-w-[32rem] text-xs font-semibold leading-5 text-slate-300">
         {description}
       </p>
+      {rowHorizontalIndicatorItems.length && rowIndex !== 1 ? (
+        <div
+          aria-label={`${title} card position indicator`}
+          className={`mt-3 ${
+            rowIndex === 1
+              ? "inline-flex max-w-full items-stretch overflow-x-auto rounded-xl border border-cyan-100/20 bg-slate-950/62 [scrollbar-width:none] [touch-action:pan-x] [&::-webkit-scrollbar]:hidden"
+              : "flex flex-wrap items-center gap-1.5"
+          }`}
+          role={
+            rowIndex === 1 ||
+            rowIndex === 2 ||
+            rowIndex === 3 ||
+            rowIndex === 5 ||
+            rowIndex === 8
+              ? "tablist"
+              : undefined
+          }
+        >
+          {rowHorizontalIndicatorItems.map((item, index) => {
+            const isUserListStage = rowIndex === 1;
+            const stage = isUserListStage ? adminUserListStages[index] : null;
+            const tone = stage ? adminUserListStageTabTones[stage.key] : null;
+            const service = rowIndex === 3 ? adminServiceCards[index] : null;
+            const messageChannel =
+              rowIndex === 5 ? adminMessageChannels[index] : null;
+            const settingsSection =
+              rowIndex === 8 ? adminSettingsSections[index] : null;
+            const financeTab =
+              rowIndex === 2
+                ? adminFinanceTabs.find((tab) => tab.key === item.id)
+                : null;
+
+            if (isUserListStage && stage && tone) {
+              return (
+                <button
+                  aria-label={`Open ${item.label} user table`}
+                  aria-pressed={item.active}
+                  className={`pointer-events-auto grid h-14 shrink-0 grid-rows-[1.75rem_auto] justify-items-center gap-1 !rounded-none !border-y-0 !border-l-0 !border-r-white/10 px-1 py-1.5 text-center transition-[width,colors,background-color,border-color,box-shadow] duration-300 ease-out hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-100/60 motion-reduce:transition-none ${
+                    item.active ? "w-36" : "w-12"
+                  } ${
+                    item.active
+                      ? tone.active
+                      : tone.idle
+                  }`}
+                  key={item.id}
+                  onClick={() => openAdminUserListStage(index)}
+                  role="tab"
+                  title={item.label}
+                  type="button"
+                >
+                  <span className="grid h-7 w-7 place-items-center rounded-full border border-current/25 bg-slate-950/18">
+                    <DashboardTabIcon
+                      className="h-3.5 w-3.5"
+                      label={item.label}
+                      name={item.icon}
+                    />
+                  </span>
+                  <span className="w-full truncate text-[7px] font-black uppercase leading-none tracking-[0.08em]">
+                    {item.active ? stage.label : stage.short}
+                  </span>
+                </button>
+              );
+            }
+
+            if (service) {
+              const serviceTone = dashboardIconToneStyles[service.tone];
+
+              return (
+                <button
+                  aria-label={`Show ${service.title} service`}
+                  aria-pressed={item.active}
+                  className={`pointer-events-auto grid h-7 w-7 place-items-center rounded-full border transition duration-300 hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${
+                    serviceTone[item.active ? "active" : "idle"]
+                  }`}
+                  data-dashboard-tooltip={`${service.title}. ${service.description}`}
+                  key={item.id}
+                  onClick={() => setActiveAdminServiceIndex(index)}
+                  role="tab"
+                  type="button"
+                >
+                  <DashboardTabIcon
+                    className="h-3.5 w-3.5"
+                    label={service.title}
+                    name={service.icon}
+                  />
+                </button>
+              );
+            }
+
+            if (messageChannel) {
+              const messageTone = dashboardIconToneStyles[messageChannel.tone];
+
+              return (
+                <button
+                  aria-label={`Show ${messageChannel.title}`}
+                  aria-pressed={item.active}
+                  className={`pointer-events-auto grid h-7 w-7 place-items-center rounded-full border transition duration-300 hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${
+                    messageTone[item.active ? "active" : "idle"]
+                  }`}
+                  data-dashboard-tooltip={`${messageChannel.title}. ${messageChannel.description}`}
+                  key={item.id}
+                  onClick={() => {
+                    setActiveAdminMessageIndex(index);
+                    setAdminMessageDetailsOpen(false);
+                  }}
+                  role="tab"
+                  type="button"
+                >
+                  <DashboardTabIcon
+                    className="h-3.5 w-3.5"
+                    label={messageChannel.title}
+                    name={messageChannel.icon}
+                  />
+                </button>
+              );
+            }
+
+            if (settingsSection) {
+              const settingsTone =
+                dashboardIconToneStyles[settingsSection.tone];
+
+              return (
+                <button
+                  aria-label={`Show ${settingsSection.title} settings`}
+                  aria-pressed={item.active}
+                  className={`pointer-events-auto grid h-7 w-7 place-items-center rounded-full border transition duration-300 hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${
+                    settingsTone[item.active ? "active" : "idle"]
+                  }`}
+                  data-dashboard-tooltip={`${settingsSection.title}. ${settingsSection.detail}`}
+                  key={item.id}
+                  onClick={() => setActiveAdminSettingsIndex(index)}
+                  role="tab"
+                  type="button"
+                >
+                  <DashboardTabIcon
+                    className="h-3.5 w-3.5"
+                    label={settingsSection.title}
+                    name={settingsSection.icon}
+                  />
+                </button>
+              );
+            }
+
+            if (financeTab) {
+              const financeTone =
+                financeTab.key === "expenses"
+                  ? {
+                      active:
+                        "border-red-100/80 bg-red-400/20 text-red-50 shadow-[0_0_16px_rgba(248,113,113,0.28),inset_0_1px_0_rgba(255,255,255,0.12)]",
+                      idle: "border-red-200/20 bg-red-400/[0.06] text-red-200/70 hover:border-red-100/52 hover:bg-red-400/14 hover:text-red-50",
+                    }
+                  : financeTab.key === "total"
+                    ? {
+                        active:
+                          "border-cyan-100/80 bg-cyan-300/20 text-cyan-50 shadow-[0_0_16px_rgba(34,211,238,0.28),inset_0_1px_0_rgba(255,255,255,0.12)]",
+                        idle: "border-cyan-200/20 bg-cyan-300/[0.06] text-cyan-200/70 hover:border-cyan-100/52 hover:bg-cyan-300/14 hover:text-cyan-50",
+                      }
+                    : {
+                        active:
+                          "border-emerald-100/80 bg-emerald-300/20 text-emerald-50 shadow-[0_0_16px_rgba(52,211,153,0.28),inset_0_1px_0_rgba(255,255,255,0.12)]",
+                        idle: "border-emerald-200/20 bg-emerald-300/[0.06] text-emerald-200/70 hover:border-emerald-100/52 hover:bg-emerald-300/14 hover:text-emerald-50",
+                      };
+
+              return (
+                <button
+                  aria-label={`Show ${financeTab.label} ledger`}
+                  aria-pressed={item.active}
+                  className={`pointer-events-auto grid h-7 w-7 place-items-center rounded-full border transition duration-300 hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${
+                    financeTone[item.active ? "active" : "idle"]
+                  }`}
+                  data-dashboard-tooltip={`${financeTab.label}. ${financeTab.detail}`}
+                  key={item.id}
+                  onClick={() => setActiveAdminFinanceTab(financeTab.key)}
+                  role="tab"
+                  type="button"
+                >
+                  <DashboardTabIcon
+                    className="h-3.5 w-3.5"
+                    label={financeTab.label}
+                    name={item.icon}
+                  />
+                </button>
+              );
+            }
+
+            return (
+              <span
+                aria-label={`${item.label}${item.active ? ", active" : ""}`}
+                className={`grid h-7 w-7 place-items-center rounded-full border text-[11px] transition duration-300 ${
+                  item.active
+                    ? "border-cyan-100/72 bg-cyan-300/18 text-cyan-50 shadow-[0_0_16px_rgba(34,211,238,0.24),inset_0_1px_0_rgba(255,255,255,0.12)]"
+                    : "border-white/10 bg-slate-950/44 text-slate-500"
+                }`}
+                key={item.id}
+                role="img"
+              >
+                {item.isEmoji ? (
+                  <span aria-hidden="true">{item.icon}</span>
+                ) : (
+                  <DashboardTabIcon
+                    className="h-3.5 w-3.5"
+                    label={item.label}
+                    name={item.icon}
+                  />
+                )}
+              </span>
+            );
+          })}
+        </div>
+      ) : null}
       {footer ? <div className="mt-2">{footer}</div> : null}
-    </div>
-  );
+      </div>
+    );
+  };
 
   const renderAdminJourneyDetailOverlay = () => {
     if (!isAdminPreview || !activeAdminJourneyDetailStage) return null;
@@ -34743,36 +36882,46 @@ export default function UserHomeDashboardPage() {
                       );
 
                       return (
-                        <button
-                          aria-label={`Open ${row.primary} in ${card.label}`}
+                        <article
+                          aria-label={`${row.primary} in ${card.label}`}
                           className={`min-w-0 rounded-2xl border px-3 py-2 text-left transition hover:-translate-y-0.5 active:scale-[0.99] ${
                             index === activeRecordIndex
                               ? "border-cyan-100/36 bg-cyan-300/10 shadow-[0_0_22px_rgba(34,211,238,0.12)]"
                               : "border-white/10 bg-white/[0.035] hover:border-cyan-200/26 hover:bg-cyan-300/[0.07]"
                           }`}
                           key={`${row.id}-collapsed-table`}
-                          onClick={() => {
-                            setCollapsedAdminJourneyTables((currentTables) => ({
-                              ...currentTables,
-                              [card.stage]: false,
-                            }));
-                            selectAdminJourneyRecord(card.stage, index);
-                          }}
-                          type="button"
                         >
                           <span className="flex min-w-0 items-center gap-1.5 truncate text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
                             <span aria-hidden="true">{rowStatusEmoji}</span>
                             <span className="truncate">{row.status}</span>
                           </span>
-                          <span className="mt-1 flex min-w-0 items-center gap-1.5 truncate text-sm font-black text-white">
+                          <button
+                            aria-label={`Open full record for ${row.primary}`}
+                            className="mt-1 flex min-w-0 max-w-full items-center gap-1.5 truncate text-left text-sm font-black text-white outline-none transition hover:text-cyan-100 focus-visible:text-cyan-100 focus-visible:underline"
+                            onClick={() =>
+                              openAdminJourneyPersonDetail(card.stage, row.id)
+                            }
+                            type="button"
+                          >
                             <span aria-hidden="true">{rowPrimaryEmoji}</span>
                             <span className="truncate">{row.primary}</span>
-                          </span>
-                          <span className="mt-1 flex min-w-0 items-center gap-1.5 truncate text-[10px] font-bold text-cyan-100/80">
+                          </button>
+                          <button
+                            aria-label={`Open ${row.primary} in ${card.label} table`}
+                            className="mt-1 flex min-w-0 max-w-full items-center gap-1.5 truncate text-left text-[10px] font-bold text-cyan-100/80 outline-none transition hover:text-cyan-50 focus-visible:text-cyan-50 focus-visible:underline"
+                            onClick={() => {
+                              setCollapsedAdminJourneyTables((currentTables) => ({
+                                ...currentTables,
+                                [card.stage]: false,
+                              }));
+                              selectAdminJourneyRecord(card.stage, index);
+                            }}
+                            type="button"
+                          >
                             <span aria-hidden="true">{rowNextStepEmoji}</span>
                             <span className="truncate">{row.nextStep}</span>
-                          </span>
-                        </button>
+                          </button>
+                        </article>
                       );
                     })
                   ) : (
@@ -35113,7 +37262,26 @@ export default function UserHomeDashboardPage() {
                                                 {column.label}
                                               </span>
                                             </span>
-                                            {column.field === "notes" ? (
+                                            {column.field === "primary" ? (
+                                              <button
+                                                aria-label={`Open full record for ${row.primary}`}
+                                                className="flex min-h-[3.1rem] min-w-0 items-center text-left text-sm font-black leading-5 text-white outline-none transition hover:text-cyan-100 focus-visible:rounded-xl focus-visible:bg-slate-950/28 focus-visible:px-2 focus-visible:text-cyan-100"
+                                                onClick={() =>
+                                                  openAdminJourneyPersonDetail(
+                                                    card.stage,
+                                                    row.id,
+                                                  )
+                                                }
+                                                onPointerDown={(event) =>
+                                                  event.stopPropagation()
+                                                }
+                                                type="button"
+                                              >
+                                                <span className="truncate">
+                                                  {value}
+                                                </span>
+                                              </button>
+                                            ) : column.field === "notes" ? (
                                               <textarea
                                                 aria-label={`Edit ${column.label} for ${row.primary}`}
                                                 className="min-h-[3.1rem] resize-none rounded-xl border border-transparent bg-transparent p-0 text-sm font-semibold leading-5 text-slate-200 outline-none transition placeholder:text-slate-600 focus:border-cyan-200/30 focus:bg-slate-950/28 focus:px-2 focus:py-1"
@@ -35147,14 +37315,12 @@ export default function UserHomeDashboardPage() {
                                                 className={`h-9 min-w-0 rounded-xl border border-transparent bg-transparent p-0 text-sm leading-5 outline-none transition placeholder:text-slate-600 focus:border-cyan-200/30 focus:bg-slate-950/28 focus:px-2 ${
                                                   column.field === "status"
                                                     ? "font-black uppercase tracking-[0.08em] text-emerald-100"
-                                                    : column.field === "primary"
-                                                      ? "font-black text-white"
-                                                      : column.field ===
-                                                            "contact" ||
-                                                          column.field ===
-                                                            "nextStep"
-                                                        ? "font-bold text-cyan-50"
-                                                        : "font-semibold text-slate-300"
+                                                    : column.field ===
+                                                          "contact" ||
+                                                        column.field ===
+                                                          "nextStep"
+                                                      ? "font-bold text-cyan-50"
+                                                      : "font-semibold text-slate-300"
                                                 }`}
                                                 onChange={(event) =>
                                                   updateAdminJourneyRecordCell(
@@ -35389,7 +37555,1855 @@ export default function UserHomeDashboardPage() {
     );
   };
 
+  const renderAdminJourneyPersonOverlay = () => {
+    if (!isAdminPreview || !activeAdminJourneyPerson) return null;
+
+    const selectedRecord = (adminJourneyRows[activeAdminJourneyPerson.stage] ?? []).find(
+      (record) => record.id === activeAdminJourneyPerson.recordId,
+    );
+    if (!selectedRecord) return null;
+
+    const personKey = getAdminJourneyPersonKey(selectedRecord);
+    const profileEntries = adminCustomerJourneyCards
+      .flatMap((stageCard) =>
+        (adminJourneyRows[stageCard.stage] ?? []).map((record, index) => ({
+          index,
+          record,
+          stageCard,
+        })),
+      )
+      .filter((entry) => getAdminJourneyPersonKey(entry.record) === personKey);
+    const openJourneyRecord = (
+      entry: (typeof profileEntries)[number],
+      shouldEdit = false,
+    ) => {
+      setActiveAdminJourneyPerson(null);
+      setActiveAdminJourneyDetailStage(entry.stageCard.stage);
+      setActiveAdminJourneyIndex(
+        adminCustomerJourneyCards.findIndex(
+          (card) => card.stage === entry.stageCard.stage,
+        ),
+      );
+      setCollapsedAdminJourneyTables((currentTables) => ({
+        ...currentTables,
+        [entry.stageCard.stage]: false,
+      }));
+      selectAdminJourneyRecord(entry.stageCard.stage, entry.index);
+
+      if (shouldEdit) {
+        startEditAdminJourneyRow(entry.stageCard.stage, undefined, entry.index);
+      }
+    };
+
+    return (
+      <div
+        aria-label={`${selectedRecord.primary} full record`}
+        aria-modal="true"
+        className="fixed inset-0 z-[260] overflow-y-auto bg-slate-950/96 text-white backdrop-blur-2xl"
+        role="dialog"
+      >
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(34,211,238,0.17),transparent_28%),radial-gradient(circle_at_86%_10%,rgba(16,185,129,0.14),transparent_24%)]"
+        />
+        <div className="relative mx-auto flex min-h-full w-full max-w-6xl flex-col px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
+          <header className="flex flex-col gap-4 border-b border-white/10 pb-5 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                User engagement / complete record
+              </p>
+              <h2 className="mt-2 truncate text-3xl font-black uppercase tracking-[0.06em] text-white sm:text-4xl">
+                {selectedRecord.primary}
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-300">
+                Every matching journey entry is collected here. Each stage keeps
+                its own labels and details, so the full history stays readable
+                without flattening the data.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="rounded-2xl border border-cyan-100/24 bg-cyan-300/10 px-4 py-3 text-left shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+                <span className="block text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                  Journey entries
+                </span>
+                <span className="mt-1 block text-2xl font-black text-white">
+                  {profileEntries.length}
+                </span>
+              </span>
+              <button
+                aria-label="Close full record"
+                className="grid h-12 w-12 place-items-center rounded-2xl border border-white/12 bg-slate-950/70 text-xl font-black text-cyan-100 shadow-[0_18px_40px_rgba(0,0,0,0.24)] transition hover:border-rose-200/35 hover:bg-rose-300/10 hover:text-rose-100 active:scale-95"
+                onClick={() => setActiveAdminJourneyPerson(null)}
+                type="button"
+              >
+                x
+              </button>
+            </div>
+          </header>
+
+          <section className="mt-5 grid gap-3 rounded-[26px] border border-cyan-100/18 bg-slate-950/68 p-4 shadow-[0_18px_48px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.06)] sm:grid-cols-3">
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                Contact
+              </p>
+              <p className="mt-1 truncate text-sm font-bold text-cyan-50">
+                {selectedRecord.contact}
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                Current owner
+              </p>
+              <p className="mt-1 truncate text-sm font-bold text-slate-100">
+                {selectedRecord.owner}
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                Current next step
+              </p>
+              <p className="mt-1 truncate text-sm font-bold text-amber-100">
+                {selectedRecord.nextStep}
+              </p>
+            </div>
+          </section>
+
+          <section className="mt-5 grid gap-4 pb-8">
+            {profileEntries.map((entry) => {
+              const visual = adminJourneyStageVisuals[entry.stageCard.stage];
+              const fields = [
+                {
+                  field: "contact" as const,
+                  label: entry.stageCard.contactLabel,
+                  value: entry.record.contact,
+                },
+                {
+                  field: "context" as const,
+                  label: entry.stageCard.contextLabel,
+                  value: entry.record.context,
+                },
+                {
+                  field: "status" as const,
+                  label: entry.stageCard.statusLabel,
+                  value: entry.record.status,
+                },
+                {
+                  field: "date" as const,
+                  label: entry.stageCard.dateLabel,
+                  value: entry.record.date,
+                },
+                {
+                  field: "nextStep" as const,
+                  label: entry.stageCard.nextStepLabel,
+                  value: entry.record.nextStep,
+                },
+                {
+                  field: "owner" as const,
+                  label: "Owner",
+                  value: entry.record.owner,
+                },
+                {
+                  field: "notes" as const,
+                  label: "Notes",
+                  value: entry.record.notes,
+                },
+              ];
+
+              return (
+                <article
+                  className="overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/72 shadow-[0_20px_52px_rgba(0,0,0,0.24)]"
+                  key={`${entry.stageCard.stage}-${entry.record.id}`}
+                >
+                  <div
+                    className={`border-b border-white/10 bg-gradient-to-r ${entry.stageCard.accent} px-4 py-4 sm:px-5`}
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-cyan-100/22 bg-slate-950/56 text-lg shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                          {visual.recordEmoji}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-black uppercase tracking-[0.14em] text-cyan-200">
+                            Journey stage
+                          </p>
+                          <h3 className="mt-1 truncate text-lg font-black uppercase tracking-[0.06em] text-white">
+                            {entry.stageCard.label}
+                          </h3>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-wrap gap-2">
+                        <button
+                          className="inline-flex min-h-9 items-center justify-center rounded-xl border border-cyan-100/24 bg-cyan-300/10 px-3 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-50 transition hover:border-cyan-100/48 hover:bg-cyan-300/18 active:scale-[0.99]"
+                          onClick={() => openJourneyRecord(entry)}
+                          type="button"
+                        >
+                          Open table
+                        </button>
+                        <button
+                          className="inline-flex min-h-9 items-center justify-center rounded-xl border border-amber-100/24 bg-amber-300/10 px-3 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100 transition hover:border-amber-100/48 hover:bg-amber-300/18 active:scale-[0.99]"
+                          onClick={() => openJourneyRecord(entry, true)}
+                          type="button"
+                        >
+                          Edit stage
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <dl className="grid gap-px bg-white/10 sm:grid-cols-2 xl:grid-cols-4">
+                    {fields.map((field) => (
+                      <div
+                        className={`min-w-0 bg-slate-950/86 px-4 py-3 ${
+                          field.field === "notes"
+                            ? "sm:col-span-2 xl:col-span-2"
+                            : ""
+                        }`}
+                        key={`${entry.record.id}-${field.field}`}
+                      >
+                        <dt className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
+                          <span aria-hidden="true">
+                            {getAdminJourneyCellEmoji(
+                              entry.stageCard.stage,
+                              field.field,
+                              field.value,
+                            )}
+                          </span>
+                          {field.label}
+                        </dt>
+                        <dd className="mt-1.5 text-sm font-semibold leading-5 text-slate-200">
+                          {field.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </article>
+              );
+            })}
+          </section>
+        </div>
+      </div>
+    );
+  };
+
+  const renderAdminUserListAddOverlay = () => {
+    if (!isAdminPreview || !adminUserListDraft) return null;
+
+    const draft = adminUserListDraft;
+    const stage = adminUserListStages.find(
+      (entry) => entry.key === draft.stage,
+    );
+    if (!stage) return null;
+
+    const stageFields = stage.fields.filter((field) => field.key !== "name");
+    const profileGroups = getAdminProfileGroups(stage.key);
+    const isLongTextField = (field: string) =>
+      [
+        "accessNotes",
+        "billingNote",
+        "certifications",
+        "equipment",
+        "equipmentNotes",
+        "injuries",
+        "medications",
+        "note",
+        "privateNotes",
+        "reason",
+        "serviceArea",
+        "trainingStyle",
+      ].includes(field);
+
+    return (
+      <div
+        aria-label={`Add ${stage.label} user`}
+        aria-modal="true"
+        className="fixed inset-0 z-[280] overflow-y-auto bg-slate-950/92 px-4 py-5 text-white backdrop-blur-xl sm:px-6 sm:py-8"
+        role="dialog"
+      >
+        <button
+          aria-label="Close add user form"
+          className="absolute inset-0 cursor-default"
+          onClick={() => setAdminUserListDraft(null)}
+          type="button"
+        />
+        <section className="relative mx-auto flex w-full max-w-6xl flex-col overflow-hidden rounded-[24px] border border-cyan-100/24 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.16),transparent_30%),linear-gradient(145deg,rgba(15,23,42,0.98),rgba(2,6,23,0.97))] shadow-[0_28px_90px_rgba(0,0,0,0.52),inset_0_1px_0_rgba(255,255,255,0.1)] sm:h-[min(88vh,58rem)]">
+          <header className="flex flex-wrap items-start justify-between gap-4 border-b border-cyan-100/16 px-5 py-5 sm:px-6">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                {stage.key === "coaches" ? "Coach directory" : "User Engagement"}
+              </p>
+              <h2 className="mt-1 text-3xl font-black uppercase tracking-[0.06em] text-white sm:text-4xl">
+                {stage.key === "coaches" ? "Add coach" : "Add User"}
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-300">
+                {stage.key === "coaches"
+                  ? "Capture coaching scope, credentials, capacity, compliance, and compensation in one record."
+                  : "Capture their list-stage details and full personal profile in one record."}
+              </p>
+            </div>
+            <button
+              aria-label="Close add user form"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/12 bg-slate-950/68 text-cyan-100 transition hover:border-rose-200/36 hover:bg-rose-300/10 hover:text-rose-100 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/50"
+              onClick={() => setAdminUserListDraft(null)}
+              title="Close"
+              type="button"
+            >
+              <X aria-hidden="true" className="h-4 w-4" />
+            </button>
+          </header>
+
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(event) => {
+              event.preventDefault();
+              addAdminUserListRecord();
+            }}
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 [scrollbar-color:rgba(34,211,238,0.45)_rgba(15,23,42,0.68)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/40 [&::-webkit-scrollbar-track]:bg-slate-950/60 sm:px-6">
+              <section>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                    List Record
+                  </p>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/20 bg-emerald-300/10 px-3 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100">
+                    <DashboardTabIcon
+                      className="h-3.5 w-3.5"
+                      label={stage.label}
+                      name={stage.icon}
+                    />
+                    {stage.label}
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="relative z-20 grid gap-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">
+                    <span id="admin-user-stage-label">Journey Stage</span>
+                    <button
+                      aria-controls="admin-user-stage-options"
+                      aria-expanded={adminUserListStageMenuOpen}
+                      aria-haspopup="listbox"
+                      aria-labelledby="admin-user-stage-label"
+                      className="flex h-11 min-w-0 items-center gap-2 rounded-xl border border-cyan-100/24 bg-[linear-gradient(120deg,rgba(34,211,238,0.12),rgba(15,23,42,0.78)_56%,rgba(52,211,153,0.10))] px-2.5 text-left normal-case tracking-normal text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-cyan-100/48 hover:bg-cyan-300/[0.12] focus-visible:ring-2 focus-visible:ring-cyan-100/55"
+                      onClick={() =>
+                        setAdminUserListStageMenuOpen((isOpen) => !isOpen)
+                      }
+                      type="button"
+                    >
+                      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-cyan-100/22 bg-cyan-300/10 text-cyan-100">
+                        <DashboardTabIcon
+                          className="h-4 w-4"
+                          label={stage.label}
+                          name={stage.icon}
+                        />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-black text-white">
+                          {stage.label}
+                        </span>
+                        <span className="block truncate text-[8px] font-black uppercase tracking-[0.1em] text-cyan-100/70">
+                          {stage.helper}
+                        </span>
+                      </span>
+                      <ChevronsUpDown
+                        aria-hidden="true"
+                        className={`h-4 w-4 shrink-0 text-cyan-100/80 transition-transform ${
+                          adminUserListStageMenuOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+                    {adminUserListStageMenuOpen ? (
+                      <div
+                        aria-labelledby="admin-user-stage-label"
+                        className="absolute left-0 top-full z-30 mt-2 grid w-[min(36rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] gap-1 overflow-y-auto rounded-xl border border-cyan-100/24 bg-slate-950/98 p-1.5 shadow-[0_24px_58px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl sm:grid-cols-2"
+                        id="admin-user-stage-options"
+                        role="listbox"
+                      >
+                        {adminUserListStages.map((entry) => {
+                          const isSelected = entry.key === draft.stage;
+
+                          return (
+                            <button
+                              aria-selected={isSelected}
+                              className={`grid min-w-0 grid-cols-[2rem_minmax(0,1fr)_1.25rem] items-center gap-2 rounded-lg border px-2.5 py-2 text-left normal-case tracking-normal transition active:scale-[0.99] ${
+                                isSelected
+                                  ? "border-cyan-100/42 bg-cyan-300/14 text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.10)]"
+                                  : "border-transparent text-slate-300 hover:border-white/10 hover:bg-white/[0.055] hover:text-white"
+                              }`}
+                              key={entry.key}
+                              onClick={() => {
+                                setAdminUserListDraft((current) =>
+                                  current
+                                    ? {
+                                        ...current,
+                                        details: {},
+                                        stage: entry.key,
+                                      }
+                                    : current,
+                                );
+                                setAdminUserListStageMenuOpen(false);
+                              }}
+                              role="option"
+                              type="button"
+                            >
+                              <span
+                                className={`grid h-8 w-8 place-items-center rounded-lg border ${
+                                  isSelected
+                                    ? "border-cyan-100/34 bg-cyan-300/14 text-cyan-50"
+                                    : "border-white/10 bg-white/[0.035] text-slate-400"
+                                }`}
+                              >
+                                <DashboardTabIcon
+                                  className="h-4 w-4"
+                                  label={entry.label}
+                                  name={entry.icon}
+                                />
+                              </span>
+                              <span className="min-w-0">
+                                <span className="block truncate text-xs font-black text-inherit">
+                                  {entry.label}
+                                </span>
+                                <span className="mt-0.5 block truncate text-[9px] font-semibold text-slate-500">
+                                  {entry.helper}
+                                </span>
+                              </span>
+                              {isSelected ? (
+                                <Check
+                                  aria-hidden="true"
+                                  className="h-4 w-4 text-cyan-100"
+                                />
+                              ) : (
+                                <span aria-hidden="true" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                  <label className="grid gap-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400 sm:col-span-1 lg:col-span-2">
+                    Name
+                    <input
+                      autoFocus
+                      className="h-11 rounded-xl border border-white/10 bg-slate-950/72 px-3 text-sm font-bold normal-case tracking-normal text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/45 focus:bg-slate-950"
+                      onChange={(event) =>
+                        setAdminUserListDraft((current) =>
+                          current
+                            ? { ...current, name: event.target.value }
+                            : current,
+                        )
+                      }
+                      placeholder="Full name"
+                      required
+                      value={draft.name}
+                    />
+                  </label>
+                  {stageFields.map((field) => (
+                    <label
+                      className={`grid gap-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400 ${
+                        isLongTextField(field.key) ? "sm:col-span-2" : ""
+                      }`}
+                      key={`${stage.key}-${field.key}`}
+                    >
+                      {field.label}
+                      {isLongTextField(field.key) ? (
+                        <textarea
+                          className="min-h-20 resize-y rounded-xl border border-white/10 bg-slate-950/72 px-3 py-2 text-sm font-semibold normal-case tracking-normal text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/45 focus:bg-slate-950"
+                          onChange={(event) =>
+                            setAdminUserListDraft((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    details: {
+                                      ...current.details,
+                                      [field.key]: event.target.value,
+                                    },
+                                  }
+                                : current,
+                            )
+                          }
+                          placeholder={`Add ${field.label.toLowerCase()}`}
+                          value={draft.details[field.key] ?? ""}
+                        />
+                      ) : (
+                        <input
+                          className="h-11 rounded-xl border border-white/10 bg-slate-950/72 px-3 text-sm font-semibold normal-case tracking-normal text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/45 focus:bg-slate-950"
+                          onChange={(event) =>
+                            setAdminUserListDraft((current) =>
+                              current
+                                ? {
+                                    ...current,
+                                    details: {
+                                      ...current.details,
+                                      [field.key]: event.target.value,
+                                    },
+                                  }
+                                : current,
+                            )
+                          }
+                          placeholder={`Add ${field.label.toLowerCase()}`}
+                          value={draft.details[field.key] ?? ""}
+                        />
+                      )}
+                    </label>
+                  ))}
+                </div>
+              </section>
+
+              <section className="mt-7 border-t border-white/10 pt-6">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                    Personal Details
+                  </p>
+                  <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
+                    Optional fields, saved to this user profile
+                  </p>
+                </div>
+                <div className="mt-4 grid gap-6 lg:grid-cols-2">
+                  {profileGroups.map((group) => (
+                    <fieldset className="min-w-0" key={group.label}>
+                      <legend className="text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                        {group.label}
+                      </legend>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        {group.fields.map((field) => (
+                          <label
+                            className={`grid gap-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-slate-400 ${
+                              isLongTextField(field.key) ? "sm:col-span-2" : ""
+                            }`}
+                            key={field.key}
+                          >
+                            {field.label}
+                            {isLongTextField(field.key) ? (
+                              <textarea
+                                className="min-h-20 resize-y rounded-xl border border-white/10 bg-slate-950/72 px-3 py-2 text-sm font-semibold normal-case tracking-normal text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/45 focus:bg-slate-950"
+                                onChange={(event) =>
+                                  setAdminUserListDraft((current) =>
+                                    current
+                                      ? {
+                                          ...current,
+                                          profile: {
+                                            ...current.profile,
+                                            [field.key]: event.target.value,
+                                          },
+                                        }
+                                      : current,
+                                  )
+                                }
+                                placeholder={`Add ${field.label.toLowerCase()}`}
+                                value={draft.profile[field.key] ?? ""}
+                              />
+                            ) : (
+                              <input
+                                className="h-11 rounded-xl border border-white/10 bg-slate-950/72 px-3 text-sm font-semibold normal-case tracking-normal text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/45 focus:bg-slate-950"
+                                onChange={(event) =>
+                                  setAdminUserListDraft((current) =>
+                                    current
+                                      ? {
+                                          ...current,
+                                          profile: {
+                                            ...current.profile,
+                                            [field.key]: event.target.value,
+                                          },
+                                        }
+                                      : current,
+                                  )
+                                }
+                                placeholder={`Add ${field.label.toLowerCase()}`}
+                                value={draft.profile[field.key] ?? ""}
+                              />
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-white/10 px-5 py-4 sm:px-6">
+              <button
+                className="min-h-10 rounded-lg border border-white/12 bg-slate-950/64 px-4 text-[10px] font-black uppercase tracking-[0.14em] text-slate-300 transition hover:border-white/24 hover:bg-white/[0.06] hover:text-white active:scale-[0.99]"
+                onClick={() => setAdminUserListDraft(null)}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-cyan-100/30 bg-cyan-300/14 px-4 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-50 shadow-[0_18px_40px_rgba(34,211,238,0.12)] transition hover:border-emerald-200/45 hover:bg-emerald-300/16 active:scale-[0.99]"
+                type="submit"
+              >
+                <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+                {stage.key === "coaches" ? "Add coach" : "Add User"}
+              </button>
+            </footer>
+          </form>
+        </section>
+      </div>
+    );
+  };
+
+  const renderAdminUserListRecordOverlay = () => {
+    if (!isAdminPreview || !activeAdminUserListRecord) return null;
+
+    const record = activeAdminUserListRecord;
+    const stage = adminUserListStages.find(
+      (entry) => entry.key === record.stage,
+    );
+    if (!stage) return null;
+
+    const profileValues =
+      adminUserListRecordProfileDraft ?? record.profile ?? {};
+    const profileEditing = adminUserListRecordProfileDraft !== null;
+    const profileFieldUsesTextarea = (fieldKey: string) =>
+      [
+        "accessNotes",
+        "certifications",
+        "equipmentNotes",
+        "injuries",
+        "medications",
+        "privateNotes",
+        "serviceArea",
+        "trainingStyle",
+      ].includes(fieldKey);
+    const profileGroups = getAdminProfileGroups(record.stage).map((group) => ({
+      ...group,
+      fields: group.fields.map((field) => ({
+        ...field,
+        value: profileValues[field.key] ?? "",
+      })),
+    }));
+    const populatedProfileFieldCount = profileGroups.flatMap(
+      (group) => group.fields,
+    ).filter((field) => field.value).length;
+    const profileFieldCount = profileGroups.flatMap((group) => group.fields).length;
+    return (
+      <div
+        aria-label={`${record.name} personal details`}
+        aria-modal="true"
+        className="fixed inset-0 z-[270] overflow-y-auto bg-slate-950/90 px-4 py-5 text-white backdrop-blur-xl sm:px-6 sm:py-8"
+        role="dialog"
+      >
+        <button
+          aria-label="Close personal details"
+          className="absolute inset-0 cursor-default"
+          onClick={closeAdminUserListRecord}
+          type="button"
+        />
+        <section className="relative mx-auto w-full max-w-5xl overflow-hidden rounded-[24px] border border-cyan-100/24 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.16),transparent_30%),linear-gradient(145deg,rgba(15,23,42,0.97),rgba(2,6,23,0.96))] shadow-[0_28px_90px_rgba(0,0,0,0.52),inset_0_1px_0_rgba(255,255,255,0.1)]">
+          <header className="flex flex-col gap-4 border-b border-cyan-100/16 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                User profile / {stage.label}
+              </p>
+              <h2 className="mt-1 truncate text-3xl font-black uppercase tracking-[0.06em] text-white sm:text-4xl">
+                {record.name}
+              </h2>
+              <p className="mt-2 text-sm font-semibold text-slate-300">
+                {profileEditing
+                  ? "Update profile details, then save your changes."
+                  : record.stage === "coaches"
+                    ? "Employment, coaching credentials, capacity, and operating details."
+                    : "Personal details and assessment status."}
+              </p>
+              <p className="mt-3 inline-flex max-w-full items-center gap-2 rounded-md border border-cyan-100/16 bg-slate-950/52 px-2.5 py-1.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+                <span className="text-slate-500">
+                  {record.stage === "coaches" ? "Coach ID" : "Client ID"}
+                </span>
+                <code className="truncate font-mono text-cyan-50">
+                  {record.clientId}
+                </code>
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200/20 bg-emerald-300/10 px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100">
+                <DashboardTabIcon
+                  className="h-3.5 w-3.5"
+                  label={stage.label}
+                  name={stage.icon}
+                />
+                {stage.label}
+              </span>
+              {profileEditing ? (
+                <>
+                  <button
+                    aria-label="Discard personal detail edits"
+                    className="grid h-10 w-10 place-items-center rounded-lg border border-white/12 bg-slate-950/68 text-slate-300 transition hover:border-rose-200/36 hover:bg-rose-300/10 hover:text-rose-100 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/50"
+                    onClick={() => setAdminUserListRecordProfileDraft(null)}
+                    title="Discard edits"
+                    type="button"
+                  >
+                    <X aria-hidden="true" className="h-4 w-4" />
+                  </button>
+                  <button
+                    aria-label="Save personal details"
+                    className="grid h-10 w-10 place-items-center rounded-lg border border-emerald-200/30 bg-emerald-300/12 text-emerald-100 transition hover:border-emerald-100/55 hover:bg-emerald-300/20 hover:text-emerald-50 active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-100/50"
+                    onClick={saveAdminUserListRecordProfile}
+                    title="Save personal details"
+                    type="button"
+                  >
+                    <Check aria-hidden="true" className="h-4 w-4" />
+                  </button>
+                </>
+              ) : (
+                <button
+                  aria-label="Edit personal details"
+                  className="grid h-10 w-10 place-items-center rounded-lg border border-cyan-200/24 bg-cyan-300/10 text-cyan-100 transition hover:border-cyan-100/52 hover:bg-cyan-300/18 hover:text-cyan-50 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/50"
+                  onClick={beginAdminUserListRecordProfileEdit}
+                  title="Edit personal details"
+                  type="button"
+                >
+                  <Pencil aria-hidden="true" className="h-4 w-4" />
+                </button>
+              )}
+              <button
+                aria-label="Close personal details"
+                className="grid h-10 w-10 place-items-center rounded-lg border border-white/12 bg-slate-950/68 text-cyan-100 transition hover:border-rose-200/36 hover:bg-rose-300/10 hover:text-rose-100 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/50"
+                onClick={closeAdminUserListRecord}
+                title="Close"
+                type="button"
+              >
+                <X aria-hidden="true" className="h-4 w-4" />
+              </button>
+            </div>
+          </header>
+
+          <div className="max-h-[min(68vh,42rem)] overflow-y-auto p-5 [scrollbar-color:rgba(34,211,238,0.45)_rgba(15,23,42,0.68)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/40 [&::-webkit-scrollbar-track]:bg-slate-950/60 sm:p-6">
+            <section>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                  {record.stage === "coaches" ? "Coach details" : "Personal details"}
+                </p>
+                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
+                  {populatedProfileFieldCount} of {profileFieldCount} fields captured
+                </p>
+              </div>
+              <div className="mt-3 grid gap-4 lg:grid-cols-2">
+                {profileGroups.map((group) => (
+                  <article
+                    className="overflow-hidden rounded-xl border border-white/10 bg-slate-950/58"
+                    key={group.label}
+                  >
+                    <h3 className="border-b border-white/10 px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                      {group.label}
+                    </h3>
+                    <dl className="grid gap-px bg-white/10 sm:grid-cols-2">
+                      {group.fields.map((field) => (
+                        <div
+                          className="min-w-0 bg-slate-950/84 px-4 py-3"
+                          key={field.key}
+                        >
+                          <dt className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
+                            {field.label}
+                          </dt>
+                          <dd className="mt-1.5">
+                            {profileEditing ? (
+                              profileFieldUsesTextarea(field.key) ? (
+                                <textarea
+                                  aria-label={`Edit ${field.label}`}
+                                  className="min-h-20 w-full resize-y rounded-lg border border-white/10 bg-slate-900/78 px-2.5 py-2 text-sm font-semibold normal-case tracking-normal text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/45 focus:bg-slate-950"
+                                  onChange={(event) =>
+                                    setAdminUserListRecordProfileDraft(
+                                      (current) =>
+                                        current
+                                          ? {
+                                              ...current,
+                                              [field.key]: event.target.value,
+                                            }
+                                          : current,
+                                    )
+                                  }
+                                  placeholder={`Add ${field.label.toLowerCase()}`}
+                                  value={field.value}
+                                />
+                              ) : (
+                                <input
+                                  aria-label={`Edit ${field.label}`}
+                                  className="h-10 w-full rounded-lg border border-white/10 bg-slate-900/78 px-2.5 text-sm font-semibold normal-case tracking-normal text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-200/45 focus:bg-slate-950"
+                                  onChange={(event) =>
+                                    setAdminUserListRecordProfileDraft(
+                                      (current) =>
+                                        current
+                                          ? {
+                                              ...current,
+                                              [field.key]: event.target.value,
+                                            }
+                                          : current,
+                                    )
+                                  }
+                                  placeholder={`Add ${field.label.toLowerCase()}`}
+                                  value={field.value}
+                                />
+                              )
+                            ) : (
+                              <span
+                                className={`block break-words text-sm font-semibold leading-5 ${
+                                  field.value
+                                    ? "text-slate-200"
+                                    : "italic text-slate-500"
+                                }`}
+                              >
+                                {field.value || "Not captured"}
+                              </span>
+                            )}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </article>
+                ))}
+              </div>
+            </section>
+
+            <section className="mt-6">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
+                Assessments
+              </p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {[
+                  {
+                    hint: "The one they filled out online",
+                    label: "Online assessment",
+                  },
+                  {
+                    hint: "Coach's movement grading",
+                    label: "In-home assessment",
+                  },
+                ].map((assessment) => (
+                  <article
+                    className="rounded-xl border border-dashed border-white/14 bg-slate-950/58 px-4 py-3"
+                    key={assessment.label}
+                  >
+                    <h3 className="text-sm font-black text-slate-100">
+                      {assessment.label}
+                    </h3>
+                    <p className="mt-1 text-xs font-medium leading-5 text-slate-400">
+                      {assessment.hint}
+                    </p>
+                    <p className="mt-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
+                      Not attached
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </div>
+        </section>
+      </div>
+    );
+  };
+
+  const renderAdminUserListRow = () => {
+    const activeStageIndex = Math.max(
+      0,
+      Math.min(
+        adminUserListStages.length - 1,
+        activeAdminUserListStageIndex,
+      ),
+    );
+    const activeStage = adminUserListStages[activeStageIndex];
+    const activeStageAllRows = adminUserListRecords
+      .filter((row) => row.stage === activeStage.key)
+      .sort((left, right) => Number(left.isMock) - Number(right.isMock));
+    const activeStageFilter =
+      adminUserListFilter?.stage === activeStage.key
+        ? adminUserListFilter
+        : null;
+    const getAdminUserListFieldValue = (
+      row: AdminUserListRecord,
+      fieldKey: string,
+    ) => {
+      if (fieldKey === "name") return row.name;
+      if (fieldKey === "reached") return row.reached;
+      if (fieldKey === "added") return row.addedAt;
+
+      return row.details[fieldKey] ?? "";
+    };
+    const activeStageRows = activeStageFilter
+      ? activeStageAllRows.filter(
+          (row) =>
+            getAdminUserListFieldValue(row, activeStageFilter.fieldKey) ===
+            activeStageFilter.value,
+        )
+      : activeStageAllRows;
+    const activeStageAnalyticsRows = activeStageRows.filter(
+      (row) => !row.isMock,
+    );
+    const preferredPrimaryAnalyticsFieldKey =
+      activeStage.key === "appQuiz"
+        ? "goal"
+        : activeStage.key === "appUsers"
+          ? "plan"
+          : activeStage.key === "apartmentManagers"
+            ? "property"
+            : activeStage.key === "physicians"
+              ? "specialty"
+              : undefined;
+    const primaryStageAnalyticsField =
+      activeStage.fields.find(
+        (field) => field.key === preferredPrimaryAnalyticsFieldKey,
+      ) ??
+      activeStage.fields.find(
+        (field) =>
+          field.key !== "name" &&
+          field.key !== "note" &&
+          field.key !== "date",
+      ) ?? activeStage.fields[0];
+    const activeStageDistinctPrimaryValues = new Set(
+      activeStageAnalyticsRows
+        .map((row) => row.details[primaryStageAnalyticsField.key]?.trim())
+        .filter(Boolean),
+    ).size;
+    const latestActiveStageAddition =
+      activeStageAnalyticsRows[0]?.addedAt ?? "--";
+    const allUserListRecordCount = adminUserListRecords.filter(
+      (record) => !record.isMock,
+    ).length;
+    const activeStageShare = allUserListRecordCount
+      ? Math.round(
+          (activeStageAnalyticsRows.length / allUserListRecordCount) * 100,
+        )
+      : 0;
+    const activeStagePopulatedCellCount = activeStageAnalyticsRows.reduce(
+      (count, row) =>
+        count +
+        activeStage.fields.filter(
+          (field) =>
+            field.key !== "name" && Boolean(row.details[field.key]?.trim()),
+        ).length,
+      0,
+    );
+    const activeStageAvailableCellCount =
+      activeStageAnalyticsRows.length *
+      Math.max(1, activeStage.fields.length - 1);
+    const activeStageDataCompleteness = activeStageAvailableCellCount
+      ? Math.round(
+          (activeStagePopulatedCellCount / activeStageAvailableCellCount) * 100,
+        )
+      : 0;
+    const activeStagePrimaryValueCounts = activeStageAnalyticsRows.reduce<
+      Map<string, number>
+    >((counts, row) => {
+      const value = row.details[primaryStageAnalyticsField.key]?.trim();
+
+      if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
+
+      return counts;
+    }, new Map());
+    const [activeStageLeadingPrimaryValue = "--", activeStageLeadingPrimaryCount = 0] =
+      [...activeStagePrimaryValueCounts.entries()].sort(
+        ([leftValue, leftCount], [rightValue, rightCount]) =>
+          rightCount - leftCount || leftValue.localeCompare(rightValue),
+      )[0] ?? [];
+    const activeStageTone = adminUserListStageTabTones[activeStage.key];
+    const selectOptionsByField: Record<string, readonly string[]> = {
+      availability: ["Available", "Limited", "Waitlist", "Not available"],
+      role: ["Lead coach", "Coach", "Assistant coach", "Contract coach"],
+      status: [
+        "Active",
+        "Booked",
+        "Completed",
+        "Inactive",
+        "On hold",
+        "Scheduled",
+        "Subscribed",
+      ],
+    };
+    const tableColumnLabels = [
+      ...activeStage.fields.map((field) => field.label),
+      "Reached",
+      "Added",
+    ];
+    const reachedColumnIndex = activeStage.fields.length;
+    const addedColumnIndex = reachedColumnIndex + 1;
+    const activeTableColumnIndex = Math.max(
+      0,
+      Math.min(tableColumnLabels.length - 1, activeAdminUserListColumnIndex),
+    );
+    const activeTableCell =
+      activeAdminUserListCell &&
+      activeAdminUserListCell.rowIndex >= 0 &&
+      activeAdminUserListCell.rowIndex < activeStageRows.length
+        ? {
+            columnIndex: Math.max(
+              0,
+              Math.min(
+                tableColumnLabels.length - 1,
+                activeAdminUserListCell.columnIndex,
+              ),
+            ),
+            rowIndex: activeAdminUserListCell.rowIndex,
+          }
+        : null;
+    const getAdminUserListFilterOptions = (fieldKey: string) =>
+      Array.from(
+        new Set(
+          activeStageAllRows
+            .map((row) => getAdminUserListFieldValue(row, fieldKey).trim())
+            .filter(Boolean),
+        ),
+      ).sort((left, right) => left.localeCompare(right));
+    const scrollAdminUserListTableTargetIntoView = (selector: string) => {
+      window.requestAnimationFrame(() => {
+        const scroller = adminUserListTableScrollerRef.current;
+        const target = scroller?.querySelector<HTMLElement>(selector);
+        if (!scroller || !target) return;
+
+        const targetBounds = target.getBoundingClientRect();
+        const scrollerBounds = scroller.getBoundingClientRect();
+        const maxScrollLeft = Math.max(
+          0,
+          scroller.scrollWidth - scroller.clientWidth,
+        );
+        const centeredScrollLeft =
+          scroller.scrollLeft +
+          targetBounds.left -
+          scrollerBounds.left -
+          (scroller.clientWidth - targetBounds.width) / 2;
+
+        scroller.scrollTo({
+          behavior: "smooth",
+          left: Math.max(0, Math.min(maxScrollLeft, centeredScrollLeft)),
+        });
+      });
+    };
+    const focusAdminUserListColumn = (columnIndex: number) => {
+      const nextColumnIndex = Math.max(
+        0,
+        Math.min(tableColumnLabels.length - 1, columnIndex),
+      );
+
+      setActiveAdminUserListColumnIndex(nextColumnIndex);
+      scrollAdminUserListTableTargetIntoView(
+        `[data-admin-user-list-column-index="${nextColumnIndex}"]`,
+      );
+    };
+    const focusAdminUserListCell = (rowIndex: number, columnIndex: number) => {
+      if (!activeStageRows.length) return;
+
+      const nextRowIndex = Math.max(
+        0,
+        Math.min(activeStageRows.length - 1, rowIndex),
+      );
+      const nextColumnIndex = Math.max(
+        0,
+        Math.min(tableColumnLabels.length - 1, columnIndex),
+      );
+
+      setActiveAdminUserListCell({
+        columnIndex: nextColumnIndex,
+        rowIndex: nextRowIndex,
+      });
+      setActiveAdminUserListColumnIndex(nextColumnIndex);
+      adminUserListTableScrollerRef.current?.focus({ preventScroll: true });
+      scrollAdminUserListTableTargetIntoView(
+        `[data-admin-user-list-cell="${nextRowIndex}:${nextColumnIndex}"]`,
+      );
+    };
+    const updateAdminUserListDetail = (
+      rowId: string,
+      fieldKey: string,
+      nextValue: string,
+    ) => {
+      const trimmedValue = nextValue.trim();
+
+      setAdminUserListRecords((records) =>
+        records.map((entry) => {
+          if (entry.id !== rowId) return entry;
+
+          const details = { ...entry.details };
+          if (trimmedValue) {
+            details[fieldKey] = trimmedValue;
+          } else {
+            delete details[fieldKey];
+          }
+
+          return { ...entry, details };
+        }),
+      );
+    };
+    const closeAdminUserListCellEditor = (save = true) => {
+      const editor = adminUserListCellEditor;
+      if (editor && save) {
+        updateAdminUserListDetail(
+          editor.rowId,
+          editor.fieldKey,
+          adminUserListCellEditorValue,
+        );
+      }
+
+      setAdminUserListCellEditor(null);
+    };
+    const openAdminUserListCellEditor = (
+      row: AdminUserListRecord,
+      rowIndex: number,
+      field: (typeof activeStage.fields)[number],
+      fieldIndex: number,
+    ) => {
+      focusAdminUserListCell(rowIndex, fieldIndex);
+      if (field.key === "name") return;
+
+      setAdminUserListCellEditor({ fieldKey: field.key, rowId: row.id });
+      setAdminUserListCellEditorValue(row.details[field.key] ?? "");
+    };
+    const handleAdminUserListTableKeyDown = (
+      event: ReactKeyboardEvent<HTMLDivElement>,
+    ) => {
+      if (!activeTableCell || !activeStageRows.length) return;
+
+      let nextRowIndex = activeTableCell.rowIndex;
+      let nextColumnIndex = activeTableCell.columnIndex;
+
+      switch (event.key) {
+        case "ArrowDown":
+          nextRowIndex += 1;
+          break;
+        case "ArrowUp":
+          nextRowIndex -= 1;
+          break;
+        case "ArrowLeft":
+          nextColumnIndex -= 1;
+          break;
+        case "ArrowRight":
+          nextColumnIndex += 1;
+          break;
+        default:
+          return;
+      }
+
+      event.preventDefault();
+      focusAdminUserListCell(nextRowIndex, nextColumnIndex);
+    };
+    const getAdminUserListCellHighlightClass = (
+      rowIndex: number,
+      columnIndex: number,
+    ) => {
+      if (
+        activeTableCell?.rowIndex === rowIndex &&
+        activeTableCell.columnIndex === columnIndex
+      ) {
+        return `${activeStageTone.tableHighlight} relative z-[1] ring-2 ring-inset ring-cyan-100/80 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.56),0_0_16px_rgba(34,211,238,0.32)]`;
+      }
+
+      return activeTableColumnIndex === columnIndex
+        ? activeStageTone.tableHighlight
+        : "";
+    };
+    const renderAdminUserListTableHeader = (
+      label: string,
+      fieldKey: string,
+      columnIndex: number,
+      widthClassName: string,
+    ) => {
+      const filterOptions = getAdminUserListFilterOptions(fieldKey);
+      const isFilterMenuOpen = adminUserListFilterMenuOpen === fieldKey;
+      const isFiltered =
+        activeStageFilter?.fieldKey === fieldKey &&
+        Boolean(activeStageFilter.value);
+
+      return (
+        <th
+          className={`relative border-b px-3 py-3 ${widthClassName} ${activeStageTone.tableRule} ${
+            activeTableColumnIndex === columnIndex
+              ? activeStageTone.tableHighlight
+              : ""
+          }`}
+          data-admin-user-list-column-index={columnIndex}
+          key={fieldKey}
+          scope="col"
+        >
+          <button
+            aria-expanded={isFilterMenuOpen}
+            aria-label={`Filter ${label}`}
+            className={`flex w-full items-center justify-between gap-2 text-left transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${
+              isFiltered ? activeStageTone.tableAccent : ""
+            }`}
+            onClick={() => {
+              focusAdminUserListColumn(columnIndex);
+              setAdminUserListFilterMenuOpen((openFieldKey) =>
+                openFieldKey === fieldKey ? null : fieldKey,
+              );
+            }}
+            type="button"
+          >
+            <span className="truncate">{label}</span>
+            <Filter
+              aria-hidden="true"
+              className={`h-3 w-3 shrink-0 transition ${
+                isFiltered ? "opacity-100" : "opacity-45"
+              }`}
+            />
+          </button>
+          {isFilterMenuOpen ? (
+            <div
+              aria-label={`Filter ${label} values`}
+              className={`absolute left-1 top-full z-30 mt-1 grid min-w-[11rem] max-w-[15rem] gap-1 rounded-lg border p-1.5 text-left normal-case tracking-normal shadow-[0_16px_34px_rgba(0,0,0,0.5)] ${activeStageTone.surface}`}
+              role="menu"
+            >
+              <button
+                className={`flex min-h-8 items-center justify-between gap-3 rounded-md px-2 text-left text-xs font-bold transition hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${
+                  !isFiltered ? activeStageTone.tableAccent : "text-slate-300"
+                }`}
+                onClick={() => {
+                  setAdminUserListFilter(null);
+                  setAdminUserListFilterMenuOpen(null);
+                }}
+                role="menuitem"
+                type="button"
+              >
+                All values
+                {!isFiltered ? (
+                  <Check aria-hidden="true" className="h-3.5 w-3.5" />
+                ) : null}
+              </button>
+              {filterOptions.map((option) => {
+                const isSelected = activeStageFilter?.value === option;
+
+                return (
+                  <button
+                    className={`flex min-h-8 items-center justify-between gap-3 rounded-md px-2 text-left text-xs font-bold transition hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${
+                      isSelected ? activeStageTone.tableAccent : "text-slate-300"
+                    }`}
+                    key={option}
+                    onClick={() => {
+                      setAdminUserListFilter({
+                        fieldKey,
+                        stage: activeStage.key,
+                        value: option,
+                      });
+                      setAdminUserListFilterMenuOpen(null);
+                      setActiveAdminUserListCell(null);
+                    }}
+                    role="menuitemradio"
+                    type="button"
+                  >
+                    <span className="truncate">{option}</span>
+                    {isSelected ? (
+                      <Check aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </th>
+      );
+    };
+    const renderAdminUserListStageTabs = () => (
+      <div
+        aria-label="User list stage tabs"
+        className="flex h-full min-h-14 w-full min-w-0 overflow-hidden bg-slate-950/62"
+        role="tablist"
+    >
+      {adminUserListStages
+        .filter(
+          (stage) =>
+            stage.key !== "appQuiz" &&
+            stage.key !== "appUsers" &&
+            stage.key !== "apartmentManagers" &&
+            stage.key !== "physicians",
+        )
+        .map((slotStage) => {
+        const replacementStageKey =
+          slotStage.key === "assessment" && activeStage.key === "appQuiz"
+            ? "appQuiz"
+            : slotStage.key === "clients" && activeStage.key === "appUsers"
+              ? "appUsers"
+              : slotStage.key === "coaches" &&
+                    activeStage.key === "apartmentManagers"
+                ? "apartmentManagers"
+                : slotStage.key === "coaches" && activeStage.key === "physicians"
+                  ? "physicians"
+              : slotStage.key;
+        const stage = adminUserListStages.find(
+          (entry) => entry.key === replacementStageKey,
+        )!;
+        const stageIndex = adminUserListStages.findIndex(
+          (entry) => entry.key === stage.key,
+        );
+        const isActive = stageIndex === activeStageIndex;
+        const tone = adminUserListStageTabTones[stage.key];
+        const isConversionTab = [
+          "email",
+          "assessment",
+          "appQuiz",
+          "clients",
+          "appUsers",
+        ].includes(stage.key);
+        const linkedStageKey =
+          slotStage.key === "assessment"
+            ? stage.key === "appQuiz"
+              ? "assessment"
+              : "appQuiz"
+            : slotStage.key === "clients"
+              ? stage.key === "appUsers"
+                ? "clients"
+                : "appUsers"
+              : null;
+        const linkedStageOptions: Array<{
+          direction: "down" | "up";
+          key: AdminUserListStageKey;
+        }> =
+          slotStage.key === "coaches"
+            ? stage.key === "apartmentManagers"
+              ? [
+                  { direction: "up", key: "coaches" },
+                  { direction: "down", key: "physicians" },
+                ]
+              : stage.key === "physicians"
+                ? [
+                    { direction: "up", key: "apartmentManagers" },
+                    { direction: "down", key: "coaches" },
+                  ]
+                : [
+                    { direction: "up", key: "apartmentManagers" },
+                    { direction: "down", key: "physicians" },
+                  ]
+            : linkedStageKey
+              ? [{ direction: "up", key: linkedStageKey }]
+              : [];
+        const linkedStages = linkedStageOptions.flatMap((option) => {
+          const linkedStageIndex = adminUserListStages.findIndex(
+            (entry) => entry.key === option.key,
+          );
+          const linkedStage = adminUserListStages[linkedStageIndex];
+
+          return linkedStageIndex >= 0 && linkedStage
+            ? [{ ...option, index: linkedStageIndex, stage: linkedStage }]
+            : [];
+        });
+
+        return (
+          <div
+            className={`relative flex h-full min-h-14 min-w-0 flex-1 transition-[flex-grow] duration-300 ease-out motion-reduce:transition-none ${
+              isActive ? "flex-[2.35]" : "flex-1"
+            }`}
+            key={slotStage.key}
+          >
+            <button
+              aria-label={`Open ${stage.label} user table`}
+              aria-pressed={isActive}
+              data-dashboard-tooltip={`${stage.label}. ${stage.helper}`}
+              className={`relative grid h-full min-h-14 min-w-0 w-full grid-rows-[1.75rem_auto] justify-items-center gap-1 !rounded-none !border-y-0 !border-l-0 !border-r-white/10 px-1 py-1.5 text-center transition-[colors,background-color,border-color,box-shadow,opacity] duration-300 ease-out after:pointer-events-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:shadow-[0_0_10px_currentColor] hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-100/60 motion-reduce:transition-none ${
+                isConversionTab
+                  ? "after:bg-orange-300 after:text-orange-300"
+                  : "after:bg-cyan-300 after:text-cyan-300"
+              } ${isActive ? tone.active : `${tone.idle} opacity-85`}`}
+              onClick={() => {
+                if (adminUserListExpanded) {
+                  openAdminUserListStage(stageIndex);
+                  return;
+                }
+
+                selectAdminUserListStage(stageIndex);
+              }}
+              role="tab"
+              type="button"
+            >
+              <span className="grid h-7 w-7 place-items-center rounded-full border border-current/25 bg-slate-950/18">
+                <DashboardTabIcon
+                  className={`h-3.5 w-3.5 transition-transform duration-300 ease-out motion-reduce:transition-none ${
+                    isActive ? "scale-110" : "scale-100"
+                  }`}
+                  label={stage.label}
+                  name={stage.icon}
+                />
+              </span>
+              <span className="w-full truncate text-[7px] font-black uppercase leading-none tracking-[0.08em]">
+                {isActive ? stage.label : stage.short}
+              </span>
+            </button>
+            {linkedStages.map((linkedStage) => (
+              <button
+                aria-label={`${
+                  adminUserListExpanded ? "Open" : "Preview"
+                } ${linkedStage.stage.label} ${
+                  adminUserListExpanded ? "user table" : "analytics"
+                }`}
+                className={`absolute right-0 top-0 z-10 grid h-1/2 place-items-center border-l border-current/20 bg-slate-950/78 text-current transition-[width,opacity,background-color] duration-300 hover:bg-slate-900 hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-100/60 ${
+                  isActive ? "w-7 opacity-90" : "w-4 opacity-60"
+                } ${
+                  linkedStage.direction === "up"
+                    ? "top-0"
+                    : "top-auto bottom-0"
+                }`}
+                data-dashboard-tooltip={`${
+                  adminUserListExpanded ? "Open" : "Preview"
+                } ${linkedStage.stage.label} ${
+                  adminUserListExpanded ? "user table" : "analytics"
+                }`}
+                key={linkedStage.stage.key}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (adminUserListExpanded) {
+                    openAdminUserListStage(linkedStage.index);
+                    return;
+                  }
+
+                  previewAdminUserListStage(linkedStage.index);
+                }}
+                type="button"
+              >
+                <DashboardTabIcon
+                  className={`transition-[width,height] duration-300 ${
+                    isActive ? "h-4 w-4" : "h-2.5 w-2.5"
+                  }`}
+                  label={linkedStage.stage.label}
+                  name={linkedStage.stage.icon}
+                />
+              </button>
+            ))}
+          </div>
+        );
+      })}
+      </div>
+    );
+    const userListRowSpacing = adminUserListExpanded
+      ? adminJourneyOrbitLayout === "compact"
+        ? "min-w-0 pl-36 pr-20 pt-20 max-sm:pl-24 max-sm:pr-12"
+        : "min-w-0 pl-36 pr-20 pt-16 max-sm:pl-24 max-sm:pr-12 sm:pl-40 sm:pr-24 sm:pt-[4.5rem] lg:pl-44 lg:pr-28 lg:pt-20"
+      : adminJourneyOrbitLayout === "compact"
+        ? "min-w-0 pl-36 pr-20 pt-44 max-sm:pl-24 max-sm:pr-12 max-sm:pt-14"
+        : "min-w-0 pl-36 pr-20 pt-20 max-sm:pl-24 max-sm:pr-12 sm:pl-40 sm:pr-24 sm:pt-24 lg:pl-44 lg:pr-28 lg:pt-28";
+
+    return (
+      <div
+        aria-label="User Engagement row"
+        data-dashboard-orbiter-row="1"
+        className={`relative flex w-full max-w-full min-h-0 items-start justify-center transition-opacity duration-300 ${
+          userListRowSpacing
+        } ${
+          clampedDashboardOrbiterRow === 1
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-40"
+        }`}
+      >
+        {renderDashboardRowTitle({
+          accentClassName:
+            "bg-emerald-300 shadow-[0_0_14px_rgba(52,211,153,0.65)]",
+          compact: adminUserListExpanded,
+          description:
+            "Stage-specific lists from the Sound Command Center. Use the joystick to move between stages; each table scrolls horizontally.",
+          kicker: "User list stages",
+          title: "User Engagement",
+        })}
+        <div
+          data-dashboard-orbiter-local-scroll="true"
+          className={`relative flex h-full min-h-[470px] w-full min-w-0 max-w-[1180px] items-start justify-center overflow-hidden pr-1 transition-[padding] duration-500 ease-out motion-reduce:transition-none ${
+            adminUserListExpanded ? "pt-0" : "pt-32 sm:pt-40"
+          }`}
+        >
+          <section
+            aria-label={`${activeStage.label} user table`}
+            className={`origin-top flex w-full min-w-0 max-w-[1040px] flex-col overflow-hidden rounded-[22px] border backdrop-blur transition-[height,transform,opacity,border-color,box-shadow] duration-500 ease-out motion-reduce:transition-none ${
+              activeStageTone.surface
+            } ${
+              adminJourneyOrbitLayout === "compact"
+                ? adminUserListExpanded
+                  ? "h-[min(64vh,34rem)] min-h-[26rem]"
+                  : "h-64 max-[740px]:h-72"
+                : adminUserListExpanded
+                  ? "h-[min(68vh,38rem)] min-h-[28rem]"
+                  : "h-64 max-[740px]:h-72"
+            }`}
+          >
+            <header className={`flex flex-wrap items-stretch justify-between gap-0 border-b ${activeStageTone.tableRule}`}>
+              <div className="min-w-0 flex-1 self-stretch max-[740px]:order-2 max-[740px]:w-full max-[740px]:basis-full max-[740px]:flex-none">
+                {renderAdminUserListStageTabs()}
+              </div>
+              <div
+                className={`flex shrink-0 self-stretch items-center justify-end gap-1 border-l px-2 py-2 text-right ${activeStageTone.tableRule} max-[740px]:order-1 max-[740px]:w-full max-[740px]:justify-end max-[740px]:border-b max-[740px]:border-l-0`}
+              >
+                <div>
+                <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-500">
+                  Records
+                </p>
+                <p className={`mt-0.5 text-xl font-black ${activeStageTone.tableAccent}`}>
+                  {activeStageRows.length}
+                </p>
+                </div>
+                <button
+                  aria-label={`Add user to ${activeStage.label}`}
+                  className="grid h-9 w-9 shrink-0 place-items-center text-emerald-100 transition hover:text-emerald-50 active:scale-95 focus-visible:rounded-full focus-visible:ring-2 focus-visible:ring-emerald-100/50"
+                  onClick={() => openAdminUserListAddForm(activeStage.key)}
+                  title="Add user"
+                  type="button"
+                >
+                  <Plus aria-hidden="true" className="h-4 w-4" />
+                </button>
+                <button
+                  aria-expanded={adminUserListExpanded}
+                  aria-label={`${
+                    adminUserListExpanded ? "Collapse" : "Expand"
+                  } ${activeStage.label} table`}
+                  className="grid h-9 w-9 shrink-0 place-items-center text-cyan-100 transition hover:text-cyan-50 active:scale-95 focus-visible:rounded-full focus-visible:ring-2 focus-visible:ring-cyan-100/50"
+                  onClick={() =>
+                    setAdminUserListExpanded((expanded) => !expanded)
+                  }
+                  title={adminUserListExpanded ? "Collapse table" : "Expand table"}
+                  type="button"
+                >
+                  {adminUserListExpanded ? (
+                    <Minimize2 aria-hidden="true" className="h-4 w-4" />
+                  ) : (
+                    <Maximize2 aria-hidden="true" className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+            </header>
+
+            {adminUserListExpanded ? (
+              <>
+              <div
+                aria-label={`${activeStage.label} user table. Click a cell, then use the arrow keys to move the highlighted cell.`}
+                className="min-h-0 flex-1 overflow-auto overscroll-contain focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-100/60 [scrollbar-color:rgba(34,211,238,0.55)_rgba(15,23,42,0.68)] [scrollbar-width:thin] [touch-action:pan-x_pan-y] [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/45 [&::-webkit-scrollbar-track]:bg-slate-950/60"
+                onKeyDown={handleAdminUserListTableKeyDown}
+                ref={adminUserListTableScrollerRef}
+                tabIndex={0}
+              >
+              <table className="min-w-[980px] w-full border-collapse text-left text-xs">
+                <thead className={`sticky top-0 z-10 bg-slate-950/95 text-[9px] font-black uppercase tracking-[0.12em] backdrop-blur ${activeStageTone.tableAccent}`}>
+                  <tr>
+                    {activeStage.fields.map((field, fieldIndex) =>
+                      renderAdminUserListTableHeader(
+                        field.label,
+                        field.key,
+                        fieldIndex,
+                        field.key === "note" ||
+                          field.key === "equipment" ||
+                          field.key === "reason" ||
+                          field.key === "plan"
+                          ? "min-w-[15rem]"
+                          : "min-w-[8.5rem]",
+                      ),
+                    )}
+                    {renderAdminUserListTableHeader(
+                      "Reached",
+                      "reached",
+                      reachedColumnIndex,
+                      "min-w-[6rem]",
+                    )}
+                    {renderAdminUserListTableHeader(
+                      "Added",
+                      "added",
+                      addedColumnIndex,
+                      "min-w-[5.5rem]",
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {activeStageRows.map((row, rowIndex) => (
+                    <tr
+                      className={`transition ${
+                        row.isMock
+                          ? "bg-slate-950/38 opacity-65"
+                          : activeStageTone.tableHover
+                      }`}
+                      key={row.id}
+                    >
+                      {activeStage.fields.map((field, fieldIndex) => {
+                        const value =
+                          field.key === "name"
+                            ? row.name
+                            : (row.details[field.key] ?? "-");
+                        const isEditingCell =
+                          adminUserListCellEditor?.rowId === row.id &&
+                          adminUserListCellEditor.fieldKey === field.key;
+                        const fieldSelectOptions =
+                          selectOptionsByField[field.key];
+
+                        return (
+                          <td
+                            className={`relative cursor-cell px-3 py-3 align-top font-semibold leading-5 ${
+                              getAdminUserListCellHighlightClass(
+                                rowIndex,
+                                fieldIndex,
+                              ) ||
+                              (field.key === "name"
+                                ? "font-black text-cyan-50"
+                                : value === "-"
+                                  ? "text-slate-600"
+                                  : "text-slate-300")
+                            }`}
+                            data-admin-user-list-cell={`${rowIndex}:${fieldIndex}`}
+                            data-admin-user-list-column-index={fieldIndex}
+                            key={field.key}
+                            onClick={() =>
+                              openAdminUserListCellEditor(
+                                row,
+                                rowIndex,
+                                field,
+                                fieldIndex,
+                              )
+                            }
+                          >
+                            {field.key === "name" ? (
+                              <button
+                                aria-label={`Open ${row.name} personal details`}
+                                className={`inline-flex max-w-full items-center gap-1 text-left font-black underline decoration-current/35 underline-offset-4 transition hover:brightness-125 hover:decoration-current focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${activeStageTone.tableAccent}`}
+                                onClick={() => openAdminUserListRecord(row)}
+                                type="button"
+                              >
+                                <span className="truncate">{value}</span>
+                                {row.isMock ? (
+                                  <span className="shrink-0 rounded border border-amber-200/35 bg-amber-300/10 px-1 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-amber-100 no-underline">
+                                    Mock
+                                  </span>
+                                ) : null}
+                              </button>
+                            ) : isEditingCell ? (
+                              <div
+                                aria-label={`Edit ${field.label}`}
+                                className={`absolute left-1 top-1 z-30 flex min-w-[11rem] items-center gap-1 rounded-lg border p-1 shadow-[0_14px_32px_rgba(0,0,0,0.42)] ${activeStageTone.surface}`}
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                {fieldSelectOptions ? (
+                                  <div
+                                    aria-label={`Select ${field.label}`}
+                                    className="w-full"
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Escape") {
+                                        event.preventDefault();
+                                        closeAdminUserListCellEditor(false);
+                                      }
+                                    }}
+                                    role="listbox"
+                                    tabIndex={-1}
+                                  >
+                                    <p className={`px-1 pb-1 text-[8px] font-black uppercase tracking-[0.13em] ${activeStageTone.tableAccent}`}>
+                                      Set {field.label}
+                                    </p>
+                                    <div className="grid gap-1">
+                                      {["", ...fieldSelectOptions].map((option) => {
+                                        const isSelected =
+                                          adminUserListCellEditorValue === option;
+                                        const label = option || "Not set";
+
+                                        return (
+                                          <button
+                                            aria-selected={isSelected}
+                                            className={`flex min-h-9 w-full items-center justify-between gap-3 rounded-md border px-2.5 py-2 text-left text-xs font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${
+                                              isSelected
+                                                ? `${activeStageTone.tableHighlight} ${activeStageTone.tableRule}`
+                                                : "border-white/10 bg-slate-950/72 text-slate-300 hover:border-white/25 hover:bg-white/[0.07] hover:text-white"
+                                            }`}
+                                            key={label}
+                                            onClick={() => {
+                                              updateAdminUserListDetail(
+                                                row.id,
+                                                field.key,
+                                                option,
+                                              );
+                                              setAdminUserListCellEditor(null);
+                                            }}
+                                            role="option"
+                                            type="button"
+                                          >
+                                            <span>{label}</span>
+                                            <span
+                                              className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${
+                                                isSelected
+                                                  ? "border-current bg-current/15"
+                                                  : "border-white/15 text-transparent"
+                                              }`}
+                                            >
+                                              <Check
+                                                aria-hidden="true"
+                                                className="h-2.5 w-2.5"
+                                              />
+                                            </span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <input
+                                    aria-label={`Enter ${field.label}`}
+                                    autoFocus
+                                    className="h-9 min-w-0 flex-1 rounded-md border border-white/12 bg-slate-950/90 px-2 text-xs font-semibold text-white outline-none placeholder:text-slate-600 focus:border-cyan-100/55"
+                                    onBlur={() => closeAdminUserListCellEditor()}
+                                    onChange={(event) =>
+                                      setAdminUserListCellEditorValue(
+                                        event.target.value,
+                                      )
+                                    }
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter") {
+                                        event.preventDefault();
+                                        closeAdminUserListCellEditor();
+                                      }
+                                      if (event.key === "Escape") {
+                                        event.preventDefault();
+                                        closeAdminUserListCellEditor(false);
+                                      }
+                                    }}
+                                    placeholder={`Enter ${field.label.toLowerCase()}`}
+                                    value={adminUserListCellEditorValue}
+                                  />
+                                )}
+                              </div>
+                            ) : (
+                              value
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td
+                        className={`cursor-cell px-3 py-3 align-top ${getAdminUserListCellHighlightClass(
+                          rowIndex,
+                          reachedColumnIndex,
+                        )}`}
+                        data-admin-user-list-cell={`${rowIndex}:${reachedColumnIndex}`}
+                        data-admin-user-list-column-index={reachedColumnIndex}
+                        onClick={() =>
+                          focusAdminUserListCell(rowIndex, reachedColumnIndex)
+                        }
+                      >
+                        <span className="inline-flex rounded-full border border-emerald-200/20 bg-emerald-300/10 px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] text-emerald-100">
+                          {row.reached}
+                        </span>
+                      </td>
+                      <td
+                        className={`cursor-cell px-3 py-3 align-top font-semibold text-slate-400 ${getAdminUserListCellHighlightClass(
+                          rowIndex,
+                          addedColumnIndex,
+                        )}`}
+                        data-admin-user-list-cell={`${rowIndex}:${addedColumnIndex}`}
+                        data-admin-user-list-column-index={addedColumnIndex}
+                        onClick={() =>
+                          focusAdminUserListCell(rowIndex, addedColumnIndex)
+                        }
+                      >
+                        {row.addedAt}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+              <div className={`flex min-h-11 shrink-0 items-center justify-between gap-3 border-t px-3 py-1.5 sm:px-4 ${activeStageTone.tableRule}`}>
+                <button
+                  aria-label={`Highlight previous table column: ${
+                    tableColumnLabels[Math.max(0, activeTableColumnIndex - 1)]
+                  }`}
+                  className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 disabled:cursor-not-allowed disabled:opacity-35 ${activeStageTone.idle}`}
+                  disabled={activeTableColumnIndex === 0}
+                  onClick={() =>
+                    focusAdminUserListColumn(activeTableColumnIndex - 1)
+                  }
+                  title="Previous column"
+                  type="button"
+                >
+                  <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+                </button>
+                <p className={`min-w-0 truncate text-center text-[9px] font-black uppercase tracking-[0.12em] ${activeStageTone.tableAccent}`}>
+                  {tableColumnLabels[activeTableColumnIndex]} {activeTableColumnIndex + 1}/{tableColumnLabels.length}
+                </p>
+                <button
+                  aria-label={`Highlight next table column: ${
+                    tableColumnLabels[
+                      Math.min(
+                        tableColumnLabels.length - 1,
+                        activeTableColumnIndex + 1,
+                      )
+                    ]
+                  }`}
+                  className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 disabled:cursor-not-allowed disabled:opacity-35 ${activeStageTone.idle}`}
+                  disabled={activeTableColumnIndex === tableColumnLabels.length - 1}
+                  onClick={() =>
+                    focusAdminUserListColumn(activeTableColumnIndex + 1)
+                  }
+                  title="Next column"
+                  type="button"
+                >
+                  <ChevronRight aria-hidden="true" className="h-4 w-4" />
+                </button>
+              </div>
+              </>
+            ) : (
+              <div className="flex min-h-0 flex-1 flex-col">
+                <div
+                  aria-label="User list analytics"
+                  className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-y divide-white/10"
+                >
+                  <article className="flex min-w-0 flex-col justify-center px-3 py-2.5 sm:px-4">
+                    <span className="truncate text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                      {activeStage.label}
+                    </span>
+                    <div className="mt-1 flex min-w-0 items-end gap-2">
+                      <span className={`text-2xl font-black leading-none ${activeStageTone.tableAccent}`}>
+                        {activeStageAnalyticsRows.length}
+                      </span>
+                      <span className="truncate pb-0.5 text-[9px] font-bold text-slate-400">
+                        {activeStageShare}% of list
+                      </span>
+                    </div>
+                  </article>
+                  <article className="flex min-w-0 flex-col justify-center px-3 py-2.5 sm:px-4">
+                    <span className="truncate text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                      Whole list
+                    </span>
+                    <div className="mt-1 flex min-w-0 items-end gap-2">
+                      <span className="text-2xl font-black leading-none text-white">
+                        {allUserListRecordCount}
+                      </span>
+                      <span className="truncate pb-0.5 text-[9px] font-bold text-slate-400">
+                        {activeStageDistinctPrimaryValues} {primaryStageAnalyticsField.label.toLowerCase()}
+                      </span>
+                    </div>
+                  </article>
+                  <article className="flex min-w-0 flex-col justify-center px-3 py-2.5 sm:px-4">
+                    <span className="truncate text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                      Top {primaryStageAnalyticsField.label}
+                    </span>
+                    <span className="mt-1 truncate text-sm font-black leading-none text-white">
+                      {activeStageLeadingPrimaryValue}
+                    </span>
+                    <span className="mt-1 text-[9px] font-bold text-slate-400">
+                      {activeStageLeadingPrimaryCount} matching record{activeStageLeadingPrimaryCount === 1 ? "" : "s"}
+                    </span>
+                  </article>
+                  <article className="flex min-w-0 flex-col justify-center px-3 py-2.5 sm:px-4">
+                    <span className="truncate text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
+                      List health
+                    </span>
+                    <div className="mt-1 flex min-w-0 items-end gap-2">
+                      <span className="text-lg font-black leading-none text-emerald-100">
+                        {activeStageDataCompleteness}%
+                      </span>
+                      <span className="truncate pb-0.5 text-[9px] font-bold text-slate-400">
+                        latest {latestActiveStageAddition}
+                      </span>
+                    </div>
+                  </article>
+                </div>
+                <button
+                  className={`flex min-h-10 shrink-0 items-center justify-between gap-3 border-t px-4 py-2 text-left transition hover:bg-cyan-300/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-cyan-100/50 max-sm:justify-center sm:px-5 ${activeStageTone.tableRule}`}
+                  onClick={() => setAdminUserListExpanded(true)}
+                  type="button"
+                >
+                  <span className="truncate text-[9px] font-black uppercase tracking-[0.14em] text-cyan-100">
+                    Open user list
+                  </span>
+                  <span className="shrink-0 text-[9px] font-semibold text-slate-400 max-sm:hidden">
+                    {activeStageRows.length} records -&gt;
+                  </span>
+                </button>
+              </div>
+            )}
+
+            {adminUserListExpanded ? (
+              <footer className="border-t border-white/10 px-4 py-2.5 text-[10px] font-semibold text-slate-400 sm:px-5">
+                {activeStage.helper}
+              </footer>
+            ) : null}
+          </section>
+        </div>
+      </div>
+    );
+  };
+
   const renderDashboardDailyToolsRow = () => {
+    if (isAdminPreview) return renderAdminUserListRow();
+
     if (isAdminPreview) {
       const adminJourneyActiveCard =
         adminCustomerJourneyCards[activeAdminJourneyIndex] ||
@@ -35401,15 +39415,21 @@ export default function UserHomeDashboardPage() {
         (total, card) => total + (adminJourneyRows[card.stage]?.length ?? 0),
         0,
       );
-      const adminJourneyIsAtStart = activeAdminJourneyIndex <= 0;
-      const adminJourneyIsAtEnd =
-        activeAdminJourneyIndex >= adminJourneyCardCount - 1;
-
+      const adminJourneyOrbitCardSize =
+        adminJourneyOrbitLayout === "compact"
+          ? "min-h-[244px] w-[min(70vw,18rem)] p-3"
+          : adminJourneyOrbitLayout === "medium"
+            ? "min-h-[258px] w-[min(48vw,20rem)] p-3.5"
+            : "min-h-[268px] w-[min(70vw,18.5rem)] p-4 sm:w-[21rem] lg:w-[23rem]";
       return (
         <div
           aria-label="User Engagement row"
           data-dashboard-orbiter-row="1"
-          className={`relative flex min-h-0 items-start justify-center pl-36 pr-6 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
+          className={`relative flex min-h-0 items-start justify-center transition-opacity duration-300 ${
+            adminJourneyOrbitLayout === "compact"
+              ? "px-6 pt-20"
+              : "pl-36 pr-6 pt-20 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28"
+          } ${
             clampedDashboardOrbiterRow === 1
               ? "pointer-events-auto opacity-100"
               : "pointer-events-none opacity-40"
@@ -35503,85 +39523,10 @@ export default function UserHomeDashboardPage() {
                 </span>
               </div>
             </button>
-            <button
-              aria-label="Previous customer journey stage"
-              className="absolute left-1 top-1/2 z-50 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/78 text-lg font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:-translate-x-0.5 hover:border-emerald-200/45 hover:bg-emerald-300/10 hover:text-emerald-100 active:scale-95 disabled:pointer-events-none disabled:opacity-35 sm:left-3 sm:h-12 sm:w-12 sm:text-2xl"
-              disabled={adminJourneyIsAtStart}
-              onClick={() => rotateAdminJourneyOrbit("left")}
-              type="button"
-            >
-              &lt;
-            </button>
-            <button
-              aria-label="Next customer journey stage"
-              className="absolute right-1 top-1/2 z-50 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/78 text-lg font-black text-cyan-100 shadow-[0_0_22px_rgba(34,211,238,0.14)] backdrop-blur transition hover:translate-x-0.5 hover:border-emerald-200/45 hover:bg-emerald-300/10 hover:text-emerald-100 active:scale-95 disabled:pointer-events-none disabled:opacity-35 sm:right-3 sm:h-12 sm:w-12 sm:text-2xl"
-              disabled={adminJourneyIsAtEnd}
-              onClick={() => rotateAdminJourneyOrbit("right")}
-              type="button"
-            >
-              &gt;
-            </button>
-
             <div
-              aria-label="User engagement horizontal orbit"
-              className="relative h-full min-h-[430px] w-full cursor-grab select-none overflow-visible outline-none [touch-action:none] [transform-style:preserve-3d] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45"
-              onClickCapture={(event) => {
-                if (adminJourneyPointerMovedRef.current) {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  adminJourneyPointerMovedRef.current = false;
-                }
-              }}
-              onKeyDown={(event) =>
-                handleDashboardOrbitKeyDown(event, rotateAdminJourneyOrbit)
-              }
-              onPointerCancel={(event) => {
-                adminJourneyPointerStartRef.current = null;
-                if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
-                  event.currentTarget.releasePointerCapture?.(event.pointerId);
-                }
-              }}
-              onPointerDown={(event) =>
-                handleDashboardOrbitPointerDown(
-                  event,
-                  adminJourneyPointerStartRef,
-                  adminJourneyPointerMovedRef,
-                )
-              }
-              onPointerMove={(event) =>
-                handleDashboardOrbitPointerMove(
-                  event,
-                  adminJourneyPointerStartRef,
-                  adminJourneyPointerMovedRef,
-                  rotateAdminJourneyOrbit,
-                  52,
-                )
-              }
-              onPointerUp={(event) =>
-                handleDashboardOrbitPointerUp(
-                  event,
-                  adminJourneyPointerStartRef,
-                  adminJourneyPointerMovedRef,
-                  rotateAdminJourneyOrbit,
-                  setActiveAdminJourneyIndex,
-                  (cardIndex) => {
-                    const tappedCard = adminCustomerJourneyCards[cardIndex];
-                    if (tappedCard) {
-                      setActiveAdminJourneyDetailStage(tappedCard.stage);
-                    }
-                  },
-                )
-              }
-              onWheel={(event) =>
-                handleDashboardOrbitWheel(event, rotateAdminJourneyOrbit)
-              }
-              onWheelCapture={(event) =>
-                handleDashboardOrbitWheel(event, rotateAdminJourneyOrbit)
-              }
-              tabIndex={0}
+              aria-label="User engagement stage display"
+              className="relative h-full min-h-[430px] w-full select-none overflow-visible [touch-action:pan-y] [transform-style:preserve-3d]"
             >
-              <div className="pointer-events-none absolute left-1/2 top-[52%] h-[190px] w-[min(940px,78vw)] -translate-x-1/2 -translate-y-1/2 rounded-full border border-cyan-200/12 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.16),rgba(52,211,153,0.08)_46%,transparent_72%)] shadow-[inset_0_0_48px_rgba(34,211,238,0.10),0_0_32px_rgba(16,185,129,0.08)]" />
-              <div className="pointer-events-none absolute left-1/2 top-[52%] h-px w-[min(840px,72vw)] -translate-x-1/2 bg-gradient-to-r from-transparent via-cyan-100/48 to-transparent shadow-[0_0_24px_rgba(34,211,238,0.32)]" />
               <div className="sr-only">
                 Customer journey stages: impression, interest and email list,
                 scheduled free intro, free intro completed follow up, in-home
@@ -35592,10 +39537,44 @@ export default function UserHomeDashboardPage() {
                 {adminCustomerJourneyCards.map((card, index) =>
                   (() => {
                     const distance = getAdminJourneyOrbitDistance(index);
-                    const clampedDistance = Math.max(-3, Math.min(3, distance));
-                    const absDistance = Math.abs(clampedDistance);
-                    const direction = Math.sign(clampedDistance);
-                    const orbitSlots = [
+                    const orbitSlots =
+                      adminJourneyOrbitLayout === "compact"
+                        ? [
+                            {
+                              blur: 0,
+                              opacity: 1,
+                              rotateY: 0,
+                              scale: 1,
+                              x: 0,
+                              y: -8,
+                              z: 96,
+                              zIndex: 50,
+                            },
+                          ]
+                        : adminJourneyOrbitLayout === "medium"
+                          ? [
+                              {
+                                blur: 0,
+                                opacity: 1,
+                                rotateY: 0,
+                                scale: 1,
+                                x: 0,
+                                y: -10,
+                                z: 108,
+                                zIndex: 50,
+                              },
+                              {
+                                blur: 0.3,
+                                opacity: 0.7,
+                                rotateY: 20,
+                                scale: 0.74,
+                                x: 170,
+                                y: 18,
+                                z: 32,
+                                zIndex: 30,
+                              },
+                            ]
+                          : [
                       {
                         blur: 0,
                         opacity: 1,
@@ -35636,10 +39615,17 @@ export default function UserHomeDashboardPage() {
                         z: -34,
                         zIndex: 12,
                       },
-                    ];
+                            ];
+                    const visibleDistance = orbitSlots.length - 1;
+                    const clampedDistance = Math.max(
+                      -visibleDistance,
+                      Math.min(visibleDistance, distance),
+                    );
+                    const absDistance = Math.abs(clampedDistance);
+                    const direction = Math.sign(clampedDistance);
                     const slot = orbitSlots[absDistance];
                     const isActive = distance === 0;
-                    const isVisible = Math.abs(distance) <= 3;
+                    const isVisible = Math.abs(distance) <= visibleDistance;
                     const cardVisual = adminJourneyStageVisuals[card.stage];
 
                     return (
@@ -35656,28 +39642,15 @@ export default function UserHomeDashboardPage() {
                         key={card.label}
                         onClick={(event) => {
                           event.preventDefault();
-
-                          if (adminJourneyPointerMovedRef.current) {
-                            adminJourneyPointerMovedRef.current = false;
-                            return;
-                          }
-
-                          if (!isActive) {
-                            setActiveAdminJourneyIndex(index);
-                          }
-
                           setActiveAdminJourneyDetailStage(card.stage);
                         }}
                         onKeyDown={(event) => {
                           if (event.key === "Enter" || event.key === " ") {
                             event.preventDefault();
-                            if (!isActive) {
-                              setActiveAdminJourneyIndex(index);
-                            }
                             setActiveAdminJourneyDetailStage(card.stage);
                           }
                         }}
-                        className={`group absolute left-1/2 top-1/2 isolate min-h-[268px] w-[min(70vw,18.5rem)] overflow-hidden rounded-[28px] border p-4 text-left shadow-2xl outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:w-[21rem] lg:w-[23rem] ${
+                        className={`group absolute left-1/2 top-1/2 isolate overflow-hidden rounded-[28px] border text-left shadow-2xl outline-none backdrop-blur focus-visible:ring-2 focus-visible:ring-cyan-200/45 ${adminJourneyOrbitCardSize} ${
                           isActive
                             ? "border-cyan-100/50 bg-slate-950/90 shadow-cyan-950/45"
                             : "border-white/10 bg-slate-950/68 shadow-black/28 hover:border-cyan-200/32 hover:bg-slate-950/78"
@@ -35685,7 +39658,7 @@ export default function UserHomeDashboardPage() {
                         style={{
                           filter: `blur(${slot.blur}px)`,
                           opacity: isVisible ? slot.opacity : 0,
-                          pointerEvents: isVisible ? "auto" : "none",
+                          pointerEvents: isActive ? "auto" : "none",
                           transform: `translate(-50%, -50%) translateX(${
                             direction * slot.x
                           }px) translateY(${slot.y}px) translateZ(${
@@ -35697,9 +39670,7 @@ export default function UserHomeDashboardPage() {
                             "transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1), opacity 320ms ease, filter 320ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease",
                           zIndex: isVisible ? slot.zIndex : 0,
                         }}
-                        tabIndex={
-                          isActive || (isVisible && absDistance <= 1) ? 0 : -1
-                        }
+                        tabIndex={isActive ? 0 : -1}
                       >
                         <span
                           className={`pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br ${card.accent}`}
@@ -36514,8 +40485,8 @@ export default function UserHomeDashboardPage() {
                 Finances
               </h2>
               <p className="mt-2 max-w-[56rem] text-sm font-semibold leading-6 text-slate-300">
-                Track the money side of the business by income, expenses,
-                assets, liabilities, payroll, and tax planning.
+                Track income, expenses and debt, and your total financial
+                position from three focused ledgers.
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -36901,7 +40872,7 @@ export default function UserHomeDashboardPage() {
       <div
         aria-label="Services detail"
         aria-modal="true"
-        className="fixed inset-0 z-[246] overflow-hidden bg-slate-950/96 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl"
+        className="fixed bottom-3 left-24 right-3 top-32 z-[246] overflow-hidden rounded-[26px] border border-cyan-100/20 bg-slate-950/96 text-white shadow-[0_26px_72px_rgba(0,0,0,0.48),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl sm:bottom-4 sm:left-36 sm:right-5 sm:top-36 lg:left-44 lg:right-6"
         role="dialog"
       >
         <span
@@ -37434,16 +41405,47 @@ export default function UserHomeDashboardPage() {
     const activeFinanceTab =
       adminFinanceTabs.find((tab) => tab.key === activeAdminFinanceTab) ||
       adminFinanceTabs[0];
-    const financeRecordCount = adminFinanceTabs.reduce(
-      (total, tab) => total + tab.rows.length,
-      0,
+    const incomeFinanceTab = adminFinanceTabs.find((tab) => tab.key === "income");
+    const expensesFinanceTab = adminFinanceTabs.find(
+      (tab) => tab.key === "expenses",
     );
+    const totalFinanceTab = adminFinanceTabs.find((tab) => tab.key === "total");
+    const isExpenseFinanceTab = activeFinanceTab.key === "expenses";
+    const financeSummaryColumns = [
+      {
+        active: activeAdminFinanceTab === "income",
+        icon: "stats",
+        id: "income",
+        label: "Income",
+        metric: incomeFinanceTab?.metric ?? "$0",
+        status: incomeFinanceTab?.status ?? "Current",
+      },
+      {
+        active: activeAdminFinanceTab === "expenses",
+        icon: "recovery",
+        id: "expenses",
+        label: "Expenses & debt",
+        metric: expensesFinanceTab?.metric ?? "$0",
+        status: expensesFinanceTab?.status ?? "Current",
+      },
+      {
+        active: activeAdminFinanceTab === "total",
+        icon: "goals",
+        id: "total",
+        label: "Total",
+        metric: totalFinanceTab?.metric ?? "$0",
+        status: totalFinanceTab?.status ?? "Net",
+      },
+    ];
+    const financeRowSpacing = adminFinanceRowExpanded
+      ? "min-w-0 pl-36 pr-20 pt-16 max-sm:pl-24 max-sm:pr-12 sm:pl-40 sm:pr-24 sm:pt-[4.5rem] lg:pl-44 lg:pr-28 lg:pt-20"
+      : "min-w-0 pl-36 pr-20 pt-20 max-sm:pl-24 max-sm:pr-12 sm:pl-40 sm:pr-24 sm:pt-24 lg:pl-44 lg:pr-28 lg:pt-28";
 
     return (
       <div
         aria-label="Finances row"
         data-dashboard-orbiter-row="2"
-        className={`relative flex min-h-0 items-start justify-center pl-36 pr-6 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
+        className={`relative flex min-h-0 items-start justify-center transition-opacity duration-300 ${financeRowSpacing} ${
           clampedDashboardOrbiterRow === 2
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-40"
@@ -37452,82 +41454,224 @@ export default function UserHomeDashboardPage() {
         {renderDashboardRowTitle({
           accentClassName:
             "bg-emerald-300 shadow-[0_0_14px_rgba(52,211,153,0.65)]",
+          compact: adminFinanceRowExpanded,
           description:
-            "One finance workspace for income, expenses, assets, liabilities, payroll, and taxes.",
+            "A compact readout of income, expenses, and net total.",
           kicker: "Business finance row",
           title: "Finances",
         })}
-        <div className="relative flex h-full w-full max-w-[1180px] items-center justify-center overflow-hidden pr-1 [perspective:1500px]">
-          <button
-            aria-label="Open Finances workspace"
-            className="group relative isolate w-full max-w-[900px] overflow-hidden rounded-[32px] border border-emerald-100/28 bg-[radial-gradient(circle_at_16%_0%,rgba(52,211,153,0.18),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(250,204,21,0.14),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.88),rgba(2,6,23,0.92))] p-5 text-left shadow-2xl shadow-black/30 outline-none transition hover:-translate-y-1 hover:border-emerald-100/45 hover:shadow-emerald-950/35 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-emerald-200/45 sm:p-6 lg:p-7"
-            onClick={() => setAdminFinanceWorkspaceOpen(true)}
-            type="button"
+        <div
+          className={`relative flex h-full w-full min-w-0 max-w-[1040px] justify-center overflow-hidden pr-1 [perspective:1500px] ${
+            adminFinanceRowExpanded ? "items-start" : "items-center"
+          }`}
+        >
+          <section
+            aria-label="Finance summary"
+            className={`flex w-full min-w-0 flex-col overflow-hidden rounded-[22px] border border-emerald-100/24 bg-[radial-gradient(circle_at_16%_0%,rgba(52,211,153,0.17),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(250,204,21,0.13),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.92))] shadow-[0_22px_58px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur ${
+              adminFinanceRowExpanded
+                ? "h-[min(68vh,36rem)] max-w-[780px]"
+                : "h-44 max-w-[780px]"
+            }`}
           >
-            <span className="pointer-events-none absolute inset-x-8 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-emerald-100/80 to-cyan-200/70" />
-            <span className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-emerald-300/14 via-cyan-300/6 to-transparent" />
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-200">
-                  Finance command center
-                </p>
-                <h3 className="mt-2 text-3xl font-black uppercase tracking-[0.06em] text-white sm:text-4xl">
-                  Finances
-                </h3>
-                <p className="mt-2 max-w-[42rem] text-sm font-semibold leading-6 text-slate-300">
-                  Manage the money view from one place: income, expenses,
-                  assets, liabilities, payroll, taxes, and future bookkeeping
-                  lines.
-                </p>
+            <header className="flex items-center justify-between gap-3 border-b border-emerald-100/16 px-4 py-3 sm:px-5">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-emerald-100/24 bg-emerald-300/10 text-emerald-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                  <DashboardTabIcon
+                    className="h-5 w-5"
+                    label="Finances"
+                    name="stats"
+                  />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-[0.16em] text-emerald-200">
+                    Finance snapshot
+                  </p>
+                  <h3 className="mt-0.5 truncate text-base font-black uppercase tracking-[0.06em] text-white sm:text-xl">
+                    Finance summary
+                  </h3>
+                </div>
               </div>
-              <div className="grid min-w-[12rem] grid-cols-2 gap-2">
-                <span className="rounded-2xl border border-white/10 bg-white/[0.05] p-3">
-                  <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
-                    Active tab
-                  </span>
-                  <span className="mt-1 block text-2xl font-black text-white">
-                    {activeFinanceTab.label}
-                  </span>
-                </span>
-                <span className="rounded-2xl border border-white/10 bg-white/[0.05] p-3">
-                  <span className="block text-[8px] font-black uppercase tracking-[0.14em] text-slate-500">
-                    Lines
-                  </span>
-                  <span className="mt-1 block text-2xl font-black text-white">
-                    {financeRecordCount}
-                  </span>
-                </span>
+              <button
+                aria-expanded={adminFinanceRowExpanded}
+                aria-label={`${
+                  adminFinanceRowExpanded ? "Collapse" : "Expand"
+                } finance summary`}
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-emerald-200/24 bg-emerald-300/10 text-emerald-100 transition hover:border-emerald-100/48 hover:bg-emerald-300/18 hover:text-emerald-50 active:scale-95 focus-visible:ring-2 focus-visible:ring-emerald-100/50"
+                onClick={() =>
+                  setAdminFinanceRowExpanded((expanded) => !expanded)
+                }
+                title={
+                  adminFinanceRowExpanded
+                    ? "Collapse finance summary"
+                    : "Expand finance summary"
+                }
+                type="button"
+              >
+                {adminFinanceRowExpanded ? (
+                  <Minimize2 aria-hidden="true" className="h-4 w-4" />
+                ) : (
+                  <Maximize2 aria-hidden="true" className="h-4 w-4" />
+                )}
+              </button>
+            </header>
+
+            {adminFinanceRowExpanded ? (
+              <div
+                aria-label="Finance column position indicator"
+                className="shrink-0 overflow-x-auto border-b border-emerald-100/12 px-4 py-2 [scrollbar-color:rgba(52,211,153,0.45)_rgba(15,23,42,0.68)] [scrollbar-width:thin] [touch-action:pan-x] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-emerald-300/40 [&::-webkit-scrollbar-track]:bg-slate-950/60 sm:px-5"
+              >
+                <div className="flex min-w-max items-center gap-1.5">
+                  {financeSummaryColumns.map((column) => {
+                    const isExpenses = column.id === "expenses";
+                    const isTotal = column.id === "total";
+                    const tone = isExpenses
+                      ? column.active
+                        ? "border-red-100/80 bg-red-400/20 text-red-50 shadow-[0_0_16px_rgba(248,113,113,0.28),inset_0_1px_0_rgba(255,255,255,0.12)]"
+                        : "border-red-200/20 bg-red-400/[0.06] text-red-200/70 hover:border-red-100/52 hover:bg-red-400/14 hover:text-red-50"
+                      : isTotal
+                        ? column.active
+                          ? "border-cyan-100/80 bg-cyan-300/20 text-cyan-50 shadow-[0_0_16px_rgba(34,211,238,0.28),inset_0_1px_0_rgba(255,255,255,0.12)]"
+                          : "border-cyan-200/20 bg-cyan-300/[0.06] text-cyan-200/70 hover:border-cyan-100/52 hover:bg-cyan-300/14 hover:text-cyan-50"
+                        : column.active
+                          ? "border-emerald-100/80 bg-emerald-300/20 text-emerald-50 shadow-[0_0_16px_rgba(52,211,153,0.28),inset_0_1px_0_rgba(255,255,255,0.12)]"
+                          : "border-emerald-200/20 bg-emerald-300/[0.06] text-emerald-200/70 hover:border-emerald-100/52 hover:bg-emerald-300/14 hover:text-emerald-50";
+
+                    return (
+                    <button
+                      aria-label={`Show ${column.label} ledger`}
+                      aria-pressed={column.active}
+                      className={`grid h-7 w-7 place-items-center rounded-full border text-[11px] transition duration-300 hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 ${tone}`}
+                      key={column.id}
+                      onClick={() =>
+                        setActiveAdminFinanceTab(column.id as AdminFinanceTabKey)
+                      }
+                      title={column.label}
+                      type="button"
+                    >
+                      <DashboardTabIcon
+                        className="h-3.5 w-3.5"
+                        label={column.label}
+                        name={column.icon}
+                      />
+                    </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-            <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {adminFinanceTabs.map((tab) => (
-                <span
-                  className="flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/48 px-3 py-2"
-                  key={tab.key}
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-xs font-black text-emerald-50">
-                      {tab.label}
+            ) : null}
+
+            <div className="relative isolate flex min-h-0 flex-1 flex-col text-left">
+              <dl
+                className={`grid min-h-0 grid-cols-3 divide-x divide-white/10 ${
+                  adminFinanceRowExpanded ? "h-32 shrink-0 sm:h-36" : "flex-1"
+                }`}
+              >
+                {financeSummaryColumns.map((column) => (
+                  <div className="flex min-w-0 flex-col justify-between gap-3 px-3 py-3 sm:px-5 sm:py-4" key={column.id}>
+                    <dt className="text-[8px] font-black uppercase leading-tight tracking-[0.14em] text-slate-500 sm:text-[9px]">
+                      {column.label}
+                    </dt>
+                    <dd className="text-lg font-black leading-none text-white sm:text-2xl">
+                      {column.metric}
+                    </dd>
+                    <p className={`text-[8px] font-black uppercase leading-tight tracking-[0.12em] sm:text-[9px] ${
+                      column.id === "expenses"
+                        ? "text-red-200/85"
+                        : column.id === "total"
+                          ? "text-cyan-100/85"
+                          : "text-emerald-100/75"
+                    }`}>
+                      {column.status}
+                    </p>
+                  </div>
+                ))}
+              </dl>
+              {adminFinanceRowExpanded ? (
+                <section className="flex min-h-0 flex-1 flex-col border-t border-white/10">
+                  <div className="flex shrink-0 flex-col gap-1 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-5">
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-black uppercase tracking-[0.08em] text-white">
+                        {activeFinanceTab.label} Ledger
+                      </h4>
+                      <p className="mt-0.5 text-xs font-semibold leading-5 text-slate-400">
+                        {activeFinanceTab.detail}
+                      </p>
+                    </div>
+                    <span className={`shrink-0 text-[9px] font-black uppercase tracking-[0.12em] ${
+                      isExpenseFinanceTab ? "text-red-200" : "text-emerald-100"
+                    }`}>
+                      {activeFinanceTab.rows.length} lines
                     </span>
-                    <span className="mt-0.5 block truncate text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
-                      {tab.status}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-sm font-black text-white">
-                    {tab.metric}
-                  </span>
-                </span>
-              ))}
+                  </div>
+                  <div className="min-h-0 flex-1 overflow-auto overscroll-contain [scrollbar-color:rgba(52,211,153,0.45)_rgba(15,23,42,0.68)] [scrollbar-width:thin] [touch-action:pan-x_pan-y] [&::-webkit-scrollbar]:h-2.5 [&::-webkit-scrollbar]:w-2.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-emerald-300/45 [&::-webkit-scrollbar-track]:bg-slate-950/60">
+                    <table className="min-w-[780px] w-full border-collapse text-left text-xs">
+                      <thead className={`sticky top-0 z-10 bg-slate-950/95 text-[9px] font-black uppercase tracking-[0.12em] backdrop-blur ${
+                        isExpenseFinanceTab ? "text-red-200" : "text-emerald-100"
+                      }`}>
+                        <tr>
+                          {[
+                            "Category",
+                            "Amount",
+                            "Status",
+                            "Next action",
+                            "Notes",
+                          ].map((heading) => (
+                            <th
+                              className={`border-b px-3 py-3 first:min-w-[12rem] [&:nth-child(2)]:min-w-[7rem] [&:nth-child(3)]:min-w-[8rem] [&:nth-child(4)]:min-w-[12rem] [&:nth-child(5)]:min-w-[16rem] ${
+                                isExpenseFinanceTab
+                                  ? "border-red-100/20"
+                                  : "border-emerald-100/18"
+                              }`}
+                              key={heading}
+                              scope="col"
+                            >
+                              {heading}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/10">
+                        {activeFinanceTab.rows.map((row) => (
+                          <tr
+                            className={`align-top transition ${
+                              isExpenseFinanceTab
+                                ? "hover:bg-red-300/[0.06]"
+                                : "hover:bg-emerald-300/[0.05]"
+                            }`}
+                            key={`${activeFinanceTab.key}-${row.category}`}
+                          >
+                            <td className="px-3 py-3 font-black text-white">
+                              {row.category}
+                            </td>
+                            <td className={`px-3 py-3 font-black ${
+                              isExpenseFinanceTab ? "text-red-100" : "text-emerald-100"
+                            }`}>
+                              {row.amount}
+                            </td>
+                            <td className="px-3 py-3">
+                              <span className={`inline-flex rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] ${
+                                isExpenseFinanceTab
+                                  ? "border-red-200/20 bg-red-300/10 text-red-100"
+                                  : "border-emerald-200/20 bg-emerald-300/10 text-emerald-100"
+                              }`}>
+                                {row.status}
+                              </span>
+                            </td>
+                            <td className="px-3 py-3 font-semibold leading-5 text-cyan-50">
+                              {row.nextAction}
+                            </td>
+                            <td className="px-3 py-3 font-semibold leading-5 text-slate-400">
+                              {row.notes}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ) : null}
             </div>
-            <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
-              <span className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-                Opens on {activeFinanceTab.label}
-              </span>
-              <span className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100">
-                Open full screen -&gt;
-              </span>
-            </div>
-          </button>
+          </section>
         </div>
       </div>
     );
@@ -37542,7 +41686,7 @@ export default function UserHomeDashboardPage() {
       <div
         aria-label="Services row"
         data-dashboard-orbiter-row="3"
-        className={`relative min-h-0 w-full overflow-hidden pl-36 pr-6 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
+        className={`relative min-h-0 w-full overflow-hidden pl-36 pr-6 pt-20 transition-opacity duration-300 max-sm:pl-24 max-sm:pr-12 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
           clampedDashboardOrbiterRow === 3
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-40"
@@ -37555,23 +41699,6 @@ export default function UserHomeDashboardPage() {
           kicker: "Service catalog row",
           title: "Services",
         })}
-
-        <button
-          aria-label="Previous Services"
-          className="absolute left-[5.75rem] top-[47%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:left-[6.75rem] xl:left-[7.25rem]"
-          onClick={() => rotateAdminServicesOrbit("left")}
-          type="button"
-        >
-          &lt;
-        </button>
-        <button
-          aria-label="Next Services"
-          className="absolute right-2 top-[47%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-4 sm:h-14 sm:w-14 sm:text-3xl lg:right-6 xl:right-8"
-          onClick={() => rotateAdminServicesOrbit("right")}
-          type="button"
-        >
-          &gt;
-        </button>
 
         <div
           data-dashboard-orbiter-local-scroll="true"
@@ -38423,7 +42550,9 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="Calendar row"
       data-dashboard-orbiter-row="4"
-      className={`flex min-h-0 items-start justify-center pl-36 pr-6 pt-2 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-3 lg:pl-44 lg:pr-12 lg:pt-4 ${
+      className={`flex min-h-0 items-start justify-center px-3 pt-2 transition-opacity duration-300 min-[560px]:pl-36 min-[560px]:pr-6 sm:pl-40 sm:pr-10 sm:pt-3 lg:pl-44 lg:pr-12 lg:pt-4 ${
+        isAdminPreview ? "max-sm:!pl-24 max-sm:!pr-12" : ""
+      } ${
         clampedDashboardOrbiterRow === 4
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
@@ -38431,11 +42560,27 @@ export default function UserHomeDashboardPage() {
     >
       <div
         data-dashboard-orbiter-local-scroll="true"
-        className="h-full w-full max-w-[1180px] overflow-y-auto overscroll-contain pr-1 scroll-smooth [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
+        className={`w-full max-w-[1180px] overscroll-contain pr-1 scroll-smooth [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58 ${
+          isAdminPreview && adminCalendarCollapsed
+            ? "h-auto overflow-visible"
+            : "h-full overflow-y-auto"
+        }`}
       >
-        <section className="flex min-h-full pb-4">
-          <div className="mx-auto flex min-h-full w-full max-w-[1120px]">
+        <section
+          className={
+            isAdminPreview && adminCalendarCollapsed
+              ? "pb-4"
+              : "flex min-h-full pb-4"
+          }
+        >
+          <div
+            className={`mx-auto w-full max-w-[1120px] ${
+              isAdminPreview && adminCalendarCollapsed ? "" : "flex min-h-full"
+            }`}
+          >
             <DashboardCalendar
+              collapsible={isAdminPreview}
+              onCollapsedChange={setAdminCalendarCollapsed}
               items={dashboardCalendarItems}
               orbitCommand={dashboardCalendarOrbitCommand}
             />
@@ -38452,7 +42597,7 @@ export default function UserHomeDashboardPage() {
       <div
         aria-label="My Messages row"
         data-dashboard-orbiter-row="5"
-        className={`relative min-h-0 w-full overflow-hidden pl-36 pr-6 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
+        className={`relative min-h-0 w-full overflow-hidden pl-36 pr-6 pt-20 transition-opacity duration-300 max-sm:pl-24 max-sm:pr-12 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
           clampedDashboardOrbiterRow === 5
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-40"
@@ -38466,23 +42611,6 @@ export default function UserHomeDashboardPage() {
           kicker: "Admin communication row",
           title: "My Messages",
         })}
-
-        <button
-          aria-label="Previous message source"
-          className="absolute left-[5.75rem] top-[46%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:left-[6.75rem] xl:left-[7.25rem]"
-          onClick={() => rotateAdminMessages("left")}
-          type="button"
-        >
-          &lt;
-        </button>
-        <button
-          aria-label="Next message source"
-          className="absolute right-2 top-[46%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-4 sm:h-14 sm:w-14 sm:text-3xl lg:right-6 xl:right-8"
-          onClick={() => rotateAdminMessages("right")}
-          type="button"
-        >
-          &gt;
-        </button>
 
         <div
           data-dashboard-orbiter-local-scroll="true"
@@ -39116,7 +43244,7 @@ export default function UserHomeDashboardPage() {
       <div
         aria-label="Sound Assets row"
         data-dashboard-orbiter-row="6"
-        className={`relative min-h-0 w-full overflow-hidden pl-36 pr-6 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
+        className={`relative min-h-0 w-full overflow-hidden pl-36 pr-6 pt-20 transition-opacity duration-300 max-sm:pl-24 max-sm:pr-12 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
           clampedDashboardOrbiterRow === 6
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-40"
@@ -39130,23 +43258,6 @@ export default function UserHomeDashboardPage() {
           kicker: "Brand asset row",
           title: "Sound Assets",
         })}
-
-        <button
-          aria-label="Previous Sound Assets"
-          className="absolute left-[5.75rem] top-[46%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:left-[6.25rem] sm:h-14 sm:w-14 sm:text-3xl lg:left-[6.75rem] xl:left-[7.25rem]"
-          onClick={() => rotateAdminSoundAssets("left")}
-          type="button"
-        >
-          &lt;
-        </button>
-        <button
-          aria-label="Next Sound Assets"
-          className="absolute right-2 top-[46%] z-40 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-cyan-200/24 bg-slate-950/60 text-2xl font-black text-cyan-100 shadow-[0_0_30px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-amber-200/45 hover:bg-amber-300/10 hover:text-amber-100 active:scale-95 sm:right-4 sm:h-14 sm:w-14 sm:text-3xl lg:right-6 xl:right-8"
-          onClick={() => rotateAdminSoundAssets("right")}
-          type="button"
-        >
-          &gt;
-        </button>
 
         <div
           data-dashboard-orbiter-local-scroll="true"
@@ -39518,21 +43629,20 @@ export default function UserHomeDashboardPage() {
       <div
         aria-label="Admin Settings row"
         data-dashboard-orbiter-row="8"
-        className={`relative flex min-h-0 items-start justify-center pl-36 pr-6 pt-2 sm:pl-40 sm:pr-10 sm:pt-3 lg:pl-44 lg:pr-12 lg:pt-4 ${
+        className={`relative flex min-h-0 items-start justify-center pl-36 pr-6 pt-2 max-sm:pl-24 max-sm:pr-12 sm:pl-40 sm:pr-10 sm:pt-3 lg:pl-44 lg:pr-12 lg:pt-4 ${
           clampedDashboardOrbiterRow === 8
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-40"
         }`}
       >
-        <div className="pointer-events-none absolute left-36 top-6 z-20 min-w-0 pr-6 sm:left-40 lg:left-44">
-          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">
-            Settings
-          </div>
-          <p className="mt-1 max-w-[34rem] truncate text-[11px] font-semibold text-slate-400">
-            Admin controls for channels, people, alerts, data, and site
-            defaults.
-          </p>
-        </div>
+        {renderDashboardRowTitle({
+          accentClassName:
+            "bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.65)]",
+          description:
+            "Admin controls for channels, people, alerts, data, and site defaults.",
+          kicker: "Admin control row",
+          title: "Settings",
+        })}
 
         <div
           data-dashboard-orbiter-local-scroll="true"
@@ -39540,23 +43650,6 @@ export default function UserHomeDashboardPage() {
         >
           <section className="flex min-h-full items-center justify-center pb-4 pt-12 lg:pt-16">
             <section className="relative w-full max-w-[980px] min-w-0 overflow-visible py-4 sm:py-6">
-              <button
-                aria-label="Previous settings card"
-                className="absolute left-0 top-1/2 z-50 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.16)] backdrop-blur transition hover:-translate-x-0.5 hover:border-emerald-200/45 hover:bg-emerald-300/10 hover:text-emerald-100 active:scale-95 sm:h-12 sm:w-12 sm:text-2xl"
-                onClick={() => rotateAdminSettingsOrbit("left")}
-                type="button"
-              >
-                &lt;
-              </button>
-              <button
-                aria-label="Next settings card"
-                className="absolute right-0 top-1/2 z-50 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-cyan-200/24 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.16)] backdrop-blur transition hover:translate-x-0.5 hover:border-emerald-200/45 hover:bg-emerald-300/10 hover:text-emerald-100 active:scale-95 sm:h-12 sm:w-12 sm:text-2xl"
-                onClick={() => rotateAdminSettingsOrbit("right")}
-                type="button"
-              >
-                &gt;
-              </button>
-
               <div
                 aria-label="Settings horizontal orbit"
                 className="relative z-10 mx-auto h-[410px] w-full max-w-[760px] cursor-grab select-none overflow-visible outline-none [perspective:1500px] [touch-action:pan-y] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45 sm:h-[450px]"
@@ -39784,25 +43877,6 @@ export default function UserHomeDashboardPage() {
                 })}
               </div>
 
-              <div className="mx-auto mt-2 flex max-w-[760px] flex-wrap items-center justify-center gap-2">
-                {adminSettingsSections.map((section, sectionIndex) => {
-                  const isActive = sectionIndex === activeAdminSettingsIndex;
-
-                  return (
-                    <button
-                      aria-label={`Select ${section.title}`}
-                      className={`h-2.5 rounded-full border transition ${
-                        isActive
-                          ? "w-8 border-cyan-100/45 bg-cyan-200 shadow-[0_0_14px_rgba(34,211,238,0.42)]"
-                          : "w-2.5 border-white/10 bg-slate-500/60 hover:border-cyan-200/35 hover:bg-cyan-200/70"
-                      }`}
-                      key={`${section.title}-dot`}
-                      onClick={() => setActiveAdminSettingsIndex(sectionIndex)}
-                      type="button"
-                    />
-                  );
-                })}
-              </div>
             </section>
           </section>
         </div>
@@ -40623,6 +44697,8 @@ export default function UserHomeDashboardPage() {
             {renderDashboardPageLevelMeter()}
             <div
               className={`dashboard-page-orbit-shell pointer-events-none absolute left-[-2.85rem] top-1/2 z-[70] h-[394px] w-36 -translate-y-1/2 overflow-visible sm:left-[-2.65rem] lg:left-[-2.35rem] ${
+                isAdminPreview ? "dashboard-page-orbiter--admin" : ""
+              } ${
                 dashboardPageAnalogActiveDirection ||
                 dashboardPageAnalogDragging
                   ? "dashboard-page-orbit-shell--scrolling"
@@ -40630,6 +44706,10 @@ export default function UserHomeDashboardPage() {
               }`}
               style={
                 {
+                  top:
+                    isAdminPreview && adminJourneyOrbitLayout === "compact"
+                      ? "64%"
+                      : undefined,
                   "--dashboard-page-orbit-progress": dashboardPageOrbitProgress,
                   "--dashboard-page-orbit-fill":
                     0.08 + dashboardPageOrbitProgress * 0.92,
@@ -40656,6 +44736,8 @@ export default function UserHomeDashboardPage() {
                     {dashboardOrbiterRows.map((row, index) => {
                       const distance = index - clampedDashboardOrbiterRow;
                       const rawAbsDistance = Math.abs(distance);
+                      const compactAdminOrbit =
+                        isAdminPreview && adminJourneyOrbitLayout === "compact";
                       const clampedDistance = Math.max(
                         -2,
                         Math.min(2, distance),
@@ -40679,43 +44761,41 @@ export default function UserHomeDashboardPage() {
                             : absDistance === 1
                               ? 0.68
                               : 0.34;
-                      if (isActive) return null;
+
+                      if (
+                        isActive ||
+                        (compactAdminOrbit && rawAbsDistance > 1)
+                      ) {
+                        return null;
+                      }
 
                       return (
                         <button
                           aria-label={`Show ${row.title} row`}
                           aria-pressed={isActive}
-                          className={`dashboard-page-orbit-node pointer-events-auto absolute left-1/2 top-1/2 grid h-12 w-12 origin-center place-items-center overflow-visible border-0 bg-transparent p-0 text-left shadow-none outline-none transition-[color,filter] duration-300 focus-visible:ring-2 focus-visible:ring-cyan-100/45 ${
-                            isActive
-                              ? `dashboard-page-orbit-node--active ${urgencyTone.text} text-cyan-50`
-                              : "dashboard-page-orbit-node--ghost text-slate-300 hover:text-cyan-100"
-                          }`}
+                          className="dashboard-page-orbit-node dashboard-page-orbit-node--ghost pointer-events-auto absolute left-1/2 top-1/2 grid h-12 w-12 origin-center place-items-center overflow-visible border-0 bg-transparent p-0 text-left text-slate-300 shadow-none outline-none transition-[color,filter] duration-300 hover:text-cyan-100 focus-visible:ring-2 focus-visible:ring-cyan-100/45"
+                          data-dashboard-orbit-distance={rawAbsDistance}
+                          data-dashboard-tooltip={row.helper}
                           key={row.title}
                           onClick={() => setDashboardOrbiterRow(index)}
                           style={{
                             opacity,
-                            pointerEvents: rawAbsDistance > 2 ? "none" : "auto",
-                            transform: `translate(-50%, -50%) translateX(${xOffset}px) translateY(${yOffset}px) scale(${scale})`,
+                            pointerEvents:
+                              rawAbsDistance > 2 ? "none" : "auto",
+                            transform: `translate(-50%, -50%) translateX(${xOffset + (compactAdminOrbit ? -44 : 0)}px) translateY(${yOffset}px) scale(${scale})`,
                             transition:
                               "transform 240ms ease, opacity 160ms ease, border-color 160ms ease, background-color 160ms ease",
                             zIndex: 40 - absDistance,
                           }}
-                          data-dashboard-tooltip={row.helper}
                           type="button"
                         >
                           <span
                             aria-hidden="true"
-                            className={`pointer-events-none absolute -inset-2 hidden rounded-[inherit] bg-[radial-gradient(circle_at_50%_50%,rgba(34,211,238,0.18),transparent_60%),linear-gradient(90deg,transparent,rgba(250,204,21,0.12),transparent)] ${
-                              isActive ? "opacity-70" : "opacity-40"
-                            }`}
+                            className="pointer-events-none absolute -inset-2 hidden rounded-[inherit] bg-[radial-gradient(circle_at_50%_50%,rgba(34,211,238,0.18),transparent_60%),linear-gradient(90deg,transparent,rgba(250,204,21,0.12),transparent)] opacity-40"
                           />
                           <span
                             aria-hidden="true"
-                            className={`relative grid h-9 w-9 shrink-0 place-items-center overflow-visible ${
-                              isActive
-                                ? "text-cyan-50 drop-shadow-[0_0_12px_rgba(103,232,249,0.44)]"
-                                : "text-slate-300 drop-shadow-[0_0_10px_rgba(15,23,42,0.72)]"
-                            }`}
+                            className="relative grid h-9 w-9 shrink-0 place-items-center overflow-visible text-slate-300 drop-shadow-[0_0_10px_rgba(15,23,42,0.72)]"
                           >
                             {row.logo === "sound" ? (
                               <Image
@@ -40733,11 +44813,8 @@ export default function UserHomeDashboardPage() {
                               />
                             )}
                             <span
-                              className={`absolute -bottom-1 left-1/2 grid h-4 w-4 -translate-x-1/2 place-items-center rounded-full text-[7px] font-black leading-none text-slate-950 ${
-                                isActive
-                                  ? urgencyTone.dot
-                                  : `${urgencyTone.dot} opacity-70`
-                              }`}
+                              aria-hidden="true"
+                              className={`absolute -bottom-1 left-1/2 grid h-4 w-4 -translate-x-1/2 place-items-center rounded-full text-[7px] font-black leading-none text-slate-950 ${urgencyTone.dot} opacity-70`}
                             >
                               {urgencyTone.icon}
                             </span>
@@ -40748,13 +44825,13 @@ export default function UserHomeDashboardPage() {
                   </div>
                 </>
               )}
-              <div className="pointer-events-none absolute left-[4.35rem] top-1/2 z-[76] grid h-[22.8rem] w-[4.75rem] -translate-x-1/2 -translate-y-1/2 place-items-center">
+              <div className="dashboard-page-analog-anchor pointer-events-none absolute left-[4.35rem] top-1/2 z-[76] grid h-[22.8rem] w-[4.75rem] -translate-x-1/2 -translate-y-1/2 place-items-center">
                 {renderDashboardPageAnalog()}
               </div>
             </div>
             <div className="relative z-10 mt-0 min-h-0 flex-1 overflow-hidden">
               <div
-                className="grid transition-transform duration-[430ms] ease-[cubic-bezier(0.2,0.85,0.25,1)]"
+                className="grid min-w-0 grid-cols-[minmax(0,1fr)] transition-transform duration-[430ms] ease-[cubic-bezier(0.2,0.85,0.25,1)]"
                 style={{
                   gridTemplateRows: `repeat(${dashboardOrbiterRows.length}, minmax(0, 1fr))`,
                   height: `${dashboardOrbiterRows.length * 100}%`,
@@ -40820,7 +44897,7 @@ export default function UserHomeDashboardPage() {
                   ? renderDashboardOrbitCardRow({
                       cards: adminMarketingCampaignCards,
                       description:
-                        "Email nurture and social campaign planning for Sound Fitness marketing.",
+                        "Email, social, print, and merchandise planning for Sound Fitness marketing.",
                       getDistance: getAdminMarketingCampaignOrbitDistance,
                       kicker: "Campaign row",
                       pointerMovedRef: adminMarketingCampaignPointerMovedRef,
@@ -40828,6 +44905,7 @@ export default function UserHomeDashboardPage() {
                       rotateOrbit: rotateAdminMarketingCampaignOrbit,
                       rowIndex: 7,
                       setActiveIndex: setActiveAdminMarketingCampaignIndex,
+                      showRowTitle: true,
                       title: "Marketing Campaigns",
                     })
                   : null}
@@ -40840,6 +44918,9 @@ export default function UserHomeDashboardPage() {
           {renderDashboardProfileHubOverlay()}
           {renderDashboardHeroWidgetsDrawer()}
           {renderAdminJourneyDetailOverlay()}
+          {renderAdminJourneyPersonOverlay()}
+          {renderAdminUserListAddOverlay()}
+          {renderAdminUserListRecordOverlay()}
           {renderAdminFinanceOverlay()}
           {renderAdminServiceDetailOverlay()}
           {renderAdminMessageDetailOverlay()}

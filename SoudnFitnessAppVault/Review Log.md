@@ -76,4 +76,92 @@ Codex will use this note to record reviewed screenshots, interpretation notes, a
 
 ## Pending
 
+- 2026-07-17: Updated the Admin Finances row from static indicators to clickable, color-coded Income, Expenses & Debt, and Total ledger views. Consolidated payroll, liability, and tax planning into the red risk ledger; kept the total financial position as a dedicated cyan ledger.
+- 2026-07-17: Constrained Admin Services detail panels to the usable dashboard canvas beneath the admin header and beside the joystick, rather than covering the entire screen.
+- 2026-07-17: Moved the expanded calendar's range readout and previous/today/next navigator beneath the day-card horizontal scroller, leaving view controls and filters at the top.
+- 2026-07-17: Let the Finance Summary metric columns use their full available vertical space, removing forced truncation and distributing labels, values, and statuses through each panel.
+- 2026-07-17: Rebalanced the expanded Finance Summary so its metric strip is compact and fixed-height, giving the active ledger table the majority of the available vertical space.
+- 2026-07-18: Added transparent, non-medical training readiness scoring to assessment results. The score factors in experience, time, training space, equipment, confidence, recovery, limitations, and preferred support, then explains the suggested starting level.
+- 2026-07-18: Added a three-second assessment insight popup for each selected option. Each message explains how that choice affects the personalized plan, while multi-select insights update without blocking further choices.
+- 2026-07-18: Moved the compact assessment insight toast to a fixed safe-bottom viewport position so it remains fully visible on compressed mobile question layouts.
+- 2026-07-18: Reworked the insight toast centering to use bounded left/right positioning instead of transforms, preventing animated question pages from clipping the toast horizontally.
+- 2026-07-18: Moved the insight toast outside the animated question-page container so its viewport-fixed placement is no longer masked by the question transition layer.
+- 2026-07-18: Added a slow cyan, emerald, and amber diagonal gradient sweep beneath the assessment particle field, with a reduced-motion fallback.
+- 2026-07-18: Increased the top inset for the assessment crest so it has clearer breathing room from the panel border on mobile and desktop.
+- 2026-07-18: Lowered the mobile assessment crest slightly to give it clearer top padding without changing the question layout.
+- 2026-07-18: Replaced the welcome-page trust-chip wrapping with an even two-by-two mobile grid and a four-across layout when space allows.
+- 2026-07-18: Kept welcome trust chips at their natural content width within the grid rather than stretching them to fill each column.
+- 2026-07-18: Reworked the welcome trust chips into one centered no-wrap flex row, with all four pills expanding and compressing together instead of forming separate rows.
+- 2026-07-18: Replaced the welcome trust-chip row with compact, color-coded icon indicators; the active indicator expands into its labeled bubble and cycles automatically, while remaining directly selectable.
+- 2026-07-18: Restored the welcome focus indicators' sparkle and drifting particle effects inside the active expanded bubble while keeping resting icons visually quiet.
+- 2026-07-18: Let active focus-bubble particles extend beyond the pill edge and widened the active state so every focus label stays fully readable.
+- 2026-07-18: Added a dense, staggered particle field to the active focus bubble so glowing particles fill the open pill and drift upward through its bubble effects.
+- 2026-07-18: Doubled the focus-indicator particle density, added a quieter particle drift to resting icon bubbles, and contained every particle animation within its respective pill.
+- 2026-07-18: Slowed the welcome focus-indicator rotation and active-particle cycle to five seconds.
+- 2026-07-18: Reworked mobile focus indicators into a compact 3D orbit: the active bubble is centered and only its next icon appears as a receding preview.
+- 2026-07-18: Made each expanded focus pill and its mobile orbit preview offset label-specific, removing unused right-side space on shorter labels.
+- 2026-07-18: Changed multi-select assessment insights to a single holistic three-second summary after `Next`; individual multi-select taps now stay interruption-free.
+- 2026-07-18: Restyled assessment insights as compact plan-readout cards with a glass scan treatment, icon badge, stronger information hierarchy, and a timed progress rail.
+- 2026-07-18: Centered the assessment plan-readout overlay and gave its inner card a squarer, more transparent glass treatment.
+- 2026-07-18: Reshaped the plan-readout from a wide banner into a narrower, taller compact glass card so its proportions read much closer to square.
+- 2026-07-18: Made plan-readouts content-sized, increased the display text, extended their duration to five seconds, and color-coded each readout to its active assessment theme.
+- 2026-07-18: Anchored assessment plan-readouts above or below their triggering option or `Next` control, clamped within the viewport so they never cover the selected control.
+- 2026-07-18: Made `No major limits` mutually exclusive with all specific limitation selections, including clearing it automatically if a specific protection is later chosen.
+- 2026-07-18: Reworded the first assessment question to ask what the plan should improve most, clarifying that it identifies the primary goal.
+- 2026-07-18: Added a low-contrast animated particle field behind the assessment question panel, using cyan, gold, and white micro-particles while preserving content contrast and reduced-motion support.
+- 2026-07-18: Color-coded assessment progress icons by their question theme, including subtle tinted inactive states and stronger matching colors for active and completed steps.
+- 2026-07-17: Expanded the weekly calendar rail to use the free vertical space above the lower range navigator, with day cards and timeline entries stretching cleanly inside it.
+- 2026-07-17: Removed the duplicate left/right Sound Assets orbit buttons; navigation remains available through the joystick, drag interaction, and row indicators.
+- 2026-07-17: Added Stationery Marketing and Merch cards to the Admin Marketing Campaigns orbit, each with its own status, destination, and four-stage workflow.
+- 2026-07-17: Moved Admin Settings navigation into the shared upper row-title indicators, made each indicator clickable, and removed the duplicate horizontal arrows and bottom dot rail.
+- 2026-07-17: Replaced the admin dashboard page joystick's fragile WebGL visual with a persistent CSS control and visible four-way directional cues, preserving its existing drag, wheel, click, and keyboard navigation.
 - 2026-06-23: Added `checklists/single-3d-render-per-page.md` to preserve the plan for fixing broken 3D placeholders by moving toward one page-owned/live 3D render surface and polished fallbacks.
+- 2026-07-18: Added a small label-safe width buffer to the active focus pills and adjusted their orbit preview offsets so all expanded text remains visible.
+- 2026-07-18: Added a slow cyan highlight sweep and soft glow to the "Plan Built" welcome headline line, with a reduced-motion fallback.
+- 2026-07-18: Anchored multi-select assessment readouts to the option-grid bottom edge and refined single-card positioning to choose the clearer side of each selected card.
+- 2026-07-18: Reduced the assessment readout anchor gap from 12px to 2px so each readout sits immediately beside its selected card or option grid.
+- 2026-07-18: Corrected assessment readout coordinates for the transformed glass-shell containing block so readouts visually attach to their selected card or grid.
+- 2026-07-18: Portaled assessment readouts outside the clipped glass shell so bottom-aligned multi-select summaries remain fully visible without overlapping the shell edge.
+- 2026-07-18: Made the coaching-style choices "Reminders" and "Minimal nudges" mutually exclusive.
+- 2026-07-18: Added a subtle darkened, lightly blurred backdrop behind each assessment readout so the selected-plan insight becomes the clear focus.
+- 2026-07-18: Renamed the assessment equipment option from "Dumbbells" to "Free weights" across matching prompts, visuals, and scoring.
+- 2026-07-18: Softened the assessment readout's outer corners to an 8px radius while preserving its structured glass treatment.
+- 2026-07-18: Connected assessment readout accents to the selected card's own color, including multi-select summaries using the most recently selected card accent.
+- 2026-07-18: Color-coded the assessment step counter so the active step number uses that question's accent and the total step count uses a softer matching tint.
+- 2026-07-18: Limited the compact focus-pill orbit to screens 520px and below so wider mobile/tablet layouts show every icon preview.
+- 2026-07-18: Strengthened the selected-card accent across assessment readout glass fills and borders so the popup no longer reads as generic gray.
+- 2026-07-18: Removed the repeating audio-trigger breathing animation and softened its active state to a quiet static indicator.
+- 2026-07-18: Brought the narrow-screen focus-pill preview forward with a brighter foreground treatment and orbit-in transition; widened layouts now retain the full icon-preview row.
+- 2026-07-18: Added a width-gated left preview to the mobile focus-pill orbit and reserved side clearance so preview pills cannot cover active-label text.
+- 2026-07-18: Corrected the active focus-pill orbit breakpoint in source to 520px so every focus preview returns as the viewport grows beyond compact mobile.
+- 2026-07-18: Kept the welcome CTA icons static while retaining the button's ambient gradient and sparkle effects, eliminating intermittent icon jitter.
+- 2026-07-18: Matched the welcome focus-pill cycle to the six-second starting-plan card carousel cadence so both advance together.
+- 2026-07-18: Applied the focus-pill cadence and compact-layout corrections to the live welcome rules after earlier generic replacements missed their intended targets.
+- 2026-07-18: Offset the welcome focus-pill changeover so its transition settles alongside the incoming starting-plan card number rather than at the beginning of the card movement.
+- 2026-07-18: Staggered the welcome focus-pill and starting-plan card landings so the two animations alternate instead of arriving simultaneously.
+- 2026-07-18: Added a small width buffer to the first expanded focus pill so its label no longer sits against the right edge.
+- 2026-07-18: Kept "Free weights" in the broad equipment prompt while restoring "Dumbbells" in the more specific training-options prompt.
+- 2026-07-18: Refocused readiness criteria pills on physical starting signals while leaving schedule, session length, equipment, and location in the setup lane.
+- 2026-07-18: Made checkout's "Back to results" link restore the saved assessment directly into its results stage instead of reopening the welcome screen.
+- 2026-07-18: Anchored the sound settings dropdown below its trigger and kept the trigger icon visible while the menu is open.
+- 2026-07-18: Lowered the mobile welcome sound trigger slightly to align it with the surrounding header controls while preserving the wider-layout position.
+- 2026-07-18: Made answered assessment-progress icons return directly to their question and replaced browser titles with themed, step-specific glass tooltips.
+- 2026-07-18: Added an animated circular progress dial around the assessment readiness score, proportionate to the final percentage.
+- 2026-07-18: Added a soft overlay cutout around the selected assessment card or grid so it remains visually above the surrounding shaded backdrop.
+- 2026-07-19: Lowered the mobile assessment crest within the question header for more comfortable top spacing while preserving the wider desktop position.
+- 2026-07-19: Restored visible mobile form labels above every results-contact field, including email, now that the contact step has sufficient vertical space.
+- 2026-07-19: Kept the welcome sign-in control in its header position at compact widths by giving its label a deliberate two-line treatment before the smallest-screen icon-only mode.
+- 2026-07-19: Matched the compact sign-in control's icon and two-line label rhythm to the left header utility link, and reclaimed a small amount of welcome-stack height in that range.
+- 2026-07-19: Shifted the compact two-line sign-in control toward the right edge and lowered the welcome sound control slightly to balance the header.
+- 2026-07-19: Added distinct compact-header press states: orange for the in-home assessment badge and blue for the member sign-in badge.
+- 2026-07-19: Right-aligned the compact account icon and two-line label inside its header pill so its content uses the available right-side space.
+- 2026-07-19: Kept the compact account icon visually paired with its two-line label by constraining the label to a dedicated text column.
+- 2026-07-19: Reworked the compact account copy into two explicit, content-sized lines so the icon and label remain tightly paired without spacer width.
+- 2026-07-19: Reserved a consistent two-line label area for large assessment option cards so their icon row stays aligned across varying labels.
+- 2026-07-19: Split the open sound menu into a fitted volume-slider pill and a separate icon-control panel below it.
+- 2026-07-19: Squared the volume pill, replaced its round thumb with a flat level marker, and made the filled track hue respond to the current volume.
+- 2026-07-19: Rebuilt the welcome plan CTA as a thicker cyan-to-amber frame around a layered, translucent glass gradient fill.
+- 2026-07-19: Added a linear cyan-to-amber light sweep that travels along the welcome plan CTA border, with a brighter, faster pass on hover.
+- 2026-07-19: Constrained assessment choice readouts to an inset safe area inside the active questionnaire panel so they cannot cross its visible border.
+- 2026-07-19: Tightened large-screen assessment option-card label layout so multiword labels use natural line spacing rather than spreading vertically inside the card grid.
+- 2026-07-19: Added a small tone-matched pulse and spark behind the active number in the assessment "Step X of 12" label.

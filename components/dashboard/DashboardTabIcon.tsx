@@ -25,6 +25,7 @@ const aliases: Record<string, string> = {
   Dash: "dashboard",
   Feed: "feed",
   Form: "form",
+  form: "form",
   FAQ: "help",
   Grocery: "grocery",
   Group: "groups",
@@ -38,6 +39,9 @@ const aliases: Record<string, string> = {
   Logic: "logic",
   Meals: "meals",
   Messages: "messages",
+  messages: "messages",
+  Mail: "mail",
+  mail: "mail",
   Metrics: "stats",
   Music: "music",
   Muted: "volume-muted",
@@ -64,7 +68,9 @@ const aliases: Record<string, string> = {
   Skip: "skip",
   Challenges: "challenges",
   Stats: "stats",
+  stats: "stats",
   Tests: "tests",
+  tests: "tests",
   Technique: "form",
   Trends: "stats",
   Trophy: "achievements",
@@ -81,12 +87,14 @@ const aliases: Record<string, string> = {
   Profile: "profile",
   RE: "recovery",
   Recovery: "recovery",
+  recovery: "recovery",
   SW: "soundworld",
   "Sound World": "soundworld",
   WO: "workout",
   Workout: "workout",
   "Workout / Sessions": "workout",
   Volume: "volume",
+  groups: "groups",
 };
 
 function IconSvg(props: SVGProps<SVGSVGElement>) {
@@ -188,6 +196,8 @@ export default function DashboardTabIcon({
       return <IconSvg className={className}><path d="M4 9v6h4l5 4V5L8 9H4Z" /><path d="m18 9 4 4" /><path d="m22 9-4 4" /></IconSvg>;
     case "messages":
       return <IconSvg className={className}><path d="M21 12a8 8 0 0 1-8 8H6l-4 2 2-5a8 8 0 1 1 17-5Z" /><path d="M8 11h8" /><path d="M8 15h5" /></IconSvg>;
+    case "mail":
+      return <IconSvg className={className}><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m4 7 8 6 8-6" /></IconSvg>;
     case "settings":
       return <IconSvg className={className}><path d="M12 15.5A3.5 3.5 0 1 0 12 8a3.5 3.5 0 0 0 0 7.5Z" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.08a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.08A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88l-.06-.06A2 2 0 1 1 7.03 4.2l.06.06a1.7 1.7 0 0 0 1.88.34A1.7 1.7 0 0 0 10 3.04V3a2 2 0 1 1 4 0v.08a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06A2 2 0 1 1 19.8 7.03l-.06.06a1.7 1.7 0 0 0-.34 1.88A1.7 1.7 0 0 0 20.96 10H21a2 2 0 1 1 0 4h-.08A1.7 1.7 0 0 0 19.4 15Z" /></IconSvg>;
     case "help":

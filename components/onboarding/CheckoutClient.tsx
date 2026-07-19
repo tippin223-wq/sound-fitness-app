@@ -24,6 +24,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import AssessmentWebGlIcon, {
@@ -202,6 +203,9 @@ const PLAN_COLUMN_BG: Record<AppPlanId, string> = {
 
 export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
   const [isFooterLogoHighlighted, setIsFooterLogoHighlighted] = useState(false);
+  const [isFooterLogoTapPreviewing, setIsFooterLogoTapPreviewing] =
+    useState(false);
+  const footerLogoTapTimerRef = useRef<number | null>(null);
   const [planId, setPlanId] = useState<AppPlanId>(initialPlan);
   const [state, setState] = useState<CheckoutState>({ status: "idle" });
   // Which plan's "more info" popup is open (null = closed).
@@ -220,6 +224,43 @@ export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
   // The onboarding background song shouldn't follow the user into checkout.
   useEffect(() => {
     soundFx.pauseMusic();
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (footerLogoTapTimerRef.current !== null) {
+        window.clearTimeout(footerLogoTapTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  const handleFooterLogoClick = useCallback(() => {
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    const scrollToCheckout = () =>
+      window.scrollTo({
+        top: 0,
+        behavior: reduceMotion ? "auto" : "smooth",
+      });
+
+    if (!isMobile || reduceMotion) {
+      scrollToCheckout();
+      return;
+    }
+
+    if (footerLogoTapTimerRef.current !== null) {
+      window.clearTimeout(footerLogoTapTimerRef.current);
+    }
+
+    setIsFooterLogoTapPreviewing(true);
+    footerLogoTapTimerRef.current = window.setTimeout(() => {
+      setIsFooterLogoTapPreviewing(false);
+      footerLogoTapTimerRef.current = null;
+      scrollToCheckout();
+    }, 1200);
   }, []);
 
   const startCheckout = useCallback(async (nextPlanId: AppPlanId) => {
@@ -702,7 +743,7 @@ export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
             </div>
 
             <Link
-              href={ROUTES.public.home}
+              href={`${ROUTES.public.home}?return=results`}
               className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-400 transition hover:text-slate-200"
             >
               <ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />
@@ -725,15 +766,7 @@ export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
             it scrolls back up to the plans instead of navigating home. */}
         <button
           type="button"
-          onClick={() => {
-            const reduceMotion = window.matchMedia(
-              "(prefers-reduced-motion: reduce)",
-            ).matches;
-            window.scrollTo({
-              top: 0,
-              behavior: reduceMotion ? "auto" : "smooth",
-            });
-          }}
+          onClick={handleFooterLogoClick}
           onPointerEnter={() => setIsFooterLogoHighlighted(true)}
           onPointerLeave={() => setIsFooterLogoHighlighted(false)}
           onPointerCancel={() => setIsFooterLogoHighlighted(false)}
@@ -746,11 +779,15 @@ export default function CheckoutClient({ initialPlan }: CheckoutClientProps) {
           <MarketingHeaderLogo3D
             alwaysOpen
             className="!w-[13.37rem] max-w-[calc(100vw-3rem)]"
-            highlighted={isFooterLogoHighlighted}
+            highlighted={isFooterLogoHighlighted || isFooterLogoTapPreviewing}
           />
           {/* Only shown while the logo is highlighted (hover/keyboard focus) —
               opacity keeps the space reserved so nothing shifts. */}
-          <span className="mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-sky-200/50 bg-sky-400/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-50 opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
+          <span
+            className={`mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-sky-200/50 bg-sky-400/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-sky-50 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100 ${
+              isFooterLogoTapPreviewing ? "opacity-100" : "opacity-0"
+            }`}
+          >
             ↑ Back to checkout
           </span>
         </button>

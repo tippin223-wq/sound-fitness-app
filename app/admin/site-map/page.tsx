@@ -333,13 +333,6 @@ const siteMap: PageNode[] = [
         "Admin landing route.",
       ),
       route(
-        "Admin Dashboard",
-        ROUTES.admin.dashboard,
-        "Admin Portal",
-        "Active Secondary",
-        "Admin business overview.",
-      ),
-      route(
         "Clients",
         ROUTES.admin.clients,
         "Admin Portal",

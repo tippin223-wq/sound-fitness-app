@@ -55,7 +55,7 @@ export default function AdminLayout({
   if (pathname === ROUTES.admin.login) return <>{children}</>;
 
   if (
-    pathname === ROUTES.admin.dashboard ||
+    pathname === ROUTES.admin.home ||
     pathname === ROUTES.admin.mainDashboardPreview
   ) {
     return <ProfileProvider>{children}</ProfileProvider>;

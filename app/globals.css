@@ -19852,6 +19852,12 @@ main.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   will-change: auto;
 }
 
+@media (max-width: 719px) {
+  .dashboard-page-orbiter--admin .dashboard-page-analog-anchor {
+    left: 5.25rem !important;
+  }
+}
+
 .dashboard-page-orbit-node::before {
   content: "";
   display: none;
@@ -19996,6 +20002,33 @@ main.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   font-size: 0.48rem;
   font-weight: 950;
   letter-spacing: 0.05em;
+}
+
+.dashboard-page-level-meter-control--earnings
+  .dashboard-page-level-meter-tab__label {
+  font-size: 0.48rem;
+  letter-spacing: 0.04em;
+}
+
+.dashboard-page-level-meter-control--earnings
+  .dashboard-page-level-meter-tab__value {
+  margin-left: -0.27rem;
+  width: 2.7rem;
+}
+
+.dashboard-page-level-meter-control--earnings .dashboard-page-analog-rail__cap {
+  min-width: 2.5rem;
+}
+
+.dashboard-page-level-meter-control--earnings
+  .dashboard-page-analog-rail__marker {
+  font-size: 0.34rem;
+  width: 2.72rem;
+}
+
+.dashboard-page-level-meter-control--earnings
+  .dashboard-page-analog-rail__badge {
+  min-width: 2.46rem;
 }
 
 .dashboard-page-level-meter-panel {
@@ -20321,33 +20354,35 @@ main.dashboard-page--page-analog-active.dashboard-page--page-analog-active
 .dashboard-hover-tooltip {
   --dashboard-tooltip-base-y: 0px;
   --dashboard-tooltip-enter-y: -0.18rem;
-  animation: dashboard-hover-tooltip-rise 160ms ease both;
+  animation: dashboard-hover-tooltip-rise 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
   background:
-    linear-gradient(135deg, rgba(15, 23, 42, 0.78), rgba(2, 6, 23, 0.72)),
+    linear-gradient(135deg, rgba(18, 35, 58, 0.98), rgba(3, 10, 24, 0.98)),
     radial-gradient(
-      circle at 16% 0%,
-      rgba(34, 211, 238, 0.22),
-      transparent 46%
+      circle at 12% 0%,
+      rgba(34, 211, 238, 0.3),
+      transparent 50%
     ),
     radial-gradient(
-      circle at 88% 28%,
-      rgba(250, 204, 21, 0.16),
-      transparent 42%
+      circle at 94% 100%,
+      rgba(251, 146, 60, 0.18),
+      transparent 48%
     );
-  border: 1px solid rgba(125, 211, 252, 0.26);
-  border-radius: 0.66rem;
+  border: 1px solid rgba(103, 232, 249, 0.56);
+  border-radius: 0.38rem;
   box-shadow:
-    0 14px 34px rgba(2, 6, 23, 0.46),
-    0 0 20px rgba(34, 211, 238, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  color: rgba(236, 254, 255, 0.94);
-  font-size: 0.58rem;
-  font-weight: 900;
+    0 14px 32px rgba(2, 6, 23, 0.6),
+    0 0 0 1px rgba(251, 191, 36, 0.18) inset,
+    0 0 22px rgba(34, 211, 238, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  color: rgba(240, 253, 250, 0.98);
+  font-size: 0.62rem;
+  font-weight: 800;
+  isolation: isolate;
   left: var(--dashboard-tooltip-x);
-  letter-spacing: 0.08em;
-  line-height: 1.25;
-  max-width: min(16rem, 72vw);
-  padding: 0.42rem 0.58rem;
+  letter-spacing: 0.075em;
+  line-height: 1.35;
+  max-width: min(18rem, calc(100vw - 1.5rem));
+  padding: 0.5rem 0.68rem;
   pointer-events: none;
   position: fixed;
   text-align: center;
@@ -20358,14 +20393,49 @@ main.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   z-index: 1000;
 }
 
+.dashboard-hover-tooltip::after {
+  background: linear-gradient(90deg, #67e8f9, #fbbf24, transparent);
+  content: "";
+  height: 1px;
+  left: 0.62rem;
+  opacity: 0.88;
+  position: absolute;
+  right: 0.62rem;
+  top: 0.24rem;
+}
+
+.dashboard-hover-tooltip::before {
+  background: rgba(8, 20, 39, 0.98);
+  content: "";
+  height: 0.58rem;
+  left: 50%;
+  position: absolute;
+  width: 0.58rem;
+  z-index: 0;
+}
+
 .dashboard-hover-tooltip--below {
   --dashboard-tooltip-base-y: 0px;
   --dashboard-tooltip-enter-y: -0.18rem;
 }
 
+.dashboard-hover-tooltip--below::before {
+  border-left: 1px solid rgba(103, 232, 249, 0.56);
+  border-top: 1px solid rgba(103, 232, 249, 0.56);
+  top: -0.33rem;
+  transform: translateX(-50%) rotate(45deg);
+}
+
 .dashboard-hover-tooltip--above {
   --dashboard-tooltip-base-y: -100%;
   --dashboard-tooltip-enter-y: 0.18rem;
+}
+
+.dashboard-hover-tooltip--above::before {
+  border-bottom: 1px solid rgba(103, 232, 249, 0.56);
+  border-right: 1px solid rgba(103, 232, 249, 0.56);
+  bottom: -0.33rem;
+  transform: translateX(-50%) rotate(45deg);
 }
 
 .dashboard-profile-upper-actions {

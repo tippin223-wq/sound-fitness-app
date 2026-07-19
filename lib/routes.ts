@@ -122,7 +122,6 @@ export const ADMIN_ROUTES = {
   aiPrompt: route("/admin/ai-prompt"),
   clients: route("/admin/clients"),
   crmDashboard: route("/admin/crm-dashboard"),
-  dashboard: route("/admin/dashboard"),
   followUps: route("/admin/follow-ups"),
   invoices: route("/admin/invoices"),
   leadMap: route("/admin/lead-map"),

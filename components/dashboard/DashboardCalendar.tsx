@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Maximize2, Minimize2 } from "lucide-react";
 import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
 
 type CalendarView = "week" | "month";
@@ -27,6 +28,8 @@ export type DashboardCalendarItem = {
 };
 
 type DashboardCalendarProps = {
+  collapsible?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
   items?: DashboardCalendarItem[];
   orbitCommand?: CalendarOrbitCommand | null;
 };
@@ -369,11 +372,14 @@ function groupEventsByDate(events: CalendarEvent[]) {
 }
 
 export default function DashboardCalendar({
+  collapsible = false,
+  onCollapsedChange,
   items,
   orbitCommand,
 }: DashboardCalendarProps) {
   const [today] = useState<Date>(() => startOfDay(new Date()));
   const [view, setView] = useState<CalendarView>("week");
+  const [collapsed, setCollapsed] = useState(false);
   const [cursorDate, setCursorDate] = useState<Date | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDayDropdownOpen, setSelectedDayDropdownOpen] = useState(false);
@@ -412,6 +418,7 @@ export default function DashboardCalendar({
   const dayRailDays = useMemo(() => getDayRailDays(activeToday), [activeToday]);
   const monthDays = useMemo(() => getMonthDays(activeCursorDate), [activeCursorDate]);
   const selectedEvents = eventsByDate[toDateKey(activeSelectedDate)] || [];
+  const todayEvents = eventsByDate[toDateKey(activeToday)] || [];
   const calendarReady = Boolean(today);
   const selectedDaySubLabel =
     calendarReady && isSameDate(activeSelectedDate, activeToday)
@@ -425,21 +432,15 @@ export default function DashboardCalendar({
   const weekInViewLabel = `${compactDateFormatter.format(
     weekInViewStart,
   )} - ${compactDateFormatter.format(weekInViewEnd)}`;
+  const weekDays = useMemo(
+    () => Array.from({ length: 7 }, (_, index) => addDays(weekInViewStart, index)),
+    [weekInViewStart],
+  );
   const calendarDateLabel = calendarReady
     ? view === "week"
       ? weekInViewLabel
       : monthTitleFormatter.format(activeCursorDate)
     : "Loading current dates";
-  const selectedDayRailIndex = dayRailDays.findIndex((day) =>
-    isSameDate(day, activeSelectedDate),
-  );
-  const todayDayRailIndex = dayRailDays.findIndex((day) =>
-    isSameDate(day, activeToday),
-  );
-  const activeDayOrbitIndex =
-    selectedDayRailIndex >= 0
-      ? selectedDayRailIndex
-      : Math.max(0, todayDayRailIndex);
   const viewingToday =
     view === "week"
       ? isSameDate(activeSelectedDate, activeToday)
@@ -516,41 +517,89 @@ export default function DashboardCalendar({
   return (
     <section
       className={`dashboard-calendar-card relative w-full overflow-hidden border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/15 backdrop-blur ${
-        view === "month"
+        collapsed
+          ? "rounded-[22px] p-3 sm:p-4"
+          : view === "month"
           ? "rounded-[26px] p-3 sm:p-4"
           : "flex min-h-[calc(100svh-12rem)] flex-col rounded-[32px] p-4 sm:p-5"
       }`}
     >
+      {collapsed ? (
+        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+          <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-amber-300/30 bg-amber-300/10 text-center shadow-[0_0_24px_rgba(252,211,77,0.1)]">
+            <span className="block text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
+              {longWeekdayFormatter.format(activeSelectedDate).slice(0, 3)}
+            </span>
+            <span className="-mt-1 block text-2xl font-black leading-none text-white">
+              {activeSelectedDate.getDate()}
+            </span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">
+              Dashboard Calendar
+            </p>
+            <p className="mt-1 text-lg font-black text-white">
+              {isSameDate(activeSelectedDate, activeToday)
+                ? "Today"
+                : compactDateFormatter.format(activeSelectedDate)}
+            </p>
+            <p className="mt-0.5 truncate text-xs font-semibold text-slate-400">
+              {selectedEvents.length
+                ? selectedEvents.map((event) => event.title).join(" / ")
+                : "Nothing scheduled yet"}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              aria-label="Previous week"
+              className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-slate-950/58 text-sm font-black text-slate-300 transition hover:border-cyan-300/35 hover:bg-cyan-300/10 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-45"
+              disabled={!calendarReady}
+              onClick={() => moveRange("previous")}
+              title="Previous week"
+              type="button"
+            >
+              &lt;
+            </button>
+            <button
+              aria-label="Next week"
+              className="grid h-10 w-10 place-items-center rounded-xl border border-white/10 bg-slate-950/58 text-sm font-black text-slate-300 transition hover:border-cyan-300/35 hover:bg-cyan-300/10 hover:text-cyan-100 disabled:cursor-not-allowed disabled:opacity-45"
+              disabled={!calendarReady}
+              onClick={() => moveRange("next")}
+              title="Next week"
+              type="button"
+            >
+              &gt;
+            </button>
+          </div>
+          {collapsible ? (
+            <button
+              aria-label="Expand calendar"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-cyan-200/24 bg-cyan-300/10 text-cyan-100 transition hover:border-cyan-200/50 hover:bg-cyan-300/18"
+              onClick={() => {
+                setCollapsed(false);
+                onCollapsedChange?.(false);
+              }}
+              title="Expand calendar"
+              type="button"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+          ) : null}
+        </div>
+      ) : (
+        <>
       <div
-        className={`flex flex-col min-[760px]:flex-row min-[760px]:items-start min-[760px]:justify-between ${
+        className={`flex flex-col min-[1180px]:flex-row min-[1180px]:items-start min-[1180px]:justify-between ${
           view === "month" ? "gap-2" : "gap-3"
         }`}
       >
-        <div className="min-w-0 min-[760px]:max-w-[640px]">
-          <div className="flex min-w-0 flex-col gap-1 min-[560px]:flex-row min-[560px]:items-baseline min-[560px]:gap-3">
-            <p className="shrink-0 text-[11px] font-black uppercase tracking-[0.24em] text-amber-300">
-              Dashboard Calendar
-            </p>
-            <p
-              className={`min-w-0 max-w-full whitespace-nowrap font-black uppercase leading-none tracking-normal text-cyan-50 [text-shadow:0_0_24px_rgba(34,211,238,0.16)] ${
-                view === "month"
-                  ? "text-[clamp(1rem,3vw,1.5rem)]"
-                  : "text-[clamp(1.2rem,4.5vw,2.75rem)]"
-              }`}
-            >
-              {calendarDateLabel}
-            </p>
-          </div>
-          <h2
-            className={`font-black tracking-tight text-white ${
-              view === "month" ? "mt-1 text-xl sm:text-2xl" : "mt-2 text-2xl"
-            }`}
-          >
-            Training, recovery, and nutrition markers
-          </h2>
+        <div className="min-w-0 min-[1180px]:max-w-[640px]">
+          <p className="shrink-0 text-[11px] font-black uppercase tracking-[0.24em] text-amber-300">
+            Dashboard Calendar
+          </p>
         </div>
 
-        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end min-[760px]:ml-auto min-[760px]:pt-1">
+        <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end min-[1180px]:ml-auto min-[1180px]:pt-1">
           <div className="inline-flex rounded-full border border-white/10 bg-slate-950/58 p-1">
             {(["week", "month"] as const).map((option) => (
               <button
@@ -570,37 +619,21 @@ export default function DashboardCalendar({
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          {collapsible ? (
             <button
-              aria-label={`Previous ${view}`}
-              className="h-10 w-10 rounded-2xl border border-white/10 bg-slate-950/58 text-sm font-black text-slate-300 transition hover:border-cyan-300/35 hover:bg-cyan-300/10 hover:text-cyan-100"
-              disabled={!calendarReady}
-              onClick={() => moveRange("previous")}
+              aria-label="Collapse calendar to today"
+              className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-slate-950/58 text-slate-300 transition hover:border-cyan-300/35 hover:bg-cyan-300/10 hover:text-cyan-100"
+              onClick={() => {
+                setCollapsed(true);
+                setSelectedDayDropdownOpen(false);
+                onCollapsedChange?.(true);
+              }}
+              title="Collapse calendar"
               type="button"
             >
-              &lt;
+              <Minimize2 className="h-4 w-4" />
             </button>
-            <button
-              aria-label={`Today - show ${weekInViewLabel} week in view`}
-              className="min-h-10 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-amber-100 transition hover:bg-amber-300 hover:text-slate-950"
-              onClick={() => jumpToToday({ focusWeek: true })}
-              type="button"
-            >
-              <span className="block leading-none">Today</span>
-              <span className="mt-1 block text-[8px] tracking-[0.12em] opacity-75">
-                Week in view
-              </span>
-            </button>
-            <button
-              aria-label={`Next ${view}`}
-              className="h-10 w-10 rounded-2xl border border-white/10 bg-slate-950/58 text-sm font-black text-slate-300 transition hover:border-cyan-300/35 hover:bg-cyan-300/10 hover:text-cyan-100"
-              disabled={!calendarReady}
-              onClick={() => moveRange("next")}
-              type="button"
-            >
-              &gt;
-            </button>
-          </div>
+          ) : null}
         </div>
       </div>
 
@@ -647,166 +680,120 @@ export default function DashboardCalendar({
           ) : null}
 
           {view === "week" ? (
-            <div className="relative flex min-h-[360px] flex-1 flex-col">
-              <div
-                aria-label="Calendar day orbital scroller"
-                className="relative min-h-[360px] flex-1 overflow-visible px-12 py-4 [perspective:1300px] [scrollbar-width:none] sm:min-h-[420px] lg:min-h-[calc(100svh-24rem)] [&::-webkit-scrollbar]:hidden"
-              >
-                <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-slate-950/82 via-slate-950/38 to-transparent" />
-                <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-slate-950/82 via-slate-950/38 to-transparent" />
-                <div className="pointer-events-none absolute inset-x-14 top-1/2 h-px bg-gradient-to-r from-transparent via-cyan-200/35 to-transparent" />
-                <div className="absolute inset-x-12 top-1/2 h-[224px] -translate-y-1/2 [transform-style:preserve-3d]">
-                  {dayRailDays.map((day, dayIndex) => {
-                    const orbitDistance = dayIndex - activeDayOrbitIndex;
-                    const orbitDepth = Math.abs(orbitDistance);
+            <div
+              aria-label="Week at a glance"
+              className="flex min-h-0 flex-1 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-color:rgba(34,211,238,0.48)_rgba(15,23,42,0.64)] [scrollbar-width:thin] [touch-action:pan-x] [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/45 [&::-webkit-scrollbar-track]:bg-slate-950/55"
+            >
+              <div className="flex min-h-full min-w-max flex-1 gap-3 pr-3">
+                {weekDays.map((day) => {
+                const dayKey = toDateKey(day);
+                const dayEvents = eventsByDate[dayKey] || [];
+                const todayActive = isSameDate(day, activeToday);
+                const selected = isSameDate(day, activeSelectedDate);
+                const assignedEventIndexes = new Set<number>();
+                const getTimelineEvent = (
+                  slotKind: (typeof dailyTimelineSlots)[number]["kind"],
+                ) => {
+                  const matchIndex = dayEvents.findIndex((event, eventIndex) => {
+                    if (assignedEventIndexes.has(eventIndex)) return false;
 
-                    if (orbitDepth > 3) return null;
+                    return slotKind === "meal"
+                      ? event.type === "nutrition"
+                      : [
+                          "cardio",
+                          "completed",
+                          "performance",
+                          "training",
+                          "workout",
+                        ].includes(event.type);
+                  });
 
-                    const dayKey = toDateKey(day);
-                    const dayEvents = eventsByDate[dayKey] || [];
-                    const todayActive = isSameDate(day, activeToday);
-                    const selected = isSameDate(day, activeSelectedDate);
-                    const orbitDirection = orbitDistance < 0 ? -1 : 1;
-                    const orbitSlots = [
-                      { opacity: 1, rotateY: 0, scale: 1, x: 0, y: 0, z: 120 },
-                      { opacity: 0.82, rotateY: 28, scale: 0.88, x: 188, y: 12, z: -10 },
-                      { opacity: 0.48, rotateY: 42, scale: 0.76, x: 326, y: 26, z: -150 },
-                      { opacity: 0.24, rotateY: 54, scale: 0.64, x: 432, y: 38, z: -280 },
-                    ];
-                    const orbitSlot = orbitSlots[orbitDepth];
-                    const orbitTransform = [
-                      "translate(-50%, -50%)",
-                      `translateX(${orbitDirection * orbitSlot.x}px)`,
-                      `translateY(${orbitSlot.y}px)`,
-                      `translateZ(${orbitSlot.z}px)`,
-                      `rotateY(${orbitDirection * -orbitSlot.rotateY}deg)`,
-                      `scale(${orbitSlot.scale})`,
-                    ].join(" ");
+                  if (matchIndex < 0) return null;
+                  assignedEventIndexes.add(matchIndex);
+                  return dayEvents[matchIndex];
+                };
 
-                    const assignedEventIndexes = new Set<number>();
-                    const getTimelineEvent = (
-                      slotKind: (typeof dailyTimelineSlots)[number]["kind"],
-                    ) => {
-                      const matchIndex = dayEvents.findIndex((event, eventIndex) => {
-                        if (assignedEventIndexes.has(eventIndex)) return false;
+                return (
+                  <article
+                    aria-label={`${longWeekdayFormatter.format(day)} ${day.getDate()} daily timeline`}
+                    className={`flex min-h-[26rem] w-[19rem] shrink-0 flex-col rounded-[20px] border p-3 text-left shadow-xl transition hover:border-cyan-300/45 hover:bg-cyan-300/10 ${
+                      selected
+                        ? "border-cyan-300/40 bg-cyan-300/10 shadow-[0_0_28px_rgba(34,211,238,0.12)]"
+                        : todayActive
+                          ? "border-amber-300/35 bg-amber-300/8"
+                          : "border-white/10 bg-slate-950/55"
+                    }`}
+                    key={dayKey}
+                  >
+                    <button
+                      aria-pressed={selected}
+                      className="flex w-full min-w-0 items-start justify-between gap-2 rounded-xl text-left transition hover:bg-white/[0.035] disabled:cursor-not-allowed"
+                      disabled={!calendarReady}
+                      onClick={() => selectDay(day)}
+                      type="button"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-black uppercase tracking-[0.12em] text-white">
+                          {longWeekdayFormatter.format(day).slice(0, 3)}
+                        </span>
+                        <span className="mt-1.5 block text-[2rem] font-black leading-none text-white">
+                          {day.getDate()}
+                        </span>
+                      </span>
+                      {todayActive ? (
+                        <span className="shrink-0 rounded-full border border-amber-300/30 bg-amber-300/12 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-amber-100">
+                          Today
+                        </span>
+                      ) : null}
+                    </button>
 
-                        return slotKind === "meal"
-                          ? event.type === "nutrition"
-                          : [
-                              "cardio",
-                              "completed",
-                              "performance",
-                              "training",
-                              "workout",
-                            ].includes(event.type);
-                      });
+                    <div className="mt-3 flex flex-1 flex-col justify-between gap-1.5">
+                      {dailyTimelineSlots.map((slot) => {
+                        const slotEvent = getTimelineEvent(slot.kind);
+                        const isMeal = slot.kind === "meal";
 
-                      if (matchIndex < 0) return null;
-
-                      assignedEventIndexes.add(matchIndex);
-                      return dayEvents[matchIndex];
-                    };
-
-                    return (
-                      <div
-                        aria-label={`${longWeekdayFormatter
-                          .format(day)
-                          .slice(0, 3)} ${day.getDate()} daily timeline`}
-                        className={`absolute left-1/2 top-1/2 h-[224px] w-44 rounded-[24px] border p-3 text-left shadow-2xl transition duration-500 hover:border-cyan-300/45 hover:bg-cyan-300/10 ${
-                          selected
-                            ? "border-cyan-300/40 bg-cyan-300/10 shadow-[0_0_28px_rgba(34,211,238,0.12)]"
-                            : todayActive
-                              ? "border-amber-300/35 bg-amber-300/8"
-                              : "border-white/10 bg-slate-950/55"
-                        }`}
-                        data-calendar-orbit-card="true"
-                        key={dayKey}
-                        style={{
-                          filter:
-                            orbitDepth > 1
-                              ? `saturate(${1 - orbitDepth * 0.13}) blur(${(orbitDepth - 1) * 0.2}px)`
-                              : undefined,
-                          opacity: orbitSlot.opacity,
-                          pointerEvents: orbitDepth > 2 ? "none" : "auto",
-                          transform: orbitTransform,
-                          zIndex: 50 - orbitDepth * 8,
-                        }}
-                      >
-                        <button
-                          aria-pressed={selected}
-                          className="flex w-full min-w-0 items-start justify-between gap-2 rounded-2xl text-left transition hover:bg-white/[0.035] disabled:cursor-not-allowed"
-                          disabled={!calendarReady}
-                          onClick={() => selectDay(day)}
-                          type="button"
-                        >
-                          <span className="min-w-0">
-                            <span className="block truncate text-xs font-black uppercase tracking-[0.12em] text-white">
-                              {longWeekdayFormatter.format(day).slice(0, 3)}
+                        return (
+                          <button
+                            aria-label={`${slotEvent ? "Open" : slot.helper} ${slot.label} on ${compactDateFormatter.format(day)}`}
+                            className={`group flex w-full min-w-0 items-center gap-2 rounded-xl border px-2 py-1.5 text-left transition hover:-translate-y-0.5 ${
+                              slotEvent
+                                ? typeStyles[slotEvent.type]
+                                : isMeal
+                                  ? "border-amber-300/22 bg-amber-300/[0.055] text-amber-100/82 hover:border-amber-200/42 hover:bg-amber-300/12"
+                                  : "border-sky-300/22 bg-sky-300/[0.055] text-sky-100/82 hover:border-sky-200/42 hover:bg-sky-300/12"
+                            }`}
+                            key={`${dayKey}-${slot.key}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              selectDay(day);
+                            }}
+                            type="button"
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={`grid h-6 w-6 shrink-0 place-items-center rounded-lg border ${
+                                isMeal
+                                  ? "border-amber-200/26 bg-amber-300/10"
+                                  : "border-sky-200/26 bg-sky-300/10"
+                              }`}
+                            >
+                              <DashboardTabIcon className="h-3.5 w-3.5" name={slot.icon} />
                             </span>
-                            <span className="mt-1.5 block text-[2rem] font-black leading-none text-white">
-                              {day.getDate()}
+                            <span className="min-w-0">
+                              <span className="block truncate text-[9px] font-black uppercase tracking-[0.1em]">
+                                {slot.label}
+                              </span>
+                              <span className="mt-0.5 block truncate text-[8px] font-bold uppercase tracking-[0.09em] opacity-70">
+                                {slotEvent ? slotEvent.title : slot.helper}
+                              </span>
                             </span>
-                          </span>
-                          {todayActive ? (
-                            <span className="shrink-0 rounded-full border border-amber-300/30 bg-amber-300/12 px-1.5 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] text-amber-100">
-                              Today
-                            </span>
-                          ) : null}
-                        </button>
-
-                        <div className="mt-3 h-[136px] space-y-1.5 overflow-y-auto pr-1 [scrollbar-color:rgba(34,211,238,0.34)_rgba(15,23,42,0.54)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58">
-                          {dailyTimelineSlots.map((slot) => {
-                            const slotEvent = getTimelineEvent(slot.kind);
-                            const isMeal = slot.kind === "meal";
-
-                            return (
-                              <button
-                                aria-label={`${slotEvent ? "Open" : slot.helper} ${slot.label} on ${compactDateFormatter.format(day)}`}
-                                className={`group flex w-full items-center gap-2 rounded-xl border px-2 py-1.5 text-left transition hover:-translate-y-0.5 ${
-                                  slotEvent
-                                    ? typeStyles[slotEvent.type]
-                                    : isMeal
-                                      ? "border-amber-300/22 bg-amber-300/[0.055] text-amber-100/82 hover:border-amber-200/42 hover:bg-amber-300/12"
-                                      : "border-sky-300/22 bg-sky-300/[0.055] text-sky-100/82 hover:border-sky-200/42 hover:bg-sky-300/12"
-                                }`}
-                                key={`${dayKey}-${slot.key}`}
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  selectDay(day);
-                                }}
-                                type="button"
-                              >
-                                <span
-                                  aria-hidden="true"
-                                  className={`grid h-6 w-6 shrink-0 place-items-center rounded-lg border ${
-                                    isMeal
-                                      ? "border-amber-200/26 bg-amber-300/10"
-                                      : "border-sky-200/26 bg-sky-300/10"
-                                  }`}
-                                >
-                                  <DashboardTabIcon
-                                    className="h-3.5 w-3.5"
-                                    name={slot.icon}
-                                  />
-                                </span>
-                                <span className="min-w-0">
-                                  <span className="block truncate text-[9px] font-black uppercase tracking-[0.1em]">
-                                    {slot.label}
-                                  </span>
-                                  <span className="mt-0.5 block truncate text-[8px] font-bold uppercase tracking-[0.09em] opacity-70">
-                                    {slotEvent
-                                      ? slotEvent.title
-                                      : slot.helper}
-                                  </span>
-                                </span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </article>
+                  );
+                })}
               </div>
             </div>
           ) : (
@@ -883,8 +870,46 @@ export default function DashboardCalendar({
         </div>
 
       </div>
+      <div className="mt-3 flex flex-col gap-2 border-t border-white/10 pt-3 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between">
+        <p className="min-w-0 whitespace-nowrap text-xl font-black uppercase leading-none tracking-normal text-cyan-50 [text-shadow:0_0_24px_rgba(34,211,238,0.16)]">
+          {calendarDateLabel}
+        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            aria-label={`Previous ${view}`}
+            className="h-10 w-10 rounded-2xl border border-white/10 bg-slate-950/58 text-sm font-black text-slate-300 transition hover:border-cyan-300/35 hover:bg-cyan-300/10 hover:text-cyan-100"
+            disabled={!calendarReady}
+            onClick={() => moveRange("previous")}
+            type="button"
+          >
+            &lt;
+          </button>
+          <button
+            aria-label={`Today - show ${weekInViewLabel} week in view`}
+            className="min-h-10 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-amber-100 transition hover:bg-amber-300 hover:text-slate-950"
+            onClick={() => jumpToToday({ focusWeek: true })}
+            type="button"
+          >
+            <span className="block leading-none">Today</span>
+            <span className="mt-1 block text-[8px] tracking-[0.12em] opacity-75">
+              Week in view
+            </span>
+          </button>
+          <button
+            aria-label={`Next ${view}`}
+            className="h-10 w-10 rounded-2xl border border-white/10 bg-slate-950/58 text-sm font-black text-slate-300 transition hover:border-cyan-300/35 hover:bg-cyan-300/10 hover:text-cyan-100"
+            disabled={!calendarReady}
+            onClick={() => moveRange("next")}
+            type="button"
+          >
+            &gt;
+          </button>
+        </div>
+      </div>
+        </>
+      )}
 
-      {selectedDayDropdownOpen ? (
+      {!collapsed && selectedDayDropdownOpen ? (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-end justify-end bg-slate-950/8 p-4 sm:p-5">
           <div
             data-dashboard-orbiter-local-scroll="true"

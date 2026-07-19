@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
+import { createPortal } from "react-dom";
 import {
   Activity,
   AppWindow,
@@ -67,6 +68,7 @@ import {
 import {
   type CSSProperties,
   Fragment,
+  type MouseEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -134,10 +136,18 @@ type SetupItem = {
   value: string;
 };
 
+type ReadinessScore = {
+  criteria: string[];
+  description: string;
+  label: string;
+  score: number;
+};
+
 type ResultProfile = {
   body: string;
   exerciseFocus: string;
   icon: AssessmentIconGlyph;
+  readiness: ReadinessScore;
   service: string;
   servicePills: string[];
   setupItems: SetupItem[];
@@ -159,12 +169,30 @@ type SelectionMotion = {
   step: number;
 };
 
+type SelectionInsight = {
+  accent: string;
+  id: number;
+  option: string;
+  text: string;
+};
+
+type SelectionInsightPosition = {
+  focusRadius?: number;
+  focusX?: number;
+  focusY?: number;
+  left: number;
+  maxHeight?: number;
+  top: number;
+  width: number;
+};
+
 const STORAGE_KEY = "soundFitnessPreSignInStartingPlan";
 const OPTION_SELECTION_FLICKER_MS = 900;
 const OPTION_SELECTION_FADE_MS = 260;
 const OPTION_MULTI_SELECTION_MS = 620;
 const NEXT_LAUNCH_MS = 360;
 const RESET_TRANSITION_MS = 340;
+const SELECTION_INSIGHT_DURATION_MS = 5000;
 
 const defaultAnswers: LeadAssessmentAnswers = {
   cityZip: "",
@@ -190,7 +218,7 @@ const defaultAnswers: LeadAssessmentAnswers = {
 const questions: Question[] = [
   {
     key: "mainGoal",
-    title: "What should your plan help you improve first?",
+    title: "What should your plan help you improve most?",
     helper: "Choose the win that would make the next month feel different.",
     icon: "target",
     tone: "sky",
@@ -243,7 +271,7 @@ const questions: Question[] = [
     tone: "amber",
     options: [
       "Bodyweight only",
-      "Dumbbells",
+      "Free weights",
       "Bands",
       "Bench or box",
       "Cardio machine",
@@ -551,6 +579,12 @@ const optionVisuals: Record<string, OptionVisual> = {
     Icon: PersonStanding,
     photo: "/onboarding-location-open-floor.jpg",
     photoPosition: "center 48%",
+  },
+  "Free weights": {
+    accent: "34 211 238",
+    Icon: Dumbbell,
+    photo: "/onboarding-equipment-dumbbells.jpg",
+    photoPosition: "44% 50%",
   },
   Dumbbells: {
     accent: "34 211 238",
@@ -1031,6 +1065,241 @@ function formatAnswerList(items: string[], fallback: string) {
   return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
 }
 
+const readinessPoints = {
+  environment: {
+    "Commercial gym": 7,
+    "Garage/home gym": 6,
+    "Mix changes weekly": 4,
+    "Open floor at home": 5,
+    "Outdoors/travel": 4,
+    "Small room/apartment": 3,
+  },
+  experience: {
+    Advanced: 15,
+    "Brand new": 5,
+    "Coming back from injury": 4,
+    Returning: 10,
+    "Some experience": 13,
+  },
+  sessionLength: {
+    "10-15 minutes": 5,
+    "20-30 minutes": 9,
+    "30-45 minutes": 12,
+    "45-60 minutes": 14,
+    "Tiny backup sessions": 5,
+  },
+  trainingAvailability: {
+    "2 days/week": 8,
+    "3 days/week": 12,
+    "4 days/week": 15,
+    "5+ days/week": 16,
+    "Flexible week to week": 9,
+  },
+} as const;
+
+const readinessEquipmentPoints: Record<string, number> = {
+  "Bands": 4,
+  "Bench or box": 3,
+  "Bodyweight only": 3,
+  "Cardio machine": 3,
+  "Free weights": 6,
+  "Full gym access": 8,
+};
+
+const readinessRecoveryPoints: Record<string, number> = {
+  "Low energy": -4,
+  "Poor sleep": -4,
+  "Pretty steady": 5,
+  "Ready to push": 7,
+  "Sore often": -3,
+  "Stress is high": -4,
+};
+
+const readinessLimitationPoints: Record<string, number> = {
+  "Back or neck": -4,
+  "Knees or hips": -3,
+  "Low impact only": -3,
+  "No major limits": 4,
+  "Pain or stiffness": -5,
+  "Shoulders or wrists": -3,
+};
+
+function getReadinessScore(answers: LeadAssessmentAnswers): ReadinessScore {
+  const scoreSingle = <T extends Record<string, number>>(
+    options: T,
+    value: string,
+  ) => options[value] ?? 0;
+  const scoreSelected = (options: Record<string, number>, values: string[]) =>
+    values.reduce((total, value) => total + (options[value] ?? 0), 0);
+  const hasSpecificLimit = answers.limitation.some(
+    (item) => item !== "No major limits",
+  );
+  const equipmentScore = Math.min(
+    10,
+    scoreSelected(readinessEquipmentPoints, answers.equipment),
+  );
+  const confidenceScore = Math.min(
+    10,
+    answers.movementConfidence.length * 2,
+  );
+  const recoveryScore = scoreSelected(
+    readinessRecoveryPoints,
+    answers.recoveryBaseline,
+  );
+  const limitationScore = hasSpecificLimit
+    ? scoreSelected(readinessLimitationPoints, answers.limitation.filter(
+        (item) => item !== "No major limits",
+      ))
+    : scoreSelected(readinessLimitationPoints, answers.limitation);
+  const coachingScore = Math.min(4, answers.coachingStyle.length);
+  const score = Math.max(
+    35,
+    Math.min(
+      100,
+      Math.round(
+        28 +
+          scoreSingle(readinessPoints.experience, answers.experience) +
+          scoreSingle(
+            readinessPoints.trainingAvailability,
+            answers.trainingAvailability,
+          ) +
+          scoreSingle(readinessPoints.sessionLength, answers.sessionLength) +
+          scoreSingle(
+            readinessPoints.environment,
+            answers.trainingEnvironment,
+          ) +
+          equipmentScore +
+          confidenceScore +
+          recoveryScore +
+          limitationScore +
+          coachingScore,
+      ),
+    ),
+  );
+  const criteria = [
+    answers.experience || "Starting experience",
+    answers.movementConfidence.length
+      ? `${answers.movementConfidence.length} comfortable movement styles`
+      : "Movement comfort to explore",
+    hasSpecificLimit
+      ? `Protect ${answers.limitation.slice(0, 2).join(" + ")}`
+      : "No major limits reported",
+    answers.recoveryBaseline.includes("Pretty steady") ||
+    answers.recoveryBaseline.includes("Ready to push")
+      ? "Steady recovery base"
+      : answers.recoveryBaseline[0]
+        ? `${answers.recoveryBaseline[0]} recovery signal`
+        : "Recovery-aware plan",
+  ];
+
+  if (score >= 85) {
+    return {
+      score,
+      label: "Ready to build",
+      description:
+        "Your time, confidence, and recovery signals support a progressive starting plan with clear next steps.",
+      criteria,
+    };
+  }
+
+  if (score >= 70) {
+    return {
+      score,
+      label: "Ready with structure",
+      description:
+        "You have a practical base to begin. A structured plan will keep the pace realistic and repeatable.",
+      criteria,
+    };
+  }
+
+  if (score >= 55) {
+    return {
+      score,
+      label: "Supported start",
+      description:
+        "Your plan should begin with focused sessions, clear modifications, and room to build momentum safely.",
+      criteria,
+    };
+  }
+
+  return {
+    score,
+    label: "Gentle foundation",
+    description:
+      "Your answers point to a lighter first phase with mobility, recovery, and simple progressions before intensity.",
+    criteria,
+  };
+}
+
+function getSelectionInsight(
+  key: keyof LeadAssessmentAnswers,
+  option: string,
+) {
+  switch (key) {
+    case "mainGoal":
+      return `${option} will lead the first phase of your plan, with the rest of your training built to support it.`;
+    case "trainingStyle":
+      return `${option} gives your plan a clearer kind of support to lean on when motivation or time gets tight.`;
+    case "trainingEnvironment":
+      return `We will build your exercise choices around ${option.toLowerCase()}, so the plan fits where you actually train.`;
+    case "equipment":
+      return `${option} gives you another practical route for strength work without making the plan depend on a perfect setup.`;
+    case "experience":
+      return `${option} helps set the right pace, coaching detail, and progression for your first few weeks.`;
+    case "movementConfidence":
+      return `${option} can stay in your starting lane, while the plan avoids forcing movements you are not ready to use.`;
+    case "trainingAvailability":
+      return `${option} is enough to build a repeatable rhythm. The plan will protect that consistency before adding more volume.`;
+    case "sessionLength":
+      return `${option} is the time budget your plan will respect, including a useful backup version for busy days.`;
+    case "limitation":
+      return `${option} will shape the warm-up, exercise choices, range of motion, and intensity of your starting plan.`;
+    case "recoveryBaseline":
+      return `${option} will guide your starting volume and recovery checkpoints so the plan is sustainable.`;
+    case "coachingStyle":
+      return `${option} will influence how your plan communicates next steps and keeps progress visible.`;
+    default:
+      return `${option} is now part of the plan your results will build.`;
+  }
+}
+
+function getMultiSelectInsight(
+  key: MultiSelectAnswerKey,
+  options: string[],
+) {
+  const selections = formatAnswerList(options, "your selected options");
+
+  switch (key) {
+    case "equipment":
+      return {
+        option: "Your equipment setup",
+        text: `${selections} give your plan a practical toolkit. We will use the strongest options first and keep useful substitutions ready for the rest.`,
+      };
+    case "movementConfidence":
+      return {
+        option: "Your comfort lane",
+        text: `Starting with ${selections} lets us build confidence around movements you already feel okay using, without forcing the rest too soon.`,
+      };
+    case "limitation":
+      return {
+        option: "Your protected starting point",
+        text: options.includes("No major limits")
+          ? "You have a clear runway to progress. Your plan will still build in sensible warm-ups and recovery checks as intensity increases."
+          : `${selections} will guide the warm-up, range of motion, exercise substitutions, and pace of your first phase.`,
+      };
+    case "recoveryBaseline":
+      return {
+        option: "Your recovery baseline",
+        text: `${selections} help set a sustainable starting volume. Your plan will balance progress with recovery checkpoints that fit your current week.`,
+      };
+    case "coachingStyle":
+      return {
+        option: "Your support system",
+        text: `${selections} will shape how your plan communicates, keeps progress visible, and makes the next step easy to find.`,
+      };
+  }
+}
+
 function getResultProfile(answers: LeadAssessmentAnswers): ResultProfile {
   const goal = answers.mainGoal.toLowerCase();
   const confidence = answers.movementConfidence.join(" ").toLowerCase();
@@ -1045,6 +1314,7 @@ function getResultProfile(answers: LeadAssessmentAnswers): ResultProfile {
   const recovery = answers.recoveryBaseline.join(" ").toLowerCase();
   const sessionLength = answers.sessionLength || "30-45 minutes";
   const frequency = answers.trainingAvailability || "2x/week";
+  const readiness = getReadinessScore(answers);
   const setupNote = `${frequency}, ${sessionLength}, using ${equipmentLabel} in ${environment.toLowerCase()}.`;
   const setupItems: SetupItem[] = [
     { Icon: CalendarCheck, label: "Frequency", value: frequency },
@@ -1104,6 +1374,7 @@ function getResultProfile(answers: LeadAssessmentAnswers): ResultProfile {
       tone: "rose",
       body: "Your best first step is a low-friction strength plan supported by mobility and recovery work. The goal is to build confidence, reduce stiffness, and make movement feel safer before adding intensity.",
       exerciseFocus,
+      readiness,
       service: `Recommended: ${frequency} guided mobility, recovery blocks, and gentle strength work.`,
       servicePills: ["Guided mobility", "Recovery blocks", "Gentle strength"],
       setupItems,
@@ -1118,6 +1389,7 @@ function getResultProfile(answers: LeadAssessmentAnswers): ResultProfile {
       tone: "emerald",
       body: "Your answers point toward better range of motion, smoother movement, and recovery habits that support training. A simple plan can pair mobility blocks with full-body strength so progress feels useful right away.",
       exerciseFocus,
+      readiness,
       service: `Recommended: ${frequency} routines for mobility, recovery, and simple full-body strength.`,
       servicePills: ["Mobility routines", "Recovery", "Full-body strength"],
       setupItems,
@@ -1132,6 +1404,7 @@ function getResultProfile(answers: LeadAssessmentAnswers): ResultProfile {
       tone: "amber",
       body: "Your starting plan should make consistency easier while protecting strength and recovery. The first phase can focus on repeatable workouts, simple daily targets, and coaching support around the habits that matter most.",
       exerciseFocus,
+      readiness,
       service: `Recommended: ${frequency} workouts with nutrition habits and accountability checkpoints.`,
       servicePills: ["Workouts", "Nutrition habits", "Accountability"],
       setupItems,
@@ -1146,6 +1419,7 @@ function getResultProfile(answers: LeadAssessmentAnswers): ResultProfile {
       tone: "sky",
       body: "Your answers suggest a plan that develops strength, control, and athletic capacity without skipping the foundation. The first phase should connect movement quality, power, and recovery so performance can build safely.",
       exerciseFocus,
+      readiness,
       service: `Recommended: ${frequency} training with performance-focused strength, control, and recovery.`,
       servicePills: ["Performance strength", "Control", "Recovery"],
       setupItems,
@@ -1160,6 +1434,7 @@ function getResultProfile(answers: LeadAssessmentAnswers): ResultProfile {
       tone: "emerald",
       body: "Your best starting point is a plan that removes guesswork and keeps wins visible. Short, structured sessions and clear follow-up can help the routine become easier to repeat.",
       exerciseFocus,
+      readiness,
       service: `Recommended: ${frequency} sessions with reminders, streaks, and weekly checkpoints.`,
       servicePills: ["Reminders", "Streaks", "Weekly checkpoints"],
       setupItems,
@@ -1173,6 +1448,7 @@ function getResultProfile(answers: LeadAssessmentAnswers): ResultProfile {
     tone: "sky",
     body: "Your answers point toward a simple strength plan supported by mobility and recovery work. This is ideal if you want to move better, build confidence, and avoid jumping into an overwhelming program.",
     exerciseFocus,
+    readiness,
     service: `Recommended: ${frequency} guided strength with mobility and recovery support.`,
     servicePills: ["Guided strength", "Mobility", "Recovery support"],
     setupItems,
@@ -1199,7 +1475,7 @@ function OptionCard({
   label: string;
   motionPhase: SelectionMotion["phase"] | "idle";
   multiSelect: boolean;
-  onClick: () => void;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   showPhoto: boolean;
 }) {
   const visual = optionVisuals[label] ?? defaultOptionVisual;
@@ -1371,6 +1647,7 @@ function MuteToggle({
 export default function OnboardingQuestionnaire() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next");
+  const shouldReturnToResults = searchParams.get("return") === "results";
   const loginHref = getLoginHref(nextPath);
   const [stage, setStage] = useState<"welcome" | "questions" | "result">(
     "welcome",
@@ -1380,9 +1657,14 @@ export default function OnboardingQuestionnaire() {
   const [statusMessage, setStatusMessage] = useState("");
   const [selectionMotion, setSelectionMotion] =
     useState<SelectionMotion | null>(null);
+  const [selectionInsight, setSelectionInsight] =
+    useState<SelectionInsight | null>(null);
+  const [selectionInsightPosition, setSelectionInsightPosition] =
+    useState<SelectionInsightPosition | null>(null);
   const [isNextLaunching, setIsNextLaunching] = useState(false);
   const [isResetTransitioning, setIsResetTransitioning] = useState(false);
   const [welcomeNonce, setWelcomeNonce] = useState(0);
+  const [activeTrustBulletIndex, setActiveTrustBulletIndex] = useState(0);
   // Matches soundFx's defaults (music off, effects on) so the toggles don't
   // flash the wrong state before they sync from storage on mount.
   const [musicMuted, setMusicMuted] = useState(true);
@@ -1406,6 +1688,8 @@ export default function OnboardingQuestionnaire() {
   const trackColorRef = useRef(defaultTrackColor);
   trackColorRef.current = trackColors[trackId] ?? defaultTrackColor;
   const allMuted = masterVolume === 0 || (musicMuted && sfxMuted);
+  const masterVolumePercent = Math.round(masterVolume * 100);
+  const masterVolumeHue = Math.round(24 + masterVolume * 176);
   // The trigger "lights up" once audio is actually playing (started + audible).
   const isAudioPlaying = audioStarted && !allMuted;
 
@@ -1417,6 +1701,22 @@ export default function OnboardingQuestionnaire() {
   const recoNavRef = useRef<string[]>([]);
   const recoVideoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const recoLabelRefs = useRef<(HTMLParagraphElement | null)[]>([]);
+
+  useEffect(() => {
+    if (!activeReco || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
+    const recommendations = recoNavRef.current;
+    const currentIndex = recommendations.indexOf(activeReco);
+    if (recommendations.length < 2 || currentIndex < 0) return;
+
+    const timer = window.setTimeout(() => {
+      setActiveReco(recommendations[(currentIndex + 1) % recommendations.length]);
+    }, 6000);
+
+    return () => window.clearTimeout(timer);
+  }, [activeReco]);
 
   useEffect(() => {
     if (!activeReco) return;
@@ -1485,6 +1785,34 @@ export default function OnboardingQuestionnaire() {
     // gesture before any audio.
     if (welcomeNonce > 0 && stage === "welcome") soundFx.flyIn();
   }, [welcomeNonce, stage]);
+
+  useEffect(() => {
+    if (stage !== "welcome") return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const cycleMs = 6000;
+    // Let the card number land first, then have the pill settle midway before
+    // the next card lands so the two motions take turns.
+    const cardNumberLandMs = 1440;
+    const betweenLandingsMs = 3000;
+    const pillTransitionMs = 260;
+    const advanceTrustBullet = () => {
+      setActiveTrustBulletIndex((current) =>
+        (current + 1) % trustBullets.length,
+      );
+    };
+
+    let interval: number | null = null;
+    const firstAdvance = window.setTimeout(() => {
+      advanceTrustBullet();
+      interval = window.setInterval(advanceTrustBullet, cycleMs);
+    }, cardNumberLandMs + betweenLandingsMs - pillTransitionMs);
+
+    return () => {
+      window.clearTimeout(firstAdvance);
+      if (interval) window.clearInterval(interval);
+    };
+  }, [stage]);
 
   useEffect(() => {
     // Collapse the track scroller whenever the audio menu closes, so it
@@ -1669,6 +1997,10 @@ export default function OnboardingQuestionnaire() {
   const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const selectionInsightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const optionGridRef = useRef<HTMLDivElement>(null);
 
   const clearAutoAdvanceTimer = useCallback(() => {
     if (!autoAdvanceTimerRef.current) return;
@@ -1676,6 +2008,123 @@ export default function OnboardingQuestionnaire() {
     clearTimeout(autoAdvanceTimerRef.current);
     autoAdvanceTimerRef.current = null;
   }, []);
+
+  const clearSelectionInsight = useCallback(() => {
+    if (selectionInsightTimerRef.current) {
+      clearTimeout(selectionInsightTimerRef.current);
+      selectionInsightTimerRef.current = null;
+    }
+
+    setSelectionInsight(null);
+    setSelectionInsightPosition(null);
+  }, []);
+
+  const positionSelectionInsight = useCallback(
+    (anchor: HTMLElement | null) => {
+      const viewportInset = 12;
+      const panelInset = 14;
+      const panel = anchor?.closest<HTMLElement>(".sound-question-panel");
+      const panelRect = panel?.getBoundingClientRect();
+      const safeBounds = panelRect
+        ? {
+            bottom: Math.min(
+              window.innerHeight - viewportInset,
+              panelRect.bottom - panelInset,
+            ),
+            left: Math.max(viewportInset, panelRect.left + panelInset),
+            right: Math.min(
+              window.innerWidth - viewportInset,
+              panelRect.right - panelInset,
+            ),
+            top: Math.max(viewportInset, panelRect.top + panelInset),
+          }
+        : {
+            bottom: window.innerHeight - viewportInset,
+            left: viewportInset,
+            right: window.innerWidth - viewportInset,
+            top: viewportInset,
+          };
+      const safeWidth = Math.max(0, safeBounds.right - safeBounds.left);
+      const width = Math.min(336, safeWidth);
+      const estimatedHeight = 154;
+
+      if (!anchor) {
+        setSelectionInsightPosition({
+          left: Math.max(
+            safeBounds.left,
+            safeBounds.left + (safeWidth - width) / 2,
+          ),
+          maxHeight: Math.max(96, safeBounds.bottom - safeBounds.top),
+          top: Math.max(
+            safeBounds.top,
+            safeBounds.top +
+              (safeBounds.bottom - safeBounds.top - estimatedHeight) / 2,
+          ),
+          width,
+        });
+        return;
+      }
+
+      const anchorRect = anchor.getBoundingClientRect();
+      const left = Math.min(
+        Math.max(
+          safeBounds.left,
+          anchorRect.left + anchorRect.width / 2 - width / 2,
+        ),
+        safeBounds.right - width,
+      );
+      const gap = 2;
+      const spaceBelow = safeBounds.bottom - anchorRect.bottom;
+      const spaceAbove = anchorRect.top - safeBounds.top;
+      const placeBelow =
+        spaceBelow >= estimatedHeight || spaceBelow >= spaceAbove;
+      const top = placeBelow
+        ? Math.min(
+            safeBounds.bottom - estimatedHeight,
+            anchorRect.bottom + gap,
+          )
+        : Math.max(safeBounds.top, anchorRect.top - gap - estimatedHeight);
+
+      setSelectionInsightPosition({
+        focusRadius: Math.max(anchorRect.width, anchorRect.height) * 0.82,
+        focusX: anchorRect.left + anchorRect.width / 2,
+        focusY: anchorRect.top + anchorRect.height / 2,
+        left,
+        maxHeight: Math.max(96, safeBounds.bottom - safeBounds.top),
+        top,
+        width,
+      });
+    },
+    [],
+  );
+
+  const showSelectionInsight = useCallback(
+    (
+      key: keyof LeadAssessmentAnswers,
+      option: string,
+      anchor: HTMLElement | null,
+      text = getSelectionInsight(key, option),
+      accent = optionVisuals[option]?.accent ?? defaultOptionVisual.accent,
+    ) => {
+      if (selectionInsightTimerRef.current) {
+        clearTimeout(selectionInsightTimerRef.current);
+      }
+
+      positionSelectionInsight(anchor);
+      setSelectionInsight({
+        accent,
+        id: Date.now(),
+        option,
+        text,
+      });
+      selectionInsightTimerRef.current = setTimeout(() => {
+        selectionInsightTimerRef.current = null;
+        setSelectionInsight(null);
+        setSelectionInsightPosition(null);
+      }, SELECTION_INSIGHT_DURATION_MS);
+    },
+    [positionSelectionInsight],
+  );
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
@@ -1696,7 +2145,12 @@ export default function OnboardingQuestionnaire() {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(answers));
   }, [answers, isStorageReady]);
 
+  useEffect(() => {
+    if (isStorageReady && shouldReturnToResults) setStage("result");
+  }, [isStorageReady, shouldReturnToResults]);
+
   useEffect(() => clearAutoAdvanceTimer, [clearAutoAdvanceTimer]);
+  useEffect(() => clearSelectionInsight, [clearSelectionInsight]);
 
   const activeQuestion = questions[step];
   const completedProgressStep =
@@ -1842,7 +2296,7 @@ export default function OnboardingQuestionnaire() {
     setStep((current) => (current === expectedStep ? nextStep : current));
   }
 
-  function handleOptionSelect(option: string) {
+  function handleOptionSelect(option: string, anchor: HTMLButtonElement) {
     if (isSelectionLocked) return;
 
     const motionStep = step;
@@ -1863,12 +2317,31 @@ export default function OnboardingQuestionnaire() {
       setAnswers((current) => {
         const currentValues = current[key];
         const selected = currentValues.includes(option);
+        const isNoLimitsChoice =
+          key === "limitation" && option === "No major limits";
+        const opposingCoachingChoice =
+          key === "coachingStyle"
+            ? option === "Reminders"
+              ? "Minimal nudges"
+              : option === "Minimal nudges"
+                ? "Reminders"
+                : null
+            : null;
 
         return {
           ...current,
           [key]: selected
             ? currentValues.filter((item) => item !== option)
-            : [...currentValues, option],
+            : isNoLimitsChoice
+              ? [option]
+              : [
+                  ...currentValues.filter(
+                    (item) =>
+                      item !== "No major limits" &&
+                      item !== opposingCoachingChoice,
+                  ),
+                  option,
+                ],
         };
       });
       setStatusMessage("");
@@ -1876,6 +2349,7 @@ export default function OnboardingQuestionnaire() {
       if (wasSelected) {
         soundFx.deselect();
         setSelectionMotion(null);
+        clearSelectionInsight();
         return;
       }
 
@@ -1897,6 +2371,7 @@ export default function OnboardingQuestionnaire() {
     soundFx.select();
     setAnswer(activeQuestion.key, option);
     setSelectionMotion({ option, phase: "flicker", step: motionStep });
+    showSelectionInsight(activeQuestion.key, option, anchor);
 
     autoAdvanceTimerRef.current = setTimeout(() => {
       setSelectionMotion((current) =>
@@ -1910,10 +2385,10 @@ export default function OnboardingQuestionnaire() {
         setSelectionMotion(null);
         advanceFromStep(motionStep);
       }, fadeMs);
-    }, flickerMs);
+    }, Math.max(flickerMs, SELECTION_INSIGHT_DURATION_MS));
   }
 
-  function handleMultiSelectNext() {
+  function handleMultiSelectNext(anchor: HTMLButtonElement) {
     const key = activeQuestion.key;
     if (!isMultiSelectAnswerKey(key) || answers[key].length === 0) return;
     if (isNextLaunching) return;
@@ -1923,17 +2398,26 @@ export default function OnboardingQuestionnaire() {
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const launchMs = reduceMotion ? 100 : NEXT_LAUNCH_MS;
     const launchStep = step;
+    const insight = getMultiSelectInsight(key, answers[key]);
 
     clearAutoAdvanceTimer();
     resetSelectionMotion();
     soundFx.next();
     setIsNextLaunching(true);
+    showSelectionInsight(
+      key,
+      insight.option,
+      optionGridRef.current ?? anchor,
+      insight.text,
+      optionVisuals[answers[key][answers[key].length - 1]]?.accent ??
+        defaultOptionVisual.accent,
+    );
 
     autoAdvanceTimerRef.current = setTimeout(() => {
       autoAdvanceTimerRef.current = null;
       setIsNextLaunching(false);
       advanceFromStep(launchStep);
-    }, launchMs);
+    }, Math.max(launchMs, SELECTION_INSIGHT_DURATION_MS));
   }
 
   function handleSendResults() {
@@ -1952,6 +2436,7 @@ export default function OnboardingQuestionnaire() {
     }
 
     clearAutoAdvanceTimer();
+    clearSelectionInsight();
     resetSelectionMotion();
     soundFx.cheer();
     setAnswers((current) => ({
@@ -1972,6 +2457,7 @@ export default function OnboardingQuestionnaire() {
 
   function handlePrimaryStart() {
     clearAutoAdvanceTimer();
+    clearSelectionInsight();
     resetSelectionMotion();
     soundFx.next();
     setIsNextLaunching(false);
@@ -1984,6 +2470,7 @@ export default function OnboardingQuestionnaire() {
 
   function handleBack() {
     clearAutoAdvanceTimer();
+    clearSelectionInsight();
     resetSelectionMotion();
     soundFx.back();
     setIsNextLaunching(false);
@@ -2005,6 +2492,21 @@ export default function OnboardingQuestionnaire() {
     });
   }
 
+  function handleProgressStepSelect(targetStep: number) {
+    const canRevisit =
+      stage === "result" || (stage === "questions" && targetStep < step);
+    if (!canRevisit) return;
+
+    clearAutoAdvanceTimer();
+    clearSelectionInsight();
+    resetSelectionMotion();
+    soundFx.select();
+    setIsNextLaunching(false);
+    setStatusMessage("");
+    setStage("questions");
+    setStep(targetStep);
+  }
+
   function handleCreateAccount() {
     soundFx.select();
     setPurchaseComingSoonPlanId("online-coaching");
@@ -2018,6 +2520,7 @@ export default function OnboardingQuestionnaire() {
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     clearAutoAdvanceTimer();
+    clearSelectionInsight();
     resetSelectionMotion();
     soundFx.back();
     setIsNextLaunching(false);
@@ -2144,7 +2647,7 @@ export default function OnboardingQuestionnaire() {
                   </div>
                 </div>
 
-                <div className="mt-3 flex items-center gap-2 rounded-lg border border-cyan-300/20 bg-cyan-400/[0.06] px-2.5 py-2 sm:mt-4 sm:gap-2.5 sm:px-3 sm:py-2.5">
+                <div className="mt-3 flex items-center gap-2 sm:mt-4 sm:gap-2.5">
                   <ExternalLink
                     aria-hidden="true"
                     className="h-3.5 w-3.5 shrink-0 text-cyan-200 sm:h-4 sm:w-4"
@@ -2228,9 +2731,9 @@ export default function OnboardingQuestionnaire() {
 
                 <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                   <button
-                    type="button"
-                    onClick={() => setShowLoginConfirm(false)}
-                    className="inline-flex min-h-10 items-center justify-center rounded-lg border border-white/12 bg-white/[0.05] px-4 text-[11px] font-black uppercase tracking-[0.14em] text-slate-200 transition hover:border-white/25 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/70"
+                  type="button"
+                  onClick={() => setShowLoginConfirm(false)}
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg bg-amber-300 px-4 text-[11px] font-black uppercase tracking-[0.14em] text-slate-950 transition hover:bg-amber-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-100/80"
                   >
                     Keep building
                   </button>
@@ -2240,7 +2743,7 @@ export default function OnboardingQuestionnaire() {
                       window.localStorage.removeItem(STORAGE_KEY);
                       setShowLoginConfirm(false);
                     }}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-amber-300 px-4 text-[11px] font-black uppercase tracking-[0.14em] text-slate-950 transition hover:bg-amber-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-100/80"
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-white/12 bg-white/[0.05] px-4 text-[11px] font-black uppercase tracking-[0.14em] text-slate-200 transition hover:border-white/25 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/70"
                   >
                     Go to sign in
                     <ArrowRight aria-hidden="true" className="h-3.5 w-3.5" />
@@ -2267,13 +2770,14 @@ export default function OnboardingQuestionnaire() {
               <UserRound className="h-full w-full" strokeWidth={2.25} />
             </span>
             <span className="sound-utility-link-copy">
-              Already have an account?
+              <span className="sound-member-login-line">Already have</span>
+              <span className="sound-member-login-line">an account?</span>
             </span>
           </Link>
 
           <div
             ref={volumeControlRef}
-            className="sound-audio-control absolute right-4 top-[3.7rem] z-40 sm:right-5"
+            className="sound-audio-control absolute right-4 top-[4.25rem] z-40 sm:right-5 sm:top-[3.7rem]"
           >
             <button
               type="button"
@@ -2287,19 +2791,19 @@ export default function OnboardingQuestionnaire() {
               style={
                 isAudioPlaying && !isVolumeMenuOpen
                   ? {
-                      borderColor: "rgba(103, 232, 249, 0.7)",
-                      background: "rgba(34, 211, 238, 0.16)",
-                      color: "#ecfeff",
+                      borderColor: "rgba(103, 232, 249, 0.38)",
+                      background: "rgba(34, 211, 238, 0.07)",
+                      color: "rgba(236, 254, 255, 0.82)",
                     }
                   : undefined
               }
               className={`sound-audio-trigger grid h-5 w-5 place-items-center rounded-full border backdrop-blur transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/70 ${
                 isVolumeMenuOpen
-                  ? "border-transparent bg-transparent"
+                  ? "border-cyan-200/45 bg-cyan-300/10 text-cyan-50"
                   : "border-white/15 bg-slate-950/70 text-cyan-100 hover:border-cyan-200/45 hover:text-white"
               }`}
             >
-              {isVolumeMenuOpen ? null : allMuted ? (
+              {allMuted ? (
                 <VolumeX aria-hidden="true" className="h-3 w-3" />
               ) : (
                 <Volume2 aria-hidden="true" className="h-3 w-3" />
@@ -2308,33 +2812,42 @@ export default function OnboardingQuestionnaire() {
 
             {isVolumeMenuOpen ? (
               <div
-                role="menu"
-                style={{
-                  background:
-                    "radial-gradient(125% 100% at 82% 14%, rgba(3,8,22,0.98) 0%, rgba(3,8,22,0.93) 55%, rgba(3,8,22,0.85) 100%)",
-                  boxShadow: "0 22px 50px rgba(2,7,19,0.72)",
-                }}
-                className="sound-volume-menu absolute right-0 top-0 flex w-fit flex-col gap-2 rounded-xl px-2.5 pb-2.5 pt-0 backdrop-blur-md"
+                className="sound-volume-popover absolute right-0 top-full z-20 mt-2 flex w-fit flex-col items-end gap-2"
               >
-                <div className="flex flex-col items-end gap-1.5 pb-1 pr-0">
+                <div
+                  style={{
+                    background:
+                      "radial-gradient(130% 100% at 50% 8%, rgba(34,211,238,0.2) 0%, rgba(3,8,22,0.96) 58%, rgba(3,8,22,0.9) 100%)",
+                    boxShadow: "0 14px 34px rgba(2,7,19,0.7)",
+                  }}
+                  className="sound-volume-slider-pill grid place-items-center rounded-[0.18rem] border border-cyan-200/20 px-2 py-2 backdrop-blur-md"
+                >
                   <input
                     type="range"
                     min={0}
                     max={100}
-                    value={Math.round(masterVolume * 100)}
+                    value={masterVolumePercent}
                     onChange={(event) =>
                       handleMasterVolumeChange(Number(event.target.value) / 100)
                     }
                     aria-label="Master volume"
                     className="sound-volume-slider sound-volume-slider--vertical cursor-pointer appearance-none rounded-full"
                     style={{
-                      background: `linear-gradient(to top, rgb(103 232 249) ${Math.round(
-                        masterVolume * 100,
-                      )}%, rgba(148,163,184,0.35) ${Math.round(
-                        masterVolume * 100,
-                      )}%)`,
+                      background: `linear-gradient(to top, hsl(${masterVolumeHue} 90% 60%) ${masterVolumePercent}%, rgba(148,163,184,0.35) ${masterVolumePercent}%)`,
                     }}
                   />
+                </div>
+
+                <div
+                  role="menu"
+                  style={{
+                    background:
+                      "radial-gradient(125% 100% at 82% 14%, rgba(3,8,22,0.98) 0%, rgba(3,8,22,0.93) 55%, rgba(3,8,22,0.85) 100%)",
+                    boxShadow: "0 22px 50px rgba(2,7,19,0.72)",
+                  }}
+                  className="sound-volume-menu flex w-fit flex-col gap-2 rounded-xl p-2.5 backdrop-blur-md"
+                >
+                  <div className="flex flex-col items-center gap-1.5">
                   <MuteToggle
                     label="Music"
                     Icon={Music}
@@ -2421,6 +2934,7 @@ export default function OnboardingQuestionnaire() {
                   ) : null}
                 </div>
               </div>
+              </div>
             ) : null}
           </div>
 
@@ -2496,7 +3010,9 @@ export default function OnboardingQuestionnaire() {
               <div>
                 <h1 className="mx-auto max-w-[34rem] text-center text-[2.15rem] font-black uppercase leading-[0.9] tracking-normal text-white sm:text-5xl">
                   <span className="block">Start with a</span>
-                  <span className="block text-cyan-200">plan built</span>
+                  <span className="sound-welcome-title-accent block">
+                    plan built
+                  </span>
                   <span className="block">around your body.</span>
                 </h1>
                 <p className="mx-auto mt-4 max-w-md text-center text-sm leading-6 text-slate-300 sm:text-base">
@@ -2506,11 +3022,29 @@ export default function OnboardingQuestionnaire() {
                 </p>
               </div>
 
-              <div className="flex max-w-full flex-wrap justify-center gap-2">
-                {trustBullets.map(({ label, Icon }) => (
-                  <span
+              <div
+                aria-label="Sound Fitness focus highlights"
+                className="sound-trust-indicators flex h-9 items-center justify-center gap-2"
+              >
+                {trustBullets.map(({ label, Icon }, index) => (
+                  <button
                     key={label}
-                    className="sound-trust-chip relative inline-flex max-w-full items-center gap-2 overflow-hidden rounded-full border px-3 py-2 text-[9px] font-black uppercase tracking-[0.12em] text-slate-100"
+                    type="button"
+                    aria-label={label}
+                    aria-pressed={activeTrustBulletIndex === index}
+                    data-active={activeTrustBulletIndex === index}
+                    data-preview={
+                      (activeTrustBulletIndex + 1) % trustBullets.length ===
+                      index
+                    }
+                    data-previous={
+                      (activeTrustBulletIndex - 1 + trustBullets.length) %
+                        trustBullets.length ===
+                      index
+                    }
+                    data-index={index}
+                    onClick={() => setActiveTrustBulletIndex(index)}
+                    className="sound-trust-indicator inline-flex h-8 w-8 items-center overflow-hidden rounded-full border transition focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100"
                   >
                     <span
                       aria-hidden="true"
@@ -2540,9 +3074,42 @@ export default function OnboardingQuestionnaire() {
                       aria-hidden="true"
                       className="sound-trust-bubble sound-trust-bubble--four"
                     />
-                    <Icon aria-hidden="true" className="relative h-3.5 w-3.5" />
-                    <span className="relative">{label}</span>
-                  </span>
+                    {[
+                      ["one", "12%", "-180ms", "-0.35rem", "0.18rem"],
+                      ["two", "27%", "-1180ms", "0.28rem", "0.24rem"],
+                      ["three", "43%", "-2220ms", "-0.18rem", "0.14rem"],
+                      ["four", "59%", "-720ms", "0.42rem", "0.2rem"],
+                      ["five", "74%", "-1760ms", "-0.28rem", "0.16rem"],
+                      ["six", "88%", "-2620ms", "0.22rem", "0.12rem"],
+                      ["seven", "19%", "-820ms", "0.16rem", "0.11rem"],
+                      ["eight", "34%", "-1980ms", "-0.24rem", "0.15rem"],
+                      ["nine", "51%", "-360ms", "0.32rem", "0.1rem"],
+                      ["ten", "66%", "-1390ms", "-0.16rem", "0.14rem"],
+                      ["eleven", "81%", "-2380ms", "0.2rem", "0.12rem"],
+                      ["twelve", "94%", "-980ms", "-0.18rem", "0.1rem"],
+                    ].map(([particle, left, delay, drift, size]) => (
+                      <span
+                        key={particle}
+                        aria-hidden="true"
+                        className="sound-trust-indicator-particle"
+                        style={
+                          {
+                            "--indicator-particle-delay": delay,
+                            "--indicator-particle-drift": drift,
+                            "--indicator-particle-left": left,
+                            "--indicator-particle-size": size,
+                          } as CSSProperties
+                        }
+                      />
+                    ))}
+                    <Icon
+                      aria-hidden="true"
+                      className="sound-trust-indicator__icon h-3.5 w-3.5 shrink-0"
+                    />
+                    <span className="sound-trust-indicator__label whitespace-nowrap text-[9px] font-black uppercase tracking-[0.12em]">
+                      {label}
+                    </span>
+                  </button>
                 ))}
               </div>
 
@@ -2618,17 +3185,19 @@ export default function OnboardingQuestionnaire() {
             data-panel-stage={stage}
             data-contact-step={isContactStep ? "true" : "false"}
             data-multi-step={isMultiSelectStep ? "true" : "false"}
-            className={`sound-question-panel relative min-h-0 min-w-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_85%_14%,rgba(34,211,238,0.12),transparent_28%),radial-gradient(circle_at_12%_82%,rgba(250,204,21,0.08),transparent_30%),linear-gradient(180deg,rgba(15,23,42,0.18),rgba(2,7,19,0.1))] p-5 ${
+            className={`sound-question-panel relative isolate min-h-0 min-w-0 flex-col overflow-hidden bg-[radial-gradient(circle_at_85%_14%,rgba(34,211,238,0.12),transparent_28%),radial-gradient(circle_at_12%_82%,rgba(250,204,21,0.08),transparent_30%),linear-gradient(180deg,rgba(15,23,42,0.18),rgba(2,7,19,0.1))] p-5 ${
               stage === "result"
                 ? "pt-24 sm:p-7 sm:pt-28"
                 : "pt-20 sm:p-8 sm:pt-24"
             } ${stage === "welcome" ? "hidden" : "flex"}`}
           >
             <div className="absolute -inset-px -z-10 rounded-lg bg-[linear-gradient(135deg,rgba(34,211,238,0.28),transparent_30%,rgba(250,204,21,0.18)_70%,transparent)] opacity-80" />
+            <div aria-hidden="true" className="sound-question-gradient-layer absolute inset-0 z-0 pointer-events-none" />
+            <div aria-hidden="true" className="sound-question-particle-layer absolute inset-0 z-[1] pointer-events-none" />
 
             <div
               aria-hidden="true"
-              className="sound-question-logo absolute left-1/2 top-3 z-10 -translate-x-1/2 sm:top-4"
+              className="sound-question-logo absolute left-1/2 top-5 z-10 -translate-x-1/2 sm:top-5"
             >
               <div className="sound-question-logo-stage relative grid aspect-square h-14 w-14 place-items-center sm:h-[4.5rem] sm:w-[4.5rem]">
                 {["one", "two", "three"].map((sparkle) => (
@@ -2652,7 +3221,7 @@ export default function OnboardingQuestionnaire() {
 
             <div
               aria-label="Assessment progress"
-              className="sound-progress-path"
+              className="sound-progress-path relative z-10"
               data-progress-result={stage === "result" ? "true" : "false"}
               data-progress-step={completedProgressStep}
               role="list"
@@ -2661,23 +3230,33 @@ export default function OnboardingQuestionnaire() {
                 const Icon = questionProgressIcons[index] ?? Target;
                 const answered = stage === "result" || index < step;
                 const active = stage === "questions" && index === step;
+                const canRevisit = answered && !active;
 
                 return (
-                  <div
+                  <button
                     key={question.key}
+                    type="button"
                     className="sound-progress-node"
                     data-active={active ? "true" : "false"}
                     data-answered={answered ? "true" : "false"}
+                    data-tone={question.tone}
+                    onClick={() => handleProgressStepSelect(index)}
+                    disabled={!canRevisit}
                     role="listitem"
-                    title={`Step ${index + 1}: ${question.title}`}
+                    aria-label={`Step ${index + 1}: ${question.title}${canRevisit ? ". Return to this step" : ""}`}
                   >
                     <span className="sound-progress-spark sound-progress-spark--one" />
                     <span className="sound-progress-spark sound-progress-spark--two" />
                     <Icon aria-hidden="true" className="h-3.5 w-3.5" />
+                    <span aria-hidden="true" className="sound-progress-tooltip">
+                      <span>Step {index + 1}</span>
+                      <strong>{question.title}</strong>
+                      {canRevisit ? <em>Tap to revisit</em> : null}
+                    </span>
                     <span className="sr-only">
                       Step {index + 1}: {question.title}
                     </span>
-                  </div>
+                  </button>
                 );
               })}
 
@@ -2696,15 +3275,25 @@ export default function OnboardingQuestionnaire() {
             </div>
 
             {stage === "questions" ? (
-              <p className="sound-progress-steplabel text-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                Step {step + 1} of {questions.length}
+              <p
+                className="sound-progress-steplabel relative z-10 text-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-500"
+                data-tone={activeQuestion.tone}
+              >
+                <span>Step </span>
+                <span className="sound-progress-steplabel__current">
+                  {step + 1}
+                </span>
+                <span> of </span>
+                <span className="sound-progress-steplabel__total">
+                  {questions.length}
+                </span>
               </p>
             ) : null}
 
             {stage === "questions" ? (
               <div
                 key={activeQuestion.key}
-                className="sound-question-page flex min-h-0 flex-1 flex-col py-3"
+                className="sound-question-page relative z-10 flex min-h-0 flex-1 flex-col py-3"
                 data-transition-phase={questionTransitionPhase}
               >
                 <button
@@ -2854,6 +3443,7 @@ export default function OnboardingQuestionnaire() {
                   </form>
                 ) : (
                   <div
+                    ref={optionGridRef}
                     className="sound-option-grid mt-6 grid min-h-0 gap-3.5"
                     data-option-count={activeQuestion.options.length}
                   >
@@ -2881,11 +3471,13 @@ export default function OnboardingQuestionnaire() {
                         <OptionCard
                           key={option}
                           active={active}
-                          disabled={isSelectionLocked}
+                          disabled={isSelectionLocked || isNextLaunching}
                           label={option}
                           motionPhase={motionPhase}
                           multiSelect={isMultiSelectOption}
-                          onClick={() => handleOptionSelect(option)}
+                          onClick={(event) =>
+                            handleOptionSelect(option, event.currentTarget)
+                          }
                           showPhoto={showOptionPhotos}
                         />
                       );
@@ -2894,6 +3486,82 @@ export default function OnboardingQuestionnaire() {
                 )}
               </div>
             ) : null}
+
+            {selectionInsight && typeof document !== "undefined"
+              ? createPortal(
+              <aside
+                className="pointer-events-none fixed inset-0 z-50"
+                key={selectionInsight.id}
+                role="status"
+              >
+                <span
+                  aria-hidden="true"
+                  className="sound-selection-insight-backdrop absolute inset-0"
+                  style={
+                    selectionInsightPosition?.focusX !== undefined &&
+                    selectionInsightPosition.focusY !== undefined &&
+                    selectionInsightPosition.focusRadius !== undefined
+                      ? {
+                          "--selection-focus-radius": `${selectionInsightPosition.focusRadius}px`,
+                          "--selection-focus-x": `${selectionInsightPosition.focusX}px`,
+                          "--selection-focus-y": `${selectionInsightPosition.focusY}px`,
+                        } as CSSProperties &
+                          Record<
+                            | "--selection-focus-radius"
+                            | "--selection-focus-x"
+                            | "--selection-focus-y",
+                            string
+                          >
+                      : undefined
+                  }
+                />
+                <div
+                  className="sound-selection-insight absolute overflow-hidden rounded-lg px-4 py-4 backdrop-blur-xl sm:px-4"
+                  data-tone={activeQuestion.tone}
+                  style={
+                    {
+                      ...(selectionInsightPosition
+                        ? {
+                          left: selectionInsightPosition.left,
+                          maxHeight: selectionInsightPosition.maxHeight,
+                          top: selectionInsightPosition.top,
+                          width: selectionInsightPosition.width,
+                        }
+                        : {
+                          left: 12,
+                          right: 12,
+                          top: 12,
+                        }),
+                      "--insight-accent-rgb": selectionInsight.accent,
+                    } as CSSProperties & Record<"--insight-accent-rgb", string>
+                  }
+                >
+                  <span aria-hidden="true" className="sound-selection-insight__scan absolute inset-0" />
+                  <span aria-hidden="true" className="sound-selection-insight__edge absolute inset-y-0 left-0 w-1" />
+                  <div className="relative flex items-start gap-3">
+                    <span className="sound-selection-insight__badge grid h-8 w-8 shrink-0 place-items-center rounded-[0.2rem] border border-cyan-100/35 text-cyan-50">
+                      <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="sound-selection-insight__kicker text-[9px] font-black uppercase tracking-[0.18em]">
+                        Plan readout
+                      </p>
+                      <p className="mt-0.5 text-sm font-black leading-5 text-white sm:text-[15px]">
+                        {selectionInsight.option}
+                      </p>
+                      <p className="sound-selection-insight__copy mt-1 text-[13px] leading-5 text-slate-100 sm:text-sm">
+                        {selectionInsight.text}
+                      </p>
+                    </div>
+                  </div>
+                  <span aria-hidden="true" className="sound-selection-insight__rail absolute bottom-0 left-1 right-1 h-px overflow-hidden">
+                    <span className="block h-full w-full" />
+                  </span>
+                </div>
+              </aside>,
+              document.body,
+            )
+              : null}
 
             {stage === "result" ? (
               <div className="flex min-h-0 flex-1 flex-col py-2">
@@ -2923,6 +3591,98 @@ export default function OnboardingQuestionnaire() {
                   <p className="mt-3 max-w-5xl text-sm leading-6 text-slate-300 sm:text-base">
                     {result.body}
                   </p>
+                  <section
+                    aria-label="Training readiness score"
+                    className="mt-4 grid gap-3 rounded-lg border border-emerald-300/25 bg-[radial-gradient(circle_at_8%_0%,rgba(52,211,153,0.16),transparent_44%),linear-gradient(135deg,rgba(6,78,59,0.34),rgba(8,47,73,0.28)_52%,rgba(2,7,19,0.42))] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.07)] sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:p-4"
+                  >
+                    <div className="flex items-center gap-3 sm:block">
+                      <span className="relative grid h-14 w-14 shrink-0 place-items-center rounded-full border border-emerald-200/35 bg-slate-950/35 text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.16),inset_0_1px_0_rgba(255,255,255,0.14)] sm:mx-auto sm:h-20 sm:w-20">
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 100 100"
+                          className="pointer-events-none absolute -inset-1 h-[calc(100%+0.5rem)] w-[calc(100%+0.5rem)] -rotate-90 overflow-visible"
+                        >
+                          <defs>
+                            <linearGradient id="sound-readiness-ring" x1="0" x2="1" y1="0" y2="1">
+                              <stop offset="0%" stopColor="#a7f3d0" />
+                              <stop offset="55%" stopColor="#34d399" />
+                              <stop offset="100%" stopColor="#67e8f9" />
+                            </linearGradient>
+                          </defs>
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="43"
+                            fill="none"
+                            pathLength="100"
+                            stroke="rgba(167,243,208,0.16)"
+                            strokeWidth="5"
+                          />
+                          <circle
+                            cx="50"
+                            cy="50"
+                            r="43"
+                            fill="none"
+                            pathLength="100"
+                            stroke="url(#sound-readiness-ring)"
+                            strokeLinecap="round"
+                            strokeWidth="5"
+                            className="sound-readiness-ring-value"
+                            style={
+                              {
+                                "--readiness-ring-offset": String(
+                                  100 - result.readiness.score,
+                                ),
+                              } as CSSProperties
+                            }
+                          />
+                        </svg>
+                        <span className="text-2xl font-black leading-none sm:text-3xl">
+                          {result.readiness.score}
+                        </span>
+                        <span className="-mt-1 text-[8px] font-black uppercase tracking-[0.14em] text-emerald-100/75">
+                          / 100
+                        </span>
+                      </span>
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-100 sm:mt-2 sm:text-center">
+                        Readiness
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <ChartNoAxesColumnIncreasing
+                          aria-hidden="true"
+                          className="h-4 w-4 text-emerald-200"
+                        />
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-100/80">
+                          Plan readiness
+                        </p>
+                        <span className="rounded-full border border-emerald-200/30 bg-emerald-300/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-emerald-100">
+                          {result.readiness.label}
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-sm font-bold leading-5 text-slate-100">
+                        {result.readiness.description}
+                      </p>
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        {result.readiness.criteria.map((criterion) => (
+                          <span
+                            key={criterion}
+                            className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-slate-950/35 px-2 py-1 text-[9px] font-black uppercase tracking-[0.08em] text-slate-200"
+                          >
+                            <CheckSquare
+                              aria-hidden="true"
+                              className="h-3 w-3 shrink-0 text-emerald-200"
+                            />
+                            {criterion}
+                          </span>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-[10px] leading-4 text-slate-400">
+                        This reflects your physical training starting point, not medical clearance.
+                      </p>
+                    </div>
+                  </section>
                   <div className="mt-4">
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-200/80">
                       Recommended
@@ -3073,6 +3833,41 @@ export default function OnboardingQuestionnaire() {
                                   className="h-4 w-4"
                                 />
                               </span>
+
+                              {result.servicePills.length > 1 ? (
+                                <span
+                                  aria-label="Next recommendation in 5 seconds"
+                                  className="sound-reco-modal-timer absolute right-14 top-3 z-10 grid h-8 w-8 place-items-center text-[9px] font-black tabular-nums text-white"
+                                  role="timer"
+                                >
+                                  <svg
+                                    aria-hidden="true"
+                                    className="absolute inset-0 h-full w-full -rotate-90"
+                                    viewBox="0 0 36 36"
+                                  >
+                                    <circle
+                                      className="sound-reco-modal-timer-track"
+                                      cx="18"
+                                      cy="18"
+                                      fill="none"
+                                      pathLength="1"
+                                      r="15.25"
+                                      strokeWidth="2.25"
+                                    />
+                                    <circle
+                                      className="sound-reco-modal-timer-progress"
+                                      cx="18"
+                                      cy="18"
+                                      fill="none"
+                                      key={activeReco}
+                                      pathLength="1"
+                                      r="15.25"
+                                      strokeWidth="2.25"
+                                    />
+                                  </svg>
+                                  <span className="relative z-10">5</span>
+                                </span>
+                              ) : null}
 
                               <div className="sound-reco-modal-copy absolute inset-x-0 bottom-0 min-w-0 px-7 pb-3 sm:px-8 sm:pb-4">
                                 <h3 className="sound-reco-modal-title truncate font-black uppercase tracking-tight text-white [text-shadow:0_2px_8px_rgba(2,7,19,0.95)]">
@@ -3253,7 +4048,9 @@ export default function OnboardingQuestionnaire() {
                       </p>
                       <button
                         type="button"
-                        onClick={handleMultiSelectNext}
+                        onClick={(event) =>
+                          handleMultiSelectNext(event.currentTarget)
+                        }
                         disabled={answers[activeQuestion.key].length === 0}
                         data-launching={isNextLaunching ? "true" : "false"}
                         className="sound-next-button relative inline-flex min-h-11 w-fit min-w-[10.5rem] items-center justify-center gap-2 self-center rounded-md border border-cyan-100/40 bg-cyan-300 px-6 text-xs font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.22)] transition hover:-translate-y-0.5 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.06] disabled:text-slate-500 disabled:shadow-none disabled:hover:translate-y-0 sm:self-auto"
@@ -3366,6 +4163,10 @@ export default function OnboardingQuestionnaire() {
         .sound-member-login-link > :not(.sound-utility-link-hover-icon) {
           position: relative;
           z-index: 2;
+        }
+
+        .sound-member-login-line + .sound-member-login-line::before {
+          content: " ";
         }
 
         .sound-utility-link-hover-icon {
@@ -3540,6 +4341,79 @@ export default function OnboardingQuestionnaire() {
           padding-top: 5rem;
         }
 
+        @keyframes soundQuestionGradient {
+          0%,
+          100% {
+            background-position: 0% 50%;
+            opacity: 0.34;
+          }
+          50% {
+            background-position: 100% 50%;
+            opacity: 0.62;
+          }
+        }
+
+        .sound-question-gradient-layer {
+          background:
+            linear-gradient(
+              118deg,
+              rgba(8, 47, 73, 0.42) 0%,
+              rgba(15, 23, 42, 0.12) 27%,
+              rgba(6, 78, 59, 0.22) 51%,
+              rgba(120, 53, 15, 0.18) 76%,
+              rgba(15, 23, 42, 0.2) 100%
+            );
+          background-size: 220% 100%;
+          mix-blend-mode: screen;
+          animation: soundQuestionGradient 18s ease-in-out infinite;
+        }
+
+        @keyframes soundQuestionParticles {
+          0%,
+          100% {
+            opacity: 0.52;
+            transform: translate3d(-1.5%, 1%, 0) scale(1);
+          }
+          50% {
+            opacity: 0.85;
+            transform: translate3d(2.5%, -1.5%, 0) scale(1.035);
+          }
+        }
+
+        .sound-question-particle-layer::before,
+        .sound-question-particle-layer::after {
+          content: "";
+          position: absolute;
+          inset: -6%;
+          background-repeat: no-repeat;
+          will-change: transform, opacity;
+        }
+
+        .sound-question-particle-layer::before {
+          background-image:
+            radial-gradient(circle at 7% 12%, rgba(207, 250, 254, 0.92) 0 1px, transparent 1.9px),
+            radial-gradient(circle at 18% 34%, rgba(34, 211, 238, 0.86) 0 1.2px, transparent 2.1px),
+            radial-gradient(circle at 27% 78%, rgba(250, 204, 21, 0.82) 0 1px, transparent 1.8px),
+            radial-gradient(circle at 41% 18%, rgba(255, 255, 255, 0.84) 0 0.85px, transparent 1.7px),
+            radial-gradient(circle at 54% 60%, rgba(103, 232, 249, 0.84) 0 1.1px, transparent 2px),
+            radial-gradient(circle at 68% 27%, rgba(251, 191, 36, 0.72) 0 0.9px, transparent 1.8px),
+            radial-gradient(circle at 79% 74%, rgba(207, 250, 254, 0.86) 0 1.15px, transparent 2px),
+            radial-gradient(circle at 91% 38%, rgba(34, 211, 238, 0.82) 0 1px, transparent 1.9px),
+            radial-gradient(circle at 86% 9%, rgba(255, 255, 255, 0.72) 0 0.8px, transparent 1.6px),
+            radial-gradient(circle at 11% 91%, rgba(103, 232, 249, 0.75) 0 0.9px, transparent 1.7px);
+          animation: soundQuestionParticles 15s ease-in-out infinite;
+        }
+
+        .sound-question-particle-layer::after {
+          background-image:
+            radial-gradient(ellipse at 22% 56%, rgba(103, 232, 249, 0.52) 0 1px, transparent 2.6px),
+            radial-gradient(ellipse at 48% 88%, rgba(250, 204, 21, 0.42) 0 1px, transparent 2.4px),
+            radial-gradient(ellipse at 73% 49%, rgba(207, 250, 254, 0.52) 0 1px, transparent 2.5px),
+            radial-gradient(ellipse at 95% 82%, rgba(103, 232, 249, 0.5) 0 0.9px, transparent 2.2px),
+            radial-gradient(ellipse at 4% 67%, rgba(255, 255, 255, 0.42) 0 0.8px, transparent 2px);
+          animation: soundQuestionParticles 20s ease-in-out -6s infinite reverse;
+        }
+
         @media (max-width: 820px) {
           main[data-onboarding-stage="welcome"] .sound-assessment-link {
             max-width: 11.25rem;
@@ -3568,6 +4442,47 @@ export default function OnboardingQuestionnaire() {
             font-size: 0.43rem;
             letter-spacing: 0.07em;
             line-height: 1.12;
+          }
+        }
+
+        /* Keep the member sign-in action in the welcome header as the space
+           tightens. A deliberate two-line label is calmer than letting its
+           full-width pill force a new header row above the crest. */
+        @media (min-width: 461px) and (max-width: 700px) {
+          main[data-onboarding-stage="welcome"] .sound-member-login-link {
+            right: 0.4rem;
+            top: 0.95rem;
+            width: 8.9rem;
+            max-width: calc(100% - 11rem);
+            gap: 0.35rem;
+            font-size: 0.43rem;
+            letter-spacing: 0.07em;
+            line-height: 1.12;
+            justify-content: flex-end;
+            text-align: right;
+          }
+
+          main[data-onboarding-stage="welcome"] .sound-member-login-link .sound-utility-link-copy {
+            flex: 0 0 auto;
+            min-width: 0;
+            line-height: 1rem;
+            white-space: nowrap;
+          }
+
+          main[data-onboarding-stage="welcome"] .sound-member-login-link .sound-member-login-line {
+            display: block;
+          }
+
+          main[data-onboarding-stage="welcome"] .sound-member-login-link .sound-member-login-line + .sound-member-login-line::before {
+            content: none;
+          }
+
+          main[data-onboarding-stage="welcome"] .sound-welcome-stack {
+            transform: translateY(0);
+          }
+
+          main[data-onboarding-stage="welcome"] .sound-audio-control {
+            top: 4.75rem;
           }
         }
 
@@ -3631,7 +4546,7 @@ export default function OnboardingQuestionnaire() {
           }
         }
 
-        @media (max-width: 640px) {
+        @media (max-width: 520px) {
           main[data-onboarding-stage="questions"] .sound-assessment-link,
           main[data-onboarding-stage="result"] .sound-assessment-link {
             top: 4.95rem;
@@ -3727,23 +4642,32 @@ export default function OnboardingQuestionnaire() {
         }
 
         .sound-progress-node {
+          --progress-accent-rgb: 14, 165, 233;
+          --progress-deep-rgb: 8, 47, 73;
+          --progress-light-rgb: 125, 249, 255;
+          --progress-ink: #ecfeff;
           position: relative;
           z-index: 1;
           display: grid;
           height: clamp(1.62rem, 2.4vw, 2.18rem);
           width: clamp(1.62rem, 2.4vw, 2.18rem);
+          padding: 0;
           place-items: center;
           justify-self: center;
+          appearance: none;
           border-radius: 999px;
-          color: rgba(148, 163, 184, 0.5);
+          font: inherit;
+          text-align: inherit;
+          color: rgba(var(--progress-light-rgb), 0.58);
           background:
             radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.14), transparent 26%),
+            radial-gradient(circle at 62% 68%, rgba(var(--progress-accent-rgb), 0.14), transparent 48%),
             linear-gradient(145deg, rgba(15, 23, 42, 0.94), rgba(2, 7, 19, 0.76));
-          border: 1px solid rgba(148, 163, 184, 0.16);
+          border: 1px solid rgba(var(--progress-light-rgb), 0.22);
           box-shadow:
             0 5px 16px rgba(0, 0, 0, 0.22),
             inset 0 1px 0 rgba(255, 255, 255, 0.08);
-          filter: grayscale(0.45) brightness(0.72);
+          filter: saturate(0.82) brightness(0.78);
           transition:
             background 360ms ease,
             border-color 360ms ease,
@@ -3759,30 +4683,131 @@ export default function OnboardingQuestionnaire() {
           stroke-width: 2.55;
         }
 
+        .sound-progress-node:not(:disabled) {
+          cursor: pointer;
+        }
+
+        .sound-progress-node:disabled {
+          cursor: default;
+        }
+
+        .sound-progress-tooltip {
+          position: absolute;
+          left: 50%;
+          top: calc(100% + 0.55rem);
+          z-index: 40;
+          display: grid;
+          width: max-content;
+          max-width: min(13rem, 72vw);
+          gap: 0.12rem;
+          padding: 0.48rem 0.58rem;
+          border: 1px solid rgba(var(--progress-light-rgb), 0.44);
+          border-radius: 0.45rem;
+          background:
+            radial-gradient(circle at 20% 0%, rgba(var(--progress-accent-rgb), 0.28), transparent 62%),
+            rgba(3, 8, 22, 0.96);
+          color: #ecfeff;
+          font-size: 0.58rem;
+          font-style: normal;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          line-height: 1.2;
+          opacity: 0;
+          pointer-events: none;
+          text-align: left;
+          transform: translate(-50%, -0.22rem) scale(0.96);
+          transition:
+            opacity 160ms ease,
+            transform 180ms cubic-bezier(0.2, 0.82, 0.22, 1);
+          visibility: hidden;
+          box-shadow:
+            0 14px 30px rgba(2, 7, 19, 0.7),
+            inset 0 1px 0 rgba(255, 255, 255, 0.13);
+        }
+
+        .sound-progress-tooltip::before {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: -0.28rem;
+          height: 0.48rem;
+          width: 0.48rem;
+          border-left: 1px solid rgba(var(--progress-light-rgb), 0.44);
+          border-top: 1px solid rgba(var(--progress-light-rgb), 0.44);
+          background: rgb(3 8 22 / 0.96);
+          transform: translateX(-50%) rotate(45deg);
+        }
+
+        .sound-progress-tooltip span,
+        .sound-progress-tooltip em {
+          color: rgba(var(--progress-light-rgb), 0.82);
+          font-size: 0.5rem;
+          font-style: normal;
+          font-weight: 800;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+        }
+
+        .sound-progress-tooltip strong {
+          color: #f8fafc;
+          font-size: 0.62rem;
+          font-weight: 800;
+          letter-spacing: 0;
+        }
+
+        .sound-progress-node:hover .sound-progress-tooltip,
+        .sound-progress-node:focus-visible .sound-progress-tooltip {
+          opacity: 1;
+          transform: translate(-50%, 0) scale(1);
+          visibility: visible;
+        }
+
+        .sound-readiness-ring-value {
+          stroke-dasharray: 100;
+          stroke-dashoffset: var(--readiness-ring-offset);
+          filter: drop-shadow(0 0 4px rgba(52, 211, 153, 0.62));
+          animation: soundReadinessRingLoad 1.15s cubic-bezier(0.2, 0.82, 0.22, 1) both;
+        }
+
+        @keyframes soundReadinessRingLoad {
+          from {
+            stroke-dashoffset: 100;
+          }
+          to {
+            stroke-dashoffset: var(--readiness-ring-offset);
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .sound-readiness-ring-value {
+            animation: none;
+          }
+        }
+
         .sound-progress-node[data-active="true"] {
-          color: #bae6fd;
-          border-color: rgba(34, 211, 238, 0.48);
+          color: var(--progress-ink);
+          border-color: rgba(var(--progress-light-rgb), 0.62);
           filter: none;
           transform: translateY(-1px);
           box-shadow:
-            0 0 0 1px rgba(34, 211, 238, 0.1),
-            0 0 18px rgba(34, 211, 238, 0.18),
+            0 0 0 1px rgba(var(--progress-accent-rgb), 0.12),
+            0 0 18px rgba(var(--progress-accent-rgb), 0.24),
             inset 0 1px 0 rgba(255, 255, 255, 0.14);
         }
 
         ${completedProgressNodeSelector},
         .sound-progress-node[data-answered="true"],
         .sound-progress-node[data-active="true"] {
-          color: #ecfeff;
-          border-color: rgba(125, 249, 255, 0.78);
+          color: var(--progress-ink);
+          border-color: rgba(var(--progress-light-rgb), 0.8);
           background:
             radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.54), transparent 24%),
-            radial-gradient(circle at 62% 68%, rgba(34, 211, 238, 0.38), transparent 42%),
-            linear-gradient(145deg, rgba(14, 165, 233, 0.68), rgba(8, 47, 73, 0.88));
+            radial-gradient(circle at 62% 68%, rgba(var(--progress-accent-rgb), 0.42), transparent 42%),
+            linear-gradient(145deg, rgba(var(--progress-accent-rgb), 0.68), rgba(var(--progress-deep-rgb), 0.88));
           box-shadow:
             0 0 0 1px rgba(255, 255, 255, 0.12),
-            0 0 22px rgba(34, 211, 238, 0.28),
-            0 8px 24px rgba(14, 165, 233, 0.18),
+            0 0 22px rgba(var(--progress-accent-rgb), 0.3),
+            0 8px 24px rgba(var(--progress-accent-rgb), 0.2),
             inset 0 1px 0 rgba(255, 255, 255, 0.36),
             inset 0 -12px 18px rgba(2, 7, 19, 0.2);
           filter: none;
@@ -3809,7 +4834,7 @@ export default function OnboardingQuestionnaire() {
         .sound-progress-path[data-progress-result="true"] .sound-progress-node--prize::before {
           inset: -0.38rem;
           z-index: -1;
-          background: radial-gradient(circle, rgba(34, 211, 238, 0.22), transparent 66%);
+          background: radial-gradient(circle, rgba(var(--progress-accent-rgb), 0.25), transparent 66%);
           opacity: 0.74;
           animation: soundProgressAura 3.6s ease-in-out infinite;
         }
@@ -3820,11 +4845,32 @@ export default function OnboardingQuestionnaire() {
         .sound-progress-path[data-progress-result="true"] .sound-progress-node--prize::after {
           inset: -0.12rem;
           z-index: 2;
-          border: 1px solid rgba(207, 250, 254, 0.72);
-          border-top-color: rgba(250, 204, 21, 0.62);
+          border: 1px solid rgba(var(--progress-light-rgb), 0.74);
+          border-top-color: rgba(var(--progress-accent-rgb), 0.82);
           border-left-color: rgba(255, 255, 255, 0.2);
           opacity: 0.82;
           animation: soundProgressRing 5.8s linear infinite;
+        }
+
+        .sound-progress-node[data-tone="emerald"] {
+          --progress-accent-rgb: 16, 185, 129;
+          --progress-deep-rgb: 6, 78, 59;
+          --progress-light-rgb: 110, 231, 183;
+          --progress-ink: #d1fae5;
+        }
+
+        .sound-progress-node[data-tone="amber"] {
+          --progress-accent-rgb: 245, 158, 11;
+          --progress-deep-rgb: 120, 53, 15;
+          --progress-light-rgb: 253, 230, 138;
+          --progress-ink: #fef3c7;
+        }
+
+        .sound-progress-node[data-tone="rose"] {
+          --progress-accent-rgb: 244, 63, 94;
+          --progress-deep-rgb: 136, 19, 55;
+          --progress-light-rgb: 253, 164, 175;
+          --progress-ink: #ffe4e6;
         }
 
         .sound-progress-node--prize {
@@ -3909,6 +4955,135 @@ export default function OnboardingQuestionnaire() {
           filter: blur(8px) brightness(0.82);
           pointer-events: none;
           transform: translateY(0.85rem) scale(0.982);
+        }
+
+        @keyframes soundSelectionInsight {
+          0% {
+            opacity: 0;
+            transform: translateY(-0.65rem) scale(0.96);
+          }
+          10%,
+          82% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+          100% {
+            opacity: 0;
+            transform: translateY(-0.25rem) scale(0.985);
+          }
+        }
+
+        @keyframes soundSelectionInsightBackdrop {
+          0% {
+            opacity: 0;
+          }
+          10%,
+          82% {
+            opacity: 1;
+          }
+          100% {
+            opacity: 0;
+          }
+        }
+
+        .sound-selection-insight-backdrop {
+          background: rgba(2, 6, 23, 0.54);
+          backdrop-filter: blur(1.5px) saturate(0.82);
+          -webkit-mask-image: radial-gradient(
+            circle var(--selection-focus-radius, 0px) at var(--selection-focus-x, -10rem) var(--selection-focus-y, -10rem),
+            transparent 0 72%,
+            #000 100%
+          );
+          mask-image: radial-gradient(
+            circle var(--selection-focus-radius, 0px) at var(--selection-focus-x, -10rem) var(--selection-focus-y, -10rem),
+            transparent 0 72%,
+            #000 100%
+          );
+          animation: soundSelectionInsightBackdrop 5s ease both;
+        }
+
+        .sound-selection-insight {
+          --insight-accent-rgb: 34, 211, 238;
+          --insight-deep-rgb: 8, 47, 73;
+          --insight-light-rgb: 207, 250, 254;
+          max-height: calc(100svh - 2rem);
+          border: 1px solid rgb(var(--insight-accent-rgb) / 0.72);
+          background:
+            radial-gradient(circle at 86% 14%, rgb(var(--insight-accent-rgb) / 0.48), transparent 43%),
+            linear-gradient(135deg, rgb(var(--insight-accent-rgb) / 0.52), rgba(15, 23, 42, 0.72) 54%, rgb(var(--insight-accent-rgb) / 0.32));
+          box-shadow:
+            0 22px 58px rgba(2, 7, 19, 0.58),
+            0 0 32px rgba(var(--insight-accent-rgb), 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.22);
+          animation: soundSelectionInsight 5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+        }
+
+        .sound-selection-insight[data-tone="emerald"] {
+          --insight-accent-rgb: 16, 185, 129;
+          --insight-deep-rgb: 6, 78, 59;
+          --insight-light-rgb: 167, 243, 208;
+        }
+
+        .sound-selection-insight[data-tone="amber"] {
+          --insight-accent-rgb: 245, 158, 11;
+          --insight-deep-rgb: 120, 53, 15;
+          --insight-light-rgb: 253, 230, 138;
+        }
+
+        .sound-selection-insight[data-tone="rose"] {
+          --insight-accent-rgb: 244, 63, 94;
+          --insight-deep-rgb: 136, 19, 55;
+          --insight-light-rgb: 254, 205, 211;
+        }
+
+        .sound-selection-insight__scan {
+          opacity: 0.56;
+          background:
+            linear-gradient(108deg, transparent 12%, rgba(207, 250, 254, 0.13) 39%, transparent 53%),
+            repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 4px);
+          transform: translateX(-38%);
+          animation: soundSelectionInsightScan 5s ease-out both;
+        }
+
+        .sound-selection-insight__badge {
+          background:
+            radial-gradient(circle at 34% 25%, rgba(255, 255, 255, 0.36), transparent 27%),
+            linear-gradient(145deg, rgba(var(--insight-accent-rgb), 0.3), rgba(var(--insight-deep-rgb), 0.36));
+          box-shadow:
+            0 0 18px rgba(var(--insight-accent-rgb), 0.22),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .sound-selection-insight__edge {
+          background: linear-gradient(180deg, rgba(var(--insight-light-rgb), 0.96), rgba(var(--insight-accent-rgb), 0.94) 50%, rgba(var(--insight-accent-rgb), 0.52));
+        }
+
+        .sound-selection-insight__kicker {
+          color: rgba(var(--insight-light-rgb), 0.9);
+        }
+
+        .sound-selection-insight__rail span {
+          transform-origin: left center;
+          background: linear-gradient(90deg, rgba(var(--insight-light-rgb), 0.95), rgba(var(--insight-accent-rgb), 0.95), rgba(255, 255, 255, 0.48));
+          animation: soundSelectionInsightRail 5s linear both;
+        }
+
+        @keyframes soundSelectionInsightScan {
+          0% { transform: translateX(-44%); opacity: 0; }
+          18%, 78% { opacity: 0.56; }
+          100% { transform: translateX(72%); opacity: 0; }
+        }
+
+        @keyframes soundSelectionInsightRail {
+          from { transform: scaleX(1); opacity: 0.92; }
+          to { transform: scaleX(0); opacity: 0.3; }
+        }
+
+        .sound-selection-insight__copy {
+          display: -webkit-box;
+          overflow: hidden;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 3;
         }
 
         .sound-question-top-back {
@@ -4026,7 +5201,7 @@ export default function OnboardingQuestionnaire() {
             inset 0 1px 0 rgba(255, 255, 255, 0.7);
         }
 
-        @media (max-width: 640px) {
+        @media (max-width: 520px) {
           .sound-results-action-row {
             grid-template-columns: 1fr;
           }
@@ -4100,6 +5275,9 @@ export default function OnboardingQuestionnaire() {
           aspect-ratio: 1 / 1;
           isolation: isolate;
           min-height: 0;
+          grid-auto-rows: max-content;
+          align-content: center;
+          row-gap: 0.58rem;
           border-radius: 0.14rem;
           background:
             radial-gradient(circle at 50% 18%, rgb(var(--option-accent) / 0.2), transparent 34%),
@@ -4471,6 +5649,13 @@ export default function OnboardingQuestionnaire() {
           text-shadow: 0 2px 14px rgba(0, 0, 0, 0.74);
         }
 
+        @media (min-width: 760px) {
+          .sound-option-grid:not([data-option-count="9"]) .sound-option-label {
+            display: block;
+            min-height: 2.16em;
+          }
+        }
+
         /* Never split a reco label mid-word — it wraps between words only.
            If a word still can't fit the card, the fit pass marks the label and
            it drops out entirely, leaving the icon to speak for the card. */
@@ -4519,7 +5704,7 @@ export default function OnboardingQuestionnaire() {
 
         @media (max-width: 1100px) {
           main[data-onboarding-stage="questions"] .sound-question-logo {
-            top: 0.65rem;
+            top: 1rem;
           }
 
           main[data-onboarding-stage="questions"] .sound-question-logo-stage {
@@ -4654,7 +5839,7 @@ export default function OnboardingQuestionnaire() {
 
         @media (max-width: 1100px) and (max-height: 900px) {
           main[data-onboarding-stage="questions"] .sound-question-logo {
-            top: 0.5rem;
+            top: 1rem;
           }
 
           main[data-onboarding-stage="questions"] .sound-assessment-link {
@@ -4728,14 +5913,18 @@ export default function OnboardingQuestionnaire() {
           position: relative;
           isolation: isolate;
           overflow: hidden;
-          border: 1px solid rgba(207, 250, 254, 0.8);
+          border: 3px solid transparent;
           background:
-            radial-gradient(circle at 12% 15%, rgba(255, 255, 255, 0.9), transparent 10%),
-            linear-gradient(112deg, #67e8f9 0%, #22d3ee 24%, #38bdf8 46%, #0ea5e9 58%, #67e8f9 72%, #fb923c 86%, #facc15 100%);
+            radial-gradient(circle at 12% 15%, rgba(255, 255, 255, 0.42), transparent 16%) padding-box,
+            linear-gradient(112deg, rgba(103, 232, 249, 0.74) 0%, rgba(34, 211, 238, 0.54) 28%, rgba(14, 165, 233, 0.46) 52%, rgba(251, 146, 60, 0.52) 76%, rgba(250, 204, 21, 0.62) 100%) padding-box,
+            linear-gradient(112deg, #67e8f9 0%, #22d3ee 24%, #38bdf8 46%, #0ea5e9 58%, #67e8f9 72%, #fb923c 86%, #facc15 100%) border-box;
+          background-clip: padding-box, padding-box, border-box;
           background-size: 280% 280%;
+          backdrop-filter: blur(16px) saturate(1.3);
           box-shadow:
-            0 0 0 1px rgba(255, 255, 255, 0.24),
+            0 0 0 1px rgba(255, 255, 255, 0.36),
             0 0 34px rgba(34, 211, 238, 0.34),
+            0 0 26px rgba(251, 146, 60, 0.2),
             0 16px 38px rgba(8, 47, 73, 0.34),
             inset 0 1px 0 rgba(255, 255, 255, 0.72),
             inset 0 -10px 22px rgba(8, 47, 73, 0.18);
@@ -4745,6 +5934,43 @@ export default function OnboardingQuestionnaire() {
 
         .sound-app-start-button:hover {
           transform: translateY(-2px) scale(1.01);
+        }
+
+        .sound-app-start-button::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          z-index: 3;
+          border-radius: inherit;
+          padding: 3px;
+          background: linear-gradient(
+            104deg,
+            transparent 0%,
+            transparent 34%,
+            rgba(103, 232, 249, 0.2) 42%,
+            rgba(255, 255, 255, 0.96) 48%,
+            rgba(34, 211, 238, 0.98) 52%,
+            rgba(254, 240, 138, 0.8) 56%,
+            transparent 64%,
+            transparent 100%
+          );
+          background-position: -145% 0;
+          background-repeat: no-repeat;
+          background-size: 250% 100%;
+          -webkit-mask:
+            linear-gradient(#000 0 0) content-box,
+            linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor;
+          mask-composite: exclude;
+          opacity: 0.76;
+          pointer-events: none;
+          animation: soundAppStartBorderSweep 7.2s ease-in-out infinite;
+        }
+
+        .sound-app-start-button:hover::before {
+          opacity: 1;
+          filter: brightness(1.18) saturate(1.14);
+          animation-duration: 4.8s;
         }
 
         .sound-app-start-aura {
@@ -4781,7 +6007,6 @@ export default function OnboardingQuestionnaire() {
 
         .sound-app-start-content svg {
           filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.46));
-          animation: soundAppStartGlyph 8.8s ease-in-out infinite;
         }
 
         .sound-app-start-diamond {
@@ -4939,7 +6164,7 @@ export default function OnboardingQuestionnaire() {
 
         /* Narrow widths: compact the trust chips and tighten spacing so the
            stacked welcome hero still fits inside the frame. */
-        @media (max-width: 640px) {
+        @media (max-width: 520px) {
           main[data-onboarding-stage="welcome"] .sound-welcome-stack {
             gap: clamp(0.4rem, 1.6vw, 0.7rem);
           }
@@ -5015,6 +6240,32 @@ export default function OnboardingQuestionnaire() {
               0 12px 30px rgba(2, 7, 19, 0.8),
               0 0 20px rgba(14, 165, 233, 0.3),
               inset 0 0 15px rgba(125, 249, 255, 0.2);
+          }
+
+          main[data-onboarding-stage="welcome"] .sound-assessment-link:active,
+          main[data-onboarding-stage="welcome"] .sound-assessment-link:focus-visible {
+            border-color: rgba(251, 146, 60, 0.84);
+            background:
+              radial-gradient(circle at 50% 28%, rgba(120, 53, 15, 0.72), rgba(31, 14, 4, 0.94));
+            box-shadow:
+              0 12px 30px rgba(2, 7, 19, 0.8),
+              0 0 22px rgba(249, 115, 22, 0.46),
+              inset 0 0 15px rgba(251, 146, 60, 0.24);
+            color: rgb(254, 215, 170);
+            transform: scale(0.94);
+          }
+
+          main[data-onboarding-stage="welcome"] .sound-member-login-link:active,
+          main[data-onboarding-stage="welcome"] .sound-member-login-link:focus-visible {
+            border-color: rgba(56, 189, 248, 0.9);
+            background:
+              radial-gradient(circle at 50% 28%, rgba(12, 74, 110, 0.78), rgba(2, 12, 29, 0.94));
+            box-shadow:
+              0 12px 30px rgba(2, 7, 19, 0.8),
+              0 0 22px rgba(14, 165, 233, 0.54),
+              inset 0 0 15px rgba(56, 189, 248, 0.26);
+            color: rgb(224, 242, 254);
+            transform: scale(0.94);
           }
         }
 
@@ -5746,6 +6997,275 @@ export default function OnboardingQuestionnaire() {
           z-index: 2;
         }
 
+        .sound-trust-indicator {
+          --indicator-accent: 34 211 238;
+          --indicator-deep: 8 47 73;
+  --indicator-open-width: 9.25rem;
+  --indicator-preview-offset: 4.95rem;
+          --chip-accent: var(--indicator-accent);
+          --chip-cycle: 5s;
+          --chip-delay: 0ms;
+          position: relative;
+          justify-content: center;
+          color: rgb(var(--indicator-accent));
+          border-color: rgb(var(--indicator-accent) / 0.3);
+          background:
+            radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.16), transparent 30%),
+            linear-gradient(145deg, rgb(var(--indicator-deep) / 0.78), rgba(2, 7, 19, 0.84));
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 5px 14px rgba(2, 7, 19, 0.3);
+          transition:
+            width 420ms cubic-bezier(0.2, 0.82, 0.22, 1),
+            border-color 260ms ease,
+            background 260ms ease,
+            box-shadow 260ms ease,
+            transform 260ms ease;
+        }
+
+        .sound-trust-indicator[data-index="1"] {
+          --indicator-accent: 45 212 191;
+          --indicator-deep: 6 78 59;
+  --indicator-open-width: 8rem;
+  --indicator-preview-offset: 4.6rem;
+        }
+
+        .sound-trust-indicator[data-index="2"] {
+          --indicator-accent: 250 204 21;
+          --indicator-deep: 120 53 15;
+  --indicator-open-width: 8.5rem;
+  --indicator-preview-offset: 4.85rem;
+        }
+
+        .sound-trust-indicator[data-index="3"] {
+          --indicator-accent: 52 211 153;
+          --indicator-deep: 6 78 59;
+  --indicator-open-width: 10rem;
+  --indicator-preview-offset: 5.6rem;
+        }
+
+        .sound-trust-indicator[data-active="true"] {
+          width: var(--indicator-open-width);
+          justify-content: flex-start;
+          padding-inline: 0.65rem;
+          color: rgb(var(--indicator-accent));
+          border-color: rgb(var(--indicator-accent) / 0.7);
+          background:
+            radial-gradient(circle at 20% 24%, rgba(255, 255, 255, 0.28), transparent 24%),
+            linear-gradient(110deg, rgb(var(--indicator-accent) / 0.36), rgb(var(--indicator-deep) / 0.8));
+          box-shadow:
+            0 0 0 1px rgb(var(--indicator-accent) / 0.16),
+            0 0 24px rgb(var(--indicator-accent) / 0.26),
+            inset 0 1px 0 rgba(255, 255, 255, 0.22);
+          transform: translateY(-1px);
+        }
+
+        .sound-trust-indicator__icon {
+          position: relative;
+          z-index: 2;
+          flex: 0 0 auto;
+          filter: drop-shadow(0 0 6px rgb(var(--indicator-accent) / 0.65));
+        }
+
+        .sound-trust-indicator__label {
+          position: relative;
+          z-index: 2;
+          max-width: 0;
+          margin-left: 0;
+          opacity: 0;
+          overflow: hidden;
+          flex: 0 0 auto;
+          color: #ecfeff;
+          transform: translateX(-0.3rem);
+          transition:
+            max-width 420ms cubic-bezier(0.2, 0.82, 0.22, 1),
+            margin-left 420ms cubic-bezier(0.2, 0.82, 0.22, 1),
+            opacity 180ms ease 80ms,
+            transform 420ms cubic-bezier(0.2, 0.82, 0.22, 1);
+        }
+
+        .sound-trust-indicator[data-active="true"] .sound-trust-indicator__label {
+  max-width: 10rem;
+          margin-left: 0.45rem;
+          opacity: 1;
+          transform: translateX(0);
+        }
+
+        @media (max-width: 520px) {
+          .sound-trust-indicators {
+            position: relative;
+            width: min(100%, 15.5rem);
+            height: 3.65rem;
+            margin-inline: auto;
+            perspective: 680px;
+            transform-style: preserve-3d;
+          }
+
+          .sound-trust-indicator {
+            display: none;
+          }
+
+          .sound-trust-indicator[data-active="true"] {
+            display: inline-flex;
+            position: absolute;
+            left: 50%;
+            top: 0.35rem;
+            z-index: 2;
+            width: var(--indicator-open-width);
+            transform: translateX(-50%) translateY(-1px) rotateY(0deg);
+          }
+
+          .sound-trust-indicator[data-preview="true"] {
+            display: inline-flex;
+            position: absolute;
+            left: calc(50% + 5.65rem);
+            top: 0.55rem;
+            z-index: 4;
+            width: 2rem;
+            padding-inline: 0;
+            justify-content: center;
+            opacity: 0.94;
+            transform: translateX(-0.18rem) rotateY(-20deg) rotateZ(1deg) scale(0.96);
+            transform-origin: left center;
+            filter: brightness(1.08) saturate(1.05);
+            box-shadow:
+              0 8px 18px rgba(2, 7, 19, 0.5),
+              0 0 12px rgb(var(--indicator-accent) / 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.16);
+            animation: soundTrustPreviewOrbitIn 460ms cubic-bezier(0.18, 0.9, 0.2, 1) both;
+          }
+
+          .sound-trust-indicator[data-preview="true"] .sound-trust-indicator__label {
+            display: none;
+          }
+        }
+
+        @media (min-width: 400px) and (max-width: 520px) {
+          .sound-trust-indicator[data-previous="true"] {
+            display: inline-flex;
+            position: absolute;
+            left: calc(50% - 7.65rem);
+            top: 0.55rem;
+            z-index: 4;
+            width: 2rem;
+            padding-inline: 0;
+            justify-content: center;
+            opacity: 0.94;
+            transform: translateX(0.18rem) rotateY(20deg) rotateZ(-1deg) scale(0.96);
+            transform-origin: right center;
+            filter: brightness(1.08) saturate(1.05);
+            box-shadow:
+              0 8px 18px rgba(2, 7, 19, 0.5),
+              0 0 12px rgb(var(--indicator-accent) / 0.2),
+              inset 0 1px 0 rgba(255, 255, 255, 0.16);
+            animation: soundTrustPreviewOrbitInLeft 460ms cubic-bezier(0.18, 0.9, 0.2, 1) both;
+          }
+
+          .sound-trust-indicator[data-previous="true"] .sound-trust-indicator__label {
+            display: none;
+          }
+        }
+
+        @keyframes soundTrustPreviewOrbitIn {
+          0% {
+            opacity: 0;
+            filter: brightness(0.72) saturate(0.72);
+            transform: translateX(-0.85rem) translateY(0.3rem) rotateY(-58deg) rotateZ(4deg) scale(0.66);
+          }
+          70% {
+            opacity: 1;
+            filter: brightness(1.16) saturate(1.1);
+            transform: translateX(-0.08rem) rotateY(-15deg) rotateZ(0deg) scale(1);
+          }
+          100% {
+            opacity: 0.94;
+            filter: brightness(1.08) saturate(1.05);
+            transform: translateX(-0.18rem) rotateY(-20deg) rotateZ(1deg) scale(0.96);
+          }
+        }
+
+        @keyframes soundTrustPreviewOrbitInLeft {
+          0% {
+            opacity: 0;
+            filter: brightness(0.72) saturate(0.72);
+            transform: translateX(0.85rem) translateY(0.3rem) rotateY(58deg) rotateZ(-4deg) scale(0.66);
+          }
+          70% {
+            opacity: 1;
+            filter: brightness(1.16) saturate(1.1);
+            transform: translateX(0.08rem) rotateY(15deg) rotateZ(0deg) scale(1);
+          }
+          100% {
+            opacity: 0.94;
+            filter: brightness(1.08) saturate(1.05);
+            transform: translateX(0.18rem) rotateY(20deg) rotateZ(-1deg) scale(0.96);
+          }
+        }
+
+        .sound-trust-indicator:not([data-active="true"]) .sound-trust-sparkle,
+        .sound-trust-indicator:not([data-active="true"]) .sound-trust-bubble {
+          animation: none;
+          opacity: 0;
+        }
+
+        .sound-trust-indicator:not([data-active="true"]) .sound-trust-indicator-particle {
+          animation: soundTrustIndicatorParticleMuted 4.6s ease-in infinite;
+          filter: saturate(0.72);
+        }
+
+        .sound-trust-indicator-particle {
+          position: absolute;
+          bottom: 0.32rem;
+          left: var(--indicator-particle-left);
+          z-index: 1;
+          height: var(--indicator-particle-size);
+          width: var(--indicator-particle-size);
+          border-radius: 999px;
+          background: radial-gradient(circle, rgba(255, 255, 255, 0.98) 0 18%, rgb(var(--indicator-accent)) 42%, transparent 76%);
+          box-shadow:
+            0 0 8px rgb(var(--indicator-accent) / 0.7),
+            0 0 14px rgb(var(--indicator-accent) / 0.24);
+          opacity: 0;
+          pointer-events: none;
+          animation: soundTrustIndicatorParticle 2.8s ease-in infinite;
+          animation-delay: var(--indicator-particle-delay);
+          will-change: transform, opacity;
+        }
+
+        @keyframes soundTrustIndicatorParticle {
+          0% {
+            opacity: 0;
+            transform: translate3d(0, 0.3rem, 0) scale(0.28);
+          }
+          14% {
+            opacity: 0.94;
+          }
+          68% {
+            opacity: 0.58;
+          }
+          100% {
+            opacity: 0;
+            transform: translate3d(var(--indicator-particle-drift), -2.25rem, 0) scale(1.16);
+          }
+        }
+
+        @keyframes soundTrustIndicatorParticleMuted {
+          0% {
+            opacity: 0;
+            transform: translate3d(0, 0.2rem, 0) scale(0.25);
+          }
+          18% {
+            opacity: 0.38;
+          }
+          72% {
+            opacity: 0.18;
+          }
+          100% {
+            opacity: 0;
+            transform: translate3d(var(--indicator-particle-drift), -1.8rem, 0) scale(0.9);
+          }
+        }
+
         .sound-trust-sparkle {
           --spark-x: 0.34rem;
           --spark-y: -0.3rem;
@@ -6292,6 +7812,20 @@ export default function OnboardingQuestionnaire() {
               0 16px 38px rgba(8, 47, 73, 0.34),
               inset 0 1px 0 rgba(255, 255, 255, 0.72),
               inset 0 -10px 22px rgba(8, 47, 73, 0.16);
+          }
+        }
+
+        @keyframes soundAppStartBorderSweep {
+          0% {
+            background-position: -145% 0;
+            opacity: 0.48;
+          }
+          46% {
+            opacity: 0.96;
+          }
+          100% {
+            background-position: 145% 0;
+            opacity: 0.48;
           }
         }
 
@@ -7764,6 +9298,13 @@ export default function OnboardingQuestionnaire() {
         }
 
         @media (prefers-reduced-motion: reduce) {
+          .sound-selection-insight,
+          .sound-selection-insight-backdrop,
+          .sound-selection-insight__scan,
+          .sound-selection-insight__rail span,
+          .sound-question-gradient-layer,
+          .sound-question-particle-layer::before,
+          .sound-question-particle-layer::after,
           .sound-question-page,
           .sound-option-card,
           .sound-option-photo,
@@ -7777,6 +9318,7 @@ export default function OnboardingQuestionnaire() {
           .sound-member-login-link::after,
           .sound-utility-link-hover-icon,
           .sound-app-start-button,
+          .sound-app-start-button::before,
           .sound-app-start-aura,
           .sound-app-start-sheen,
           .sound-app-start-content,
@@ -7801,11 +9343,14 @@ export default function OnboardingQuestionnaire() {
           .sound-progress-node::before,
           .sound-progress-node::after,
           .sound-progress-spark,
+          .sound-progress-steplabel__current::before,
+          .sound-progress-steplabel__current::after,
           .sound-trust-chip,
           .sound-trust-chip::before,
           .sound-trust-chip::after,
           .sound-trust-bubble,
           .sound-trust-sparkle,
+          .sound-trust-indicator-particle,
           .sound-step-content,
           .sound-step-content::before,
           .sound-step-content::after,
@@ -7831,7 +9376,10 @@ export default function OnboardingQuestionnaire() {
           }
 
           .sound-app-start-button {
-            background: linear-gradient(112deg, #67e8f9, #22d3ee 56%, #fb923c);
+            background:
+              linear-gradient(112deg, rgba(103, 232, 249, 0.78), rgba(34, 211, 238, 0.56) 56%, rgba(251, 146, 60, 0.6)) padding-box,
+              linear-gradient(112deg, #67e8f9, #22d3ee 56%, #fb923c) border-box;
+            background-clip: padding-box, border-box;
           }
 
           .sound-onboarding-shell::before,
@@ -7857,6 +9405,10 @@ export default function OnboardingQuestionnaire() {
           }
 
           .sound-trust-sparkle {
+            display: none;
+          }
+
+          .sound-trust-indicator-particle {
             display: none;
           }
 
@@ -9037,31 +10589,6 @@ export default function OnboardingQuestionnaire() {
             inset 0 1px 0 rgba(255, 255, 255, 0.09);
         }
 
-        /* Tight heights/widths: the labels move INSIDE the boxes — the
-           placeholder carries the label, the visible label above collapses
-           (kept for screen readers), and the row shrinks accordingly. */
-        @media (max-width: 430px) {
-          .sound-question-panel[data-contact-step="true"] .sound-results-lead-form label:not(.sound-results-intro-checkbox) > span {
-            position: absolute;
-            width: 1px;
-            height: 1px;
-            margin: -1px;
-            padding: 0;
-            overflow: hidden;
-            clip: rect(0 0 0 0);
-            white-space: nowrap;
-            border: 0;
-          }
-
-          .sound-question-panel[data-contact-step="true"] .sound-results-lead-form label:not(.sound-results-intro-checkbox) {
-            position: relative;
-          }
-
-          .sound-question-panel[data-contact-step="true"] .sound-results-lead-form label:not(.sound-results-intro-checkbox) input {
-            margin-top: 0;
-          }
-        }
-
         /* Consent checkboxes, upgraded: custom glass boxes with a springy
            check pop, glow, and a row that lights up when selected. */
         .sound-results-intro-checkbox input {
@@ -9438,6 +10965,33 @@ export default function OnboardingQuestionnaire() {
           color: rgb(var(--option-accent));
         }
 
+        .sound-reco-modal-timer {
+          border: 1px solid rgb(var(--option-accent) / 0.42);
+          border-radius: 999px;
+          background: rgba(2, 7, 19, 0.54);
+          box-shadow:
+            0 5px 16px rgba(2, 7, 19, 0.5),
+            inset 0 1px 0 rgba(255, 255, 255, 0.12);
+        }
+
+        .sound-reco-modal-timer-track {
+          stroke: rgba(255, 255, 255, 0.16);
+        }
+
+        .sound-reco-modal-timer-progress {
+          stroke: rgb(var(--option-accent));
+          stroke-dasharray: 1;
+          stroke-dashoffset: 0;
+          animation: soundRecoModalTimer 5s linear forwards;
+          filter: drop-shadow(0 0 3px rgb(var(--option-accent) / 0.85));
+        }
+
+        @keyframes soundRecoModalTimer {
+          to {
+            stroke-dashoffset: 1;
+          }
+        }
+
         /* The panel can get very short (it's aspect-video, so its height falls
            out of whatever width the result panel gives it). Size the copy from
            the panel's own width so it shrinks with it instead of running up
@@ -9581,6 +11135,11 @@ export default function OnboardingQuestionnaire() {
         }
 
         @media (prefers-reduced-motion: reduce) {
+          .sound-reco-modal-timer-progress {
+            animation: none;
+            stroke-dashoffset: 0.32;
+          }
+
           main[data-onboarding-stage="questions"][data-onboarding-step="12"] .sound-progress-steplabel,
           main[data-onboarding-stage="questions"][data-onboarding-step="12"] .sound-progress-node--prize {
             animation: none;
@@ -9820,30 +11379,28 @@ export default function OnboardingQuestionnaire() {
           height: 3.75rem;
         }
 
-        /* While audio plays the trigger "breathes" — a smooth swell with a
-           soft cyan halo, calmer than a blinking wave. */
-        @keyframes soundAudioBreathe {
-          0%,
-          100% {
-            box-shadow: 0 0 5px rgba(34, 211, 238, 0.35);
-            transform: scale(1);
-          }
-          50% {
-            box-shadow:
-              0 0 15px rgba(34, 211, 238, 0.75),
-              0 0 28px rgba(34, 211, 238, 0.28);
-            transform: scale(1.1);
-          }
+        .sound-volume-slider--vertical::-webkit-slider-thumb {
+          height: 0.2rem;
+          width: 1.05rem;
+          border-radius: 0.08rem;
         }
 
+        .sound-volume-slider--vertical::-moz-range-thumb {
+          height: 0.2rem;
+          width: 1.05rem;
+          border-radius: 0.08rem;
+        }
+
+        /* While audio plays the trigger "breathes" — a smooth swell with a
+           soft cyan halo, calmer than a blinking wave. */
         .sound-audio-trigger[data-audio-live="true"] {
-          animation: soundAudioBreathe 2.6s ease-in-out infinite;
+          box-shadow: 0 0 7px rgba(34, 211, 238, 0.18);
         }
 
         @media (prefers-reduced-motion: reduce) {
           .sound-audio-trigger[data-audio-live="true"] {
             animation: none;
-            box-shadow: 0 0 12px rgba(34, 211, 238, 0.7);
+            box-shadow: 0 0 7px rgba(34, 211, 238, 0.18);
           }
         }
 
@@ -9907,6 +11464,91 @@ export default function OnboardingQuestionnaire() {
         .sound-progress-steplabel {
           margin-top: 0.28rem;
           flex-shrink: 0;
+          --step-label-accent: 34, 211, 238;
+        }
+
+        .sound-progress-steplabel[data-tone="emerald"] {
+          --step-label-accent: 16, 185, 129;
+        }
+
+        .sound-progress-steplabel[data-tone="amber"] {
+          --step-label-accent: 245, 158, 11;
+        }
+
+        .sound-progress-steplabel[data-tone="rose"] {
+          --step-label-accent: 244, 63, 94;
+        }
+
+        .sound-progress-steplabel__current {
+          position: relative;
+          z-index: 0;
+          display: inline-grid;
+          min-width: 1.08em;
+          place-items: center;
+          isolation: isolate;
+          color: rgb(var(--step-label-accent));
+          text-shadow: 0 0 0.55rem rgba(var(--step-label-accent), 0.52);
+        }
+
+        .sound-progress-steplabel__current::before {
+          content: "";
+          position: absolute;
+          inset: -0.42rem -0.5rem;
+          z-index: -1;
+          border-radius: 999px;
+          background:
+            radial-gradient(circle at 42% 38%, rgba(255, 255, 255, 0.9), transparent 16%),
+            radial-gradient(circle, rgba(var(--step-label-accent), 0.64), rgba(var(--step-label-accent), 0.14) 50%, transparent 74%);
+          filter: blur(2.5px);
+          opacity: 0.9;
+          animation: soundProgressStepNumberGlow 2.6s ease-in-out infinite;
+        }
+
+        .sound-progress-steplabel__current::after {
+          content: "";
+          position: absolute;
+          right: -0.32rem;
+          top: -0.26rem;
+          z-index: -1;
+          height: 0.2rem;
+          width: 0.2rem;
+          border-radius: 999px;
+          background: rgb(var(--step-label-accent));
+          box-shadow: 0 0 0.42rem rgb(var(--step-label-accent));
+          animation: soundProgressStepNumberSpark 2.6s ease-in-out infinite;
+        }
+
+        .sound-progress-steplabel__total {
+          color: rgb(var(--step-label-accent) / 0.74);
+        }
+
+        @keyframes soundProgressStepNumberGlow {
+          0%,
+          100% {
+            opacity: 0.64;
+            transform: scale(0.88);
+          }
+          52% {
+            opacity: 1;
+            transform: scale(1.16);
+          }
+        }
+
+        @keyframes soundProgressStepNumberSpark {
+          0%,
+          42%,
+          100% {
+            opacity: 0.1;
+            transform: scale(0.4);
+          }
+          54% {
+            opacity: 1;
+            transform: scale(1);
+          }
+          66% {
+            opacity: 0.28;
+            transform: scale(1.55);
+          }
         }
 
         @media (max-width: 430px) {
@@ -9951,6 +11593,46 @@ export default function OnboardingQuestionnaire() {
           100% {
             transform: translateY(-1px) scale(1, 1);
             filter: brightness(1);
+          }
+        }
+
+        .sound-welcome-title-accent {
+          background-image: linear-gradient(
+            108deg,
+            #67e8f9 0%,
+            #a5f3fc 32%,
+            #ffffff 49%,
+            #67e8f9 63%,
+            #22d3ee 100%
+          );
+          background-position: 0% 50%;
+          background-size: 220% 100%;
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+          filter: drop-shadow(0 0 0.32rem rgba(34, 211, 238, 0.32));
+          animation: soundWelcomeTitleSweep 5.4s ease-in-out infinite;
+        }
+
+        @keyframes soundWelcomeTitleSweep {
+          0%,
+          18% {
+            background-position: 0% 50%;
+            filter: drop-shadow(0 0 0.28rem rgba(34, 211, 238, 0.26));
+          }
+          46% {
+            background-position: 100% 50%;
+            filter: drop-shadow(0 0 0.5rem rgba(103, 232, 249, 0.48));
+          }
+          100% {
+            background-position: 0% 50%;
+            filter: drop-shadow(0 0 0.28rem rgba(34, 211, 238, 0.26));
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .sound-welcome-title-accent {
+            animation: none;
           }
         }
       `}</style>
