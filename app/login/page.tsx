@@ -933,15 +933,6 @@ export default function LoginPage() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between gap-3 border-y border-sky-300/12 py-3">
-                  <span className="text-xs font-black uppercase tracking-[0.16em] text-cyan-300">
-                    2FA method
-                  </span>
-                  <span className="text-right text-sm font-bold text-slate-200">
-                    Authenticator app
-                  </span>
-                </div>
-
                 {errorMessage && (
                   <div className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                     {errorMessage}
@@ -971,7 +962,7 @@ export default function LoginPage() {
                     href={ROUTES.onboarding.home}
                     className="mt-2 inline-flex text-sm font-black uppercase tracking-[0.14em] text-sky-400 hover:text-sky-300"
                   >
-                    Start Free Intro
+                    Take the Quiz → Get Access
                   </Link>
                 </div>
               </form>

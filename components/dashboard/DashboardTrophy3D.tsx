@@ -1,14 +1,20 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+// NOTE: the member dashboard header no longer mounts this live widget — it
+// shows /public/dashboard-trophy-prerender.png, a 512px still of this exact
+// scene, because the shared-canvas trophy could not follow the header's
+// compositor-driven open/idle scale animation. To refresh the still after
+// editing this scene: temporarily export createTrophyGroup, render it once in
+// a scratch client page with { preserveDrawingBuffer: true } and the same
+// camera/lights as the builder below, and save canvas.toDataURL to that file.
+
+import { useMemo, useRef } from "react";
 import type { BufferGeometry, Material, Object3D } from "three";
-import {
-  createDashboardWebGlRenderer,
-  loadDashboardThree,
-  setDashboardWebGlCanvasActive,
-  waitForDashboardPriorityWebGlRetry,
-  waitForDashboardWebGlStart,
-} from "./dashboardWebGlRenderer";
+import DashboardWebGlWidget from "./DashboardWebGlWidget";
+import type {
+  DashboardWidgetBuilder,
+  DashboardWidgetInstance,
+} from "./dashboardWebGlStage";
 
 type ThreeModule = typeof import("three");
 
@@ -25,7 +31,6 @@ const TROPHY_REST_ROTATION = {
   y: -0.22,
   z: 0.018,
 } as const;
-const TROPHY_WEBGL_MAX_START_ATTEMPTS = 8;
 
 const getShortestRotationDelta = (delta: number) =>
   Math.atan2(Math.sin(delta), Math.cos(delta));
@@ -82,13 +87,6 @@ const createTrophyGroup = (THREE: ThreeModule) => {
     metalness: 0.7,
     roughness: 0.28,
   });
-  const cyanGlass = new THREE.MeshBasicMaterial({
-    blending: THREE.AdditiveBlending,
-    color: new THREE.Color("#38dfff"),
-    depthWrite: false,
-    opacity: 0.1,
-    transparent: true,
-  });
   const cyanEdge = new THREE.MeshBasicMaterial({
     blending: THREE.AdditiveBlending,
     color: new THREE.Color("#7dd3fc"),
@@ -113,15 +111,6 @@ const createTrophyGroup = (THREE: ThreeModule) => {
     opacity: 0.2,
     transparent: true,
   });
-
-  const backGlow = new THREE.Mesh(new THREE.CircleGeometry(1.1, 64), cyanGlass);
-  backGlow.position.set(0, -0.08, -0.52);
-
-  const backRing = new THREE.Mesh(
-    new THREE.TorusGeometry(0.92, 0.018, 8, 72),
-    cyanEdge,
-  );
-  backRing.position.set(0, -0.08, -0.5);
 
   const cupPoints = [
     new THREE.Vector2(0.16, -0.4),
@@ -191,10 +180,11 @@ const createTrophyGroup = (THREE: ThreeModule) => {
 
   const createHandle = (side: -1 | 1) => {
     const curve = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(side * 0.57, 0.5, -0.02),
+      new THREE.Vector3(side * 0.56, 0.5, -0.02),
       new THREE.Vector3(side * 0.88, 0.37, -0.08),
       new THREE.Vector3(side * 0.92, 0.02, -0.08),
-      new THREE.Vector3(side * 0.56, -0.16, -0.02),
+      new THREE.Vector3(side * 0.62, -0.2, -0.04),
+      new THREE.Vector3(side * 0.28, -0.26, -0.02),
     ]);
     const handle = new THREE.Mesh(
       new THREE.TubeGeometry(curve, 44, 0.036, 12, false),
@@ -238,8 +228,6 @@ const createTrophyGroup = (THREE: ThreeModule) => {
   bodyGlint.scale.set(0.72, 1.45, 0.5);
 
   trophy.add(
-    backGlow,
-    backRing,
     cup,
     cupEdges,
     rim,
@@ -273,210 +261,96 @@ export default function DashboardTrophy3D({
 }: {
   paused?: boolean;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const frameIdRef = useRef(0);
   const pausedRef = useRef(paused);
-  const renderFrameRef = useRef<((time: number) => void) | null>(null);
+  pausedRef.current = paused;
 
-  useEffect(() => {
-    pausedRef.current = paused;
-
-    setDashboardWebGlCanvasActive(canvasRef.current, true);
-    if (frameIdRef.current === 0 && renderFrameRef.current) {
-      frameIdRef.current = window.requestAnimationFrame(renderFrameRef.current);
-    }
-  }, [paused]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup = () => {};
-
-    const startScene = async () => {
-      let startAttempt = 0;
-
-      while (!cancelled && canvasRef.current) {
-        await waitForDashboardWebGlStart({ priority: true });
-        if (cancelled || !canvasRef.current) return;
-
-        const THREE = await loadDashboardThree();
-        if (cancelled || !canvasRef.current) return;
-
-        const canvas = canvasRef.current;
+  // Built once; drawn on the shared WebGL stage into this widget's anchor
+  // rectangle (one shared context for the whole dashboard, instead of a private
+  // canvas per icon). The update closure reads pausedRef so the parent's
+  // `paused` prop stays live without rebuilding the scene.
+  const build = useMemo<DashboardWidgetBuilder>(
+    () =>
+      ({ THREE }): DashboardWidgetInstance => {
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
         camera.position.set(0, 0.02, 5.15);
         camera.lookAt(0, -0.02, 0);
 
-        const renderer = createDashboardWebGlRenderer(
-          THREE,
-          canvas,
-          {
-            alpha: true,
-            antialias: true,
-            powerPreference: "high-performance",
-            preserveDrawingBuffer: false,
-          },
-          { priority: true },
+        scene.add(new THREE.HemisphereLight("#d9f7ff", "#020617", 1.08));
+        scene.add(new THREE.AmbientLight(new THREE.Color("#dbeafe"), 0.72));
+
+        const keyLight = new THREE.DirectionalLight(0xffffff, 2.35);
+        keyLight.position.set(-1.55, 2.9, 3.3);
+        scene.add(keyLight);
+
+        const sideShade = new THREE.DirectionalLight(
+          new THREE.Color("#0ea5e9"),
+          0.72,
         );
-        if (!renderer) {
-          if (startAttempt >= TROPHY_WEBGL_MAX_START_ATTEMPTS) return;
+        sideShade.position.set(2.2, -0.8, 1.35);
+        scene.add(sideShade);
 
-          await waitForDashboardPriorityWebGlRetry(startAttempt);
-          startAttempt += 1;
-          continue;
-        }
-      renderer.setClearColor(0x000000, 0);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.85));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
+        const rimLight = new THREE.PointLight(
+          new THREE.Color("#bae6fd"),
+          2.4,
+          5.4,
+        );
+        rimLight.position.set(1.6, 0.2, 2.4);
+        scene.add(rimLight);
 
-      scene.add(new THREE.HemisphereLight("#d9f7ff", "#020617", 1.08));
-      scene.add(new THREE.AmbientLight(new THREE.Color("#dbeafe"), 0.72));
+        const coolBackLight = new THREE.PointLight(
+          new THREE.Color("#38bdf8"),
+          1.35,
+          4.2,
+        );
+        coolBackLight.position.set(-1.2, -1.2, -0.9);
+        scene.add(coolBackLight);
 
-      const keyLight = new THREE.DirectionalLight(0xffffff, 2.35);
-      keyLight.position.set(-1.55, 2.9, 3.3);
-      scene.add(keyLight);
+        const trophy = createTrophyGroup(THREE);
+        trophy.rotation.set(
+          TROPHY_REST_ROTATION.x,
+          TROPHY_REST_ROTATION.y,
+          TROPHY_REST_ROTATION.z,
+        );
+        scene.add(trophy);
 
-      const sideShade = new THREE.DirectionalLight(
-        new THREE.Color("#0ea5e9"),
-        0.72,
-      );
-      sideShade.position.set(2.2, -0.8, 1.35);
-      scene.add(sideShade);
-
-      const rimLight = new THREE.PointLight(
-        new THREE.Color("#bae6fd"),
-        2.4,
-        5.4,
-      );
-      rimLight.position.set(1.6, 0.2, 2.4);
-      scene.add(rimLight);
-
-      const coolBackLight = new THREE.PointLight(
-        new THREE.Color("#38bdf8"),
-        1.35,
-        4.2,
-      );
-      coolBackLight.position.set(-1.2, -1.2, -0.9);
-      scene.add(coolBackLight);
-
-      const trophy = createTrophyGroup(THREE);
-      scene.add(trophy);
-
-      const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const width = Math.max(1, Math.floor(rect.width));
-        const height = Math.max(1, Math.floor(rect.height));
-        renderer.setSize(width, height, false);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      };
-
-      const observer = new ResizeObserver(resize);
-      observer.observe(canvas);
-      resize();
-
-      const startedAt = performance.now();
-      let lastFrameTime = 0;
-
-      const scheduleRender = () => {
-        if (frameIdRef.current !== 0) return;
-        frameIdRef.current = window.requestAnimationFrame(render);
-      };
-
-      const render = (time: number) => {
-        frameIdRef.current = 0;
-
-        const frameDeltaSeconds =
-          lastFrameTime > 0 ? Math.min(0.048, (time - lastFrameTime) / 1000) : 0.0167;
-        lastFrameTime = time;
-        const seconds = (time - startedAt) / 1000;
-        const isPaused = pausedRef.current;
-        if (isPaused) {
-          trophy.rotation.x = settleRotation(
-            trophy.rotation.x,
-            TROPHY_REST_ROTATION.x,
-            0.22,
-          );
-          trophy.rotation.y = settleRotation(
-            trophy.rotation.y,
-            TROPHY_REST_ROTATION.y,
-            0.28,
-          );
-          trophy.rotation.z = settleRotation(
-            trophy.rotation.z,
-            TROPHY_REST_ROTATION.z,
-            0.24,
-          );
-        } else {
-          trophy.rotation.set(
-            Math.sin(seconds * 0.26) * 0.018,
-            trophy.rotation.y + frameDeltaSeconds * 0.18,
-            Math.sin(seconds * 0.22) * 0.009,
-          );
-        }
-
-        const restingForward =
-          isPaused &&
-          Math.abs(getShortestRotationDelta(TROPHY_REST_ROTATION.x - trophy.rotation.x)) < 0.008 &&
-          Math.abs(getShortestRotationDelta(TROPHY_REST_ROTATION.y - trophy.rotation.y)) < 0.008 &&
-          Math.abs(getShortestRotationDelta(TROPHY_REST_ROTATION.z - trophy.rotation.z)) < 0.008;
-        if (restingForward) {
-          trophy.rotation.set(
-            TROPHY_REST_ROTATION.x,
-            TROPHY_REST_ROTATION.y,
-            TROPHY_REST_ROTATION.z,
-          );
-        }
-
-        setDashboardWebGlCanvasActive(canvas, true);
-        renderer.render(scene, camera);
-
-        if (!isPaused || !restingForward) {
-          scheduleRender();
-        }
-      };
-
-      renderFrameRef.current = render;
-      scheduleRender();
-
-      cleanup = () => {
-        if (frameIdRef.current !== 0) {
-          window.cancelAnimationFrame(frameIdRef.current);
-          frameIdRef.current = 0;
-        }
-        renderFrameRef.current = null;
-        observer.disconnect();
-        disposeObject(trophy);
-        renderer.forceContextLoss();
-        renderer.dispose();
-      };
-      return;
-      }
-    };
-
-    startScene();
-
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, []);
+        return {
+          scene,
+          camera,
+          update: (elapsed, delta) => {
+            if (pausedRef.current) {
+              trophy.rotation.x = settleRotation(
+                trophy.rotation.x,
+                TROPHY_REST_ROTATION.x,
+                0.22,
+              );
+              trophy.rotation.y = settleRotation(
+                trophy.rotation.y,
+                TROPHY_REST_ROTATION.y,
+                0.28,
+              );
+              trophy.rotation.z = settleRotation(
+                trophy.rotation.z,
+                TROPHY_REST_ROTATION.z,
+                0.24,
+              );
+              return;
+            }
+            trophy.rotation.set(
+              Math.sin(elapsed * 0.26) * 0.018,
+              trophy.rotation.y + delta * 0.18,
+              Math.sin(elapsed * 0.22) * 0.009,
+            );
+          },
+          dispose: () => {
+            disposeObject(scene);
+          },
+        };
+      },
+    [],
+  );
 
   return (
-    <canvas
-      ref={canvasRef}
-      aria-hidden="true"
-      className="dashboard-header-trophy-3d"
-      data-trophy-paused={paused ? "true" : "false"}
-      data-trophy-renderer="three"
-      style={{
-        display: "block",
-        filter:
-          "drop-shadow(0 0.16rem 0.24rem rgba(2,6,23,0.52)) drop-shadow(0 0 0.42rem rgba(56,189,248,0.3))",
-        height: "100%",
-        pointerEvents: "none",
-        width: "100%",
-      }}
-    />
+    <DashboardWebGlWidget build={build} className="dashboard-header-trophy-3d" />
   );
 }

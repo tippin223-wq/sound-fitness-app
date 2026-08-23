@@ -1,14 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useMemo, useRef } from "react";
 import type { BufferGeometry, Material, Object3D } from "three";
-import {
-  clearDashboardWebGlFallback,
-  createDashboardWebGlRenderer,
-  loadDashboardThree,
-  markDashboardWebGlFallback,
-  waitForDashboardWebGlStart,
-} from "./dashboardWebGlRenderer";
+import DashboardWebGlWidget from "./DashboardWebGlWidget";
+import type {
+  DashboardWidgetBuilder,
+  DashboardWidgetInstance,
+} from "./dashboardWebGlStage";
 
 type DashboardScrollButtonDirection = "down" | "left" | "right" | "up";
 type DashboardScrollButtonTone =
@@ -119,78 +117,23 @@ export default function DashboardScrollButton3D({
   tone = "cyan",
 }: DashboardScrollButton3DProps) {
   const activeDirectionRef = useRef(activeDirection);
+  activeDirectionRef.current = activeDirection;
   const activeRef = useRef(active);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const pausedRef = useRef(paused);
+  activeRef.current = active;
   const toneRef = useRef(tone);
+  toneRef.current = tone;
+  const showUpRef = useRef(showUp);
+  showUpRef.current = showUp;
+  const showDownRef = useRef(showDown);
+  showDownRef.current = showDown;
 
-  useEffect(() => {
-    activeDirectionRef.current = activeDirection;
-  }, [activeDirection]);
-
-  useEffect(() => {
-    activeRef.current = active;
-  }, [active]);
-
-  useEffect(() => {
-    pausedRef.current = paused;
-  }, [paused]);
-
-  useEffect(() => {
-    toneRef.current = tone;
-  }, [tone]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup = () => {};
-
-    const startScene = async () => {
-      await waitForDashboardWebGlStart();
-      if (cancelled || !canvasRef.current) return;
-
-      const THREE = await loadDashboardThree();
-      if (cancelled || !canvasRef.current) return;
-
-      const canvas = canvasRef.current;
+  const build = useMemo<DashboardWidgetBuilder>(
+    () =>
+      ({ THREE }): DashboardWidgetInstance => {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 16);
       camera.position.set(0, 0.08, compact ? 5.2 : 5);
       camera.lookAt(0, 0, 0);
-
-      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
-        alpha: true,
-        antialias: true,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false,
-      });
-      if (!renderer) return;
-      const webglRenderer = renderer;
-
-      webglRenderer.setClearColor(0x000000, 0);
-      webglRenderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.65));
-      webglRenderer.outputColorSpace = THREE.SRGBColorSpace;
-      let contextLost = false;
-
-      const handleContextLost = (event: Event) => {
-        event.preventDefault();
-        contextLost = true;
-        delete canvas.dataset.webglReady;
-        markDashboardWebGlFallback(canvas);
-      };
-
-      const handleContextRestored = () => {
-        contextLost = false;
-        delete canvas.dataset.webglReady;
-        clearDashboardWebGlFallback(canvas);
-        resize();
-      };
-
-      canvas.addEventListener("webglcontextlost", handleContextLost, false);
-      canvas.addEventListener(
-        "webglcontextrestored",
-        handleContextRestored,
-        false,
-      );
 
       scene.add(new THREE.AmbientLight(new THREE.Color("#e0f2fe"), 1.18));
 
@@ -370,60 +313,16 @@ export default function DashboardScrollButton3D({
       arrows.right.position.set(horizontal ? 1.23 : 1.06, 0, 0.2);
       arrows.right.rotation.z = -Math.PI / 2;
       Object.values(arrows).forEach((arrow) => root.add(arrow));
-      arrows.up.visible = showUp && !horizontal;
-      arrows.down.visible = showDown && !horizontal;
+      arrows.up.visible = showUpRef.current && !horizontal;
+      arrows.down.visible = showDownRef.current && !horizontal;
 
-      let renderHeight = 0;
-      let renderWidth = 0;
-      let resizeFrameId = 0;
-      function resize() {
-        const rect = canvas.getBoundingClientRect();
-        const width = Math.max(1, Math.floor(rect.width));
-        const height = Math.max(1, Math.floor(rect.height));
-        if (width === renderWidth && height === renderHeight) return;
-
-        renderWidth = width;
-        renderHeight = height;
-        webglRenderer.setSize(width, height, false);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      }
-
-      const queueResize = () => {
-        if (resizeFrameId) return;
-
-        resizeFrameId = window.requestAnimationFrame(() => {
-          resizeFrameId = 0;
-          resize();
-        });
-      };
-      const resizeListenerOptions = { capture: true, passive: true } as const;
-      const observer = new ResizeObserver(resize);
-      observer.observe(canvas);
-      window.addEventListener("scroll", queueResize, resizeListenerOptions);
-      window.addEventListener("resize", queueResize, { passive: true });
-      window.visualViewport?.addEventListener("scroll", queueResize, {
-        passive: true,
-      });
-      window.visualViewport?.addEventListener("resize", queueResize, {
-        passive: true,
-      });
-      resize();
-
-      let frameId = 0;
-      let lastSizeCheckTime = 0;
-      let lastFrameTime = 0;
       let charge = 0;
-      const renderFrame = (time: number) => {
-        const frameDelta =
-          lastFrameTime > 0 ? Math.min(48, time - lastFrameTime) : 16.67;
-        lastFrameTime = time;
-        if (time - lastSizeCheckTime > 220) {
-          lastSizeCheckTime = time;
-          resize();
-        }
+      const update = (elapsed: number, delta: number) => {
+        const frameDelta = delta * 1000;
+        arrows.up.visible = showUpRef.current && !horizontal;
+        arrows.down.visible = showDownRef.current && !horizontal;
 
-        const seconds = time / 1000;
+        const seconds = elapsed;
         const toneColorsForFrame = toneColors[toneRef.current] ?? toneColors.cyan;
         const activeDirectionForFrame = activeDirectionRef.current;
         const activeMotion =
@@ -490,44 +389,21 @@ export default function DashboardScrollButton3D({
 
         accentLight.intensity = 1.9 + charge * 2.2;
         warmLight.intensity = 0.7 + charge * 1.6;
-
-        if (!contextLost) {
-          webglRenderer.render(scene, camera);
-          canvas.dataset.webglReady = "true";
-        }
-
-        frameId = window.requestAnimationFrame(renderFrame);
       };
 
-      frameId = window.requestAnimationFrame(renderFrame);
-
-      cleanup = () => {
-        window.cancelAnimationFrame(frameId);
-        if (resizeFrameId) window.cancelAnimationFrame(resizeFrameId);
-        canvas.removeEventListener("webglcontextlost", handleContextLost, false);
-        canvas.removeEventListener(
-          "webglcontextrestored",
-          handleContextRestored,
-          false,
-        );
-        observer.disconnect();
-        window.removeEventListener("scroll", queueResize, resizeListenerOptions);
-        window.removeEventListener("resize", queueResize);
-        window.visualViewport?.removeEventListener("scroll", queueResize);
-        window.visualViewport?.removeEventListener("resize", queueResize);
-        delete canvas.dataset.webglReady;
-        disposeObject(scene);
-        webglRenderer.dispose();
+      return {
+        scene,
+        camera,
+        update,
+        dispose: () => {
+          disposeObject(scene);
+        },
       };
-    };
-
-    void startScene();
-
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, [compact, horizontal, showDown, showUp]);
+      },
+    // compact/horizontal are fixed per instance; showUp/showDown are read live.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
 
   return (
     <>
@@ -540,14 +416,7 @@ export default function DashboardScrollButton3D({
         data-horizontal={horizontal ? "true" : "false"}
         data-paused={paused && !active && !activeDirection ? "true" : "false"}
       />
-      <canvas
-        aria-hidden="true"
-        className={className}
-        data-dashboard-scroll-button-renderer="three"
-        height={compact ? 96 : 140}
-        ref={canvasRef}
-        width={horizontal ? 180 : 140}
-      />
+      <DashboardWebGlWidget build={build} className={className} />
     </>
   );
 }

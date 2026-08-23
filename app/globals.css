@@ -9448,6 +9448,7 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   top: 0;
   transition:
     opacity 520ms ease,
+    scale 560ms cubic-bezier(0.2, 0.84, 0.2, 1),
     visibility 520ms ease;
   visibility: hidden;
   z-index: 64;
@@ -9456,6 +9457,9 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 .dashboard-header-vortex-shell--timed-out
   .dashboard-header-idle-training-floor {
   opacity: 1;
+  /* Keep the idle scene compact so it reads as a small inset animation. Tune. */
+  scale: 0.8;
+  transform-origin: 50% 100%;
   visibility: visible;
 }
 
@@ -10392,10 +10396,10 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  color: rgba(241, 245, 249, 0.98);
+  color: rgba(203, 220, 236, 0.8);
   display: flex;
   flex: 0 0 auto;
-  font-size: 0.34rem;
+  font-size: 0.5rem;
   font-weight: 950;
   height: auto;
   justify-content: center;
@@ -10412,10 +10416,10 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 }
 
 .dashboard-header-idle-station__label {
-  color: rgba(236, 254, 255, 0.9);
+  color: rgba(203, 220, 236, 0.78);
   display: block;
   flex: 1 1 auto;
-  font-size: 0.4rem;
+  font-size: 0.56rem;
   font-weight: 950;
   letter-spacing: 0.04em;
   line-height: 1;
@@ -14641,9 +14645,9 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 }
 
 .dashboard-header-category-actor__label {
-  color: rgba(240, 253, 250, 0.94);
-  filter: drop-shadow(0 0 0.32rem rgba(2, 6, 23, 0.96));
-  font-size: 0.5rem;
+  color: rgba(197, 214, 232, 0.72);
+  filter: drop-shadow(0 0 0.3rem rgba(2, 6, 23, 0.9));
+  font-size: 0.78rem;
   font-weight: 950;
   left: 50%;
   letter-spacing: 0.06em;
@@ -14745,9 +14749,9 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   border: 0;
   border-radius: 0;
   box-shadow: none;
-  color: color-mix(in srgb, currentColor 86%, #ffffff);
+  color: color-mix(in srgb, currentColor 62%, rgba(197, 214, 232, 0.72));
   display: flex;
-  font-size: 0.58rem;
+  font-size: 0.78rem;
   font-weight: 950;
   height: auto;
   justify-content: center;
@@ -15208,6 +15212,24 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   --dashboard-header-vortex-speed: 4.8s;
 }
 
+/* The news chyron renders outside the main-menu fade wrapper, so it stayed lit
+   over the idle scene. Fade it out with the rest of the menu while idle. */
+.dashboard-header-vortex-shell--timed-out .dashboard-header-news-chyron {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 520ms ease !important;
+}
+
+/* Every dashboard 3D icon paints onto ONE shared canvas that sits above the
+   whole page (position:fixed, z 430). The idle scene is DOM/SVG, so no 3D icon
+   belongs on it — blank the entire canvas element while idle. This is the hard
+   guarantee: no matter which widget or where its anchor sits, zero 3D paints
+   over the idle scene. (setDashboardStageIdleHidden also stops the draw work.) */
+html.dashboard-idle-active canvas.dashboard-webgl-stage {
+  opacity: 0 !important;
+  transition: opacity 320ms ease !important;
+}
+
 .dashboard-header-vortex-shell--timed-out {
   background: transparent !important;
   border-color: transparent !important;
@@ -15216,11 +15238,22 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 
 .dashboard-header-vortex-shell--timed-out .dashboard-header-main-orbit-stage {
   filter: brightness(0.48) saturate(0.72) contrast(0.94);
-  opacity: 0.56;
+  opacity: 0.42;
   transition:
     filter 760ms ease,
     opacity 760ms ease,
+    scale 520ms cubic-bezier(0.2, 0.84, 0.2, 1),
     transform 420ms cubic-bezier(0.2, 0.84, 0.2, 1);
+}
+
+/* Shrink the header menu as it idles so it recedes behind the idle scene
+   instead of sitting over it. Targets the --stable variant too and forces the
+   scale past that variant's higher-specificity rules. Tune to taste. */
+.dashboard-header-vortex-shell--timed-out .dashboard-header-main-orbit-stage,
+.dashboard-header-vortex-shell--timed-out
+  .dashboard-header-main-orbit-stage--stable {
+  scale: 0.68 !important;
+  transform-origin: 50% 30% !important;
 }
 
 .dashboard-header-vortex-shell--timed-out .dashboard-header-home-logo {
@@ -15969,17 +16002,35 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 
 .dashboard-header-logo-smoke {
   filter: blur(0.04rem) drop-shadow(0 0 0.42rem rgba(229, 231, 235, 0.24));
-  height: 4.45rem;
+  height: 3.75rem;
   left: 50%;
+  /* The trophy and crest are drawn on the shared WebGL stage canvas, which
+     sits above the whole DOM (z-index 430 on <body>'s canvas) — so no z-index
+     here can put this smoke behind them, and the trophy's glassy material lets
+     the bright puffs bleed straight through it. This mask hollows out the spot
+     where the trophy floats so rising puffs vanish behind it and re-emerge
+     above, which reads as the smoke passing behind the trophy. */
+  /* The two-value "ellipse 26% 31% at" size syntax is silently dropped by the
+     CSS pipeline (same failure mode as the :has() rules it strips) — the
+     keyword-less "26% 31% at" form survives the build. Verify in
+     document.styleSheets after touching this. */
+  mask-image: radial-gradient(
+    26% 31% at 50% 47%,
+    transparent 52%,
+    rgba(0, 0, 0, 0.72) 80%,
+    #000 100%
+  );
+  mask-repeat: no-repeat;
+  mask-size: 100% 100%;
   opacity: 1;
   pointer-events: none;
   position: absolute;
-  top: 0.52rem;
+  top: 0.44rem;
   transform: translate3d(-50%, -50%, 0);
   transition:
     opacity 420ms ease,
     filter 420ms ease;
-  width: 4.6rem;
+  width: 3.85rem;
   z-index: 0;
 }
 
@@ -16017,19 +16068,19 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
       transparent 76%
     );
   border-radius: 9999px;
-  bottom: 0.36rem;
+  bottom: 0.3rem;
   content: "";
-  height: 2.12rem;
+  height: 1.8rem;
   left: 50%;
   opacity: 0.68;
   position: absolute;
   transform: translate3d(-50%, 0, 0) scaleX(0.84);
-  width: 1.24rem;
+  width: 1.05rem;
 }
 
 .dashboard-header-logo-smoke__puff {
   --dashboard-logo-smoke-drift: 0rem;
-  --dashboard-logo-smoke-rise: -2.6rem;
+  --dashboard-logo-smoke-rise: -2.2rem;
   --dashboard-logo-smoke-scale-end: 1.45;
   animation: dashboard-header-logo-smoke-pour 4.8s ease-in-out infinite;
   animation-play-state: paused;
@@ -16041,10 +16092,12 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
     transparent 78%
   );
   border-radius: 9999px;
-  bottom: 0.42rem;
+  bottom: 0.36rem;
   box-shadow:
     0 0 0.65rem rgba(229, 231, 235, 0.32),
     0 0 1rem rgba(75, 85, 99, 0.22);
+  /* Static blur, rasterized once; the scale animation grows it visually. */
+  filter: blur(0.09rem);
   height: 1rem;
   left: 50%;
   opacity: 0;
@@ -16054,15 +16107,15 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 }
 
 .dashboard-header-logo-smoke__puff--one {
-  --dashboard-logo-smoke-drift: -0.48rem;
-  --dashboard-logo-smoke-rise: -2.45rem;
+  --dashboard-logo-smoke-drift: -0.41rem;
+  --dashboard-logo-smoke-rise: -2.08rem;
   --dashboard-logo-smoke-scale-end: 1.58;
   animation-delay: -0.4s;
 }
 
 .dashboard-header-logo-smoke__puff--two {
-  --dashboard-logo-smoke-drift: 0.36rem;
-  --dashboard-logo-smoke-rise: -2.75rem;
+  --dashboard-logo-smoke-drift: 0.31rem;
+  --dashboard-logo-smoke-rise: -2.34rem;
   --dashboard-logo-smoke-scale-end: 1.5;
   animation-delay: -1.34s;
   height: 0.9rem;
@@ -16070,8 +16123,8 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 }
 
 .dashboard-header-logo-smoke__puff--three {
-  --dashboard-logo-smoke-drift: -0.14rem;
-  --dashboard-logo-smoke-rise: -3.05rem;
+  --dashboard-logo-smoke-drift: -0.12rem;
+  --dashboard-logo-smoke-rise: -2.6rem;
   --dashboard-logo-smoke-scale-end: 1.72;
   animation-delay: -2.2s;
   height: 1.12rem;
@@ -16079,8 +16132,8 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 }
 
 .dashboard-header-logo-smoke__puff--four {
-  --dashboard-logo-smoke-drift: 0.62rem;
-  --dashboard-logo-smoke-rise: -2.35rem;
+  --dashboard-logo-smoke-drift: 0.53rem;
+  --dashboard-logo-smoke-rise: -2rem;
   --dashboard-logo-smoke-scale-end: 1.36;
   animation-delay: -3.08s;
   height: 0.86rem;
@@ -16088,8 +16141,8 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 }
 
 .dashboard-header-logo-smoke__puff--five {
-  --dashboard-logo-smoke-drift: -0.68rem;
-  --dashboard-logo-smoke-rise: -2.85rem;
+  --dashboard-logo-smoke-drift: -0.58rem;
+  --dashboard-logo-smoke-rise: -2.42rem;
   --dashboard-logo-smoke-scale-end: 1.44;
   animation-delay: -3.8s;
   height: 0.94rem;
@@ -16099,6 +16152,9 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 .dashboard-header-logo-smoke--active::before,
 .dashboard-header-logo-smoke--active .dashboard-header-logo-smoke__puff {
   animation-play-state: running;
+  /* Promote to its own layer only while pouring, so scale/opacity stay on the
+     compositor instead of triggering main-thread repaints. */
+  will-change: transform, opacity;
 }
 
 .dashboard-header-vortex-shell--timed-out .dashboard-header-trophy-selector {
@@ -16777,7 +16833,7 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
     min-width: 3rem;
     overflow: visible !important;
     touch-action: manipulation;
-    transform: translateY(-0.52rem);
+    transform: translateY(0.1rem);
     width: 3rem;
     z-index: 86;
   }
@@ -17173,8 +17229,12 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
     .dashboard-profile-action-gear {
     display: grid !important;
     height: 1.48rem;
-    left: auto !important;
-    right: calc(var(--dashboard-mobile-account-inset) + 8.25rem);
+    /* Anchored to the LEFT beside the account icon. It was right-anchored
+       against the profile block's old overhanging width; when the block was
+       bounded to the stage the gear stayed put and drifted ~60px from the
+       icon. */
+    left: 4.4rem !important;
+    right: auto;
     top: 3.08rem;
     transform: scale(0.92);
     width: 1.48rem;
@@ -20352,6 +20412,7 @@ main.dashboard-page--page-analog-active.dashboard-page--page-analog-active
 }
 
 .dashboard-hover-tooltip {
+  --dashboard-tooltip-base-x: -50%;
   --dashboard-tooltip-base-y: 0px;
   --dashboard-tooltip-enter-y: -0.18rem;
   animation: dashboard-hover-tooltip-rise 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -20382,15 +20443,28 @@ main.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   letter-spacing: 0.075em;
   line-height: 1.35;
   max-width: min(18rem, calc(100vw - 1.5rem));
+  max-height: calc(100dvh - 1.5rem);
+  overflow: hidden;
   padding: 0.5rem 0.68rem;
   pointer-events: none;
   position: fixed;
   text-align: center;
   text-transform: uppercase;
   top: var(--dashboard-tooltip-y);
-  transform: translate(-50%, var(--dashboard-tooltip-base-y));
+  transform: translate(
+    var(--dashboard-tooltip-base-x),
+    var(--dashboard-tooltip-base-y)
+  );
   white-space: normal;
   z-index: 1000;
+}
+
+.dashboard-hover-tooltip--left {
+  --dashboard-tooltip-base-x: 0%;
+}
+
+.dashboard-hover-tooltip--right {
+  --dashboard-tooltip-base-x: -100%;
 }
 
 .dashboard-hover-tooltip::after {
@@ -20436,6 +20510,15 @@ main.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   border-right: 1px solid rgba(103, 232, 249, 0.56);
   bottom: -0.33rem;
   transform: translateX(-50%) rotate(45deg);
+}
+
+.dashboard-hover-tooltip--left::before {
+  left: 1.25rem;
+}
+
+.dashboard-hover-tooltip--right::before {
+  left: auto;
+  right: 1.25rem;
 }
 
 .dashboard-profile-upper-actions {
@@ -32003,14 +32086,14 @@ html[data-dashboard-webgl="warming"]
   z-index: -2;
 }
 
-.dashboard-profile-hub-trigger:hover::before,
+.dashboard-profile-hub-trigger:hover:not(:has(.dashboard-profile-coach-badge:hover))::before,
 .dashboard-profile-hub-trigger:focus-visible::before,
 .dashboard-profile-hub-trigger[aria-expanded="true"]::before {
   opacity: 1;
   transform: scale(1.12);
 }
 
-.dashboard-profile-hub-trigger:hover::after,
+.dashboard-profile-hub-trigger:hover:not(:has(.dashboard-profile-coach-badge:hover))::after,
 .dashboard-profile-hub-trigger:focus-visible::after,
 .dashboard-profile-hub-trigger[aria-expanded="true"]::after {
   animation-play-state: running;
@@ -32517,7 +32600,7 @@ html[data-dashboard-webgl="warming"]
   z-index: 0;
 }
 
-.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge,
+.dashboard-profile-hub-trigger:hover:not(:has(.dashboard-profile-coach-badge:hover)) .dashboard-sound-level-badge,
 .dashboard-profile-hub-trigger:focus-visible .dashboard-sound-level-badge,
 .dashboard-profile-hub-trigger[aria-expanded="true"]
   .dashboard-sound-level-badge {
@@ -32534,7 +32617,7 @@ html[data-dashboard-webgl="warming"]
   transform: translateY(-0.04rem) scale(1.06);
 }
 
-.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge__shadow,
+.dashboard-profile-hub-trigger:hover:not(:has(.dashboard-profile-coach-badge:hover)) .dashboard-sound-level-badge__shadow,
 .dashboard-profile-hub-trigger:focus-visible .dashboard-sound-level-badge__shadow,
 .dashboard-profile-hub-trigger[aria-expanded="true"]
   .dashboard-sound-level-badge__shadow {
@@ -32552,7 +32635,7 @@ html[data-dashboard-webgl="warming"]
   opacity: 0.42;
 }
 
-.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge::before,
+.dashboard-profile-hub-trigger:hover:not(:has(.dashboard-profile-coach-badge:hover)) .dashboard-sound-level-badge::before,
 .dashboard-profile-hub-trigger:focus-visible
   .dashboard-sound-level-badge::before,
 .dashboard-profile-hub-trigger[aria-expanded="true"]
@@ -32570,7 +32653,7 @@ html[data-dashboard-webgl="warming"]
     transform 190ms ease;
 }
 
-.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge img,
+.dashboard-profile-hub-trigger:hover:not(:has(.dashboard-profile-coach-badge:hover)) .dashboard-sound-level-badge img,
 .dashboard-profile-hub-trigger:focus-visible .dashboard-sound-level-badge img,
 .dashboard-profile-hub-trigger[aria-expanded="true"]
   .dashboard-sound-level-badge
@@ -32581,7 +32664,7 @@ html[data-dashboard-webgl="warming"]
     drop-shadow(0 0 0.72rem rgba(103, 232, 249, 0.34));
 }
 
-.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge__avatar,
+.dashboard-profile-hub-trigger:hover:not(:has(.dashboard-profile-coach-badge:hover)) .dashboard-sound-level-badge__avatar,
 .dashboard-profile-hub-trigger:focus-visible .dashboard-sound-level-badge__avatar,
 .dashboard-profile-hub-trigger[aria-expanded="true"]
   .dashboard-sound-level-badge__avatar {
@@ -32603,7 +32686,7 @@ html[data-dashboard-webgl="warming"]
     transform 260ms ease;
 }
 
-.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge__level-ring,
+.dashboard-profile-hub-trigger:hover:not(:has(.dashboard-profile-coach-badge:hover)) .dashboard-sound-level-badge__level-ring,
 .dashboard-profile-hub-trigger:focus-visible
   .dashboard-sound-level-badge__level-ring,
 .dashboard-profile-hub-trigger[aria-expanded="true"]
@@ -32769,7 +32852,7 @@ html[data-dashboard-webgl="warming"]
   );
 }
 
-.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge::after,
+.dashboard-profile-hub-trigger:hover:not(:has(.dashboard-profile-coach-badge:hover)) .dashboard-sound-level-badge::after,
 .dashboard-profile-hub-trigger:focus-visible .dashboard-sound-level-badge::after,
 .dashboard-profile-hub-trigger[aria-expanded="true"]
   .dashboard-sound-level-badge::after {
@@ -32842,7 +32925,7 @@ html[data-dashboard-webgl="warming"]
   overflow: hidden;
 }
 
-.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge__fill,
+.dashboard-profile-hub-trigger:hover:not(:has(.dashboard-profile-coach-badge:hover)) .dashboard-sound-level-badge__fill,
 .dashboard-profile-hub-trigger:focus-visible .dashboard-sound-level-badge__fill,
 .dashboard-profile-hub-trigger[aria-expanded="true"]
   .dashboard-sound-level-badge__fill {
@@ -32867,7 +32950,7 @@ html[data-dashboard-webgl="warming"]
   transform: translateX(-52%) skewX(-18deg);
 }
 
-.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge__fill::before,
+.dashboard-profile-hub-trigger:hover:not(:has(.dashboard-profile-coach-badge:hover)) .dashboard-sound-level-badge__fill::before,
 .dashboard-profile-hub-trigger:focus-visible
   .dashboard-sound-level-badge__fill::before,
 .dashboard-profile-hub-trigger[aria-expanded="true"]
@@ -32901,7 +32984,7 @@ html[data-dashboard-webgl="warming"]
   position: absolute;
 }
 
-.dashboard-profile-hub-trigger:hover .dashboard-sound-level-badge__fill::after,
+.dashboard-profile-hub-trigger:hover:not(:has(.dashboard-profile-coach-badge:hover)) .dashboard-sound-level-badge__fill::after,
 .dashboard-profile-hub-trigger:focus-visible
   .dashboard-sound-level-badge__fill::after,
 .dashboard-profile-hub-trigger[aria-expanded="true"]
@@ -34399,9 +34482,11 @@ html[data-dashboard-webgl="warming"]
   }
 }
 
+/* Only transform + opacity animate here (both GPU-composited). The puff carries
+   a fixed blur that the scale keyframes grow visually — mimicking the old
+   0.04→0.16rem animated blur without re-running the blur shader every frame. */
 @keyframes dashboard-header-logo-smoke-pour {
   0% {
-    filter: blur(0.04rem);
     opacity: 0;
     transform: translate3d(-50%, 0.28rem, 0) scale(0.42);
   }
@@ -34409,14 +34494,12 @@ html[data-dashboard-webgl="warming"]
     opacity: 0.88;
   }
   48% {
-    filter: blur(0.1rem);
     opacity: 0.68;
   }
   76% {
     opacity: 0.38;
   }
   100% {
-    filter: blur(0.16rem);
     opacity: 0;
     transform: translate3d(
         calc(-50% + var(--dashboard-logo-smoke-drift)),
@@ -36151,16 +36234,10 @@ html[data-dashboard-webgl="warming"]
   0% {
     filter: blur(3px);
     opacity: 0;
-    transform: translate(
-        -50%,
-        calc(var(--dashboard-tooltip-base-y) + var(--dashboard-tooltip-enter-y))
-      )
-      scale(0.98);
   }
   100% {
     filter: blur(0);
     opacity: 0.92;
-    transform: translate(-50%, var(--dashboard-tooltip-base-y)) scale(1);
   }
 }
 

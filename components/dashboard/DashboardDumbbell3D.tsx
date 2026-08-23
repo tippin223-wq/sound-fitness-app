@@ -60,7 +60,7 @@ export default function DashboardDumbbell3D({
     let cleanup = () => {};
 
     const startScene = async () => {
-      await waitForDashboardWebGlStart();
+      await waitForDashboardWebGlStart({ canvas: canvasRef.current });
       if (cancelled || !canvasRef.current) return;
 
       const THREE = await loadDashboardThree();

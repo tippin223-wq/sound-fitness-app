@@ -1,18 +1,17 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useMemo, useRef } from "react";
 import type {
   BufferGeometry,
   Material,
   Object3D,
   Texture,
 } from "three";
-import {
-  createDashboardWebGlRenderer,
-  loadDashboardThree,
-  setDashboardWebGlCanvasActive,
-  waitForDashboardWebGlStart,
-} from "./dashboardWebGlRenderer";
+import DashboardWebGlWidget from "./DashboardWebGlWidget";
+import type {
+  DashboardWidgetBuilder,
+  DashboardWidgetInstance,
+} from "./dashboardWebGlStage";
 
 type ThreeModule = typeof import("three");
 
@@ -1098,42 +1097,16 @@ export function DashboardSpinningSoundCoin3D({
   tone = "gold",
   variant = "sound",
 }: DashboardSpinningSoundCoin3DProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
-  useEffect(() => {
-    pausedRef.current = paused;
-    setDashboardWebGlCanvasActive(canvasRef.current, !paused);
-  }, [paused]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup = () => {};
-
-    const startScene = async () => {
-      await waitForDashboardWebGlStart();
-      if (cancelled || !canvasRef.current) return;
-
-      const THREE = await loadDashboardThree();
-      if (cancelled || !canvasRef.current) return;
-
-      const canvas = canvasRef.current;
+  const build = useMemo<DashboardWidgetBuilder>(
+    () =>
+      ({ THREE }): DashboardWidgetInstance => {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 20);
       camera.position.set(0, 0.04, 3.15);
       camera.lookAt(0, 0, 0);
-
-      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
-        alpha: true,
-        antialias: true,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false,
-      });
-      if (!renderer) return;
-      setDashboardWebGlCanvasActive(canvas, !pausedRef.current);
-      renderer.setClearColor(0x000000, 0);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
 
       const tokenTextureSource =
         variant === "treasure"
@@ -1235,27 +1208,10 @@ export function DashboardSpinningSoundCoin3D({
       glint.position.set(-0.36, 0.33, 0.14);
       coinGroup.add(glint);
 
-      const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const width = Math.max(1, Math.floor(rect.width));
-        const height = Math.max(1, Math.floor(rect.height));
-        renderer.setSize(width, height, false);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      };
-
-      const observer = new ResizeObserver(resize);
-      observer.observe(canvas);
-      resize();
-
-      let frameId = 0;
-      let lastFrameTime = 0;
       let coinSpinRotation: number = SOUND_COIN_REST_ROTATION.y;
       let coinPulseTime = 0;
-      const renderFrame = (time: number) => {
-        const frameDelta =
-          lastFrameTime > 0 ? Math.min(48, time - lastFrameTime) : 16.67;
-        lastFrameTime = time;
+      const update = (elapsed: number, delta: number) => {
+        const frameDelta = delta * 1000;
 
         if (!pausedRef.current) {
           coinPulseTime += frameDelta;
@@ -1283,41 +1239,27 @@ export function DashboardSpinningSoundCoin3D({
             0.14,
           );
           coinSpinRotation = coinGroup.rotation.y;
-          glint.scale.setScalar(0.84 + Math.sin(time * 0.002) * 0.06);
+          glint.scale.setScalar(0.84 + Math.sin(elapsed * 2) * 0.06);
         }
-
-        renderer.render(scene, camera);
-        frameId = window.requestAnimationFrame(renderFrame);
       };
 
-      frameId = window.requestAnimationFrame(renderFrame);
-
-      cleanup = () => {
-        window.cancelAnimationFrame(frameId);
-        observer.disconnect();
-        disposeObject(scene);
-        coinTexture.dispose();
-        renderer.forceContextLoss();
-        renderer.dispose();
+      return {
+        scene,
+        camera,
+        update,
+        dispose: () => {
+          disposeObject(scene);
+          coinTexture.dispose();
+        },
       };
-    };
-
-    void startScene();
-
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, [tone, variant]);
+      },
+    [tone, variant],
+  );
 
   return (
-    <canvas
-      aria-hidden="true"
-      className={className}
-      data-sound-coin-renderer={`sound-coin-${variant}-${tone}-v2`}
-      data-token-tone={tone}
-      data-token-variant={variant}
-      ref={canvasRef}
+    <DashboardWebGlWidget
+      build={build}
+      className={className ?? ""}
     />
   );
 }
@@ -1328,30 +1270,14 @@ export default function DashboardTreasureChest3D({
   paused = false,
   variant = "showcase",
 }: DashboardTreasureChest3DProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const openRef = useRef(open);
+  openRef.current = open;
   const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
-  useEffect(() => {
-    openRef.current = open;
-  }, [open]);
-
-  useEffect(() => {
-    pausedRef.current = paused;
-  }, [paused]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup = () => {};
-
-    const startScene = async () => {
-      await waitForDashboardWebGlStart();
-      if (cancelled || !canvasRef.current) return;
-
-      const THREE = await loadDashboardThree();
-      if (cancelled || !canvasRef.current) return;
-
-      const canvas = canvasRef.current;
+  const build = useMemo<DashboardWidgetBuilder>(
+    () =>
+      ({ THREE }): DashboardWidgetInstance => {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(
         variant === "icon" ? 26 : 34,
@@ -1365,17 +1291,6 @@ export default function DashboardTreasureChest3D({
         variant === "icon" ? 5.15 : 7.95,
       );
       camera.lookAt(0, variant === "icon" ? -0.28 : -0.34, 0);
-
-      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
-        alpha: true,
-        antialias: true,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false,
-      });
-      if (!renderer) return;
-      renderer.setClearColor(0x000000, 0);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.65));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
 
       const textures =
         variant === "icon"
@@ -1433,21 +1348,8 @@ export default function DashboardTreasureChest3D({
             );
       scene.add(group);
 
-      const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const width = Math.max(1, Math.floor(rect.width));
-        const height = Math.max(1, Math.floor(rect.height));
-        renderer.setSize(width, height, false);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      };
-
-      const observer = new ResizeObserver(resize);
-      observer.observe(canvas);
-      resize();
-
-      let frameId = 0;
-      const renderFrame = (time: number) => {
+      const update = (elapsed: number) => {
+        const time = elapsed * 1000;
         const lidTarget =
           variant === "icon"
             ? openRef.current
@@ -1492,40 +1394,20 @@ export default function DashboardTreasureChest3D({
             glint.rotation.y += 0.018 + index * 0.004;
           });
         }
-
-        renderer.render(scene, camera);
-        frameId = window.requestAnimationFrame(renderFrame);
       };
 
-      frameId = window.requestAnimationFrame(renderFrame);
-
-      cleanup = () => {
-        window.cancelAnimationFrame(frameId);
-        observer.disconnect();
-        disposeObject(scene);
-        usedTextures.forEach((texture) => texture.dispose());
-        renderer.forceContextLoss();
-        renderer.dispose();
+      return {
+        scene,
+        camera,
+        update,
+        dispose: () => {
+          disposeObject(scene);
+          usedTextures.forEach((texture) => texture.dispose());
+        },
       };
-    };
-
-    void startScene();
-
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, [variant]);
-
-  return (
-    <canvas
-      aria-label="3D treasure chest overflowing with Treasure Tokens"
-      className={className}
-      data-treasure-chest-open={open ? "true" : "false"}
-      data-treasure-chest-renderer="three"
-      data-treasure-chest-variant={variant}
-      ref={canvasRef}
-      role="img"
-    />
+      },
+    [variant],
   );
+
+  return <DashboardWebGlWidget build={build} className={className ?? ""} />;
 }

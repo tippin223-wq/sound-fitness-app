@@ -1,13 +1,17 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import type { BufferGeometry, Material, Object3D } from "three";
-import {
-  createDashboardWebGlRenderer,
-  loadDashboardThree,
-  setDashboardWebGlCanvasActive,
-  waitForDashboardWebGlStart,
-} from "./dashboardWebGlRenderer";
+import { useMemo, useRef } from "react";
+import type {
+  BufferGeometry,
+  Material,
+  Object3D,
+  OrthographicCamera,
+} from "three";
+import DashboardWebGlWidget from "./DashboardWebGlWidget";
+import type {
+  DashboardWidgetBuilder,
+  DashboardWidgetInstance,
+} from "./dashboardWebGlStage";
 
 type ThreeModule = typeof import("three");
 
@@ -84,56 +88,19 @@ export default function DashboardLevelMeterBar3D({
   progress,
 }: DashboardLevelMeterBar3DProps) {
   const activeRef = useRef(active);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  activeRef.current = active;
   const pausedRef = useRef(paused);
+  pausedRef.current = paused;
   const progressRef = useRef(clampProgress(progress));
+  progressRef.current = clampProgress(progress);
 
-  useEffect(() => {
-    activeRef.current = active;
-    setDashboardWebGlCanvasActive(canvasRef.current, active && !paused);
-  }, [active, paused]);
-
-  useEffect(() => {
-    pausedRef.current = paused;
-    setDashboardWebGlCanvasActive(canvasRef.current, activeRef.current && !paused);
-  }, [paused]);
-
-  useEffect(() => {
-    progressRef.current = clampProgress(progress);
-  }, [progress]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup = () => {};
-
-    const startScene = async () => {
-      await waitForDashboardWebGlStart();
-      if (cancelled || !canvasRef.current) return;
-
-      const THREE = await loadDashboardThree();
-      if (cancelled || !canvasRef.current) return;
-
-      const canvas = canvasRef.current;
+  const build = useMemo<DashboardWidgetBuilder>(
+    () =>
+      ({ THREE }): DashboardWidgetInstance => {
       const scene = new THREE.Scene();
       const camera = new THREE.OrthographicCamera(-0.78, 0.78, 2.95, -2.95, 0.1, 20);
       camera.position.set(0.56, 0.18, 7.4);
       camera.lookAt(0, 0, 0);
-
-      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
-        alpha: true,
-        antialias: true,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false,
-      });
-      if (!renderer) return;
-
-      canvas.dataset.webglReady = "true";
-      delete canvas.dataset.webglFallback;
-      setDashboardWebGlCanvasActive(canvas, activeRef.current && !pausedRef.current);
-
-      renderer.setClearColor(0x000000, 0);
-      renderer.setPixelRatio(Math.min(Math.max(window.devicePixelRatio || 1, 1.25), 1.8));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
 
       scene.add(new THREE.AmbientLight(new THREE.Color("#dbeafe"), 1.2));
 
@@ -313,15 +280,10 @@ export default function DashboardLevelMeterBar3D({
         };
       });
 
-      const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const width = Math.max(1, Math.floor(rect.width));
-        const height = Math.max(1, Math.floor(rect.height));
-        const aspect = width / height;
+      const resize = (cssWidth: number, cssHeight: number) => {
+        const aspect = Math.max(1, cssWidth) / Math.max(1, cssHeight);
         const halfHeight = 2.95;
         const halfWidth = Math.max(0.68, halfHeight * aspect);
-
-        renderer.setSize(width, height, false);
         camera.left = -halfWidth;
         camera.right = halfWidth;
         camera.top = halfHeight;
@@ -329,23 +291,18 @@ export default function DashboardLevelMeterBar3D({
         camera.updateProjectionMatrix();
       };
 
-      const observer = new ResizeObserver(resize);
-      observer.observe(canvas);
-      resize();
-
-      let frameId = 0;
-      let lastFrameTime = 0;
       let renderedProgress = progressRef.current;
       let charge = activeRef.current && !pausedRef.current ? 1 : 0;
 
-      const applyProgress = (seconds: number, frameDelta: number) => {
+      const update = (elapsed: number, delta: number) => {
+        const seconds = elapsed;
         const targetProgress = Math.max(0.015, progressRef.current);
         renderedProgress +=
-          (targetProgress - renderedProgress) * Math.min(1, frameDelta * 0.01);
+          (targetProgress - renderedProgress) * Math.min(1, delta * 10);
 
         charge +=
           ((activeRef.current && !pausedRef.current ? 1 : 0.22) - charge) *
-          Math.min(1, frameDelta * 0.011);
+          Math.min(1, delta * 11);
 
         const activeHeight = RAIL_HEIGHT * renderedProgress;
         const centerY = -RAIL_HEIGHT / 2 + activeHeight / 2;
@@ -384,43 +341,18 @@ export default function DashboardLevelMeterBar3D({
         });
       };
 
-      const renderFrame = (time: number) => {
-        const frameDelta =
-          lastFrameTime > 0 ? Math.min(48, time - lastFrameTime) : 16.67;
-        lastFrameTime = time;
-        const seconds = time / 1000;
-
-        applyProgress(seconds, frameDelta);
-        renderer.render(scene, camera);
-        frameId = window.requestAnimationFrame(renderFrame);
+      return {
+        scene,
+        camera,
+        update,
+        resize,
+        dispose: () => {
+          disposeObject(scene);
+        },
       };
-
-      frameId = window.requestAnimationFrame(renderFrame);
-
-      cleanup = () => {
-        window.cancelAnimationFrame(frameId);
-        observer.disconnect();
-        delete canvas.dataset.webglReady;
-        disposeObject(scene);
-        renderer.forceContextLoss();
-        renderer.dispose();
-      };
-    };
-
-    void startScene();
-
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, []);
-
-  return (
-    <canvas
-      aria-hidden="true"
-      className={className}
-      data-dashboard-level-meter-renderer="three"
-      ref={canvasRef}
-    />
+      },
+    [],
   );
+
+  return <DashboardWebGlWidget build={build} className={className} />;
 }

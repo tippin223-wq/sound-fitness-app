@@ -4,15 +4,31 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Activity,
+  Apple,
+  Bot,
+  BookOpen,
+  CalendarCheck,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   ChevronsUpDown,
+  Dumbbell,
   Filter,
+  Gauge,
+  HeartPulse,
+  MapPin,
   Maximize2,
+  Minus,
   Minimize2,
   Pencil,
+  PersonStanding,
   Plus,
+  Star,
+  Target,
+  Users,
   X,
 } from "lucide-react";
 import {
@@ -24,6 +40,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type WheelEvent as ReactWheelEvent,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -33,19 +50,22 @@ import { createPortal } from "react-dom";
 import DashboardCalendar, {
   type DashboardCalendarItem,
 } from "@/components/dashboard/DashboardCalendar";
+import DashboardAccessibilityNavigator from "@/components/dashboard/DashboardAccessibilityNavigator";
 import DashboardCategoryUfoScene3D from "@/components/dashboard/DashboardCategoryUfoScene3D";
 import BodyCommandCenterCard from "@/components/dashboard/BodyCommandCenterCard";
 import DashboardLightningBolt3D from "@/components/dashboard/DashboardLightningBolt3D";
 import DashboardLevelMeterBar3D from "@/components/dashboard/DashboardLevelMeterBar3D";
 import DashboardLogo3D from "@/components/dashboard/DashboardLogo3D";
 import DashboardMeterMenuIcon3D from "@/components/dashboard/DashboardMeterMenuIcon3D";
-import DashboardProfileIcon3D, {
-  DashboardGearIcon3D,
-} from "@/components/dashboard/DashboardProfileActionIcons3D";
+import { DashboardGearIcon3D } from "@/components/dashboard/DashboardProfileActionIcons3D";
 import DashboardScrollButton3D from "@/components/dashboard/DashboardScrollButton3D";
 import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
-import DashboardTrophy3D from "@/components/dashboard/DashboardTrophy3D";
 import DashboardWebGlPreloader from "@/components/dashboard/DashboardWebGlPreloader";
+import {
+  setDashboardContentWidgetsFrozen,
+  setDashboardHeaderWidgetsFrozen,
+  setDashboardStageIdleHidden,
+} from "@/components/dashboard/dashboardWebGlStage";
 import DashboardTornadoEmeralds3D, {
   DashboardGemStage3D,
   type DashboardTornadoGemTone,
@@ -61,7 +81,9 @@ import {
   type AchievementBadgeItem,
 } from "@/components/dashboard/SoundAchievementBadgeRow";
 import {
+  loadWorkoutLogEntriesFromLocalStorage,
   loadWorkoutLogEntriesWithFallback,
+  loadWorkoutTemplatesFromLocalStorage,
   loadWorkoutTemplatesWithFallback,
   syncLocalWorkoutLogsToSupabase,
   syncLocalWorkoutTemplatesToSupabase,
@@ -211,7 +233,59 @@ const DASHBOARD_ANALOG_REPEAT_MS = 150;
 const DASHBOARD_ORBITER_ROW_CLICK_LOCK_MS = 170;
 const DASHBOARD_ORBITER_ROW_SCROLL_LOCK_MS = 145;
 const DASHBOARD_PROFILE_ICON_FALLBACK = "/sound-fitness-logo.png";
+// Admin-preview business meter: the header level ring becomes an editable
+// "debt-to-income" score you can bump. Every LEVEL_SIZE points = one level, so
+// raising the stat visibly levels the ring up. Persisted locally per browser.
+const ADMIN_DTI_STORAGE_KEY = "sound-fitness-admin-dti-score";
+const ADMIN_DTI_LEVEL_SIZE = 100;
+const ADMIN_DTI_STEP = 5;
+const ADMIN_DTI_DEFAULT_SCORE = 42;
+const ADMIN_DTI_MAX_SCORE = 990;
 const DASHBOARD_WEEKLY_SESSION_GOAL = 7;
+const DASHBOARD_TRAINING_CONSTELLATION_SKY_STARS = Array.from(
+  { length: 52 },
+  (_, index) => ({
+    color: ["#e0f2fe", "#6ee7b7", "#7dd3fc", "#fde68a"][index % 4],
+    glint: index % 11 === 0,
+    left: `${(index * 47 + 9) % 97}%`,
+    opacity: 0.28 + ((index * 13) % 42) / 100,
+    size: index % 13 === 0 ? 3 : index % 5 === 0 ? 2 : 1,
+    top: `${(index * 31 + 7) % 94}%`,
+  }),
+);
+
+// Overloaded so `horizontalOnly` callers get the narrowed left/right union the
+// implementation actually returns — a boolean argument alone can't narrow it.
+function getDashboardJoystickClickDirection(
+  event: ReactMouseEvent<HTMLElement>,
+  horizontalOnly: true,
+): DashboardHorizontalScrollDirection | null;
+function getDashboardJoystickClickDirection(
+  event: ReactMouseEvent<HTMLElement>,
+  horizontalOnly?: boolean,
+): DashboardScrollButtonDirection | null;
+function getDashboardJoystickClickDirection(
+  event: ReactMouseEvent<HTMLElement>,
+  horizontalOnly = false,
+): DashboardScrollButtonDirection | null {
+  const rect = event.currentTarget.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+
+  const offsetX = (event.clientX - rect.left) / rect.width - 0.5;
+  const offsetY = (event.clientY - rect.top) / rect.height - 0.5;
+  const deadZone = 0.16;
+
+  if (horizontalOnly) {
+    if (Math.abs(offsetX) < deadZone) return null;
+    return offsetX < 0 ? "left" : "right";
+  }
+
+  if (Math.max(Math.abs(offsetX), Math.abs(offsetY)) < deadZone) return null;
+  if (Math.abs(offsetX) > Math.abs(offsetY)) {
+    return offsetX < 0 ? "left" : "right";
+  }
+  return offsetY < 0 ? "up" : "down";
+}
 const DASHBOARD_PLAN_SESSION_TARGET = 10;
 const DASHBOARD_HEADER_METER_COUNT = 2;
 const DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT = 3;
@@ -250,8 +324,188 @@ const DASHBOARD_PROFILE_GEM_VAULT_CLOSE_BEFORE_SCROLL_MS = 520;
 const DASHBOARD_HEADER_MENU_BLOCK_COUNT = 5;
 const DASHBOARD_HEADER_PROGRESS_BLOCK_INDEX = 2;
 const DASHBOARD_HEADER_IDLE_TIMEOUT_MS = 60000;
+const DASHBOARD_HEADER_IDLE_SCENE_ENABLED = false;
+/**
+ * Below this width the account cluster cannot fit its profile, rewards and
+ * meter controls side by side — they declare ~193px of fixed width against a
+ * block capped at `100vw - 7.75rem`, which pushed the claim/gift button off
+ * the right edge. At these sizes the joystick pages through the three controls
+ * one at a time instead of trying to seat them all at once.
+ */
+const DASHBOARD_NARROW_HEADER_QUERY = "(max-width: 359px)";
+const DASHBOARD_NARROW_ACCOUNT_ITEMS = ["account", "rewards", "meter"] as const;
+type DashboardNarrowAccountItem =
+  (typeof DASHBOARD_NARROW_ACCOUNT_ITEMS)[number];
+/**
+ * The ambient field's ten category actors are held at `display: none` by an
+ * unconditional rule in globals.css (`.dashboard-header-ambient-field >
+ * .dashboard-header-category-actor`), so they could never be seen — but they
+ * still cost ~1,750 DOM nodes that React reconciled on every dashboard state
+ * change. Flip this back on together with that CSS rule to restore them.
+ */
+const DASHBOARD_HEADER_AMBIENT_ACTORS_ENABLED = false;
 const DASHBOARD_HEADER_NEWS_HEADLINE_INTERVAL_MS = 6400;
 const DASHBOARD_HEADER_NEWS_HEADLINE_ENTER_MS = 520;
+
+/** Never shrink the nav past this, however tight the row gets. */
+const DASHBOARD_NAV_MIN_ZOOM = 0.3;
+
+/**
+ * Fit the dashboard nav to whatever room the header row actually has.
+ *
+ * The nav lays out at its full design size (see the max-width: 430px block —
+ * its own CSS sizes each nested layer from the viewport, which crushed the
+ * label), and this shrinks the whole assembly as one object to whichever of
+ * width or height runs out first. Uses zoom rather than a transform so layout
+ * shrinks too and the nav genuinely occupies less of the row.
+ */
+const fitDashboardHeaderNav = () => {
+  if (typeof document === "undefined") return;
+
+  // The zoom is sized for the OPEN header; the idle state shrinks the whole
+  // menu block with a 0.6 scale instead, so idle must not refit (its scaled
+  // geometry would poison the measurement, and a state change should animate
+  // purely via the block's compositor scale).
+  if (
+    document
+      .querySelector("main")
+      ?.classList.contains("dashboard-page--content-focus")
+  ) {
+    return;
+  }
+
+  const selector = document.querySelector<HTMLElement>(
+    ".dashboard-header-dashboard-selector",
+  );
+  const block = selector?.closest<HTMLElement>(
+    ".dashboard-header-menu-block--dashboard",
+  );
+  const shell = selector?.closest<HTMLElement>(
+    ".dashboard-header-vortex-shell",
+  );
+  if (!selector || !block || !shell) return;
+
+  // Measure at natural size, then restore a fitted value below. The
+  // transition is suppressed during measurement so the zoom: 1 probe never
+  // animates or becomes a transition start point.
+  const previousZoom = getComputedStyle(selector).zoom || "1";
+  selector.style.setProperty("transition", "none");
+  selector.style.setProperty("zoom", "1");
+  const designWidth = selector.scrollWidth;
+  const designHeight = selector.scrollHeight;
+  if (!designWidth || !designHeight) return;
+
+  const box = block.getBoundingClientRect();
+
+  // Measure the row rather than the nav's own container: the container is sized
+  // from its contents, so using it would grow with the nav and always report a
+  // perfect fit. What is actually fixed is the row minus the crest and the
+  // joystick beside it.
+  const row = shell.querySelector<HTMLElement>(
+    ".dashboard-header-menu-content",
+  );
+  const fixedNeighbours = [
+    ".dashboard-header-logo-cluster",
+    ".dashboard-header-mobile-orbit-joystick",
+  ].reduce((total, selectorText) => {
+    const neighbour = row?.querySelector<HTMLElement>(selectorText);
+    return total + (neighbour?.getBoundingClientRect().width ?? 0);
+  }, 0);
+  const rowGutter = 20;
+  const availableWidth = Math.max(
+    0,
+    (row?.clientWidth ?? box.width) - fixedNeighbours - rowGutter,
+  );
+
+  // The news chyron sits in the shell's bottom band, so the nav's usable height
+  // stops there rather than at the shell's edge.
+  const chyron = shell.querySelector(".dashboard-header-news-chyron");
+  const availableHeight = chyron
+    ? chyron.getBoundingClientRect().top - box.top
+    : box.height;
+
+  const fit = Math.min(
+    1,
+    availableWidth / designWidth,
+    availableHeight / designHeight,
+  );
+
+  // The open header never fills the row completely — this is the shrink that
+  // used to be a scale: 0.88 rule on the selector. Scoped to the same
+  // breakpoint that rule lived in; the desktop nav never had it.
+  const wantsAestheticShrink = window.matchMedia("(max-width: 940px)").matches;
+  const targetZoom = Math.max(
+    DASHBOARD_NAV_MIN_ZOOM,
+    Math.round(fit * (wantsAestheticShrink ? 0.88 : 1) * 1000) / 1000,
+  );
+
+  // Restore the pre-measurement zoom without animating, then let the
+  // stylesheet's zoom transition carry previous -> target at the same 420ms
+  // curve the rest of the menu uses. Without the restore step, the zoom: 1
+  // written above for measurement would become the transition's start point.
+  selector.style.setProperty("zoom", previousZoom);
+  void selector.offsetWidth;
+  // Inline because the CSS build pipeline silently drops transition: zoom
+  // declarations from stylesheets (same stripping as :has() and two-value
+  // ellipse gradients — see the project memory on dropped CSS).
+  selector.style.setProperty(
+    "transition",
+    "zoom 420ms cubic-bezier(0.2, 0.84, 0.2, 1)",
+  );
+  selector.style.setProperty("zoom", String(targetZoom));
+};
+
+/** Even reading pace for a headline that has to scroll, in px per second. */
+const DASHBOARD_CHYRON_SCROLL_SPEED = 48;
+/** Beat between the headline finishing its fade-in and starting to travel. */
+const DASHBOARD_CHYRON_SCROLL_LEAD_IN_MS = 260;
+/** Beat on the tail end so the last words can be read before the next fades in. */
+const DASHBOARD_CHYRON_SCROLL_TAIL_MS = 900;
+
+/**
+ * Headlines longer than the chyron track were simply cut off with an ellipsis.
+ * Measure the headline at its natural width and, when it does not fit, hand the
+ * CSS the exact distance to travel so it scrolls the tail into view instead.
+ *
+ * Returns how long this headline needs on screen: the caller schedules the next
+ * one from that, so a long headline is never cut off mid-travel by a fixed
+ * rotation interval. Short headlines that fit set no attribute at all, which
+ * leaves the original ellipsis behaviour untouched.
+ */
+const applyDashboardChyronMarquee = (element: HTMLElement | null) => {
+  const track = element?.parentElement;
+  if (!element || !track) return DASHBOARD_HEADER_NEWS_HEADLINE_INTERVAL_MS;
+
+  // The measuring state drops the truncation so scrollWidth reports the full
+  // text rather than the clipped box.
+  element.dataset.chyronScroll = "measuring";
+  const distance = element.scrollWidth - track.clientWidth;
+
+  if (distance <= 2) {
+    delete element.dataset.chyronScroll;
+    element.style.removeProperty("--dashboard-chyron-scroll");
+    element.style.removeProperty("--dashboard-chyron-scroll-duration");
+    element.style.removeProperty("--dashboard-chyron-scroll-delay");
+    return DASHBOARD_HEADER_NEWS_HEADLINE_INTERVAL_MS;
+  }
+
+  const travelMs = (distance / DASHBOARD_CHYRON_SCROLL_SPEED) * 1000;
+  const delayMs =
+    DASHBOARD_HEADER_NEWS_HEADLINE_ENTER_MS + DASHBOARD_CHYRON_SCROLL_LEAD_IN_MS;
+
+  element.style.setProperty("--dashboard-chyron-scroll", `${distance}px`);
+  element.style.setProperty(
+    "--dashboard-chyron-scroll-duration",
+    `${(travelMs / 1000).toFixed(2)}s`,
+  );
+  element.style.setProperty(
+    "--dashboard-chyron-scroll-delay",
+    `${(delayMs / 1000).toFixed(2)}s`,
+  );
+  element.dataset.chyronScroll = "true";
+
+  return Math.round(delayMs + travelMs + DASHBOARD_CHYRON_SCROLL_TAIL_MS);
+};
 const DASHBOARD_HEADER_METER_MENU_TRIGGER_STYLE = `
 .dashboard-header-meter-menu-shell {
   --dashboard-header-meter-button-size: clamp(2.58rem, 5vw, 3.15rem) !important;
@@ -402,6 +656,58 @@ const DASHBOARD_HEADER_NEWS_CHYRON_TIMING_STYLE = `
   animation-duration: 520ms !important;
 }
 
+/* Overflowing headlines scroll their tail into view instead of ending in an
+   ellipsis. The attribute is only present when the text genuinely does not
+   fit, so short headlines keep the original truncation. */
+.dashboard-header-news-chyron__item[data-chyron-scroll] {
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  width: max-content !important;
+}
+
+/* One even-paced pass per headline: it fades in, waits out the fade, travels
+   the whole message at a constant speed, then holds while the next headline
+   fades in over it. The rotation timer is derived from the same numbers, so a
+   long headline is never swapped out mid-travel. */
+.dashboard-header-news-chyron__item[data-chyron-scroll="true"] {
+  animation: dashboard-header-news-chyron-scroll
+    var(--dashboard-chyron-scroll-duration, 6s) linear
+    var(--dashboard-chyron-scroll-delay, 0.78s) 1 both;
+}
+
+/* While a scrolling headline is arriving, run the fade AND the scroll together.
+   Both rules set the animation shorthand, so without this the more specific
+   scroll rule silently replaced the fade and new messages snapped in. The two
+   animate different properties, so they layer cleanly. */
+.dashboard-header-news-chyron__item[data-chyron-scroll="true"].dashboard-header-news-chyron__item--entering {
+  animation:
+    dashboard-header-news-chyron-enter 520ms cubic-bezier(0.16, 0.86, 0.2, 1)
+      both,
+    dashboard-header-news-chyron-scroll
+      var(--dashboard-chyron-scroll-duration, 6s) linear
+      var(--dashboard-chyron-scroll-delay, 0.78s) 1 both;
+}
+
+/* Animates the translate property rather than transform, because the fade-in
+   keyframes already animate transform — running both on the same property made
+   the headline jump. These two compose instead of fighting. */
+@keyframes dashboard-header-news-chyron-scroll {
+  from {
+    translate: 0 0;
+  }
+
+  to {
+    translate: calc(var(--dashboard-chyron-scroll, 0px) * -1) 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-header-news-chyron__item[data-chyron-scroll="true"] {
+    animation: none !important;
+  }
+}
+
 .dashboard-header-vortex-shell--points-dropdown-open .dashboard-header-news-chyron,
 .dashboard-header-news-chyron--points-dropdown-open {
   pointer-events: none !important;
@@ -482,20 +788,366 @@ const DASHBOARD_HEADER_LOGO_FALLBACK_STYLE = `
 
 `;
 const DASHBOARD_HEADER_NARROW_MOBILE_MENU_STYLE = `
+/* Applies at every width. The menu content box is taller than the visible
+   header (it runs past the shell), so any child left on the default align-self
+   centres itself against that oversized box instead of the menu row — and
+   because the box's height moves with its contents, the item drifts between
+   positions. Anchoring to the top makes each item's position deterministic so
+   the per-state offsets below actually hold. */
+.dashboard-header-vortex-shell
+  .dashboard-header-menu-content
+  > .dashboard-header-mobile-orbit-joystick {
+  align-self: flex-start;
+}
+
 @media (max-width: 940px) {
+  /* Lifted so the row centres on the menu area rather than the shell box — the
+     news chyron occupies the shell's bottom band, so centring on the shell
+     itself sits everything ~15px low. */
   .dashboard-header-vortex-shell
-    .dashboard-header-main-orbit-stage--stable
-    .dashboard-header-menu-block--profile {
-    --dashboard-mobile-account-inset: clamp(2.28rem, 9.5vw, 2.72rem) !important;
-    padding-right: var(--dashboard-mobile-account-inset) !important;
+    .dashboard-header-menu-content
+    > :is(
+      .dashboard-header-logo-cluster,
+      .dashboard-header-mobile-orbit-joystick,
+      .dashboard-header-main-orbit-stage,
+      .dashboard-header-meter-menu-shell
+    ) {
+    translate: 0 -0.76rem;
+  }
+
+  /* Now that the joystick is anchored to the top of the row rather than
+     centring on the oversized menu box, it needs its own offset to land on the
+     same line as the crest — its 3D widget also carries an internal shift. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-menu-content
+    > .dashboard-header-mobile-orbit-joystick {
+    translate: 0 1.43rem;
+  }
+
+  /* The nav's open-state shrink (formerly scale: 0.88 here) is folded into
+     fitDashboardHeaderNav's zoom instead: one resize mechanism, and zoom
+     shrinks layout toward the top-left so the nav hugs the menu joystick
+     rather than centering ~20px to the right of it. */
+  main:not(.dashboard-page--content-focus)
+    .dashboard-header-vortex-shell
+    .dashboard-profile-rewards-control {
+    scale: 0.84;
+  }
+
+  /* The scroll-button styles set their own scale, so this needs to win. */
+  main:not(.dashboard-page--content-focus)
+    .dashboard-header-vortex-shell
+    .dashboard-header-menu-content
+    > .dashboard-header-mobile-orbit-joystick {
+    scale: 0.88 !important;
+  }
+
+  /* Measured against the collapsed shell's midline once the focus transition
+     has settled — the joystick shrinks from 40px to 24px on the way in, so
+     values tuned mid-transition land wrong. */
+  main.dashboard-page--content-focus
+    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-menu-content
+    > .dashboard-header-mobile-orbit-joystick {
+    /* Anchor to the top of the menu row like the crest does. Left on the
+       default align-self it centred itself in the full 131px menu-content box
+       instead of the ~71px menu area, and since that box's height changes with
+       its contents the joystick kept drifting between positions. */
+    align-self: flex-start !important;
+    /* 0.6 (the generic idle scale) x 0.88 (this joystick's deliberate open
+       size): keeps its idle->open growth ratio identical to the neighbouring
+       menu items, which animate 0.6 -> 1 over the same 420ms. */
+    scale: 0.528 !important;
+    translate: 0 0.625rem !important;
+  }
+
+  /* Same 13px lift for the menu blocks, which carry the nav content and the
+     account cluster. Doubled class raises specificity over the unscoped
+     content-focus rule that pins them to the stage top. */
+  main.dashboard-page--content-focus
+    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-main-orbit-stage
+    > .dashboard-header-menu-block.dashboard-header-menu-block {
+    translate: 0 0.69rem !important;
+  }
+
+  /* Collapsed header: every item reads on one line through the middle of the
+     MENU area — which is the shell minus the news chyron sitting in its bottom
+     26px. Centring on the shell box itself leaves everything ~13px low. */
+  main.dashboard-page--content-focus
+    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-menu-content
+    > .dashboard-header-logo-cluster {
+    translate: 0 -0.3rem !important;
+  }
+
+  /* The shell collapses to ~98px in content focus, but the stage carried a
+     1.45rem downward nudge that pushed the menu content past the bottom of the
+     shrunken menu instead of moving up with it. Match the logo's offset. */
+  main.dashboard-page--content-focus
+    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-menu-content
+    > .dashboard-header-main-orbit-stage {
+    translate: 0 0.45rem !important;
   }
 
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-menu-block--profile {
+    --dashboard-mobile-account-inset: clamp(2.28rem, 9.5vw, 2.72rem) !important;
+    /* Was var(--dashboard-mobile-account-inset) (~44px), sized for the era
+       when this block overhung the stage. Now that the block is bounded, that
+       padding just held the rewards counts ~28px short of the gift button —
+       this keeps them right-aligned with a close margin to the gift and the
+       meter menu beyond it. */
+    padding-right: 1.35rem !important;
+  }
+
+  /* The gear tucks just left of the account icon, low against it (same intent
+     as the sub-360px rule below). It was right-anchored against the profile
+     block's old overhanging width, which left it floating mid-block once the
+     block was bounded to the stage. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
     .dashboard-profile-action-gear {
-    left: auto !important;
-    right: calc(var(--dashboard-mobile-account-inset) + 8.25rem) !important;
+    left: 0.15rem !important;
+    right: auto !important;
     top: 3.08rem !important;
+  }
+
+  /* Clears the gear now sitting on its left. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-hub-trigger {
+    margin-left: 1.9rem !important;
+  }
+
+  /* Account panel, narrow screens. The profile block is capped at
+     100vw - 7.75rem, but its controls declared ~193px of fixed width with
+     flex-shrink: 0, so on a sub-360px viewport the claim/gift button was
+     pushed past the right edge of the screen. Spread them across the row and
+     let the two wide ones compress instead of overflowing. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-profile-cluster {
+    justify-content: space-between !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    :is(
+      .dashboard-profile-hub-trigger,
+      .dashboard-profile-points-trigger,
+      .dashboard-profile-rewards-control
+    ) {
+    flex-shrink: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-points-trigger {
+    max-width: 5.2rem !important;
+  }
+}
+
+/* Narrow headers: the joystick pages through the account controls one at a
+   time (see DASHBOARD_NARROW_ACCOUNT_ITEMS) instead of squeezing all three
+   into a row that cannot hold them. */
+@media (max-width: 359px) {
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item]
+    :is(.dashboard-profile-hub-trigger, .dashboard-profile-rewards-control) {
+    display: none !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
+    .dashboard-profile-hub-trigger {
+    display: flex !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="rewards"]
+    .dashboard-profile-rewards-control {
+    display: flex !important;
+  }
+
+  /* The meter button sits outside the stage, so it takes its own turn in the
+     rotation and stays hidden while the other two are showing. */
+  /* Doubled class names raise specificity above the max-width: 430px rule that
+     reveals the meter for the whole account panel. */
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
+    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell,
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="rewards"]
+    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+
+  /* With one control in the row there is no meter to clear, so drop the inset
+     that was reserving space for it. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
+    .dashboard-header-menu-block--profile,
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="rewards"]
+    .dashboard-header-menu-block--profile {
+    padding-right: 0.95rem !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item]
+    .dashboard-header-profile-cluster {
+    justify-content: center !important;
+  }
+
+  /* The header figure is decorative, so hide him rather than let him overlap
+     the controls or hang off the edge when there is no room for him. */
+  .dashboard-header-vortex-shell .dashboard-header-category-actor,
+  .dashboard-header-vortex-shell .dashboard-header-selector-category-dock {
+    display: none !important;
+  }
+
+  /* The gear only makes sense beside the avatar, and the avatar only shows on
+     the "account" step — otherwise it was left stranding itself past the right
+     edge of the screen with nothing to sit next to. Hide it by default and
+     bring it back only for that step. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-action-gear {
+    display: none !important;
+  }
+
+  /* Tucked just left of the avatar and low against it, mirroring the coach
+     badge on the avatar's other side, instead of sitting 169px away at the far
+     end of the block. Offset = the block's right padding (0.95rem) + the
+     avatar (3.94rem) + a gap that keeps them from touching. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
+    .dashboard-profile-action-gear {
+    display: grid !important;
+    /* The account icon is centred in the block on this step, so anchor the
+       gear off the block's centre rather than its right edge — it follows the
+       icon if the block's width changes. */
+    right: calc(50% + 2.9rem) !important;
+    top: 2.5rem !important;
+  }
+
+  /* The menu blocks are sized from 100vw minus 7.75rem, which assumes they
+     start where the logo and joystick end. The stage actually begins a little
+     further in, so that width ran the nav block ~13px past the right edge.
+     The blocks are absolutely positioned inside the stage, so bounding them to
+     it is enough. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    :is(
+      .dashboard-header-menu-block--dashboard,
+      .dashboard-header-menu-block--profile,
+      .dashboard-header-dashboard-selector
+    ) {
+    max-width: 100% !important;
+  }
+
+  /* Bounding the block alone still let its contents run out the side: the
+     "Open Sessions" label is nowrap and the urgency chip was positioned past
+     the viewport entirely. Let the row shrink and clip instead. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-dashboard-selector {
+    min-width: 0 !important;
+    /* Without a position the overflow cannot clip absolutely positioned
+       descendants — they resolve against an ancestor further up and escape. */
+    position: relative !important;
+    overflow: hidden !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    :is(
+      .dashboard-header-selector-copy,
+      .dashboard-header-urgency-blinker,
+      .dashboard-header-urgency-blinker__label
+    ) {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* The selector body asks for a 204px minimum inside a ~131px selector, and
+     the rail pocket that holds the points pill refuses to shrink — which is
+     what pushed the pill off the right edge. Let both size to the space that
+     actually exists. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    :is(
+      .dashboard-header-selector-body,
+      .dashboard-header-rail-pocket,
+      .dashboard-header-rail-core-field,
+      .dashboard-header-page-orbit-rail
+    ) {
+    flex-shrink: 1 !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Open header: shrink the nav proportionally as one object instead of
+     squeezing its parts.
+     Each layer of the nav sizes itself from the viewport independently
+     (the body is width: min(13.35rem, calc(100vw - 15.55rem)), which lands
+     around 31px on a phone), so the outer layers kept their size and the label
+     absorbed the entire shortfall — down to a few pixels. Here the chain is
+     given its fixed design widths so it lays out exactly as it does on a wide
+     screen (273px end to end), and a single zoom on the selector shrinks the
+     whole thing to fit. zoom rather than scale, because zoom shrinks layout as
+     well as paint — so the nav really does occupy less of the row rather than
+     overflowing and being clipped, and nothing inside is ever crushed. */
+  /* Fills the stage so it is a stable box to fit the nav against — sizing it to
+     the nav instead would make the measurement circular. */
+  main:not(.dashboard-page--content-focus)
+    .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-menu-block--dashboard {
+    max-width: none !important;
+    width: 100% !important;
+  }
+
+  main:not(.dashboard-page--content-focus)
+    .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-body {
+    max-width: none !important;
+    min-width: 0 !important;
+    width: 13.35rem !important;
+  }
+
+  main:not(.dashboard-page--content-focus)
+    .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-dashboard-selector {
+    max-width: none !important;
+    overflow: visible !important;
+    width: 17.1rem !important;
+    /* Starting point only — fitDashboardHeaderNav measures the real box and
+       replaces this with whichever of width or height limits first. */
+    zoom: 0.48;
+  }
+}
+
+@media (max-width: 719px) {
+  .dashboard-page-orbit-node.dashboard-page-orbit-node--ghost {
+    backdrop-filter: none !important;
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    height: 2.25rem !important;
+    width: 2.25rem !important;
   }
 }
 
@@ -621,6 +1273,23 @@ const DASHBOARD_HEADER_NARROW_MOBILE_MENU_STYLE = `
     .dashboard-header-selector-category-dock
     .dashboard-header-category-actor {
     --dashboard-header-category-dock-scale: 0.58;
+  }
+
+  main.dashboard-page--content-focus
+    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-menu-content
+    > .dashboard-header-meter-menu-shell {
+    right: 0.58rem !important;
+    top: 1.78rem !important;
+    transform: translate3d(0, 0, 0) scale(0.74) !important;
+    translate: 0 !important;
+  }
+
+  main.dashboard-page--content-focus
+    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"]
+    + .dashboard-header-meter-menu-shell {
+    transform: translate3d(0, 0, 0) scale(0.9) !important;
   }
 }
 `;
@@ -1691,7 +2360,10 @@ const DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE = `
 .dashboard-header-idle-training-floor {
   --dashboard-header-idle-meter-gap: clamp(0.9rem, 2vw, 1.75rem);
   --dashboard-header-idle-meter-width: 5.8rem;
-  --dashboard-header-idle-orbit-half-width: min(20rem, 46%);
+  /* Half-width used only to place the two streak-meter popups. Pulled in from
+     the wider menu-orbit edge (20rem) to sit just outside the training-floor
+     equipment cluster (~11rem from centre). */
+  --dashboard-header-idle-orbit-half-width: min(11rem, 40%);
   --dashboard-header-idle-orbit-width: min(40rem, 92%);
 }
 
@@ -4338,6 +5010,16 @@ const DASHBOARD_PAGE_LEVEL_METER_TAB_STYLE = `
   transform: translate(0, calc(-50% + 2.4rem)) scale(1) !important;
 }
 
+/* Collapsed: keep only the tab; fully remove the panel from layout so the
+   shared WebGL stage culls the 3D level-meter. The stage draws each widget into
+   its anchor's screen rect and skips it only when that rect is zero-size/off-
+   screen (it ignores opacity/visibility) — so display:none, not visibility, is
+   what actually stops the meter's canvas pixels from painting. */
+.dashboard-page-level-meter-control:not(.dashboard-page-level-meter-control--open)
+  .dashboard-page-level-meter-panel {
+  display: none !important;
+}
+
 .dashboard-page-level-meter-tab {
   align-items: center !important;
   aspect-ratio: auto !important;
@@ -5707,9 +6389,244 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
 body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dashboard-page--level-meter-open.dashboard-page--level-meter-open.dashboard-page--level-meter-open.dashboard-page--level-meter-open .dashboard-page-level-meter-control--open .dashboard-page-analog-rail__marker-smoke::after {
   animation-play-state: running !important;
 }
+
+/* ---------------------------------------------------------------------------
+   Header vs. content: only one set of CSS animations runs at a time. <main>
+   carries dashboard-page--header-focus by default and flips to
+   dashboard-page--content-focus whenever the content is engaged (hover/tap, or
+   an active page control). 3D widgets are frozen in JS (header via paused prop,
+   content via the shared-stage freeze); these rules cover the CSS layers + the
+   header dim. Mirrors the level-meter pause approach above.
+--------------------------------------------------------------------------- */
+
+/* The header shell is the boundary: everything inside it is "the header",
+   everything else under <main> is "the content". Using the subtree (not the
+   dashboard-header- class prefix) keeps page controls that borrow that prefix
+   (scroll joystick, level meter) on the content side where they belong. */
+
+/* Content engaged -> freeze + dim the header; content keeps animating.
+   Excluded while the header is timed-out (idle): the idle animation owns the
+   header then, so the zone dim/pause must not darken or freeze it. */
+main.dashboard-page--content-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out),
+main.dashboard-page--content-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out) *,
+main.dashboard-page--content-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out) *::before,
+main.dashboard-page--content-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out) *::after {
+  animation-play-state: paused !important;
+}
+
+main.dashboard-page--content-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out) {
+  filter: brightness(0.6) saturate(0.72) !important;
+  height: 6.1rem;
+  transition: filter 320ms ease !important;
+}
+
+main.dashboard-page--content-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-menu-content
+  > * {
+  scale: 0.6;
+}
+
+/* One timing for the whole menu row, in BOTH directions. Previously the 420ms
+   scale transition existed only inside the idle rule above, so opening the
+   header made items with a Tailwind transition utility resize in 150ms and
+   items without one (the meter shell, the crest cluster) snap instantly —
+   every piece moved at its own rate. The 150ms all member keeps the fast
+   hover feedback those utilities provided; the later members override it for
+   the state-change properties. */
+.dashboard-header-vortex-shell .dashboard-header-menu-content > * {
+  transition:
+    all 150ms ease,
+    translate 420ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    scale 420ms cubic-bezier(0.2, 0.84, 0.2, 1);
+}
+
+/* The nav joystick's size is swapped by the --stable state rules (width,
+   min-width, height, margin), not by scale — give those the same 420ms so it
+   resizes in step with the nav's zoom and the rest of the row. transform stays
+   on the fast 150ms path for hover/press feedback. */
+.dashboard-header-vortex-shell .dashboard-header-selector-joystick {
+  transition:
+    all 150ms ease,
+    width 420ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    min-width 420ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    height 420ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    margin 420ms cubic-bezier(0.2, 0.84, 0.2, 1);
+}
+
+main.dashboard-page--content-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-menu-content
+  > :is(.dashboard-header-logo-cluster, .dashboard-header-scroll-button--left) {
+  align-self: flex-start;
+  transform-origin: 0 0;
+}
+
+
+main.dashboard-page--content-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-menu-content
+  > .dashboard-header-main-orbit-stage {
+  position: relative;
+  scale: 1;
+  transform-origin: 50% 50%;
+}
+
+.dashboard-header-main-orbit-stage {
+  pointer-events: none;
+}
+
+.dashboard-header-main-orbit-stage
+  :is(a, button, input, select, summary, textarea, [role="button"], [role="menuitem"]) {
+  pointer-events: auto;
+}
+
+main.dashboard-page--content-focus
+  .dashboard-header-main-orbit-stage,
+main.dashboard-page--content-focus
+  .dashboard-header-main-orbit-stage *,
+main.dashboard-page--idle-menu-open
+  .dashboard-header-main-orbit-stage,
+main.dashboard-page--idle-menu-open
+  .dashboard-header-main-orbit-stage * {
+  pointer-events: none !important;
+}
+
+/* Above the mobile breakpoint the idle header never got the centring
+   corrections the <=940px rules provide, so the collapsed menu sat its items
+   9-14px below the menu-area midline (the shell's bottom band belongs to the
+   chyron). Measured against the midline at 1100px wide. */
+@media (min-width: 941px) {
+  main.dashboard-page--content-focus
+    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-menu-content
+    > .dashboard-header-logo-cluster {
+    translate: 0 0.25rem;
+  }
+
+  main.dashboard-page--content-focus
+    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-main-orbit-stage
+    > :is(
+      .dashboard-header-menu-block--dashboard,
+      .dashboard-header-menu-block--profile
+    ) {
+    /* !important: the global idle block rule (translate: 0 1.5rem) comes later
+       in this sheet and would win otherwise. */
+    translate: 0 0.05rem !important;
+  }
+}
+
+/* The menu blocks are width-sized from 100vw minus a fixed allowance, which
+   can overshoot the stage; with right: 0 pinned, the excess hangs out the
+   LEFT side — which ran the account icon into the menu joystick. The 359px
+   media block already bounds them for tiny screens; this does it at every
+   width. */
+.dashboard-header-vortex-shell
+  .dashboard-header-main-orbit-stage
+  :is(
+    .dashboard-header-menu-block--dashboard,
+    .dashboard-header-menu-block--profile,
+    .dashboard-header-dashboard-selector
+  ) {
+  max-width: 100% !important;
+}
+
+/* Both menu blocks scale 0.6 <-> 1 with the header state; give that the same
+   duration/curve as the rest of the row so the nav (and the nav joystick
+   inside it) resizes in unison. Their absolute idle positioning still applies
+   instantly — only the size animates. */
+.dashboard-header-main-orbit-stage > .dashboard-header-menu-block {
+  transition:
+    translate 420ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    scale 420ms cubic-bezier(0.2, 0.84, 0.2, 1);
+}
+
+/* The rewards cluster's open size is a deliberate 0.84; matching it in idle
+   leaves the 0.6 block scale as its only state change, so it grows at the
+   shared rate too. */
+main.dashboard-page--content-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-profile-rewards-control {
+  scale: 0.84;
+}
+
+main.dashboard-page--content-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-main-orbit-stage
+  > .dashboard-header-menu-block--dashboard {
+  left: 0 !important;
+  position: absolute !important;
+  right: auto !important;
+  scale: 0.6;
+  top: 0 !important;
+  /* Pinned to the stage top, this block centred ~24px above the collapsed
+     shell's midline, leaving it out of line with the logo and joystick. */
+  translate: 0 1.5rem;
+  transform-origin: 0 0;
+}
+
+main.dashboard-page--content-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-main-orbit-stage
+  > .dashboard-header-menu-block--profile {
+  left: auto !important;
+  position: absolute !important;
+  right: 0 !important;
+  scale: 0.6;
+  top: 0 !important;
+  /* Same correction as the dashboard block so both sides share the logo and
+     joystick's line. */
+  translate: 0 1.5rem;
+  transform-origin: 100% 0;
+}
+
+main.dashboard-page--content-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-menu-content
+  > .dashboard-header-meter-menu-shell {
+  align-self: flex-start;
+  translate: 0 0.5rem;
+  transform-origin: 100% 0;
+}
+
+main.dashboard-page--header-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out) {
+  height: auto;
+  transition: filter 320ms ease !important;
+}
+
+main.dashboard-page--header-focus
+  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-menu-content
+  > * {
+  scale: 1;
+}
+
+/* Header engaged (default) -> freeze content CSS loops; header keeps animating.
+   Pause everything under <main>, then re-run the header shell subtree on top. */
+main.dashboard-page--header-focus *,
+main.dashboard-page--header-focus *::before,
+main.dashboard-page--header-focus *::after {
+  animation-play-state: paused !important;
+}
+
+main.dashboard-page--header-focus .dashboard-header-vortex-shell,
+main.dashboard-page--header-focus .dashboard-header-vortex-shell *,
+main.dashboard-page--header-focus .dashboard-header-vortex-shell *::before,
+main.dashboard-page--header-focus .dashboard-header-vortex-shell *::after {
+  animation-play-state: running !important;
+}
 `;
 const DASHBOARD_HEADER_IDLE_RUN_MS = 3800;
 const DASHBOARD_HEADER_IDLE_WORK_MS = 4800;
+// Covers the idle scene's 520ms opacity/visibility fade-out before it unmounts.
+const DASHBOARD_HEADER_IDLE_SCENE_FADE_MS = 700;
 const dashboardHeaderRunnerCharacter = {
   accent: "#10b981",
   hair: "#111827",
@@ -8263,17 +9180,92 @@ function ManualExerciseLibraryPreview({
   );
 }
 
+/**
+ * Constructing an Intl formatter is ~60x more expensive than reusing one, and
+ * these run hundreds of times per dashboard render. Build each once at module
+ * scope and reuse it.
+ */
+const dashboardDateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+const dashboardCompactDateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+const dashboardHeaderMeterDeadlineFormatter = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+  weekday: "short",
+});
+const dashboardHeaderMeterFullDateTimeFormatter = new Intl.DateTimeFormat(
+  "en-US",
+  {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+    weekday: "long",
+  },
+);
+const dashboardAchievementEstimateDateFormatter = new Intl.DateTimeFormat(
+  "en-US",
+  {
+    day: "numeric",
+    month: "short",
+  },
+);
+const dashboardAchievementEstimateFullDateFormatter = new Intl.DateTimeFormat(
+  "en-US",
+  {
+    day: "numeric",
+    month: "short",
+    weekday: "long",
+  },
+);
+// The consistency calendar spans 22 months, so these two ran ~680 times per
+// render when the formatter was constructed inside the day/month loops.
+const dashboardConsistencyDayLabelFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+const dashboardConsistencyMonthLabelFormatter = new Intl.DateTimeFormat(
+  "en-US",
+  {
+    month: "short",
+    year: "numeric",
+  },
+);
+const dashboardDayMonthFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "short",
+});
+const dashboardWeekdayShortFormatter = new Intl.DateTimeFormat("en-US", {
+  weekday: "short",
+});
+const dashboardTimelineDateFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "short",
+  weekday: "short",
+});
+const dashboardFullDateFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  month: "short",
+  weekday: "long",
+  year: "numeric",
+});
+
 const formatDashboardDate = (value?: string) => {
   if (!value) return "No workout logged yet";
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Recently logged";
 
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
+  return dashboardDateFormatter.format(date);
 };
 
 const formatCompactDateTime = (value?: string) => {
@@ -8282,42 +9274,20 @@ const formatCompactDateTime = (value?: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Recently";
 
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
+  return dashboardCompactDateTimeFormatter.format(date);
 };
 
 const formatHeaderMeterDeadline = (date: Date) =>
-  new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    weekday: "short",
-  }).format(date);
+  dashboardHeaderMeterDeadlineFormatter.format(date);
 
 const formatHeaderMeterFullDateTime = (date: Date) =>
-  new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    month: "short",
-    weekday: "long",
-  }).format(date);
+  dashboardHeaderMeterFullDateTimeFormatter.format(date);
 
 const formatAchievementEstimateDate = (date: Date) =>
-  new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "short",
-  }).format(date);
+  dashboardAchievementEstimateDateFormatter.format(date);
 
 const formatAchievementEstimateFullDate = (date: Date) =>
-  new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "short",
-    weekday: "long",
-  }).format(date);
+  dashboardAchievementEstimateFullDateFormatter.format(date);
 
 const formatManualLoadDisplay = (value?: string) => {
   const trimmedValue = value?.trim();
@@ -13121,12 +14091,41 @@ const adminMarketingCampaignCards: DashboardNavigationCard[] = [
   },
 ];
 
+// Transient pointer-drag trackers for the three orbit card rows. They are only
+// read and written inside event handlers, and this page mounts a single
+// instance, so they can be plain module-scope objects — which also lets React
+// Compiler memoize the page (it rejects useRef refs passed to render helpers
+// such as renderDashboardOrbitCardRow).
+const commandCenterPointerStartRef: DashboardPointerStartRef = { current: null };
+const commandCenterPointerMovedRef: DashboardPointerMovedRef = { current: false };
+const systemCenterPointerStartRef: DashboardPointerStartRef = { current: null };
+const systemCenterPointerMovedRef: DashboardPointerMovedRef = { current: false };
+const adminMarketingCampaignPointerStartRef: DashboardPointerStartRef = {
+  current: null,
+};
+const adminMarketingCampaignPointerMovedRef: DashboardPointerMovedRef = {
+  current: false,
+};
+
 export default function UserHomeDashboardPage() {
+  // Opt this component into React Compiler (annotation mode in next.config.ts).
+  // The compiler memoizes every subtree, so the four auto-rotating header
+  // carousels no longer rebuild all ~34 render helpers on each tick.
+  "use memo";
   const pathname = usePathname();
   const isAdminPreview = pathname === ROUTES.admin.mainDashboardPreview;
   const router = useRouter();
   const { profile: sharedProfile } = useProfile();
   const [dashboardToday] = useState<Date>(() => new Date());
+  // Heavy purely-decorative header layers (ambient field + idle training floor,
+  // ~4k DOM nodes) are deferred one frame past first paint so the initial
+  // render/HTML stays light and the dashboard appears sooner. They fade in
+  // right after.
+  const [decorationsReady, setDecorationsReady] = useState(false);
+  useEffect(() => {
+    const id = window.requestAnimationFrame(() => setDecorationsReady(true));
+    return () => window.cancelAnimationFrame(id);
+  }, []);
   const [firstName, setFirstName] = useState("Member");
   const [exerciseStats, setExerciseStats] = useState<LocalExerciseStatEntry[]>(
     [],
@@ -13209,11 +14208,47 @@ export default function UserHomeDashboardPage() {
     useState(0);
   const [dashboardMobileHeaderOrbitPanel, setDashboardMobileHeaderOrbitPanel] =
     useState<"selector" | "account">("selector");
+  // Very narrow headers page through the account controls one at a time; see
+  // DASHBOARD_NARROW_HEADER_QUERY.
+  const [dashboardHeaderIsNarrow, setDashboardHeaderIsNarrow] = useState(false);
+  const [dashboardNarrowAccountIndex, setDashboardNarrowAccountIndex] =
+    useState(0);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+
+    const query = window.matchMedia(DASHBOARD_NARROW_HEADER_QUERY);
+    const applyNarrowHeader = () => setDashboardHeaderIsNarrow(query.matches);
+
+    applyNarrowHeader();
+    query.addEventListener("change", applyNarrowHeader);
+    return () => query.removeEventListener("change", applyNarrowHeader);
+  }, []);
   const [dashboardHeaderVortexPulseMode, setDashboardHeaderVortexPulseMode] =
     useState<DashboardHeaderVortexMode | null>(null);
   const [dashboardHeaderVortexSettling, setDashboardHeaderVortexSettling] =
     useState(false);
   const [dashboardHeaderTimedOut, setDashboardHeaderTimedOut] = useState(false);
+  /**
+   * The idle training floor is ~2,000 DOM nodes — a quarter of the whole page —
+   * that only ever appear once the header times out into its idle scene. Kept
+   * mounted, React reconciled all of them on every dashboard state change, which
+   * is most of the delay between a click and the screen updating. Mount it with
+   * the idle scene and unmount once its fade-out has finished.
+   */
+  const [dashboardHeaderIdleSceneMounted, setDashboardHeaderIdleSceneMounted] =
+    useState(false);
+  useEffect(() => {
+    if (dashboardHeaderTimedOut) {
+      setDashboardHeaderIdleSceneMounted(true);
+      return;
+    }
+
+    const unmountTimer = window.setTimeout(() => {
+      setDashboardHeaderIdleSceneMounted(false);
+    }, DASHBOARD_HEADER_IDLE_SCENE_FADE_MS);
+
+    return () => window.clearTimeout(unmountTimer);
+  }, [dashboardHeaderTimedOut]);
   const [
     dashboardHeaderLogoClusterHighlighted,
     setDashboardHeaderLogoClusterHighlighted,
@@ -13222,6 +14257,10 @@ export default function UserHomeDashboardPage() {
     dashboardHeaderSurfaceHighlighted,
     setDashboardHeaderSurfaceHighlighted,
   ] = useState(false);
+  // True while the user is hovering/tapping the content section below the
+  // header. Feeds the header/content "one set of animations at a time" toggle.
+  const [dashboardContentFocused, setDashboardContentFocusedState] =
+    useState(false);
   const [dashboardTrophyMenuOpen, setDashboardTrophyMenuOpen] = useState(false);
   const [dashboardHeaderIdleStationIndex, setDashboardHeaderIdleStationIndex] =
     useState(0);
@@ -13337,11 +14376,39 @@ export default function UserHomeDashboardPage() {
     dashboardPageLevelMeterTabHighlighted,
     setDashboardPageLevelMeterTabHighlighted,
   ] = useState(false);
-  const dashboardHeaderMotionPaused =
+  // Active use of the header's own controls (analog / level meter). This is what
+  // should freeze idle-scene cycling — merely hovering the content must not.
+  const dashboardHeaderControlsInUse =
     dashboardPageAnalogInUse ||
     dashboardProfileHubAnalogInUse ||
     dashboardPageLevelMeterOpen ||
     dashboardPageLevelMeterTabHighlighted;
+  const dashboardHeaderMotionPaused =
+    dashboardHeaderControlsInUse || dashboardContentFocused;
+
+  /**
+   * The header's active/idle look is a class on <main>, but this state lives on
+   * this (very large) component, so React needed ~700ms to re-render before the
+   * class landed — the 420ms transition could not even begin until then, which
+   * is what made the header feel slow. Write the class straight to the DOM in
+   * the handler so the animation starts on the next frame; the state update
+   * still runs for everything else that reads it, and React's own render writes
+   * the identical value afterwards.
+   */
+  const setDashboardContentFocused = useCallback(
+    (nextFocused: boolean) => {
+      if (typeof document !== "undefined") {
+        const mainElement = document.querySelector("main");
+        if (mainElement) {
+          const paused = dashboardHeaderControlsInUse || nextFocused;
+          mainElement.classList.toggle("dashboard-page--content-focus", paused);
+          mainElement.classList.toggle("dashboard-page--header-focus", !paused);
+        }
+      }
+      setDashboardContentFocusedState(nextFocused);
+    },
+    [dashboardHeaderControlsInUse],
+  );
   const [activeCommandCenterIndex, setActiveCommandCenterIndex] = useState(0);
   const [activeAdminServiceIndex, setActiveAdminServiceIndex] = useState(0);
   const [adminServiceDetailsOpen, setAdminServiceDetailsOpen] = useState(false);
@@ -13461,15 +14528,80 @@ export default function UserHomeDashboardPage() {
   ] = useState<Record<string, number>>({});
   const [activeDashboardHeroCardIndex, setActiveDashboardHeroCardIndex] =
     useState(0);
+  const [activeTrainingConstellationLane, setActiveTrainingConstellationLane] =
+    useState<"all" | "recovery" | "strength" | "cardio">("all");
+  const [activeTrainingConstellationDayIndex, setActiveTrainingConstellationDayIndex] =
+    useState(0);
+  const [selectedTrainingConstellationSessionId, setSelectedTrainingConstellationSessionId] =
+    useState<string | null>(null);
+  const [activeDashboardChallengeCategoryId, setActiveDashboardChallengeCategoryId] =
+    useState("strength");
+  const dashboardTrainingConstellationScrollRef =
+    useRef<HTMLDivElement | null>(null);
+  const moveTrainingConstellationTimeline = useCallback((direction: -1 | 1) => {
+    setActiveTrainingConstellationDayIndex((currentIndex) => {
+      const nextIndex = Math.max(0, Math.min(6, currentIndex + direction));
+      const scroller = dashboardTrainingConstellationScrollRef.current;
+
+      if (scroller && nextIndex !== currentIndex) {
+        window.requestAnimationFrame(() => {
+          const isMobileTimeline = window.matchMedia("(max-width: 639px)").matches;
+          const maxScrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+          const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+
+          scroller.scrollTo({
+            left: isMobileTimeline ? 0 : maxScrollLeft * (nextIndex / 6),
+            top: isMobileTimeline ? maxScrollTop * (nextIndex / 6) : 0,
+            behavior: "smooth",
+          });
+        });
+      }
+
+      return nextIndex;
+    });
+  }, []);
   const [activeHeroAchievementIndex, setActiveHeroAchievementIndex] =
     useState(0);
   const [heroAchievementSlideDirection, setHeroAchievementSlideDirection] =
     useState<"left" | "right">("right");
   const [dashboardProfileHubOpen, setDashboardProfileHubOpen] = useState(false);
+  const [dashboardCoachNotesOpen, setDashboardCoachNotesOpen] = useState(false);
+  const [dashboardCoachNotesPos, setDashboardCoachNotesPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const dashboardCoachNotesRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!dashboardCoachNotesOpen) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      // Clicking the coach badge itself toggles the popup — let its handler run.
+      if (target?.closest?.(".dashboard-profile-coach-badge")) return;
+      const panel = dashboardCoachNotesRef.current;
+      if (panel && target && !panel.contains(target)) {
+        setDashboardCoachNotesOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDashboardCoachNotesOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [dashboardCoachNotesOpen]);
   const [dashboardHeroWidgetsDrawerOpen, setDashboardHeroWidgetsDrawerOpen] =
     useState(false);
   const [dashboardProfileActionsOpen, setDashboardProfileActionsOpen] =
     useState(false);
+  // Goal focus and position need ~350px to sit side by side; below that they
+  // take turns and the arrow swaps between them rather than wrapping to a
+  // second row.
+  const [dashboardSummaryPane, setDashboardSummaryPane] = useState<
+    "goal" | "position"
+  >("goal");
   const [
     dashboardProfileHubHighlighted,
     setDashboardProfileHubHighlighted,
@@ -13523,6 +14655,7 @@ export default function UserHomeDashboardPage() {
     setActiveDashboardMusicStationIndex,
   ] = useState(0);
   const [dashboardTooltip, setDashboardTooltip] = useState<{
+    horizontalPlacement: "center" | "left" | "right";
     placement: "above" | "below";
     text: string;
     x: number;
@@ -13531,6 +14664,35 @@ export default function UserHomeDashboardPage() {
   const [dashboardProfileIconUrl, setDashboardProfileIconUrl] = useState(
     DASHBOARD_PROFILE_ICON_FALLBACK,
   );
+  // Editable business debt-to-income score, admin-preview only.
+  const [adminDtiScore, setAdminDtiScore] = useState(ADMIN_DTI_DEFAULT_SCORE);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(ADMIN_DTI_STORAGE_KEY);
+    if (stored === null) return;
+    const parsed = Number.parseInt(stored, 10);
+    if (Number.isFinite(parsed)) {
+      setAdminDtiScore(Math.min(ADMIN_DTI_MAX_SCORE, Math.max(0, parsed)));
+    }
+  }, []);
+
+  const bumpAdminDtiScore = useCallback((delta: number) => {
+    setAdminDtiScore((current) => {
+      const next = Math.min(
+        ADMIN_DTI_MAX_SCORE,
+        Math.max(0, current + delta),
+      );
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem(ADMIN_DTI_STORAGE_KEY, String(next));
+        } catch {
+          // Best-effort persistence; a full storage bucket shouldn't break UI.
+        }
+      }
+      return next;
+    });
+  }, []);
   const [dashboardAuthProfileIconUrl, setDashboardAuthProfileIconUrl] =
     useState("");
   const [activeDashboardProfileHubLayer, setActiveDashboardProfileHubLayer] =
@@ -13579,8 +14741,6 @@ export default function UserHomeDashboardPage() {
     activeDashboardPointsRewardPanelIndexRef.current =
       activeDashboardPointsRewardPanelIndex;
   }, [activeDashboardPointsRewardPanelIndex]);
-  const commandCenterPointerStartRef = useRef<number | null>(null);
-  const commandCenterPointerMovedRef = useRef(false);
   const adminServicePointerStartRef = useRef<number | null>(null);
   const adminServicePointerMovedRef = useRef(false);
   const adminJourneyDetailStagePointerStartRef = useRef<number | null>(null);
@@ -13663,12 +14823,8 @@ export default function UserHomeDashboardPage() {
   const adminMessagePointerMovedRef = useRef(false);
   const dashboardMusicStationPointerStartRef = useRef<number | null>(null);
   const dashboardMusicStationPointerMovedRef = useRef(false);
-  const systemCenterPointerStartRef = useRef<number | null>(null);
-  const systemCenterPointerMovedRef = useRef(false);
   const adminSoundAssetPointerStartRef = useRef<number | null>(null);
   const adminSoundAssetPointerMovedRef = useRef(false);
-  const adminMarketingCampaignPointerStartRef = useRef<number | null>(null);
-  const adminMarketingCampaignPointerMovedRef = useRef(false);
   const adminSettingsPointerStartRef = useRef<number | null>(null);
   const adminSettingsPointerMovedRef = useRef(false);
   const dashboardCardWheelLockRef = useRef(0);
@@ -13787,6 +14943,35 @@ export default function UserHomeDashboardPage() {
       document.body.classList.remove(analogActiveClassName);
     };
   }, [dashboardPageAnalogInUse]);
+
+  useEffect(() => {
+    // Header is the active zone whenever page motion is not paused. Freeze the
+    // set that isn't active so only one animates: content 3D holds still while
+    // the header leads, and the header 3D (incl. widgets with no `paused` prop,
+    // e.g. the meter icon) holds still while the content leads.
+    setDashboardContentWidgetsFrozen(!dashboardHeaderMotionPaused);
+    setDashboardHeaderWidgetsFrozen(dashboardHeaderMotionPaused);
+    return () => {
+      setDashboardContentWidgetsFrozen(false);
+      setDashboardHeaderWidgetsFrozen(false);
+    };
+  }, [dashboardHeaderMotionPaused]);
+
+  useEffect(() => {
+    // Idle scene showing -> blank the whole 3D stage so no icon paints over it.
+    // The JS flag stops the draw work; the html class lets CSS hide the shared
+    // stage canvas outright (it lives on <body>, outside <main>, so a plain
+    // ancestor class is the reliable hook — no :has()).
+    setDashboardStageIdleHidden(dashboardHeaderTimedOut);
+    document.documentElement.classList.toggle(
+      "dashboard-idle-active",
+      dashboardHeaderTimedOut,
+    );
+    return () => {
+      setDashboardStageIdleHidden(false);
+      document.documentElement.classList.remove("dashboard-idle-active");
+    };
+  }, [dashboardHeaderTimedOut]);
 
   useEffect(() => {
     const levelMeterOpenClassName = "dashboard-page--level-meter-open";
@@ -13952,18 +15137,47 @@ export default function UserHomeDashboardPage() {
     clearDashboardTooltipTimer();
     dashboardTooltipTimerRef.current = window.setTimeout(() => {
       const rect = target.getBoundingClientRect();
-      const placement =
-        rect.bottom + 54 < window.innerHeight ? "below" : "above";
-      const x = Math.min(
-        window.innerWidth - 18,
-        Math.max(18, rect.left + rect.width / 2),
+      const tooltipMaxWidth = Math.min(288, window.innerWidth - 24);
+      const estimatedCharactersPerLine = Math.max(
+        18,
+        Math.floor(tooltipMaxWidth / 6.8),
       );
+      const estimatedTooltipHeight =
+        34 + Math.ceil(text.length / estimatedCharactersPerLine) * 14;
+      const placement =
+        rect.bottom + estimatedTooltipHeight + 10 < window.innerHeight
+          ? "below"
+          : "above";
+      const targetCenter = rect.left + rect.width / 2;
+      const horizontalEdgeThreshold = Math.min(168, window.innerWidth * 0.32);
+      const horizontalPlacement =
+        targetCenter < horizontalEdgeThreshold
+          ? "left"
+          : targetCenter > window.innerWidth - horizontalEdgeThreshold
+            ? "right"
+            : "center";
+      const x =
+        horizontalPlacement === "left"
+          ? Math.max(12, rect.left)
+          : horizontalPlacement === "right"
+            ? Math.min(window.innerWidth - 12, rect.right)
+            : Math.min(
+                window.innerWidth - 18,
+                Math.max(18, targetCenter),
+              );
       const y =
         placement === "below"
-          ? Math.min(window.innerHeight - 12, rect.bottom + 10)
-          : Math.max(12, rect.top - 10);
+          ? Math.min(
+              window.innerHeight - estimatedTooltipHeight - 12,
+              Math.max(12, rect.bottom + 10),
+            )
+          : Math.max(
+              estimatedTooltipHeight + 12,
+              Math.min(window.innerHeight - 12, rect.top - 10),
+            );
 
       setDashboardTooltip({
+        horizontalPlacement,
         placement,
         text,
         x,
@@ -13998,24 +15212,7 @@ export default function UserHomeDashboardPage() {
     setDashboardMusicDropdownOpen(false);
     setDashboardHeroWidgetsDrawerOpen((open) => !open);
   };
-  const scheduleDashboardMusicTone = ({
-    attack = 0.16,
-    context,
-    detune = 0,
-    duration,
-    filterType = "lowpass",
-    filterFrequency = 1400,
-    frequency,
-    frequencyEnd,
-    masterGain,
-    pan = 0,
-    q = 0.7,
-    release = 0.42,
-    startTime,
-    sustain = 0.62,
-    type = "sine",
-    volume,
-  }: {
+  const scheduleDashboardMusicTone = (toneOptions: {
     attack?: number;
     context: AudioContext;
     detune?: number;
@@ -14033,6 +15230,24 @@ export default function UserHomeDashboardPage() {
     type?: OscillatorType;
     volume: number;
   }) => {
+    const {
+      context,
+      duration,
+      frequency,
+      frequencyEnd,
+      masterGain,
+      startTime,
+      volume,
+    } = toneOptions;
+    const attack = toneOptions.attack ?? 0.16;
+    const detune = toneOptions.detune ?? 0;
+    const filterType = toneOptions.filterType ?? "lowpass";
+    const filterFrequency = toneOptions.filterFrequency ?? 1400;
+    const pan = toneOptions.pan ?? 0;
+    const q = toneOptions.q ?? 0.7;
+    const release = toneOptions.release ?? 0.42;
+    const sustain = toneOptions.sustain ?? 0.62;
+    const type = toneOptions.type ?? "sine";
     const oscillator = context.createOscillator();
     const filter = context.createBiquadFilter();
     const noteGain = context.createGain();
@@ -14083,18 +15298,7 @@ export default function UserHomeDashboardPage() {
       panner?.disconnect();
     };
   };
-  const scheduleDashboardMusicNoise = ({
-    attack = 0.04,
-    context,
-    duration,
-    filterType = "bandpass",
-    filterFrequency,
-    masterGain,
-    pan = 0,
-    q = 1.4,
-    startTime,
-    volume,
-  }: {
+  const scheduleDashboardMusicNoise = (noiseOptions: {
     attack?: number;
     context: AudioContext;
     duration: number;
@@ -14106,6 +15310,18 @@ export default function UserHomeDashboardPage() {
     startTime: number;
     volume: number;
   }) => {
+    const {
+      context,
+      duration,
+      filterFrequency,
+      masterGain,
+      startTime,
+      volume,
+    } = noiseOptions;
+    const attack = noiseOptions.attack ?? 0.04;
+    const filterType = noiseOptions.filterType ?? "bandpass";
+    const pan = noiseOptions.pan ?? 0;
+    const q = noiseOptions.q ?? 1.4;
     const sampleRate = context.sampleRate;
     const sampleCount = Math.floor(sampleRate * duration);
     const buffer = context.createBuffer(1, sampleCount, sampleRate);
@@ -15184,6 +16400,28 @@ export default function UserHomeDashboardPage() {
     dashboardOrbiterRows.length > 1
       ? clampedDashboardOrbiterRow / (dashboardOrbiterRows.length - 1)
       : 0;
+  const clearDashboardPageAnalogPulse = () => {
+    if (dashboardPageAnalogPulseTimeoutRef.current !== null) {
+      window.clearTimeout(dashboardPageAnalogPulseTimeoutRef.current);
+      dashboardPageAnalogPulseTimeoutRef.current = null;
+    }
+  };
+
+  function pulseDashboardPageAnalogDirection(
+    direction: DashboardScrollButtonDirection,
+  ) {
+    clearDashboardPageAnalogPulse();
+    setDashboardPageAnalogActiveDirection(direction);
+
+    dashboardPageAnalogPulseTimeoutRef.current = window.setTimeout(() => {
+      dashboardPageAnalogPulseTimeoutRef.current = null;
+
+      if (dashboardPageAnalogHoldDirectionRef.current === null) {
+        setDashboardPageAnalogActiveDirection(null);
+      }
+    }, 900);
+  }
+
   const setDashboardOrbiterRow = (row: number) => {
     const nextRow = Math.max(0, Math.min(dashboardOrbiterRows.length - 1, row));
     if (nextRow === clampedDashboardOrbiterRow) return false;
@@ -15406,18 +16644,25 @@ export default function UserHomeDashboardPage() {
 
     return rawDistance;
   };
-  const dashboardHeroCardCount = 4;
+  const dashboardHeroCardCount = 7;
   const getDashboardHeroCardNextIndex = (
     direction: DashboardOrbitDirection,
-    currentIndex = activeDashboardHeroCardIndexRef.current,
-  ) =>
-    direction === "left"
+    startIndex?: number,
+  ) => {
+    const currentIndex = startIndex ?? activeDashboardHeroCardIndexRef.current;
+
+    return direction === "left"
       ? Math.max(0, currentIndex - 1)
       : Math.min(dashboardHeroCardCount - 1, currentIndex + 1);
+  };
   const canRotateDashboardHeroCards = (
     direction: DashboardOrbitDirection,
-    currentIndex = activeDashboardHeroCardIndexRef.current,
-  ) => getDashboardHeroCardNextIndex(direction, currentIndex) !== currentIndex;
+    startIndex?: number,
+  ) => {
+    const currentIndex = startIndex ?? activeDashboardHeroCardIndexRef.current;
+
+    return getDashboardHeroCardNextIndex(direction, currentIndex) !== currentIndex;
+  };
   const rotateDashboardHeroCards = (direction: DashboardOrbitDirection) => {
     const currentIndex = activeDashboardHeroCardIndexRef.current;
     const nextIndex = getDashboardHeroCardNextIndex(direction, currentIndex);
@@ -15426,6 +16671,15 @@ export default function UserHomeDashboardPage() {
     activeDashboardHeroCardIndexRef.current = nextIndex;
     setActiveDashboardHeroCardIndex(nextIndex);
     return true;
+  };
+  const selectDashboardHeroCard = (nextIndex: number) => {
+    const boundedIndex = Math.max(
+      0,
+      Math.min(dashboardHeroCardCount - 1, nextIndex),
+    );
+
+    activeDashboardHeroCardIndexRef.current = boundedIndex;
+    setActiveDashboardHeroCardIndex(boundedIndex);
   };
   const getDashboardHeroCardOrbitDistance = (index: number) =>
     index - activeDashboardHeroCardIndex;
@@ -17320,10 +18574,20 @@ export default function UserHomeDashboardPage() {
     let isActive = true;
 
     const syncDashboardData = async () => {
-      const [statsResult, templatesResult] = await Promise.all([
-        loadWorkoutLogEntriesWithFallback(),
-        loadWorkoutTemplatesWithFallback(),
-      ]);
+      // The admin preview embeds this dashboard read-only. The signed-in admin
+      // has no workout rows, so the Supabase-first loaders just burn a network
+      // getUser() + table queries and contend on the auth-token lock before
+      // falling back to local storage anyway. Read local directly in preview —
+      // same resulting data, none of the round-trips.
+      const [statsResult, templatesResult] = isAdminPreview
+        ? [
+            loadWorkoutLogEntriesFromLocalStorage(),
+            loadWorkoutTemplatesFromLocalStorage(),
+          ]
+        : await Promise.all([
+            loadWorkoutLogEntriesWithFallback(),
+            loadWorkoutTemplatesWithFallback(),
+          ]);
 
       if (!isActive) return;
 
@@ -17340,7 +18604,12 @@ export default function UserHomeDashboardPage() {
       isActive = false;
       unsubscribe();
     };
-  }, []);
+    // isAdminPreview is derived from the pathname and is constant for the life
+    // of this mounted page, so listing it keeps this a run-once-on-mount effect
+    // while satisfying the deps rule. The rule has to stay enabled: React
+    // Compiler refuses to optimize any component that disables a React lint
+    // rule, and skipping this component is what it was doing before.
+  }, [isAdminPreview]);
 
   async function refreshHybridDashboardData() {
     const [statsResult, templatesResult] = await Promise.all([
@@ -17414,9 +18683,13 @@ export default function UserHomeDashboardPage() {
       setSyncStatusMessage(
         "Local workout data could not sync right now. Your local fallback is still safe.",
       );
-    } finally {
-      setIsSyncingWorkoutData(false);
     }
+
+    // Equivalent to the previous  block: the try has no early return
+    // and the catch does not rethrow, so this always runs on both paths. React
+    // Compiler cannot lower a try/finally, and this was the last thing stopping
+    // it from memoizing this component.
+    setIsSyncingWorkoutData(false);
   }
 
   const dashboardSummary = useMemo(() => {
@@ -17766,10 +19039,9 @@ export default function UserHomeDashboardPage() {
       summary: (typeof compoundLiftSummaries)[number] | null,
     ) =>
       summary?.bestThirtyDayTimestamp
-        ? new Intl.DateTimeFormat("en-US", {
-            day: "numeric",
-            month: "short",
-          }).format(new Date(summary.bestThirtyDayTimestamp))
+        ? dashboardDayMonthFormatter.format(
+            new Date(summary.bestThirtyDayTimestamp),
+          )
         : "-- date";
     const formatCompoundLiftRelativeVolume = (
       summary: (typeof compoundLiftSummaries)[number] | null,
@@ -17853,9 +19125,7 @@ export default function UserHomeDashboardPage() {
       dashboardToday.getMonth(),
       dashboardToday.getDate(),
     );
-    const dashboardWeekdayFormatter = new Intl.DateTimeFormat("en-US", {
-      weekday: "short",
-    });
+    const dashboardWeekdayFormatter = dashboardWeekdayShortFormatter;
     const weeklySessionDays = Array.from(
       { length: weeklySessionGoal },
       (_, dayIndex) => {
@@ -18701,11 +19971,7 @@ export default function UserHomeDashboardPage() {
       masterJourneyNodes.length) *
       100,
   );
-  const masterJourneyTimelineDateFormatter = new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "short",
-    weekday: "short",
-  });
+  const masterJourneyTimelineDateFormatter = dashboardTimelineDateFormatter;
   const formatMasterJourneyTimelineDate = (dayOffset: number) =>
     masterJourneyTimelineDateFormatter.format(
       addDashboardDays(dashboardToday, dayOffset),
@@ -18892,6 +20158,21 @@ export default function UserHomeDashboardPage() {
   const soundFitnessLevelProgress = clampDashboardPercent(
     ((soundPoints % soundFitnessLevelSize) / soundFitnessLevelSize) * 100,
   );
+  // Admin-preview "debt-to-income" meter: same leveling metaphor as the fitness
+  // ring, but driven by the editable adminDtiScore instead of sound points.
+  const adminDtiLevel = Math.max(
+    1,
+    Math.floor(adminDtiScore / ADMIN_DTI_LEVEL_SIZE) + 1,
+  );
+  const adminDtiProgress = clampDashboardPercent(
+    ((adminDtiScore % ADMIN_DTI_LEVEL_SIZE) / ADMIN_DTI_LEVEL_SIZE) * 100,
+  );
+  // The header profile ring shows the DTI meter in the admin preview and the
+  // Sound Fitness level everywhere else.
+  const dashboardBadgeLevel = isAdminPreview ? adminDtiLevel : soundFitnessLevel;
+  const dashboardBadgeProgress = isAdminPreview
+    ? adminDtiProgress
+    : soundFitnessLevelProgress;
   const soundTokens =
     80 +
     dashboardSummary.completedWorkouts * 4 +
@@ -19066,12 +20347,8 @@ export default function UserHomeDashboardPage() {
     dashboardToday.getMonth(),
     dashboardToday.getDate(),
   );
-  const dashboardTodayDropdownLabel = new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "short",
-    weekday: "long",
-    year: "numeric",
-  }).format(dashboardToday);
+  const dashboardTodayDropdownLabel =
+    dashboardFullDateFormatter.format(dashboardToday);
   const dashboardConsistencyPlannedWeekdays = new Set([1, 3, 5]);
   const dashboardConsistencyRecoveryWeekdays = new Set([0, 4]);
   const dashboardConsistencyCalendarMonths = Array.from(
@@ -19122,11 +20399,7 @@ export default function UserHomeDashboardPage() {
                 : hasSignal
                   ? "logged"
                   : "empty";
-        const label = new Intl.DateTimeFormat("en-US", {
-          day: "numeric",
-          month: "short",
-          year: "numeric",
-        }).format(dayDate);
+        const label = dashboardConsistencyDayLabelFormatter.format(dayDate);
 
         return {
           dateKey,
@@ -19140,10 +20413,7 @@ export default function UserHomeDashboardPage() {
 
       return {
         days,
-        label: new Intl.DateTimeFormat("en-US", {
-          month: "short",
-          year: "numeric",
-        }).format(monthDate),
+        label: dashboardConsistencyMonthLabelFormatter.format(monthDate),
         leadingBlankCount,
       };
     },
@@ -20692,6 +21962,10 @@ export default function UserHomeDashboardPage() {
     setDashboardHeaderIdlePhase("work");
   };
   const startDashboardHeaderIdleTimeout = () => {
+    if (!DASHBOARD_HEADER_IDLE_SCENE_ENABLED) {
+      stopDashboardHeaderIdleMode();
+      return;
+    }
     if (typeof window === "undefined" || isAdminPreview) return;
 
     clearDashboardHeaderIdleTimeout();
@@ -20713,10 +21987,36 @@ export default function UserHomeDashboardPage() {
   };
   const highlightDashboardHeaderSurface = () => {
     setDashboardHeaderSurfaceHighlighted(true);
+    setDashboardContentFocused(false);
     stopDashboardHeaderIdleMode();
+  };
+  const handleDashboardHeaderSurfacePointerActivity = (
+    event:
+      | ReactMouseEvent<HTMLDivElement>
+      | ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const target = event.target;
+    const isWithinVisibleHeader =
+      event.clientX >= bounds.left &&
+      event.clientX <= bounds.right &&
+      event.clientY >= bounds.top &&
+      event.clientY <= bounds.bottom;
+    const isInteractiveHeaderControl =
+      target instanceof HTMLElement &&
+      Boolean(
+        target.closest(
+          "a,button,input,select,textarea,[role='button'],[role='menu'],[role='menuitem']",
+        ),
+      );
+
+    if (isWithinVisibleHeader || isInteractiveHeaderControl) {
+      highlightDashboardHeaderSurface();
+    }
   };
   const clearDashboardHeaderSurfaceHighlight = () => {
     setDashboardHeaderSurfaceHighlighted(false);
+    setDashboardContentFocused(true);
   };
   const handleDashboardHeaderSurfaceBlur = (
     event: ReactFocusEvent<HTMLDivElement>,
@@ -20751,10 +22051,26 @@ export default function UserHomeDashboardPage() {
       startDashboardHeaderIdleTimeout();
     };
 
+    // Hovering (moving the pointer) anywhere on the page also counts as activity
+    // and dismisses the idle training-floor animation. pointermove fires rapidly,
+    // so throttle the timer reset to keep it cheap.
+    let lastDashboardHeaderHoverActivity = 0;
+    const handleDashboardHeaderHoverActivity = () => {
+      const now = Date.now();
+      if (now - lastDashboardHeaderHoverActivity < 200) return;
+      lastDashboardHeaderHoverActivity = now;
+      delayDashboardHeaderIdleAnimation();
+    };
+
     document.addEventListener(
       "pointerdown",
       delayDashboardHeaderIdleAnimation,
       true,
+    );
+    document.addEventListener(
+      "pointermove",
+      handleDashboardHeaderHoverActivity,
+      { capture: true, passive: true },
     );
     document.addEventListener("click", delayDashboardHeaderIdleAnimation, true);
     document.addEventListener(
@@ -20772,6 +22088,11 @@ export default function UserHomeDashboardPage() {
         "pointerdown",
         delayDashboardHeaderIdleAnimation,
         true,
+      );
+      document.removeEventListener(
+        "pointermove",
+        handleDashboardHeaderHoverActivity,
+        { capture: true },
       );
       document.removeEventListener(
         "click",
@@ -20841,7 +22162,7 @@ export default function UserHomeDashboardPage() {
       return;
     }
 
-    if (dashboardHeaderMotionPaused) return;
+    if (dashboardHeaderControlsInUse) return;
 
     const idleSequenceTimeout = window.setTimeout(
       () => {
@@ -20867,7 +22188,7 @@ export default function UserHomeDashboardPage() {
   }, [
     dashboardHeaderIdlePhase,
     dashboardHeaderTimedOut,
-    dashboardHeaderMotionPaused,
+    dashboardHeaderControlsInUse,
   ]);
   const dashboardHeaderIdleStationCount =
     dashboardHeaderIdleEquipmentStations.length;
@@ -20950,6 +22271,36 @@ export default function UserHomeDashboardPage() {
   };
   const rotateDashboardMobileHeaderOrbit = (direction: "left" | "right") => {
     setDashboardHeaderSlideDirection(direction);
+
+    // Narrow headers walk one flat sequence: the dashboard selector, then each
+    // account control on its own, then back round to the selector.
+    if (dashboardHeaderIsNarrow) {
+      const lastAccountIndex = DASHBOARD_NARROW_ACCOUNT_ITEMS.length - 1;
+      const onSelector = dashboardMobileHeaderOrbitPanel === "selector";
+
+      if (direction === "right") {
+        if (onSelector) {
+          setDashboardNarrowAccountIndex(0);
+          setDashboardMobileHeaderOrbitPanel("account");
+        } else if (dashboardNarrowAccountIndex < lastAccountIndex) {
+          setDashboardNarrowAccountIndex(dashboardNarrowAccountIndex + 1);
+        } else {
+          setDashboardMobileHeaderOrbitPanel("selector");
+        }
+        return;
+      }
+
+      if (onSelector) {
+        setDashboardNarrowAccountIndex(lastAccountIndex);
+        setDashboardMobileHeaderOrbitPanel("account");
+      } else if (dashboardNarrowAccountIndex > 0) {
+        setDashboardNarrowAccountIndex(dashboardNarrowAccountIndex - 1);
+      } else {
+        setDashboardMobileHeaderOrbitPanel("selector");
+      }
+      return;
+    }
+
     setDashboardMobileHeaderOrbitPanel((currentPanel) =>
       direction === "left"
         ? currentPanel === "account"
@@ -20986,6 +22337,77 @@ export default function UserHomeDashboardPage() {
       y: deltaY * ratio,
     };
   };
+  const getDefaultDashboardJourneyStepIndex = (
+    steps: DashboardJourneyStep[],
+  ) => {
+    const activeIndex = steps.findIndex((step) => step.state === "active");
+    if (activeIndex >= 0) return activeIndex;
+
+    const defaultIndex = steps.findIndex((step) => step.state === "default");
+    if (defaultIndex >= 0) return defaultIndex;
+
+    const completeIndex = steps.findIndex((step) => step.state === "complete");
+    return completeIndex >= 0 ? completeIndex : 0;
+  };
+
+  const getActiveDashboardJourneyStepIndex = (
+    card: DashboardNavigationCard,
+  ) => {
+    const steps = card.journeySteps || [];
+    if (!steps.length) return 0;
+
+    const savedIndex = activeDashboardJourneyStepIndexes[card.title];
+    if (
+      typeof savedIndex === "number" &&
+      savedIndex >= 0 &&
+      savedIndex < steps.length
+    ) {
+      return savedIndex;
+    }
+
+    return getDefaultDashboardJourneyStepIndex(steps);
+  };
+
+  const getDashboardHeaderJourneyCard = () => {
+    if (activeDashboardHeaderLink.href === ROUTES.dashboard.sessions) {
+      return dashboardNavigationCards.find(
+        (card) => card.title === "Workout / Sessions",
+      );
+    }
+
+    return dashboardNavigationCards.find(
+      (card) =>
+        card.href === activeDashboardHeaderLink.href ||
+        card.title === activeDashboardHeaderLink.label,
+    );
+  };
+
+  function getDashboardHeaderJourneyState() {
+    const card = getDashboardHeaderJourneyCard();
+    const journeySteps = card?.journeySteps?.length
+      ? card.journeySteps
+      : [
+          {
+            completion: activeDashboardHeaderLink.completion,
+            href: activeDashboardHeaderLink.href,
+            icon: activeDashboardHeaderLink.icon,
+            label: activeDashboardHeaderLink.label,
+            state: "active" as const,
+          },
+        ];
+    const activeJourneyStepIndex = card
+      ? getActiveDashboardJourneyStepIndex(card)
+      : 0;
+
+    return {
+      activeJourneyStep:
+        journeySteps[activeJourneyStepIndex] || journeySteps[0],
+      activeJourneyStepIndex,
+      card,
+      journeySteps,
+    };
+  }
+
   const rotateDashboardHeaderJourneyTabs = (
     direction: Extract<DashboardScrollButtonDirection, "down" | "up">,
   ) => {
@@ -21491,26 +22913,6 @@ export default function UserHomeDashboardPage() {
 
     moveDashboardOrbiterRow(direction === "up" ? -1 : 1);
     return true;
-  };
-  const clearDashboardPageAnalogPulse = () => {
-    if (dashboardPageAnalogPulseTimeoutRef.current !== null) {
-      window.clearTimeout(dashboardPageAnalogPulseTimeoutRef.current);
-      dashboardPageAnalogPulseTimeoutRef.current = null;
-    }
-  };
-  const pulseDashboardPageAnalogDirection = (
-    direction: DashboardScrollButtonDirection,
-  ) => {
-    clearDashboardPageAnalogPulse();
-    setDashboardPageAnalogActiveDirection(direction);
-
-    dashboardPageAnalogPulseTimeoutRef.current = window.setTimeout(() => {
-      dashboardPageAnalogPulseTimeoutRef.current = null;
-
-      if (dashboardPageAnalogHoldDirectionRef.current === null) {
-        setDashboardPageAnalogActiveDirection(null);
-      }
-    }, 900);
   };
   const stopDashboardPageAnalogHold = () => {
     clearDashboardPageAnalogPulse();
@@ -22383,7 +23785,10 @@ export default function UserHomeDashboardPage() {
       document.body,
     );
   };
-  const dashboardHeaderTimeoutPortalMeters = useMemo(() => {
+  // Plain computation: React Compiler memoizes this itself, and it refused to
+  // compile the component while a manual useMemo listed deps it could not
+  // prove immutable.
+  const dashboardHeaderTimeoutPortalMeters = (() => {
     const prHighlights = dashboardSummary.compoundLiftHighlights;
     const activePrHighlight =
       prHighlights.length > 0
@@ -22448,18 +23853,7 @@ export default function UserHomeDashboardPage() {
         value: dashboardSummary.weightChangeLabel,
       },
     ];
-  }, [
-    activeHeaderAchievement,
-    activeHeaderAchievementEstimate.label,
-    dashboardHeaderPrActiveIndex,
-    dashboardPlanAttendanceCaption,
-    dashboardPlanSessionsAttended,
-    dashboardSummary,
-    dashboardWeeklySessionResetLabel,
-    headerAchievementProgress,
-    headerAchievementTotal,
-    headerAchievementsEarned,
-  ]);
+  })();
   const normalizedDashboardHeaderTimeoutMeterIndex =
     dashboardHeaderTimeoutPortalMeters.length > 0
       ? ((dashboardHeaderTimeoutMeterIndex %
@@ -23215,36 +24609,7 @@ export default function UserHomeDashboardPage() {
     );
   };
 
-  const getDefaultDashboardJourneyStepIndex = (
-    steps: DashboardJourneyStep[],
-  ) => {
-    const activeIndex = steps.findIndex((step) => step.state === "active");
-    if (activeIndex >= 0) return activeIndex;
 
-    const defaultIndex = steps.findIndex((step) => step.state === "default");
-    if (defaultIndex >= 0) return defaultIndex;
-
-    const completeIndex = steps.findIndex((step) => step.state === "complete");
-    return completeIndex >= 0 ? completeIndex : 0;
-  };
-
-  const getActiveDashboardJourneyStepIndex = (
-    card: DashboardNavigationCard,
-  ) => {
-    const steps = card.journeySteps || [];
-    if (!steps.length) return 0;
-
-    const savedIndex = activeDashboardJourneyStepIndexes[card.title];
-    if (
-      typeof savedIndex === "number" &&
-      savedIndex >= 0 &&
-      savedIndex < steps.length
-    ) {
-      return savedIndex;
-    }
-
-    return getDefaultDashboardJourneyStepIndex(steps);
-  };
 
   const getDashboardJourneyStepOrbitDistance = (
     index: number,
@@ -23375,45 +24740,7 @@ export default function UserHomeDashboardPage() {
     ][strength];
   };
 
-  const getDashboardHeaderJourneyCard = () => {
-    if (activeDashboardHeaderLink.href === ROUTES.dashboard.sessions) {
-      return dashboardNavigationCards.find(
-        (card) => card.title === "Workout / Sessions",
-      );
-    }
 
-    return dashboardNavigationCards.find(
-      (card) =>
-        card.href === activeDashboardHeaderLink.href ||
-        card.title === activeDashboardHeaderLink.label,
-    );
-  };
-
-  const getDashboardHeaderJourneyState = () => {
-    const card = getDashboardHeaderJourneyCard();
-    const journeySteps = card?.journeySteps?.length
-      ? card.journeySteps
-      : [
-          {
-            completion: activeDashboardHeaderLink.completion,
-            href: activeDashboardHeaderLink.href,
-            icon: activeDashboardHeaderLink.icon,
-            label: activeDashboardHeaderLink.label,
-            state: "active" as const,
-          },
-        ];
-    const activeJourneyStepIndex = card
-      ? getActiveDashboardJourneyStepIndex(card)
-      : 0;
-
-    return {
-      activeJourneyStep:
-        journeySteps[activeJourneyStepIndex] || journeySteps[0],
-      activeJourneyStepIndex,
-      card,
-      journeySteps,
-    };
-  };
 
   const getDashboardHeaderActiveJourneyStepLabel = () =>
     getDashboardHeaderJourneyState().activeJourneyStep?.label ||
@@ -23421,9 +24748,9 @@ export default function UserHomeDashboardPage() {
 
   const dashboardHeaderActiveJourneyStepLabel =
     getDashboardHeaderActiveJourneyStepLabel();
-  const dashboardHeaderNewsHeadlines = useMemo<
-    DashboardHeaderNewsHeadline[]
-  >(() => {
+  // Plain computation for the same React Compiler reason as
+  // dashboardHeaderTimeoutPortalMeters above.
+  const dashboardHeaderNewsHeadlines: DashboardHeaderNewsHeadline[] = (() => {
     const activeHref = activeDashboardHeaderLink.href;
     const planSessionsRemaining = Math.max(
       0,
@@ -23536,25 +24863,7 @@ export default function UserHomeDashboardPage() {
         "trivia",
       ),
     ];
-  }, [
-    activeDashboardHeaderLink.completion,
-    activeDashboardHeaderLink.href,
-    activeDashboardHeaderLink.label,
-    activeDashboardHeaderUrgencyTone.label,
-    dashboardHeaderActiveJourneyStepLabel,
-    dashboardPlanSessionsAttended,
-    dashboardSummary.dailySetGoal,
-    dashboardSummary.dailySets,
-    dashboardSummary.hasStats,
-    dashboardSummary.latestExercise,
-    dashboardSummary.workoutsThisWeek,
-    dashboardSummary.planSessionTarget,
-    dashboardSummary.weeklyCaloriesDisplay,
-    dashboardSummary.weeklyVolume,
-    dashboardSummary.weightChangeLabel,
-    dashboardSummary.weightChangeTrendLabel,
-    soundPoints,
-  ]);
+  })();
 
   useEffect(() => {
     dashboardHeaderNewsHeadlinesRef.current = dashboardHeaderNewsHeadlines;
@@ -23582,6 +24891,7 @@ export default function UserHomeDashboardPage() {
 
   useEffect(() => {
     let entryTimeout: number | null = null;
+    let headlineTimeout: number | null = null;
 
     const clearEntryTimeout = () => {
       if (entryTimeout !== null) {
@@ -23624,6 +24934,15 @@ export default function UserHomeDashboardPage() {
       headlineElement.classList.add(
         "dashboard-header-news-chyron__item--entering",
       );
+      // Restart the scroll cleanly for the new text rather than letting the
+      // previous headline's animation carry over mid-travel.
+      headlineElement.style.animation = "none";
+      void headlineElement.offsetHeight;
+      headlineElement.style.removeProperty("animation");
+
+      const dwellMs = applyDashboardChyronMarquee(headlineElement);
+      scheduleNextHeadline(dwellMs);
+
       clearEntryTimeout();
       entryTimeout = window.setTimeout(() => {
         headlineElement.classList.remove(
@@ -23633,13 +24952,21 @@ export default function UserHomeDashboardPage() {
       }, DASHBOARD_HEADER_NEWS_HEADLINE_ENTER_MS);
     };
 
-    const headlineInterval = window.setInterval(
-      showNextHeadline,
-      DASHBOARD_HEADER_NEWS_HEADLINE_INTERVAL_MS,
+    // Each headline stays up for exactly as long as it needs, so the rotation
+    // follows the scroll instead of cutting across it.
+    function scheduleNextHeadline(delayMs: number) {
+      if (headlineTimeout !== null) window.clearTimeout(headlineTimeout);
+      headlineTimeout = window.setTimeout(showNextHeadline, delayMs);
+    }
+
+    // Seed the loop from the headline already on screen so its own scroll gets
+    // the time it needs before the first swap.
+    scheduleNextHeadline(
+      applyDashboardChyronMarquee(dashboardHeaderNewsHeadlineRef.current),
     );
 
     return () => {
-      window.clearInterval(headlineInterval);
+      if (headlineTimeout !== null) window.clearTimeout(headlineTimeout);
       clearEntryTimeout();
       dashboardHeaderNewsHeadlineRef.current?.classList.remove(
         "dashboard-header-news-chyron__item--entering",
@@ -23649,6 +24976,53 @@ export default function UserHomeDashboardPage() {
     dashboardHeaderMeterMenuOpen,
     dashboardHeaderMotionPaused,
   ]);
+
+  // The rotation effect above measures each headline as it arrives; this only
+  // needs to re-measure when the space available changes under a headline that
+  // is already on screen.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const remeasure = () => {
+      applyDashboardChyronMarquee(dashboardHeaderNewsHeadlineRef.current);
+    };
+
+    window.addEventListener("resize", remeasure);
+    return () => window.removeEventListener("resize", remeasure);
+  }, []);
+
+  // Keep the nav filling the row. The header changes size when it opens, closes
+  // and goes idle, and each of those changes what "fits" means, so re-fit on
+  // the class changes that drive those states as well as on resize.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const main = document.querySelector("main");
+    const shell = document.querySelector(".dashboard-header-vortex-shell");
+    let frame = 0;
+
+    const refit = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(fitDashboardHeaderNav);
+    };
+
+    refit();
+    window.addEventListener("resize", refit);
+
+    // The open/collapse and idle transitions animate, so re-fit once they land.
+    const observer = new MutationObserver(() => {
+      refit();
+      window.setTimeout(refit, 700);
+    });
+    if (main) observer.observe(main, { attributeFilter: ["class"] });
+    if (shell) observer.observe(shell, { attributeFilter: ["class"] });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", refit);
+      observer.disconnect();
+    };
+  }, []);
 
   const isDashboardProfileRailStep = (step: DashboardJourneyStep) =>
     step.icon.toLowerCase() === "profile" ||
@@ -23698,7 +25072,7 @@ export default function UserHomeDashboardPage() {
         zIndex: number;
       }
     > = {
-      [-2]: {
+      "-2": {
         opacity: 0.44,
         rotate: -20,
         scale: 0.64,
@@ -23706,7 +25080,7 @@ export default function UserHomeDashboardPage() {
         y: 16,
         zIndex: 10,
       },
-      [-1]: {
+      "-1": {
         opacity: 0.76,
         rotate: -10,
         scale: 0.78,
@@ -23948,8 +25322,8 @@ export default function UserHomeDashboardPage() {
       );
     };
 
-    return (
-      <div
+                           return (
+                            <div
         aria-label={`${activeDashboardHeaderLink.label} journey page orbital rail`}
         className={`dashboard-header-page-orbit-rail dashboard-header-page-orbit-rail--${dashboardHeaderVortexPhase} pointer-events-none absolute -left-[0.98rem] -top-[1.15rem] h-[5.25rem] w-[6.1rem] overflow-visible [transform-style:preserve-3d] ${
           dashboardHeaderVortexMode
@@ -24674,7 +26048,15 @@ export default function UserHomeDashboardPage() {
             return;
           }
 
-          runDashboardHeaderScrollButtonDirection("right");
+          const direction =
+            getDashboardJoystickClickDirection(event) ?? "right";
+          if (
+            (direction === "up" && !canHeaderJoystickScrollUp) ||
+            (direction === "down" && !canHeaderJoystickScrollDown)
+          ) {
+            return;
+          }
+          runDashboardHeaderScrollButtonDirection(direction);
         }}
         onBlur={resetDashboardHeaderScrollButtonDrag}
         onKeyDown={(event) => {
@@ -24768,7 +26150,9 @@ export default function UserHomeDashboardPage() {
             return;
           }
 
-          runDashboardHeaderMenuOrbitDirection("right");
+          runDashboardHeaderMenuOrbitDirection(
+            getDashboardJoystickClickDirection(event, true) ?? "right",
+          );
         }}
         onBlur={resetDashboardHeaderMenuOrbitDrag}
         onKeyDown={(event) => {
@@ -24845,18 +26229,29 @@ export default function UserHomeDashboardPage() {
         onClick={(event) => {
           event.preventDefault();
           rotateDashboardMobileHeaderOrbit(
-            accountPanelActive ? "left" : "right",
+            getDashboardJoystickClickDirection(event, true) ??
+              (accountPanelActive ? "left" : "right"),
           );
         }}
         onKeyDown={(event) => {
           if (event.key === "ArrowLeft") {
             event.preventDefault();
+            // Narrow headers page one control at a time, so keep the arrows on
+            // the same sequence the joystick walks.
+            if (dashboardHeaderIsNarrow) {
+              rotateDashboardMobileHeaderOrbit("left");
+              return;
+            }
             setDashboardHeaderSlideDirection("left");
             setDashboardMobileHeaderOrbitPanel("selector");
           }
 
           if (event.key === "ArrowRight") {
             event.preventDefault();
+            if (dashboardHeaderIsNarrow) {
+              rotateDashboardMobileHeaderOrbit("right");
+              return;
+            }
             setDashboardHeaderSlideDirection("right");
             setDashboardMobileHeaderOrbitPanel("account");
           }
@@ -25459,8 +26854,8 @@ export default function UserHomeDashboardPage() {
           : "0deg";
     return (
       <button
-        aria-label="Scroll dashboard page rows"
-        className={`dashboard-header-scroll-button dashboard-header-scroll-button--page pointer-events-auto relative z-10 grid h-[4.35rem] w-[4.35rem] shrink-0 translate-x-0 min-[720px]:translate-x-12 place-items-center overflow-visible rounded-[28px] border border-cyan-100/16 bg-slate-950/26 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.26),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-y-0.5 hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:620px] [touch-action:none] ${
+        aria-label="Accessibility page row navigator"
+        className={`dashboard-header-scroll-button dashboard-header-scroll-button--page pointer-events-auto relative z-10 grid h-[4.35rem] w-[4.35rem] shrink-0 place-items-center overflow-visible rounded-l-[28px] rounded-r-none border border-r-0 border-cyan-100/16 bg-slate-950/88 text-cyan-50 shadow-[-12px_14px_30px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-x-1 hover:border-amber-100/34 hover:bg-cyan-950/95 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/65 [perspective:620px] [touch-action:none] ${
           dashboardPageAnalogDragging
             ? "dashboard-header-scroll-button--dragging cursor-grabbing border-amber-100/44 bg-amber-300/10"
             : "cursor-pointer"
@@ -25477,8 +26872,16 @@ export default function UserHomeDashboardPage() {
             return;
           }
 
-          if (runDashboardPageAnalogDirection("right")) {
-            pulseDashboardPageAnalogDirection("right");
+          const direction =
+            getDashboardJoystickClickDirection(event) ?? "right";
+          if (
+            (direction === "up" && !canPageJoystickScrollUp) ||
+            (direction === "down" && !canPageJoystickScrollDown)
+          ) {
+            return;
+          }
+          if (runDashboardPageAnalogDirection(direction)) {
+            pulseDashboardPageAnalogDirection(direction);
           }
         }}
         onBlur={() => {
@@ -25530,7 +26933,7 @@ export default function UserHomeDashboardPage() {
         onPointerMove={handleDashboardPageAnalogPointerMove}
         onPointerUp={handleDashboardPageAnalogPointerEnd}
         onWheel={handleDashboardPageAnalogWheel}
-        data-dashboard-tooltip="Scroll dashboard page rows"
+        data-dashboard-tooltip="Accessibility page navigator"
         style={
           {
             ...activeDashboardHeaderTone.iconEffectStyle,
@@ -25551,33 +26954,15 @@ export default function UserHomeDashboardPage() {
         }
         type="button"
       >
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 z-10 grid place-items-center"
-        >
-          <span className="absolute inset-[0.58rem] rounded-full border border-cyan-100/28 bg-[radial-gradient(circle_at_32%_24%,rgba(224,247,255,0.56),transparent_16%),radial-gradient(circle_at_54%_62%,rgba(14,165,233,0.62),rgba(8,47,73,0.78)_58%,rgba(2,6,23,0.9)_100%)] shadow-[0_0_1.1rem_rgba(34,211,238,0.4),inset_0.16rem_0.2rem_0.24rem_rgba(224,247,255,0.42),inset_-0.38rem_-0.52rem_0.76rem_rgba(2,6,23,0.78)]" />
-          <span className="absolute h-3.5 w-3.5 rounded-full border border-cyan-50/65 bg-cyan-100 shadow-[0_0_0.8rem_rgba(34,211,238,0.92),inset_0_0.08rem_0.22rem_rgba(255,255,255,0.82)]" />
-          <span
-            className={`absolute left-1/2 top-[0.18rem] -translate-x-1/2 text-[0.9rem] font-black leading-none drop-shadow-[0_0_0.42rem_rgba(34,211,238,0.72)] ${
-              canPageJoystickScrollUp ? "text-cyan-50" : "text-slate-600"
-            }`}
-          >
-            ^
-          </span>
-          <span
-            className={`absolute bottom-[0.18rem] left-1/2 -translate-x-1/2 text-[0.9rem] font-black leading-none drop-shadow-[0_0_0.42rem_rgba(34,211,238,0.72)] ${
-              canPageJoystickScrollDown ? "text-cyan-50" : "text-slate-600"
-            }`}
-          >
-            v
-          </span>
-          <span className="absolute left-[0.16rem] top-1/2 -translate-y-1/2 text-[0.9rem] font-black leading-none text-cyan-50 drop-shadow-[0_0_0.42rem_rgba(34,211,238,0.72)]">
-            &lt;
-          </span>
-          <span className="absolute right-[0.16rem] top-1/2 -translate-y-1/2 text-[0.9rem] font-black leading-none text-cyan-50 drop-shadow-[0_0_0.42rem_rgba(34,211,238,0.72)]">
-            &gt;
-          </span>
-        </span>
+        <DashboardScrollButton3D
+          active={dashboardPageAnalogInUse}
+          activeDirection={dashboardPageAnalogActiveDirection}
+          className="dashboard-header-scroll-button__webgl dashboard-header-scroll-button__webgl--page"
+          paused={dashboardHeaderMotionPaused}
+          showDown={canPageJoystickScrollDown}
+          showUp={canPageJoystickScrollUp}
+          tone="cyan"
+        />
       </button>
     );
   };
@@ -25878,7 +27263,7 @@ export default function UserHomeDashboardPage() {
     rotateOrbit,
     rowIndex,
     setActiveIndex,
-    showRowTitle = false,
+    showRowTitle,
     title,
   }: {
     cards: DashboardNavigationCard[];
@@ -25892,7 +27277,10 @@ export default function UserHomeDashboardPage() {
     setActiveIndex: (index: number) => void;
     showRowTitle?: boolean;
     title: string;
-  }) => (
+  }) => {
+    const showRowTitleResolved = showRowTitle ?? false;
+
+    return (
     <div
       data-dashboard-orbiter-row={rowIndex}
       className={`relative min-h-0 w-full overflow-hidden pl-36 pr-10 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-12 sm:pt-24 lg:pl-44 lg:pt-28 ${
@@ -25901,7 +27289,7 @@ export default function UserHomeDashboardPage() {
           : "pointer-events-none opacity-40"
       }`}
     >
-      {showRowTitle
+      {showRowTitleResolved
         ? renderDashboardRowTitle({
             accentClassName:
               "bg-fuchsia-300 shadow-[0_0_14px_rgba(217,70,239,0.58)]",
@@ -26119,7 +27507,8 @@ export default function UserHomeDashboardPage() {
         })}
       </div>
     </div>
-  );
+    );
+  };
 
   const renderDashboardFloatingSnapshotHeader = () => {
     if (
@@ -26721,10 +28110,18 @@ export default function UserHomeDashboardPage() {
                 return;
               }
 
+              const rect = event.currentTarget.getBoundingClientRect();
               const direction =
-                clampedDashboardProfileHubLayer < dashboardProfileHubLayerCount - 1
-                  ? "down"
-                  : "up";
+                event.clientY < rect.top + rect.height / 2 ? "up" : "down";
+              if (
+                (direction === "up" &&
+                  clampedDashboardProfileHubLayer <= 0) ||
+                (direction === "down" &&
+                  clampedDashboardProfileHubLayer >=
+                    dashboardProfileHubLayerCount - 1)
+              ) {
+                return;
+              }
               if (runDashboardProfileHubAnalogDirection(direction)) {
                 pulseDashboardProfileHubAnalogDirection(direction);
               }
@@ -28308,22 +29705,23 @@ export default function UserHomeDashboardPage() {
         dashboardClaimRewardsDropdownOpen
           ? "dashboard-header-vortex-shell--claim-dropdown-open"
           : ""
-      } sticky top-0 z-[120] mb-0 w-full shrink-0 overflow-visible border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl`}
+      } absolute inset-x-0 top-0 z-[120] mb-0 overflow-visible border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl`}
       data-dashboard-header-timeout={dashboardHeaderTimedOut ? "true" : "false"}
       onBlurCapture={handleDashboardHeaderSurfaceBlur}
       onFocusCapture={highlightDashboardHeaderSurface}
-      onMouseEnter={highlightDashboardHeaderSurface}
+      onMouseEnter={handleDashboardHeaderSurfacePointerActivity}
       onMouseLeave={clearDashboardHeaderSurfaceHighlight}
-      onPointerDown={highlightDashboardHeaderSurface}
-      onPointerEnter={highlightDashboardHeaderSurface}
+      onPointerDown={handleDashboardHeaderSurfacePointerActivity}
+      onPointerEnter={handleDashboardHeaderSurfacePointerActivity}
       onPointerLeave={clearDashboardHeaderSurfaceHighlight}
-      onPointerMove={highlightDashboardHeaderSurface}
-      onPointerOver={highlightDashboardHeaderSurface}
+      onPointerMove={handleDashboardHeaderSurfacePointerActivity}
+      onPointerOver={handleDashboardHeaderSurfacePointerActivity}
     >
       <span
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/55 to-transparent"
       />
+      {decorationsReady ? (
       <div aria-hidden="true" className="dashboard-header-ambient-field">
         <span className="dashboard-header-ambient-field__grid-wall" />
         <span className="dashboard-header-ambient-field__grid" />
@@ -28350,7 +29748,8 @@ export default function UserHomeDashboardPage() {
         <span className="dashboard-header-ambient-field__meteor-burst dashboard-header-ambient-field__meteor-burst--yellow" />
         <span className="dashboard-header-ambient-field__meteor-burst dashboard-header-ambient-field__meteor-burst--violet" />
         <span className="dashboard-header-ambient-field__meteor-burst dashboard-header-ambient-field__meteor-burst--pink" />
-        {dashboardHeaderCategoryLevels.map(
+        {DASHBOARD_HEADER_AMBIENT_ACTORS_ENABLED &&
+          dashboardHeaderCategoryLevels.map(
           (categoryActor, categoryActorIndex) => (
             <span
               className={`dashboard-header-category-actor dashboard-header-category-actor--${categoryActor.id}`}
@@ -28641,6 +30040,7 @@ export default function UserHomeDashboardPage() {
         <span className="dashboard-header-ambient-field__node dashboard-header-ambient-field__node--three" />
         <span className="dashboard-header-ambient-field__node dashboard-header-ambient-field__node--four" />
       </div>
+      ) : null}
       <div aria-hidden="true" className="dashboard-header-category-overlay">
         {activeDashboardHeaderCategoryLevel ? (
           <span
@@ -28681,6 +30081,7 @@ export default function UserHomeDashboardPage() {
           </span>
         ) : null}
       </div>
+      {decorationsReady && dashboardHeaderIdleSceneMounted ? (
       <div aria-hidden="true" className="dashboard-header-idle-training-floor">
         <span className="dashboard-header-idle-training-floor__ground" />
         {renderDashboardHeaderIdleStreakMeter("left")}
@@ -29311,6 +30712,7 @@ export default function UserHomeDashboardPage() {
           </svg>
         </span>
       </div>
+      ) : null}
       {DASHBOARD_HEADER_TIMEOUT_PORTAL_ENABLED &&
       dashboardHeaderTimedOut &&
       dashboardHeaderTimeoutPortalMeter ? (
@@ -29342,11 +30744,18 @@ export default function UserHomeDashboardPage() {
         </div>
       ) : null}
       <div
-        className="relative mx-auto flex min-h-[88px] w-full max-w-[1840px] items-center gap-2 px-3 pb-7 pt-2.5 sm:gap-3 sm:px-4 sm:pb-8 sm:pt-3 md:px-6 xl:px-8 2xl:px-10"
+        className="dashboard-header-menu-content relative mx-auto flex min-h-[88px] w-full max-w-[1840px] items-center gap-2 px-3 pb-5 pt-[1.125rem] sm:gap-3 sm:px-4 sm:pb-5 sm:pt-[1.125rem] md:px-6 md:pb-8 md:pt-3 xl:px-8 2xl:px-10"
         style={
-          dashboardPointsDropdownOpen
-            ? ({ zIndex: 180 } as CSSProperties)
-            : undefined
+          {
+            ...(dashboardPointsDropdownOpen ? { zIndex: 180 } : {}),
+            // The idle training-floor is an overlay — while it's active, fade the
+            // whole main header menu out so none of it shows over the overlay.
+            // (The 3D header widgets live on the shared WebGL stage above the
+            // overlay and are skipped separately while idle.)
+            opacity: dashboardHeaderTimedOut ? 0 : 1,
+            pointerEvents: dashboardHeaderTimedOut ? "none" : undefined,
+            transition: "opacity 360ms ease",
+          } as CSSProperties
         }
       >
         <div
@@ -29426,235 +30835,20 @@ export default function UserHomeDashboardPage() {
                     } as CSSProperties
                   }
                 >
-                  <DashboardTrophy3D
-                    paused={
-                      dashboardHeaderMotionPaused ||
-                      dashboardPointsMenuHighlighted ||
-                      !dashboardHeaderLogoClusterAnimating
-                    }
+                  {/* Pre-rendered still of the DashboardTrophy3D scene (see
+                      that component for the source + capture notes). A static
+                      image rides the compositor with the rest of the cluster,
+                      where the live shared-canvas trophy lagged the header
+                      open/close scale animation. */}
+                  <Image
+                    alt=""
+                    className="h-11 w-11 select-none object-contain"
+                    draggable={false}
+                    height={96}
+                    priority
+                    src="/dashboard-trophy-prerender.png"
+                    width={96}
                   />
-                  <svg
-                    aria-hidden="true"
-                    className="hidden h-11 w-11 overflow-visible [backface-visibility:visible]"
-                    focusable="false"
-                    viewBox="0 0 64 64"
-                  >
-                    <defs>
-                      <linearGradient
-                        gradientUnits="userSpaceOnUse"
-                        id="dashboard-header-trophy-silver"
-                        x1="14"
-                        x2="48"
-                        y1="8"
-                        y2="56"
-                      >
-                        <stop offset="0" stopColor="#ffffff" />
-                        <stop offset="0.23" stopColor="#dbeafe" />
-                        <stop offset="0.48" stopColor="#94a3b8" />
-                        <stop offset="0.68" stopColor="#f8fafc" />
-                        <stop offset="0.86" stopColor="#64748b" />
-                        <stop offset="1" stopColor="#cbd5e1" />
-                      </linearGradient>
-                      <radialGradient
-                        cx="35%"
-                        cy="24%"
-                        id="dashboard-header-trophy-glow"
-                        r="72%"
-                      >
-                        <stop
-                          offset="0"
-                          stopColor="#ffffff"
-                          stopOpacity="0.94"
-                        />
-                        <stop
-                          offset="0.4"
-                          stopColor="#e0f2fe"
-                          stopOpacity="0.76"
-                        />
-                        <stop offset="1" stopColor="#94a3b8" stopOpacity="0" />
-                      </radialGradient>
-                      <linearGradient
-                        gradientUnits="userSpaceOnUse"
-                        id="dashboard-header-trophy-side"
-                        x1="18"
-                        x2="46"
-                        y1="18"
-                        y2="42"
-                      >
-                        <stop
-                          offset="0"
-                          stopColor="#f8fafc"
-                          stopOpacity="0.88"
-                        />
-                        <stop
-                          offset="0.42"
-                          stopColor="#64748b"
-                          stopOpacity="0.62"
-                        />
-                        <stop
-                          offset="1"
-                          stopColor="#172033"
-                          stopOpacity="0.74"
-                        />
-                      </linearGradient>
-                      <radialGradient
-                        cx="50%"
-                        cy="34%"
-                        id="dashboard-header-trophy-inner"
-                        r="70%"
-                      >
-                        <stop
-                          offset="0"
-                          stopColor="#f8fafc"
-                          stopOpacity="0.72"
-                        />
-                        <stop
-                          offset="0.48"
-                          stopColor="#64748b"
-                          stopOpacity="0.48"
-                        />
-                        <stop
-                          offset="1"
-                          stopColor="#0f172a"
-                          stopOpacity="0.74"
-                        />
-                      </radialGradient>
-                      <filter
-                        colorInterpolationFilters="sRGB"
-                        height="1.45"
-                        id="dashboard-header-trophy-depth"
-                        width="1.45"
-                        x="-0.2"
-                        y="-0.18"
-                      >
-                        <feDropShadow
-                          dx="0.9"
-                          dy="1.3"
-                          floodColor="#020617"
-                          floodOpacity="0.5"
-                          stdDeviation="1.25"
-                        />
-                        <feDropShadow
-                          dx="-0.7"
-                          dy="-0.7"
-                          floodColor="#ffffff"
-                          floodOpacity="0.28"
-                          stdDeviation="0.55"
-                        />
-                      </filter>
-                    </defs>
-                    <ellipse
-                      cx="32"
-                      cy="52"
-                      fill="#08111f"
-                      opacity="0.55"
-                      rx="15"
-                      ry="4"
-                    />
-                    <g filter="url(#dashboard-header-trophy-depth)">
-                      <path
-                        d="M19.2 17.5c6.9-3.1 18.7-3.1 25.6 0l-3.5 15.7c-1.4 6.5-5.5 10.9-9.3 10.9s-7.9-4.4-9.3-10.9L19.2 17.5Z"
-                        fill="#1e293b"
-                        opacity="0.5"
-                      />
-                      <path
-                        d="M17.5 15.4c5.8-2.7 23.2-2.7 29 0l-4.1 17.8c-1.5 6.6-6.2 10.3-10.4 10.3s-8.9-3.7-10.4-10.3L17.5 15.4Z"
-                        fill="url(#dashboard-header-trophy-silver)"
-                        stroke="#f8fafc"
-                        strokeOpacity="0.72"
-                        strokeWidth="1.5"
-                      />
-                      <path
-                        d="M18.8 16.9c4.7-2.1 8.1-2.5 12.6-2.2l-3.1 27.2c-3.2-1.6-5.5-5-6.6-9.8L18.8 16.9Z"
-                        fill="url(#dashboard-header-trophy-side)"
-                        opacity="0.48"
-                      />
-                      <path
-                        d="M45.2 16.9c-4.7-2.1-8.1-2.5-12.6-2.2l3.1 27.2c3.2-1.6 5.5-5 6.6-9.8L45.2 16.9Z"
-                        fill="#334155"
-                        opacity="0.5"
-                      />
-                      <path
-                        d="M18.5 18.9c-4.4-.7-7.4 1.2-7.6 4.4-.3 5.6 4.6 11.5 11.1 13.1l1.2-4.1c-4.8-1.2-7.8-5.1-7.5-8.1.1-1.5 1.3-2.2 3.5-1.8Zm27 0c4.4-.7 7.4 1.2 7.6 4.4.3 5.6-4.6 11.5-11.1 13.1l-1.2-4.1c4.8-1.2 7.8-5.1 7.5-8.1-.1-1.5-1.3-2.2-3.5-1.8Z"
-                        fill="#cbd5e1"
-                        stroke="#ffffff"
-                        strokeOpacity="0.62"
-                        strokeWidth="1.2"
-                      />
-                      <ellipse
-                        cx="32"
-                        cy="15.6"
-                        fill="#e5edf7"
-                        opacity="0.92"
-                        rx="15.4"
-                        ry="4.4"
-                        stroke="#ffffff"
-                        strokeOpacity="0.76"
-                        strokeWidth="1.2"
-                      />
-                      <ellipse
-                        cx="32"
-                        cy="15.7"
-                        fill="url(#dashboard-header-trophy-inner)"
-                        opacity="0.86"
-                        rx="11.4"
-                        ry="2.8"
-                      />
-                      <path
-                        d="M24.3 18.6c3.2 1.3 12.2 1.3 15.4 0"
-                        fill="none"
-                        opacity="0.8"
-                        stroke="#ffffff"
-                        strokeLinecap="round"
-                        strokeWidth="1.1"
-                      />
-                      <path
-                        d="M29.2 18.6c-1.4 5.7-1 15.4 1.5 21.1"
-                        fill="none"
-                        opacity="0.46"
-                        stroke="#ffffff"
-                        strokeLinecap="round"
-                        strokeWidth="1.5"
-                      />
-                      <path
-                        d="M39.4 19.4c.2 5.6-1.3 13.2-3.7 18.4"
-                        fill="none"
-                        opacity="0.36"
-                        stroke="#0f172a"
-                        strokeLinecap="round"
-                        strokeWidth="1.2"
-                      />
-                      <path
-                        d="M28.2 42.2h7.6l1.8 8.2H26.4l1.8-8.2Z"
-                        fill="#94a3b8"
-                        stroke="#f8fafc"
-                        strokeOpacity="0.65"
-                        strokeWidth="1.1"
-                      />
-                      <path
-                        d="M18.4 50.5h27.2v5.1H18.4z"
-                        fill="#475569"
-                        stroke="#e2e8f0"
-                        strokeOpacity="0.72"
-                        strokeWidth="1.1"
-                      />
-                      <path
-                        d="M20.2 50.7h23.6l-3.2 2.6H23.4l-3.2-2.6Z"
-                        fill="#e2e8f0"
-                        opacity="0.42"
-                      />
-                      <path
-                        d="M22.5 17h19l-3.1 14.4c-1.2 5.3-4 8.3-6.4 8.3s-5.2-3-6.4-8.3L22.5 17Z"
-                        fill="url(#dashboard-header-trophy-glow)"
-                        opacity="0.82"
-                      />
-                      <path
-                        d="M31.4 20.7 33 25h4.6l-3.7 2.6 1.4 4.3-3.7-2.7-3.7 2.7 1.4-4.3-3.7-2.6H30l1.4-4.3Z"
-                        fill="#ffffff"
-                        opacity="0.9"
-                      />
-                    </g>
-                  </svg>
                 </span>
               </button>
             </>
@@ -29699,7 +30893,7 @@ export default function UserHomeDashboardPage() {
             }
             className={`dashboard-header-home-logo relative isolate z-10 grid shrink-0 place-items-center overflow-visible bg-transparent p-0 transition ${
               clampedDashboardOrbiterRow === 0
-                ? "dashboard-header-home-logo--hero-active min-h-[4.75rem] w-[4.75rem]"
+                ? "dashboard-header-home-logo--hero-active min-h-[4rem] w-[4rem]"
                 : "min-h-[58px] w-12"
             }`}
             data-dashboard-tooltip={
@@ -29739,7 +30933,11 @@ export default function UserHomeDashboardPage() {
             }
             type="button"
           >
+            {/* domOnly: the crest pixels must ride the header's compositor
+                open/idle scale animation; the shared-canvas version could only
+                redraw on the main thread and visibly lagged the transition. */}
             <DashboardLogo3D
+              domOnly
               heroActive={clampedDashboardOrbiterRow === 0}
               paused={
                 dashboardHeaderMotionPaused ||
@@ -29756,6 +30954,14 @@ export default function UserHomeDashboardPage() {
           aria-label="Main header menu"
           className="dashboard-header-main-orbit-stage dashboard-header-main-orbit-stage--stable min-w-0 flex-1"
           data-mobile-header-panel={dashboardMobileHeaderOrbitPanel}
+          data-narrow-account-item={
+            dashboardHeaderIsNarrow &&
+            dashboardMobileHeaderOrbitPanel === "account"
+              ? (DASHBOARD_NARROW_ACCOUNT_ITEMS[
+                  dashboardNarrowAccountIndex
+                ] as DashboardNarrowAccountItem)
+              : undefined
+          }
         >
           <div
             aria-label="Header block 1, dashboard menu"
@@ -30608,9 +31814,17 @@ export default function UserHomeDashboardPage() {
               <button
                 aria-controls="dashboard-profile-hub-orbital-overlay"
                 aria-expanded={dashboardProfileHubOpen}
-                aria-label={`Open profile hub, Sound Fitness level ${soundFitnessLevel}`}
+                aria-label={
+                  isAdminPreview
+                    ? `Open profile hub, debt-to-income level ${dashboardBadgeLevel}`
+                    : `Open profile hub, Sound Fitness level ${soundFitnessLevel}`
+                }
                 className="dashboard-profile-hub-trigger relative isolate flex min-h-[58px] shrink-0 items-center rounded-[22px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:bg-transparent"
-                data-dashboard-tooltip={`Profile hub, level ${soundFitnessLevel}`}
+                data-dashboard-tooltip={
+                  isAdminPreview
+                    ? `Debt-to-income, level ${dashboardBadgeLevel}`
+                    : `Profile hub, level ${soundFitnessLevel}`
+                }
                 onBlur={() => setDashboardProfileHubHighlighted(false)}
                 onClick={openDashboardProfileHub}
                 onFocus={() => setDashboardProfileHubHighlighted(true)}
@@ -30622,23 +31836,28 @@ export default function UserHomeDashboardPage() {
               >
                 <span
                   aria-hidden="true"
-                  className={`dashboard-sound-level-badge relative isolate grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-full border border-cyan-200/30 bg-slate-950 p-0.5 shadow-[0_0_20px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)] ${
-                    dashboardProfileHasCustomIcon
-                      ? "dashboard-sound-level-badge--has-avatar"
-                      : ""
-                  }`}
+                  className="dashboard-sound-level-badge dashboard-sound-level-badge--has-avatar relative isolate grid h-[3.25rem] w-[3.25rem] shrink-0 place-items-center rounded-full border border-cyan-200/30 bg-slate-950 p-0.5 shadow-[0_0_20px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)]"
                   style={
                     {
                       "--dashboard-sound-level-progress": `${Math.max(
                         10,
-                        soundFitnessLevelProgress,
+                        dashboardBadgeProgress,
                       )}%`,
                     } as CSSProperties
                   }
                 >
                   <span className="dashboard-sound-level-badge__shadow pointer-events-none absolute -inset-4 z-0 rounded-full" />
                   <span className="dashboard-sound-level-badge__vignette pointer-events-none absolute -inset-1.5 z-10 rounded-full" />
-                  {dashboardProfileHasCustomIcon ? (
+                  {isAdminPreview ? (
+                    // Admin preview shows the Sound crest as the user icon
+                    // (tight, recentered crop so it fills the circular badge).
+                    <img
+                      alt=""
+                      className="dashboard-sound-level-badge__avatar"
+                      draggable={false}
+                      src="/sound-crest-avatar.png"
+                    />
+                  ) : (
                     <img
                       alt=""
                       className="dashboard-sound-level-badge__avatar"
@@ -30649,17 +31868,11 @@ export default function UserHomeDashboardPage() {
                             DASHBOARD_PROFILE_ICON_FALLBACK,
                         );
                       }}
-                      src={dashboardProfileIconSource}
-                    />
-                  ) : (
-                    <DashboardProfileIcon3D
-                      active={
-                        dashboardProfileHubHighlighted ||
-                        dashboardProfileHubOpen
+                      src={
+                        dashboardProfileHasCustomIcon
+                          ? dashboardProfileIconSource
+                          : "/member-preview-happy-user.jpg"
                       }
-                      className="dashboard-sound-level-badge__webgl"
-                      levelProgress={soundFitnessLevelProgress}
-                      paused={dashboardHeaderMotionPaused}
                     />
                   )}
                   <svg
@@ -30671,10 +31884,10 @@ export default function UserHomeDashboardPage() {
                       <linearGradient
                         gradientUnits="userSpaceOnUse"
                         id="dashboardProfileLevelTraceGradient"
-                        x1="43"
-                        x2="84"
-                        y1="84"
-                        y2="43"
+                        x1="47"
+                        x2="88"
+                        y1="88"
+                        y2="47"
                       >
                         <stop offset="0%" stopColor="#0284c7" />
                         <stop offset="32%" stopColor="#22d3ee" />
@@ -30700,21 +31913,21 @@ export default function UserHomeDashboardPage() {
                       </filter>
                     </defs>
                     <path
-                      d="M 46 81.9 A 38 38 0 1 1 81.9 46"
+                      d="M 50 86 A 38 38 0 1 1 86 50"
                       fill="none"
                       stroke="rgba(2, 6, 23, 0.92)"
                       strokeLinecap="butt"
                       strokeWidth="8"
                     />
                     <path
-                      d="M 46 81.9 A 38 38 0 1 1 81.9 46"
+                      d="M 50 86 A 38 38 0 1 1 86 50"
                       fill="none"
                       stroke="rgba(148, 163, 184, 0.34)"
                       strokeLinecap="butt"
                       strokeWidth="5.5"
                     />
                     <path
-                      d="M 46 81.9 A 38 38 0 1 1 81.9 46"
+                      d="M 50 86 A 38 38 0 1 1 86 50"
                       fill="none"
                       filter="url(#dashboardProfileLevelTraceGlow)"
                       opacity="0.38"
@@ -30722,19 +31935,19 @@ export default function UserHomeDashboardPage() {
                       stroke="url(#dashboardProfileLevelTraceGradient)"
                       strokeDasharray={`${Math.max(
                         10,
-                        Math.round(soundFitnessLevelProgress),
+                        Math.round(dashboardBadgeProgress),
                       )} 100`}
                       strokeLinecap="butt"
                       strokeWidth="7"
                     />
                     <path
-                      d="M 46 81.9 A 38 38 0 1 1 81.9 46"
+                      d="M 50 86 A 38 38 0 1 1 86 50"
                       fill="none"
                       pathLength={100}
                       stroke="url(#dashboardProfileLevelTraceGradient)"
                       strokeDasharray={`${Math.max(
                         10,
-                        Math.round(soundFitnessLevelProgress),
+                        Math.round(dashboardBadgeProgress),
                       )} 100`}
                       strokeLinecap="butt"
                       strokeWidth="4.25"
@@ -30742,23 +31955,193 @@ export default function UserHomeDashboardPage() {
                   </svg>
                   <span className="dashboard-sound-level-badge__label pointer-events-none absolute bottom-[0.16rem] z-30 flex items-baseline justify-center gap-[0.08rem] font-black leading-none tracking-[0.04em] text-white [text-shadow:0_0_8px_rgba(2,6,23,0.96),0_0_10px_rgba(250,204,21,0.62)]">
                     <span className="text-[0.42rem]">LV</span>
-                    <span className="text-[0.78rem]">{soundFitnessLevel}</span>
+                    <span className="text-[0.78rem]">{dashboardBadgeLevel}</span>
                   </span>
-                  <span
-                    aria-hidden="true"
-                    className="dashboard-profile-coach-badge absolute -bottom-1.5 -right-1.5 z-40 h-8 w-8 rounded-full border border-sky-300/70 bg-slate-950/80 p-[1px] shadow-[0_0_14px_rgba(56,189,248,0.28)]"
-                  >
-                    <Image
-                      alt=""
-                      className="dashboard-profile-coach-badge__avatar h-full w-full rounded-full object-cover object-center brightness-110 contrast-105 saturate-110 drop-shadow-[0_0_14px_rgba(125,211,252,0.5)]"
-                      draggable={false}
-                      height={64}
-                      src="/sound-coach-avatar-face-centered.png"
-                      width={64}
-                    />
-                  </span>
+                  {isAdminPreview ? (
+                    // Business AI coach badge (cosmetic) for the admin preview.
+                    <span
+                      aria-hidden="true"
+                      className="dashboard-profile-coach-badge absolute -bottom-1.5 -right-1.5 z-40 grid h-8 w-8 place-items-center rounded-full border border-amber-300/70 bg-slate-950/85 p-[1px] shadow-[0_0_14px_rgba(251,191,36,0.32)]"
+                      title="Business AI Coach"
+                    >
+                      <Bot className="h-[1.05rem] w-[1.05rem] text-amber-200 drop-shadow-[0_0_8px_rgba(251,191,36,0.55)]" />
+                    </span>
+                  ) : (
+                    <span
+                      aria-expanded={dashboardCoachNotesOpen}
+                      aria-label="Open coach's notes"
+                      className="dashboard-profile-coach-badge pointer-events-auto absolute -bottom-1.5 -right-1.5 z-40 h-8 w-8 cursor-pointer rounded-full border border-sky-300/70 bg-slate-950/80 p-[1px] shadow-[0_0_14px_rgba(56,189,248,0.28)] outline-none focus-visible:ring-2 focus-visible:ring-sky-300/80"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        event.preventDefault();
+                        const willOpen = !dashboardCoachNotesOpen;
+                        if (willOpen) {
+                          const rect =
+                            event.currentTarget.getBoundingClientRect();
+                          const width = 304;
+                          setDashboardCoachNotesPos({
+                            top: rect.bottom + 8,
+                            left: Math.max(
+                              12,
+                              Math.min(
+                                rect.left + rect.width / 2 - width / 2,
+                                window.innerWidth - width - 12,
+                              ),
+                            ),
+                          });
+                        }
+                        setDashboardCoachNotesOpen(willOpen);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          const willOpen = !dashboardCoachNotesOpen;
+                          if (willOpen) {
+                            const rect =
+                              event.currentTarget.getBoundingClientRect();
+                            const width = 304;
+                            setDashboardCoachNotesPos({
+                              top: rect.bottom + 8,
+                              left: Math.max(
+                                12,
+                                Math.min(
+                                  rect.left + rect.width / 2 - width / 2,
+                                  window.innerWidth - width - 12,
+                                ),
+                              ),
+                            });
+                          }
+                          setDashboardCoachNotesOpen(willOpen);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      <Image
+                        alt=""
+                        className="dashboard-profile-coach-badge__avatar h-full w-full rounded-full object-cover object-center brightness-110 contrast-105 saturate-110 drop-shadow-[0_0_14px_rgba(125,211,252,0.5)]"
+                        draggable={false}
+                        height={64}
+                        src="/sound-coach-avatar-face-centered.png"
+                        width={64}
+                      />
+                    </span>
+                  )}
                 </span>
               </button>
+
+              {dashboardCoachNotesOpen && dashboardCoachNotesPos
+                ? createPortal(
+                    <div
+                      aria-label="Coach notes"
+                      className="dashboard-coach-notes-popover fixed z-[600] w-[19rem] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-sky-300/40 bg-slate-950/95 p-3.5 text-left shadow-[0_18px_50px_rgba(2,6,23,0.72),0_0_28px_rgba(56,189,248,0.2)] backdrop-blur-xl"
+                      ref={dashboardCoachNotesRef}
+                      role="dialog"
+                      style={{
+                        left: dashboardCoachNotesPos.left,
+                        top: dashboardCoachNotesPos.top,
+                      }}
+                    >
+                  <div className="flex items-center gap-2.5 border-b border-white/10 pb-2.5">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full border border-sky-300/70 bg-slate-900">
+                      <Image
+                        alt=""
+                        className="h-full w-full rounded-full object-cover object-center"
+                        draggable={false}
+                        height={72}
+                        src="/sound-coach-avatar-face-centered.png"
+                        width={72}
+                      />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[0.6rem] font-black uppercase tracking-[0.16em] text-sky-200/90">
+                        Coach Notes
+                      </p>
+                      <p className="truncate text-[0.72rem] font-semibold text-slate-300">
+                        Sound Fitness Coach
+                      </p>
+                    </div>
+                    <button
+                      aria-label="Close coach notes"
+                      className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/15 bg-slate-900/80 text-slate-300 transition hover:border-sky-300/60 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                      onClick={() => setDashboardCoachNotesOpen(false)}
+                      type="button"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <ul className="mt-2.5 flex flex-col gap-2">
+                    {[
+                      {
+                        day: "Today",
+                        note: "Strong week — you hit every planned session. Carry that momentum into the weekend.",
+                      },
+                      {
+                        day: "Yesterday",
+                        note: "Goblet squats: slow the lower to a 3-count and keep the chest tall. Form looked sharp.",
+                      },
+                      {
+                        day: "Monday",
+                        note: "Add 5 lb to your main lift next session if the last set still feels controlled.",
+                      },
+                    ].map((item) => (
+                      <li
+                        key={item.day}
+                        className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2"
+                      >
+                        <p className="text-[0.56rem] font-black uppercase tracking-[0.14em] text-sky-200/70">
+                          {item.day}
+                        </p>
+                        <p className="mt-0.5 text-[0.76rem] leading-snug text-slate-200">
+                          {item.note}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                  <a
+                    className="mt-3 flex items-center justify-center gap-1 rounded-xl border border-sky-300/40 bg-sky-400/10 px-3 py-2 text-[0.7rem] font-black uppercase tracking-[0.12em] text-sky-100 transition hover:bg-sky-400/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                    href="/dashboard/coach-messaging"
+                    onClick={() => setDashboardCoachNotesOpen(false)}
+                  >
+                    Open coach messaging
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </a>
+                    </div>,
+                    document.body,
+                  )
+                : null}
+
+              {isAdminPreview ? (
+                // Editable debt-to-income meter control: bump the score to level
+                // up the profile ring. Admin preview only.
+                <div className="dashboard-admin-dti-control flex shrink-0 flex-col items-center gap-0.5 rounded-2xl border border-amber-200/25 bg-slate-950/70 px-1.5 py-1 shadow-[0_0_18px_rgba(251,191,36,0.12),inset_0_1px_0_rgba(255,255,255,0.06)]">
+                  <span className="text-[0.5rem] font-black uppercase tracking-[0.14em] text-amber-200/90">
+                    DTI
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      aria-label="Lower debt-to-income score"
+                      className="grid h-5 w-5 place-items-center rounded-full border border-amber-200/40 bg-slate-900/80 text-amber-100 transition hover:border-amber-200/80 hover:bg-slate-800/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/70"
+                      onClick={() => bumpAdminDtiScore(-ADMIN_DTI_STEP)}
+                      type="button"
+                    >
+                      <Minus className="h-3 w-3" />
+                    </button>
+                    <span className="min-w-[2.1rem] text-center text-[0.72rem] font-black leading-none text-white tabular-nums">
+                      {adminDtiScore}
+                    </span>
+                    <button
+                      aria-label="Raise debt-to-income score"
+                      className="grid h-5 w-5 place-items-center rounded-full border border-amber-200/40 bg-slate-900/80 text-amber-100 transition hover:border-amber-200/80 hover:bg-slate-800/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-200/70"
+                      onClick={() => bumpAdminDtiScore(ADMIN_DTI_STEP)}
+                      type="button"
+                    >
+                      <Plus className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              ) : null}
 
               <div
                 className="dashboard-profile-rewards-control relative"
@@ -31823,6 +33206,7 @@ export default function UserHomeDashboardPage() {
             <DashboardMeterMenuIcon3D
               active={dashboardHeaderMeterMenuIconActive}
               className="dashboard-header-meter-menu-trigger__webgl-icon"
+              paused={dashboardHeaderMotionPaused}
             />
             <span
               aria-hidden="true"
@@ -33515,11 +34899,14 @@ export default function UserHomeDashboardPage() {
     </div>
   );
 
-  const renderFavoriteWorkoutsCard = ({
-    compact = false,
-  }: {
-    compact?: boolean;
-  } = {}) => (
+  const renderFavoriteWorkoutsCard = (
+    favoriteWorkoutsOptions: {
+      compact?: boolean;
+    } = {},
+  ) => {
+    const compact = favoriteWorkoutsOptions.compact ?? false;
+
+    return (
     <section
       className={`relative z-10 mx-auto w-full overflow-hidden rounded-[24px] border border-cyan-200/16 bg-[linear-gradient(135deg,rgba(15,23,42,0.68),rgba(2,6,23,0.54)),radial-gradient(circle_at_8%_0%,rgba(34,211,238,0.13),transparent_32%)] shadow-2xl shadow-black/15 backdrop-blur ${
         compact ? "mt-0" : "mt-2"
@@ -33745,9 +35132,12 @@ export default function UserHomeDashboardPage() {
         </div>
       </div>
     </section>
-  );
+    );
+  };
 
-  const renderDashboardHeroAchievementOrbit = () => (
+  const renderDashboardHeroUtilityPanel = (
+    panelId: "needle" | "achievements" | "favorites",
+  ) => (
     <>
       <style>{`
         @keyframes dashboard-hero-space-needle-blip-step {
@@ -33860,7 +35250,7 @@ export default function UserHomeDashboardPage() {
           left: 50%;
           pointer-events: none;
           position: absolute;
-          top: 0.04rem;
+          top: 3rem;
           transform: translateX(-50%);
           width: min(82%, 24rem);
           z-index: 19;
@@ -34206,8 +35596,9 @@ export default function UserHomeDashboardPage() {
           );
         }
       `}</style>
-      <div className="dashboard-hero-meter-deck relative z-10 mx-auto mt-3 grid w-full max-w-[1080px] gap-3 min-[760px]:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] min-[760px]:items-stretch">
-        <div className="dashboard-hero-card dashboard-hero-card--needle relative flex h-[284px] min-w-0 items-center justify-center overflow-hidden rounded-[24px] border border-white/12 bg-[radial-gradient(ellipse_at_50%_6%,rgba(45,212,191,0.16),transparent_42%),radial-gradient(ellipse_at_50%_90%,rgba(250,204,21,0.08),transparent_38%),linear-gradient(180deg,rgba(15,23,42,0.66),rgba(2,6,23,0.72))] px-2 pb-5 pt-4 shadow-[0_18px_44px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.08)] sm:h-[296px]">
+      <div className="dashboard-hero-meter-deck relative z-10 mx-auto h-full min-h-[420px] w-full max-w-[1080px]">
+        {panelId === "needle" ? (
+        <div className="dashboard-hero-card dashboard-hero-card--needle relative flex h-full min-h-[420px] min-w-0 items-center justify-center overflow-hidden rounded-[30px] border border-white/12 bg-[radial-gradient(ellipse_at_50%_6%,rgba(45,212,191,0.16),transparent_42%),radial-gradient(ellipse_at_50%_90%,rgba(250,204,21,0.08),transparent_38%),linear-gradient(180deg,rgba(15,23,42,0.66),rgba(2,6,23,0.72))] px-2 pb-5 pt-4 shadow-[0_18px_44px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className="flex h-full min-w-0 flex-col items-center justify-end gap-0">
             <div
               aria-label={`${dashboardSummary.workoutsThisWeek} of ${dashboardSummary.weeklySessionGoal} weekly sessions logged, resets ${dashboardWeeklySessionResetFullLabel}`}
@@ -34390,7 +35781,9 @@ export default function UserHomeDashboardPage() {
             </div>
           </div>
         </div>
-        <div className="dashboard-hero-card dashboard-hero-card--achievements isolate relative !self-stretch flex min-w-0 flex-col overflow-hidden rounded-[30px] border border-white/12 bg-[radial-gradient(ellipse_at_10%_12%,rgba(250,204,21,0.09),transparent_34%),radial-gradient(ellipse_at_92%_24%,rgba(34,211,238,0.10),transparent_38%),linear-gradient(180deg,rgba(15,23,42,0.64),rgba(2,6,23,0.66))] pb-2 pt-2 shadow-[0_18px_44px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.08)] before:pointer-events-none before:absolute before:inset-0 before:z-0 before:rounded-[30px] before:bg-[radial-gradient(ellipse_at_10%_12%,rgba(250,204,21,0.10),transparent_34%),radial-gradient(ellipse_at_92%_24%,rgba(34,211,238,0.12),transparent_38%),radial-gradient(ellipse_at_50%_58%,rgba(14,165,233,0.13),transparent_48%),radial-gradient(ellipse_at_50%_78%,rgba(2,6,23,0.36),transparent_76%)] before:[mask-image:radial-gradient(ellipse_at_center,black_0%,black_54%,rgba(0,0,0,0.58)_75%,transparent_100%)] before:content-['']">
+        ) : null}
+        {panelId === "achievements" ? (
+        <div className="dashboard-hero-card dashboard-hero-card--achievements isolate relative flex h-full min-h-[420px] min-w-0 flex-col overflow-hidden rounded-[30px] border border-white/12 bg-[radial-gradient(ellipse_at_10%_12%,rgba(250,204,21,0.09),transparent_34%),radial-gradient(ellipse_at_92%_24%,rgba(34,211,238,0.10),transparent_38%),linear-gradient(180deg,rgba(15,23,42,0.64),rgba(2,6,23,0.66))] pb-2 pt-2 shadow-[0_18px_44px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.08)] before:pointer-events-none before:absolute before:inset-0 before:z-0 before:rounded-[30px] before:bg-[radial-gradient(ellipse_at_10%_12%,rgba(250,204,21,0.10),transparent_34%),radial-gradient(ellipse_at_92%_24%,rgba(34,211,238,0.12),transparent_38%),radial-gradient(ellipse_at_50%_58%,rgba(14,165,233,0.13),transparent_48%),radial-gradient(ellipse_at_50%_78%,rgba(2,6,23,0.36),transparent_76%)] before:[mask-image:radial-gradient(ellipse_at_center,black_0%,black_58%,rgba(0,0,0,0.7)_78%,transparent_100%)] before:content-['']">
           <div
             aria-label={`${dashboardHeroAchievementCloudTone.label} achievement cloud, ${dashboardHeroAchievementCloudWeather.label} weather`}
             className={`dashboard-hero-achievement-cloud-bank dashboard-hero-achievement-cloud-bank--${dashboardHeroAchievementCloudWeather.id}`}
@@ -34642,11 +36035,107 @@ export default function UserHomeDashboardPage() {
             </div>
           </div>
         </div>
-        <div className="dashboard-hero-favorite-workouts-row min-w-0 min-[760px]:col-span-2">
-          {renderFavoriteWorkoutsCard({ compact: true })}
-        </div>
+        ) : null}
+        {panelId === "favorites" ? (
+          <div className="dashboard-hero-card dashboard-hero-card--favorite-workouts relative flex h-full min-h-[420px] min-w-0 flex-col justify-center overflow-hidden rounded-[30px] border border-cyan-100/16 bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.17),transparent_34%),radial-gradient(circle_at_88%_86%,rgba(251,191,36,0.10),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.82),rgba(2,6,23,0.72))] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.32),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.08)] sm:p-5">
+            {renderFavoriteWorkoutsCard()}
+            <div className="mt-4 grid grid-cols-3 divide-x divide-white/10 border-y border-white/10 bg-slate-950/24 py-3 text-center">
+              <span className="min-w-0 px-2">
+                <strong className="block text-lg font-black text-cyan-100">{favoriteWorkoutTemplates.length}</strong>
+                <span className="block truncate text-[7px] font-black uppercase tracking-[0.12em] text-slate-500">Saved</span>
+              </span>
+              <span className="min-w-0 px-2">
+                <strong className="block truncate text-sm font-black text-emerald-100">{activeSessionTemplate ? "Ready" : "Choose"}</strong>
+                <span className="block truncate text-[7px] font-black uppercase tracking-[0.12em] text-slate-500">Current</span>
+              </span>
+              <span className="min-w-0 px-2">
+                <strong className="block text-lg font-black text-amber-100">1</strong>
+                <span className="block truncate text-[7px] font-black uppercase tracking-[0.12em] text-slate-500">Tap launch</span>
+              </span>
+            </div>
+          </div>
+        ) : null}
       </div>
     </>
+  );
+
+  const renderDashboardHeroWidgetsPanel = () => (
+    <section className="dashboard-hero-card dashboard-hero-card--widgets relative flex h-full min-h-[420px] w-full max-w-[1080px] flex-col overflow-hidden rounded-[30px] border border-violet-200/18 bg-[radial-gradient(circle_at_12%_8%,rgba(139,92,246,0.20),transparent_34%),radial-gradient(circle_at_88%_84%,rgba(34,211,238,0.14),transparent_32%),linear-gradient(145deg,rgba(15,23,42,0.86),rgba(2,6,23,0.76))] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.34),0_0_36px_rgba(139,92,246,0.12),inset_0_1px_0_rgba(255,255,255,0.08)] max-[759px]:pt-12 sm:p-5">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(255,255,255,0.025)_1px,transparent_1px),linear-gradient(rgba(255,255,255,0.025)_1px,transparent_1px)] bg-[size:42px_42px] opacity-45" />
+      <header className="relative z-10 flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[18px] border border-violet-200/22 bg-violet-300/12 text-violet-100 shadow-[0_0_24px_rgba(139,92,246,0.20),inset_0_1px_0_rgba(255,255,255,0.10)]">
+            <Plus aria-hidden="true" className="h-6 w-6" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[9px] font-black uppercase tracking-[0.22em] text-violet-200/76">
+              Dashboard tools
+            </p>
+            <h2 className="mt-1 text-xl font-black uppercase tracking-[0.06em] text-white sm:text-2xl">
+              Widgets
+            </h2>
+          </div>
+        </div>
+        <span className="hidden shrink-0 rounded-full border border-cyan-100/16 bg-cyan-300/8 px-3 py-1.5 text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100 min-[760px]:inline-flex">
+          {dashboardHeroWidgetDrawerItems.length} ready
+        </span>
+      </header>
+
+      <div className="relative z-10 grid min-h-0 flex-1 grid-cols-1 gap-2 py-4 min-[560px]:grid-cols-2">
+        {dashboardHeroWidgetDrawerItems.map((item, index) => (
+          <Link
+            aria-label={`Open ${item.label} widget`}
+            className="group relative flex min-h-[92px] min-w-0 items-center overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.045] px-4 py-2.5 shadow-[0_16px_38px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:-translate-y-0.5 hover:border-violet-100/32 hover:bg-violet-300/10 active:scale-[0.99] min-[560px]:min-h-[104px] min-[560px]:py-3"
+            href={item.href}
+            key={item.id}
+          >
+            <span className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_8%_0%,rgba(139,92,246,0.14),transparent_38%),linear-gradient(135deg,rgba(255,255,255,0.05),transparent_48%)] opacity-75 transition group-hover:opacity-100" />
+            <span className="relative z-10 flex min-w-0 flex-1 items-start gap-3">
+              <span
+                aria-hidden="true"
+                className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${item.accentClassName}`}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center justify-between gap-3">
+                  <span className="truncate text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/68">
+                    {item.role}
+                  </span>
+                  <span className="text-[8px] font-black text-slate-500">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                </span>
+                <span className="mt-1 block truncate text-sm font-black uppercase tracking-[0.06em] text-white">
+                  {item.label}
+                </span>
+                <span className="mt-1 block truncate text-[11px] font-black text-cyan-50">
+                  {item.metric}
+                </span>
+                <span className="mt-0.5 block truncate text-[9px] font-semibold text-slate-400">
+                  {item.detail}
+                </span>
+              </span>
+            </span>
+          </Link>
+        ))}
+      </div>
+
+      <button
+        aria-controls="dashboard-hero-widgets-drawer"
+        aria-expanded={dashboardHeroWidgetsDrawerOpen}
+        className="group relative z-10 mt-auto inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-violet-100/28 bg-[linear-gradient(135deg,rgba(139,92,246,0.22),rgba(34,211,238,0.12))] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-[0_14px_34px_rgba(0,0,0,0.28),0_0_22px_rgba(139,92,246,0.12),inset_0_1px_0_rgba(255,255,255,0.10)] transition hover:-translate-y-0.5 hover:border-cyan-100/44 hover:bg-violet-300/18 active:scale-[0.99]"
+        onClick={(event) => {
+          event.stopPropagation();
+          toggleDashboardHeroWidgetsDrawer();
+        }}
+        type="button"
+      >
+        Open widget drawer
+        <ChevronRight
+          aria-hidden="true"
+          className="h-4 w-4 transition group-hover:translate-x-0.5"
+        />
+      </button>
+    </section>
   );
 
   const renderDashboardHeroRow = () => {
@@ -34712,250 +36201,528 @@ export default function UserHomeDashboardPage() {
     }
 
     const dashboardHeroPanels: Array<{
-      id: "body" | "challenges" | "constellation" | "command" | "meters";
+      id:
+        | "body"
+        | "challenges"
+        | "constellation"
+        | "needle"
+        | "achievements"
+        | "favorites"
+        | "widgets"
+        | "command";
+      indicatorColor: string;
+      indicatorGlow: string;
+      indicatorIcon: typeof Activity;
       label: string;
     }> = [
-      { id: "body", label: "Body Command Center" },
-      { id: "constellation", label: "Training Constellation" },
-      { id: "meters", label: "Meters" },
-      { id: "challenges", label: "Challenge Reward Track" },
+      {
+        id: "body",
+        indicatorColor: "#22d3ee",
+        indicatorGlow: "rgba(34,211,238,0.72)",
+        indicatorIcon: Bot,
+        label: "Body Command Center",
+      },
+      {
+        id: "constellation",
+        indicatorColor: "#34d399",
+        indicatorGlow: "rgba(52,211,153,0.72)",
+        indicatorIcon: Dumbbell,
+        label: "Training Constellation",
+      },
+      {
+        id: "needle",
+        indicatorColor: "#2dd4bf",
+        indicatorGlow: "rgba(45,212,191,0.72)",
+        indicatorIcon: Gauge,
+        label: "Needle Meter",
+      },
+      {
+        id: "achievements",
+        indicatorColor: "#fbbf24",
+        indicatorGlow: "rgba(251,191,36,0.72)",
+        indicatorIcon: Star,
+        label: "Achievements",
+      },
+      {
+        id: "favorites",
+        indicatorColor: "#38bdf8",
+        indicatorGlow: "rgba(56,189,248,0.72)",
+        indicatorIcon: BookOpen,
+        label: "Favorite Workouts",
+      },
+      {
+        id: "challenges",
+        indicatorColor: "#fbbf24",
+        indicatorGlow: "rgba(251,191,36,0.72)",
+        indicatorIcon: Check,
+        label: "Challenge Reward Track",
+      },
+      {
+        id: "widgets",
+        indicatorColor: "#a78bfa",
+        indicatorGlow: "rgba(167,139,250,0.72)",
+        indicatorIcon: Plus,
+        label: "Widgets",
+      },
     ];
 
-    const dashboardTrainingConstellationLegend = [
+    const dashboardTrainingConstellationDays = [
+      { day: "Mon", date: "13" },
+      { day: "Tue", date: "14" },
+      { day: "Wed", date: "15" },
+      { day: "Thu", date: "16" },
+      { day: "Fri", date: "17" },
+      { day: "Sat", date: "18" },
+      { day: "Sun", date: "19" },
+    ] as const;
+
+    const dashboardTrainingConstellationLanes = [
       {
-        label: "Trained",
-        className: "bg-amber-300 shadow-[0_0_12px_rgba(250,204,21,0.82)]",
-      },
-      {
+        id: "recovery",
         label: "Recovery",
-        className: "bg-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.78)]",
+        icon: HeartPulse,
+        color: "rgb(52,211,153)",
+        soft: "rgba(52,211,153,0.13)",
+        border: "rgba(110,231,183,0.32)",
       },
       {
+        id: "strength",
+        label: "Strength",
+        icon: Dumbbell,
+        color: "rgb(56,189,248)",
+        soft: "rgba(56,189,248,0.13)",
+        border: "rgba(125,211,252,0.34)",
+      },
+      {
+        id: "cardio",
+        label: "Cardio",
+        icon: Activity,
+        color: "rgb(251,191,36)",
+        soft: "rgba(251,191,36,0.12)",
+        border: "rgba(253,230,138,0.3)",
+      },
+    ] as const;
+
+    const dashboardTrainingConstellationStatuses = {
+      complete: {
+        label: "Complete",
+        color: "rgb(52,211,153)",
+        soft: "rgba(52,211,153,0.2)",
+      },
+      planned: {
         label: "Planned",
-        className: "bg-cyan-300 shadow-[0_0_12px_rgba(34,211,238,0.8)]",
+        color: "rgb(34,211,238)",
+        soft: "rgba(34,211,238,0.2)",
       },
-      {
+      attention: {
+        label: "Attention",
+        color: "rgb(251,191,36)",
+        soft: "rgba(251,191,36,0.2)",
+      },
+      missed: {
         label: "Missed",
-        className: "bg-rose-300 shadow-[0_0_12px_rgba(251,113,133,0.64)]",
+        color: "rgb(251,113,133)",
+        soft: "rgba(251,113,133,0.18)",
       },
-    ] as const;
+    } as const;
 
-    const dashboardTrainingConstellationNodes = [
+    const dashboardTrainingConstellationSessions: Array<{
+      id: string;
+      lane: "recovery" | "strength" | "cardio";
+      dayIndex: number;
+      title: string;
+      time: string;
+      duration: string;
+      workload: number;
+      status: keyof typeof dashboardTrainingConstellationStatuses;
+      insight: string;
+      connection?: string;
+    }> = [
       {
-        id: "n1",
-        label: "Session",
-        status: "Trained",
-        x: 10,
-        y: 39,
-        fill: "rgb(250,204,21)",
-        glow: "rgba(250,204,21,0.78)",
+        id: "recovery-mobility",
+        lane: "recovery",
+        dayIndex: 0,
+        title: "Mobility reset",
+        time: "7:15 AM",
+        duration: "18 min",
+        workload: 28,
+        status: "complete",
+        insight: "Hips and ankles opened before lower-body strength work.",
+        connection: "Prepared Monday's lower-strength session.",
       },
       {
-        id: "n2",
-        label: "Plan",
-        status: "Planned",
-        x: 21,
-        y: 23,
-        fill: "rgb(34,211,238)",
-        glow: "rgba(34,211,238,0.78)",
+        id: "recovery-sleep",
+        lane: "recovery",
+        dayIndex: 2,
+        title: "Sleep + stretch",
+        time: "8:30 PM",
+        duration: "12 min",
+        workload: 18,
+        status: "complete",
+        insight: "Low-load mobility paired with a strong sleep window.",
       },
       {
-        id: "n3",
-        label: "Recover",
-        status: "Recovery",
-        x: 34,
-        y: 31,
-        fill: "rgb(52,211,153)",
-        glow: "rgba(52,211,153,0.72)",
+        id: "recovery-walk",
+        lane: "recovery",
+        dayIndex: 4,
+        title: "Recovery walk",
+        time: "5:40 PM",
+        duration: "24 min",
+        workload: 22,
+        status: "planned",
+        insight: "Easy movement supports recovery after Thursday intervals.",
+        connection: "Balances the week's highest cardio load.",
       },
       {
-        id: "n4",
-        label: "Streak",
-        status: "Trained",
-        x: 47,
-        y: 15,
-        fill: "rgb(250,204,21)",
-        glow: "rgba(250,204,21,0.74)",
+        id: "recovery-reset",
+        lane: "recovery",
+        dayIndex: 6,
+        title: "Full reset",
+        time: "6:00 PM",
+        duration: "20 min",
+        workload: 16,
+        status: "planned",
+        insight: "A full-body reset closes the week and prepares the next block.",
       },
       {
-        id: "n5",
-        label: "Next",
-        status: "Planned",
-        x: 62,
-        y: 26,
-        fill: "rgb(34,211,238)",
-        glow: "rgba(34,211,238,0.72)",
+        id: "strength-lower",
+        lane: "strength",
+        dayIndex: 0,
+        title: "Lower strength",
+        time: "5:30 PM",
+        duration: "48 min",
+        workload: 74,
+        status: "complete",
+        insight: "Squat and hinge work landed inside the target loading range.",
+        connection: "Supported by the morning mobility reset.",
       },
       {
-        id: "n6",
-        label: "Gap",
-        status: "Missed",
-        x: 76,
-        y: 18,
-        fill: "rgb(244,114,182)",
-        glow: "rgba(244,114,182,0.56)",
+        id: "strength-upper",
+        lane: "strength",
+        dayIndex: 2,
+        title: "Upper strength",
+        time: "5:45 PM",
+        duration: "44 min",
+        workload: 66,
+        status: "complete",
+        insight: "Push and pull volume stayed balanced with clean rep quality.",
       },
       {
-        id: "n7",
-        label: "Ready",
-        status: "Recovery",
-        x: 88,
-        y: 36,
-        fill: "rgb(52,211,153)",
-        glow: "rgba(52,211,153,0.7)",
+        id: "strength-full",
+        lane: "strength",
+        dayIndex: 4,
+        title: "Full body",
+        time: "4:30 PM",
+        duration: "42 min",
+        workload: 58,
+        status: "attention",
+        insight: "This session may need lighter loading after Thursday intervals.",
+        connection: "Use the recovery walk as the readiness checkpoint.",
       },
-    ] as const;
+      {
+        id: "strength-technique",
+        lane: "strength",
+        dayIndex: 6,
+        title: "Technique",
+        time: "10:00 AM",
+        duration: "32 min",
+        workload: 42,
+        status: "planned",
+        insight: "Low-fatigue technique work reinforces the week's movement patterns.",
+      },
+      {
+        id: "cardio-zone2",
+        lane: "cardio",
+        dayIndex: 1,
+        title: "Zone 2",
+        time: "6:20 PM",
+        duration: "30 min",
+        workload: 42,
+        status: "complete",
+        insight: "Steady aerobic work added capacity without disrupting strength recovery.",
+      },
+      {
+        id: "cardio-intervals",
+        lane: "cardio",
+        dayIndex: 3,
+        title: "Intervals",
+        time: "5:20 PM",
+        duration: "26 min",
+        workload: 64,
+        status: "complete",
+        insight: "The week's highest conditioning load makes Friday recovery important.",
+        connection: "Feeds directly into Friday's recovery walk.",
+      },
+      {
+        id: "cardio-easy",
+        lane: "cardio",
+        dayIndex: 5,
+        title: "Easy cardio",
+        time: "9:30 AM",
+        duration: "25 min",
+        workload: 34,
+        status: "planned",
+        insight: "Conversational-pace work keeps the weekly rhythm moving.",
+      },
+    ];
 
-    const dashboardTrainingConstellationFieldStars = [
-      { x: 7, y: 12, r: 0.34, opacity: 0.62 },
-      { x: 14, y: 51, r: 0.25, opacity: 0.48 },
-      { x: 19, y: 8, r: 0.42, opacity: 0.72 },
-      { x: 29, y: 46, r: 0.3, opacity: 0.54 },
-      { x: 40, y: 8, r: 0.22, opacity: 0.42 },
-      { x: 51, y: 45, r: 0.36, opacity: 0.64 },
-      { x: 57, y: 11, r: 0.25, opacity: 0.52 },
-      { x: 69, y: 48, r: 0.28, opacity: 0.5 },
-      { x: 82, y: 9, r: 0.4, opacity: 0.68 },
-      { x: 93, y: 22, r: 0.24, opacity: 0.46 },
-      { x: 95, y: 51, r: 0.32, opacity: 0.58 },
-    ] as const;
+    const selectedTrainingConstellationSession =
+      dashboardTrainingConstellationSessions.find(
+        (session) => session.id === selectedTrainingConstellationSessionId,
+      ) ?? null;
+    const visibleTrainingConstellationLanes =
+      dashboardTrainingConstellationLanes.filter(
+        (lane) =>
+          activeTrainingConstellationLane === "all" ||
+          activeTrainingConstellationLane === lane.id,
+      );
 
-    const dashboardTrainingConstellationChallenges = [
+    const dashboardTrainingConstellationLegend = Object.values(
+      dashboardTrainingConstellationStatuses,
+    ).map((status) => ({
+      label: status.label,
+      className: "",
+      color: status.color,
+    }));
+    const dashboardTrainingConstellationNodes: Array<{
+      id: string;
+      label: string;
+      status: string;
+      x: number;
+      y: number;
+      fill: string;
+      glow: string;
+    }> = [];
+    const dashboardTrainingConstellationFieldStars: Array<{
+      x: number;
+      y: number;
+      r: number;
+      opacity: number;
+    }> = [];
+
+    const dashboardChallengeCategories = [
       {
-        label: "Complete 4 training sessions",
-        progress: 50,
-        reward: "+120 SP",
+        id: "strength",
+        label: "Strength",
+        icon: Dumbbell,
+        color: "rgb(56, 189, 248)",
+        soft: "rgba(56, 189, 248, 0.16)",
+        challenges: [
+          { label: "Complete 4 strength sessions", progress: 50, reward: "+120 SP" },
+          { label: "Train 3 movement patterns", progress: 67, reward: "+80 SP" },
+          { label: "Add weight to one key lift", progress: 35, reward: "Power badge" },
+        ],
       },
       {
-        label: "Hit 2 recovery days",
-        progress: 25,
-        reward: "+80 SP",
+        id: "cardio",
+        label: "Cardio",
+        icon: Activity,
+        color: "rgb(251, 113, 133)",
+        soft: "rgba(251, 113, 133, 0.16)",
+        challenges: [
+          { label: "Log 90 cardio minutes", progress: 45, reward: "+100 SP" },
+          { label: "Finish 2 zone sessions", progress: 50, reward: "+75 SP" },
+          { label: "Beat your weekly distance", progress: 72, reward: "Pace badge" },
+        ],
       },
       {
-        label: "Build first full workout plan",
-        progress: 70,
-        reward: "Plan badge",
+        id: "mobility",
+        label: "Mobility",
+        icon: PersonStanding,
+        color: "rgb(167, 139, 250)",
+        soft: "rgba(167, 139, 250, 0.16)",
+        challenges: [
+          { label: "Complete 3 mobility flows", progress: 33, reward: "+90 SP" },
+          { label: "Open hips and shoulders", progress: 58, reward: "+60 SP" },
+          { label: "Hold a 7-day mobility streak", progress: 43, reward: "Flow badge" },
+        ],
+      },
+      {
+        id: "recovery",
+        label: "Recovery",
+        icon: HeartPulse,
+        color: "rgb(52, 211, 153)",
+        soft: "rgba(52, 211, 153, 0.16)",
+        challenges: [
+          { label: "Hit 2 planned recovery days", progress: 50, reward: "+80 SP" },
+          { label: "Log sleep for 5 nights", progress: 60, reward: "+70 SP" },
+          { label: "Complete a recovery check-in", progress: 20, reward: "Reset badge" },
+        ],
+      },
+      {
+        id: "consistency",
+        label: "Consistency",
+        icon: CalendarCheck,
+        color: "rgb(251, 191, 36)",
+        soft: "rgba(251, 191, 36, 0.16)",
+        challenges: [
+          { label: "Train on 4 planned days", progress: 75, reward: "+130 SP" },
+          { label: "Keep a 7-day check-in streak", progress: 57, reward: "+90 SP" },
+          { label: "Finish every scheduled session", progress: 40, reward: "Streak badge" },
+        ],
+      },
+      {
+        id: "nutrition",
+        label: "Nutrition",
+        icon: Apple,
+        color: "rgb(163, 230, 53)",
+        soft: "rgba(163, 230, 53, 0.16)",
+        challenges: [
+          { label: "Log 5 balanced meals", progress: 40, reward: "+80 SP" },
+          { label: "Reach your protein target", progress: 64, reward: "+75 SP" },
+          { label: "Complete 4 hydration goals", progress: 50, reward: "Fuel badge" },
+        ],
+      },
+      {
+        id: "performance",
+        label: "Performance",
+        icon: Gauge,
+        color: "rgb(96, 165, 250)",
+        soft: "rgba(96, 165, 250, 0.16)",
+        challenges: [
+          { label: "Set one new training best", progress: 30, reward: "+150 SP" },
+          { label: "Complete a benchmark test", progress: 65, reward: "+90 SP" },
+          { label: "Improve one tracked metric", progress: 48, reward: "Peak badge" },
+        ],
+      },
+      {
+        id: "learning",
+        label: "Learning",
+        icon: BookOpen,
+        color: "rgb(251, 146, 60)",
+        soft: "rgba(251, 146, 60, 0.16)",
+        challenges: [
+          { label: "Review 3 exercise guides", progress: 67, reward: "+60 SP" },
+          { label: "Watch a form coaching lesson", progress: 25, reward: "+70 SP" },
+          { label: "Save 5 useful training notes", progress: 40, reward: "Scholar badge" },
+        ],
+      },
+      {
+        id: "community",
+        label: "Community",
+        icon: Users,
+        color: "rgb(232, 121, 249)",
+        soft: "rgba(232, 121, 249, 0.16)",
+        challenges: [
+          { label: "Share one weekly win", progress: 50, reward: "+60 SP" },
+          { label: "Encourage 3 members", progress: 33, reward: "+75 SP" },
+          { label: "Join a community challenge", progress: 70, reward: "Team badge" },
+        ],
       },
     ] as const;
+    const activeDashboardChallengeCategory =
+      dashboardChallengeCategories.find(
+        (category) => category.id === activeDashboardChallengeCategoryId,
+      ) ?? dashboardChallengeCategories[0];
+    const dashboardTrainingConstellationChallenges =
+      activeDashboardChallengeCategory.challenges;
+    const ActiveDashboardChallengeCategoryIcon =
+      activeDashboardChallengeCategory.icon;
+    const dashboardChallengeAverageProgress = Math.round(
+      dashboardTrainingConstellationChallenges.reduce(
+        (total, challenge) => total + challenge.progress,
+        0,
+      ) / dashboardTrainingConstellationChallenges.length,
+    );
 
     const renderDashboardCommandCenterSummaryPanel = () => (
-      <div className="relative min-w-0 pr-11">
-        <div className="absolute right-3 top-3 z-30">
-          <button
-            aria-controls="dashboard-hero-widgets-drawer"
-            aria-expanded={dashboardHeroWidgetsDrawerOpen}
-            aria-label={
-              dashboardHeroWidgetsDrawerOpen
-                ? "Close widgets drawer"
-                : "Open widgets drawer"
-            }
-            className="dashboard-hero-widgets-drawer-trigger group grid h-8 w-8 place-items-center rounded-[13px] border border-cyan-100/18 bg-slate-950/58 text-cyan-100 shadow-[0_16px_34px_rgba(0,0,0,0.26),0_0_20px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.08)] outline-none transition hover:-translate-y-0.5 hover:border-cyan-100/42 hover:bg-cyan-300/12 hover:text-cyan-50 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/50"
-            data-dashboard-tooltip="Widgets"
-            onClick={(event) => {
-              event.stopPropagation();
-              toggleDashboardHeroWidgetsDrawer();
-            }}
-            type="button"
-          >
-            <svg
-              aria-hidden="true"
-              className="dashboard-hero-widgets-drawer-trigger__icon h-4.5 w-4.5"
-              viewBox="0 0 64 64"
-            >
-              <path
-                d="M14 23.5 32 13l18 10.5-18 10.5L14 23.5Z"
-                fill="none"
-                stroke="currentColor"
-                strokeLinejoin="round"
-                strokeWidth="4"
-              />
-              <path
-                d="M14 24v18.5L32 53l18-10.5V24M32 34v18"
-                fill="none"
-                stroke="currentColor"
-                strokeLinejoin="round"
-                strokeWidth="4"
-              />
-              <path
-                d="m25 42 7 7 7-7"
-                fill="none"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="4"
-              />
-            </svg>
-          </button>
-        </div>
-
+      <div className="relative min-w-0">
         <div className="relative z-10 grid min-w-0 gap-2">
-          <div className="min-w-0">
-            <div className="text-[clamp(0.45rem,0.85vw,0.6rem)] font-black uppercase tracking-[0.22em] text-sky-400">
+          <div className="grid min-w-0 gap-2">
+            <div className="min-w-0 pr-[5.75rem] text-[clamp(0.45rem,0.85vw,0.6rem)] font-black uppercase tracking-[0.22em] text-sky-400 min-[760px]:pr-0">
               Sound Fitness Command Center
             </div>
-            <h3 className="mt-1 max-w-[36rem] break-words text-[clamp(1.35rem,2.7vw,2.45rem)] font-black uppercase leading-none tracking-normal text-white [text-shadow:0_0_22px_rgba(34,211,238,0.2)]">
+            <h3 className="max-w-[36rem] break-words text-[clamp(1.35rem,2.7vw,2.45rem)] font-black uppercase leading-none tracking-normal text-white [text-shadow:0_0_22px_rgba(34,211,238,0.2)]">
               Welcome back, <span className="text-sky-400">{firstName}</span>
             </h3>
           </div>
 
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <Image
-                alt=""
-                className="h-8 w-8 shrink-0 rounded-full border border-cyan-100/28 bg-slate-950/72 object-contain p-1 shadow-[0_0_18px_rgba(34,211,238,0.16)]"
-                height={32}
-                src="/sound-fitness-logo.png"
-                width={32}
-              />
-              <div className="min-w-0">
-                <div className="truncate text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
-                  Active Profile
-                </div>
-                <div className="mt-0.5 truncate text-[10px] font-semibold text-slate-400">
-                  {dashboardConsistencyStage} stage
-                </div>
-              </div>
-            </div>
-            <div className="shrink-0 rounded-full border border-amber-300/25 bg-amber-300/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-amber-100 shadow-[0_0_18px_rgba(251,191,36,0.1)]">
-              {dashboardProfileHubCompletion}% ready
-            </div>
-          </div>
-
-          <div className="dashboard-hero-active-profile grid w-full max-w-[44rem] gap-2 border-t border-white/10 pt-2 min-[760px]:grid-cols-2">
+          <div className="dashboard-hero-active-profile flex w-full max-w-[44rem] flex-nowrap items-start gap-x-2 border-t border-white/10 pt-2">
+            <button
+              aria-label={
+                dashboardSummaryPane === "goal"
+                  ? "Show position"
+                  : "Show goal focus"
+              }
+              className="grid h-6 w-6 shrink-0 place-items-center self-center bg-transparent text-cyan-100 drop-shadow-[0_0_8px_rgba(34,211,238,0.7)] transition hover:text-white active:scale-90 min-[520px]:hidden"
+              data-dashboard-tooltip={
+                dashboardSummaryPane === "goal" ? "Position" : "Goal focus"
+              }
+              onClick={(event) => {
+                event.stopPropagation();
+                setDashboardSummaryPane((pane) =>
+                  pane === "goal" ? "position" : "goal",
+                );
+              }}
+              onPointerCancel={(event) => event.stopPropagation()}
+              onPointerDown={(event) => event.stopPropagation()}
+              onPointerMove={(event) => event.stopPropagation()}
+              onPointerUp={(event) => event.stopPropagation()}
+              type="button"
+            >
+              <ChevronRight aria-hidden="true" className="h-4 w-4" strokeWidth={2.8} />
+            </button>
             <Link
-              className="group block min-w-0 text-left transition hover:translate-x-0.5"
+              className={`group min-w-0 flex-1 items-start gap-2 text-left transition hover:translate-x-0.5 min-[520px]:flex ${
+                dashboardSummaryPane === "goal" ? "flex" : "hidden"
+              }`}
               href={ROUTES.dashboard.goals}
             >
-              <span className="flex min-w-0 items-center justify-between gap-2">
-                <span className="truncate text-[9px] font-black uppercase tracking-[0.15em] text-slate-500">
-                  Goal Focus
-                </span>
-                <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
-                  {dashboardFoundationProgress.goalsCompletion}% goals
-                </span>
+              <span
+                aria-hidden="true"
+                className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-[9px] border border-amber-200/25 bg-amber-300/10 text-amber-200 shadow-[0_0_14px_rgba(251,191,36,0.14),inset_0_1px_0_rgba(255,255,255,0.08)]"
+              >
+                <Target className="h-3.5 w-3.5" />
               </span>
-              <span className="mt-1 block truncate text-sm font-black text-white group-hover:text-cyan-100">
-                {dashboardActiveProfileGoalFocus}
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 items-center justify-between gap-2">
+                  <span className="truncate text-[9px] font-black uppercase tracking-[0.15em] text-slate-500">
+                    Goal Focus
+                  </span>
+                  <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
+                    {dashboardFoundationProgress.goalsCompletion}% goals
+                  </span>
+                </span>
+                <span className="mt-1 block truncate text-[12px] font-black text-white group-hover:text-cyan-100 min-[520px]:text-sm">
+                  {dashboardActiveProfileGoalFocus}
+                </span>
               </span>
             </Link>
 
             <Link
-              className="group block min-w-0 border-t border-white/10 pt-2 text-left transition hover:translate-x-0.5 min-[760px]:border-l min-[760px]:border-t-0 min-[760px]:pl-3 min-[760px]:pt-0"
+              className={`group min-w-0 flex-1 items-start gap-2 text-left transition hover:translate-x-0.5 min-[520px]:flex min-[520px]:border-l min-[520px]:border-white/10 min-[520px]:pl-2 ${
+                dashboardSummaryPane === "position" ? "flex" : "hidden"
+              }`}
               href={dashboardActiveProfileNextHref}
             >
-              <span className="flex min-w-0 items-center justify-between gap-2">
-                <span className="truncate text-[9px] font-black uppercase tracking-[0.15em] text-slate-500">
+              <span
+                aria-hidden="true"
+                className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-[9px] border border-cyan-200/25 bg-cyan-300/10 text-cyan-200 shadow-[0_0_14px_rgba(34,211,238,0.14),inset_0_1px_0_rgba(255,255,255,0.08)]"
+              >
+                <MapPin className="h-3.5 w-3.5" />
+              </span>
+              <span className="min-w-0 flex-1">
+              <span className="flex min-w-0 items-center justify-between gap-1">
+                <span className="shrink-0 text-[8px] font-black uppercase tracking-[0.1em] text-slate-500 min-[520px]:text-[9px] min-[520px]:tracking-[0.15em]">
                   Position
                 </span>
-                <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
-                  {dashboardActiveProfileNextStep}
+                <span className="min-w-0 truncate text-right text-[8px] font-black uppercase tracking-[0.08em] text-cyan-100 min-[520px]:text-[9px] min-[520px]:tracking-[0.12em]">
+                  {dashboardActiveProfileNextStep === "Profile context" ? (
+                    <>
+                      <span className="max-[519px]:hidden">Profile </span>
+                      Context
+                    </>
+                  ) : (
+                    dashboardActiveProfileNextStep
+                  )}
                 </span>
               </span>
-              <span className="mt-1 block truncate text-sm font-black text-white group-hover:text-cyan-100">
+              <span className="mt-1 block truncate text-[12px] font-black text-white group-hover:text-cyan-100 min-[520px]:text-sm">
                 {masterJourneyCurrentFocus}
               </span>
               <span className="mt-0.5 block truncate text-[10px] font-semibold text-slate-400">
                 {dashboardActiveProfilePlanDetail}
+              </span>
               </span>
             </Link>
           </div>
@@ -34970,7 +36737,7 @@ export default function UserHomeDashboardPage() {
       />
     );
 
-    const renderDashboardTrainingConstellationPanel = () => (
+    const renderDashboardTrainingConstellationLegacyPanel = () => (
       <div className="dashboard-hero-card dashboard-hero-card--training-constellation relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-cyan-100/16 bg-[radial-gradient(circle_at_48%_12%,rgba(56,189,248,0.22),transparent_38%),radial-gradient(circle_at_12%_70%,rgba(52,211,153,0.12),transparent_32%),radial-gradient(circle_at_88%_34%,rgba(251,191,36,0.14),transparent_30%),linear-gradient(135deg,rgba(8,13,28,0.92),rgba(2,6,23,0.84))] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.34),0_0_42px_rgba(56,189,248,0.11),inset_0_1px_0_rgba(255,255,255,0.09)] backdrop-blur-xl sm:p-4">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_26%,rgba(255,255,255,0.24)_0_1px,transparent_2px),radial-gradient(circle_at_74%_42%,rgba(125,211,252,0.3)_0_1px,transparent_2px),radial-gradient(circle_at_45%_72%,rgba(251,191,36,0.24)_0_1px,transparent_2px),linear-gradient(90deg,rgba(125,211,252,0.045)_1px,transparent_1px),linear-gradient(180deg,rgba(125,211,252,0.035)_1px,transparent_1px)] bg-[length:auto,auto,auto,42px_42px,42px_42px] opacity-60" />
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/70 to-transparent" />
@@ -35153,6 +36920,622 @@ export default function UserHomeDashboardPage() {
       </div>
     );
 
+    void renderDashboardTrainingConstellationLegacyPanel;
+
+    const renderDashboardTrainingConstellationPanel = () => (
+      <div className="dashboard-hero-card dashboard-hero-card--training-constellation relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-cyan-100/16 bg-[radial-gradient(circle_at_48%_12%,rgba(56,189,248,0.2),transparent_38%),radial-gradient(circle_at_10%_78%,rgba(52,211,153,0.11),transparent_32%),radial-gradient(circle_at_90%_36%,rgba(251,191,36,0.12),transparent_30%),linear-gradient(135deg,rgba(8,13,28,0.94),rgba(2,6,23,0.88))] p-3 max-[759px]:pt-12 shadow-[0_24px_70px_rgba(0,0,0,0.34),0_0_42px_rgba(56,189,248,0.11),inset_0_1px_0_rgba(255,255,255,0.09)] backdrop-blur-xl sm:p-4">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 overflow-hidden"
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_50%_48%,rgba(14,165,233,0.1),transparent_55%),linear-gradient(145deg,rgba(2,6,23,0.08),rgba(2,6,23,0.5))]" />
+          {DASHBOARD_TRAINING_CONSTELLATION_SKY_STARS.map((star, index) => (
+            <span
+              className="absolute animate-pulse rounded-full"
+              key={`training-sky-star-${index}`}
+              style={{
+                animationDelay: `${(index % 9) * -0.38}s`,
+                animationDuration: `${3.2 + (index % 7) * 0.44}s`,
+                backgroundColor: star.color,
+                boxShadow: `0 0 ${star.size * 4}px ${star.color}`,
+                height: `${star.size}px`,
+                left: star.left,
+                opacity: star.opacity,
+                top: star.top,
+                width: `${star.size}px`,
+              }}
+            >
+              {star.glint ? (
+                <>
+                  <span
+                    className="absolute left-1/2 top-1/2 h-px w-3 -translate-x-1/2 -translate-y-1/2"
+                    style={{
+                      background: `linear-gradient(90deg, transparent, ${star.color}, transparent)`,
+                    }}
+                  />
+                  <span
+                    className="absolute left-1/2 top-1/2 h-3 w-px -translate-x-1/2 -translate-y-1/2"
+                    style={{
+                      background: `linear-gradient(180deg, transparent, ${star.color}, transparent)`,
+                    }}
+                  />
+                </>
+              ) : null}
+            </span>
+          ))}
+        </div>
+        <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/70 to-transparent" />
+
+        <header className="relative z-20 min-w-0">
+          <div className="min-w-0">
+            <div className="text-[8px] font-black uppercase tracking-[0.2em] text-cyan-100/72">
+              Weekly Training Path
+            </div>
+            <h2 className="mt-1 truncate text-xl font-black uppercase leading-none tracking-normal text-white sm:text-2xl">
+              TRAINING CONSTELLATION
+            </h2>
+          </div>
+        </header>
+
+        <div className="relative z-20 mt-2 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <button
+              aria-pressed={activeTrainingConstellationLane === "all"}
+              className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2 text-[8px] font-black uppercase tracking-[0.1em] transition ${
+                activeTrainingConstellationLane === "all"
+                  ? "border-cyan-200/42 bg-cyan-300/12 text-white shadow-[0_0_18px_rgba(34,211,238,0.14)]"
+                  : "border-white/9 bg-slate-950/34 text-slate-400 hover:border-cyan-200/26 hover:text-slate-200"
+              }`}
+              data-dashboard-tooltip="Show every training track"
+              onClick={() => setActiveTrainingConstellationLane("all")}
+              type="button"
+            >
+              <Filter aria-hidden="true" className="h-3.5 w-3.5 text-cyan-200" />
+              All Tracks
+            </button>
+            {dashboardTrainingConstellationLanes.map((lane) => {
+              const LaneIcon = lane.icon;
+              const isActive = activeTrainingConstellationLane === lane.id;
+              return (
+                <button
+                  aria-pressed={isActive}
+                  className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2 text-[8px] font-black uppercase tracking-[0.1em] transition ${
+                    isActive
+                      ? "text-white shadow-[0_0_18px_rgba(125,211,252,0.12)]"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                  data-dashboard-tooltip={`Filter to ${lane.label}`}
+                  key={lane.id}
+                  onClick={() => setActiveTrainingConstellationLane(lane.id)}
+                  style={{
+                    borderColor: isActive ? lane.border : "rgba(255,255,255,0.09)",
+                    background: isActive ? lane.soft : "rgba(2,6,23,0.34)",
+                  }}
+                  type="button"
+                >
+                  <LaneIcon
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5"
+                    style={{ color: lane.color }}
+                  />
+                  {lane.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="hidden shrink-0 items-center gap-2 min-[760px]:flex">
+            {dashboardTrainingConstellationLegend.map((status) => (
+              <span
+                className="inline-flex items-center gap-1 text-[7px] font-black uppercase tracking-[0.1em] text-slate-400"
+                key={status.label}
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{
+                    background: status.color,
+                    boxShadow: `0 0 9px ${status.color}`,
+                  }}
+                />
+                {status.label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative z-10 mt-2 min-h-0 flex-1 overflow-hidden">
+          <div
+            className="h-full min-h-[292px] overflow-x-hidden overflow-y-auto scroll-smooth [scrollbar-width:none] [touch-action:pan-y] [&::-webkit-scrollbar]:hidden sm:overflow-x-auto sm:overflow-y-hidden sm:[touch-action:pan-x]"
+            data-dashboard-orbiter-local-scroll="true"
+            onPointerDown={(event) => event.stopPropagation()}
+            onPointerMove={(event) => event.stopPropagation()}
+            onPointerUp={(event) => event.stopPropagation()}
+            onWheel={(event) => event.stopPropagation()}
+            ref={dashboardTrainingConstellationScrollRef}
+          >
+            <div className="relative min-h-full px-1 pb-3 pt-1 sm:hidden">
+              <div
+                className="sticky top-0 z-20 grid border-b border-white/10 bg-slate-950/88 pb-1.5 pt-1 backdrop-blur-lg"
+                style={{
+                  gridTemplateColumns: `4.25rem repeat(${visibleTrainingConstellationLanes.length}, minmax(0, 1fr))`,
+                }}
+              >
+                <div className="flex items-center px-1 text-[6px] font-black uppercase tracking-[0.12em] text-slate-500">
+                  Jul 13 - 19
+                </div>
+                {visibleTrainingConstellationLanes.map((lane) => {
+                  const LaneIcon = lane.icon;
+                  return (
+                    <div
+                      className="relative isolate grid min-w-0 place-items-center overflow-hidden px-0.5 py-1 text-center"
+                      key={`mobile-training-lane-${lane.id}`}
+                    >
+                      <LaneIcon
+                        aria-hidden="true"
+                        className="absolute h-7 w-7 opacity-20"
+                        style={{
+                          color: lane.color,
+                          filter: `drop-shadow(0 0 9px ${lane.color})`,
+                        }}
+                      />
+                      <span className="relative z-10 max-w-full truncate text-[7px] font-black uppercase tracking-[0.06em] text-white">
+                        {lane.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="relative grid">
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 z-0 grid"
+                  style={{
+                    gridTemplateColumns: `4.25rem repeat(${visibleTrainingConstellationLanes.length}, minmax(0, 1fr))`,
+                  }}
+                >
+                  <span />
+                  {visibleTrainingConstellationLanes.map((lane) => (
+                    <span
+                      className="relative block min-w-0"
+                      key={`mobile-training-track-line-${lane.id}`}
+                    >
+                      <span
+                        className="absolute inset-y-3 left-1/2 w-px -translate-x-1/2 opacity-70"
+                        style={{
+                          background: `linear-gradient(180deg, transparent 0%, ${lane.color} 8%, ${lane.color} 92%, transparent 100%)`,
+                          boxShadow: `0 0 8px ${lane.color}`,
+                        }}
+                      />
+                    </span>
+                  ))}
+                </div>
+                {dashboardTrainingConstellationDays.map((day, dayIndex) => {
+                  const isActiveDay = activeTrainingConstellationDayIndex === dayIndex;
+                  return (
+                    <div
+                      className={`relative grid min-h-[68px] items-stretch border-b border-white/[0.055] py-1 transition-colors last:border-b-0 ${
+                        isActiveDay ? "bg-cyan-300/[0.055]" : ""
+                      }`}
+                      data-training-constellation-day-index={dayIndex}
+                      key={`mobile-training-day-${day.day}`}
+                      style={{
+                        gridTemplateColumns: `4.25rem repeat(${visibleTrainingConstellationLanes.length}, minmax(0, 1fr))`,
+                      }}
+                    >
+                      <div className="relative z-10 flex flex-col items-center justify-center text-center">
+                        <span
+                          className={`grid h-7 w-7 place-items-center rounded-full border text-[9px] font-black transition ${
+                            isActiveDay
+                              ? "border-cyan-100/65 bg-cyan-300/18 text-white shadow-[0_0_14px_rgba(34,211,238,0.3)]"
+                              : "border-white/12 bg-slate-950/90 text-slate-300"
+                          }`}
+                        >
+                          {day.date}
+                        </span>
+                        <span className="mt-1 text-[6px] font-black uppercase tracking-[0.12em] text-slate-500">
+                          {day.day}
+                        </span>
+                      </div>
+
+                      {visibleTrainingConstellationLanes.map((lane) => {
+                        const session = dashboardTrainingConstellationSessions.find(
+                          (item) =>
+                            item.lane === lane.id && item.dayIndex === dayIndex,
+                        );
+                        if (!session) {
+                          return (
+                            <div
+                              className="relative z-10 grid place-items-center"
+                              key={`mobile-${lane.id}-${day.day}`}
+                            >
+                              <span className="relative z-10 grid h-5 w-5 place-items-center rounded-full bg-slate-950/95 ring-[3px] ring-slate-950/90">
+                                <Star
+                                  aria-hidden="true"
+                                  className="h-2.5 w-2.5 fill-current opacity-[0.38]"
+                                  style={{
+                                    color: lane.color,
+                                    filter: `drop-shadow(0 0 5px ${lane.color})`,
+                                  }}
+                                />
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        const isSelected = selectedTrainingConstellationSession?.id === session.id;
+                        return (
+                          <button
+                            aria-label={`Open ${session.title} session details`}
+                            aria-pressed={isSelected}
+                            className={`group relative z-10 mx-0.5 flex min-w-0 flex-col items-center justify-center gap-1 px-0.5 py-1 text-center transition ${
+                              isSelected
+                                ? "bg-white/[0.08]"
+                                : "hover:bg-white/[0.045]"
+                            }`}
+                            key={`mobile-${session.id}`}
+                            onClick={() =>
+                              setSelectedTrainingConstellationSessionId((current) =>
+                                current === session.id ? null : session.id,
+                              )
+                            }
+                            type="button"
+                          >
+                            <span
+                              className="grid h-6 w-6 place-items-center rounded-full p-[2px] ring-[3px] ring-slate-950/90"
+                              style={{
+                                background: `conic-gradient(${lane.color} ${session.workload}%, rgba(51,65,85,0.42) ${session.workload}% 100%)`,
+                                boxShadow: isSelected
+                                  ? `0 0 14px ${lane.color}`
+                                  : `0 0 6px ${lane.soft}`,
+                              }}
+                            >
+                              <span className="grid h-full w-full place-items-center rounded-full bg-slate-950/95">
+                                <Star
+                                  aria-hidden="true"
+                                  className="h-3 w-3 fill-current"
+                                  style={{
+                                    color: lane.color,
+                                    filter: `drop-shadow(0 0 7px ${lane.color})`,
+                                  }}
+                                />
+                              </span>
+                            </span>
+                            <span className="w-full truncate text-[7px] font-black text-slate-100">
+                              {session.title}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="relative hidden min-h-full min-w-[1400px] px-2 pb-8 pt-2 sm:block">
+              <div className="grid grid-cols-[116px_repeat(7,minmax(150px,1fr))] border-b border-white/8 pb-1.5">
+                <div className="flex items-center px-2 text-[7px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  Jul 13 - 19
+                </div>
+                {dashboardTrainingConstellationDays.map((item) => (
+                  <div
+                    className={`mx-1 rounded-md py-0.5 text-center transition ${
+                      activeTrainingConstellationDayIndex === dashboardTrainingConstellationDays.indexOf(item)
+                        ? "bg-cyan-300/10 shadow-[inset_0_-2px_0_rgba(34,211,238,0.72),0_0_14px_rgba(34,211,238,0.08)]"
+                        : ""
+                    }`}
+                    key={item.day}
+                  >
+                    <span className="block text-[7px] font-black uppercase tracking-[0.16em] text-slate-500">
+                      {item.day}
+                    </span>
+                    <span className="mt-0.5 block text-[10px] font-black text-slate-200">
+                      {item.date}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="relative mt-1.5 grid gap-1.5">
+                {visibleTrainingConstellationLanes.map((lane) => {
+                  const LaneIcon = lane.icon;
+                  return (
+                    <div
+                      className="relative grid min-h-[74px] grid-cols-[116px_repeat(7,minmax(150px,1fr))] items-stretch"
+                      key={lane.id}
+                    >
+                      <div className="relative z-10 isolate flex min-w-0 items-center justify-center overflow-hidden border-r border-white/8 px-2 text-center">
+                        <LaneIcon
+                          aria-hidden="true"
+                          className="pointer-events-none absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 opacity-20"
+                          style={{
+                            color: lane.color,
+                            filter: `drop-shadow(0 0 12px ${lane.color})`,
+                          }}
+                        />
+                        <span className="relative z-10 block w-full min-w-0">
+                          <span className="block w-full text-[10px] font-black uppercase leading-tight tracking-[0.08em] text-white">
+                            {lane.label}
+                          </span>
+                          <span className="mt-1 block w-full text-[7px] font-bold uppercase tracking-[0.08em] text-slate-400">
+                            {
+                              dashboardTrainingConstellationSessions.filter(
+                                (session) => session.lane === lane.id,
+                              ).length
+                            }{" "}
+                            sessions
+                          </span>
+                        </span>
+                      </div>
+
+                      {dashboardTrainingConstellationDays.map((day, dayIndex) => {
+                        const session = dashboardTrainingConstellationSessions.find(
+                          (item) => item.lane === lane.id && item.dayIndex === dayIndex,
+                        );
+                        if (!session) {
+                          return (
+                             <div
+                              className="relative z-10 grid place-items-center border-r border-white/[0.045] last:border-r-0"
+                              key={`${lane.id}-${day.day}`}
+                            >
+                              <span
+                                aria-hidden="true"
+                                className="pointer-events-none absolute left-0 right-[calc(50%+16px)] top-[calc(50%-12px)] h-px -translate-y-1/2 opacity-70"
+                                style={{
+                                  background: lane.color,
+                                  boxShadow: `0 0 8px ${lane.color}`,
+                                }}
+                              />
+                              <span
+                                aria-hidden="true"
+                                className="pointer-events-none absolute left-[calc(50%+16px)] right-0 top-[calc(50%-12px)] h-px -translate-y-1/2 opacity-70"
+                                style={{
+                                  background: lane.color,
+                                  boxShadow: `0 0 8px ${lane.color}`,
+                                }}
+                              />
+                              <span className="relative z-10 grid h-5 w-5 -translate-y-3 place-items-center rounded-full bg-slate-950/95 ring-[3px] ring-slate-950/90">
+                                <Star
+                                  aria-hidden="true"
+                                  className="h-2.5 w-2.5 fill-current opacity-[0.38]"
+                                  style={{
+                                    color: lane.color,
+                                    filter: `drop-shadow(0 0 5px ${lane.color})`,
+                                  }}
+                                />
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        const status = dashboardTrainingConstellationStatuses[session.status];
+                        const isSelected = selectedTrainingConstellationSession?.id === session.id;
+                        return (
+                          <div
+                            className="relative z-10 flex items-center justify-center border-r border-white/[0.045] px-1 last:border-r-0"
+                            key={session.id}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className="pointer-events-none absolute left-0 right-[calc(50%+18px)] top-[calc(50%-12px)] h-px -translate-y-1/2 opacity-70"
+                              style={{
+                                background: lane.color,
+                                boxShadow: `0 0 8px ${lane.color}`,
+                              }}
+                            />
+                            <span
+                              aria-hidden="true"
+                              className="pointer-events-none absolute left-[calc(50%+18px)] right-0 top-[calc(50%-12px)] h-px -translate-y-1/2 opacity-70"
+                              style={{
+                                background: lane.color,
+                                boxShadow: `0 0 8px ${lane.color}`,
+                              }}
+                            />
+                            <button
+                              aria-label={`Open ${session.title} session details`}
+                              aria-pressed={isSelected}
+                              className={`group relative z-10 flex w-full min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-1.5 text-center transition duration-300 hover:-translate-y-0.5 focus-visible:outline-none ${
+                                isSelected
+                                  ? "bg-white/[0.09] shadow-[0_0_24px_rgba(125,211,252,0.16)]"
+                                  : "hover:bg-white/[0.055]"
+                              }`}
+                              onClick={() =>
+                                setSelectedTrainingConstellationSessionId((current) =>
+                                  current === session.id ? null : session.id,
+                                )
+                              }
+                              type="button"
+                            >
+                              <span
+                                className="relative grid place-items-center rounded-full p-[2px] ring-[4px] ring-slate-950/90 transition group-hover:scale-110"
+                                style={{
+                                  background: `conic-gradient(${lane.color} ${session.workload}%, rgba(51,65,85,0.42) ${session.workload}% 100%)`,
+                                  boxShadow: isSelected
+                                    ? `0 0 16px ${lane.color}`
+                                    : `0 0 6px ${lane.soft}`,
+                                }}
+                              >
+                                <span className="grid h-6 w-6 place-items-center rounded-full bg-slate-950/95">
+                                  <Star
+                                    aria-hidden="true"
+                                    className="h-3.5 w-3.5 fill-current"
+                                    style={{
+                                      color: lane.color,
+                                      filter: `drop-shadow(0 0 8px ${lane.color})`,
+                                    }}
+                                  />
+                                </span>
+                              </span>
+                              <span className="max-w-full truncate text-[8px] font-black text-slate-100">
+                                {session.title}
+                              </span>
+                              <span className="text-[6px] font-black uppercase tracking-[0.08em]" style={{ color: status.color }}>
+                                {status.label}
+                              </span>
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    );
+                  })}
+              </div>
+
+              <div className="mt-2 flex items-center justify-between gap-3 px-2 text-[7px] font-black uppercase tracking-[0.12em] text-slate-500">
+                <span>11 sessions</span>
+                <span className="text-emerald-200/80">Load balanced</span>
+                <span>
+                  {activeTrainingConstellationLane === "all"
+                    ? "3 connected lanes"
+                    : "1 filtered lane"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {selectedTrainingConstellationSession ? (
+            <div className="absolute inset-x-2 bottom-2 z-40 grid gap-2 rounded-lg border border-cyan-100/22 bg-slate-950/88 p-3 shadow-[0_18px_44px_rgba(0,0,0,0.48),0_0_30px_rgba(34,211,238,0.12)] backdrop-blur-xl sm:left-auto sm:w-[min(22rem,calc(100%-1rem))]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[7px] font-black uppercase tracking-[0.18em] text-cyan-200/70">
+                    Session Readout
+                  </div>
+                  <h3 className="mt-1 truncate text-sm font-black text-white">
+                    {selectedTrainingConstellationSession.title}
+                  </h3>
+                </div>
+                <button
+                  aria-label="Close session details"
+                  className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-white/10 text-slate-300 transition hover:border-cyan-200/40 hover:text-white"
+                  onClick={() => setSelectedTrainingConstellationSessionId(null)}
+                  type="button"
+                >
+                  <X aria-hidden="true" className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[8px] font-bold text-slate-300">
+                <span>{dashboardTrainingConstellationDays[selectedTrainingConstellationSession.dayIndex].day}</span>
+                <span>{selectedTrainingConstellationSession.time}</span>
+                <span>{selectedTrainingConstellationSession.duration}</span>
+                <span>{selectedTrainingConstellationSession.workload}% load</span>
+              </div>
+              <p className="text-[10px] font-semibold leading-relaxed text-slate-200">
+                {selectedTrainingConstellationSession.insight}
+              </p>
+              {selectedTrainingConstellationSession.connection ? (
+                <div className="border-t border-white/8 pt-2 text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200/85">
+                  Connection: {selectedTrainingConstellationSession.connection}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <div
+          className="relative z-30 mt-2 flex items-center justify-center gap-2 sm:hidden"
+          data-dashboard-orbiter-local-scroll="true"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerMove={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onWheel={(event) => event.stopPropagation()}
+        >
+          <button
+            aria-label="Move down to the next constellation day"
+            className="grid h-8 w-8 place-items-center rounded-full border border-cyan-200/24 bg-cyan-300/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)] transition hover:border-cyan-200/55 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
+            data-dashboard-tooltip="Move down one training day"
+            disabled={
+              activeTrainingConstellationDayIndex ===
+              dashboardTrainingConstellationDays.length - 1
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              moveTrainingConstellationTimeline(1);
+            }}
+            type="button"
+          >
+            <ChevronDown aria-hidden="true" className="h-4 w-4" />
+          </button>
+
+          <div className="min-w-[8.5rem] text-center">
+            <div className="text-[7px] font-black uppercase tracking-[0.18em] text-slate-500">
+              Vertical Focus
+            </div>
+            <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+              {dashboardTrainingConstellationDays[activeTrainingConstellationDayIndex].day}{" "}
+              {dashboardTrainingConstellationDays[activeTrainingConstellationDayIndex].date}
+            </div>
+          </div>
+
+          <button
+            aria-label="Move up to the previous constellation day"
+            className="grid h-8 w-8 place-items-center rounded-full border border-emerald-200/24 bg-emerald-300/8 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.08)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
+            data-dashboard-tooltip="Move up one training day"
+            disabled={activeTrainingConstellationDayIndex === 0}
+            onClick={(event) => {
+              event.stopPropagation();
+              moveTrainingConstellationTimeline(-1);
+            }}
+            type="button"
+          >
+            <ChevronUp aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div
+          className="relative z-30 mt-2 hidden items-center justify-center gap-2 sm:flex"
+          data-dashboard-orbiter-local-scroll="true"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onPointerMove={(event) => event.stopPropagation()}
+          onPointerUp={(event) => event.stopPropagation()}
+          onWheel={(event) => event.stopPropagation()}
+        >
+          <button
+            aria-label="Show previous constellation day"
+            className="grid h-8 w-8 place-items-center rounded-full border border-emerald-200/24 bg-emerald-300/8 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.08)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
+            data-dashboard-tooltip="Previous training day"
+            disabled={activeTrainingConstellationDayIndex === 0}
+            onClick={(event) => {
+              event.stopPropagation();
+              moveTrainingConstellationTimeline(-1);
+            }}
+            type="button"
+          >
+            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+          </button>
+
+          <div className="min-w-[8.5rem] text-center">
+            <div className="text-[7px] font-black uppercase tracking-[0.18em] text-slate-500">
+              Timeline Focus
+            </div>
+            <div className="mt-0.5 text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100">
+              {dashboardTrainingConstellationDays[activeTrainingConstellationDayIndex].day}{" "}
+              {dashboardTrainingConstellationDays[activeTrainingConstellationDayIndex].date}
+            </div>
+          </div>
+
+          <button
+            aria-label="Show next constellation day"
+            className="grid h-8 w-8 place-items-center rounded-full border border-cyan-200/24 bg-cyan-300/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)] transition hover:border-cyan-200/55 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
+            data-dashboard-tooltip="Next training day"
+            disabled={
+              activeTrainingConstellationDayIndex ===
+              dashboardTrainingConstellationDays.length - 1
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              moveTrainingConstellationTimeline(1);
+            }}
+            type="button"
+          >
+            <ChevronRight aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    );
+
     const renderDashboardChallengesPanel = () => (
       <div className="dashboard-hero-card dashboard-hero-card--training-challenges relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-amber-100/18 bg-[radial-gradient(circle_at_16%_2%,rgba(251,191,36,0.18),transparent_34%),radial-gradient(circle_at_88%_18%,rgba(34,211,238,0.18),transparent_30%),radial-gradient(circle_at_50%_104%,rgba(52,211,153,0.12),transparent_34%),linear-gradient(135deg,rgba(8,13,28,0.94),rgba(2,6,23,0.86))] p-3 shadow-[0_24px_70px_rgba(0,0,0,0.34),0_0_42px_rgba(251,191,36,0.12),inset_0_1px_0_rgba(255,255,255,0.09)] backdrop-blur-xl sm:p-4">
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(251,191,36,0.05)_1px,transparent_1px),linear-gradient(180deg,rgba(125,211,252,0.055)_1px,transparent_1px)] bg-[length:34px_34px] opacity-60" />
@@ -35160,95 +37543,192 @@ export default function UserHomeDashboardPage() {
         <div className="pointer-events-none absolute -right-20 -top-24 h-60 w-60 rounded-full bg-amber-300/10 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-28 left-1/2 h-64 w-80 -translate-x-1/2 rounded-full bg-cyan-300/10 blur-3xl" />
 
-        <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
+        <div className="relative z-10 min-w-0 pr-32 min-[760px]:pr-40">
           <div className="min-w-0">
-            <div className="text-[8px] font-black uppercase tracking-[0.22em] text-amber-100/78">
-              Reward Track
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <div className="text-[8px] font-black uppercase tracking-[0.22em] text-amber-100/78">
+                Reward Track
+              </div>
+              <div className="inline-flex min-h-5 shrink-0 items-center justify-center rounded-full border border-cyan-100/24 bg-cyan-300/10 px-2 text-[7px] font-black uppercase tracking-[0.12em] text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.12)]">
+                {dashboardChallengeCategories.length} categories
+              </div>
             </div>
             <h2 className="mt-1 break-words text-[clamp(1.5rem,3vw,2.65rem)] font-black uppercase leading-none tracking-normal text-white [text-shadow:0_0_24px_rgba(251,191,36,0.16)]">
               CHALLENGES
             </h2>
           </div>
-          <div className="inline-flex min-h-8 items-center justify-center rounded-full border border-cyan-100/24 bg-cyan-300/10 px-3 text-[8px] font-black uppercase tracking-[0.14em] text-cyan-50 shadow-[0_0_24px_rgba(34,211,238,0.14)]">
-            {dashboardTrainingConstellationChallenges.length} active
-          </div>
         </div>
 
-        <div className="relative z-10 mt-3 grid min-h-0 flex-1 gap-3 overflow-x-hidden overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(251,191,36,0.32)_rgba(15,23,42,0.5)] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-amber-200/34 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/46">
-          <div className="grid gap-3 min-[860px]:grid-cols-[minmax(0,1fr)_minmax(220px,0.42fr)]">
-            <div className="grid content-start gap-2">
-              {dashboardTrainingConstellationChallenges.map((challenge, index) => (
-                <div
-                  className="group relative overflow-hidden rounded-[18px] border border-white/10 bg-slate-950/44 px-3 py-3 shadow-[0_16px_34px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.07)] transition hover:-translate-y-0.5 hover:border-amber-100/34 hover:bg-slate-950/56"
-                  key={challenge.label}
+        <div className="relative z-10 mt-2 grid min-h-0 flex-1 grid-cols-[112px_minmax(0,1fr)] content-start gap-2 overflow-hidden min-[560px]:grid-cols-[146px_minmax(0,1fr)] min-[900px]:grid-cols-[170px_minmax(0,1fr)]">
+          <aside className="relative aspect-square w-full self-start overflow-hidden rounded-[16px] border border-white/12 bg-slate-950/44 p-1.5 shadow-[0_16px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)] min-[560px]:p-2">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.12),transparent_54%),linear-gradient(145deg,rgba(255,255,255,0.04),transparent_52%)]" />
+            <div className="relative z-10 grid h-[calc(100%-1.75rem)] grid-cols-3 grid-rows-3 gap-1 min-[560px]:gap-1.5">
+              {dashboardChallengeCategories.map((category) => {
+                const CategoryIcon = category.icon;
+                const isActive =
+                  category.id === activeDashboardChallengeCategory.id;
+
+                return (
+                  <button
+                    aria-label={`Show ${category.label} challenges`}
+                    aria-pressed={isActive}
+                    className="group grid aspect-square h-full min-h-0 min-w-0 w-auto place-items-center justify-self-center rounded-[8px] border transition duration-200 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/90"
+                    data-dashboard-tooltip={category.label}
+                    key={category.id}
+                    onClick={() =>
+                      setActiveDashboardChallengeCategoryId(category.id)
+                    }
+                    style={{
+                      background: isActive
+                        ? category.soft
+                        : "rgba(2, 6, 23, 0.46)",
+                      borderColor: isActive
+                        ? category.color
+                        : "rgba(148, 163, 184, 0.15)",
+                      boxShadow: isActive
+                        ? `0 0 18px ${category.soft}, inset 0 1px 0 rgba(255,255,255,0.12)`
+                        : "inset 0 1px 0 rgba(255,255,255,0.04)",
+                      color: category.color,
+                    }}
+                    type="button"
+                  >
+                    <CategoryIcon
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110 min-[560px]:h-4 min-[560px]:w-4 min-[900px]:h-[18px] min-[900px]:w-[18px]"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+            <Link
+              className="absolute inset-x-1.5 bottom-1.5 z-10 inline-flex h-6 items-center justify-center gap-1 rounded-[7px] border border-amber-100/32 bg-amber-300/12 px-1 text-[6px] font-black uppercase tracking-[0.08em] text-amber-50 shadow-[0_0_18px_rgba(251,191,36,0.1),inset_0_1px_0_rgba(255,255,255,0.1)] transition hover:border-amber-100/64 hover:bg-amber-300/20 min-[560px]:text-[7px]"
+              data-dashboard-tooltip="Open reward track"
+              href={ROUTES.dashboard.progress}
+            >
+              <Star aria-hidden="true" className="h-3 w-3 shrink-0" />
+              <span className="truncate">Open rewards</span>
+            </Link>
+          </aside>
+
+          <div className="grid min-w-0 content-start gap-1.5 min-[900px]:grid-cols-3 min-[900px]:gap-2">
+            <div className="flex min-w-0 items-center justify-between gap-2 border-b border-white/10 pb-1.5 min-[900px]:col-span-3">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <ActiveDashboardChallengeCategoryIcon
+                  aria-hidden="true"
+                  className="h-4 w-4 shrink-0"
+                  style={{ color: activeDashboardChallengeCategory.color }}
+                />
+                <h3
+                  className="truncate text-[9px] font-black uppercase tracking-[0.12em] min-[560px]:text-xs"
+                  style={{ color: activeDashboardChallengeCategory.color }}
                 >
-                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(251,191,36,0.13),transparent_34%),linear-gradient(90deg,rgba(34,211,238,0.07),transparent_54%)] opacity-80" />
-                  <div className="relative z-10 flex items-start gap-3">
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-[14px] border border-amber-100/22 bg-amber-300/10 text-sm font-black text-amber-100 shadow-[0_0_20px_rgba(251,191,36,0.14)]">
-                      {String(index + 1).padStart(2, "0")}
+                  {activeDashboardChallengeCategory.label}
+                </h3>
+              </div>
+              <span className="shrink-0 text-[7px] font-black uppercase tracking-[0.08em] text-slate-500">
+                {dashboardTrainingConstellationChallenges.length} active
+              </span>
+            </div>
+
+            {dashboardTrainingConstellationChallenges.map((challenge, index) => (
+              <div
+                className="group relative min-w-0 overflow-hidden rounded-[12px] border border-white/10 bg-slate-950/44 px-2 py-1.5 shadow-[0_10px_22px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:-translate-y-0.5 hover:bg-slate-950/56 min-[560px]:px-2.5 min-[560px]:py-2 min-[900px]:aspect-square min-[900px]:rounded-[16px] min-[900px]:p-3"
+                key={challenge.label}
+                style={{
+                  borderLeftColor: activeDashboardChallengeCategory.color,
+                }}
+              >
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-70"
+                  style={{
+                    background: `linear-gradient(90deg, ${activeDashboardChallengeCategory.soft}, transparent 58%)`,
+                  }}
+                />
+                <div className="relative z-10 flex min-w-0 items-start gap-1.5 min-[560px]:gap-2 min-[900px]:h-full min-[900px]:flex-col">
+                  <div
+                    className="grid h-6 w-6 shrink-0 place-items-center rounded-[7px] border text-[8px] font-black min-[560px]:h-7 min-[560px]:w-7 min-[560px]:text-[9px]"
+                    style={{
+                      background: activeDashboardChallengeCategory.soft,
+                      borderColor: activeDashboardChallengeCategory.color,
+                      color: activeDashboardChallengeCategory.color,
+                    }}
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </div>
+                  <div className="min-w-0 flex-1 min-[900px]:flex min-[900px]:w-full min-[900px]:flex-col">
+                    <div className="flex min-w-0 items-start justify-between gap-1 min-[900px]:flex-col min-[900px]:gap-2">
+                      <h4 className="min-w-0 break-words text-[8px] font-black uppercase leading-tight tracking-normal text-white min-[560px]:text-[10px] min-[900px]:text-sm">
+                        {challenge.label}
+                      </h4>
+                      <span
+                        className="inline-flex min-h-4 shrink-0 items-center justify-center rounded-full border px-1 text-[6px] font-black uppercase tracking-normal min-[560px]:min-h-5 min-[560px]:px-1.5 min-[560px]:text-[7px]"
+                        style={{
+                          background: activeDashboardChallengeCategory.soft,
+                          borderColor: activeDashboardChallengeCategory.color,
+                          color: activeDashboardChallengeCategory.color,
+                        }}
+                      >
+                        {challenge.reward}
+                      </span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-                        <h3 className="min-w-0 text-sm font-black uppercase leading-tight tracking-normal text-white">
-                          {challenge.label}
-                        </h3>
-                        <span className="inline-flex min-h-6 shrink-0 items-center justify-center rounded-full border border-amber-100/24 bg-amber-300/10 px-2.5 text-[8px] font-black uppercase tracking-[0.1em] text-amber-100">
-                          {challenge.reward}
-                        </span>
-                      </div>
-                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-900/90">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-amber-200 via-cyan-200 to-emerald-200 shadow-[0_0_16px_rgba(251,191,36,0.26),0_0_18px_rgba(34,211,238,0.18)]"
-                          style={{ width: `${challenge.progress}%` }}
-                        />
-                      </div>
-                      <div className="mt-1 flex items-center justify-between gap-2 text-[8px] font-black uppercase tracking-[0.12em] text-slate-500">
-                        <span>Progress</span>
-                        <span className="text-cyan-100">{challenge.progress}%</span>
-                      </div>
+                    <div className="mt-1 h-1 overflow-hidden rounded-full bg-slate-900/90 min-[560px]:h-1.5 min-[900px]:mt-auto">
+                      <div
+                        className="h-full rounded-full transition-[width] duration-500"
+                        style={{
+                          background: activeDashboardChallengeCategory.color,
+                          boxShadow: `0 0 12px ${activeDashboardChallengeCategory.color}`,
+                          width: `${challenge.progress}%`,
+                        }}
+                      />
                     </div>
+                    <div className="mt-0.5 flex items-center justify-between gap-2 text-[6px] font-black uppercase tracking-[0.08em] text-slate-500 min-[560px]:text-[7px]">
+                      <span>Progress</span>
+                      <span style={{ color: activeDashboardChallengeCategory.color }}>
+                        {challenge.progress}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <aside className="relative col-span-2 min-w-0 overflow-hidden border-y border-cyan-100/14 bg-slate-950/24 px-1 py-2">
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(34,211,238,0.08),transparent_38%,rgba(251,191,36,0.07))]" />
+            <div className="relative z-10 grid min-w-0 grid-cols-4 divide-x divide-white/10 text-center">
+              {[
+                {
+                  label: "Avg progress",
+                  value: `${dashboardChallengeAverageProgress}%`,
+                  color: activeDashboardChallengeCategory.color,
+                },
+                {
+                  label: "Category",
+                  value: activeDashboardChallengeCategory.label,
+                  color: activeDashboardChallengeCategory.color,
+                },
+                {
+                  label: "Active",
+                  value: dashboardTrainingConstellationChallenges.length,
+                  color: "rgb(165, 243, 252)",
+                },
+                { label: "Status", value: "Moving", color: "rgb(167, 243, 208)" },
+              ].map((item) => (
+                <div className="min-w-0 px-1" key={item.label}>
+                  <div
+                    className="truncate text-[9px] font-black uppercase leading-none min-[560px]:text-sm"
+                    style={{ color: item.color }}
+                  >
+                    {item.value}
+                  </div>
+                  <div className="mt-1 truncate text-[6px] font-black uppercase tracking-[0.08em] text-slate-500 min-[560px]:text-[7px]">
+                    {item.label}
                   </div>
                 </div>
               ))}
             </div>
-
-            <aside className="relative overflow-hidden rounded-[22px] border border-cyan-100/16 bg-slate-950/42 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.16),transparent_44%),radial-gradient(circle_at_50%_100%,rgba(251,191,36,0.13),transparent_42%)]" />
-              <div className="relative z-10">
-                <div className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100/68">
-                  Current Push
-                </div>
-                <div className="mt-2 text-3xl font-black leading-none text-white">
-                  48%
-                </div>
-                <div className="mt-1 text-[10px] font-bold leading-snug text-slate-400">
-                  Average challenge progress across the active reward track.
-                </div>
-                <div className="mt-4 grid gap-2 text-[9px] font-black uppercase tracking-[0.12em]">
-                  <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2 text-slate-400">
-                    <span>Sound points</span>
-                    <span className="text-amber-100">+200 SP</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2 text-slate-400">
-                    <span>Badge</span>
-                    <span className="text-cyan-100">Plan</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2 text-slate-400">
-                    <span>Status</span>
-                    <span className="text-emerald-100">Moving</span>
-                  </div>
-                </div>
-              </div>
-            </aside>
-          </div>
+          </aside>
         </div>
-
-        <Link
-          className="relative z-10 mt-3 inline-flex min-h-10 w-full items-center justify-center rounded-[16px] border border-amber-100/34 bg-amber-300/12 px-5 text-xs font-black uppercase tracking-[0.16em] text-amber-50 shadow-[0_18px_36px_rgba(0,0,0,0.26),0_0_28px_rgba(251,191,36,0.12),inset_0_1px_0_rgba(255,255,255,0.1)] transition hover:-translate-y-0.5 hover:border-amber-100/60 hover:bg-amber-300/18 active:scale-[0.99]"
-          href={ROUTES.dashboard.progress}
-        >
-          OPEN REWARD TRACK
-        </Link>
       </div>
     );
 
@@ -35256,15 +37736,181 @@ export default function UserHomeDashboardPage() {
       <div
         aria-label="Dashboard hero horizontal orbit"
         data-dashboard-orbiter-row="0"
-        className="dashboard-hero-horizontal-orbit relative z-10 mx-auto w-full max-w-[1180px] shrink-0 overflow-visible"
-        style={{
-          height: "clamp(560px, calc(100dvh - 10rem), 880px)",
-        }}
+        className="dashboard-hero-horizontal-orbit relative z-10 mx-auto h-full min-h-0 w-full max-w-[1180px] overflow-visible"
       >
         <div className="sr-only">
           Hero card orbit. Current card:{" "}
           {dashboardHeroPanels[activeDashboardHeroCardIndex]?.label ||
             dashboardHeroPanels[0].label}
+        </div>
+        <div
+          aria-label="Choose dashboard hero card"
+          className="pointer-events-none absolute right-3 top-1.5 z-[80] flex h-7 items-center min-[760px]:right-4 min-[760px]:top-2 min-[760px]:h-9"
+          data-dashboard-orbiter-local-scroll="true"
+          onPointerEnter={() => setDashboardContentFocused(true)}
+          onPointerMove={(event) => {
+            event.stopPropagation();
+            setDashboardContentFocused(true);
+          }}
+          role="tablist"
+        >
+          <div
+            className="pointer-events-auto"
+            onClickCapture={(event) => {
+              const target = event.target;
+              const indicator =
+                target instanceof Element
+                  ? target.closest<HTMLElement>(
+                      "[data-dashboard-hero-indicator-index]",
+                    )
+                  : null;
+              const indicatorIndex = Number(
+                indicator?.dataset.dashboardHeroIndicatorIndex,
+              );
+
+              if (!Number.isInteger(indicatorIndex)) return;
+              event.stopPropagation();
+              setDashboardContentFocused(true);
+              selectDashboardHeroCard(indicatorIndex);
+            }}
+            onPointerDownCapture={(event) => {
+              const target = event.target;
+              const indicator =
+                target instanceof Element
+                  ? target.closest<HTMLElement>(
+                      "[data-dashboard-hero-indicator-index]",
+                    )
+                  : null;
+              const indicatorIndex = Number(
+                indicator?.dataset.dashboardHeroIndicatorIndex,
+              );
+
+              if (!Number.isInteger(indicatorIndex)) return;
+              event.stopPropagation();
+              setDashboardContentFocused(true);
+              selectDashboardHeroCard(indicatorIndex);
+            }}
+          >
+            <div className="hidden h-9 items-center gap-1 min-[760px]:flex">
+              {dashboardHeroPanels.map((panel, panelIndex) => {
+                const isActive = activeDashboardHeroCardIndex === panelIndex;
+                const IndicatorIcon = panel.indicatorIcon;
+                return (
+                  <button
+                    aria-label={`Show ${panel.label}`}
+                    aria-selected={isActive}
+                    className={`group relative grid h-9 w-9 place-items-center rounded-[11px] border outline-none transition-[background-color,border-color,opacity,transform] duration-300 [touch-action:manipulation] hover:scale-105 focus-visible:ring-2 focus-visible:ring-cyan-100/70 ${
+                      isActive
+                        ? "border-white/18 bg-slate-950/48 opacity-100"
+                        : "border-transparent bg-slate-950/16 opacity-70 hover:border-white/14 hover:bg-slate-950/42 hover:opacity-100"
+                    }`}
+                    data-dashboard-hero-indicator-index={panelIndex}
+                    data-dashboard-tooltip={panel.label}
+                    key={`dashboard-hero-indicator-${panel.id}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      selectDashboardHeroCard(panelIndex);
+                    }}
+                    onPointerDown={(event) => {
+                      event.stopPropagation();
+                      setDashboardContentFocused(true);
+                      selectDashboardHeroCard(panelIndex);
+                    }}
+                    role="tab"
+                    style={{ color: panel.indicatorColor }}
+                    type="button"
+                  >
+                    <IndicatorIcon
+                      aria-hidden="true"
+                      className="h-[19px] w-[19px]"
+                      style={{
+                        filter: `drop-shadow(0 0 ${isActive ? "5px" : "3px"} ${panel.indicatorGlow})`,
+                      }}
+                    />
+                    <span
+                      aria-hidden="true"
+                      className={`absolute bottom-0.5 h-px rounded-full transition-[width,opacity,box-shadow] duration-300 ${
+                        isActive ? "w-5 opacity-100" : "w-0 opacity-0"
+                      }`}
+                      style={{
+                        backgroundColor: panel.indicatorColor,
+                        boxShadow: `0 0 5px ${panel.indicatorGlow}, 0 0 9px ${panel.indicatorGlow}`,
+                      }}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+            <div
+              className="relative h-8 w-[5.5rem] [transform-style:preserve-3d] min-[760px]:hidden"
+              style={{ perspective: "300px" }}
+            >
+              {dashboardHeroPanels.map((panel, panelIndex) => {
+                const heroPanelCount = dashboardHeroPanels.length;
+                let orbitOffset =
+                  (panelIndex - activeDashboardHeroCardIndex + heroPanelCount) %
+                  heroPanelCount;
+                if (orbitOffset > heroPanelCount / 2) {
+                  orbitOffset -= heroPanelCount;
+                }
+                const isActive = orbitOffset === 0;
+                const isSidePreview = Math.abs(orbitOffset) === 1;
+                const IndicatorIcon = panel.indicatorIcon;
+                const orbitTransform = isActive
+                  ? "translate3d(-50%, -50%, 10px)"
+                  : isSidePreview
+                    ? `translate3d(calc(-50% + ${orbitOffset * 27}px), -50%, -22px) rotateY(${orbitOffset * -36}deg) scale(0.88)`
+                    : `translate3d(calc(-50% + ${Math.sign(orbitOffset) * 40}px), -50%, -46px) scale(0.5)`;
+                return (
+                  <button
+                    aria-label={`Show ${panel.label}`}
+                    aria-selected={isActive}
+                    className={`group absolute left-1/2 top-1/2 grid h-7 w-7 place-items-center rounded-[9px] border outline-none transition-[transform,opacity,background-color,border-color] duration-300 [touch-action:manipulation] focus-visible:ring-2 focus-visible:ring-cyan-100/70 ${
+                      isActive
+                        ? "z-30 border-white/18 bg-slate-950/48 opacity-100"
+                        : isSidePreview
+                          ? "z-20 border-transparent bg-slate-950/16 opacity-70"
+                          : "pointer-events-none z-10 border-transparent bg-slate-950/16 opacity-0"
+                    }`}
+                    data-dashboard-hero-indicator-index={panelIndex}
+                    data-dashboard-tooltip={panel.label}
+                    key={`dashboard-hero-orbit-indicator-${panel.id}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      selectDashboardHeroCard(panelIndex);
+                    }}
+                    onPointerDown={(event) => {
+                      event.stopPropagation();
+                      setDashboardContentFocused(true);
+                      selectDashboardHeroCard(panelIndex);
+                    }}
+                    role="tab"
+                    style={{ color: panel.indicatorColor, transform: orbitTransform }}
+                    tabIndex={isActive || isSidePreview ? 0 : -1}
+                    type="button"
+                  >
+                    <IndicatorIcon
+                      aria-hidden="true"
+                      className="h-4 w-4"
+                      style={{
+                        filter: `drop-shadow(0 0 ${isActive ? "5px" : "3px"} ${panel.indicatorGlow})`,
+                      }}
+                    />
+                    <span
+                      aria-hidden="true"
+                      className={`absolute bottom-0.5 h-px rounded-full transition-[width,opacity,box-shadow] duration-300 ${
+                        isActive ? "w-4 opacity-100" : "w-0 opacity-0"
+                      }`}
+                      style={{
+                        backgroundColor: panel.indicatorColor,
+                        boxShadow: `0 0 5px ${panel.indicatorGlow}, 0 0 9px ${panel.indicatorGlow}`,
+                      }}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
         <div
           aria-label="Dashboard hero card orbit selector"
@@ -35345,11 +37991,7 @@ export default function UserHomeDashboardPage() {
                 aria-hidden={!isActivePanel}
                 aria-label={panel.label}
                 className={`absolute inset-0 flex min-w-full shrink-0 ${
-                  panel.id === "body" ||
-                  panel.id === "challenges" ||
-                  panel.id === "constellation"
-                    ? "items-stretch"
-                    : "items-start"
+                  panel.id === "command" ? "items-start" : "items-stretch"
                 } ${
                   panel.id === "command" ? "justify-start" : "justify-center"
                 } [transform-style:preserve-3d]`}
@@ -35366,7 +38008,11 @@ export default function UserHomeDashboardPage() {
                   zIndex: isActivePanel ? 30 : 12 - absDistance,
                 }}
               >
-                {panel.id === "command" ? (
+                {/* Inactive orbit cards sit at opacity 0 + visibility hidden, so
+                    their subtrees are never seen but still cost React a full
+                    reconcile on every dashboard state change. Mount only the
+                    active card. */}
+                {!isActivePanel ? null : panel.id === "command" ? (
                   <div
                     aria-label="Dashboard hero row"
                     className="relative z-10 w-[min(360px,calc(100vw-1.5rem))] max-w-full overflow-visible"
@@ -35430,29 +38076,6 @@ export default function UserHomeDashboardPage() {
                               Welcome back,{" "}
                               <span className="text-sky-400">{firstName}</span>
                             </h1>
-
-                            <div className="mt-3 flex min-w-0 items-center justify-between gap-3 pr-10">
-                              <div className="flex min-w-0 items-center gap-2.5">
-                                <Image
-                                  alt=""
-                                  className="h-8 w-8 shrink-0 rounded-full border border-cyan-100/28 bg-slate-950 object-contain p-1 shadow-[0_0_18px_rgba(34,211,238,0.16)]"
-                                  height={32}
-                                  src="/sound-fitness-logo.png"
-                                  width={32}
-                                />
-                                <div className="min-w-0">
-                                  <div className="truncate text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
-                                    Active Profile
-                                  </div>
-                                  <div className="mt-0.5 truncate text-[10px] font-semibold text-slate-400">
-                                    {dashboardConsistencyStage} stage
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="shrink-0 rounded-full border border-amber-300/25 bg-amber-300/10 px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-amber-100">
-                                {dashboardProfileHubCompletion}% ready
-                              </div>
-                            </div>
 
                             <aside
                               aria-label="Current dashboard status"
@@ -35730,8 +38353,12 @@ export default function UserHomeDashboardPage() {
                       </div>
                     </div>
                   </div>
-                ) : panel.id === "meters" ? (
-                  renderDashboardHeroAchievementOrbit()
+                ) : panel.id === "needle" ||
+                  panel.id === "achievements" ||
+                  panel.id === "favorites" ? (
+                  renderDashboardHeroUtilityPanel(panel.id)
+                ) : panel.id === "widgets" ? (
+                  renderDashboardHeroWidgetsPanel()
                 ) : panel.id === "body" ? (
                   renderDashboardBodyCommandPanel()
                 ) : panel.id === "challenges" ? (
@@ -35753,8 +38380,8 @@ export default function UserHomeDashboardPage() {
     footer,
     kicker,
     title,
-    compact = false,
-    urgencyMotionPaused = true,
+    compact,
+    urgencyMotionPaused,
     urgencyTone,
   }: {
     accentClassName: string;
@@ -35766,6 +38393,8 @@ export default function UserHomeDashboardPage() {
     urgencyMotionPaused?: boolean;
     urgencyTone?: ReturnType<typeof getDashboardRowUrgencyTone>;
   }) => {
+    const isCompactRowTitle = compact ?? false;
+    const isRowUrgencyMotionPaused = urgencyMotionPaused ?? true;
     const rowIndex = isAdminPreview
       ? dashboardOrbiterRows.findIndex((row) => row.title === title)
       : -1;
@@ -35846,7 +38475,7 @@ export default function UserHomeDashboardPage() {
                     : []
         : [];
 
-    if (compact) {
+    if (isCompactRowTitle) {
       return (
         <div className="sr-only">
           <h2>{title}</h2>
@@ -35878,7 +38507,7 @@ export default function UserHomeDashboardPage() {
               .toLowerCase()
               .replace(/\s+/g, "-")}
             data-dashboard-urgency-status={urgencyTone.status}
-            data-motion-paused={urgencyMotionPaused ? "true" : "false"}
+            data-motion-paused={isRowUrgencyMotionPaused ? "true" : "false"}
           >
             <span
               aria-hidden="true"
@@ -44074,6 +46703,10 @@ export default function UserHomeDashboardPage() {
       <DashboardWebGlPreloader />
       <main
         className={`h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#020713] text-white ${
+          dashboardHeaderMotionPaused
+            ? "dashboard-page--content-focus"
+            : "dashboard-page--header-focus"
+        } ${
           dashboardHeaderTimedOut ? "dashboard-page--idle-menu-open" : ""
         } ${
           dashboardHeaderMeterMenuOpen ? "dashboard-page--meter-menu-open" : ""
@@ -44692,11 +47325,17 @@ export default function UserHomeDashboardPage() {
             onWheel={handleDashboardOrbiterWheel}
             tabIndex={0}
           >
-            {renderDashboardOrbiterTopMenu()}
+            {/* This slot fixes the header's layout footprint at its idle
+                height (6.1rem, matching the content-focus shell rule). The
+                shell is absolutely positioned inside, so when the header opens
+                it grows over the content below instead of shrinking it. */}
+            <div className="relative z-[120] h-[6.1rem] w-full shrink-0">
+              {renderDashboardOrbiterTopMenu()}
+            </div>
             {renderDashboardFloatingSnapshotHeader()}
             {renderDashboardPageLevelMeter()}
             <div
-              className={`dashboard-page-orbit-shell pointer-events-none absolute left-[-2.85rem] top-1/2 z-[70] h-[394px] w-36 -translate-y-1/2 overflow-visible sm:left-[-2.65rem] lg:left-[-2.35rem] ${
+              className={`dashboard-page-orbit-shell pointer-events-none absolute bottom-20 left-0 top-[7rem] z-[70] w-16 overflow-visible max-[430px]:-left-1 max-[430px]:w-8 ${
                 isAdminPreview ? "dashboard-page-orbiter--admin" : ""
               } ${
                 dashboardPageAnalogActiveDirection ||
@@ -44706,10 +47345,6 @@ export default function UserHomeDashboardPage() {
               }`}
               style={
                 {
-                  top:
-                    isAdminPreview && adminJourneyOrbitLayout === "compact"
-                      ? "64%"
-                      : undefined,
                   "--dashboard-page-orbit-progress": dashboardPageOrbitProgress,
                   "--dashboard-page-orbit-fill":
                     0.08 + dashboardPageOrbitProgress * 0.92,
@@ -44719,76 +47354,44 @@ export default function UserHomeDashboardPage() {
                 } as CSSProperties
               }
             >
-              {clampedDashboardOrbiterRow === 0 ? null : (
-                <>
-                  <span
-                    aria-hidden="true"
-                    className="dashboard-page-orbit-rail pointer-events-none absolute"
-                  />
-                  <span
-                    aria-hidden="true"
-                    className="dashboard-page-orbit-glow pointer-events-none absolute"
-                  />
-                  <div
-                    aria-label="Dashboard row orbit selector"
-                    className="absolute inset-0 [transform-style:preserve-3d]"
-                  >
-                    {dashboardOrbiterRows.map((row, index) => {
-                      const distance = index - clampedDashboardOrbiterRow;
-                      const rawAbsDistance = Math.abs(distance);
-                      const compactAdminOrbit =
-                        isAdminPreview && adminJourneyOrbitLayout === "compact";
-                      const clampedDistance = Math.max(
-                        -2,
-                        Math.min(2, distance),
-                      );
-                      const absDistance = Math.abs(clampedDistance);
-                      const isActive = distance === 0;
-                      const urgencyTone = getDashboardRowUrgencyTone(
-                        row.completion,
-                      );
-                      const arcAngle = clampedDistance * 42;
-                      const arcAngleRadians = (arcAngle * Math.PI) / 180;
-                      const xOffset = Math.cos(arcAngleRadians) * 54;
-                      const yOffset = Math.sin(arcAngleRadians) * 132;
-                      const scale =
-                        absDistance === 0 ? 1 : absDistance === 1 ? 0.78 : 0.58;
-                      const opacity =
-                        rawAbsDistance > 2
-                          ? 0
-                          : absDistance === 0
-                            ? 1
-                            : absDistance === 1
-                              ? 0.68
-                              : 0.34;
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute bottom-0 left-1/2 top-0 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-cyan-300/35 to-transparent shadow-[0_0_12px_rgba(34,211,238,0.24)]"
+              />
+              <div
+                aria-label="Dashboard row navigation rail"
+                className="absolute inset-0"
+              >
+                {dashboardOrbiterRows.map((row, index) => {
+                  const isActive = index === clampedDashboardOrbiterRow;
+                  if (isActive) return null;
 
-                      if (
-                        isActive ||
-                        (compactAdminOrbit && rawAbsDistance > 1)
-                      ) {
-                        return null;
-                      }
+                  const previewCount = Math.max(
+                    1,
+                    dashboardOrbiterRows.length - 1,
+                  );
+                  const previewIndex =
+                    index < clampedDashboardOrbiterRow ? index : index - 1;
+                  const previewProgress =
+                    previewCount <= 1
+                      ? 0.5
+                      : previewIndex / (previewCount - 1);
+                  const previewTop = 6 + previewProgress * 88;
+                  const urgencyTone = getDashboardRowUrgencyTone(
+                    row.completion,
+                  );
 
-                      return (
-                        <button
-                          aria-label={`Show ${row.title} row`}
-                          aria-pressed={isActive}
-                          className="dashboard-page-orbit-node dashboard-page-orbit-node--ghost pointer-events-auto absolute left-1/2 top-1/2 grid h-12 w-12 origin-center place-items-center overflow-visible border-0 bg-transparent p-0 text-left text-slate-300 shadow-none outline-none transition-[color,filter] duration-300 hover:text-cyan-100 focus-visible:ring-2 focus-visible:ring-cyan-100/45"
-                          data-dashboard-orbit-distance={rawAbsDistance}
-                          data-dashboard-tooltip={row.helper}
-                          key={row.title}
-                          onClick={() => setDashboardOrbiterRow(index)}
-                          style={{
-                            opacity,
-                            pointerEvents:
-                              rawAbsDistance > 2 ? "none" : "auto",
-                            transform: `translate(-50%, -50%) translateX(${xOffset + (compactAdminOrbit ? -44 : 0)}px) translateY(${yOffset}px) scale(${scale})`,
-                            transition:
-                              "transform 240ms ease, opacity 160ms ease, border-color 160ms ease, background-color 160ms ease",
-                            zIndex: 40 - absDistance,
-                          }}
-                          type="button"
-                        >
+                  return (
+                    <button
+                      aria-label={`Show ${row.title} row`}
+                      aria-pressed="false"
+                      className="dashboard-page-orbit-node dashboard-page-orbit-node--ghost pointer-events-auto absolute left-1/2 grid h-11 w-11 origin-center -translate-x-1/2 -translate-y-1/2 place-items-center overflow-visible rounded-full border border-cyan-100/10 bg-slate-950/24 p-0 text-left text-slate-400 shadow-[0_8px_20px_rgba(0,0,0,0.24)] outline-none backdrop-blur-sm transition duration-200 hover:scale-110 hover:border-cyan-200/40 hover:bg-cyan-300/10 hover:text-cyan-100 focus-visible:ring-2 focus-visible:ring-cyan-100/55"
+                      data-dashboard-tooltip={row.helper}
+                      key={row.title}
+                      onClick={() => setDashboardOrbiterRow(index)}
+                      style={{ top: `${previewTop}%` }}
+                      type="button"
+                    >
                           <span
                             aria-hidden="true"
                             className="pointer-events-none absolute -inset-2 hidden rounded-[inherit] bg-[radial-gradient(circle_at_50%_50%,rgba(34,211,238,0.18),transparent_60%),linear-gradient(90deg,transparent,rgba(250,204,21,0.12),transparent)] opacity-40"
@@ -44814,22 +47417,23 @@ export default function UserHomeDashboardPage() {
                             )}
                             <span
                               aria-hidden="true"
-                              className={`absolute -bottom-1 left-1/2 grid h-4 w-4 -translate-x-1/2 place-items-center rounded-full text-[7px] font-black leading-none text-slate-950 ${urgencyTone.dot} opacity-70`}
-                            >
-                              {urgencyTone.icon}
-                            </span>
+                              className={`absolute -bottom-0.5 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full ring-1 ring-slate-950/80 ${urgencyTone.dot} opacity-90 shadow-[0_0_8px_currentColor]`}
+                            />
                           </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-              <div className="dashboard-page-analog-anchor pointer-events-none absolute left-[4.35rem] top-1/2 z-[76] grid h-[22.8rem] w-[4.75rem] -translate-x-1/2 -translate-y-1/2 place-items-center">
-                {renderDashboardPageAnalog()}
+                    </button>
+                  );
+                })}
               </div>
+              <DashboardAccessibilityNavigator>
+                {renderDashboardPageAnalog()}
+              </DashboardAccessibilityNavigator>
             </div>
-            <div className="relative z-10 mt-0 min-h-0 flex-1 overflow-hidden">
+            <div
+              className="relative z-10 mt-0 min-h-0 flex-1 overflow-hidden"
+              onPointerEnter={() => setDashboardContentFocused(true)}
+              onPointerDown={() => setDashboardContentFocused(true)}
+              onPointerMove={() => setDashboardContentFocused(true)}
+            >
               <div
                 className="grid min-w-0 grid-cols-[minmax(0,1fr)] transition-transform duration-[430ms] ease-[cubic-bezier(0.2,0.85,0.25,1)]"
                 style={{
@@ -44842,7 +47446,7 @@ export default function UserHomeDashboardPage() {
                 }}
               >
                 <div
-                  className={`flex min-h-0 items-start justify-center pl-36 pr-6 pt-0 transition-opacity duration-300 sm:pl-40 sm:pr-10 lg:pl-44 lg:pr-12 ${
+                  className={`flex min-h-0 items-start justify-center pl-16 pr-6 pt-0 transition-opacity duration-300 max-[430px]:pl-8 max-[430px]:pr-2 sm:pl-20 sm:pr-10 lg:pl-24 lg:pr-12 ${
                     clampedDashboardOrbiterRow === 0
                       ? "pointer-events-auto opacity-100"
                       : "pointer-events-none opacity-40"
@@ -44850,7 +47454,7 @@ export default function UserHomeDashboardPage() {
                 >
                   <div
                     data-dashboard-orbiter-local-scroll="true"
-                    className="flex h-full w-full max-w-[1180px] flex-col items-center overflow-x-hidden overflow-y-auto overscroll-contain pb-3 pr-1 pt-4 [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
+                    className="flex h-full min-h-0 w-full max-w-[1180px] flex-col items-center overflow-hidden pb-3 pr-1 pt-4 [touch-action:pan-y]"
                   >
                     {renderDashboardHeroRow()}
                   </div>
@@ -44930,7 +47534,7 @@ export default function UserHomeDashboardPage() {
       {renderDashboardTrophyMenuOverlay()}
       {dashboardTooltip ? (
         <div
-          className={`dashboard-hover-tooltip dashboard-hover-tooltip--${dashboardTooltip.placement}`}
+          className={`dashboard-hover-tooltip dashboard-hover-tooltip--${dashboardTooltip.placement} dashboard-hover-tooltip--${dashboardTooltip.horizontalPlacement}`}
           style={
             {
               "--dashboard-tooltip-x": `${dashboardTooltip.x}px`,

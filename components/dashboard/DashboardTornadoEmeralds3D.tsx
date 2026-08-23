@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   BufferGeometry,
   Group,
@@ -13,6 +13,11 @@ import {
   setDashboardWebGlCanvasActive,
   waitForDashboardWebGlStart,
 } from "./dashboardWebGlRenderer";
+import DashboardWebGlWidget from "./DashboardWebGlWidget";
+import type {
+  DashboardWidgetBuilder,
+  DashboardWidgetInstance,
+} from "./dashboardWebGlStage";
 
 type ThreeModule = typeof import("three");
 export type DashboardTornadoGemTone = "green" | "red" | "yellow" | "blue";
@@ -361,63 +366,22 @@ export default function DashboardTornadoEmeralds3D({
   paused?: boolean;
   tone?: DashboardTornadoGemTone;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pausedRef = useRef(paused);
   const toneRef = useRef(tone);
-  const [contextResetToken, setContextResetToken] = useState(0);
 
   useEffect(() => {
     pausedRef.current = paused;
     toneRef.current = tone;
   }, [paused, tone]);
 
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup = () => {};
-    let contextRestartId = 0;
-
-    const startScene = async () => {
-      await waitForDashboardWebGlStart();
-      if (cancelled || !canvasRef.current) return;
-
-      const THREE = await loadDashboardThree();
-      if (cancelled || !canvasRef.current) return;
-
-      const canvas = canvasRef.current;
-      const handleContextLost = (event: Event) => {
-        event.preventDefault();
-        cleanup();
-        if (contextRestartId !== 0) {
-          window.clearTimeout(contextRestartId);
-        }
-        contextRestartId = window.setTimeout(() => {
-          setContextResetToken((token) => token + 1);
-        }, WEBGL_CONTEXT_RESTART_DELAY_MS);
-      };
-      canvas.addEventListener("webglcontextlost", handleContextLost);
-
+  const build = useMemo<DashboardWidgetBuilder>(() => {
+    return ({ THREE }): DashboardWidgetInstance => {
       let currentTone = toneRef.current;
       let palette = gemTonePalettes[currentTone] || gemTonePalettes.green;
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 22);
       camera.position.set(0, 0.08, 5.05);
       camera.lookAt(0, 0.02, 0);
-
-      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
-        alpha: true,
-        antialias: true,
-        powerPreference: "high-performance",
-        premultipliedAlpha: false,
-        preserveDrawingBuffer: false,
-      });
-      if (!renderer) {
-        canvas.removeEventListener("webglcontextlost", handleContextLost);
-        return;
-      }
-      renderer.setClearColor(0x000000, 0);
-      renderer.setClearAlpha(0);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.25));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
 
       const ambientLight = new THREE.AmbientLight(new THREE.Color(palette.ambient), 1.25);
       scene.add(ambientLight);
@@ -674,21 +638,45 @@ export default function DashboardTornadoEmeralds3D({
       tornadoGroup.add(mistParticles, sparkParticles);
       disposables.push(mistGeometry, mistMaterial, sparkGeometry, sparkMaterial);
 
-      const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const width = Math.max(1, Math.floor(rect.width));
-        const height = Math.max(1, Math.floor(rect.height));
-        renderer.setSize(width, height, false);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      };
+      // Baked glow halo. On its old dedicated canvas this scene had an outer
+      // cyan glow from a CSS drop-shadow filter; per-canvas CSS filters don't
+      // apply on the shared stage, so approximate it with an additive,
+      // camera-facing glow sprite behind the tornado.
+      const glowCanvas = document.createElement("canvas");
+      glowCanvas.width = 128;
+      glowCanvas.height = 128;
+      const glowContext = glowCanvas.getContext("2d");
+      if (glowContext) {
+        const glowGradient = glowContext.createRadialGradient(
+          64,
+          64,
+          0,
+          64,
+          64,
+          64,
+        );
+        glowGradient.addColorStop(0, "rgba(125, 211, 252, 0.5)");
+        glowGradient.addColorStop(0.42, "rgba(125, 211, 252, 0.16)");
+        glowGradient.addColorStop(1, "rgba(125, 211, 252, 0)");
+        glowContext.fillStyle = glowGradient;
+        glowContext.fillRect(0, 0, 128, 128);
+      }
+      const glowTexture = new THREE.CanvasTexture(glowCanvas);
+      const glowMaterial = new THREE.SpriteMaterial({
+        blending: THREE.AdditiveBlending,
+        depthTest: false,
+        depthWrite: false,
+        map: glowTexture,
+        opacity: 0.9,
+        transparent: true,
+      });
+      const glowSprite = new THREE.Sprite(glowMaterial);
+      glowSprite.scale.set(4.4, 4.8, 1);
+      glowSprite.position.set(0, 0.42, -0.6);
+      glowSprite.renderOrder = -10;
+      scene.add(glowSprite);
+      disposables.push(glowMaterial);
 
-      const observer = new ResizeObserver(resize);
-      observer.observe(canvas);
-      resize();
-
-      let frameId = 0;
-      let previousFrameTime = performance.now();
       let elapsedSeconds = 0;
 
       const updateParticlePositions = (
@@ -718,17 +706,13 @@ export default function DashboardTornadoEmeralds3D({
         positionAttribute.needsUpdate = true;
       };
 
-      const render = (time: number) => {
+      const update = (_elapsedSeconds: number, deltaSeconds: number) => {
         const nextTone = toneRef.current;
         if (nextTone !== currentTone) {
           applyTone(nextTone);
         }
 
-        const frameDeltaSeconds = Math.min(
-          0.05,
-          Math.max(0, (time - previousFrameTime) / 1000),
-        );
-        previousFrameTime = time;
+        const frameDeltaSeconds = Math.min(0.05, Math.max(0, deltaSeconds));
         if (!pausedRef.current) {
           elapsedSeconds += frameDeltaSeconds;
         }
@@ -802,56 +786,27 @@ export default function DashboardTornadoEmeralds3D({
           });
         });
 
-        renderer.render(scene, camera);
-        frameId = window.requestAnimationFrame(render);
       };
 
-      frameId = window.requestAnimationFrame(render);
-
-      cleanup = () => {
-        if (frameId !== 0) {
-          window.cancelAnimationFrame(frameId);
-        }
-        canvas.removeEventListener("webglcontextlost", handleContextLost);
-        if (contextRestartId !== 0) {
-          window.clearTimeout(contextRestartId);
-          contextRestartId = 0;
-        }
-        observer.disconnect();
+      const dispose = () => {
         disposeEmeraldMeshes(emeralds);
         if (geometry) geometry.dispose();
+        glowTexture.dispose();
         disposables.forEach((disposable) => disposable.dispose());
-        renderer.dispose();
       };
-    };
 
-    startScene();
-
-    return () => {
-      cancelled = true;
-      cleanup();
+      return { scene, camera, update, dispose };
     };
-  }, [contextResetToken]);
+  }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      aria-hidden="true"
+    <DashboardWebGlWidget
+      build={build}
       className="dashboard-header-meter-tornado__emeralds-3d"
-      data-emerald-count={emeraldOrbiters.length}
-      data-emerald-paused={paused ? "true" : "false"}
-      data-gem-tone={tone}
-      data-particle-count={TORNADO_MIST_PARTICLE_COUNT + TORNADO_SPARK_PARTICLE_COUNT}
-      data-tornado-renderer="webgl"
       style={{
         bottom: "auto",
-        filter:
-          "drop-shadow(0 0 0.44rem var(--dashboard-meter-tornado-gem-glow-soft)) drop-shadow(0 0 1rem var(--dashboard-meter-tornado-gem-glow)) drop-shadow(0 0 1.75rem rgba(125, 211, 252, 0.22))",
         height: "112%",
         left: "-6%",
-        mixBlendMode: "screen",
-        opacity: 1,
-        pointerEvents: "none",
         position: "absolute",
         right: "auto",
         top: "-6%",
@@ -887,8 +842,6 @@ export function DashboardGemStage3D({
   vaultOpen?: boolean;
   variant?: "reserves" | "trigger";
 }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [contextResetToken, setContextResetToken] = useState(0);
   const tonesKey = tones.join("|");
   const onProminentToneChangeRef = useRef(onProminentToneChange);
   const pausedRef = useRef(paused);
@@ -901,36 +854,15 @@ export function DashboardGemStage3D({
 
   useEffect(() => {
     pausedRef.current = paused;
-    setDashboardWebGlCanvasActive(
-      canvasRef.current,
-      !paused || vaultOpenRef.current,
-    );
   }, [paused]);
 
   useEffect(() => {
     vaultOpenRef.current = vaultOpen;
-    setDashboardWebGlCanvasActive(
-      canvasRef.current,
-      !pausedRef.current || vaultOpen,
-    );
   }, [vaultOpen]);
 
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup = () => {};
-    let contextRestartId = 0;
-
-    const startScene = async () => {
-      await waitForDashboardWebGlStart();
-      if (cancelled || !canvasRef.current) return;
-
-      const THREE = await loadDashboardThree();
-      if (cancelled || !canvasRef.current) return;
-
-      const canvas = canvasRef.current;
-      const stageTones = tonesKey
-        .split("|")
-        .filter(isDashboardGemTone);
+  const build = useMemo<DashboardWidgetBuilder>(() => {
+    return ({ THREE }): DashboardWidgetInstance => {
+      const stageTones = tonesKey.split("|").filter(isDashboardGemTone);
       const resolvedTones =
         stageTones.length > 0 ? stageTones : [...DEFAULT_SHARED_GEM_TONES];
       const scene = new THREE.Scene();
@@ -942,35 +874,6 @@ export function DashboardGemStage3D({
       );
       camera.position.set(0, variant === "reserves" ? -0.72 : 0.03, 6.34);
       camera.lookAt(0, variant === "reserves" ? -0.98 : 0, 0);
-
-      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
-        alpha: true,
-        antialias: true,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false,
-      });
-      if (!renderer) return;
-      setDashboardWebGlCanvasActive(
-        canvas,
-        !pausedRef.current || vaultOpenRef.current,
-      );
-      renderer.setClearColor(0x000000, 0);
-      renderer.setPixelRatio(
-        Math.min(window.devicePixelRatio || 1, variant === "reserves" ? 1.28 : 1.15),
-      );
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-      const handleContextLost = (event: Event) => {
-        event.preventDefault();
-        cleanup();
-        if (contextRestartId !== 0) {
-          window.clearTimeout(contextRestartId);
-        }
-        contextRestartId = window.setTimeout(() => {
-          setContextResetToken((token) => token + 1);
-        }, WEBGL_CONTEXT_RESTART_DELAY_MS);
-      };
-      canvas.addEventListener("webglcontextlost", handleContextLost);
 
       scene.add(new THREE.AmbientLight(0xffffff, variant === "reserves" ? 1.18 : 1.05));
       const keyLight = new THREE.DirectionalLight(0xffffff, variant === "reserves" ? 2.4 : 1.95);
@@ -2167,33 +2070,17 @@ export function DashboardGemStage3D({
         });
       });
 
-      const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const width = Math.max(1, Math.floor(rect.width));
-        const height = Math.max(1, Math.floor(rect.height));
-        renderer.setSize(width, height, false);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      };
-
-      const observer = new ResizeObserver(resize);
-      observer.observe(canvas);
-      resize();
-
-      let frameId = 0;
-      let previousFrameTime = 0;
       let vaultOpenAmount = vaultOpenRef.current ? 1 : 0;
       let vaultOpenRequestedAt = vaultOpenRef.current ? performance.now() : 0;
-      const startedAt = performance.now();
       let orbitElapsedSeconds = 0;
-      const render = (time: number) => {
-        const frameDeltaSeconds =
-          previousFrameTime === 0 ? 0 : Math.min(0.033, (time - previousFrameTime) / 1000);
-        previousFrameTime = time;
-        const seconds = (time - startedAt) / 1000;
+
+      const update = (elapsedSeconds: number, deltaSeconds: number) => {
+        const now = performance.now();
+        const frameDeltaSeconds = Math.min(0.033, deltaSeconds);
+        const seconds = elapsedSeconds;
         const wantsVaultOpen = variant === "reserves" && vaultOpenRef.current;
         if (wantsVaultOpen && vaultOpenRequestedAt === 0) {
-          vaultOpenRequestedAt = time;
+          vaultOpenRequestedAt = now;
         } else if (!wantsVaultOpen) {
           vaultOpenRequestedAt = 0;
         }
@@ -2203,7 +2090,7 @@ export function DashboardGemStage3D({
         const vaultOpeningAllowed =
           wantsVaultOpen &&
           vaultOpenRequestedAt !== 0 &&
-          (time - vaultOpenRequestedAt) / 1000 >= vaultOpenDelaySeconds;
+          (now - vaultOpenRequestedAt) / 1000 >= vaultOpenDelaySeconds;
         const targetVaultOpen = vaultOpeningAllowed ? 1 : 0;
         const vaultStep =
           frameDeltaSeconds /
@@ -2343,22 +2230,9 @@ export function DashboardGemStage3D({
           onProminentToneChangeRef.current?.(prominentTone);
         }
 
-        renderer.render(scene, camera);
-        frameId = window.requestAnimationFrame(render);
       };
 
-      frameId = window.requestAnimationFrame(render);
-
-      cleanup = () => {
-        if (frameId !== 0) {
-          window.cancelAnimationFrame(frameId);
-        }
-        canvas.removeEventListener("webglcontextlost", handleContextLost);
-        if (contextRestartId !== 0) {
-          window.clearTimeout(contextRestartId);
-          contextRestartId = 0;
-        }
-        observer.disconnect();
+      const dispose = () => {
         scene.traverse((object) => {
           const objectGeometry = (object as GeometryObject).geometry;
           if (objectGeometry && !Array.from(geometries.values()).includes(objectGeometry)) {
@@ -2375,26 +2249,16 @@ export function DashboardGemStage3D({
           }
         });
         geometries.forEach((geometry) => geometry.dispose());
-        renderer.dispose();
       };
-    };
 
-    startScene();
-
-    return () => {
-      cancelled = true;
-      cleanup();
+      return { scene, camera, update, dispose };
     };
-  }, [contextResetToken, tonesKey, variant]);
+  }, [tonesKey, variant]);
 
   return (
-    <canvas
-      aria-hidden="true"
+    <DashboardWebGlWidget
+      build={build}
       className={`dashboard-shared-gem-stage-3d ${className}`}
-      data-gem-stage-paused={paused ? "true" : "false"}
-      data-gem-stage-variant={variant}
-      data-vault-open={vaultOpen ? "true" : "false"}
-      ref={canvasRef}
     />
   );
 }

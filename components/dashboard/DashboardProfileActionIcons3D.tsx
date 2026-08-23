@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useMemo, useRef } from "react";
 import type { BufferGeometry, Material, Object3D } from "three";
-import {
-  createDashboardWebGlRenderer,
-  loadDashboardThree,
-  waitForDashboardWebGlStart,
-} from "./dashboardWebGlRenderer";
+import DashboardWebGlWidget from "./DashboardWebGlWidget";
+import type {
+  DashboardWidgetBuilder,
+  DashboardWidgetInstance,
+} from "./dashboardWebGlStage";
 
 type DashboardProfileIcon3DProps = {
   active?: boolean;
@@ -56,50 +56,19 @@ export default function DashboardProfileIcon3D({
   paused = false,
 }: DashboardProfileIcon3DProps) {
   const activeRef = useRef(active);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  activeRef.current = active;
   const pausedRef = useRef(paused);
+  pausedRef.current = paused;
   const progressRef = useRef(levelProgress);
+  progressRef.current = levelProgress;
 
-  useEffect(() => {
-    activeRef.current = active;
-  }, [active]);
-
-  useEffect(() => {
-    pausedRef.current = paused;
-  }, [paused]);
-
-  useEffect(() => {
-    progressRef.current = levelProgress;
-  }, [levelProgress]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup = () => {};
-
-    const startScene = async () => {
-      await waitForDashboardWebGlStart();
-      if (cancelled || !canvasRef.current) return;
-
-      const THREE = await loadDashboardThree();
-      if (cancelled || !canvasRef.current) return;
-
-      const canvas = canvasRef.current;
+  const build = useMemo<DashboardWidgetBuilder>(
+    () =>
+      ({ THREE }): DashboardWidgetInstance => {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 14);
       camera.position.set(0, 0.02, 4.6);
       camera.lookAt(0, 0, 0);
-
-      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
-        alpha: true,
-        antialias: true,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false,
-      });
-      if (!renderer) return;
-
-      renderer.setClearColor(0x000000, 0);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.65));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
 
       scene.add(new THREE.AmbientLight(new THREE.Color("#dff8ff"), 1.18));
 
@@ -209,27 +178,10 @@ export default function DashboardProfileIcon3D({
         return tick;
       });
 
-      const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const width = Math.max(1, Math.floor(rect.width));
-        const height = Math.max(1, Math.floor(rect.height));
-        renderer.setSize(width, height, false);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      };
-
-      const observer = new ResizeObserver(resize);
-      observer.observe(canvas);
-      resize();
-
-      let frameId = 0;
-      let lastFrameTime = 0;
       let charge = 0;
-      const renderFrame = (time: number) => {
-        const frameDelta =
-          lastFrameTime > 0 ? Math.min(48, time - lastFrameTime) : 16.67;
-        lastFrameTime = time;
-        const seconds = time / 1000;
+      const update = (elapsed: number, delta: number) => {
+        const frameDelta = delta * 1000;
+        const seconds = elapsed;
         const activeMotion = activeRef.current && !pausedRef.current;
         charge += ((activeMotion ? 1 : 0) - charge) * Math.min(1, frameDelta * 0.014);
         const progress = clampNumber(progressRef.current / 100, 0.08, 1);
@@ -255,40 +207,21 @@ export default function DashboardProfileIcon3D({
 
         cyanLight.intensity = 2.1 + charge * 1.8;
         goldLight.intensity = 0.85 + charge * 1.35;
-
-        renderer.render(scene, camera);
-        frameId = window.requestAnimationFrame(renderFrame);
       };
 
-      frameId = window.requestAnimationFrame(renderFrame);
-
-      cleanup = () => {
-        window.cancelAnimationFrame(frameId);
-        observer.disconnect();
-        disposeObject(scene);
-        renderer.forceContextLoss();
-        renderer.dispose();
+      return {
+        scene,
+        camera,
+        update,
+        dispose: () => {
+          disposeObject(scene);
+        },
       };
-    };
-
-    void startScene();
-
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, []);
-
-  return (
-    <canvas
-      aria-hidden="true"
-      className={className}
-      data-dashboard-profile-icon-renderer="three"
-      height={120}
-      ref={canvasRef}
-      width={120}
-    />
+      },
+    [],
   );
+
+  return <DashboardWebGlWidget build={build} className={className} />;
 }
 
 export function DashboardGearIcon3D({
@@ -298,50 +231,19 @@ export function DashboardGearIcon3D({
   spinSpeed = 1,
 }: DashboardGearIcon3DProps) {
   const activeRef = useRef(active);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  activeRef.current = active;
   const pausedRef = useRef(paused);
-  const spinSpeedRef = useRef(spinSpeed);
+  pausedRef.current = paused;
+  const spinSpeedRef = useRef(clampNumber(spinSpeed, 0, 2));
+  spinSpeedRef.current = clampNumber(spinSpeed, 0, 2);
 
-  useEffect(() => {
-    activeRef.current = active;
-  }, [active]);
-
-  useEffect(() => {
-    pausedRef.current = paused;
-  }, [paused]);
-
-  useEffect(() => {
-    spinSpeedRef.current = clampNumber(spinSpeed, 0, 2);
-  }, [spinSpeed]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup = () => {};
-
-    const startScene = async () => {
-      await waitForDashboardWebGlStart();
-      if (cancelled || !canvasRef.current) return;
-
-      const THREE = await loadDashboardThree();
-      if (cancelled || !canvasRef.current) return;
-
-      const canvas = canvasRef.current;
+  const build = useMemo<DashboardWidgetBuilder>(
+    () =>
+      ({ THREE }): DashboardWidgetInstance => {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 14);
       camera.position.set(0, 0.02, 4.4);
       camera.lookAt(0, 0, 0);
-
-      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
-        alpha: true,
-        antialias: true,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false,
-      });
-      if (!renderer) return;
-
-      renderer.setClearColor(0x000000, 0);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.7));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
 
       scene.add(new THREE.AmbientLight(new THREE.Color("#e0f2fe"), 1.05));
 
@@ -422,28 +324,11 @@ export function DashboardGearIcon3D({
       glow.position.z = -0.1;
       root.add(glow);
 
-      const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const width = Math.max(1, Math.floor(rect.width));
-        const height = Math.max(1, Math.floor(rect.height));
-        renderer.setSize(width, height, false);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      };
-
-      const observer = new ResizeObserver(resize);
-      observer.observe(canvas);
-      resize();
-
-      let frameId = 0;
-      let lastFrameTime = 0;
       let charge = 0;
       let spin = 0;
-      const renderFrame = (time: number) => {
-        const frameDelta =
-          lastFrameTime > 0 ? Math.min(48, time - lastFrameTime) : 16.67;
-        lastFrameTime = time;
-        const seconds = time / 1000;
+      const update = (elapsed: number, delta: number) => {
+        const frameDelta = delta * 1000;
+        const seconds = elapsed;
         const activeMotion = activeRef.current && !pausedRef.current;
         charge += ((activeMotion ? 1 : 0) - charge) * Math.min(1, frameDelta * 0.016);
         spin += frameDelta * (0.00022 + charge * 0.0034) * spinSpeedRef.current;
@@ -463,38 +348,19 @@ export function DashboardGearIcon3D({
 
         cyanLight.intensity = 1.8 + charge * 2.4;
         goldLight.intensity = 0.55 + charge * 1.6;
-
-        renderer.render(scene, camera);
-        frameId = window.requestAnimationFrame(renderFrame);
       };
 
-      frameId = window.requestAnimationFrame(renderFrame);
-
-      cleanup = () => {
-        window.cancelAnimationFrame(frameId);
-        observer.disconnect();
-        disposeObject(scene);
-        renderer.forceContextLoss();
-        renderer.dispose();
+      return {
+        scene,
+        camera,
+        update,
+        dispose: () => {
+          disposeObject(scene);
+        },
       };
-    };
-
-    void startScene();
-
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, []);
-
-  return (
-    <canvas
-      aria-hidden="true"
-      className={className}
-      data-dashboard-gear-icon-renderer="three"
-      height={96}
-      ref={canvasRef}
-      width={96}
-    />
+      },
+    [],
   );
+
+  return <DashboardWebGlWidget build={build} className={className} />;
 }

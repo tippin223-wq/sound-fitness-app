@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { BufferGeometry, Material, Object3D } from "three";
-import {
-  createDashboardWebGlRenderer,
-  loadDashboardThree,
-  waitForDashboardWebGlStart,
-} from "./dashboardWebGlRenderer";
+import DashboardWebGlWidget from "./DashboardWebGlWidget";
+import type {
+  DashboardWidgetBuilder,
+  DashboardWidgetInstance,
+} from "./dashboardWebGlStage";
 
 type ThreeModule = typeof import("three");
 
@@ -113,9 +113,6 @@ const TESLA_ORB_CROWN_ARC_COUNT = 7;
 const TESLA_ORB_CROWN_POINT_COUNT = 5;
 const STAGE_CHASE_STEP_SECONDS = 0.18;
 const STAGE_CHASE_PAUSE_SECONDS = 0.22;
-const TESLA_ACTIVE_FRAME_INTERVAL_MS = 1000 / 42;
-const TESLA_IDLE_FRAME_INTERVAL_MS = 1000 / 24;
-const TESLA_OPENING_RENDER_SECONDS = 6.6;
 const STAGE_CHASE_COLORS = [
   "#22d3ee",
   "#a78bfa",
@@ -1462,7 +1459,6 @@ export default function DashboardSoundPointsTeslaCoil3D({
   turbines,
   weeklyProgress = 0,
 }: DashboardSoundPointsTeslaCoil3DProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pausedRef = useRef(paused);
   const pointsRef = useRef(points);
   const turbinesRef = useRef(turbines);
@@ -1490,41 +1486,12 @@ export default function DashboardSoundPointsTeslaCoil3D({
     weeklyProgressRef.current = weeklyProgress;
   }, [weeklyProgress]);
 
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup = () => {};
-
-    const startScene = async () => {
-      await waitForDashboardWebGlStart();
-      if (cancelled || !canvasRef.current) return;
-
-      const THREE = await loadDashboardThree();
-      if (cancelled || !canvasRef.current) return;
-
-      const canvas = canvasRef.current;
+  const build = useMemo<DashboardWidgetBuilder>(() => {
+    return ({ THREE }): DashboardWidgetInstance => {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 30);
       camera.position.set(0, 0.04, 6.85);
       camera.lookAt(0, 0.02, 0);
-
-      const handleContextLost = (event: Event) => {
-        event.preventDefault();
-      };
-      canvas.addEventListener("webglcontextlost", handleContextLost, false);
-
-      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
-        alpha: true,
-        antialias: true,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false,
-      });
-      if (!renderer) {
-        canvas.removeEventListener("webglcontextlost", handleContextLost, false);
-        return;
-      }
-      renderer.setClearColor(0x000000, 0);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.05));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
 
       scene.add(new THREE.AmbientLight(new THREE.Color("#dff8ff"), 1.14));
 
@@ -1648,39 +1615,9 @@ export default function DashboardSoundPointsTeslaCoil3D({
       const orbCoreMaterial = coil.orbCore.material as DashboardIlluminatedMaterial;
       topOrbMaterial.emissive?.set("#38bdf8");
 
-      const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const width = Math.max(1, Math.floor(rect.width));
-        const height = Math.max(1, Math.floor(rect.height));
-        renderer.setSize(width, height, false);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      };
-
-      const observer = new ResizeObserver(resize);
-      observer.observe(canvas);
-      resize();
-
-      let frameId = 0;
-      const startedAt = performance.now();
-      let lastFrameTime = startedAt;
-      let lastRenderTime = startedAt - TESLA_ACTIVE_FRAME_INTERVAL_MS;
-
-      const renderFrame = (time: number) => {
-        frameId = window.requestAnimationFrame(renderFrame);
-        const seconds = (time - startedAt) / 1000;
-        const targetFrameInterval =
-          seconds < TESLA_OPENING_RENDER_SECONDS
-            ? TESLA_ACTIVE_FRAME_INTERVAL_MS
-            : TESLA_IDLE_FRAME_INTERVAL_MS;
-
-        if (time - lastRenderTime < targetFrameInterval) {
-          return;
-        }
-
-        const frameDelta = Math.min(0.05, (time - lastFrameTime) / 1000);
-        lastFrameTime = time;
-        lastRenderTime = time;
+      const update = (elapsedSeconds: number, deltaSeconds: number) => {
+        const seconds = elapsedSeconds;
+        const frameDelta = Math.min(0.05, deltaSeconds);
 
         if (!pausedRef.current) {
           const pointCharge = Math.min(1.4, Math.max(0.62, pointsRef.current / 1200));
@@ -1867,41 +1804,15 @@ export default function DashboardSoundPointsTeslaCoil3D({
           stageFloor.rotation.y = Math.sin(seconds * 0.42) * 0.012;
         }
 
-        renderer.render(scene, camera);
       };
 
-      frameId = window.requestAnimationFrame(renderFrame);
-
-      cleanup = () => {
-        if (frameId !== 0) {
-          window.cancelAnimationFrame(frameId);
-        }
-        canvas.removeEventListener(
-          "webglcontextlost",
-          handleContextLost,
-          false,
-        );
-        observer.disconnect();
+      const dispose = () => {
         disposeObject(scene);
-        renderer.forceContextLoss();
-        renderer.dispose();
       };
-    };
 
-    void startScene();
-
-    return () => {
-      cancelled = true;
-      cleanup();
+      return { scene, camera, update, dispose };
     };
   }, []);
 
-  return (
-    <canvas
-      aria-hidden="true"
-      className={className}
-      data-sound-points-tesla-renderer="three"
-      ref={canvasRef}
-    />
-  );
+  return <DashboardWebGlWidget build={build} className={className} />;
 }

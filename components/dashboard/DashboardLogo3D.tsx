@@ -1,15 +1,18 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef } from "react";
-import type { BufferGeometry, Material, Object3D, Texture } from "three";
-import {
-  createDashboardWebGlRenderer,
-  loadDashboardThree,
-  setDashboardWebGlCanvasActive,
-  waitForDashboardPriorityWebGlRetry,
-  waitForDashboardWebGlStart,
-} from "./dashboardWebGlRenderer";
+import { useMemo, useRef } from "react";
+import type {
+  BufferGeometry,
+  Material,
+  Object3D,
+  Texture,
+} from "three";
+import DashboardWebGlWidget from "./DashboardWebGlWidget";
+import type {
+  DashboardWidgetBuilder,
+  DashboardWidgetInstance,
+} from "./dashboardWebGlStage";
 
 type ThreeModule = typeof import("three");
 
@@ -26,7 +29,6 @@ const LOGO_REST_ROTATION = {
   y: -0.15,
   z: 0.025,
 } as const;
-const LOGO_WEBGL_MAX_START_ATTEMPTS = 8;
 
 const settleValue = (current: number, target: number, ease: number) => {
   const delta = target - current;
@@ -103,176 +105,81 @@ const createLogoGroup = (THREE: ThreeModule, texture: Texture) => {
 
 export default function DashboardLogo3D({
   className = "",
+  domOnly = false,
   heroActive = false,
   paused = false,
   sizeRem,
 }: {
   className?: string;
+  /** Skip the shared-canvas layer and render only the DOM art. Use when the
+      crest sits inside a CSS-animated container: the canvas redraws on the
+      main thread and visibly lags compositor-driven transitions. */
+  domOnly?: boolean;
   heroActive?: boolean;
   paused?: boolean;
   sizeRem?: number;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const frameIdRef = useRef(0);
   const pausedRef = useRef(paused);
-  const renderFrameRef = useRef<((time: number) => void) | null>(null);
-  const logoSize = sizeRem ?? (heroActive ? 4.75 : 3.65);
+  pausedRef.current = paused;
+  const logoSize = sizeRem ?? (heroActive ? 4 : 3.65);
 
-  useEffect(() => {
-    pausedRef.current = paused;
-
-    if (frameIdRef.current === 0 && renderFrameRef.current) {
-      frameIdRef.current = window.requestAnimationFrame(renderFrameRef.current);
-    }
-  }, [paused]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup = () => {};
-
-    const startScene = async () => {
-      let startAttempt = 0;
-
-      while (!cancelled && canvasRef.current) {
-        await waitForDashboardWebGlStart({ priority: true });
-        if (cancelled || !canvasRef.current) return;
-
-        const THREE = await loadDashboardThree();
-        if (cancelled || !canvasRef.current) return;
-
-        const canvas = canvasRef.current;
-        const renderer = createDashboardWebGlRenderer(
-          THREE,
-          canvas,
-          {
-            alpha: true,
-            antialias: true,
-            powerPreference: "high-performance",
-            preserveDrawingBuffer: false,
-          },
-          { priority: true },
-        );
-        if (!renderer) {
-          if (startAttempt >= LOGO_WEBGL_MAX_START_ATTEMPTS) return;
-
-          await waitForDashboardPriorityWebGlRetry(startAttempt);
-          startAttempt += 1;
-          continue;
-        }
-
-        renderer.setClearColor(0x000000, 0);
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.85));
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-
-        let texture: Texture | null = null;
-
-        try {
-          texture = await new THREE.TextureLoader().loadAsync(
-            "/sound-fitness-logo.png",
-          );
-        } catch {
-          renderer.forceContextLoss();
-          renderer.dispose();
-          return;
-        }
-
-        if (cancelled || !canvasRef.current) {
-          texture.dispose();
-          renderer.forceContextLoss();
-          renderer.dispose();
-          return;
-        }
-
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.anisotropy = Math.min(
-          renderer.capabilities.getMaxAnisotropy(),
-          8,
-        );
-
+  // Drawn on the shared WebGL stage into this widget's anchor rectangle. The
+  // crest texture loads async, so the group is added to the scene once it's
+  // ready; the animation loop simply no-ops until then.
+  const build = useMemo<DashboardWidgetBuilder>(
+    () =>
+      ({ THREE }): DashboardWidgetInstance => {
         const scene = new THREE.Scene();
         const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 18);
         camera.position.set(0, 0, 5.2);
         camera.lookAt(0, 0, 0);
 
+        // Build the crest materials synchronously with a placeholder texture so
+        // the shared stage can capture and dim them immediately. Previously the
+        // whole group was added only after the image loaded, which let the crest
+        // arrive after the header's inactive-material pass and remain bright.
+        const texture = new THREE.Texture();
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.anisotropy = 8;
         const logoGroup = createLogoGroup(THREE, texture);
         scene.add(logoGroup);
 
-        const resize = () => {
-          const rect = canvas.getBoundingClientRect();
-          const width = Math.max(1, Math.floor(rect.width));
-          const height = Math.max(1, Math.floor(rect.height));
-          renderer.setSize(width, height, false);
-          camera.aspect = width / height;
-          camera.updateProjectionMatrix();
-        };
+        new THREE.TextureLoader().load("/sound-fitness-logo.png", (loaded) => {
+          texture.copy(loaded);
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.anisotropy = 8;
+          texture.needsUpdate = true;
+          loaded.dispose();
+        });
 
-        const observer = new ResizeObserver(resize);
-        observer.observe(canvas);
-        resize();
-
-        const startedAt = performance.now();
-        const renderFrame = (time: number) => {
-          frameIdRef.current = 0;
-          const seconds = (time - startedAt) / 1000;
-          const isPaused = pausedRef.current;
-          setDashboardWebGlCanvasActive(canvas, !isPaused);
-
-          if (isPaused) {
+        return {
+          scene,
+          camera,
+          update: (elapsed) => {
+            if (pausedRef.current) {
+              logoGroup.rotation.set(
+                settleValue(logoGroup.rotation.x, LOGO_REST_ROTATION.x, 0.18),
+                settleValue(logoGroup.rotation.y, LOGO_REST_ROTATION.y, 0.22),
+                settleValue(logoGroup.rotation.z, LOGO_REST_ROTATION.z, 0.18),
+              );
+              logoGroup.position.y = settleValue(logoGroup.position.y, 0, 0.22);
+              return;
+            }
             logoGroup.rotation.set(
-              settleValue(logoGroup.rotation.x, LOGO_REST_ROTATION.x, 0.18),
-              settleValue(logoGroup.rotation.y, LOGO_REST_ROTATION.y, 0.22),
-              settleValue(logoGroup.rotation.z, LOGO_REST_ROTATION.z, 0.18),
+              LOGO_REST_ROTATION.x + Math.sin(elapsed * 0.68) * 0.012,
+              LOGO_REST_ROTATION.y + Math.sin(elapsed * 0.54) * 0.045,
+              LOGO_REST_ROTATION.z + Math.sin(elapsed * 0.46) * 0.012,
             );
-            logoGroup.position.y = settleValue(logoGroup.position.y, 0, 0.22);
-          } else {
-            logoGroup.rotation.set(
-              LOGO_REST_ROTATION.x + Math.sin(seconds * 0.68) * 0.012,
-              LOGO_REST_ROTATION.y + Math.sin(seconds * 0.54) * 0.045,
-              LOGO_REST_ROTATION.z + Math.sin(seconds * 0.46) * 0.012,
-            );
-            logoGroup.position.y = Math.sin(seconds * 0.72) * 0.018;
-          }
-
-          renderer.render(scene, camera);
-
-          const restingForward =
-            isPaused &&
-            logoGroup.rotation.x === LOGO_REST_ROTATION.x &&
-            logoGroup.rotation.y === LOGO_REST_ROTATION.y &&
-            logoGroup.rotation.z === LOGO_REST_ROTATION.z &&
-            logoGroup.position.y === 0;
-
-          if (!isPaused || !restingForward) {
-            frameIdRef.current = window.requestAnimationFrame(renderFrame);
-          }
+            logoGroup.position.y = Math.sin(elapsed * 0.72) * 0.018;
+          },
+          dispose: () => {
+            disposeObject(logoGroup);
+            texture.dispose();
+          },
         };
-
-        renderFrameRef.current = renderFrame;
-        frameIdRef.current = window.requestAnimationFrame(renderFrame);
-
-        cleanup = () => {
-          if (frameIdRef.current !== 0) {
-            window.cancelAnimationFrame(frameIdRef.current);
-            frameIdRef.current = 0;
-          }
-          renderFrameRef.current = null;
-          observer.disconnect();
-          disposeObject(logoGroup);
-          texture?.dispose();
-          renderer.forceContextLoss();
-          renderer.dispose();
-        };
-        return;
-      }
-    };
-
-    void startScene();
-
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, []);
+      },
+    [],
+  );
 
   return (
     <span
@@ -298,12 +205,12 @@ export default function DashboardLogo3D({
         width={96}
       />
       <span className="dashboard-header-logo-3d__sheen" />
-      <canvas
-        aria-hidden="true"
-        className="dashboard-header-logo-3d__webgl"
-        data-logo-renderer="three"
-        ref={canvasRef}
-      />
+      {domOnly ? null : (
+        <DashboardWebGlWidget
+          build={build}
+          className="dashboard-header-logo-3d__webgl"
+        />
+      )}
     </span>
   );
 }

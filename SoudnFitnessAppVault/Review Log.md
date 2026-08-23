@@ -165,3 +165,115 @@ Codex will use this note to record reviewed screenshots, interpretation notes, a
 - 2026-07-19: Constrained assessment choice readouts to an inset safe area inside the active questionnaire panel so they cannot cross its visible border.
 - 2026-07-19: Tightened large-screen assessment option-card label layout so multiword labels use natural line spacing rather than spreading vertically inside the card grid.
 - 2026-07-19: Added a small tone-matched pulse and spark behind the active number in the assessment "Step X of 12" label.
+- 2026-07-29: Rebalanced compact dashboard-header padding so its main menu sits lower within the header band on mobile.
+- 2026-07-29: Extended the compact dashboard-header alignment through the tablet-width range so embedded mobile views keep the corrected vertical position.
+- 2026-07-29: Lowered the compact dashboard header's rendered orbit, logo, meter, and joystick layers rather than relying on wrapper padding alone.
+- 2026-07-30: Moved the avatar emote-loop status into the avatar figure's top-right corner and condensed it to a tooltip-equipped dance icon.
+- 2026-07-30: Upgraded the dashboard athlete avatar with configurable suit, skin, hair, gear, and motion presets, including richer suit detailing and accessory rendering.
+- 2026-07-30: Connected both Avatar Lab triggers to a viewport-safe live editor and persisted the selected avatar configuration locally between visits.
+- 2026-07-30: Rebuilt the dashboard athlete as a nested articulated rig with independent shoulder, elbow, hip, and knee pivots; sleeves, wristbands, pants, knee panels, boots, and shoes now inherit the motion of their matching body segments.
+- 2026-07-30: Added persisted male and female athlete profiles to Avatar Lab, sharing the same clothing, gear, and motion systems while using profile-specific proportions, torso shaping, face details, and hair treatment.
+- 2026-07-30: Reworked assessment choice cards across steps 1-12 so oversized, unframed icons fill the card background and larger labels remain clearly layered above them.
+- 2026-07-30: Added beveled lighting, layered extrusion shadows, subtle perspective tilt, and press/lift motion to questionnaire option cards while preserving their oversized icon artwork and readable labels.
+- 2026-07-30: Shortened assessment question 2 to "What would help you stay on track?" by removing "first."
+- 2026-07-30: Renamed assessment question 1 to "What is your primary goal?"
+- 2026-07-30: Made assessment selection readouts more transparent and glass-like with lighter tinting, stronger backdrop refraction, and a brighter reflective rim.
+- 2026-07-30: Re-anchored the questionnaire crest to the true horizontal centerline, restored desktop header clearance above the progress rail, and moved the active-step tooltip onto the "Step X of 12" counter.
+- 2026-07-30: Replaced the assessment readout's linear countdown with a color-matched circular timer around its icon; hovering the glass panel or pressing and holding it on touch now pauses both the timer and the pending question advance.
+- 2026-07-30: Replaced step 6's compact dumbbell artwork for the "Barbells" option with a long-shaft barbell silhouette using distinct inner and outer weight plates.
+- 2026-07-30: Removed the old square tile behind assessment readout icons so the circular countdown ring is their only visible frame.
+- 2026-08-01: Reworked questionnaire Next buttons as translucent glass controls with a static cyan-to-emerald-to-amber rim, refracted hover highlights, and a distinct subdued disabled state while preserving the launch shockwave.
+- 2026-08-01: Kept the Next button's refracted highlight inside its rim and added results sharing for both a personalized readiness summary and a friend-facing assessment invitation, with native share and copy fallback behavior.
+- 2026-08-01: Tightened the result share actions to content-width controls and rebuilt Sign Up Now as a translucent, refracted glass CTA while preserving its particles and bounce cue.
+## 2026-08-01
+
+- Simplified the mobile dashboard's vertical row indicators to icon-only controls while preserving their touch targets.
+- Restored the expanded mobile dashboard header's original alignment and gave the compact idle header its own lower offsets for the logo, selector, joystick, and meter.
+- Raised the expanded mobile header as one group, then independently raised the compact idle crest and meter while preserving the corrected idle orbit position.
+- Corrected the sub-430px compact header by anchoring the meter inside the right edge without stacked transforms and raising the idle crest independently.
+- Reduced the member hero row's oversized left reservation at mobile, tablet, and desktop widths so the Welcome Back / Body Command card sits close to the vertical row indicators without covering their controls.
+- Kept Goal Focus and Position in content-aware side-by-side columns inside the member summary, eliminating the unnecessary stacked row on compact cards.
+- Changed the movable bottom-right accessibility navigator to default closed while keeping its compact Nav trigger available.
+- Sized the member hero orbit to the available dashboard height, removed its redundant outer vertical scroller, and kept overflow scrolling inside the Welcome Back / Body Command card only.
+- Removed the Athlete Avatar State status card and the Sound Athlete badge from the member hero while preserving the avatar controls and Avatar Lab action.
+- Moved Active Profile beside the Welcome Back heading and relocated the Widgets trigger two hero panels right into the needle-meter card.
+- Moved the avatar dance control to the inside-left of the avatar frame, added a compact face button beneath it for Avatar Lab, and removed the wide Avatar Lab button.
+- Changed the avatar to rest by default and added a contained seven-option emote wheel; selected emotes play briefly before returning to rest.
+- Pulled the three avatar detail indicators directly beneath the avatar frame and removed their surrounding pill container.
+- Replaced the muscle-group loading bars with compact, color-coded circular percentage loaders.
+- Centered each muscle name and status inside its circular loader, removed visible percentages, and moved the ring start to the lower-right.
+- Framed the circular muscle loaders in taller rectangular cards and changed the muscle layout to two columns on larger screens.
+- Reduced the avatar frame to the same centered width as its three detail indicators.
+- Moved Training Categories beneath the avatar on larger layouts and added a Muscle Levels heading above the right-side level cards.
+- Moved Support Signals beneath the avatar on larger layouts and replaced their horizontal bars with circular progress loaders.
+- Changed Support Signals to a compact horizontal loader rail and contained Muscle Levels in a right-side vertical scroller so the dashboard card stays fully framed.
+- Added edge-aware arrow controls to the Training Categories and Support Signals horizontal rails and to the Muscle Levels vertical scroller.
+- Removed excess Body Command Center scrolling by keeping its lower ambient glow inside the frame and limiting whole-card scrolling to the one-column layout.
+- Kept Body Command Center two-column at compact sizes with a smaller avatar, a one-card-wide Muscle Levels rail, and the horizontal Support Signals row beneath the avatar so the full card fits without page scrolling.
+- Hid the native Support Signals and Muscle Levels scrollbars and added highlighted draggable rail surfaces while preserving arrow controls.
+- Moved the avatar emote control to the right side of the avatar frame and made its emote wheel open inward from that edge.
+- Stacked the readiness pill above Active Profile text in both dashboard header variants and prevented the Muscle Levels arrow controls from being clipped by their column.
+- Changed all three Body Command Center rails to advance and visibly outline one item per arrow press, and placed the Muscle Levels controls in a dedicated unclipped column beside the cards.
+- Moved the Muscle Levels arrows into the upper open lane beside the avatar, widened the compact muscle column by narrowing the avatar area, and transferred loader selection highlights from their rectangular cards to the circular progress rings.
+- Repositioned the Muscle Levels controls into a horizontal row directly beneath the section title, with the down arrow on the left and the up arrow on the right above the cards.
+- Made each Muscle Levels arrow press visibly advance the rail by aligning the newly highlighted card to the top instead of leaving already-visible cards stationary.
+
+## 2026-08-02
+
+- Replaced the avatar's fixed rectangular body hotspots with anatomical SVG highlights attached to the articulated shoulders, arms, torso, core, and legs so selected regions remain aligned during movement.
+- Made Back selection rotate the avatar 180 degrees with a dedicated rear head, hair, and neck view; selecting a front body region smoothly returns the avatar to face forward.
+- Added a persisted Face category to Avatar Lab with Relaxed, Bright, Focused, and Defined presets, plus natural blinking and subtle gaze movement to soften the avatar's default expression.
+- Split the Chest muscle-level view into separate Upper Chest, Mid Chest, and Lower Chest loaders while preserving the shared chest avatar highlight.
+- Moved Active Profile into the member card's top utility row and placed the Welcome Back heading on its own full-width row beneath it to prevent narrow-column wrapping.
+- Reclaimed narrow dashboard width by moving the vertical row rail to the far-left edge, reducing the member card gutter, and simplifying row urgency badges to compact color-only dots.
+- Removed the visible frames from the Avatar Lab and emote controls, and converted the three avatar detail indicators into a single-row mobile rail with a leading right-arrow control.
+- Made the Training Categories, Support Signals, and Muscle Levels arrows continuously move and scroll their highlights, including true row-aware up/down movement in the two-column muscle layout.
+- Removed the individual rectangular tiles and top-edge accents from Muscle Levels and Support Signals so their circular loaders sit directly in the shared rails.
+- Replaced the separate compact Muscle Levels and Support Signals areas with one right-side panel that a bare leading chevron toggles between, while preserving the two simultaneous sections on larger layouts.
+# 2026-08-02
+
+- Isolated the Training Categories, Muscle Levels, and Support Signals arrow controls from the surrounding draggable dashboard hero orbit so clicks and taps reliably advance their own highlighted item.
+
+- Rebuilt the compact dashboard metrics as two independent single-loader rows: Muscle Levels first and Support Signals second, each controlled by left/right arrows.
+
+- Fixed the Muscle Levels up/down controls so they move the highlighted ring exactly one muscle at a time on every screen size, including two-item muscle groups.
+
+## 2026-08-03
+
+- Kept dashboard tooltips inside the viewport by making controls near the left and right edges open inward, including the narrow left-side vertical row indicators.
+- Strengthened the global tooltip bounds for both axes and connected the Body Command Center arrow controls to the styled dashboard tooltip system with shorter directional wording.
+- Moved the Training Categories arrow controls beneath the category rail and added enough internal rail spacing to keep the selected category ring and glow fully visible.
+- Added a palm-tree Avatar Scene action beneath Avatar Lab with four persistent avatar-container backgrounds: Command Grid, Palm Coast, Night Gym, and Alpine Air.
+- Replaced the Avatar Scene gradients and oversized symbols with four full environmental scenes: a holographic command room, tropical training deck, neon night gym, and alpine overlook.
+- Color-coded Training Categories, Muscle Levels, and Support Signals by training family, then separated seven-day plan status into amber under-target, emerald on-target, and rose over-target fills across pills and circular loaders.
+- Matched the Body Command Center to the Exercise Library category palette, simplified muscle loaders to name plus completed/target sets, and added a navigable muscle-detail dialog with sub-regions, recent training, plan volume, and a status-specific insight.
+- Moved Training Categories into a full-width bottom row and grouped the Avatar, Support Signals, and Muscle Levels across the upper Body Command Center workspace.
+- Bottom-aligned the Avatar section in the upper workspace so it sits immediately above the Training Categories row.
+- Removed the Avatar scene's fixed height ceiling so it grows upward through the available upper workspace while keeping its detail rail above Training Categories.
+- Expanded each Avatar scene photo across the entire section, removed the inner frame, and bottom-aligned both the scene image and avatar rig so the character stands on the apparent floor at every size.
+- Removed the Active Profile header cluster from the Body Command Center, including its small logo, readiness pill, label, and stage text.
+- Promoted the selected Avatar scene photo to the background of the entire Welcome Back Member card and made the avatar section transparent so the character stands directly in the full-card environment.
+- Removed the avatar rig's remaining internal stage shade and brightened the full-card scene wash so the environment reads clearly behind the dashboard content.
+- Removed the reusable avatar component's residual gradient background image and clipping boundary so no rectangular stage remains around the character.
+- Rebuilt the Training Constellation hero beside Welcome Member as a synchronized Recovery, Strength, and Cardio weekly timeline with workload rings, completion states, cross-lane relationships, responsive lane controls, horizontal navigation, and in-card session details.
+- Moved the Training Constellation arrows beneath the timeline and made them advance a highlighted day across a deliberately scrollable weekly track without triggering the surrounding dashboard orbit.
+- Removed the individual rounded and tinted containers from the Recovery, Strength, and Cardio constellation tracks while preserving their aligned labels and session nodes.
+- Turned the Training Constellation lane pills into working all-screen filters with an All Tracks reset, removed the remaining visible inner timeline frame, and rebuilt each lane title with a large containerless icon centered behind full-width text.
+- Added a compact color-coded horizontal hero-card indicator strip along the cards' inside top edge; the indicators switch panels without consuming layout height or changing the Welcome Member card dimensions.
+- Replaced the hero strip's plain bars with small clickable, color-coded icons for Body Command, Training Constellation, Meters, and Challenges, plus a minimal active underline.
+
+## 2026-08-05
+
+- Fixed the hero-card icon row so every icon directly selects and synchronizes its matching card, moved the row into the clear top-right card space away from the eyebrow, and prevented the collapsed header's invisible overflow layer from intercepting those clicks or expanding the header.
+- Rebuilt the mobile Training Constellation as a downward-scrolling date timeline with Recovery, Strength, and Cardio columns; its left control now advances downward and its right control moves upward, while desktop keeps the horizontal timeline.
+- Kept the hero-card selector in a compact top-right corner opposite each card eyebrow, then color-coded every Training Constellation star by Recovery, Strength, or Cardio and connected only matching stars: exactly three vertical track lines on mobile and one horizontal line per track on desktop.
+- Deepened the Training Constellation into a star map with a layered, gently glimmering night-sky field, varied anchor-star glints, and true star-shaped session nodes whose glow follows each track color.
+- Moved the Challenges card's `3 active` status pill into the Reward Track eyebrow row and reserved the upper-right corner exclusively for the shared card-switching icons.
+- Reworked Challenges into a width-first, non-scrolling card: compact challenge rows on narrow screens, three challenge columns when space allows, and a shallow four-metric reward summary strip that keeps the entire experience visible.
+- Rebuilt Challenges around a square 3-by-3 color-coded category selector; each icon now swaps in three category-specific challenges, while the reward-track action lives inside the selector and the summary updates with the active category.
+- Constrained the Challenges category icon grid to the space above Open Rewards so all nine controls stay evenly sized and never overlap the embedded reward action.
+- Made the selected challenges become three equal square cards on large screens while preserving the compact stacked treatment on smaller screens, giving the Challenges workspace a balanced full-width grid.
+- Matched the large-screen Support Signals layout to Muscle Levels with a vertical circular-loader rail, vertical snap scrolling, and dedicated up/down controls while retaining the compact mobile presentation.
+- Enlarged the shared top-right hero-card selector to comfortable 28px compact and 36px large-screen targets, increased the icon sizes, strengthened hover/focus feedback, and expanded the Challenges header reserve so the controls remain easy to click without covering content.
+- Aligned each Training Constellation track directly through its node centers, replaced the desktop full-width strokes with clean per-cell segments that stop before and resume after every icon, and added matching dark node masks on mobile so track colors never draw across the stars.
+- Split the former combined Meters panel into three independent hero-row cards for Needle Meter, Achievements, and Favorite Workouts, then added Widgets as a dedicated seventh card after Challenges with direct widget shortcuts and its existing drawer action.

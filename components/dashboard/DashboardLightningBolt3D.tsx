@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useMemo, useRef } from "react";
 import type { BufferGeometry, Material, Object3D } from "three";
-import {
-  createDashboardWebGlRenderer,
-  loadDashboardThree,
-  waitForDashboardWebGlStart,
-} from "./dashboardWebGlRenderer";
+import DashboardWebGlWidget from "./DashboardWebGlWidget";
+import type {
+  DashboardWidgetBuilder,
+  DashboardWidgetInstance,
+} from "./dashboardWebGlStage";
 
 type ThreeModule = typeof import("three");
 
@@ -63,47 +63,17 @@ export default function DashboardLightningBolt3D({
   paused = false,
 }: DashboardLightningBolt3DProps) {
   const activeRef = useRef(active);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  activeRef.current = active;
   const pausedRef = useRef(paused);
+  pausedRef.current = paused;
 
-  useEffect(() => {
-    activeRef.current = active;
-  }, [active]);
-
-  useEffect(() => {
-    pausedRef.current = paused;
-  }, [paused]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup = () => {};
-
-    const startScene = async () => {
-      await waitForDashboardWebGlStart();
-      if (cancelled || !canvasRef.current) return;
-
-      const THREE = await loadDashboardThree();
-      if (cancelled || !canvasRef.current) return;
-
-      const canvas = canvasRef.current;
+  const build = useMemo<DashboardWidgetBuilder>(
+    () =>
+      ({ THREE }): DashboardWidgetInstance => {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 14);
       camera.position.set(0, 0.02, 4.35);
       camera.lookAt(0, 0, 0);
-
-      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
-        alpha: true,
-        antialias: true,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false,
-      });
-      if (!renderer) return;
-
-      renderer.setClearColor(0x000000, 0);
-      renderer.setPixelRatio(
-        Math.min(Math.max(window.devicePixelRatio || 1, 1.6), 2.2),
-      );
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
 
       scene.add(new THREE.AmbientLight(new THREE.Color("#e0f2fe"), 1.05));
 
@@ -237,30 +207,11 @@ export default function DashboardLightningBolt3D({
         return spark;
       });
 
-      const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const width = Math.max(1, Math.floor(rect.width));
-        const height = Math.max(1, Math.floor(rect.height));
-        renderer.setSize(width, height, false);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      };
-
-      const observer = new ResizeObserver(resize);
-      observer.observe(canvas);
-      resize();
-
-      let frameId = 0;
-      let lastFrameTime = 0;
       let charge = 0;
-      const renderFrame = (time: number) => {
-        const frameDelta =
-          lastFrameTime > 0 ? Math.min(48, time - lastFrameTime) : 16.67;
-        lastFrameTime = time;
-
-        const seconds = time / 1000;
+      const update = (elapsed: number, delta: number) => {
+        const seconds = elapsed;
         const targetCharge = activeRef.current && !pausedRef.current ? 1 : 0;
-        charge += (targetCharge - charge) * Math.min(1, frameDelta * 0.012);
+        charge += (targetCharge - charge) * Math.min(1, delta * 12);
 
         const pulse = charge * (0.026 + Math.sin(seconds * 8.2) * 0.01);
         group.scale.setScalar(0.78 + pulse);
@@ -303,36 +254,19 @@ export default function DashboardLightningBolt3D({
           const material = spark.material as Material & { opacity: number };
           material.opacity = 0.08 + sparkCharge * 0.62;
         });
-
-        renderer.render(scene, camera);
-        frameId = window.requestAnimationFrame(renderFrame);
       };
 
-      frameId = window.requestAnimationFrame(renderFrame);
-
-      cleanup = () => {
-        window.cancelAnimationFrame(frameId);
-        observer.disconnect();
-        disposeObject(scene);
-        renderer.forceContextLoss();
-        renderer.dispose();
+      return {
+        scene,
+        camera,
+        update,
+        dispose: () => {
+          disposeObject(scene);
+        },
       };
-    };
-
-    void startScene();
-
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, []);
-
-  return (
-    <canvas
-      aria-hidden="true"
-      className={className}
-      data-lightning-bolt-renderer="three"
-      ref={canvasRef}
-    />
+      },
+    [],
   );
+
+  return <DashboardWebGlWidget build={build} className={className} />;
 }

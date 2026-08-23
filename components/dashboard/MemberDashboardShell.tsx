@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
+import OffscreenAnimationPauser from "@/components/dashboard/OffscreenAnimationPauser";
 import { ProfileProvider } from "@/components/profile/ProfileProvider";
 import { ROUTES } from "@/lib/routes";
-import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function MemberDashboardShell({
   children,
@@ -14,7 +15,6 @@ export default function MemberDashboardShell({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [loading, setLoading] = useState(true);
   const useEmbeddedHeader =
     pathname === ROUTES.dashboard.home ||
     pathname === ROUTES.dashboard.goals ||
@@ -23,18 +23,21 @@ export default function MemberDashboardShell({
     pathname === ROUTES.dashboard.exerciseLibrary ||
     pathname === ROUTES.workoutBuilder.exerciseLibrary;
 
+  // The server middleware (proxy.ts) already validates the session on every
+  // /dashboard request and redirects out if it's missing/expired, so we render
+  // the dashboard immediately instead of blanking the whole (7k-node) page for
+  // up to 3.5s behind a redundant client auth check. Here we only verify the
+  // member ROLE, in the background, using the cached session (getSession, no
+  // network round-trip) — and redirect out only on a definite non-member.
   useEffect(() => {
     let isActive = true;
-    const fallbackTimer = window.setTimeout(() => {
-      if (isActive) setLoading(false);
-    }, 3500);
 
-    async function checkAuth() {
+    async function verifyRole() {
       try {
         const {
-          data: { user },
-        } = await getSupabaseUser();
-
+          data: { session },
+        } = await supabase.auth.getSession();
+        const user = session?.user ?? null;
         if (!isActive) return;
 
         if (!user) {
@@ -47,35 +50,27 @@ export default function MemberDashboardShell({
           .select("role")
           .eq("id", user.id)
           .single();
-
         if (!isActive) return;
 
         if (!error && profile?.role && profile.role !== "member") {
           await supabase.auth.signOut();
           router.replace(ROUTES.auth.login);
-          return;
         }
-
-        setLoading(false);
       } catch {
-        if (isActive) setLoading(false);
-      } finally {
-        window.clearTimeout(fallbackTimer);
+        // Best-effort background check; the server middleware is the real gate.
       }
     }
 
-    checkAuth();
+    verifyRole();
 
     return () => {
       isActive = false;
-      window.clearTimeout(fallbackTimer);
     };
   }, [router]);
 
-  if (loading) return null;
-
   return (
     <ProfileProvider>
+      <OffscreenAnimationPauser />
       {useEmbeddedHeader ? null : <AppHeader />}
       {children}
     </ProfileProvider>

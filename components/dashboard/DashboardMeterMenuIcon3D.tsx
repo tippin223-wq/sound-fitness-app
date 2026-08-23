@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useMemo, useRef } from "react";
 import type { BufferGeometry, Material, Object3D } from "three";
-import {
-  createDashboardWebGlRenderer,
-  loadDashboardThree,
-  setDashboardWebGlCanvasActive,
-} from "./dashboardWebGlRenderer";
+import DashboardWebGlWidget from "./DashboardWebGlWidget";
+import type {
+  DashboardWidgetBuilder,
+  DashboardWidgetInstance,
+} from "./dashboardWebGlStage";
 
 type ThreeModule = typeof import("three");
 
@@ -71,50 +71,19 @@ export default function DashboardMeterMenuIcon3D({
   paused = false,
 }: DashboardMeterMenuIcon3DProps) {
   const activeRef = useRef(active);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  activeRef.current = active;
   const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+  const framelessRef = useRef(frameless);
+  framelessRef.current = frameless;
 
-  useEffect(() => {
-    activeRef.current = active;
-    setDashboardWebGlCanvasActive(canvasRef.current, true);
-  }, [active]);
-
-  useEffect(() => {
-    pausedRef.current = paused;
-    setDashboardWebGlCanvasActive(canvasRef.current, true);
-  }, [paused]);
-
-  useEffect(() => {
-    let cancelled = false;
-    let cleanup = () => {};
-
-    const startScene = async () => {
-      const THREE = await loadDashboardThree();
-      if (cancelled || !canvasRef.current) return;
-
-      const canvas = canvasRef.current;
+  const build = useMemo<DashboardWidgetBuilder>(
+    () =>
+      ({ THREE }): DashboardWidgetInstance => {
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 18);
       camera.position.set(0, 0.02, 5.1);
       camera.lookAt(0, 0, 0);
-
-      const renderer = createDashboardWebGlRenderer(THREE, canvas, {
-        alpha: true,
-        antialias: true,
-        powerPreference: "high-performance",
-        preserveDrawingBuffer: false,
-      });
-      if (!renderer) return;
-      canvas.dataset.webglReady = "true";
-      delete canvas.dataset.webglFallback;
-      setDashboardWebGlCanvasActive(
-        canvas,
-        activeRef.current && !pausedRef.current,
-      );
-
-      renderer.setClearColor(0x000000, 0);
-      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
-      renderer.outputColorSpace = THREE.SRGBColorSpace;
 
       scene.add(new THREE.AmbientLight(new THREE.Color("#e0f2fe"), 1.18));
 
@@ -394,32 +363,15 @@ export default function DashboardMeterMenuIcon3D({
         return item;
       });
 
-      const resize = () => {
-        const rect = canvas.getBoundingClientRect();
-        const width = Math.max(1, Math.floor(rect.width));
-        const height = Math.max(1, Math.floor(rect.height));
-        renderer.setSize(width, height, false);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      };
-
-      const observer = new ResizeObserver(resize);
-      observer.observe(canvas);
-      resize();
-
-      let frameId = 0;
-      let lastFrameTime = 0;
       let charge = 0;
       let flipRotation = 0;
-      const renderFrame = (time: number) => {
-        const frameDelta =
-          lastFrameTime > 0 ? Math.min(48, time - lastFrameTime) : 16.67;
-        const motionDelta = frameDelta * METER_MENU_ICON_ANIMATION_SPEED;
-        lastFrameTime = time;
+      const update = (elapsed: number, delta: number) => {
+        const frameDeltaMs = delta * 1000;
+        const motionDelta = frameDeltaMs * METER_MENU_ICON_ANIMATION_SPEED;
 
-        const seconds = (time / 1000) * METER_MENU_ICON_ANIMATION_SPEED;
+        const seconds = elapsed * METER_MENU_ICON_ANIMATION_SPEED;
         const activeMotion = activeRef.current && !pausedRef.current;
-        charge += ((activeMotion ? 1 : 0) - charge) * Math.min(1, frameDelta * 0.014);
+        charge += ((activeMotion ? 1 : 0) - charge) * Math.min(1, frameDeltaMs * 0.014);
 
         if (activeMotion) {
           flipRotation += motionDelta * 0.0046;
@@ -434,12 +386,12 @@ export default function DashboardMeterMenuIcon3D({
         if (restingForward) {
           flipRotation = 0;
         }
-        setDashboardWebGlCanvasActive(canvas, activeMotion || !restingForward);
 
         flipGroup.rotation.y = flipRotation;
         flipGroup.rotation.x = Math.sin(seconds * 1.8) * 0.03 * charge;
         root.scale.setScalar(
-          (frameless ? 1.1 : 1.08) + Math.sin(seconds * 8) * 0.022 * charge,
+          (framelessRef.current ? 1.1 : 1.08) +
+            Math.sin(seconds * 8) * 0.022 * charge,
         );
         ringMaterial.emissiveIntensity =
           0.54 + charge * (0.58 + Math.sin(seconds * 8.6) * 0.12);
@@ -483,37 +435,19 @@ export default function DashboardMeterMenuIcon3D({
 
         cyanLight.intensity = 2.1 + charge * 2.1;
         warmLight.intensity = 0.55 + charge * 1.4;
-
-        renderer.render(scene, camera);
-        frameId = window.requestAnimationFrame(renderFrame);
       };
 
-      frameId = window.requestAnimationFrame(renderFrame);
-
-      cleanup = () => {
-        window.cancelAnimationFrame(frameId);
-        observer.disconnect();
-        delete canvas.dataset.webglReady;
-        disposeObject(scene);
-        renderer.forceContextLoss();
-        renderer.dispose();
+      return {
+        scene,
+        camera,
+        update,
+        dispose: () => {
+          disposeObject(scene);
+        },
       };
-    };
-
-    void startScene();
-
-    return () => {
-      cancelled = true;
-      cleanup();
-    };
-  }, []);
-
-  return (
-    <canvas
-      aria-hidden="true"
-      className={className}
-      data-meter-menu-icon-renderer="three"
-      ref={canvasRef}
-    />
+      },
+    [],
   );
+
+  return <DashboardWebGlWidget build={build} className={className} />;
 }

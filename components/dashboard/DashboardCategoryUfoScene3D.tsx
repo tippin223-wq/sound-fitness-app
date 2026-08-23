@@ -41,6 +41,10 @@ const smoothStepNumber = (value: number) => {
 
 const DASHBOARD_CATEGORY_UFO_CHYRON_STEP_SECONDS = 16;
 const DASHBOARD_CATEGORY_UFO_MAX_DELTA_SECONDS = 1 / 30;
+// Cap this heavy ambient scene to ~30fps. Motion is delta-timed so it animates
+// at the same speed, but doing half the per-frame work keeps the meter menu
+// responsive while it is open.
+const DASHBOARD_CATEGORY_UFO_MIN_FRAME_MS = 1000 / 32;
 const DASHBOARD_CATEGORY_UFO_ACTIVE_CHYRON_TEXTURE_MS = 64;
 const DASHBOARD_CATEGORY_UFO_INACTIVE_CHYRON_TEXTURE_MS = 220;
 const DASHBOARD_CATEGORY_UFO_TENDRIL_GEOMETRY_MS = 34;
@@ -1858,6 +1862,7 @@ export default function DashboardCategoryUfoScene3D({
       let frameId = 0;
       const startedAt = performance.now();
       let lastFrameTime = startedAt;
+      let lastDrawTime = 0;
       let activeSeconds = 0;
       let presence = 0;
       let lastChyronTextureUpdate = 0;
@@ -1880,6 +1885,15 @@ export default function DashboardCategoryUfoScene3D({
       setUfoCanvasLive(isOpenRef.current && isActiveRef.current);
 
       const render = (time: number) => {
+        // ~30fps frame-rate cap (see DASHBOARD_CATEGORY_UFO_MIN_FRAME_MS). The
+        // rAF keeps firing at display rate but we only do scene work on ~half
+        // the frames; delta-timing below keeps the motion speed identical.
+        if (time - lastDrawTime < DASHBOARD_CATEGORY_UFO_MIN_FRAME_MS) {
+          frameId = window.requestAnimationFrame(render);
+          return;
+        }
+        lastDrawTime = time;
+
         const deltaSeconds = Math.min(
           DASHBOARD_CATEGORY_UFO_MAX_DELTA_SECONDS,
           Math.max(0, (time - lastFrameTime) / 1000),
@@ -1906,6 +1920,21 @@ export default function DashboardCategoryUfoScene3D({
         if (isOpenNow && !hasChyronAdvancedAfterDock && flyEase > 0.985) {
           hasChyronAdvancedAfterDock = true;
         }
+
+        // The meter menu is closed and the fly-out has fully settled — the
+        // canvas is invisible. Skip the entire scene update and GL draw so this
+        // (the heaviest dashboard scene) stops burning CPU/GPU while it is off
+        // screen, which is almost all the time. The loop keeps ticking cheaply
+        // and resumes the instant the menu reopens.
+        if (!isOpenNow && presence < 0.004) {
+          if (lastCanvasOpacity !== 0) {
+            canvas.style.opacity = "0";
+            lastCanvasOpacity = 0;
+          }
+          frameId = window.requestAnimationFrame(render);
+          return;
+        }
+
         const hover = Math.sin(seconds * 0.86) * 0.014 * flyEase;
         const levelGlow = Math.max(
           0.4,

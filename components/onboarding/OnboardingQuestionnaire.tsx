@@ -47,6 +47,7 @@ import {
   Salad,
   Scale,
   Settings2,
+  Share2,
   ShieldCheck,
   Sparkles,
   Smartphone,
@@ -63,6 +64,7 @@ import {
   Workflow,
   X,
   Zap,
+  createLucideIcon,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -176,6 +178,62 @@ type SelectionInsight = {
   text: string;
 };
 
+type SelectionInsightOptions = {
+  accent?: string;
+  onComplete?: () => void;
+  text?: string;
+};
+
+const BarbellIcon = createLucideIcon("barbell", [
+  ["path", { d: "M7.75 12h8.5", key: "shaft" }],
+  ["path", { d: "M1.5 12h1", key: "left-end" }],
+  ["path", { d: "M21.5 12h1", key: "right-end" }],
+  [
+    "rect",
+    {
+      height: "7",
+      key: "left-outer-plate",
+      rx: "0.5",
+      width: "2.25",
+      x: "2.5",
+      y: "8.5",
+    },
+  ],
+  [
+    "rect",
+    {
+      height: "11",
+      key: "left-inner-plate",
+      rx: "0.5",
+      width: "2.5",
+      x: "5.25",
+      y: "6.5",
+    },
+  ],
+  [
+    "rect",
+    {
+      height: "11",
+      key: "right-inner-plate",
+      rx: "0.5",
+      width: "2.5",
+      x: "16.25",
+      y: "6.5",
+    },
+  ],
+  [
+    "rect",
+    {
+      height: "7",
+      key: "right-outer-plate",
+      rx: "0.5",
+      width: "2.25",
+      x: "19.25",
+      y: "8.5",
+    },
+  ],
+]);
+
 type SelectionInsightPosition = {
   focusRadius?: number;
   focusX?: number;
@@ -187,10 +245,8 @@ type SelectionInsightPosition = {
 };
 
 const STORAGE_KEY = "soundFitnessPreSignInStartingPlan";
-const OPTION_SELECTION_FLICKER_MS = 900;
 const OPTION_SELECTION_FADE_MS = 260;
 const OPTION_MULTI_SELECTION_MS = 620;
-const NEXT_LAUNCH_MS = 360;
 const RESET_TRANSITION_MS = 340;
 const SELECTION_INSIGHT_DURATION_MS = 5000;
 
@@ -218,7 +274,7 @@ const defaultAnswers: LeadAssessmentAnswers = {
 const questions: Question[] = [
   {
     key: "mainGoal",
-    title: "What should your plan help you improve most?",
+    title: "What is your primary goal?",
     helper: "Choose the win that would make the next month feel different.",
     icon: "target",
     tone: "sky",
@@ -233,7 +289,7 @@ const questions: Question[] = [
   },
   {
     key: "trainingStyle",
-    title: "What would help you stay on track first?",
+    title: "What would help you stay on track?",
     helper:
       "Choose the kind of support that would make training feel easier to repeat.",
     icon: "clipboard",
@@ -668,7 +724,7 @@ const optionVisuals: Record<string, OptionVisual> = {
   },
   Barbells: {
     accent: "56 189 248",
-    Icon: Dumbbell,
+    Icon: BarbellIcon,
     photo: "/onboarding-location-garage-gym.jpg",
     photoPosition: "center 32%",
   },
@@ -1539,6 +1595,7 @@ function OptionCard({
           }}
         />
       ) : null}
+      <span aria-hidden="true" className="sound-option-depth-frame" />
       <span
         aria-hidden="true"
         className="sound-option-selection-spark sound-option-selection-spark--one"
@@ -1548,7 +1605,7 @@ function OptionCard({
         className="sound-option-selection-spark sound-option-selection-spark--two"
       />
       <span aria-hidden="true" className="sound-option-icon-shell">
-        <Icon className="h-8 w-8" strokeWidth={2.35} />
+        <Icon className="sound-option-icon" strokeWidth={2.35} />
       </span>
       <span className="sound-option-label relative z-10 mt-3 text-[13px] font-black leading-[1.08] text-white">
         {renderWords(labelFirst)}
@@ -1655,12 +1712,15 @@ export default function OnboardingQuestionnaire() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<LeadAssessmentAnswers>(defaultAnswers);
   const [statusMessage, setStatusMessage] = useState("");
+  const [shareMessage, setShareMessage] = useState("");
   const [selectionMotion, setSelectionMotion] =
     useState<SelectionMotion | null>(null);
   const [selectionInsight, setSelectionInsight] =
     useState<SelectionInsight | null>(null);
   const [selectionInsightPosition, setSelectionInsightPosition] =
     useState<SelectionInsightPosition | null>(null);
+  const [isSelectionInsightPaused, setIsSelectionInsightPaused] =
+    useState(false);
   const [isNextLaunching, setIsNextLaunching] = useState(false);
   const [isResetTransitioning, setIsResetTransitioning] = useState(false);
   const [welcomeNonce, setWelcomeNonce] = useState(0);
@@ -2000,6 +2060,13 @@ export default function OnboardingQuestionnaire() {
   const selectionInsightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const selectionInsightCompletionRef = useRef<(() => void) | null>(null);
+  const selectionInsightRemainingMsRef = useRef(
+    SELECTION_INSIGHT_DURATION_MS,
+  );
+  const selectionInsightStartedAtRef = useRef(0);
+  const selectionInsightPausedRef = useRef(false);
+  const selectionInsightIgnoreMouseUntilRef = useRef(0);
   const optionGridRef = useRef<HTMLDivElement>(null);
 
   const clearAutoAdvanceTimer = useCallback(() => {
@@ -2015,9 +2082,64 @@ export default function OnboardingQuestionnaire() {
       selectionInsightTimerRef.current = null;
     }
 
+    selectionInsightCompletionRef.current = null;
+    selectionInsightRemainingMsRef.current =
+      SELECTION_INSIGHT_DURATION_MS;
+    selectionInsightStartedAtRef.current = 0;
+    selectionInsightPausedRef.current = false;
+    setIsSelectionInsightPaused(false);
     setSelectionInsight(null);
     setSelectionInsightPosition(null);
   }, []);
+
+  const finishSelectionInsight = useCallback(() => {
+    if (selectionInsightTimerRef.current) {
+      clearTimeout(selectionInsightTimerRef.current);
+      selectionInsightTimerRef.current = null;
+    }
+
+    const onComplete = selectionInsightCompletionRef.current;
+    selectionInsightCompletionRef.current = null;
+    selectionInsightRemainingMsRef.current =
+      SELECTION_INSIGHT_DURATION_MS;
+    selectionInsightStartedAtRef.current = 0;
+    selectionInsightPausedRef.current = false;
+    setIsSelectionInsightPaused(false);
+    setSelectionInsight(null);
+    setSelectionInsightPosition(null);
+    onComplete?.();
+  }, []);
+
+  const pauseSelectionInsightCountdown = useCallback(() => {
+    if (
+      selectionInsightPausedRef.current ||
+      !selectionInsightTimerRef.current
+    ) {
+      return;
+    }
+
+    clearTimeout(selectionInsightTimerRef.current);
+    selectionInsightTimerRef.current = null;
+    selectionInsightRemainingMsRef.current = Math.max(
+      16,
+      selectionInsightRemainingMsRef.current -
+        (performance.now() - selectionInsightStartedAtRef.current),
+    );
+    selectionInsightPausedRef.current = true;
+    setIsSelectionInsightPaused(true);
+  }, []);
+
+  const resumeSelectionInsightCountdown = useCallback(() => {
+    if (!selectionInsightPausedRef.current) return;
+
+    selectionInsightPausedRef.current = false;
+    setIsSelectionInsightPaused(false);
+    selectionInsightStartedAtRef.current = performance.now();
+    selectionInsightTimerRef.current = setTimeout(
+      finishSelectionInsight,
+      selectionInsightRemainingMsRef.current,
+    );
+  }, [finishSelectionInsight]);
 
   const positionSelectionInsight = useCallback(
     (anchor: HTMLElement | null) => {
@@ -2103,27 +2225,36 @@ export default function OnboardingQuestionnaire() {
       key: keyof LeadAssessmentAnswers,
       option: string,
       anchor: HTMLElement | null,
-      text = getSelectionInsight(key, option),
-      accent = optionVisuals[option]?.accent ?? defaultOptionVisual.accent,
+      options: SelectionInsightOptions = {},
     ) => {
       if (selectionInsightTimerRef.current) {
         clearTimeout(selectionInsightTimerRef.current);
       }
 
+      const accent =
+        options.accent ??
+        optionVisuals[option]?.accent ??
+        defaultOptionVisual.accent;
+
       positionSelectionInsight(anchor);
+      selectionInsightCompletionRef.current = options.onComplete ?? null;
+      selectionInsightRemainingMsRef.current =
+        SELECTION_INSIGHT_DURATION_MS;
+      selectionInsightStartedAtRef.current = performance.now();
+      selectionInsightPausedRef.current = false;
+      setIsSelectionInsightPaused(false);
       setSelectionInsight({
         accent,
         id: Date.now(),
         option,
-        text,
+        text: options.text ?? getSelectionInsight(key, option),
       });
-      selectionInsightTimerRef.current = setTimeout(() => {
-        selectionInsightTimerRef.current = null;
-        setSelectionInsight(null);
-        setSelectionInsightPosition(null);
-      }, SELECTION_INSIGHT_DURATION_MS);
+      selectionInsightTimerRef.current = setTimeout(
+        finishSelectionInsight,
+        SELECTION_INSIGHT_DURATION_MS,
+      );
     },
-    [positionSelectionInsight],
+    [finishSelectionInsight, positionSelectionInsight],
   );
 
   useEffect(() => {
@@ -2303,7 +2434,6 @@ export default function OnboardingQuestionnaire() {
     const reduceMotion =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const flickerMs = reduceMotion ? 120 : OPTION_SELECTION_FLICKER_MS;
     const fadeMs = reduceMotion ? 0 : OPTION_SELECTION_FADE_MS;
     const multiSelectMs = reduceMotion ? 120 : OPTION_MULTI_SELECTION_MS;
     clearAutoAdvanceTimer();
@@ -2371,21 +2501,21 @@ export default function OnboardingQuestionnaire() {
     soundFx.select();
     setAnswer(activeQuestion.key, option);
     setSelectionMotion({ option, phase: "flicker", step: motionStep });
-    showSelectionInsight(activeQuestion.key, option, anchor);
+    showSelectionInsight(activeQuestion.key, option, anchor, {
+      onComplete: () => {
+        setSelectionMotion((current) =>
+          current?.step === motionStep && current.option === option
+            ? { ...current, phase: "fade" }
+            : current,
+        );
 
-    autoAdvanceTimerRef.current = setTimeout(() => {
-      setSelectionMotion((current) =>
-        current?.step === motionStep && current.option === option
-          ? { ...current, phase: "fade" }
-          : current,
-      );
-
-      autoAdvanceTimerRef.current = setTimeout(() => {
-        autoAdvanceTimerRef.current = null;
-        setSelectionMotion(null);
-        advanceFromStep(motionStep);
-      }, fadeMs);
-    }, Math.max(flickerMs, SELECTION_INSIGHT_DURATION_MS));
+        autoAdvanceTimerRef.current = setTimeout(() => {
+          autoAdvanceTimerRef.current = null;
+          setSelectionMotion(null);
+          advanceFromStep(motionStep);
+        }, fadeMs);
+      },
+    });
   }
 
   function handleMultiSelectNext(anchor: HTMLButtonElement) {
@@ -2393,10 +2523,6 @@ export default function OnboardingQuestionnaire() {
     if (!isMultiSelectAnswerKey(key) || answers[key].length === 0) return;
     if (isNextLaunching) return;
 
-    const reduceMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const launchMs = reduceMotion ? 100 : NEXT_LAUNCH_MS;
     const launchStep = step;
     const insight = getMultiSelectInsight(key, answers[key]);
 
@@ -2408,16 +2534,17 @@ export default function OnboardingQuestionnaire() {
       key,
       insight.option,
       optionGridRef.current ?? anchor,
-      insight.text,
-      optionVisuals[answers[key][answers[key].length - 1]]?.accent ??
-        defaultOptionVisual.accent,
+      {
+        accent:
+          optionVisuals[answers[key][answers[key].length - 1]]?.accent ??
+          defaultOptionVisual.accent,
+        onComplete: () => {
+          setIsNextLaunching(false);
+          advanceFromStep(launchStep);
+        },
+        text: insight.text,
+      },
     );
-
-    autoAdvanceTimerRef.current = setTimeout(() => {
-      autoAdvanceTimerRef.current = null;
-      setIsNextLaunching(false);
-      advanceFromStep(launchStep);
-    }, Math.max(launchMs, SELECTION_INSIGHT_DURATION_MS));
   }
 
   function handleSendResults() {
@@ -2449,6 +2576,41 @@ export default function OnboardingQuestionnaire() {
     }));
     setStatusMessage("");
     setStage("result");
+  }
+
+  async function handleShareAssessment(kind: "results" | "quiz") {
+    const quizUrl =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1"
+        ? "https://thesoundfitness.app/"
+        : `${window.location.origin}/`;
+    const sharingResults = kind === "results";
+    const title = sharingResults
+      ? "My Sound Fitness readiness result"
+      : "Get your Sound Fitness readiness score";
+    const text = sharingResults
+      ? `My Sound Fitness readiness score is ${result.readiness.score}/100 (${result.readiness.label}). My starting focus is ${result.title}. Take the assessment to find yours.`
+      : "Take the free Sound Fitness assessment to get your readiness score and a plan matched to your goals, equipment, and schedule.";
+
+    try {
+      if (navigator.share) {
+        await navigator.share({ text, title, url: quizUrl });
+        setShareMessage(
+          sharingResults ? "Results shared." : "Quiz shared.",
+        );
+      } else {
+        await navigator.clipboard.writeText(`${text}\n${quizUrl}`);
+        setShareMessage(
+          sharingResults
+            ? "Results and quiz link copied."
+            : "Quiz link copied.",
+        );
+      }
+      soundFx.select();
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      setShareMessage("Sharing is unavailable here. Please try again.");
+    }
   }
 
   function resetSelectionMotion() {
@@ -2939,7 +3101,7 @@ export default function OnboardingQuestionnaire() {
           </div>
 
           <aside
-            className={`relative grid min-h-0 overflow-clip bg-[radial-gradient(circle_at_50%_35%,rgba(14,165,233,0.13),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.2),rgba(2,7,19,0.08))] p-5 sm:p-6 lg:p-8 ${
+            className={`relative grid h-full min-h-0 overflow-clip bg-[radial-gradient(circle_at_50%_35%,rgba(14,165,233,0.13),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.2),rgba(2,7,19,0.08))] p-5 sm:p-6 lg:p-8 ${
               stage === "welcome"
                 ? "shadow-[inset_0_-72px_110px_rgba(2,7,19,0.68),inset_0_72px_120px_rgba(14,165,233,0.08)]"
                 : "hidden"
@@ -3276,17 +3438,31 @@ export default function OnboardingQuestionnaire() {
 
             {stage === "questions" ? (
               <p
-                className="sound-progress-steplabel relative z-10 text-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-500"
+                className="sound-progress-steplabel relative z-20 text-center text-[10px] font-black uppercase tracking-[0.2em] text-slate-500"
                 data-tone={activeQuestion.tone}
               >
-                <span>Step </span>
-                <span className="sound-progress-steplabel__current">
-                  {step + 1}
-                </span>
-                <span> of </span>
-                <span className="sound-progress-steplabel__total">
-                  {questions.length}
-                </span>
+                <button
+                  type="button"
+                  className="sound-progress-steplabel__trigger"
+                  aria-describedby="sound-current-step-tooltip"
+                >
+                  <span>Step </span>
+                  <span className="sound-progress-steplabel__current">
+                    {step + 1}
+                  </span>
+                  <span> of </span>
+                  <span className="sound-progress-steplabel__total">
+                    {questions.length}
+                  </span>
+                  <span
+                    id="sound-current-step-tooltip"
+                    role="tooltip"
+                    className="sound-progress-steplabel__tooltip"
+                  >
+                    <span>Current step</span>
+                    <strong>{activeQuestion.title}</strong>
+                  </span>
+                </button>
               </p>
             ) : null}
 
@@ -3490,7 +3666,8 @@ export default function OnboardingQuestionnaire() {
             {selectionInsight && typeof document !== "undefined"
               ? createPortal(
               <aside
-                className="pointer-events-none fixed inset-0 z-50"
+                className="sound-selection-insight-layer pointer-events-none fixed inset-0 z-50"
+                data-paused={isSelectionInsightPaused ? "true" : "false"}
                 key={selectionInsight.id}
                 role="status"
               >
@@ -3516,8 +3693,52 @@ export default function OnboardingQuestionnaire() {
                   }
                 />
                 <div
-                  className="sound-selection-insight absolute overflow-hidden rounded-lg px-4 py-4 backdrop-blur-xl sm:px-4"
+                  className="sound-selection-insight pointer-events-auto absolute select-none overflow-hidden rounded-lg px-4 py-4 backdrop-blur-xl sm:px-4"
                   data-tone={activeQuestion.tone}
+                  onContextMenu={(event) => event.preventDefault()}
+                  onMouseEnter={() => {
+                    if (
+                      performance.now() >=
+                      selectionInsightIgnoreMouseUntilRef.current
+                    ) {
+                      pauseSelectionInsightCountdown();
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    if (
+                      performance.now() >=
+                      selectionInsightIgnoreMouseUntilRef.current
+                    ) {
+                      resumeSelectionInsightCountdown();
+                    }
+                  }}
+                  onPointerCancel={(event) => {
+                    if (event.pointerType !== "mouse") {
+                      selectionInsightIgnoreMouseUntilRef.current =
+                        performance.now() + 800;
+                      resumeSelectionInsightCountdown();
+                    }
+                  }}
+                  onPointerDown={(event) => {
+                    if (event.pointerType === "mouse") return;
+                    selectionInsightIgnoreMouseUntilRef.current =
+                      performance.now() + 800;
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    pauseSelectionInsightCountdown();
+                  }}
+                  onPointerUp={(event) => {
+                    if (event.pointerType === "mouse") return;
+                    selectionInsightIgnoreMouseUntilRef.current =
+                      performance.now() + 800;
+                    if (
+                      event.currentTarget.hasPointerCapture(event.pointerId)
+                    ) {
+                      event.currentTarget.releasePointerCapture(
+                        event.pointerId,
+                      );
+                    }
+                    resumeSelectionInsightCountdown();
+                  }}
                   style={
                     {
                       ...(selectionInsightPosition
@@ -3539,8 +3760,27 @@ export default function OnboardingQuestionnaire() {
                   <span aria-hidden="true" className="sound-selection-insight__scan absolute inset-0" />
                   <span aria-hidden="true" className="sound-selection-insight__edge absolute inset-y-0 left-0 w-1" />
                   <div className="relative flex items-start gap-3">
-                    <span className="sound-selection-insight__badge grid h-8 w-8 shrink-0 place-items-center rounded-[0.2rem] border border-cyan-100/35 text-cyan-50">
-                      <Sparkles aria-hidden="true" className="h-3.5 w-3.5" />
+                    <span className="relative grid h-9 w-9 shrink-0 place-items-center text-cyan-50">
+                      <svg
+                        aria-hidden="true"
+                        className="sound-selection-insight__timer absolute"
+                        viewBox="0 0 44 44"
+                      >
+                        <circle
+                          className="sound-selection-insight__timer-track"
+                          cx="22"
+                          cy="22"
+                          r="19"
+                        />
+                        <circle
+                          className="sound-selection-insight__timer-progress"
+                          cx="22"
+                          cy="22"
+                          pathLength="1"
+                          r="19"
+                        />
+                      </svg>
+                      <Sparkles aria-hidden="true" className="relative z-10 h-4 w-4" />
                     </span>
                     <div className="min-w-0">
                       <p className="sound-selection-insight__kicker text-[9px] font-black uppercase tracking-[0.18em]">
@@ -3554,9 +3794,6 @@ export default function OnboardingQuestionnaire() {
                       </p>
                     </div>
                   </div>
-                  <span aria-hidden="true" className="sound-selection-insight__rail absolute bottom-0 left-1 right-1 h-px overflow-hidden">
-                    <span className="block h-full w-full" />
-                  </span>
                 </div>
               </aside>,
               document.body,
@@ -3976,6 +4213,46 @@ export default function OnboardingQuestionnaire() {
                       .
                     </p>
                   </div>
+
+                  <section
+                    aria-label="Share your Sound Fitness assessment"
+                    className="sound-results-share mt-3"
+                  >
+                    <div className="flex flex-wrap items-end justify-between gap-2">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/80">
+                          Pass it on
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-slate-400">
+                          Share your starting point or invite a friend to find theirs.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleShareAssessment("results")}
+                        className="sound-results-share-button inline-flex min-h-11 w-fit items-center justify-center gap-2 rounded-lg px-4 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200/70"
+                      >
+                        <Share2 aria-hidden="true" className="h-4 w-4" />
+                        Share my results
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleShareAssessment("quiz")}
+                        className="sound-results-share-button sound-results-share-button--quiz inline-flex min-h-11 w-fit items-center justify-center gap-2 rounded-lg px-4 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200/70"
+                      >
+                        <UserRound aria-hidden="true" className="h-4 w-4" />
+                        Share the quiz
+                      </button>
+                    </div>
+                    <p
+                      aria-live="polite"
+                      className="mt-2 min-h-4 text-center text-[10px] font-bold text-emerald-200"
+                    >
+                      {shareMessage}
+                    </p>
+                  </section>
                 </div>
 
                 {statusMessage ? (
@@ -4023,10 +4300,13 @@ export default function OnboardingQuestionnaire() {
                       <button
                         type="button"
                         onClick={handleCreateAccount}
-                        className="sound-signup-button relative z-10 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-cyan-300 px-8 text-xs font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_0_30px_rgba(34,211,238,0.3)] transition hover:bg-cyan-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100"
+                        className="sound-signup-button relative z-10 inline-flex min-h-12 items-center justify-center gap-2 overflow-hidden rounded-lg px-8 text-xs font-black uppercase tracking-[0.12em] text-cyan-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100"
                       >
-                        <BadgeCheck aria-hidden="true" className="h-4 w-4" />
-                        Sign Up Now
+                        <BadgeCheck
+                          aria-hidden="true"
+                          className="relative z-10 h-4 w-4"
+                        />
+                        <span className="relative z-10">Sign Up Now</span>
                       </button>
                     </div>
                     <button
@@ -4053,10 +4333,13 @@ export default function OnboardingQuestionnaire() {
                         }
                         disabled={answers[activeQuestion.key].length === 0}
                         data-launching={isNextLaunching ? "true" : "false"}
-                        className="sound-next-button relative inline-flex min-h-11 w-fit min-w-[10.5rem] items-center justify-center gap-2 self-center rounded-md border border-cyan-100/40 bg-cyan-300 px-6 text-xs font-black uppercase tracking-[0.14em] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.22)] transition hover:-translate-y-0.5 hover:bg-cyan-200 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.06] disabled:text-slate-500 disabled:shadow-none disabled:hover:translate-y-0 sm:self-auto"
+                        className="sound-next-button relative inline-flex min-h-11 w-fit min-w-[10.5rem] items-center justify-center gap-2 self-center rounded-lg px-6 text-xs font-black uppercase tracking-[0.14em] focus:outline-none disabled:cursor-not-allowed sm:self-auto"
                       >
-                        Next
-                        <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                        <span className="relative z-10">Next</span>
+                        <ArrowRight
+                          aria-hidden="true"
+                          className="relative z-10 h-4 w-4"
+                        />
                       </button>
                     </>
                   ) : null}
@@ -4762,6 +5045,10 @@ export default function OnboardingQuestionnaire() {
           visibility: visible;
         }
 
+        .sound-progress-node[data-active="true"] .sound-progress-tooltip {
+          display: none;
+        }
+
         .sound-readiness-ring-value {
           stroke-dasharray: 100;
           stroke-dashoffset: var(--readiness-ring-offset);
@@ -5006,15 +5293,22 @@ export default function OnboardingQuestionnaire() {
           --insight-accent-rgb: 34, 211, 238;
           --insight-deep-rgb: 8, 47, 73;
           --insight-light-rgb: 207, 250, 254;
+          isolation: isolate;
+          touch-action: manipulation;
           max-height: calc(100svh - 2rem);
-          border: 1px solid rgb(var(--insight-accent-rgb) / 0.72);
+          border: 1px solid rgb(var(--insight-light-rgb) / 0.66);
           background:
-            radial-gradient(circle at 86% 14%, rgb(var(--insight-accent-rgb) / 0.48), transparent 43%),
-            linear-gradient(135deg, rgb(var(--insight-accent-rgb) / 0.52), rgba(15, 23, 42, 0.72) 54%, rgb(var(--insight-accent-rgb) / 0.32));
+            linear-gradient(145deg, rgba(255, 255, 255, 0.13), transparent 34%),
+            radial-gradient(circle at 86% 14%, rgb(var(--insight-accent-rgb) / 0.19), transparent 46%),
+            linear-gradient(135deg, rgb(var(--insight-accent-rgb) / 0.14), rgba(3, 9, 24, 0.34) 54%, rgb(var(--insight-accent-rgb) / 0.1));
+          backdrop-filter: blur(14px) saturate(1.35) brightness(0.94);
+          -webkit-backdrop-filter: blur(14px) saturate(1.35) brightness(0.94);
           box-shadow:
-            0 22px 58px rgba(2, 7, 19, 0.58),
-            0 0 32px rgba(var(--insight-accent-rgb), 0.2),
-            inset 0 1px 0 rgba(255, 255, 255, 0.22);
+            0 22px 58px rgba(2, 7, 19, 0.44),
+            0 0 28px rgba(var(--insight-accent-rgb), 0.14),
+            inset 0 1px 0 rgba(255, 255, 255, 0.34),
+            inset 0 0 0 1px rgba(var(--insight-accent-rgb), 0.1),
+            inset 0 -14px 30px rgba(2, 7, 19, 0.12);
           animation: soundSelectionInsight 5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
         }
 
@@ -5037,21 +5331,41 @@ export default function OnboardingQuestionnaire() {
         }
 
         .sound-selection-insight__scan {
-          opacity: 0.56;
+          opacity: 0.46;
           background:
-            linear-gradient(108deg, transparent 12%, rgba(207, 250, 254, 0.13) 39%, transparent 53%),
-            repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px 4px);
+            linear-gradient(108deg, transparent 12%, rgba(255, 255, 255, 0.16) 39%, transparent 53%),
+            repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0 1px, transparent 1px 4px);
           transform: translateX(-38%);
           animation: soundSelectionInsightScan 5s ease-out both;
         }
 
-        .sound-selection-insight__badge {
-          background:
-            radial-gradient(circle at 34% 25%, rgba(255, 255, 255, 0.36), transparent 27%),
-            linear-gradient(145deg, rgba(var(--insight-accent-rgb), 0.3), rgba(var(--insight-deep-rgb), 0.36));
-          box-shadow:
-            0 0 18px rgba(var(--insight-accent-rgb), 0.22),
-            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        .sound-selection-insight__timer {
+          left: 50%;
+          top: 50%;
+          width: 2.75rem;
+          height: 2.75rem;
+          overflow: visible;
+          transform: translate(-50%, -50%) rotate(-90deg);
+          filter: drop-shadow(0 0 5px rgba(var(--insight-accent-rgb), 0.42));
+        }
+
+        .sound-selection-insight__timer-track,
+        .sound-selection-insight__timer-progress {
+          fill: none;
+          stroke-width: 2.4;
+          vector-effect: non-scaling-stroke;
+        }
+
+        .sound-selection-insight__timer-track {
+          stroke: rgba(var(--insight-light-rgb), 0.16);
+        }
+
+        .sound-selection-insight__timer-progress {
+          stroke: rgba(var(--insight-light-rgb), 0.98);
+          stroke-dasharray: 1;
+          stroke-dashoffset: 0;
+          stroke-linecap: round;
+          animation: soundSelectionInsightTimer 5s linear both;
         }
 
         .sound-selection-insight__edge {
@@ -5062,10 +5376,11 @@ export default function OnboardingQuestionnaire() {
           color: rgba(var(--insight-light-rgb), 0.9);
         }
 
-        .sound-selection-insight__rail span {
-          transform-origin: left center;
-          background: linear-gradient(90deg, rgba(var(--insight-light-rgb), 0.95), rgba(var(--insight-accent-rgb), 0.95), rgba(255, 255, 255, 0.48));
-          animation: soundSelectionInsightRail 5s linear both;
+        .sound-selection-insight-layer[data-paused="true"] .sound-selection-insight,
+        .sound-selection-insight-layer[data-paused="true"] .sound-selection-insight-backdrop,
+        .sound-selection-insight-layer[data-paused="true"] .sound-selection-insight__scan,
+        .sound-selection-insight-layer[data-paused="true"] .sound-selection-insight__timer-progress {
+          animation-play-state: paused;
         }
 
         @keyframes soundSelectionInsightScan {
@@ -5074,9 +5389,9 @@ export default function OnboardingQuestionnaire() {
           100% { transform: translateX(72%); opacity: 0; }
         }
 
-        @keyframes soundSelectionInsightRail {
-          from { transform: scaleX(1); opacity: 0.92; }
-          to { transform: scaleX(0); opacity: 0.3; }
+        @keyframes soundSelectionInsightTimer {
+          from { stroke-dashoffset: 0; }
+          to { stroke-dashoffset: 1; }
         }
 
         .sound-selection-insight__copy {
@@ -5199,6 +5514,52 @@ export default function OnboardingQuestionnaire() {
             0 0 38px rgba(34, 211, 238, 0.38),
             0 18px 40px rgba(8, 47, 73, 0.36),
             inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        }
+
+        .sound-results-share-button {
+          border: 1px solid rgba(103, 232, 249, 0.38);
+          background:
+            radial-gradient(circle at 16% 0%, rgba(255, 255, 255, 0.18), transparent 34%),
+            linear-gradient(135deg, rgba(8, 145, 178, 0.2), rgba(8, 47, 73, 0.46));
+          box-shadow:
+            0 10px 24px rgba(2, 8, 23, 0.24),
+            0 0 20px rgba(34, 211, 238, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 0.16);
+          backdrop-filter: blur(14px) saturate(1.25);
+          -webkit-backdrop-filter: blur(14px) saturate(1.25);
+          transition:
+            transform 200ms ease,
+            border-color 200ms ease,
+            box-shadow 200ms ease,
+            background 200ms ease;
+        }
+
+        .sound-results-share-button--quiz {
+          border-color: rgba(110, 231, 183, 0.34);
+          background:
+            radial-gradient(circle at 16% 0%, rgba(255, 255, 255, 0.16), transparent 34%),
+            linear-gradient(135deg, rgba(5, 150, 105, 0.18), rgba(6, 78, 59, 0.4));
+          box-shadow:
+            0 10px 24px rgba(2, 8, 23, 0.24),
+            0 0 20px rgba(52, 211, 153, 0.09),
+            inset 0 1px 0 rgba(255, 255, 255, 0.15);
+        }
+
+        .sound-results-share-button:hover {
+          transform: translateY(-2px);
+          border-color: rgba(165, 243, 252, 0.68);
+          box-shadow:
+            0 13px 28px rgba(2, 8, 23, 0.3),
+            0 0 28px rgba(34, 211, 238, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.24);
+        }
+
+        .sound-results-share-button--quiz:hover {
+          border-color: rgba(167, 243, 208, 0.64);
+          box-shadow:
+            0 13px 28px rgba(2, 8, 23, 0.3),
+            0 0 28px rgba(52, 211, 153, 0.18),
+            inset 0 1px 0 rgba(255, 255, 255, 0.22);
         }
 
         @media (max-width: 520px) {
@@ -6801,6 +7162,7 @@ export default function OnboardingQuestionnaire() {
 
         .sound-question-logo {
           pointer-events: none;
+          translate: -50% 0;
         }
 
         .sound-question-logo-stage {
@@ -9569,16 +9931,15 @@ export default function OnboardingQuestionnaire() {
           width: max(1.45rem, min(2.65rem, calc(var(--option-row) - 3.65rem)));
         }
 
-        /* Wide-but-short screens: give the desktop layout the same trimmed
-           top padding and slightly shorter rows so every step clears the
-           frame (the ≤1100px rules already handle narrower screens). */
+        /* Wide-but-short screens keep a full header lane above shorter card
+           rows, so the centered crest never competes with the progress rail. */
         @media (min-width: 1101px) and (max-height: 780px) {
           main[data-onboarding-stage="questions"] .sound-question-panel:not([data-contact-step="true"]) {
-            padding-top: clamp(4.1rem, 8.5vh, 4.85rem);
+            padding-top: clamp(5.75rem, 14.5vh, 6rem);
           }
 
           main[data-onboarding-stage="questions"] .sound-question-panel[data-contact-step="true"] {
-            padding-top: clamp(3.9rem, 8vh, 4.5rem);
+            padding-top: clamp(5.4rem, 13.5vh, 5.75rem);
             padding-bottom: 0.9rem;
           }
 
@@ -9787,15 +10148,15 @@ export default function OnboardingQuestionnaire() {
           /* The compact pill returns ~40px to the flow, so reclaim it from
              the panel padding and shrink the centered logo to match. */
           main[data-onboarding-stage="questions"] .sound-question-panel:not([data-contact-step="true"]) {
-            padding-top: 3.35rem;
+            padding-top: 3.6rem;
           }
 
           main[data-onboarding-stage="questions"] .sound-question-panel[data-contact-step="true"] {
-            padding-top: 3.2rem;
+            padding-top: 3.45rem;
           }
 
           main[data-onboarding-stage="questions"] .sound-question-logo {
-            top: 0.4rem;
+            top: 1rem;
           }
 
           main[data-onboarding-stage="questions"] .sound-question-logo-stage {
@@ -9957,6 +10318,115 @@ export default function OnboardingQuestionnaire() {
         /* Next button launch effect: quick press + bright flash, a shockwave
            ring, and the arrow shooting ahead — plays during the short launch
            window before the step advances. */
+        /* The ready state uses layered glass and a static color rim. Only the
+           inner refraction shifts so the border never looks like it is rotating. */
+        .sound-next-button {
+          isolation: isolate;
+          border: 1px solid transparent;
+          color: #eaffff;
+          background:
+            linear-gradient(140deg, rgba(8, 51, 68, 0.74), rgba(5, 19, 34, 0.82) 48%, rgba(69, 40, 12, 0.58)) padding-box,
+            linear-gradient(112deg, rgba(103, 232, 249, 0.96), rgba(45, 212, 191, 0.82) 48%, rgba(251, 191, 36, 0.94)) border-box;
+          box-shadow:
+            0 0 0 1px rgba(125, 249, 255, 0.1),
+            0 10px 28px rgba(2, 8, 23, 0.34),
+            0 0 25px rgba(34, 211, 238, 0.2),
+            0 0 38px rgba(245, 158, 11, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 0.34),
+            inset 0 -14px 28px rgba(8, 145, 178, 0.09);
+          text-shadow: 0 1px 12px rgba(125, 249, 255, 0.28);
+          backdrop-filter: blur(16px) saturate(1.35);
+          -webkit-backdrop-filter: blur(16px) saturate(1.35);
+          transform: translateZ(0);
+          transition:
+            transform 220ms cubic-bezier(0.2, 0.78, 0.18, 1),
+            box-shadow 220ms ease,
+            filter 220ms ease;
+        }
+
+        .sound-next-button::before {
+          content: "";
+          position: absolute;
+          z-index: 0;
+          inset: 1px;
+          border-radius: calc(0.5rem - 1px);
+          background:
+            radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.28), transparent 35%),
+            linear-gradient(110deg, transparent 14%, rgba(125, 249, 255, 0.15) 43%, rgba(251, 191, 36, 0.12) 58%, transparent 82%);
+          background-position: 18% 50%, 0% 50%;
+          background-size: auto, 180% 100%;
+          opacity: 0.88;
+          pointer-events: none;
+          transition:
+            opacity 260ms ease,
+            background-position 420ms cubic-bezier(0.2, 0.78, 0.18, 1);
+        }
+
+        .sound-next-button:hover:not(:disabled) {
+          transform: translateY(-2px) scale(1.015);
+          filter: brightness(1.12) saturate(1.14);
+          box-shadow:
+            0 0 0 1px rgba(165, 243, 252, 0.2),
+            0 14px 32px rgba(2, 8, 23, 0.4),
+            -8px 0 30px rgba(34, 211, 238, 0.28),
+            8px 0 30px rgba(245, 158, 11, 0.18),
+            inset 0 1px 0 rgba(255, 255, 255, 0.46),
+            inset 0 -16px 30px rgba(45, 212, 191, 0.12);
+        }
+
+        .sound-next-button:hover:not(:disabled)::before {
+          opacity: 1;
+          background-position: 18% 50%, 100% 50%;
+        }
+
+        .sound-next-button:focus-visible {
+          box-shadow:
+            0 0 0 3px rgba(8, 15, 28, 0.92),
+            0 0 0 5px rgba(103, 232, 249, 0.72),
+            0 0 30px rgba(34, 211, 238, 0.34),
+            inset 0 1px 0 rgba(255, 255, 255, 0.4);
+        }
+
+        .sound-next-button svg {
+          color: #fcd34d;
+          filter: drop-shadow(0 0 7px rgba(251, 191, 36, 0.5));
+          transition:
+            color 220ms ease,
+            filter 220ms ease,
+            transform 220ms ease;
+        }
+
+        .sound-next-button:hover:not(:disabled) svg {
+          color: #fef3c7;
+          filter:
+            drop-shadow(0 0 6px rgba(255, 255, 255, 0.5))
+            drop-shadow(0 0 10px rgba(251, 191, 36, 0.72));
+          transform: translateX(0.16rem);
+        }
+
+        .sound-next-button:disabled {
+          border-color: rgba(148, 163, 184, 0.12);
+          color: rgba(148, 163, 184, 0.54);
+          background: rgba(15, 23, 42, 0.44);
+          box-shadow:
+            inset 0 1px 0 rgba(255, 255, 255, 0.05),
+            inset 0 -12px 24px rgba(2, 6, 23, 0.16);
+          text-shadow: none;
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          transform: none;
+        }
+
+        .sound-next-button:disabled::before {
+          opacity: 0.12;
+          background-position: 18% 50%, 0% 50%;
+        }
+
+        .sound-next-button:disabled svg {
+          color: rgba(148, 163, 184, 0.48);
+          filter: none;
+        }
+
         .sound-next-button::after {
           content: "";
           position: absolute;
@@ -10035,10 +10505,8 @@ export default function OnboardingQuestionnaire() {
           }
         }
 
-        /* Desktop: the centered logo badge ran down to ~88px while the
-           indicator row can start as high as ~62px (contact step), so the
-           logo was covering the indicators. Shrink and raise it — narrow
-           screens already run it at this scale. */
+        /* Desktop keeps the crest compact and aligned with the utility
+           controls on both lateral edges. */
         @media (min-width: 1101px) {
           main[data-onboarding-stage="questions"] .sound-question-logo,
           main[data-onboarding-stage="result"] .sound-question-logo {
@@ -11226,6 +11694,61 @@ export default function OnboardingQuestionnaire() {
           }
         }
 
+        .sound-signup-button {
+          isolation: isolate;
+          border: 1px solid transparent;
+          background:
+            linear-gradient(138deg, rgba(8, 75, 91, 0.66), rgba(5, 27, 48, 0.78) 52%, rgba(5, 94, 75, 0.5)) padding-box,
+            linear-gradient(112deg, rgba(207, 250, 254, 0.96), rgba(34, 211, 238, 0.92) 44%, rgba(52, 211, 153, 0.88) 74%, rgba(253, 224, 71, 0.9)) border-box;
+          box-shadow:
+            0 0 0 1px rgba(255, 255, 255, 0.09),
+            0 0 30px rgba(34, 211, 238, 0.28),
+            0 12px 30px rgba(2, 8, 23, 0.32),
+            inset 0 1px 0 rgba(255, 255, 255, 0.4),
+            inset 0 -16px 30px rgba(16, 185, 129, 0.1);
+          text-shadow: 0 1px 12px rgba(125, 249, 255, 0.34);
+          backdrop-filter: blur(18px) saturate(1.38);
+          -webkit-backdrop-filter: blur(18px) saturate(1.38);
+          transition:
+            transform 200ms ease,
+            filter 200ms ease,
+            box-shadow 200ms ease;
+        }
+
+        .sound-signup-button::before,
+        .sound-signup-button::after {
+          content: "";
+          position: absolute;
+          pointer-events: none;
+        }
+
+        .sound-signup-button::before {
+          inset: 1px;
+          border-radius: calc(0.5rem - 1px);
+          background:
+            radial-gradient(circle at 16% 0%, rgba(255, 255, 255, 0.38), transparent 34%),
+            linear-gradient(108deg, transparent 12%, rgba(103, 232, 249, 0.16) 42%, rgba(110, 231, 183, 0.13) 64%, transparent 86%);
+        }
+
+        .sound-signup-button::after {
+          inset: auto 10% 2px;
+          height: 38%;
+          border-radius: 50%;
+          background: rgba(103, 232, 249, 0.12);
+          filter: blur(9px);
+        }
+
+        .sound-signup-button:hover {
+          filter: brightness(1.14) saturate(1.12);
+          transform: translateY(-2px);
+          box-shadow:
+            0 0 0 1px rgba(255, 255, 255, 0.16),
+            0 0 40px rgba(34, 211, 238, 0.4),
+            0 15px 34px rgba(2, 8, 23, 0.36),
+            inset 0 1px 0 rgba(255, 255, 255, 0.52),
+            inset 0 -18px 32px rgba(16, 185, 129, 0.14);
+        }
+
         /* Hero signup: a periodic squash-and-stretch bounce with a glow
            swell — unmistakably the main action on the result page. */
         .sound-signup-button:not(:hover) {
@@ -11299,23 +11822,48 @@ export default function OnboardingQuestionnaire() {
           52%,
           100% {
             transform: translateY(0) scale(1, 1);
-            box-shadow: 0 0 30px rgba(34, 211, 238, 0.3);
+            box-shadow:
+              0 0 0 1px rgba(255, 255, 255, 0.09),
+              0 0 30px rgba(34, 211, 238, 0.28),
+              0 12px 30px rgba(2, 8, 23, 0.32),
+              inset 0 1px 0 rgba(255, 255, 255, 0.4),
+              inset 0 -16px 30px rgba(16, 185, 129, 0.1);
           }
           58% {
             transform: translateY(1.5px) scale(1.05, 0.94);
-            box-shadow: 0 0 30px rgba(34, 211, 238, 0.32);
+            box-shadow:
+              0 0 0 1px rgba(255, 255, 255, 0.12),
+              0 0 30px rgba(34, 211, 238, 0.32),
+              0 12px 30px rgba(2, 8, 23, 0.32),
+              inset 0 1px 0 rgba(255, 255, 255, 0.44),
+              inset 0 -16px 30px rgba(16, 185, 129, 0.11);
           }
           66% {
             transform: translateY(-5px) scale(0.97, 1.06);
-            box-shadow: 0 0 44px rgba(34, 211, 238, 0.55);
+            box-shadow:
+              0 0 0 1px rgba(255, 255, 255, 0.17),
+              0 0 44px rgba(34, 211, 238, 0.5),
+              0 15px 34px rgba(2, 8, 23, 0.35),
+              inset 0 1px 0 rgba(255, 255, 255, 0.52),
+              inset 0 -18px 32px rgba(16, 185, 129, 0.15);
           }
           74% {
             transform: translateY(0.5px) scale(1.06, 0.95);
-            box-shadow: 0 0 36px rgba(34, 211, 238, 0.4);
+            box-shadow:
+              0 0 0 1px rgba(255, 255, 255, 0.13),
+              0 0 36px rgba(34, 211, 238, 0.38),
+              0 13px 32px rgba(2, 8, 23, 0.33),
+              inset 0 1px 0 rgba(255, 255, 255, 0.46),
+              inset 0 -17px 31px rgba(16, 185, 129, 0.12);
           }
           82% {
             transform: translateY(-1.5px) scale(0.99, 1.02);
-            box-shadow: 0 0 32px rgba(34, 211, 238, 0.34);
+            box-shadow:
+              0 0 0 1px rgba(255, 255, 255, 0.11),
+              0 0 32px rgba(34, 211, 238, 0.32),
+              0 12px 30px rgba(2, 8, 23, 0.32),
+              inset 0 1px 0 rgba(255, 255, 255, 0.42),
+              inset 0 -16px 30px rgba(16, 185, 129, 0.11);
           }
           90% {
             transform: translateY(0) scale(1, 1);
@@ -11465,6 +12013,106 @@ export default function OnboardingQuestionnaire() {
           margin-top: 0.28rem;
           flex-shrink: 0;
           --step-label-accent: 34, 211, 238;
+          transition: margin-bottom 180ms ease;
+        }
+
+        .sound-progress-steplabel__trigger {
+          position: relative;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 0;
+          border-radius: 0.4rem;
+          padding: 0.12rem 0.32rem;
+          background: transparent;
+          color: inherit;
+          font: inherit;
+          letter-spacing: inherit;
+          text-transform: inherit;
+          cursor: help;
+          outline: none;
+        }
+
+        .sound-progress-steplabel__trigger:focus-visible {
+          box-shadow: 0 0 0 1px rgba(var(--step-label-accent), 0.68);
+        }
+
+        .sound-progress-steplabel__tooltip {
+          position: absolute;
+          left: 50%;
+          top: calc(100% + 0.5rem);
+          z-index: 80;
+          display: grid;
+          width: max-content;
+          max-width: min(16rem, calc(100vw - 4rem));
+          gap: 0.18rem;
+          padding: 0.58rem 0.68rem;
+          border: 1px solid rgba(var(--step-label-accent), 0.52);
+          border-radius: 0.55rem;
+          background:
+            radial-gradient(circle at 18% 0%, rgba(var(--step-label-accent), 0.3), transparent 62%),
+            linear-gradient(145deg, rgba(15, 23, 42, 0.88), rgba(3, 8, 22, 0.94));
+          color: #ecfeff;
+          -webkit-text-fill-color: #ecfeff;
+          font-size: 0.58rem;
+          font-style: normal;
+          font-weight: 700;
+          letter-spacing: 0.04em;
+          line-height: 1.25;
+          opacity: 0;
+          pointer-events: none;
+          text-align: left;
+          text-transform: none;
+          transform: translate(-50%, -0.22rem) scale(0.96);
+          transition:
+            opacity 160ms ease,
+            transform 180ms cubic-bezier(0.2, 0.82, 0.22, 1);
+          visibility: hidden;
+          white-space: normal;
+          box-shadow:
+            0 16px 34px rgba(2, 7, 19, 0.74),
+            0 0 22px rgba(var(--step-label-accent), 0.14),
+            inset 0 1px 0 rgba(255, 255, 255, 0.15);
+          backdrop-filter: blur(12px) saturate(1.2);
+        }
+
+        .sound-progress-steplabel__tooltip::before {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: -0.31rem;
+          height: 0.55rem;
+          width: 0.55rem;
+          border-left: 1px solid rgba(var(--step-label-accent), 0.52);
+          border-top: 1px solid rgba(var(--step-label-accent), 0.52);
+          background: rgba(12, 20, 36, 0.94);
+          transform: translateX(-50%) rotate(45deg);
+        }
+
+        .sound-progress-steplabel__tooltip > span {
+          color: rgba(var(--step-label-accent), 0.9);
+          -webkit-text-fill-color: rgba(var(--step-label-accent), 0.9);
+          font-size: 0.5rem;
+          font-weight: 900;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+
+        .sound-progress-steplabel__tooltip strong {
+          color: #f8fafc;
+          -webkit-text-fill-color: #f8fafc;
+          font-size: 0.68rem;
+          font-weight: 850;
+          letter-spacing: 0;
+          text-transform: none;
+        }
+
+        .sound-progress-steplabel__trigger:hover .sound-progress-steplabel__tooltip,
+        .sound-progress-steplabel__trigger:focus .sound-progress-steplabel__tooltip,
+        .sound-progress-steplabel__trigger:focus-visible .sound-progress-steplabel__tooltip {
+          opacity: 1;
+          transform: translate(-50%, 0) scale(1);
+          visibility: visible;
         }
 
         .sound-progress-steplabel[data-tone="emerald"] {
@@ -11554,6 +12202,223 @@ export default function OnboardingQuestionnaire() {
         @media (max-width: 430px) {
           .sound-progress-steplabel {
             margin-top: 0.18rem;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .sound-progress-steplabel:has(.sound-progress-steplabel__trigger:hover),
+          .sound-progress-steplabel:has(.sound-progress-steplabel__trigger:focus) {
+            margin-bottom: 3.75rem;
+          }
+        }
+
+        /* Option icons are the card artwork rather than a second framed box.
+           Labels stay above the artwork and scale from the card's real size. */
+        main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count] {
+          perspective: 900px;
+          perspective-origin: 50% 42%;
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count] .sound-option-card {
+          --option-card-yaw: 0deg;
+          place-items: center;
+          transform:
+            translate3d(0, 0, 0)
+            rotateX(1.8deg)
+            rotateY(var(--option-card-yaw));
+          transform-origin: 50% 72%;
+          transform-style: preserve-3d;
+          border-color: rgb(var(--option-accent) / 0.34);
+          background:
+            linear-gradient(145deg, rgba(255, 255, 255, 0.12), transparent 24%),
+            radial-gradient(circle at 48% 18%, rgb(var(--option-accent) / 0.22), transparent 42%),
+            linear-gradient(150deg, rgb(var(--option-accent) / 0.13), rgba(10, 22, 38, 0.9) 48%, rgba(2, 7, 19, 0.98));
+          box-shadow:
+            -1px -1px 0 rgba(255, 255, 255, 0.12),
+            1px 1px 0 rgb(var(--option-accent) / 0.24),
+            0 5px 0 rgba(1, 5, 14, 0.86),
+            0 13px 24px rgba(0, 0, 0, 0.48),
+            inset 1px 1px 0 rgba(255, 255, 255, 0.13),
+            inset -3px -4px 10px rgba(0, 0, 0, 0.36);
+          transition:
+            transform 220ms cubic-bezier(0.2, 0.78, 0.2, 1),
+            border-color 220ms ease,
+            box-shadow 220ms ease,
+            filter 220ms ease;
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count] .sound-option-card:nth-child(3n + 1) {
+          --option-card-yaw: 1.15deg;
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count] .sound-option-card:nth-child(3n) {
+          --option-card-yaw: -1.15deg;
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count] .sound-option-card:hover {
+          z-index: 15;
+          transform: translate3d(0, -4px, 14px) rotateX(0deg) rotateY(0deg) scale(1.018);
+          border-color: rgb(var(--option-accent) / 0.62);
+          box-shadow:
+            -1px -1px 0 rgba(255, 255, 255, 0.2),
+            1px 1px 0 rgb(var(--option-accent) / 0.4),
+            0 7px 0 rgba(1, 5, 14, 0.82),
+            0 18px 34px rgba(0, 0, 0, 0.52),
+            0 0 24px rgb(var(--option-accent) / 0.18),
+            inset 1px 1px 0 rgba(255, 255, 255, 0.18),
+            inset -3px -4px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count] .sound-option-card:active {
+          transform: translate3d(0, 2px, 2px) rotateX(0.8deg) rotateY(0deg) scale(0.99);
+          box-shadow:
+            -1px -1px 0 rgba(255, 255, 255, 0.1),
+            0 2px 0 rgba(1, 5, 14, 0.88),
+            0 7px 13px rgba(0, 0, 0, 0.45),
+            inset 1px 1px 0 rgba(255, 255, 255, 0.1),
+            inset -2px -3px 9px rgba(0, 0, 0, 0.4);
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count] .sound-option-card[data-active="true"],
+        main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count] .sound-option-card[data-selected="true"] {
+          transform: translate3d(0, -5px, 18px) rotateX(0deg) rotateY(0deg) scale(1.045);
+          box-shadow:
+            0 0 0 1px rgb(var(--option-accent) / 0.72),
+            -1px -1px 0 rgba(255, 255, 255, 0.24),
+            0 7px 0 rgb(var(--option-accent) / 0.28),
+            0 20px 38px rgba(0, 0, 0, 0.54),
+            0 0 34px rgb(var(--option-accent) / 0.38),
+            inset 1px 1px 0 rgba(255, 255, 255, 0.2),
+            inset -3px -4px 11px rgba(0, 0, 0, 0.3);
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-depth-frame {
+          position: absolute;
+          inset: 0;
+          z-index: 8;
+          overflow: hidden;
+          border-radius: inherit;
+          pointer-events: none;
+          box-shadow:
+            inset 2px 2px 0 rgba(255, 255, 255, 0.12),
+            inset -2px -3px 0 rgba(1, 5, 14, 0.68),
+            inset 0 7px 13px rgb(var(--option-accent) / 0.07),
+            inset 0 -10px 18px rgba(0, 0, 0, 0.25);
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-depth-frame::before,
+        main[data-onboarding-stage="questions"] .sound-option-depth-frame::after {
+          content: "";
+          position: absolute;
+          pointer-events: none;
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-depth-frame::before {
+          left: 0.3rem;
+          right: 0.42rem;
+          top: 0.16rem;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.48), transparent);
+          opacity: 0.72;
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-depth-frame::after {
+          right: 0.16rem;
+          top: 0.38rem;
+          bottom: 0.48rem;
+          width: 1px;
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgb(var(--option-accent) / 0.48), transparent);
+          opacity: 0.7;
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count] .sound-option-icon-shell {
+          position: absolute;
+          inset: clamp(0.2rem, 4cqh, 0.7rem);
+          z-index: 2;
+          display: grid;
+          width: auto;
+          height: auto;
+          place-items: center;
+          border: 0;
+          border-radius: 0;
+          color: rgb(var(--option-accent));
+          background: transparent;
+          box-shadow: none;
+          opacity: 0.38;
+          pointer-events: none;
+          transform: scale(0.96);
+          transition:
+            opacity 220ms ease,
+            transform 220ms ease,
+            color 220ms ease,
+            filter 220ms ease;
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count] .sound-option-icon-shell .sound-option-icon {
+          width: min(88cqw, 108cqh);
+          height: min(88cqw, 108cqh);
+          filter:
+            drop-shadow(0 0 0.7rem rgb(var(--option-accent) / 0.54))
+            drop-shadow(0 0 1.6rem rgb(var(--option-accent) / 0.2));
+          stroke-width: 1.55;
+        }
+
+        main[data-onboarding-stage="questions"] .sound-question-panel .sound-option-grid[data-option-count] .sound-option-label {
+          position: relative;
+          z-index: 11;
+          display: block;
+          min-height: 0;
+          max-width: 92%;
+          margin-top: 0;
+          font-size: clamp(0.86rem, min(22cqh, 12.5cqw), 1.18rem);
+          line-height: 1.03;
+          color: #ffffff;
+          text-wrap: balance;
+          text-shadow:
+            0 1px 0 rgba(2, 7, 19, 0.96),
+            0 2px 0.32rem rgba(2, 7, 19, 0.96),
+            0 0 0.85rem rgb(var(--option-accent) / 0.38);
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count="9"] .sound-option-icon-shell .sound-option-icon {
+          width: min(82cqw, 104cqh);
+          height: min(82cqw, 104cqh);
+        }
+
+        main[data-onboarding-stage="questions"] .sound-question-panel .sound-option-grid[data-option-count="9"] .sound-option-label {
+          max-width: 94%;
+          font-size: clamp(0.68rem, min(19cqh, 10.5cqw), 0.94rem);
+          line-height: 1.02;
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-card:hover .sound-option-icon-shell {
+          opacity: 0.5;
+          transform: scale(1.03);
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-card[data-active="true"] .sound-option-icon-shell,
+        main[data-onboarding-stage="questions"] .sound-option-card[data-selected="true"] .sound-option-icon-shell {
+          border: 0;
+          color: #ffffff;
+          background: transparent;
+          box-shadow: none;
+          opacity: 0.66;
+          transform: scale(1.08);
+          filter: brightness(1.16) saturate(1.12);
+        }
+
+        main[data-onboarding-stage="questions"] .sound-option-card[data-active="true"] .sound-option-icon-shell .sound-option-icon,
+        main[data-onboarding-stage="questions"] .sound-option-card[data-selected="true"] .sound-option-icon-shell .sound-option-icon {
+          filter:
+            drop-shadow(0 0 0.7rem rgba(255, 255, 255, 0.7))
+            drop-shadow(0 0 1.45rem rgb(var(--option-accent) / 0.9));
+        }
+
+        @media (max-width: 760px) {
+          main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count] .sound-option-card:hover,
+          main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count] .sound-option-card[data-active="true"],
+          main[data-onboarding-stage="questions"] .sound-option-grid[data-option-count] .sound-option-card[data-selected="true"] {
+            transform: translate3d(0, -3px, 10px) rotateX(0deg) rotateY(0deg) scale(1.025);
           }
         }
 

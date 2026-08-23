@@ -55,6 +55,47 @@ const dashboardWebGlBudgetWaiters: {
 }[] = [];
 let dashboardWebGlLastSnapshotCaptureAt = 0;
 
+/**
+ * Every dashboard 3D component runs its own requestAnimationFrame loop that
+ * calls renderer.render() every frame — even while the canvas is scrolled far
+ * off-screen. On a page with dozens of canvases that is a lot of wasted GPU
+ * work. A single shared IntersectionObserver marks each canvas on/off-screen
+ * (dataset flag), and the wrapped render() below skips the GL draw entirely
+ * while it is off-screen. The rAF loop keeps spinning cheaply and resumes
+ * drawing the instant the canvas scrolls back into view, so there is no visible
+ * change — only fewer draws for things you cannot see. A generous rootMargin
+ * pre-warms canvases just before they enter the viewport.
+ */
+const DASHBOARD_WEBGL_VISIBILITY_ROOT_MARGIN = "240px";
+
+// Backing-buffer area budget (device pixels) used to decide how much a scene
+// may supersample. Small icons (rewards gems, coins, header marks) stay well
+// under this even at a high pixel ratio, so they keep their crisp supersampled
+// quality; only large scene canvases — where supersampling is the real
+// fragment-shading cost — get clamped toward native density.
+const DASHBOARD_WEBGL_PIXEL_BUDGET = 90_000;
+let dashboardWebGlVisibilityObserver: IntersectionObserver | null = null;
+
+function getDashboardWebGlVisibilityObserver(): IntersectionObserver | null {
+  if (typeof IntersectionObserver === "undefined") return null;
+
+  dashboardWebGlVisibilityObserver ??= new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        const canvas = entry.target as HTMLCanvasElement;
+        if (entry.isIntersecting) {
+          delete canvas.dataset.dashboardWebglOffscreen;
+        } else {
+          canvas.dataset.dashboardWebglOffscreen = "true";
+        }
+      }
+    },
+    { rootMargin: DASHBOARD_WEBGL_VISIBILITY_ROOT_MARGIN },
+  );
+
+  return dashboardWebGlVisibilityObserver;
+}
+
 export const loadDashboardThree = () => {
   dashboardThreePromise ??= import("three");
   return dashboardThreePromise;
@@ -707,6 +748,41 @@ const attachDashboardWebGlSnapshotCapture = (
   });
   interactiveTarget.addEventListener("focusin", wakeLiveCanvas);
 
+  // Pause GL draws while this canvas is scrolled out of view (see the wrapped
+  // render() above and the shared observer at the top of this module).
+  const visibilityObserver = getDashboardWebGlVisibilityObserver();
+  visibilityObserver?.observe(canvas);
+
+  // Context-loss recovery. Browsers reclaim WebGL contexts as they accumulate
+  // over a session; without preventDefault() a reclaimed context is gone for
+  // good and the scene "times out" into a permanent blank. preventDefault lets
+  // the browser fire webglcontextrestored so it can come back. Meanwhile we
+  // free the budget slot (so a dead context can't starve the live ones) and
+  // show the last-good snapshot instead of a blank. On restore, Three re-uploads
+  // the scene's GPU resources on the next draw, so we just clear the fallback
+  // and wake the canvas.
+  const handleDashboardContextLost = (event: Event) => {
+    event.preventDefault();
+    delete canvas.dataset.webglReady;
+    releaseRendererSlot();
+    resolveNextDashboardWebGlBudgetWaiter();
+    markDashboardWebGlFallback(canvas);
+  };
+  const handleDashboardContextRestored = () => {
+    clearDashboardWebGlFallback(canvas);
+    wakeDashboardWebGlCanvas(canvas);
+  };
+  canvas.addEventListener(
+    "webglcontextlost",
+    handleDashboardContextLost,
+    false,
+  );
+  canvas.addEventListener(
+    "webglcontextrestored",
+    handleDashboardContextRestored,
+    false,
+  );
+
   const syncImageMode = () => {
     clearStillTimeout();
 
@@ -751,6 +827,13 @@ const attachDashboardWebGlSnapshotCapture = (
       }
       setDashboardWebGlSnapshotVisible(canvas, true);
       setDashboardWebGlReleasedSnapshotStyles(canvas, true);
+      return;
+    }
+
+    // Scrolled out of view — skip the GPU draw entirely. The component's rAF
+    // loop keeps running but does almost nothing, and the canvas resumes
+    // drawing on the first frame after it scrolls back into view.
+    if (canvas.dataset.dashboardWebglOffscreen === "true") {
       return;
     }
 
@@ -814,9 +897,16 @@ const attachDashboardWebGlSnapshotCapture = (
     interactiveTarget.removeEventListener("pointerenter", wakeLiveCanvas);
     interactiveTarget.removeEventListener("pointerdown", wakeLiveCanvas);
     interactiveTarget.removeEventListener("focusin", wakeLiveCanvas);
+    canvas.removeEventListener("webglcontextlost", handleDashboardContextLost);
+    canvas.removeEventListener(
+      "webglcontextrestored",
+      handleDashboardContextRestored,
+    );
     window.removeEventListener(DASHBOARD_WEBGL_IMAGE_MODE_EVENT, syncImageMode);
+    visibilityObserver?.unobserve(canvas);
     delete canvas.dataset.webglReady;
     delete canvas.dataset.dashboardWebglActive;
+    delete canvas.dataset.dashboardWebglOffscreen;
     delete canvas.dataset.dashboardWebglSnapshotReleased;
     setDashboardWebGlReleasedSnapshotStyles(canvas, false);
     syncDashboardWebGlChildReady(canvas, false);
@@ -883,26 +973,93 @@ export const preloadDashboardWebGlRuntime = () => {
   return dashboardWebGlPreloadPromise;
 };
 
+const DASHBOARD_WEBGL_START_ROOT_MARGIN_PX = 320;
+let dashboardWebGlStartObserver: IntersectionObserver | null = null;
+const dashboardWebGlStartWaiters = new Map<Element, () => void>();
+
+function isDashboardCanvasNearViewport(canvas: HTMLCanvasElement): boolean {
+  const rect = canvas.getBoundingClientRect();
+  // Unknown size (not laid out yet) — don't block; let it start.
+  if (rect.width === 0 && rect.height === 0) return true;
+  const m = DASHBOARD_WEBGL_START_ROOT_MARGIN_PX;
+  const vh = window.innerHeight || 0;
+  const vw = window.innerWidth || 0;
+  return (
+    rect.bottom >= -m &&
+    rect.top <= vh + m &&
+    rect.right >= -m &&
+    rect.left <= vw + m
+  );
+}
+
+// Resolve once the canvas is within a screenful of the viewport. Off-screen
+// scenes use this to postpone their (expensive) init until you scroll near
+// them, so they don't clog the start queue and main thread on first load.
+function whenDashboardCanvasNearViewport(
+  canvas: HTMLCanvasElement,
+): Promise<void> {
+  if (typeof IntersectionObserver === "undefined") return Promise.resolve();
+  if (isDashboardCanvasNearViewport(canvas)) return Promise.resolve();
+
+  return new Promise<void>((resolve) => {
+    dashboardWebGlStartObserver ??= new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          const waiter = dashboardWebGlStartWaiters.get(entry.target);
+          if (waiter) {
+            dashboardWebGlStartWaiters.delete(entry.target);
+            dashboardWebGlStartObserver?.unobserve(entry.target);
+            waiter();
+          }
+        }
+      },
+      { rootMargin: `${DASHBOARD_WEBGL_START_ROOT_MARGIN_PX}px` },
+    );
+    dashboardWebGlStartWaiters.set(canvas, resolve);
+    dashboardWebGlStartObserver.observe(canvas);
+  });
+}
+
 export const waitForDashboardWebGlStart = async ({
   priority = false,
+  canvas = null,
 }: {
   priority?: boolean;
+  canvas?: HTMLCanvasElement | null;
 } = {}) => {
+  // Off-screen, non-priority scenes wait until they approach the viewport
+  // before joining the start queue — this keeps the initial load focused on the
+  // scenes you can actually see (header crest/trophy/rewards) instead of
+  // spinning up all ~50 scenes at once.
+  if (!priority && canvas) {
+    await whenDashboardCanvasNearViewport(canvas);
+  }
+
   void preloadDashboardWebGlRuntime();
   await loadDashboardThree();
 
-  const startDelay = priority ? 0 : DASHBOARD_WEBGL_START_SPACING_MS;
+  // Priority brand marks (logo, trophy) skip the serial start queue entirely so
+  // they appear immediately instead of waiting behind dozens of other scenes —
+  // previously "priority" only reserved a budget slot, not queue position.
+  if (priority) {
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => resolve()),
+    );
+    return waitForDashboardWebGlRendererCapacity(true);
+  }
+
   const queuedStart = dashboardWebGlStartQueue.then(
     () =>
       new Promise<void>((resolve) => {
         requestAnimationFrame(() => {
-          window.setTimeout(resolve, startDelay);
+          window.setTimeout(resolve, DASHBOARD_WEBGL_START_SPACING_MS);
         });
       }),
   );
 
   const budgetedStart = queuedStart.then(() =>
-    waitForDashboardWebGlRendererCapacity(priority),
+    waitForDashboardWebGlRendererCapacity(false),
   );
 
   dashboardWebGlStartQueue = budgetedStart.catch(() => undefined);
@@ -958,6 +1115,33 @@ export const createDashboardWebGlRenderer = (
       context: context as WebGLRenderingContext,
       preserveDrawingBuffer: true,
     });
+
+    // Several scenes request a pixel-ratio floor (Math.max(dpr, 1.4–1.6)),
+    // which supersamples 1.4–2.6x above a 1x display's native density — a huge
+    // fragment-shading cost the screen can't even show, on top of MSAA that
+    // already smooths edges. Clamp every renderer to native density here so no
+    // scene ever draws more pixels than the display presents. Quality is
+    // preserved (native resolution + antialiasing); only the invisible
+    // supersampling overhead is removed. One place, every scene.
+    const originalSetPixelRatio = renderer.setPixelRatio.bind(renderer);
+    renderer.setPixelRatio = ((ratio: number) => {
+      const nativeDpr =
+        typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+      const rect = canvas.getBoundingClientRect();
+      const cssArea = rect.width * rect.height;
+      // Size not laid out yet — don't risk over-clamping; honor the request.
+      if (!Number.isFinite(cssArea) || cssArea <= 0) {
+        return originalSetPixelRatio(ratio);
+      }
+      // Cap the backing-buffer AREA, not the ratio itself. Small icons keep
+      // their full requested (supersampled) ratio because they stay under
+      // budget; large scene canvases clamp toward native density where the
+      // supersampling is a real, invisible cost. Never below native.
+      const budgetRatio = Math.sqrt(DASHBOARD_WEBGL_PIXEL_BUDGET / cssArea);
+      const effective = Math.min(ratio, Math.max(nativeDpr, budgetRatio));
+      return originalSetPixelRatio(effective);
+    }) as WebGLRenderer["setPixelRatio"];
+
     const releaseRendererSlot = trackDashboardWebGlRenderer(renderer, canvas);
     attachDashboardWebGlSnapshotCapture(renderer, canvas, releaseRendererSlot);
 
