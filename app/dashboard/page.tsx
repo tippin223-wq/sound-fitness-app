@@ -40,6 +40,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type WheelEvent as ReactWheelEvent,
+  startTransition,
   useCallback,
   useEffect,
   useMemo,
@@ -359,6 +360,76 @@ const DASHBOARD_NAV_MIN_ZOOM = 0.3;
  * width or height runs out first. Uses zoom rather than a transform so layout
  * shrinks too and the nav genuinely occupies less of the row.
  */
+/* The nav and account blocks move between their open (carousel) and idle
+   (pinned) layouts via position/width/justification — properties that cannot
+   transition, so on a focus change their contents teleported while the rest
+   of the menu eased, making every piece read as an independent item. This is
+   a FLIP pass: measure each piece before the state class flips, flip, force
+   one layout, measure again, then play a compositor transform from the old
+   box to the new one on the menu's shared 420ms curve. composite: "add"
+   keeps each element's own CSS transform (e.g. the gear's resting offset)
+   intact underneath the animation. */
+const DASHBOARD_HEADER_FLIP_SELECTORS = [
+  ".dashboard-header-dashboard-selector",
+  ".dashboard-profile-hub-trigger",
+  ".dashboard-profile-action-gear",
+  ".dashboard-profile-rewards-control",
+  ".dashboard-profile-upper-actions",
+  ".dashboard-profile-quick-actions",
+].join(", ");
+
+const DASHBOARD_HEADER_FLIP_ID = "dashboard-header-focus-flip";
+
+const runDashboardHeaderFocusFlip = (applyStateChange: () => void) => {
+  if (
+    typeof window === "undefined" ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    applyStateChange();
+    return;
+  }
+
+  const items = Array.from(
+    document.querySelectorAll<HTMLElement>(DASHBOARD_HEADER_FLIP_SELECTORS),
+  ).filter((el) => el.offsetParent !== null);
+  // FIRST: capture the current visual boxes (including any in-flight flip, so
+  // an interrupted transition re-flips smoothly from wherever it is).
+  const first = items.map((el) => el.getBoundingClientRect());
+  items.forEach((el) =>
+    el.getAnimations().forEach((animation) => {
+      if (animation.id === DASHBOARD_HEADER_FLIP_ID) animation.cancel();
+    }),
+  );
+
+  applyStateChange();
+  // Force one style+layout pass so LAST is the settled target geometry.
+  void document.body.offsetWidth;
+
+  items.forEach((el, index) => {
+    const f = first[index];
+    const l = el.getBoundingClientRect();
+    if (!f.width || !l.width) return;
+    const dx = f.left + f.width / 2 - (l.left + l.width / 2);
+    const dy = f.top + f.height / 2 - (l.top + l.height / 2);
+    const scaleRatio = f.width / l.width;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(scaleRatio - 1) < 0.02) {
+      return;
+    }
+    const animation = el.animate(
+      [
+        { transform: "translate(" + dx + "px, " + dy + "px) scale(" + scaleRatio + ")" },
+        { transform: "translate(0px, 0px) scale(1)" },
+      ],
+      {
+        composite: "add",
+        duration: 240,
+        easing: "cubic-bezier(0.2, 0.84, 0.2, 1)",
+      },
+    );
+    animation.id = DASHBOARD_HEADER_FLIP_ID;
+  });
+};
+
 const fitDashboardHeaderNav = () => {
   if (typeof document === "undefined") return;
 
@@ -367,9 +438,8 @@ const fitDashboardHeaderNav = () => {
   // geometry would poison the measurement, and a state change should animate
   // purely via the block's compositor scale).
   if (
-    document
-      .querySelector("main")
-      ?.classList.contains("dashboard-page--content-focus")
+    document.querySelector<HTMLElement>(".dashboard-header-vortex-shell")
+      ?.dataset.headerFocus === "content"
   ) {
     return;
   }
@@ -450,7 +520,7 @@ const fitDashboardHeaderNav = () => {
   // ellipse gradients — see the project memory on dropped CSS).
   selector.style.setProperty(
     "transition",
-    "zoom 420ms cubic-bezier(0.2, 0.84, 0.2, 1)",
+    "zoom 240ms cubic-bezier(0.2, 0.84, 0.2, 1)",
   );
   selector.style.setProperty("zoom", String(targetZoom));
 };
@@ -828,15 +898,13 @@ const DASHBOARD_HEADER_NARROW_MOBILE_MENU_STYLE = `
      fitDashboardHeaderNav's zoom instead: one resize mechanism, and zoom
      shrinks layout toward the top-left so the nav hugs the menu joystick
      rather than centering ~20px to the right of it. */
-  main:not(.dashboard-page--content-focus)
-    .dashboard-header-vortex-shell
+  .dashboard-header-vortex-shell:not([data-header-focus="content"])
     .dashboard-profile-rewards-control {
     scale: 0.84;
   }
 
   /* The scroll-button styles set their own scale, so this needs to win. */
-  main:not(.dashboard-page--content-focus)
-    .dashboard-header-vortex-shell
+  .dashboard-header-vortex-shell:not([data-header-focus="content"])
     .dashboard-header-menu-content
     > .dashboard-header-mobile-orbit-joystick {
     scale: 0.88 !important;
@@ -845,8 +913,7 @@ const DASHBOARD_HEADER_NARROW_MOBILE_MENU_STYLE = `
   /* Measured against the collapsed shell's midline once the focus transition
      has settled — the joystick shrinks from 40px to 24px on the way in, so
      values tuned mid-transition land wrong. */
-  main.dashboard-page--content-focus
-    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
     .dashboard-header-menu-content
     > .dashboard-header-mobile-orbit-joystick {
     /* Anchor to the top of the menu row like the crest does. Left on the
@@ -854,28 +921,51 @@ const DASHBOARD_HEADER_NARROW_MOBILE_MENU_STYLE = `
        instead of the ~71px menu area, and since that box's height changes with
        its contents the joystick kept drifting between positions. */
     align-self: flex-start !important;
+    /* Walks the collapsed joystick toward the crest: both shrink away from
+       each other (crest scales from its top-left, joystick from its centre),
+       which left a ~46px visual gap. The stage flexes to absorb the slack, so
+       the meter stays pinned right. */
+    margin-left: -2.2rem !important;
     /* 0.6 (the generic idle scale) x 0.88 (this joystick's deliberate open
        size): keeps its idle->open growth ratio identical to the neighbouring
        menu items, which animate 0.6 -> 1 over the same 420ms. */
     scale: 0.528 !important;
-    translate: 0 0.625rem !important;
+    translate: 0 0.125rem !important;
   }
 
   /* Same 13px lift for the menu blocks, which carry the nav content and the
      account cluster. Doubled class raises specificity over the unscoped
      content-focus rule that pins them to the stage top. */
-  main.dashboard-page--content-focus
-    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
     .dashboard-header-main-orbit-stage
     > .dashboard-header-menu-block.dashboard-header-menu-block {
     translate: 0 0.69rem !important;
   }
 
+  /* The account block is bounded to the stage, which stops well short of the
+     meter button — walk it right so the collapsed account icon and rewards
+     end tight to the meter instead of ~40px shy of it. */
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-main-orbit-stage
+    > .dashboard-header-menu-block--profile.dashboard-header-menu-block--profile {
+    translate: 1.5rem 0.69rem !important;
+    /* Collapsed: shrink to content so the cluster's space-between has no slack
+       to strand the account icon mid-header — it packs against the rewards,
+       with the gear in its usual pocket on the icon's left. */
+    width: fit-content !important;
+  }
+
+  /* Breathing room between the packed account icon and the rewards. */
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-profile-cluster {
+    gap: 1.7rem !important;
+  }
+
+
   /* Collapsed header: every item reads on one line through the middle of the
      MENU area — which is the shell minus the news chyron sitting in its bottom
      26px. Centring on the shell box itself leaves everything ~13px low. */
-  main.dashboard-page--content-focus
-    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
     .dashboard-header-menu-content
     > .dashboard-header-logo-cluster {
     translate: 0 -0.3rem !important;
@@ -884,8 +974,7 @@ const DASHBOARD_HEADER_NARROW_MOBILE_MENU_STYLE = `
   /* The shell collapses to ~98px in content focus, but the stage carried a
      1.45rem downward nudge that pushed the menu content past the bottom of the
      shrunken menu instead of moving up with it. Match the logo's offset. */
-  main.dashboard-page--content-focus
-    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
     .dashboard-header-menu-content
     > .dashboard-header-main-orbit-stage {
     translate: 0 0.45rem !important;
@@ -1110,16 +1199,14 @@ const DASHBOARD_HEADER_NARROW_MOBILE_MENU_STYLE = `
      overflowing and being clipped, and nothing inside is ever crushed. */
   /* Fills the stage so it is a stable box to fit the nav against — sizing it to
      the nav instead would make the measurement circular. */
-  main:not(.dashboard-page--content-focus)
-    .dashboard-header-vortex-shell
+  .dashboard-header-vortex-shell:not([data-header-focus="content"])
     .dashboard-header-main-orbit-stage--stable
     .dashboard-header-menu-block--dashboard {
     max-width: none !important;
     width: 100% !important;
   }
 
-  main:not(.dashboard-page--content-focus)
-    .dashboard-header-vortex-shell
+  .dashboard-header-vortex-shell:not([data-header-focus="content"])
     .dashboard-header-main-orbit-stage--stable
     .dashboard-header-selector-body {
     max-width: none !important;
@@ -1127,8 +1214,7 @@ const DASHBOARD_HEADER_NARROW_MOBILE_MENU_STYLE = `
     width: 13.35rem !important;
   }
 
-  main:not(.dashboard-page--content-focus)
-    .dashboard-header-vortex-shell
+  .dashboard-header-vortex-shell:not([data-header-focus="content"])
     .dashboard-header-main-orbit-stage--stable
     .dashboard-header-dashboard-selector {
     max-width: none !important;
@@ -1275,8 +1361,7 @@ const DASHBOARD_HEADER_NARROW_MOBILE_MENU_STYLE = `
     --dashboard-header-category-dock-scale: 0.58;
   }
 
-  main.dashboard-page--content-focus
-    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
     .dashboard-header-menu-content
     > .dashboard-header-meter-menu-shell {
     right: 0.58rem !important;
@@ -1285,8 +1370,7 @@ const DASHBOARD_HEADER_NARROW_MOBILE_MENU_STYLE = `
     translate: 0 !important;
   }
 
-  main.dashboard-page--content-focus
-    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
     .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"]
     + .dashboard-header-meter-menu-shell {
     transform: translate3d(0, 0, 0) scale(0.9) !important;
@@ -6392,8 +6476,8 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
 
 /* ---------------------------------------------------------------------------
    Header vs. content: only one set of CSS animations runs at a time. <main>
-   carries dashboard-page--header-focus by default and flips to
-   dashboard-page--content-focus whenever the content is engaged (hover/tap, or
+   carries data-header-focus="header" by default and flips to
+   data-header-focus="content" whenever the content is engaged (hover/tap, or
    an active page control). 3D widgets are frozen in JS (header via paused prop,
    content via the shared-stage freeze); these rules cover the CSS layers + the
    header dim. Mirrors the level-meter pause approach above.
@@ -6407,26 +6491,47 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
 /* Content engaged -> freeze + dim the header; content keeps animating.
    Excluded while the header is timed-out (idle): the idle animation owns the
    header then, so the zone dim/pause must not darken or freeze it. */
-main.dashboard-page--content-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out),
-main.dashboard-page--content-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out) *,
-main.dashboard-page--content-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out) *::before,
-main.dashboard-page--content-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out) *::after {
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out),
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) *,
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) *::before,
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) *::after {
   animation-play-state: paused !important;
 }
 
-main.dashboard-page--content-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out) {
-  filter: brightness(0.6) saturate(0.72) !important;
-  height: 6.1rem;
-  transition: filter 320ms ease !important;
+/* Lives in this runtime style block because the CSS build pipeline silently
+   strips offset-path (same stripping as transition: zoom and the two-value
+   ellipse gradients — see the project memory on dropped CSS). Replaces the
+   five SMIL animateMotion orbits in the meter tornado, which re-computed
+   style/layout for the whole page every frame; offset-distance animates on
+   the compositor. Delays mirror the old SMIL begin offsets. */
+.dashboard-header-meter-tornado__emerald-motion {
+  animation: dashboard-header-meter-tornado-orbit 8.9s linear infinite;
+  offset-path: path(
+    "M160 410 C88 402 72 360 158 346 C250 331 244 299 162 287 C74 274 79 238 160 225 C252 211 246 176 158 163 C90 153 96 124 160 112"
+  );
+  offset-rotate: 0deg;
 }
 
-main.dashboard-page--content-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+.dashboard-header-meter-tornado__emerald-motion--one { animation-delay: -0.8s; }
+.dashboard-header-meter-tornado__emerald-motion--two { animation-delay: -3.1s; }
+.dashboard-header-meter-tornado__emerald-motion--three { animation-delay: -5.4s; }
+.dashboard-header-meter-tornado__emerald-motion--four { animation-delay: -2.2s; }
+.dashboard-header-meter-tornado__emerald-motion--five { animation-delay: -6.2s; }
+
+@keyframes dashboard-header-meter-tornado-orbit {
+  from { offset-distance: 0%; }
+  to { offset-distance: 100%; }
+}
+
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) {
+  filter: brightness(0.6) saturate(0.72) !important;
+  height: 6.1rem;
+  transition:
+    filter 320ms ease,
+    height 240ms cubic-bezier(0.2, 0.84, 0.2, 1) !important;
+}
+
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
   .dashboard-header-menu-content
   > * {
   scale: 0.6;
@@ -6442,8 +6547,9 @@ main.dashboard-page--content-focus
 .dashboard-header-vortex-shell .dashboard-header-menu-content > * {
   transition:
     all 150ms ease,
-    translate 420ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    scale 420ms cubic-bezier(0.2, 0.84, 0.2, 1);
+    margin 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    translate 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    scale 240ms cubic-bezier(0.2, 0.84, 0.2, 1);
 }
 
 /* The nav joystick's size is swapped by the --stable state rules (width,
@@ -6453,14 +6559,13 @@ main.dashboard-page--content-focus
 .dashboard-header-vortex-shell .dashboard-header-selector-joystick {
   transition:
     all 150ms ease,
-    width 420ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    min-width 420ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    height 420ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    margin 420ms cubic-bezier(0.2, 0.84, 0.2, 1);
+    width 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    min-width 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    height 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    margin 240ms cubic-bezier(0.2, 0.84, 0.2, 1);
 }
 
-main.dashboard-page--content-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
   .dashboard-header-menu-content
   > :is(.dashboard-header-logo-cluster, .dashboard-header-scroll-button--left) {
   align-self: flex-start;
@@ -6468,8 +6573,7 @@ main.dashboard-page--content-focus
 }
 
 
-main.dashboard-page--content-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
   .dashboard-header-menu-content
   > .dashboard-header-main-orbit-stage {
   position: relative;
@@ -6486,9 +6590,9 @@ main.dashboard-page--content-focus
   pointer-events: auto;
 }
 
-main.dashboard-page--content-focus
+.dashboard-header-vortex-shell[data-header-focus="content"]
   .dashboard-header-main-orbit-stage,
-main.dashboard-page--content-focus
+.dashboard-header-vortex-shell[data-header-focus="content"]
   .dashboard-header-main-orbit-stage *,
 main.dashboard-page--idle-menu-open
   .dashboard-header-main-orbit-stage,
@@ -6502,15 +6606,13 @@ main.dashboard-page--idle-menu-open
    9-14px below the menu-area midline (the shell's bottom band belongs to the
    chyron). Measured against the midline at 1100px wide. */
 @media (min-width: 941px) {
-  main.dashboard-page--content-focus
-    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
     .dashboard-header-menu-content
     > .dashboard-header-logo-cluster {
     translate: 0 0.25rem;
   }
 
-  main.dashboard-page--content-focus
-    .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
     .dashboard-header-main-orbit-stage
     > :is(
       .dashboard-header-menu-block--dashboard,
@@ -6518,7 +6620,7 @@ main.dashboard-page--idle-menu-open
     ) {
     /* !important: the global idle block rule (translate: 0 1.5rem) comes later
        in this sheet and would win otherwise. */
-    translate: 0 0.05rem !important;
+    translate: 1.5rem 0.05rem !important;
   }
 }
 
@@ -6537,27 +6639,20 @@ main.dashboard-page--idle-menu-open
   max-width: 100% !important;
 }
 
-/* Both menu blocks scale 0.6 <-> 1 with the header state; give that the same
-   duration/curve as the rest of the row so the nav (and the nav joystick
-   inside it) resizes in unison. Their absolute idle positioning still applies
-   instantly — only the size animates. */
-.dashboard-header-main-orbit-stage > .dashboard-header-menu-block {
-  transition:
-    translate 420ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    scale 420ms cubic-bezier(0.2, 0.84, 0.2, 1);
-}
+/* The menu blocks' state motion is animated by the JS FLIP pass in
+   runDashboardHeaderFocusFlip, not CSS transitions: a mid-flight CSS
+   transition here would poison the FLIP's after-measurement, and the blocks'
+   inner repacking (position/width) cannot transition anyway. */
 
 /* The rewards cluster's open size is a deliberate 0.84; matching it in idle
    leaves the 0.6 block scale as its only state change, so it grows at the
    shared rate too. */
-main.dashboard-page--content-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
   .dashboard-profile-rewards-control {
   scale: 0.84;
 }
 
-main.dashboard-page--content-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
   .dashboard-header-main-orbit-stage
   > .dashboard-header-menu-block--dashboard {
   left: 0 !important;
@@ -6571,23 +6666,25 @@ main.dashboard-page--content-focus
   transform-origin: 0 0;
 }
 
-main.dashboard-page--content-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
   .dashboard-header-main-orbit-stage
   > .dashboard-header-menu-block--profile {
+  /* Right-anchored: the collapsed account view keeps its icon and rewards
+     hugging the meter side. */
   left: auto !important;
   position: absolute !important;
   right: 0 !important;
   scale: 0.6;
   top: 0 !important;
   /* Same correction as the dashboard block so both sides share the logo and
-     joystick's line. */
-  translate: 0 1.5rem;
+     joystick's line. The 2rem x-nudge walks the collapsed account cluster
+     right so the rewards end ~10px from the meter instead of ~40px (the block
+     is bounded to the stage, which stops short of the meter). */
+  translate: 2rem 1.5rem;
   transform-origin: 100% 0;
 }
 
-main.dashboard-page--content-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
   .dashboard-header-menu-content
   > .dashboard-header-meter-menu-shell {
   align-self: flex-start;
@@ -6595,33 +6692,27 @@ main.dashboard-page--content-focus
   transform-origin: 100% 0;
 }
 
-main.dashboard-page--header-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out) {
+.dashboard-header-vortex-shell[data-header-focus="header"]:not(.dashboard-header-vortex-shell--timed-out) {
   height: auto;
-  transition: filter 320ms ease !important;
+  transition:
+    filter 320ms ease,
+    height 240ms cubic-bezier(0.2, 0.84, 0.2, 1) !important;
 }
 
-main.dashboard-page--header-focus
-  .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
+.dashboard-header-vortex-shell[data-header-focus="header"]:not(.dashboard-header-vortex-shell--timed-out)
   .dashboard-header-menu-content
   > * {
   scale: 1;
 }
 
-/* Header engaged (default) -> freeze content CSS loops; header keeps animating.
-   Pause everything under <main>, then re-run the header shell subtree on top. */
-main.dashboard-page--header-focus *,
-main.dashboard-page--header-focus *::before,
-main.dashboard-page--header-focus *::after {
-  animation-play-state: paused !important;
-}
-
-main.dashboard-page--header-focus .dashboard-header-vortex-shell,
-main.dashboard-page--header-focus .dashboard-header-vortex-shell *,
-main.dashboard-page--header-focus .dashboard-header-vortex-shell *::before,
-main.dashboard-page--header-focus .dashboard-header-vortex-shell *::after {
-  animation-play-state: running !important;
-}
+/* The 'header engaged -> freeze all content CSS loops' rules that lived here
+   were removed: pausing all ~225 content animations was measured to change
+   paint cost by nothing (the page is paint-bound on its layer composition,
+   not its animations), while flipping a universal-selector rule forced a
+   full-document style recalc on EVERY focus change — 1-2s of main-thread work
+   in dev that made the header open/close feel seconds long. The idle-side
+   rule pausing the (small) header shell subtree remains, as does all JS-side
+   pausing of the WebGL widgets. */
 `;
 const DASHBOARD_HEADER_IDLE_RUN_MS = 3800;
 const DASHBOARD_HEADER_IDLE_WORK_MS = 4800;
@@ -14378,6 +14469,14 @@ export default function UserHomeDashboardPage() {
   ] = useState(false);
   // Active use of the header's own controls (analog / level meter). This is what
   // should freeze idle-scene cycling — merely hovering the content must not.
+  // Latches true on the meter panel's first open so it stays mounted; see
+  // the portal's comment.
+  const [dashboardHeaderMeterPanelMounted, setDashboardHeaderMeterPanelMounted] =
+    useState(false);
+  useEffect(() => {
+    if (dashboardHeaderMeterMenuOpen) setDashboardHeaderMeterPanelMounted(true);
+  }, [dashboardHeaderMeterMenuOpen]);
+
   const dashboardHeaderControlsInUse =
     dashboardPageAnalogInUse ||
     dashboardProfileHubAnalogInUse ||
@@ -14395,17 +14494,53 @@ export default function UserHomeDashboardPage() {
    * still runs for everything else that reads it, and React's own render writes
    * the identical value afterwards.
    */
+  // SMIL animations (the orbit rail's <animate>/<animateMotion> particles)
+  // ignore both animation-play-state and document.getAnimations(), so they
+  // kept dirtying style/layout every frame even while the header sat idle —
+  // measured at ~37% of all main-thread time. Pause their SVG timelines
+  // whenever header motion pauses, like every other header effect.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document
+      .querySelectorAll<SVGSVGElement>(".dashboard-header-page-orbit-rail svg")
+      .forEach((svg) => {
+        try {
+          if (dashboardHeaderMotionPaused) svg.pauseAnimations();
+          else svg.unpauseAnimations();
+        } catch {
+          // pauseAnimations is unsupported in some environments; ignore.
+        }
+      });
+  }, [dashboardHeaderMotionPaused]);
+
   const setDashboardContentFocused = useCallback(
     (nextFocused: boolean) => {
       if (typeof document !== "undefined") {
-        const mainElement = document.querySelector("main");
-        if (mainElement) {
+        // The focus state lives on the shell, not <main>: every focus-scoped
+        // rule targets the header subtree, and keying them off <main>'s class
+        // made each flip restyle the entire document (~3,400 nodes) instead of
+        // the ~600-node header.
+        const shellElement = document.querySelector<HTMLElement>(
+          ".dashboard-header-vortex-shell",
+        );
+        if (shellElement) {
           const paused = dashboardHeaderControlsInUse || nextFocused;
-          mainElement.classList.toggle("dashboard-page--content-focus", paused);
-          mainElement.classList.toggle("dashboard-page--header-focus", !paused);
+          const nextState = paused ? "content" : "header";
+          // This handler fires on every pointermove over the content, so the
+          // FLIP pass (which forces a layout) only runs on a real state change.
+          if (shellElement.dataset.headerFocus !== nextState) {
+            runDashboardHeaderFocusFlip(() => {
+              shellElement.dataset.headerFocus = nextState;
+            });
+          }
         }
       }
-      setDashboardContentFocusedState(nextFocused);
+      // Non-urgent: the class flip and FLIP animations above already changed
+      // everything visible. Letting React's catch-up render time-slice keeps
+      // it from stealing the animation's first frames.
+      startTransition(() => {
+        setDashboardContentFocusedState(nextFocused);
+      });
     },
     [dashboardHeaderControlsInUse],
   );
@@ -22018,6 +22153,35 @@ export default function UserHomeDashboardPage() {
     setDashboardHeaderSurfaceHighlighted(false);
     setDashboardContentFocused(true);
   };
+  // Hover routing: pointing anywhere over the header band wakes the menu;
+  // pointing anywhere else over the app sends it idle. The per-element
+  // handlers only covered the shell and the content rows, which left gaps
+  // (rails, page margins, the header slot's dead zones) where the state
+  // never changed. pointerover only fires when the hovered element changes,
+  // and both handlers no-op unless the state actually flips.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const mainElement = document.querySelector("main");
+    if (!mainElement) return;
+
+    const routeDashboardHoverFocus = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      if (target.closest(".dashboard-header-vortex-shell")) {
+        highlightDashboardHeaderSurface();
+      } else {
+        clearDashboardHeaderSurfaceHighlight();
+      }
+    };
+
+    mainElement.addEventListener("pointerover", routeDashboardHoverFocus, {
+      passive: true,
+    });
+    return () => {
+      mainElement.removeEventListener("pointerover", routeDashboardHoverFocus);
+    };
+  }, [highlightDashboardHeaderSurface, clearDashboardHeaderSurfaceHighlight]);
+
   const handleDashboardHeaderSurfaceBlur = (
     event: ReactFocusEvent<HTMLDivElement>,
   ) => {
@@ -29707,13 +29871,20 @@ export default function UserHomeDashboardPage() {
           : ""
       } absolute inset-x-0 top-0 z-[120] mb-0 overflow-visible border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl`}
       data-dashboard-header-timeout={dashboardHeaderTimedOut ? "true" : "false"}
+      data-header-focus={dashboardHeaderMotionPaused ? "content" : "header"}
       onBlurCapture={handleDashboardHeaderSurfaceBlur}
       onFocusCapture={highlightDashboardHeaderSurface}
       onMouseEnter={handleDashboardHeaderSurfacePointerActivity}
-      onMouseLeave={clearDashboardHeaderSurfaceHighlight}
       onPointerDown={handleDashboardHeaderSurfacePointerActivity}
       onPointerEnter={handleDashboardHeaderSurfacePointerActivity}
-      onPointerLeave={clearDashboardHeaderSurfaceHighlight}
+      onPointerLeave={(event) => {
+        // A touch tap always ends with pointerleave (the synthetic pointer
+        // vanishes), which used to slam the menu back to idle right after the
+        // tap opened it. Touch users idle the menu by tapping the body.
+        if (event.pointerType === "mouse") {
+          clearDashboardHeaderSurfaceHighlight();
+        }
+      }}
       onPointerMove={handleDashboardHeaderSurfacePointerActivity}
       onPointerOver={handleDashboardHeaderSurfacePointerActivity}
     >
@@ -33279,7 +33450,12 @@ export default function UserHomeDashboardPage() {
             </span>
           </button>
 
-          {(dashboardHeaderMeterMenuOpen || dashboardHeaderMeterPanelVisible) &&
+          {/* Once opened, the panel stays mounted (hidden via the "closed"
+              state): it is ~4,000 DOM nodes, and unmounting on close made
+              every open re-pay a ~1.9s mount. */}
+          {(dashboardHeaderMeterMenuOpen ||
+            dashboardHeaderMeterPanelVisible ||
+            dashboardHeaderMeterPanelMounted) &&
           typeof document !== "undefined"
             ? createPortal(
                 <aside
@@ -33287,7 +33463,11 @@ export default function UserHomeDashboardPage() {
                   className="dashboard-header-meter-panel"
                   data-meter-highlight={dashboardHeaderMeterPanelHighlightKey}
                   data-meter-menu-state={
-                    dashboardHeaderMeterMenuOpen ? "open" : "closing"
+                    dashboardHeaderMeterMenuOpen
+                      ? "open"
+                      : dashboardHeaderMeterPanelVisible
+                        ? "closing"
+                        : "closed"
                   }
                   id="dashboard-header-meter-panel"
                   role="region"
@@ -34507,14 +34687,6 @@ export default function UserHomeDashboardPage() {
                           fill="none"
                         >
                           <g className="dashboard-header-meter-tornado__emerald-motion dashboard-header-meter-tornado__emerald-motion--one">
-                            <animateMotion
-                              begin="-0.8s"
-                              dur="8.9s"
-                              repeatCount="indefinite"
-                              rotate="0"
-                            >
-                              <mpath href="#dashboardHeaderMeterTornadoEmeraldOrbitPath" />
-                            </animateMotion>
                             <g className="dashboard-header-meter-tornado__emerald dashboard-header-meter-tornado__emerald--one">
                               <g className="dashboard-header-meter-tornado__emerald-core">
                                 <path
@@ -34569,14 +34741,6 @@ export default function UserHomeDashboardPage() {
                             </g>
                           </g>
                           <g className="dashboard-header-meter-tornado__emerald-motion dashboard-header-meter-tornado__emerald-motion--two">
-                            <animateMotion
-                              begin="-3.1s"
-                              dur="8.9s"
-                              repeatCount="indefinite"
-                              rotate="0"
-                            >
-                              <mpath href="#dashboardHeaderMeterTornadoEmeraldOrbitPath" />
-                            </animateMotion>
                             <g className="dashboard-header-meter-tornado__emerald dashboard-header-meter-tornado__emerald--two">
                               <g className="dashboard-header-meter-tornado__emerald-core">
                                 <path
@@ -34631,14 +34795,6 @@ export default function UserHomeDashboardPage() {
                             </g>
                           </g>
                           <g className="dashboard-header-meter-tornado__emerald-motion dashboard-header-meter-tornado__emerald-motion--three">
-                            <animateMotion
-                              begin="-5.4s"
-                              dur="8.9s"
-                              repeatCount="indefinite"
-                              rotate="0"
-                            >
-                              <mpath href="#dashboardHeaderMeterTornadoEmeraldOrbitPath" />
-                            </animateMotion>
                             <g className="dashboard-header-meter-tornado__emerald dashboard-header-meter-tornado__emerald--three">
                               <g className="dashboard-header-meter-tornado__emerald-core">
                                 <path
@@ -34693,14 +34849,6 @@ export default function UserHomeDashboardPage() {
                             </g>
                           </g>
                           <g className="dashboard-header-meter-tornado__emerald-motion dashboard-header-meter-tornado__emerald-motion--four">
-                            <animateMotion
-                              begin="-2.2s"
-                              dur="8.9s"
-                              repeatCount="indefinite"
-                              rotate="0"
-                            >
-                              <mpath href="#dashboardHeaderMeterTornadoEmeraldOrbitPath" />
-                            </animateMotion>
                             <g className="dashboard-header-meter-tornado__emerald dashboard-header-meter-tornado__emerald--four">
                               <g className="dashboard-header-meter-tornado__emerald-core">
                                 <path
@@ -34755,14 +34903,6 @@ export default function UserHomeDashboardPage() {
                             </g>
                           </g>
                           <g className="dashboard-header-meter-tornado__emerald-motion dashboard-header-meter-tornado__emerald-motion--five">
-                            <animateMotion
-                              begin="-6.2s"
-                              dur="8.9s"
-                              repeatCount="indefinite"
-                              rotate="0"
-                            >
-                              <mpath href="#dashboardHeaderMeterTornadoEmeraldOrbitPath" />
-                            </animateMotion>
                             <g className="dashboard-header-meter-tornado__emerald dashboard-header-meter-tornado__emerald--five">
                               <g className="dashboard-header-meter-tornado__emerald-core">
                                 <path
@@ -46703,9 +46843,7 @@ export default function UserHomeDashboardPage() {
       <DashboardWebGlPreloader />
       <main
         className={`h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#020713] text-white ${
-          dashboardHeaderMotionPaused
-            ? "dashboard-page--content-focus"
-            : "dashboard-page--header-focus"
+          ""
         } ${
           dashboardHeaderTimedOut ? "dashboard-page--idle-menu-open" : ""
         } ${

@@ -12572,7 +12572,7 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 }
 
 .dashboard-header-ambient-field__grid-wall {
-  animation: dashboard-header-ambient-grid-wall 18s linear infinite;
+  animation: dashboard-header-ambient-grid-wall 18s steps(36) infinite;
   background:
     linear-gradient(rgba(125, 211, 252, 0.13) 1px, transparent 1px),
     linear-gradient(90deg, rgba(125, 211, 252, 0.12) 1px, transparent 1px),
@@ -12670,7 +12670,7 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 }
 
 .dashboard-header-ambient-field__grid {
-  animation: dashboard-header-ambient-grid 13s linear infinite;
+  animation: dashboard-header-ambient-grid 13s steps(26) infinite;
   background:
     linear-gradient(rgba(125, 211, 252, 0.15) 1px, transparent 1px),
     linear-gradient(90deg, rgba(125, 211, 252, 0.14) 1px, transparent 1px),
@@ -12829,7 +12829,7 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
 }
 
 .dashboard-header-ambient-field__rail {
-  animation: dashboard-header-ambient-rail 5.8s linear infinite;
+  animation: dashboard-header-ambient-rail 5.8s steps(58) infinite;
   background:
     linear-gradient(
       90deg,
@@ -16000,6 +16000,12 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
     drop-shadow(0 0.14rem 0.18rem rgba(2, 6, 23, 0.54));
 }
 
+/* The kept-mounted meter panel: fully hidden (and all its animations halted)
+   between opens. */
+.dashboard-header-meter-panel[data-meter-menu-state="closed"] {
+  display: none !important;
+}
+
 .dashboard-header-logo-smoke {
   filter: blur(0.04rem) drop-shadow(0 0 0.42rem rgba(229, 231, 235, 0.24));
   height: 3.75rem;
@@ -17671,7 +17677,7 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
 }
 
 .dashboard-header-news-chyron::before {
-  animation: dashboard-header-news-chyron-grid 7.2s linear infinite;
+  animation: dashboard-header-news-chyron-grid 7.2s steps(28) infinite;
   background: repeating-linear-gradient(
     90deg,
     rgba(255, 255, 255, 0.055) 0 1px,
@@ -18146,7 +18152,7 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
   --dashboard-header-urgency-speed: var(--sound-urgency-blink-watch);
 
   animation: dashboard-header-urgency-chip-blink
-    var(--dashboard-header-urgency-speed) ease-in-out infinite;
+    var(--dashboard-header-urgency-speed) steps(14) infinite;
   isolation: isolate;
   overflow: hidden;
   position: relative;
