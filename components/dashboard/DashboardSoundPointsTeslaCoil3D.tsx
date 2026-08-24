@@ -1802,8 +1802,10 @@ export default function DashboardSoundPointsTeslaCoil3D({
           stageGlow.rotation.z += frameDelta * 0.18;
           updateStageIlluminationTargets(stairChaseTargets, seconds);
           stageFloor.rotation.y = Math.sin(seconds * 0.42) * 0.012;
+          return true;
         }
 
+        return false;
       };
 
       const dispose = () => {

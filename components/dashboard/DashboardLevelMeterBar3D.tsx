@@ -339,6 +339,8 @@ export default function DashboardLevelMeterBar3D({
           const pulse = 0.44 + Math.sin(seconds * 2.4 + index) * 0.26;
           particle.mesh.scale.setScalar(0.78 + pulse * 0.28);
         });
+
+        return true;
       };
 
       return {

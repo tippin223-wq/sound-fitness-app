@@ -389,6 +389,10 @@ export default function DashboardScrollButton3D({
 
         accentLight.intensity = 1.9 + charge * 2.2;
         warmLight.intensity = 0.7 + charge * 1.6;
+
+        // Time-driven motion (sin/rotation accumulators) changes every frame;
+        // there is no settled/rest state in this scene.
+        return true;
       };
 
       return {

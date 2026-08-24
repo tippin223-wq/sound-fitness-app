@@ -366,6 +366,8 @@ export default function DashboardMeterMenuIcon3D({
       let charge = 0;
       let flipRotation = 0;
       const update = (elapsed: number, delta: number) => {
+        const prevCharge = charge;
+        const prevFlipRotation = flipRotation;
         const frameDeltaMs = delta * 1000;
         const motionDelta = frameDeltaMs * METER_MENU_ICON_ANIMATION_SPEED;
 
@@ -389,6 +391,7 @@ export default function DashboardMeterMenuIcon3D({
 
         flipGroup.rotation.y = flipRotation;
         flipGroup.rotation.x = Math.sin(seconds * 1.8) * 0.03 * charge;
+        const prevRootScale = root.scale.x;
         root.scale.setScalar(
           (framelessRef.current ? 1.1 : 1.08) +
             Math.sin(seconds * 8) * 0.022 * charge,
@@ -435,6 +438,22 @@ export default function DashboardMeterMenuIcon3D({
 
         cyanLight.intensity = 2.1 + charge * 2.1;
         warmLight.intensity = 0.55 + charge * 1.4;
+
+        // The falling items above tumble on every frame regardless of charge.
+        // In frameless mode nothing occludes them, so never report "at rest".
+        if (frameless) return true;
+        // Framed mode: at rest the items sit behind the opaque front face, so
+        // they cannot affect the rendered image. Everything else in this update
+        // is a pure function of charge, flipRotation, and the root scale
+        // (framelessRef), so the frame changed nothing visible once those are
+        // all at their fixed points.
+        const atRest =
+          !activeMotion &&
+          charge === prevCharge &&
+          prevFlipRotation === 0 &&
+          flipRotation === 0 &&
+          root.scale.x === prevRootScale;
+        return !atRest;
       };
 
       return {

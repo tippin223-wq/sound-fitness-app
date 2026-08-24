@@ -157,13 +157,30 @@ export default function DashboardLogo3D({
           camera,
           update: (elapsed) => {
             if (pausedRef.current) {
-              logoGroup.rotation.set(
-                settleValue(logoGroup.rotation.x, LOGO_REST_ROTATION.x, 0.18),
-                settleValue(logoGroup.rotation.y, LOGO_REST_ROTATION.y, 0.22),
-                settleValue(logoGroup.rotation.z, LOGO_REST_ROTATION.z, 0.18),
+              const nextRotationX = settleValue(
+                logoGroup.rotation.x,
+                LOGO_REST_ROTATION.x,
+                0.18,
               );
-              logoGroup.position.y = settleValue(logoGroup.position.y, 0, 0.22);
-              return;
+              const nextRotationY = settleValue(
+                logoGroup.rotation.y,
+                LOGO_REST_ROTATION.y,
+                0.22,
+              );
+              const nextRotationZ = settleValue(
+                logoGroup.rotation.z,
+                LOGO_REST_ROTATION.z,
+                0.18,
+              );
+              const nextPositionY = settleValue(logoGroup.position.y, 0, 0.22);
+              const stillMoving =
+                nextRotationX !== logoGroup.rotation.x ||
+                nextRotationY !== logoGroup.rotation.y ||
+                nextRotationZ !== logoGroup.rotation.z ||
+                nextPositionY !== logoGroup.position.y;
+              logoGroup.rotation.set(nextRotationX, nextRotationY, nextRotationZ);
+              logoGroup.position.y = nextPositionY;
+              return stillMoving;
             }
             logoGroup.rotation.set(
               LOGO_REST_ROTATION.x + Math.sin(elapsed * 0.68) * 0.012,
@@ -171,6 +188,7 @@ export default function DashboardLogo3D({
               LOGO_REST_ROTATION.z + Math.sin(elapsed * 0.46) * 0.012,
             );
             logoGroup.position.y = Math.sin(elapsed * 0.72) * 0.018;
+            return true;
           },
           dispose: () => {
             disposeObject(logoGroup);

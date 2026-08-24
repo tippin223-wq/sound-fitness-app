@@ -1225,22 +1225,33 @@ export function DashboardSpinningSoundCoin3D({
             0.78 + Math.sin(coinPulseTime * 0.0042) * 0.22,
           );
           glint.rotation.y += 0.04;
-        } else {
-          coinGroup.rotation.x +=
-            (SOUND_COIN_REST_ROTATION.x - coinGroup.rotation.x) * 0.14;
-          coinGroup.rotation.y = settleRotation(
-            coinGroup.rotation.y,
-            SOUND_COIN_REST_ROTATION.y,
-            0.16,
-          );
-          coinGroup.rotation.z = settleRotation(
-            coinGroup.rotation.z,
-            SOUND_COIN_REST_ROTATION.z,
-            0.14,
-          );
-          coinSpinRotation = coinGroup.rotation.y;
-          glint.scale.setScalar(0.84 + Math.sin(elapsed * 2) * 0.06);
+          return true;
         }
+
+        const previousRotationX = coinGroup.rotation.x;
+        const previousRotationY = coinGroup.rotation.y;
+        const previousRotationZ = coinGroup.rotation.z;
+        const previousGlintScale = glint.scale.x;
+        coinGroup.rotation.x +=
+          (SOUND_COIN_REST_ROTATION.x - coinGroup.rotation.x) * 0.14;
+        coinGroup.rotation.y = settleRotation(
+          coinGroup.rotation.y,
+          SOUND_COIN_REST_ROTATION.y,
+          0.16,
+        );
+        coinGroup.rotation.z = settleRotation(
+          coinGroup.rotation.z,
+          SOUND_COIN_REST_ROTATION.z,
+          0.14,
+        );
+        coinSpinRotation = coinGroup.rotation.y;
+        glint.scale.setScalar(0.84 + Math.sin(elapsed * 2) * 0.06);
+        return (
+          coinGroup.rotation.x !== previousRotationX ||
+          coinGroup.rotation.y !== previousRotationY ||
+          coinGroup.rotation.z !== previousRotationZ ||
+          glint.scale.x !== previousGlintScale
+        );
       };
 
       return {
@@ -1359,12 +1370,14 @@ export default function DashboardTreasureChest3D({
               ? TREASURE_CHEST_LID_OPEN_ROTATION
               : TREASURE_CHEST_LID_CLOSED_ROTATION;
 
+        const previousLidRotation = lid.rotation.x;
         if (pausedRef.current) {
           lid.rotation.x = lidTarget;
         } else {
           const lidEase = openRef.current ? 0.075 : 0.11;
           lid.rotation.x += (lidTarget - lid.rotation.x) * lidEase;
         }
+        let changed = lid.rotation.x !== previousLidRotation;
 
         if (coinPile) {
           const lidClosedRotation = TREASURE_CHEST_LID_CLOSED_ROTATION;
@@ -1381,9 +1394,19 @@ export default function DashboardTreasureChest3D({
             0,
             Math.min(1, (lidOpenProgress - 0.36) / 0.32),
           );
+          const previousVisible = coinPile.visible;
+          const previousPileY = coinPile.position.y;
+          const previousPileScale = coinPile.scale.x;
           coinPile.visible = revealProgress > 0.02;
           coinPile.position.y = -0.3 + revealProgress * 0.3;
           coinPile.scale.setScalar(0.92 + revealProgress * 0.08);
+          if (
+            coinPile.visible !== previousVisible ||
+            coinPile.position.y !== previousPileY ||
+            coinPile.scale.x !== previousPileScale
+          ) {
+            changed = true;
+          }
         }
 
         if (!pausedRef.current) {
@@ -1393,7 +1416,10 @@ export default function DashboardTreasureChest3D({
             glint.scale.setScalar(pulse);
             glint.rotation.y += 0.018 + index * 0.004;
           });
+          changed = true;
         }
+
+        return changed;
       };
 
       return {

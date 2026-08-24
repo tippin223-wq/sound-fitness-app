@@ -14469,6 +14469,21 @@ export default function UserHomeDashboardPage() {
   ] = useState(false);
   // Active use of the header's own controls (analog / level meter). This is what
   // should freeze idle-scene cycling — merely hovering the content must not.
+  // Deferred one frame past the panel's first open so the opening animation
+  // paints before the ~3,900-node stack mounts; latches true afterwards.
+  const [
+    dashboardHeaderMeterPanelSectionsReady,
+    setDashboardHeaderMeterPanelSectionsReady,
+  ] = useState(false);
+  useEffect(() => {
+    if (!dashboardHeaderMeterMenuOpen || dashboardHeaderMeterPanelSectionsReady)
+      return;
+    const timeoutId = window.setTimeout(() => {
+      setDashboardHeaderMeterPanelSectionsReady(true);
+    }, 30);
+    return () => window.clearTimeout(timeoutId);
+  }, [dashboardHeaderMeterMenuOpen, dashboardHeaderMeterPanelSectionsReady]);
+
   // Latches true on the meter panel's first open so it stays mounted; see
   // the portal's comment.
   const [dashboardHeaderMeterPanelMounted, setDashboardHeaderMeterPanelMounted] =
@@ -14513,6 +14528,25 @@ export default function UserHomeDashboardPage() {
       });
   }, [dashboardHeaderMotionPaused]);
 
+  // False on the server and the first client render; flipped right after
+  // hydration so the below-the-fold rows mount without blocking startup.
+  const [dashboardDeferredRowsMounted, setDashboardDeferredRowsMounted] =
+    useState(false);
+  useEffect(() => {
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(
+        () => setDashboardDeferredRowsMounted(true),
+        { timeout: 600 },
+      );
+      return () => window.cancelIdleCallback(idleId);
+    }
+    const timeoutId = window.setTimeout(
+      () => setDashboardDeferredRowsMounted(true),
+      150,
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
   const setDashboardContentFocused = useCallback(
     (nextFocused: boolean) => {
       if (typeof document !== "undefined") {
@@ -14535,9 +14569,11 @@ export default function UserHomeDashboardPage() {
           }
         }
       }
-      // Non-urgent: the class flip and FLIP animations above already changed
-      // everything visible. Letting React's catch-up render time-slice keeps
-      // it from stealing the animation's first frames.
+      // The attribute flip and FLIP animations above already changed
+      // everything visible; startTransition time-slices React's catch-up so
+      // it does not steal the animation's first frames. (A timeout-deferred
+      // commit was tried and reverted: pushing the render past the animation
+      // made its geometry side-effects land visibly late.)
       startTransition(() => {
         setDashboardContentFocusedState(nextFocused);
       });
@@ -33759,6 +33795,12 @@ export default function UserHomeDashboardPage() {
                     role="group"
                     tabIndex={0}
                   >
+                    {/* The stack body (~3,900 nodes) mounts one frame after
+                        the panel opens, so the opening animation runs on a
+                        free thread; the keep-mounted panel makes this a
+                        one-time cost. */}
+                    {dashboardHeaderMeterPanelSectionsReady ? (
+                    <>
                     <section
                       aria-label="Achievements and compound PR meters"
                       className={`dashboard-header-meter-panel__section dashboard-header-meter-panel__section--achievements dashboard-header-meter-panel__section--slot-${getDashboardHeaderMeterPanelSectionSlot(
@@ -34976,6 +35018,8 @@ export default function UserHomeDashboardPage() {
                         tone={dashboardHeaderMeterTornadoGemTone}
                       />
                     </span>
+                    </>
+                    ) : null}
                   </div>
                 </aside>,
                 document.body,
@@ -47597,6 +47641,12 @@ export default function UserHomeDashboardPage() {
                     {renderDashboardHeroRow()}
                   </div>
                 </div>
+                {/* Rows below the hero mount after hydration settles: the
+                    server and the first client render both skip them (no
+                    hydration mismatch), cutting initial parse/hydrate work
+                    for content that starts below the fold. */}
+                {dashboardDeferredRowsMounted ? (
+                <>
                 {renderDashboardDailyToolsRow()}
                 {isAdminPreview
                   ? renderAdminFinanceRow()
@@ -47654,6 +47704,8 @@ export default function UserHomeDashboardPage() {
                 {isAdminPreview
                   ? renderAdminSettingsRow()
                   : renderDashboardMasterJourneyRow()}
+                </>
+                ) : null}
               </div>
             </div>
           </section>

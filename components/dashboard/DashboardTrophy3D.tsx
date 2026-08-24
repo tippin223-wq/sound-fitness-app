@@ -319,6 +319,10 @@ export default function DashboardTrophy3D({
           camera,
           update: (elapsed, delta) => {
             if (pausedRef.current) {
+              const stillMoving =
+                trophy.rotation.x !== TROPHY_REST_ROTATION.x ||
+                trophy.rotation.y !== TROPHY_REST_ROTATION.y ||
+                trophy.rotation.z !== TROPHY_REST_ROTATION.z;
               trophy.rotation.x = settleRotation(
                 trophy.rotation.x,
                 TROPHY_REST_ROTATION.x,
@@ -334,13 +338,14 @@ export default function DashboardTrophy3D({
                 TROPHY_REST_ROTATION.z,
                 0.24,
               );
-              return;
+              return stillMoving;
             }
             trophy.rotation.set(
               Math.sin(elapsed * 0.26) * 0.018,
               trophy.rotation.y + delta * 0.18,
               Math.sin(elapsed * 0.22) * 0.009,
             );
+            return true;
           },
           dispose: () => {
             disposeObject(scene);

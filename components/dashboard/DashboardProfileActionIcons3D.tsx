@@ -207,6 +207,10 @@ export default function DashboardProfileIcon3D({
 
         cyanLight.intensity = 2.1 + charge * 1.8;
         goldLight.intensity = 0.85 + charge * 1.35;
+
+        // Ambient idle motion (charge-independent sine terms on root rotation)
+        // keeps this scene animating even when inactive/paused.
+        return true;
       };
 
       return {
@@ -333,6 +337,16 @@ export function DashboardGearIcon3D({
         charge += ((activeMotion ? 1 : 0) - charge) * Math.min(1, frameDelta * 0.016);
         spin += frameDelta * (0.00022 + charge * 0.0034) * spinSpeedRef.current;
 
+        const prevRootRotationZ = root.rotation.z;
+        const prevRootRotationX = root.rotation.x;
+        const prevRootRotationY = root.rotation.y;
+        const prevRootScale = root.scale.x;
+        const prevGearEmissive = gearMaterial.emissiveIntensity;
+        const prevRimEmissive = rimMaterial.emissiveIntensity;
+        const prevGlowOpacity = glowMaterial.opacity;
+        const prevCyanIntensity = cyanLight.intensity;
+        const prevGoldIntensity = goldLight.intensity;
+
         root.rotation.z = spin;
         root.rotation.x = 0.18 + Math.sin(seconds * 2.2) * 0.08 * charge;
         root.rotation.y = -0.18 + Math.cos(seconds * 1.8) * 0.1 * charge;
@@ -341,13 +355,29 @@ export function DashboardGearIcon3D({
         rimMaterial.emissiveIntensity = 0.24 + charge * 0.52;
         glowMaterial.opacity = 0.1 + charge * (0.28 + Math.sin(seconds * 4.8) * 0.04);
 
+        let teethMoving = false;
         teeth.forEach((tooth, index) => {
           const pulse = Math.max(0, Math.sin(seconds * 5.6 + index * 0.7));
-          tooth.scale.setScalar(1 + charge * pulse * 0.08);
+          const nextToothScale = 1 + charge * pulse * 0.08;
+          if (tooth.scale.x !== nextToothScale) teethMoving = true;
+          tooth.scale.setScalar(nextToothScale);
         });
 
         cyanLight.intensity = 1.8 + charge * 2.4;
         goldLight.intensity = 0.55 + charge * 1.6;
+
+        const stillMoving =
+          teethMoving ||
+          root.rotation.z !== prevRootRotationZ ||
+          root.rotation.x !== prevRootRotationX ||
+          root.rotation.y !== prevRootRotationY ||
+          root.scale.x !== prevRootScale ||
+          gearMaterial.emissiveIntensity !== prevGearEmissive ||
+          rimMaterial.emissiveIntensity !== prevRimEmissive ||
+          glowMaterial.opacity !== prevGlowOpacity ||
+          cyanLight.intensity !== prevCyanIntensity ||
+          goldLight.intensity !== prevGoldIntensity;
+        return stillMoving;
       };
 
       return {

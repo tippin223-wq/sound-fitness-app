@@ -678,6 +678,7 @@ export default function DashboardTornadoEmeralds3D({
       disposables.push(glowMaterial);
 
       let elapsedSeconds = 0;
+      let lastAppliedElapsedSeconds = -1;
 
       const updateParticlePositions = (
         positions: Float32Array,
@@ -708,7 +709,8 @@ export default function DashboardTornadoEmeralds3D({
 
       const update = (_elapsedSeconds: number, deltaSeconds: number) => {
         const nextTone = toneRef.current;
-        if (nextTone !== currentTone) {
+        const toneChanged = nextTone !== currentTone;
+        if (toneChanged) {
           applyTone(nextTone);
         }
 
@@ -716,6 +718,12 @@ export default function DashboardTornadoEmeralds3D({
         if (!pausedRef.current) {
           elapsedSeconds += frameDeltaSeconds;
         }
+        // Every assignment below is a pure function of `elapsedSeconds` (and
+        // the tone): if time did not advance and the tone did not change, this
+        // frame rewrites the exact same values, so nothing visible changed.
+        const stillMoving =
+          toneChanged || elapsedSeconds !== lastAppliedElapsedSeconds;
+        lastAppliedElapsedSeconds = elapsedSeconds;
         const seconds = elapsedSeconds;
         const tornadoSeconds = seconds * TORNADO_WEBGL_MOTION_RATE;
 
@@ -786,6 +794,7 @@ export default function DashboardTornadoEmeralds3D({
           });
         });
 
+        return stillMoving;
       };
 
       const dispose = () => {
@@ -2073,9 +2082,11 @@ export function DashboardGemStage3D({
       let vaultOpenAmount = vaultOpenRef.current ? 1 : 0;
       let vaultOpenRequestedAt = vaultOpenRef.current ? performance.now() : 0;
       let orbitElapsedSeconds = 0;
+      let wasOrbitalMotionPaused: boolean | null = null;
 
       const update = (elapsedSeconds: number, deltaSeconds: number) => {
         const now = performance.now();
+        const vaultOpenAmountBefore = vaultOpenAmount;
         const frameDeltaSeconds = Math.min(0.033, deltaSeconds);
         const seconds = elapsedSeconds;
         const wantsVaultOpen = variant === "reserves" && vaultOpenRef.current;
@@ -2108,6 +2119,19 @@ export function DashboardGemStage3D({
         if (!orbitalMotionPaused) {
           orbitElapsedSeconds += frameDeltaSeconds;
         }
+        // The "reserves" variant animates from the stage clock (`seconds`)
+        // every frame, so it always changes. The "trigger" variant is a pure
+        // function of `orbitSeconds`, which freezes while paused — except the
+        // first paused frame, which snaps gems to their rest `phase` pose, and
+        // any frame where the vault-open amount eased.
+        const orbitalPauseStateChanged =
+          orbitalMotionPaused !== wasOrbitalMotionPaused;
+        wasOrbitalMotionPaused = orbitalMotionPaused;
+        const stillMoving =
+          variant === "reserves" ||
+          !orbitalMotionPaused ||
+          orbitalPauseStateChanged ||
+          vaultOpenAmount !== vaultOpenAmountBefore;
         const orbitSeconds = orbitElapsedSeconds;
         const isSingleTriggerGem =
           variant === "trigger" && resolvedTones.length === 1;
@@ -2230,6 +2254,7 @@ export function DashboardGemStage3D({
           onProminentToneChangeRef.current?.(prominentTone);
         }
 
+        return stillMoving;
       };
 
       const dispose = () => {

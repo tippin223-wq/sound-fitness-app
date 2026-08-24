@@ -211,7 +211,9 @@ export default function DashboardLightningBolt3D({
       const update = (elapsed: number, delta: number) => {
         const seconds = elapsed;
         const targetCharge = activeRef.current && !pausedRef.current ? 1 : 0;
+        const previousCharge = charge;
         charge += (targetCharge - charge) * Math.min(1, delta * 12);
+        if (targetCharge === 0 && charge < 0.0015) charge = 0;
 
         const pulse = charge * (0.026 + Math.sin(seconds * 8.2) * 0.01);
         group.scale.setScalar(0.78 + pulse);
@@ -254,6 +256,11 @@ export default function DashboardLightningBolt3D({
           const material = spark.material as Material & { opacity: number };
           material.opacity = 0.08 + sparkCharge * 0.62;
         });
+
+        // At charge 0 every assignment above is a constant (all sin terms are
+        // scaled by charge), so the scene only moves while charge is nonzero —
+        // plus the one frame where it settles to exactly 0.
+        return charge !== 0 || previousCharge !== 0;
       };
 
       return {

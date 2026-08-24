@@ -31,7 +31,14 @@ export type DashboardWidgetInstance = {
   scene: Scene;
   camera: Camera;
   /** Advance animation. Called each frame before the widget is drawn. */
-  update?: (elapsedSeconds: number, deltaSeconds: number) => void;
+  /**
+   * Advance the scene. Return `false` to signal that nothing visible changed
+   * this frame (fully settled while paused): when every drawn widget reports
+   * false and no rectangle moved, the stage skips the frame entirely — the
+   * canvas simply keeps its pixels. Returning nothing (void) is treated as
+   * "changed", so unmigrated widgets keep today's always-render behaviour.
+   */
+  update?: (elapsedSeconds: number, deltaSeconds: number) => void | boolean;
   /**
    * Called when the widget's on-screen size changes, with its CSS pixel size.
    * Use it for custom camera setup (e.g. orthographic frustum). If omitted, a
@@ -47,6 +54,12 @@ export type DashboardWidgetBuilder = (
 ) => DashboardWidgetInstance;
 
 type RegisteredWidget = {
+  /** Stable identity for the frame-skip draw-key. */
+  id: number;
+  /** Cached checkVisibility result; refreshed every few frames (it forces a
+      style recalc, which dominated the per-frame cost at idle). */
+  lastVisible: boolean;
+  lastVisibleFrame: number;
   anchor: HTMLElement;
   instance: DashboardWidgetInstance;
   lastCssWidth: number;
@@ -100,6 +113,7 @@ let stageStartedAt = 0;
 let stageLastTime = 0;
 let stageInitPromise: Promise<void> | null = null;
 const stageWidgets = new Set<RegisteredWidget>();
+let stageWidgetIdCounter = 1;
 
 /**
  * Zone freeze for the dashboard's "only one set of animations at a time" toggle.
@@ -204,16 +218,19 @@ function setWidgetSceneDimmed(widget: RegisteredWidget, dimmed: boolean): void {
 
 export function setDashboardContentWidgetsFrozen(frozen: boolean): void {
   contentWidgetsFrozen = frozen;
+  stageNeedsRedraw = true;
 }
 
 export function setDashboardHeaderWidgetsFrozen(frozen: boolean): void {
   headerWidgetsFrozen = frozen;
+  stageNeedsRedraw = true;
   for (const widget of stageWidgets) {
     if (widget.headerHost) setWidgetSceneDimmed(widget, frozen);
   }
 }
 
 export function setDashboardStageIdleHidden(hidden: boolean): void {
+  if (stageIdleHidden !== hidden) stageNeedsRedraw = true;
   stageIdleHidden = hidden;
 }
 
@@ -245,6 +262,7 @@ function resizeStage() {
   stageLastWidth = width;
   stageLastHeight = height;
   stageLastPixelRatio = pixelRatio;
+  stageNeedsRedraw = true;
   stageRenderer.setPixelRatio(pixelRatio);
   stageRenderer.setSize(width, height, false);
 }
@@ -258,6 +276,29 @@ function resizeStage() {
  */
 const DASHBOARD_STAGE_FRAME_INTERVAL_MS = 1000 / 30;
 let stageLastDrawTime = 0;
+
+/**
+ * Render-on-demand: the shared canvas keeps its pixels between frames, so when
+ * no widget changed and no rectangle moved there is nothing to redraw. Any
+ * out-of-band mutation (freeze/dim flips, registration, resize, idle overlay)
+ * sets this flag; per-widget change detection covers the rest.
+ */
+let stageNeedsRedraw = true;
+
+export function markDashboardStageDirty(): void {
+  stageNeedsRedraw = true;
+}
+
+type StageDrawEntry = {
+  widget: RegisteredWidget;
+  rect: DOMRect;
+  changed: boolean;
+};
+
+const stageRectKey = (rect: DOMRect) =>
+  `${Math.round(rect.left * 2)}:${Math.round(rect.top * 2)}:${Math.round(rect.width * 2)}:${Math.round(rect.height * 2)}`;
+let stageLastDrawKey = "";
+let stageFrameCounter = 0;
 
 function runStageFrame(time: number) {
   stageRafId = window.requestAnimationFrame(runStageFrame);
@@ -273,63 +314,127 @@ function runStageFrame(time: number) {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
 
+  stageFrameCounter++;
   const elapsed = (time - stageStartedAt) / 1000;
   const delta = Math.min(0.05, Math.max(0, (time - stageLastTime) / 1000));
   stageLastTime = time;
 
-  // Clear the whole transparent canvas once, then draw each widget into its
-  // own scissored rectangle.
-  renderer.setScissorTest(false);
-  renderer.clear();
+  // ---- Pass 1: collect the draw list, advance scenes, detect change. ----
+  const drawList: StageDrawEntry[] = [];
+  let drawKey = stageIdleHidden ? "idle-hidden" : "";
+  let anyWidgetChanged = false;
+
+  if (!stageIdleHidden) {
+    for (const widget of stageWidgets) {
+      // Not drawn until its shaders have compiled (in parallel, off-thread).
+      if (!widget.ready) continue;
+
+      // While the header is in its idle-animation overlay, don't paint header
+      // widgets over it (the stage canvas sits above the overlay).
+      if (
+        widget.headerHost &&
+        widget.headerHost.dataset.dashboardHeaderTimeout === "true"
+      ) {
+        continue;
+      }
+
+      const rect = widget.anchor.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      // Cull widgets fully off-screen.
+      if (
+        rect.bottom <= 0 ||
+        rect.top >= viewportHeight ||
+        rect.right <= 0 ||
+        rect.left >= viewportWidth
+      ) {
+        continue;
+      }
+
+      // Cull widgets hidden by CSS. Inactive hero-orbit cards keep real layout
+      // rects but sit at visibility:hidden / opacity:0, so rect culling alone
+      // leaves their scenes updating and rendering every frame.
+      // checkVisibility forces a style recalc, so it runs every sixth stage
+      // frame per widget (~200ms) with the result cached — visibility flips
+      // are rare and a one-widget 200ms lag over a fading card is invisible.
+      if (stageFrameCounter - widget.lastVisibleFrame >= 6) {
+        const anchorWithVisibility = widget.anchor as HTMLElement & {
+          checkVisibility?: (options?: {
+            checkOpacity?: boolean;
+            checkVisibilityCSS?: boolean;
+          }) => boolean;
+        };
+        widget.lastVisible =
+          typeof anchorWithVisibility.checkVisibility !== "function" ||
+          anchorWithVisibility.checkVisibility({
+            checkOpacity: true,
+            checkVisibilityCSS: true,
+          });
+        widget.lastVisibleFrame = stageFrameCounter;
+      }
+      if (!widget.lastVisible) continue;
+
+      const { camera, update, resize } = widget.instance;
+
+      // Notify the widget of size changes (custom camera setup); otherwise
+      // keep a PerspectiveCamera's aspect in sync automatically.
+      if (
+        rect.width !== widget.lastCssWidth ||
+        rect.height !== widget.lastCssHeight
+      ) {
+        widget.lastCssWidth = rect.width;
+        widget.lastCssHeight = rect.height;
+        anyWidgetChanged = true;
+        if (resize) {
+          resize(rect.width, rect.height);
+        } else {
+          const perspective = camera as PerspectiveCamera;
+          if (perspective.isPerspectiveCamera) {
+            perspective.aspect = rect.width / rect.height;
+            perspective.updateProjectionMatrix();
+          }
+        }
+      }
+
+      // Freeze the widgets in the inactive zone: hold their last frame (skip
+      // update) but keep drawing them, so only one set animates at a time.
+      const frozen =
+        widget.headerHost !== null ? headerWidgetsFrozen : contentWidgetsFrozen;
+      let widgetChanged = false;
+      if (!frozen && update) {
+        // void return = "changed" so unmigrated widgets keep rendering.
+        if (update(elapsed, delta) !== false) widgetChanged = true;
+      }
+      if (widgetChanged) anyWidgetChanged = true;
+
+      drawList.push({ widget, rect, changed: widgetChanged });
+      drawKey += widget.id + "@" + stageRectKey(rect) + ";";
+    }
+  }
+
+  // ---- Skip the frame when nothing visible changed. ----
+  const rectsChanged = drawKey !== stageLastDrawKey;
+  stageLastDrawKey = drawKey;
+  if (!anyWidgetChanged && !rectsChanged && !stageNeedsRedraw) {
+    return;
+  }
+  // Partial redraw: when the layout is stable and nothing external changed,
+  // only the widgets whose scenes advanced need repainting — a scissored
+  // clear erases just their rectangles while every settled widget keeps its
+  // pixels. Any rect movement or external change falls back to a full pass
+  // (a moved widget leaves stale pixels at its old position otherwise).
+  const partial = !rectsChanged && !stageNeedsRedraw;
+  stageNeedsRedraw = false;
+
+  // ---- Pass 2: clear, then draw each (changed) widget into its rect. ----
+  if (!partial) {
+    renderer.setScissorTest(false);
+    renderer.clear();
+  }
   renderer.setScissorTest(true);
 
-  // Idle scene is showing: blank the whole stage so nothing paints over it.
-  if (stageIdleHidden) return;
-
-  for (const widget of stageWidgets) {
-    // Not drawn until its shaders have compiled (in parallel, off-thread).
-    if (!widget.ready) continue;
-
-    // While the header is in its idle-animation overlay, don't paint header
-    // widgets over it (the stage canvas sits above the overlay).
-    if (
-      widget.headerHost &&
-      widget.headerHost.dataset.dashboardHeaderTimeout === "true"
-    ) {
-      continue;
-    }
-
-    const rect = widget.anchor.getBoundingClientRect();
-    if (rect.width <= 0 || rect.height <= 0) continue;
-    // Cull widgets fully off-screen.
-    if (
-      rect.bottom <= 0 ||
-      rect.top >= viewportHeight ||
-      rect.right <= 0 ||
-      rect.left >= viewportWidth
-    ) {
-      continue;
-    }
-
-    // Cull widgets hidden by CSS. Inactive hero-orbit cards keep real layout
-    // rects but sit at visibility:hidden / opacity:0, so rect culling alone
-    // leaves their scenes updating and rendering every frame.
-    const anchorWithVisibility = widget.anchor as HTMLElement & {
-      checkVisibility?: (options?: {
-        checkOpacity?: boolean;
-        checkVisibilityCSS?: boolean;
-      }) => boolean;
-    };
-    if (
-      typeof anchorWithVisibility.checkVisibility === "function" &&
-      !anchorWithVisibility.checkVisibility({
-        checkOpacity: true,
-        checkVisibilityCSS: true,
-      })
-    ) {
-      continue;
-    }
-
+  for (const entry of drawList) {
+    if (partial && !entry.changed) continue;
+    const { widget, rect } = entry;
     // three.js's setViewport/setScissor take CSS pixels and multiply by the
     // renderer's pixelRatio internally. Passing device pixels (rect * dpr) here
     // double-applied the ratio, pushing every widget's viewport off the backing
@@ -342,36 +447,8 @@ function runStageFrame(time: number) {
 
     renderer.setViewport(cssLeft, cssBottom, cssWidth, cssHeight);
     renderer.setScissor(cssLeft, cssBottom, cssWidth, cssHeight);
-
-    const { scene, camera, update, resize } = widget.instance;
-
-    // Notify the widget of size changes (custom camera setup); otherwise keep a
-    // PerspectiveCamera's aspect in sync automatically.
-    if (
-      rect.width !== widget.lastCssWidth ||
-      rect.height !== widget.lastCssHeight
-    ) {
-      widget.lastCssWidth = rect.width;
-      widget.lastCssHeight = rect.height;
-      if (resize) {
-        resize(rect.width, rect.height);
-      } else {
-        const perspective = camera as PerspectiveCamera;
-        if (perspective.isPerspectiveCamera) {
-          perspective.aspect = rect.width / rect.height;
-          perspective.updateProjectionMatrix();
-        }
-      }
-    }
-
-    // Freeze the widgets in the inactive zone: hold their last frame (skip
-    // update) but keep drawing them, so only one set animates at a time.
-    const frozen =
-      widget.headerHost !== null ? headerWidgetsFrozen : contentWidgetsFrozen;
-    if (!frozen) {
-      update?.(elapsed, delta);
-    }
-    renderer.render(scene, camera);
+    if (partial) renderer.clear();
+    renderer.render(widget.instance.scene, widget.instance.camera);
   }
 
   renderer.setScissorTest(false);
@@ -442,6 +519,9 @@ export async function registerDashboardWidget(
 
   const instance = builder({ THREE });
   const widget: RegisteredWidget = {
+    id: stageWidgetIdCounter++,
+    lastVisible: true,
+    lastVisibleFrame: -1,
     anchor,
     instance,
     lastCssWidth: 0,
