@@ -366,7 +366,10 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
        size): keeps its idle->open growth ratio identical to the neighbouring
        menu items, which animate 0.6 -> 1 over the same 420ms. */
     scale: 0.528 !important;
-    translate: 0 0.125rem !important;
+    /* Same 0.69rem drop as the menu blocks: at 0.125rem the collapsed
+       joystick's centre sat ~9px above the idle row line (crest/nav/account
+       all centre near y=36; the joystick centred at 27). */
+    translate: 0 0.69rem !important;
   }
 
   /* Same 13px lift for the menu blocks, which carry the nav content and the

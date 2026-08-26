@@ -43,6 +43,7 @@ import {
   startTransition,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -408,11 +409,63 @@ const DASHBOARD_HEADER_FLIP_SELECTORS = [
   ".dashboard-profile-rewards-control",
   ".dashboard-profile-upper-actions",
   ".dashboard-profile-quick-actions",
+  // Everything below moves during open<->idle via LAYOUT (flex reflow, the
+  // shell height, sibling resizes) that no CSS transition can animate — the
+  // main thread repaints layout only 2-3 times during the busy transition
+  // window, so without a compositor bridge these items visibly "step".
+  ".dashboard-header-logo-cluster",
+  ".dashboard-header-mobile-orbit-joystick",
+  ".dashboard-header-meter-menu-shell",
+  ".dashboard-header-news-chyron",
 ].join(", ");
 
 const DASHBOARD_HEADER_FLIP_ID = "dashboard-header-focus-flip";
 
-const runDashboardHeaderFocusFlip = (applyStateChange: () => void) => {
+// Last visual boxes painted during a focus transition, sampled per frame by
+// startDashboardHeaderFlipSampling below. The React commit lands mid-flight
+// and mutates layout BEFORE its layout effect can measure, so the effect
+// needs these pre-commit boxes as the FLIP's "first" — measuring at effect
+// time would only see post-commit geometry and bridge nothing.
+let dashboardHeaderLastPaintedRects: Map<HTMLElement, DOMRect> | null = null;
+let dashboardHeaderLastPaintedRectsAt = 0;
+let dashboardHeaderFlipSamplerFrame = 0;
+
+const startDashboardHeaderFlipSampling = () => {
+  if (typeof window === "undefined") return;
+  window.cancelAnimationFrame(dashboardHeaderFlipSamplerFrame);
+  const stopAt = performance.now() + 700;
+  const sample = () => {
+    const map = new Map<HTMLElement, DOMRect>();
+    document
+      .querySelectorAll<HTMLElement>(DASHBOARD_HEADER_FLIP_SELECTORS)
+      .forEach((el) => {
+        if (el.offsetParent !== null) map.set(el, el.getBoundingClientRect());
+      });
+    dashboardHeaderLastPaintedRects = map;
+    dashboardHeaderLastPaintedRectsAt = performance.now();
+    if (performance.now() < stopAt) {
+      dashboardHeaderFlipSamplerFrame = window.requestAnimationFrame(sample);
+    }
+  };
+  dashboardHeaderFlipSamplerFrame = window.requestAnimationFrame(sample);
+};
+
+// Stored boxes older than this are worse than none: bridging from a stale
+// position animates a phantom journey. The commit that consumes them lands
+// ~320ms after the last flip re-arms the sampler, so fresh maps are recent.
+const takeDashboardHeaderFreshPaintedRects = () => {
+  const map = dashboardHeaderLastPaintedRects;
+  dashboardHeaderLastPaintedRects = null;
+  if (!map) return null;
+  return performance.now() - dashboardHeaderLastPaintedRectsAt < 600
+    ? map
+    : null;
+};
+
+const runDashboardHeaderFocusFlip = (
+  applyStateChange: () => void,
+  firstOverride?: Map<HTMLElement, DOMRect> | null,
+) => {
   if (
     typeof window === "undefined" ||
     window.matchMedia("(prefers-reduced-motion: reduce)").matches
@@ -425,12 +478,10 @@ const runDashboardHeaderFocusFlip = (applyStateChange: () => void) => {
     document.querySelectorAll<HTMLElement>(DASHBOARD_HEADER_FLIP_SELECTORS),
   ).filter((el) => el.offsetParent !== null);
   // FIRST: capture the current visual boxes (including any in-flight flip, so
-  // an interrupted transition re-flips smoothly from wherever it is).
-  const first = items.map((el) => el.getBoundingClientRect());
-  items.forEach((el) =>
-    el.getAnimations().forEach((animation) => {
-      if (animation.id === DASHBOARD_HEADER_FLIP_ID) animation.cancel();
-    }),
+  // an interrupted transition re-flips smoothly from wherever it is). A
+  // caller that knows the DOM already mutated passes the last painted boxes.
+  const first = items.map(
+    (el) => firstOverride?.get(el) ?? el.getBoundingClientRect(),
   );
 
   applyStateChange();
@@ -445,15 +496,35 @@ const runDashboardHeaderFocusFlip = (applyStateChange: () => void) => {
     const dy = f.top + f.height / 2 - (l.top + l.height / 2);
     const scaleRatio = f.width / l.width;
     if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(scaleRatio - 1) < 0.02) {
+      // Nothing new to bridge — leave any in-flight bridge running rather
+      // than cancelling it into a mid-animation snap (the commit re-flip
+      // fires with sub-pixel deltas when the commit moved nothing).
       return;
     }
+    // Cancel only when replacing: the old bridge's transform must not stack
+    // with the new one.
+    el.getAnimations().forEach((animation) => {
+      if (animation.id === DASHBOARD_HEADER_FLIP_ID) animation.cancel();
+    });
+    // Bake the element's own transform into REPLACE-mode keyframes instead of
+    // using composite:"add": Chromium runs additive transform animations on
+    // the MAIN THREAD, so during the busy transition window they sat frozen
+    // at currentTime 0 — holding items at the old position and releasing them
+    // in one jump. Replace-mode transform-only keyframes with matching
+    // function lists run on the compositor and glide through the jank.
+    // (Read after the cancel above so an old bridge's value isn't baked in.)
+    const baseTransform = getComputedStyle(el).transform;
+    const base =
+      !baseTransform || baseTransform === "none" ? "" : " " + baseTransform;
     const animation = el.animate(
       [
-        { transform: "translate(" + dx + "px, " + dy + "px) scale(" + scaleRatio + ")" },
-        { transform: "translate(0px, 0px) scale(1)" },
+        {
+          transform:
+            "translate(" + dx + "px, " + dy + "px) scale(" + scaleRatio + ")" + base,
+        },
+        { transform: "translate(0px, 0px) scale(1)" + base },
       ],
       {
-        composite: "add",
         duration: 240,
         easing: "cubic-bezier(0.2, 0.84, 0.2, 1)",
       },
@@ -768,7 +839,7 @@ const applyDashboardChyronMarquee = (element: HTMLElement | null) => {
 // occupied, preserving every document-order cascade tie vs globals.css.
 // Update the ?v= hash in DASHBOARD_RUNTIME_STYLESHEET_IMPORT when editing
 // that file.
-const DASHBOARD_RUNTIME_STYLESHEET_IMPORT = `@import url("/dashboard-runtime.css?v=bb310ca5");`;
+const DASHBOARD_RUNTIME_STYLESHEET_IMPORT = `@import url("/dashboard-runtime.css?v=530ca528");`;
 const DASHBOARD_HEADER_IDLE_RUN_MS = 3800;
 const DASHBOARD_HEADER_IDLE_WORK_MS = 4800;
 // Covers the idle scene's 520ms opacity/visibility fade-out before it unmounts.
@@ -8263,6 +8334,15 @@ export default function UserHomeDashboardPage() {
   const router = useRouter();
   const { profile: sharedProfile } = useProfile();
   const [dashboardToday] = useState<Date>(() => new Date());
+  // /dashboard is statically prerendered, so text derived from `new Date()`
+  // bakes the BUILD timestamp into the served HTML and can never match the
+  // client's first render (minified React #418 on every production load).
+  // Keep clock-derived header labels on a deterministic placeholder until
+  // after hydration, then swap in the live values.
+  const [dashboardClockLive, setDashboardClockLive] = useState(false);
+  useEffect(() => {
+    setDashboardClockLive(true);
+  }, []);
   // Heavy purely-decorative header layers (ambient field + idle training floor,
   // ~4k DOM nodes) are deferred one frame past first paint so the initial
   // render/HTML stays light and the dashboard appears sooner. They fade in
@@ -8403,6 +8483,9 @@ export default function UserHomeDashboardPage() {
     dashboardHeaderSurfaceHighlighted,
     setDashboardHeaderSurfaceHighlighted,
   ] = useState(false);
+  // Timer deferring the focus flip's React commit past the 240ms glide (see
+  // setDashboardContentFocused).
+  const dashboardContentFocusCommitTimerRef = useRef<number | null>(null);
   // True while the user is hovering/tapping the content section below the
   // header. Feeds the header/content "one set of animations at a time" toggle.
   const [dashboardContentFocused, setDashboardContentFocusedState] =
@@ -8656,28 +8739,72 @@ export default function UserHomeDashboardPage() {
           ".dashboard-header-vortex-shell",
         );
         if (shellElement) {
-          const paused = dashboardHeaderControlsInUse || nextFocused;
-          const nextState = paused ? "content" : "header";
+          // The instant flip follows the POINTER only. It used to also OR in
+          // dashboardHeaderControlsInUse, but those hover states now commit
+          // in deferred transitions — the closure read a stale `true` after
+          // leaving the level-meter tab/joysticks, so hovering back into the
+          // header refused to open it until some later crossing. The React
+          // commit (~320ms later) writes data-header-focus from the full
+          // dashboardHeaderMotionPaused derivation and re-asserts the
+          // controls-in-use semantics with fresh values.
+          const nextState = nextFocused ? "content" : "header";
           // This handler fires on every pointermove over the content, so the
           // FLIP pass (which forces a layout) only runs on a real state change.
           if (shellElement.dataset.headerFocus !== nextState) {
             runDashboardHeaderFocusFlip(() => {
               shellElement.dataset.headerFocus = nextState;
             });
+            // Keep per-frame visual boxes until the React commit lands, so
+            // its layout effect can bridge the commit's jump from the last
+            // painted frame (see dashboardHeaderLastPaintedRects).
+            startDashboardHeaderFlipSampling();
           }
         }
       }
       // The attribute flip and FLIP animations above already changed
-      // everything visible; startTransition time-slices React's catch-up so
-      // it does not steal the animation's first frames. (A timeout-deferred
-      // commit was tried and reverted: pushing the render past the animation
-      // made its geometry side-effects land visibly late.)
-      startTransition(() => {
-        setDashboardContentFocusedState(nextFocused);
-      });
+      // everything visible. React's catch-up render is DEFERRED past the
+      // 240ms glide: even time-sliced, its style-recalc chunks kept the frame
+      // pipeline from committing for ~150-300ms, so no animation (compositor
+      // included) could start and the transition began with a visible hold.
+      // An earlier deferral attempt was reverted because the commit's
+      // geometry side-effects landed visibly late — that is now safe: the
+      // commit re-flip (useLayoutEffect below) bridges whatever the commit
+      // moves, from the last painted frame, as its own compositor glide.
+      // Rapid hover flips just reschedule; the last intent wins.
+      if (dashboardContentFocusCommitTimerRef.current !== null) {
+        window.clearTimeout(dashboardContentFocusCommitTimerRef.current);
+      }
+      dashboardContentFocusCommitTimerRef.current = window.setTimeout(() => {
+        dashboardContentFocusCommitTimerRef.current = null;
+        startTransition(() => {
+          setDashboardContentFocusedState(nextFocused);
+          // The surface highlight is always the inverse of content focus and
+          // is read only by idle-timer effects (never JSX), so it rides the
+          // same deferred commit — an immediate transition render for it was
+          // walling the frame pipeline through the glide's first 250ms.
+          setDashboardHeaderSurfaceHighlighted(!nextFocused);
+        });
+      }, 320);
     },
-    [dashboardHeaderControlsInUse],
+    [],
   );
+  useEffect(
+    () => () => {
+      if (dashboardContentFocusCommitTimerRef.current !== null) {
+        window.clearTimeout(dashboardContentFocusCommitTimerRef.current);
+      }
+    },
+    [],
+  );
+  // The React commit lands ~200-400ms after the synchronous flip and its
+  // class changes move header geometry AGAIN — a second visible jump the
+  // original FLIP never covered. Re-run the FLIP with a no-op state change
+  // pre-paint: it captures each item's current visual box (mid-animation
+  // included), cancels in-flight bridges, and bridges from there to the
+  // committed layout, so both hops read as one continuous motion.
+  useLayoutEffect(() => {
+    runDashboardHeaderFocusFlip(() => {}, takeDashboardHeaderFreshPaintedRects());
+  }, [dashboardContentFocused]);
   const [activeCommandCenterIndex, setActiveCommandCenterIndex] = useState(0);
   const [activeAdminServiceIndex, setActiveAdminServiceIndex] = useState(0);
   const [adminServiceDetailsOpen, setAdminServiceDetailsOpen] = useState(false);
@@ -8871,10 +8998,6 @@ export default function UserHomeDashboardPage() {
   const [dashboardSummaryPane, setDashboardSummaryPane] = useState<
     "goal" | "position"
   >("goal");
-  const [
-    dashboardProfileHubHighlighted,
-    setDashboardProfileHubHighlighted,
-  ] = useState(false);
   const [
     dashboardProfileGearHighlighted,
     setDashboardProfileGearHighlighted,
@@ -12666,9 +12789,12 @@ export default function UserHomeDashboardPage() {
 
       setCanSyncWorkoutData(true);
 
+      // The live `profiles` table has no `avatar_url` column; selecting it made
+      // PostgREST reject the whole request with 400 (42703), losing full_name
+      // too. The avatar still falls back to auth user_metadata below.
       const { data: profile } = await supabase
         .from("profiles")
-        .select("full_name, avatar_url")
+        .select("full_name")
         .eq("id", authData.user.id)
         .single();
 
@@ -12678,7 +12804,6 @@ export default function UserHomeDashboardPage() {
         authData.user.user_metadata?.first_name ||
         "Member";
       const authProfileIcon = readDashboardText(
-        profile?.avatar_url,
         authData.user.user_metadata?.avatar_url,
         authData.user.user_metadata?.picture,
       );
@@ -13627,12 +13752,12 @@ export default function UserHomeDashboardPage() {
         };
   const dashboardWeeklySessionResetDate =
     getDashboardWeekResetDate(dashboardToday);
-  const dashboardWeeklySessionResetLabel = formatHeaderMeterDeadline(
-    dashboardWeeklySessionResetDate,
-  );
-  const dashboardWeeklySessionResetFullLabel = formatHeaderMeterFullDateTime(
-    dashboardWeeklySessionResetDate,
-  );
+  const dashboardWeeklySessionResetLabel = dashboardClockLive
+    ? formatHeaderMeterDeadline(dashboardWeeklySessionResetDate)
+    : "soon";
+  const dashboardWeeklySessionResetFullLabel = dashboardClockLive
+    ? formatHeaderMeterFullDateTime(dashboardWeeklySessionResetDate)
+    : "soon";
   const dashboardNeedleChargesRemaining = Math.max(
     0,
     dashboardSummary.weeklySessionGoal - dashboardSummary.workoutsThisWeek,
@@ -13757,10 +13882,14 @@ export default function UserHomeDashboardPage() {
 
   const dashboardNextPlannedSessionLabel = activeSessionTemplate
     ? "Now"
-    : formatHeaderMeterDeadline(dashboardNextPlannedSessionDate);
+    : dashboardClockLive
+      ? formatHeaderMeterDeadline(dashboardNextPlannedSessionDate)
+      : "soon";
   const dashboardNextPlannedSessionFullLabel = activeSessionTemplate
     ? "a planned session is live now"
-    : formatHeaderMeterFullDateTime(dashboardNextPlannedSessionDate);
+    : dashboardClockLive
+      ? formatHeaderMeterFullDateTime(dashboardNextPlannedSessionDate)
+      : "soon";
   const dashboardPlanAttendanceCaption =
     dashboardPlanSessionsRemaining <= 0
       ? "Plan complete"
@@ -16167,13 +16296,9 @@ export default function UserHomeDashboardPage() {
     }
   };
   const highlightDashboardHeaderSurface = () => {
-    // Transition-wrapped so it batches with setDashboardContentFocused's
-    // transition render: nothing in the JSX reads this state (only idle-timer
-    // effects do), so an urgent commit here is a wasted full-page render on
-    // every hover crossing into the header.
-    startTransition(() => {
-      setDashboardHeaderSurfaceHighlighted(true);
-    });
+    // The highlight state commit rides setDashboardContentFocused's deferred
+    // timer (it is the inverse of content focus, and only idle-timer effects
+    // read it) — committing it here walled the glide's first frames.
     setDashboardContentFocused(false);
     stopDashboardHeaderIdleMode();
   };
@@ -16202,9 +16327,7 @@ export default function UserHomeDashboardPage() {
     }
   };
   const clearDashboardHeaderSurfaceHighlight = () => {
-    startTransition(() => {
-      setDashboardHeaderSurfaceHighlighted(false);
-    });
+    // Highlight commit rides the deferred focus timer; see above.
     setDashboardContentFocused(true);
   };
   // Hover routing: pointing anywhere over the header band wakes the menu;
@@ -16221,7 +16344,33 @@ export default function UserHomeDashboardPage() {
     const routeDashboardHoverFocus = (event: Event) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
-      if (target.closest(".dashboard-header-vortex-shell")) {
+      const shellAncestor = target.closest<HTMLElement>(
+        ".dashboard-header-vortex-shell",
+      );
+      if (shellAncestor) {
+        // The shell's hover surface bleeds ~33px past its visible box in the
+        // idle state (menu-content overflows the collapsed shell), so hovering
+        // the empty band below the idle menu used to wake it. Gate the WAKE on
+        // the header's SLOT band (the fixed-height h-[6.1rem] container) —
+        // NOT the shell's own box, which animates during open/close: gating
+        // on an animated boundary made pointer-vs-edge disagree frame to
+        // frame and the header oscillated open/idle under a stationary
+        // cursor. The slot never moves, so the gate is stable. Once the
+        // header is already focused, keep hovers focused so open dropdowns
+        // hanging below the band never idle it mid-use.
+        if (
+          shellAncestor.dataset.headerFocus === "content" &&
+          event instanceof PointerEvent
+        ) {
+          const slot = shellAncestor.parentElement;
+          const wakeBottom = slot
+            ? slot.getBoundingClientRect().bottom
+            : shellAncestor.getBoundingClientRect().bottom;
+          if (event.clientY > wakeBottom + 2) {
+            clearDashboardHeaderSurfaceHighlight();
+            return;
+          }
+        }
         highlightDashboardHeaderSurface();
       } else {
         clearDashboardHeaderSurfaceHighlight();
@@ -20684,13 +20833,13 @@ export default function UserHomeDashboardPage() {
               ? "Close lifetime earnings"
               : "Open lifetime earnings"
           }
-          onBlur={() => setDashboardPageLevelMeterTabHighlighted(false)}
+          onBlur={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(false))}
           onClick={() =>
             setDashboardPageLevelMeterOpen((currentOpen) => !currentOpen)
           }
-          onFocus={() => setDashboardPageLevelMeterTabHighlighted(true)}
-          onPointerEnter={() => setDashboardPageLevelMeterTabHighlighted(true)}
-          onPointerLeave={() => setDashboardPageLevelMeterTabHighlighted(false)}
+          onFocus={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(true))}
+          onPointerEnter={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(true))}
+          onPointerLeave={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(false))}
           style={
             {
               "--dashboard-page-level-tab-progress": `${adminLifetimeEarningsProgress}%`,
@@ -20850,13 +20999,13 @@ export default function UserHomeDashboardPage() {
         data-dashboard-tooltip={
           dashboardPageLevelMeterOpen ? "Close level meter" : "Open level meter"
         }
-        onBlur={() => setDashboardPageLevelMeterTabHighlighted(false)}
+        onBlur={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(false))}
         onClick={() =>
           setDashboardPageLevelMeterOpen((currentOpen) => !currentOpen)
         }
-        onFocus={() => setDashboardPageLevelMeterTabHighlighted(true)}
-        onPointerEnter={() => setDashboardPageLevelMeterTabHighlighted(true)}
-        onPointerLeave={() => setDashboardPageLevelMeterTabHighlighted(false)}
+        onFocus={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(true))}
+        onPointerEnter={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(true))}
+        onPointerLeave={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(false))}
         style={
           {
             "--dashboard-page-level-tab-progress": `${soundFitnessLevelProgress}%`,
@@ -21126,7 +21275,7 @@ export default function UserHomeDashboardPage() {
           }
         }}
         onBlur={() => {
-          setDashboardPageAnalogHovered(false);
+          startTransition(() => setDashboardPageAnalogHovered(false));
           resetDashboardPageAnalogDrag();
         }}
         onKeyDown={(event) => {
@@ -21159,13 +21308,13 @@ export default function UserHomeDashboardPage() {
           }
         }}
         onLostPointerCapture={handleDashboardPageAnalogPointerEnd}
-        onMouseEnter={() => setDashboardPageAnalogHovered(true)}
-        onMouseLeave={() => setDashboardPageAnalogHovered(false)}
+        onMouseEnter={() => startTransition(() => setDashboardPageAnalogHovered(true))}
+        onMouseLeave={() => startTransition(() => setDashboardPageAnalogHovered(false))}
         onPointerCancel={handleDashboardPageAnalogPointerEnd}
         onPointerDown={handleDashboardPageAnalogPointerDown}
-        onPointerEnter={() => setDashboardPageAnalogHovered(true)}
+        onPointerEnter={() => startTransition(() => setDashboardPageAnalogHovered(true))}
         onPointerLeave={(event) => {
-          setDashboardPageAnalogHovered(false);
+          startTransition(() => setDashboardPageAnalogHovered(false));
 
           if (dashboardPageAnalogDragging && event.buttons === 0) {
             handleDashboardPageAnalogPointerEnd(event);
@@ -22351,7 +22500,7 @@ export default function UserHomeDashboardPage() {
             }`}
             data-dashboard-tooltip="Scroll profile hub layers"
             onBlur={() => {
-              setDashboardProfileHubAnalogHovered(false);
+              startTransition(() => setDashboardProfileHubAnalogHovered(false));
               resetDashboardProfileHubAnalogDrag();
             }}
             onClick={(event) => {
@@ -22387,13 +22536,13 @@ export default function UserHomeDashboardPage() {
               }
             }}
             onLostPointerCapture={handleDashboardProfileHubAnalogPointerEnd}
-            onMouseEnter={() => setDashboardProfileHubAnalogHovered(true)}
-            onMouseLeave={() => setDashboardProfileHubAnalogHovered(false)}
+            onMouseEnter={() => startTransition(() => setDashboardProfileHubAnalogHovered(true))}
+            onMouseLeave={() => startTransition(() => setDashboardProfileHubAnalogHovered(false))}
             onPointerCancel={handleDashboardProfileHubAnalogPointerEnd}
             onPointerDown={handleDashboardProfileHubAnalogPointerDown}
-            onPointerEnter={() => setDashboardProfileHubAnalogHovered(true)}
+            onPointerEnter={() => startTransition(() => setDashboardProfileHubAnalogHovered(true))}
             onPointerLeave={(event) => {
-              setDashboardProfileHubAnalogHovered(false);
+              startTransition(() => setDashboardProfileHubAnalogHovered(false));
 
               if (dashboardProfileHubAnalogDragging && event.buttons === 0) {
                 handleDashboardProfileHubAnalogPointerEnd(event);
@@ -23964,7 +24113,7 @@ export default function UserHomeDashboardPage() {
         dashboardPageLevelMeterTabHighlighted
           ? "dashboard-header-vortex-shell--level-tab-freeze"
           : ""
-      } absolute inset-x-0 top-0 z-[120] mb-0 overflow-visible border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl`}
+      } absolute inset-x-0 top-0 z-[120] mb-0 overflow-visible border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-md`}
       data-dashboard-header-timeout={dashboardHeaderTimedOut ? "true" : "false"}
       data-header-focus={dashboardHeaderMotionPaused ? "content" : "header"}
       onBlurCapture={handleDashboardHeaderSurfaceBlur}
@@ -23980,7 +24129,6 @@ export default function UserHomeDashboardPage() {
           clearDashboardHeaderSurfaceHighlight();
         }
       }}
-      onPointerMove={handleDashboardHeaderSurfacePointerActivity}
       onPointerOver={handleDashboardHeaderSurfacePointerActivity}
     >
       <span
@@ -25036,14 +25184,14 @@ export default function UserHomeDashboardPage() {
             if (
               !event.currentTarget.contains(event.relatedTarget as Node | null)
             ) {
-              setDashboardHeaderLogoClusterHighlighted(false);
+              startTransition(() => setDashboardHeaderLogoClusterHighlighted(false));
             }
           }}
-          onFocus={() => setDashboardHeaderLogoClusterHighlighted(true)}
-          onMouseEnter={() => setDashboardHeaderLogoClusterHighlighted(true)}
-          onMouseLeave={() => setDashboardHeaderLogoClusterHighlighted(false)}
-          onPointerEnter={() => setDashboardHeaderLogoClusterHighlighted(true)}
-          onPointerLeave={() => setDashboardHeaderLogoClusterHighlighted(false)}
+          onFocus={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(true))}
+          onMouseEnter={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(true))}
+          onMouseLeave={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(false))}
+          onPointerEnter={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(true))}
+          onPointerLeave={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(false))}
         >
           {clampedDashboardOrbiterRow === 0 ? (
             <>
@@ -25066,7 +25214,7 @@ export default function UserHomeDashboardPage() {
                   event.stopPropagation();
                   toggleDashboardTrophyMenu();
                 }}
-                onFocus={() => setDashboardHeaderLogoClusterHighlighted(true)}
+                onFocus={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(true))}
                 onPointerDown={(event) => {
                   event.stopPropagation();
                 }}
@@ -25166,7 +25314,7 @@ export default function UserHomeDashboardPage() {
               clampedDashboardOrbiterRow === 0 ? "Trophies" : "Sound Fitness"
             }
             data-hero-row-active={clampedDashboardOrbiterRow === 0}
-            onBlur={() => setDashboardHeaderLogoClusterHighlighted(false)}
+            onBlur={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(false))}
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
@@ -25180,14 +25328,14 @@ export default function UserHomeDashboardPage() {
                 isAdminPreview ? ROUTES.admin.home : ROUTES.dashboard.home,
               );
             }}
-            onFocus={() => setDashboardHeaderLogoClusterHighlighted(true)}
-            onMouseEnter={() => setDashboardHeaderLogoClusterHighlighted(true)}
-            onMouseLeave={() => setDashboardHeaderLogoClusterHighlighted(false)}
+            onFocus={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(true))}
+            onMouseEnter={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(true))}
+            onMouseLeave={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(false))}
             onPointerEnter={() =>
-              setDashboardHeaderLogoClusterHighlighted(true)
+              startTransition(() => setDashboardHeaderLogoClusterHighlighted(true))
             }
             onPointerLeave={() =>
-              setDashboardHeaderLogoClusterHighlighted(false)
+              startTransition(() => setDashboardHeaderLogoClusterHighlighted(false))
             }
             style={
               {
@@ -26091,13 +26239,7 @@ export default function UserHomeDashboardPage() {
                     ? `Debt-to-income, level ${dashboardBadgeLevel}`
                     : `Profile hub, level ${soundFitnessLevel}`
                 }
-                onBlur={() => setDashboardProfileHubHighlighted(false)}
                 onClick={openDashboardProfileHub}
-                onFocus={() => setDashboardProfileHubHighlighted(true)}
-                onMouseEnter={() => setDashboardProfileHubHighlighted(true)}
-                onMouseLeave={() => setDashboardProfileHubHighlighted(false)}
-                onPointerEnter={() => setDashboardProfileHubHighlighted(true)}
-                onPointerLeave={() => setDashboardProfileHubHighlighted(false)}
                 type="button"
               >
                 <span
@@ -26907,7 +27049,7 @@ export default function UserHomeDashboardPage() {
                   ? "Hide shortcuts"
                   : "Profile shortcuts"
               }
-              onBlur={() => setDashboardProfileGearHighlighted(false)}
+              onBlur={() => startTransition(() => setDashboardProfileGearHighlighted(false))}
               onClick={() => {
                 const nextOpen = !dashboardProfileActionsOpen;
                 setDashboardTrophyMenuOpen(false);
@@ -26919,11 +27061,11 @@ export default function UserHomeDashboardPage() {
                   setDashboardMusicDropdownOpen(false);
                 }
               }}
-              onFocus={() => setDashboardProfileGearHighlighted(true)}
-              onMouseEnter={() => setDashboardProfileGearHighlighted(true)}
-              onMouseLeave={() => setDashboardProfileGearHighlighted(false)}
-              onPointerEnter={() => setDashboardProfileGearHighlighted(true)}
-              onPointerLeave={() => setDashboardProfileGearHighlighted(false)}
+              onFocus={() => startTransition(() => setDashboardProfileGearHighlighted(true))}
+              onMouseEnter={() => startTransition(() => setDashboardProfileGearHighlighted(true))}
+              onMouseLeave={() => startTransition(() => setDashboardProfileGearHighlighted(false))}
+              onPointerEnter={() => startTransition(() => setDashboardProfileGearHighlighted(true))}
+              onPointerLeave={() => startTransition(() => setDashboardProfileGearHighlighted(false))}
               style={{ left: "-0.45rem", right: "auto" }}
               tabIndex={dashboardProfileActionsOpen ? -1 : 0}
               type="button"
@@ -27451,7 +27593,7 @@ export default function UserHomeDashboardPage() {
             }
             className="dashboard-header-meter-menu-trigger"
             data-dashboard-tooltip="Meters"
-            onBlur={() => setDashboardHeaderMeterMenuHighlighted(false)}
+            onBlur={() => startTransition(() => setDashboardHeaderMeterMenuHighlighted(false))}
             onClick={() => {
               setDashboardTrophyMenuOpen(false);
               setDashboardHeroWidgetsDrawerOpen(false);
@@ -27471,11 +27613,11 @@ export default function UserHomeDashboardPage() {
               }
               setDashboardHeaderMeterMenuOpen(nextMeterOpen);
             }}
-            onFocus={() => setDashboardHeaderMeterMenuHighlighted(true)}
-            onMouseEnter={() => setDashboardHeaderMeterMenuHighlighted(true)}
-            onMouseLeave={() => setDashboardHeaderMeterMenuHighlighted(false)}
-            onPointerEnter={() => setDashboardHeaderMeterMenuHighlighted(true)}
-            onPointerLeave={() => setDashboardHeaderMeterMenuHighlighted(false)}
+            onFocus={() => startTransition(() => setDashboardHeaderMeterMenuHighlighted(true))}
+            onMouseEnter={() => startTransition(() => setDashboardHeaderMeterMenuHighlighted(true))}
+            onMouseLeave={() => startTransition(() => setDashboardHeaderMeterMenuHighlighted(false))}
+            onPointerEnter={() => startTransition(() => setDashboardHeaderMeterMenuHighlighted(true))}
+            onPointerLeave={() => startTransition(() => setDashboardHeaderMeterMenuHighlighted(false))}
             type="button"
           >
             <DashboardMeterMenuIcon3D
@@ -40966,8 +41108,6 @@ export default function UserHomeDashboardPage() {
           dashboardPageLevelMeterTabHighlighted
             ? "dashboard-page--level-meter-tab-highlighted"
             : ""
-        } ${
-          dashboardPageAnalogInUse ? "dashboard-page--page-analog-active" : ""
         } ${
           dashboardHeroWidgetsDrawerOpen
             ? "dashboard-page--widgets-drawer-open"

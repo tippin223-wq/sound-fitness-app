@@ -377,17 +377,21 @@ export function DashboardGearIcon3D({
         root.rotation.x = 0.18 + Math.sin(seconds * 2.2) * 0.08 * charge;
         root.rotation.y = -0.18 + Math.cos(seconds * 1.8) * 0.1 * charge;
         root.scale.setScalar(0.88 + charge * 0.16 + Math.sin(seconds * 5.4) * 0.025 * charge);
-        gearMaterial.emissiveIntensity = 0.16 + charge * 0.38;
-        rimMaterial.emissiveIntensity = 0.24 + charge * 0.52;
-        glowMaterial.opacity = 0.1 + charge * (0.28 + Math.sin(seconds * 4.8) * 0.04);
+        // Rest constants raised: at charge 0 the old values (0.16/0.24/0.1)
+        // rendered a near-invisible ghost on the dark header — users read the
+        // gear as "disappeared" whenever it wasn't hovered. Rest now sits at
+        // ~70% of the active look so the gear always reads as present.
+        gearMaterial.emissiveIntensity = 0.5 + charge * 0.22;
+        rimMaterial.emissiveIntensity = 0.58 + charge * 0.28;
+        glowMaterial.opacity = 0.24 + charge * (0.18 + Math.sin(seconds * 4.8) * 0.04);
 
         teeth.forEach((tooth, index) => {
           const pulse = Math.max(0, Math.sin(seconds * 5.6 + index * 0.7));
           tooth.scale.setScalar(1 + charge * pulse * 0.08);
         });
 
-        cyanLight.intensity = 1.8 + charge * 2.4;
-        goldLight.intensity = 0.55 + charge * 1.6;
+        cyanLight.intensity = 3.1 + charge * 1.2;
+        goldLight.intensity = 1.15 + charge * 1.0;
 
         // At charge 0 every assignment above is its rest constant and the spin
         // increment is 0, so the scene is settled once the rest pose has been

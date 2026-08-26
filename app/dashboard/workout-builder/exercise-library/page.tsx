@@ -1,5 +1,7 @@
 "use client";
 
+import "./exercise-library.css";
+
 import {
   Children,
   cloneElement,
@@ -21967,9 +21969,12 @@ export default function ExerciseLibraryPage() {
         }
 
         const [{ data: profile }, { data: savedBio }] = await Promise.all([
+          // The live `profiles` table has no `avatar_url` column; selecting it
+          // made PostgREST reject the whole request with a 400 (42703), losing
+          // full_name too. The avatar falls back to auth user_metadata below.
           supabase
             .from("profiles")
-            .select("full_name, avatar_url")
+            .select("full_name")
             .eq("id", user.id)
             .single(),
           supabase.from("client_bios").select("*").eq("id", user.id).single(),
@@ -22010,7 +22015,6 @@ export default function ExerciseLibraryPage() {
 
         setProfileSummary({
           avatarUrl:
-            profile?.avatar_url ||
             user.user_metadata?.avatar_url ||
             user.user_metadata?.picture ||
             null,
