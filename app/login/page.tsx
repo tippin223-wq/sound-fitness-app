@@ -11,7 +11,12 @@ import {
   useMemo,
   useState,
 } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import {
+  setSupabaseSessionPersistence,
+  supabase,
+} from "@/lib/supabaseClient";
+
+const REMEMBERED_EMAIL_STORAGE_KEY = "sound-fitness-remembered-email";
 import { ROUTES } from "@/lib/routes";
 import { getPostLoginRedirectPath, type AuthRole } from "@/lib/authRedirects";
 import MarketingHeaderLogo3D from "@/components/MarketingHeaderLogo3D";
@@ -130,6 +135,17 @@ export default function LoginPage() {
   }, [pathname]);
 
   const [email, setEmail] = useState("");
+  // Prefill the email of the last account that signed in with "Remember me".
+  // Loaded in an effect (not the initializer) so the server render and the
+  // first client render match.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(REMEMBERED_EMAIL_STORAGE_KEY);
+      if (saved) setEmail(saved);
+    } catch {
+      // storage unavailable (private mode etc.) — just leave the field empty
+    }
+  }, []);
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [errorMessage, setErrorMessage] = useState(getInitialAuthErrorMessage);
@@ -226,6 +242,9 @@ export default function LoginPage() {
     setMfaCode("");
     setIsLoading(true);
 
+    // Must land before signInWithPassword writes the auth cookies.
+    setSupabaseSessionPersistence(rememberMe);
+
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -235,6 +254,18 @@ export default function LoginPage() {
       setIsLoading(false);
       setErrorMessage("Email or password is incorrect.");
       return;
+    }
+
+    // Remember the email for prefilling next time (cleared when the user
+    // signs in without "Remember me").
+    try {
+      if (rememberMe) {
+        window.localStorage.setItem(REMEMBERED_EMAIL_STORAGE_KEY, email);
+      } else {
+        window.localStorage.removeItem(REMEMBERED_EMAIL_STORAGE_KEY);
+      }
+    } catch {
+      // storage unavailable — skip
     }
 
     const { data: aalData, error: aalError } =
@@ -941,9 +972,7 @@ export default function LoginPage() {
 
                 {!rememberMe && (
                   <div className="rounded-xl border border-yellow-400/20 bg-yellow-500/10 px-4 py-3 text-xs leading-5 text-yellow-100">
-                    Heads up: Supabase keeps sessions by default. We’ll make
-                    this checkbox fully control session persistence in the next
-                    auth pass.
+                    You’ll be signed out when you close your browser.
                   </div>
                 )}
 

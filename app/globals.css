@@ -8762,14 +8762,14 @@ body:has(.exercise-library-page-theme)::-webkit-scrollbar,
   [data-profile-pulse-dot="true"],
 .profile-row-card-indicator[data-active="true"]
   [data-profile-pulse-dot="true"] {
-  animation: profile-row-card-indicator-red-pulse 1.05s ease-in-out infinite !important;
+  animation: profile-row-card-indicator-red-pulse 1.05s steps(12) infinite !important;
 }
 
 .profile-row-card-indicator[aria-pressed="true"][data-profile-indicator-motion="water"]
   [data-profile-pulse-dot="true"],
 .profile-row-card-indicator[data-active="true"][data-profile-indicator-motion="water"]
   [data-profile-pulse-dot="true"] {
-  animation: profile-row-card-indicator-water 2.9s ease-in-out infinite !important;
+  animation: profile-row-card-indicator-water 2.9s steps(15) infinite !important;
   opacity: 1;
 }
 
@@ -9306,12 +9306,6 @@ body:has(.exercise-library-page-theme)::-webkit-scrollbar,
   *:not(.dashboard-header-meter-menu-trigger)::before,
 .dashboard-header-vortex-shell--meter-menu-open
   *:not(.dashboard-header-meter-menu-trigger)::after {
-  animation-play-state: paused !important;
-}
-
-main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open *,
-main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open *::before,
-main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open *::after {
   animation-play-state: paused !important;
 }
 
@@ -17448,7 +17442,7 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
   --dashboard-header-chyron-gem-glint: rgba(236, 253, 245, 0.9);
   --dashboard-header-chyron-gem-glow: rgba(16, 185, 129, 0.24);
   --dashboard-header-chyron-gem-soft-glow: rgba(34, 211, 238, 0.12);
-  animation: dashboard-header-news-chyron-gem-glint 14.5s ease-in-out infinite;
+  animation: dashboard-header-news-chyron-gem-glint 14.5s steps(29) infinite;
   aspect-ratio: 0.86;
   background:
     linear-gradient(
@@ -17724,7 +17718,7 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
 }
 
 .dashboard-header-news-chyron__light {
-  animation: dashboard-header-news-chyron-live-pulse 2.4s ease-in-out infinite;
+  animation: dashboard-header-news-chyron-live-pulse 2.4s steps(10) infinite;
   background: radial-gradient(
     circle,
     rgba(255, 255, 255, 0.94) 0 16%,
@@ -18259,7 +18253,7 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
 
 .dashboard-header-urgency-blinker__dot {
   animation: dashboard-header-urgency-dot-blink
-    var(--dashboard-header-urgency-speed) ease-in-out infinite;
+    var(--dashboard-header-urgency-speed) steps(14) infinite;
   box-shadow: 0 0 0.28rem var(--dashboard-header-urgency-core);
   position: relative;
   z-index: 1;
@@ -18294,24 +18288,6 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
 .dashboard-header-urgency-blinker[data-motion-paused="true"]::after,
 .dashboard-header-urgency-blinker[data-motion-paused="true"]
   .dashboard-header-urgency-blinker__dot,
-main.dashboard-page--meter-menu-open
-  .dashboard-header-urgency-blinker,
-main.dashboard-page--meter-menu-open
-  .dashboard-header-urgency-blinker::before,
-main.dashboard-page--meter-menu-open
-  .dashboard-header-urgency-blinker::after,
-main.dashboard-page--meter-menu-open
-  .dashboard-header-urgency-blinker
-  .dashboard-header-urgency-blinker__dot,
-main.dashboard-page--points-menu-highlighted
-  .dashboard-header-urgency-blinker,
-main.dashboard-page--points-menu-highlighted
-  .dashboard-header-urgency-blinker::before,
-main.dashboard-page--points-menu-highlighted
-  .dashboard-header-urgency-blinker::after,
-main.dashboard-page--points-menu-highlighted
-  .dashboard-header-urgency-blinker
-  .dashboard-header-urgency-blinker__dot,
 main.dashboard-page--page-analog-active
   .dashboard-header-urgency-blinker,
 main.dashboard-page--page-analog-active
@@ -18337,28 +18313,14 @@ main.dashboard-page--level-meter-tab-highlighted
 main.dashboard-page--level-meter-tab-highlighted
   .dashboard-header-urgency-blinker::after,
 main.dashboard-page--level-meter-tab-highlighted
-  .dashboard-header-urgency-blinker
-  .dashboard-header-urgency-blinker__dot,
-main.dashboard-page--widgets-drawer-open
-  .dashboard-header-urgency-blinker,
-main.dashboard-page--widgets-drawer-open
-  .dashboard-header-urgency-blinker::before,
-main.dashboard-page--widgets-drawer-open
-  .dashboard-header-urgency-blinker::after,
-main.dashboard-page--widgets-drawer-open
-  .dashboard-header-urgency-blinker
-  .dashboard-header-urgency-blinker__dot,
-main.dashboard-page--trophy-menu-open
-  .dashboard-header-urgency-blinker,
-main.dashboard-page--trophy-menu-open
-  .dashboard-header-urgency-blinker::before,
-main.dashboard-page--trophy-menu-open
-  .dashboard-header-urgency-blinker::after,
-main.dashboard-page--trophy-menu-open
   .dashboard-header-urgency-blinker
   .dashboard-header-urgency-blinker__dot {
   animation-play-state: paused !important;
 }
+/* The widgets-drawer / trophy-menu / meter-menu / points-highlight arms that
+   used to sit in this list were redundant: those states are all part of
+   dashboardHeaderUrgencyBlinkPaused, which pauses every blinker through the
+   [data-motion-paused="true"] rule above. */
 
 main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   .dashboard-row-urgency-blinker[data-motion-paused="false"],
@@ -23220,23 +23182,11 @@ main.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   width: 1.75rem;
 }
 
-.dashboard-page--widgets-drawer-open *,
-.dashboard-page--widgets-drawer-open *::before,
-.dashboard-page--widgets-drawer-open *::after {
-  animation-play-state: paused !important;
-}
-
 .dashboard-page--widgets-drawer-open .dashboard-hero-widgets-drawer,
 .dashboard-page--widgets-drawer-open .dashboard-hero-widgets-drawer *,
 .dashboard-page--widgets-drawer-open .dashboard-hero-widgets-drawer *::before,
 .dashboard-page--widgets-drawer-open .dashboard-hero-widgets-drawer *::after {
   animation-play-state: running !important;
-}
-
-.dashboard-page--trophy-menu-open *,
-.dashboard-page--trophy-menu-open *::before,
-.dashboard-page--trophy-menu-open *::after {
-  animation-play-state: paused !important;
 }
 
 .dashboard-page--trophy-menu-open .dashboard-header-trophy-menu,
@@ -23448,8 +23398,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 
 .dashboard-hero-space-needle-meter
   .dashboard-header-week-sessions__graph::after {
-  animation: dashboard-hero-space-needle-saucer-breathe 4.8s ease-in-out
-    infinite;
+  animation: dashboard-hero-space-needle-saucer-breathe 4.8s steps(12) infinite;
   background:
     radial-gradient(
       ellipse at 50% 42%,
@@ -23604,7 +23553,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 }
 
 .dashboard-hero-space-needle-meter__roulette::before {
-  animation: dashboard-hero-space-needle-roulette-glow 4.6s ease-in-out infinite;
+  animation: dashboard-hero-space-needle-roulette-glow 4.6s steps(12) infinite;
   background:
     linear-gradient(
       180deg,
@@ -24767,7 +24716,7 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 }
 
 .dashboard-header-streak-fire__meter-fill {
-  animation: dashboard-header-streak-meter-fill 2.45s ease-in-out infinite;
+  animation: dashboard-header-streak-meter-fill 2.45s steps(10) infinite;
   background:
     linear-gradient(
       180deg,
@@ -24878,13 +24827,12 @@ main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
 
 .dashboard-header-meter-scroller__meter--center
   .dashboard-header-plan-attendance__progress-ring {
-  animation: dashboard-header-plan-attendance-ring-pulse 2.4s ease-in-out
-    infinite;
+  animation: dashboard-header-plan-attendance-ring-pulse 2.4s steps(10) infinite;
 }
 
 .dashboard-header-meter-scroller__meter--center
   .dashboard-header-plan-attendance__spark {
-  animation: dashboard-header-plan-attendance-spark 1.9s ease-in-out infinite;
+  animation: dashboard-header-plan-attendance-spark 1.9s steps(8) infinite;
 }
 
 .dashboard-header-compound-pr-meter {
@@ -28384,7 +28332,7 @@ html[data-dashboard-webgl="warming"]
   opacity: 0.62;
   transform: translate(-50%, -49%) rotateX(12deg) skewX(6deg);
   width: min(260px, 60%);
-  animation: dashboard-header-meter-tornado-stream 40s linear infinite;
+  animation: dashboard-header-meter-tornado-stream 40s steps(80) infinite;
 }
 
 .dashboard-header-meter-panel__stack--orbit:has(
@@ -28726,20 +28674,19 @@ html[data-dashboard-webgl="warming"]
 
 .dashboard-header-meter-tornado__svg-stream--primary {
   --dashboard-meter-tornado-stream-dash: 136 42 22 58;
-  animation: dashboard-header-meter-tornado-svg-stream-a 50s linear infinite;
+  animation: dashboard-header-meter-tornado-svg-stream-a 50s steps(100) infinite;
   opacity: 0.74;
 }
 
 .dashboard-header-meter-tornado__svg-stream--secondary {
   --dashboard-meter-tornado-stream-dash: 108 54 18 64;
-  animation: dashboard-header-meter-tornado-svg-stream-b 56s linear infinite
-    reverse;
+  animation: dashboard-header-meter-tornado-svg-stream-b 56s steps(112) infinite reverse;
   opacity: 0.56;
 }
 
 .dashboard-header-meter-tornado__svg-stream--cut {
   --dashboard-meter-tornado-stream-dash: 22 72;
-  animation: dashboard-header-meter-tornado-svg-stream-cut 46s linear infinite;
+  animation: dashboard-header-meter-tornado-svg-stream-cut 46s steps(92) infinite;
   filter: drop-shadow(0 0 0.34rem rgba(224, 242, 254, 0.24));
   opacity: 0.28;
 }
@@ -28785,7 +28732,7 @@ html[data-dashboard-webgl="warming"]
   animation:
     dashboard-header-meter-tornado-emerald-drift 58s
       cubic-bezier(0.32, 0, 0.2, 1) infinite,
-    dashboard-header-meter-tornado-emerald-shimmer 22s ease-in-out infinite;
+    dashboard-header-meter-tornado-emerald-shimmer 22s steps(44) infinite;
   animation-delay:
     var(--dashboard-meter-tornado-emerald-drift-delay, 0s),
     var(--dashboard-meter-tornado-emerald-shimmer-delay, 0s);
@@ -28823,7 +28770,7 @@ html[data-dashboard-webgl="warming"]
 }
 
 .dashboard-header-meter-tornado__emerald-core {
-  animation: dashboard-header-meter-tornado-emerald-spin 34s linear infinite;
+  animation: dashboard-header-meter-tornado-emerald-spin 34s steps(68) infinite;
   animation-delay: var(--dashboard-meter-tornado-emerald-spin-delay, 0s);
   backface-visibility: visible;
   shape-rendering: geometricPrecision;
@@ -29306,7 +29253,7 @@ html[data-dashboard-webgl="warming"]
 
 .dashboard-header-meter-panel__stack--orbit
   .dashboard-header-meter-panel__section--slot-left {
-  filter: saturate(0.76) brightness(0.66) blur(0.025rem);
+  filter: saturate(0.76) brightness(0.66);
   opacity: 0.48;
   transform: translate3d(calc(-50% - 370px), -50%, -62px) rotateX(-4deg)
     rotateY(66deg);
@@ -29316,7 +29263,7 @@ html[data-dashboard-webgl="warming"]
 
 .dashboard-header-meter-panel__stack--orbit
   .dashboard-header-meter-panel__section--slot-right {
-  filter: saturate(0.76) brightness(0.66) blur(0.025rem);
+  filter: saturate(0.76) brightness(0.66);
   opacity: 0.48;
   transform: translate3d(calc(-50% + 370px), -50%, -62px) rotateX(-4deg)
     rotateY(-66deg);
@@ -29326,7 +29273,7 @@ html[data-dashboard-webgl="warming"]
 
 .dashboard-header-meter-panel__stack--orbit
   .dashboard-header-meter-panel__section--slot-back {
-  filter: saturate(0.5) brightness(0.44) blur(0.12rem);
+  filter: saturate(0.5) brightness(0.44);
   opacity: 0;
   pointer-events: none;
   transform: translate3d(-50%, calc(-50% + 4px), -144px);
@@ -29413,7 +29360,7 @@ html[data-dashboard-webgl="warming"]
   .dashboard-header-meter-panel__section--slot-left:hover,
 .dashboard-header-meter-panel__stack--orbit
   .dashboard-header-meter-panel__section--slot-left:focus-within {
-  filter: saturate(0.76) brightness(0.66) blur(0.025rem);
+  filter: saturate(0.76) brightness(0.66);
   opacity: 0.48;
   transform: translate3d(calc(-50% - 370px), -50%, -62px) rotateX(-4deg)
     rotateY(66deg);
@@ -29427,7 +29374,7 @@ html[data-dashboard-webgl="warming"]
   .dashboard-header-meter-panel__section--slot-right:hover,
 .dashboard-header-meter-panel__stack--orbit
   .dashboard-header-meter-panel__section--slot-right:focus-within {
-  filter: saturate(0.76) brightness(0.66) blur(0.025rem);
+  filter: saturate(0.76) brightness(0.66);
   opacity: 0.48;
   transform: translate3d(calc(-50% + 370px), -50%, -62px) rotateX(-4deg)
     rotateY(-66deg);
@@ -29441,7 +29388,7 @@ html[data-dashboard-webgl="warming"]
   .dashboard-header-meter-panel__section--slot-back:hover,
 .dashboard-header-meter-panel__stack--orbit
   .dashboard-header-meter-panel__section--slot-back:focus-within {
-  filter: saturate(0.5) brightness(0.44) blur(0.12rem);
+  filter: saturate(0.5) brightness(0.44);
   opacity: 0;
   pointer-events: none;
   transform: translate3d(-50%, calc(-50% + 4px), -144px);
@@ -32911,7 +32858,7 @@ html[data-dashboard-webgl="warming"]
 }
 
 .dashboard-sound-level-badge__fill {
-  animation: dashboard-sound-level-fill-pulse 2.8s ease-in-out infinite;
+  animation: dashboard-sound-level-fill-pulse 2.8s steps(11) infinite;
   animation-play-state: paused;
   background:
     linear-gradient(90deg, rgba(250, 204, 21, 0.52), rgba(103, 232, 249, 0.44)),
@@ -33065,7 +33012,7 @@ html[data-dashboard-webgl="warming"]
 .dashboard-header-vortex-shell--idle
   .dashboard-profile-hub-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
   .dashboard-sound-level-badge__fill {
-  animation: dashboard-sound-level-fill-pulse 2.8s ease-in-out infinite !important;
+  animation: dashboard-sound-level-fill-pulse 2.8s steps(11) infinite !important;
   animation-play-state: running !important;
 }
 
@@ -33654,14 +33601,14 @@ html[data-dashboard-webgl="warming"]
   }
 }
 
+/* No blur() term here: animating filter re-rasterizes the whole ~560px panel
+   every frame of the slide, and the motion+opacity carry the effect. */
 @keyframes dashboard-header-meter-panel-open {
   0% {
-    filter: blur(0.14rem);
     opacity: 0;
     transform: translateX(calc(100% + 1.2rem)) rotateY(-18deg) scale(0.98);
   }
   100% {
-    filter: blur(0);
     opacity: 1;
     transform: translateX(0) rotateY(0deg) scale(1);
   }
@@ -33669,12 +33616,10 @@ html[data-dashboard-webgl="warming"]
 
 @keyframes dashboard-header-meter-panel-close {
   0% {
-    filter: blur(0);
     opacity: 1;
     transform: translateX(0) rotateY(0deg) scale(1);
   }
   100% {
-    filter: blur(0.12rem);
     opacity: 0;
     transform: translateX(calc(100% + 1.35rem)) rotateY(-16deg) scale(0.98);
   }
@@ -34265,7 +34210,7 @@ html[data-dashboard-webgl="warming"]
 
 @keyframes dashboard-header-meter-panel-card-orbit {
   0% {
-    filter: saturate(0.72) brightness(0.72) blur(0.04rem);
+    filter: saturate(0.72) brightness(0.72);
     opacity: 0.54;
     transform: rotateX(-18deg) translateY(0.55rem) translateZ(-2.1rem)
       scale(0.92);
@@ -34284,7 +34229,7 @@ html[data-dashboard-webgl="warming"]
     opacity: 0.92;
   }
   100% {
-    filter: saturate(0.72) brightness(0.72) blur(0.04rem);
+    filter: saturate(0.72) brightness(0.72);
     opacity: 0.54;
     transform: rotateX(18deg) translateY(-0.55rem) translateZ(-2.1rem)
       scale(0.92);
@@ -38433,125 +38378,68 @@ html
 
 html
   body
-  main.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open,
-html
-  body
-  main.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open::before,
-html
-  body
-  main.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open::after,
-html
-  body
-  main.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open
-  *:not(.dashboard-header-meter-menu-trigger),
-html
-  body
-  main.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open
-  *:not(.dashboard-header-meter-menu-trigger)::before,
-html
-  body
-  main.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open.dashboard-page--meter-menu-open
-  *:not(.dashboard-header-meter-menu-trigger)::after,
-html
-  body
-  .dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open,
-html
-  body
-  .dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open::before,
-html
-  body
-  .dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open::after,
-html
-  body
-  .dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open
-  *:not(.dashboard-header-meter-menu-trigger),
-html
-  body
-  .dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open
-  *:not(.dashboard-header-meter-menu-trigger)::before,
-html
-  body
-  .dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open.dashboard-page-orbiter--meter-menu-open
-  *:not(.dashboard-header-meter-menu-trigger)::after {
-  animation-play-state: paused !important;
-}
-
-html
-  body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted,
-html
-  body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted::before,
-html
-  body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted::after,
-html
-  body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
-  *,
-html
-  body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
-  *::before,
-html
-  body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
-  *::after {
-  animation-play-state: paused !important;
-}
-
-html
-  body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
+  main
+  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
   .dashboard-profile-points-trigger,
 html
   body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
+  main
+  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
   .dashboard-profile-points-trigger::before,
 html
   body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
+  main
+  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
   .dashboard-profile-points-trigger::after,
 html
   body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
+  main
+  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
   .dashboard-profile-points-trigger
   *,
 html
   body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
+  main
+  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
   .dashboard-profile-points-trigger
   *::before,
 html
   body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
+  main
+  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
   .dashboard-profile-points-trigger
   *::after,
 html
   body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
+  main
+  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
   .dashboard-profile-points-dropdown,
 html
   body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
+  main
+  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
   .dashboard-profile-points-dropdown::before,
 html
   body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
+  main
+  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
   .dashboard-profile-points-dropdown::after,
 html
   body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
+  main
+  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
   .dashboard-profile-points-dropdown
   *,
 html
   body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
+  main
+  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
   .dashboard-profile-points-dropdown
   *::before,
 html
   body
-  main.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted.dashboard-page--points-menu-highlighted
+  main
+  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
   .dashboard-profile-points-dropdown
   *::after {
   animation-play-state: running !important;
@@ -38559,54 +38447,36 @@ html
 
 html
   body
-  main.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open
+  main
+  .dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open
   .dashboard-profile-points-trigger,
 html
   body
-  main.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open
+  main
+  .dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open
   .dashboard-profile-points-trigger::before,
 html
   body
-  main.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open
+  main
+  .dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open
   .dashboard-profile-points-trigger::after,
 html
   body
-  main.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open
+  main
+  .dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open
   .dashboard-profile-points-trigger
   *,
 html
   body
-  main.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open
+  main
+  .dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open
   .dashboard-profile-points-trigger
   *::before,
 html
   body
-  main.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open.dashboard-page--points-dropdown-open
+  main
+  .dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open
   .dashboard-profile-points-trigger
-  *::after {
-  animation-play-state: paused !important;
-}
-
-html
-  body
-  main.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active,
-html
-  body
-  main.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active::before,
-html
-  body
-  main.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active::after,
-html
-  body
-  main.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active
-  *,
-html
-  body
-  main.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active
-  *::before,
-html
-  body
-  main.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   *::after {
   animation-play-state: paused !important;
 }

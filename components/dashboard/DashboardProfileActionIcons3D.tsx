@@ -179,15 +179,32 @@ export default function DashboardProfileIcon3D({
       });
 
       let charge = 0;
-      const update = (elapsed: number, delta: number) => {
+      // Local animation clock: advances only while the icon is actively
+      // animating, so pausing freezes the phase and resuming never time-jumps.
+      let localSeconds = 0;
+      let lastAppliedProgress = -1;
+      // The first update after (re)mount must draw, even at rest.
+      let needsRedraw = true;
+      const update = (_elapsed: number, delta: number) => {
         const frameDelta = delta * 1000;
-        const seconds = elapsed;
         const activeMotion = activeRef.current && !pausedRef.current;
+        if (activeMotion) localSeconds += delta;
+        const seconds = localSeconds;
+        const previousCharge = charge;
         charge += ((activeMotion ? 1 : 0) - charge) * Math.min(1, frameDelta * 0.014);
+        // Snap to exact rest inside the epsilon so the ease-out doesn't
+        // asymptotically converge (and redraw) forever.
+        if (!activeMotion && charge < 0.002) charge = 0;
         const progress = clampNumber(progressRef.current / 100, 0.08, 1);
 
-        root.rotation.y = Math.sin(seconds * 0.72) * 0.12 + charge * Math.sin(seconds * 1.35) * 0.18;
-        root.rotation.x = -0.05 + Math.sin(seconds * 0.58) * 0.035 * (0.45 + charge);
+        // Every sine term below is scaled by `charge` (identical at charge 1 to
+        // the previous active look), so at charge 0 each assignment is its
+        // exact rest constant and the icon is truly still.
+        root.rotation.y =
+          charge * Math.sin(seconds * 0.72) * 0.12 +
+          charge * Math.sin(seconds * 1.35) * 0.18;
+        root.rotation.x =
+          -0.05 + Math.sin(seconds * 0.58) * 0.035 * (0.45 + charge) * charge;
         root.scale.setScalar(0.94 + charge * 0.08 + Math.sin(seconds * 4.2) * 0.015 * charge);
         aura.scale.setScalar(1.12 + charge * 0.16 + Math.sin(seconds * 3.8) * 0.035 * charge);
         aura.scale.z = 0.08;
@@ -208,9 +225,15 @@ export default function DashboardProfileIcon3D({
         cyanLight.intensity = 2.1 + charge * 1.8;
         goldLight.intensity = 0.85 + charge * 1.35;
 
-        // Ambient idle motion (charge-independent sine terms on root rotation)
-        // keeps this scene animating even when inactive/paused.
-        return true;
+        // Settled when charge sits exactly at 0 (rest constants everywhere),
+        // the rest pose has already been drawn once (previousCharge 0), and no
+        // external state (level progress) changed tick visibility.
+        const progressChanged = progress !== lastAppliedProgress;
+        lastAppliedProgress = progress;
+        const changed =
+          needsRedraw || progressChanged || charge !== 0 || previousCharge !== 0;
+        needsRedraw = false;
+        return changed;
       };
 
       return {
@@ -330,22 +353,25 @@ export function DashboardGearIcon3D({
 
       let charge = 0;
       let spin = 0;
-      const update = (elapsed: number, delta: number) => {
+      // Local animation clock: advances only while the gear is actively
+      // animating, so pausing freezes the phase and resuming never time-jumps.
+      let localSeconds = 0;
+      // The first update after (re)mount must draw, even at rest.
+      let needsRedraw = true;
+      const update = (_elapsed: number, delta: number) => {
         const frameDelta = delta * 1000;
-        const seconds = elapsed;
         const activeMotion = activeRef.current && !pausedRef.current;
+        if (activeMotion) localSeconds += delta;
+        const seconds = localSeconds;
+        const previousCharge = charge;
         charge += ((activeMotion ? 1 : 0) - charge) * Math.min(1, frameDelta * 0.016);
-        spin += frameDelta * (0.00022 + charge * 0.0034) * spinSpeedRef.current;
-
-        const prevRootRotationZ = root.rotation.z;
-        const prevRootRotationX = root.rotation.x;
-        const prevRootRotationY = root.rotation.y;
-        const prevRootScale = root.scale.x;
-        const prevGearEmissive = gearMaterial.emissiveIntensity;
-        const prevRimEmissive = rimMaterial.emissiveIntensity;
-        const prevGlowOpacity = glowMaterial.opacity;
-        const prevCyanIntensity = cyanLight.intensity;
-        const prevGoldIntensity = goldLight.intensity;
+        // Snap to exact rest inside the epsilon so the ease-out doesn't
+        // asymptotically converge (and redraw) forever.
+        if (!activeMotion && charge < 0.002) charge = 0;
+        // Spin velocity is scaled by `charge` (identical at charge 1 to the
+        // previous active rate): deactivating decelerates the wheel to a stop
+        // instead of advancing the base rate forever.
+        spin += frameDelta * charge * (0.00022 + charge * 0.0034) * spinSpeedRef.current;
 
         root.rotation.z = spin;
         root.rotation.x = 0.18 + Math.sin(seconds * 2.2) * 0.08 * charge;
@@ -355,29 +381,20 @@ export function DashboardGearIcon3D({
         rimMaterial.emissiveIntensity = 0.24 + charge * 0.52;
         glowMaterial.opacity = 0.1 + charge * (0.28 + Math.sin(seconds * 4.8) * 0.04);
 
-        let teethMoving = false;
         teeth.forEach((tooth, index) => {
           const pulse = Math.max(0, Math.sin(seconds * 5.6 + index * 0.7));
-          const nextToothScale = 1 + charge * pulse * 0.08;
-          if (tooth.scale.x !== nextToothScale) teethMoving = true;
-          tooth.scale.setScalar(nextToothScale);
+          tooth.scale.setScalar(1 + charge * pulse * 0.08);
         });
 
         cyanLight.intensity = 1.8 + charge * 2.4;
         goldLight.intensity = 0.55 + charge * 1.6;
 
-        const stillMoving =
-          teethMoving ||
-          root.rotation.z !== prevRootRotationZ ||
-          root.rotation.x !== prevRootRotationX ||
-          root.rotation.y !== prevRootRotationY ||
-          root.scale.x !== prevRootScale ||
-          gearMaterial.emissiveIntensity !== prevGearEmissive ||
-          rimMaterial.emissiveIntensity !== prevRimEmissive ||
-          glowMaterial.opacity !== prevGlowOpacity ||
-          cyanLight.intensity !== prevCyanIntensity ||
-          goldLight.intensity !== prevGoldIntensity;
-        return stillMoving;
+        // At charge 0 every assignment above is its rest constant and the spin
+        // increment is 0, so the scene is settled once the rest pose has been
+        // drawn (previousCharge 0 too).
+        const changed = needsRedraw || charge !== 0 || previousCharge !== 0;
+        needsRedraw = false;
+        return changed;
       };
 
       return {

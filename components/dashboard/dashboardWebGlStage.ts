@@ -234,11 +234,44 @@ export function setDashboardStageIdleHidden(hidden: boolean): void {
   stageIdleHidden = hidden;
 }
 
+// Software rasterizers (SwiftShader in GPU-less environments, llvmpipe in VMs)
+// pay per-fragment on the CPU, so supersampling and MSAA multiply main-thread
+// cost 2.25-4x for no visible benefit at widget sizes. Probe the renderer name
+// once; real GPUs keep the crisp supersampled path below.
+let stageSoftwareRendererCached: boolean | null = null;
+const isStageSoftwareRenderer = (): boolean => {
+  if (stageSoftwareRendererCached !== null) return stageSoftwareRendererCached;
+  let software = false;
+  try {
+    const probe = document.createElement("canvas");
+    const gl =
+      probe.getContext("webgl2") ??
+      (probe.getContext("webgl") as WebGLRenderingContext | null);
+    if (gl) {
+      const info = gl.getExtension("WEBGL_debug_renderer_info");
+      const rendererName = String(
+        info
+          ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL)
+          : gl.getParameter(gl.RENDERER),
+      );
+      software = /swiftshader|software|llvmpipe/i.test(rendererName);
+      gl.getExtension("WEBGL_lose_context")?.loseContext();
+    }
+  } catch {
+    software = false;
+  }
+  stageSoftwareRendererCached = software;
+  return software;
+};
+
 // The stage canvas spans the viewport but only DRAWS inside each widget's small
-// scissor rectangle, so supersampling is cheap here. A 1.5 floor keeps small
-// header icons crisp on low-DPI (1x) displays; capped at 2 for retina.
+// scissor rectangle, so supersampling is cheap here — on a real GPU. A 1.5
+// floor keeps small header icons crisp on low-DPI (1x) displays; capped at 2
+// for retina. Software rasterizers get 1x: every extra pixel is CPU time.
 const clampStagePixelRatio = () =>
-  Math.min(Math.max(window.devicePixelRatio || 1, 1.5), 2);
+  isStageSoftwareRenderer()
+    ? 1
+    : Math.min(Math.max(window.devicePixelRatio || 1, 1.5), 2);
 
 let stageLastWidth = 0;
 let stageLastHeight = 0;
@@ -479,7 +512,8 @@ async function ensureStage(): Promise<void> {
     const renderer = new THREE.WebGLRenderer({
       canvas,
       alpha: true,
-      antialias: true,
+      // MSAA resolves on the CPU under a software rasterizer — skip it there.
+      antialias: !isStageSoftwareRenderer(),
       powerPreference: "high-performance",
     });
     renderer.setClearColor(0x000000, 0);

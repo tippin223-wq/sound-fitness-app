@@ -127,11 +127,16 @@ export default function DashboardLevelMeterBar3D({
         emissive: new THREE.Color("#0e7490"),
         emissiveIntensity: 0.12,
         metalness: 0.42,
-        opacity: 0.34,
+        // No `transmission`: any transmissive material makes three.js render
+        // the whole scene into a hidden opaque-pass target (plus resolve and
+        // mipmap generation) every frame. At this widget's ~30-60px on-screen
+        // size plain alpha blending reads identically, so the glass look is
+        // carried by opacity + clearcoat instead (opacity bumped 0.34 -> 0.42
+        // to compensate for the lost transmitted light).
+        opacity: 0.42,
         roughness: 0.1,
         side: THREE.DoubleSide,
         transparent: true,
-        transmission: 0.15,
       });
 
       const railSideMaterial = new THREE.MeshPhysicalMaterial({
@@ -294,15 +299,37 @@ export default function DashboardLevelMeterBar3D({
       let renderedProgress = progressRef.current;
       let charge = activeRef.current && !pausedRef.current ? 1 : 0;
 
-      const update = (elapsed: number, delta: number) => {
-        const seconds = elapsed;
+      // Local clock: it advances only while un-paused, so pausing freezes the
+      // pose in place and resuming never time-jumps (same pattern as
+      // DashboardLogo3D / DashboardTornadoEmeralds3D). Never key motion off
+      // the stage's global elapsed.
+      let localSeconds = 0;
+      let lastAppliedSeconds = -1;
+      let lastAppliedProgress = -1;
+      let lastAppliedCharge = -1;
+      const REST_EPSILON = 0.0015;
+
+      const update = (_elapsed: number, delta: number) => {
+        const paused = pausedRef.current;
+        if (!paused) localSeconds += delta;
+        const seconds = localSeconds;
+
         const targetProgress = Math.max(0.015, progressRef.current);
         renderedProgress +=
           (targetProgress - renderedProgress) * Math.min(1, delta * 10);
+        // Snap once inside the epsilon so the ease stops asymptotically
+        // converging forever and the settle check below can go exact.
+        if (Math.abs(targetProgress - renderedProgress) < REST_EPSILON) {
+          renderedProgress = targetProgress;
+        }
 
-        charge +=
-          ((activeRef.current && !pausedRef.current ? 1 : 0.22) - charge) *
-          Math.min(1, delta * 11);
+        // Paused keeps the dim 0.22 charge floor so the meter still glows at
+        // rest — but as a constant, not a time-driven animation.
+        const targetCharge = activeRef.current && !paused ? 1 : 0.22;
+        charge += (targetCharge - charge) * Math.min(1, delta * 11);
+        if (Math.abs(targetCharge - charge) < REST_EPSILON) {
+          charge = targetCharge;
+        }
 
         const activeHeight = RAIL_HEIGHT * renderedProgress;
         const centerY = -RAIL_HEIGHT / 2 + activeHeight / 2;
@@ -340,7 +367,20 @@ export default function DashboardLevelMeterBar3D({
           particle.mesh.scale.setScalar(0.78 + pulse * 0.28);
         });
 
-        return true;
+        // Every assignment above is a pure function of (seconds,
+        // renderedProgress, charge): if none of the three moved this frame the
+        // scene is pixel-identical, and returning false lets the stage skip
+        // drawing it. Prop flips (active/paused/progress) need no dirty flag —
+        // the stage still calls update() every frame, and each prop feeds one
+        // of these three values, so the frame after a change returns true.
+        const stillMoving =
+          seconds !== lastAppliedSeconds ||
+          renderedProgress !== lastAppliedProgress ||
+          charge !== lastAppliedCharge;
+        lastAppliedSeconds = seconds;
+        lastAppliedProgress = renderedProgress;
+        lastAppliedCharge = charge;
+        return stillMoving;
       };
 
       return {

@@ -856,6 +856,13 @@ export function DashboardGemStage3D({
   const pausedRef = useRef(paused);
   const prominentToneRef = useRef<DashboardTornadoGemTone | null>(null);
   const vaultOpenRef = useRef(vaultOpen);
+  /**
+   * Set on every paused/vaultOpen prop flip and consumed by the next
+   * update(): the first frame that reflects a new prop value must report
+   * "changed" so the shared stage redraws it, even if the scene is otherwise
+   * fully at rest (render-on-demand contract).
+   */
+  const motionDirtyRef = useRef(false);
 
   useEffect(() => {
     onProminentToneChangeRef.current = onProminentToneChange;
@@ -863,10 +870,12 @@ export function DashboardGemStage3D({
 
   useEffect(() => {
     pausedRef.current = paused;
+    motionDirtyRef.current = true;
   }, [paused]);
 
   useEffect(() => {
     vaultOpenRef.current = vaultOpen;
+    motionDirtyRef.current = true;
   }, [vaultOpen]);
 
   const build = useMemo<DashboardWidgetBuilder>(() => {
@@ -2082,13 +2091,23 @@ export function DashboardGemStage3D({
       let vaultOpenAmount = vaultOpenRef.current ? 1 : 0;
       let vaultOpenRequestedAt = vaultOpenRef.current ? performance.now() : 0;
       let orbitElapsedSeconds = 0;
+      /**
+       * Local clock for the reserves idle sway (vault-body wobble, dial spin,
+       * cluster-bed shimmer). It accumulates only while unpaused, so pausing
+       * freezes the sway exactly where it is and resuming continues without a
+       * time-jump — this motion must never key off the stage's global clock.
+       */
+      let swayElapsedSeconds = 0;
       let wasOrbitalMotionPaused: boolean | null = null;
 
-      const update = (elapsedSeconds: number, deltaSeconds: number) => {
+      const update = (_elapsedSeconds: number, deltaSeconds: number) => {
         const now = performance.now();
         const vaultOpenAmountBefore = vaultOpenAmount;
         const frameDeltaSeconds = Math.min(0.033, deltaSeconds);
-        const seconds = elapsedSeconds;
+        // Consume the prop-flip dirty flag: guarantees one "changed" frame
+        // for each paused/vaultOpen change even from a fully settled state.
+        const externallyDirty = motionDirtyRef.current;
+        motionDirtyRef.current = false;
         const wantsVaultOpen = variant === "reserves" && vaultOpenRef.current;
         if (wantsVaultOpen && vaultOpenRequestedAt === 0) {
           vaultOpenRequestedAt = now;
@@ -2113,24 +2132,29 @@ export function DashboardGemStage3D({
         } else if (targetVaultOpen < vaultOpenAmount) {
           vaultOpenAmount = Math.max(0, vaultOpenAmount - vaultStep);
         }
-        const reservesRevealActive =
-          variant === "reserves" && (wantsVaultOpen || vaultOpenAmount > 0.01);
-        const orbitalMotionPaused = pausedRef.current && !reservesRevealActive;
+        const orbitalMotionPaused = pausedRef.current;
         if (!orbitalMotionPaused) {
           orbitElapsedSeconds += frameDeltaSeconds;
+          swayElapsedSeconds += frameDeltaSeconds;
         }
-        // The "reserves" variant animates from the stage clock (`seconds`)
-        // every frame, so it always changes. The "trigger" variant is a pure
-        // function of `orbitSeconds`, which freezes while paused — except the
-        // first paused frame, which snaps gems to their rest `phase` pose, and
-        // any frame where the vault-open amount eased.
+        const seconds = swayElapsedSeconds;
+        // Settle contract: every animated value below is a pure function of
+        // the two local clocks (both frozen while paused) and of
+        // `vaultOpenAmount`, whose linear step clamps hard onto its exact
+        // 0/1 target instead of converging asymptotically. So once paused
+        // with the vault at its target, nothing visible can change and the
+        // frame reports "no change" — with one extra "changed" frame per
+        // pause flip / prop flip so the rest pose itself still gets drawn.
+        // The door easing intentionally keeps stepping while paused (it
+        // reports "changed" for every frame it moves), so a pending open or
+        // close still plays out before the widget goes back to rest.
         const orbitalPauseStateChanged =
           orbitalMotionPaused !== wasOrbitalMotionPaused;
         wasOrbitalMotionPaused = orbitalMotionPaused;
         const stillMoving =
-          variant === "reserves" ||
           !orbitalMotionPaused ||
           orbitalPauseStateChanged ||
+          (variant === "reserves" && externallyDirty) ||
           vaultOpenAmount !== vaultOpenAmountBefore;
         const orbitSeconds = orbitElapsedSeconds;
         const isSingleTriggerGem =
@@ -2187,9 +2211,13 @@ export function DashboardGemStage3D({
         let prominentScore = -Infinity;
 
         animatedGems.forEach(({ group, phase, spin, tone }, index) => {
-          const progress = orbitalMotionPaused
-            ? phase
-            : (phase + orbitSeconds * orbitSpeed) % 1;
+          // Paused trigger gems snap to their canonical `phase` pose; paused
+          // reserves gems instead freeze mid-orbit (the frozen `orbitSeconds`
+          // clock holds them), so pausing over the open vault never jumps.
+          const progress =
+            orbitalMotionPaused && variant !== "reserves"
+              ? phase
+              : (phase + orbitSeconds * orbitSpeed) % 1;
           const angle = Math.PI / 2 - progress * Math.PI * 2;
           const front = isSingleTriggerGem ? 1 : (Math.sin(angle) + 1) / 2;
           const vaultIngress =

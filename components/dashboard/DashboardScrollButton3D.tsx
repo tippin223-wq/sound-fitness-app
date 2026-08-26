@@ -120,6 +120,8 @@ export default function DashboardScrollButton3D({
   activeDirectionRef.current = activeDirection;
   const activeRef = useRef(active);
   activeRef.current = active;
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
   const toneRef = useRef(tone);
   toneRef.current = tone;
   const showUpRef = useRef(showUp);
@@ -317,17 +319,44 @@ export default function DashboardScrollButton3D({
       arrows.down.visible = showDownRef.current && !horizontal;
 
       let charge = 0;
-      const update = (elapsed: number, delta: number) => {
-        const frameDelta = delta * 1000;
-        arrows.up.visible = showUpRef.current && !horizontal;
-        arrows.down.visible = showDownRef.current && !horizontal;
+      // Local clock: advances only while unpaused, so pausing freezes every
+      // sine/rotation mid-phase and resuming continues from that same phase
+      // (keying motion off the stage's global elapsed would time-jump).
+      let localSeconds = 0;
+      // Last-applied state, compared each frame so any external prop change
+      // (props flow in through refs, not setters) forces at least one redraw —
+      // including the single frame that paints the settled/paused look.
+      let lastAppliedSeconds = -1;
+      let lastAppliedTone: DashboardScrollButtonTone | null = null;
+      let lastAppliedDirection: DashboardScrollButtonDirection | null = null;
+      let lastAppliedShowUp: boolean | null = null;
+      let lastAppliedShowDown: boolean | null = null;
 
-        const seconds = elapsed;
-        const toneColorsForFrame = toneColors[toneRef.current] ?? toneColors.cyan;
+      const update = (_elapsed: number, delta: number) => {
+        const pausedForFrame = pausedRef.current;
+        const frameDelta = pausedForFrame ? 0 : delta * 1000;
+        if (!pausedForFrame) localSeconds += delta;
+        const seconds = localSeconds;
+
+        const showUpForFrame = showUpRef.current && !horizontal;
+        const showDownForFrame = showDownRef.current && !horizontal;
+        arrows.up.visible = showUpForFrame;
+        arrows.down.visible = showDownForFrame;
+
+        const toneForFrame = toneRef.current;
+        const toneColorsForFrame = toneColors[toneForFrame] ?? toneColors.cyan;
         const activeDirectionForFrame = activeDirectionRef.current;
+        // While paused the charge drains to 0 even if active is held (same as
+        // DashboardLightningBolt3D), easing the glow into the rest look.
         const activeMotion =
-          activeRef.current || Boolean(activeDirectionForFrame);
-        charge += ((activeMotion ? 1 : 0) - charge) * Math.min(1, frameDelta * 0.016);
+          !pausedForFrame &&
+          (activeRef.current || Boolean(activeDirectionForFrame));
+        const chargeTarget = activeMotion ? 1 : 0;
+        const previousCharge = charge;
+        charge += (chargeTarget - charge) * Math.min(1, delta * 16);
+        // Snap across the epsilon so the ease stops asymptotically converging.
+        if (chargeTarget === 0 && charge < 0.002) charge = 0;
+        else if (chargeTarget === 1 && charge > 0.998) charge = 1;
 
         orbMaterial.color.set(toneColorsForFrame.core);
         orbMaterial.emissive.set(toneColorsForFrame.soft);
@@ -390,9 +419,23 @@ export default function DashboardScrollButton3D({
         accentLight.intensity = 1.9 + charge * 2.2;
         warmLight.intensity = 0.7 + charge * 1.6;
 
-        // Time-driven motion (sin/rotation accumulators) changes every frame;
-        // there is no settled/rest state in this scene.
-        return true;
+        // Every assignment above is a pure function of the local clock, the
+        // charge ease, and the props compared here (the rotation.y accumulator
+        // only advances with the clock). If none of them changed this frame,
+        // the frame rewrote identical values — settled, skip the redraw.
+        const stillMoving =
+          seconds !== lastAppliedSeconds ||
+          charge !== previousCharge ||
+          toneForFrame !== lastAppliedTone ||
+          activeDirectionForFrame !== lastAppliedDirection ||
+          showUpForFrame !== lastAppliedShowUp ||
+          showDownForFrame !== lastAppliedShowDown;
+        lastAppliedSeconds = seconds;
+        lastAppliedTone = toneForFrame;
+        lastAppliedDirection = activeDirectionForFrame;
+        lastAppliedShowUp = showUpForFrame;
+        lastAppliedShowDown = showDownForFrame;
+        return stillMoving;
       };
 
       return {
