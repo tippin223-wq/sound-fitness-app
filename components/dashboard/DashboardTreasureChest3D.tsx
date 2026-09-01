@@ -8,6 +8,7 @@ import type {
   Texture,
 } from "three";
 import DashboardWebGlWidget from "./DashboardWebGlWidget";
+import { markDashboardStageDirty } from "./dashboardWebGlStage";
 import type {
   DashboardWidgetBuilder,
   DashboardWidgetInstance,
@@ -149,6 +150,26 @@ const configureSoundCoinTexture = (THREE: ThreeModule, texture: Texture) => {
   return texture;
 };
 
+/**
+ * Coin textures are module-cached so re-mounts (panel opens, stage rebuilds)
+ * reuse the decoded PNGs instead of fetching and decoding them again. Cached
+ * textures are shared across scenes — no dispose path may dispose them.
+ */
+const sharedCoinTextures = new Map<string, Texture>();
+
+const loadSharedCoinTexture = (THREE: ThreeModule, url: string) => {
+  const cached = sharedCoinTextures.get(url);
+  if (cached) return cached;
+  const texture = new THREE.TextureLoader().load(url, () => {
+    // The stage only redraws on reported change; a texture that decodes after
+    // the widget settles would otherwise never paint.
+    markDashboardStageDirty();
+  });
+  configureSoundCoinTexture(THREE, texture);
+  sharedCoinTextures.set(url, texture);
+  return texture;
+};
+
 const vibrantTreasureCoinTones = [
   "gold",
   "cyan",
@@ -171,6 +192,7 @@ const SOUND_COIN_REST_ROTATION = {
   y: 0,
   z: 0,
 } as const;
+const SOUND_COIN_GLINT_REST_SCALE = 0.84;
 
 const getShortestRotationDelta = (delta: number) =>
   Math.atan2(Math.sin(delta), Math.cos(delta));
@@ -758,86 +780,34 @@ const createTreasureChestScene = (
   coinPile.position.y = open ? 0 : -0.28;
   chestGroup.add(coinPile);
 
-  const coinSideMaterials = (
-    Object.keys(coinToneStyles) as Array<SoundCoinTone>
-  ).reduce(
-    (materials, tone) => {
-      const edgeStyle = coinMetalEdgeStyles[treasureCoinEdgeMetalByTone[tone]];
-      materials[tone] = new THREE.MeshPhysicalMaterial({
-        clearcoat: 1,
-        clearcoatRoughness: 0.04,
-        color: new THREE.Color(edgeStyle.side),
-        emissive: new THREE.Color(edgeStyle.glow),
-        emissiveIntensity: 0.22,
-        metalness: 0.94,
-        roughness: 0.11,
-        toneMapped: false,
-      });
-      return materials;
-    },
-    {} as Record<SoundCoinTone, Material>,
-  );
-  const coinRimMaterials = (
-    Object.keys(coinToneStyles) as Array<SoundCoinTone>
-  ).reduce(
-    (materials, tone) => {
-      const edgeStyle = coinMetalEdgeStyles[treasureCoinEdgeMetalByTone[tone]];
-      materials[tone] = new THREE.MeshPhysicalMaterial({
-        clearcoat: 1,
-        clearcoatRoughness: 0.05,
-        color: new THREE.Color(edgeStyle.rim),
-        emissive: new THREE.Color(edgeStyle.glow),
-        emissiveIntensity: 0.32,
-        metalness: 0.96,
-        roughness: 0.07,
-        toneMapped: false,
-      });
-      return materials;
-    },
-    {} as Record<SoundCoinTone, Material>,
-  );
-  const coinEdgeGlowMaterials = (
-    Object.keys(coinToneStyles) as Array<SoundCoinTone>
-  ).reduce(
-    (materials, tone) => {
-      const edgeStyle = coinMetalEdgeStyles[treasureCoinEdgeMetalByTone[tone]];
-      materials[tone] = new THREE.MeshBasicMaterial({
+  // Materials are built lazily per tone: the pile only places the vibrant
+  // tones, so eagerly building all 9 sets paid material cost for tones that
+  // never render.
+  type CoinMaterialSet = {
+    edgeGlow: Material;
+    face: Material;
+    faceGlow: Material;
+    rim: Material;
+    side: Material;
+  };
+  const coinMaterialsByTone = new Map<SoundCoinTone, CoinMaterialSet>();
+  const getCoinMaterials = (tone: SoundCoinTone): CoinMaterialSet => {
+    const cached = coinMaterialsByTone.get(tone);
+    if (cached) return cached;
+    const edgeStyle = coinMetalEdgeStyles[treasureCoinEdgeMetalByTone[tone]];
+    const style = coinToneStyles[tone];
+    const texture = textures[tone];
+    const set: CoinMaterialSet = {
+      edgeGlow: new THREE.MeshBasicMaterial({
         color: new THREE.Color(edgeStyle.glow),
         depthWrite: false,
         opacity: 0.26,
         side: THREE.DoubleSide,
         transparent: true,
-      });
-      return materials;
-    },
-    {} as Record<SoundCoinTone, Material>,
-  );
-  const coinFaceGlowMaterials = (
-    Object.keys(coinToneStyles) as Array<SoundCoinTone>
-  ).reduce(
-    (materials, tone) => {
-      const style = coinToneStyles[tone];
-      materials[tone] = new THREE.MeshBasicMaterial({
-        blending: THREE.AdditiveBlending,
-        color: new THREE.Color(style.glow),
-        depthWrite: false,
-        opacity: 0.26,
-        side: THREE.DoubleSide,
-        transparent: true,
-      });
-      return materials;
-    },
-    {} as Record<SoundCoinTone, Material>,
-  );
-  const coinFaceMaterials = (
-    Object.keys(textures) as Array<SoundCoinTone>
-  ).reduce(
-    (materials, tone) => {
-      const texture = textures[tone];
-      const style = coinToneStyles[tone];
-      materials[tone] = new THREE.MeshPhysicalMaterial({
-        bumpMap: texture,
-        bumpScale: 0.006,
+      }),
+      // No bumpMap here: invisible at pile-coin scale, and it costs an extra
+      // texture bind per material.
+      face: new THREE.MeshPhysicalMaterial({
         clearcoat: 0.95,
         clearcoatRoughness: 0.1,
         color: new THREE.Color("#ffffff"),
@@ -848,11 +818,41 @@ const createTreasureChestScene = (
         metalness: 0.24,
         roughness: 0.12,
         toneMapped: false,
-      });
-      return materials;
-    },
-    {} as Record<SoundCoinTone, Material>,
-  );
+      }),
+      faceGlow: new THREE.MeshBasicMaterial({
+        blending: THREE.AdditiveBlending,
+        color: new THREE.Color(style.glow),
+        depthWrite: false,
+        opacity: 0.26,
+        side: THREE.DoubleSide,
+        transparent: true,
+      }),
+      rim: new THREE.MeshPhysicalMaterial({
+        clearcoat: 1,
+        clearcoatRoughness: 0.05,
+        color: new THREE.Color(edgeStyle.rim),
+        emissive: new THREE.Color(edgeStyle.glow),
+        emissiveIntensity: 0.32,
+        metalness: 0.96,
+        roughness: 0.07,
+        toneMapped: false,
+      }),
+      side: new THREE.MeshPhysicalMaterial({
+        clearcoat: 1,
+        clearcoatRoughness: 0.04,
+        color: new THREE.Color(edgeStyle.side),
+        emissive: new THREE.Color(edgeStyle.glow),
+        emissiveIntensity: 0.22,
+        metalness: 0.94,
+        roughness: 0.11,
+        toneMapped: false,
+      }),
+    };
+    coinMaterialsByTone.set(tone, set);
+    return set;
+  };
+  // One geometry per coin part, shared across the whole pile; disposed once
+  // per scene by disposeObject (never per coin).
   const coinGeometry = new THREE.CylinderGeometry(0.28, 0.28, 0.075, 56);
   const coinRimGeometry = new THREE.TorusGeometry(0.29, 0.017, 10, 64);
   const coinEdgeGlowGeometry = new THREE.TorusGeometry(0.312, 0.02, 8, 64);
@@ -868,42 +868,36 @@ const createTreasureChestScene = (
     rz: number,
     scale: number,
   ) => {
+    const materials = getCoinMaterials(tone);
     const coin = new THREE.Mesh(coinGeometry, [
-      coinSideMaterials[tone],
-      coinFaceMaterials[tone],
-      coinFaceMaterials[tone],
+      materials.side,
+      materials.face,
+      materials.face,
     ]);
     coin.position.set(x, y, z);
     coin.rotation.set(rx, ry, rz);
     coin.scale.setScalar(scale);
-    const rimMaterial = coinRimMaterials[tone];
-    const frontRim = new THREE.Mesh(coinRimGeometry, rimMaterial);
+    const frontRim = new THREE.Mesh(coinRimGeometry, materials.rim);
     frontRim.rotation.x = Math.PI / 2;
     frontRim.position.y = 0.041;
-    const backRim = new THREE.Mesh(coinRimGeometry, rimMaterial);
+    const backRim = new THREE.Mesh(coinRimGeometry, materials.rim);
     backRim.rotation.x = Math.PI / 2;
     backRim.position.y = -0.041;
-    const frontGlow = new THREE.Mesh(
-      coinEdgeGlowGeometry,
-      coinEdgeGlowMaterials[tone],
-    );
+    const frontGlow = new THREE.Mesh(coinEdgeGlowGeometry, materials.edgeGlow);
     frontGlow.rotation.x = Math.PI / 2;
     frontGlow.position.y = 0.046;
-    const backGlow = new THREE.Mesh(
-      coinEdgeGlowGeometry,
-      coinEdgeGlowMaterials[tone],
-    );
+    const backGlow = new THREE.Mesh(coinEdgeGlowGeometry, materials.edgeGlow);
     backGlow.rotation.x = Math.PI / 2;
     backGlow.position.y = -0.046;
     const frontFaceGlow = new THREE.Mesh(
       coinFaceGlowGeometry,
-      coinFaceGlowMaterials[tone],
+      materials.faceGlow,
     );
     frontFaceGlow.rotation.x = Math.PI / 2;
     frontFaceGlow.position.y = 0.044;
     const backFaceGlow = new THREE.Mesh(
       coinFaceGlowGeometry,
-      coinFaceGlowMaterials[tone],
+      materials.faceGlow,
     );
     backFaceGlow.rotation.x = Math.PI / 2;
     backFaceGlow.position.y = -0.044;
@@ -937,12 +931,13 @@ const createTreasureChestScene = (
     opacity: 0.82,
     transparent: true,
   });
+  const glintGeometry = new THREE.TetrahedronGeometry(0.09, 0);
   const glints = [
     new THREE.Vector3(-1.24, 0.68, 0.52),
     new THREE.Vector3(0.72, 0.84, 0.26),
     new THREE.Vector3(1.42, 0.28, 0.88),
   ].map((position) => {
-    const glint = new THREE.Mesh(new THREE.TetrahedronGeometry(0.09, 0), glintMaterial);
+    const glint = new THREE.Mesh(glintGeometry, glintMaterial);
     glint.position.copy(position);
     coinPile.add(glint);
     return glint;
@@ -954,7 +949,9 @@ const createTreasureChestScene = (
     glints,
     group,
     lid,
-    textures: [...Object.values(textures), floorTexture],
+    // Coin face textures live in the module cache and outlive this scene;
+    // only the per-scene canvas floor texture is owned (and disposed) here.
+    textures: [floorTexture],
   };
 };
 
@@ -1116,11 +1113,7 @@ export function DashboardSpinningSoundCoin3D({
         variant === "treasure"
           ? coinMetalEdgeStyles[treasureCoinEdgeMetalByTone[tone]]
           : coinToneStyles[tone];
-      const textureLoader = new THREE.TextureLoader();
-      const coinTexture = configureSoundCoinTexture(
-        THREE,
-        textureLoader.load(tokenTextureSource),
-      );
+      const coinTexture = loadSharedCoinTexture(THREE, tokenTextureSource);
 
       scene.add(new THREE.AmbientLight(new THREE.Color("#fff4cc"), 1.22));
 
@@ -1210,7 +1203,7 @@ export function DashboardSpinningSoundCoin3D({
 
       let coinSpinRotation: number = SOUND_COIN_REST_ROTATION.y;
       let coinPulseTime = 0;
-      const update = (elapsed: number, delta: number) => {
+      const update = (_elapsed: number, delta: number) => {
         const frameDelta = delta * 1000;
 
         if (!pausedRef.current) {
@@ -1228,12 +1221,18 @@ export function DashboardSpinningSoundCoin3D({
           return true;
         }
 
+        // Paused: ease everything to a fixed rest pose. Nothing here may read
+        // the stage's always-advancing clock — a value derived from it changes
+        // every frame and pins the whole stage at full-rate redraws.
         const previousRotationX = coinGroup.rotation.x;
         const previousRotationY = coinGroup.rotation.y;
         const previousRotationZ = coinGroup.rotation.z;
         const previousGlintScale = glint.scale.x;
-        coinGroup.rotation.x +=
-          (SOUND_COIN_REST_ROTATION.x - coinGroup.rotation.x) * 0.14;
+        coinGroup.rotation.x = settleRotation(
+          coinGroup.rotation.x,
+          SOUND_COIN_REST_ROTATION.x,
+          0.14,
+        );
         coinGroup.rotation.y = settleRotation(
           coinGroup.rotation.y,
           SOUND_COIN_REST_ROTATION.y,
@@ -1245,7 +1244,12 @@ export function DashboardSpinningSoundCoin3D({
           0.14,
         );
         coinSpinRotation = coinGroup.rotation.y;
-        glint.scale.setScalar(0.84 + Math.sin(elapsed * 2) * 0.06);
+        const glintScaleDelta = SOUND_COIN_GLINT_REST_SCALE - glint.scale.x;
+        glint.scale.setScalar(
+          Math.abs(glintScaleDelta) < 0.004
+            ? SOUND_COIN_GLINT_REST_SCALE
+            : glint.scale.x + glintScaleDelta * 0.14,
+        );
         return (
           coinGroup.rotation.x !== previousRotationX ||
           coinGroup.rotation.y !== previousRotationY ||
@@ -1259,8 +1263,8 @@ export function DashboardSpinningSoundCoin3D({
         camera,
         update,
         dispose: () => {
+          // coinTexture stays alive in the module cache for the next mount.
           disposeObject(scene);
-          coinTexture.dispose();
         },
       };
       },
@@ -1307,13 +1311,10 @@ export default function DashboardTreasureChest3D({
         variant === "icon"
           ? ({} as Record<SoundCoinTone, Texture>)
           : (Object.fromEntries(
-              Object.entries(treasureCoinTextureSources).map(([tone, src]) => {
-                const texture = configureSoundCoinTexture(
-                  THREE,
-                  new THREE.TextureLoader().load(src),
-                );
-                return [tone, texture];
-              }),
+              Object.entries(treasureCoinTextureSources).map(([tone, src]) => [
+                tone,
+                loadSharedCoinTexture(THREE, src),
+              ]),
             ) as Record<SoundCoinTone, Texture>);
 
       scene.add(new THREE.AmbientLight(new THREE.Color("#fff7d6"), variant === "icon" ? 2.05 : 1.58));
@@ -1359,8 +1360,26 @@ export default function DashboardTreasureChest3D({
             );
       scene.add(group);
 
-      const update = (elapsed: number) => {
-        const time = elapsed * 1000;
+      // Sway/glint animate on a LOCAL clock and only inside a short settle
+      // window after each open/paused transition; running them unconditionally
+      // (or off the stage's always-advancing clock) would force full-stage
+      // redraws for as long as the chest is visible.
+      const SETTLE_WINDOW_MS = 1400;
+      let swayTime = 0;
+      let settleRemainingMs = SETTLE_WINDOW_MS;
+      let lastAppliedOpen: boolean | null = null;
+      let lastAppliedPaused: boolean | null = null;
+
+      const update = (_elapsed: number, delta: number) => {
+        const frameDelta = delta * 1000;
+        if (
+          openRef.current !== lastAppliedOpen ||
+          pausedRef.current !== lastAppliedPaused
+        ) {
+          lastAppliedOpen = openRef.current;
+          lastAppliedPaused = pausedRef.current;
+          settleRemainingMs = SETTLE_WINDOW_MS;
+        }
         const lidTarget =
           variant === "icon"
             ? openRef.current
@@ -1409,10 +1428,13 @@ export default function DashboardTreasureChest3D({
           }
         }
 
-        if (!pausedRef.current) {
-          group.rotation.y = -0.22 + Math.sin(time * 0.00045) * 0.07;
+        if (!pausedRef.current && settleRemainingMs > 0) {
+          settleRemainingMs -= frameDelta;
+          swayTime += frameDelta;
+          group.rotation.y = -0.22 + Math.sin(swayTime * 0.00045) * 0.07;
           glints.forEach((glint, index) => {
-            const pulse = 0.72 + Math.sin(time * 0.0022 + index * 1.7) * 0.22;
+            const pulse =
+              0.72 + Math.sin(swayTime * 0.0022 + index * 1.7) * 0.22;
             glint.scale.setScalar(pulse);
             glint.rotation.y += 0.018 + index * 0.004;
           });

@@ -21,6 +21,7 @@ import {
   HeartPulse,
   MapPin,
   Maximize2,
+  MessageCircle,
   Minus,
   Minimize2,
   Pencil,
@@ -42,6 +43,7 @@ import {
   type WheelEvent as ReactWheelEvent,
   startTransition,
   useCallback,
+  useDeferredValue,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -64,9 +66,12 @@ import DashboardScrollButton3D from "@/components/dashboard/DashboardScrollButto
 import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
 import DashboardWebGlPreloader from "@/components/dashboard/DashboardWebGlPreloader";
 import {
+  boostDashboardStageFrameRate,
+  invalidateDashboardStageVisibility,
   setDashboardContentWidgetsFrozen,
   setDashboardHeaderWidgetsFrozen,
   setDashboardStageIdleHidden,
+  setDashboardStageVisibleScope,
 } from "@/components/dashboard/dashboardWebGlStage";
 import type { DashboardTornadoGemTone } from "@/components/dashboard/DashboardTornadoEmeralds3D";
 
@@ -80,12 +85,29 @@ const DashboardTornadoEmeralds3D = dynamic(
   () => import("@/components/dashboard/DashboardTornadoEmeralds3D"),
   { ssr: false },
 );
+// Placeholder for the always-visible deferred GL icons (gems/coin/chest):
+// while their chunk fetches they used to render literally nothing, so the
+// points trigger showed blank gaps for a second or two at startup.
+const DashboardGlLoadingDisc = () => (
+  <div
+    aria-hidden="true"
+    style={{
+      width: "100%",
+      height: "100%",
+      borderRadius: "9999px",
+      background:
+        "radial-gradient(circle at 40% 32%, rgba(165,243,252,0.45), rgba(34,211,238,0.16) 55%, transparent 78%)",
+      opacity: 0.75,
+    }}
+  />
+);
+
 const DashboardGemStage3D = dynamic(
   () =>
     import("@/components/dashboard/DashboardTornadoEmeralds3D").then((m) => ({
       default: m.DashboardGemStage3D,
     })),
-  { ssr: false },
+  { ssr: false, loading: DashboardGlLoadingDisc },
 );
 const DashboardCategoryUfoScene3D = dynamic(
   () => import("@/components/dashboard/DashboardCategoryUfoScene3D"),
@@ -97,14 +119,14 @@ const DashboardSoundPointsTeslaCoil3D = dynamic(
 );
 const DashboardTreasureChest3D = dynamic(
   () => import("@/components/dashboard/DashboardTreasureChest3D"),
-  { ssr: false },
+  { ssr: false, loading: DashboardGlLoadingDisc },
 );
 const DashboardSpinningSoundCoin3D = dynamic(
   () =>
     import("@/components/dashboard/DashboardTreasureChest3D").then((m) => ({
       default: m.DashboardSpinningSoundCoin3D,
     })),
-  { ssr: false },
+  { ssr: false, loading: DashboardGlLoadingDisc },
 );
 import { useProfile } from "@/components/profile/ProfileProvider";
 import {
@@ -322,6 +344,154 @@ function getDashboardJoystickClickDirection(
 }
 const DASHBOARD_PLAN_SESSION_TARGET = 10;
 const DASHBOARD_HEADER_METER_COUNT = 2;
+// Demo inbox depth for the AI assistant coach, matching the app's other
+// placeholder stats until real messaging lands.
+const DASHBOARD_COACH_UNREAD_MESSAGES = 3;
+// Canned quick-ask exchanges for the AI assistant coach popover. The replies
+// read from the same demo signals the dashboard already shows (session
+// streak, recovery zone, the coach's form cues) so the assistant feels wired
+// into the page.
+const DASHBOARD_COACH_AI_PROMPTS = [
+  {
+    question: "What should I train today?",
+    reply:
+      "Legs are 4 sets from target and your recovery is in the prime zone — run the planned lower session and keep Tuesday's goblet-squat tempo.",
+    short: "Today's focus",
+  },
+  {
+    question: "How is my week trending?",
+    reply:
+      "Every planned session is logged and volume is trending up on last week. Hold this load one more week before adding weight.",
+    short: "Week trend",
+  },
+  {
+    question: "Any form cues for me?",
+    reply:
+      "Main lift: slow the lower to a 3-count, chest tall, and stop one rep shy if bar speed drops — the same cue your coach flagged yesterday.",
+    short: "Form check",
+  },
+] as const;
+// The account settings wheel: a radial popup the header gear opens BELOW the
+// menu (the old behavior splayed these shortcuts around the account trigger
+// inside the header, where they fought the menu for space). Positions follow
+// the avatar emote wheel's dial layout.
+const DASHBOARD_SETTINGS_WHEEL_ITEMS: Array<{
+  glow: string;
+  href: string;
+  icon: string;
+  label: string;
+  tint: string;
+}> = [
+  {
+    glow: "bg-violet-400/35",
+    href: ROUTES.dashboard.settings,
+    icon: "settings",
+    label: "Settings",
+    tint: "text-violet-300 drop-shadow-[0_0_10px_rgba(196,181,253,0.85)]",
+  },
+  {
+    glow: "bg-amber-400/35",
+    href: ROUTES.dashboard.payments,
+    icon: "packages",
+    label: "Billing",
+    tint: "text-amber-300 drop-shadow-[0_0_10px_rgba(252,211,77,0.85)]",
+  },
+  {
+    glow: "bg-orange-400/35",
+    href: ROUTES.dashboard.achievements,
+    icon: "achievements",
+    label: "Achievements",
+    tint: "text-orange-300 drop-shadow-[0_0_10px_rgba(253,186,116,0.85)]",
+  },
+  {
+    glow: "bg-cyan-400/35",
+    href: ROUTES.dashboard.myPlan,
+    icon: "challenges",
+    label: "Programs",
+    tint: "text-cyan-300 drop-shadow-[0_0_10px_rgba(103,232,249,0.85)]",
+  },
+  {
+    glow: "bg-sky-400/35",
+    href: ROUTES.dashboard.social,
+    icon: "groups",
+    label: "Groups",
+    tint: "text-sky-300 drop-shadow-[0_0_10px_rgba(125,211,252,0.85)]",
+  },
+  {
+    glow: "bg-emerald-400/35",
+    href: ROUTES.dashboard.help,
+    icon: "help",
+    label: "Help",
+    tint: "text-emerald-300 drop-shadow-[0_0_10px_rgba(110,231,183,0.85)]",
+  },
+  {
+    glow: "bg-fuchsia-400/35",
+    href: ROUTES.dashboard.profile,
+    icon: "profile",
+    label: "Profile",
+    tint: "text-fuchsia-300 drop-shadow-[0_0_10px_rgba(240,171,252,0.85)]",
+  },
+];
+// A true dial: every spoke sits at the same radius, evenly spaced, starting
+// from 12 o'clock. Sized against the wheel's fixed 208px box and 48px spokes.
+const DASHBOARD_SETTINGS_WHEEL_SIZE = 208;
+const DASHBOARD_SETTINGS_WHEEL_SPOKE = 48;
+const DASHBOARD_SETTINGS_WHEEL_RADIUS = 78;
+const DASHBOARD_SETTINGS_WHEEL_SLOTS = DASHBOARD_SETTINGS_WHEEL_ITEMS.map(
+  (_item, index) => {
+    const angle =
+      -Math.PI / 2 +
+      (index / DASHBOARD_SETTINGS_WHEEL_ITEMS.length) * Math.PI * 2;
+    return {
+      left:
+        DASHBOARD_SETTINGS_WHEEL_SIZE / 2 +
+        Math.cos(angle) * DASHBOARD_SETTINGS_WHEEL_RADIUS -
+        DASHBOARD_SETTINGS_WHEEL_SPOKE / 2,
+      top:
+        DASHBOARD_SETTINGS_WHEEL_SIZE / 2 +
+        Math.sin(angle) * DASHBOARD_SETTINGS_WHEEL_RADIUS -
+        DASHBOARD_SETTINGS_WHEEL_SPOKE / 2,
+    };
+  },
+);
+// Seed thread for the in-popover coach messenger; the last three coach
+// messages are the "unread" ones the badge counts.
+const DASHBOARD_COACH_MESSAGE_SEED: Array<{
+  from: "coach" | "you";
+  id: number;
+  text: string;
+}> = [
+  {
+    from: "you",
+    id: 1,
+    text: "Shoulder felt tight on the last press day — worth swapping?",
+  },
+  {
+    from: "coach",
+    id: 2,
+    text: "Yes — we'll run landmine presses this week and retest. Good catch.",
+  },
+  {
+    from: "coach",
+    id: 3,
+    text: "New program note: Thursday is now a lower-body focus — check the updated plan.",
+  },
+  {
+    from: "coach",
+    id: 4,
+    text: "Your goblet squat clip looked sharp. One cue: keep the heels planted through the final rep.",
+  },
+  {
+    from: "coach",
+    id: 5,
+    text: "Reminder: weigh-in and check-in photos are due Sunday evening.",
+  },
+];
+const DASHBOARD_COACH_MESSAGE_REPLIES = [
+  "Got it — logged. I'll fold that into this week's plan tonight.",
+  "Nice. If anything feels off mid-session, flag it here and I'll adjust the next one.",
+  "Noted! Keep the main sets around RPE 7 and tell me how the last rep moves.",
+] as const;
 const DASHBOARD_HEADER_METER_PANEL_SECTION_COUNT = 3;
 const DASHBOARD_HEADER_METER_PANEL_HIGHLIGHT_TARGETS = [
   "ufo",
@@ -354,7 +524,73 @@ const DASHBOARD_PROFILE_REWARD_PANELS = [
 ] as const;
 const DASHBOARD_PROFILE_REWARD_INDICATOR_GEM_TONES: readonly DashboardTornadoGemTone[] =
   ["green"];
-const DASHBOARD_PROFILE_GEM_VAULT_CLOSE_BEFORE_SCROLL_MS = 520;
+// Was 520ms — long enough that leaving the Gems panel felt dead; the vault
+// door still reads as closing at 260ms and the rotation follows sooner.
+const DASHBOARD_PROFILE_GEM_VAULT_CLOSE_BEFORE_SCROLL_MS = 260;
+// Phone widths where header popups are re-centered against the viewport.
+// Matches the `max-width: 430px` block in public/dashboard-runtime.css.
+const DASHBOARD_POPUP_VIEWPORT_CENTERING_MAX_WIDTH = 430;
+// 6.6rem, the top inset that same stylesheet block asks for.
+const DASHBOARD_POPUP_VIEWPORT_TOP_PX = 105.6;
+const DASHBOARD_POPUP_VIEWPORT_EDGE_GAP_PX = 8;
+
+// Distance between adjacent reward panels: the 6.4rem step each panel's
+// `--dashboard-profile-reward-offset` is multiplied out to.
+const DASHBOARD_REWARD_ORBIT_STEP_PX = 102.4;
+// Past half a slot the release commits to the next panel, so the drag has to
+// track the finger 1:1 up to that point — anything damped moves the panels a
+// fraction of a slot and then snaps a whole one, which is what made the
+// gesture read as "weird".
+const DASHBOARD_REWARD_ORBIT_COMMIT_PX = DASHBOARD_REWARD_ORBIT_STEP_PX / 2;
+// Only one rotation happens per gesture, so travel past a full slot is dead
+// distance. Rubber-band it instead of hard-stopping, which reads as a snag.
+const dashboardRewardOrbitDragShift = (deltaX: number) => {
+  const distance = Math.abs(deltaX);
+  if (distance <= DASHBOARD_REWARD_ORBIT_STEP_PX) return deltaX;
+  const overshoot = distance - DASHBOARD_REWARD_ORBIT_STEP_PX;
+  const resisted =
+    DASHBOARD_REWARD_ORBIT_STEP_PX +
+    Math.min(overshoot * 0.18, DASHBOARD_REWARD_ORBIT_STEP_PX * 0.3);
+  return deltaX < 0 ? -resisted : resisted;
+};
+const DASHBOARD_CENTERED_HEADER_POPUP_IDS = [
+  "dashboard-points-dropdown",
+  "dashboard-claim-rewards-dropdown",
+  "dashboard-music-dropdown",
+] as const;
+
+// Roots of the popups that pin the header open. Used to tell "the wheel is
+// over the open menu" from "the wheel is over the page behind it".
+const DASHBOARD_PINNED_POPUP_SELECTOR =
+  ".dashboard-profile-points-dropdown,.dashboard-profile-claim-dropdown,.dashboard-music-dropdown,.dashboard-music-station-orbit,.dashboard-profile-quick-actions";
+
+/**
+ * The scrollable element inside an open popup that a wheel tick should move,
+ * walking from the wheel target up to the popup root. Null when the pointer is
+ * outside the popup, or over a part of it that has nothing to scroll.
+ */
+const dashboardPinnedPopupWheelScroller = (target: EventTarget | null) => {
+  let node = target instanceof Element ? target : null;
+  while (node) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if (
+      (overflowY === "auto" || overflowY === "scroll") &&
+      node.scrollHeight > node.clientHeight + 1
+    ) {
+      return node;
+    }
+    if (node.matches(DASHBOARD_PINNED_POPUP_SELECTOR)) return null;
+    node = node.parentElement;
+  }
+  return null;
+};
+
+// Wheel deltas arrive in pixels, lines, or pages depending on the device.
+const dashboardWheelDeltaPixels = (event: WheelEvent, scroller: Element) => {
+  if (event.deltaMode === 1) return event.deltaY * 16;
+  if (event.deltaMode === 2) return event.deltaY * scroller.clientHeight;
+  return event.deltaY;
+};
 const DASHBOARD_HEADER_MENU_BLOCK_COUNT = 5;
 const DASHBOARD_HEADER_PROGRESS_BLOCK_INDEX = 2;
 const DASHBOARD_HEADER_IDLE_TIMEOUT_MS = 60000;
@@ -366,10 +602,16 @@ const DASHBOARD_HEADER_IDLE_SCENE_ENABLED = false;
  * the right edge. At these sizes the joystick pages through the three controls
  * one at a time instead of trying to seat them all at once.
  */
-const DASHBOARD_NARROW_HEADER_QUERY = "(max-width: 359px)";
+/**
+ * The header switches to its compact layout at 430px (the meter button is
+ * hidden there and revealed only for the account panel). Paging used to start
+ * at 359px, so 360-430px rendered every account control at once and they piled
+ * up — the profile block ran 12px past a 367px viewport and the hub trigger
+ * and coach badge overlapped by 16px. The paging CSS now lives in a
+ * max-width: 430px block so the two bands line up.
+ */
+const DASHBOARD_NARROW_HEADER_QUERY = "(max-width: 430px)";
 const DASHBOARD_NARROW_ACCOUNT_ITEMS = ["account", "rewards", "meter"] as const;
-type DashboardNarrowAccountItem =
-  (typeof DASHBOARD_NARROW_ACCOUNT_ITEMS)[number];
 /**
  * The ambient field's ten category actors are held at `display: none` by an
  * unconditional rule in globals.css (`.dashboard-header-ambient-field >
@@ -533,6 +775,82 @@ const runDashboardHeaderFocusFlip = (
   });
 };
 
+// Speed audit II: with the ambient decorations running, a panel rotation
+// blocked 1.1-1.5s and a close 812ms; with them paused, 470ms and 213ms —
+// the header's busiest windows were fighting its own decorations for
+// main-thread frames. This stamps [data-header-transitioning] on the shell
+// for ~620ms around every rotation and focus flip; a runtime.css rule pauses
+// the infinite-only ambient families under it (the chyron is excluded there —
+// it carries a finite entry animation a blanket pause would trap at frame 0).
+let dashboardHeaderTransitionPauseTimer = 0;
+const markDashboardHeaderTransitioning = () => {
+  if (typeof document === "undefined" || typeof window === "undefined") return;
+  const shell = document.querySelector<HTMLElement>(
+    ".dashboard-header-vortex-shell",
+  );
+  if (!shell) return;
+  shell.dataset.headerTransitioning = "true";
+  if (dashboardHeaderTransitionPauseTimer) {
+    window.clearTimeout(dashboardHeaderTransitionPauseTimer);
+  }
+  dashboardHeaderTransitionPauseTimer = window.setTimeout(() => {
+    dashboardHeaderTransitionPauseTimer = 0;
+    delete shell.dataset.headerTransitioning;
+  }, 620);
+};
+
+// Directional slide standardization: every rotation should move content the
+// way the arrow pushed it — press right, the new panel enters from the right
+// and the old one exits left; press left, the mirror. The blocks' parked
+// transforms are fixed per side in globals (nav always off-left, account
+// always off-right), which is why the nav always entered from the left and
+// the account from the right regardless of direction. This stages the
+// currently-parked block on the ARROW side instantly (transition:none under
+// [data-header-slide-staging]) before the panel flips, so the entry
+// transition starts from the correct side; runtime.css exit overrides then
+// park the outgoing block on the OPPOSITE side. A layout effect removes the
+// staging attribute at the commit, so the exit override never sees a stale
+// staging position.
+// Set when the 10s inactivity timeout idles the header while the pointer is
+// PARKED on it: the collapse shifts layout under the stationary cursor and
+// Chrome synthesizes pointerover/pointermove at the same coordinates, which
+// the wake listeners read as the user arriving — the header re-opened 2s
+// after timing out and blinked forever. Wake sites ignore pointer events
+// within a few px of this position; any real movement clears it.
+let dashboardHeaderTimeoutIdlePointer: { x: number; y: number } | null = null;
+
+const isDashboardSynthesizedParkedWake = (event: Event): boolean => {
+  if (!dashboardHeaderTimeoutIdlePointer) return false;
+  // PointerEvent extends MouseEvent; onMouseEnter hands a plain MouseEvent.
+  if (!(event instanceof MouseEvent)) return false;
+  // A press at the parked position is REAL intent — wake and forget the mark.
+  if (
+    event.type === "pointerdown" ||
+    event.type === "mousedown" ||
+    event.type === "click"
+  ) {
+    dashboardHeaderTimeoutIdlePointer = null;
+    return false;
+  }
+  const dx = Math.abs(event.clientX - dashboardHeaderTimeoutIdlePointer.x);
+  const dy = Math.abs(event.clientY - dashboardHeaderTimeoutIdlePointer.y);
+  if (dx + dy < 6) return true;
+  dashboardHeaderTimeoutIdlePointer = null;
+  return false;
+};
+
+const stageDashboardHeaderSlide = (direction: "left" | "right") => {
+  if (typeof document === "undefined") return;
+  const stage = document.querySelector<HTMLElement>(
+    ".dashboard-header-main-orbit-stage--stable",
+  );
+  if (!stage) return;
+  stage.dataset.headerSlide = direction;
+  stage.dataset.headerSlideStaging = "true";
+  // Commit the staged position in this frame so the flip transitions from it.
+  void stage.offsetWidth;
+};
+
 // Read-only fingerprint of the last fit's inputs: the refit observer fires on
 // every <main>/shell class flip (menus, meters, joystick) plus a 700ms re-fire,
 // but the nav geometry almost never changes between those — skipping repeat
@@ -578,11 +896,46 @@ const fitDashboardHeaderNav = () => {
   const fixedNeighbours = [
     ".dashboard-header-logo-cluster",
     ".dashboard-header-mobile-orbit-joystick",
+    // The meter button is pinned to the right end of this same row. Leaving it
+    // out meant the nav was fitted into space the icon already occupies, so on
+    // a narrow screen the dashboard name ran under it — the nav looked like it
+    // fitted because the zoom said so, while visibly colliding.
+    ".dashboard-header-meter-menu-shell",
   ].reduce((total, selectorText) => {
     const neighbour = row?.querySelector<HTMLElement>(selectorText);
-    return total + (neighbour?.getBoundingClientRect().width ?? 0);
+    if (!neighbour) return total;
+    // Only reserve space for a neighbour that is actually on screen. The meter
+    // button is position:absolute below 430px and is revealed only on the
+    // "account" panel, but it keeps a full-size rect while hidden — so on every
+    // other panel the nav was fitted around 32px of button that owns none of
+    // the row. That is the room the dashboard name was missing: the label
+    // column resolved to 50.5px against the 62px "Sessions" needs, and the name
+    // rendered as "SESS…" with visible empty space beside it. A visible meter
+    // is still subtracted, which is what stops the nav running under it.
+    const measurable = neighbour as HTMLElement & {
+      checkVisibility?: (options?: {
+        checkOpacity?: boolean;
+        checkVisibilityCSS?: boolean;
+      }) => boolean;
+    };
+    if (
+      typeof measurable.checkVisibility === "function" &&
+      !measurable.checkVisibility({
+        checkOpacity: true,
+        checkVisibilityCSS: true,
+      })
+    ) {
+      return total;
+    }
+    return total + neighbour.getBoundingClientRect().width;
   }, 0);
-  const rowGutter = 20;
+  // Breathing room between the nav and its neighbours. Kept small because the
+  // neighbours' own widths are already subtracted above — the meter button in
+  // particular was added to that list to stop the nav running under it, and a
+  // 20px gutter on top of a 32px button reserved the same space twice, which
+  // cost the open nav about a quarter of its size and made it stop visibly
+  // growing when the header opens.
+  const rowGutter = 8;
   const availableWidth = Math.max(
     0,
     (row?.clientWidth ?? box.width) - fixedNeighbours - rowGutter,
@@ -620,10 +973,22 @@ const fitDashboardHeaderNav = () => {
   // The open header never fills the row completely — this is the shrink that
   // used to be a scale: 0.88 rule on the selector. Scoped to the same
   // breakpoint that rule lived in; the desktop nav never had it.
+  //
+  // Eased below the phone breakpoint. A 12% cosmetic haircut is affordable on
+  // a tablet row; on a 280px one, where the nav is already fighting the crest,
+  // the joystick and the meter for space, it was the difference between a
+  // readable nav and one that looked the same size open as idle. It cannot go
+  // to zero though — the margin it leaves is what keeps the nav clear of the
+  // meter button, and removing it entirely put them 4px into each other.
   const wantsAestheticShrink = window.matchMedia("(max-width: 940px)").matches;
+  const aestheticShrink = !wantsAestheticShrink
+    ? 1
+    : window.matchMedia("(max-width: 430px)").matches
+      ? 0.93
+      : 0.88;
   const targetZoom = Math.max(
     DASHBOARD_NAV_MIN_ZOOM,
-    Math.round(fit * (wantsAestheticShrink ? 0.88 : 1) * 1000) / 1000,
+    Math.round(fit * aestheticShrink * 1000) / 1000,
   );
 
   // Restore the pre-measurement zoom without animating, then let the
@@ -839,7 +1204,9 @@ const applyDashboardChyronMarquee = (element: HTMLElement | null) => {
 // occupied, preserving every document-order cascade tie vs globals.css.
 // Update the ?v= hash in DASHBOARD_RUNTIME_STYLESHEET_IMPORT when editing
 // that file.
-const DASHBOARD_RUNTIME_STYLESHEET_IMPORT = `@import url("/dashboard-runtime.css?v=530ca528");`;
+const DASHBOARD_RUNTIME_STYLESHEET_IMPORT = `@import url("/dashboard-runtime.css?v=7c40e9a2");`;
+/** An open header with no interaction for this long returns to idle. */
+const DASHBOARD_HEADER_OPEN_INACTIVITY_MS = 10_000;
 const DASHBOARD_HEADER_IDLE_RUN_MS = 3800;
 const DASHBOARD_HEADER_IDLE_WORK_MS = 4800;
 // Covers the idle scene's 520ms opacity/visibility fade-out before it unmounts.
@@ -3494,11 +3861,18 @@ const formatCompactDateTime = (value?: string) => {
   return dashboardCompactDateTimeFormatter.format(date);
 };
 
+// Intl .format(Invalid Date) throws a RangeError DURING RENDER — with these in
+// hot header labels, one corrupt workout-log timestamp would white-screen the
+// whole dashboard. Bail to the same placeholder the hydration guard uses.
 const formatHeaderMeterDeadline = (date: Date) =>
-  dashboardHeaderMeterDeadlineFormatter.format(date);
+  Number.isNaN(date.getTime())
+    ? "soon"
+    : dashboardHeaderMeterDeadlineFormatter.format(date);
 
 const formatHeaderMeterFullDateTime = (date: Date) =>
-  dashboardHeaderMeterFullDateTimeFormatter.format(date);
+  Number.isNaN(date.getTime())
+    ? "soon"
+    : dashboardHeaderMeterFullDateTimeFormatter.format(date);
 
 const formatAchievementEstimateDate = (date: Date) =>
   dashboardAchievementEstimateDateFormatter.format(date);
@@ -8439,15 +8813,171 @@ export default function UserHomeDashboardPage() {
   const [dashboardHeaderIsNarrow, setDashboardHeaderIsNarrow] = useState(false);
   const [dashboardNarrowAccountIndex, setDashboardNarrowAccountIndex] =
     useState(0);
+  // Which half of the orbit joystick the pointer is over — highlights that
+  // arrow in the 3D scene. Ref-guarded so pointermove only commits on a real
+  // side change (left<->right), and transition-wrapped as decorative state.
+  const [dashboardOrbitJoystickHoverSide, setDashboardOrbitJoystickHoverSide] =
+    useState<"left" | "right" | null>(null);
+  const dashboardOrbitJoystickHoverSideRef = useRef<"left" | "right" | null>(
+    null,
+  );
   useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
 
     const query = window.matchMedia(DASHBOARD_NARROW_HEADER_QUERY);
-    const applyNarrowHeader = () => setDashboardHeaderIsNarrow(query.matches);
+    const applyNarrowHeader = () => {
+      setDashboardHeaderIsNarrow(query.matches);
+      // Crossing the boundary shows and hides whole widget clusters (the gear,
+      // the rewards gems/coin/chest, the meter icon). The stage caches CSS
+      // visibility for ~6 frames, so without this they blink blank for ~200ms
+      // — the same refresh the rotation path gets.
+      invalidateDashboardStageVisibility();
+    };
 
     applyNarrowHeader();
     query.addEventListener("change", applyNarrowHeader);
     return () => query.removeEventListener("change", applyNarrowHeader);
+  }, []);
+  // Clear the slide-staging marker in the same commit that flips the panel:
+  // between the click and this commit the staged block must HOLD its staged
+  // position (the exit-override rules would otherwise start dragging it
+  // across the stage invisibly, and the entry would then launch from
+  // mid-flight); once the panel attribute lands, the marker has done its job
+  // and the exit overrides take over for the outgoing block.
+  useLayoutEffect(() => {
+    if (typeof document === "undefined") return;
+    const stage = document.querySelector<HTMLElement>(
+      ".dashboard-header-main-orbit-stage--stable",
+    );
+    if (stage) delete stage.dataset.headerSlideStaging;
+  }, [
+    dashboardMobileHeaderOrbitPanel,
+    dashboardHeaderSlideDirection,
+    // Same-direction paging inside the account run changes neither of the
+    // two above — without this dep the staging marker lingered across those
+    // commits, holding the parked nav block at transition:none.
+    dashboardNarrowAccountIndex,
+  ]);
+  // Hover chyron for truncated pill labels: while the pointer is over the nav
+  // label pill (or an urgency blinker pill), any leaf inside it whose text is
+  // actually ellipsized scrolls its full text into view and ping-pongs back,
+  // like the news chyron. The handler measures the real overflow and hands it
+  // to the CSS animation via custom properties — see dashboard-runtime.css
+  // HOVER CHYRON. Delegated on the document so the header JSX stays untouched.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+
+    const CHYRON_CONTAINERS =
+      ".dashboard-header-selector-copy, .dashboard-header-urgency-blinker";
+
+    // With several truncated rows in one pill (the nav label plus the urgency
+    // blinker), running every marquee simultaneously was unreadable — the
+    // rows take turns instead. The scan collects the truncated leaves once
+    // per hover; one leaf marquees a single out-and-back pass (the CSS
+    // animation runs 2 iterations, alternate), its animationend hands the
+    // baton to the next truncated leaf, and a single leaf just restarts
+    // itself. Cleanup on pointerout is unchanged.
+    const chyronRotation = new WeakMap<
+      HTMLElement,
+      { leaves: HTMLElement[]; index: number }
+    >();
+
+    const clearChyronLeaf = (leaf: HTMLElement) => {
+      delete leaf.dataset.hoverChyron;
+      leaf.style.removeProperty("--dashboard-hover-chyron-shift");
+      leaf.style.removeProperty("--dashboard-hover-chyron-ms");
+    };
+
+    const activateChyronLeaf = (leaf: HTMLElement): boolean => {
+      // Measured while idle — nothing in the pill is animating when a leaf is
+      // (re)activated, so scrollWidth is trustworthy here.
+      const overflow = leaf.scrollWidth - leaf.clientWidth;
+      if (overflow <= 1) return false;
+      leaf.style.setProperty(
+        "--dashboard-hover-chyron-shift",
+        `${-(overflow + 2)}px`,
+      );
+      // Longer labels get proportionally longer passes so the scroll speed
+      // reads the same regardless of how much text is hidden.
+      leaf.style.setProperty(
+        "--dashboard-hover-chyron-ms",
+        `${1100 + overflow * 24}ms`,
+      );
+      // Force a restart even when this leaf ran the previous turn.
+      delete leaf.dataset.hoverChyron;
+      void leaf.offsetWidth;
+      leaf.dataset.hoverChyron = "true";
+      return true;
+    };
+
+    const activateHoverChyron = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const container = target.closest<HTMLElement>(CHYRON_CONTAINERS);
+      if (!container) return;
+      // pointerover fires on every element-boundary crossing inside the pill;
+      // scan once per hover — the pointerout cleanup clears the flag.
+      if (container.dataset.hoverChyronScanned === "true") return;
+      container.dataset.hoverChyronScanned = "true";
+      const leaves = [
+        container,
+        ...container.querySelectorAll<HTMLElement>("*"),
+      ].filter(
+        (leaf) =>
+          leaf.children.length === 0 &&
+          (leaf.textContent ?? "").trim() !== "" &&
+          leaf.scrollWidth - leaf.clientWidth > 1,
+      );
+      if (leaves.length === 0) return;
+      chyronRotation.set(container, { leaves, index: 0 });
+      activateChyronLeaf(leaves[0]);
+    };
+
+    const advanceHoverChyron = (event: AnimationEvent) => {
+      if (event.animationName !== "dashboard-hover-chyron") return;
+      const leaf = event.target;
+      if (!(leaf instanceof HTMLElement)) return;
+      const container = leaf.closest<HTMLElement>(CHYRON_CONTAINERS);
+      if (!container) return;
+      const state = chyronRotation.get(container);
+      if (!state) return;
+      clearChyronLeaf(leaf);
+      // Hand the baton to the next leaf that is still truncated (layout can
+      // have changed since the scan); with one leaf this restarts it.
+      for (let step = 1; step <= state.leaves.length; step++) {
+        const nextIndex = (state.index + step) % state.leaves.length;
+        if (activateChyronLeaf(state.leaves[nextIndex])) {
+          state.index = nextIndex;
+          return;
+        }
+      }
+    };
+
+    const deactivateHoverChyron = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const container = target.closest<HTMLElement>(CHYRON_CONTAINERS);
+      if (!container) return;
+      const next = event.relatedTarget;
+      if (next instanceof Node && container.contains(next)) return;
+      delete container.dataset.hoverChyronScanned;
+      chyronRotation.delete(container);
+      const active = container.matches("[data-hover-chyron]")
+        ? [container, ...container.querySelectorAll<HTMLElement>("[data-hover-chyron]")]
+        : [...container.querySelectorAll<HTMLElement>("[data-hover-chyron]")];
+      for (const leaf of active) {
+        clearChyronLeaf(leaf);
+      }
+    };
+
+    document.addEventListener("pointerover", activateHoverChyron, true);
+    document.addEventListener("pointerout", deactivateHoverChyron, true);
+    document.addEventListener("animationend", advanceHoverChyron, true);
+    return () => {
+      document.removeEventListener("pointerover", activateHoverChyron, true);
+      document.removeEventListener("pointerout", deactivateHoverChyron, true);
+      document.removeEventListener("animationend", advanceHoverChyron, true);
+    };
   }, []);
   const [dashboardHeaderVortexPulseMode, setDashboardHeaderVortexPulseMode] =
     useState<DashboardHeaderVortexMode | null>(null);
@@ -8488,8 +9018,11 @@ export default function UserHomeDashboardPage() {
   const dashboardContentFocusCommitTimerRef = useRef<number | null>(null);
   // True while the user is hovering/tapping the content section below the
   // header. Feeds the header/content "one set of animations at a time" toggle.
+  // Starts TRUE so the page opens with the header already idle rather than
+  // expanded — a fresh load should look like the resting state, not like the
+  // user is mid-hover. The first pointer move over the header wakes it.
   const [dashboardContentFocused, setDashboardContentFocusedState] =
-    useState(false);
+    useState(true);
   const [dashboardTrophyMenuOpen, setDashboardTrophyMenuOpen] = useState(false);
   const [dashboardHeaderIdleStationIndex, setDashboardHeaderIdleStationIndex] =
     useState(0);
@@ -8522,6 +9055,7 @@ export default function UserHomeDashboardPage() {
     useState(0);
   const [dashboardHeaderMeterRailActive, setDashboardHeaderMeterRailActive] =
     useState(false);
+  const dashboardHeaderMeterMenuOpenRef = useRef(false);
   const [dashboardHeaderMeterMenuOpen, setDashboardHeaderMeterMenuOpen] =
     useState(false);
   const [
@@ -8607,6 +9141,104 @@ export default function UserHomeDashboardPage() {
     dashboardPageLevelMeterTabHighlighted,
     setDashboardPageLevelMeterTabHighlighted,
   ] = useState(false);
+  // The meter rests TUCKED — only a slim sliver of the semicircle tab peeks
+  // from the right edge, saving the screen space the full disc used to take.
+  // Clicking or dragging the sliver out reveals the semicircle; clicking the
+  // semicircle opens the full level bar as before. It re-tucks itself after a
+  // few unhovered seconds once closed.
+  const [dashboardPageLevelMeterTucked, setDashboardPageLevelMeterTucked] =
+    useState(true);
+  const dashboardLevelMeterDragRef = useRef<{
+    startX: number;
+    handled: boolean;
+  } | null>(null);
+  const handleDashboardLevelMeterTabClick = () => {
+    if (dashboardLevelMeterDragRef.current?.handled) {
+      // The pointer gesture already tucked/revealed — swallow the click that
+      // follows the drag's pointerup so it doesn't double-act.
+      dashboardLevelMeterDragRef.current = null;
+      return;
+    }
+    if (dashboardPageLevelMeterTucked) {
+      setDashboardPageLevelMeterTucked(false);
+      return;
+    }
+    setDashboardPageLevelMeterOpen((currentOpen) => !currentOpen);
+  };
+  const handleDashboardLevelMeterTabPointerDown = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+  ) => {
+    // The gesture is tracked with NATIVE window listeners for its duration:
+    // the tucked tab is a ~14px sliver, so a drag-out leaves the button
+    // immediately and delegated per-element move events stop arriving.
+    const drag = {
+      startX: event.clientX,
+      handled: false,
+      tuckedAtDown: dashboardPageLevelMeterTucked,
+      openAtDown: dashboardPageLevelMeterOpen,
+    };
+    dashboardLevelMeterDragRef.current = drag;
+    const handleMove = (moveEvent: PointerEvent) => {
+      if (drag.handled || (moveEvent.buttons & 1) === 0) return;
+      const dx = moveEvent.clientX - drag.startX;
+      if (drag.tuckedAtDown && dx < -18) {
+        drag.handled = true;
+        setDashboardPageLevelMeterTucked(false);
+      } else if (!drag.tuckedAtDown && !drag.openAtDown && dx > 18) {
+        drag.handled = true;
+        setDashboardPageLevelMeterTucked(true);
+      }
+    };
+    const handleUp = () => {
+      window.removeEventListener("pointermove", handleMove, { capture: true });
+    };
+    // Capture phase: the content sections' drag-scroll handlers stopPropagation
+    // on pointermove mid-bubble, so bubble-phase window listeners never see the
+    // moves once the pointer leaves the tab. Window capture runs first.
+    window.addEventListener("pointermove", handleMove, { capture: true });
+    window.addEventListener("pointerup", handleUp, {
+      capture: true,
+      once: true,
+    });
+    // Also capture the pointer on the tab so the content orbiter underneath
+    // never receives the gesture's moves — without this, dragging the meter
+    // out also panned the content section the control is anchored to.
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // Unsupported — the window listeners above still track the gesture.
+    }
+  };
+  // Self-tidying: once revealed but closed and unhovered, tuck away again.
+  useEffect(() => {
+    if (
+      dashboardPageLevelMeterTucked ||
+      dashboardPageLevelMeterOpen ||
+      dashboardPageLevelMeterTabHighlighted
+    ) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      // The highlighted state commits in a deferred transition, so a cursor
+      // that came to rest on the tab can still read as unhighlighted here —
+      // check the live :hover state before tucking under the pointer.
+      if (document.querySelector(".dashboard-page-level-meter-tab:hover")) {
+        return;
+      }
+      setDashboardPageLevelMeterTucked(true);
+    }, 6000);
+    return () => window.clearTimeout(timeoutId);
+  }, [
+    dashboardPageLevelMeterTucked,
+    dashboardPageLevelMeterOpen,
+    dashboardPageLevelMeterTabHighlighted,
+  ]);
+  // Any code path that opens the panel implies the meter must be revealed.
+  useEffect(() => {
+    if (dashboardPageLevelMeterOpen && dashboardPageLevelMeterTucked) {
+      setDashboardPageLevelMeterTucked(false);
+    }
+  }, [dashboardPageLevelMeterOpen, dashboardPageLevelMeterTucked]);
   // Active use of the header's own controls (analog / level meter). This is what
   // should freeze idle-scene cycling — merely hovering the content must not.
   // Deferred one frame past the panel's first open so the opening animation
@@ -8636,13 +9268,143 @@ export default function UserHomeDashboardPage() {
     if (dashboardHeaderMeterMenuOpen) setDashboardHeaderMeterPanelMounted(true);
   }, [dashboardHeaderMeterMenuOpen]);
 
+  // Declared up here rather than with the other popup state further down: the
+  // header's collapse derivation below has to see them.
+  const [dashboardSettingsWheelOpen, setDashboardSettingsWheelOpen] =
+    useState(false);
+  const [dashboardSettingsWheelPos, setDashboardSettingsWheelPos] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const dashboardSettingsWheelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!dashboardSettingsWheelOpen) return;
+    const handleSettingsWheelPointerDown = (event: PointerEvent) => {
+      const wheel = dashboardSettingsWheelRef.current;
+      if (wheel && event.target instanceof Node && wheel.contains(event.target)) {
+        return;
+      }
+      if (
+        event.target instanceof Element &&
+        event.target.closest(".dashboard-profile-action-gear")
+      ) {
+        return;
+      }
+      setDashboardSettingsWheelOpen(false);
+    };
+    const handleSettingsWheelKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDashboardSettingsWheelOpen(false);
+    };
+    window.addEventListener("pointerdown", handleSettingsWheelPointerDown, true);
+    window.addEventListener("keydown", handleSettingsWheelKeyDown);
+    return () => {
+      window.removeEventListener(
+        "pointerdown",
+        handleSettingsWheelPointerDown,
+        true,
+      );
+      window.removeEventListener("keydown", handleSettingsWheelKeyDown);
+    };
+  }, [dashboardSettingsWheelOpen]);
+  const [dashboardProfileActionsOpen, setDashboardProfileActionsOpen] =
+    useState(false);
+  const [dashboardPointsDropdownOpen, setDashboardPointsDropdownOpen] =
+    useState(false);
+  const [
+    dashboardClaimRewardsDropdownOpen,
+    setDashboardClaimRewardsDropdownOpen,
+  ] = useState(false);
+  const [dashboardMusicDropdownOpen, setDashboardMusicDropdownOpen] =
+    useState(false);
+
+  /**
+   * Popups that are rendered INSIDE the header shell, so collapsing the header
+   * takes them with it: the content-focus rules shrink the menu row to 0.6
+   * scale, dim it, and set `pointer-events: none` on the whole orbit stage, so
+   * an open dropdown became unreadable and unclickable the moment the pointer
+   * drifted off the header band. Pin the header open while any of them is up —
+   * the popup then stays until the user dismisses it, which is what a menu is
+   * supposed to do.
+   *
+   * The trophy menu, coach notes and meter panel are deliberately NOT here:
+   * they portal to <body>, so the collapse never touches them, and pinning for
+   * the meter panel would start the two card-rotation intervals that are gated
+   * on the header being awake.
+   */
+  const dashboardHeaderPopupPinned =
+    dashboardPointsDropdownOpen ||
+    dashboardClaimRewardsDropdownOpen ||
+    dashboardMusicDropdownOpen ||
+    dashboardProfileActionsOpen;
   const dashboardHeaderControlsInUse =
     dashboardPageAnalogInUse ||
     dashboardProfileHubAnalogInUse ||
     dashboardPageLevelMeterOpen ||
     dashboardPageLevelMeterTabHighlighted;
   const dashboardHeaderMotionPaused =
-    dashboardHeaderControlsInUse || dashboardContentFocused;
+    !dashboardHeaderPopupPinned &&
+    (dashboardHeaderControlsInUse || dashboardContentFocused);
+  // setDashboardContentFocused writes the shell attribute imperatively and is
+  // a `[]` useCallback, so it reads the pin through a ref instead of closing
+  // over it.
+  const dashboardHeaderPopupPinnedRef = useRef(false);
+  useEffect(() => {
+    dashboardHeaderPopupPinnedRef.current = dashboardHeaderPopupPinned;
+  }, [dashboardHeaderPopupPinned]);
+
+  /**
+   * Hold the page still while the header menu is open.
+   *
+   * The mirror of the rule that freezes the header while the content is
+   * engaged: when the menu is what you are looking at, the avatar's blink and
+   * the other ambient loops behind it should not be competing for attention or
+   * for the frame budget.
+   *
+   * Deliberately NOT a CSS `animation-play-state: paused` blanket. That is how
+   * the header freezes itself, and it is also what made the claim dropdown open
+   * invisible earlier — it catches one-shot entry animations at frame 0, and
+   * with `fill: both` they stay there. Only animations that repeat forever are
+   * ambient; anything finite is a transition into a state and must be allowed
+   * to finish. CSS cannot express "infinite only", so this filters on the
+   * computed timing instead, and skips the header's own subtree, which has its
+   * own rules.
+   */
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    if (dashboardHeaderMotionPaused) return;
+
+    const shell = document.querySelector(".dashboard-header-vortex-shell");
+    const meterPanel = document.getElementById("dashboard-header-meter-panel");
+    const held: Animation[] = [];
+    for (const animation of document.getAnimations()) {
+      if (animation.playState !== "running") continue;
+      const effect = animation.effect;
+      if (!(effect instanceof KeyframeEffect)) continue;
+      const target = effect.target;
+      if (!(target instanceof Element)) continue;
+      if (shell?.contains(target)) continue;
+      // The meter panel is body-portaled (outside the shell) but belongs to
+      // the header menu — it runs its own only-the-highlighted-item-animates
+      // policy, so the page-hold must not freeze it too (it was JS-pausing
+      // the UFO's chyron and actors even while the UFO held the highlight).
+      if (meterPanel?.contains(target)) continue;
+      if (effect.getComputedTiming().iterations !== Infinity) continue;
+      animation.pause();
+      held.push(animation);
+    }
+
+    return () => {
+      for (const animation of held) {
+        // A held animation can be cancelled while the menu is open (its element
+        // unmounts); replaying one of those throws rather than no-opping.
+        try {
+          animation.play();
+        } catch {
+          // Nothing to resume.
+        }
+      }
+    };
+  }, [dashboardHeaderMotionPaused]);
 
   /**
    * The header's active/idle look is a class on <main>, but this state lives on
@@ -8730,6 +9492,13 @@ export default function UserHomeDashboardPage() {
 
   const setDashboardContentFocused = useCallback(
     (nextFocused: boolean) => {
+      // A header popup is open, so the header is pinned: handing focus back to
+      // the content would collapse the shell out from under it. This has to be
+      // guarded here and not only in the derivation, because the flip below
+      // writes the attribute straight to the DOM — React's own render would
+      // then never rewrite it (its rendered value stopped changing) and the
+      // shell would stay stuck on "content" for the life of the popup.
+      if (nextFocused && dashboardHeaderPopupPinnedRef.current) return;
       if (typeof document !== "undefined") {
         // The focus state lives on the shell, not <main>: every focus-scoped
         // rule targets the header subtree, and keying them off <main>'s class
@@ -8751,6 +9520,9 @@ export default function UserHomeDashboardPage() {
           // This handler fires on every pointermove over the content, so the
           // FLIP pass (which forces a layout) only runs on a real state change.
           if (shellElement.dataset.headerFocus !== nextState) {
+            // Freeze the ambient loops for the flip window — they were
+            // costing the transition ~600ms of extra blocked time.
+            markDashboardHeaderTransitioning();
             runDashboardHeaderFocusFlip(() => {
               shellElement.dataset.headerFocus = nextState;
             });
@@ -8758,6 +9530,17 @@ export default function UserHomeDashboardPage() {
             // its layout effect can bridge the commit's jump from the last
             // painted frame (see dashboardHeaderLastPaintedRects).
             startDashboardHeaderFlipSampling();
+            // The flip shows/hides widget anchors via [data-header-focus]
+            // rules; the stage's ~200ms checkVisibility cache would blink
+            // them — refresh it on the same flip.
+            invalidateDashboardStageVisibility();
+            // Every widget anchor moves for the next ~240ms. The stage's
+            // 20-30fps present cap would land only a handful of positions
+            // across that, so the 3D stepped along behind the DOM chrome it
+            // sits in — worst on the joysticks closing to idle, where the
+            // anchor moves and shrinks at once. Track at display rate until
+            // the transition lands.
+            boostDashboardStageFrameRate();
           }
         }
       }
@@ -8804,6 +9587,11 @@ export default function UserHomeDashboardPage() {
   // committed layout, so both hops read as one continuous motion.
   useLayoutEffect(() => {
     runDashboardHeaderFocusFlip(() => {}, takeDashboardHeaderFreshPaintedRects());
+    // The commit re-derives data-header-focus from the full motionPaused
+    // semantics, which can differ from the pointer-only sync flip — anchors
+    // may show/hide again here, so refresh the stage's visibility cache on
+    // this path too.
+    invalidateDashboardStageVisibility();
   }, [dashboardContentFocused]);
   const [activeCommandCenterIndex, setActiveCommandCenterIndex] = useState(0);
   const [activeAdminServiceIndex, setActiveAdminServiceIndex] = useState(0);
@@ -8967,6 +9755,102 @@ export default function UserHomeDashboardPage() {
     left: number;
   } | null>(null);
   const dashboardCoachNotesRef = useRef<HTMLDivElement | null>(null);
+  // Quick-ask exchange with the AI assistant coach: the question shows
+  // immediately, the reply lands after a short "thinking" beat.
+  const [dashboardCoachAiExchange, setDashboardCoachAiExchange] = useState<{
+    question: string;
+    reply: string;
+  } | null>(null);
+  const [dashboardCoachAiThinking, setDashboardCoachAiThinking] =
+    useState(false);
+  const dashboardCoachAiTimerRef = useRef<number | null>(null);
+  const askDashboardCoachAi = (
+    prompt: (typeof DASHBOARD_COACH_AI_PROMPTS)[number],
+  ) => {
+    if (dashboardCoachAiTimerRef.current !== null) {
+      window.clearTimeout(dashboardCoachAiTimerRef.current);
+    }
+    setDashboardCoachAiExchange({ question: prompt.question, reply: "" });
+    setDashboardCoachAiThinking(true);
+    dashboardCoachAiTimerRef.current = window.setTimeout(() => {
+      dashboardCoachAiTimerRef.current = null;
+      setDashboardCoachAiExchange({
+        question: prompt.question,
+        reply: prompt.reply,
+      });
+      setDashboardCoachAiThinking(false);
+    }, 620);
+  };
+  // The popover doubles as the coach messenger — no separate messaging page.
+  const [dashboardCoachView, setDashboardCoachView] = useState<
+    "assistant" | "messages"
+  >("assistant");
+  const [dashboardCoachUnread, setDashboardCoachUnread] = useState(
+    DASHBOARD_COACH_UNREAD_MESSAGES,
+  );
+  const [dashboardCoachThread, setDashboardCoachThread] = useState(
+    DASHBOARD_COACH_MESSAGE_SEED,
+  );
+  const [dashboardCoachDraft, setDashboardCoachDraft] = useState("");
+  const [dashboardCoachReplyPending, setDashboardCoachReplyPending] =
+    useState(false);
+  const dashboardCoachReplyTimerRef = useRef<number | null>(null);
+  const dashboardCoachReplyIndexRef = useRef(0);
+  const dashboardCoachThreadScrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollDashboardCoachThreadToEnd = () => {
+    window.requestAnimationFrame(() => {
+      const scroller = dashboardCoachThreadScrollRef.current;
+      if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    });
+  };
+  const openDashboardCoachMessages = () => {
+    setDashboardCoachView("messages");
+    setDashboardCoachUnread(0);
+    scrollDashboardCoachThreadToEnd();
+  };
+  const sendDashboardCoachMessage = () => {
+    const text = dashboardCoachDraft.trim();
+    if (!text || dashboardCoachReplyPending) return;
+    setDashboardCoachDraft("");
+    setDashboardCoachThread((thread) => [
+      ...thread,
+      { from: "you", id: thread[thread.length - 1].id + 1, text },
+    ]);
+    setDashboardCoachReplyPending(true);
+    scrollDashboardCoachThreadToEnd();
+    if (dashboardCoachReplyTimerRef.current !== null) {
+      window.clearTimeout(dashboardCoachReplyTimerRef.current);
+    }
+    dashboardCoachReplyTimerRef.current = window.setTimeout(() => {
+      dashboardCoachReplyTimerRef.current = null;
+      const reply =
+        DASHBOARD_COACH_MESSAGE_REPLIES[
+          dashboardCoachReplyIndexRef.current %
+            DASHBOARD_COACH_MESSAGE_REPLIES.length
+        ];
+      dashboardCoachReplyIndexRef.current += 1;
+      setDashboardCoachThread((thread) => [
+        ...thread,
+        { from: "coach", id: thread[thread.length - 1].id + 1, text: reply },
+      ]);
+      setDashboardCoachReplyPending(false);
+      scrollDashboardCoachThreadToEnd();
+    }, 780);
+  };
+  useEffect(() => {
+    if (!dashboardCoachNotesOpen) setDashboardCoachView("assistant");
+  }, [dashboardCoachNotesOpen]);
+  useEffect(
+    () => () => {
+      if (dashboardCoachAiTimerRef.current !== null) {
+        window.clearTimeout(dashboardCoachAiTimerRef.current);
+      }
+      if (dashboardCoachReplyTimerRef.current !== null) {
+        window.clearTimeout(dashboardCoachReplyTimerRef.current);
+      }
+    },
+    [],
+  );
   useEffect(() => {
     if (!dashboardCoachNotesOpen) return;
     const handlePointerDown = (event: PointerEvent) => {
@@ -8990,8 +9874,6 @@ export default function UserHomeDashboardPage() {
   }, [dashboardCoachNotesOpen]);
   const [dashboardHeroWidgetsDrawerOpen, setDashboardHeroWidgetsDrawerOpen] =
     useState(false);
-  const [dashboardProfileActionsOpen, setDashboardProfileActionsOpen] =
-    useState(false);
   // Goal focus and position need ~350px to sit side by side; below that they
   // take turns and the arrow swaps between them rather than wrapping to a
   // second row.
@@ -9002,14 +9884,37 @@ export default function UserHomeDashboardPage() {
     dashboardProfileGearHighlighted,
     setDashboardProfileGearHighlighted,
   ] = useState(false);
-  const [dashboardPointsDropdownOpen, setDashboardPointsDropdownOpen] =
+  // Pre-latch for the points dropdown, mirroring the meter panel's pattern:
+  // once latched (at idle), the dropdown subtree stays mounted display:none —
+  // its GL panel scenes register/compile ONCE and survive open/close and
+  // panel rotations, so the open click only flips state instead of paying a
+  // ~250-element mount plus four scene builds and shader compiles.
+  const [dashboardPointsDropdownLatched, setDashboardPointsDropdownLatched] =
     useState(false);
-  const [
-    dashboardClaimRewardsDropdownOpen,
-    setDashboardClaimRewardsDropdownOpen,
-  ] = useState(false);
+  // Session-local claim state for the gifts popup, keyed by reward threshold.
+  const [dashboardClaimedLevelRewards, setDashboardClaimedLevelRewards] =
+    useState<ReadonlySet<number>>(() => new Set());
   const [dashboardPointsActionMenuOpen, setDashboardPointsActionMenuOpen] =
     useState<"collection" | "store" | null>(null);
+  // Pre-latch the points dropdown (see the latched state's comment): mount it
+  // hidden at idle so the first open is a state flip, not a subtree mount +
+  // four GL scene builds + shader compiles.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!dashboardDeferredRowsComplete || dashboardPointsDropdownLatched) {
+      return;
+    }
+    const prelatch = () =>
+      startTransition(() => {
+        setDashboardPointsDropdownLatched(true);
+      });
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(prelatch, { timeout: 3500 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+    const timeoutId = window.setTimeout(prelatch, 1400);
+    return () => window.clearTimeout(timeoutId);
+  }, [dashboardDeferredRowsComplete, dashboardPointsDropdownLatched]);
   const [
     activeDashboardPointsRewardPanelIndex,
     setActiveDashboardPointsRewardPanelIndex,
@@ -9035,8 +9940,6 @@ export default function UserHomeDashboardPage() {
     dashboardHeaderMotionPaused ||
     dashboardPointsDropdownOpen ||
     !dashboardHeaderRewards3DActive;
-  const [dashboardMusicDropdownOpen, setDashboardMusicDropdownOpen] =
-    useState(false);
   const [dashboardMusicEnabled, setDashboardMusicEnabled] = useState(false);
   const [dashboardMusicStationIds, setDashboardMusicStationIds] = useState<
     DashboardMusicStationId[]
@@ -9058,6 +9961,98 @@ export default function UserHomeDashboardPage() {
   );
   // Editable business debt-to-income score, admin-preview only.
   const [adminDtiScore, setAdminDtiScore] = useState(ADMIN_DTI_DEFAULT_SCORE);
+
+  // Phone-width header popup centering.
+  //
+  // The stylesheet switches these dropdowns to position:fixed below 430px, but
+  // the header shell sets transform/filter on their ancestors, and either one
+  // makes that ancestor the containing block for fixed descendants. So
+  // `left: 50%` resolves against a ~118px header pill instead of the viewport
+  // and the panel lands off-screen right. CSS cannot recover the viewport
+  // origin from inside a captured containing block, so measure the real
+  // viewport rect and correct `left`/`top` in containing-block units.
+  const centerDashboardHeaderPopups = useCallback(() => {
+    if (typeof window === "undefined") return;
+    // Above the phone breakpoint the stylesheet positions these normally, so
+    // any correction left over from a narrower viewport has to be dropped.
+    const narrow =
+      window.innerWidth <= DASHBOARD_POPUP_VIEWPORT_CENTERING_MAX_WIDTH;
+    for (const id of DASHBOARD_CENTERED_HEADER_POPUP_IDS) {
+      const element = document.getElementById(id);
+      if (!element) continue;
+      if (!narrow) {
+        element.style.removeProperty("left");
+        element.style.removeProperty("top");
+        continue;
+      }
+      const rect = element.getBoundingClientRect();
+      if (rect.width < 1) continue;
+      // Ancestor transforms can scale the panel; convert viewport deltas back
+      // into the element's own coordinate space before writing them out.
+      const scaleX = rect.width / Math.max(1, element.offsetWidth);
+      const scaleY = rect.height / Math.max(1, element.offsetHeight);
+      const computed = getComputedStyle(element);
+      const dx = window.innerWidth / 2 - (rect.left + rect.width / 2);
+      if (Math.abs(dx) > 0.5) {
+        const left = Number.parseFloat(computed.left) || 0;
+        // The stylesheet pins these with !important, so the inline override
+        // has to carry priority too.
+        element.style.setProperty("left", `${left + dx / scaleX}px`, "important");
+      }
+      // Prefer the stylesheet's inset, but lift a tall panel off the bottom
+      // edge instead of letting it run past it. Clipping it with an overflow
+      // scroller is not an option here — these panels paint glows outside
+      // their own box.
+      const highestTop = Math.max(
+        DASHBOARD_POPUP_VIEWPORT_EDGE_GAP_PX,
+        window.innerHeight - DASHBOARD_POPUP_VIEWPORT_EDGE_GAP_PX - rect.height,
+      );
+      const dy =
+        Math.min(DASHBOARD_POPUP_VIEWPORT_TOP_PX, highestTop) - rect.top;
+      if (Math.abs(dy) > 0.5) {
+        const top = Number.parseFloat(computed.top) || 0;
+        element.style.setProperty("top", `${top + dy / scaleY}px`, "important");
+      }
+    }
+  }, []);
+
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    if (
+      !dashboardPointsDropdownOpen &&
+      !dashboardClaimRewardsDropdownOpen &&
+      !dashboardMusicDropdownOpen
+    ) {
+      return;
+    }
+    centerDashboardHeaderPopups();
+    // The header is still settling for a few frames after a popup opens, and
+    // the popup rides its ancestor, so re-correct over a short bounded window
+    // rather than trusting the first measurement.
+    let frames = 0;
+    let rafId = 0;
+    const step = () => {
+      centerDashboardHeaderPopups();
+      frames += 1;
+      if (frames < 24) {
+        rafId = window.requestAnimationFrame(step);
+      }
+    };
+    rafId = window.requestAnimationFrame(step);
+    window.addEventListener("resize", centerDashboardHeaderPopups);
+    return () => {
+      window.cancelAnimationFrame(rafId);
+      window.removeEventListener("resize", centerDashboardHeaderPopups);
+    };
+    // A focus flip resizes and rescales the header the popup is anchored to,
+    // so the correction has to be recomputed against the new geometry.
+  }, [
+    centerDashboardHeaderPopups,
+    dashboardHeaderMotionPaused,
+    dashboardPointsDropdownOpen,
+    dashboardClaimRewardsDropdownOpen,
+    dashboardMusicDropdownOpen,
+  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -9196,6 +10191,12 @@ export default function UserHomeDashboardPage() {
   const dashboardPageAnalogHoldIntervalRef = useRef<number | null>(null);
   const dashboardPageAnalogPulseTimeoutRef = useRef<number | null>(null);
   const dashboardProfileHubLayerChangeLockRef = useRef(0);
+  const dashboardProfileHubDragStartRef = useRef<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const dashboardProfileHubDragMovedRef = useRef(false);
+  const dashboardProfileHubWheelLockRef = useRef(0);
   const dashboardProfileHubAnalogPointerStartRef =
     useRef<DashboardVerticalPointerStart | null>(null);
   const dashboardProfileHubAnalogPointerMovedRef = useRef(false);
@@ -9363,6 +10364,21 @@ export default function UserHomeDashboardPage() {
       document.documentElement.classList.remove("dashboard-idle-active");
     };
   }, [dashboardHeaderTimedOut]);
+
+  useEffect(() => {
+    // The profile hub overlay sits at z-240, BELOW the z-430 stage canvas, so
+    // stage widgets outside it (settings gear, joysticks) would paint through
+    // its scrim. A blanket stage blank is wrong here — the hub hosts stage
+    // widgets of its own (emeralds, coin, bolt) — so scope the stage to the
+    // overlay while it is open.
+    if (!dashboardProfileHubOpen) return;
+    setDashboardStageVisibleScope(
+      document.getElementById("dashboard-profile-hub-orbital-overlay"),
+    );
+    return () => {
+      setDashboardStageVisibleScope(null);
+    };
+  }, [dashboardProfileHubOpen]);
 
   useEffect(() => {
     const levelMeterOpenClassName = "dashboard-page--level-meter-open";
@@ -10804,12 +11820,54 @@ export default function UserHomeDashboardPage() {
     if (typeof window === "undefined") return;
 
     const handleDashboardGlobalWheel = (event: WheelEvent) => {
+      // With a header popup open the page behind it holds still — a menu that
+      // scrolls the dashboard out from under itself is the same complaint as
+      // the header collapsing out from under it. This listener is window
+      // capture, so cancelling here beats both the row change below and the
+      // React onWheel handler on the content.
+      if (dashboardHeaderPopupPinnedRef.current) {
+        // Always cancel, then move the popup's own list by hand. Letting the
+        // browser scroll it natively looked simpler but leaks: once the list
+        // reaches its end the overflow chains out to the dashboard behind, and
+        // because scrollTop lags a burst of ticks, several of them get waved
+        // through before the list reads as "at the bottom". Cancelling every
+        // tick means the page cannot move no matter how hard the wheel spins.
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        const scroller = dashboardPinnedPopupWheelScroller(event.target);
+        if (scroller) {
+          const delta = dashboardWheelDeltaPixels(event, scroller);
+          scroller.scrollTop = Math.max(
+            0,
+            Math.min(
+              scroller.scrollHeight - scroller.clientHeight,
+              scroller.scrollTop + delta,
+            ),
+          );
+        }
+        return;
+      }
       if (event.defaultPrevented || event.ctrlKey || event.metaKey) return;
 
       const target = event.target;
       if (
         target instanceof HTMLElement &&
         target.closest("input,select,textarea,[contenteditable='true']")
+      ) {
+        return;
+      }
+
+      // The profile hub overlay and the meter panel own their own wheel
+      // behavior (cycling hub card rows / stepping meter groups). Without
+      // this guard the row change below fires against the dashboard BEHIND
+      // the overlay and stopImmediatePropagation keeps the overlay's own
+      // handlers from ever seeing the event.
+      if (
+        target instanceof Element &&
+        target.closest(
+          "#dashboard-profile-hub-orbital-overlay, #dashboard-header-meter-panel",
+        )
       ) {
         return;
       }
@@ -11155,7 +12213,13 @@ export default function UserHomeDashboardPage() {
     }
 
     if (activeRewardPanel?.id === "gems" && nextRewardPanel?.id !== "gems") {
-      clearDashboardGemVaultCloseTimeout();
+      // A pending vault-close is already counting down — clearing and
+      // restarting it here meant every additional drag step RESET the delay,
+      // so a continuous swipe away from Gems did nothing until 520ms after
+      // the finger stopped. Let the first request run its course.
+      if (dashboardGemVaultCloseTimeoutRef.current !== null) {
+        return;
+      }
       setDashboardGemVaultClosing(true);
       dashboardGemVaultCloseTimeoutRef.current = window.setTimeout(() => {
         activeDashboardPointsRewardPanelIndexRef.current = normalizedIndex;
@@ -11914,6 +12978,13 @@ export default function UserHomeDashboardPage() {
     const startX = pointerStartRef.current;
     if (startX === null) return;
 
+    // One rotation per gesture: the old version reset the anchor after each
+    // step, turning every `threshold` px of continued travel into ANOTHER
+    // rotation — a natural 200px swipe over a 3-panel orbit spun it a full
+    // loop and looked random. Once this gesture has rotated, further moves
+    // are ignored until the pointer lifts.
+    if (pointerMovedRef.current) return;
+
     const deltaX = event.clientX - startX;
     if (Math.abs(deltaX) < threshold) return;
 
@@ -11921,7 +12992,6 @@ export default function UserHomeDashboardPage() {
     event.stopPropagation();
     pointerMovedRef.current = true;
     rotateOrbit(deltaX > 0 ? "left" : "right");
-    pointerStartRef.current = event.clientX;
   };
   const handleDashboardOrbitPointerUp = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -11941,11 +13011,24 @@ export default function UserHomeDashboardPage() {
       return;
     }
 
-    if (pointerMovedRef.current) {
-      return;
+    const rotatedDuringMove = pointerMovedRef.current;
+    const deltaX = event.clientX - startX;
+    // Anything drag-ish (past a small slop) must suppress the click that
+    // follows this pointerup — a sub-threshold nudge used to land as a REAL
+    // click on whatever CTA sat under the release point. The flag resets on
+    // the next task so it can't leak into the following gesture (touch drags
+    // produce no click at all, which used to leave it stuck).
+    const draggedPastSlop = rotatedDuringMove || Math.abs(deltaX) >= 8;
+    pointerMovedRef.current = draggedPastSlop;
+    if (draggedPastSlop) {
+      window.setTimeout(() => {
+        pointerMovedRef.current = false;
+      }, 0);
     }
 
-    const deltaX = event.clientX - startX;
+    if (rotatedDuringMove) {
+      return;
+    }
 
     if (Math.abs(deltaX) < 44) {
       const elementAtPoint = event.currentTarget.ownerDocument.elementFromPoint(
@@ -13871,12 +14954,21 @@ export default function UserHomeDashboardPage() {
             dashboardPlanSessionCadenceMs,
         );
 
-  while (
+  // Computed arithmetically instead of looping: this ran in the RENDER path,
+  // and a zero/NaN cadence (one bad stored goal away) would have frozen the
+  // tab in an unbounded while loop.
+  if (
     !activeSessionTemplate &&
+    dashboardPlanSessionCadenceMs > 0 &&
     dashboardNextPlannedSessionDate.getTime() < dashboardToday.getTime()
   ) {
+    const missedSessions = Math.ceil(
+      (dashboardToday.getTime() - dashboardNextPlannedSessionDate.getTime()) /
+        dashboardPlanSessionCadenceMs,
+    );
     dashboardNextPlannedSessionDate.setTime(
-      dashboardNextPlannedSessionDate.getTime() + dashboardPlanSessionCadenceMs,
+      dashboardNextPlannedSessionDate.getTime() +
+        missedSessions * dashboardPlanSessionCadenceMs,
     );
   }
 
@@ -15020,6 +16112,93 @@ export default function UserHomeDashboardPage() {
       clampedDashboardProfileHubLayer + (direction === "down" ? 1 : -1),
       DASHBOARD_ORBITER_ROW_SCROLL_LOCK_MS,
     );
+  const stepDashboardProfileHubRowCard = (step: -1 | 1) => {
+    if (clampedDashboardProfileHubLayer === 0) return false;
+    const isAccountRow = clampedDashboardProfileHubLayer === 2;
+    const items = isAccountRow
+      ? dashboardProfileHubAccountItems
+      : dashboardProfileHubMainItems;
+    const activeIndex = isAccountRow
+      ? activeDashboardProfileHubAccountIndex
+      : activeDashboardProfileHubMainIndex;
+    const setActiveIndex = isAccountRow
+      ? setActiveDashboardProfileHubAccountIndex
+      : setActiveDashboardProfileHubMainIndex;
+    setActiveIndex((activeIndex + step + items.length) % items.length);
+    return true;
+  };
+  // Arrow keys drive the card carousels without needing a specific control
+  // focused: with the profile hub open they move its layers (up/down) and the
+  // active row's cards (left/right); otherwise they steer the member
+  // dashboard's hero cards (left/right) and orbiter rows (up/down). Controls
+  // with their own arrow handling — the page joystick, the meter panel stack,
+  // form fields — run first at their target and preventDefault, which bows
+  // this window-level listener out.
+  useEffect(() => {
+    const handleDashboardArrowKeys = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
+        return;
+      }
+      if (
+        event.key !== "ArrowUp" &&
+        event.key !== "ArrowDown" &&
+        event.key !== "ArrowLeft" &&
+        event.key !== "ArrowRight"
+      ) {
+        return;
+      }
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        target.closest(
+          "input,select,textarea,[contenteditable='true'],#dashboard-header-meter-panel",
+        )
+      ) {
+        return;
+      }
+      if (dashboardProfileHubOpen) {
+        event.preventDefault();
+        if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+          rotateDashboardProfileHubLayer(
+            event.key === "ArrowDown" ? "down" : "up",
+          );
+        } else {
+          stepDashboardProfileHubRowCard(
+            event.key === "ArrowRight" ? 1 : -1,
+          );
+        }
+        return;
+      }
+      // The open meter panel owns arrows even when focus wandered elsewhere.
+      if (dashboardHeaderMeterMenuOpen) return;
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        if (
+          rotateDashboardHeroCards(
+            event.key === "ArrowRight" ? "right" : "left",
+          )
+        ) {
+          event.preventDefault();
+        }
+        return;
+      }
+      if (moveDashboardOrbiterRow(event.key === "ArrowDown" ? 1 : -1)) {
+        event.preventDefault();
+      }
+    };
+
+    window.addEventListener("keydown", handleDashboardArrowKeys);
+    return () => {
+      window.removeEventListener("keydown", handleDashboardArrowKeys);
+    };
+  }, [
+    dashboardHeaderMeterMenuOpen,
+    dashboardProfileHubOpen,
+    moveDashboardOrbiterRow,
+    rotateDashboardHeroCards,
+    rotateDashboardProfileHubLayer,
+    stepDashboardProfileHubRowCard,
+  ]);
   const runDashboardProfileHubAnalogDirection = (
     direction: Extract<DashboardScrollButtonDirection, "down" | "up">,
   ) => rotateDashboardProfileHubLayer(direction);
@@ -16256,6 +17435,7 @@ export default function UserHomeDashboardPage() {
     dashboardHeaderSurfaceHighlighted ||
     dashboardTrophyMenuOpen ||
     dashboardProfileActionsOpen ||
+    dashboardSettingsWheelOpen ||
     dashboardPointsMenuHighlighted ||
     dashboardMusicDropdownOpen,
   );
@@ -16307,13 +17487,25 @@ export default function UserHomeDashboardPage() {
       | ReactMouseEvent<HTMLDivElement>
       | ReactPointerEvent<HTMLDivElement>,
   ) => {
-    const bounds = event.currentTarget.getBoundingClientRect();
+    // The timeout-idle collapse synthesizes hover events at the parked cursor
+    // position; these React handlers were the wake path the first guard round
+    // missed, and the header blinked open 1s after every timeout.
+    if (isDashboardSynthesizedParkedWake(event.nativeEvent)) return;
+    // Gate on the static header SLOT band, not the shell's own box: the shell
+    // grows ~33px past the slot the instant :hover applies (the rect read here
+    // sees the expanded box), which made this handler wake the menu from the
+    // invisible overflow below its visible edge — inconsistent with the
+    // slot-band gate the pointer router uses, and the same animated-boundary
+    // trap that caused the open/idle oscillation.
+    const bounds = (
+      event.currentTarget.parentElement ?? event.currentTarget
+    ).getBoundingClientRect();
     const target = event.target;
     const isWithinVisibleHeader =
       event.clientX >= bounds.left &&
       event.clientX <= bounds.right &&
       event.clientY >= bounds.top &&
-      event.clientY <= bounds.bottom;
+      event.clientY <= bounds.bottom + 2;
     const isInteractiveHeaderControl =
       target instanceof HTMLElement &&
       Boolean(
@@ -16362,6 +17554,10 @@ export default function UserHomeDashboardPage() {
           shellAncestor.dataset.headerFocus === "content" &&
           event instanceof PointerEvent
         ) {
+          // After a timeout-idle with the cursor parked on the header, the
+          // collapse itself synthesizes pointerover at the parked coordinates
+          // — waking from those would blink the header open/idle forever.
+          if (isDashboardSynthesizedParkedWake(event)) return;
           const slot = shellAncestor.parentElement;
           const wakeBottom = slot
             ? slot.getBoundingClientRect().bottom
@@ -16380,14 +17576,155 @@ export default function UserHomeDashboardPage() {
     mainElement.addEventListener("pointerover", routeDashboardHoverFocus, {
       passive: true,
     });
+
+    // pointerover only fires when the hovered ELEMENT changes, so a wake the
+    // slot-band gate rejected (entering through the shell's invisible ~33px
+    // overflow below the collapsed menu) never retried while the cursor
+    // drifted up INSIDE one large element (the gaps between icons all belong
+    // to menu-content) — hovering the visible header then did nothing until
+    // the pointer crossed an icon boundary or clicked. Retry the same gate on
+    // every pointermove over the shell while idle; the dataset check makes
+    // this a no-op the moment the header is awake, and the gate still keeps
+    // the invisible overflow band from waking it.
+    const shellElement = mainElement.querySelector<HTMLElement>(
+      ".dashboard-header-vortex-shell",
+    );
+    const wakeDashboardHeaderOnMove = (event: PointerEvent) => {
+      if (!shellElement || shellElement.dataset.headerFocus !== "content") {
+        return;
+      }
+      const slot = shellElement.parentElement;
+      if (isDashboardSynthesizedParkedWake(event)) return;
+      const wakeBottom = slot
+        ? slot.getBoundingClientRect().bottom
+        : shellElement.getBoundingClientRect().bottom;
+      if (event.clientY <= wakeBottom + 2) {
+        highlightDashboardHeaderSurface();
+      }
+    };
+    shellElement?.addEventListener("pointermove", wakeDashboardHeaderOnMove, {
+      passive: true,
+    });
+
     return () => {
       mainElement.removeEventListener("pointerover", routeDashboardHoverFocus);
+      shellElement?.removeEventListener(
+        "pointermove",
+        wakeDashboardHeaderOnMove,
+      );
     };
   }, [highlightDashboardHeaderSurface, clearDashboardHeaderSurfaceHighlight]);
+  useEffect(() => {
+    dashboardHeaderMeterMenuOpenRef.current = dashboardHeaderMeterMenuOpen;
+  }, [dashboardHeaderMeterMenuOpen]);
+  // An open header with nothing happening on it for 10s returns to idle. The
+  // hover system only idles the header when the pointer moves AWAY — a cursor
+  // parked on the header held it open forever. Activity = any pointer, wheel,
+  // key or focus event inside the shell (capture, so nothing that
+  // stopPropagations can starve the timer). Two states swallow a fire and
+  // RE-ARM instead of idling: a pinned popup (closing the header would
+  // collapse the shell under it — same contract as the popup pin guard), and
+  // an open meter panel (body-portaled, so reading it produces no shell
+  // activity at all). Re-arming rather than returning matters: a plain return
+  // would never idle the header after the popup closes without fresh
+  // activity.
+  useEffect(() => {
+    if (typeof document === "undefined" || typeof window === "undefined")
+      return;
+    const shell = document.querySelector<HTMLElement>(
+      ".dashboard-header-vortex-shell",
+    );
+    if (!shell) return;
+    let timer = 0;
+    const disarm = () => {
+      if (timer) {
+        window.clearTimeout(timer);
+        timer = 0;
+      }
+    };
+    const arm = () => {
+      disarm();
+      timer = window.setTimeout(() => {
+        timer = 0;
+        if (shell.dataset.headerFocus === "content") return;
+        if (
+          dashboardHeaderPopupPinnedRef.current ||
+          dashboardHeaderMeterMenuOpenRef.current
+        ) {
+          arm();
+          return;
+        }
+        dashboardHeaderTimeoutIdlePointer = lastPointer;
+        setDashboardContentFocused(true);
+      }, DASHBOARD_HEADER_OPEN_INACTIVITY_MS);
+    };
+    let lastPointer: { x: number; y: number } | null = null;
+    let lastArmPointer: { x: number; y: number } | null = null;
+    const onActivity = (event: Event) => {
+      if (event instanceof PointerEvent) {
+        lastPointer = { x: event.clientX, y: event.clientY };
+        // A resting mouse emits micro-jitter pointermoves (sensor noise
+        // rounded to 1-2px), and every one re-armed the timer — so the header
+        // never idled under a real parked cursor, only in synthetic tests
+        // whose dispatched events are perfectly still. Movement counts as
+        // activity only once it accumulates 5px from the position at the
+        // last re-arm; presses, wheel and keys always count.
+        if (event.type === "pointermove" && lastArmPointer) {
+          const dx = Math.abs(event.clientX - lastArmPointer.x);
+          const dy = Math.abs(event.clientY - lastArmPointer.y);
+          if (dx + dy < 5) return;
+        }
+        lastArmPointer = { x: event.clientX, y: event.clientY };
+      }
+      if (shell.dataset.headerFocus !== "content") arm();
+    };
+    const ACTIVITY_EVENTS = [
+      "pointermove",
+      "pointerdown",
+      "pointerup",
+      "wheel",
+      "keydown",
+      "focusin",
+    ] as const;
+    ACTIVITY_EVENTS.forEach((type) =>
+      shell.addEventListener(type, onActivity, {
+        capture: true,
+        passive: true,
+      }),
+    );
+    const observer = new MutationObserver(() => {
+      if (shell.dataset.headerFocus === "content") disarm();
+      else arm();
+    });
+    observer.observe(shell, {
+      attributes: true,
+      attributeFilter: ["data-header-focus"],
+    });
+    if (shell.dataset.headerFocus !== "content") arm();
+    return () => {
+      disarm();
+      ACTIVITY_EVENTS.forEach((type) =>
+        shell.removeEventListener(type, onActivity, { capture: true }),
+      );
+      observer.disconnect();
+    };
+  }, [setDashboardContentFocused]);
 
   const handleDashboardHeaderSurfaceBlur = (
     event: ReactFocusEvent<HTMLDivElement>,
   ) => {
+    // Clicking a NON-focusable spot in the header — a gap between controls,
+    // or a control the current rotation has momentarily swapped out — makes
+    // the browser teleport keyboard focus from the previously clicked header
+    // button out to the content section. That blur is a hit-test artifact,
+    // not the user leaving: the pointer is still on the header (measured:
+    // wake -> pointerdown on menu-content -> focusout joystick / focusin
+    // SECTION -> idle, all within 52ms — reads as "clicking the scroll
+    // sometimes idles the header"). Only treat a focus departure as leaving
+    // when the cursor is not over the shell, which is what a real Tab-away
+    // looks like. Touch is unaffected: taps idle the menu via the body tap
+    // path, not this handler.
+    if (event.currentTarget.matches(":hover")) return;
     const relatedTarget = event.relatedTarget;
 
     if (!(relatedTarget instanceof Node)) {
@@ -16591,7 +17928,16 @@ export default function UserHomeDashboardPage() {
     dashboardHeroWidgetsDrawerOpen ||
     dashboardProfileHubOpen ||
     dashboardProfileActionsOpen ||
+    dashboardSettingsWheelOpen ||
     dashboardPointsMenuHighlighted;
+  // The two CONTENT orbiter sections also pause their urgency accents on this,
+  // but reading the live value dragged their memo blocks into every rewards
+  // hover/open/close commit (each menu toggle re-rendered two content rows in
+  // the urgent lane). Deferred: the header blinker reacts instantly, the
+  // content copies catch up one non-blocking render later.
+  const dashboardContentUrgencyBlinkPaused = useDeferredValue(
+    dashboardHeaderUrgencyBlinkPaused,
+  );
   const nextDashboardHeaderLink =
     dashboardHeaderLinks[
       (activeDashboardHeaderNormalizedIndex + 1) % dashboardHeaderLinks.length
@@ -16642,7 +17988,53 @@ export default function UserHomeDashboardPage() {
     );
   };
   const rotateDashboardMobileHeaderOrbit = (direction: "left" | "right") => {
+    // Rotating parks whichever cluster is leaving (below 940px the inactive
+    // menu block is hidden outright), so any popup hanging off it has to go
+    // with it — otherwise it stays "open" while invisible and the next click
+    // anywhere just dismisses a menu the user can no longer see.
+    setDashboardPointsDropdownOpen(false);
+    setDashboardClaimRewardsDropdownOpen(false);
+    setDashboardMusicDropdownOpen(false);
+    setDashboardProfileActionsOpen(false);
+    // The meter panel is a descendant of the meter shell, which paging hides on
+    // the two non-meter steps — so it has to close with the others. Its only
+    // other closer listens on mousedown/touchstart, which the keyboard path
+    // never fires.
+    setDashboardHeaderMeterMenuOpen(false);
     setDashboardHeaderSlideDirection(direction);
+    stageDashboardHeaderSlide(direction);
+    // Panel/narrow-item rotation flips display on whole widget clusters
+    // (account gear, rewards gems/coin/chest, meter icon) — refresh the
+    // stage's visibility cache so they appear the frame they're shown.
+    invalidateDashboardStageVisibility();
+    // The meter's 3D is painted on the fixed z-430 stage canvas, ABOVE the
+    // incoming panel. The refresh above runs while its shell is still mid-fade,
+    // so the stage re-caches it as visible and only re-checks on the staggered
+    // ~6-frame cadence — measured 267ms of orphaned 3D floating over the next
+    // icons after the DOM was already invisible. Re-check just after the 90ms
+    // hide completes (and once more as a safety net), with the frame rate
+    // boosted so the cull actually presents instead of waiting on the 20-30fps
+    // cap.
+    // The frame-rate boost that used to sit here was added so the meter's 3D
+    // could track its fading shell — the meter now hides INSTANTLY, so the
+    // boost was 460ms of uncapped, skip-bypassed full-canvas presents per
+    // click for nothing. Speed audit II measured the rotation's core cost at
+    // ~470ms blocked, almost exactly the boost window; the staged
+    // invalidations below do the actual cull work on the normal present cap.
+    markDashboardHeaderTransitioning();
+    // Clicking the joystick is header engagement: re-assert header focus so a
+    // content-focused=true that slipped past the popup-pin guard (the ref it
+    // reads lags the pin by one paint) cannot flip the header to idle in the
+    // same commit that closes the popup.
+    setDashboardContentFocused(false);
+    // Three staggered re-checks rather than one: the React commit itself lands
+    // 150-250ms after the click while the main thread chews the panel
+    // transition, so a single fixed delay either fires mid-fade (re-cached as
+    // visible) or long after. Each call just resets a per-widget counter, so
+    // the extra two are effectively free.
+    window.setTimeout(() => invalidateDashboardStageVisibility(), 180);
+    window.setTimeout(() => invalidateDashboardStageVisibility(), 300);
+    window.setTimeout(() => invalidateDashboardStageVisibility(), 460);
 
     // Narrow headers walk one flat sequence: the dashboard selector, then each
     // account control on its own, then back round to the selector.
@@ -19400,12 +20792,69 @@ export default function UserHomeDashboardPage() {
     window.addEventListener("resize", refit);
 
     // The open/collapse and idle transitions animate, so re-fit once they land.
-    const observer = new MutationObserver(() => {
-      refit();
+    // The shell's className also flips for states that never change the nav's
+    // available space (rewards dropdowns, hover highlights, the level-tab
+    // freeze) — skip those so a hover crossing of the rewards cluster doesn't
+    // schedule two refits (and risk the zoom-probe's forced-layout path).
+    const REFIT_IRRELEVANT_CLASS_TOKENS = new Set([
+      "dashboard-header-vortex-shell--points-dropdown-open",
+      "dashboard-header-vortex-shell--claim-dropdown-open",
+      "dashboard-header-vortex-shell--points-menu-highlighted",
+      "dashboard-header-vortex-shell--level-tab-freeze",
+    ]);
+    const observer = new MutationObserver((mutations) => {
+      let relevant = false;
+      let focusChanged = false;
+      for (const mutation of mutations) {
+        // The open/idle flip is an ATTRIBUTE, not a class, and it is the single
+        // change that most alters how much room the nav has. Watching only
+        // class meant opening the header never re-fitted: the nav kept the zoom
+        // measured at mount, when the row was still collapsed and the height
+        // budget read ~35px instead of the settled ~69px, so it stayed at about
+        // 60% of the size it had room for.
+        if (mutation.attributeName === "data-header-focus") {
+          relevant = true;
+          focusChanged = true;
+          break;
+        }
+        const target = mutation.target;
+        if (!(target instanceof HTMLElement)) continue;
+        const before = new Set((mutation.oldValue ?? "").split(/\s+/));
+        const after = new Set(target.className.split(/\s+/));
+        for (const token of after) {
+          if (token && !before.has(token) && !REFIT_IRRELEVANT_CLASS_TOKENS.has(token)) {
+            relevant = true;
+          }
+        }
+        for (const token of before) {
+          if (token && !after.has(token) && !REFIT_IRRELEVANT_CLASS_TOKENS.has(token)) {
+            relevant = true;
+          }
+        }
+        if (relevant) break;
+      }
+      if (!relevant) return;
+      // A focus flip already animates the whole menu row on one shared curve.
+      // Re-fitting mid-flight starts a SECOND animation — a 240ms zoom on the
+      // nav alone, from a value measured against half-transitioned geometry —
+      // so the nav resized on its own clock while everything around it eased,
+      // which reads as the menu items resizing independently of the menu. Let
+      // the choreography land first, then correct against settled geometry.
+      if (!focusChanged) refit();
       window.setTimeout(refit, 700);
     });
-    if (main) observer.observe(main, { attributeFilter: ["class"] });
-    if (shell) observer.observe(shell, { attributeFilter: ["class"] });
+    if (main) {
+      observer.observe(main, {
+        attributeFilter: ["class"],
+        attributeOldValue: true,
+      });
+    }
+    if (shell) {
+      observer.observe(shell, {
+        attributeFilter: ["class", "data-header-focus"],
+        attributeOldValue: true,
+      });
+    }
 
     return () => {
       window.cancelAnimationFrame(frame);
@@ -19616,38 +21065,30 @@ export default function UserHomeDashboardPage() {
           className={`dashboard-header-page-orbit-rail__particles dashboard-header-page-orbit-rail__particles--${dashboardHeaderVortexPhase}`}
           filter="url(#dashboard-header-page-orbit-rail-glow)"
         >
+          {/* CSS, not SMIL: Chrome's SMIL controller kept burning roughly
+              half the main thread at wide panes EVEN with the SVG timeline
+              paused, and SMIL is invisible to getAnimations() and every
+              pause blanket. offset-path replaces animateMotion; the pulse
+              keyframes carry opacity + scale (scale stands in for the old
+              r sweep from the 0.16 base). */}
           {visibleRailParticleBursts.map((particle, particleIndex) => (
             <circle
+              className="dashboard-header-rail-particle"
+              data-rail-rest={
+                isDashboardHeaderVortexAnimating ? undefined : "true"
+              }
               fill={particle.fill}
               key={`${side}-${particleIndex}-rail-particle`}
               opacity="0"
               r="0.16"
-            >
-              <animateMotion
-                begin={particle.delay}
-                dur={particle.dur}
-                path={path}
-                repeatCount="indefinite"
-              />
-              <animate
-                attributeName="opacity"
-                begin={particle.delay}
-                dur={particle.dur}
-                repeatCount="indefinite"
-                values={
-                  isDashboardHeaderVortexAnimating
-                    ? "0;0.18;0.48;0.18;0"
-                    : "0;0.05;0.14;0.05;0"
-                }
-              />
-              <animate
-                attributeName="r"
-                begin={particle.delay}
-                dur={particle.dur}
-                repeatCount="indefinite"
-                values={particle.rValues}
-              />
-            </circle>
+              style={
+                {
+                  offsetPath: `path('${path}')`,
+                  animationDelay: `${particle.delay}, ${particle.delay}`,
+                  animationDuration: `${particle.dur}, ${particle.dur}`,
+                } as CSSProperties
+              }
+            />
           ))}
         </g>
       );
@@ -19689,24 +21130,11 @@ export default function UserHomeDashboardPage() {
                   : "var(--dashboard-header-journey-circle, rgba(103,232,249,0.86))"
               }
               key={`${side}-${sparkIndex}-rail-spark`}
+              className="dashboard-header-rail-spark"
               opacity="0.24"
               r={spark.r}
-            >
-              <animate
-                attributeName="opacity"
-                begin={spark.delay}
-                dur="2.35s"
-                repeatCount="indefinite"
-                values="0.02;0.34;0.1;0.24;0.02"
-              />
-              <animate
-                attributeName="r"
-                begin={spark.delay}
-                dur="2.35s"
-                repeatCount="indefinite"
-                values={`${Math.max(0.06, spark.r - 0.06)};${spark.r + 0.1};${spark.r};${Math.max(0.06, spark.r - 0.06)}`}
-              />
-            </circle>
+              style={{ animationDelay: spark.delay } as CSSProperties}
+            />
           ))}
         </g>
       );
@@ -20481,7 +21909,6 @@ export default function UserHomeDashboardPage() {
         onPointerMove={handleDashboardHeaderScrollButtonPointerMove}
         onPointerUp={handleDashboardHeaderScrollButtonPointerEnd}
         onWheel={handleDashboardHeaderScrollButtonWheel}
-        data-dashboard-tooltip="Scroll dashboard selector"
         style={
           {
             ...activeDashboardHeaderTone.iconEffectStyle,
@@ -20567,7 +21994,6 @@ export default function UserHomeDashboardPage() {
         onPointerMove={handleDashboardHeaderMenuOrbitPointerMove}
         onPointerUp={handleDashboardHeaderMenuOrbitPointerEnd}
         onWheel={handleDashboardHeaderMenuOrbitWheel}
-        data-dashboard-tooltip="Spin main header menu"
         style={
           {
             ...activeDashboardHeaderTone.iconEffectStyle,
@@ -20598,6 +22024,22 @@ export default function UserHomeDashboardPage() {
 
   const renderDashboardMobileHeaderOrbitJoystick = () => {
     const accountPanelActive = dashboardMobileHeaderOrbitPanel === "account";
+    // The center ball previews where rotating RIGHT lands next: the narrow
+    // header walks selector -> account -> rewards -> meter -> selector, the
+    // wider header just toggles selector <-> account.
+    const nextOrbitItem: "account" | "meter" | "rewards" | "selector" =
+      !accountPanelActive
+        ? "account"
+        : !dashboardHeaderIsNarrow ||
+            dashboardNarrowAccountIndex >=
+              DASHBOARD_NARROW_ACCOUNT_ITEMS.length - 1
+          ? "selector"
+          : DASHBOARD_NARROW_ACCOUNT_ITEMS[dashboardNarrowAccountIndex + 1];
+    const setJoystickHoverSide = (side: "left" | "right" | null) => {
+      if (dashboardOrbitJoystickHoverSideRef.current === side) return;
+      dashboardOrbitJoystickHoverSideRef.current = side;
+      startTransition(() => setDashboardOrbitJoystickHoverSide(side));
+    };
 
     return (
       <button
@@ -20613,16 +22055,29 @@ export default function UserHomeDashboardPage() {
             : "dashboard-header-scroll-button--left"
         }`}
         data-dashboard-mobile-header-panel={dashboardMobileHeaderOrbitPanel}
-        data-dashboard-tooltip={
-          accountPanelActive ? "Dashboard selector" : "Account and points"
-        }
         onClick={(event) => {
           event.preventDefault();
+          // Enter/Space fires a synthetic click with clientX 0, which the
+          // pointer hit-test reads as a hard "left" — on a paging header that
+          // walks the account run backwards and parks on the meter step. Its
+          // marker is detail === 0; send it forward instead, matching the
+          // destination the centre ball is previewing.
           rotateDashboardMobileHeaderOrbit(
-            getDashboardJoystickClickDirection(event, true) ??
-              (accountPanelActive ? "left" : "right"),
+            event.detail === 0
+              ? accountPanelActive && !dashboardHeaderIsNarrow
+                ? "left"
+                : "right"
+              : (getDashboardJoystickClickDirection(event, true) ??
+                (accountPanelActive ? "left" : "right")),
           );
         }}
+        onPointerMove={(event) => {
+          const bounds = event.currentTarget.getBoundingClientRect();
+          setJoystickHoverSide(
+            event.clientX < bounds.left + bounds.width / 2 ? "left" : "right",
+          );
+        }}
+        onPointerLeave={() => setJoystickHoverSide(null)}
         onKeyDown={(event) => {
           if (event.key === "ArrowLeft") {
             event.preventDefault();
@@ -20633,7 +22088,13 @@ export default function UserHomeDashboardPage() {
               return;
             }
             setDashboardHeaderSlideDirection("left");
+            stageDashboardHeaderSlide("left");
+            markDashboardHeaderTransitioning();
             setDashboardMobileHeaderOrbitPanel("selector");
+            // Same visibility-cache refresh the click path gets via
+            // rotateDashboardMobileHeaderOrbit — the panel flip shows/hides
+            // widget clusters.
+            invalidateDashboardStageVisibility();
           }
 
           if (event.key === "ArrowRight") {
@@ -20643,7 +22104,10 @@ export default function UserHomeDashboardPage() {
               return;
             }
             setDashboardHeaderSlideDirection("right");
+            stageDashboardHeaderSlide("right");
+            markDashboardHeaderTransitioning();
             setDashboardMobileHeaderOrbitPanel("account");
+            invalidateDashboardStageVisibility();
           }
         }}
         style={
@@ -20670,12 +22134,18 @@ export default function UserHomeDashboardPage() {
         }
         type="button"
       >
+        {/* Hardcoded `active` held the orb at permanent full charge — the
+            fastest perpetual animator in the open header. The lean pose comes
+            from activeDirection (positional, one repaint); the charged look
+            now only runs while the pointer is actually on the joystick. */}
         <DashboardScrollButton3D
-          active
+          active={Boolean(dashboardOrbitJoystickHoverSide)}
           activeDirection={accountPanelActive ? "right" : "left"}
           className="dashboard-header-scroll-button__webgl"
           compact
+          glyph={nextOrbitItem}
           horizontal
+          hoverDirection={dashboardOrbitJoystickHoverSide}
           paused={dashboardHeaderMotionPaused}
           tone={dashboardHeaderMenuOrbitPreviewLink.toneKey}
         />
@@ -20814,6 +22284,10 @@ export default function UserHomeDashboardPage() {
           dashboardPageLevelMeterOpen
             ? "dashboard-page-level-meter-control--open"
             : ""
+        } ${
+          dashboardPageLevelMeterTucked
+            ? "dashboard-page-level-meter-control--tucked"
+            : ""
         }`}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
@@ -20824,20 +22298,25 @@ export default function UserHomeDashboardPage() {
         <button
           aria-controls="dashboard-page-level-meter-panel"
           aria-expanded={dashboardPageLevelMeterOpen}
-          aria-label={`${
-            dashboardPageLevelMeterOpen ? "Close" : "Open"
-          } lifetime earnings meter`}
+          aria-label={
+            dashboardPageLevelMeterTucked
+              ? "Reveal lifetime earnings meter"
+              : `${
+                  dashboardPageLevelMeterOpen ? "Close" : "Open"
+                } lifetime earnings meter`
+          }
           className="dashboard-page-level-meter-tab"
           data-dashboard-tooltip={
-            dashboardPageLevelMeterOpen
-              ? "Close lifetime earnings"
-              : "Open lifetime earnings"
+            dashboardPageLevelMeterTucked
+              ? "Lifetime earnings"
+              : dashboardPageLevelMeterOpen
+                ? "Close lifetime earnings"
+                : "Open lifetime earnings"
           }
           onBlur={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(false))}
-          onClick={() =>
-            setDashboardPageLevelMeterOpen((currentOpen) => !currentOpen)
-          }
+          onClick={handleDashboardLevelMeterTabClick}
           onFocus={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(true))}
+          onPointerDown={handleDashboardLevelMeterTabPointerDown}
           onPointerEnter={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(true))}
           onPointerLeave={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(false))}
           style={
@@ -20982,6 +22461,10 @@ export default function UserHomeDashboardPage() {
         dashboardPageLevelMeterOpen
           ? "dashboard-page-level-meter-control--open"
           : ""
+      } ${
+        dashboardPageLevelMeterTucked
+          ? "dashboard-page-level-meter-control--tucked"
+          : ""
       }`}
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
@@ -20992,18 +22475,25 @@ export default function UserHomeDashboardPage() {
       <button
         aria-controls="dashboard-page-level-meter-panel"
         aria-expanded={dashboardPageLevelMeterOpen}
-        aria-label={`${
-          dashboardPageLevelMeterOpen ? "Close" : "Open"
-        } Sound Fitness level meter`}
+        aria-label={
+          dashboardPageLevelMeterTucked
+            ? "Reveal Sound Fitness level meter"
+            : `${
+                dashboardPageLevelMeterOpen ? "Close" : "Open"
+              } Sound Fitness level meter`
+        }
         className="dashboard-page-level-meter-tab"
         data-dashboard-tooltip={
-          dashboardPageLevelMeterOpen ? "Close level meter" : "Open level meter"
+          dashboardPageLevelMeterTucked
+            ? "Level meter"
+            : dashboardPageLevelMeterOpen
+              ? "Close level meter"
+              : "Open level meter"
         }
         onBlur={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(false))}
-        onClick={() =>
-          setDashboardPageLevelMeterOpen((currentOpen) => !currentOpen)
-        }
+        onClick={handleDashboardLevelMeterTabClick}
         onFocus={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(true))}
+        onPointerDown={handleDashboardLevelMeterTabPointerDown}
         onPointerEnter={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(true))}
         onPointerLeave={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(false))}
         style={
@@ -21951,11 +23441,11 @@ export default function UserHomeDashboardPage() {
                 : "min-[760px]:justify-between"
             }`}
           >
-            <div className="min-w-0 min-[760px]:max-w-[390px] min-[1040px]:max-w-[540px]">
+            <div className="min-w-0 max-[759px]:mx-auto max-[759px]:text-center min-[760px]:max-w-[390px] min-[1040px]:max-w-[540px]">
               <div className="min-w-0">
                 {clampedDashboardOrbiterRow === 0 ? null : (
                   <div
-                    className={`flex max-w-full items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.18em] ${dashboardFloatingSnapshotRowTone.text}`}
+                    className={`flex max-w-full items-center gap-1.5 text-[9px] font-black uppercase tracking-[0.18em] max-[759px]:justify-center ${dashboardFloatingSnapshotRowTone.text}`}
                   >
                     <span
                       aria-hidden="true"
@@ -21984,7 +23474,7 @@ export default function UserHomeDashboardPage() {
                 {dashboardFloatingSnapshotRowCards.length ? (
                   <div
                     aria-label={`${dashboardFloatingSnapshotEyebrow} card orbit`}
-                    className="relative mt-1 h-9 w-[300px] max-w-full overflow-visible [perspective:760px] sm:w-[340px]"
+                    className="relative mt-1 h-9 w-[300px] max-w-full overflow-visible [perspective:760px] max-[759px]:mx-auto sm:w-[340px]"
                   >
                     {dashboardFloatingSnapshotRowCards.map(
                       (card, cardIndex) => {
@@ -22083,129 +23573,10 @@ export default function UserHomeDashboardPage() {
                 ) : null}
               </div>
             </div>
-
-            {isDashboardSystemSnapshot ? null : (
-              <div className="dashboard-constellation-orbit relative min-h-[108px] min-w-0 flex-1 overflow-visible [perspective:780px] min-[760px]:max-w-[250px] min-[1040px]:max-w-[280px]">
-                <span
-                  aria-hidden="true"
-                  className="dashboard-constellation-orbit__field"
-                />
-                <div aria-live="polite" className="sr-only">
-                  {activeDashboardFloatingMetric
-                    ? `${activeDashboardFloatingMetric.label}: ${activeDashboardFloatingMetric.value}`
-                    : "Dashboard metric orbit"}
-                </div>
-                <div className="pointer-events-none absolute left-1/2 top-1/2 h-[94px] w-px -translate-x-1/2 -translate-y-1/2 bg-gradient-to-b from-transparent via-cyan-200/24 to-transparent shadow-[0_0_18px_rgba(34,211,238,0.20)]" />
-                <div
-                  aria-label={`${dashboardFloatingSnapshotTitle} metric orbit`}
-                  className="absolute inset-0 [transform-style:preserve-3d]"
-                >
-                  {dashboardFloatingSnapshotMetrics.map((metric, metricIndex) => {
-                    const activeMetricIndex =
-                      activeDashboardFloatingMetricIndex %
-                      Math.max(1, dashboardFloatingSnapshotMetrics.length);
-                    const distance = getDashboardOrbitDistance(
-                      metricIndex,
-                      activeMetricIndex,
-                      dashboardFloatingSnapshotMetrics.length,
-                    );
-                    const clampedDistance = Math.max(-2, Math.min(2, distance));
-                    const absDistance = Math.abs(clampedDistance);
-                    const isActive = distance === 0;
-                    const direction = Math.sign(clampedDistance);
-                    const metricTone = ["cyan", "amber", "emerald", "violet"][
-                      metricIndex % 4
-                    ] as DashboardCardTone;
-                    const metricUrgencyTone = getDashboardRowUrgencyTone(
-                      getDashboardFloatingMetricCompletion(metric),
-                    );
-                    const ySlots = [0, 35, 66];
-                    const y = direction * ySlots[absDistance];
-                    const x = isActive ? 0 : absDistance * 7;
-                    const scale = isActive
-                      ? 1
-                      : absDistance === 1
-                        ? 0.84
-                        : 0.68;
-                    const opacity = isActive
-                      ? 1
-                      : absDistance === 1
-                        ? 0.72
-                        : 0.34;
-                    const rotateX = direction * -18;
-
-                    return (
-                      <button
-                        aria-label={`Show ${metric.label} metric, ${metric.value}, ${metricUrgencyTone.label}`}
-                        aria-pressed={isActive}
-                        className={`dashboard-constellation-metric group absolute left-1/2 top-1/2 isolate flex h-10 items-center justify-between gap-3 overflow-visible rounded-2xl border px-3 text-left shadow-[0_16px_42px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-xl transition-[width,border-color,background-color,box-shadow,filter] duration-300 ${
-                          isActive
-                            ? `dashboard-constellation-metric--active ${dashboardIconToneStyles[metricTone].active} w-[208px]`
-                            : `${dashboardIconToneStyles[metricTone].idle} w-[174px] hover:brightness-125`
-                        }`}
-                        key={`${dashboardFloatingSnapshotTitle}-${metric.label}`}
-                        onClick={() =>
-                          setActiveDashboardFloatingMetricIndex(metricIndex)
-                        }
-                        style={{
-                          opacity,
-                          transform: `translate(-50%, -50%) translateX(${x}px) translateY(${y}px) translateZ(${
-                            isActive ? 62 : 18 - absDistance * 8
-                          }px) rotateX(${rotateX}deg) scale(${scale})`,
-                          transition:
-                            "transform 560ms cubic-bezier(0.2, 0.82, 0.2, 1), opacity 320ms ease, width 260ms ease, border-color 220ms ease, background-color 220ms ease, box-shadow 220ms ease",
-                          zIndex: 30 - absDistance,
-                        }}
-                        type="button"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="dashboard-constellation-metric__zoom"
-                        />
-                        <span
-                          aria-hidden="true"
-                          className="dashboard-constellation-metric__lines"
-                        />
-                        <span
-                          aria-hidden="true"
-                          className="dashboard-constellation-metric__stars"
-                        />
-                        <span
-                          aria-hidden="true"
-                          className={`absolute inset-x-5 top-0 z-10 h-px rounded-full ${dashboardToneStyles[metricTone].line}`}
-                        />
-                        <span className="relative z-10 min-w-0">
-                          <span className="block truncate text-[7px] font-black uppercase tracking-[0.14em] text-slate-300/80">
-                            {metric.label}
-                          </span>
-                          <span className="block truncate text-sm font-black tracking-tight text-white">
-                            {metric.value}
-                          </span>
-                        </span>
-                        <span
-                          aria-hidden="true"
-                          className={`relative z-10 grid h-4 w-4 shrink-0 place-items-center rounded-full border bg-slate-950/72 text-[7px] font-black leading-none text-slate-950 ring-1 ring-white/10 ${
-                            isActive
-                              ? `${metricUrgencyTone.ring} ${metricUrgencyTone.text}`
-                              : "border-white/10 text-slate-500"
-                          }`}
-                        >
-                          <span
-                            className={`grid h-3 w-3 place-items-center rounded-full text-slate-950 ${
-                              isActive
-                                ? metricUrgencyTone.dot
-                                : `${metricUrgencyTone.dot} opacity-45 grayscale`
-                            }`}
-                          >
-                            {isActive ? metricUrgencyTone.icon : ""}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            {/* The constellation metric orbit that lived here moved to
+                the workout dashboard (/dashboard/sessions) — see
+                DashboardConstellationStats. At narrow widths it stacked on
+                top of the Dashboards-row cards. */}
           </div>
         </section>
       </div>
@@ -22380,6 +23751,81 @@ export default function UserHomeDashboardPage() {
   const renderDashboardProfileHubOverlay = () => {
     if (!dashboardProfileHubOpen) return null;
 
+    // Drag-to-scroll replaces the removed analog joystick: a vertical drag
+    // anywhere on the layer surface steps between hub layers, a horizontal
+    // drag cycles the active row's orbit cards. The start point re-anchors
+    // after each step so one long drag keeps stepping, and a click that
+    // follows a real drag is swallowed so cards/links don't fire mid-swipe.
+    // Layers are full-screen cards, so a layer step wants a deliberate swipe;
+    // orbit cards are small, so they cycle on a lighter pull. The 12px floor
+    // only marks "this was a drag" so the trailing click gets swallowed.
+    const PROFILE_HUB_DRAG_LAYER_STEP_PX = 110;
+    const PROFILE_HUB_DRAG_CARD_STEP_PX = 72;
+    const PROFILE_HUB_DRAG_CLICK_SLOP_PX = 12;
+    const endDashboardProfileHubSurfaceDrag = () => {
+      dashboardProfileHubDragStartRef.current = null;
+    };
+    const handleDashboardProfileHubSurfaceWheel = (
+      event: ReactWheelEvent<HTMLDivElement>,
+    ) => {
+      const delta =
+        Math.abs(event.deltaY) >= Math.abs(event.deltaX)
+          ? event.deltaY
+          : event.deltaX;
+      if (Math.abs(delta) < 8) return;
+      // Trackpads stream small deltas; one step per burst reads as intended.
+      const now = Date.now();
+      if (now - dashboardProfileHubWheelLockRef.current < 200) return;
+      dashboardProfileHubWheelLockRef.current = now;
+      // The wheel cycles the active row's cards; the hero layer has no row,
+      // so there it scrolls down into the first row instead.
+      if (!stepDashboardProfileHubRowCard(delta > 0 ? 1 : -1)) {
+        if (delta > 0) rotateDashboardProfileHubLayer("down");
+      }
+    };
+    const handleDashboardProfileHubSurfacePointerDown = (
+      event: ReactPointerEvent<HTMLDivElement>,
+    ) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      dashboardProfileHubDragStartRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+      dashboardProfileHubDragMovedRef.current = false;
+    };
+    const handleDashboardProfileHubSurfacePointerMove = (
+      event: ReactPointerEvent<HTMLDivElement>,
+    ) => {
+      const start = dashboardProfileHubDragStartRef.current;
+      if (!start) return;
+      const deltaX = event.clientX - start.x;
+      const deltaY = event.clientY - start.y;
+      if (
+        Math.abs(deltaX) > PROFILE_HUB_DRAG_CLICK_SLOP_PX ||
+        Math.abs(deltaY) > PROFILE_HUB_DRAG_CLICK_SLOP_PX
+      ) {
+        dashboardProfileHubDragMovedRef.current = true;
+      }
+      const wantsLayerStep =
+        Math.abs(deltaY) >= PROFILE_HUB_DRAG_LAYER_STEP_PX &&
+        Math.abs(deltaY) >= Math.abs(deltaX);
+      const wantsCardStep =
+        Math.abs(deltaX) >= PROFILE_HUB_DRAG_CARD_STEP_PX &&
+        Math.abs(deltaX) > Math.abs(deltaY);
+      if (!wantsLayerStep && !wantsCardStep) return;
+      if (wantsLayerStep) {
+        // Dragging down reveals the previous layer, matching scroll direction.
+        rotateDashboardProfileHubLayer(deltaY > 0 ? "up" : "down");
+      } else {
+        // Dragging left pulls the next card in from the right.
+        stepDashboardProfileHubRowCard(deltaX < 0 ? 1 : -1);
+      }
+      dashboardProfileHubDragStartRef.current = {
+        x: event.clientX,
+        y: event.clientY,
+      };
+    };
+
     const layerStyle = (layer: number) => {
       const offset = layer - clampedDashboardProfileHubLayer;
       const absOffset = Math.abs(offset);
@@ -22421,7 +23867,7 @@ export default function UserHomeDashboardPage() {
 
         <div
           aria-label="Profile hub 3D layer scroller"
-          className="absolute left-4 top-1/2 z-50 h-[22.5rem] w-[8.25rem] -translate-y-1/2 overflow-visible [perspective:920px]"
+          className="absolute left-4 top-1/2 z-50 hidden h-[22.5rem] w-[8.25rem] -translate-y-1/2 overflow-visible [perspective:920px] min-[640px]:block"
           role="group"
           style={
             {
@@ -22487,113 +23933,32 @@ export default function UserHomeDashboardPage() {
               );
             })}
           </div>
-          <button
-            aria-label="Scroll profile hub layers"
-            className={`dashboard-header-scroll-button dashboard-header-scroll-button--page pointer-events-auto absolute left-[4.9rem] top-1/2 z-40 grid h-[4.1rem] w-[4.1rem] -translate-x-1/2 -translate-y-1/2 place-items-center overflow-visible rounded-[28px] border border-cyan-100/16 bg-slate-950/30 text-cyan-50 shadow-[0_14px_30px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.09)] outline-none transition hover:-translate-y-[calc(50%+0.125rem)] hover:border-amber-100/34 hover:bg-cyan-300/8 active:scale-95 focus-visible:ring-2 focus-visible:ring-cyan-100/45 [perspective:620px] [touch-action:none] ${
-              dashboardProfileHubAnalogDragging
-                ? "dashboard-header-scroll-button--dragging cursor-grabbing border-amber-100/44 bg-amber-300/10"
-                : "cursor-pointer"
-            } ${
-              dashboardProfileHubAnalogActiveDirection
-                ? `dashboard-header-scroll-button--${dashboardProfileHubAnalogActiveDirection}`
-                : ""
-            }`}
-            data-dashboard-tooltip="Scroll profile hub layers"
-            onBlur={() => {
-              startTransition(() => setDashboardProfileHubAnalogHovered(false));
-              resetDashboardProfileHubAnalogDrag();
-            }}
-            onClick={(event) => {
-              if (dashboardProfileHubAnalogPointerMovedRef.current) {
-                event.preventDefault();
-                event.stopPropagation();
-                return;
-              }
-
-              const rect = event.currentTarget.getBoundingClientRect();
-              const direction =
-                event.clientY < rect.top + rect.height / 2 ? "up" : "down";
-              if (
-                (direction === "up" &&
-                  clampedDashboardProfileHubLayer <= 0) ||
-                (direction === "down" &&
-                  clampedDashboardProfileHubLayer >=
-                    dashboardProfileHubLayerCount - 1)
-              ) {
-                return;
-              }
-              if (runDashboardProfileHubAnalogDirection(direction)) {
-                pulseDashboardProfileHubAnalogDirection(direction);
-              }
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
-
-              event.preventDefault();
-              const direction = event.key === "ArrowDown" ? "down" : "up";
-              if (runDashboardProfileHubAnalogDirection(direction)) {
-                pulseDashboardProfileHubAnalogDirection(direction);
-              }
-            }}
-            onLostPointerCapture={handleDashboardProfileHubAnalogPointerEnd}
-            onMouseEnter={() => startTransition(() => setDashboardProfileHubAnalogHovered(true))}
-            onMouseLeave={() => startTransition(() => setDashboardProfileHubAnalogHovered(false))}
-            onPointerCancel={handleDashboardProfileHubAnalogPointerEnd}
-            onPointerDown={handleDashboardProfileHubAnalogPointerDown}
-            onPointerEnter={() => startTransition(() => setDashboardProfileHubAnalogHovered(true))}
-            onPointerLeave={(event) => {
-              startTransition(() => setDashboardProfileHubAnalogHovered(false));
-
-              if (dashboardProfileHubAnalogDragging && event.buttons === 0) {
-                handleDashboardProfileHubAnalogPointerEnd(event);
-              }
-            }}
-            onPointerMove={handleDashboardProfileHubAnalogPointerMove}
-            onPointerUp={handleDashboardProfileHubAnalogPointerEnd}
-            onWheel={handleDashboardProfileHubAnalogWheel}
-            style={
-              {
-                "--dashboard-header-scroll-button-roll": `${dashboardProfileHubAnalogRoll}deg`,
-                "--dashboard-header-scroll-button-tilt-x":
-                  dashboardProfileHubAnalogActiveDirection === "up"
-                    ? "-22deg"
-                    : dashboardProfileHubAnalogActiveDirection === "down"
-                      ? "22deg"
-                      : "10deg",
-                "--dashboard-header-scroll-button-tilt-y": "0deg",
-                "--dashboard-analog-offset-x": `${dashboardProfileHubAnalogOffset.x}px`,
-                "--dashboard-analog-offset-y": `${dashboardProfileHubAnalogOffset.y}px`,
-                background:
-                  "radial-gradient(circle at 34% 18%, rgba(255,255,255,0.18), transparent 18%), radial-gradient(circle at 50% 14%, rgba(34,211,238,0.22), transparent 44%), radial-gradient(circle at 50% 86%, rgba(250,204,21,0.16), transparent 46%), linear-gradient(145deg, rgba(15,23,42,0.82), rgba(2,6,23,0.44) 52%, rgba(15,23,42,0.9))",
-                borderColor: "rgba(207,250,254,0.24)",
-                boxShadow:
-                  "0 1.05rem 1.75rem rgba(0,0,0,0.38), 0 0 1.15rem rgba(34,211,238,0.14), inset 0 0.08rem 0 rgba(255,255,255,0.18), inset 0 -0.62rem 1rem rgba(2,6,23,0.58)",
-                overflow: "visible",
-                transformStyle: "preserve-3d",
-              } as CSSProperties
-            }
-            type="button"
-          >
-            <DashboardScrollButton3D
-              active={dashboardProfileHubAnalogInUse}
-              activeDirection={dashboardProfileHubAnalogActiveDirection}
-              className="dashboard-header-scroll-button__webgl dashboard-header-scroll-button__webgl--page"
-              paused={!dashboardProfileHubAnalogInUse}
-              showDown={
-                clampedDashboardProfileHubLayer < dashboardProfileHubLayerCount - 1
-              }
-              showUp={clampedDashboardProfileHubLayer > 0}
-              tone={clampedDashboardProfileHubLayer === 2 ? "amber" : "cyan"}
-            />
-          </button>
         </div>
 
-        <div className="absolute inset-0 [perspective:1500px] [transform-style:preserve-3d]">
+        <div
+          className="absolute inset-0 [perspective:1500px] [transform-style:preserve-3d] [touch-action:none]"
+          onClickCapture={(event) => {
+            if (!dashboardProfileHubDragMovedRef.current) return;
+            dashboardProfileHubDragMovedRef.current = false;
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+          onPointerCancel={endDashboardProfileHubSurfaceDrag}
+          onPointerDown={handleDashboardProfileHubSurfacePointerDown}
+          onPointerLeave={endDashboardProfileHubSurfaceDrag}
+          onPointerMove={handleDashboardProfileHubSurfacePointerMove}
+          onPointerUp={endDashboardProfileHubSurfaceDrag}
+          onWheel={handleDashboardProfileHubSurfaceWheel}
+        >
           <section
             className="absolute inset-0 transition-[transform,opacity,filter] duration-[560ms] ease-[cubic-bezier(0.2,0.85,0.25,1)]"
             style={layerStyle(0)}
           >
-            <div className="absolute inset-x-0 top-[62%] z-20 flex -translate-y-1/2 justify-center px-4 [transform:translateY(-50%)_translateZ(58px)] sm:px-6">
+            {/* Top-anchored, not centered: the card should ride high while
+                clearing the X close button (which ends 64px down). No
+                -translate-y-1/2 either — that utility is the separate CSS
+                `translate` property and would stack with the transform below. */}
+            <div className="absolute inset-x-0 top-24 z-20 flex justify-center px-4 [transform:translateZ(58px)] sm:px-6">
               <div className="grid w-[min(90vw,900px)] gap-4 rounded-[28px] border border-cyan-100/22 bg-slate-950/76 p-4 text-left shadow-[0_24px_64px_rgba(0,0,0,0.42),0_0_30px_rgba(34,211,238,0.12)] sm:p-5 md:grid-cols-[minmax(0,1fr)_minmax(220px,260px)] md:items-stretch">
                 <div className="flex min-w-0 items-center gap-4">
                   <Image
@@ -23860,11 +25225,23 @@ export default function UserHomeDashboardPage() {
               aria-hidden="true"
               className="dashboard-profile-app-gem-orbit__stage-shell"
             >
-              {isActiveRewardPanel && dashboardPointsDropdownOpen ? (
+              {dashboardPointsDropdownLatched ||
+              (isActiveRewardPanel && dashboardPointsDropdownOpen) ? (
                 <DashboardGemStage3D
                   className="dashboard-profile-app-gem-orbit__shared-gems"
-                  onProminentToneChange={setDashboardSafeProminentGemTone}
-                  paused={dashboardHeaderMotionPaused}
+                  onProminentToneChange={(tone) =>
+                    // Fired from inside the stage's rAF loop every ~1.7s as the
+                    // front gem changes — an URGENT setState here re-rendered
+                    // the whole page component just to swap the readout label.
+                    startTransition(() =>
+                      setDashboardSafeProminentGemTone(tone),
+                    )
+                  }
+                  paused={
+                    dashboardHeaderMotionPaused ||
+                    !dashboardPointsDropdownOpen ||
+                    !isActiveRewardPanel
+                  }
                   tones={dashboardAppGemOrbitItems.map((item) => item.tone)}
                   vaultOpen={!dashboardGemVaultClosing}
                   variant="reserves"
@@ -23923,10 +25300,15 @@ export default function UserHomeDashboardPage() {
                 <span className="dashboard-profile-sound-coins-vault__value">
                   {soundTokens.toLocaleString()}
                 </span>
-                {isActiveRewardPanel && dashboardPointsDropdownOpen ? (
+                {dashboardPointsDropdownLatched ||
+                (isActiveRewardPanel && dashboardPointsDropdownOpen) ? (
                   <DashboardSpinningSoundCoin3D
                     className="dashboard-profile-sound-coins-vault__token"
-                    paused={dashboardHeaderMotionPaused}
+                    paused={
+                      dashboardHeaderMotionPaused ||
+                      !dashboardPointsDropdownOpen ||
+                      !isActiveRewardPanel
+                    }
                   />
                 ) : null}
               </span>
@@ -23935,11 +25317,16 @@ export default function UserHomeDashboardPage() {
               aria-hidden="true"
               className="dashboard-profile-sound-coins-vault__stage"
             >
-              {isActiveRewardPanel && dashboardPointsDropdownOpen ? (
+              {dashboardPointsDropdownLatched ||
+              (isActiveRewardPanel && dashboardPointsDropdownOpen) ? (
                 <DashboardTreasureChest3D
                   className="dashboard-profile-sound-coins-vault__scene"
-                  open
-                  paused={dashboardHeaderMotionPaused}
+                  open={isActiveRewardPanel && dashboardPointsDropdownOpen}
+                  paused={
+                    dashboardHeaderMotionPaused ||
+                    !dashboardPointsDropdownOpen ||
+                    !isActiveRewardPanel
+                  }
                 />
               ) : null}
             </span>
@@ -23948,22 +25335,29 @@ export default function UserHomeDashboardPage() {
       );
     }
 
-    const shouldRenderSoundPointsTeslaScene =
+    // The --three class (which hides the DOM cores under the GL scene) tracks
+    // the VISIBLE state; the scene itself stays mounted from the pre-latch so
+    // rotations and re-opens never rebuild or recompile it.
+    const shouldShowSoundPointsTeslaScene =
       isActiveRewardPanel && dashboardPointsDropdownOpen;
+    const shouldMountSoundPointsTeslaScene =
+      dashboardPointsDropdownLatched || shouldShowSoundPointsTeslaScene;
 
     return (
       <div className="dashboard-profile-reward-orbit__panel-body">
         <div
           className={`dashboard-profile-charge-node-grid ${
-            shouldRenderSoundPointsTeslaScene
+            shouldShowSoundPointsTeslaScene
               ? "dashboard-profile-charge-node-grid--three"
               : ""
           } mt-3 grid`}
         >
-          {shouldRenderSoundPointsTeslaScene ? (
+          {shouldMountSoundPointsTeslaScene ? (
             <DashboardSoundPointsTeslaCoil3D
               className="dashboard-profile-charge-node-grid__tesla-scene"
-              paused={dashboardHeaderMotionPaused}
+              paused={
+                dashboardHeaderMotionPaused || !shouldShowSoundPointsTeslaScene
+              }
               points={soundPoints}
               turbines={dashboardCoreLightningItems}
               weeklyProgress={dashboardWeeklySoundPointProgress}
@@ -24015,7 +25409,7 @@ export default function UserHomeDashboardPage() {
           {dashboardCoreLightningItems.map((item) => (
             <div
               aria-label={
-                shouldRenderSoundPointsTeslaScene
+                shouldShowSoundPointsTeslaScene
                   ? `${item.label} turbine level ${item.count.toLocaleString()}, ${item.points.toLocaleString()} points, ${Math.round(item.progress)} percent toward next level`
                   : `${item.label} charge ${item.count.toLocaleString()}`
               }
@@ -24029,12 +25423,12 @@ export default function UserHomeDashboardPage() {
               <span
                 className="dashboard-profile-charge-node__readout"
                 title={
-                  shouldRenderSoundPointsTeslaScene
+                  shouldShowSoundPointsTeslaScene
                     ? `LV ${item.count.toLocaleString()} ${item.label} ${item.points.toLocaleString()} points / ${Math.round(item.progress)}% to next level`
                     : `${item.count.toLocaleString()} ${item.label}`
                 }
               >
-                {shouldRenderSoundPointsTeslaScene ? (
+                {shouldShowSoundPointsTeslaScene ? (
                   <>
                     <span className="dashboard-profile-charge-node__value">
                       LV {item.count.toLocaleString()}
@@ -25367,13 +26761,23 @@ export default function UserHomeDashboardPage() {
         <div
           aria-label="Main header menu"
           className="dashboard-header-main-orbit-stage dashboard-header-main-orbit-stage--stable min-w-0 flex-1"
+          data-header-slide={dashboardHeaderSlideDirection}
           data-mobile-header-panel={dashboardMobileHeaderOrbitPanel}
+          // Kept while narrow even on the selector panel: dropping it on the
+          // account->selector flip un-hid every other account control the
+          // instant the exit fade began, so the outgoing block flashed the
+          // whole cluster (hub + rewards + meter at once, measured mid-fade)
+          // instead of fading out showing only the step it was on. The block
+          // is invisible on the selector panel once settled, so the lingering
+          // attribute styles nothing the user can see.
           data-narrow-account-item={
-            dashboardHeaderIsNarrow &&
-            dashboardMobileHeaderOrbitPanel === "account"
-              ? (DASHBOARD_NARROW_ACCOUNT_ITEMS[
-                  dashboardNarrowAccountIndex
-                ] as DashboardNarrowAccountItem)
+            dashboardHeaderIsNarrow
+              ? DASHBOARD_NARROW_ACCOUNT_ITEMS[
+                  Math.min(
+                    Math.max(dashboardNarrowAccountIndex, 0),
+                    DASHBOARD_NARROW_ACCOUNT_ITEMS.length - 1,
+                  )
+                ]
               : undefined
           }
         >
@@ -26377,7 +27781,11 @@ export default function UserHomeDashboardPage() {
                   ) : (
                     <span
                       aria-expanded={dashboardCoachNotesOpen}
-                      aria-label="Open coach's notes"
+                      aria-label={
+                        dashboardCoachUnread > 0
+                          ? `Open AI assistant coach, ${dashboardCoachUnread} unread messages`
+                          : "Open AI assistant coach"
+                      }
                       className="dashboard-profile-coach-badge pointer-events-auto absolute -bottom-1.5 -right-1.5 z-40 h-8 w-8 cursor-pointer rounded-full border border-sky-300/70 bg-slate-950/80 p-[1px] shadow-[0_0_14px_rgba(56,189,248,0.28)] outline-none focus-visible:ring-2 focus-visible:ring-sky-300/80"
                       onClick={(event) => {
                         event.stopPropagation();
@@ -26434,6 +27842,14 @@ export default function UserHomeDashboardPage() {
                         src="/sound-coach-avatar-face-centered.png"
                         width={64}
                       />
+                      {dashboardCoachUnread > 0 ? (
+                        <span
+                          aria-hidden="true"
+                          className="absolute -right-1 -top-1 z-50 grid h-4 min-w-4 place-items-center rounded-full border border-fuchsia-100/60 bg-fuchsia-500 px-[3px] text-[0.5rem] font-black leading-none text-white shadow-[0_0_10px_rgba(217,70,239,0.55)]"
+                        >
+                          {dashboardCoachUnread}
+                        </span>
+                      ) : null}
                     </span>
                   )}
                 </span>
@@ -26442,7 +27858,7 @@ export default function UserHomeDashboardPage() {
               {dashboardCoachNotesOpen && dashboardCoachNotesPos
                 ? createPortal(
                     <div
-                      aria-label="Coach notes"
+                      aria-label="AI assistant coach"
                       className="dashboard-coach-notes-popover fixed z-[600] w-[19rem] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-sky-300/40 bg-slate-950/95 p-3.5 text-left shadow-[0_18px_50px_rgba(2,6,23,0.72),0_0_28px_rgba(56,189,248,0.2)] backdrop-blur-xl"
                       ref={dashboardCoachNotesRef}
                       role="dialog"
@@ -26463,15 +27879,19 @@ export default function UserHomeDashboardPage() {
                       />
                     </span>
                     <div className="min-w-0">
-                      <p className="text-[0.6rem] font-black uppercase tracking-[0.16em] text-sky-200/90">
-                        Coach Notes
+                      <p className="flex items-center gap-1.5 text-[0.6rem] font-black uppercase tracking-[0.16em] text-sky-200/90">
+                        AI Assistant Coach
+                        <span className="inline-flex items-center gap-0.5 rounded-full border border-sky-300/40 bg-sky-400/12 px-1.5 py-[1px] text-[0.5rem] tracking-[0.1em] text-sky-100">
+                          <Bot className="h-2.5 w-2.5" />
+                          AI
+                        </span>
                       </p>
                       <p className="truncate text-[0.72rem] font-semibold text-slate-300">
                         Sound Fitness Coach
                       </p>
                     </div>
                     <button
-                      aria-label="Close coach notes"
+                      aria-label="Close AI assistant coach"
                       className="ml-auto grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/15 bg-slate-900/80 text-slate-300 transition hover:border-sky-300/60 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
                       onClick={() => setDashboardCoachNotesOpen(false)}
                       type="button"
@@ -26479,6 +27899,89 @@ export default function UserHomeDashboardPage() {
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
+                  {dashboardCoachView === "messages" ? (
+                    <>
+                      <div className="mt-2.5 flex items-center gap-2">
+                        <button
+                          aria-label="Back to assistant"
+                          className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/15 bg-slate-900/80 text-slate-300 transition hover:border-sky-300/60 hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                          onClick={() => setDashboardCoachView("assistant")}
+                          type="button"
+                        >
+                          <ChevronLeft className="h-3.5 w-3.5" />
+                        </button>
+                        <p className="text-[0.56rem] font-black uppercase tracking-[0.14em] text-sky-200/70">
+                          Messages with your coach
+                        </p>
+                      </div>
+                      <div
+                        className="mt-2 flex max-h-56 flex-col gap-1.5 overflow-y-auto pr-1 [scrollbar-width:thin]"
+                        ref={dashboardCoachThreadScrollRef}
+                      >
+                        {dashboardCoachThread.map((message) =>
+                          message.from === "coach" ? (
+                            <div
+                              className="mr-auto flex max-w-[92%] items-start gap-1.5"
+                              key={message.id}
+                            >
+                              <span className="mt-1 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-sky-300/50 bg-slate-900">
+                                <Bot className="h-3 w-3 text-sky-200" />
+                              </span>
+                              <p className="rounded-2xl rounded-tl-md border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[0.72rem] leading-snug text-slate-200">
+                                {message.text}
+                              </p>
+                            </div>
+                          ) : (
+                            <p
+                              className="ml-auto max-w-[85%] rounded-2xl rounded-br-md border border-sky-300/30 bg-sky-400/12 px-3 py-1.5 text-[0.72rem] leading-snug text-sky-50"
+                              key={message.id}
+                            >
+                              {message.text}
+                            </p>
+                          ),
+                        )}
+                        {dashboardCoachReplyPending ? (
+                          <div className="mr-auto flex max-w-[92%] items-start gap-1.5">
+                            <span className="mt-1 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-sky-300/50 bg-slate-900">
+                              <Bot className="h-3 w-3 text-sky-200" />
+                            </span>
+                            <p className="rounded-2xl rounded-tl-md border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[0.72rem] leading-snug tracking-[0.3em] text-sky-200/80">
+                              •••
+                            </p>
+                          </div>
+                        ) : null}
+                      </div>
+                      <form
+                        className="mt-2.5 flex items-center gap-1.5"
+                        onSubmit={(event) => {
+                          event.preventDefault();
+                          sendDashboardCoachMessage();
+                        }}
+                      >
+                        <input
+                          aria-label="Message your coach"
+                          className="min-w-0 flex-1 rounded-xl border border-white/12 bg-white/[0.04] px-3 py-2 text-[0.74rem] text-slate-100 placeholder:text-slate-500 focus:border-sky-300/50 focus:outline-none"
+                          onChange={(event) =>
+                            setDashboardCoachDraft(event.target.value)
+                          }
+                          placeholder="Message your coach…"
+                          value={dashboardCoachDraft}
+                        />
+                        <button
+                          aria-label="Send message"
+                          className="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-sky-300/40 bg-sky-400/10 text-sky-100 transition hover:bg-sky-400/20 disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                          disabled={
+                            !dashboardCoachDraft.trim() ||
+                            dashboardCoachReplyPending
+                          }
+                          type="submit"
+                        >
+                          <ChevronRight className="h-4 w-4" />
+                        </button>
+                      </form>
+                    </>
+                  ) : (
+                    <>
                   <ul className="mt-2.5 flex flex-col gap-2">
                     {[
                       {
@@ -26507,14 +28010,66 @@ export default function UserHomeDashboardPage() {
                       </li>
                     ))}
                   </ul>
-                  <a
-                    className="mt-3 flex items-center justify-center gap-1 rounded-xl border border-sky-300/40 bg-sky-400/10 px-3 py-2 text-[0.7rem] font-black uppercase tracking-[0.12em] text-sky-100 transition hover:bg-sky-400/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
-                    href="/dashboard/coach-messaging"
-                    onClick={() => setDashboardCoachNotesOpen(false)}
+                  <div className="mt-3 border-t border-white/10 pt-2.5">
+                    <p className="text-[0.56rem] font-black uppercase tracking-[0.14em] text-sky-200/70">
+                      Ask your coach
+                    </p>
+                    {dashboardCoachAiExchange ? (
+                      <div className="mt-2 flex flex-col gap-1.5">
+                        <p className="ml-auto max-w-[85%] rounded-2xl rounded-br-md border border-sky-300/30 bg-sky-400/12 px-3 py-1.5 text-[0.72rem] leading-snug text-sky-50">
+                          {dashboardCoachAiExchange.question}
+                        </p>
+                        <div className="mr-auto flex max-w-[92%] items-start gap-1.5">
+                          <span className="mt-1 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-sky-300/50 bg-slate-900">
+                            <Bot className="h-3 w-3 text-sky-200" />
+                          </span>
+                          <p className="rounded-2xl rounded-tl-md border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[0.72rem] leading-snug text-slate-200">
+                            {dashboardCoachAiThinking ? (
+                              <span className="tracking-[0.3em] text-sky-200/80">
+                                •••
+                              </span>
+                            ) : (
+                              dashboardCoachAiExchange.reply
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {DASHBOARD_COACH_AI_PROMPTS.map((prompt) => (
+                        <button
+                          className="rounded-full border border-sky-300/30 bg-sky-400/[0.07] px-2.5 py-1 text-[0.62rem] font-black uppercase tracking-[0.1em] text-sky-100 transition hover:border-sky-200/60 hover:bg-sky-400/16 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                          key={prompt.short}
+                          onClick={() => askDashboardCoachAi(prompt)}
+                          type="button"
+                        >
+                          {prompt.short}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    className="mt-3 flex w-full items-center gap-2 rounded-xl border border-sky-300/40 bg-sky-400/10 px-3 py-2 text-[0.7rem] font-black uppercase tracking-[0.12em] text-sky-100 transition hover:bg-sky-400/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70"
+                    onClick={openDashboardCoachMessages}
+                    type="button"
                   >
-                    Open coach messaging
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </a>
+                    <MessageCircle className="h-3.5 w-3.5" />
+                    View messages
+                    {dashboardCoachUnread > 0 ? (
+                      <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-sky-300 px-1.5 text-[0.62rem] font-black leading-none text-slate-950">
+                        {dashboardCoachUnread}
+                      </span>
+                    ) : null}
+                    <ChevronRight
+                      className={
+                        dashboardCoachUnread > 0
+                          ? "h-3.5 w-3.5"
+                          : "ml-auto h-3.5 w-3.5"
+                      }
+                    />
+                  </button>
+                    </>
+                  )}
                     </div>,
                     document.body,
                   )
@@ -26661,22 +28216,143 @@ export default function UserHomeDashboardPage() {
                   <div
                     aria-label="Claim rewards"
                     aria-live="polite"
-                    className="dashboard-profile-claim-dropdown absolute right-0 top-[calc(100%+0.5rem)] z-[270] w-[15rem] max-w-[calc(100vw-1.5rem)] px-4 py-4 text-slate-100"
+                    className="dashboard-profile-claim-dropdown absolute right-0 top-[calc(100%+0.5rem)] z-[270] w-[17rem] max-w-[calc(100vw-1.5rem)] px-4 py-4 text-slate-100"
                     id="dashboard-claim-rewards-dropdown"
                     role="region"
                   >
-                    <p className="dashboard-profile-claim-dropdown__message">
-                      No new rewards at this time
-                    </p>
+                    <div className="dashboard-profile-claim-dropdown__header">
+                      <span className="dashboard-profile-claim-dropdown__title">
+                        Level Gifts
+                      </span>
+                      <span className="dashboard-profile-claim-dropdown__progress">
+                        LV {soundFitnessLevel} &middot;{" "}
+                        {Math.round(soundFitnessLevelProgress)}%
+                      </span>
+                    </div>
+                    <ul className="dashboard-profile-claim-dropdown__list">
+                      {DASHBOARD_PAGE_ANALOG_LEVEL_REWARDS.map((reward) => {
+                        const rewardEarned =
+                          soundFitnessLevelProgress >= reward.threshold;
+                        const rewardClaimed = dashboardClaimedLevelRewards.has(
+                          reward.threshold,
+                        );
+                        return (
+                          <li
+                            className="dashboard-profile-claim-dropdown__item"
+                            data-claimed={rewardClaimed ? "true" : "false"}
+                            data-earned={rewardEarned ? "true" : "false"}
+                            key={reward.threshold}
+                          >
+                            <span
+                              aria-hidden="true"
+                              className="dashboard-profile-claim-dropdown__icon"
+                            >
+                              {renderDashboardPageLevelRewardIcon(
+                                reward.icon,
+                                Math.min(
+                                  1,
+                                  soundFitnessLevelProgress /
+                                    Math.max(1, reward.threshold),
+                                ),
+                              )}
+                            </span>
+                            <span className="dashboard-profile-claim-dropdown__meta">
+                              <span className="dashboard-profile-claim-dropdown__label">
+                                {reward.label}
+                              </span>
+                              <span className="dashboard-profile-claim-dropdown__requirement">
+                                {rewardClaimed
+                                  ? "Claimed"
+                                  : rewardEarned
+                                    ? "Ready to claim!"
+                                    : `${Math.max(
+                                        1,
+                                        Math.round(
+                                          reward.threshold -
+                                            soundFitnessLevelProgress,
+                                        ),
+                                      )}% to go`}
+                              </span>
+                            </span>
+                            {rewardEarned && !rewardClaimed ? (
+                              <button
+                                className="dashboard-profile-claim-dropdown__claim"
+                                onClick={() =>
+                                  setDashboardClaimedLevelRewards(
+                                    (claimed) =>
+                                      new Set(claimed).add(reward.threshold),
+                                  )
+                                }
+                                type="button"
+                              >
+                                Claim
+                              </button>
+                            ) : (
+                              <span
+                                aria-hidden="true"
+                                className="dashboard-profile-claim-dropdown__state"
+                              >
+                                {rewardClaimed ? (
+                                  <svg
+                                    className="dashboard-profile-claim-dropdown__state-svg"
+                                    fill="none"
+                                    viewBox="0 0 16 16"
+                                  >
+                                    <path
+                                      d="M3 8.6 6.4 12 13 4.6"
+                                      stroke="currentColor"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth="2"
+                                    />
+                                  </svg>
+                                ) : (
+                                  <svg
+                                    className="dashboard-profile-claim-dropdown__state-svg"
+                                    fill="none"
+                                    viewBox="0 0 16 16"
+                                  >
+                                    <rect
+                                      height="7"
+                                      rx="1.4"
+                                      stroke="currentColor"
+                                      strokeWidth="1.6"
+                                      width="10"
+                                      x="3"
+                                      y="6.4"
+                                    />
+                                    <path
+                                      d="M5.4 6.2V4.9a2.6 2.6 0 0 1 5.2 0v1.3"
+                                      stroke="currentColor"
+                                      strokeWidth="1.6"
+                                    />
+                                  </svg>
+                                )}
+                              </span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </div>
                 ) : null}
 
-                {dashboardPointsDropdownOpen ? (
+                {/* Latched-but-closed: kept mounted (scenes stay registered
+                    and compiled) but fully hidden. display:none zeroes the GL
+                    anchors' rects so the stage culls them for free, and
+                    re-showing restarts the dropdown's CSS entry animation. */}
+                {dashboardPointsDropdownOpen || dashboardPointsDropdownLatched ? (
                   <div
+                    aria-hidden={dashboardPointsDropdownOpen ? undefined : true}
                     aria-label="Sound Points rewards"
                     className="dashboard-profile-points-dropdown absolute right-0 top-[calc(100%+0.55rem)] z-[260] w-[27rem] max-w-[calc(100vw-1.5rem)] overflow-visible p-3 text-slate-200"
                     id="dashboard-points-dropdown"
                     role="region"
+                    style={
+                      dashboardPointsDropdownOpen
+                        ? undefined
+                        : { display: "none" }
+                    }
                   >
                     <div
                       aria-label={`Rewards carousel. Current section ${DASHBOARD_PROFILE_REWARD_PANELS[activeDashboardPointsRewardPanelIndex]?.label}. Drag horizontally to rotate Points, Coins, and Gems.`}
@@ -26696,6 +28372,14 @@ export default function UserHomeDashboardPage() {
                       }
                       onPointerCancel={(event) => {
                         dashboardPointsRewardPointerStartRef.current = null;
+                        // A cancelled drag (scroll takeover) must not leave a
+                        // stale moved flag that would eat the next tap.
+                        dashboardPointsRewardPointerMovedRef.current = false;
+                        delete event.currentTarget.dataset.orbitDragging;
+                        delete event.currentTarget.dataset.orbitDragToward;
+                        event.currentTarget.style.removeProperty(
+                          "--dashboard-reward-drag-px",
+                        );
                         if (
                           event.currentTarget.hasPointerCapture?.(
                             event.pointerId,
@@ -26706,31 +28390,105 @@ export default function UserHomeDashboardPage() {
                           );
                         }
                       }}
-                      onPointerDown={(event) =>
+                      onPointerDown={(event) => {
+                        // Drag feedback: while a gesture is live, the side
+                        // panels fade partially in (CSS keys on this) so the
+                        // user can see what they're pulling toward.
+                        event.currentTarget.dataset.orbitDragging = "true";
                         handleDashboardOrbitPointerDown(
                           event,
                           dashboardPointsRewardPointerStartRef,
                           dashboardPointsRewardPointerMovedRef,
-                        )
-                      }
-                      onPointerMove={(event) =>
-                        handleDashboardOrbitPointerMove(
-                          event,
-                          dashboardPointsRewardPointerStartRef,
-                          dashboardPointsRewardPointerMovedRef,
-                          rotateDashboardPointsRewardOrbit,
-                          44,
-                        )
-                      }
-                      onPointerUp={(event) =>
-                        handleDashboardOrbitPointerUp(
-                          event,
-                          dashboardPointsRewardPointerStartRef,
-                          dashboardPointsRewardPointerMovedRef,
-                          rotateDashboardPointsRewardOrbit,
-                          showDashboardPointsRewardPanel,
-                        )
-                      }
+                        );
+                      }}
+                      onPointerMove={(event) => {
+                        // Live drag-follow: the panels track the pointer
+                        // (damped, clamped) instead of stepping discretely —
+                        // rotation is decided on RELEASE from total travel.
+                        const startX =
+                          dashboardPointsRewardPointerStartRef.current;
+                        if (startX === null) return;
+                        const deltaX = event.clientX - startX;
+                        if (Math.abs(deltaX) >= 8) {
+                          dashboardPointsRewardPointerMovedRef.current = true;
+                        }
+                        // Reveal only the panel the drag is heading toward.
+                        // Dragging right slides the row right, so it is the
+                        // LEFT neighbour that is coming to the middle; showing
+                        // both neighbours put the one being left behind on
+                        // screen too, which read as a stray third card.
+                        if (Math.abs(deltaX) >= 4) {
+                          event.currentTarget.dataset.orbitDragToward =
+                            deltaX > 0 ? "left" : "right";
+                        } else {
+                          delete event.currentTarget.dataset.orbitDragToward;
+                        }
+                        event.currentTarget.style.setProperty(
+                          "--dashboard-reward-drag-px",
+                          `${dashboardRewardOrbitDragShift(deltaX)}px`,
+                        );
+                      }}
+                      onPointerUp={(event) => {
+                        delete event.currentTarget.dataset.orbitDragging;
+                        delete event.currentTarget.dataset.orbitDragToward;
+                        event.currentTarget.style.removeProperty(
+                          "--dashboard-reward-drag-px",
+                        );
+                        const startX =
+                          dashboardPointsRewardPointerStartRef.current;
+                        dashboardPointsRewardPointerStartRef.current = null;
+                        if (
+                          event.currentTarget.hasPointerCapture?.(
+                            event.pointerId,
+                          )
+                        ) {
+                          event.currentTarget.releasePointerCapture?.(
+                            event.pointerId,
+                          );
+                        }
+                        if (startX === null) return;
+                        const deltaX = event.clientX - startX;
+                        const dragged = Math.abs(deltaX) >= 8;
+                        dashboardPointsRewardPointerMovedRef.current = dragged;
+                        if (dragged) {
+                          window.setTimeout(() => {
+                            dashboardPointsRewardPointerMovedRef.current =
+                              false;
+                          }, 0);
+                        }
+                        if (
+                          Math.abs(deltaX) >= DASHBOARD_REWARD_ORBIT_COMMIT_PX
+                        ) {
+                          rotateDashboardPointsRewardOrbit(
+                            deltaX > 0 ? "left" : "right",
+                          );
+                          return;
+                        }
+                        if (!dragged) {
+                          const elementAtPoint =
+                            event.currentTarget.ownerDocument.elementFromPoint(
+                              event.clientX,
+                              event.clientY,
+                            );
+                          const cardElement =
+                            elementAtPoint instanceof HTMLElement
+                              ? elementAtPoint.closest(
+                                  "[data-dashboard-orbit-card-index]",
+                                )
+                              : null;
+                          const cardIndexValue =
+                            cardElement instanceof HTMLElement
+                              ? cardElement.dataset.dashboardOrbitCardIndex
+                              : undefined;
+                          const cardIndex =
+                            typeof cardIndexValue === "string"
+                              ? Number(cardIndexValue)
+                              : NaN;
+                          if (Number.isInteger(cardIndex)) {
+                            showDashboardPointsRewardPanel(cardIndex);
+                          }
+                        }
+                      }}
                       role="group"
                       tabIndex={0}
                     >
@@ -26751,12 +28509,6 @@ export default function UserHomeDashboardPage() {
                                   event.stopPropagation();
                                   showDashboardPointsRewardPanel(index);
                                 }}
-                                onPointerDown={(event) =>
-                                  event.stopPropagation()
-                                }
-                                onPointerUp={(event) =>
-                                  event.stopPropagation()
-                                }
                                 type="button"
                               >
                                 <span
@@ -27036,30 +28788,54 @@ export default function UserHomeDashboardPage() {
             </div>
 
             <button
-              aria-expanded={dashboardProfileActionsOpen}
-              aria-hidden={dashboardProfileActionsOpen}
+              aria-expanded={dashboardSettingsWheelOpen}
               aria-label={
-                dashboardProfileActionsOpen
-                  ? "Hide profile shortcuts"
-                  : "Show profile shortcuts"
+                dashboardSettingsWheelOpen
+                  ? "Close settings wheel"
+                  : "Open settings wheel"
               }
               className="dashboard-profile-action-gear"
-              data-dashboard-tooltip={
-                dashboardProfileActionsOpen
-                  ? "Hide shortcuts"
-                  : "Profile shortcuts"
-              }
+              // Keep the 3D gear lit and painted through header idle: without
+              // this the idle dim dropped its rest emissives below the level
+              // that already read as "disappeared" once, and the header
+              // timeout culled it down to the faint 2D fallback — the icon
+              // looked broken whenever the header wasn't being interacted
+              // with (i.e. most of the time).
+              data-dashboard-webgl-header-exempt="true"
+              data-dashboard-tooltip="Settings"
               onBlur={() => startTransition(() => setDashboardProfileGearHighlighted(false))}
-              onClick={() => {
-                const nextOpen = !dashboardProfileActionsOpen;
+              onClick={(event) => {
+                const willOpen = !dashboardSettingsWheelOpen;
                 setDashboardTrophyMenuOpen(false);
                 setDashboardHeroWidgetsDrawerOpen(false);
-                setDashboardProfileActionsOpen(nextOpen);
+                setDashboardProfileActionsOpen(false);
                 setDashboardPointsDropdownOpen(false);
                 setDashboardHeaderMeterMenuOpen(false);
-                if (!nextOpen) {
-                  setDashboardMusicDropdownOpen(false);
+                setDashboardMusicDropdownOpen(false);
+                if (willOpen) {
+                  // The wheel opens BELOW the header menu, not inside it —
+                  // anchored under the shell's bottom edge, centered on the
+                  // gear and clamped to the viewport.
+                  const shell = document.querySelector(
+                    ".dashboard-header-vortex-shell",
+                  );
+                  const gearRect = event.currentTarget.getBoundingClientRect();
+                  const anchorBottom = shell
+                    ? shell.getBoundingClientRect().bottom
+                    : gearRect.bottom;
+                  const size = 208;
+                  setDashboardSettingsWheelPos({
+                    top: anchorBottom + 10,
+                    left: Math.max(
+                      12,
+                      Math.min(
+                        gearRect.left + gearRect.width / 2 - size / 2,
+                        window.innerWidth - size - 12,
+                      ),
+                    ),
+                  });
                 }
+                setDashboardSettingsWheelOpen(willOpen);
               }}
               onFocus={() => startTransition(() => setDashboardProfileGearHighlighted(true))}
               onMouseEnter={() => startTransition(() => setDashboardProfileGearHighlighted(true))}
@@ -27067,17 +28843,97 @@ export default function UserHomeDashboardPage() {
               onPointerEnter={() => startTransition(() => setDashboardProfileGearHighlighted(true))}
               onPointerLeave={() => startTransition(() => setDashboardProfileGearHighlighted(false))}
               style={{ left: "-0.45rem", right: "auto" }}
-              tabIndex={dashboardProfileActionsOpen ? -1 : 0}
               type="button"
             >
               <DashboardGearIcon3D
                 active={
-                  dashboardProfileGearHighlighted || dashboardProfileActionsOpen
+                  dashboardProfileGearHighlighted || dashboardSettingsWheelOpen
                 }
                 className="dashboard-profile-action-gear__webgl"
                 paused={dashboardHeaderMotionPaused}
               />
+              {/* DOM fallback: the GL gear takes 1-4s to compile at startup
+                  (and vanishes entirely on context loss) — without this the
+                  button was an empty box. Hidden via :has once the widget
+                  reports data-webgl-ready (rule in dashboard-runtime.css). */}
+              <svg
+                aria-hidden="true"
+                className="dashboard-profile-action-gear__fallback"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+              >
+                <path d="M12 15.4a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8Z" />
+                <path d="M19.3 12a7.3 7.3 0 0 0-.1-1.1l2-1.5-2-3.4-2.3 1a7.5 7.5 0 0 0-1.9-1.1L14.6 3h-4l-.4 2.4a7.5 7.5 0 0 0-1.9 1.1l-2.3-1-2 3.4 2 1.5a7.3 7.3 0 0 0 0 2.2l-2 1.5 2 3.4 2.3-1a7.5 7.5 0 0 0 1.9 1.1l.4 2.4h4l.4-2.4a7.5 7.5 0 0 0 1.9-1.1l2.3 1 2-3.4-2-1.5c.1-.4.1-.7.1-1.1Z" />
+              </svg>
             </button>
+
+            {dashboardSettingsWheelOpen && dashboardSettingsWheelPos
+              ? createPortal(
+                  <>
+                    {/* Slight screen shade behind the wheel; it sits outside
+                        the wheel ref, so the outside-click closer treats taps
+                        on it as dismissals. */}
+                    <div
+                      aria-hidden="true"
+                      className="fixed inset-0 z-[595] bg-slate-950/55 backdrop-blur-[2px]"
+                    />
+                    <div
+                      aria-label="Account settings wheel"
+                      className="dashboard-settings-wheel fixed z-[600] h-52 w-52"
+                      ref={dashboardSettingsWheelRef}
+                      role="dialog"
+                      style={{
+                        left: dashboardSettingsWheelPos.left,
+                        top: dashboardSettingsWheelPos.top,
+                      }}
+                    >
+                      {DASHBOARD_SETTINGS_WHEEL_ITEMS.map((item, index) => (
+                        <Link
+                          aria-label={`Open ${item.label}`}
+                          className={`absolute grid h-12 w-12 place-items-center rounded-full transition hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/70 ${item.tint}`}
+                          data-dashboard-tooltip={item.label}
+                          href={item.href}
+                          key={item.label}
+                          onClick={() => {
+                            setDashboardSettingsWheelOpen(false);
+                            markDashboardDestinationVisited(item.href);
+                          }}
+                          style={DASHBOARD_SETTINGS_WHEEL_SLOTS[index]}
+                        >
+                          {/* No chip container — a colorful soft shadow
+                              carries each icon instead. */}
+                          <span
+                            aria-hidden="true"
+                            className={`pointer-events-none absolute inset-1 rounded-full blur-lg ${item.glow}`}
+                          />
+                          <DashboardTabIcon
+                            className="relative h-6 w-6"
+                            name={item.icon}
+                          />
+                        </Link>
+                      ))}
+                      <button
+                        aria-label="Close settings wheel"
+                        className="absolute left-1/2 top-1/2 grid h-10 w-10 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full text-slate-100 transition hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/70"
+                        onClick={() => setDashboardSettingsWheelOpen(false)}
+                        type="button"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute inset-1 rounded-full bg-slate-200/20 blur-lg"
+                        />
+                        <X
+                          aria-hidden="true"
+                          className="relative h-4 w-4 drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]"
+                        />
+                      </button>
+                    </div>
+                  </>,
+                  document.body,
+                )
+              : null}
 
             <div
               aria-hidden={!dashboardProfileActionsOpen}
@@ -27592,6 +29448,10 @@ export default function UserHomeDashboardPage() {
                 : "Open header meter menu"
             }
             className="dashboard-header-meter-menu-trigger"
+            // During header open/idle flips the icon's 3D detached from the
+            // moving button (composited translate vs gBCR sampling) and rode
+            // high — swap to the in-box DOM fallback for the transition.
+            data-dashboard-webgl-transition-fallback="true"
             data-dashboard-tooltip="Meters"
             onBlur={() => startTransition(() => setDashboardHeaderMeterMenuHighlighted(false))}
             onClick={() => {
@@ -27704,6 +29564,23 @@ export default function UserHomeDashboardPage() {
             dashboardHeaderMeterPanelMounted) &&
           typeof document !== "undefined"
             ? createPortal(
+                <>
+                {/* The panel's dark halo sheet lives OUTSIDE the panel, just
+                    under the shared WebGL stage canvas — inside the panel it
+                    stacked above the canvas and draped the stage-drawn
+                    tornado in darkness. Order: page → halo → tornado →
+                    panel content. */}
+                <span
+                  aria-hidden="true"
+                  className="dashboard-header-meter-panel-halo"
+                  data-meter-menu-state={
+                    dashboardHeaderMeterMenuOpen
+                      ? "open"
+                      : dashboardHeaderMeterPanelVisible
+                        ? "closing"
+                        : "closed"
+                  }
+                />
                 <aside
                   aria-label="Stacked dashboard meters"
                   className="dashboard-header-meter-panel"
@@ -27744,6 +29621,23 @@ export default function UserHomeDashboardPage() {
                       </svg>
                     </button>
                   </div>
+
+                  <button
+                    aria-label="Close meter menu"
+                    className="dashboard-header-meter-panel__ufo-close"
+                    onClick={() => setDashboardHeaderMeterMenuOpen(false)}
+                    type="button"
+                  >
+                    <svg aria-hidden="true" viewBox="0 0 24 24">
+                      <path
+                        d="m7 7 10 10M17 7 7 17"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeWidth="2.4"
+                      />
+                    </svg>
+                  </button>
 
                   <div
                     aria-label="Highlight UFO category display"
@@ -28790,11 +30684,15 @@ export default function UserHomeDashboardPage() {
                       </div>
                     </section>
 
+                    {/* The tornado is exempt from the header-idle dim/freeze:
+                        it is only visible while the open panel is being read,
+                        so header inactivity should not drape a shadow over it
+                        or stop its spin. */}
                     <span
                       aria-hidden="true"
                       className="dashboard-header-meter-tornado"
+                      data-dashboard-webgl-header-exempt="true"
                       data-tornado-paused={
-                        dashboardHeaderMotionPaused ||
                         dashboardPointsMenuHighlighted ||
                         dashboardHeaderMeterPanelHighlightTarget === "ufo"
                           ? "true"
@@ -29219,19 +31117,34 @@ export default function UserHomeDashboardPage() {
                           <ellipse cx="160" cy="386" rx="37" ry="9" />
                         </g>
                       </svg>
+                      {/* Dim only while the UFO holds the highlight; any
+                          meter group taking the highlight lightens the
+                          tornado back to full display. */}
                       <DashboardTornadoEmeralds3D
+                        dimmed={
+                          dashboardHeaderMeterPanelHighlightTarget === "ufo"
+                        }
                         paused={
-                          dashboardHeaderMotionPaused ||
                           dashboardPointsMenuHighlighted ||
                           dashboardHeaderMeterPanelHighlightTarget === "ufo"
                         }
                         tone={dashboardHeaderMeterTornadoGemTone}
                       />
                     </span>
+                    {/* 50% shade over the meter + tornado zone while the UFO
+                        holds the highlight — the shadowy-overlay treatment;
+                        it fades out the moment a meter takes over. Sits above
+                        the stage canvas (the whole panel does) and above the
+                        meter sections, below the UFO's own canvas. */}
+                    <span
+                      aria-hidden="true"
+                      className="dashboard-header-meter-panel__ufo-shade"
+                    />
                     </>
                     ) : null}
                   </div>
-                </aside>,
+                </aside>
+                </>,
                 document.body,
               )
             : null}
@@ -32775,6 +34688,7 @@ export default function UserHomeDashboardPage() {
     kicker,
     title,
     compact,
+    stackOnNarrow,
     urgencyMotionPaused,
     urgencyTone,
   }: {
@@ -32783,11 +34697,16 @@ export default function UserHomeDashboardPage() {
     description: string;
     footer?: ReactNode;
     kicker: string;
+    // Below the sm breakpoint, render the title in flow above the row content
+    // instead of absolutely overlaid — for rows whose wrapped title grows far
+    // taller than the pt-20 reserve and would paint over the cards.
+    stackOnNarrow?: boolean;
     title: string;
     urgencyMotionPaused?: boolean;
     urgencyTone?: ReturnType<typeof getDashboardRowUrgencyTone>;
   }) => {
     const isCompactRowTitle = compact ?? false;
+    const isStackedOnNarrow = stackOnNarrow ?? false;
     const isRowUrgencyMotionPaused = urgencyMotionPaused ?? true;
     const rowIndex = isAdminPreview
       ? dashboardOrbiterRows.findIndex((row) => row.title === title)
@@ -32881,9 +34800,9 @@ export default function UserHomeDashboardPage() {
     return (
       <div
         className={`pointer-events-none absolute left-36 top-5 z-30 w-[min(34rem,calc(100%-12rem))] min-w-0 transition-[opacity,transform] duration-300 sm:left-40 lg:left-44 ${
-          isAdminPreview
-            ? "max-sm:left-24 max-sm:w-[calc(100%-9rem)]"
-            : ""
+          isStackedOnNarrow
+            ? "max-sm:static max-sm:mb-3 max-sm:w-auto"
+            : "max-sm:left-24 max-sm:w-[calc(100%-9rem)]"
         }`}
       >
       <div className="flex max-w-full flex-wrap items-center gap-2">
@@ -32913,10 +34832,18 @@ export default function UserHomeDashboardPage() {
           </span>
         ) : null}
       </div>
-      <h2 className="mt-2 text-2xl font-black uppercase leading-none tracking-[0.08em] text-white [text-shadow:0_0_24px_rgba(34,211,238,0.12)] transition-all duration-300 sm:text-3xl">
+      <h2
+        className={`mt-2 text-2xl font-black uppercase leading-none tracking-[0.08em] text-white [text-shadow:0_0_24px_rgba(34,211,238,0.12)] transition-all duration-300 sm:text-3xl ${
+          isStackedOnNarrow ? "max-sm:text-xl" : ""
+        }`}
+      >
         {title}
       </h2>
-      <p className="mt-1 max-w-[32rem] text-xs font-semibold leading-5 text-slate-300">
+      <p
+        className={`mt-1 max-w-[32rem] text-xs font-semibold leading-5 text-slate-300 ${
+          isStackedOnNarrow ? "max-sm:line-clamp-2" : ""
+        }`}
+      >
         {description}
       </p>
       {rowHorizontalIndicatorItems.length && rowIndex !== 1 ? (
@@ -36809,7 +38736,7 @@ export default function UserHomeDashboardPage() {
       <div
         aria-label="Daily Tools row"
         data-dashboard-orbiter-row="1"
-        className={`relative flex min-h-0 items-start justify-center pl-36 pr-6 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
+        className={`relative flex min-h-0 items-start justify-center pl-36 pr-6 pt-20 transition-opacity duration-300 max-sm:pl-24 max-sm:pr-12 sm:pl-40 sm:pr-10 sm:pt-24 lg:pl-44 lg:pr-12 lg:pt-28 ${
           clampedDashboardOrbiterRow === 1
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-40"
@@ -36835,8 +38762,8 @@ export default function UserHomeDashboardPage() {
               <article
                 className={`absolute left-1/2 top-1/2 flex overflow-hidden border border-cyan-300/24 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.16),transparent_34%),radial-gradient(circle_at_92%_12%,rgba(250,204,21,0.12),transparent_30%),rgba(15,23,42,0.72)] shadow-2xl shadow-black/25 backdrop-blur transition-[height,width,border-radius,box-shadow] duration-300 ${
                   manualStatsAdderCollapsed
-                    ? "h-[220px] w-[min(86vw,24rem)] flex-col rounded-[28px] p-5 sm:h-[244px] sm:w-[24rem]"
-                    : "h-[300px] w-[min(86vw,26rem)] flex-col rounded-[28px] p-4 sm:rounded-[34px] sm:p-5"
+                    ? "h-[300px] w-[min(100%,24rem)] flex-col rounded-[28px] p-5 sm:h-[244px] sm:w-[24rem]"
+                    : "h-[300px] w-[min(100%,26rem)] flex-col rounded-[28px] p-4 sm:rounded-[34px] sm:p-5"
                 }`}
                 style={getDailyToolOrbitStyle(manualToolDistance)}
               >
@@ -37263,7 +39190,7 @@ export default function UserHomeDashboardPage() {
               </article>
               <Link
                 aria-label="Open Video Review form checks"
-                className="group absolute left-1/2 top-1/2 flex h-[220px] w-[min(82vw,21rem)] flex-col justify-between overflow-hidden rounded-[28px] border border-sky-300/24 bg-[radial-gradient(circle_at_18%_0%,rgba(56,189,248,0.20),transparent_34%),radial-gradient(circle_at_88%_16%,rgba(250,204,21,0.14),transparent_30%),rgba(15,23,42,0.72)] p-5 text-left shadow-2xl shadow-black/25 backdrop-blur transition hover:border-sky-200/48 hover:bg-sky-400/14 sm:h-[244px] sm:w-[22rem]"
+                className="group absolute left-1/2 top-1/2 flex h-[300px] w-[min(100%,21rem)] flex-col justify-between overflow-hidden rounded-[28px] border border-sky-300/24 bg-[radial-gradient(circle_at_18%_0%,rgba(56,189,248,0.20),transparent_34%),radial-gradient(circle_at_88%_16%,rgba(250,204,21,0.14),transparent_30%),rgba(15,23,42,0.72)] p-5 text-left shadow-2xl shadow-black/25 backdrop-blur transition hover:border-sky-200/48 hover:bg-sky-400/14 sm:h-[244px] sm:w-[22rem]"
                 href={ROUTES.dashboard.videoReview}
                 style={getDailyToolOrbitStyle(videoToolDistance)}
               >
@@ -37316,7 +39243,7 @@ export default function UserHomeDashboardPage() {
               </Link>
               <Link
                 aria-label="Open Current Week plan snapshot"
-                className="group absolute left-1/2 top-1/2 flex h-[220px] w-[min(82vw,21rem)] flex-col justify-between overflow-hidden rounded-[28px] border border-amber-300/24 bg-[radial-gradient(circle_at_18%_0%,rgba(250,204,21,0.18),transparent_34%),radial-gradient(circle_at_88%_16%,rgba(34,211,238,0.14),transparent_30%),rgba(15,23,42,0.72)] p-5 text-left shadow-2xl shadow-black/25 backdrop-blur transition hover:border-amber-200/50 hover:bg-amber-300/12 sm:h-[244px] sm:w-[22rem]"
+                className="group absolute left-1/2 top-1/2 flex h-[300px] w-[min(100%,21rem)] flex-col justify-between overflow-hidden rounded-[28px] border border-amber-300/24 bg-[radial-gradient(circle_at_18%_0%,rgba(250,204,21,0.18),transparent_34%),radial-gradient(circle_at_88%_16%,rgba(34,211,238,0.14),transparent_30%),rgba(15,23,42,0.72)] p-5 text-left shadow-2xl shadow-black/25 backdrop-blur transition hover:border-amber-200/50 hover:bg-amber-300/12 sm:h-[244px] sm:w-[22rem]"
                 href={ROUTES.dashboard.myPlan}
                 style={getDailyToolOrbitStyle(planToolDistance)}
               >
@@ -39073,7 +41000,7 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="Weekly Recap row"
       data-dashboard-orbiter-row="2"
-      className={`relative min-h-0 w-full overflow-hidden pl-36 pr-10 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-12 sm:pt-24 lg:pl-44 lg:pt-28 ${
+      className={`relative min-h-0 w-full overflow-hidden pl-36 pr-10 pt-20 transition-opacity duration-300 max-sm:pt-4 sm:pl-40 sm:pr-12 sm:pt-24 lg:pl-44 lg:pt-28 ${
         clampedDashboardOrbiterRow === 2
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
@@ -39081,6 +41008,7 @@ export default function UserHomeDashboardPage() {
     >
       {renderDashboardRowTitle({
         accentClassName: "bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.62)]",
+        stackOnNarrow: true,
         description:
           "Last 7 days: training volume, nutrition consistency, readiness, and recent activity.",
         footer: (
@@ -39123,7 +41051,7 @@ export default function UserHomeDashboardPage() {
         title: "Weekly Recap",
         urgencyMotionPaused:
           clampedDashboardOrbiterRow !== 2 ||
-          dashboardHeaderUrgencyBlinkPaused,
+          dashboardContentUrgencyBlinkPaused,
         urgencyTone: getDashboardRowUrgencyTone(
           dashboardOrbiterRows[2]?.completion ?? 0,
         ),
@@ -40013,7 +41941,7 @@ export default function UserHomeDashboardPage() {
     <div
       aria-label="My Sound row"
       data-dashboard-orbiter-row="5"
-      className={`relative min-h-0 w-full overflow-hidden pl-36 pr-10 pt-20 transition-opacity duration-300 sm:pl-40 sm:pr-12 sm:pt-24 lg:pl-44 lg:pt-28 ${
+      className={`relative min-h-0 w-full overflow-hidden pl-36 pr-10 pt-20 transition-opacity duration-300 max-sm:pt-4 sm:pl-40 sm:pr-12 sm:pt-24 lg:pl-44 lg:pt-28 ${
         clampedDashboardOrbiterRow === 5
           ? "pointer-events-auto opacity-100"
           : "pointer-events-none opacity-40"
@@ -40022,6 +41950,7 @@ export default function UserHomeDashboardPage() {
       {renderDashboardRowTitle({
         accentClassName:
           "bg-fuchsia-300 shadow-[0_0_14px_rgba(217,70,239,0.58)]",
+        stackOnNarrow: true,
         description:
           "Personalized dashboard signals, content paths, and next-best actions.",
         kicker: "Personal insight row",
@@ -40029,7 +41958,7 @@ export default function UserHomeDashboardPage() {
         urgencyMotionPaused:
           dashboardMySoundRowIndex < 0 ||
           clampedDashboardOrbiterRow !== dashboardMySoundRowIndex ||
-          dashboardHeaderUrgencyBlinkPaused,
+          dashboardContentUrgencyBlinkPaused,
         urgencyTone: dashboardMySoundUrgencyTone,
       })}
 

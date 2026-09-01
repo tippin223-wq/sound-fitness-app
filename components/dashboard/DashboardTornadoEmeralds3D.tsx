@@ -360,19 +360,24 @@ const createRoundedPanelGeometry = (
 };
 
 export default function DashboardTornadoEmeralds3D({
+  dimmed = false,
   paused = false,
   tone = "green",
 }: {
+  /** Subdue the whole scene (the UFO-highlight state); glides ~320ms. */
+  dimmed?: boolean;
   paused?: boolean;
   tone?: DashboardTornadoGemTone;
 }) {
   const pausedRef = useRef(paused);
   const toneRef = useRef(tone);
+  const dimmedRef = useRef(dimmed);
 
   useEffect(() => {
     pausedRef.current = paused;
     toneRef.current = tone;
-  }, [paused, tone]);
+    dimmedRef.current = dimmed;
+  }, [dimmed, paused, tone]);
 
   const build = useMemo<DashboardWidgetBuilder>(() => {
     return ({ THREE }): DashboardWidgetInstance => {
@@ -383,15 +388,15 @@ export default function DashboardTornadoEmeralds3D({
       camera.position.set(0, 0.08, 5.05);
       camera.lookAt(0, 0.02, 0);
 
-      const ambientLight = new THREE.AmbientLight(new THREE.Color(palette.ambient), 1.25);
+      const ambientLight = new THREE.AmbientLight(new THREE.Color(palette.ambient), 1.6);
       scene.add(ambientLight);
-      const keyLight = new THREE.DirectionalLight(0xffffff, 2.1);
+      const keyLight = new THREE.DirectionalLight(0xffffff, 2.5);
       keyLight.position.set(-1.8, 3.2, 3.4);
       scene.add(keyLight);
-      const rimLight = new THREE.PointLight(new THREE.Color(palette.rim), 2.4, 5.8);
+      const rimLight = new THREE.PointLight(new THREE.Color(palette.rim), 2.8, 5.8);
       rimLight.position.set(1.4, -0.8, 2.6);
       scene.add(rimLight);
-      const warmLight = new THREE.PointLight(new THREE.Color(palette.warm), 0.8, 4.4);
+      const warmLight = new THREE.PointLight(new THREE.Color(palette.warm), 1.05, 4.4);
       warmLight.position.set(-1.5, -1.2, 1.6);
       scene.add(warmLight);
 
@@ -400,35 +405,91 @@ export default function DashboardTornadoEmeralds3D({
       scene.add(tornadoGroup);
 
       const disposables: Array<BufferGeometry | Material> = [];
+      // The funnel is unlit (MeshBasicMaterial), so its brightness is purely
+      // color × opacity — the mid tone at 0.32 read as black-on-black behind
+      // the meter panels.
       const funnelMaterial = new THREE.MeshBasicMaterial({
         blending: THREE.AdditiveBlending,
-        color: new THREE.Color(palette.mid),
+        color: new THREE.Color(palette.light),
         depthWrite: false,
-        opacity: 0.32,
+        opacity: 0.62,
         transparent: true,
         wireframe: true,
       });
+      // The neck runs taller and tighter than the original funnel so it
+      // reaches up behind the UFO (which paints above this scene) — the
+      // vortex should read as feeding the ship, not floating under it.
       const funnelGeometry = new THREE.CylinderGeometry(
-        0.22,
+        0.15,
         1.16,
-        2.62,
+        2.83,
         96,
         12,
         true,
       );
       const funnel = new THREE.Mesh(funnelGeometry, funnelMaterial);
-      funnel.position.set(0, 0.04, -0.06);
+      funnel.position.set(0, 0.145, -0.06);
       funnel.scale.set(0.88, 1, 0.6);
       funnel.renderOrder = 1;
       tornadoGroup.add(funnel);
       disposables.push(funnelGeometry, funnelMaterial);
+
+      // Solid additive "volume" passes inside the wireframe: with DoubleSide
+      // the front and back walls stack, so the column reads as a luminous
+      // vortex instead of dark air between thin wireframe lines — the
+      // wireframe alone left the whole center looking covered in shadow.
+      const funnelGlowMaterial = new THREE.MeshBasicMaterial({
+        blending: THREE.AdditiveBlending,
+        color: new THREE.Color(palette.light),
+        depthWrite: false,
+        opacity: 0.17,
+        side: THREE.DoubleSide,
+        transparent: true,
+      });
+      const funnelGlowGeometry = new THREE.CylinderGeometry(
+        0.13,
+        1.1,
+        2.79,
+        48,
+        1,
+        true,
+      );
+      const funnelGlow = new THREE.Mesh(funnelGlowGeometry, funnelGlowMaterial);
+      funnelGlow.position.set(0, 0.145, -0.06);
+      funnelGlow.scale.set(0.88, 1, 0.6);
+      funnelGlow.renderOrder = 0;
+      tornadoGroup.add(funnelGlow);
+      disposables.push(funnelGlowGeometry, funnelGlowMaterial);
+
+      const funnelCoreMaterial = new THREE.MeshBasicMaterial({
+        blending: THREE.AdditiveBlending,
+        color: new THREE.Color(palette.rim),
+        depthWrite: false,
+        opacity: 0.22,
+        side: THREE.DoubleSide,
+        transparent: true,
+      });
+      const funnelCoreGeometry = new THREE.CylinderGeometry(
+        0.08,
+        0.62,
+        2.71,
+        40,
+        1,
+        true,
+      );
+      const funnelCore = new THREE.Mesh(funnelCoreGeometry, funnelCoreMaterial);
+      funnelCore.position.set(0, 0.145, -0.06);
+      funnelCore.scale.set(0.88, 1, 0.6);
+      funnelCore.renderOrder = 0;
+      tornadoGroup.add(funnelCore);
+      disposables.push(funnelCoreGeometry, funnelCoreMaterial);
 
       const floorRings = [0.62, 0.94, 1.24].map((radius, index) => {
         const ringMaterial = new THREE.MeshBasicMaterial({
           blending: THREE.AdditiveBlending,
           color: new THREE.Color(index === 2 ? palette.warm : palette.rim),
           depthWrite: false,
-          opacity: 0.34 - index * 0.042,
+          opacity: 0.46 - index * 0.05,
           transparent: true,
         });
         const ringGeometry = new THREE.TorusGeometry(radius, 0.012, 8, 112);
@@ -464,7 +525,7 @@ export default function DashboardTornadoEmeralds3D({
               Math.sin(progress * Math.PI * 2) * 0.18;
             return new THREE.Vector3(
               Math.cos(angle) * radius * 0.78,
-              -1.08 + progress * 2.42,
+              -1.08 + progress * 2.62,
               Math.sin(angle) * radius * 0.56,
             );
           },
@@ -474,7 +535,7 @@ export default function DashboardTornadoEmeralds3D({
           blending: THREE.AdditiveBlending,
           color: new THREE.Color(index % 2 === 0 ? palette.light : palette.warm),
           depthWrite: false,
-          opacity: index % 2 === 0 ? 0.72 : 0.5,
+          opacity: index % 2 === 0 ? 0.85 : 0.66,
           transparent: true,
         });
         const stream = new THREE.Line(streamGeometry, streamMaterial);
@@ -585,6 +646,10 @@ export default function DashboardTornadoEmeralds3D({
         geometry = createEmeraldGeometry(THREE, palette);
         emeralds = emeraldOrbiters.map(({ phase, spin }) => {
           const group = createEmeraldGroup(THREE, geometry as BufferGeometry, palette);
+          // Born hidden: the group sits at origin/scale 1 (giant, filling the
+          // camera) until the first active update poses it — a draw landing
+          // before that (panel opening, tone rebuild) flashed a huge gem.
+          group.visible = false;
           tornadoGroup.add(group);
           return { group, phase, spin };
         });
@@ -597,7 +662,9 @@ export default function DashboardTornadoEmeralds3D({
         ambientLight.color.set(palette.ambient);
         rimLight.color.set(palette.rim);
         warmLight.color.set(palette.warm);
-        funnelMaterial.color.set(palette.mid);
+        funnelMaterial.color.set(palette.light);
+        funnelGlowMaterial.color.set(palette.light);
+        funnelCoreMaterial.color.set(palette.rim);
         floorRings.forEach(({ material }, index) => {
           material.color.set(index === 2 ? palette.warm : palette.rim);
         });
@@ -679,6 +746,18 @@ export default function DashboardTornadoEmeralds3D({
 
       let elapsedSeconds = 0;
       let lastAppliedElapsedSeconds = -1;
+      /**
+       * Half-rate gate: every unpaused frame rewrites 260 mist + 64 spark
+       * particles and uploads two position buffers, and any "changed" report
+       * forces a full shared-stage present. At TORNADO_WEBGL_MOTION_RATE the
+       * swirl reads the same at 15fps, so alternate unpaused calls mutate
+       * nothing and report "no change"; their (clamped) delta is banked so
+       * the local clock still advances by real elapsed time on the next
+       * active call and every phase stays continuous. The gem-stage builder
+       * below has its own reserves-only throttle — this one is independent.
+       */
+      let throttleSkip = true; // pre-flipped: first call is active
+      let bankedDeltaSeconds = 0;
 
       const updateParticlePositions = (
         positions: Float32Array,
@@ -701,13 +780,27 @@ export default function DashboardTornadoEmeralds3D({
           const offset = index * 3;
 
           positions[offset] = Math.cos(angle) * radius * 0.78;
-          positions[offset + 1] = -1.12 + travel * 2.42 + wobble * 0.16;
+          positions[offset + 1] = -1.12 + travel * 2.66 + wobble * 0.16;
           positions[offset + 2] = Math.sin(angle) * radius * 0.56;
         });
         positionAttribute.needsUpdate = true;
       };
 
+      // 0.9 in meter states (a 10% trim so the meter cards keep contrast);
+      // 0.55 under the UFO, where the panel's 50% shade overlay does the
+      // real darkening.
+      let glowLevel = dimmedRef.current ? 0.35 : 0.9;
+
       const update = (_elapsedSeconds: number, deltaSeconds: number) => {
+        if (!pausedRef.current) {
+          throttleSkip = !throttleSkip;
+          if (throttleSkip) {
+            // No other mutations on skip calls — the tone check runs
+            // (un-skippable) on the next active call.
+            bankedDeltaSeconds += Math.min(0.05, Math.max(0, deltaSeconds));
+            return false;
+          }
+        }
         const nextTone = toneRef.current;
         const toneChanged = nextTone !== currentTone;
         if (toneChanged) {
@@ -716,20 +809,48 @@ export default function DashboardTornadoEmeralds3D({
 
         const frameDeltaSeconds = Math.min(0.05, Math.max(0, deltaSeconds));
         if (!pausedRef.current) {
-          elapsedSeconds += frameDeltaSeconds;
+          elapsedSeconds += frameDeltaSeconds + bankedDeltaSeconds;
+          bankedDeltaSeconds = 0;
+        }
+        // The dim glide runs even while paused (highlighting the UFO both
+        // pauses and dims), so it steps here rather than off elapsedSeconds.
+        const glowTarget = dimmedRef.current ? 0.35 : 0.9;
+        let glowMoved = false;
+        if (glowLevel !== glowTarget) {
+          const glowStep = Math.max(frameDeltaSeconds, 1 / 60) / 0.32;
+          glowLevel =
+            glowLevel < glowTarget
+              ? Math.min(glowTarget, glowLevel + glowStep)
+              : Math.max(glowTarget, glowLevel - glowStep);
+          glowMoved = true;
         }
         // Every assignment below is a pure function of `elapsedSeconds` (and
-        // the tone): if time did not advance and the tone did not change, this
-        // frame rewrites the exact same values, so nothing visible changed.
+        // the tone/glow level): if none of them changed, this frame rewrites
+        // the exact same values, so nothing visible changed.
         const stillMoving =
-          toneChanged || elapsedSeconds !== lastAppliedElapsedSeconds;
+          toneChanged ||
+          glowMoved ||
+          elapsedSeconds !== lastAppliedElapsedSeconds;
         lastAppliedElapsedSeconds = elapsedSeconds;
         const seconds = elapsedSeconds;
         const tornadoSeconds = seconds * TORNADO_WEBGL_MOTION_RATE;
 
         tornadoGroup.rotation.z = Math.sin(tornadoSeconds * 0.72) * 0.018;
         funnel.rotation.y = tornadoSeconds * 0.95;
-        funnelMaterial.opacity = 0.28 + Math.sin(tornadoSeconds * 1.3) * 0.05;
+        // Every opacity/intensity below is written each frame, so brightness
+        // lives HERE, not in the material constructors — and glowLevel scales
+        // it all: 1 in full display, gliding to 0.32 while the UFO holds the
+        // highlight.
+        funnelMaterial.opacity =
+          (0.5 + Math.sin(tornadoSeconds * 1.3) * 0.08) * glowLevel;
+        funnelGlowMaterial.opacity = 0.17 * glowLevel;
+        funnelCoreMaterial.opacity = 0.22 * glowLevel;
+        ambientLight.intensity = 1.6 * glowLevel;
+        keyLight.intensity = 2.5 * glowLevel;
+        rimLight.intensity = 2.8 * glowLevel;
+        warmLight.intensity = 1.05 * glowLevel;
+        mistMaterial.opacity = 0.96 * Math.min(1, glowLevel);
+        sparkMaterial.opacity = 0.9 * Math.min(1, glowLevel);
         streamGroup.rotation.y = tornadoSeconds * 1.15;
         streamGroup.position.x = Math.sin(tornadoSeconds * 0.9) * 0.035;
         mistParticles.rotation.y = tornadoSeconds * 0.56;
@@ -738,7 +859,8 @@ export default function DashboardTornadoEmeralds3D({
         spiralStreams.forEach(({ material, phase, speed, stream }) => {
           stream.rotation.y = tornadoSeconds * speed + phase * 0.22;
           stream.rotation.z = Math.sin(tornadoSeconds * 0.86 + phase) * 0.024;
-          material.opacity = 0.54 + Math.sin(tornadoSeconds * 1.18 + phase) * 0.14;
+          material.opacity =
+            (0.72 + Math.sin(tornadoSeconds * 1.18 + phase) * 0.16) * glowLevel;
         });
 
         floorRings.forEach(({ material, mesh, phase, speed }) => {
@@ -746,7 +868,8 @@ export default function DashboardTornadoEmeralds3D({
           mesh.scale.x = pulse;
           mesh.scale.y =
             0.54 + Math.sin(tornadoSeconds * (speed + 0.14) + phase) * 0.04;
-          material.opacity = 0.18 + Math.sin(tornadoSeconds * speed + phase) * 0.05;
+          material.opacity =
+            (0.4 + Math.sin(tornadoSeconds * speed + phase) * 0.06) * glowLevel;
         });
 
         updateParticlePositions(
@@ -776,7 +899,9 @@ export default function DashboardTornadoEmeralds3D({
           const entranceFade = clamp01(orbitProgress / 0.14);
           const exitFade = clamp01((1 - orbitProgress) / 0.12);
           const depthFade = 0.68 + (z > 0 ? 0.18 : 0);
-          const gemOpacity = Math.min(0.92, depthFade * entranceFade * exitFade);
+          const gemOpacity =
+            Math.min(0.92, depthFade * entranceFade * exitFade) *
+            Math.min(1, 0.25 + glowLevel * 0.75);
 
           group.position.set(x, y, z);
           group.rotation.set(
@@ -1258,6 +1383,11 @@ export function DashboardGemStage3D({
           opacity: 0.36,
           transparent: true,
         });
+        // No `transmission` here: ANY value > 0 makes three.js run its
+        // transmission pre-pass — a second full render of every opaque object
+        // plus mipmap generation each frame — for an effect invisible on
+        // shards this small. Opacity sits slightly lower to keep the glassy
+        // read transmission used to add.
         const reserveDustMaterial = new THREE.MeshPhysicalMaterial({
           clearcoat: 1,
           clearcoatRoughness: 0.08,
@@ -1266,10 +1396,9 @@ export function DashboardGemStage3D({
           emissive: new THREE.Color(0x0e7490),
           emissiveIntensity: 0.18,
           metalness: 0.08,
-          opacity: 0.58,
+          opacity: 0.54,
           roughness: 0.18,
           transparent: true,
-          transmission: 0.1,
         });
         const alienMossMaterial = new THREE.MeshPhysicalMaterial({
           clearcoat: 0.4,
@@ -2099,11 +2228,33 @@ export function DashboardGemStage3D({
        */
       let swayElapsedSeconds = 0;
       let wasOrbitalMotionPaused: boolean | null = null;
+      /**
+       * Reserves-only frame throttle: the vault orbit is slow enough that
+       * 15fps reads the same, and every "changed" report forces a full-stage
+       * clear + re-render while the gems panel is open. Alternate calls
+       * mutate nothing and report "no change"; their (clamped) delta is
+       * banked so the local clocks still advance by real elapsed time on the
+       * next active call. The trigger variant and the tornado are untouched.
+       */
+      let reservesThrottleSkip = true; // pre-flipped: first call is active
+      let reservesBankedDeltaSeconds = 0;
 
       const update = (_elapsedSeconds: number, deltaSeconds: number) => {
+        if (variant === "reserves") {
+          reservesThrottleSkip = !reservesThrottleSkip;
+          if (reservesThrottleSkip) {
+            // No other mutations on skip calls — the dirty flag, pause-flip
+            // detection, and prominent-tone check all run (un-skippable) on
+            // the next active call.
+            reservesBankedDeltaSeconds += Math.min(0.033, deltaSeconds);
+            return false;
+          }
+        }
         const now = performance.now();
         const vaultOpenAmountBefore = vaultOpenAmount;
-        const frameDeltaSeconds = Math.min(0.033, deltaSeconds);
+        const frameDeltaSeconds =
+          Math.min(0.033, deltaSeconds) + reservesBankedDeltaSeconds;
+        reservesBankedDeltaSeconds = 0;
         // Consume the prop-flip dirty flag: guarantees one "changed" frame
         // for each paused/vaultOpen change even from a fully settled state.
         const externallyDirty = motionDirtyRef.current;
@@ -2156,6 +2307,15 @@ export function DashboardGemStage3D({
           orbitalPauseStateChanged ||
           (variant === "reserves" && externallyDirty) ||
           vaultOpenAmount !== vaultOpenAmountBefore;
+        // Fully settled while paused: every pose below is a pure function of
+        // the frozen clocks and the already-at-target vault amount (settle
+        // contract above), so the transform math would only write back the
+        // values already drawn. Skip it. Pause/prop flips force `stillMoving`
+        // for one frame, so the snapped pose still gets its repaint before
+        // this path takes over.
+        if (!stillMoving) {
+          return false;
+        }
         const orbitSeconds = orbitElapsedSeconds;
         const isSingleTriggerGem =
           variant === "trigger" && resolvedTones.length === 1;
@@ -2469,6 +2629,9 @@ export function DashboardEmerald3D({
       ref={canvasRef}
       aria-hidden="true"
       className={`dashboard-header-emerald-3d ${className}`}
+      // Fresh canvas per context-loss restart — the old element's context
+      // stays dead forever, so reusing it made rebuilds silent no-ops.
+      key={contextResetToken}
       data-emerald-paused={paused ? "true" : "false"}
       data-gem-tone={tone}
       height={64}
@@ -2733,6 +2896,9 @@ export function DashboardEmeraldCluster3D({
       ref={canvasRef}
       aria-hidden="true"
       className={`dashboard-emerald-cluster-3d ${className}`}
+      // Fresh canvas per context-loss restart — the old element's context
+      // stays dead forever, so reusing it made rebuilds silent no-ops.
+      key={contextResetToken}
       data-emerald-paused={paused ? "true" : "false"}
       height={192}
       style={{

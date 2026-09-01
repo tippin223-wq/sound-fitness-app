@@ -8,8 +8,11 @@ import SoundFitnessAvatar, {
   type SoundFitnessAvatarEmotePreset,
   type SoundFitnessAvatarFacePreset,
   type SoundFitnessAvatarGearPreset,
+  type SoundFitnessAvatarGlowRegion,
   type SoundFitnessAvatarHairPreset,
-  type SoundFitnessAvatarOutfitPreset,
+  type SoundFitnessAvatarPantsPreset,
+  type SoundFitnessAvatarShirtPreset,
+  type SoundFitnessAvatarShoesPreset,
   type SoundFitnessAvatarSkinPreset,
 } from "@/components/dashboard/SoundFitnessAvatar";
 import {
@@ -40,6 +43,7 @@ import Link from "next/link";
 import {
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
   type CSSProperties,
@@ -134,7 +138,7 @@ const avatarSceneOptions: AvatarSceneDefinition[] = [
 const avatarLabTabs: AvatarLabTabDefinition[] = [
   { icon: VenusAndMars, id: "body", label: "Body" },
   { icon: Smile, id: "face", label: "Face" },
-  { icon: Shirt, id: "outfit", label: "Suit" },
+  { icon: Shirt, id: "outfit", label: "Outfit" },
   { icon: Palette, id: "skin", label: "Skin" },
   { icon: CircleUserRound, id: "hair", label: "Hair" },
   { icon: Glasses, id: "gear", label: "Gear" },
@@ -160,15 +164,37 @@ const avatarFaceOptions: Array<{
   { id: "defined", label: "Defined" },
 ];
 
-const avatarOutfitOptions: Array<{
+const avatarShirtOptions: Array<{
   colors: [string, string];
-  id: SoundFitnessAvatarOutfitPreset;
+  id: SoundFitnessAvatarShirtPreset;
   label: string;
 }> = [
-  { colors: ["#67e8f9", "#0f766e"], id: "command", label: "Command" },
-  { colors: ["#93c5fd", "#2563eb"], id: "ocean", label: "Ocean" },
-  { colors: ["#fdba74", "#f97316"], id: "ember", label: "Ember" },
-  { colors: ["#c4b5fd", "#8b5cf6"], id: "violet", label: "Violet" },
+  { colors: ["#67e8f9", "#1e293b"], id: "sound", label: "Sound Tee" },
+  { colors: ["#bfdbfe", "#1e40af"], id: "ocean", label: "Ocean Tee" },
+  { colors: ["#fed7aa", "#9a3412"], id: "ember", label: "Ember Tee" },
+  { colors: ["#ddd6fe", "#5b21b6"], id: "violet", label: "Violet Tee" },
+];
+
+const avatarPantsOptions: Array<{
+  colors: [string, string];
+  id: SoundFitnessAvatarPantsPreset;
+  label: string;
+}> = [
+  { colors: ["#4b5563", "#111827"], id: "graphite", label: "Graphite" },
+  { colors: ["#1d4ed8", "#172554"], id: "navy", label: "Navy" },
+  { colors: ["#059669", "#064e3b"], id: "forest", label: "Forest" },
+  { colors: ["#be123c", "#4c0519"], id: "maroon", label: "Maroon" },
+];
+
+const avatarShoeOptions: Array<{
+  colors: [string, string];
+  id: SoundFitnessAvatarShoesPreset;
+  label: string;
+}> = [
+  { colors: ["#67e8f9", "#0e7490"], id: "volt", label: "Volt" },
+  { colors: ["#f8fafc", "#94a3b8"], id: "frost", label: "Frost" },
+  { colors: ["#fdba74", "#ea580c"], id: "ember", label: "Ember" },
+  { colors: ["#64748b", "#0f172a"], id: "shadow", label: "Shadow" },
 ];
 
 const avatarSkinOptions: Array<{
@@ -496,8 +522,11 @@ function ScrollControlButton({
     right: ChevronRight,
     up: ChevronUp,
   }[direction];
-  const tooltipLabel = label.replace(/^Highlight /, "");
-  const tooltip = `${tooltipLabel.charAt(0).toUpperCase()}${tooltipLabel.slice(1)}`;
+  // No data-dashboard-tooltip on purpose. A chevron already says which way it
+  // goes, and these are the one control you have to keep the pointer on while
+  // using them — so the bubble sat over the very row being scrolled for the
+  // whole interaction. The aria-label still carries the full description for
+  // screen readers.
 
   return (
     <button
@@ -508,7 +537,6 @@ function ScrollControlButton({
           : "relative z-50 grid h-7 w-7 shrink-0 touch-manipulation select-none place-items-center rounded-full border border-cyan-100/38 bg-slate-950/88 text-cyan-50 shadow-[0_0_16px_rgba(34,211,238,0.24)] transition hover:border-cyan-100/75 hover:bg-cyan-300/18 active:scale-95 disabled:cursor-default disabled:border-white/10 disabled:bg-slate-950/48 disabled:text-slate-600 disabled:shadow-none disabled:hover:bg-slate-950/48"
       }
       disabled={disabled}
-      data-dashboard-tooltip={tooltip}
       onClick={(event) => {
         event.stopPropagation();
         onClick();
@@ -631,7 +659,7 @@ function BodyStatStack({
 
   const rail = (
     <div
-      className={`flex min-w-0 snap-mandatory gap-2 rounded-[12px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "snap-x justify-center overflow-hidden" : vertical ? "min-h-0 flex-1 snap-y flex-col items-center overflow-y-auto overscroll-y-contain border border-cyan-100/16 bg-cyan-300/[0.035] p-1 shadow-[inset_0_0_18px_rgba(34,211,238,0.05)]" : "snap-x overflow-x-auto overscroll-x-contain border border-cyan-100/16 bg-cyan-300/[0.035] p-1 shadow-[inset_0_0_18px_rgba(34,211,238,0.05)]"}`}
+      className={`flex min-w-0 snap-mandatory gap-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "snap-x justify-center overflow-hidden" : vertical ? "min-h-0 flex-1 snap-y flex-col items-center overflow-y-auto overscroll-y-contain p-1" : "snap-x overflow-x-auto overscroll-x-contain p-1"}`}
       ref={scrollRef}
     >
       {visibleStats.map((stat, index) => (
@@ -814,20 +842,32 @@ function HyperRealAvatarFigure({
   emotePreset,
   onSelectBodyPart,
   selectedBodyPart,
+  zoneGlowActive,
+  zoneGlowColors,
 }: {
   appearance: SoundFitnessAvatarAppearance;
   emotePreset: SoundFitnessAvatarEmotePreset;
   onSelectBodyPart: (bodyPart: SoundFitnessAvatarBodyPart) => void;
   selectedBodyPart: SoundFitnessAvatarBodyPart;
+  zoneGlowActive: boolean;
+  zoneGlowColors?: Partial<
+    Record<SoundFitnessAvatarGlowRegion, string | undefined>
+  >;
 }) {
   return (
     <div
-      className="relative h-full min-h-[176px] w-full overflow-hidden bg-transparent pt-8 transition-[background] duration-500 min-[760px]:min-h-[208px]"
+      // overflow-clip, not overflow-hidden: the floor-aligned avatar svg
+      // deliberately bleeds past this box, and its body-part hit paths are
+      // focusable — a hidden-overflow box is still a scroll container, so
+      // focusing a shin used to scroll the figure 8px up and leave it there.
+      className="relative h-full min-h-[176px] w-full overflow-clip bg-transparent pt-8 transition-[background] duration-500 min-[760px]:min-h-[208px]"
     >
       <SoundFitnessAvatar
         alignToFloor
         animationPreset="idle"
         appearance={appearance}
+        bodyPartGlowActive={zoneGlowActive}
+        bodyPartGlowColors={zoneGlowColors}
         className="relative z-10 h-full min-h-0 w-full max-w-none !overflow-visible !rounded-none !border-0 !bg-transparent !shadow-none ![background-image:none]"
         emotePreset={emotePreset}
         exerciseLabel="Sound Athlete"
@@ -1054,6 +1094,8 @@ function AvatarBodyPicker({
   onOpenAvatarLab,
   selectedGroupId,
   onSelectGroup,
+  zoneGlowActive,
+  zoneGlowColors,
 }: {
   appearance: SoundFitnessAvatarAppearance;
   avatarSceneId: AvatarScenePreset;
@@ -1063,6 +1105,10 @@ function AvatarBodyPicker({
   onOpenAvatarLab: () => void;
   selectedGroupId: string;
   onSelectGroup: (id: string) => void;
+  zoneGlowActive: boolean;
+  zoneGlowColors?: Partial<
+    Record<SoundFitnessAvatarGlowRegion, string | undefined>
+  >;
 }) {
   const [backgroundPickerOpen, setBackgroundPickerOpen] = useState(false);
   const [emoteWheelOpen, setEmoteWheelOpen] = useState(false);
@@ -1234,6 +1280,8 @@ function AvatarBodyPicker({
         emotePreset={emotePreset}
         onSelectBodyPart={onSelectGroup}
         selectedBodyPart={selectedGroupId as SoundFitnessAvatarBodyPart}
+        zoneGlowActive={zoneGlowActive}
+        zoneGlowColors={zoneGlowColors}
       />
     </div>
   );
@@ -1294,6 +1342,10 @@ function AvatarLabMenu({
   onReset: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<AvatarLabTab>("body");
+  // The outfit tab is the only one with several option groups; without
+  // programmatic group labels a screen reader hears twelve bare color names
+  // (two of them literally "Ember") with no clue which garment each changes.
+  const outfitSectionId = useId();
 
   function updateAppearance<Key extends keyof SoundFitnessAvatarAppearance>(
     key: Key,
@@ -1343,12 +1395,28 @@ function AvatarLabMenu({
               exerciseLabel="Live Preview"
             />
             <div className="pointer-events-none absolute inset-x-5 bottom-4 z-20 flex flex-wrap justify-center gap-1">
-              {[appearance.body, appearance.face, appearance.outfit, appearance.hair, appearance.gear].map((item) => (
+              {/* Keyed by slot, not value — shirt and shoes both offer an
+                  "ember" preset, so raw-value keys can collide. Labels come
+                  from the option arrays so chips read "Sound Tee", not the
+                  internal id. */}
+              {(
+                [
+                  ["body", appearance.body, avatarBodyOptions],
+                  ["face", appearance.face, avatarFaceOptions],
+                  ["shirt", appearance.shirt, avatarShirtOptions],
+                  ["pants", appearance.pants, avatarPantsOptions],
+                  ["shoes", appearance.shoes, avatarShoeOptions],
+                  ["hair", appearance.hair, avatarHairOptions],
+                  ["gear", appearance.gear, avatarGearOptions],
+                ] as Array<
+                  [string, string, ReadonlyArray<{ id: string; label: string }>]
+                >
+              ).map(([slot, value, options]) => (
                 <span
                   className="rounded-full border border-white/12 bg-slate-950/72 px-2 py-1 text-[7px] font-black uppercase tracking-[0.09em] text-slate-200 backdrop-blur"
-                  key={item}
+                  key={slot}
                 >
-                  {item}
+                  {options.find((option) => option.id === value)?.label ?? value}
                 </span>
               ))}
             </div>
@@ -1394,7 +1462,24 @@ function AvatarLabMenu({
                         active={appearance.body === option.id}
                         key={option.id}
                         label={option.label}
-                        onClick={() => updateAppearance("body", option.id)}
+                        onClick={() => {
+                          // Picking Female while the hair is still the male
+                          // default upgrades to Swept — the ponytail style —
+                          // so she doesn't inherit the crop. An explicit
+                          // non-default hair choice is left alone.
+                          if (
+                            option.id === "female" &&
+                            appearance.hair === "crop"
+                          ) {
+                            onAppearanceChange({
+                              ...appearance,
+                              body: "female",
+                              hair: "swept",
+                            });
+                            return;
+                          }
+                          updateAppearance("body", option.id);
+                        }}
                         preview={
                           <Icon
                             aria-hidden="true"
@@ -1442,16 +1527,79 @@ function AvatarLabMenu({
 
               {activeTab === "outfit" ? (
                 <>
-                  <div className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72">
-                    Suit Finish
+                  <div
+                    className="mb-2 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72"
+                    id={`${outfitSectionId}-shirt`}
+                  >
+                    Sound Fitness Tee
                   </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {avatarOutfitOptions.map((option) => (
+                  <div
+                    aria-labelledby={`${outfitSectionId}-shirt`}
+                    className="grid grid-cols-2 gap-1.5"
+                    role="group"
+                  >
+                    {avatarShirtOptions.map((option) => (
                       <AvatarLabChoice
-                        active={appearance.outfit === option.id}
+                        active={appearance.shirt === option.id}
                         key={option.id}
                         label={option.label}
-                        onClick={() => updateAppearance("outfit", option.id)}
+                        onClick={() => updateAppearance("shirt", option.id)}
+                        preview={
+                          <span
+                            className="h-5 w-5 rounded-[6px] border border-white/20"
+                            style={{
+                              background: `linear-gradient(135deg, ${option.colors[0]}, ${option.colors[1]})`,
+                            }}
+                          />
+                        }
+                      />
+                    ))}
+                  </div>
+                  <div
+                    className="mb-2 mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72"
+                    id={`${outfitSectionId}-pants`}
+                  >
+                    Joggers
+                  </div>
+                  <div
+                    aria-labelledby={`${outfitSectionId}-pants`}
+                    className="grid grid-cols-2 gap-1.5"
+                    role="group"
+                  >
+                    {avatarPantsOptions.map((option) => (
+                      <AvatarLabChoice
+                        active={appearance.pants === option.id}
+                        key={option.id}
+                        label={option.label}
+                        onClick={() => updateAppearance("pants", option.id)}
+                        preview={
+                          <span
+                            className="h-5 w-5 rounded-[6px] border border-white/20"
+                            style={{
+                              background: `linear-gradient(135deg, ${option.colors[0]}, ${option.colors[1]})`,
+                            }}
+                          />
+                        }
+                      />
+                    ))}
+                  </div>
+                  <div
+                    className="mb-2 mt-3 text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/72"
+                    id={`${outfitSectionId}-shoes`}
+                  >
+                    Trainers
+                  </div>
+                  <div
+                    aria-labelledby={`${outfitSectionId}-shoes`}
+                    className="grid grid-cols-2 gap-1.5"
+                    role="group"
+                  >
+                    {avatarShoeOptions.map((option) => (
+                      <AvatarLabChoice
+                        active={appearance.shoes === option.id}
+                        key={option.id}
+                        label={option.label}
+                        onClick={() => updateAppearance("shoes", option.id)}
                         preview={
                           <span
                             className="h-5 w-5 rounded-[6px] border border-white/20"
@@ -1625,6 +1773,31 @@ function TrainingCategorySelector({
   );
   const selectedGroup = bodyPartGroups[selectedIndex];
   const selectedTone = statToneClasses[selectedGroup.tone];
+  // Clicking the already-highlighted category opens its breakdown dialog —
+  // mirroring how the muscle rings open MuscleDetailDialog.
+  const [detailGroupId, setDetailGroupId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!detailGroupId) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDetailGroupId(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [detailGroupId]);
+
+  const navigateDetail = (direction: -1 | 1) => {
+    setDetailGroupId((currentId) => {
+      const currentIndex = Math.max(
+        0,
+        bodyPartGroups.findIndex((group) => group.id === currentId),
+      );
+      const nextIndex =
+        (currentIndex + direction + bodyPartGroups.length) %
+        bodyPartGroups.length;
+      return bodyPartGroups[nextIndex].id;
+    });
+  };
 
   const moveSelection = (direction: -1 | 1) => {
     const nextIndex =
@@ -1664,7 +1837,7 @@ function TrainingCategorySelector({
 
       <div className="min-w-0">
         <div
-          className={`hidden min-w-0 snap-x snap-mandatory items-center gap-2 overflow-x-auto overscroll-x-contain rounded-[18px] border border-cyan-100/16 bg-cyan-300/[0.035] px-2 py-2 shadow-[inset_0_0_16px_rgba(34,211,238,0.05)] [scroll-padding-inline:0.5rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "" : "min-[760px]:flex"} ${centered && !canScrollBackward && !canScrollForward ? "justify-center" : ""}`}
+          className={`hidden min-w-0 snap-x snap-mandatory items-center gap-2 overflow-x-auto overscroll-x-contain px-2 py-2 [scroll-padding-inline:0.5rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "" : "min-[760px]:flex"} ${centered && !canScrollBackward && !canScrollForward ? "justify-center" : ""}`}
           ref={scrollRef}
         >
           {bodyPartGroups.map((group) => renderCategoryChip(group, "rail"))}
@@ -1673,7 +1846,7 @@ function TrainingCategorySelector({
             on each side, matching the hero orbit's indicator pattern, instead
             of a rail that clips whatever does not fit. */}
         <div
-          className={`flex min-w-0 items-center justify-center gap-1.5 rounded-[18px] border border-cyan-100/16 bg-cyan-300/[0.035] px-1.5 py-2 shadow-[inset_0_0_16px_rgba(34,211,238,0.05)] ${compact ? "" : "min-[760px]:hidden"}`}
+          className={`flex min-w-0 items-center justify-center gap-1.5 px-1.5 py-2 min-[760px]:py-1 ${compact ? "" : "min-[760px]:hidden"}`}
         >
           {renderCategoryChip(
             bodyPartGroups[
@@ -1689,6 +1862,13 @@ function TrainingCategorySelector({
           )}
         </div>
       </div>
+      {detailGroupId ? (
+        <CategoryDetailDialog
+          groupId={detailGroupId}
+          onClose={() => setDetailGroupId(null)}
+          onNavigate={navigateDetail}
+        />
+      ) : null}
     </div>
   );
 
@@ -1705,22 +1885,34 @@ function TrainingCategorySelector({
     const statusTheme = sevenDayStatusTheme[groupStatus];
     const fill = getSevenDayFill(groupLoad);
     const isSide = variant === "side";
+    const opensBreakdown = active && !isSide;
     return (
       <button
-        aria-current={active && !isSide ? "true" : undefined}
-        aria-label={`${group.label}, ${statusTheme.label}, ${groupLoad.completed} of ${groupLoad.target} planned sets in the last 7 days`}
+        aria-current={opensBreakdown ? "true" : undefined}
+        aria-haspopup={opensBreakdown ? "dialog" : undefined}
+        aria-label={`${group.label}, ${statusTheme.label}, ${groupLoad.completed} of ${groupLoad.target} planned sets in the last 7 days${opensBreakdown ? ". Open category breakdown" : ""}`}
         className={`relative grid shrink-0 snap-start place-items-center rounded-full transition-[box-shadow,outline-color,opacity] duration-300 ${groupTone.icon} ${statusTheme.border} ${
           isSide
-            ? "hidden h-11 w-11 opacity-60 min-[520px]:grid"
-            : "h-14 w-14"
+            ? "hidden h-11 w-11 opacity-60 min-[520px]:grid min-[760px]:h-[72px] min-[760px]:w-[72px] min-[760px]:opacity-70"
+            : "h-14 w-14 min-[760px]:h-[72px] min-[760px]:w-[72px]"
         } ${
           active && !isSide
             ? `${statusTheme.shadow}`
             : "shadow-[0_0_18px_rgba(34,211,238,0.09),inset_0_1px_0_rgba(255,255,255,0.08)]"
         }`}
-        data-dashboard-tooltip={`${group.label}: ${statusTheme.label} — ${groupLoad.completed}/${groupLoad.target} sets in 7 days`}
+        data-dashboard-tooltip={
+          opensBreakdown
+            ? `${group.label}: ${groupLoad.completed}/${groupLoad.target} sets. Open breakdown.`
+            : `${group.label}: ${statusTheme.label} — ${groupLoad.completed}/${groupLoad.target} sets in 7 days`
+        }
         key={`${variant === "rail" ? "rail" : "trio"}-${isSide ? `side-${group.id}` : group.id}`}
-        onClick={() => onSelectGroup(group.id)}
+        onClick={() => {
+          if (opensBreakdown) {
+            setDetailGroupId(group.id);
+            return;
+          }
+          onSelectGroup(group.id);
+        }}
         type="button"
       >
         <svg
@@ -1902,6 +2094,164 @@ function MuscleDetailDialog({
   );
 }
 
+function CategoryDetailDialog({
+  groupId,
+  onClose,
+  onNavigate,
+}: {
+  groupId: string;
+  onClose: () => void;
+  onNavigate: (direction: -1 | 1) => void;
+}) {
+  const group =
+    bodyPartGroups.find((candidate) => candidate.id === groupId) ??
+    bodyPartGroups[0];
+  const groupTone = statToneClasses[group.tone];
+  const groupLoad = getBodyPartGroupLoad(group);
+  const groupStatus = getSevenDayTrainingStatus(groupLoad);
+  const statusTheme = sevenDayStatusTheme[groupStatus];
+  const fill = getSevenDayFill(groupLoad);
+  const insight =
+    groupStatus === "over"
+      ? `${group.label} volume is running hot — bias recovery and keep accessory work light this week.`
+      : groupStatus === "good"
+        ? `${group.label} is right in the pocket — keep the current split and set quality where it is.`
+        : groupStatus === "primed"
+          ? `${group.label} is primed — there is room for quality sets here today.`
+          : `${group.label} is behind plan — schedule its next session first so the week catches up.`;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/76 p-[clamp(10px,3vw,24px)] backdrop-blur-md"
+      onMouseDown={(event) => {
+        if (event.currentTarget === event.target) onClose();
+      }}
+    >
+      <section
+        aria-label={`${group.label} category breakdown`}
+        aria-modal="true"
+        className={`relative flex max-h-[calc(100dvh-20px)] w-full max-w-[620px] flex-col overflow-hidden rounded-[14px] border bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.13),transparent_34%),radial-gradient(circle_at_92%_16%,rgba(251,191,36,0.09),transparent_28%),linear-gradient(145deg,rgba(10,18,34,0.97),rgba(2,6,23,0.98))] shadow-[0_28px_90px_rgba(0,0,0,0.72),inset_0_1px_0_rgba(255,255,255,0.12)] ${statusTheme.border}`}
+        role="dialog"
+      >
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full border text-[11px] font-black ${groupTone.icon}`}>
+              {groupLoad.completed}/{groupLoad.target}
+            </span>
+            <span className="min-w-0">
+              <span className={`block text-[8px] font-black uppercase tracking-[0.16em] ${groupTone.text}`}>
+                Training category
+              </span>
+              <span className="block truncate text-xl font-black uppercase tracking-[0.03em] text-white">
+                {group.label}
+              </span>
+            </span>
+          </div>
+          <button
+            aria-label="Close category breakdown"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/12 bg-white/[0.035] text-slate-300 transition hover:border-cyan-100/38 hover:text-white"
+            onClick={onClose}
+            type="button"
+          >
+            <X aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 [scrollbar-color:rgba(34,211,238,0.38)_rgba(15,23,42,0.32)] [scrollbar-width:thin]">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {[
+              ["7-day sets", `${groupLoad.completed}`],
+              ["Plan target", `${groupLoad.target}`],
+              ["Muscles", `${group.muscles.length}`],
+              ["Status", statusTheme.label],
+            ].map(([label, value]) => (
+              <div className="min-w-0 rounded-[8px] border border-white/9 bg-white/[0.035] px-2.5 py-2" key={label}>
+                <span className="block text-[7px] font-black uppercase tracking-[0.12em] text-slate-500">{label}</span>
+                <span className="mt-1 block truncate text-sm font-black text-slate-100">{value}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 rounded-[10px] border border-white/10 bg-slate-950/38 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[8px] font-black uppercase tracking-[0.14em] text-slate-400">Seven-day category volume</span>
+              <span className={`text-[8px] font-black uppercase tracking-[0.1em] ${statusTheme.text}`}>{statusTheme.label}</span>
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-950/80 ring-1 ring-white/8">
+              <span
+                className="block h-full rounded-full transition-[width] duration-500"
+                style={{ backgroundColor: statusTheme.ring, width: `${fill}%` }}
+              />
+            </div>
+            <div className="mt-1.5 flex items-center justify-between text-[8px] font-bold text-slate-400">
+              <span>{groupLoad.completed} completed sets</span>
+              <span>{groupLoad.target} target sets</span>
+            </div>
+          </div>
+
+          <div className="mt-3">
+            <h3 className={`text-[8px] font-black uppercase tracking-[0.16em] ${groupTone.text}`}>
+              Category breakdown
+            </h3>
+            <div className="mt-2 space-y-1.5">
+              {group.muscles.map((slug) => {
+                const meta = muscleMeta[slug];
+                const muscleStatus = getSevenDayTrainingStatus(meta.load);
+                const muscleTheme = sevenDayStatusTheme[muscleStatus];
+                const muscleFill = getSevenDayFill(meta.load);
+                return (
+                  <div
+                    className="flex items-center gap-3 rounded-[8px] border border-white/8 bg-white/[0.025] px-2.5 py-2"
+                    key={slug}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-3">
+                        <span className="truncate text-[10px] font-black uppercase tracking-[0.04em] text-slate-100">
+                          {meta.label}
+                        </span>
+                        <span className={`shrink-0 text-[8px] font-black uppercase ${muscleTheme.text}`}>
+                          {meta.load.completed}/{meta.load.target} sets
+                        </span>
+                      </span>
+                      <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-950/80 ring-1 ring-white/8">
+                        <span
+                          className="block h-full rounded-full transition-[width] duration-500"
+                          style={{ backgroundColor: muscleTheme.ring, width: `${muscleFill}%` }}
+                        />
+                      </span>
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: muscleTheme.ring }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className={`mt-3 rounded-[10px] border p-3 ${groupTone.icon}`}>
+            <span className="block text-[8px] font-black uppercase tracking-[0.16em]">Plan insight</span>
+            <p className="mt-1.5 text-[11px] font-semibold leading-relaxed text-slate-100">{insight}</p>
+          </div>
+        </div>
+
+        <footer className="flex shrink-0 items-center justify-between border-t border-white/10 bg-slate-950/42 px-4 py-2.5">
+          <button aria-label="Previous training category" className="grid h-9 w-9 place-items-center rounded-full border border-white/12 text-slate-200 transition hover:border-cyan-100/42 hover:text-cyan-100" onClick={() => onNavigate(-1)} type="button">
+            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+          </button>
+          <span className="text-center text-[8px] font-black uppercase tracking-[0.13em] text-slate-400">Browse categories</span>
+          <button aria-label="Next training category" className="grid h-9 w-9 place-items-center rounded-full border border-white/12 text-slate-200 transition hover:border-cyan-100/42 hover:text-cyan-100" onClick={() => onNavigate(1)} type="button">
+            <ChevronRight aria-hidden="true" className="h-4 w-4" />
+          </button>
+        </footer>
+      </section>
+    </div>,
+    document.body,
+  );
+}
+
 function MuscleGroupPanel({
   compact = false,
   showTitle = true,
@@ -1982,32 +2332,33 @@ function MuscleGroupPanel({
           />
         </div>
       ) : showTitle ? (
-        <div className="mb-2 flex items-center gap-1">
+        // Scroll arrows flank the title (same pattern as Training
+        // Categories) instead of taking their own row — the saved height is
+        // what lets a full ring row stay visible on short viewports.
+        <div className="mb-1 flex items-center gap-1">
           <span className="h-px flex-1 bg-cyan-100/16" />
+          <ScrollControlButton
+            direction="down"
+            label="Highlight next muscle level"
+            onClick={() => moveHighlight(1)}
+            plain
+          />
           <span className={`shrink-0 text-[8px] font-black uppercase tracking-[0.1em] min-[760px]:text-[9px] min-[760px]:tracking-[0.18em] ${selectedTone.text}`}>
             Muscle Levels
           </span>
+          <ScrollControlButton
+            direction="up"
+            label="Highlight previous muscle level"
+            onClick={() => moveHighlight(-1)}
+            plain
+          />
           <span className="h-px flex-1 bg-cyan-100/16" />
         </div>
       ) : null}
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-visible">
-        {!compact ? (
-          <div className="relative z-30 mb-1 flex shrink-0 items-center justify-between px-2">
-            <ScrollControlButton
-              direction="down"
-              label="Highlight next muscle level"
-              onClick={() => moveHighlight(1)}
-            />
-            <ScrollControlButton
-              direction="up"
-              label="Highlight previous muscle level"
-              onClick={() => moveHighlight(-1)}
-            />
-          </div>
-        ) : null}
         <div
-          className={`grid min-h-0 flex-1 grid-cols-1 content-start gap-2 rounded-[14px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "overflow-hidden" : "overflow-y-auto overscroll-y-contain border border-cyan-100/14 bg-cyan-300/[0.025] p-1 shadow-[inset_0_0_20px_rgba(34,211,238,0.045)] min-[760px]:grid-cols-2"}`}
+          className={`grid min-h-0 flex-1 grid-cols-1 content-start gap-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "overflow-hidden" : "overflow-y-auto overscroll-y-contain p-1 min-[760px]:grid-cols-2 min-[760px]:gap-1 min-[760px]:py-0"}`}
           ref={scrollRef}
         >
           {visibleMuscles.map(({ index, slug }) => {
@@ -2019,13 +2370,13 @@ function MuscleGroupPanel({
             return (
               <div
                 aria-current={index === highlightedIndex ? "true" : undefined}
-                className="relative grid min-h-[92px] min-w-0 place-items-center px-1 py-2 min-[760px]:min-h-[104px] min-[760px]:px-2"
+                className="relative grid min-h-[92px] min-w-0 place-items-center px-1 py-2 min-[760px]:min-h-[80px] min-[760px]:px-2 min-[760px]:py-1"
                 key={slug}
               >
                 <button
                   aria-label={`${meta.label}, ${meta.family}, ${statusTheme.label}, ${meta.load.completed} of ${meta.load.target} planned sets in the last 7 days`}
                   aria-haspopup="dialog"
-                  className={`relative grid h-16 w-16 shrink-0 place-items-center rounded-full transition-[box-shadow,outline-color] duration-300 min-[760px]:h-[78px] min-[760px]:w-[78px] ${categoryTone.icon} ${statusTheme.border} ${
+                  className={`relative grid h-16 w-16 shrink-0 place-items-center rounded-full transition-[box-shadow,outline-color] duration-300 min-[760px]:h-[72px] min-[760px]:w-[72px] ${categoryTone.icon} ${statusTheme.border} ${
                     index === safeHighlightedIndex
                       ? `${statusTheme.shadow}`
                       : "shadow-[0_0_18px_rgba(34,211,238,0.09),inset_0_1px_0_rgba(255,255,255,0.08)]"
@@ -2095,6 +2446,45 @@ export default function BodyCommandCenterCard({
 }: BodyCommandCenterCardProps) {
   // Shared between the avatar hotspots and the muscle-group panel.
   const [selectedGroupId, setSelectedGroupId] = useState<string>("legs");
+  // The avatar muscle glow is a five-second flash: it fires once for the
+  // initial selection on load and again on every new selection, then fades
+  // out so the figure isn't permanently lit. Selection itself (panel filter,
+  // back-view flip) stays put — only the glow times out.
+  const [avatarZoneGlowActive, setAvatarZoneGlowActive] = useState(true);
+  useEffect(() => {
+    setAvatarZoneGlowActive(true);
+    const flashTimer = window.setTimeout(
+      () => setAvatarZoneGlowActive(false),
+      5000,
+    );
+    return () => window.clearTimeout(flashTimer);
+  }, [selectedGroupId]);
+  // Glow in the same seven-day status colors the legend under the avatar and
+  // the muscle rings already use — green when cool/on target, amber under,
+  // orange prime, rose over. Back and chest pass per-muscle colors so their
+  // specific regions (traps, upper/lower back, upper/mid/lower chest) each
+  // reflect their own status; the other groups glow with their aggregate.
+  const muscleStatusRing = (slug: BodyCommandMuscleSlug) =>
+    sevenDayStatusTheme[getSevenDayTrainingStatus(muscleMeta[slug].load)].ring;
+  const groupStatusRing = (groupId: string) => {
+    const group = bodyPartGroups.find((entry) => entry.id === groupId);
+    if (!group) return undefined;
+    return sevenDayStatusTheme[
+      getSevenDayTrainingStatus(getBodyPartGroupLoad(group))
+    ].ring;
+  };
+  const avatarZoneGlowColors = {
+    arms: groupStatusRing("arms"),
+    core: groupStatusRing("core"),
+    legs: groupStatusRing("legs"),
+    lowerBack: muscleStatusRing("lower-back"),
+    lowerChest: muscleStatusRing("lower-chest"),
+    midChest: muscleStatusRing("mid-chest"),
+    shoulders: muscleStatusRing("deltoids"),
+    traps: muscleStatusRing("trapezius"),
+    upperBack: muscleStatusRing("upper-back"),
+    upperChest: muscleStatusRing("upper-chest"),
+  };
   const [avatarLabOpen, setAvatarLabOpen] = useState(false);
   const [avatarStorageReady, setAvatarStorageReady] = useState(false);
   const [avatarAppearance, setAvatarAppearance] =
@@ -2136,8 +2526,14 @@ export default function BodyCommandCenterCard({
         if (avatarFaceOptions.some((option) => option.id === stored.appearance?.face)) {
           nextAppearance.face = stored.appearance!.face!;
         }
-        if (avatarOutfitOptions.some((option) => option.id === stored.appearance?.outfit)) {
-          nextAppearance.outfit = stored.appearance!.outfit!;
+        if (avatarShirtOptions.some((option) => option.id === stored.appearance?.shirt)) {
+          nextAppearance.shirt = stored.appearance!.shirt!;
+        }
+        if (avatarPantsOptions.some((option) => option.id === stored.appearance?.pants)) {
+          nextAppearance.pants = stored.appearance!.pants!;
+        }
+        if (avatarShoeOptions.some((option) => option.id === stored.appearance?.shoes)) {
+          nextAppearance.shoes = stored.appearance!.shoes!;
         }
         if (avatarSkinOptions.some((option) => option.id === stored.appearance?.skin)) {
           nextAppearance.skin = stored.appearance!.skin!;
@@ -2250,11 +2646,13 @@ export default function BodyCommandCenterCard({
               onOpenAvatarLab={() => setAvatarLabOpen(true)}
               onSelectGroup={setSelectedGroupId}
               selectedGroupId={selectedGroupId}
+              zoneGlowActive={avatarZoneGlowActive}
+              zoneGlowColors={avatarZoneGlowColors}
             />
             <AvatarDetailLegend />
           </div>
 
-          <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden pr-1">
+          <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden pr-1 min-[760px]:gap-1">
             <TrainingCategorySelector
               compact
               onSelectGroup={setSelectedGroupId}

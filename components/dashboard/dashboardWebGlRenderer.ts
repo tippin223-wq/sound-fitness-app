@@ -963,9 +963,21 @@ export const preloadDashboardWebGlRuntime = () => {
       geometry.dispose();
       material.dispose();
       renderer.dispose();
+      // Actually release the probe's GL context: dispose() alone leaves the
+      // context alive until GC, and it counts toward the browser's context cap.
+      try {
+        renderer.forceContextLoss();
+      } catch {
+        // Best effort — losing an already-lost context can throw.
+      }
       return true;
     } catch {
       renderer.dispose();
+      try {
+        renderer.forceContextLoss();
+      } catch {
+        // Best effort — losing an already-lost context can throw.
+      }
       return false;
     }
   })();

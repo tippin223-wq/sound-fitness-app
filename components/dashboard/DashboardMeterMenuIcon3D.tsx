@@ -374,6 +374,15 @@ export default function DashboardMeterMenuIcon3D({
         const seconds = elapsed * METER_MENU_ICON_ANIMATION_SPEED;
         const activeMotion = activeRef.current && !pausedRef.current;
         charge += ((activeMotion ? 1 : 0) - charge) * Math.min(1, frameDeltaMs * 0.014);
+        // Epsilon-snap the ease so `charge === prevCharge` can land: the
+        // geometric decay alone never reaches its target exactly, which kept
+        // the atRest gate below returning "changed" for tens of seconds of
+        // invisible motion after every hover.
+        if (!activeMotion && charge < 0.002) {
+          charge = 0;
+        } else if (activeMotion && charge > 0.998) {
+          charge = 1;
+        }
 
         if (activeMotion) {
           flipRotation += motionDelta * 0.0046;
@@ -441,6 +450,10 @@ export default function DashboardMeterMenuIcon3D({
 
         // The falling items above tumble on every frame regardless of charge.
         // In frameless mode nothing occludes them, so never report "at rest".
+        // WARNING: this makes the frameless variant a PERPETUAL stage
+        // animator — while mounted and unpaused it forces a full shared-stage
+        // present every frame. No dashboard usage mounts it today; give it a
+        // real settle path before wiring it into the stage.
         if (frameless) return true;
         // Framed mode: at rest the items sit behind the opaque front face, so
         // they cannot affect the rendered image. Everything else in this update

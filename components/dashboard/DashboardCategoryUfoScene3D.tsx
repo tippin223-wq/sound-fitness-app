@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { BufferGeometry, Material, Object3D } from "three";
 import {
@@ -39,15 +39,36 @@ const smoothStepNumber = (value: number) => {
   return clampedValue * clampedValue * (3 - 2 * clampedValue);
 };
 
-const DASHBOARD_CATEGORY_UFO_CHYRON_STEP_SECONDS = 16;
+// The chyron steps between category tabs instead of crawling: a quick eased
+// hop, then a long dead-still hold so the text is actually readable. During
+// each hold the centered tab replays its level-progress sweep.
+const DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS = 10;
+const DASHBOARD_CATEGORY_UFO_CHYRON_SLIDE_SECONDS = 0.9;
+const DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS =
+  DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS +
+  DASHBOARD_CATEGORY_UFO_CHYRON_SLIDE_SECONDS;
+// Frozen highlight states show a mid-hold frame: tab centered, sweep
+// settled, scrim fully in.
+const DASHBOARD_CATEGORY_UFO_CHYRON_PIN_SECONDS =
+  DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS * 0.55;
 const DASHBOARD_CATEGORY_UFO_MAX_DELTA_SECONDS = 1 / 30;
 // Cap this heavy ambient scene to ~30fps. Motion is delta-timed so it animates
 // at the same speed, but doing half the per-frame work keeps the meter menu
 // responsive while it is open.
 const DASHBOARD_CATEGORY_UFO_MIN_FRAME_MS = 1000 / 32;
 const DASHBOARD_CATEGORY_UFO_ACTIVE_CHYRON_TEXTURE_MS = 64;
+// During the quick hop the band moves a full tab in under a second — redraw
+// near the scene's ~32fps cap so the slide reads smooth, not steppy.
+const DASHBOARD_CATEGORY_UFO_SLIDE_CHYRON_TEXTURE_MS = 33;
 const DASHBOARD_CATEGORY_UFO_INACTIVE_CHYRON_TEXTURE_MS = 220;
 const DASHBOARD_CATEGORY_UFO_TENDRIL_GEOMETRY_MS = 34;
+// Matches DashboardTornadoEmeralds3D: after a lost WebGL context, wait briefly
+// before rebuilding the whole scene via the contextResetToken effect re-run.
+const WEBGL_CONTEXT_RESTART_DELAY_MS = 220;
+// When no renderer budget slot is available, retry a rebuild a little later
+// instead of giving up until a full page reload — but only a couple of times.
+const WEBGL_BUDGET_RETRY_DELAY_MS = 4000;
+const WEBGL_BUDGET_RETRY_LIMIT = 2;
 
 const colorToRgba = (color: string, alpha: number) => {
   const rgbMatch = color.match(/rgba?\(([^)]+)\)/i);
@@ -513,8 +534,27 @@ const drawDashboardCategoryUfoChyronTexture = ({
   const tabStep = tabWidth;
   const tabHeight = 368;
   const tabY = 8;
-  const stepSeconds = DASHBOARD_CATEGORY_UFO_CHYRON_STEP_SECONDS;
-  const rawPosition = seconds / stepSeconds;
+  const holdSeconds = DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS;
+  const slideSeconds = DASHBOARD_CATEGORY_UFO_CHYRON_SLIDE_SECONDS;
+  const periodSeconds = DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS;
+  const cycleCount = Math.floor(seconds / periodSeconds);
+  const phaseSeconds = seconds - cycleCount * periodSeconds;
+  // Quick eased hop between tabs; the rest of the period is a readable hold.
+  const slideProgress =
+    phaseSeconds > holdSeconds
+      ? smoothStepNumber((phaseSeconds - holdSeconds) / slideSeconds)
+      : 0;
+  const rawPosition = cycleCount + slideProgress;
+  // Level-progress sweep replays at the start of each hold; the readability
+  // overlay (scrim, sweep edge, percent counter) eases in with it and eases
+  // out just before the next hop.
+  const holdSweepProgress = smoothStepNumber(phaseSeconds / 2.2);
+  const holdOverlayAlpha =
+    slideProgress > 0
+      ? 0
+      : smoothStepNumber(phaseSeconds / 0.7) *
+        (1 -
+          smoothStepNumber((phaseSeconds - (holdSeconds - 0.45)) / 0.45));
   const cyclePosition =
     itemCount > 1
       ? ((rawPosition % itemCount) + itemCount) % itemCount
@@ -634,15 +674,30 @@ const drawDashboardCategoryUfoChyronTexture = ({
   context.fillStyle = flashGradient;
   context.fillRect(flashX - 180, 10, 360, height - 20);
 
-  for (const { centerX, item } of drawEntries) {
+  for (const { centerX, item, relativePosition } of drawEntries) {
     const distanceStrength = clampNumber(
       1 - Math.abs(centerX - width / 2) / (tabStep * 1.42),
       0.12,
       1,
     );
     const x = centerX - tabWidth / 2;
+    // The centered, held tab replays its level sweep each hold. The tab
+    // sliding in from the right drains as it arrives so it lands empty and
+    // the sweep reads as a build, not a one-frame reset. Everything else
+    // shows the settled fill.
+    const isHeldEntry =
+      slideProgress === 0 && Math.abs(relativePosition) < 0.03;
+    const isIncomingEntry =
+      slideProgress > 0 &&
+      relativePosition > 0.001 &&
+      relativePosition < 1.001;
+    const fillReveal = isHeldEntry
+      ? holdSweepProgress
+      : isIncomingEntry
+        ? 1 - slideProgress
+        : 1;
     const progressWidth =
-      tabWidth * clampNumber(item.level / 100, 0.04, 1);
+      tabWidth * clampNumber(item.level / 100, 0.04, 1) * fillReveal;
     const depthScale = 0.74 + distanceStrength * 0.26;
     const depthY = (tabHeight * (1 - depthScale)) / 2;
     const depthDrop = (1 - distanceStrength) * 30;
@@ -683,6 +738,49 @@ const drawDashboardCategoryUfoChyronTexture = ({
     context.lineTo(tabWidth, tabHeight - 5);
     context.stroke();
 
+    if (isHeldEntry && holdOverlayAlpha > 0.01) {
+      // Dark glass behind the copy block so the text reads over the bright
+      // level fill while the tab is held still.
+      context.save();
+      context.globalAlpha = 0.62 * holdOverlayAlpha;
+      const scrimGradient = context.createLinearGradient(0, 0, 0, tabHeight);
+      scrimGradient.addColorStop(0, "rgba(2, 6, 23, 0.68)");
+      scrimGradient.addColorStop(0.5, "rgba(2, 6, 23, 0.5)");
+      scrimGradient.addColorStop(1, "rgba(2, 6, 23, 0.68)");
+      context.fillStyle = scrimGradient;
+      createRoundedRectPath(
+        context,
+        452,
+        18,
+        tabWidth - 452 - 26,
+        tabHeight - 36,
+        30,
+      );
+      context.fill();
+      context.restore();
+
+      // Sweep edge: a glowing seek-line that rides the fill as it grows to
+      // the current level, then pulses softly in place.
+      const edgeX = clampNumber(progressWidth, 6, tabWidth - 6);
+      const edgePulse = 0.68 + 0.32 * Math.sin(seconds * 4.2);
+      context.save();
+      context.globalAlpha = holdOverlayAlpha * edgePulse;
+      const edgeGlow = context.createLinearGradient(
+        edgeX - 46,
+        0,
+        edgeX + 46,
+        0,
+      );
+      edgeGlow.addColorStop(0, "rgba(255, 255, 255, 0)");
+      edgeGlow.addColorStop(0.5, "rgba(255, 255, 255, 0.5)");
+      edgeGlow.addColorStop(1, "rgba(255, 255, 255, 0)");
+      context.fillStyle = edgeGlow;
+      context.fillRect(edgeX - 46, 8, 92, tabHeight - 16);
+      context.fillStyle = "rgba(255, 255, 255, 0.95)";
+      context.fillRect(edgeX - 4, 8, 8, tabHeight - 16);
+      context.restore();
+    }
+
     const actorX = 286;
     const textX = tabWidth * 0.52;
     const repsX = tabWidth - 170;
@@ -697,6 +795,25 @@ const drawDashboardCategoryUfoChyronTexture = ({
       distanceStrength,
       seconds,
     );
+
+    if (isHeldEntry && holdOverlayAlpha > 0.01) {
+      // Live percent counter ticking up with the sweep — the explicit
+      // level-progress readout. Drawn after the actor so athletic poses
+      // can't glow-wash it.
+      const levelPercent = Math.round(
+        clampNumber(item.level, 0, 100) * holdSweepProgress,
+      );
+      context.save();
+      context.globalAlpha = holdOverlayAlpha;
+      context.textAlign = "left";
+      context.textBaseline = "middle";
+      context.font = "950 62px Arial, sans-serif";
+      context.shadowBlur = 26;
+      context.shadowColor = "rgba(2, 6, 23, 0.95)";
+      context.fillStyle = "rgba(255, 255, 255, 0.98)";
+      context.fillText(`${levelPercent}%`, 56, 56);
+      context.restore();
+    }
 
     context.textAlign = "center";
     context.textBaseline = "middle";
@@ -818,6 +935,8 @@ export default function DashboardCategoryUfoScene3D({
   progress: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [contextResetToken, setContextResetToken] = useState(0);
+  const budgetRetryCountRef = useRef(0);
   const activeCategoryIdRef = useRef(activeCategoryId);
   const beamColorRef = useRef(beamColor || color);
   const chyronItemsRef = useRef(chyronItems);
@@ -848,6 +967,17 @@ export default function DashboardCategoryUfoScene3D({
   useEffect(() => {
     let cancelled = false;
     let cleanup = () => {};
+    let contextRestartId = 0;
+
+    const scheduleContextRestart = (delayMs: number) => {
+      if (contextRestartId !== 0) {
+        window.clearTimeout(contextRestartId);
+      }
+      contextRestartId = window.setTimeout(() => {
+        contextRestartId = 0;
+        setContextResetToken((token) => token + 1);
+      }, delayMs);
+    };
 
     const startScene = async () => {
       if (canvasRef.current) {
@@ -879,9 +1009,17 @@ export default function DashboardCategoryUfoScene3D({
       if (!renderer) {
         canvas.dataset.categoryUfoRenderer = "unavailable";
         canvas.style.opacity = "0";
+        // A renderer budget slot may open up later (another scene unmounting
+        // or losing its context frees one). Retry a full rebuild a couple of
+        // times instead of leaving an empty UFO slot until a page reload.
+        if (budgetRetryCountRef.current < WEBGL_BUDGET_RETRY_LIMIT) {
+          budgetRetryCountRef.current += 1;
+          scheduleContextRestart(WEBGL_BUDGET_RETRY_DELAY_MS);
+        }
         return;
       }
 
+      budgetRetryCountRef.current = 0;
       canvas.dataset.categoryUfoRenderer = "three";
       canvas.dataset.categoryUfoInstance = String(Math.round(performance.now()));
       canvas.style.opacity = "";
@@ -1844,7 +1982,16 @@ export default function DashboardCategoryUfoScene3D({
         renderer.setSize(width, height, false);
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
-        ship.scale.setScalar(0.66 * clampNumber(390 / height, 0.56, 1));
+        // The grab objects hang 6.62 ship-units below the hull, so their
+        // vertical framing is far more sensitive to this scale than their
+        // apparent size is: world y = 0.55 - 6.62 * scale, against a frustum
+        // that bottoms out near -2.44. Past a scale of ~0.4546 they drop off
+        // the bottom edge and the pickup plays out of sight. The canvas is
+        // min(620px, 100vh - 2.2rem), so any viewport shorter than ~600px was
+        // landing there. Capping the multiplier at 0.66 holds the maximum
+        // scale at 0.4356 and keeps the pickup in frame; taller canvases are
+        // below the cap and render exactly as before.
+        ship.scale.setScalar(0.66 * clampNumber(390 / height, 0.56, 0.66));
       };
 
       const observer = new ResizeObserver(resize);
@@ -1856,6 +2003,10 @@ export default function DashboardCategoryUfoScene3D({
         canvas.dataset.categoryUfoRenderer = "lost";
         canvas.style.opacity = "0";
         cleanup();
+        // cleanup() disposed the renderer (which also detached the shared
+        // restored handler), so rebuild the whole scene after a short delay —
+        // same restart-token pattern as DashboardTornadoEmeralds3D.
+        scheduleContextRestart(WEBGL_CONTEXT_RESTART_DELAY_MS);
       };
       canvas.addEventListener("webglcontextlost", handleContextLost);
 
@@ -1865,6 +2016,7 @@ export default function DashboardCategoryUfoScene3D({
       let lastDrawTime = 0;
       let activeSeconds = 0;
       let presence = 0;
+      let ufoThroatPresence = isActiveRef.current ? 1 : 0;
       let lastChyronTextureUpdate = 0;
       let lastTargetAccentStyle = colorRef.current;
       let lastTargetBeamAccentStyle = beamColorRef.current;
@@ -1872,9 +2024,35 @@ export default function DashboardCategoryUfoScene3D({
       let lastCanvasOpacity = -1;
       let canvasLive = false;
       let hasChyronAdvancedAfterDock = false;
-      let previousOpenState = isOpenRef.current;
+      // Wall-clock accumulator (see realDeltaSeconds) plus the zero point for
+      // the chyron's hold/hop cycle. On dock the cycle starts at phase 0 so
+      // the active category's level sweep plays first; on a later UFO
+      // reselect the rebase credits the previously held tab so the band
+      // resumes where the frozen frame left it and hops to a new tab.
+      let chyronClockSeconds = 0;
+      let chyronTimelineStartSeconds = 0;
+      // Last hold-settled frame shown while the UFO was live — frozen
+      // highlight states render this instead of a canonical pin so
+      // deselecting the UFO never teleports the band.
+      let chyronHeldSeconds =
+        DASHBOARD_CATEGORY_UFO_CHYRON_PIN_SECONDS +
+        DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS;
+      let lastChyronDrawnSeconds = -1;
+      let lastChyronDrawnItems: DashboardCategoryUfoChyronItem[] | null = null;
+      let lastChyronDrawnCategoryId: string | undefined;
       let activeGrabCycle = -1;
       let activeGrabObjectIndex = 0;
+      // The grab sequence runs on its own clock, zeroed every time the panel
+      // becomes live. activeSeconds cannot be used directly: it is cumulative
+      // open time and never resets, so closing the panel froze the 92s cycle
+      // and reopening resumed it wherever it stopped. Land in the stretch
+      // where the claw has arrived but the pull has not started and the gem
+      // just sits there at full size — which is exactly what it looked like.
+      // activeSeconds itself must keep running: the hull's attitude, the
+      // hover and the whole vortex phase are derived from it, and zeroing it
+      // would snap all of them on every open.
+      let grabTimelineStartSeconds = 0;
+      let previousGrabLiveState = false;
       const setUfoCanvasLive = (live: boolean) => {
         if (canvasLive === live) return;
 
@@ -1898,14 +2076,41 @@ export default function DashboardCategoryUfoScene3D({
           DASHBOARD_CATEGORY_UFO_MAX_DELTA_SECONDS,
           Math.max(0, (time - lastFrameTime) / 1000),
         );
+        // Wall-clock delta for the chyron cadence: deltaSeconds is capped at
+        // 1/30 for motion stability, which dilates scene time whenever frames
+        // arrive slower than 30fps — but the chyron's hold/hop rhythm is
+        // specified in real seconds, so it runs on its own uncapped clock.
+        const realDeltaSeconds = Math.min(
+          0.5,
+          Math.max(0, (time - lastFrameTime) / 1000),
+        );
         lastFrameTime = time;
         const isOpenNow = isOpenRef.current;
-        if (isOpenNow !== previousOpenState) {
-          hasChyronAdvancedAfterDock = false;
-          previousOpenState = isOpenNow;
+        // Restart the grab sequence whenever the scene becomes live again.
+        // Keyed on live rather than open because the renderer freezes this
+        // canvas to a still image ~1s after the panel highlights a different
+        // meter, and the clock would otherwise keep burning through the
+        // sequence behind that still.
+        const isGrabLiveNow = isOpenNow && isActiveRef.current;
+        if (isGrabLiveNow !== previousGrabLiveState) {
+          previousGrabLiveState = isGrabLiveNow;
+          if (isGrabLiveNow) {
+            grabTimelineStartSeconds = activeSeconds;
+            // Resume from the tab the frozen frame was showing (its cycle is
+            // encoded in chyronHeldSeconds) at the start of its hop, so the
+            // band slides straight to a new tab with no backwards jump. On a
+            // fresh open the dock rebase below overwrites this.
+            chyronTimelineStartSeconds =
+              chyronClockSeconds -
+              (chyronHeldSeconds - DASHBOARD_CATEGORY_UFO_CHYRON_PIN_SECONDS) -
+              DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS;
+            // Force a fresh object pick on the first frame of the new run.
+            activeGrabCycle = -1;
+          }
         }
         if (isOpenNow) {
           activeSeconds += deltaSeconds;
+          chyronClockSeconds += realDeltaSeconds;
         }
         const seconds = activeSeconds;
         const tornadoMotionSeconds = seconds * 0.36;
@@ -1916,9 +2121,21 @@ export default function DashboardCategoryUfoScene3D({
         presence +=
           (targetPresence - presence) * (isOpenNow ? 0.18 : 0.2);
         const flyEase = 1 - Math.pow(1 - presence, 3);
-        const tornadoDeployProgress = smoothStepNumber((flyEase - 0.82) / 0.16);
+        // The throat/pickup column (emitter throat, beam, laser, vortex,
+        // projector kit) deploys only while the UFO holds the highlight —
+        // deployed over the meter states it painted a shady cone on top of
+        // the meter cards.
+        ufoThroatPresence +=
+          ((isUfoSelected ? 1 : 0) - ufoThroatPresence) * 0.14;
+        const tornadoDeployProgress =
+          smoothStepNumber((flyEase - 0.82) / 0.16) *
+          smoothStepNumber(ufoThroatPresence);
         if (isOpenNow && !hasChyronAdvancedAfterDock && flyEase > 0.985) {
           hasChyronAdvancedAfterDock = true;
+          // Cycle starts at phase 0: the active category holds first and
+          // plays its level sweep, continuing seamlessly from the pre-dock
+          // phase-0 pin.
+          chyronTimelineStartSeconds = chyronClockSeconds;
         }
 
         // The meter menu is closed and the fly-out has fully settled — the
@@ -1927,6 +2144,10 @@ export default function DashboardCategoryUfoScene3D({
         // screen, which is almost all the time. The loop keeps ticking cheaply
         // and resumes the instant the menu reopens.
         if (!isOpenNow && presence < 0.004) {
+          // Re-arm the dock choreography only once fully parked — resetting
+          // it on the close transition snapped the band to its pre-dock
+          // frame while the ship was still visibly flying out.
+          hasChyronAdvancedAfterDock = false;
           if (lastCanvasOpacity !== 0) {
             canvas.style.opacity = "0";
             lastCanvasOpacity = 0;
@@ -1943,10 +2164,16 @@ export default function DashboardCategoryUfoScene3D({
         const tornadoSync =
           0.5 + Math.sin((tornadoMotionSeconds * Math.PI * 2) / 42) * 0.5;
         const grabCycleSeconds = 92;
-        const grabCycleOffsetSeconds = 82;
+        // Phase 0 is now the moment the panel goes live rather than an
+        // arbitrary point in a free-running clock, so this starts the cycle at
+        // its beginning: a short lead, then the reveal, then the pickup. The
+        // old 82 was an offset into a clock that never restarted; keeping it
+        // here would have meant waiting 21s of open time to see anything.
+        const grabCycleOffsetSeconds = 0;
         const grabRevealLeadSeconds = 4.2;
         const grabActiveDurationSeconds = 19.8;
-        const grabTimelineSeconds = seconds + grabCycleOffsetSeconds;
+        const grabTimelineSeconds =
+          seconds - grabTimelineStartSeconds + grabCycleOffsetSeconds;
         const grabCycleIndex = Math.floor(grabTimelineSeconds / grabCycleSeconds);
         const grabCyclePhase = grabTimelineSeconds % grabCycleSeconds;
         if (grabCycleIndex !== activeGrabCycle) {
@@ -1967,8 +2194,11 @@ export default function DashboardCategoryUfoScene3D({
         const grabReachProgress = grabIsActive
           ? smoothStepNumber(grabActionPhase / 5.6)
           : 0;
+        // Starts the instant the claw finishes reaching (5.6s), not 1.6s
+        // after it. That gap left the gem sitting motionless under a fully
+        // extended beam, which read as the beam having failed to pick it up.
         const grabPullProgress = grabIsActive
-          ? smoothStepNumber((grabActionPhase - 7.2) / 8.2)
+          ? smoothStepNumber((grabActionPhase - 5.6) / 8.2)
           : 0;
         const grabFadeProgress = grabIsActive
           ? smoothStepNumber((grabActionPhase - 15.6) / 4.2)
@@ -2036,24 +2266,61 @@ export default function DashboardCategoryUfoScene3D({
                 },
               ];
 
-        const chyronUpdateInterval = isUfoSelected
-          ? DASHBOARD_CATEGORY_UFO_ACTIVE_CHYRON_TEXTURE_MS
-          : DASHBOARD_CATEGORY_UFO_INACTIVE_CHYRON_TEXTURE_MS;
+        // Pre-dock the clock pins at phase 0 (empty fill, no overlay) so the
+        // dock rebase continues seamlessly into the active tab's level sweep.
+        // While the UFO is live the clock runs in wall time: 10s hold with
+        // the sweep, quick hop, next tab. Other highlight states freeze on
+        // the last hold-settled frame.
+        let chyronSeconds: number;
+        if (!hasChyronAdvancedAfterDock) {
+          chyronSeconds = 0;
+        } else if (isUfoSelected) {
+          chyronSeconds = Math.max(
+            0,
+            chyronClockSeconds - chyronTimelineStartSeconds,
+          );
+          chyronHeldSeconds =
+            Math.floor(
+              chyronSeconds / DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS,
+            ) *
+              DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS +
+            DASHBOARD_CATEGORY_UFO_CHYRON_PIN_SECONDS;
+        } else {
+          chyronSeconds = chyronHeldSeconds;
+        }
+        const chyronPhaseSeconds =
+          chyronSeconds -
+          Math.floor(
+            chyronSeconds / DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS,
+          ) *
+            DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS;
+        const chyronUpdateInterval = !isUfoSelected
+          ? DASHBOARD_CATEGORY_UFO_INACTIVE_CHYRON_TEXTURE_MS
+          : chyronPhaseSeconds >
+              DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS - 0.1
+            ? DASHBOARD_CATEGORY_UFO_SLIDE_CHYRON_TEXTURE_MS
+            : DASHBOARD_CATEGORY_UFO_ACTIVE_CHYRON_TEXTURE_MS;
         if (chyronContext && time - lastChyronTextureUpdate > chyronUpdateInterval) {
-          const chyronSeconds =
-            (isUfoSelected ? seconds : 0) +
-            (hasChyronAdvancedAfterDock && resolvedChyronItems.length > 1
-              ? DASHBOARD_CATEGORY_UFO_CHYRON_STEP_SECONDS
-              : 0);
-
-          drawDashboardCategoryUfoChyronTexture({
-            activeCategoryId: activeCategoryIdRef.current,
-            canvas: chyronCanvas,
-            context: chyronContext,
-            items: resolvedChyronItems,
-            seconds: chyronSeconds,
-          });
-          chyronTexture.needsUpdate = true;
+          const chyronCategoryId = activeCategoryIdRef.current;
+          // Pinned/frozen frames produce identical pixels — skip the 2048x384
+          // rasterize + GPU upload unless something actually changed.
+          if (
+            chyronSeconds !== lastChyronDrawnSeconds ||
+            resolvedChyronItems !== lastChyronDrawnItems ||
+            chyronCategoryId !== lastChyronDrawnCategoryId
+          ) {
+            drawDashboardCategoryUfoChyronTexture({
+              activeCategoryId: chyronCategoryId,
+              canvas: chyronCanvas,
+              context: chyronContext,
+              items: resolvedChyronItems,
+              seconds: chyronSeconds,
+            });
+            chyronTexture.needsUpdate = true;
+            lastChyronDrawnSeconds = chyronSeconds;
+            lastChyronDrawnItems = resolvedChyronItems;
+            lastChyronDrawnCategoryId = chyronCategoryId;
+          }
           lastChyronTextureUpdate = time;
         }
 
@@ -2686,14 +2953,24 @@ export default function DashboardCategoryUfoScene3D({
     return () => {
       cancelled = true;
       cleanup();
+      // Guard against setting state after unmount: cancel any pending scene
+      // restart scheduled by handleContextLost or the budget retry above.
+      if (contextRestartId !== 0) {
+        window.clearTimeout(contextRestartId);
+        contextRestartId = 0;
+      }
     };
-  }, []);
+  }, [contextResetToken]);
 
   return (
     <canvas
       ref={canvasRef}
       aria-hidden="true"
       className="dashboard-header-category-levels-menu__ufo-webgl"
+      // Keyed so each context-loss restart mounts a NEW canvas element:
+      // getContext() on the old one can only return the same dead context,
+      // which made every rebuild a silent no-op.
+      key={contextResetToken}
       data-category-ufo-active={isActive ? "true" : "false"}
       data-category-ufo-renderer="pending"
       data-category-ufo-state={isOpen ? "open" : "closing"}

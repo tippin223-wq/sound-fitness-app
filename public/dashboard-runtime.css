@@ -71,13 +71,17 @@
 .dashboard-header-meter-menu-trigger:has(
     > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-fallback="true"]
   )
+  > .dashboard-header-meter-menu-trigger__fallback,
+.dashboard-header-meter-menu-trigger:has(
+    > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-culled="true"]
+  )
   > .dashboard-header-meter-menu-trigger__fallback {
   opacity: 1 !important;
   visibility: visible !important;
 }
 
 .dashboard-header-meter-menu-trigger:has(
-    > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-ready="true"]:not([data-webgl-fallback="true"])
+    > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-ready="true"]:not([data-webgl-fallback="true"]):not([data-webgl-culled="true"])
   )
   > .dashboard-header-meter-menu-trigger__fallback {
   opacity: 0 !important;
@@ -111,6 +115,48 @@ html[data-dashboard-webgl="warming"]
 /* ==== DASHBOARD_HEADER_METER_UFO_COMPACT_STYLE ==== */
 html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] > .dashboard-header-category-levels-menu {
   z-index: 120 !important;
+}
+
+/* The UFO's beam and the emeralds riding it are not drawn by anything inside
+   this panel — they are widgets on the shared WebGL stage, whose canvas is
+   `position: fixed; z-index: 430` on <body> (dashboardWebGlStage.ts). That is
+   a sibling of the panel in the ROOT stacking context and outranks it (430 vs
+   240), so it painted over the meter cards and no z-index anywhere inside the
+   panel could win — the panel's own 240 caps everything it contains.
+   Lift the panel over the stage instead. The beam still reads through the
+   panel's translucent chrome as a backdrop, which is what it is; the meters
+   stay legible in front of it. Kept below the coach-notes popover (600). */
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] {
+  z-index: 460 !important;
+}
+
+/* Two more layers had to move for the beam to actually sit behind the menus.
+   1. z-index, for the UFO's OWN canvas: it lives in the levels menu (120) and
+      the stack defaulted to 86, so the ship's beam and its drop-shadow glare
+      painted over the meter cards even once the shared stage was dealt with.
+   2. will-change, for the shared stage: raising the panel above the stage
+      canvas is not sufficient on its own, because a WebGL canvas is always
+      GPU-composited while plain DOM is not, and the compositor put the canvas
+      over the un-promoted meter cards regardless of z-index. Promoting the
+      stack to its own layer puts both on the same footing so z-order decides.
+      will-change rather than a transform, so nothing overwrites a transform
+      the panel may animate on this element. */
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] > .dashboard-header-meter-panel__stack {
+  will-change: transform;
+  z-index: 130 !important;
+}
+
+/* Moving the stack in front of the 3D also moved its scrim in front of the
+   beam. The stack paints two black radial gradients (0.66 and 0.52 alpha)
+   centred right where the beam falls; harmless when the 3D was on top of it,
+   but now they sit between the viewer and the UFO's light and grey it out.
+   Drop just the two black layers and keep the colour wash — the meter cards
+   carry their own backgrounds, so the readouts stay readable against the
+   brighter beam. */
+html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] > .dashboard-header-meter-panel__stack--orbit {
+  background:
+    radial-gradient(at 30% 48%, rgba(14, 165, 233, 0.08), rgba(0, 0, 0, 0) 42%),
+    radial-gradient(at 78% 58%, rgba(250, 204, 21, 0.05), rgba(0, 0, 0, 0) 38%) !important;
 }
 
 html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"] .dashboard-header-category-levels-menu__ufo-webgl {
@@ -228,6 +274,44 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
 
 .dashboard-header-vortex-shell--claim-dropdown-open .dashboard-profile-claim-dropdown {
   z-index: 690 !important;
+}
+
+/* While a rewards dropdown is open, the header band behind it keeps running its
+   ambient loops, damaging frames under near-opaque dropdown chrome. Enumerated
+   subjects (never a rightmost `*`): a universal subject defeats class-keyed
+   invalidation and restyles the whole ~1000-node shell subtree on every
+   open/close. Doubled shell modifier so this outranks the non-important
+   "running" hover rules on the smoke/meteor subjects. */
+.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open .dashboard-header-ambient-field__grid,
+.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open .dashboard-header-ambient-field__grid-wall,
+.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open .dashboard-header-ambient-field__meteor,
+.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open .dashboard-header-ambient-field__meteor-burst,
+.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open .dashboard-header-ambient-field__node,
+.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open .dashboard-header-news-chyron::before,
+.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open .dashboard-header-news-chyron__light,
+.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open .dashboard-header-news-chyron__gem,
+.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open .dashboard-header-selector-meteor,
+.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open .dashboard-header-logo-smoke__puff,
+.dashboard-header-vortex-shell--claim-dropdown-open.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-header-ambient-field__grid,
+.dashboard-header-vortex-shell--claim-dropdown-open.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-header-ambient-field__grid-wall,
+.dashboard-header-vortex-shell--claim-dropdown-open.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-header-ambient-field__meteor,
+.dashboard-header-vortex-shell--claim-dropdown-open.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-header-ambient-field__meteor-burst,
+.dashboard-header-vortex-shell--claim-dropdown-open.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-header-ambient-field__node,
+.dashboard-header-vortex-shell--claim-dropdown-open.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-header-news-chyron::before,
+.dashboard-header-vortex-shell--claim-dropdown-open.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-header-news-chyron__light,
+.dashboard-header-vortex-shell--claim-dropdown-open.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-header-news-chyron__gem,
+.dashboard-header-vortex-shell--claim-dropdown-open.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-header-selector-meteor,
+.dashboard-header-vortex-shell--claim-dropdown-open.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-header-logo-smoke__puff {
+  animation-play-state: paused !important;
+}
+
+/* The shell's Tailwind backdrop-blur-md re-filters a near-full-width band on
+   every damaged frame while a dropdown animates over it; the dropdown chrome
+   is near-opaque over the blur, so drop the filter while one is open. */
+.dashboard-header-vortex-shell--points-dropdown-open,
+.dashboard-header-vortex-shell--claim-dropdown-open {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 /* ==== DASHBOARD_HEADER_LOGO_FALLBACK_STYLE ==== */
 .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
@@ -370,6 +454,12 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
        joystick's centre sat ~9px above the idle row line (crest/nav/account
        all centre near y=36; the joystick centred at 27). */
     translate: 0 0.69rem !important;
+    /* The 0.69rem above was tuned against a top-left scaling origin — but the
+       origin used to come from a .dashboard-header-scroll-button--left rule,
+       and that class swaps to --right when the account panel is active,
+       silently moving the scaled joystick's centre ~9px down. Pin the origin
+       here so the tuned drop holds in BOTH panel states. */
+    transform-origin: 0 0 !important;
   }
 
   /* Same 13px lift for the menu blocks, which carry the nav content and the
@@ -400,14 +490,15 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     gap: 1.7rem !important;
   }
 
-
   /* Collapsed header: every item reads on one line through the middle of the
      MENU area — which is the shell minus the news chyron sitting in its bottom
      26px. Centring on the shell box itself leaves everything ~13px low. */
   .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
     .dashboard-header-menu-content
     > .dashboard-header-logo-cluster {
-    translate: 0 -0.3rem !important;
+    /* -0.3rem left the crest's centre at y~33 against the row's 36px midline
+       (measured at 280px) — eased to land on the line. */
+    translate: 0 -0.14rem !important;
   }
 
   /* The shell collapses to ~98px in content focus, but the stage carried a
@@ -417,6 +508,22 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     .dashboard-header-menu-content
     > .dashboard-header-main-orbit-stage {
     translate: 0 0.45rem !important;
+  }
+
+  /* The stage's translate swings -0.76rem (open) <-> 0.45rem (idle). While
+     that swing TRANSITIONED, the focus flip's synchronous LAST-rect pass saw a
+     transient layout (stage still near its old translate), so the FLIP
+     bridges sent the nav/account content to a ~19px-too-high phantom target
+     and the stage then descended beneath them — the "nav flies up, then
+     drops" zigzag on open->idle (worse under a busy close, where the
+     starved transition snapped a full commit later). The stage is an
+     invisible layout container whose visible children are all FLIP-bridged:
+     flip it instantly so the bridges measure the true final layout and carry
+     the whole glide themselves. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-menu-content
+    > .dashboard-header-main-orbit-stage {
+    transition: none !important;
   }
 
   .dashboard-header-vortex-shell
@@ -485,55 +592,6 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
    time (see DASHBOARD_NARROW_ACCOUNT_ITEMS) instead of squeezing all three
    into a row that cannot hold them. */
 @media (max-width: 359px) {
-  .dashboard-header-vortex-shell
-    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item]
-    :is(.dashboard-profile-hub-trigger, .dashboard-profile-rewards-control) {
-    display: none !important;
-  }
-
-  .dashboard-header-vortex-shell
-    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
-    .dashboard-profile-hub-trigger {
-    display: flex !important;
-  }
-
-  .dashboard-header-vortex-shell
-    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="rewards"]
-    .dashboard-profile-rewards-control {
-    display: flex !important;
-  }
-
-  /* The meter button sits outside the stage, so it takes its own turn in the
-     rotation and stays hidden while the other two are showing. */
-  /* Doubled class names raise specificity above the max-width: 430px rule that
-     reveals the meter for the whole account panel. */
-  .dashboard-header-vortex-shell.dashboard-header-vortex-shell
-    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
-    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell,
-  .dashboard-header-vortex-shell.dashboard-header-vortex-shell
-    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="rewards"]
-    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell {
-    opacity: 0 !important;
-    pointer-events: none !important;
-    visibility: hidden !important;
-  }
-
-  /* With one control in the row there is no meter to clear, so drop the inset
-     that was reserving space for it. */
-  .dashboard-header-vortex-shell
-    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
-    .dashboard-header-menu-block--profile,
-  .dashboard-header-vortex-shell
-    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="rewards"]
-    .dashboard-header-menu-block--profile {
-    padding-right: 0.95rem !important;
-  }
-
-  .dashboard-header-vortex-shell
-    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item]
-    .dashboard-header-profile-cluster {
-    justify-content: center !important;
-  }
 
   /* The header figure is decorative, so hide him rather than let him overlap
      the controls or hang off the edge when there is no room for him. */
@@ -542,33 +600,7 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     display: none !important;
   }
 
-  /* The gear only makes sense beside the avatar, and the avatar only shows on
-     the "account" step — otherwise it was left stranding itself past the right
-     edge of the screen with nothing to sit next to. Hide it by default and
-     bring it back only for that step. */
-  .dashboard-header-vortex-shell
-    .dashboard-header-main-orbit-stage--stable
-    .dashboard-profile-action-gear {
-    display: none !important;
-  }
 
-  /* Tucked just left of the avatar and low against it, mirroring the coach
-     badge on the avatar's other side, instead of sitting 169px away at the far
-     end of the block. Offset = the block's right padding (0.95rem) + the
-     avatar (3.94rem) + a gap that keeps them from touching. */
-  .dashboard-header-vortex-shell
-    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
-    .dashboard-profile-action-gear {
-    display: grid !important;
-    /* The account icon is centred in the block on this step, so anchor the
-       gear off the block's centre rather than its right edge — it follows the
-       icon if the block's width changes. left:auto defeats the wide-view
-       inline left on the button, which otherwise wins the over-constrained
-       left/right/width resolution and ignores this. */
-    left: auto !important;
-    right: calc(50% + 3rem) !important;
-    top: 2.5rem !important;
-  }
 
   /* The menu blocks are sized from 100vw minus 7.75rem, which assumes they
      start where the logo and joystick end. The stage actually begins a little
@@ -656,6 +688,31 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     width: 13.35rem !important;
   }
 
+  /* Idle gets the same design width. Only the open header had one, so idle
+     fell through to the 430px block's `width: min(13.95rem, 100vw - 13.15rem)`
+     — 69.6px on a 280px screen — while its first grid track stays frozen at
+     6.35rem (101.6px). Grid never shrinks a fixed track, so the label track
+     absorbed the whole 36px deficit and resolved to 0px, and the name was
+     clipped away entirely (no room even for an ellipsis). That formula is in
+     the wrong coordinate frame anyway: it reserves 210 screen px for the
+     crest, joystick and meter, but idle puts this block at position:absolute
+     with scale 0.6, so it never owned those pixels, and the stage already
+     excludes the crest and joystick.
+     `max-width: none` is load-bearing — without it the `max-width: 100%` a few
+     rules up clamps the body straight back and nothing changes. The attribute
+     selector keeps this at the same (0,4,0) specificity as its open-state twin
+     above; drop to three classes and the 430px rule wins on source order. No
+     `:not(--timed-out)` here, because a timed-out header is unfitted too.
+     This cannot fight fitDashboardHeaderNav: that function returns before any
+     write whenever focus is "content", which is exactly when this applies. */
+  .dashboard-header-vortex-shell[data-header-focus="content"]
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-body {
+    max-width: none !important;
+    min-width: 0 !important;
+    width: 13.35rem !important;
+  }
+
   .dashboard-header-vortex-shell:not([data-header-focus="content"])
     .dashboard-header-main-orbit-stage--stable
     .dashboard-header-dashboard-selector {
@@ -667,26 +724,6 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     zoom: 0.48;
   }
 
-  /* The sub-360px paging mode centers one account item at a time with its
-     own rules; the wider-screen tuning (the icon's gear-clearing margin and
-     the collapsed block's rightward nudge + fit-content) pushed the centered
-     icon off-screen onto the meter and left the gear stranded ~40px away.
-     Neutralize that tuning here. */
-  .dashboard-header-vortex-shell
-    .dashboard-header-main-orbit-stage--stable
-    .dashboard-profile-hub-trigger {
-    margin-left: 0 !important;
-  }
-
-  /* :not() matches the wider-screen nudge rule's specificity so this later
-     rule wins the !important tie. */
-  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
-    .dashboard-header-main-orbit-stage
-    > .dashboard-header-menu-block--profile.dashboard-header-menu-block--profile {
-    translate: 0 0.69rem !important;
-    transform-origin: 50% 0 !important;
-    width: 100% !important;
-  }
 }
 
 @media (max-width: 719px) {
@@ -719,13 +756,33 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     opacity: 0 !important;
     pointer-events: none !important;
     position: absolute !important;
-    right: clamp(0.24rem, 1.7vw, 0.42rem) !important;
+    right: clamp(0.55rem, 2.5vw, 0.75rem) !important;
     top: 50% !important;
     transform: translate3d(0.72rem, -50%, -2rem) scale(0.74) !important;
+    /* The size here comes from --dashboard-header-narrow-meter-size, i.e. from
+       height and width — neither of which was in this list, so the button
+       SNAPPED to its idle size in a single frame while its neighbours in the
+       row eased over 240ms. It also ran transform on its own 260ms and its own
+       curve. Measured on a real collapse: the meter finished at 46ms and the
+       crest/joystick at 371ms, which reads as the left side closing slower
+       than the right. Geometry now matches the shared group on
+       .dashboard-header-menu-content > * (240ms, cubic-bezier(0.2, 0.84, 0.2, 1));
+       opacity and visibility stay on the faster fade, which is not spacing. */
+    /* This rule is the HIDDEN target state, so its transition governs the
+       hide direction — and opacity/visibility are deliberately NOT in the
+       list, so the hide is INSTANT. Every other icon in the rotation swaps by
+       display:none with no fade; any fade here left the meter as the last
+       thing standing while the next panel slid in beneath it ("disappears
+       late"), and it also kept checkVisibility() true so the 3D on the z-430
+       stage canvas floated over the incoming icons for another ~200ms after
+       the DOM went. An instant opacity:0 lets the rotation's synchronous
+       visibility invalidation cull the 3D on the very next stage frame. The
+       reveal rule below still fades the ENTRY over 180ms, and geometry keeps
+       the shared 240ms group for open<->idle resizes. */
     transition:
-      opacity 180ms ease,
-      transform 260ms cubic-bezier(0.2, 0.82, 0.18, 1),
-      visibility 180ms ease !important;
+      height 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+      transform 160ms cubic-bezier(0.2, 0.84, 0.2, 1),
+      width 240ms cubic-bezier(0.2, 0.84, 0.2, 1) !important;
     visibility: hidden !important;
     width: var(--dashboard-header-narrow-meter-size) !important;
     z-index: 178 !important;
@@ -737,6 +794,15 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     opacity: 1 !important;
     pointer-events: auto !important;
     transform: translate3d(0, -50%, 0) scale(0.9) !important;
+    /* Visible target state = this transition governs the fade-IN. Kept softer
+       than the 90ms hide above, and geometry stays on the shared 240ms group
+       so open<->idle resizes still move in step with the row. */
+    transition:
+      height 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+      opacity 180ms ease,
+      transform 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+      visibility 180ms ease,
+      width 240ms cubic-bezier(0.2, 0.84, 0.2, 1) !important;
     visibility: visible !important;
   }
 
@@ -793,6 +859,25 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     width: min(13.95rem, calc(100vw - 13.15rem)) !important;
   }
 
+  /* The 13.15rem reserve above covers the crest, the orbit joystick AND the
+     meter button — but below 430px the meter is revealed only on the "account"
+     panel. On every other panel it is visibility:hidden AND position:absolute,
+     so it owns none of the row, and reserving it cost the label track 32px:
+     the copy column resolved to 50.5px while "Sessions" needs 62px, so the
+     dashboard name rendered as "SESS…" with obvious empty space to its right.
+     Hand those pixels back when the meter is not on screen — 11.15rem is the
+     same reserve minus the 2rem button. The stage is an ancestor of the body,
+     so this keys off its panel attribute directly rather than :has(). At a
+     367px viewport the body goes 156.6px -> 188.6px and the copy column
+     50.5px -> 82.5px, which clears the 62px the longest name needs. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable:not(
+      [data-mobile-header-panel="account"]
+    )
+    .dashboard-header-selector-body {
+    width: min(13.95rem, calc(100vw - 11.15rem)) !important;
+  }
+
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable
     .dashboard-header-rail-pocket {
@@ -827,8 +912,11 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
   .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
     .dashboard-header-menu-content
     > .dashboard-header-meter-menu-shell {
-    right: 0.58rem !important;
-    top: 1.78rem !important;
+    right: 0.88rem !important;
+    /* 1.78rem centred the meter at y~41 against the row's 36px midline
+       (measured at 280px) — lifted to land on the line (re-measured: 1.46rem
+       sat at y=34, so eased back down 2px). */
+    top: 1.58rem !important;
     transform: translate3d(0, 0, 0) scale(0.74) !important;
     translate: 0 !important;
   }
@@ -839,6 +927,130 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     transform: translate3d(0, 0, 0) scale(0.9) !important;
   }
 }
+
+/* ==== NARROW ACCOUNT PAGING ====
+   Moved out of the max-width: 359px block so it covers the whole compact-header
+   band. The header switches to its compact layout at 430px (the meter is hidden
+   there and revealed only for the account panel, ~line 876), but paging used to
+   start at 359px -- so 360-430px rendered every account control at once and they
+   piled up: the profile block ran 12px past a 367px viewport and the hub trigger
+   and coach badge overlapped by 16px.
+   Only the paging rules moved. The nav zoom-fit design widths, the overflow
+   clipping and the category-actor hide stay at 359px: they feed
+   fitDashboardHeaderNav and are tuned for that width.
+   Placed after the max-width: 430px block above so these win the source-order
+   tie as well as on specificity (the doubled class names below). */
+@media (max-width: 430px) {
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item]
+    :is(.dashboard-profile-hub-trigger, .dashboard-profile-rewards-control) {
+    display: none !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
+    .dashboard-profile-hub-trigger {
+    display: flex !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="rewards"]
+    .dashboard-profile-rewards-control {
+    display: flex !important;
+  }
+
+  /* The meter button sits outside the stage, so it takes its own turn in the
+     rotation and stays hidden while the other two are showing. */
+  /* Doubled class names raise specificity above the max-width: 430px rule that
+     reveals the meter for the whole account panel. */
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
+    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell,
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="rewards"]
+    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+
+  /* With one control in the row there is no meter to clear, so drop the inset
+     that was reserving space for it. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
+    .dashboard-header-menu-block--profile,
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="rewards"]
+    .dashboard-header-menu-block--profile {
+    padding-right: 0.95rem !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item]
+    .dashboard-header-profile-cluster {
+    justify-content: center !important;
+  }
+
+  /* The gear only makes sense beside the avatar, and the avatar only shows on
+     the "account" step — otherwise it was left stranding itself past the right
+     edge of the screen with nothing to sit next to. Hide it by default and
+     bring it back only for that step. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-action-gear {
+    display: none !important;
+  }
+
+  /* Tucked just left of the avatar and low against it, mirroring the coach
+     badge on the avatar's other side, instead of sitting 169px away at the far
+     end of the block. Offset = the block's right padding (0.95rem) + the
+     avatar (3.94rem) + a gap that keeps them from touching. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
+    .dashboard-profile-action-gear {
+    display: grid !important;
+    /* The account icon is centred in the block on this step, so anchor the
+       gear off the block's centre rather than its right edge — it follows the
+       icon if the block's width changes. left:auto defeats the wide-view
+       inline left on the button, which otherwise wins the over-constrained
+       left/right/width resolution and ignores this. The -0.45rem matches the
+       hub's breathing-room shift below so the pair moves together. */
+    left: auto !important;
+    right: calc(50% + 3rem - 0.45rem) !important;
+    top: 2.5rem !important;
+  }
+
+  /* Breathing room from the orbit joystick: the account icon sat close
+     enough to read as part of the joystick cluster at very narrow widths —
+     walk it (and the gear, above) a touch toward the free right side. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
+    .dashboard-profile-hub-trigger {
+    translate: 0.45rem 0;
+  }
+
+  /* The paging mode centers one account item at a time with its
+     own rules; the wider-screen tuning (the icon's gear-clearing margin and
+     the collapsed block's rightward nudge + fit-content) pushed the centered
+     icon off-screen onto the meter and left the gear stranded ~40px away.
+     Neutralize that tuning here. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-hub-trigger {
+    margin-left: 0 !important;
+  }
+
+  /* :not() matches the wider-screen nudge rule's specificity so this later
+     rule wins the !important tie. */
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-main-orbit-stage
+    > .dashboard-header-menu-block--profile.dashboard-header-menu-block--profile {
+    translate: 0 0.69rem !important;
+    transform-origin: 50% 0 !important;
+    width: 100% !important;
+  }
+}
+
 /* ==== DASHBOARD_PROFILE_SOUND_POINTS_TOTAL_STYLE ==== */
 @property --dashboard-profile-points-trigger-orbit-x {
   syntax: "<length>";
@@ -923,48 +1135,6 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
 .dashboard-profile-sound-points-total > * {
   position: relative;
   z-index: 1;
-}
-
-.dashboard-profile-sound-points-total__weekly-fill {
-  background:
-    linear-gradient(90deg, rgba(30, 64, 175, 0.14), rgba(15, 23, 42, 0.08) 50%, rgba(14, 165, 233, 0.08)),
-    repeating-linear-gradient(90deg, transparent 0 1.2rem, rgba(125, 211, 252, 0.045) 1.28rem 1.38rem, transparent 1.48rem 2.3rem);
-  border-radius: inherit;
-  inset: 0;
-  overflow: hidden;
-  pointer-events: none;
-  position: absolute !important;
-  z-index: 0 !important;
-}
-
-.dashboard-profile-sound-points-total__weekly-fill::before {
-  animation: dashboard-profile-sound-points-weekly-fill-charge 1.48s steps(8) infinite;
-  background:
-    repeating-linear-gradient(108deg, transparent 0 0.62rem, rgba(255, 255, 255, 0.2) 0.7rem 0.78rem, transparent 0.92rem 1.34rem),
-    linear-gradient(90deg, rgba(29, 78, 216, 0.78), rgba(37, 99, 235, 0.68) 44%, rgba(56, 189, 248, 0.54) 78%, rgba(255, 255, 255, 0.2));
-  box-shadow:
-    inset 0 0 1.4rem rgba(125, 211, 252, 0.24),
-    0 0 1.1rem rgba(37, 99, 235, 0.28);
-  content: "";
-  inset: 0 auto 0 0;
-  opacity: 0.84;
-  position: absolute;
-  width: var(--sound-points-weekly-fill, 0%);
-}
-
-.dashboard-profile-sound-points-total__weekly-fill::after {
-  animation: dashboard-profile-sound-points-weekly-fill-cap 1.18s ease-in-out infinite;
-  background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.98) 0 0.11rem, rgba(125, 211, 252, 0.74) 0.18rem, transparent 0.48rem),
-    linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.92), rgba(56, 189, 248, 0.66), transparent);
-  content: "";
-  filter:
-    drop-shadow(0 0 0.26rem rgba(255, 255, 255, 0.7))
-    drop-shadow(0 0 0.58rem rgba(56, 189, 248, 0.7));
-  inset: 0 auto 0 max(0rem, calc(var(--sound-points-weekly-fill, 0%) - 0.22rem));
-  opacity: var(--sound-points-weekly-cap-opacity, 0);
-  position: absolute;
-  width: 0.44rem;
 }
 
 .dashboard-profile-sound-points-total__bolt {
@@ -1143,7 +1313,10 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
 
 .dashboard-profile-reward-orbit__panel[data-reward-panel-side="left"],
 .dashboard-profile-reward-orbit__panel[data-reward-panel-side="right"] {
-  filter: saturate(0.72) brightness(0.62) blur(0.025rem);
+  /* Dim via opacity only. The old saturate/brightness/sub-pixel-blur filter
+     re-rasterized the whole panel every frame of the 260ms rotation (opacity
+     composites; filter does not), and the panel ends fully transparent anyway
+     so the filter was never visible at rest. */
   opacity: 0;
 }
 
@@ -1512,57 +1685,6 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
   transition: none !important;
 }
 
-.dashboard-profile-points-trigger__orbit {
-  height: 3.9rem;
-  overflow: visible;
-  pointer-events: none;
-  position: absolute;
-  right: -0.08rem;
-  top: 0.1rem;
-  width: 4.3rem;
-  z-index: 1;
-}
-
-.dashboard-profile-points-trigger__orbit::before,
-.dashboard-profile-points-trigger__orbit::after {
-  border-radius: 9999px;
-  content: "";
-  left: 50%;
-  pointer-events: none;
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%) rotateX(68deg);
-}
-
-.dashboard-profile-points-trigger__orbit::before {
-  background:
-    conic-gradient(from 18deg, rgba(37, 99, 235, 0.12), rgba(52, 211, 153, 0.2), rgba(250, 204, 21, 0.18), rgba(248, 113, 113, 0.14), rgba(37, 99, 235, 0.2));
-  filter: blur(0.02rem) drop-shadow(0 0 0.28rem rgba(56, 189, 248, 0.26));
-  height: 2.15rem;
-  opacity: 0.78;
-  width: 3.62rem;
-}
-
-.dashboard-profile-points-trigger__orbit::after {
-  border: 1px solid rgba(191, 219, 254, 0.2);
-  height: 1.52rem;
-  opacity: 0.68;
-  width: 3.22rem;
-}
-
-.dashboard-profile-points-trigger__orbit-stage {
-  --dashboard-profile-points-trigger-orbit-back-y: -0.46rem;
-  --dashboard-profile-points-trigger-orbit-front-y: 0.58rem;
-  --dashboard-profile-points-trigger-orbit-x: 1.34rem;
-  height: 100%;
-  position: relative;
-  transition:
-    --dashboard-profile-points-trigger-orbit-x 190ms ease,
-    --dashboard-profile-points-trigger-orbit-front-y 190ms ease,
-    --dashboard-profile-points-trigger-orbit-back-y 190ms ease;
-  width: 100%;
-}
-
 .dashboard-profile-points-trigger__shared-gems {
   display: block;
   filter:
@@ -1571,126 +1693,6 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
   height: 100% !important;
   pointer-events: none;
   width: 100% !important;
-}
-
-.dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"]):not([data-motion-paused="true"])
-  .dashboard-profile-points-trigger__orbit-stage {
-  --dashboard-profile-points-trigger-orbit-back-y: -0.58rem;
-  --dashboard-profile-points-trigger-orbit-front-y: 0.72rem;
-  --dashboard-profile-points-trigger-orbit-x: 1.68rem;
-}
-
-.dashboard-profile-points-trigger[data-dropdown-open="true"]
-  .dashboard-profile-points-trigger__orbit-stage {
-  --dashboard-profile-points-trigger-orbit-back-y: -0.58rem;
-  --dashboard-profile-points-trigger-orbit-front-y: 0.72rem;
-  --dashboard-profile-points-trigger-orbit-x: 1.68rem;
-}
-
-.dashboard-profile-points-trigger:is(:hover, :focus-visible):not([data-dropdown-open="true"]):not([data-motion-paused="true"])
-  .dashboard-profile-points-trigger__orbit-gem {
-  animation-play-state: running;
-}
-
-.dashboard-profile-points-trigger[data-dropdown-open="true"]
-  .dashboard-profile-points-trigger__orbit-gem,
-.dashboard-profile-points-trigger[data-dropdown-open="true"]
-  .dashboard-profile-points-trigger__orbit-gem[data-gem-tone="green"]::after {
-  animation: none !important;
-  animation-play-state: paused !important;
-}
-
-.dashboard-profile-points-trigger[data-dropdown-open="true"]
-  .dashboard-profile-points-trigger__orbit-gem:nth-child(1) {
-  opacity: 1;
-  transform: translate(-50%, -50%)
-    translate3d(0, var(--dashboard-profile-points-trigger-orbit-front-y), 0);
-  z-index: 4;
-}
-
-.dashboard-profile-points-trigger[data-dropdown-open="true"]
-  .dashboard-profile-points-trigger__orbit-gem:nth-child(2) {
-  opacity: 0.92;
-  transform: translate(-50%, -50%)
-    translate3d(var(--dashboard-profile-points-trigger-orbit-x), 0, 0);
-  z-index: 3;
-}
-
-.dashboard-profile-points-trigger[data-dropdown-open="true"]
-  .dashboard-profile-points-trigger__orbit-gem:nth-child(3) {
-  opacity: 0.64;
-  transform: translate(-50%, -50%)
-    translate3d(0, var(--dashboard-profile-points-trigger-orbit-back-y), 0);
-  z-index: 1;
-}
-
-.dashboard-profile-points-trigger[data-dropdown-open="true"]
-  .dashboard-profile-points-trigger__orbit-gem:nth-child(4) {
-  opacity: 0.92;
-  transform: translate(-50%, -50%)
-    translate3d(calc(var(--dashboard-profile-points-trigger-orbit-x) * -1), 0, 0);
-  z-index: 3;
-}
-
-.dashboard-profile-points-trigger__orbit-gem {
-  --dashboard-profile-points-trigger-gem-glow: rgba(125, 211, 252, 0.54);
-  --dashboard-profile-points-trigger-gem-delay: 0s;
-  animation: dashboard-profile-points-trigger-gem-carousel 4.8s linear infinite;
-  animation-delay: var(--dashboard-profile-points-trigger-gem-delay);
-  animation-play-state: paused;
-  display: block;
-  height: 2.08rem;
-  left: 50%;
-  position: absolute;
-  top: 50%;
-  transform-origin: 50% 50%;
-  width: 2.08rem;
-}
-
-.dashboard-profile-points-trigger__orbit-gem[data-gem-tone="blue"] {
-  --dashboard-profile-points-trigger-gem-glow: rgba(37, 99, 235, 0.74);
-}
-
-.dashboard-profile-points-trigger__orbit-gem[data-gem-tone="green"] {
-  --dashboard-profile-points-trigger-gem-glow: rgba(52, 211, 153, 0.66);
-}
-
-.dashboard-profile-points-trigger__orbit-gem[data-gem-tone="yellow"] {
-  --dashboard-profile-points-trigger-gem-glow: rgba(250, 204, 21, 0.64);
-}
-
-.dashboard-profile-points-trigger__orbit-gem[data-gem-tone="red"] {
-  --dashboard-profile-points-trigger-gem-glow: rgba(248, 113, 113, 0.62);
-}
-
-.dashboard-profile-points-trigger__orbit-canvas {
-  filter:
-    drop-shadow(0 0 0.14rem rgba(255, 255, 255, 0.28))
-    drop-shadow(0 0 0.38rem var(--dashboard-profile-points-trigger-gem-glow));
-  height: 2.08rem !important;
-  width: 2.08rem !important;
-}
-
-.dashboard-profile-points-trigger__orbit-gem[data-gem-tone="green"]::after {
-  animation: dashboard-profile-app-gem-emerald-shimmer 2.25s ease-in-out
-    infinite;
-  background: linear-gradient(
-    110deg,
-    transparent 18%,
-    rgba(255, 255, 255, 0.82) 46%,
-    rgba(167, 243, 208, 0.68) 54%,
-    transparent 76%
-  );
-  border-radius: 9999px;
-  content: "";
-  filter: blur(0.04rem)
-    drop-shadow(0 0 0.2rem rgba(167, 243, 208, 0.68));
-  inset: 0.35rem;
-  mix-blend-mode: screen;
-  opacity: 0;
-  pointer-events: none;
-  position: absolute;
-  transform: translateX(-130%) rotate(12deg);
 }
 
 .dashboard-profile-points-trigger__values {
@@ -1774,6 +1776,12 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
   width: 0.98rem;
 }
 
+/* The gems/coin/points/bolt divs are shared-stage ANCHORS: the stage reads
+   their axis-aligned rect at 30fps and draws the 3D into it. Their hover poses
+   must therefore (a) transition — an untransitioned transform snap reads as a
+   one-frame jump of the 3D pixels — and (b) never rotate: the stage cannot
+   rotate its drawing, so rotate() only inflates the sampled box and shifts the
+   render off-centre. */
 .dashboard-profile-points-trigger__webgl-gems {
   filter:
     contrast(1.08)
@@ -1782,6 +1790,9 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     drop-shadow(0 0 0.34rem rgba(52, 211, 153, 0.38));
   height: 2.6rem !important;
   transform: translate(-50%, -50%) scale(0.58);
+  transition:
+    filter 180ms ease,
+    transform 180ms ease;
   width: 3rem !important;
 }
 
@@ -1791,19 +1802,16 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     drop-shadow(0 0 0.34rem rgba(250, 204, 21, 0.42));
   height: 1.62rem !important;
   transform: translate(-50%, -50%) scale(0.82);
+  transition:
+    filter 180ms ease,
+    transform 180ms ease;
   width: 1.62rem !important;
 }
 
-.dashboard-profile-points-trigger__webgl-points {
-  filter:
-    contrast(1.05)
-    saturate(1.2)
-    drop-shadow(0 0 0.14rem rgba(224, 242, 254, 0.42))
-    drop-shadow(0 0 0.34rem rgba(56, 189, 248, 0.46));
-  height: 1.55rem !important;
-  transform: translate(-50%, -50%) scale(0.78);
-  width: 1.85rem !important;
-}
+/* NOTE: there is deliberately no .dashboard-profile-points-trigger__webgl-points
+   element rule — the points row hosts the BOLT widget (inside the
+   __webgl-shell--points wrapper). A dead __webgl-points family that sat here
+   invited tuning against a class no element carries. */
 
 .dashboard-profile-points-trigger__webgl-bolt {
   filter:
@@ -1813,6 +1821,9 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     drop-shadow(0 0 0.42rem rgba(56, 189, 248, 0.5));
   height: 1.18rem !important;
   transform: translate(-50%, -43%) scale(0.6);
+  transition:
+    filter 180ms ease,
+    transform 180ms ease;
   width: 1.18rem !important;
 }
 
@@ -1841,7 +1852,7 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     drop-shadow(0 0 0.2rem rgba(236, 253, 245, 0.7))
     drop-shadow(0 0 0.58rem rgba(52, 211, 153, 0.68))
     drop-shadow(0 0 0.9rem rgba(45, 212, 191, 0.26));
-  transform: translate(-50%, -50%) scale(0.76) rotate(-4deg);
+  transform: translate(-50%, -50%) scale(0.76);
 }
 
 .dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
@@ -1851,19 +1862,7 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     saturate(1.18)
     drop-shadow(0 0 0.2rem rgba(254, 243, 199, 0.74))
     drop-shadow(0 0 0.62rem rgba(250, 204, 21, 0.62));
-  transform: translate(-50%, -50%) scale(0.94) rotate(6deg);
-}
-
-.dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
-  .dashboard-profile-points-trigger__webgl-points {
-  filter:
-    brightness(1.16)
-    contrast(1.1)
-    saturate(1.4)
-    drop-shadow(0 0 0.2rem rgba(224, 242, 254, 0.72))
-    drop-shadow(0 0 0.66rem rgba(56, 189, 248, 0.72))
-    drop-shadow(0 0 0.86rem rgba(37, 99, 235, 0.28));
-  transform: translate(-50%, -50%) scale(0.88) rotate(-3deg);
+  transform: translate(-50%, -50%) scale(0.94);
 }
 
 .dashboard-profile-points-trigger:is(:hover, :focus-visible, [aria-expanded="true"])
@@ -1886,13 +1885,16 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
 .dashboard-profile-charge-node-grid__tesla-scene[data-webgl-fallback="true"],
 .dashboard-profile-points-trigger__webgl-gems[data-webgl-fallback="true"],
 .dashboard-profile-points-trigger__webgl-coin[data-webgl-fallback="true"],
-.dashboard-profile-points-trigger__webgl-points[data-webgl-fallback="true"],
 .dashboard-profile-points-trigger__webgl-bolt[data-webgl-fallback="true"],
 .dashboard-profile-points-trigger__claim-webgl[data-webgl-fallback="true"] {
   background-image: none !important;
 }
 
-.dashboard-profile-points-trigger__webgl-bolt[data-webgl-fallback="true"] {
+/* Bolt shape doubles as the loading placeholder: shown under explicit
+   fallback AND while the widget has not reported ready yet; hides once
+   data-webgl-ready="true" lands (unless fallback keeps it on). */
+.dashboard-profile-points-trigger__webgl-bolt[data-webgl-fallback="true"],
+.dashboard-profile-points-trigger__webgl-bolt:not([data-webgl-ready="true"]) {
   background-image: linear-gradient(
     145deg,
     #e0f2fe 0 8%,
@@ -2230,6 +2232,12 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
 .dashboard-profile-claim-trigger--webgl[aria-expanded="true"]::before {
   opacity: 1;
   transform: scale(1.1);
+  /* The old "gift pressure" pump lived on the chest's shared-stage ANCHOR,
+     which forced the stage to re-rasterize all widgets at 30fps forever while
+     hovered and warped the sampled box. The pump now lives here, on the glow
+     pseudo — not measured by the stage — while the chest's own 3D animation
+     (unpaused on hover) carries the motion. */
+  animation: dashboard-profile-gift-glow-pulse 920ms ease-in-out infinite;
 }
 
 .dashboard-profile-points-trigger__claim-webgl {
@@ -2266,22 +2274,21 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     drop-shadow(0 0 0.5rem rgba(254, 240, 138, 0.5))
     drop-shadow(0 0 0.62rem rgba(185, 28, 28, 0.42))
     drop-shadow(0 0 0.44rem rgba(34, 211, 238, 0.2));
-  animation: dashboard-profile-gift-pressure 920ms ease-in-out infinite;
-  transform: translateY(0.12rem) scaleX(1.12) scaleY(0.94) rotate(1deg);
+  transform: translateY(0.12rem) scaleX(1.12) scaleY(0.94);
 }
 
-@keyframes dashboard-profile-gift-pressure {
+@keyframes dashboard-profile-gift-glow-pulse {
   0%,
   100% {
-    transform: translateY(0.14rem) scaleX(1.04) scaleY(0.98) rotate(0deg);
+    transform: scale(1.06);
   }
 
   38% {
-    transform: translateY(0.1rem) scaleX(1.16) scaleY(0.92) rotate(-1.2deg);
+    transform: scale(1.16);
   }
 
   68% {
-    transform: translateY(0.13rem) scaleX(1.1) scaleY(0.96) rotate(1.1deg);
+    transform: scale(1.09);
   }
 }
 
@@ -4210,6 +4217,10 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
 .dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__core::before,
 .dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node__core::after,
 .dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master__bolt {
+  /* opacity: 0 hides but does not stop the rotor/burst loops — they keep
+     dirtying style every frame. Kill them like the ::before/::after rules
+     above do. */
+  animation: none !important;
   opacity: 0;
 }
 
@@ -4288,43 +4299,6 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
   87.5%,
   100% {
     opacity: 1;
-  }
-}
-
-@keyframes dashboard-profile-points-trigger-gem-carousel {
-  0% {
-    opacity: 1;
-    transform: translate(-50%, -50%)
-      translate3d(0, var(--dashboard-profile-points-trigger-orbit-front-y), 0);
-    z-index: 4;
-  }
-
-  25% {
-    opacity: 0.92;
-    transform: translate(-50%, -50%)
-      translate3d(var(--dashboard-profile-points-trigger-orbit-x), 0, 0);
-    z-index: 3;
-  }
-
-  50% {
-    opacity: 0.64;
-    transform: translate(-50%, -50%)
-      translate3d(0, var(--dashboard-profile-points-trigger-orbit-back-y), 0);
-    z-index: 1;
-  }
-
-  75% {
-    opacity: 0.92;
-    transform: translate(-50%, -50%)
-      translate3d(calc(var(--dashboard-profile-points-trigger-orbit-x) * -1), 0, 0);
-    z-index: 3;
-  }
-
-  100% {
-    opacity: 1;
-    transform: translate(-50%, -50%)
-      translate3d(0, var(--dashboard-profile-points-trigger-orbit-front-y), 0);
-    z-index: 4;
   }
 }
 
@@ -4479,60 +4453,6 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
   }
 }
 
-@keyframes dashboard-profile-sound-points-weekly-fill-charge {
-  0%,
-  100% {
-    filter: brightness(1) saturate(1.05);
-    transform: translateX(0);
-  }
-
-  50% {
-    filter: brightness(1.22) saturate(1.2);
-    transform: translateX(0.1rem);
-  }
-}
-
-@keyframes dashboard-profile-sound-points-weekly-fill-cap {
-  0%,
-  100% {
-    transform: scaleX(0.78);
-  }
-
-  48% {
-    transform: scaleX(1.16);
-  }
-}
-
-@keyframes dashboard-profile-sound-points-prism-edge {
-  0% {
-    filter: hue-rotate(0deg) brightness(1.04);
-  }
-
-  50% {
-    filter: hue-rotate(10deg) brightness(1.22);
-  }
-
-  100% {
-    filter: hue-rotate(0deg) brightness(1.04);
-  }
-}
-
-@keyframes dashboard-profile-sound-points-electric-pulse {
-  0%,
-  100% {
-    opacity: 0.28;
-    transform: translateX(-0.04rem) scaleX(0.99);
-  }
-
-  42% {
-    opacity: 0.68;
-    transform: translateX(0.06rem) scaleX(1.01);
-  }
-
-  68% {
-    opacity: 0.38;
-  }
-}
 /* ==== DASHBOARD_PAGE_LEVEL_METER_TAB_STYLE ==== */
 .dashboard-page-level-meter-control {
   clip-path: none;
@@ -5496,13 +5416,13 @@ main.dashboard-page--level-meter-tab-highlighted
   z-index: 10;
 }
 
-.dashboard-page-level-meter-control--open .dashboard-page-analog-dock:has(.dashboard-page-level-meter-webgl[data-webgl-ready="true"]) .dashboard-page-analog-rail__fill {
+.dashboard-page-level-meter-control--open .dashboard-page-analog-dock:has(.dashboard-page-level-meter-webgl[data-webgl-ready="true"]:not([data-webgl-culled="true"])) .dashboard-page-analog-rail__fill {
   animation: none !important;
   opacity: 0 !important;
 }
 
-.dashboard-page-level-meter-control--open .dashboard-page-analog-dock:has(.dashboard-page-level-meter-webgl[data-webgl-ready="true"]) .dashboard-page-analog-rail__fill::before,
-.dashboard-page-level-meter-control--open .dashboard-page-analog-dock:has(.dashboard-page-level-meter-webgl[data-webgl-ready="true"]) .dashboard-page-analog-rail__fill::after {
+.dashboard-page-level-meter-control--open .dashboard-page-analog-dock:has(.dashboard-page-level-meter-webgl[data-webgl-ready="true"]:not([data-webgl-culled="true"])) .dashboard-page-analog-rail__fill::before,
+.dashboard-page-level-meter-control--open .dashboard-page-analog-dock:has(.dashboard-page-level-meter-webgl[data-webgl-ready="true"]:not([data-webgl-culled="true"])) .dashboard-page-analog-rail__fill::after {
   display: none !important;
 }
 
@@ -5945,10 +5865,15 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
 /* Content engaged -> freeze + dim the header; content keeps animating.
    Excluded while the header is timed-out (idle): the idle animation owns the
    header then, so the zone dim/pause must not darken or freeze it. */
-.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out),
-.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) *,
-.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) *::before,
-.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) *::after {
+/* Doubled shell class: the week-sessions meter carries (0,4,0)/(0,4,1)
+   "running !important" arms (globals ~26360-26379) that outranked these
+   (0,3,x) arms, so its filter animations kept running at DEEP IDLE whenever
+   week-sessions was the centered meter. At (0,4,x) every arm now ties those
+   rules and the tie breaks to this file by document order. */
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out),
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) *,
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) *::before,
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) *::after {
   animation-play-state: paused !important;
 }
 
@@ -5997,13 +5922,31 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
    items without one (the meter shell, the crest cluster) snap instantly —
    every piece moved at its own rate. The 150ms all member keeps the fast
    hover feedback those utilities provided; the later members override it for
-   the state-change properties. */
+   the state-change properties.
+
+   EVERY property that changes an item's SIZE has to be in the 240ms group, not
+   just the transform-ish ones. With only margin/translate/scale listed, an item
+   that shrinks by scaling ran 240ms on the cubic curve while one that shrinks by
+   changing its own box — width, height, font-size, padding, flex-basis — fell
+   through to `all 150ms ease`. Two different durations AND two different
+   easings on the same row, which reads as the items resizing at slightly
+   different speeds. Colour, border, opacity and transform stay on the fast
+   150ms path so hover and press feedback are unaffected. */
 .dashboard-header-vortex-shell .dashboard-header-menu-content > * {
   transition:
     all 150ms ease,
+    flex-basis 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    font-size 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    gap 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    height 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
     margin 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    max-width 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    min-width 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    padding 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    scale 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
     translate 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    scale 240ms cubic-bezier(0.2, 0.84, 0.2, 1);
+    width 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    zoom 240ms cubic-bezier(0.2, 0.84, 0.2, 1);
 }
 
 /* The nav joystick's size is swapped by the --stable state rules (width,
@@ -6025,7 +5968,6 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
   align-self: flex-start;
   transform-origin: 0 0;
 }
-
 
 .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
   .dashboard-header-menu-content
@@ -6167,3 +6109,773 @@ main.dashboard-page--idle-menu-open
    in dev that made the header open/close feel seconds long. The idle-side
    rule pausing the (small) header shell subtree remains, as does all JS-side
    pausing of the WebGL widgets. */
+
+/* ==== WEBGL FALLBACK REVEAL (moved from globals.css: :has()-stripping immunity) ==== */
+/* These rules hide the DOM fallback layers once their WebGL widget reports
+   ready. They key on :has() + attribute selectors, which the CSS build
+   pipeline sometimes strips from processed stylesheets — this file is served
+   verbatim, so they are immune here. Moved byte-verbatim from app/globals.css. */
+
+.dashboard-header-logo-3d[data-dashboard-webgl-child-ready="true"]
+  .dashboard-header-logo-3d__depth,
+.dashboard-header-logo-3d[data-dashboard-webgl-child-ready="true"]
+  .dashboard-header-logo-3d__image,
+.dashboard-header-logo-3d[data-dashboard-webgl-child-ready="true"]
+  .dashboard-header-logo-3d__sheen,
+.dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-ready="true"]:not(
+        [data-webgl-fallback="true"]
+      )
+  )
+  .dashboard-header-logo-3d__depth,
+.dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-ready="true"]:not(
+        [data-webgl-fallback="true"]
+      )
+  )
+  .dashboard-header-logo-3d__image,
+.dashboard-header-logo-3d:has(
+    .dashboard-header-logo-3d__webgl[data-webgl-ready="true"]:not(
+        [data-webgl-fallback="true"]
+      )
+  )
+  .dashboard-header-logo-3d__sheen {
+  opacity: 0 !important;
+}
+
+/* data-webgl-ready alone never meant "actually drawn": the stage stops
+   drawing a widget (culled ancestor, off-screen, idle overlay) without
+   clearing the flag, and a ready-suppressed fallback then leaves the icon
+   invisible. The stage now mirrors its skip decisions onto the anchors as
+   data-webgl-culled — a hidden fallback requires ready AND not culled. */
+.dashboard-header-scroll-button:has(
+    .dashboard-header-scroll-button__webgl[data-webgl-ready="true"]:not(
+        [data-webgl-fallback="true"]
+      ):not([data-webgl-culled="true"])
+  )
+  .dashboard-header-scroll-button__bubble-fallback {
+  opacity: 0 !important;
+  visibility: hidden;
+}
+
+/* ==== PROFILE ACTION GEAR DOM FALLBACK ==== */
+/* page.tsx renders an inline SVG child ".dashboard-profile-action-gear__fallback"
+   inside the ".dashboard-profile-action-gear" button, as a sibling of the
+   "__webgl" div. It stands in for the 3D gear until the widget reports ready,
+   then fades out. :has() is safe here — this file is never processed. */
+
+.dashboard-profile-action-gear__fallback {
+  fill: none;
+  filter: drop-shadow(0 0 0.22rem rgba(34, 211, 238, 0.45));
+  height: 66%;
+  inset: 0;
+  margin: auto;
+  opacity: 1;
+  pointer-events: none;
+  position: absolute;
+  stroke: rgba(165, 243, 252, 0.85);
+  transition: opacity 180ms ease;
+  width: 66%;
+}
+
+.dashboard-profile-action-gear:has(
+    .dashboard-profile-action-gear__webgl[data-webgl-ready="true"]:not(
+        [data-webgl-fallback="true"]
+      ):not([data-webgl-culled="true"])
+  )
+  .dashboard-profile-action-gear__fallback {
+  opacity: 0;
+}
+
+/* The global warming window hides every __webgl anchor, but the batched
+   header reveal can flag the gear ready while the gems/coin/chest gate is
+   still pending — mirror the meter trigger's exemption so a ready gear shows
+   its 3D instead of an empty ring for up to 7s after load. */
+html[data-dashboard-webgl="warming"]
+  body
+  .dashboard-profile-action-gear__webgl[data-webgl-ready="true"]:not(
+      [data-webgl-fallback="true"]
+    ) {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* ==== IDLE METER MIDLINE (431-940px) ==== */
+/* The all-width idle drop above (translate: 0 0.5rem) was tuned at one width,
+   but the meter's box height is viewport-fluid (its own
+   --dashboard-header-meter-button-size clamp) and the row's flex-start line
+   moves 6px at the md (768px) padding fork — so the top-anchored, 0.6-scaled
+   icon drifted up to ~5px off the 36px idle midline across 431-940px. Derive
+   the drop from the same height var instead: (midline - row padding-top) -
+   0.3 * box (0.3 = half the 0.6 idle scale from a top origin), which lands the
+   centre on the midline at every width by construction. <=430 uses the
+   absolute-overlay rules instead; >940 keeps its 1100px-tuned constant. */
+@media (min-width: 431px) and (max-width: 767px) {
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-menu-content
+    > .dashboard-header-meter-menu-shell {
+    translate: 0
+      calc(1.125rem - 0.3 * var(--dashboard-header-meter-button-size));
+  }
+}
+
+@media (min-width: 768px) and (max-width: 940px) {
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-menu-content
+    > .dashboard-header-meter-menu-shell {
+    translate: 0
+      calc(1.5rem - 0.3 * var(--dashboard-header-meter-button-size));
+  }
+}
+
+/* ==== PAGE LEVEL METER TUCK ==== */
+/* The meter rests tucked: the whole control slides right until only a slim
+   sliver of the semicircle tab peeks from the screen edge, reclaiming the
+   space the full disc took. Click or drag-out reveals the semicircle; a
+   second click opens the full bar (unchanged). The shift uses the `translate`
+   property because the control pins `transform: none !important` above —
+   translate is a separate channel and survives it. */
+.dashboard-page-level-meter-control {
+  transition: translate 300ms cubic-bezier(0.2, 0.84, 0.2, 1);
+}
+
+.dashboard-page-level-meter-control--tucked {
+  translate: calc(100% - 0.85rem) 0;
+}
+
+/* Hide the disc's inner content while tucked so no clipped text shows in the
+   sliver — the ring edge and glow are the whole affordance. */
+.dashboard-page-level-meter-tab__label,
+.dashboard-page-level-meter-tab__value,
+.dashboard-page-level-meter-tab__next-reward {
+  transition: opacity 200ms ease;
+}
+
+.dashboard-page-level-meter-control--tucked .dashboard-page-level-meter-tab__label,
+.dashboard-page-level-meter-control--tucked .dashboard-page-level-meter-tab__value,
+.dashboard-page-level-meter-control--tucked .dashboard-page-level-meter-tab__next-reward {
+  opacity: 0;
+}
+
+/* ==== OPEN-HEADER PAINT TRIMS ==== */
+/* The shell's backdrop-blur-md re-filters the full-width band on every damaged
+   frame, and the band is damaged constantly (stage presents, compositor
+   animations). The blur is near-invisible under the shell's own 0.78-0.86
+   alpha gradient stack, so it is dropped outright.
+   This used to be scoped to the open state on the reasoning that "the idle
+   band is static, the blur costs one raster". That holds once idle has
+   settled, but not while CLOSING into it: the band is animating its height and
+   picking up `filter: brightness(0.6) saturate(0.72)` at the same time, so the
+   blur is re-rastered under a filtered surface on every frame of the busiest
+   transition the header has. Measured across a close at a phone width: 7 -> 16
+   main-thread frames and 677ms -> 426ms of long-task time with the blur off.
+   That frame budget is what the WebGL joysticks sample their position from —
+   they can only track the DOM chrome on frames the main thread actually
+   delivers, so this is the difference between the 3D stepping through 4 sizes
+   and following the button properly. */
+.dashboard-header-vortex-shell {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* The stepped background-position animators (ambient grid walls) and the
+   chyron's filter-animating light are main-thread repaints of full-width
+   filtered surfaces, 4-8 times a second each, the entire time the header is
+   open. Pause exactly those while open — the compositor-only ambience
+   (meteors, auras, sweeps) keeps running so the header still feels alive.
+   Idle already pauses everything via the focus="content" blanket. */
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="header"]
+  .dashboard-header-ambient-field__grid,
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="header"]
+  .dashboard-header-ambient-field__grid-wall,
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="header"]
+  .dashboard-header-news-chyron::before,
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="header"]
+  .dashboard-header-news-chyron__light,
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="header"]
+  .dashboard-header-news-chyron__gem {
+  animation-play-state: paused !important;
+}
+
+/* ==== CLAIM GIFTS POPUP MENU ==== */
+/* The claim dropdown used to hold one placeholder line; it is now a menu of
+   the three level-track gifts with live progress, claim actions, and
+   locked/claimed states. Icons reuse the analog rail's reward SVG renderer. */
+.dashboard-profile-claim-dropdown__header {
+  align-items: baseline;
+  border-bottom: 1px solid rgba(125, 211, 252, 0.16);
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.55rem;
+  padding-bottom: 0.5rem;
+}
+
+.dashboard-profile-claim-dropdown__title {
+  color: rgba(236, 254, 255, 0.95);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-profile-claim-dropdown__progress {
+  color: rgba(125, 211, 252, 0.75);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.dashboard-profile-claim-dropdown__list {
+  display: grid;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dashboard-profile-claim-dropdown__item {
+  align-items: center;
+  background: linear-gradient(
+    135deg,
+    rgba(15, 23, 42, 0.72),
+    rgba(2, 6, 23, 0.55)
+  );
+  border: 1px solid rgba(125, 211, 252, 0.14);
+  border-radius: 0.85rem;
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.5rem 0.6rem;
+  transition:
+    border-color 160ms ease,
+    opacity 160ms ease;
+}
+
+.dashboard-profile-claim-dropdown__item[data-earned="false"] {
+  opacity: 0.62;
+}
+
+.dashboard-profile-claim-dropdown__item[data-earned="true"][data-claimed="false"] {
+  border-color: rgba(251, 191, 36, 0.44);
+  box-shadow: 0 0 0.85rem rgba(251, 191, 36, 0.14);
+}
+
+.dashboard-profile-claim-dropdown__item[data-claimed="true"] {
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.dashboard-profile-claim-dropdown__icon {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  height: 1.9rem;
+  justify-content: center;
+  width: 1.9rem;
+}
+
+.dashboard-profile-claim-dropdown__icon .dashboard-page-analog-rail__reward-icon {
+  height: 100%;
+  width: 100%;
+}
+
+.dashboard-profile-claim-dropdown__meta {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.dashboard-profile-claim-dropdown__label {
+  color: rgba(236, 254, 255, 0.92);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-profile-claim-dropdown__requirement {
+  color: rgba(148, 163, 184, 0.85);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.dashboard-profile-claim-dropdown__item[data-earned="true"][data-claimed="false"]
+  .dashboard-profile-claim-dropdown__requirement {
+  color: rgba(251, 191, 36, 0.9);
+}
+
+.dashboard-profile-claim-dropdown__item[data-claimed="true"]
+  .dashboard-profile-claim-dropdown__requirement {
+  color: rgba(52, 211, 153, 0.85);
+}
+
+.dashboard-profile-claim-dropdown__claim {
+  background: linear-gradient(
+    135deg,
+    rgba(251, 191, 36, 0.24),
+    rgba(217, 119, 6, 0.18)
+  );
+  border: 1px solid rgba(251, 191, 36, 0.55);
+  border-radius: 999px;
+  color: rgba(254, 243, 199, 0.98);
+  cursor: pointer;
+  flex: 0 0 auto;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 0.34rem 0.7rem;
+  text-transform: uppercase;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    transform 140ms ease;
+}
+
+.dashboard-profile-claim-dropdown__claim:hover,
+.dashboard-profile-claim-dropdown__claim:focus-visible {
+  border-color: rgba(254, 240, 138, 0.85);
+  transform: translateY(-1px);
+}
+
+.dashboard-profile-claim-dropdown__state {
+  align-items: center;
+  color: rgba(148, 163, 184, 0.7);
+  display: flex;
+  flex: 0 0 auto;
+  height: 1.1rem;
+  justify-content: center;
+  width: 1.1rem;
+}
+
+.dashboard-profile-claim-dropdown__item[data-claimed="true"]
+  .dashboard-profile-claim-dropdown__state {
+  color: rgba(52, 211, 153, 0.9);
+}
+
+.dashboard-profile-claim-dropdown__state-svg {
+  height: 100%;
+  width: 100%;
+}
+
+/* ==== REWARD ORBIT DRAG FEEL ==== */
+/* Mouse drags used to paint text selection across the panel (every other
+   drag orbit pairs these two; this one missed them), and touch-action:pan-y
+   let diagonal touch drags become page scrolls that pointercancel the
+   gesture mid-flight. Nothing inside the open dropdown needs vertical
+   panning. */
+.dashboard-profile-reward-orbit {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* While a drag gesture is live, fade in the panel it is heading toward so the
+   user can see what they are pulling into place — the neighbours rest at
+   opacity 0, which made drags feel like nothing-then-JUMP.
+   Only that ONE neighbour: revealing both put the card being left behind on
+   screen as well, so a drag showed a third section drifting in the background
+   that the gesture was never going to land on. Dragging right slides the row
+   right, which brings the LEFT neighbour to the middle, hence the crossed
+   pairing below. */
+.dashboard-profile-reward-orbit[data-orbit-drag-toward="left"]
+  .dashboard-profile-reward-orbit__panel[data-reward-panel-side="left"],
+.dashboard-profile-reward-orbit[data-orbit-drag-toward="right"]
+  .dashboard-profile-reward-orbit__panel[data-reward-panel-side="right"] {
+  opacity: 0.34;
+}
+
+/* The claim popup's keyframe entry could be caught PAUSED at t=0 (fill:both
+   holds it at opacity 0 forever) when it mounted during an idle/hidden window
+   — a WAAPI-level pause no CSS state change can undo. Transitions are immune
+   to animation pausers: enter via @starting-style instead. */
+.dashboard-profile-claim-dropdown {
+  animation: none !important;
+  opacity: 1;
+  transition:
+    opacity 200ms ease,
+    transform 220ms cubic-bezier(0.16, 0.82, 0.2, 1);
+}
+
+@starting-style {
+  .dashboard-profile-claim-dropdown {
+    opacity: 0;
+    transform: translate3d(0, -0.24rem, 0) scale(0.94);
+  }
+}
+
+/* ==== REWARD ORBIT DRAG FOLLOW ==== */
+/* The panels track the pointer during a drag: the orbit sets
+   --dashboard-reward-drag-px on itself while dragging and removes it on
+   release, so panels slide with the finger, then the 440ms transition glides
+   them into the released pose (rotated or sprung back). Travel is 1:1 with the
+   finger up to one 6.4rem slot, then rubber-bands — a damped follow moved the
+   panels a fraction of a slot before snapping a whole one, which read as a
+   glitch. This full transform redeclaration appends the drag term to the base
+   pose. */
+.dashboard-profile-reward-orbit__panel {
+  transform:
+    translateX(
+      calc(
+        -50% + var(--dashboard-profile-reward-offset, 0rem) +
+          var(--dashboard-reward-drag-px, 0px)
+      )
+    )
+    translateZ(var(--dashboard-profile-reward-depth, -5.2rem))
+    rotateY(var(--dashboard-profile-reward-rotate, 0deg))
+    scale(var(--dashboard-profile-reward-scale, 0.74));
+}
+
+/* While the pointer is down, panels must follow instantly — the 440ms
+   transform transition would lag the finger by half a second. */
+.dashboard-profile-reward-orbit[data-orbit-dragging="true"]
+  .dashboard-profile-reward-orbit__panel {
+  transition:
+    filter 260ms ease,
+    opacity 260ms ease,
+    transform 0ms linear;
+}
+
+/* ==== OPEN POPUPS ESCAPE THE OFF-CENTER MENU FREEZE ==== */
+/* Header menu blocks parked off the center slot have every animation inside
+   them paused, which is right for parked decoration and wrong for a dropdown
+   the user just opened: these popups are fixed-positioned and centred on
+   screen, but they still live inside a parked block, so the freeze caught
+   their own entry animation and held it at frame 0. With `fill: both` that
+   means opacity 0 forever — the popup opens invisible. (This is what the claim
+   dropdown's @starting-style entry was working around; the music dropdown hit
+   the same wall.) Only the popup roots are exempted, so nothing inside them
+   starts animating again and the freeze keeps its frame budget. The class is
+   repeated to clear the freeze rule's five-class specificity. */
+.dashboard-profile-points-dropdown.dashboard-profile-points-dropdown.dashboard-profile-points-dropdown.dashboard-profile-points-dropdown.dashboard-profile-points-dropdown.dashboard-profile-points-dropdown,
+.dashboard-profile-claim-dropdown.dashboard-profile-claim-dropdown.dashboard-profile-claim-dropdown.dashboard-profile-claim-dropdown.dashboard-profile-claim-dropdown.dashboard-profile-claim-dropdown,
+.dashboard-music-dropdown.dashboard-music-dropdown.dashboard-music-dropdown.dashboard-music-dropdown.dashboard-music-dropdown.dashboard-music-dropdown {
+  animation-play-state: running !important;
+}
+
+/* ==== MOBILE HEADER POPUP FIT ==== */
+/* On phones the header popups anchored right-0 to their triggers could hang
+   past the left screen edge (the trigger sits mid-screen; the panel extends
+   ~27rem leftward). Center them in the viewport instead, capped to fit. The
+   `translate` property is used for centering so entry animations/transitions
+   on `transform` keep working. The trophy menu and hero drawer are already
+   full-screen overlays; the points dropdown keeps its own overflow (the 3D
+   orbit panels need to bleed). */
+@media (max-width: 430px) {
+  .dashboard-profile-points-dropdown,
+  .dashboard-profile-claim-dropdown,
+  .dashboard-music-dropdown {
+    left: 50% !important;
+    max-width: calc(100vw - 0.9rem) !important;
+    position: fixed !important;
+    right: auto !important;
+    top: 6.6rem !important;
+    translate: -50% 0 !important;
+  }
+
+  .dashboard-profile-claim-dropdown,
+  .dashboard-music-dropdown {
+    max-height: calc(100dvh - 7.6rem) !important;
+    overflow-y: auto;
+  }
+
+  /* Centring freed ~60px of slack that the right-anchored layout could not
+     use. Spend it on the gift rows, whose titles were truncating at 17rem. */
+  .dashboard-profile-claim-dropdown {
+    width: min(20rem, calc(100vw - 0.9rem)) !important;
+  }
+}
+
+/* ==== METER ICON: NO BLINK DURING THE WEBGL HANDOFF ==== */
+/* The fallback icon is hidden the instant the 3D icon reports
+   data-webgl-ready, but the stage only re-checks whether that widget is
+   actually visible on a staggered frame, so for a few frames the DOM icon is
+   already gone and the 3D one has not painted. On load that reads as the
+   meter icon appearing and then vanishing (culling brings it back a moment
+   later, which is why it returns). Fade the fallback out on a delay long
+   enough to cover the stagger; the reveal direction stays instant, so a
+   genuine cull still brings the icon straight back with no lag. */
+.dashboard-header-meter-menu-trigger
+  > .dashboard-header-meter-menu-trigger__fallback {
+  transition:
+    opacity 160ms ease 240ms,
+    visibility 0s linear 400ms !important;
+}
+
+.dashboard-header-meter-menu-trigger:not(
+    :has(> .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-ready="true"])
+  )
+  > .dashboard-header-meter-menu-trigger__fallback,
+.dashboard-header-meter-menu-trigger:has(
+    > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-fallback="true"]
+  )
+  > .dashboard-header-meter-menu-trigger__fallback,
+.dashboard-header-meter-menu-trigger:has(
+    > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-culled="true"]
+  )
+  > .dashboard-header-meter-menu-trigger__fallback {
+  transition: none !important;
+}
+
+/* ==== PHONE WIDTHS: SMALLER CREST BUYS THE NAV ROOM ==== */
+/* fitDashboardHeaderNav sizes the nav from the row minus its neighbours, and
+   the crest cluster is the largest of them at 76px. On a 280px row that is
+   over a quarter of the space before the nav gets any, and the nav ends up
+   scaled so far down it reads the same size open as idle.
+   `zoom` rather than `scale`, deliberately: scale would only shrink the crest
+   visually while it still occupied 76px of layout, so the fit would hand the
+   reclaimed pixels to the nav and the two would overlap. zoom shrinks the
+   layout box too, so the space is genuinely freed. The crest keeps its own
+   proportions — everything inside scales with it.
+   Held at 0.95 rather than lower: the crest's 3D depth layer paints a little
+   past its own box, and the joystick sits immediately to its right in flow, so
+   shrinking the box further walks the joystick into that bleed — measured 2.2px
+   of overlap at 0.82, and still touching at 0.88 once the header opens and the
+   crest is at full size. Margin is not the fix — fitDashboardHeaderNav
+   subtracts neighbours by getBoundingClientRect width, which ignores margin, so
+   it would hand the nav space the row does not actually have. */
+@media (max-width: 430px) {
+  .dashboard-header-vortex-shell
+    .dashboard-header-menu-content
+    > .dashboard-header-logo-cluster {
+    zoom: 0.95;
+  }
+}
+
+/* ==== ORBIT CAROUSEL ROWS AT PHONE WIDTHS ====
+   The dashboard content area reserves `pl-36` (144px) to clear the vertical
+   orbit rail, but the rail and its row buttons only occupy x=-4..30 — so at a
+   367px viewport the row resolved to 367-144-40 = 183px while the cards inside
+   are a fixed w-[286px]. The row is overflow-hidden, so the cards were clipped
+   on both edges: row labels read "…AL"/"…EVANT", the CTA read "OPEN DASHBOA…",
+   and the 7-day chart ran off the right with its day labels cut.
+
+   Scoped with :has() to the rows that actually hold orbit cards (2, 3, 5, 6).
+   A blanket padding change was tried first and was wrong — it also moved the
+   command-center row and the other non-carousel rows, which are composed for
+   the width they already have. :has() is safe in this file because it is
+   served verbatim; the Next CSS pipeline would strip it from globals.css.
+
+   Reclaiming the gutter is preferred over scaling the cards: capping card
+   width reflows their content and truncates the chart's day labels to "M.. T..",
+   and zooming shrinks all the text. At 367px this gives a 303px row, so the
+   286px card fits at full size. */
+@media (max-width: 430px) {
+  [data-dashboard-orbiter-row]:has(.dashboard-orbit-card) {
+    padding-left: 3rem !important;
+    padding-right: 1rem !important;
+  }
+}
+
+/* Below ~350px even the reclaimed row (viewport - 64px) is narrower than the
+   286px card, so fall back to scaling it. zoom rather than width, because the
+   card's centering translate is a percentage and scales with it, leaving the
+   carousel's positioning math untouched. */
+@media (max-width: 349px) {
+  .dashboard-orbit-card {
+    zoom: 0.72;
+  }
+}
+
+/* ==== HOVER CHYRON FOR TRUNCATED PILL LABELS ====
+   A pill label that ellipsizes ("SESS…", "NEEDS ATTENT…") scrolls its full
+   text into view while the pointer is over its container, news-chyron style,
+   then ping-pongs back. The scroll distance is the element's real overflow,
+   which CSS cannot know — a delegated hover handler in page.tsx measures it
+   and sets --dashboard-hover-chyron-shift / -ms plus data-hover-chyron only
+   on leaves that are actually clipped, so a label that fits never moves.
+   text-indent rather than translate: the label itself is the clipped box, so
+   translating it would drag the clip window along and reveal nothing, while
+   text-indent slides the inline content within the box. The 0%/12% and
+   88%/100% holds give a beat at each end so the text is readable before it
+   reverses. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-hover-chyron="true"] {
+    /* 2 iterations + alternate = one out-and-back pass, then animationend
+       hands the marquee to the next truncated row (sequential rotation in
+       page.tsx). A lone row is simply restarted by the same handler. */
+    animation: dashboard-hover-chyron var(--dashboard-hover-chyron-ms, 1600ms)
+      ease-in-out 2 alternate;
+    text-overflow: clip !important;
+  }
+}
+
+@keyframes dashboard-hover-chyron {
+  0%,
+  12% {
+    text-indent: 0;
+  }
+
+  88%,
+  100% {
+    text-indent: var(--dashboard-hover-chyron-shift, 0px);
+  }
+}
+
+/* ==== AMBIENT PAUSE DURING HEADER TRANSITIONS ====
+   Speed audit II: with ambient animations running, a panel rotation blocks
+   1.1-1.5s and a close 812ms; with them paused, 470ms and 213ms. The header's
+   busiest windows were competing with its own decorations for main-thread
+   frames. markDashboardHeaderTransitioning() in page.tsx stamps this attribute
+   for ~620ms around every rotation and focus flip, and this rule freezes the
+   INFINITE-ONLY ambient families for that window. The chyron is deliberately
+   excluded: it contains a finite entry animation (news-chyron-enter) that a
+   blanket pause would trap at frame 0 with fill:both — the classic invisible-
+   popup trap. Every family listed here loops forever, so pausing mid-cycle
+   and resuming is invisible. WAAPI FLIP bridges are unaffected by
+   animation-play-state, so the transition itself still glides. */
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-ambient-field,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-ambient-field *,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-ambient-field ::before,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-ambient-field ::after,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-category-actor,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-category-actor *,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-category-actor ::before,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-category-actor ::after,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-category-dock,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-category-dock *,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-meteor-field,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-meteor-field *,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-urgency-blinker,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-urgency-blinker *,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-urgency-blinker::before,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-urgency-blinker::after {
+  animation-play-state: paused !important;
+}
+
+/* ==== DIRECTIONAL PANEL SLIDES ====
+   Standardizes rotation motion: press right and the new content enters from
+   the right while the old exits left; press left, the mirror. Before this the
+   nav always entered from the left, the account always from the right (their
+   parked transforms in globals are fixed per side), and the paging steps
+   simply display-flipped ("flash in").
+   Mechanics: page.tsx stamps [data-header-slide] with the arrow direction and
+   briefly [data-header-slide-staging] while it teleports the parked block to
+   the ARROW side (transition:none) so the entry transition launches from the
+   correct edge; the exit overrides below re-park the outgoing block on the
+   OPPOSITE side. Staging rules carry one more attribute than the exit rules,
+   so they win while the marker is present; a layout effect removes the marker
+   in the same commit that flips the panel. */
+@media (max-width: 940px) {
+  /* Exit overrides — the side the OUTGOING block leaves toward. The two
+     directions that already match the fixed parked sides need no rule
+     (press-right exits the nav left; press-left exits the account right). */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="right"][data-mobile-header-panel="selector"]
+    .dashboard-header-menu-block--profile {
+    transform: translate3d(calc(-100% - 1rem), -50%, -3rem) rotateY(20deg)
+      scale(0.86) !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="left"][data-mobile-header-panel="account"]
+    .dashboard-header-menu-block--dashboard {
+    transform: translate3d(calc(100% + 1rem), -50%, -3rem) rotateY(-20deg)
+      scale(0.86) !important;
+  }
+
+  /* Staging — the parked block of the CURRENT panel jumps to the arrow side
+     the instant the joystick is pressed, so its entry starts there. */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide-staging="true"][data-header-slide="right"][data-mobile-header-panel="selector"]
+    .dashboard-header-menu-block--profile,
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide-staging="true"][data-header-slide="right"][data-mobile-header-panel="account"]
+    .dashboard-header-menu-block--dashboard {
+    transform: translate3d(calc(100% + 1rem), -50%, -3rem) rotateY(-20deg)
+      scale(0.86) !important;
+    transition: none !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide-staging="true"][data-header-slide="left"][data-mobile-header-panel="selector"]
+    .dashboard-header-menu-block--profile,
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide-staging="true"][data-header-slide="left"][data-mobile-header-panel="account"]
+    .dashboard-header-menu-block--dashboard {
+    transform: translate3d(calc(-100% - 1rem), -50%, -3rem) rotateY(20deg)
+      scale(0.86) !important;
+    transition: none !important;
+  }
+}
+
+/* Paging steps (account / rewards / meter) swap by display, which cannot
+   transition — the arriving items enter via TRANSITION + @starting-style
+   instead of an entry keyframe. Keyframes were the original approach and they
+   bit exactly the way this codebase already documented: any
+   animation-play-state pause blanket (the idle freeze, the meter-open freeze)
+   catches a one-shot entry animation at frame 0, and its from{opacity:0}
+   holds the item INVISIBLE — the 10s auto-idle made that a routine state on
+   the account/rewards steps ("cant see the account or rewards as I scroll").
+   Transitions are immune to animation-play-state, and @starting-style
+   supplies the from-side values on the first rendered frame after a
+   display:none flip. This file is served verbatim, so @starting-style and
+   nesting survive the pipeline. */
+@media (max-width: 430px) {
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
+    :is(.dashboard-profile-hub-trigger, .dashboard-profile-action-gear),
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="rewards"]
+    .dashboard-profile-rewards-control {
+    transition:
+      opacity 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+      transform 240ms cubic-bezier(0.2, 0.84, 0.2, 1);
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="right"][data-narrow-account-item="account"]
+    :is(.dashboard-profile-hub-trigger, .dashboard-profile-action-gear),
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="right"][data-narrow-account-item="rewards"]
+    .dashboard-profile-rewards-control {
+    @starting-style {
+      opacity: 0;
+      transform: translateX(1.4rem);
+    }
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="left"][data-narrow-account-item="account"]
+    :is(.dashboard-profile-hub-trigger, .dashboard-profile-action-gear),
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="left"][data-narrow-account-item="rewards"]
+    .dashboard-profile-rewards-control {
+    @starting-style {
+      opacity: 0;
+      transform: translateX(-1.4rem);
+    }
+  }
+
+  /* The meter's transform is !important (keyframes lose to it), but it
+     already enters by TRANSITIONING transform from its hidden offset — so
+     directionality comes from flipping the side of that offset. Two cases:
+     entering from another panel (base hidden state) and stepping within the
+     account run (the doubled-class suppression state, which previously left
+     the transform parked at the revealed position, so the meter step was a
+     pure fade — no motion at all). */
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="left"]:not([data-mobile-header-panel="account"])
+    + .dashboard-header-meter-menu-shell {
+    transform: translate3d(-0.72rem, -50%, -2rem) scale(0.74) !important;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="right"]:is(
+      [data-narrow-account-item="account"],
+      [data-narrow-account-item="rewards"]
+    )
+    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell {
+    transform: translate3d(0.72rem, -50%, -2rem) scale(0.74) !important;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="left"]:is(
+      [data-narrow-account-item="account"],
+      [data-narrow-account-item="rewards"]
+    )
+    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell {
+    transform: translate3d(-0.72rem, -50%, -2rem) scale(0.74) !important;
+  }
+}

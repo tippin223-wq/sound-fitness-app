@@ -19,11 +19,23 @@ export type SoundFitnessAvatarEmotePreset =
   | "salute"
   | "stretch";
 
-export type SoundFitnessAvatarOutfitPreset =
-  | "command"
+export type SoundFitnessAvatarShirtPreset =
+  | "sound"
   | "ocean"
   | "ember"
   | "violet";
+
+export type SoundFitnessAvatarPantsPreset =
+  | "graphite"
+  | "navy"
+  | "forest"
+  | "maroon";
+
+export type SoundFitnessAvatarShoesPreset =
+  | "volt"
+  | "frost"
+  | "ember"
+  | "shadow";
 
 export type SoundFitnessAvatarSkinPreset =
   | "warm"
@@ -55,7 +67,9 @@ export type SoundFitnessAvatarAppearance = {
   face: SoundFitnessAvatarFacePreset;
   gear: SoundFitnessAvatarGearPreset;
   hair: SoundFitnessAvatarHairPreset;
-  outfit: SoundFitnessAvatarOutfitPreset;
+  pants: SoundFitnessAvatarPantsPreset;
+  shirt: SoundFitnessAvatarShirtPreset;
+  shoes: SoundFitnessAvatarShoesPreset;
   skin: SoundFitnessAvatarSkinPreset;
 };
 
@@ -64,7 +78,9 @@ export const defaultSoundFitnessAvatarAppearance: SoundFitnessAvatarAppearance =
   face: "relaxed",
   gear: "none",
   hair: "crop",
-  outfit: "command",
+  pants: "graphite",
+  shirt: "sound",
+  shoes: "volt",
   skin: "warm",
 };
 
@@ -104,40 +120,122 @@ export type SoundFitnessAvatarProps = {
   interactiveBodyParts?: boolean;
   onBodyPartSelect?: (bodyPart: SoundFitnessAvatarBodyPart) => void;
   selectedBodyPart?: SoundFitnessAvatarBodyPart;
+  /** Gate for the selected part's glow — selection state (view flip, aria)
+      stays put when this is false, only the highlight hides. */
+  bodyPartGlowActive?: boolean;
+  /** Per-region highlight colors (defaults to cyan). Back and chest break
+      into specific muscle regions so each can carry its own status color. */
+  bodyPartGlowColors?: Partial<
+    Record<SoundFitnessAvatarGlowRegion, string | undefined>
+  >;
   showStageBackdrop?: boolean;
 };
 
-const avatarOutfitPalettes: Record<
-  SoundFitnessAvatarOutfitPreset,
-  { accent: string; dark: string; deep: string; light: string; mid: string }
+export type SoundFitnessAvatarGlowRegion =
+  | "arms"
+  | "core"
+  | "legs"
+  | "lowerBack"
+  | "lowerChest"
+  | "midChest"
+  | "shoulders"
+  | "traps"
+  | "upperBack"
+  | "upperChest";
+
+// Every shirt is a Sound Fitness tee — the presets are colorways, and `logo`
+// is the chest-print (and gear-tint) color chosen to contrast the fabric.
+const avatarShirtPalettes: Record<
+  SoundFitnessAvatarShirtPreset,
+  { dark: string; deep: string; light: string; logo: string; mid: string }
 > = {
-  command: {
-    accent: "#67e8f9",
-    dark: "#082f49",
-    deep: "#020617",
-    light: "#0f766e",
-    mid: "#0e7490",
+  sound: {
+    dark: "#1e293b",
+    deep: "#0b1220",
+    light: "#3b4a63",
+    logo: "#67e8f9",
+    mid: "#27344a",
   },
   ocean: {
-    accent: "#93c5fd",
-    dark: "#172554",
-    deep: "#020617",
-    light: "#2563eb",
+    dark: "#1e40af",
+    deep: "#101b3f",
+    light: "#3b82f6",
+    logo: "#bfdbfe",
     mid: "#1d4ed8",
   },
   ember: {
-    accent: "#fdba74",
-    dark: "#7c2d12",
-    deep: "#1c1917",
+    dark: "#9a3412",
+    deep: "#2a0e05",
     light: "#f97316",
+    logo: "#fed7aa",
     mid: "#c2410c",
   },
   violet: {
-    accent: "#c4b5fd",
-    dark: "#3b0764",
-    deep: "#09090b",
+    dark: "#5b21b6",
+    deep: "#1e1038",
     light: "#8b5cf6",
+    logo: "#ddd6fe",
     mid: "#6d28d9",
+  },
+};
+
+const avatarPantsPalettes: Record<
+  SoundFitnessAvatarPantsPreset,
+  { dark: string; deep: string; light: string; mid: string }
+> = {
+  graphite: {
+    dark: "#111827",
+    deep: "#05070d",
+    light: "#4b5563",
+    mid: "#1f2937",
+  },
+  navy: {
+    dark: "#172554",
+    deep: "#080d24",
+    light: "#1d4ed8",
+    mid: "#1e3a8a",
+  },
+  forest: {
+    dark: "#064e3b",
+    deep: "#02150f",
+    light: "#059669",
+    mid: "#065f46",
+  },
+  maroon: {
+    dark: "#4c0519",
+    deep: "#180208",
+    light: "#be123c",
+    mid: "#881337",
+  },
+};
+
+const avatarShoePalettes: Record<
+  SoundFitnessAvatarShoesPreset,
+  { dark: string; deep: string; sole: string; upper: string }
+> = {
+  volt: {
+    dark: "#155e75",
+    deep: "#082f3d",
+    sole: "#67e8f9",
+    upper: "#0e7490",
+  },
+  frost: {
+    dark: "#94a3b8",
+    deep: "#475569",
+    sole: "#f8fafc",
+    upper: "#cbd5e1",
+  },
+  ember: {
+    dark: "#9a3412",
+    deep: "#431407",
+    sole: "#fdba74",
+    upper: "#ea580c",
+  },
+  shadow: {
+    dark: "#0f172a",
+    deep: "#020617",
+    sole: "#64748b",
+    upper: "#1e293b",
   },
 };
 
@@ -175,19 +273,22 @@ const avatarSkinPalettes: Record<
   },
 };
 
+// Highlight/mid/shadow feed one radial gloss per style — the three stops need
+// to stay in the same hue family or the bright stop reads as a bald patch on
+// the crown at dashboard size (the old rust-on-slate crop did exactly that).
 const avatarHairPalettes: Record<
   SoundFitnessAvatarHairPreset,
   { highlight: string; mid: string; shadow: string }
 > = {
   crop: {
-    highlight: "#78350f",
-    mid: "#44403c",
-    shadow: "#1c1917",
+    highlight: "#5f4b3c",
+    mid: "#3a2f27",
+    shadow: "#17110d",
   },
   swept: {
-    highlight: "#a16207",
-    mid: "#713f12",
-    shadow: "#292524",
+    highlight: "#8a6a3b",
+    mid: "#5b4222",
+    shadow: "#241a10",
   },
   fade: {
     highlight: "#64748b",
@@ -222,6 +323,8 @@ export default function SoundFitnessAvatar({
   alignToFloor = false,
   animationPreset = "idle",
   appearance,
+  bodyPartGlowActive = true,
+  bodyPartGlowColors,
   className = "",
   emotePreset,
   exerciseLabel,
@@ -238,7 +341,11 @@ export default function SoundFitnessAvatar({
     ...defaultSoundFitnessAvatarAppearance,
     ...appearance,
   };
-  const outfitPalette = avatarOutfitPalettes[resolvedAppearance.outfit];
+  const zoneColor = (region: SoundFitnessAvatarGlowRegion) =>
+    bodyPartGlowColors?.[region] ?? "#67e8f9";
+  const shirtPalette = avatarShirtPalettes[resolvedAppearance.shirt];
+  const pantsPalette = avatarPantsPalettes[resolvedAppearance.pants];
+  const shoePalette = avatarShoePalettes[resolvedAppearance.shoes];
   const skinPalette = avatarSkinPalettes[resolvedAppearance.skin];
   const hairPalette = avatarHairPalettes[resolvedAppearance.hair];
   const isFemale = resolvedAppearance.body === "female";
@@ -276,7 +383,9 @@ export default function SoundFitnessAvatar({
       data-avatar-emote={selectedEmote}
       data-avatar-face={resolvedAppearance.face}
       data-avatar-gear={resolvedAppearance.gear}
-      data-avatar-outfit={resolvedAppearance.outfit}
+      data-avatar-pants={resolvedAppearance.pants}
+      data-avatar-shirt={resolvedAppearance.shirt}
+      data-avatar-shoes={resolvedAppearance.shoes}
       data-avatar-view={selectedBodyPart === "back" ? "back" : "front"}
       data-body-parts={interactiveBodyParts ? "interactive" : "static"}
       style={
@@ -352,13 +461,26 @@ export default function SoundFitnessAvatar({
         }
 
         .sound-fitness-avatar__front-torso-detail,
-        .sound-fitness-avatar__back-torso-detail {
+        .sound-fitness-avatar__back-torso-detail,
+        .sound-fitness-avatar__front-foot,
+        .sound-fitness-avatar__back-foot {
           transition: opacity 190ms ease;
         }
 
-        .sound-fitness-avatar__back-torso-detail {
+        .sound-fitness-avatar__back-torso-detail,
+        .sound-fitness-avatar__back-foot {
           opacity: 0;
           pointer-events: none;
+        }
+
+        .sound-fitness-avatar[data-avatar-view="back"] .sound-fitness-avatar__front-foot {
+          opacity: 0;
+          transition-delay: 100ms;
+        }
+
+        .sound-fitness-avatar[data-avatar-view="back"] .sound-fitness-avatar__back-foot {
+          opacity: 1;
+          transition-delay: 330ms;
         }
 
         .sound-fitness-avatar[data-avatar-view="back"] .sound-fitness-avatar__front-torso-detail {
@@ -517,18 +639,17 @@ export default function SoundFitnessAvatar({
           opacity: 0.36;
         }
 
-        .sound-fitness-avatar__chest-core {
-          animation: sound-fitness-avatar-core-pulse 3.8s ease-in-out infinite;
+        .sound-fitness-avatar__eq-bar {
+          animation: sound-fitness-avatar-eq 1.9s ease-in-out infinite;
           transform-box: fill-box;
           transform-origin: center;
-          transition: opacity 260ms ease;
         }
 
-        .sound-fitness-avatar[data-avatar-view="back"]
-          .sound-fitness-avatar__chest-core {
+        /* Back view hides the chest print with opacity only, which does not
+           stop descendant animations — without this guard five EQ bars keep
+           ticking invisibly (the chest-core this replaced had the same rule). */
+        .sound-fitness-avatar[data-avatar-view="back"] .sound-fitness-avatar__eq-bar {
           animation: none;
-          opacity: 0;
-          transition-delay: 100ms;
         }
 
         .sound-fitness-avatar__gear {
@@ -706,9 +827,9 @@ export default function SoundFitnessAvatar({
           32%, 70% { transform: rotate(-112deg); }
         }
 
-        @keyframes sound-fitness-avatar-core-pulse {
-          0%, 100% { opacity: 0.72; transform: scale(0.96); }
-          50% { opacity: 1; transform: scale(1.08); }
+        @keyframes sound-fitness-avatar-eq {
+          0%, 100% { transform: scaleY(0.55); }
+          50% { transform: scaleY(1); }
         }
 
         @keyframes sound-fitness-avatar-gear-glint {
@@ -726,7 +847,7 @@ export default function SoundFitnessAvatar({
           .sound-fitness-avatar__head,
           .sound-fitness-avatar__expression,
           .sound-fitness-avatar__rig-node,
-          .sound-fitness-avatar__chest-core,
+          .sound-fitness-avatar__eq-bar,
           .sound-fitness-avatar__gear {
             animation: none !important;
           }
@@ -751,7 +872,17 @@ export default function SoundFitnessAvatar({
         aria-hidden={interactiveBodyParts ? undefined : true}
         className={
           alignToFloor
-            ? "absolute inset-x-0 -bottom-[3%] z-10 h-[108%] min-h-0 w-full"
+            ? // The drawn figure only spans the middle ~107 units of the
+              // 240-unit canvas, so in a narrow column "meet" fits by width and
+              // renders the athlete tiny under dead headroom. An oversized
+              // viewport makes height the fitting axis — the athlete fills the
+              // column top to bottom and the parent's overflow-clip crops only
+              // empty canvas margin. Width and margin are explicit (not
+              // left+right insets) because an svg's intrinsic ratio resolves an
+              // over-constrained inset pair by dropping `right`, which parks
+              // the athlete off-center. The viewBox itself must stay untouched:
+              // the rig's px transform-origins resolve against it.
+              "absolute -bottom-[3%] left-1/2 z-10 h-[108%] min-h-0 w-[216%] ml-[-108%]"
             : "relative z-10 h-full min-h-0 w-full"
         }
         preserveAspectRatio={alignToFloor ? "xMidYMax meet" : "xMidYMid meet"}
@@ -763,29 +894,40 @@ export default function SoundFitnessAvatar({
             <stop offset="46%" stopColor={skinPalette.mid} />
             <stop offset="100%" stopColor={skinPalette.shadow} />
           </linearGradient>
-          <linearGradient id={`${avatarId}-suit`} x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor={outfitPalette.light} />
-            <stop offset="48%" stopColor={outfitPalette.dark} />
-            <stop offset="100%" stopColor={outfitPalette.deep} />
+          <linearGradient id={`${avatarId}-shirt`} x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stopColor={shirtPalette.light} />
+            <stop offset="48%" stopColor={shirtPalette.dark} />
+            <stop offset="100%" stopColor={shirtPalette.deep} />
           </linearGradient>
-          <linearGradient id={`${avatarId}-suit-shadow`} x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor={outfitPalette.dark} />
-            <stop offset="52%" stopColor={outfitPalette.mid} />
-            <stop offset="100%" stopColor={outfitPalette.deep} />
+          <linearGradient id={`${avatarId}-shirt-side`} x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stopColor={shirtPalette.mid} />
+            <stop offset="52%" stopColor={shirtPalette.dark} />
+            <stop offset="100%" stopColor={shirtPalette.deep} />
           </linearGradient>
-          <linearGradient id={`${avatarId}-gold`} x1="0" x2="1" y1="0" y2="1">
+          {/* userSpaceOnUse so every leg piece (thigh stroke, side panels,
+              knee, calf, hip overlay) samples ONE continuous ramp — with the
+              default per-shape gradient each piece restarted light-to-dark
+              and the joggers read as separate thigh pads and shin guards. */}
+          <linearGradient
+            gradientUnits="userSpaceOnUse"
+            id={`${avatarId}-pants`}
+            x1="88"
+            x2="152"
+            y1="180"
+            y2="300"
+          >
+            <stop offset="0%" stopColor={pantsPalette.light} />
+            <stop offset="52%" stopColor={pantsPalette.mid} />
+            <stop offset="100%" stopColor={pantsPalette.deep} />
+          </linearGradient>
+          <linearGradient id={`${avatarId}-shoe`} x1="0" x2="1" y1="0" y2="1">
+            <stop offset="0%" stopColor={shoePalette.upper} />
+            <stop offset="46%" stopColor={shoePalette.dark} />
+            <stop offset="100%" stopColor={shoePalette.deep} />
+          </linearGradient>
+          <linearGradient id={`${avatarId}-sole`} x1="0" x2="1" y1="0" y2="1">
             <stop offset="0%" stopColor="#f8fafc" />
-            <stop offset="100%" stopColor={outfitPalette.accent} />
-          </linearGradient>
-          <linearGradient id={`${avatarId}-boot`} x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor={outfitPalette.mid} />
-            <stop offset="42%" stopColor={outfitPalette.dark} />
-            <stop offset="100%" stopColor={outfitPalette.deep} />
-          </linearGradient>
-          <linearGradient id={`${avatarId}-armor-side`} x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor={outfitPalette.light} />
-            <stop offset="52%" stopColor={outfitPalette.dark} />
-            <stop offset="100%" stopColor={outfitPalette.deep} />
+            <stop offset="100%" stopColor={shoePalette.sole} />
           </linearGradient>
           <radialGradient id={`${avatarId}-skin-lit`} cx="36%" cy="22%" r="78%">
             <stop offset="0%" stopColor={skinPalette.highlight} />
@@ -801,11 +943,6 @@ export default function SoundFitnessAvatar({
             <stop offset="0%" stopColor={hairPalette.highlight} />
             <stop offset="36%" stopColor={hairPalette.mid} />
             <stop offset="100%" stopColor={hairPalette.shadow} />
-          </radialGradient>
-          <radialGradient id={`${avatarId}-core-glow`} cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#f8fafc" stopOpacity="1" />
-            <stop offset="42%" stopColor={outfitPalette.accent} stopOpacity="0.94" />
-            <stop offset="100%" stopColor={outfitPalette.accent} stopOpacity="0" />
           </radialGradient>
           <filter id={`${avatarId}-cast-shadow`} x="-50%" y="-50%" width="200%" height="200%">
             <feDropShadow dx="0" dy="8" floodColor="rgba(0,0,0,0.72)" floodOpacity="1" stdDeviation="5" />
@@ -836,54 +973,14 @@ export default function SoundFitnessAvatar({
             <path
               d="M102 193 C100 207 98 222 98 236"
               fill="none"
-              stroke={`url(#${avatarId}-suit-shadow)`}
+              stroke={`url(#${avatarId}-pants)`}
               strokeLinecap="round"
               strokeWidth={thighWidth}
             />
             <path
               d="M88 198 C93 191 104 191 112 198 C111 211 106 224 99 232 C92 224 88 212 88 198Z"
-              fill={`url(#${avatarId}-armor-side)`}
-              stroke="rgba(15,23,42,0.45)"
-              strokeLinejoin="round"
-              strokeWidth="1"
+              fill={`url(#${avatarId}-pants)`}
             />
-            <path
-              d="M99 198 C101 212 101 224 99 233"
-              fill="none"
-              stroke="rgba(226,232,240,0.2)"
-              strokeLinecap="round"
-              strokeWidth="2"
-            />
-            <circle
-              cx="102"
-              cy="193"
-              fill={outfitPalette.accent}
-              fillOpacity="0.2"
-              r="5.5"
-              stroke={outfitPalette.accent}
-              strokeOpacity="0.5"
-            />
-            <g
-              className="sound-fitness-avatar__body-zone"
-              data-active={selectedBodyPart === "legs"}
-            >
-              <path
-                className="sound-fitness-avatar__body-zone-glow"
-                d="M102 195 C100 207 99 220 98 233"
-                fill="none"
-                filter={`url(#${avatarId}-zone-glow)`}
-                stroke="#67e8f9"
-                strokeLinecap="round"
-                strokeWidth={thighWidth + 4}
-              />
-              <path
-                {...bodyPartInteractionProps("legs", "legs")}
-                className="sound-fitness-avatar__body-zone-hit"
-                d="M102 195 C100 207 99 220 98 233"
-                fill="none"
-                strokeWidth={thighWidth + 12}
-              />
-            </g>
             <g
               className="sound-fitness-avatar__left-shin sound-fitness-avatar__rig-node"
               data-avatar-joint="left-knee"
@@ -891,72 +988,46 @@ export default function SoundFitnessAvatar({
               <path
                 d="M98 236 C98 254 96 276 94 294"
                 fill="none"
-                stroke={`url(#${avatarId}-suit-shadow)`}
+                stroke={`url(#${avatarId}-pants)`}
                 strokeLinecap="round"
                 strokeWidth={shinWidth}
               />
               <path
-                d="M91 229 C96 226 103 227 107 232 L105 242 C100 246 94 245 90 241Z"
-                fill={`url(#${avatarId}-armor-side)`}
-                stroke={outfitPalette.accent}
-                strokeOpacity="0.42"
-                strokeWidth="1.1"
-              />
-              <path
-                d="M94 248 C97 260 97 277 94 289"
-                fill="none"
-                stroke="rgba(226,232,240,0.18)"
-                strokeLinecap="round"
-                strokeWidth="2"
-              />
-              <path
                 d="M87 258 C94 253 104 254 109 260 C106 276 102 288 96 297 C89 286 86 272 87 258Z"
-                fill={`url(#${avatarId}-boot)`}
-                stroke="rgba(148,163,184,0.25)"
-                strokeLinejoin="round"
-                strokeWidth="1"
+                fill={`url(#${avatarId}-pants)`}
               />
-              <path
-                d="M80 294 C91 289 104 292 110 301 C99 306 83 306 76 300Z"
-                fill={`url(#${avatarId}-boot)`}
-                stroke="rgba(253,230,138,0.34)"
-                strokeLinejoin="round"
-                strokeWidth="1.2"
-              />
-              <path
-                d="M78 297 C86 291 101 291 107 299"
-                fill="none"
-                stroke={`url(#${avatarId}-gold)`}
-                strokeLinecap="round"
-                strokeWidth="7"
-              />
-              <circle
-                cx="98"
-                cy="236"
-                fill={outfitPalette.deep}
-                r="4"
-                stroke={outfitPalette.accent}
-                strokeOpacity="0.58"
-              />
-              <g
-                className="sound-fitness-avatar__body-zone"
-                data-active={selectedBodyPart === "legs"}
-              >
+              <g className="sound-fitness-avatar__front-foot">
                 <path
-                  className="sound-fitness-avatar__body-zone-glow"
-                  d="M98 239 C98 255 96 274 95 291"
-                  fill="none"
-                  filter={`url(#${avatarId}-zone-glow)`}
-                  stroke="#67e8f9"
-                  strokeLinecap="round"
-                  strokeWidth={shinWidth + 3}
+                  d="M80 294 C91 289 104 292 110 301 C99 306 83 306 76 300Z"
+                  fill={`url(#${avatarId}-shoe)`}
+                  stroke="rgba(2,6,23,0.4)"
+                  strokeLinejoin="round"
+                  strokeWidth="1.2"
                 />
                 <path
-                  {...bodyPartInteractionProps("legs", "legs")}
-                  className="sound-fitness-avatar__body-zone-hit"
-                  d="M98 239 C98 255 96 274 95 291"
+                  d="M79 299 C87 294 100 294 106 301"
                   fill="none"
-                  strokeWidth={shinWidth + 12}
+                  stroke={`url(#${avatarId}-sole)`}
+                  strokeLinecap="round"
+                  strokeWidth="4.5"
+                />
+              </g>
+              {/* From behind only the heel cup and sole edge show — the
+                  mirrored toe box read as feet still facing forward. */}
+              <g className="sound-fitness-avatar__back-foot">
+                <path
+                  d="M83 293 C89 288 101 289 107 295 L107 301 C99 306 87 306 81 300Z"
+                  fill={`url(#${avatarId}-shoe)`}
+                  stroke="rgba(2,6,23,0.4)"
+                  strokeLinejoin="round"
+                  strokeWidth="1.2"
+                />
+                <path
+                  d="M82 301 C91 305 101 305 108 300"
+                  fill="none"
+                  stroke={`url(#${avatarId}-sole)`}
+                  strokeLinecap="round"
+                  strokeWidth="4.5"
                 />
               </g>
             </g>
@@ -969,54 +1040,14 @@ export default function SoundFitnessAvatar({
             <path
               d="M138 193 C140 207 142 222 142 236"
               fill="none"
-              stroke={`url(#${avatarId}-suit-shadow)`}
+              stroke={`url(#${avatarId}-pants)`}
               strokeLinecap="round"
               strokeWidth={thighWidth}
             />
             <path
               d="M152 198 C147 191 136 191 128 198 C129 211 134 224 141 232 C148 224 152 212 152 198Z"
-              fill={`url(#${avatarId}-armor-side)`}
-              stroke="rgba(15,23,42,0.45)"
-              strokeLinejoin="round"
-              strokeWidth="1"
+              fill={`url(#${avatarId}-pants)`}
             />
-            <path
-              d="M141 198 C139 212 139 224 141 233"
-              fill="none"
-              stroke="rgba(226,232,240,0.2)"
-              strokeLinecap="round"
-              strokeWidth="2"
-            />
-            <circle
-              cx="138"
-              cy="193"
-              fill={outfitPalette.accent}
-              fillOpacity="0.2"
-              r="5.5"
-              stroke={outfitPalette.accent}
-              strokeOpacity="0.5"
-            />
-            <g
-              className="sound-fitness-avatar__body-zone"
-              data-active={selectedBodyPart === "legs"}
-            >
-              <path
-                className="sound-fitness-avatar__body-zone-glow"
-                d="M138 195 C140 207 141 220 142 233"
-                fill="none"
-                filter={`url(#${avatarId}-zone-glow)`}
-                stroke="#67e8f9"
-                strokeLinecap="round"
-                strokeWidth={thighWidth + 4}
-              />
-              <path
-                {...bodyPartInteractionProps("legs", "legs")}
-                className="sound-fitness-avatar__body-zone-hit"
-                d="M138 195 C140 207 141 220 142 233"
-                fill="none"
-                strokeWidth={thighWidth + 12}
-              />
-            </g>
             <g
               className="sound-fitness-avatar__right-shin sound-fitness-avatar__rig-node"
               data-avatar-joint="right-knee"
@@ -1024,75 +1055,83 @@ export default function SoundFitnessAvatar({
               <path
                 d="M142 236 C142 254 144 276 146 294"
                 fill="none"
-                stroke={`url(#${avatarId}-suit-shadow)`}
+                stroke={`url(#${avatarId}-pants)`}
                 strokeLinecap="round"
                 strokeWidth={shinWidth}
               />
               <path
-                d="M149 229 C144 226 137 227 133 232 L135 242 C140 246 146 245 150 241Z"
-                fill={`url(#${avatarId}-armor-side)`}
-                stroke={outfitPalette.accent}
-                strokeOpacity="0.42"
-                strokeWidth="1.1"
-              />
-              <path
-                d="M146 248 C143 260 143 277 146 289"
-                fill="none"
-                stroke="rgba(226,232,240,0.18)"
-                strokeLinecap="round"
-                strokeWidth="2"
-              />
-              <path
                 d="M153 258 C146 253 136 254 131 260 C134 276 138 288 144 297 C151 286 154 272 153 258Z"
-                fill={`url(#${avatarId}-boot)`}
-                stroke="rgba(148,163,184,0.25)"
-                strokeLinejoin="round"
-                strokeWidth="1"
+                fill={`url(#${avatarId}-pants)`}
               />
-              <path
-                d="M130 301 C136 292 149 289 160 294 L164 300 C157 306 141 306 130 301Z"
-                fill={`url(#${avatarId}-boot)`}
-                stroke="rgba(253,230,138,0.34)"
-                strokeLinejoin="round"
-                strokeWidth="1.2"
-              />
-              <path
-                d="M133 299 C139 291 154 291 162 297"
-                fill="none"
-                stroke={`url(#${avatarId}-gold)`}
-                strokeLinecap="round"
-                strokeWidth="7"
-              />
-              <circle
-                cx="142"
-                cy="236"
-                fill={outfitPalette.deep}
-                r="4"
-                stroke={outfitPalette.accent}
-                strokeOpacity="0.58"
-              />
-              <g
-                className="sound-fitness-avatar__body-zone"
-                data-active={selectedBodyPart === "legs"}
-              >
+              <g className="sound-fitness-avatar__front-foot">
                 <path
-                  className="sound-fitness-avatar__body-zone-glow"
-                  d="M142 239 C142 255 144 274 145 291"
-                  fill="none"
-                  filter={`url(#${avatarId}-zone-glow)`}
-                  stroke="#67e8f9"
-                  strokeLinecap="round"
-                  strokeWidth={shinWidth + 3}
+                  d="M130 301 C136 292 149 289 160 294 L164 300 C157 306 141 306 130 301Z"
+                  fill={`url(#${avatarId}-shoe)`}
+                  stroke="rgba(2,6,23,0.4)"
+                  strokeLinejoin="round"
+                  strokeWidth="1.2"
                 />
                 <path
-                  {...bodyPartInteractionProps("legs", "legs")}
-                  className="sound-fitness-avatar__body-zone-hit"
-                  d="M142 239 C142 255 144 274 145 291"
+                  d="M134 301 C140 294 153 294 161 299"
                   fill="none"
-                  strokeWidth={shinWidth + 12}
+                  stroke={`url(#${avatarId}-sole)`}
+                  strokeLinecap="round"
+                  strokeWidth="4.5"
+                />
+              </g>
+              <g className="sound-fitness-avatar__back-foot">
+                <path
+                  d="M133 295 C139 289 151 288 157 293 L159 300 C153 306 141 306 133 301Z"
+                  fill={`url(#${avatarId}-shoe)`}
+                  stroke="rgba(2,6,23,0.4)"
+                  strokeLinejoin="round"
+                  strokeWidth="1.2"
+                />
+                <path
+                  d="M132 300 C139 305 149 305 158 301"
+                  fill="none"
+                  stroke={`url(#${avatarId}-sole)`}
+                  strokeLinecap="round"
+                  strokeWidth="4.5"
                 />
               </g>
             </g>
+          </g>
+
+          {/* One continuous glow silhouette per leg instead of separate
+              thigh/shin strokes — the seam at the knee read as two broken
+              highlights. Static shapes (outside the leg rig nodes) are fine:
+              the flash is selection-driven and the legs only articulate
+              during the focus emote. The hit shapes live here too so the
+              whole leg is one click target. */}
+          <g
+            className="sound-fitness-avatar__body-zone"
+            data-active={bodyPartGlowActive && selectedBodyPart === "legs"}
+          >
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M93 192 C98 187 107 187 111 192 C110 207 108 222 107 236 C106 255 103 275 101 291 C99 296 90 296 88 291 C88 275 89 255 90 236 C90 221 91 206 93 192Z"
+              fill={zoneColor("legs")}
+              fillOpacity="0.5"
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M147 192 C142 187 133 187 129 192 C130 207 132 222 133 236 C134 255 137 275 139 291 C141 296 150 296 152 291 C152 275 151 255 150 236 C150 221 149 206 147 192Z"
+              fill={zoneColor("legs")}
+              fillOpacity="0.5"
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              {...bodyPartInteractionProps("legs", "legs")}
+              className="sound-fitness-avatar__body-zone-hit"
+              d="M93 192 C98 187 107 187 111 192 C110 207 108 222 107 236 C106 255 103 275 101 291 C99 296 90 296 88 291 C88 275 89 255 90 236 C90 221 91 206 93 192Z"
+            />
+            <path
+              {...bodyPartInteractionProps("legs", "legs")}
+              className="sound-fitness-avatar__body-zone-hit"
+              d="M147 192 C142 187 133 187 129 192 C130 207 132 222 133 236 C134 255 137 275 139 291 C141 296 150 296 152 291 C152 275 151 255 150 236 C150 221 149 206 147 192Z"
+            />
           </g>
 
           <g
@@ -1109,39 +1148,27 @@ export default function SoundFitnessAvatar({
             <path
               d="M95 108 C91 115 88 123 85 132"
               fill="none"
-              stroke={`url(#${avatarId}-armor-side)`}
+              stroke={`url(#${avatarId}-shirt-side)`}
               strokeLinecap="round"
               strokeWidth={upperArmWidth + 3}
             />
             <path
-              d="M91 111 C89 119 87 125 85 132"
+              d="M79 128 C83 132 88 134 92 133"
               fill="none"
-              stroke="rgba(248,250,252,0.22)"
+              stroke="rgba(2,6,23,0.38)"
               strokeLinecap="round"
-              strokeWidth="1.5"
-            />
-            <circle
-              cx="95"
-              cy="108"
-              fill={outfitPalette.deep}
-              r="5.5"
-              stroke={outfitPalette.accent}
-              strokeOpacity="0.6"
+              strokeWidth="1.3"
             />
             <g
               className="sound-fitness-avatar__body-zone"
-              data-active={selectedBodyPart === "shoulders"}
+              data-active={bodyPartGlowActive && selectedBodyPart === "shoulders"}
             >
-              <circle
+              <path
                 className="sound-fitness-avatar__body-zone-glow"
-                cx="95"
-                cy="108"
-                fill="#67e8f9"
-                fillOpacity="0.28"
+                d="M84 112 C86 100 97 96 104 102 C106 108 105 116 100 121 C93 122 86 119 84 112Z"
+                fill={zoneColor("shoulders")}
+                fillOpacity="0.45"
                 filter={`url(#${avatarId}-zone-glow)`}
-                r="8"
-                stroke="#cffafe"
-                strokeWidth="2"
               />
               <path
                 {...bodyPartInteractionProps("shoulders", "shoulders")}
@@ -1152,14 +1179,14 @@ export default function SoundFitnessAvatar({
             </g>
             <g
               className="sound-fitness-avatar__body-zone"
-              data-active={selectedBodyPart === "arms"}
+              data-active={bodyPartGlowActive && selectedBodyPart === "arms"}
             >
               <path
                 className="sound-fitness-avatar__body-zone-glow"
-                d="M92 116 C87 127 83 139 80 149"
+                d="M92 114 C87 126 83 139 80 151"
                 fill="none"
                 filter={`url(#${avatarId}-zone-glow)`}
-                stroke="#67e8f9"
+                stroke={zoneColor("arms")}
                 strokeLinecap="round"
                 strokeWidth={upperArmWidth + 3}
               />
@@ -1194,7 +1221,7 @@ export default function SoundFitnessAvatar({
                 <path
                   className="sound-fitness-avatar__gear"
                   d="M70 177 C76 174 83 175 88 180 L86 189 C80 186 75 185 70 188Z"
-                  fill={outfitPalette.accent}
+                  fill={shirtPalette.logo}
                   fillOpacity="0.9"
                   stroke="#f8fafc"
                   strokeOpacity="0.46"
@@ -1209,26 +1236,18 @@ export default function SoundFitnessAvatar({
                 strokeLinejoin="round"
                 strokeWidth="1.1"
               />
-              <circle
-                cx="79"
-                cy="151"
-                fill={skinPalette.mid}
-                r="3.5"
-                stroke={skinPalette.outline}
-                strokeOpacity="0.5"
-              />
               <g
                 className="sound-fitness-avatar__body-zone"
-                data-active={selectedBodyPart === "arms"}
+                data-active={bodyPartGlowActive && selectedBodyPart === "arms"}
               >
                 <path
                   className="sound-fitness-avatar__body-zone-glow"
-                  d="M79 154 C76 166 74 178 76 188"
+                  d="M79 151 C76 165 74 179 76 189"
                   fill="none"
                   filter={`url(#${avatarId}-zone-glow)`}
-                  stroke="#67e8f9"
+                  stroke={zoneColor("arms")}
                   strokeLinecap="round"
-                  strokeWidth={forearmWidth + 3}
+                  strokeWidth={forearmWidth + 5}
                 />
                 <path
                   {...bodyPartInteractionProps("arms", "arms")}
@@ -1255,39 +1274,27 @@ export default function SoundFitnessAvatar({
             <path
               d="M145 108 C149 115 152 123 155 132"
               fill="none"
-              stroke={`url(#${avatarId}-armor-side)`}
+              stroke={`url(#${avatarId}-shirt-side)`}
               strokeLinecap="round"
               strokeWidth={upperArmWidth + 3}
             />
             <path
-              d="M149 111 C151 119 153 125 155 132"
+              d="M161 128 C157 132 152 134 148 133"
               fill="none"
-              stroke="rgba(248,250,252,0.22)"
+              stroke="rgba(2,6,23,0.38)"
               strokeLinecap="round"
-              strokeWidth="1.5"
-            />
-            <circle
-              cx="145"
-              cy="108"
-              fill={outfitPalette.deep}
-              r="5.5"
-              stroke={outfitPalette.accent}
-              strokeOpacity="0.6"
+              strokeWidth="1.3"
             />
             <g
               className="sound-fitness-avatar__body-zone"
-              data-active={selectedBodyPart === "shoulders"}
+              data-active={bodyPartGlowActive && selectedBodyPart === "shoulders"}
             >
-              <circle
+              <path
                 className="sound-fitness-avatar__body-zone-glow"
-                cx="145"
-                cy="108"
-                fill="#67e8f9"
-                fillOpacity="0.28"
+                d="M156 112 C154 100 143 96 136 102 C134 108 135 116 140 121 C147 122 154 119 156 112Z"
+                fill={zoneColor("shoulders")}
+                fillOpacity="0.45"
                 filter={`url(#${avatarId}-zone-glow)`}
-                r="8"
-                stroke="#cffafe"
-                strokeWidth="2"
               />
               <path
                 {...bodyPartInteractionProps("shoulders", "shoulders")}
@@ -1298,14 +1305,14 @@ export default function SoundFitnessAvatar({
             </g>
             <g
               className="sound-fitness-avatar__body-zone"
-              data-active={selectedBodyPart === "arms"}
+              data-active={bodyPartGlowActive && selectedBodyPart === "arms"}
             >
               <path
                 className="sound-fitness-avatar__body-zone-glow"
-                d="M148 116 C153 127 157 139 160 149"
+                d="M148 114 C153 126 157 139 160 151"
                 fill="none"
                 filter={`url(#${avatarId}-zone-glow)`}
-                stroke="#67e8f9"
+                stroke={zoneColor("arms")}
                 strokeLinecap="round"
                 strokeWidth={upperArmWidth + 3}
               />
@@ -1340,7 +1347,7 @@ export default function SoundFitnessAvatar({
                 <path
                   className="sound-fitness-avatar__gear"
                   d="M170 177 C164 174 157 175 152 180 L154 189 C160 186 165 185 170 188Z"
-                  fill={outfitPalette.accent}
+                  fill={shirtPalette.logo}
                   fillOpacity="0.9"
                   stroke="#f8fafc"
                   strokeOpacity="0.46"
@@ -1355,26 +1362,18 @@ export default function SoundFitnessAvatar({
                 strokeLinejoin="round"
                 strokeWidth="1.1"
               />
-              <circle
-                cx="161"
-                cy="151"
-                fill={skinPalette.mid}
-                r="3.5"
-                stroke={skinPalette.outline}
-                strokeOpacity="0.5"
-              />
               <g
                 className="sound-fitness-avatar__body-zone"
-                data-active={selectedBodyPart === "arms"}
+                data-active={bodyPartGlowActive && selectedBodyPart === "arms"}
               >
                 <path
                   className="sound-fitness-avatar__body-zone-glow"
-                  d="M161 154 C164 166 166 178 164 188"
+                  d="M161 151 C164 165 166 179 164 189"
                   fill="none"
                   filter={`url(#${avatarId}-zone-glow)`}
-                  stroke="#67e8f9"
+                  stroke={zoneColor("arms")}
                   strokeLinecap="round"
-                  strokeWidth={forearmWidth + 3}
+                  strokeWidth={forearmWidth + 5}
                 />
                 <path
                   {...bodyPartInteractionProps("arms", "arms")}
@@ -1401,10 +1400,10 @@ export default function SoundFitnessAvatar({
                 ? "M76 114 C85 99 101 94 112 100 C105 113 96 126 84 134 C78 129 76 122 76 114Z"
                 : "M72 113 C82 97 101 91 113 99 C105 113 96 126 82 134 C75 128 72 121 72 113Z"
             }
-            fill={`url(#${avatarId}-armor-side)`}
-            stroke="rgba(15,23,42,0.52)"
+            fill={`url(#${avatarId}-shirt-side)`}
+            stroke="rgba(2,6,23,0.4)"
             strokeLinejoin="round"
-            strokeWidth="1.5"
+            strokeWidth="1.2"
           />
           <path
             d={
@@ -1412,10 +1411,10 @@ export default function SoundFitnessAvatar({
                 ? "M164 114 C155 99 139 94 128 100 C135 113 144 126 156 134 C162 129 164 122 164 114Z"
                 : "M168 113 C158 97 139 91 127 99 C135 113 144 126 158 134 C165 128 168 121 168 113Z"
             }
-            fill={`url(#${avatarId}-armor-side)`}
-            stroke="rgba(15,23,42,0.52)"
+            fill={`url(#${avatarId}-shirt-side)`}
+            stroke="rgba(2,6,23,0.4)"
             strokeLinejoin="round"
-            strokeWidth="1.5"
+            strokeWidth="1.2"
           />
           <path
             d={
@@ -1423,65 +1422,123 @@ export default function SoundFitnessAvatar({
                 ? "M100 95 C108 89 132 89 140 95 C151 119 149 146 140 164 C138 176 144 188 147 197 C133 204 107 204 93 197 C96 188 102 176 100 164 C91 146 89 119 100 95Z"
                 : "M96 95 C106 88 134 88 144 95 C158 123 158 166 146 195 C133 203 107 203 94 195 C82 166 82 123 96 95Z"
             }
-            fill={`url(#${avatarId}-suit)`}
-            stroke="rgba(203,213,225,0.34)"
+            fill={`url(#${avatarId}-shirt)`}
+            stroke="rgba(2,6,23,0.4)"
             strokeLinejoin="round"
-            strokeWidth="2.4"
+            strokeWidth="1.6"
+          />
+          {/* Joggers' hip section painted over the tee's lower torso so the tee
+              visually ends at a waistband. The shape traces just inside the
+              torso silhouette so no pants color spills past the body edge, and
+              it sits outside the front/back detail groups because pants show
+              from both views. */}
+          <path
+            d={
+              isFemale
+                ? "M99 180 C113 188 127 188 140 180 L147 197 C133 204 107 204 93 197Z"
+                : "M90 179 C110 188 130 188 150 179 L146 195 C133 203 107 203 94 195Z"
+            }
+            fill={`url(#${avatarId}-pants)`}
           />
           <path
             d={
               isFemale
-                ? "M99 108 C92 126 94 151 103 166 C108 150 110 116 112 98 C107 99 103 103 99 108Z"
-                : "M94 109 C83 126 82 167 96 194 C104 184 108 118 111 98 C105 99 99 103 94 109Z"
+                ? "M99 181 C113 189 127 189 140 181"
+                : "M91 180 C110 189 130 189 149 180"
             }
-            fill="rgba(2,6,23,0.28)"
+            fill="none"
+            stroke={pantsPalette.deep}
+            strokeLinecap="round"
+            strokeOpacity="0.85"
+            strokeWidth="2.2"
+          />
+          {/* Front-only garment details carry the front-torso-detail class so
+              the back view hides them — a drawstring and dipped neckline
+              showing from behind read as the clothes having no back. */}
+          <path
+            className="sound-fitness-avatar__front-torso-detail"
+            d="M117 187 L115 193 M123 187 L125 193"
+            fill="none"
+            stroke="rgba(248,250,252,0.4)"
+            strokeLinecap="round"
+            strokeWidth="1.1"
           />
           <path
-            d={
-              isFemale
-                ? "M141 108 C148 126 146 151 137 166 C132 150 130 116 128 98 C133 99 137 103 141 108Z"
-                : "M146 109 C157 126 158 167 144 194 C136 184 132 118 129 98 C135 99 141 103 146 109Z"
-            }
-            fill="rgba(255,255,255,0.06)"
+            className="sound-fitness-avatar__front-torso-detail"
+            d="M105 100 C112 108 128 108 135 100 C131 112 109 112 105 100Z"
+            fill={shirtPalette.deep}
+            stroke="rgba(248,250,252,0.16)"
+            strokeLinejoin="round"
+            strokeWidth="0.9"
           />
-          <g className="sound-fitness-avatar__front-torso-detail">
-            <path
-              d={
-                isFemale
-                  ? "M106 111 L120 103 L134 111 L132 151 L120 163 L108 151Z"
-                  : "M105 112 L120 103 L135 112 L132 153 L120 165 L108 153Z"
-              }
-              fill="rgba(2,6,23,0.38)"
-              stroke={outfitPalette.accent}
-              strokeOpacity="0.48"
-              strokeLinejoin="round"
-              strokeWidth="1.4"
-            />
-            <path
-              d="M111 119 L120 113 L129 119 L127 145 L120 153 L113 145Z"
-              fill={outfitPalette.mid}
-              fillOpacity="0.42"
-              stroke="rgba(248,250,252,0.24)"
-              strokeLinejoin="round"
-              strokeWidth="1"
-            />
-          </g>
-          <g className="sound-fitness-avatar__chest-core">
-            <circle
-              cx="120"
-              cy="132"
-              fill={`url(#${avatarId}-core-glow)`}
-              r="12"
-            />
-            <path
-              d="M114 132 L120 126 L126 132 L120 138Z"
-              fill="#f8fafc"
-              stroke={outfitPalette.accent}
-              strokeLinejoin="round"
-              strokeWidth="1.4"
-            />
+          <g aria-hidden="true" className="sound-fitness-avatar__front-torso-detail">
+            {/* Sound Fitness chest print: a live EQ wave over the wordmark.
+                aria-hidden because the svg itself joins the accessibility tree
+                when body parts are interactive — without it, AT announces stray
+                SOUND / FITNESS text between the body-part buttons (even in back
+                view, where the print is only opacity-hidden). */}
+            {[
+              { delay: "0s", height: 7, x: 108.3 },
+              { delay: "-0.9s", height: 12, x: 113.5 },
+              { delay: "-0.3s", height: 17, x: 118.7 },
+              { delay: "-1.2s", height: 12, x: 123.9 },
+              { delay: "-0.6s", height: 7, x: 129.1 },
+            ].map((bar) => (
+              <rect
+                className="sound-fitness-avatar__eq-bar"
+                fill={shirtPalette.logo}
+                height={bar.height}
+                key={bar.x}
+                rx="1.3"
+                style={{ animationDelay: bar.delay }}
+                width="2.6"
+                x={bar.x}
+                y={126 - bar.height / 2}
+              />
+            ))}
+            <text
+              fill={shirtPalette.logo}
+              fontSize="5.5"
+              fontWeight="800"
+              letterSpacing="0.16em"
+              opacity="0.92"
+              textAnchor="middle"
+              x="120.5"
+              y="143"
+            >
+              SOUND
+            </text>
+            <text
+              fill={shirtPalette.logo}
+              fontSize="3.4"
+              fontWeight="700"
+              letterSpacing="0.3em"
+              opacity="0.64"
+              textAnchor="middle"
+              x="120.6"
+              y="149"
+            >
+              FITNESS
+            </text>
           </g>
           <g className="sound-fitness-avatar__back-torso-detail">
+            {/* The shirt's back: a high crew-neck band and a yoke seam, so the
+                flipped view reads as the garment's rear rather than the front
+                neckline seen through the head. */}
+            <path
+              d="M106 99 C113 104 127 104 134 99"
+              fill="none"
+              stroke={shirtPalette.deep}
+              strokeLinecap="round"
+              strokeWidth="3.4"
+            />
+            <path
+              d="M103 109 C112 113 128 113 137 109"
+              fill="none"
+              stroke="rgba(2,6,23,0.34)"
+              strokeLinecap="round"
+              strokeWidth="1.3"
+            />
             <path
               d={
                 isFemale
@@ -1499,14 +1556,6 @@ export default function SoundFitnessAvatar({
               stroke="rgba(2,6,23,0.44)"
               strokeLinecap="round"
               strokeWidth="1.8"
-            />
-            <path
-              d={isFemale ? "M120 106 L120 166" : "M120 106 L120 171"}
-              fill="none"
-              stroke={outfitPalette.accent}
-              strokeLinecap="round"
-              strokeOpacity="0.32"
-              strokeWidth="0.7"
             />
             <path
               d="M114 115 C110 110 103 110 100 115 C102 123 108 127 113 126 C115 123 115 119 114 115Z"
@@ -1533,45 +1582,35 @@ export default function SoundFitnessAvatar({
               strokeLinecap="round"
               strokeWidth="1.2"
             />
-            <circle
-              cx="113"
-              cy={isFemale ? 170 : 176}
-              fill="rgba(2,6,23,0.42)"
-              r="1.4"
-            />
-            <circle
-              cx="127"
-              cy={isFemale ? 170 : 176}
-              fill="rgba(2,6,23,0.42)"
-              r="1.4"
-            />
           </g>
-          <path
-            d={
-              isFemale
-                ? "M101 173 C111 178 129 178 139 173 M98 191 C110 196 130 196 142 191"
-                : "M100 171 C111 176 129 176 140 171"
-            }
-            fill="none"
-            stroke={outfitPalette.accent}
-            strokeLinecap="round"
-            strokeOpacity="0.44"
-            strokeWidth="1.5"
-          />
 
           <g
             className="sound-fitness-avatar__body-zone"
-            data-active={selectedBodyPart === "back"}
+            data-active={bodyPartGlowActive && selectedBodyPart === "back"}
           >
+            {/* Specific back regions, each in its own muscle's status color:
+                traps across the neck base, the upper back over the blades,
+                and the lower back above the waist. */}
             <path
               className="sound-fitness-avatar__body-zone-glow"
-              d="M104 101 C111 96 129 96 136 101 L143 116 C137 122 129 125 120 125 C111 125 103 122 97 116Z"
-              fill="#67e8f9"
-              fillOpacity="0.2"
+              d="M104 100 C111 95 129 95 136 100 C133 107 127 112 120 113 C113 112 107 107 104 100Z"
+              fill={zoneColor("traps")}
+              fillOpacity="0.44"
               filter={`url(#${avatarId}-zone-glow)`}
-              stroke="#cffafe"
-              strokeLinejoin="round"
-              strokeWidth="2"
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M100 114 C107 110 133 110 140 114 C141 128 138 140 133 146 C124 150 116 150 107 146 C102 140 99 128 100 114Z"
+              fill={zoneColor("upperBack")}
+              fillOpacity="0.4"
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M105 150 C113 147 127 147 135 150 C137 162 136 173 133 181 C124 185 116 185 107 181 C104 173 103 162 105 150Z"
+              fill={zoneColor("lowerBack")}
+              fillOpacity="0.4"
+              filter={`url(#${avatarId}-zone-glow)`}
             />
             <path
               {...bodyPartInteractionProps("back", "back")}
@@ -1583,17 +1622,30 @@ export default function SoundFitnessAvatar({
           </g>
           <g
             className="sound-fitness-avatar__body-zone"
-            data-active={selectedBodyPart === "chest"}
+            data-active={bodyPartGlowActive && selectedBodyPart === "chest"}
           >
+            {/* Chest bands — upper, mid, lower pecs — each colored by its own
+                muscle's seven-day status. */}
             <path
               className="sound-fitness-avatar__body-zone-glow"
-              d="M96 119 C103 111 113 110 120 116 C127 110 137 111 144 119 L139 142 C132 146 126 146 120 141 C114 146 108 146 101 142Z"
-              fill="#67e8f9"
-              fillOpacity="0.2"
+              d="M98 116 C105 110 115 109 120 114 C125 109 135 110 142 116 C142 122 141 127 139 131 C127 126 113 126 101 131 C99 127 98 122 98 116Z"
+              fill={zoneColor("upperChest")}
+              fillOpacity="0.44"
               filter={`url(#${avatarId}-zone-glow)`}
-              stroke="#cffafe"
-              strokeLinejoin="round"
-              strokeWidth="2"
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M100 133 C112 128 128 128 140 133 C140 139 139 144 137 147 C126 143 114 143 103 147 C101 144 100 139 100 133Z"
+              fill={zoneColor("midChest")}
+              fillOpacity="0.42"
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M103 149 C114 146 126 146 137 149 C136 154 134 158 131 160 C124 158 116 158 109 160 C106 158 104 154 103 149Z"
+              fill={zoneColor("lowerChest")}
+              fillOpacity="0.4"
+              filter={`url(#${avatarId}-zone-glow)`}
             />
             <path
               {...bodyPartInteractionProps("chest", "chest")}
@@ -1605,17 +1657,14 @@ export default function SoundFitnessAvatar({
           </g>
           <g
             className="sound-fitness-avatar__body-zone"
-            data-active={selectedBodyPart === "core"}
+            data-active={bodyPartGlowActive && selectedBodyPart === "core"}
           >
             <path
               className="sound-fitness-avatar__body-zone-glow"
               d="M106 148 C114 144 126 144 134 148 L137 184 C132 192 108 192 103 184Z"
-              fill="#67e8f9"
-              fillOpacity="0.2"
+              fill={zoneColor("core")}
+              fillOpacity="0.34"
               filter={`url(#${avatarId}-zone-glow)`}
-              stroke="#cffafe"
-              strokeLinejoin="round"
-              strokeWidth="2"
             />
             <path
               {...bodyPartInteractionProps("core", "core")}
@@ -1639,6 +1688,32 @@ export default function SoundFitnessAvatar({
               strokeLinejoin="round"
               strokeWidth="1"
             />
+            {isFemale && resolvedAppearance.hair === "swept" ? (
+              <>
+                {/* Ponytail hanging down the back — drawn before the head
+                    fill so the skull covers the tail's root. */}
+                <path
+                  d="M115 76 C110 92 109 108 113 126 C116 134 124 134 127 126 C131 108 130 92 125 76 C121 71 119 71 115 76Z"
+                  fill={`url(#${avatarId}-hair-gloss)`}
+                  stroke={hairPalette.shadow}
+                  strokeOpacity="0.5"
+                  strokeWidth="1.2"
+                />
+                <path
+                  d="M114 82 C118 79 122 79 126 82 L125 88 C121 86 119 86 115 88Z"
+                  fill={hairPalette.shadow}
+                  fillOpacity="0.9"
+                />
+                <path
+                  d="M117 92 C115 103 115 114 117 123 M123 92 C125 103 125 114 123 123"
+                  fill="none"
+                  stroke={hairPalette.highlight}
+                  strokeLinecap="round"
+                  strokeOpacity="0.4"
+                  strokeWidth="1.1"
+                />
+              </>
+            ) : null}
             <path
               d={
                 isFemale
@@ -1741,21 +1816,30 @@ export default function SoundFitnessAvatar({
             <path
               d="M102 63 C104 54 110 47 119 45"
               fill="none"
-              stroke="rgba(255,247,237,0.38)"
+              stroke="rgba(255,247,237,0.14)"
               strokeLinecap="round"
-              strokeWidth="3"
+              strokeWidth="2"
             />
+            {/* Front hair caps are drawn as a slight outward offset of the
+                skull's own upper arc — anchored at BOTH temples with even
+                crown volume — so the hair reads as ON the head. The previous
+                paths cut inside the skull on the upper-left and drooped low
+                on the right, which read as the hair sliding off. */}
             {resolvedAppearance.hair === "fade" ? (
               <path
-                d="M97 55 C101 38 112 29 127 30 C140 31 149 42 150 58 C141 49 131 46 119 47 C110 48 103 51 97 55Z"
+                d={
+                  isFemale
+                    ? "M94 51 C97 34 107 25 120 25 C135 25 147 36 150 52 C142 44 132 41 119 42 C108 42 100 45 94 51Z"
+                    : "M93 50 C96 34 108 26 122 26 C138 26 150 38 152 52 C143 44 133 41 120 42 C109 42 100 45 93 50Z"
+                }
                 fill={`url(#${avatarId}-hair-gloss)`}
               />
             ) : resolvedAppearance.hair === "swept" ? (
               <path
                 d={
                   isFemale
-                    ? "M96 57 C100 35 112 23 129 26 C143 28 151 40 150 58 C142 49 134 46 125 47 C115 47 106 52 96 57Z"
-                    : "M95 56 C100 35 113 23 130 27 C143 29 151 40 151 56 C143 49 135 47 127 47 C117 47 107 51 95 56Z"
+                    ? "M94 55 C97 34 108 24 123 25 C138 26 150 38 151 55 C144 47 136 43 126 44 C112 43 100 48 94 55Z"
+                    : "M92 55 C94 36 107 25 124 26 C140 27 152 39 153 57 C147 48 138 44 128 45 C114 44 101 48 92 55Z"
                 }
                 fill={`url(#${avatarId}-hair-gloss)`}
               />
@@ -1763,8 +1847,8 @@ export default function SoundFitnessAvatar({
               <path
                 d={
                   isFemale
-                    ? "M97 55 C101 35 113 25 128 28 C143 31 151 45 149 64 C142 53 132 49 119 50 C110 51 103 53 97 55Z"
-                    : "M96 54 C101 35 114 25 129 29 C144 33 152 46 150 65 C143 54 132 50 119 51 C110 52 102 53 96 54Z"
+                    ? "M94 56 C96 38 106 25 120 25 C136 25 148 38 151 56 C143 48 132 45 119 46 C107 46 99 49 94 56Z"
+                    : "M91 57 C93 39 106 26 122 26 C139 26 151 40 153 58 C145 50 134 46 121 47 C108 47 98 50 91 57Z"
                 }
                 fill={`url(#${avatarId}-hair-gloss)`}
               />
@@ -1773,20 +1857,16 @@ export default function SoundFitnessAvatar({
               className="sound-fitness-avatar__hair-strand"
               d={
                 resolvedAppearance.hair === "swept"
-                  ? "M99 53 C113 37 132 34 147 43 M98 57 C115 48 132 46 148 51 M111 44 C124 34 138 34 147 40"
+                  ? "M99 51 C113 35 132 32 147 41 M96 52 C112 42 130 40 148 48 M111 41 C124 32 138 32 147 38"
                   : resolvedAppearance.hair === "fade"
-                    ? "M102 51 C113 41 127 39 142 44 M103 56 C116 49 132 49 146 55"
-                    : "M101 52 C109 39 124 34 139 39 M99 56 C112 47 129 45 146 55 M108 45 C119 37 132 36 143 43"
+                    ? "M100 45 C112 35 126 33 142 39 M99 48 C114 40 130 39 146 46"
+                    : "M100 49 C110 37 124 32 140 38 M97 53 C110 44 128 42 146 51 M108 41 C119 33 132 32 143 39"
               }
               fill="none"
               stroke={hairPalette.highlight}
               strokeOpacity="0.34"
               strokeLinecap="round"
               strokeWidth="1.35"
-            />
-            <path
-              d="M101 49 C110 31 132 29 145 43 C139 37 129 36 117 39 C109 41 104 44 101 49Z"
-              fill="rgba(120,53,15,0.16)"
             />
             <g className="sound-fitness-avatar__expression">
               <path
@@ -1905,7 +1985,7 @@ export default function SoundFitnessAvatar({
                 <path
                   d="M96 54 C109 48 137 48 149 55"
                   fill="none"
-                  stroke={outfitPalette.accent}
+                  stroke={shirtPalette.logo}
                   strokeLinecap="round"
                   strokeWidth="3.8"
                 />
@@ -1916,9 +1996,9 @@ export default function SoundFitnessAvatar({
               <g className="sound-fitness-avatar__gear">
                 <path
                   d="M101 58 C111 54 135 54 143 59 L139 70 C129 74 112 73 103 69Z"
-                  fill={outfitPalette.accent}
+                  fill={shirtPalette.logo}
                   fillOpacity="0.28"
-                  stroke={outfitPalette.accent}
+                  stroke={shirtPalette.logo}
                   strokeOpacity="0.92"
                   strokeLinejoin="round"
                   strokeWidth="1.8"

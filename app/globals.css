@@ -7586,25 +7586,12 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   width: min(24rem, 28vw);
 }
 
+/* The rail used to animate background-position (main-thread repaint per step,
+   steps(58)). The two layers now live on pseudos that translate on the
+   compositor instead: the streak (::before, the old 42%-wide layer sweeping
+   -48%..148% = -66%..204% of its own width) and the tick pattern (::after,
+   shifted one 2.16rem period). Same durations, same stepped cadence. */
 .dashboard-header-ambient-field__rail {
-  animation: dashboard-header-ambient-rail 5.8s steps(58) infinite;
-  background:
-    linear-gradient(
-      90deg,
-      transparent,
-      rgba(103, 232, 249, 0.55),
-      rgba(255, 255, 255, 0.82),
-      rgba(250, 204, 21, 0.45),
-      transparent
-    ),
-    repeating-linear-gradient(
-      90deg,
-      transparent 0 2.1rem,
-      rgba(255, 255, 255, 0.18) 2.1rem 2.16rem
-    );
-  background-size:
-    42% 100%,
-    100% 100%;
   border-radius: 9999px;
   bottom: 0.34rem;
   box-shadow:
@@ -7613,7 +7600,41 @@ main.dashboard-page--idle-menu-open.dashboard-page--idle-menu-open
   height: 0.12rem;
   left: clamp(5.6rem, 15vw, 17rem);
   opacity: 0.58;
+  overflow: hidden;
   right: clamp(3.4rem, 10vw, 13rem);
+}
+
+.dashboard-header-ambient-field__rail::before {
+  animation: dashboard-header-ambient-rail-streak 5.8s steps(58) infinite;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(103, 232, 249, 0.55),
+    rgba(255, 255, 255, 0.82),
+    rgba(250, 204, 21, 0.45),
+    transparent
+  );
+  content: "";
+  height: 100%;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 42%;
+}
+
+.dashboard-header-ambient-field__rail::after {
+  animation: dashboard-header-ambient-rail-ticks 5.8s steps(58) infinite;
+  background: repeating-linear-gradient(
+    90deg,
+    transparent 0 2.1rem,
+    rgba(255, 255, 255, 0.18) 2.1rem 2.16rem
+  );
+  content: "";
+  height: 100%;
+  left: -4.32rem;
+  position: absolute;
+  top: 0;
+  width: calc(100% + 4.32rem);
 }
 
 .dashboard-header-ambient-scene {
@@ -10581,33 +10602,6 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
   opacity: 0.46 !important;
 }
 
-.dashboard-header-logo-3d[data-dashboard-webgl-child-ready="true"]
-  .dashboard-header-logo-3d__depth,
-.dashboard-header-logo-3d[data-dashboard-webgl-child-ready="true"]
-  .dashboard-header-logo-3d__image,
-.dashboard-header-logo-3d[data-dashboard-webgl-child-ready="true"]
-  .dashboard-header-logo-3d__sheen,
-.dashboard-header-logo-3d:has(
-    .dashboard-header-logo-3d__webgl[data-webgl-ready="true"]:not(
-        [data-webgl-fallback="true"]
-      )
-  )
-  .dashboard-header-logo-3d__depth,
-.dashboard-header-logo-3d:has(
-    .dashboard-header-logo-3d__webgl[data-webgl-ready="true"]:not(
-        [data-webgl-fallback="true"]
-      )
-  )
-  .dashboard-header-logo-3d__image,
-.dashboard-header-logo-3d:has(
-    .dashboard-header-logo-3d__webgl[data-webgl-ready="true"]:not(
-        [data-webgl-fallback="true"]
-      )
-  )
-  .dashboard-header-logo-3d__sheen {
-  opacity: 0 !important;
-}
-
 .dashboard-header-vortex-shell:not(.dashboard-header-vortex-shell--timed-out)
   .dashboard-header-home-logo
   .dashboard-header-logo-3d:has(
@@ -11597,7 +11591,9 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
     min-width: 3rem;
     overflow: visible !important;
     touch-action: manipulation;
-    transform: translateY(0.1rem);
+    /* NOTE: the joystick's resting transform is the INLINE style in page.tsx
+       (translateY(-0.52rem)) — a transform declared here never takes effect.
+       A dead translateY(0.1rem) that sat here misled tuning for months. */
     width: 3rem;
     z-index: 86;
   }
@@ -12781,6 +12777,11 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
 
 .dashboard-header-selector-meteor-field::before {
   animation: dashboard-header-selector-starfield 5.8s ease-in-out infinite;
+  /* Paused at rest like the sibling meteors — without this the starfield
+     ticked continuously behind the field's hidden rest state whenever the
+     selector panel was in the DOM, and the existing hover resume below was a
+     no-op. The hover/focus-within rule is now the un-pause. */
+  animation-play-state: paused;
   background:
     radial-gradient(
       circle at 16% 35%,
@@ -13393,16 +13394,6 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   animation-play-state: paused;
 }
 
-.dashboard-header-scroll-button:has(
-    .dashboard-header-scroll-button__webgl[data-webgl-ready="true"]:not(
-        [data-webgl-fallback="true"]
-      )
-  )
-  .dashboard-header-scroll-button__bubble-fallback {
-  opacity: 0 !important;
-  visibility: hidden;
-}
-
 .dashboard-header-scroll-button__webgl {
   backface-visibility: visible;
   display: block;
@@ -13664,6 +13655,101 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
 .dashboard-header-page-orbit-rail__particles {
   opacity: 1;
   transition: opacity 720ms ease;
+}
+
+/* SMIL replacement for the rail particles/sparks. Chrome's SMIL controller
+   kept ~half the main thread busy at wide panes even with the SVG timeline
+   paused, and SMIL is invisible to getAnimations() and every pause blanket.
+   These run on the normal CSS animation machinery instead: offset-path
+   carries the old animateMotion path (inline style per particle), the pulse
+   keyframes carry opacity + scale in place of the old r sweeps. */
+.dashboard-header-rail-particle {
+  animation-name: dashboard-header-rail-particle-travel,
+    dashboard-header-rail-particle-pulse;
+  animation-timing-function: linear, ease-in-out;
+  animation-iteration-count: infinite, infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.dashboard-header-rail-particle[data-rail-rest="true"] {
+  animation-name: dashboard-header-rail-particle-travel,
+    dashboard-header-rail-particle-pulse-rest;
+}
+
+@keyframes dashboard-header-rail-particle-travel {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
+  }
+}
+
+@keyframes dashboard-header-rail-particle-pulse {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  25% {
+    opacity: 0.18;
+    transform: scale(1.1);
+  }
+  50% {
+    opacity: 0.48;
+    transform: scale(1.9);
+  }
+  75% {
+    opacity: 0.18;
+    transform: scale(1.1);
+  }
+}
+
+@keyframes dashboard-header-rail-particle-pulse-rest {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  25% {
+    opacity: 0.05;
+    transform: scale(0.75);
+  }
+  50% {
+    opacity: 0.14;
+    transform: scale(1.2);
+  }
+  75% {
+    opacity: 0.05;
+    transform: scale(0.75);
+  }
+}
+
+.dashboard-header-rail-spark {
+  animation: dashboard-header-rail-spark-pulse 2.35s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes dashboard-header-rail-spark-pulse {
+  0%,
+  100% {
+    opacity: 0.02;
+    transform: scale(0.7);
+  }
+  28% {
+    opacity: 0.34;
+    transform: scale(1.45);
+  }
+  55% {
+    opacity: 0.1;
+    transform: scale(1);
+  }
+  80% {
+    opacity: 0.24;
+    transform: scale(1.1);
+  }
 }
 
 .dashboard-header-page-orbit-rail__particles--idle {
@@ -21001,13 +21087,17 @@ html[data-dashboard-webgl="warming"]
 .dashboard-header-meter-menu-trigger:has(
     > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-fallback="true"]
   )
+  > .dashboard-header-meter-menu-trigger__fallback,
+.dashboard-header-meter-menu-trigger:has(
+    > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-culled="true"]
+  )
   > .dashboard-header-meter-menu-trigger__fallback {
   opacity: 1 !important;
   visibility: visible !important;
 }
 
 .dashboard-header-meter-menu-trigger:has(
-    > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-ready="true"]:not([data-webgl-fallback="true"])
+    > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-ready="true"]:not([data-webgl-fallback="true"]):not([data-webgl-culled="true"])
   )
   > .dashboard-header-meter-menu-trigger__fallback {
   opacity: 0 !important;
@@ -21304,7 +21394,11 @@ html[data-dashboard-webgl="warming"]
   top: clamp(6rem, 10vh, 7.15rem);
   transform-origin: 100% 50%;
   width: min(560px, calc(100vw - 18px));
-  z-index: 240;
+  /* Above the shared WebGL stage canvas (430) in EVERY highlight state — at
+     240 the canvas painted the tornado over the meter content whenever a
+     meter held the highlight. The tornado shows through the panel's
+     transparent areas; the dark halo sibling sits below the canvas at 429. */
+  z-index: 460;
 }
 
 .dashboard-header-meter-panel[data-meter-menu-state="closing"] {
@@ -21313,7 +21407,33 @@ html[data-dashboard-webgl="warming"]
   pointer-events: none;
 }
 
-.dashboard-header-meter-panel::before {
+/* The dark halo sheet is a SIBLING of the panel, stacked just under the
+   shared WebGL stage canvas (z-430): as a panel ::before it painted above
+   the canvas and draped the stage-drawn tornado in darkness. The element
+   copies the panel's fixed box and open/close/closed states so the two move
+   as one. Order: page → halo → tornado canvas → panel content. */
+.dashboard-header-meter-panel-halo {
+  animation: dashboard-header-meter-panel-open 280ms
+    cubic-bezier(0.16, 0.82, 0.2, 1) both;
+  bottom: clamp(0.6rem, 1.2vh, 0.95rem);
+  pointer-events: none;
+  position: fixed;
+  right: clamp(0.35rem, 1vw, 0.95rem);
+  top: clamp(6rem, 10vh, 7.15rem);
+  width: min(560px, calc(100vw - 18px));
+  z-index: 429;
+}
+
+.dashboard-header-meter-panel-halo[data-meter-menu-state="closing"] {
+  animation: dashboard-header-meter-panel-close 520ms
+    cubic-bezier(0.58, 0, 0.38, 1) both;
+}
+
+.dashboard-header-meter-panel-halo[data-meter-menu-state="closed"] {
+  display: none !important;
+}
+
+.dashboard-header-meter-panel-halo::before {
   background:
     radial-gradient(
       ellipse at 57% 16%,
@@ -23156,6 +23276,144 @@ html[data-dashboard-webgl="warming"]
   opacity: 0.46;
 }
 
+/* The CSS throat/stream silhouettes are parked while the WebGL tornado
+   carries the visuals: with the panel stacked above the stage canvas they
+   painted a shady funnel veil between the tornado and the meters. Flip this
+   off when the throat effect is needed again. */
+html body .dashboard-header-meter-panel__stack--orbit::before,
+html body .dashboard-header-meter-panel__stack--orbit::after {
+  display: none !important;
+}
+
+/* Shadowy overlay over the meter + tornado zone while the UFO holds the
+   highlight: the panel paints above the stage canvas, so this shades the
+   WebGL tornado and the meter sections together (the UFO's own canvas sits
+   above it). Fades away the moment a meter takes the highlight. */
+.dashboard-header-meter-panel__ufo-shade {
+  background: rgba(2, 6, 23, 0.5);
+  inset: -6.4rem 0 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity 340ms ease;
+  z-index: 40;
+}
+
+html
+  body
+  #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
+  .dashboard-header-meter-panel__ufo-shade {
+  opacity: 1;
+}
+
+/* Floating close chip pinned to the panel's top-right, above the UFO. Must
+   clear the category-levels menu (z 120) and the ufo-shade (z 40). */
+.dashboard-header-meter-panel__ufo-close {
+  align-items: center;
+  background: rgba(2, 6, 23, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.9rem;
+  box-shadow: 0 10px 24px rgba(2, 6, 23, 0.45);
+  color: rgba(226, 232, 240, 0.92);
+  cursor: pointer;
+  display: flex;
+  height: 2.15rem;
+  justify-content: center;
+  padding: 0;
+  position: absolute;
+  right: 0.5rem;
+  top: 0.35rem;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+  width: 2.15rem;
+  z-index: 130;
+}
+
+.dashboard-header-meter-panel__ufo-close svg {
+  height: 0.95rem;
+  width: 0.95rem;
+}
+
+.dashboard-header-meter-panel__ufo-close:hover {
+  background: rgba(15, 23, 42, 0.92);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.06);
+}
+
+.dashboard-header-meter-panel__ufo-close:focus-visible {
+  outline: 2px solid rgba(125, 211, 252, 0.85);
+  outline-offset: 2px;
+}
+
+/* Only the highlighted item animates. Sections carry data-meter-highlighted,
+   and with the UFO leading every section reads "false" — so this one blanket
+   holds the meters still under the UFO and, when a meter leads, holds the
+   other sections still. Section entry/exit choreography is transition-based,
+   so a play-state blanket is safe here. */
+html
+  body
+  #dashboard-header-meter-panel
+  .dashboard-header-meter-panel__section[data-meter-highlighted="false"],
+html
+  body
+  #dashboard-header-meter-panel
+  .dashboard-header-meter-panel__section[data-meter-highlighted="false"]
+  *,
+html
+  body
+  #dashboard-header-meter-panel
+  .dashboard-header-meter-panel__section[data-meter-highlighted="false"]
+  *::before,
+html
+  body
+  #dashboard-header-meter-panel
+  .dashboard-header-meter-panel__section[data-meter-highlighted="false"]
+  *::after,
+html
+  body
+  #dashboard-header-meter-panel
+  .dashboard-header-meter-panel__section[data-meter-highlighted="false"]::before,
+html
+  body
+  #dashboard-header-meter-panel
+  .dashboard-header-meter-panel__section[data-meter-highlighted="false"]::after {
+  animation-play-state: paused !important;
+}
+
+/* The UFO's DOM-side animations hold while a meter leads; its WebGL canvas
+   already freezes itself to a still ~1s after losing the highlight. */
+html
+  body
+  #dashboard-header-meter-panel.dashboard-header-meter-panel:not(
+    [data-meter-highlight="ufo"]
+  )
+  .dashboard-header-category-levels-menu__orbit,
+html
+  body
+  #dashboard-header-meter-panel.dashboard-header-meter-panel:not(
+    [data-meter-highlight="ufo"]
+  )
+  .dashboard-header-category-levels-menu__orbit
+  *,
+html
+  body
+  #dashboard-header-meter-panel.dashboard-header-meter-panel:not(
+    [data-meter-highlight="ufo"]
+  )
+  .dashboard-header-category-levels-menu__orbit
+  *::before,
+html
+  body
+  #dashboard-header-meter-panel.dashboard-header-meter-panel:not(
+    [data-meter-highlight="ufo"]
+  )
+  .dashboard-header-category-levels-menu__orbit
+  *::after {
+  animation-play-state: paused !important;
+}
+
 .dashboard-header-meter-tornado,
 .dashboard-header-meter-tornado > span,
 .dashboard-header-meter-tornado__core-map,
@@ -23184,7 +23442,10 @@ html[data-dashboard-webgl="warming"]
   animation: none;
   display: block;
   filter: saturate(1.08);
-  inset: -3.15rem 0 0;
+  /* Top raised so the WebGL funnel's extended neck reaches up behind the
+     UFO (which paints above the stage canvas) — the vortex connects to the
+     ship instead of stopping short beneath it. */
+  inset: -6.4rem 0 0;
   mix-blend-mode: normal;
   overflow: hidden;
   transform-style: preserve-3d;
@@ -23997,8 +24258,8 @@ html[data-dashboard-webgl="warming"]
   background:
     radial-gradient(
       ellipse at 52% 36%,
-      rgba(2, 6, 23, 0.78),
-      rgba(2, 6, 23, 0.46) 32%,
+      rgba(2, 6, 23, 0.82),
+      rgba(2, 6, 23, 0.5) 38%,
       transparent 68%
     ),
     radial-gradient(
@@ -24033,8 +24294,44 @@ html[data-dashboard-webgl="warming"]
   box-shadow: none;
   filter: blur(1.05rem);
   inset: 3.5rem 2.2rem 3rem;
-  opacity: 0.74;
+  /* Grounding, not a shade: strong enough to hold text over the bright
+     funnel, faded fast at the edges so it doesn't read as a dark cloud
+     hanging from the tornado throat. */
+  opacity: 0.78;
   z-index: 0;
+}
+
+/* Every center-slot section gets a dark cushion now that the tornado behind
+   it renders at full brightness — without one the meters float on hot pink.
+   The doubled class outranks the orbit-mode `__section::before { display:
+   none }` reset that follows later in the file; the achievements section's
+   fancier plate outranks this in turn. */
+.dashboard-header-meter-panel__stack--orbit
+  .dashboard-header-meter-panel__section--slot-center.dashboard-header-meter-panel__section--slot-center:not(
+    .dashboard-header-meter-panel__section--achievements
+  )::before {
+  background: radial-gradient(
+    ellipse at 50% 42%,
+    rgba(2, 6, 23, 0.8),
+    rgba(2, 6, 23, 0.5) 40%,
+    transparent 72%
+  );
+  border-radius: 999rem;
+  content: "";
+  display: block;
+  filter: blur(1.05rem);
+  inset: 2.6rem 1.4rem 2.2rem;
+  opacity: 0.75;
+  pointer-events: none;
+  position: absolute;
+  z-index: 0;
+}
+
+.dashboard-header-meter-panel__stack--orbit
+  .dashboard-header-meter-panel__section--slot-center
+  > * {
+  position: relative;
+  z-index: 1;
 }
 
 .dashboard-header-meter-panel__stack--orbit
@@ -29485,16 +29782,21 @@ html[data-dashboard-webgl="warming"]
   }
 }
 
-@keyframes dashboard-header-ambient-rail {
+@keyframes dashboard-header-ambient-rail-streak {
   0% {
-    background-position:
-      -48% 0,
-      0 0;
+    transform: translateX(-66%);
   }
   100% {
-    background-position:
-      148% 0,
-      4.32rem 0;
+    transform: translateX(204%);
+  }
+}
+
+@keyframes dashboard-header-ambient-rail-ticks {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(4.32rem);
   }
 }
 
@@ -30323,14 +30625,16 @@ html[data-dashboard-webgl="warming"]
 }
 
 @keyframes dashboard-header-ambient-node {
+  /* filter: brightness() was animated here too — an animated filter re-rasters
+     the element every frame on the main thread, times four nodes. On a 0.46rem
+     dot the opacity swing carries the pulse alone; keyframes are now
+     compositor-only (opacity + transform). */
   0%,
   100% {
-    filter: brightness(0.86);
     opacity: 0.2;
     transform: translateY(0) scale(0.78);
   }
   48% {
-    filter: brightness(1.35);
     opacity: 0.82;
     transform: translateY(-0.16rem) scale(1.08);
   }
@@ -32518,6 +32822,8 @@ html[data-dashboard-webgl="warming"]
   .dashboard-header-ambient-field__aura,
   .dashboard-header-ambient-field__beam,
   .dashboard-header-ambient-field__rail,
+  .dashboard-header-ambient-field__rail::before,
+  .dashboard-header-ambient-field__rail::after,
   .dashboard-header-ambient-field__meteor,
   .dashboard-header-ambient-field__meteor::before,
   .dashboard-header-ambient-field__meteor::after,
@@ -32912,108 +33218,29 @@ html
   transition: none !important;
 }
 
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
-  .dashboard-profile-points-trigger,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
-  .dashboard-profile-points-trigger::before,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
-  .dashboard-profile-points-trigger::after,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
-  .dashboard-profile-points-trigger
-  *,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
-  .dashboard-profile-points-trigger
-  *::before,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
-  .dashboard-profile-points-trigger
-  *::after,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
-  .dashboard-profile-points-dropdown,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
-  .dashboard-profile-points-dropdown::before,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
-  .dashboard-profile-points-dropdown::after,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
-  .dashboard-profile-points-dropdown
-  *,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
-  .dashboard-profile-points-dropdown
-  *::before,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted.dashboard-header-vortex-shell--points-menu-highlighted
-  .dashboard-profile-points-dropdown
-  *::after {
-  animation-play-state: running !important;
-}
+/* (The former --points-menu-highlighted "running !important" blanket over the
+   trigger and dropdown subtrees was deleted: its rightmost-universal subjects
+   restyled the whole shell subtree on every rewards hover/open/close, and it
+   out-ranked every pause the header relies on. The dropdown's animations run
+   from their own rules — the app-gem orbit keys on its data-dropdown-open /
+   data-motion-paused attributes — and the header-focus blanket pausing them
+   while the pointer is on content mirrors the components, which pause their
+   own 3D under the same condition.) */
 
+/* While the points dropdown covers the rewards controls, pause the infinite
+   glow loops beneath it. Enumerated subjects (never a rightmost `*`) keep the
+   invalidation from the shell-class flip scoped to these few elements instead
+   of the whole ~1000-node shell subtree. */
 html
   body
   main
   .dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open
-  .dashboard-profile-points-trigger,
+  .dashboard-profile-points-trigger__webgl-shell::before,
 html
   body
   main
   .dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open
-  .dashboard-profile-points-trigger::before,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open
-  .dashboard-profile-points-trigger::after,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open
-  .dashboard-profile-points-trigger
-  *,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open
-  .dashboard-profile-points-trigger
-  *::before,
-html
-  body
-  main
-  .dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open.dashboard-header-vortex-shell--points-dropdown-open
-  .dashboard-profile-points-trigger
-  *::after {
+  .dashboard-profile-claim-trigger--webgl::before {
   animation-play-state: paused !important;
 }
 

@@ -18,6 +18,7 @@ import {
   SoundLogoAchievementBadge,
   type AchievementBadgeItem,
 } from "@/components/dashboard/SoundAchievementBadgeRow";
+import DashboardConstellationStats from "@/components/dashboard/DashboardConstellationStats";
 import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
 import {
   readActiveWorkoutBuilderSessionTemplate,
@@ -888,6 +889,33 @@ export default function SessionsPage() {
       latestDate: formatDateTime(sorted[0]?.date),
     };
   }, [workoutLogEntries]);
+
+  // Feeds the constellation stats orbit (moved here from the member
+  // dashboard's floating snapshot header) — same weekly framing that display
+  // showed for the Workout / Sessions card.
+  const workoutConstellationMetrics = useMemo(() => {
+    const weekCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    let weeklyVolume = 0;
+    let weeklySets = 0;
+    const weeklyWorkoutDays = new Set<string>();
+    for (const entry of workoutLogEntries) {
+      const entryTime = new Date(entry.date).getTime();
+      if (!Number.isFinite(entryTime) || entryTime < weekCutoff) continue;
+      const sets = Number(entry.sets || 0);
+      weeklyVolume += sets * Number(entry.reps || 0) * Number(entry.weight || 0);
+      weeklySets += sets;
+      weeklyWorkoutDays.add(String(entry.date).slice(0, 10));
+    }
+    return [
+      {
+        label: "Weekly Volume",
+        value: `${Math.round(weeklyVolume).toLocaleString()} lb`,
+      },
+      { label: "Workouts", value: `${weeklyWorkoutDays.size} this week` },
+      { label: "Weekly Sets", value: `${weeklySets} sets` },
+      { label: "Templates", value: `${savedTemplates.length} saved` },
+    ];
+  }, [savedTemplates.length, workoutLogEntries]);
 
   const exerciseLibraryPriorityTargets = useMemo<
     ExerciseLibraryPriorityTarget[]
@@ -5762,6 +5790,24 @@ export default function SessionsPage() {
             </div>
             </section>
 
+          </div>
+        </section>
+
+        {/* Weekly stats orbit — moved here from the member dashboard's
+            floating snapshot header so it lives where workouts happen. */}
+        <section
+          aria-label="Weekly workout stats orbit"
+          className="relative z-10 mx-auto w-full max-w-[1216px] px-4 pb-1 pt-4 sm:px-6"
+        >
+          <div className="mx-auto w-full max-w-[430px] rounded-[24px] border border-white/10 bg-slate-950/55 px-3 pb-3 pt-2 shadow-[0_18px_50px_rgba(0,0,0,0.30)] backdrop-blur">
+            <p className="px-1 pt-1 text-center text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+              Weekly Stats Orbit
+            </p>
+            <DashboardConstellationStats
+              ariaTitle="Workout weekly stats"
+              className="pointer-events-auto mt-1"
+              metrics={workoutConstellationMetrics}
+            />
           </div>
         </section>
         <section className="hidden">

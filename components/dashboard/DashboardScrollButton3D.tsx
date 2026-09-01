@@ -16,13 +16,22 @@ type DashboardScrollButtonTone =
   | "fuchsia"
   | "sky"
   | "violet";
+export type DashboardScrollButtonGlyph =
+  | "account"
+  | "meter"
+  | "rewards"
+  | "selector";
 
 type DashboardScrollButton3DProps = {
   active?: boolean;
   activeDirection?: DashboardScrollButtonDirection | null;
   className?: string;
   compact?: boolean;
+  /** Center-ball icon previewing what the button navigates to next. */
+  glyph?: DashboardScrollButtonGlyph | null;
   horizontal?: boolean;
+  /** Which side arrow the pointer is over — that arrow highlights. */
+  hoverDirection?: DashboardScrollButtonDirection | null;
   paused?: boolean;
   showDown?: boolean;
   showUp?: boolean;
@@ -105,12 +114,65 @@ const createArrowShape = (THREE: typeof import("three")) => {
   return shape;
 };
 
+/**
+ * Stroke the next-destination icon onto the glyph texture canvas. Drawn in 2D
+ * (the ball's icon is a flat mark, not geometry) and re-drawn only when the
+ * glyph or tone changes.
+ */
+const drawJoystickGlyph = (
+  canvas: HTMLCanvasElement,
+  glyph: DashboardScrollButtonGlyph,
+  accent: string,
+) => {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  const u = canvas.width / 96;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.lineWidth = 7 * u;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#f0fdff";
+  ctx.shadowColor = accent;
+  ctx.shadowBlur = 10 * u;
+  ctx.beginPath();
+  if (glyph === "account") {
+    // Head over shoulders.
+    ctx.arc(48 * u, 34 * u, 13 * u, 0, Math.PI * 2);
+    ctx.moveTo(24 * u, 78 * u);
+    ctx.arc(48 * u, 78 * u, 24 * u, Math.PI, 0);
+  } else if (glyph === "selector") {
+    // 2x2 nav grid.
+    ctx.roundRect(20 * u, 20 * u, 24 * u, 24 * u, 5 * u);
+    ctx.roundRect(52 * u, 20 * u, 24 * u, 24 * u, 5 * u);
+    ctx.roundRect(20 * u, 52 * u, 24 * u, 24 * u, 5 * u);
+    ctx.roundRect(52 * u, 52 * u, 24 * u, 24 * u, 5 * u);
+  } else if (glyph === "rewards") {
+    // Gift box: lid band, box, ribbon, bow loops.
+    ctx.roundRect(22 * u, 34 * u, 52 * u, 14 * u, 3 * u);
+    ctx.roundRect(27 * u, 48 * u, 42 * u, 30 * u, 3 * u);
+    ctx.moveTo(48 * u, 34 * u);
+    ctx.lineTo(48 * u, 78 * u);
+    ctx.moveTo(41 * u, 27 * u);
+    ctx.arc(37 * u, 27 * u, 6 * u, 0, Math.PI * 2);
+    ctx.moveTo(65 * u, 27 * u);
+    ctx.arc(59 * u, 27 * u, 6 * u, 0, Math.PI * 2);
+  } else {
+    // Meter gauge: top arc plus needle.
+    ctx.arc(48 * u, 58 * u, 26 * u, Math.PI * 0.9, Math.PI * 2.1);
+    ctx.moveTo(48 * u, 58 * u);
+    ctx.lineTo(63 * u, 42 * u);
+  }
+  ctx.stroke();
+};
+
 export default function DashboardScrollButton3D({
   active = false,
   activeDirection = null,
   className = "",
   compact = false,
+  glyph = null,
   horizontal = false,
+  hoverDirection = null,
   paused = false,
   showDown = true,
   showUp = true,
@@ -120,6 +182,10 @@ export default function DashboardScrollButton3D({
   activeDirectionRef.current = activeDirection;
   const activeRef = useRef(active);
   activeRef.current = active;
+  const glyphRef = useRef(glyph);
+  glyphRef.current = glyph;
+  const hoverDirectionRef = useRef(hoverDirection);
+  hoverDirectionRef.current = hoverDirection;
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
   const toneRef = useRef(tone);
@@ -300,11 +366,19 @@ export default function DashboardScrollButton3D({
       });
       arrowGeometry.center();
 
+      // Each arrow gets its own material so the pointer-hovered side can
+      // brighten independently (a shared material can only scale per-arrow).
+      const arrowMaterials = {
+        down: arrowMaterial,
+        left: arrowMaterial.clone(),
+        right: arrowMaterial.clone(),
+        up: arrowMaterial.clone(),
+      };
       const arrows = {
-        down: new THREE.Mesh(arrowGeometry, arrowMaterial),
-        left: new THREE.Mesh(arrowGeometry, arrowMaterial),
-        right: new THREE.Mesh(arrowGeometry, arrowMaterial),
-        up: new THREE.Mesh(arrowGeometry, arrowMaterial),
+        down: new THREE.Mesh(arrowGeometry, arrowMaterials.down),
+        left: new THREE.Mesh(arrowGeometry, arrowMaterials.left),
+        right: new THREE.Mesh(arrowGeometry, arrowMaterials.right),
+        up: new THREE.Mesh(arrowGeometry, arrowMaterials.up),
       };
       arrows.up.position.set(0, compact ? 0.82 : 1.06, 0.2);
       arrows.up.rotation.z = 0;
@@ -318,6 +392,30 @@ export default function DashboardScrollButton3D({
       arrows.up.visible = showUpRef.current && !horizontal;
       arrows.down.visible = showDownRef.current && !horizontal;
 
+      // Center-ball glyph: a flat canvas-textured mark floating in front of
+      // the orb, previewing the next destination. Re-drawn only when the
+      // glyph or tone changes; hidden when no glyph prop is set.
+      const glyphCanvas = document.createElement("canvas");
+      glyphCanvas.width = 96;
+      glyphCanvas.height = 96;
+      const glyphTexture = new THREE.CanvasTexture(glyphCanvas);
+      glyphTexture.colorSpace = THREE.SRGBColorSpace;
+      const glyphMaterial = new THREE.MeshBasicMaterial({
+        depthWrite: false,
+        map: glyphTexture,
+        opacity: 0.94,
+        transparent: true,
+      });
+      const glyphPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.62, 0.62),
+        glyphMaterial,
+      );
+      glyphPlane.position.set(0, 0, 0.58);
+      glyphPlane.visible = false;
+      root.add(glyphPlane);
+      let lastDrawnGlyph: DashboardScrollButtonGlyph | null = null;
+      let lastDrawnGlyphTone: DashboardScrollButtonTone | null = null;
+
       let charge = 0;
       // Local clock: advances only while unpaused, so pausing freezes every
       // sine/rotation mid-phase and resuming continues from that same phase
@@ -328,32 +426,101 @@ export default function DashboardScrollButton3D({
       // including the single frame that paints the settled/paused look.
       let lastAppliedSeconds = -1;
       let lastAppliedTone: DashboardScrollButtonTone | null = null;
+      let lastAppliedActive: boolean | null = null;
       let lastAppliedDirection: DashboardScrollButtonDirection | null = null;
+      let lastAppliedHover: DashboardScrollButtonDirection | null = null;
+      let lastAppliedGlyph: DashboardScrollButtonGlyph | null = null;
       let lastAppliedShowUp: boolean | null = null;
       let lastAppliedShowDown: boolean | null = null;
+      let lastObservedPaused: boolean | null = null;
+      // The idle spin/sway is decorative at 40-56px, so it runs only inside a
+      // short wake window after each prop or pause edge; without the window
+      // this widget never settles and alone pins the whole shared stage.
+      const WAKE_WINDOW_SECONDS = 1.5;
+      let wakeWindowSeconds = WAKE_WINDOW_SECONDS;
+      // Half-rate gate while awake: alternate unpaused calls mutate nothing
+      // and return false, so the stage presents the joystick at ~15fps; the
+      // skipped (clamped) delta is banked so every sine phase stays continuous
+      // (same pattern as DashboardSoundPointsTeslaCoil3D).
+      let framePhase = 0;
+      let bankedDelta = 0;
 
       const update = (_elapsed: number, delta: number) => {
         const pausedForFrame = pausedRef.current;
-        const frameDelta = pausedForFrame ? 0 : delta * 1000;
-        if (!pausedForFrame) localSeconds += delta;
-        const seconds = localSeconds;
-
+        const toneForFrame = toneRef.current;
+        const activeForFrame = activeRef.current;
+        const activeDirectionForFrame = activeDirectionRef.current;
+        const hoverForFrame = hoverDirectionRef.current;
+        const glyphForFrame = glyphRef.current;
         const showUpForFrame = showUpRef.current && !horizontal;
         const showDownForFrame = showDownRef.current && !horizontal;
+
+        // Any prop edge (or an unpause) re-arms the wake window so the pose
+        // eases through the change before the widget goes still again.
+        const propsSettled =
+          toneForFrame === lastAppliedTone &&
+          activeForFrame === lastAppliedActive &&
+          activeDirectionForFrame === lastAppliedDirection &&
+          hoverForFrame === lastAppliedHover &&
+          glyphForFrame === lastAppliedGlyph &&
+          showUpForFrame === lastAppliedShowUp &&
+          showDownForFrame === lastAppliedShowDown;
+        const unpauseEdge = !pausedForFrame && lastObservedPaused === true;
+        lastObservedPaused = pausedForFrame;
+        if (!propsSettled || unpauseEdge) {
+          wakeWindowSeconds = WAKE_WINDOW_SECONDS;
+          // Land the edge on an active throttle phase so the change repaints
+          // on this call, not one skipped call later.
+          framePhase = 0;
+        }
+
+        // charge > 0 is part of awake, so a settled return implies charge has
+        // snapped to exactly 0 and every write below would rewrite identical
+        // values. The wake window only counts while unpaused: paused has no
+        // idle motion to show, and the unpause edge re-arms a full window.
+        const awake =
+          charge > 0 ||
+          activeForFrame ||
+          Boolean(hoverForFrame) ||
+          (!pausedForFrame && wakeWindowSeconds > 0);
+        if (!awake && propsSettled) return false;
+
+        // While unpaused, alternate calls bank their delta and skip; the next
+        // active call advances the clock by the full real elapsed time.
+        let effectiveDelta = delta;
+        let frameDelta = 0;
+        if (!pausedForFrame) {
+          framePhase ^= 1;
+          if (framePhase === 0) {
+            bankedDelta += Math.min(0.05, delta);
+            return false;
+          }
+          effectiveDelta = Math.min(0.05, delta) + bankedDelta;
+          bankedDelta = 0;
+          localSeconds += effectiveDelta;
+          wakeWindowSeconds = Math.max(0, wakeWindowSeconds - effectiveDelta);
+          frameDelta = effectiveDelta * 1000;
+        }
+        const seconds = localSeconds;
+
         arrows.up.visible = showUpForFrame;
         arrows.down.visible = showDownForFrame;
 
-        const toneForFrame = toneRef.current;
         const toneColorsForFrame = toneColors[toneForFrame] ?? toneColors.cyan;
-        const activeDirectionForFrame = activeDirectionRef.current;
         // While paused the charge drains to 0 even if active is held (same as
         // DashboardLightningBolt3D), easing the glow into the rest look.
+        // HORIZONTAL instances (the orbit joystick) pass activeDirection as a
+        // STANDING lean pose — it must not count as motion or the charge pins
+        // at 1 and the widget never settles. Vertical scroll buttons pass it
+        // transiently while scrolling, where it genuinely means activity.
         const activeMotion =
           !pausedForFrame &&
-          (activeRef.current || Boolean(activeDirectionForFrame));
+          (activeForFrame ||
+            Boolean(hoverForFrame) ||
+            (!horizontal && Boolean(activeDirectionForFrame)));
         const chargeTarget = activeMotion ? 1 : 0;
         const previousCharge = charge;
-        charge += (chargeTarget - charge) * Math.min(1, delta * 16);
+        charge += (chargeTarget - charge) * Math.min(1, effectiveDelta * 16);
         // Snap across the epsilon so the ease stops asymptotically converging.
         if (chargeTarget === 0 && charge < 0.002) charge = 0;
         else if (chargeTarget === 1 && charge > 0.998) charge = 1;
@@ -364,27 +531,46 @@ export default function DashboardScrollButton3D({
         ringMaterial.emissive.set(toneColorsForFrame.accent);
         coreMaterial.color.set(toneColorsForFrame.spark);
         sparkMaterial.color.set(toneColorsForFrame.core);
-        arrowMaterial.emissive.set(toneColorsForFrame.core);
+        Object.values(arrowMaterials).forEach((material) =>
+          material.emissive.set(toneColorsForFrame.core),
+        );
         accentLight.color.set(toneColorsForFrame.core);
         warmLight.color.set(toneColorsForFrame.spark);
+
+        // Keep the center glyph current (rare: only on glyph/tone changes).
+        if (
+          glyphForFrame !== lastDrawnGlyph ||
+          (glyphForFrame && toneForFrame !== lastDrawnGlyphTone)
+        ) {
+          if (glyphForFrame) {
+            drawJoystickGlyph(
+              glyphCanvas,
+              glyphForFrame,
+              toneColorsForFrame.core,
+            );
+            glyphTexture.needsUpdate = true;
+          }
+          glyphPlane.visible = Boolean(glyphForFrame);
+          lastDrawnGlyph = glyphForFrame;
+          lastDrawnGlyphTone = toneForFrame;
+        }
 
         root.rotation.x = Math.sin(seconds * 0.72) * 0.035 * (1 + charge);
         root.rotation.y = Math.sin(seconds * 0.56) * 0.08 * (0.5 + charge);
         orbGroup.rotation.y += frameDelta * (0.00055 + charge * 0.0024);
         orbGroup.rotation.x = Math.sin(seconds * 1.1) * 0.16 * charge;
+        // The orb leans toward the pointer-hovered arrow when there is one,
+        // else toward the standing active direction.
+        const leanDirection = hoverForFrame ?? activeDirectionForFrame;
         orbGroup.position.x =
-          activeDirectionForFrame === "left"
-            ? -0.16
-            : activeDirectionForFrame === "right"
-              ? 0.16
-              : 0;
+          leanDirection === "left" ? -0.16 : leanDirection === "right" ? 0.16 : 0;
         orbGroup.position.y =
-          activeDirectionForFrame === "up"
-            ? 0.16
-            : activeDirectionForFrame === "down"
-              ? -0.16
-              : 0;
+          leanDirection === "up" ? 0.16 : leanDirection === "down" ? -0.16 : 0;
         orbGroup.scale.setScalar(0.94 + charge * 0.08);
+        // The glyph floats with the orb but never spins with it.
+        glyphPlane.position.x = orbGroup.position.x;
+        glyphPlane.position.y = orbGroup.position.y;
+        glyphPlane.scale.setScalar(0.96 + charge * 0.08);
 
         fieldMaterial.emissiveIntensity = 0.06 + charge * 0.12;
         fieldMaterial.opacity = 0.1 + charge * 0.1;
@@ -410,10 +596,17 @@ export default function DashboardScrollButton3D({
         );
 
         Object.entries(arrows).forEach(([direction, arrow]) => {
-          const highlighted = activeDirectionForFrame === direction;
-          const pulse = highlighted ? 1 + Math.sin(seconds * 8) * 0.08 : 1;
-          arrowMaterial.emissiveIntensity = 0.22 + charge * 0.42;
-          arrow.scale.setScalar((highlighted ? 1.32 : 1) * pulse);
+          const isActive = activeDirectionForFrame === direction;
+          const isHovered = hoverForFrame === direction;
+          const pulse = isActive ? 1 + Math.sin(seconds * 8) * 0.08 : 1;
+          const material =
+            arrowMaterials[direction as DashboardScrollButtonDirection];
+          material.emissiveIntensity =
+            0.22 + charge * 0.42 + (isHovered ? 0.6 : 0);
+          material.opacity = isHovered ? 0.95 : 0.68;
+          arrow.scale.setScalar(
+            (isHovered ? 1.42 : isActive ? 1.32 : 1) * pulse,
+          );
         });
 
         accentLight.intensity = 1.9 + charge * 2.2;
@@ -427,12 +620,18 @@ export default function DashboardScrollButton3D({
           seconds !== lastAppliedSeconds ||
           charge !== previousCharge ||
           toneForFrame !== lastAppliedTone ||
+          activeForFrame !== lastAppliedActive ||
           activeDirectionForFrame !== lastAppliedDirection ||
+          hoverForFrame !== lastAppliedHover ||
+          glyphForFrame !== lastAppliedGlyph ||
           showUpForFrame !== lastAppliedShowUp ||
           showDownForFrame !== lastAppliedShowDown;
         lastAppliedSeconds = seconds;
         lastAppliedTone = toneForFrame;
+        lastAppliedActive = activeForFrame;
         lastAppliedDirection = activeDirectionForFrame;
+        lastAppliedHover = hoverForFrame;
+        lastAppliedGlyph = glyphForFrame;
         lastAppliedShowUp = showUpForFrame;
         lastAppliedShowDown = showDownForFrame;
         return stillMoving;
@@ -443,6 +642,7 @@ export default function DashboardScrollButton3D({
         camera,
         update,
         dispose: () => {
+          glyphTexture.dispose();
           disposeObject(scene);
         },
       };
@@ -452,18 +652,12 @@ export default function DashboardScrollButton3D({
     [],
   );
 
-  return (
-    <>
-      <span
-        aria-hidden="true"
-        className="dashboard-header-scroll-button__bubble-fallback"
-        data-active={active || Boolean(activeDirection) ? "true" : "false"}
-        data-compact={compact ? "true" : "false"}
-        data-direction={activeDirection ?? "idle"}
-        data-horizontal={horizontal ? "true" : "false"}
-        data-paused={paused && !active && !activeDirection ? "true" : "false"}
-      />
-      <DashboardWebGlWidget build={build} className={className} />
-    </>
-  );
+  // No DOM stand-in. The bubble that used to sit here was a glassy sphere and
+  // the 3D it gave way to is a joystick with arrows and a centre glyph, so
+  // every load visibly morphed one object into a different one. A stand-in is
+  // only worth having if it looks like the thing it stands in for; the button's
+  // own frame and glow carry the warm-up instead, and the joystick appears
+  // inside it. Removing the span also lets the button's ::before field come
+  // back — globals.css suppressed it only because the bubble was covering it.
+  return <DashboardWebGlWidget build={build} className={className} />;
 }

@@ -158,6 +158,7 @@ const setIlluminationTargetPulse = (
 const updateStageIlluminationTargets = (
   targets: DashboardStageIlluminationTarget[] | undefined,
   seconds: number,
+  state: { lastIdlePulse: number },
 ) => {
   if (!targets?.length) return;
 
@@ -167,11 +168,24 @@ const updateStageIlluminationTargets = (
   const downDuration = count * STAGE_CHASE_STEP_SECONDS;
   const chaseEnd = downStart + downDuration;
 
+  if (seconds > chaseEnd) {
+    // Chase complete: only the low-amplitude idle shimmer remains, folded into
+    // ONE shared rectified-sine pulse (a single sin per frame instead of one
+    // per target). The rectified pulse sits at exactly 0 for half of every
+    // cycle, and the materials already hold the base pose then — skip the
+    // whole per-target loop until the pulse lifts off zero again.
+    const idlePulse = Math.max(0, Math.sin(seconds * 1.42)) * 0.12;
+    if (idlePulse === 0 && state.lastIdlePulse === 0) return;
+    state.lastIdlePulse = idlePulse;
+    targets.forEach((target) => {
+      setIlluminationTargetPulse(target, idlePulse);
+    });
+    return;
+  }
+
+  // -1 (never a real pulse value) forces the first post-chase idle write.
+  state.lastIdlePulse = -1;
   targets.forEach((target, index) => {
-    const idlePulse =
-      seconds > chaseEnd
-        ? Math.max(0, Math.sin(seconds * 1.42 + index * 0.88)) * 0.12
-        : 0;
     let chasePulse = 0;
 
     if (seconds < upDuration) {
@@ -183,7 +197,7 @@ const updateStageIlluminationTargets = (
       chasePulse = Math.max(0, 1 - Math.abs(cursor - index) / 0.52);
     }
 
-    setIlluminationTargetPulse(target, Math.max(chasePulse, idlePulse));
+    setIlluminationTargetPulse(target, chasePulse);
   });
 };
 
@@ -1604,6 +1618,7 @@ export default function DashboardSoundPointsTeslaCoil3D({
       const stairChaseTargets = stageFloor.userData.stairChaseTargets as
         | DashboardStageIlluminationTarget[]
         | undefined;
+      const stairChaseState = { lastIdlePulse: -1 };
       const chargeMaterial = coil.chargeColumn.material as Material & {
         opacity?: number;
       };
@@ -1615,11 +1630,31 @@ export default function DashboardSoundPointsTeslaCoil3D({
       const orbCoreMaterial = coil.orbCore.material as DashboardIlluminatedMaterial;
       topOrbMaterial.emissive?.set("#38bdf8");
 
-      const update = (elapsedSeconds: number, deltaSeconds: number) => {
-        const seconds = elapsedSeconds;
-        const frameDelta = Math.min(0.05, deltaSeconds);
+      // Local clock: advances only on active frames, so pausing freezes the
+      // pose and resuming never time-jumps (same pattern as
+      // DashboardLevelMeterBar3D). Never key motion off the stage's global
+      // elapsed — it advances even while paused, reporting "changed" forever.
+      let localSeconds = 0;
+      // Half-rate gate: this is the panel's heaviest scene (6 lightning arcs,
+      // the orb crown, turbines, stair targets — three buffer uploads per arc),
+      // and any `true` forces a full shared-stage redraw. Every SECOND unpaused
+      // call mutates nothing and returns false, so the stage presents the coil
+      // at ~15fps; the skipped delta is banked into the next active frame, so
+      // motion speed and every sine phase stay continuous.
+      let framePhase = 0;
+      let bankedDelta = 0;
 
+      const update = (_elapsedSeconds: number, deltaSeconds: number) => {
         if (!pausedRef.current) {
+          framePhase ^= 1;
+          if (framePhase === 0) {
+            bankedDelta += Math.min(0.05, deltaSeconds);
+            return false;
+          }
+          const frameDelta = Math.min(0.05, deltaSeconds) + bankedDelta;
+          bankedDelta = 0;
+          localSeconds += frameDelta;
+          const seconds = localSeconds;
           const pointCharge = Math.min(1.4, Math.max(0.62, pointsRef.current / 1200));
           coil.group.rotation.y += frameDelta * 0.42;
           const orbOpenSurge = Math.max(0, 1 - seconds / 2.35);
@@ -1800,7 +1835,11 @@ export default function DashboardSoundPointsTeslaCoil3D({
 
           stageGlow.scale.setScalar(1 + Math.sin(seconds * 1.6) * 0.025);
           stageGlow.rotation.z += frameDelta * 0.18;
-          updateStageIlluminationTargets(stairChaseTargets, seconds);
+          updateStageIlluminationTargets(
+            stairChaseTargets,
+            seconds,
+            stairChaseState,
+          );
           stageFloor.rotation.y = Math.sin(seconds * 0.42) * 0.012;
           return true;
         }
