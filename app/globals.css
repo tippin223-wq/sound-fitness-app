@@ -3312,6 +3312,18 @@ html[data-dashboard-webgl-image-mode="still"]
   animation-play-state: paused !important;
 }
 
+/* Speed audit (Sept 2026): with the meter menu or the level meter open, the
+   avatar's ten idle animations (breathe, arm sway, head idle, blink, gaze,
+   crest glow) re-rasterised the whole avatar SVG on every frame — pausing
+   them alone doubled the open-menu frame rate. The header's rail particles
+   (offset-path travel, main-thread) sit under the panel and were the next
+   largest per-frame cost. */
+.dashboard-page--meter-menu-open .sound-fitness-avatar *,
+.dashboard-page--level-meter-open .sound-fitness-avatar *,
+.dashboard-header-vortex-shell--meter-menu-open .dashboard-header-rail-particle {
+  animation-play-state: paused !important;
+}
+
 
 .exercise-library-card-volume-fill::before {
   animation: exercise-library-liquid-wave 4.8s ease-in-out infinite;
@@ -14924,11 +14936,375 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   z-index: 10;
 }
 
+/* Open, the panel IS the popup card: the explainer column on the left and the
+   3D bar on the right sit inside one frame, with a close control in the
+   corner because the semicircle tab hides while this is up. */
 .dashboard-page-level-meter-control--open .dashboard-page-level-meter-panel {
+  align-items: center;
+  background:
+    linear-gradient(160deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.94));
+  border: 1px solid rgba(125, 211, 252, 0.28);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 0 1.1rem rgba(34, 211, 238, 0.16),
+    0 1.2rem 2.4rem rgba(2, 6, 23, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  display: flex;
+  gap: 0.3rem;
   opacity: 1;
+  padding: 0.55rem 0.35rem 0.55rem 0.2rem;
   pointer-events: auto;
   transform: translate(0, -50%) scale(1);
   visibility: visible;
+}
+
+/* The level explainer sits to the LEFT of the vertical bar inside the open
+   panel. The panel is anchored by its right edge against the tab, so a flex
+   row simply grows leftward; the explainer's clamp keeps the whole assembly
+   (tab + bar + explainer) inside a 320px viewport. It scrolls internally
+   rather than ever growing past the bar's height. */
+/* No frame of its own — it is the left column of the popup card above. A hair
+   of divider on its right separates it from the bar. */
+.dashboard-page-level-meter-explainer {
+  border-right: 1px solid rgba(125, 211, 252, 0.14);
+  color: rgba(224, 242, 254, 0.92);
+  display: grid;
+  gap: 0.55rem;
+  max-height: 22.8rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0.35rem clamp(0.6rem, 2.6vw, 0.9rem) 0.35rem
+    clamp(0.55rem, 2.4vw, 0.8rem);
+  pointer-events: auto;
+  scrollbar-width: none;
+  text-align: left;
+  /* 8.5rem floor: at a 280px viewport the tab, bar and this panel total
+     ~268px, so nothing hangs off the left edge. */
+  width: clamp(8.5rem, 42vw, 15rem);
+}
+
+.dashboard-page-level-meter-explainer > * {
+  min-width: 0;
+}
+
+/* Outgoing ring glyph: a one-shot exit that mirrors the swap's hidden pose
+   (sink, shrink, fade) so the old icon hands off instead of vanishing. */
+/* The ghost is centred with -translate-x-1/2 (Tailwind v4 = the `translate`
+   property), so the keyframe must carry that -50% x or the glyph jumps left
+   by half its width as it exits instead of sinking straight down. */
+@keyframes sf-ring-face-exit {
+  from {
+    opacity: 1;
+    scale: 1;
+    translate: -50% 0;
+  }
+  to {
+    opacity: 0;
+    scale: 0.9;
+    translate: -50% 7px;
+  }
+}
+
+.sf-ring-face-ghost {
+  animation: sf-ring-face-exit 220ms ease-in forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sf-ring-face-ghost {
+    animation-duration: 1ms;
+  }
+}
+
+/* While the popup is up the semicircle has done its job — hide it. The control
+   box keeps its size so the panel, which is anchored to it, doesn't move.
+   Opacity rather than display: the runtime stylesheet's transform rules on the
+   tab are !important and stay valid, and the panel's anchor rect survives. */
+.dashboard-page-level-meter-control--open .dashboard-page-level-meter-tab {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+
+.dashboard-page-level-meter-panel__close {
+  align-items: center;
+  background: rgba(2, 6, 23, 0.72);
+  border: 1px solid rgba(125, 211, 252, 0.34);
+  border-radius: 9999px;
+  color: rgba(207, 250, 254, 0.9);
+  cursor: pointer;
+  display: grid;
+  font-size: 1rem;
+  font-weight: 800;
+  height: 1.45rem;
+  line-height: 1;
+  place-items: center;
+  position: absolute;
+  /* Tucked into the card's corner, half outside it, so it clears the trophy
+     cap that sits at the top of the bar directly beneath. */
+  right: -0.35rem;
+  top: -0.35rem;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+  width: 1.45rem;
+  z-index: 20;
+}
+
+.dashboard-page-level-meter-panel__close:hover,
+.dashboard-page-level-meter-panel__close:focus-visible {
+  border-color: rgba(207, 250, 254, 0.6);
+  box-shadow: 0 0 0.6rem rgba(34, 211, 238, 0.35);
+  outline: none;
+  transform: scale(1.06);
+}
+
+/* ==== HEADER HOVER-TO-OPEN ARMING CUE ==== */
+/* Shown while data-header-arming is set on the shell — i.e. the cursor is on
+   the idle band and the open dwell is counting. A glow says "registered"; the
+   bar filling along the bottom edge over exactly the dwell says "opening".
+   Transitions, not animations: the idle state parks every animation under
+   the shell with an !important play-state blanket, and this has to run while
+   idle. Removing the attribute snaps the bar back with no transition, so an
+   abandoned hover does not play out in reverse. */
+.dashboard-header-arming-cue {
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 1px rgba(103, 232, 249, 0.42),
+    inset 0 -0.7rem 1.3rem rgba(34, 211, 238, 0.22),
+    0 0 1.4rem rgba(34, 211, 238, 0.28);
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity 160ms ease;
+  z-index: 2;
+}
+
+.dashboard-header-arming-cue__bar {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.95), rgba(250, 204, 21, 0.95));
+  border-radius: 9999px;
+  bottom: 0;
+  box-shadow: 0 0 0.55rem rgba(34, 211, 238, 0.65);
+  height: 3px;
+  left: 6%;
+  position: absolute;
+  right: 6%;
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+.dashboard-header-vortex-shell[data-header-arming="true"] .dashboard-header-arming-cue {
+  opacity: 1;
+}
+
+.dashboard-header-vortex-shell[data-header-arming="true"] .dashboard-header-arming-cue__bar {
+  transform: scaleX(1);
+  transition: transform var(--dashboard-header-arm-ms, 2000ms) linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-header-vortex-shell[data-header-arming="true"] .dashboard-header-arming-cue__bar {
+    transition: none;
+  }
+}
+
+.dashboard-page-level-meter-explainer::-webkit-scrollbar {
+  display: none;
+}
+
+.dashboard-page-level-meter-explainer__eyebrow,
+.dashboard-page-level-meter-explainer__heading {
+  font-size: 0.5rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.dashboard-page-level-meter-explainer__eyebrow {
+  color: rgba(165, 243, 252, 0.78);
+}
+
+.dashboard-page-level-meter-explainer__heading {
+  color: rgba(253, 230, 138, 0.85);
+  letter-spacing: 0.16em;
+  margin-top: 0.2rem;
+}
+
+.dashboard-page-level-meter-explainer__level {
+  align-items: baseline;
+  display: flex;
+  gap: 0.45rem;
+}
+
+.dashboard-page-level-meter-explainer__level-number {
+  color: #fffbeb;
+  font-size: 1.55rem;
+  font-weight: 950;
+  line-height: 1;
+  text-shadow:
+    0 0 0.5rem rgba(34, 211, 238, 0.45),
+    0 0 0.6rem rgba(250, 204, 21, 0.25);
+}
+
+.dashboard-page-level-meter-explainer__level-next {
+  color: rgba(207, 250, 254, 0.82);
+  font-size: 0.56rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-page-level-meter-explainer__bar {
+  background: rgba(148, 163, 184, 0.16);
+  border-radius: 9999px;
+  height: 0.42rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.dashboard-page-level-meter-explainer__bar-fill {
+  background: linear-gradient(90deg, rgba(34, 211, 238, 0.95), rgba(250, 204, 21, 0.95));
+  border-radius: inherit;
+  box-shadow: 0 0 0.5rem rgba(34, 211, 238, 0.5);
+  inset: 0 auto 0 0;
+  position: absolute;
+  transition: width 420ms cubic-bezier(0.2, 0.82, 0.2, 1);
+}
+
+.dashboard-page-level-meter-explainer__points {
+  color: rgba(207, 250, 254, 0.86);
+  display: flex;
+  font-size: 0.56rem;
+  font-weight: 900;
+  justify-content: space-between;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.dashboard-page-level-meter-explainer__milestones {
+  display: grid;
+  gap: 0.38rem;
+}
+
+.dashboard-page-level-meter-explainer__milestone {
+  align-items: center;
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: 1.55rem minmax(0, 1fr) auto;
+}
+
+.dashboard-page-level-meter-explainer__milestone-icon {
+  /* The reward icon paints through these three properties, which only the
+     rail and the tab define — without them its color-mix() calls collapse to
+     nothing and the icon renders as a dark disc. Same values as the rail's
+     per-icon rules in dashboard-runtime.css. */
+  --dashboard-page-analog-reward-accent: rgba(125, 211, 252, 0.72);
+  --dashboard-page-analog-reward-fill: rgba(125, 211, 252, 0.28);
+  --dashboard-page-analog-reward-ink: rgba(236, 254, 255, 0.9);
+  display: grid;
+  height: 1.55rem;
+  place-items: center;
+  width: 1.55rem;
+}
+
+.dashboard-page-level-meter-explainer__milestone-icon--coin {
+  --dashboard-page-analog-reward-accent: rgba(250, 204, 21, 0.94);
+  --dashboard-page-analog-reward-fill: rgba(250, 204, 21, 0.32);
+  --dashboard-page-analog-reward-ink: rgba(255, 251, 235, 0.98);
+}
+
+.dashboard-page-level-meter-explainer__milestone-icon--emerald {
+  --dashboard-page-analog-reward-accent: rgba(52, 211, 153, 0.94);
+  --dashboard-page-analog-reward-fill: rgba(52, 211, 153, 0.28);
+  --dashboard-page-analog-reward-ink: rgba(209, 250, 229, 0.98);
+}
+
+.dashboard-page-level-meter-explainer__milestone-icon--trophy {
+  --dashboard-page-analog-reward-accent: rgba(251, 191, 36, 0.96);
+  --dashboard-page-analog-reward-fill: rgba(251, 191, 36, 0.28);
+  --dashboard-page-analog-reward-ink: rgba(255, 251, 235, 0.98);
+}
+
+.dashboard-page-level-meter-explainer__milestone-icon--unlocked {
+  --dashboard-page-analog-reward-ink: rgba(255, 255, 255, 0.98);
+}
+
+.dashboard-page-level-meter-explainer__milestone-label {
+  color: #ecfeff;
+  display: block;
+  font-size: 0.6rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.dashboard-page-level-meter-explainer__milestone-meta {
+  color: rgba(165, 243, 252, 0.7);
+  display: block;
+  font-size: 0.5rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  margin-top: 0.12rem;
+  text-transform: uppercase;
+}
+
+.dashboard-page-level-meter-explainer__status {
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+  color: rgba(203, 213, 225, 0.8);
+  font-size: 0.46rem;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  padding: 0.2rem 0.42rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.dashboard-page-level-meter-explainer__status--unlocked {
+  background: rgba(52, 211, 153, 0.12);
+  border-color: rgba(52, 211, 153, 0.5);
+  color: #a7f3d0;
+}
+
+.dashboard-page-level-meter-explainer__status--next {
+  background: rgba(250, 204, 21, 0.12);
+  border-color: rgba(250, 204, 21, 0.55);
+  color: #fde68a;
+}
+
+.dashboard-page-level-meter-explainer__milestone > * {
+  min-width: 0;
+}
+
+/* One row per source: two columns of "WORKOUT +130" don't fit the narrow
+   floor width without overflowing, and the overflow scrolls the whole card
+   sideways. */
+.dashboard-page-level-meter-explainer__earn {
+  display: grid;
+  gap: 0.22rem;
+  grid-template-columns: 1fr;
+}
+
+.dashboard-page-level-meter-explainer__earn-item {
+  color: rgba(207, 250, 254, 0.82);
+  display: flex;
+  font-size: 0.54rem;
+  font-weight: 800;
+  gap: 0.4rem;
+  justify-content: space-between;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.dashboard-page-level-meter-explainer__earn-value {
+  color: #fde68a;
+  font-weight: 950;
+}
+
+.dashboard-page-level-meter-explainer__note {
+  color: rgba(148, 163, 184, 0.85);
+  font-size: 0.5rem;
+  line-height: 1.35;
 }
 
 .dashboard-page-analog-dock {
@@ -17991,6 +18367,63 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
       transparent 38%
     ),
     linear-gradient(180deg, rgba(15, 23, 42, 0.64), rgba(2, 6, 23, 0.66));
+}
+
+/* Hero deck news page (virtual index -1) — opened by the "left" gesture at
+   the welcome card, like the news feed one swipe left of a phone's home
+   screen. Motion is translate/opacity only; no filters, no keyframes. */
+.dashboard-hero-card--news {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(34, 211, 238, 0.16), transparent 34%),
+    radial-gradient(circle at 90% 14%, rgba(250, 204, 21, 0.08), transparent 30%),
+    radial-gradient(circle at 50% 104%, rgba(52, 211, 153, 0.1), transparent 34%),
+    linear-gradient(135deg, rgba(8, 13, 28, 0.94), rgba(2, 6, 23, 0.86));
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.34),
+    0 0 42px rgba(34, 211, 238, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.dashboard-hero-news-row {
+  border-left-width: 2px;
+  transition:
+    translate 200ms ease,
+    opacity 200ms ease;
+}
+
+.dashboard-hero-news-row[data-news-tone="amber"] {
+  border-left-color: rgba(250, 204, 21, 0.55);
+}
+
+.dashboard-hero-news-row[data-news-tone="cyan"] {
+  border-left-color: rgba(34, 211, 238, 0.55);
+}
+
+.dashboard-hero-news-row[data-news-tone="emerald"] {
+  border-left-color: rgba(52, 211, 153, 0.55);
+}
+
+.dashboard-hero-news-row[data-news-tone="sky"] {
+  border-left-color: rgba(56, 189, 248, 0.55);
+}
+
+.dashboard-hero-news-row[data-news-tone="violet"] {
+  border-left-color: rgba(167, 139, 250, 0.55);
+}
+
+.dashboard-hero-news-row:hover {
+  translate: 0 -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-hero-news-section,
+  .dashboard-hero-news-row {
+    transition: none !important;
+  }
+
+  .dashboard-hero-news-row:hover {
+    translate: none;
+  }
 }
 
 .dashboard-hero-widgets-drawer-trigger {
@@ -22038,11 +22471,13 @@ html[data-dashboard-webgl="warming"]
 
 .dashboard-header-category-levels-menu__ufo-webgl {
   display: block;
-  filter:
-    drop-shadow(
-      0 0 0.82rem color-mix(in srgb, var(--dashboard-header-category-color) 52%, transparent)
-    )
-    drop-shadow(0 0.74rem 1rem rgba(2, 6, 23, 0.86));
+  /* One filter pass, not two: this canvas redraws every frame the scene
+     animates, and each drop-shadow re-filters the full 575x620 element on
+     every one of those frames. The dark offset shadow was the less visible
+     of the pair over an already-dark panel. (Speed audit, Sept 2026.) */
+  filter: drop-shadow(
+    0 0 0.82rem color-mix(in srgb, var(--dashboard-header-category-color) 52%, transparent)
+  );
   height: 280px;
   left: 50%;
   mix-blend-mode: normal;
@@ -23824,9 +24259,10 @@ html
 
 .dashboard-header-meter-tornado__emeralds-3d {
   bottom: auto;
-  filter: drop-shadow(0 0 0.38rem var(--dashboard-meter-tornado-gem-glow-soft))
-    drop-shadow(0 0 0.9rem var(--dashboard-meter-tornado-gem-glow))
-    drop-shadow(0 0 1.45rem rgba(125, 211, 252, 0.18));
+  /* One glow pass instead of three: this is a live canvas and every
+     drop-shadow re-filters its full 418k px area per rendered frame.
+     (Speed audit.) */
+  filter: drop-shadow(0 0 0.9rem var(--dashboard-meter-tornado-gem-glow));
   height: calc(112% + 1.8rem);
   left: -6%;
   mix-blend-mode: screen;
@@ -24359,8 +24795,9 @@ html
 
 .dashboard-header-meter-panel__stack--orbit
   .dashboard-header-meter-panel__section--slot-left {
-  filter: saturate(0.76) brightness(0.66);
-  opacity: 0.48;
+  /* Dimmed by opacity alone: the colour filter re-rasterised this whole
+     rotated section every frame the panel animated. (Speed audit.) */
+  opacity: 0.44;
   transform: translate3d(calc(-50% - 370px), -50%, -62px) rotateX(-4deg)
     rotateY(66deg);
   visibility: visible;
@@ -24369,8 +24806,9 @@ html
 
 .dashboard-header-meter-panel__stack--orbit
   .dashboard-header-meter-panel__section--slot-right {
-  filter: saturate(0.76) brightness(0.66);
-  opacity: 0.48;
+  /* Dimmed by opacity alone: the colour filter re-rasterised this whole
+     rotated section every frame the panel animated. (Speed audit.) */
+  opacity: 0.44;
   transform: translate3d(calc(-50% + 370px), -50%, -62px) rotateX(-4deg)
     rotateY(-66deg);
   visibility: visible;
@@ -24466,8 +24904,9 @@ html
   .dashboard-header-meter-panel__section--slot-left:hover,
 .dashboard-header-meter-panel__stack--orbit
   .dashboard-header-meter-panel__section--slot-left:focus-within {
-  filter: saturate(0.76) brightness(0.66);
-  opacity: 0.48;
+  /* Dimmed by opacity alone: the colour filter re-rasterised this whole
+     rotated section every frame the panel animated. (Speed audit.) */
+  opacity: 0.44;
   transform: translate3d(calc(-50% - 370px), -50%, -62px) rotateX(-4deg)
     rotateY(66deg);
   visibility: visible;
@@ -24480,8 +24919,9 @@ html
   .dashboard-header-meter-panel__section--slot-right:hover,
 .dashboard-header-meter-panel__stack--orbit
   .dashboard-header-meter-panel__section--slot-right:focus-within {
-  filter: saturate(0.76) brightness(0.66);
-  opacity: 0.48;
+  /* Dimmed by opacity alone: the colour filter re-rasterised this whole
+     rotated section every frame the panel animated. (Speed audit.) */
+  opacity: 0.44;
   transform: translate3d(calc(-50% + 370px), -50%, -62px) rotateX(-4deg)
     rotateY(-66deg);
   visibility: visible;
@@ -24932,6 +25372,60 @@ html
   top: 50%;
   transform: translate(-50%, -56%);
   width: 5.9rem;
+}
+
+/* The plan ring is ~5.9rem tall but its row collapses to ~15px, so the gauge
+   spilled ~40px above and below — over the week-sessions graph above and the
+   daily-sets meter below. That is the "overlapped instead of stacked" report.
+   Give the row real height and centre the ring inside it, trimming the ring a
+   little so the extra height still fits the panel. */
+.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+  .dashboard-header-plan-attendance {
+  min-height: 4.9rem;
+}
+
+.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+  .dashboard-header-plan-attendance
+  .dashboard-header-streak-fire__gauge {
+  height: 4.6rem;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 4.6rem;
+}
+
+.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+  .dashboard-header-plan-attendance
+  .dashboard-header-streak-fire__content {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* The week-sessions graph is a fixed 10rem-ish block in a full-width row with
+   no auto margins, so it sat hard against the left edge rather than centred
+   under its own meter. */
+.dashboard-header-meter-panel .dashboard-header-week-sessions__graph {
+  align-self: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* The scroller is a fixed-height viewport (~8.85rem) and the taller plan row
+   pushed its content to ~13.3rem, so the daily-sets meter below kept its old
+   position and the ring overlapped it. Give the viewport the height its
+   stacked content now needs. */
+/* The section is a grid whose implicit rows are pinned to a fixed track size,
+   so a taller scroller could not push the daily-sets meter down and the ring
+   kept landing on top of it. Let these rows size to their content. */
+.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center {
+  grid-auto-rows: auto;
+}
+
+.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+  .dashboard-header-meter-scroller,
+.dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
+  .dashboard-header-meter-scroller__track {
+  height: auto !important;
+  min-height: 13.5rem;
 }
 
 .dashboard-header-meter-panel__section--daily.dashboard-header-meter-panel__section--slot-center
@@ -26971,8 +27465,10 @@ html
 
 .dashboard-header-meter-panel[data-meter-highlight="ufo"]
   .dashboard-header-meter-panel__section--slot-center {
-  filter: saturate(0.96) brightness(0.9) blur(0) !important;
-  opacity: 0.86 !important;
+  /* blur(0) was a no-op visually but still a full filter pass over the
+     panel's largest surface; the dim now rides opacity. (Speed audit.) */
+  filter: none !important;
+  opacity: 0.8 !important;
   transform: translate3d(-50%, -50%, 0) rotateX(-2deg) rotateY(0deg)
     scale(0.96) !important;
   z-index: 88 !important;
@@ -26980,7 +27476,9 @@ html
 
 .dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
   .dashboard-header-category-levels-menu {
-  filter: saturate(0.76) brightness(0.7);
+  /* Opacity, not a colour filter: this wraps the live UFO canvas, and the
+     filter re-ran over it on every scene frame. (Speed audit.) */
+  opacity: 0.72;
 }
 
 .dashboard-header-meter-panel:not([data-meter-highlight="ufo"])
@@ -33967,8 +34465,10 @@ html
 
 #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-highlight="ufo"]
   .dashboard-header-meter-panel__section--slot-center {
-  filter: saturate(0.96) brightness(0.9) blur(0) !important;
-  opacity: 0.86 !important;
+  /* blur(0) was a no-op visually but still a full filter pass over the
+     panel's largest surface; the dim now rides opacity. (Speed audit.) */
+  filter: none !important;
+  opacity: 0.8 !important;
   transform: translate3d(-50%, -50%, 0) rotateX(-2deg) rotateY(0deg)
     scale(0.96) !important;
   z-index: 88 !important;
@@ -35593,4 +36093,12 @@ html
     max-height: min(42rem, calc(100svh - 13rem)) !important;
     min-height: min(30rem, calc(100svh - 13rem)) !important;
   }
+}
+
+
+/* The focused meter section sat on a rectangular dark plate (a ::before
+   radial fill). Removed at the user's request — the section now reads by its
+   own contents and the panel's own glass, with no boxed highlight. */
+.dashboard-header-meter-panel__section--slot-center::before {
+  content: none !important;
 }

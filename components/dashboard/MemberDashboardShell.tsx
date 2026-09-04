@@ -41,7 +41,16 @@ export default function MemberDashboardShell({
         if (!isActive) return;
 
         if (!user) {
-          router.replace(ROUTES.auth.login);
+          // Local iteration only — mirrors the server-side bypass in
+          // proxy.ts. The flag is inlined from a gitignored env file, so it
+          // never exists in a deployed build; the hostname check is
+          // belt-and-braces on top of that. Without this the pane wins or
+          // loses a race with this check on every load.
+          const localAuthBypass =
+            process.env.NEXT_PUBLIC_SF_LOCAL_AUTH_BYPASS === "1" &&
+            (window.location.hostname === "localhost" ||
+              window.location.hostname === "127.0.0.1");
+          if (!localAuthBypass) router.replace(ROUTES.auth.login);
           return;
         }
 

@@ -44,6 +44,12 @@ const smoothStepNumber = (value: number) => {
 // each hold the centered tab replays its level-progress sweep.
 const DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS = 10;
 const DASHBOARD_CATEGORY_UFO_CHYRON_SLIDE_SECONDS = 0.9;
+const DASHBOARD_CATEGORY_UFO_CHYRON_SWEEP_SECONDS = 2.4;
+// Redraws per second for the settled part of the hold (see the quantiser in
+// the render loop). 4Hz keeps the scanline shimmer alive at ~1/4 the cost.
+const DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_REDRAW_HZ = 4;
+// Idle time after a manual scrub before the band resumes auto-advancing.
+const DASHBOARD_CATEGORY_UFO_CHYRON_MANUAL_HOLD_MS = 10000;
 const DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS =
   DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS +
   DASHBOARD_CATEGORY_UFO_CHYRON_SLIDE_SECONDS;
@@ -52,6 +58,8 @@ const DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS =
 const DASHBOARD_CATEGORY_UFO_CHYRON_PIN_SECONDS =
   DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS * 0.55;
 const DASHBOARD_CATEGORY_UFO_MAX_DELTA_SECONDS = 1 / 30;
+// How long the tractor beam takes to switch off before the ship departs.
+const DASHBOARD_CATEGORY_UFO_CLOSE_LIGHT_OUT_SECONDS = 0.16;
 // Cap this heavy ambient scene to ~30fps. Motion is delta-timed so it animates
 // at the same speed, but doing half the per-frame work keeps the meter menu
 // responsive while it is open.
@@ -514,12 +522,16 @@ const drawDashboardCategoryUfoChyronTexture = ({
   canvas,
   context,
   items,
+  manual,
   seconds,
 }: {
   activeCategoryId?: string;
   canvas: HTMLCanvasElement;
   context: CanvasRenderingContext2D;
   items: DashboardCategoryUfoChyronItem[];
+  /** Manual scrub: pins the band to `base` and slides by a signed
+      progress (-1..1) instead of running off the auto clock. */
+  manual?: { base: number; progress: number } | null;
   seconds: number;
 }) => {
   const width = canvas.width;
@@ -532,16 +544,24 @@ const drawDashboardCategoryUfoChyronTexture = ({
   const tabFrameBleed = 18;
   const tabWidth = width - 48 + tabFrameBleed * 2;
   const tabStep = tabWidth;
-  const tabHeight = 368;
-  const tabY = 8;
+  const tabHeight = 552;
+  const tabY = 12;
   const holdSeconds = DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS;
   const slideSeconds = DASHBOARD_CATEGORY_UFO_CHYRON_SLIDE_SECONDS;
   const periodSeconds = DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS;
-  const cycleCount = Math.floor(seconds / periodSeconds);
-  const phaseSeconds = seconds - cycleCount * periodSeconds;
+  // Manual scrub pins the cycle and drives the hop itself; otherwise the
+  // position comes off the auto clock. A settled manual hold reports a phase
+  // past the sweep so the band renders in its readable resting state.
+  const cycleCount = manual ? manual.base : Math.floor(seconds / periodSeconds);
+  const phaseSeconds = manual
+    ? manual.progress !== 0
+      ? holdSeconds + Math.abs(manual.progress) * slideSeconds
+      : 3.2
+    : seconds - cycleCount * periodSeconds;
   // Quick eased hop between tabs; the rest of the period is a readable hold.
-  const slideProgress =
-    phaseSeconds > holdSeconds
+  const slideProgress = manual
+    ? manual.progress
+    : phaseSeconds > holdSeconds
       ? smoothStepNumber((phaseSeconds - holdSeconds) / slideSeconds)
       : 0;
   const rawPosition = cycleCount + slideProgress;
@@ -550,7 +570,7 @@ const drawDashboardCategoryUfoChyronTexture = ({
   // out just before the next hop.
   const holdSweepProgress = smoothStepNumber(phaseSeconds / 2.2);
   const holdOverlayAlpha =
-    slideProgress > 0
+    slideProgress !== 0
       ? 0
       : smoothStepNumber(phaseSeconds / 0.7) *
         (1 -
@@ -687,14 +707,17 @@ const drawDashboardCategoryUfoChyronTexture = ({
     // shows the settled fill.
     const isHeldEntry =
       slideProgress === 0 && Math.abs(relativePosition) < 0.03;
+    // The tab travelling toward centre is on the right when sliding forward
+    // and on the left when scrubbing backward.
     const isIncomingEntry =
-      slideProgress > 0 &&
-      relativePosition > 0.001 &&
-      relativePosition < 1.001;
+      slideProgress !== 0 &&
+      (slideProgress > 0
+        ? relativePosition > 0.001 && relativePosition < 1.001
+        : relativePosition < -0.001 && relativePosition > -1.001);
     const fillReveal = isHeldEntry
       ? holdSweepProgress
       : isIncomingEntry
-        ? 1 - slideProgress
+        ? 1 - Math.abs(slideProgress)
         : 1;
     const progressWidth =
       tabWidth * clampNumber(item.level / 100, 0.04, 1) * fillReveal;
@@ -739,20 +762,37 @@ const drawDashboardCategoryUfoChyronTexture = ({
     context.stroke();
 
     if (isHeldEntry && holdOverlayAlpha > 0.01) {
-      // Dark glass behind the copy block so the text reads over the bright
-      // level fill while the tab is held still.
+      // Dark glass so the copy reads over the level fill while the tab is
+      // held still. It spans the WHOLE tab: an inset scrim starting partway
+      // across dimmed only the fill beyond that point, which read as the
+      // level bar stopping there — a false edge at ~22% of the tab that had
+      // nothing to do with the real level.
       context.save();
-      context.globalAlpha = 0.62 * holdOverlayAlpha;
+      context.globalAlpha = 0.58 * holdOverlayAlpha;
       const scrimGradient = context.createLinearGradient(0, 0, 0, tabHeight);
       scrimGradient.addColorStop(0, "rgba(2, 6, 23, 0.68)");
       scrimGradient.addColorStop(0.5, "rgba(2, 6, 23, 0.5)");
       scrimGradient.addColorStop(1, "rgba(2, 6, 23, 0.68)");
       context.fillStyle = scrimGradient;
+      createRoundedRectPath(context, 20, 18, tabWidth - 40, tabHeight - 36, 30);
+      context.fill();
+      context.restore();
+
+      // Re-lay the filled portion over the glass so the bar still reads as
+      // filled to its true level — the glass dims everything equally, this
+      // puts the level's own brightness back on top of it.
+      context.save();
+      context.globalAlpha = 0.42 * holdOverlayAlpha;
+      const litFill = context.createLinearGradient(0, 0, progressWidth, 0);
+      litFill.addColorStop(0, colorToRgba(item.color, 0.95));
+      litFill.addColorStop(0.62, colorToRgba(item.color, 0.72));
+      litFill.addColorStop(1, colorToRgba(item.color, 0.4));
+      context.fillStyle = litFill;
       createRoundedRectPath(
         context,
-        452,
+        20,
         18,
-        tabWidth - 452 - 26,
+        Math.max(0, progressWidth - 20),
         tabHeight - 36,
         30,
       );
@@ -781,16 +821,15 @@ const drawDashboardCategoryUfoChyronTexture = ({
       context.restore();
     }
 
-    const actorX = 286;
+    const actorX = 300;
     const textX = tabWidth * 0.52;
-    const repsX = tabWidth - 170;
-
+  
     drawDashboardChyronActor(
       context,
       item.id,
       actorX,
       tabHeight / 2,
-      282,
+      395,
       item.color,
       distanceStrength,
       seconds,
@@ -807,11 +846,11 @@ const drawDashboardCategoryUfoChyronTexture = ({
       context.globalAlpha = holdOverlayAlpha;
       context.textAlign = "left";
       context.textBaseline = "middle";
-      context.font = "950 62px Arial, sans-serif";
+      context.font = "950 87px Arial, sans-serif";
       context.shadowBlur = 26;
       context.shadowColor = "rgba(2, 6, 23, 0.95)";
       context.fillStyle = "rgba(255, 255, 255, 0.98)";
-      context.fillText(`${levelPercent}%`, 56, 56);
+      context.fillText(`${levelPercent}%`, 76, 84);
       context.restore();
     }
 
@@ -820,44 +859,26 @@ const drawDashboardCategoryUfoChyronTexture = ({
     context.shadowBlur = 58;
     context.shadowColor = colorToRgba(item.color, 0.96);
     context.fillStyle = "rgba(255, 255, 255, 0.99)";
-    context.font = "950 104px Arial, sans-serif";
+    context.font = "950 132px Arial, sans-serif";
     context.fillText(
       ellipsizeCanvasText(
         context,
         `${item.shortLabel} LV ${item.levelNumber}`,
-        1120,
+        1400,
       ),
       textX,
-      86,
-      1140,
+      212,
+      1420,
     );
 
-    context.shadowBlur = 40;
-    context.shadowColor = colorToRgba(item.color, 1);
-    context.fillStyle = colorToRgba(item.color, 1);
-    context.font = "900 48px Arial, sans-serif";
-    context.fillText("RECOMMENDED", textX, 166, 1080);
-
+    // Reps remaining now carries this row on its own — the recommendation
+    // copy that used to sit here was dropped, so it gets the full width and
+    // a much larger face.
     context.shadowBlur = 46;
     context.shadowColor = colorToRgba(item.color, 0.96);
     context.fillStyle = "rgba(240, 253, 250, 0.98)";
-    context.font = "950 64px Arial, sans-serif";
-    drawWrappedCanvasText(
-      context,
-      item.recommendedLabel,
-      textX,
-      238,
-      1140,
-      68,
-      2,
-    );
-
-    context.textAlign = "right";
-    context.shadowBlur = 42;
-    context.shadowColor = colorToRgba(item.color, 1);
-    context.fillStyle = "rgba(255, 255, 255, 0.96)";
-    context.font = "950 58px Arial, sans-serif";
-    context.fillText(item.repsLabel, repsX, 206, 360);
+    context.font = "950 112px Arial, sans-serif";
+    context.fillText(item.repsLabel, textX, 350, 1320);
 
     context.restore();
   }
@@ -1234,15 +1255,15 @@ export default function DashboardCategoryUfoScene3D({
         new THREE.SphereGeometry(0.68, 48, 16),
         undersideMaterial,
       );
-      underside.position.set(0, 0.23, 0.04);
-      underside.scale.set(2.6, 0.17, 0.5);
+      underside.position.set(0, -0.20, 0.04);
+      underside.scale.set(2.6, 0.82, 0.5);
       ship.add(underside);
 
       const rim = new THREE.Mesh(
         new THREE.TorusGeometry(1.82, 0.038, 12, 112),
         hullMaterial,
       );
-      rim.position.set(0, 0.37, 0.04);
+      rim.position.set(0, 0.28, 0.04);
       rim.rotation.x = Math.PI / 2;
       rim.scale.set(1, 0.31, 1);
       ship.add(rim);
@@ -1258,7 +1279,7 @@ export default function DashboardCategoryUfoScene3D({
         new THREE.SphereGeometry(0.74, 64, 16),
         chyronCradleMaterial,
       );
-      chyronCradle.position.set(0, -0.66, 0.18);
+      chyronCradle.position.set(0, -0.72, 0.18);
       chyronCradle.scale.set(0.88, 0.11, 0.23);
       ship.add(chyronCradle);
 
@@ -1266,7 +1287,7 @@ export default function DashboardCategoryUfoScene3D({
         new THREE.TorusGeometry(1.36, 0.03, 10, 112),
         hullMaterial,
       );
-      chyronCradleRim.position.set(0, -0.56, 0.38);
+      chyronCradleRim.position.set(0, -0.62, 0.38);
       chyronCradleRim.rotation.x = Math.PI / 2;
       chyronCradleRim.scale.set(0.72, 0.16, 1);
       ship.add(chyronCradleRim);
@@ -1347,11 +1368,11 @@ export default function DashboardCategoryUfoScene3D({
       const upperChyronClamp = new THREE.Mesh(
         new THREE.TubeGeometry(
           new THREE.CatmullRomCurve3([
-            new THREE.Vector3(-1.66, 0.002, 0.5),
-            new THREE.Vector3(-0.84, -0.008, 0.54),
-            new THREE.Vector3(0, -0.014, 0.565),
-            new THREE.Vector3(0.84, -0.008, 0.54),
-            new THREE.Vector3(1.66, 0.002, 0.5),
+            new THREE.Vector3(-1.66, 0.022, 0.5),
+            new THREE.Vector3(-0.84, 0.012, 0.54),
+            new THREE.Vector3(0, 0.006, 0.565),
+            new THREE.Vector3(0.84, 0.012, 0.54),
+            new THREE.Vector3(1.66, 0.022, 0.5),
           ]),
           96,
           0.014,
@@ -1366,11 +1387,11 @@ export default function DashboardCategoryUfoScene3D({
       const lowerChyronClamp = new THREE.Mesh(
         new THREE.TubeGeometry(
           new THREE.CatmullRomCurve3([
-            new THREE.Vector3(-1.66, -0.43, 0.52),
-            new THREE.Vector3(-0.84, -0.438, 0.575),
-            new THREE.Vector3(0, -0.446, 0.6),
-            new THREE.Vector3(0.84, -0.438, 0.575),
-            new THREE.Vector3(1.66, -0.43, 0.52),
+            new THREE.Vector3(-1.66, -0.62, 0.52),
+            new THREE.Vector3(-0.84, -0.628, 0.575),
+            new THREE.Vector3(0, -0.636, 0.6),
+            new THREE.Vector3(0.84, -0.628, 0.575),
+            new THREE.Vector3(1.66, -0.62, 0.52),
           ]),
           96,
           0.014,
@@ -1386,10 +1407,10 @@ export default function DashboardCategoryUfoScene3D({
         const sideChyronClamp = new THREE.Mesh(
           new THREE.TubeGeometry(
             new THREE.CatmullRomCurve3([
-              new THREE.Vector3(side * 1.66, 0.002, 0.5),
-              new THREE.Vector3(side * 1.68, -0.14, 0.525),
-              new THREE.Vector3(side * 1.68, -0.29, 0.53),
-              new THREE.Vector3(side * 1.66, -0.43, 0.52),
+              new THREE.Vector3(side * 1.66, 0.022, 0.5),
+              new THREE.Vector3(side * 1.68, -0.20, 0.525),
+              new THREE.Vector3(side * 1.68, -0.42, 0.53),
+              new THREE.Vector3(side * 1.66, -0.62, 0.52),
             ]),
             56,
             0.014,
@@ -1413,7 +1434,7 @@ export default function DashboardCategoryUfoScene3D({
         new THREE.TorusGeometry(1.08, 0.02, 8, 96),
         tornadoGlowMaterial,
       );
-      chyronCradleGlow.position.set(0, -0.76, 0.18);
+      chyronCradleGlow.position.set(0, -0.82, 0.18);
       chyronCradleGlow.rotation.x = Math.PI / 2;
       chyronCradleGlow.scale.set(0.72, 0.28, 1);
       ship.add(chyronCradleGlow);
@@ -1516,7 +1537,7 @@ export default function DashboardCategoryUfoScene3D({
 
       const chyronCanvas = document.createElement("canvas");
       chyronCanvas.width = 2048;
-      chyronCanvas.height = 384;
+      chyronCanvas.height = 576;
       const chyronContext = chyronCanvas.getContext("2d");
       const chyronTexture = new THREE.CanvasTexture(chyronCanvas);
       chyronTexture.colorSpace = THREE.SRGBColorSpace;
@@ -1534,10 +1555,10 @@ export default function DashboardCategoryUfoScene3D({
         transparent: true,
       });
       const chyronDisplay = new THREE.Mesh(
-        new THREE.PlaneGeometry(3.18, 0.44, 18, 1),
+        new THREE.PlaneGeometry(3.18, 0.66, 18, 1),
         chyronDisplayMaterial,
       );
-      chyronDisplay.position.set(0, -0.205, 0.62);
+      chyronDisplay.position.set(0, -0.293, 0.62);
       chyronDisplay.renderOrder = 56;
       ship.add(chyronDisplay);
 
@@ -2016,6 +2037,10 @@ export default function DashboardCategoryUfoScene3D({
       let lastDrawTime = 0;
       let activeSeconds = 0;
       let presence = 0;
+      // Exit choreography: on close the tractor beam shuts down BEFORE the
+      // hull leaves. Ramps 0->1 while the panel is closing and resets the
+      // instant it reopens, so a fast re-open never starts mid-shutdown.
+      let closeLightOut = 0;
       let ufoThroatPresence = isActiveRef.current ? 1 : 0;
       let lastChyronTextureUpdate = 0;
       let lastTargetAccentStyle = colorRef.current;
@@ -2037,8 +2062,19 @@ export default function DashboardCategoryUfoScene3D({
       let chyronHeldSeconds =
         DASHBOARD_CATEGORY_UFO_CHYRON_PIN_SECONDS +
         DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS;
+      // Manual scrub state. chyronManualBase is the pinned cycle index;
+      // while a step animates, chyronManualSlide runs -1..1 toward the
+      // neighbour, then commits into the base. Auto resumes once the page
+      // has been idle for DASHBOARD_CATEGORY_UFO_CHYRON_MANUAL_HOLD_MS.
+      let chyronManualActive = false;
+      let chyronManualBase = 0;
+      let chyronManualSlide = 0;
+      let chyronManualDir = 0;
+      let chyronManualSlideStartMs = 0;
+      let chyronManualLastInputMs = 0;
+      let lastChyronDrawnManualKey = "";
       let lastChyronDrawnSeconds = -1;
-      let lastChyronDrawnItems: DashboardCategoryUfoChyronItem[] | null = null;
+      let lastChyronDrawnItemsKey = "";
       let lastChyronDrawnCategoryId: string | undefined;
       let activeGrabCycle = -1;
       let activeGrabObjectIndex = 0;
@@ -2061,6 +2097,64 @@ export default function DashboardCategoryUfoScene3D({
       };
 
       setUfoCanvasLive(isOpenRef.current && isActiveRef.current);
+
+      // Horizontal scroll (and horizontal drags) scrub the level band by one
+      // category per gesture. Only while the UFO holds the highlight, so the
+      // wheel keeps its normal meaning everywhere else.
+      const stepChyron = (dir: -1 | 1) => {
+        if (!isActiveRef.current || !isOpenRef.current) return;
+        const now = performance.now();
+        chyronManualLastInputMs = now;
+        if (chyronManualSlide !== 0) return; // a hop is already running
+        if (!chyronManualActive) {
+          chyronManualActive = true;
+          // Adopt whatever tab the auto cycle is showing so the hand-off does
+          // not jump.
+          const live = Math.max(0, chyronClockSeconds - chyronTimelineStartSeconds);
+          chyronManualBase = Math.floor(
+            live / DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS,
+          );
+        }
+        chyronManualDir = dir;
+        chyronManualSlideStartMs = now;
+      };
+      const handleChyronWheel = (event: WheelEvent) => {
+        if (!isActiveRef.current || !isOpenRef.current) return;
+        if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+        event.preventDefault();
+        if (performance.now() - chyronManualLastInputMs < 260) {
+          chyronManualLastInputMs = performance.now();
+          return;
+        }
+        stepChyron(event.deltaX > 0 ? 1 : -1);
+      };
+      let chyronDragX: number | null = null;
+      const handleChyronPointerDown = (event: PointerEvent) => {
+        chyronDragX = event.clientX;
+      };
+      const handleChyronPointerMove = (event: PointerEvent) => {
+        if (chyronDragX === null) return;
+        const dx = event.clientX - chyronDragX;
+        if (Math.abs(dx) < 42) return;
+        chyronDragX = event.clientX;
+        stepChyron(dx < 0 ? 1 : -1);
+      };
+      const endChyronDrag = () => {
+        chyronDragX = null;
+      };
+      // Explicit scrub request (the panel's horizontal arrow keys dispatch
+      // this so they drive the same path as the wheel/drag gesture).
+      const handleChyronStepEvent = (event: Event) => {
+        const dir = (event as CustomEvent<{ dir?: number }>).detail?.dir;
+        if (dir === 1 || dir === -1) stepChyron(dir);
+      };
+      canvas.addEventListener("sf-chyron-step", handleChyronStepEvent);
+      canvas.addEventListener("wheel", handleChyronWheel, { passive: false });
+      canvas.addEventListener("pointerdown", handleChyronPointerDown);
+      canvas.addEventListener("pointermove", handleChyronPointerMove);
+      canvas.addEventListener("pointerup", endChyronDrag);
+      canvas.addEventListener("pointercancel", endChyronDrag);
+      canvas.addEventListener("pointerleave", endChyronDrag);
 
       const render = (time: number) => {
         // ~30fps frame-rate cap (see DASHBOARD_CATEGORY_UFO_MIN_FRAME_MS). The
@@ -2118,8 +2212,26 @@ export default function DashboardCategoryUfoScene3D({
         const isUfoSelected = isActiveRef.current;
         setUfoCanvasLive(isOpenNow && isUfoSelected);
         const targetPresence = isOpenNow ? 1 : 0;
-        presence +=
-          (targetPresence - presence) * (isOpenNow ? 0.18 : 0.2);
+        // Shut the beam off first, then fly away. Presence used to start
+        // decaying the moment the panel closed, so the hull climbed out while
+        // the throat was still deployed and the beam stretched away with it
+        // instead of switching off. Hold the ship in place for the light-out,
+        // then release it. The panel fades over 520ms with a slow-start
+        // easing, so the light-out is kept brief enough to be seen.
+        if (isOpenNow) {
+          closeLightOut = 0;
+        } else {
+          closeLightOut = Math.min(
+            1,
+            closeLightOut +
+              Math.max(deltaSeconds, 1 / 60) /
+                DASHBOARD_CATEGORY_UFO_CLOSE_LIGHT_OUT_SECONDS,
+          );
+        }
+        if (isOpenNow || closeLightOut >= 0.995) {
+          presence +=
+            (targetPresence - presence) * (isOpenNow ? 0.18 : 0.2);
+        }
         const flyEase = 1 - Math.pow(1 - presence, 3);
         // The throat/pickup column (emitter throat, beam, laser, vortex,
         // projector kit) deploys only while the UFO holds the highlight —
@@ -2129,7 +2241,8 @@ export default function DashboardCategoryUfoScene3D({
           ((isUfoSelected ? 1 : 0) - ufoThroatPresence) * 0.14;
         const tornadoDeployProgress =
           smoothStepNumber((flyEase - 0.82) / 0.16) *
-          smoothStepNumber(ufoThroatPresence);
+          smoothStepNumber(ufoThroatPresence) *
+          (1 - smoothStepNumber(closeLightOut));
         if (isOpenNow && !hasChyronAdvancedAfterDock && flyEase > 0.985) {
           hasChyronAdvancedAfterDock = true;
           // Cycle starts at phase 0: the active category holds first and
@@ -2266,6 +2379,38 @@ export default function DashboardCategoryUfoScene3D({
                 },
               ];
 
+        // Advance a manual hop, and hand control back to the auto cycle once
+        // the band has been left alone. The hand-back rebases the auto clock
+        // onto the tab currently shown so it continues from here rather than
+        // snapping to wherever the free-running clock had got to.
+        if (chyronManualActive) {
+          if (chyronManualDir !== 0) {
+            const slideMs =
+              DASHBOARD_CATEGORY_UFO_CHYRON_SLIDE_SECONDS * 1000;
+            const t = Math.min(
+              1,
+              (time - chyronManualSlideStartMs) / slideMs,
+            );
+            chyronManualSlide = chyronManualDir * smoothStepNumber(t);
+            if (t >= 1) {
+              chyronManualBase += chyronManualDir;
+              chyronManualDir = 0;
+              chyronManualSlide = 0;
+            }
+          }
+          if (
+            chyronManualDir === 0 &&
+            time - chyronManualLastInputMs >
+              DASHBOARD_CATEGORY_UFO_CHYRON_MANUAL_HOLD_MS
+          ) {
+            chyronManualActive = false;
+            chyronManualSlide = 0;
+            chyronTimelineStartSeconds =
+              chyronClockSeconds -
+              chyronManualBase * DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS;
+          }
+        }
+
         // Pre-dock the clock pins at phase 0 (empty fill, no overlay) so the
         // dock rebase continues seamlessly into the active tab's level sweep.
         // While the UFO is live the clock runs in wall time: 10s hold with
@@ -2275,13 +2420,32 @@ export default function DashboardCategoryUfoScene3D({
         if (!hasChyronAdvancedAfterDock) {
           chyronSeconds = 0;
         } else if (isUfoSelected) {
-          chyronSeconds = Math.max(
+          const liveChyronSeconds = Math.max(
             0,
             chyronClockSeconds - chyronTimelineStartSeconds,
           );
+          const chyronPhase =
+            liveChyronSeconds -
+            Math.floor(
+              liveChyronSeconds / DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS,
+            ) *
+              DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS;
+          // Once the level sweep has settled, the only pixels still moving in
+          // the band are the decorative scanline and flash. Quantising the
+          // clock there lets the identical-frame guard below skip most
+          // redraws: the 2048x384 rasterize + upload was measured at ~9.2M
+          // texture pixels/sec and cost ~5fps of the open panel by itself.
+          const inSettledHold =
+            chyronPhase > DASHBOARD_CATEGORY_UFO_CHYRON_SWEEP_SECONDS &&
+            chyronPhase <= DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS;
+          chyronSeconds = inSettledHold
+            ? Math.floor(
+                liveChyronSeconds * DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_REDRAW_HZ,
+              ) / DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_REDRAW_HZ
+            : liveChyronSeconds;
           chyronHeldSeconds =
             Math.floor(
-              chyronSeconds / DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS,
+              liveChyronSeconds / DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS,
             ) *
               DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS +
             DASHBOARD_CATEGORY_UFO_CHYRON_PIN_SECONDS;
@@ -2294,7 +2458,9 @@ export default function DashboardCategoryUfoScene3D({
             chyronSeconds / DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS,
           ) *
             DASHBOARD_CATEGORY_UFO_CHYRON_PERIOD_SECONDS;
-        const chyronUpdateInterval = !isUfoSelected
+        const chyronUpdateInterval = chyronManualDir !== 0
+          ? DASHBOARD_CATEGORY_UFO_SLIDE_CHYRON_TEXTURE_MS
+          : !isUfoSelected
           ? DASHBOARD_CATEGORY_UFO_INACTIVE_CHYRON_TEXTURE_MS
           : chyronPhaseSeconds >
               DASHBOARD_CATEGORY_UFO_CHYRON_HOLD_SECONDS - 0.1
@@ -2304,9 +2470,41 @@ export default function DashboardCategoryUfoScene3D({
           const chyronCategoryId = activeCategoryIdRef.current;
           // Pinned/frozen frames produce identical pixels — skip the 2048x384
           // rasterize + GPU upload unless something actually changed.
+          //
+          // The items comparison is a CONTENT signature, not object identity.
+          // The page rebuilds the chyron items array on every render, and the
+          // empty-items fallback above is a fresh literal each frame, so an
+          // identity check reported "changed" every time and silently
+          // defeated this guard — re-rasterising the band on every interval.
+          // Building the key costs a few string concats, and only on the
+          // frames that already passed the redraw interval.
+          let chyronItemsKey = "";
+          for (const item of resolvedChyronItems) {
+            chyronItemsKey +=
+              item.id +
+              "|" +
+              item.level +
+              "|" +
+              item.levelNumber +
+              "|" +
+              item.shortLabel +
+              "|" +
+              item.repsLabel +
+              "|" +
+              item.recommendedLabel +
+              "|" +
+              item.recommendedStatus +
+              "|" +
+              item.color +
+              ";";
+          }
+          const chyronManualKey = chyronManualActive
+            ? chyronManualBase + ":" + chyronManualSlide.toFixed(3)
+            : "";
           if (
+            chyronManualKey !== lastChyronDrawnManualKey ||
             chyronSeconds !== lastChyronDrawnSeconds ||
-            resolvedChyronItems !== lastChyronDrawnItems ||
+            chyronItemsKey !== lastChyronDrawnItemsKey ||
             chyronCategoryId !== lastChyronDrawnCategoryId
           ) {
             drawDashboardCategoryUfoChyronTexture({
@@ -2314,11 +2512,15 @@ export default function DashboardCategoryUfoScene3D({
               canvas: chyronCanvas,
               context: chyronContext,
               items: resolvedChyronItems,
+              manual: chyronManualActive
+                ? { base: chyronManualBase, progress: chyronManualSlide }
+                : null,
               seconds: chyronSeconds,
             });
             chyronTexture.needsUpdate = true;
+            lastChyronDrawnManualKey = chyronManualKey;
             lastChyronDrawnSeconds = chyronSeconds;
-            lastChyronDrawnItems = resolvedChyronItems;
+            lastChyronDrawnItemsKey = chyronItemsKey;
             lastChyronDrawnCategoryId = chyronCategoryId;
           }
           lastChyronTextureUpdate = time;
@@ -2751,7 +2953,7 @@ export default function DashboardCategoryUfoScene3D({
           1,
         );
         chyronDisplay.visible = true;
-        chyronDisplay.position.y = -0.212 + tornadoSync * 0.003;
+        chyronDisplay.position.y = -0.30 + tornadoSync * 0.003;
         chyronDisplay.position.z = 0.62 + tornadoSync * 0.006;
         chyronDisplay.scale.set(
           1 + tornadoSync * 0.005,
@@ -2766,7 +2968,7 @@ export default function DashboardCategoryUfoScene3D({
           1 + tornadoSync * 0.035,
           1 + tornadoSync * 0.018,
         );
-        lowerHullLipGroup.position.y = -0.095 + tornadoSync * 0.006;
+        lowerHullLipGroup.position.y = -0.62 + tornadoSync * 0.006;
         lowerHullLipGroup.scale.set(
           1 + tornadoSync * 0.01,
           1 + tornadoSync * 0.025,
@@ -2780,13 +2982,13 @@ export default function DashboardCategoryUfoScene3D({
           1,
         );
         const tornadoIsDeployed = tornadoDeployProgress > 0.025;
-        chyronCradle.position.y = -0.82 + tornadoSync * 0.008;
+        chyronCradle.position.y = -0.98 + tornadoSync * 0.008;
         chyronCradle.scale.set(
           0.88 + tornadoSync * 0.032,
           0.105 + tornadoSync * 0.014,
           0.23 + tornadoSync * 0.022,
         );
-        chyronCradleRim.position.y = -0.72 + tornadoSync * 0.006;
+        chyronCradleRim.position.y = -0.86 + tornadoSync * 0.006;
         chyronCradleRim.scale.set(
           0.72 + tornadoSync * 0.022,
           0.16 + tornadoSync * 0.022,
@@ -2794,7 +2996,7 @@ export default function DashboardCategoryUfoScene3D({
         );
         chyronCradleGlow.visible = tornadoIsDeployed;
         chyronCradleGlow.position.y =
-          -1.02 - tornadoDeployProgress * 0.045 + tornadoSync * 0.008;
+          -1.16 - tornadoDeployProgress * 0.045 + tornadoSync * 0.008;
         chyronCradleGlow.scale.set(
           (0.5 + tornadoDeployProgress * 0.22 + tornadoSync * 0.04) *
             Math.max(0.2, tornadoDeployProgress),
@@ -2941,6 +3143,13 @@ export default function DashboardCategoryUfoScene3D({
         }
         setDashboardWebGlCanvasActive(canvas, false);
         canvas.removeEventListener("webglcontextlost", handleContextLost);
+        canvas.removeEventListener("sf-chyron-step", handleChyronStepEvent);
+        canvas.removeEventListener("wheel", handleChyronWheel);
+        canvas.removeEventListener("pointerdown", handleChyronPointerDown);
+        canvas.removeEventListener("pointermove", handleChyronPointerMove);
+        canvas.removeEventListener("pointerup", endChyronDrag);
+        canvas.removeEventListener("pointercancel", endChyronDrag);
+        canvas.removeEventListener("pointerleave", endChyronDrag);
         observer.disconnect();
         disposeObject(scene);
         chyronTexture.dispose();

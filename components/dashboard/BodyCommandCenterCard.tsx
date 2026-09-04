@@ -16,6 +16,11 @@ import SoundFitnessAvatar, {
   type SoundFitnessAvatarSkinPreset,
 } from "@/components/dashboard/SoundFitnessAvatar";
 import {
+  BodyCommandRingFace,
+  type BodyCommandGlyphName,
+} from "@/components/dashboard/BodyCommandGlyph";
+import { getSegmentedRingDashes } from "@/components/dashboard/segmentedRing";
+import {
   Accessibility,
   Activity,
   Check,
@@ -63,7 +68,7 @@ type SevenDayTrainingLoad = {
 type SevenDayTrainingStatus = "good" | "over" | "primed" | "urgent";
 
 type BodyStatCardDefinition = {
-  icon: string;
+  glyph: BodyCommandGlyphName;
   label: string;
   load: SevenDayTrainingLoad;
   tone: BodyStatTone;
@@ -253,36 +258,51 @@ const avatarEmoteWheelPositions = [
 
 // Training-category data now lives in MuscleGroupPanel (body-part driven).
 
+// Every signal is scored the same way: how many of the last 7 days you logged
+// it inside your target band, so the ring keeps its "did you hit the plan"
+// meaning even for readings where lower is better (stress, fatigue, soreness).
 const bodyCommandSupportStats: BodyStatCardDefinition[] = [
   {
-    icon: "R",
-    label: "Recovery",
-    load: { completed: 4, target: 4, unit: "sessions" },
-    tone: "emerald",
+    glyph: "sleep",
+    label: "Sleep",
+    load: { completed: 5, target: 7, unit: "checks" },
+    tone: "blue",
   },
   {
-    icon: "M",
-    label: "Mobility",
-    load: { completed: 2, target: 4, unit: "sessions" },
-    tone: "teal",
-  },
-  {
-    icon: "C",
-    label: "Core",
-    load: { completed: 8, target: 6, unit: "sets" },
-    tone: "rose",
-  },
-  {
-    icon: "F",
-    label: "Fuel",
+    glyph: "stress",
+    label: "Stress",
     load: { completed: 6, target: 7, unit: "checks" },
+    tone: "purple",
+  },
+  {
+    glyph: "fatigue",
+    label: "Fatigue",
+    load: { completed: 4, target: 7, unit: "checks" },
     tone: "gold",
   },
   {
-    icon: "RD",
-    label: "Readiness",
-    load: { completed: 3, target: 5, unit: "checks" },
-    tone: "blue",
+    glyph: "soreness",
+    label: "Soreness",
+    load: { completed: 5, target: 7, unit: "checks" },
+    tone: "rose",
+  },
+  {
+    glyph: "recovery",
+    label: "Recovery Sessions",
+    load: { completed: 3, target: 4, unit: "sessions" },
+    tone: "emerald",
+  },
+  {
+    glyph: "core",
+    label: "Core",
+    load: { completed: 8, target: 6, unit: "sets" },
+    tone: "cyan",
+  },
+  {
+    glyph: "fuel",
+    label: "Fuel",
+    load: { completed: 6, target: 7, unit: "checks" },
+    tone: "lime",
   },
 ];
 
@@ -437,17 +457,32 @@ function useScrollControls(axis: ScrollAxis) {
     if (!element) return;
 
     updateScrollAvailability();
-    element.addEventListener("scroll", updateScrollAvailability, { passive: true });
 
-    const resizeObserver = new ResizeObserver(updateScrollAvailability);
+    // Coalesce to one measurement per frame. A category step remounts the
+    // muscle panel, which lands as dozens of subtree mutations plus a resize
+    // per child; running the read (forced layout) and the two state sets for
+    // each of them stacked into a ~100ms observer callback. (Speed audit.)
+    let frame: number | null = null;
+    const scheduleUpdate = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        updateScrollAvailability();
+      });
+    };
+
+    element.addEventListener("scroll", scheduleUpdate, { passive: true });
+
+    const resizeObserver = new ResizeObserver(scheduleUpdate);
     resizeObserver.observe(element);
     Array.from(element.children).forEach((child) => resizeObserver.observe(child));
 
-    const mutationObserver = new MutationObserver(updateScrollAvailability);
+    const mutationObserver = new MutationObserver(scheduleUpdate);
     mutationObserver.observe(element, { childList: true, subtree: true });
 
     return () => {
-      element.removeEventListener("scroll", updateScrollAvailability);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      element.removeEventListener("scroll", scheduleUpdate);
       resizeObserver.disconnect();
       mutationObserver.disconnect();
     };
@@ -552,11 +587,64 @@ function ScrollControlButton({
   );
 }
 
+/**
+ * Progress ring drawn as one notch per prescribed unit — set, rep, check or
+ * session — so 5/10 reads as five of ten notches lit rather than a half-arc.
+ * Notches run clockwise from 12 o'clock; completed ones take the status
+ * colour, the rest stay as the faint track. Built from two dashed circles
+ * (track: every slot; fill: the first `done` slots then a gap past the end)
+ * so a 48-set category costs the same two elements as a 4-check signal.
+ */
+function SegmentedRing({
+  fill,
+  segments,
+  stroke,
+}: {
+  fill: number;
+  segments: number;
+  stroke: string;
+}) {
+  const count = Math.max(1, Math.min(120, Math.round(segments)));
+  const done = Math.round((Math.max(0, Math.min(100, fill)) / 100) * count);
+  const { track, filled } = getSegmentedRingDashes(done, count);
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="absolute inset-0 h-full w-full -rotate-90"
+      viewBox="0 0 72 72"
+    >
+      <circle
+        cx="36"
+        cy="36"
+        fill="none"
+        pathLength="100"
+        r="33"
+        stroke="rgba(148,163,184,0.18)"
+        strokeDasharray={track}
+        strokeWidth="5"
+      />
+      <circle
+        cx="36"
+        cy="36"
+        fill="none"
+        pathLength="100"
+        r="33"
+        stroke={stroke}
+        strokeDasharray={filled}
+        strokeWidth="5"
+      />
+    </svg>
+  );
+}
+
 function BodyStatCard({
   highlighted = false,
+  showGlyph = false,
   stat,
 }: {
   highlighted?: boolean;
+  showGlyph?: boolean;
   stat: BodyStatCardDefinition;
 }) {
   const tone = statToneClasses[stat.tone];
@@ -582,36 +670,24 @@ function BodyStatCard({
         data-dashboard-tooltip={`${statusTheme.label}: ${stat.load.completed}/${stat.load.target} planned ${stat.load.unit} in 7 days`}
         role="progressbar"
       >
-        <svg
-          aria-hidden="true"
-          className="absolute inset-0 h-full w-full rotate-45"
-          viewBox="0 0 72 72"
-        >
-          <circle
-            cx="36"
-            cy="36"
-            fill="none"
-            r="33"
-            stroke="rgba(148,163,184,0.14)"
-            strokeWidth="5"
-          />
-          <circle
-            cx="36"
-            cy="36"
-            fill="none"
-            pathLength="100"
-            r="33"
-            stroke={statusTheme.ring}
-            strokeDasharray="100"
-            strokeDashoffset={100 - fill}
-            strokeLinecap="round"
-            strokeWidth="5"
-          />
-        </svg>
+        <SegmentedRing
+          fill={fill}
+          segments={stat.load.target}
+          stroke={statusTheme.ring}
+        />
         <span className="relative flex max-w-[58px] flex-col items-center text-center leading-none">
-          <span className={`text-[9px] font-black uppercase tracking-normal ${tone.text}`}>
-            {stat.label}
-          </span>
+          <BodyCommandRingFace
+            glyph={stat.glyph}
+            glyphClassName="h-10 w-10"
+            caption={stat.label}
+            captionClassName={tone.text}
+            showGlyph={showGlyph}
+            tone={stat.tone}
+          >
+            <span className={`text-[9px] font-black uppercase tracking-normal ${tone.text}`}>
+              {stat.label}
+            </span>
+          </BodyCommandRingFace>
           <span className={`mt-1 text-[7px] font-black uppercase leading-tight tracking-normal ${statusTheme.text}`}>
             {statusTheme.label}
             <span className="block text-[6px] text-slate-400">
@@ -642,6 +718,7 @@ function BodyStatStack({
     scrollToIndex,
   } = useScrollControls(vertical ? "vertical" : "horizontal");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const compactShowsGlyph = useSettledGlyphSwap(highlightedIndex, compact);
   const activeTone = statToneClasses[stats[highlightedIndex]?.tone ?? "cyan"];
 
   const moveHighlight = (direction: -1 | 1) => {
@@ -659,15 +736,21 @@ function BodyStatStack({
 
   const rail = (
     <div
-      className={`flex min-w-0 snap-mandatory gap-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "snap-x justify-center overflow-hidden" : vertical ? "min-h-0 flex-1 snap-y flex-col items-center overflow-y-auto overscroll-y-contain p-1" : "snap-x overflow-x-auto overscroll-x-contain p-1"}`}
+      className={`flex min-w-0 snap-mandatory gap-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "snap-x justify-center overflow-hidden pt-5" : vertical ? "min-h-0 flex-1 snap-y flex-col items-center overflow-y-auto overscroll-y-contain px-1 pb-1 pt-5" : "snap-x overflow-x-auto overscroll-x-contain px-1 pb-1 pt-5"}`}
       ref={scrollRef}
     >
       {visibleStats.map((stat, index) => (
         <div
           className={`${vertical && !compact ? "w-full min-w-0 shrink-0 snap-start" : "w-[96px] min-w-[96px] snap-start"}`}
-          key={stat.label}
+          // Compact shows one card at a time: key it by slot so stepping
+          // updates the same node and the glyph can hand off (see the trio).
+          key={compact ? "compact-stat" : stat.label}
         >
-          <BodyStatCard highlighted={compact || index === highlightedIndex} stat={stat} />
+          <BodyStatCard
+            highlighted={compact || index === highlightedIndex}
+            showGlyph={compact ? compactShowsGlyph : index === highlightedIndex}
+            stat={stat}
+          />
         </div>
       ))}
     </div>
@@ -840,15 +923,21 @@ function AvatarDetailLegend() {
 function HyperRealAvatarFigure({
   appearance,
   emotePreset,
+  glowFocus,
+  glowMode,
   onSelectBodyPart,
   selectedBodyPart,
+  viewOverride,
   zoneGlowActive,
   zoneGlowColors,
 }: {
   appearance: SoundFitnessAvatarAppearance;
   emotePreset: SoundFitnessAvatarEmotePreset;
+  glowFocus?: SoundFitnessAvatarGlowRegion | null;
+  glowMode?: "whole" | "pieces";
   onSelectBodyPart: (bodyPart: SoundFitnessAvatarBodyPart) => void;
   selectedBodyPart: SoundFitnessAvatarBodyPart;
+  viewOverride?: "front" | "back";
   zoneGlowActive: boolean;
   zoneGlowColors?: Partial<
     Record<SoundFitnessAvatarGlowRegion, string | undefined>
@@ -868,6 +957,8 @@ function HyperRealAvatarFigure({
         appearance={appearance}
         bodyPartGlowActive={zoneGlowActive}
         bodyPartGlowColors={zoneGlowColors}
+        bodyPartGlowFocus={glowFocus}
+        bodyPartGlowMode={glowMode}
         className="relative z-10 h-full min-h-0 w-full max-w-none !overflow-visible !rounded-none !border-0 !bg-transparent !shadow-none ![background-image:none]"
         emotePreset={emotePreset}
         exerciseLabel="Sound Athlete"
@@ -877,6 +968,7 @@ function HyperRealAvatarFigure({
         showExerciseLabel={false}
         showSkeletonOverlay={false}
         showStageBackdrop={false}
+        viewOverride={viewOverride}
       />
     </div>
   );
@@ -886,9 +978,20 @@ type BodyCommandMuscleSlug =
   | MuscleSlug
   | "upper-chest"
   | "mid-chest"
-  | "lower-chest";
+  | "lower-chest"
+  | "front-delt"
+  | "lateral-delt"
+  | "rear-delt"
+  | "external-rotation"
+  | "internal-rotation"
+  | "lats"
+  | "rhomboids"
+  | "abductors"
+  | "hip-rotators"
+  | "neck";
 
 type BodyPartGroup = {
+  glyph: BodyCommandGlyphName;
   id: string;
   label: string;
   side: "front" | "back";
@@ -900,20 +1003,32 @@ type BodyPartGroup = {
 // clickable regions of the shared react-muscle-highlighter body.
 const bodyPartGroups: BodyPartGroup[] = [
   {
+    glyph: "legs",
     id: "legs",
     label: "Legs",
     side: "front",
-    muscles: ["quadriceps", "hamstring", "gluteal", "calves", "adductors", "tibialis"],
+    muscles: [
+      "quadriceps",
+      "hamstring",
+      "gluteal",
+      "calves",
+      "adductors",
+      "abductors",
+      "hip-rotators",
+      "tibialis",
+    ],
     tone: "emerald",
   },
   {
+    glyph: "back",
     id: "back",
     label: "Back",
     side: "back",
-    muscles: ["trapezius", "upper-back", "lower-back"],
+    muscles: ["trapezius", "rhomboids", "lats", "lower-back"],
     tone: "purple",
   },
   {
+    glyph: "chest",
     id: "chest",
     label: "Chest",
     side: "front",
@@ -921,13 +1036,21 @@ const bodyPartGroups: BodyPartGroup[] = [
     tone: "cyan",
   },
   {
+    glyph: "shoulders",
     id: "shoulders",
     label: "Shoulders",
     side: "front",
-    muscles: ["deltoids"],
+    muscles: [
+      "front-delt",
+      "lateral-delt",
+      "rear-delt",
+      "external-rotation",
+      "internal-rotation",
+    ],
     tone: "cyan",
   },
   {
+    glyph: "arms",
     id: "arms",
     label: "Arms",
     side: "front",
@@ -935,11 +1058,20 @@ const bodyPartGroups: BodyPartGroup[] = [
     tone: "gold",
   },
   {
+    glyph: "core",
     id: "core",
     label: "Core",
     side: "front",
     muscles: ["abs", "obliques"],
     tone: "rose",
+  },
+  {
+    glyph: "neck",
+    id: "neck",
+    label: "Neck",
+    side: "front",
+    muscles: ["neck"],
+    tone: "teal",
   },
 ];
 
@@ -958,6 +1090,11 @@ const muscleMeta: Record<
   "mid-chest": { family: "Upper push", label: "Mid Chest", load: { completed: 8, target: 8, unit: "sets" }, status: "Horizontal press", tone: "cyan" },
   "lower-chest": { family: "Upper push", label: "Lower Chest", load: { completed: 8, target: 6, unit: "sets" }, status: "Dips / decline", tone: "cyan" },
   deltoids: { family: "Upper push", label: "Deltoids", load: { completed: 5, target: 8, unit: "sets" }, status: "Overhead", tone: "cyan" },
+  "front-delt": { family: "Upper push", label: "Front Delt", load: { completed: 6, target: 6, unit: "sets" }, status: "Overhead press", tone: "cyan" },
+  "lateral-delt": { family: "Upper push", label: "Lateral Delt", load: { completed: 4, target: 8, unit: "sets" }, status: "Abduction", tone: "cyan" },
+  "rear-delt": { family: "Upper pull", label: "Rear Delt", load: { completed: 3, target: 8, unit: "sets" }, status: "Horizontal abduction", tone: "cyan" },
+  "external-rotation": { family: "Rotator cuff", label: "Ext Rotation", load: { completed: 2, target: 6, unit: "sets" }, status: "Cuff external", tone: "cyan" },
+  "internal-rotation": { family: "Rotator cuff", label: "Int Rotation", load: { completed: 4, target: 4, unit: "sets" }, status: "Cuff internal", tone: "cyan" },
   biceps: { family: "Arms", label: "Biceps", load: { completed: 8, target: 8, unit: "sets" }, status: "Elbow flexion", tone: "gold" },
   triceps: { family: "Arms", label: "Triceps", load: { completed: 10, target: 8, unit: "sets" }, status: "Lockout", tone: "gold" },
   forearm: { family: "Arms", label: "Forearms", load: { completed: 3, target: 6, unit: "sets" }, status: "Grip", tone: "gold" },
@@ -968,9 +1105,17 @@ const muscleMeta: Record<
   gluteal: { family: "Lower compound", label: "Glutes", load: { completed: 10, target: 8, unit: "sets" }, status: "Extension", tone: "emerald" },
   calves: { family: "Lower isolation", label: "Calves", load: { completed: 3, target: 6, unit: "sets" }, status: "Ankle drive", tone: "lime" },
   trapezius: { family: "Upper pull", label: "Traps", load: { completed: 4, target: 6, unit: "sets" }, status: "Shrug / brace", tone: "purple" },
+  rhomboids: { family: "Upper pull", label: "Rhomboids", load: { completed: 5, target: 8, unit: "sets" }, status: "Scapular retraction", tone: "purple" },
+  lats: { family: "Upper pull", label: "Lats", load: { completed: 9, target: 10, unit: "sets" }, status: "Vertical pull", tone: "purple" },
+  // Retired: it double-counted lats + rhomboids, which are now their own
+  // entries, so it is in no group and never renders. The row stays only
+  // because the shared MuscleSlug type makes this Record exhaustive.
   "upper-back": { family: "Upper pull", label: "Upper Back", load: { completed: 8, target: 8, unit: "sets" }, status: "Rows", tone: "purple" },
   "lower-back": { family: "Upper pull", label: "Lower Back", load: { completed: 4, target: 4, unit: "sets" }, status: "Bracing", tone: "purple" },
   adductors: { family: "Lower isolation", label: "Adductors", load: { completed: 4, target: 4, unit: "sets" }, status: "Inner thigh", tone: "lime" },
+  abductors: { family: "Lower isolation", label: "Abductors", load: { completed: 3, target: 4, unit: "sets" }, status: "Outer hip", tone: "lime" },
+  "hip-rotators": { family: "Lower isolation", label: "Hip Rotators", load: { completed: 2, target: 4, unit: "sets" }, status: "Deep hip", tone: "lime" },
+  neck: { family: "Upper pull", label: "Neck", load: { completed: 2, target: 3, unit: "sets" }, status: "Cervical", tone: "purple" },
   tibialis: { family: "Lower isolation", label: "Tibialis", load: { completed: 6, target: 4, unit: "sets" }, status: "Shin", tone: "lime" },
   "hip-flexors": { family: "Lower isolation", label: "Hip Flexors", load: { completed: 3, target: 4, unit: "sets" }, status: "Flexion", tone: "lime" },
 };
@@ -1004,6 +1149,18 @@ const muscleDetailMeta: Partial<
     parts: ["Adductor magnus", "Adductor longus", "Adductor brevis"],
     recentMovements: ["Lateral lunge", "Hip adduction", "Sumo squat"],
   },
+  abductors: {
+    parts: ["Gluteus medius", "Gluteus minimus", "Tensor fasciae latae"],
+    recentMovements: ["Banded lateral walk", "Side-lying leg raise", "Cable hip abduction"],
+  },
+  "hip-rotators": {
+    parts: ["Piriformis", "Deep external rotators", "Internal rotators"],
+    recentMovements: ["90/90 hip switch", "Clamshell", "Seated hip rotation"],
+  },
+  neck: {
+    parts: ["Cervical flexors", "Cervical extensors", "Sternocleidomastoid"],
+    recentMovements: ["Neck curl", "Neck extension", "Isometric hold"],
+  },
   tibialis: {
     parts: ["Tibialis anterior", "Deep dorsiflexors"],
     recentMovements: ["Tibialis raise", "Heel walk", "Ankle control"],
@@ -1023,6 +1180,26 @@ const muscleDetailMeta: Partial<
   deltoids: {
     parts: ["Front delt", "Lateral delt", "Rear delt"],
     recentMovements: ["Overhead press", "Lateral raise", "Reverse fly"],
+  },
+  "front-delt": {
+    parts: ["Anterior deltoid", "Clavicular head"],
+    recentMovements: ["Overhead press", "Front raise", "Incline press"],
+  },
+  "lateral-delt": {
+    parts: ["Middle deltoid", "Acromial head"],
+    recentMovements: ["Lateral raise", "Upright row", "Overhead press"],
+  },
+  "rear-delt": {
+    parts: ["Posterior deltoid", "Spinal head"],
+    recentMovements: ["Reverse fly", "Face pull", "Wide row"],
+  },
+  "external-rotation": {
+    parts: ["Infraspinatus", "Teres minor"],
+    recentMovements: ["Cable external rotation", "Face pull", "Band no-money"],
+  },
+  "internal-rotation": {
+    parts: ["Subscapularis", "Teres major assist"],
+    recentMovements: ["Cable internal rotation", "Band press-out", "Belly press"],
   },
   biceps: {
     parts: ["Long head", "Short head", "Brachialis"],
@@ -1048,9 +1225,13 @@ const muscleDetailMeta: Partial<
     parts: ["Upper traps", "Mid traps", "Lower traps"],
     recentMovements: ["Row", "Face pull", "Loaded carry"],
   },
-  "upper-back": {
-    parts: ["Lats", "Rhomboids", "Rear delts"],
-    recentMovements: ["Row", "Pulldown", "Reverse fly"],
+  rhomboids: {
+    parts: ["Rhomboid major", "Rhomboid minor", "Mid trapezius"],
+    recentMovements: ["Face pull", "Wide row", "Scap retraction"],
+  },
+  lats: {
+    parts: ["Latissimus dorsi", "Teres major"],
+    recentMovements: ["Pull-up", "Pulldown", "Straight-arm pullover"],
   },
   "lower-back": {
     parts: ["Spinal erectors", "Multifidus", "Quadratus lumborum"],
@@ -1092,8 +1273,11 @@ function AvatarBodyPicker({
   onAvatarSceneChange,
   onEmoteChange,
   onOpenAvatarLab,
+  glowFocus,
+  glowMode,
   selectedGroupId,
   onSelectGroup,
+  viewOverride,
   zoneGlowActive,
   zoneGlowColors,
 }: {
@@ -1103,8 +1287,11 @@ function AvatarBodyPicker({
   onAvatarSceneChange: (scene: AvatarScenePreset) => void;
   onEmoteChange: (emote: SoundFitnessAvatarEmotePreset) => void;
   onOpenAvatarLab: () => void;
+  glowFocus?: SoundFitnessAvatarGlowRegion | null;
+  glowMode?: "whole" | "pieces";
   selectedGroupId: string;
   onSelectGroup: (id: string) => void;
+  viewOverride?: "front" | "back";
   zoneGlowActive: boolean;
   zoneGlowColors?: Partial<
     Record<SoundFitnessAvatarGlowRegion, string | undefined>
@@ -1279,7 +1466,10 @@ function AvatarBodyPicker({
         appearance={appearance}
         emotePreset={emotePreset}
         onSelectBodyPart={onSelectGroup}
+        glowFocus={glowFocus}
+        glowMode={glowMode}
         selectedBodyPart={selectedGroupId as SoundFitnessAvatarBodyPart}
+        viewOverride={viewOverride}
         zoneGlowActive={zoneGlowActive}
         zoneGlowColors={zoneGlowColors}
       />
@@ -1749,6 +1939,34 @@ function AvatarLabMenu({
   );
 }
 
+/**
+ * The centred trio and the compact stat rail only ever render the highlighted
+ * ring, so "highlighted" never flips on a ring that already exists and the
+ * icon/text swap would have nothing to animate. Instead, hold the incoming
+ * label for a beat and then swap to the glyph — stepping quickly keeps the
+ * names on screen, and settling leaves the icons.
+ */
+function useSettledGlyphSwap(token: string | number, enabled: boolean) {
+  const [showGlyph, setShowGlyph] = useState(false);
+  const [settledToken, setSettledToken] = useState(token);
+
+  // Reset during render, not in the effect: an effect lands a frame late, so
+  // the incoming ring would flash its glyph and then sink it back out before
+  // the label ever rose.
+  if (token !== settledToken) {
+    setSettledToken(token);
+    setShowGlyph(false);
+  }
+
+  useEffect(() => {
+    if (!enabled) return;
+    const timer = window.setTimeout(() => setShowGlyph(true), 620);
+    return () => window.clearTimeout(timer);
+  }, [enabled, token]);
+
+  return showGlyph;
+}
+
 function TrainingCategorySelector({
   centered = false,
   compact = false,
@@ -1776,6 +1994,7 @@ function TrainingCategorySelector({
   // Clicking the already-highlighted category opens its breakdown dialog —
   // mirroring how the muscle rings open MuscleDetailDialog.
   const [detailGroupId, setDetailGroupId] = useState<string | null>(null);
+  const centerShowsGlyph = useSettledGlyphSwap(selectedGroupId, true);
 
   useEffect(() => {
     if (!detailGroupId) return;
@@ -1837,7 +2056,7 @@ function TrainingCategorySelector({
 
       <div className="min-w-0">
         <div
-          className={`hidden min-w-0 snap-x snap-mandatory items-center gap-2 overflow-x-auto overscroll-x-contain px-2 py-2 [scroll-padding-inline:0.5rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "" : "min-[760px]:flex"} ${centered && !canScrollBackward && !canScrollForward ? "justify-center" : ""}`}
+          className={`hidden min-w-0 snap-x snap-mandatory items-center gap-2 overflow-x-auto overscroll-x-contain px-2 pt-7 pb-2 [scroll-padding-inline:0.5rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "" : "min-[760px]:flex"} ${centered && !canScrollBackward && !canScrollForward ? "justify-center" : ""}`}
           ref={scrollRef}
         >
           {bodyPartGroups.map((group) => renderCategoryChip(group, "rail"))}
@@ -1854,11 +2073,13 @@ function TrainingCategorySelector({
                 bodyPartGroups.length
             ],
             "side",
+            "left",
           )}
           {renderCategoryChip(bodyPartGroups[selectedIndex], "center")}
           {renderCategoryChip(
             bodyPartGroups[(selectedIndex + 1) % bodyPartGroups.length],
             "side",
+            "right",
           )}
         </div>
       </div>
@@ -1875,8 +2096,12 @@ function TrainingCategorySelector({
   function renderCategoryChip(
     group: BodyPartGroup,
     variant: "rail" | "center" | "side",
+    slot?: "left" | "right",
   ) {
     const active = group.id === selectedGroupId;
+    // The rail keeps every category mounted, so its highlight genuinely moves
+    // between rings and the swap plays on its own.
+    const showGlyph = variant === "center" ? centerShowsGlyph : active;
     const groupTone = statToneClasses[group.tone];
     // Already the sum of every muscle in the group, so the ring shows the
     // category's combined sets for the last 7 days.
@@ -1894,7 +2119,7 @@ function TrainingCategorySelector({
         className={`relative grid shrink-0 snap-start place-items-center rounded-full transition-[box-shadow,outline-color,opacity] duration-300 ${groupTone.icon} ${statusTheme.border} ${
           isSide
             ? "hidden h-11 w-11 opacity-60 min-[520px]:grid min-[760px]:h-[72px] min-[760px]:w-[72px] min-[760px]:opacity-70"
-            : "h-14 w-14 min-[760px]:h-[72px] min-[760px]:w-[72px]"
+            : "h-[84px] w-[84px] min-[520px]:h-[72px] min-[520px]:w-[72px]"
         } ${
           active && !isSide
             ? `${statusTheme.shadow}`
@@ -1905,7 +2130,15 @@ function TrainingCategorySelector({
             ? `${group.label}: ${groupLoad.completed}/${groupLoad.target} sets. Open breakdown.`
             : `${group.label}: ${statusTheme.label} — ${groupLoad.completed}/${groupLoad.target} sets in 7 days`
         }
-        key={`${variant === "rail" ? "rail" : "trio"}-${isSide ? `side-${group.id}` : group.id}`}
+        // The trio is keyed by SLOT, not by category: stepping then updates
+        // the same three rings in place, so the centre ring's face can hand
+        // off (old glyph out, new label in) instead of being torn down and
+        // rebuilt. The rail keeps category keys — every ring is always there.
+        key={
+          variant === "rail"
+            ? `rail-${group.id}`
+            : `trio-${slot ?? "center"}`
+        }
         onClick={() => {
           if (opensBreakdown) {
             setDetailGroupId(group.id);
@@ -1915,38 +2148,30 @@ function TrainingCategorySelector({
         }}
         type="button"
       >
-        <svg
-          aria-hidden="true"
-          className="absolute inset-0 h-full w-full rotate-45"
-          viewBox="0 0 72 72"
-        >
-          <circle
-            cx="36"
-            cy="36"
-            fill="none"
-            r="33"
-            stroke="rgba(148,163,184,0.14)"
-            strokeWidth="5"
-          />
-          <circle
-            cx="36"
-            cy="36"
-            fill="none"
-            pathLength="100"
-            r="33"
-            stroke={statusTheme.ring}
-            strokeDasharray="100"
-            strokeDashoffset={100 - fill}
-            strokeLinecap="round"
-            strokeWidth="5"
-          />
-        </svg>
+        <SegmentedRing
+          fill={fill}
+          segments={groupLoad.target}
+          stroke={statusTheme.ring}
+        />
         <span className="relative flex max-w-[58px] flex-col items-center text-center leading-none">
-          <span
-            className={`block max-w-full truncate font-black uppercase leading-tight tracking-normal ${groupTone.text} ${isSide ? "text-[8px]" : "text-[9px]"}`}
+          <BodyCommandRingFace
+            glyph={group.glyph}
+            glyphClassName={
+              isSide
+                ? "h-7 w-7"
+                : "h-[46px] w-[46px] min-[520px]:h-10 min-[520px]:w-10"
+            }
+            caption={group.label}
+            captionClassName={groupTone.text}
+            showGlyph={showGlyph}
+            tone={group.tone}
           >
-            {group.label}
-          </span>
+            <span
+              className={`block max-w-full truncate font-black uppercase leading-tight tracking-normal ${groupTone.text} ${isSide ? "text-[8px]" : "text-[10px] min-[520px]:text-[9px]"}`}
+            >
+              {group.label}
+            </span>
+          </BodyCommandRingFace>
           {isSide ? null : (
             <span
               className={`mt-1 text-[8px] font-black uppercase leading-tight tracking-normal ${statusTheme.text}`}
@@ -2254,10 +2479,14 @@ function CategoryDetailDialog({
 
 function MuscleGroupPanel({
   compact = false,
+  onHighlightMuscle,
   showTitle = true,
   selectedGroupId,
 }: {
   compact?: boolean;
+  /** Reports the muscle currently under the highlight so the card can turn
+      the avatar around for posterior ones (rear delt, external rotators). */
+  onHighlightMuscle?: (slug: BodyCommandMuscleSlug, userInitiated: boolean) => void;
   showTitle?: boolean;
   selectedGroupId: string;
 }) {
@@ -2285,17 +2514,41 @@ function MuscleGroupPanel({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [detailSlug]);
 
-  const moveHighlight = (direction: -1 | 1) => {
-    setHighlightedIndex((currentIndex) => {
-      const nextIndex =
-        (currentIndex + direction + selectedGroup.muscles.length) %
-        selectedGroup.muscles.length;
+  // Report the highlighted muscle upward (the avatar turns for posterior
+  // ones). Runs on group change too, so the reset to index 0 is reported.
+  // The report also says whether it is the user stepping or just the panel
+  // introducing its first muscle after mount — the parent uses that to keep
+  // the avatar dark on load. Comparing against the mount-time slug (rather
+  // than counting reports) keeps Strict Mode's double effect run honest.
+  const highlightedSlug = selectedGroup.muscles[safeHighlightedIndex];
+  // Flipped by the arrows and ring clicks. Until then every report is the
+  // panel introducing its first muscle after mount (the category's whole-part
+  // silhouette), not the user picking one. The old "differs from the mount
+  // slug" test could never report the group's FIRST muscle (biceps, quads,
+  // traps...) as picked, so the avatar stayed on the whole-arm glow for it.
+  const userPickedRef = useRef(false);
+  useEffect(() => {
+    if (!highlightedSlug) return;
+    onHighlightMuscle?.(highlightedSlug, userPickedRef.current);
+  }, [highlightedSlug, onHighlightMuscle]);
 
-      if (!compact) {
-        window.requestAnimationFrame(() => scrollToIndex(nextIndex));
-      }
-      return nextIndex;
-    });
+  // Picking the muscle already under the highlight changes no state, so the
+  // effect above stays silent — report every pick directly as well.
+  const pickHighlight = (index: number) => {
+    userPickedRef.current = true;
+    setHighlightedIndex(index);
+    onHighlightMuscle?.(selectedGroup.muscles[index], true);
+  };
+
+  const moveHighlight = (direction: -1 | 1) => {
+    const nextIndex =
+      (safeHighlightedIndex + direction + selectedGroup.muscles.length) %
+      selectedGroup.muscles.length;
+
+    if (!compact) {
+      window.requestAnimationFrame(() => scrollToIndex(nextIndex));
+    }
+    pickHighlight(nextIndex);
   };
 
   const visibleMuscles = compact
@@ -2370,55 +2623,34 @@ function MuscleGroupPanel({
             return (
               <div
                 aria-current={index === highlightedIndex ? "true" : undefined}
-                className="relative grid min-h-[92px] min-w-0 place-items-center px-1 py-2 min-[760px]:min-h-[80px] min-[760px]:px-2 min-[760px]:py-1"
+                className="relative grid min-h-[104px] min-w-0 place-items-center px-1 py-2 min-[520px]:min-h-[92px] min-[760px]:min-h-[80px] min-[760px]:px-2 min-[760px]:py-1"
                 key={slug}
               >
                 <button
                   aria-label={`${meta.label}, ${meta.family}, ${statusTheme.label}, ${meta.load.completed} of ${meta.load.target} planned sets in the last 7 days`}
                   aria-haspopup="dialog"
-                  className={`relative grid h-16 w-16 shrink-0 place-items-center rounded-full transition-[box-shadow,outline-color] duration-300 min-[760px]:h-[72px] min-[760px]:w-[72px] ${categoryTone.icon} ${statusTheme.border} ${
+                  className={`relative grid h-[84px] w-[84px] shrink-0 place-items-center rounded-full transition-[box-shadow,outline-color] duration-300 min-[520px]:h-[72px] min-[520px]:w-[72px] ${categoryTone.icon} ${statusTheme.border} ${
                     index === safeHighlightedIndex
                       ? `${statusTheme.shadow}`
                       : "shadow-[0_0_18px_rgba(34,211,238,0.09),inset_0_1px_0_rgba(255,255,255,0.08)]"
                   }`}
                   data-dashboard-tooltip={`${meta.label}: ${meta.load.completed}/${meta.load.target} sets. Open details.`}
                   onClick={() => {
-                    setHighlightedIndex(index);
+                    pickHighlight(index);
                     setDetailSlug(slug);
                   }}
                   type="button"
                 >
-                  <svg
-                    aria-hidden="true"
-                    className="absolute inset-0 h-full w-full rotate-45"
-                    viewBox="0 0 72 72"
-                  >
-                    <circle
-                      cx="36"
-                      cy="36"
-                      fill="none"
-                      r="33"
-                      stroke="rgba(148,163,184,0.14)"
-                      strokeWidth="5"
-                    />
-                    <circle
-                      cx="36"
-                      cy="36"
-                      fill="none"
-                      pathLength="100"
-                      r="33"
-                      stroke={statusTheme.ring}
-                      strokeDasharray="100"
-                      strokeDashoffset={100 - fill}
-                      strokeLinecap="round"
-                      strokeWidth="5"
-                    />
-                  </svg>
-                  <span className="relative flex max-w-[58px] flex-col items-center text-center leading-none">
-                    <span className={`text-[9px] font-black uppercase leading-tight tracking-normal ${categoryTone.text}`}>
+                  <SegmentedRing
+                    fill={fill}
+                    segments={meta.load.target}
+                    stroke={statusTheme.ring}
+                  />
+                  <span className="relative flex max-w-[68px] flex-col items-center text-center leading-none min-[520px]:max-w-[58px]">
+                    <span className={`text-[10px] font-black uppercase leading-tight tracking-normal min-[520px]:text-[9px] ${categoryTone.text}`}>
                       {meta.label}
                     </span>
-                    <span className={`mt-1 text-[8px] font-black uppercase leading-tight tracking-normal ${statusTheme.text}`}>
+                    <span className={`mt-1 text-[9px] font-black uppercase leading-tight tracking-normal min-[520px]:text-[8px] ${statusTheme.text}`}>
                       {meta.load.completed}/{meta.load.target}
                       <span className="ml-0.5 text-[6px] text-slate-400">sets</span>
                     </span>
@@ -2446,19 +2678,44 @@ export default function BodyCommandCenterCard({
 }: BodyCommandCenterCardProps) {
   // Shared between the avatar hotspots and the muscle-group panel.
   const [selectedGroupId, setSelectedGroupId] = useState<string>("legs");
-  // The avatar muscle glow is a five-second flash: it fires once for the
-  // initial selection on load and again on every new selection, then fades
-  // out so the figure isn't permanently lit. Selection itself (panel filter,
-  // back-view flip) stays put — only the glow times out.
-  const [avatarZoneGlowActive, setAvatarZoneGlowActive] = useState(true);
+  // Reported up by MuscleGroupPanel — drives the posterior view flip below,
+  // and re-arms the glow flash so stepping through muscles keeps showing
+  // each one's status color.
+  const [highlightedMuscle, setHighlightedMuscle] =
+    useState<BodyCommandMuscleSlug | null>(null);
+  // Whether the highlighted muscle was stepped to on purpose, as opposed to
+  // being the panel's first muscle after a category change. Browsing
+  // categories lights the whole body part as one silhouette; only a
+  // deliberate step into Muscle Levels breaks it into individual muscles.
+  const [highlightedMusclePicked, setHighlightedMusclePicked] = useState(false);
+  // The avatar muscle glow is a five-second flash on every new selection, then
+  // fades out so the figure isn't permanently lit. It stays dark on load: the
+  // default group and the panel's first mount-time report are not the user
+  // choosing anything, so neither is allowed to light it. Selection itself
+  // (panel filter, back-view flip) is unaffected — only the glow is gated.
+  const userInteractedRef = useRef(false);
+  const selectGroupFromUser = useCallback((id: string) => {
+    userInteractedRef.current = true;
+    setSelectedGroupId(id);
+  }, []);
+  const handleHighlightMuscle = useCallback(
+    (slug: BodyCommandMuscleSlug, userInitiated: boolean) => {
+      if (userInitiated) userInteractedRef.current = true;
+      setHighlightedMuscle(slug);
+      setHighlightedMusclePicked(userInitiated);
+    },
+    [],
+  );
+  const [avatarZoneGlowActive, setAvatarZoneGlowActive] = useState(false);
   useEffect(() => {
+    if (!userInteractedRef.current) return;
     setAvatarZoneGlowActive(true);
     const flashTimer = window.setTimeout(
       () => setAvatarZoneGlowActive(false),
       5000,
     );
     return () => window.clearTimeout(flashTimer);
-  }, [selectedGroupId]);
+  }, [highlightedMuscle, highlightedMusclePicked, selectedGroupId]);
   // Glow in the same seven-day status colors the legend under the avatar and
   // the muscle rings already use — green when cool/on target, amber under,
   // orange prime, rose over. Back and chest pass per-muscle colors so their
@@ -2473,16 +2730,102 @@ export default function BodyCommandCenterCard({
       getSevenDayTrainingStatus(getBodyPartGroupLoad(group))
     ].ring;
   };
+  // Which avatar region the scrolled muscle lights up. Muscles with no
+  // dedicated region fall back to their group's region, so the group still
+  // reads as selected even where the figure has no per-muscle silhouette.
+  const avatarFocusRegionByMuscle: Partial<
+    Record<BodyCommandMuscleSlug, SoundFitnessAvatarGlowRegion>
+  > = {
+    abs: "core",
+    adductors: "adductors",
+    abductors: "abductors",
+    "hip-rotators": "hipRotators",
+    neck: "neck",
+    biceps: "biceps",
+    forearm: "forearms",
+    triceps: "triceps",
+    calves: "calves",
+    "external-rotation": "rotatorExternal",
+    "front-delt": "frontDelt",
+    gluteal: "glutes",
+    hamstring: "hamstrings",
+    "internal-rotation": "rotatorInternal",
+    "lateral-delt": "lateralDelt",
+    lats: "lats",
+    "lower-back": "lowerBack",
+    rhomboids: "rhomboids",
+    "lower-chest": "lowerChest",
+    "mid-chest": "midChest",
+    obliques: "obliques",
+    quadriceps: "quads",
+    "rear-delt": "rearDelt",
+    tibialis: "tibialis",
+    trapezius: "traps",
+    "upper-chest": "upperChest",
+  };
+  // Browsing a category lights it as one silhouette (no per-muscle focus);
+  // stepping into a muscle switches to the individual regions with that one
+  // bright and the rest dimmed.
+  const avatarGlowMode = highlightedMusclePicked ? "pieces" : "whole";
+  const avatarGlowFocus =
+    highlightedMusclePicked && highlightedMuscle
+      ? (avatarFocusRegionByMuscle[highlightedMuscle] ?? null)
+      : null;
+  // Posterior muscles that sit inside a front-facing group: highlighting one
+  // turns the figure around, otherwise its glow is on the hidden side and the
+  // highlight looks broken. The Back group already turns via selectedBodyPart.
+  // Any posterior muscle turns the figure around — otherwise its glow is on
+  // the side facing away and scrolling to it looks like nothing happened.
+  const posteriorMuscles = new Set<BodyCommandMuscleSlug>([
+    "calves",
+    "external-rotation",
+    "gluteal",
+    "hamstring",
+    "hip-rotators",
+    "lats",
+    "lower-back",
+    "rhomboids",
+    "rear-delt",
+    "trapezius",
+    "triceps",
+  ]);
+  const avatarViewOverride =
+    highlightedMuscle && posteriorMuscles.has(highlightedMuscle)
+      ? ("back" as const)
+      : undefined;
   const avatarZoneGlowColors = {
     arms: groupStatusRing("arms"),
-    core: groupStatusRing("core"),
+    back: groupStatusRing("back"),
+    chest: groupStatusRing("chest"),
+    shoulders: groupStatusRing("shoulders"),
+    // Per-muscle leg regions carry their own seven-day status colour.
+    quads: muscleStatusRing("quadriceps"),
+    hamstrings: muscleStatusRing("hamstring"),
+    glutes: muscleStatusRing("gluteal"),
+    calves: muscleStatusRing("calves"),
+    adductors: muscleStatusRing("adductors"),
+    abductors: muscleStatusRing("abductors"),
+    hipRotators: muscleStatusRing("hip-rotators"),
+    neck: muscleStatusRing("neck"),
+    tibialis: muscleStatusRing("tibialis"),
+    biceps: muscleStatusRing("biceps"),
+    triceps: muscleStatusRing("triceps"),
+    forearms: muscleStatusRing("forearm"),
+    // Core splits: the rectus column carries abs, the flanks carry obliques.
+    core: muscleStatusRing("abs"),
+    obliques: muscleStatusRing("obliques"),
+    frontDelt: muscleStatusRing("front-delt"),
+    lateralDelt: muscleStatusRing("lateral-delt"),
+    rearDelt: muscleStatusRing("rear-delt"),
+    rotatorExternal: muscleStatusRing("external-rotation"),
+    rotatorInternal: muscleStatusRing("internal-rotation"),
     legs: groupStatusRing("legs"),
     lowerBack: muscleStatusRing("lower-back"),
     lowerChest: muscleStatusRing("lower-chest"),
     midChest: muscleStatusRing("mid-chest"),
-    shoulders: muscleStatusRing("deltoids"),
     traps: muscleStatusRing("trapezius"),
-    upperBack: muscleStatusRing("upper-back"),
+    lats: muscleStatusRing("lats"),
+    rhomboids: muscleStatusRing("rhomboids"),
     upperChest: muscleStatusRing("upper-chest"),
   };
   const [avatarLabOpen, setAvatarLabOpen] = useState(false);
@@ -2644,8 +2987,11 @@ export default function BodyCommandCenterCard({
               onAvatarSceneChange={setAvatarSceneId}
               onEmoteChange={setAvatarEmotePreset}
               onOpenAvatarLab={() => setAvatarLabOpen(true)}
-              onSelectGroup={setSelectedGroupId}
+              onSelectGroup={selectGroupFromUser}
               selectedGroupId={selectedGroupId}
+              glowFocus={avatarGlowFocus}
+              glowMode={avatarGlowMode}
+              viewOverride={avatarViewOverride}
               zoneGlowActive={avatarZoneGlowActive}
               zoneGlowColors={avatarZoneGlowColors}
             />
@@ -2655,13 +3001,14 @@ export default function BodyCommandCenterCard({
           <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden pr-1 min-[760px]:gap-1">
             <TrainingCategorySelector
               compact
-              onSelectGroup={setSelectedGroupId}
+              onSelectGroup={selectGroupFromUser}
               selectedGroupId={selectedGroupId}
             />
             <div className="flex min-h-0 min-w-0 flex-1 min-[760px]:hidden">
               <MuscleGroupPanel
                 compact
                 key={selectedGroupId}
+                onHighlightMuscle={handleHighlightMuscle}
                 selectedGroupId={selectedGroupId}
                 showTitle={false}
               />
@@ -2669,6 +3016,7 @@ export default function BodyCommandCenterCard({
             <div className="hidden min-h-0 min-w-0 flex-1 min-[760px]:flex">
               <MuscleGroupPanel
                 key={selectedGroupId}
+                onHighlightMuscle={handleHighlightMuscle}
                 selectedGroupId={selectedGroupId}
               />
             </div>

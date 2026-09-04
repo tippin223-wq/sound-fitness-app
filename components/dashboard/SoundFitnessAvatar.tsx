@@ -103,6 +103,7 @@ export type SoundFitnessAvatarBodyPart =
   | "chest"
   | "core"
   | "legs"
+  | "neck"
   | "shoulders";
 
 export type SoundFitnessAvatarProps = {
@@ -128,20 +129,58 @@ export type SoundFitnessAvatarProps = {
   bodyPartGlowColors?: Partial<
     Record<SoundFitnessAvatarGlowRegion, string | undefined>
   >;
+  /** When set, only this region glows at full strength and every other
+      region drops back — so stepping through a group's muscle list reads as
+      that one muscle lighting up rather than the whole group. */
+  bodyPartGlowFocus?: SoundFitnessAvatarGlowRegion | null;
+  /** "whole" lights the selected body part as one continuous silhouette;
+   *  "pieces" (default) lights its individual muscle regions. */
+  bodyPartGlowMode?: "whole" | "pieces";
   showStageBackdrop?: boolean;
+  /** Force the figure to face a given way. Without it the view follows the
+      selected body part (only "back" turns it around) — but a posterior
+      muscle inside a front-facing group (rear delt, external rotators)
+      needs the figure turned to be visible at all. */
+  viewOverride?: "front" | "back";
 };
 
 export type SoundFitnessAvatarGlowRegion =
+  // "core" is the rectus column only — the obliques flank it in their own
+  // region. The deltoid splits into its three heads (the cap is subdivided
+  // the same way in both views: front+lateral facing forward, rear+lateral
+  // from behind), and the rotator cuff is scapula-anchored, so its two
+  // regions live on the torso rather than riding the arm rig.
   | "arms"
+  | "back"
+  | "chest"
+  | "shoulders"
   | "core"
+  | "frontDelt"
+  | "lateralDelt"
   | "legs"
   | "lowerBack"
   | "lowerChest"
   | "midChest"
-  | "shoulders"
+  | "adductors"
+  | "biceps"
+  | "calves"
+  | "forearms"
+  | "lats"
+  | "glutes"
+  | "hamstrings"
+  | "obliques"
+  | "quads"
+  | "rearDelt"
+  | "rhomboids"
+  | "rotatorExternal"
+  | "rotatorInternal"
+  | "tibialis"
   | "traps"
-  | "upperBack"
-  | "upperChest";
+  | "triceps"
+  | "upperChest"
+  | "abductors"
+  | "hipRotators"
+  | "neck";
 
 // Every shirt is a Sound Fitness tee — the presets are colorways, and `logo`
 // is the chest-print (and gear-tint) color chosen to contrast the fabric.
@@ -325,6 +364,8 @@ export default function SoundFitnessAvatar({
   appearance,
   bodyPartGlowActive = true,
   bodyPartGlowColors,
+  bodyPartGlowFocus,
+  bodyPartGlowMode = "pieces",
   className = "",
   emotePreset,
   exerciseLabel,
@@ -333,6 +374,7 @@ export default function SoundFitnessAvatar({
   selectedBodyPart,
   showExerciseLabel = true,
   showStageBackdrop = true,
+  viewOverride,
 }: SoundFitnessAvatarProps) {
   const avatarId = useId().replace(/:/g, "");
   const selectedEmote = emotePreset || legacyExerciseToEmote[animationPreset];
@@ -343,6 +385,19 @@ export default function SoundFitnessAvatar({
   };
   const zoneColor = (region: SoundFitnessAvatarGlowRegion) =>
     bodyPartGlowColors?.[region] ?? "#67e8f9";
+  // Regions other than the focused one stay faintly lit for context rather
+  // than vanishing, so the body still reads as a whole.
+  // In "whole" mode the per-muscle pieces go dark and the body part's single
+  // silhouette carries the glow; in "pieces" mode it is the reverse, with a
+  // focused muscle bright and its neighbours dimmed.
+  const zoneOpacity = (region: SoundFitnessAvatarGlowRegion, base: number) =>
+    bodyPartGlowMode === "whole"
+      ? 0
+      : !bodyPartGlowFocus || bodyPartGlowFocus === region
+        ? base
+        : base * 0.16;
+  const wholeZoneOpacity = (base: number) =>
+    bodyPartGlowMode === "whole" ? base : 0;
   const shirtPalette = avatarShirtPalettes[resolvedAppearance.shirt];
   const pantsPalette = avatarPantsPalettes[resolvedAppearance.pants];
   const shoePalette = avatarShoePalettes[resolvedAppearance.shoes];
@@ -386,7 +441,9 @@ export default function SoundFitnessAvatar({
       data-avatar-pants={resolvedAppearance.pants}
       data-avatar-shirt={resolvedAppearance.shirt}
       data-avatar-shoes={resolvedAppearance.shoes}
-      data-avatar-view={selectedBodyPart === "back" ? "back" : "front"}
+      data-avatar-view={
+        viewOverride ?? (selectedBodyPart === "back" ? "back" : "front")
+      }
       data-body-parts={interactiveBodyParts ? "interactive" : "static"}
       style={
         alignToFloor
@@ -639,16 +696,14 @@ export default function SoundFitnessAvatar({
           opacity: 0.36;
         }
 
-        .sound-fitness-avatar__eq-bar {
-          animation: sound-fitness-avatar-eq 1.9s ease-in-out infinite;
-          transform-box: fill-box;
-          transform-origin: center;
+        .sound-fitness-avatar__crest-glow {
+          animation: sound-fitness-avatar-crest-glow 3.6s ease-in-out infinite;
         }
 
         /* Back view hides the chest print with opacity only, which does not
            stop descendant animations — without this guard five EQ bars keep
            ticking invisibly (the chest-core this replaced had the same rule). */
-        .sound-fitness-avatar[data-avatar-view="back"] .sound-fitness-avatar__eq-bar {
+        .sound-fitness-avatar[data-avatar-view="back"] .sound-fitness-avatar__crest-glow {
           animation: none;
         }
 
@@ -684,6 +739,20 @@ export default function SoundFitnessAvatar({
         .sound-fitness-avatar__body-zone[data-active="true"] .sound-fitness-avatar__body-zone-glow {
           animation: sound-fitness-avatar-zone-pulse 2.1s ease-in-out infinite;
           opacity: 1;
+        }
+
+        /* View-gated glow regions: posterior structures (rear delt, external
+           rotators) exist only on the back view, anterior ones only on the
+           front. The [data-active] rule above sets opacity through an
+           ANIMATION, which outranks any ordinary declaration — so the hide
+           has to be !important to win, and killing the animation with it
+           stops a pulse nobody can see. */
+        .sound-fitness-avatar:not([data-avatar-view="back"])
+          .sound-fitness-avatar__zone-back-only,
+        .sound-fitness-avatar[data-avatar-view="back"]
+          .sound-fitness-avatar__zone-front-only {
+          animation: none !important;
+          opacity: 0 !important;
         }
 
         @keyframes sound-fitness-avatar-breathe {
@@ -827,9 +896,9 @@ export default function SoundFitnessAvatar({
           32%, 70% { transform: rotate(-112deg); }
         }
 
-        @keyframes sound-fitness-avatar-eq {
-          0%, 100% { transform: scaleY(0.55); }
-          50% { transform: scaleY(1); }
+        @keyframes sound-fitness-avatar-crest-glow {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.92; }
         }
 
         @keyframes sound-fitness-avatar-gear-glint {
@@ -847,7 +916,7 @@ export default function SoundFitnessAvatar({
           .sound-fitness-avatar__head,
           .sound-fitness-avatar__expression,
           .sound-fitness-avatar__rig-node,
-          .sound-fitness-avatar__eq-bar,
+          .sound-fitness-avatar__crest-glow,
           .sound-fitness-avatar__gear {
             animation: none !important;
           }
@@ -934,6 +1003,14 @@ export default function SoundFitnessAvatar({
             <stop offset="38%" stopColor={skinPalette.mid} />
             <stop offset="100%" stopColor={skinPalette.shadow} />
           </radialGradient>
+          {/* Soft aura behind the chest crest, in the colorway's accent so the
+              print still changes with the shirt now that the crest itself is
+              a fixed image. */}
+          <radialGradient id={`${avatarId}-crest-glow`} cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor={shirtPalette.logo} stopOpacity="0.62" />
+            <stop offset="55%" stopColor={shirtPalette.logo} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={shirtPalette.logo} stopOpacity="0" />
+          </radialGradient>
           <radialGradient id={`${avatarId}-skin-rose`} cx="42%" cy="38%" r="70%">
             <stop offset="0%" stopColor={skinPalette.highlight} stopOpacity="0.74" />
             <stop offset="56%" stopColor={skinPalette.blush} stopOpacity="0.24" />
@@ -998,14 +1075,14 @@ export default function SoundFitnessAvatar({
               />
               <g className="sound-fitness-avatar__front-foot">
                 <path
-                  d="M80 294 C91 289 104 292 110 301 C99 306 83 306 76 300Z"
+                  d="M110 301 C104 292 91 289 82 293 L78 298 C83 302 99 306 110 301Z"
                   fill={`url(#${avatarId}-shoe)`}
                   stroke="rgba(2,6,23,0.4)"
                   strokeLinejoin="round"
                   strokeWidth="1.2"
                 />
                 <path
-                  d="M79 299 C87 294 100 294 106 301"
+                  d="M106 301 C100 294 88 294 82 297"
                   fill="none"
                   stroke={`url(#${avatarId}-sole)`}
                   strokeLinecap="round"
@@ -1016,14 +1093,14 @@ export default function SoundFitnessAvatar({
                   mirrored toe box read as feet still facing forward. */}
               <g className="sound-fitness-avatar__back-foot">
                 <path
-                  d="M83 293 C89 288 101 289 107 295 L107 301 C99 306 87 306 81 300Z"
+                  d="M88 292 C90 289 99 289 101 292 L103 302 C99 306 90 306 86 302Z"
                   fill={`url(#${avatarId}-shoe)`}
                   stroke="rgba(2,6,23,0.4)"
                   strokeLinejoin="round"
                   strokeWidth="1.2"
                 />
                 <path
-                  d="M82 301 C91 305 101 305 108 300"
+                  d="M87 301 C92 304 97 304 102 301"
                   fill="none"
                   stroke={`url(#${avatarId}-sole)`}
                   strokeLinecap="round"
@@ -1065,14 +1142,14 @@ export default function SoundFitnessAvatar({
               />
               <g className="sound-fitness-avatar__front-foot">
                 <path
-                  d="M130 301 C136 292 149 289 160 294 L164 300 C157 306 141 306 130 301Z"
+                  d="M130 301 C136 292 149 289 158 293 L162 298 C157 302 141 306 130 301Z"
                   fill={`url(#${avatarId}-shoe)`}
                   stroke="rgba(2,6,23,0.4)"
                   strokeLinejoin="round"
                   strokeWidth="1.2"
                 />
                 <path
-                  d="M134 301 C140 294 153 294 161 299"
+                  d="M134 301 C140 294 152 294 158 297"
                   fill="none"
                   stroke={`url(#${avatarId}-sole)`}
                   strokeLinecap="round"
@@ -1081,14 +1158,14 @@ export default function SoundFitnessAvatar({
               </g>
               <g className="sound-fitness-avatar__back-foot">
                 <path
-                  d="M133 295 C139 289 151 288 157 293 L159 300 C153 306 141 306 133 301Z"
+                  d="M139 292 C141 289 150 289 152 292 L154 302 C150 306 141 306 137 302Z"
                   fill={`url(#${avatarId}-shoe)`}
                   stroke="rgba(2,6,23,0.4)"
                   strokeLinejoin="round"
                   strokeWidth="1.2"
                 />
                 <path
-                  d="M132 300 C139 305 149 305 158 301"
+                  d="M138 301 C143 304 148 304 153 301"
                   fill="none"
                   stroke={`url(#${avatarId}-sole)`}
                   strokeLinecap="round"
@@ -1112,14 +1189,150 @@ export default function SoundFitnessAvatar({
               className="sound-fitness-avatar__body-zone-glow"
               d="M93 192 C98 187 107 187 111 192 C110 207 108 222 107 236 C106 255 103 275 101 291 C99 296 90 296 88 291 C88 275 89 255 90 236 C90 221 91 206 93 192Z"
               fill={zoneColor("legs")}
-              fillOpacity="0.5"
+              fillOpacity={zoneOpacity("legs", 0.5)}
               filter={`url(#${avatarId}-zone-glow)`}
             />
             <path
               className="sound-fitness-avatar__body-zone-glow"
               d="M147 192 C142 187 133 187 129 192 C130 207 132 222 133 236 C134 255 137 275 139 291 C141 296 150 296 152 291 C152 275 151 255 150 236 C150 221 149 206 147 192Z"
               fill={zoneColor("legs")}
-              fillOpacity="0.5"
+              fillOpacity={zoneOpacity("legs", 0.5)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            {/* Individual leg muscles, carved out of the same silhouette so
+                scrolling the muscle list lights the specific one. Anterior
+                and posterior heads are view-gated. */}
+            {/* Whole-part silhouette: one continuous glow per leg, hip to
+                ankle, shown while the category is browsed rather than a
+                specific muscle. Both views. */}
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M92 187 C98 183 108 183 113 188 C113 205 110 222 108 238 C107 254 105 270 103 285 C100 290 92 290 89 285 C88 270 88 254 89 238 C89 222 89 205 92 187Z"
+              fill={zoneColor("legs")}
+              fillOpacity={wholeZoneOpacity(0.5)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M148 187 C142 183 132 183 127 188 C127 205 130 222 132 238 C133 254 135 270 137 285 C140 290 148 290 151 285 C152 270 152 254 151 238 C151 222 151 205 148 187Z"
+              fill={zoneColor("legs")}
+              fillOpacity={wholeZoneOpacity(0.5)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M93 191 C98 187 107 187 111 191 C110 206 108 221 107 235 C102 238 95 238 90 235 C91 220 91 205 93 191Z"
+              fill={zoneColor("quads")}
+              fillOpacity={zoneOpacity("quads", 0.52)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M147 191 C142 187 133 187 129 191 C130 206 132 221 133 235 C138 238 145 238 150 235 C149 220 149 205 147 191Z"
+              fill={zoneColor("quads")}
+              fillOpacity={zoneOpacity("quads", 0.52)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M93 191 C98 187 107 187 111 191 C110 207 108 222 107 237 C102 240 95 240 90 237 C91 221 91 206 93 191Z"
+              fill={zoneColor("hamstrings")}
+              fillOpacity={zoneOpacity("hamstrings", 0.52)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M147 191 C142 187 133 187 129 191 C130 207 132 222 133 237 C138 240 145 240 150 237 C149 221 149 206 147 191Z"
+              fill={zoneColor("hamstrings")}
+              fillOpacity={zoneOpacity("hamstrings", 0.52)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M92 190 C97 185 108 185 112 190 C111 199 110 208 109 214 C103 217 96 217 91 214 C91 206 91 198 92 190Z"
+              fill={zoneColor("glutes")}
+              fillOpacity={zoneOpacity("glutes", 0.54)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M148 190 C143 185 132 185 128 190 C129 199 130 208 131 214 C137 217 144 217 149 214 C149 206 149 198 148 190Z"
+              fill={zoneColor("glutes")}
+              fillOpacity={zoneOpacity("glutes", 0.54)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M105 194 C108 193 110 194 111 196 C110 210 109 222 108 232 C106 234 103 234 102 232 C103 219 104 206 105 194Z"
+              fill={zoneColor("adductors")}
+              fillOpacity={zoneOpacity("adductors", 0.54)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M135 194 C132 193 130 194 129 196 C130 210 131 222 132 232 C134 234 137 234 138 232 C137 219 136 206 135 194Z"
+              fill={zoneColor("adductors")}
+              fillOpacity={zoneOpacity("adductors", 0.54)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            {/* Abductors: glute med / TFL on the outer hip, lateral enough to
+                read from either side, so no view class. */}
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M88 186 C93 184 98 186 100 191 C100 200 99 208 97 214 C93 216 89 215 87 211 C86 203 86 194 88 186Z"
+              fill={zoneColor("abductors")}
+              fillOpacity={zoneOpacity("abductors", 0.54)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M152 186 C147 184 142 186 140 191 C140 200 141 208 143 214 C147 216 151 215 153 211 C154 203 154 194 152 186Z"
+              fill={zoneColor("abductors")}
+              fillOpacity={zoneOpacity("abductors", 0.54)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            {/* Hip rotators: piriformis and the deep six sit under the glutes
+                at the hip joint, so a small posterior band each side. */}
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M96 197 C100 194 107 194 110 198 C110 204 107 208 102 208 C98 208 95 204 96 197Z"
+              fill={zoneColor("hipRotators")}
+              fillOpacity={zoneOpacity("hipRotators", 0.54)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M144 197 C140 194 133 194 130 198 C130 204 133 208 138 208 C142 208 145 204 144 197Z"
+              fill={zoneColor("hipRotators")}
+              fillOpacity={zoneOpacity("hipRotators", 0.54)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M90 240 C95 237 102 237 106 240 C105 254 104 268 102 282 C99 286 93 286 90 282 C89 268 89 254 90 240Z"
+              fill={zoneColor("calves")}
+              fillOpacity={zoneOpacity("calves", 0.54)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M150 240 C145 237 138 237 134 240 C135 254 136 268 138 282 C141 286 147 286 150 282 C151 268 151 254 150 240Z"
+              fill={zoneColor("calves")}
+              fillOpacity={zoneOpacity("calves", 0.54)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M92 242 C95 240 100 240 103 242 C102 256 101 269 100 281 C97 284 93 284 91 281 C91 268 91 255 92 242Z"
+              fill={zoneColor("tibialis")}
+              fillOpacity={zoneOpacity("tibialis", 0.54)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M148 242 C145 240 140 240 137 242 C138 256 139 269 140 281 C143 284 147 284 149 281 C149 268 149 255 148 242Z"
+              fill={zoneColor("tibialis")}
+              fillOpacity={zoneOpacity("tibialis", 0.54)}
               filter={`url(#${avatarId}-zone-glow)`}
             />
             <path
@@ -1159,28 +1372,16 @@ export default function SoundFitnessAvatar({
               strokeLinecap="round"
               strokeWidth="1.3"
             />
-            <g
-              className="sound-fitness-avatar__body-zone"
-              data-active={bodyPartGlowActive && selectedBodyPart === "shoulders"}
-            >
-              <path
-                className="sound-fitness-avatar__body-zone-glow"
-                d="M84 112 C86 100 97 96 104 102 C106 108 105 116 100 121 C93 122 86 119 84 112Z"
-                fill={zoneColor("shoulders")}
-                fillOpacity="0.45"
-                filter={`url(#${avatarId}-zone-glow)`}
-              />
-              <path
-                {...bodyPartInteractionProps("shoulders", "shoulders")}
-                className="sound-fitness-avatar__body-zone-hit"
-                d="M84 108 A11 11 0 1 0 106 108 A11 11 0 1 0 84 108"
-                strokeWidth="6"
-              />
-            </g>
+            {/* The shoulder zone used to live here, inside the arm rig — but
+                the rig paints BEFORE the opaque sleeve panel and torso, so
+                every delt glow was 100% occluded. It now sits at torso level
+                beside the rotator cuff group. */}
             <g
               className="sound-fitness-avatar__body-zone"
               data-active={bodyPartGlowActive && selectedBodyPart === "arms"}
             >
+              {/* Whole-arm glow rides the same centreline as the muscle
+                  strokes so it follows the rig through every emote. */}
               <path
                 className="sound-fitness-avatar__body-zone-glow"
                 d="M92 114 C87 126 83 139 80 151"
@@ -1188,6 +1389,27 @@ export default function SoundFitnessAvatar({
                 filter={`url(#${avatarId}-zone-glow)`}
                 stroke={zoneColor("arms")}
                 strokeLinecap="round"
+                strokeOpacity={wholeZoneOpacity(1)}
+                strokeWidth={upperArmWidth + 3}
+              />
+              <path
+                className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+                d="M92 114 C87 126 83 139 80 151"
+                fill="none"
+                filter={`url(#${avatarId}-zone-glow)`}
+                stroke={zoneColor("biceps")}
+                strokeLinecap="round"
+                strokeOpacity={zoneOpacity("biceps", 1)}
+                strokeWidth={upperArmWidth + 3}
+              />
+              <path
+                className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+                d="M92 114 C87 126 83 139 80 151"
+                fill="none"
+                filter={`url(#${avatarId}-zone-glow)`}
+                stroke={zoneColor("triceps")}
+                strokeLinecap="round"
+                strokeOpacity={zoneOpacity("triceps", 1)}
                 strokeWidth={upperArmWidth + 3}
               />
               <path
@@ -1247,6 +1469,17 @@ export default function SoundFitnessAvatar({
                   filter={`url(#${avatarId}-zone-glow)`}
                   stroke={zoneColor("arms")}
                   strokeLinecap="round"
+                  strokeOpacity={wholeZoneOpacity(1)}
+                  strokeWidth={forearmWidth + 5}
+                />
+                <path
+                  className="sound-fitness-avatar__body-zone-glow"
+                  d="M79 151 C76 165 74 179 76 189"
+                  fill="none"
+                  filter={`url(#${avatarId}-zone-glow)`}
+                  stroke={zoneColor("forearms")}
+                  strokeLinecap="round"
+                  strokeOpacity={zoneOpacity("forearms", 1)}
                   strokeWidth={forearmWidth + 5}
                 />
                 <path
@@ -1285,24 +1518,8 @@ export default function SoundFitnessAvatar({
               strokeLinecap="round"
               strokeWidth="1.3"
             />
-            <g
-              className="sound-fitness-avatar__body-zone"
-              data-active={bodyPartGlowActive && selectedBodyPart === "shoulders"}
-            >
-              <path
-                className="sound-fitness-avatar__body-zone-glow"
-                d="M156 112 C154 100 143 96 136 102 C134 108 135 116 140 121 C147 122 154 119 156 112Z"
-                fill={zoneColor("shoulders")}
-                fillOpacity="0.45"
-                filter={`url(#${avatarId}-zone-glow)`}
-              />
-              <path
-                {...bodyPartInteractionProps("shoulders", "shoulders")}
-                className="sound-fitness-avatar__body-zone-hit"
-                d="M134 108 A11 11 0 1 0 156 108 A11 11 0 1 0 134 108"
-                strokeWidth="6"
-              />
-            </g>
+            {/* Right shoulder zone also relocated to torso level — see the
+                note on the left side. */}
             <g
               className="sound-fitness-avatar__body-zone"
               data-active={bodyPartGlowActive && selectedBodyPart === "arms"}
@@ -1314,6 +1531,27 @@ export default function SoundFitnessAvatar({
                 filter={`url(#${avatarId}-zone-glow)`}
                 stroke={zoneColor("arms")}
                 strokeLinecap="round"
+                strokeOpacity={wholeZoneOpacity(1)}
+                strokeWidth={upperArmWidth + 3}
+              />
+              <path
+                className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+                d="M148 114 C153 126 157 139 160 151"
+                fill="none"
+                filter={`url(#${avatarId}-zone-glow)`}
+                stroke={zoneColor("biceps")}
+                strokeLinecap="round"
+                strokeOpacity={zoneOpacity("biceps", 1)}
+                strokeWidth={upperArmWidth + 3}
+              />
+              <path
+                className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+                d="M148 114 C153 126 157 139 160 151"
+                fill="none"
+                filter={`url(#${avatarId}-zone-glow)`}
+                stroke={zoneColor("triceps")}
+                strokeLinecap="round"
+                strokeOpacity={zoneOpacity("triceps", 1)}
                 strokeWidth={upperArmWidth + 3}
               />
               <path
@@ -1373,6 +1611,17 @@ export default function SoundFitnessAvatar({
                   filter={`url(#${avatarId}-zone-glow)`}
                   stroke={zoneColor("arms")}
                   strokeLinecap="round"
+                  strokeOpacity={wholeZoneOpacity(1)}
+                  strokeWidth={forearmWidth + 5}
+                />
+                <path
+                  className="sound-fitness-avatar__body-zone-glow"
+                  d="M161 151 C164 165 166 179 164 189"
+                  fill="none"
+                  filter={`url(#${avatarId}-zone-glow)`}
+                  stroke={zoneColor("forearms")}
+                  strokeLinecap="round"
+                  strokeOpacity={zoneOpacity("forearms", 1)}
                   strokeWidth={forearmWidth + 5}
                 />
                 <path
@@ -1393,6 +1642,7 @@ export default function SoundFitnessAvatar({
                 : "M78 101 C94 83 146 83 162 101 C174 125 172 164 157 201 C139 214 101 214 83 201 C68 164 66 125 78 101Z"
             }
             fill="rgba(15,23,42,0.5)"
+            pointerEvents="none"
           />
           <path
             d={
@@ -1401,6 +1651,7 @@ export default function SoundFitnessAvatar({
                 : "M72 113 C82 97 101 91 113 99 C105 113 96 126 82 134 C75 128 72 121 72 113Z"
             }
             fill={`url(#${avatarId}-shirt-side)`}
+            pointerEvents="none"
             stroke="rgba(2,6,23,0.4)"
             strokeLinejoin="round"
             strokeWidth="1.2"
@@ -1412,6 +1663,7 @@ export default function SoundFitnessAvatar({
                 : "M168 113 C158 97 139 91 127 99 C135 113 144 126 158 134 C165 128 168 121 168 113Z"
             }
             fill={`url(#${avatarId}-shirt-side)`}
+            pointerEvents="none"
             stroke="rgba(2,6,23,0.4)"
             strokeLinejoin="round"
             strokeWidth="1.2"
@@ -1423,6 +1675,11 @@ export default function SoundFitnessAvatar({
                 : "M96 95 C106 88 134 88 144 95 C158 123 158 166 146 195 C133 203 107 203 94 195 C82 166 82 123 96 95Z"
             }
             fill={`url(#${avatarId}-shirt)`}
+            // Garment paths paint over the body-part hit shapes; without this
+            // the torso swallowed every shoulder/arm click (and most leg
+            // clicks) because it is painted last and defaults to
+            // pointer-events: visiblePainted.
+            pointerEvents="none"
             stroke="rgba(2,6,23,0.4)"
             strokeLinejoin="round"
             strokeWidth="1.6"
@@ -1439,6 +1696,7 @@ export default function SoundFitnessAvatar({
                 : "M90 179 C110 188 130 188 150 179 L146 195 C133 203 107 203 94 195Z"
             }
             fill={`url(#${avatarId}-pants)`}
+            pointerEvents="none"
           />
           <path
             d={
@@ -1472,54 +1730,29 @@ export default function SoundFitnessAvatar({
             strokeWidth="0.9"
           />
           <g aria-hidden="true" className="sound-fitness-avatar__front-torso-detail">
-            {/* Sound Fitness chest print: a live EQ wave over the wordmark.
-                aria-hidden because the svg itself joins the accessibility tree
-                when body parts are interactive — without it, AT announces stray
-                SOUND / FITNESS text between the body-part buttons (even in back
-                view, where the print is only opacity-hidden). */}
-            {[
-              { delay: "0s", height: 7, x: 108.3 },
-              { delay: "-0.9s", height: 12, x: 113.5 },
-              { delay: "-0.3s", height: 17, x: 118.7 },
-              { delay: "-1.2s", height: 12, x: 123.9 },
-              { delay: "-0.6s", height: 7, x: 129.1 },
-            ].map((bar) => (
-              <rect
-                className="sound-fitness-avatar__eq-bar"
-                fill={shirtPalette.logo}
-                height={bar.height}
-                key={bar.x}
-                rx="1.3"
-                style={{ animationDelay: bar.delay }}
-                width="2.6"
-                x={bar.x}
-                y={126 - bar.height / 2}
-              />
-            ))}
-            <text
-              fill={shirtPalette.logo}
-              fontSize="5.5"
-              fontWeight="800"
-              letterSpacing="0.16em"
-              opacity="0.92"
-              textAnchor="middle"
-              x="120.5"
-              y="143"
-            >
-              SOUND
-            </text>
-            <text
-              fill={shirtPalette.logo}
-              fontSize="3.4"
-              fontWeight="700"
-              letterSpacing="0.3em"
-              opacity="0.64"
-              textAnchor="middle"
-              x="120.6"
-              y="149"
-            >
-              FITNESS
-            </text>
+            {/* Sound Fitness chest print: the crest over a breathing glow in
+                the colorway's accent. aria-hidden because the svg itself joins
+                the accessibility tree when body parts are interactive — without
+                it, AT announces the print between the body-part buttons (even
+                in back view, where it is only opacity-hidden). The glow is a
+                separate element so only its opacity animates — cheap to
+                composite, and nothing repaints the image every frame. */}
+            <ellipse
+              className="sound-fitness-avatar__crest-glow"
+              cx="120.5"
+              cy="133"
+              fill={`url(#${avatarId}-crest-glow)`}
+              rx="26.5"
+              ry="27"
+            />
+            <image
+              height="43.5"
+              href="/sound-crest-avatar.png"
+              preserveAspectRatio="xMidYMid meet"
+              width="43.5"
+              x="98.75"
+              y="111.25"
+            />
           </g>
           <g className="sound-fitness-avatar__back-torso-detail">
             {/* The shirt's back: a high crew-neck band and a yoke seam, so the
@@ -1540,36 +1773,11 @@ export default function SoundFitnessAvatar({
               strokeWidth="1.3"
             />
             <path
-              d={
-                isFemale
-                  ? "M108 103 C113 98 127 98 132 103"
-                  : "M106 102 C112 97 128 97 134 102"
-              }
-              fill="none"
-              stroke="rgba(2,6,23,0.42)"
-              strokeLinecap="round"
-              strokeWidth="1.6"
-            />
-            <path
               d={isFemale ? "M120 106 L120 166" : "M120 106 L120 171"}
               fill="none"
               stroke="rgba(2,6,23,0.44)"
               strokeLinecap="round"
               strokeWidth="1.8"
-            />
-            <path
-              d="M114 115 C110 110 103 110 100 115 C102 123 108 127 113 126 C115 123 115 119 114 115Z"
-              fill="rgba(2,6,23,0.26)"
-              stroke="rgba(2,6,23,0.4)"
-              strokeLinejoin="round"
-              strokeWidth="1.2"
-            />
-            <path
-              d="M126 115 C130 110 137 110 140 115 C138 123 132 127 127 126 C125 123 125 119 126 115Z"
-              fill="rgba(255,255,255,0.05)"
-              stroke="rgba(2,6,23,0.4)"
-              strokeLinejoin="round"
-              strokeWidth="1.2"
             />
             <path
               d={
@@ -1591,31 +1799,56 @@ export default function SoundFitnessAvatar({
             {/* Specific back regions, each in its own muscle's status color:
                 traps across the neck base, the upper back over the blades,
                 and the lower back above the waist. */}
+            {/* Whole-part silhouette: the entire back from the nape to the
+                waist as one glow, for browsing the Back category. */}
             <path
-              className="sound-fitness-avatar__body-zone-glow"
-              d="M104 100 C111 95 129 95 136 100 C133 107 127 112 120 113 C113 112 107 107 104 100Z"
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M104 97 C110 94 130 94 136 97 C140 101 143 108 146 118 C147 140 146 162 141 184 C128 190 112 190 99 184 C94 162 93 140 94 118 C97 108 100 101 104 97Z"
+              fill={zoneColor("back")}
+              fillOpacity={wholeZoneOpacity(0.5)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M104 99 C110 96 130 96 136 99 C139 102 142 106 144 110 C138 114 131 117 126 120 L120 152 L114 120 C109 117 102 114 96 110 C98 106 101 102 104 99Z"
               fill={zoneColor("traps")}
-              fillOpacity="0.44"
+              fillOpacity={zoneOpacity("traps", 0.44)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            {/* Lats sweep out to the axilla and down to the waist; the
+                rhomboids sit between the blades, medial and higher. */}
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M96 123 C94 136 94 150 99 161 C103 169 108 173 114 173 C116 160 115 145 111 133 C108 126 102 122 96 123Z"
+              fill={zoneColor("lats")}
+              fillOpacity={zoneOpacity("lats", 0.42)}
               filter={`url(#${avatarId}-zone-glow)`}
             />
             <path
-              className="sound-fitness-avatar__body-zone-glow"
-              d="M100 114 C107 110 133 110 140 114 C141 128 138 140 133 146 C124 150 116 150 107 146 C102 140 99 128 100 114Z"
-              fill={zoneColor("upperBack")}
-              fillOpacity="0.4"
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M144 123 C146 136 146 150 141 161 C137 169 132 173 126 173 C124 160 125 145 129 133 C132 126 138 122 144 123Z"
+              fill={zoneColor("lats")}
+              fillOpacity={zoneOpacity("lats", 0.42)}
               filter={`url(#${avatarId}-zone-glow)`}
             />
             <path
-              className="sound-fitness-avatar__body-zone-glow"
-              d="M105 150 C113 147 127 147 135 150 C137 162 136 173 133 181 C124 185 116 185 107 181 C104 173 103 162 105 150Z"
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M108 118 C114 115 126 115 132 118 C133 128 132 138 130 146 C124 149 116 149 110 146 C108 138 107 128 108 118Z"
+              fill={zoneColor("rhomboids")}
+              fillOpacity={zoneOpacity("rhomboids", 0.44)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M108 146 C113 143 127 143 132 146 C135 158 135 170 134 182 C128 187 112 187 106 182 C105 170 105 158 108 146Z"
               fill={zoneColor("lowerBack")}
-              fillOpacity="0.4"
+              fillOpacity={zoneOpacity("lowerBack", 0.4)}
               filter={`url(#${avatarId}-zone-glow)`}
             />
             <path
               {...bodyPartInteractionProps("back", "back")}
               className="sound-fitness-avatar__body-zone-hit"
-              d="M104 101 C111 96 129 96 136 101 L143 116 C137 122 129 125 120 125 C111 125 103 122 97 116Z"
+              d="M101 112 C110 108 130 108 139 112 L141 130 C135 136 128 139 120 139 C112 139 105 136 99 130Z"
               strokeLinejoin="round"
               strokeWidth="5"
             />
@@ -1626,25 +1859,34 @@ export default function SoundFitnessAvatar({
           >
             {/* Chest bands — upper, mid, lower pecs — each colored by its own
                 muscle's seven-day status. */}
+            {/* Whole-part silhouette: the full chest plate, collarbone to the
+                lower pec line, as one glow for browsing the category. */}
             <path
-              className="sound-fitness-avatar__body-zone-glow"
-              d="M98 116 C105 110 115 109 120 114 C125 109 135 110 142 116 C142 122 141 127 139 131 C127 126 113 126 101 131 C99 127 98 122 98 116Z"
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M98 105 C105 100 114 102 120 108 C126 102 135 100 142 105 C143 120 141 137 136 150 C128 155 112 155 104 150 C99 137 97 120 98 105Z"
+              fill={zoneColor("chest")}
+              fillOpacity={wholeZoneOpacity(0.5)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M98 106 C105 102 114 104 120 110 C126 104 135 102 142 106 C142 112 141 117 139 121 C128 116 112 116 101 121 C99 117 98 111 98 106Z"
               fill={zoneColor("upperChest")}
-              fillOpacity="0.44"
+              fillOpacity={zoneOpacity("upperChest", 0.44)}
               filter={`url(#${avatarId}-zone-glow)`}
             />
             <path
-              className="sound-fitness-avatar__body-zone-glow"
-              d="M100 133 C112 128 128 128 140 133 C140 139 139 144 137 147 C126 143 114 143 103 147 C101 144 100 139 100 133Z"
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M100 124 C111 119 129 119 140 124 C140 129 139 133 137 136 C126 132 114 132 103 136 C101 133 100 128 100 124Z"
               fill={zoneColor("midChest")}
-              fillOpacity="0.42"
+              fillOpacity={zoneOpacity("midChest", 0.42)}
               filter={`url(#${avatarId}-zone-glow)`}
             />
             <path
-              className="sound-fitness-avatar__body-zone-glow"
-              d="M103 149 C114 146 126 146 137 149 C136 154 134 158 131 160 C124 158 116 158 109 160 C106 158 104 154 103 149Z"
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M102 138 C113 135 127 135 138 138 C137 143 135 147 132 150 C125 148 115 148 108 150 C105 147 103 143 102 138Z"
               fill={zoneColor("lowerChest")}
-              fillOpacity="0.4"
+              fillOpacity={zoneOpacity("lowerChest", 0.4)}
               filter={`url(#${avatarId}-zone-glow)`}
             />
             <path
@@ -1655,21 +1897,200 @@ export default function SoundFitnessAvatar({
               strokeWidth="5"
             />
           </g>
+          {/* Deltoid heads — torso level, NOT inside the arm rig: the rig
+              paints before the opaque sleeve panel and torso, so anything
+              drawn there is fully occluded. The cap is split outboard/inboard;
+              the outer slice is the lateral head (seen from either side) and
+              the inner slice reads as the anterior head from the front. The
+              posterior head sits ~5 units lower, since it originates on the
+              scapular spine rather than the lateral clavicle. */}
+          <g
+            className="sound-fitness-avatar__body-zone"
+            data-active={bodyPartGlowActive && selectedBodyPart === "shoulders"}
+          >
+            {/* Whole-part silhouettes: one cap over each shoulder joint,
+                covering all three delt heads, for browsing the category. Both
+                views, since the cap reads from either side. */}
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M80 96 C86 91 97 91 104 98 C106 108 104 120 98 128 C90 130 82 126 80 116 C79 108 79 100 80 96Z"
+              fill={zoneColor("shoulders")}
+              fillOpacity={wholeZoneOpacity(0.5)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M160 96 C154 91 143 91 136 98 C134 108 136 120 142 128 C150 130 158 126 160 116 C161 108 161 100 160 96Z"
+              fill={zoneColor("shoulders")}
+              fillOpacity={wholeZoneOpacity(0.5)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M82 116 C83 105 87 97 93 96 C97 100 97 110 95 118 C90 125 82 124 82 116Z"
+              fill={zoneColor("lateralDelt")}
+              fillOpacity={zoneOpacity("lateralDelt", 0.45)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M158 116 C157 105 153 97 147 96 C143 100 143 110 145 118 C150 125 158 124 158 116Z"
+              fill={zoneColor("lateralDelt")}
+              fillOpacity={zoneOpacity("lateralDelt", 0.45)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M94 96 C99 97 103 102 104 108 C104 116 100 122 95 124 C97 116 97 104 94 96Z"
+              fill={zoneColor("frontDelt")}
+              fillOpacity={zoneOpacity("frontDelt", 0.45)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M146 96 C141 97 137 102 136 108 C136 116 140 122 145 124 C143 116 143 104 146 96Z"
+              fill={zoneColor("frontDelt")}
+              fillOpacity={zoneOpacity("frontDelt", 0.45)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M94 101 C100 101 105 106 106 113 C106 120 102 126 96 128 C97 120 97 109 94 101Z"
+              fill={zoneColor("rearDelt")}
+              fillOpacity={zoneOpacity("rearDelt", 0.45)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M146 101 C140 101 135 106 134 113 C134 120 138 126 144 128 C143 120 143 109 146 101Z"
+              fill={zoneColor("rearDelt")}
+              fillOpacity={zoneOpacity("rearDelt", 0.45)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              {...bodyPartInteractionProps("shoulders", "shoulders")}
+              className="sound-fitness-avatar__body-zone-hit"
+              d="M84 108 A11 11 0 1 0 106 108 A11 11 0 1 0 84 108"
+              strokeWidth="6"
+            />
+            <path
+              {...bodyPartInteractionProps("shoulders", "shoulders")}
+              className="sound-fitness-avatar__body-zone-hit"
+              d="M134 108 A11 11 0 1 0 156 108 A11 11 0 1 0 134 108"
+              strokeWidth="6"
+            />
+          </g>
+          {/* Rotator cuff. Anchored to the torso, not the arm rig, because
+              the cuff runs off the scapula: external rotation (infraspinatus
+              / teres minor) fills the infraspinous fossa, internal rotation
+              (subscapularis) is deep to the blade, so its only honest
+              front-view proxy is the tendon crossing the anterior joint
+              line. Gated on the shoulders selection like the delts. */}
+          <g
+            className="sound-fitness-avatar__body-zone"
+            data-active={bodyPartGlowActive && selectedBodyPart === "shoulders"}
+          >
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M99 120 C106 117 113 121 116 128 C114 136 106 140 99 136 C96 131 96 125 99 120Z"
+              fill={zoneColor("rotatorExternal")}
+              fillOpacity={zoneOpacity("rotatorExternal", 0.42)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-back-only"
+              d="M141 120 C134 117 127 121 124 128 C126 136 134 140 141 136 C144 131 144 125 141 120Z"
+              fill={zoneColor("rotatorExternal")}
+              fillOpacity={zoneOpacity("rotatorExternal", 0.42)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M97 108 C102 106 106 110 106 116 C105 122 100 124 96 120 C94 116 94 111 97 108Z"
+              fill={zoneColor("rotatorInternal")}
+              fillOpacity={zoneOpacity("rotatorInternal", 0.42)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow sound-fitness-avatar__zone-front-only"
+              d="M143 108 C138 106 134 110 134 116 C135 122 140 124 144 120 C146 116 146 111 143 108Z"
+              fill={zoneColor("rotatorInternal")}
+              fillOpacity={zoneOpacity("rotatorInternal", 0.42)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+          </g>
           <g
             className="sound-fitness-avatar__body-zone"
             data-active={bodyPartGlowActive && selectedBodyPart === "core"}
           >
+            {/* Rectus column down the middle with an oblique wedge on each
+                flank — widest at the lower ribs, tapering into the hip —
+                so trunk rotation work reads separately from anti-flexion. */}
+            {/* Whole-part silhouette: rectus and both obliques as one trunk
+                glow for browsing the Core category. */}
             <path
               className="sound-fitness-avatar__body-zone-glow"
-              d="M106 148 C114 144 126 144 134 148 L137 184 C132 192 108 192 103 184Z"
+              d="M100 138 C106 134 134 134 140 138 C142 152 141 170 136 187 C128 192 112 192 104 187 C99 170 98 152 100 138Z"
               fill={zoneColor("core")}
-              fillOpacity="0.34"
+              fillOpacity={wholeZoneOpacity(0.5)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M110 140 C115 137 125 137 130 140 L128 184 C124 190 116 190 112 184Z"
+              fill={zoneColor("core")}
+              fillOpacity={zoneOpacity("core", 0.34)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M102 141 C99 149 98 159 99 170 C100 179 102 185 105 187 C108 184 109 178 109 171 L110 149 C108 143 106 140 102 141Z"
+              fill={zoneColor("obliques")}
+              fillOpacity={zoneOpacity("obliques", 0.34)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M138 141 C141 149 142 159 141 170 C140 179 138 185 135 187 C132 184 131 178 131 171 L130 149 C132 143 134 140 138 141Z"
+              fill={zoneColor("obliques")}
+              fillOpacity={zoneOpacity("obliques", 0.34)}
               filter={`url(#${avatarId}-zone-glow)`}
             />
             <path
               {...bodyPartInteractionProps("core", "core")}
               className="sound-fitness-avatar__body-zone-hit"
               d="M106 148 C114 144 126 144 134 148 L137 184 C132 192 108 192 103 184Z"
+              strokeLinejoin="round"
+              strokeWidth="5"
+            />
+          </g>
+
+          <g
+            className="sound-fitness-avatar__body-zone"
+            data-active={bodyPartGlowActive && selectedBodyPart === "neck"}
+          >
+            {/* Neck: the column between jaw and collar. Flexors and SCM face
+                front, extensors face back, so it shows in both views. Its own
+                category, so its own group; the whole-part silhouette and the
+                single muscle share the same outline. */}
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M112 86 C116 84 124 84 128 86 C128 91 128 96 129 101 C123 103 117 103 111 101 C112 96 112 91 112 86Z"
+              fill={zoneColor("neck")}
+              fillOpacity={wholeZoneOpacity(0.5)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              className="sound-fitness-avatar__body-zone-glow"
+              d="M112 86 C116 84 124 84 128 86 C128 91 128 96 129 101 C123 103 117 103 111 101 C112 96 112 91 112 86Z"
+              fill={zoneColor("neck")}
+              fillOpacity={zoneOpacity("neck", 0.54)}
+              filter={`url(#${avatarId}-zone-glow)`}
+            />
+            <path
+              {...bodyPartInteractionProps("neck", "neck")}
+              className="sound-fitness-avatar__body-zone-hit"
+              d="M110 85 C115 82 125 82 130 85 L131 102 C124 105 116 105 109 102Z"
               strokeLinejoin="round"
               strokeWidth="5"
             />

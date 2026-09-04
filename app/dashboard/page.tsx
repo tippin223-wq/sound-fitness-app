@@ -9,6 +9,7 @@ import {
   Bot,
   BookOpen,
   CalendarCheck,
+  CalendarDays,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -18,12 +19,15 @@ import {
   Dumbbell,
   Filter,
   Gauge,
+  Globe,
   HeartPulse,
+  LayoutGrid,
   MapPin,
   Maximize2,
   MessageCircle,
   Minus,
   Minimize2,
+  Newspaper,
   Pencil,
   PersonStanding,
   Plus,
@@ -59,6 +63,7 @@ import dynamic from "next/dynamic";
 import BodyCommandCenterCard from "@/components/dashboard/BodyCommandCenterCard";
 import DashboardLightningBolt3D from "@/components/dashboard/DashboardLightningBolt3D";
 import DashboardLevelMeterBar3D from "@/components/dashboard/DashboardLevelMeterBar3D";
+import { getSegmentedRingDashes } from "@/components/dashboard/segmentedRing";
 import DashboardLogo3D from "@/components/dashboard/DashboardLogo3D";
 import DashboardMeterMenuIcon3D from "@/components/dashboard/DashboardMeterMenuIcon3D";
 import { DashboardGearIcon3D } from "@/components/dashboard/DashboardProfileActionIcons3D";
@@ -152,6 +157,17 @@ import {
   prependExerciseStats,
   subscribeToLocalWorkoutData,
 } from "@/lib/localData/workoutData";
+import {
+  DASHBOARD_NEWS_FEED_FILTERS,
+  type DashboardNewsFeedFilter,
+  filterDashboardNewsFeed,
+  formatDashboardNewsEventBadge,
+  formatDashboardNewsEventWindow,
+  formatDashboardNewsSpots,
+  getDashboardNewsFeed,
+  getDashboardNewsNextEvent,
+  sortDashboardNewsFeed,
+} from "@/lib/localData/dashboardNewsFeed";
 import {
   SOUND_FITNESS_PROFILE_STORAGE_KEY,
   SOUND_FITNESS_PROFILE_UPDATED_EVENT,
@@ -594,6 +610,11 @@ const dashboardWheelDeltaPixels = (event: WheelEvent, scroller: Element) => {
 const DASHBOARD_HEADER_MENU_BLOCK_COUNT = 5;
 const DASHBOARD_HEADER_PROGRESS_BLOCK_INDEX = 2;
 const DASHBOARD_HEADER_IDLE_TIMEOUT_MS = 60000;
+// Hovering the idle header has to be sustained this long before it opens.
+// Leaving closes it instantly, as before; the asymmetry stops a cursor
+// crossing the band on its way somewhere else from popping the menu open.
+// Clicks, taps and keyboard focus still open it at once.
+const DASHBOARD_HEADER_HOVER_OPEN_DWELL_MS = 2000;
 const DASHBOARD_HEADER_IDLE_SCENE_ENABLED = false;
 /**
  * Below this width the account cluster cannot fit its profile, rewards and
@@ -9239,6 +9260,17 @@ export default function UserHomeDashboardPage() {
       setDashboardPageLevelMeterTucked(false);
     }
   }, [dashboardPageLevelMeterOpen, dashboardPageLevelMeterTucked]);
+  // ...and closing the popup goes straight back to the tucked sliver rather
+  // than leaving the semicircle out for the six-second tidy-up: the popup was
+  // the destination, so there is nothing left for the semicircle to offer.
+  const dashboardPageLevelMeterWasOpenRef = useRef(false);
+  useEffect(() => {
+    const wasOpen = dashboardPageLevelMeterWasOpenRef.current;
+    dashboardPageLevelMeterWasOpenRef.current = dashboardPageLevelMeterOpen;
+    if (wasOpen && !dashboardPageLevelMeterOpen) {
+      setDashboardPageLevelMeterTucked(true);
+    }
+  }, [dashboardPageLevelMeterOpen]);
   // Active use of the header's own controls (analog / level meter). This is what
   // should freeze idle-scene cycling — merely hovering the content must not.
   // Deferred one frame past the panel's first open so the opening animation
@@ -9343,7 +9375,13 @@ export default function UserHomeDashboardPage() {
     dashboardPageLevelMeterTabHighlighted;
   const dashboardHeaderMotionPaused =
     !dashboardHeaderPopupPinned &&
-    (dashboardHeaderControlsInUse || dashboardContentFocused);
+    (dashboardHeaderControlsInUse ||
+      dashboardContentFocused ||
+      // The meter panel is a full-height surface sitting directly under the
+      // header band, so pointer activity anywhere over it kept waking the
+      // shell — the header oscillated between idle and open underneath the
+      // panel for as long as it was being read. It holds idle while open.
+      dashboardHeaderMeterMenuOpen);
   // setDashboardContentFocused writes the shell attribute imperatively and is
   // a `[]` useCallback, so it reads the pin through a ref instead of closing
   // over it.
@@ -9499,6 +9537,11 @@ export default function UserHomeDashboardPage() {
       // then never rewrite it (its rendered value stopped changing) and the
       // shell would stay stuck on "content" for the life of the popup.
       if (nextFocused && dashboardHeaderPopupPinnedRef.current) return;
+      // Mirror of the pin above, in the other direction: the meter panel
+      // overlays the header band, so hovering it must not WAKE the shell.
+      // Without this the imperative flip fought the idle derivation and the
+      // header flickered open/closed under the open panel.
+      if (!nextFocused && dashboardHeaderMeterMenuOpenRef.current) return;
       if (typeof document !== "undefined") {
         // The focus state lives on the shell, not <main>: every focus-scoped
         // rule targets the header subtree, and keying them off <main>'s class
@@ -9712,6 +9755,16 @@ export default function UserHomeDashboardPage() {
   ] = useState<Record<string, number>>({});
   const [activeDashboardHeroCardIndex, setActiveDashboardHeroCardIndex] =
     useState(0);
+  // The news page sits at the hero deck's LEFT edge as a virtual index -1.
+  // The integer above stays 0..6 (the tap path, the mobile indicator modulo
+  // and every `dashboardHeroPanels[active]` lookup read it unclamped); this
+  // sibling boolean is folded into the orbit distance instead. Invariant:
+  // news open implies activeDashboardHeroCardIndex === 0.
+  const [dashboardHeroNewsOpen, setDashboardHeroNewsOpen] = useState(false);
+  const [dashboardNewsFeedFilter, setDashboardNewsFeedFilter] =
+    useState<DashboardNewsFeedFilter>("all");
+  // Loader seam: a future async feed becomes useState(seed) + one effect.
+  const [dashboardNewsFeed] = useState(() => getDashboardNewsFeed());
   const [activeTrainingConstellationLane, setActiveTrainingConstellationLane] =
     useState<"all" | "recovery" | "strength" | "cardio">("all");
   const [activeTrainingConstellationDayIndex, setActiveTrainingConstellationDayIndex] =
@@ -10119,6 +10172,13 @@ export default function UserHomeDashboardPage() {
   const dashboardHeroCardPointerMovedRef = useRef(false);
   const dashboardHeroCardWheelLockedRef = useRef(false);
   const dashboardHeroCardWheelTimeoutRef = useRef<number | null>(null);
+  // News page (virtual hero index -1): ref mirror for the event helpers, the
+  // selector to hand focus back to on close, the close button to focus on
+  // open, and an "armed" flag so the close branch only fires after an open.
+  const dashboardHeroNewsOpenRef = useRef(false);
+  const dashboardHeroNewsFocusArmedRef = useRef(false);
+  const dashboardHeroCardSelectorRef = useRef<HTMLDivElement | null>(null);
+  const dashboardHeroNewsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
   const dashboardOrbiterPointerStartRef =
     useRef<DashboardVerticalPointerStart | null>(null);
   const dashboardOrbiterPointerMovedRef = useRef(false);
@@ -10161,6 +10221,16 @@ export default function UserHomeDashboardPage() {
   const dashboardHeaderMenuOrbitHoldTimeoutRef = useRef<number | null>(null);
   const dashboardHeaderMenuOrbitHoldIntervalRef = useRef<number | null>(null);
   const dashboardHeaderIdleTimeoutRef = useRef<number | null>(null);
+  // Pending hover-to-open dwell (see DASHBOARD_HEADER_HOVER_OPEN_DWELL_MS).
+  const dashboardHeaderHoverDwellTimerRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (dashboardHeaderHoverDwellTimerRef.current !== null) {
+        window.clearTimeout(dashboardHeaderHoverDwellTimerRef.current);
+      }
+    },
+    [],
+  );
   const dashboardHeaderTimeoutPortalIntervalRef = useRef<number | null>(null);
   const dashboardHeaderTimeoutPortalCloseTimeoutRef = useRef<number | null>(
     null,
@@ -10318,6 +10388,10 @@ export default function UserHomeDashboardPage() {
   useEffect(() => {
     activeDashboardHeroCardIndexRef.current = activeDashboardHeroCardIndex;
   }, [activeDashboardHeroCardIndex]);
+
+  useEffect(() => {
+    dashboardHeroNewsOpenRef.current = dashboardHeroNewsOpen;
+  }, [dashboardHeroNewsOpen]);
 
   useEffect(() => {
     const analogActiveClassName = "dashboard-page--page-analog-active";
@@ -12021,16 +12095,44 @@ export default function UserHomeDashboardPage() {
       ? Math.max(0, currentIndex - 1)
       : Math.min(dashboardHeroCardCount - 1, currentIndex + 1);
   };
+  // The news page is a virtual card at index -1. The "left" gesture at card 0
+  // was dead in every input path (pointer, trackpad, ArrowLeft, joystick);
+  // it now opens the news page, and "right" while open closes it. Refs are
+  // written BEFORE setState exactly like the rotation below, so the shared
+  // pointer/wheel/analog helpers see the new state on their next call.
+  const openDashboardHeroNews = () => {
+    if (dashboardHeroNewsOpenRef.current) return false;
+    activeDashboardHeroCardIndexRef.current = 0;
+    dashboardHeroNewsOpenRef.current = true;
+    setActiveDashboardHeroCardIndex(0);
+    setDashboardHeroNewsOpen(true);
+    return true;
+  };
+  const closeDashboardHeroNews = () => {
+    if (!dashboardHeroNewsOpenRef.current) return false;
+    dashboardHeroNewsOpenRef.current = false;
+    setDashboardHeroNewsOpen(false);
+    return true;
+  };
   const canRotateDashboardHeroCards = (
     direction: DashboardOrbitDirection,
     startIndex?: number,
   ) => {
     const currentIndex = startIndex ?? activeDashboardHeroCardIndexRef.current;
+    if (dashboardHeroNewsOpenRef.current) return direction === "right";
+    if (direction === "left" && currentIndex === 0) return true;
 
     return getDashboardHeroCardNextIndex(direction, currentIndex) !== currentIndex;
   };
   const rotateDashboardHeroCards = (direction: DashboardOrbitDirection) => {
+    if (dashboardHeroNewsOpenRef.current) {
+      // Further "left" pulls return false so the joystick hold-repeat stops.
+      return direction === "right" ? closeDashboardHeroNews() : false;
+    }
     const currentIndex = activeDashboardHeroCardIndexRef.current;
+    if (direction === "left" && currentIndex === 0) {
+      return openDashboardHeroNews();
+    }
     const nextIndex = getDashboardHeroCardNextIndex(direction, currentIndex);
     if (nextIndex === currentIndex) return false;
 
@@ -12039,6 +12141,14 @@ export default function UserHomeDashboardPage() {
     return true;
   };
   const selectDashboardHeroCard = (nextIndex: number) => {
+    // The news indicator sits at -1.
+    if (nextIndex < 0) {
+      openDashboardHeroNews();
+      return;
+    }
+    // Any card indicator tap (index 0 included) leaves the news page.
+    dashboardHeroNewsOpenRef.current = false;
+    setDashboardHeroNewsOpen(false);
     const boundedIndex = Math.max(
       0,
       Math.min(dashboardHeroCardCount - 1, nextIndex),
@@ -12048,7 +12158,7 @@ export default function UserHomeDashboardPage() {
     setActiveDashboardHeroCardIndex(boundedIndex);
   };
   const getDashboardHeroCardOrbitDistance = (index: number) =>
-    index - activeDashboardHeroCardIndex;
+    index - activeDashboardHeroCardIndex + (dashboardHeroNewsOpen ? 1 : 0);
   const handleDashboardHeroCardWheel = (
     event: ReactWheelEvent<HTMLDivElement>,
   ) => {
@@ -13590,6 +13700,34 @@ export default function UserHomeDashboardPage() {
     };
   }, [dashboardHeroWidgetsDrawerOpen]);
 
+  // News page focus: on open, land on its return button (the content mounts
+  // in the same commit); on close, hand focus back to the orbit selector so
+  // ArrowLeft/ArrowRight keep steering the deck. preventScroll is mandatory —
+  // the hero row's overflow-hidden wrapper would otherwise focus-scroll.
+  useEffect(() => {
+    if (dashboardHeroNewsOpen) {
+      dashboardHeroNewsFocusArmedRef.current = true;
+      dashboardHeroNewsCloseButtonRef.current?.focus({ preventScroll: true });
+      return;
+    }
+    if (!dashboardHeroNewsFocusArmedRef.current) return;
+    dashboardHeroNewsFocusArmedRef.current = false;
+    dashboardHeroCardSelectorRef.current?.focus({ preventScroll: true });
+  }, [dashboardHeroNewsOpen]);
+
+  // Belt and braces for Escape once focus has wandered off the selector
+  // (the selector's own onKeyDown handles it while focus is inside).
+  useEffect(() => {
+    if (!dashboardHeroNewsOpen) return;
+    const closeNewsOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      dashboardHeroNewsOpenRef.current = false;
+      setDashboardHeroNewsOpen(false);
+    };
+    window.addEventListener("keydown", closeNewsOnEscape);
+    return () => window.removeEventListener("keydown", closeNewsOnEscape);
+  }, [dashboardHeroNewsOpen]);
+
   useEffect(() => {
     if (!dashboardHeaderMeterMenuOpen) return;
 
@@ -14987,6 +15125,12 @@ export default function UserHomeDashboardPage() {
       ? "Plan complete"
       : `Next ${dashboardNextPlannedSessionLabel}`;
   const dashboardPlanAttendanceDescription = `${dashboardPlanSessionsAttended} of ${dashboardSummary.planSessionTarget} plan sessions attended. Next planned session ${dashboardNextPlannedSessionFullLabel}`;
+  // One notch per planned session, attended ones lit — same treatment as the
+  // Body Command Center rings.
+  const dashboardPlanAttendanceDashes = getSegmentedRingDashes(
+    dashboardPlanSessionsAttended,
+    dashboardSummary.planSessionTarget,
+  );
 
   const planHighlights = [
     {
@@ -17482,6 +17626,53 @@ export default function UserHomeDashboardPage() {
     setDashboardContentFocused(false);
     stopDashboardHeaderIdleMode();
   };
+  // Hover-driven wakes are deferred behind a dwell: the first hover arms a
+  // timer, later hovers while it runs are no-ops, and any close path cancels
+  // it. Only when the cursor has stayed on the band for the full dwell does
+  // the header actually open. Clicks and keyboard focus bypass this.
+  // The arming cue (glow + charge bar) is keyed off this attribute, written
+  // straight to the DOM like data-header-focus so it never costs a render.
+  const setDashboardHeaderArming = (arming: boolean) => {
+    if (typeof document === "undefined") return;
+    const shellElement = document.querySelector<HTMLElement>(
+      ".dashboard-header-vortex-shell",
+    );
+    if (!shellElement) return;
+    if (arming) {
+      shellElement.style.setProperty(
+        "--dashboard-header-arm-ms",
+        `${DASHBOARD_HEADER_HOVER_OPEN_DWELL_MS}ms`,
+      );
+      shellElement.dataset.headerArming = "true";
+    } else {
+      delete shellElement.dataset.headerArming;
+    }
+  };
+  const cancelDashboardHeaderHoverDwell = () => {
+    if (dashboardHeaderHoverDwellTimerRef.current !== null) {
+      window.clearTimeout(dashboardHeaderHoverDwellTimerRef.current);
+      dashboardHeaderHoverDwellTimerRef.current = null;
+      setDashboardHeaderArming(false);
+    }
+  };
+  const requestDashboardHeaderHoverWake = () => {
+    if (typeof document === "undefined") return;
+    const shellElement = document.querySelector<HTMLElement>(
+      ".dashboard-header-vortex-shell",
+    );
+    // Already open: nothing to arm. Keeping this a no-op also means the
+    // open header never re-runs the flip from the hover paths.
+    if (shellElement && shellElement.dataset.headerFocus !== "content") {
+      return;
+    }
+    if (dashboardHeaderHoverDwellTimerRef.current !== null) return;
+    setDashboardHeaderArming(true);
+    dashboardHeaderHoverDwellTimerRef.current = window.setTimeout(() => {
+      dashboardHeaderHoverDwellTimerRef.current = null;
+      setDashboardHeaderArming(false);
+      highlightDashboardHeaderSurface();
+    }, DASHBOARD_HEADER_HOVER_OPEN_DWELL_MS);
+  };
   const handleDashboardHeaderSurfacePointerActivity = (
     event:
       | ReactMouseEvent<HTMLDivElement>
@@ -17515,10 +17706,19 @@ export default function UserHomeDashboardPage() {
       );
 
     if (isWithinVisibleHeader || isInteractiveHeaderControl) {
-      highlightDashboardHeaderSurface();
+      // A press opens at once — a touch tap has no hover to dwell on, and a
+      // mouse click is unambiguous intent. Everything else is hover.
+      if (event.nativeEvent.type === "pointerdown") {
+        cancelDashboardHeaderHoverDwell();
+        highlightDashboardHeaderSurface();
+      } else {
+        requestDashboardHeaderHoverWake();
+      }
     }
   };
   const clearDashboardHeaderSurfaceHighlight = () => {
+    // Leaving before the dwell elapsed must not open it later.
+    cancelDashboardHeaderHoverDwell();
     // Highlight commit rides the deferred focus timer; see above.
     setDashboardContentFocused(true);
   };
@@ -17567,7 +17767,7 @@ export default function UserHomeDashboardPage() {
             return;
           }
         }
-        highlightDashboardHeaderSurface();
+        requestDashboardHeaderHoverWake();
       } else {
         clearDashboardHeaderSurfaceHighlight();
       }
@@ -17599,7 +17799,7 @@ export default function UserHomeDashboardPage() {
         ? slot.getBoundingClientRect().bottom
         : shellElement.getBoundingClientRect().bottom;
       if (event.clientY <= wakeBottom + 2) {
-        highlightDashboardHeaderSurface();
+        requestDashboardHeaderHoverWake();
       }
     };
     shellElement?.addEventListener("pointermove", wakeDashboardHeaderOnMove, {
@@ -17613,7 +17813,11 @@ export default function UserHomeDashboardPage() {
         wakeDashboardHeaderOnMove,
       );
     };
-  }, [highlightDashboardHeaderSurface, clearDashboardHeaderSurfaceHighlight]);
+  }, [
+    highlightDashboardHeaderSurface,
+    clearDashboardHeaderSurfaceHighlight,
+    requestDashboardHeaderHoverWake,
+  ]);
   useEffect(() => {
     dashboardHeaderMeterMenuOpenRef.current = dashboardHeaderMeterMenuOpen;
   }, [dashboardHeaderMeterMenuOpen]);
@@ -19950,13 +20154,26 @@ export default function UserHomeDashboardPage() {
       return;
     }
 
-    if (event.key === "ArrowLeft") {
-      rotateDashboardHeaderMeterPanelSections("left");
-      return;
-    }
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      // While the UFO holds the highlight the horizontal arrows scrub its
+      // level band — the same path the wheel and drag gestures use — instead
+      // of rotating the meter sections underneath it.
+      if (dashboardHeaderMeterPanelHighlightTarget === "ufo") {
+        document
+          .querySelector<HTMLCanvasElement>(
+            "#dashboard-header-meter-panel canvas",
+          )
+          ?.dispatchEvent(
+            new CustomEvent("sf-chyron-step", {
+              detail: { dir: event.key === "ArrowRight" ? 1 : -1 },
+            }),
+          );
+        return;
+      }
 
-    if (event.key === "ArrowRight") {
-      rotateDashboardHeaderMeterPanelSections("right");
+      rotateDashboardHeaderMeterPanelSections(
+        event.key === "ArrowLeft" ? "left" : "right",
+      );
       return;
     }
 
@@ -22543,6 +22760,146 @@ export default function UserHomeDashboardPage() {
         onClick={() => setDashboardPageLevelMeterOpen(false)}
         onPointerDown={() => setDashboardPageLevelMeterOpen(false)}
       >
+        {/* Level explainer: everything the bar is showing, spelled out, sat to
+            the bar's left. It swallows pointer events so reading or scrolling
+            it never dismisses the meter the way clicking the bar does. */}
+        <aside
+          aria-label={`Level ${soundFitnessLevel} details`}
+          className="dashboard-page-level-meter-explainer"
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onWheel={(event) => event.stopPropagation()}
+        >
+          <span className="dashboard-page-level-meter-explainer__eyebrow">
+            Sound Fitness level
+          </span>
+          <span className="dashboard-page-level-meter-explainer__level">
+            <span className="dashboard-page-level-meter-explainer__level-number">
+              LV {soundFitnessLevel}
+            </span>
+            <span className="dashboard-page-level-meter-explainer__level-next">
+              {Math.round(soundFitnessLevelProgress)}% to LV{" "}
+              {soundFitnessLevel + 1}
+            </span>
+          </span>
+          <span
+            aria-hidden="true"
+            className="dashboard-page-level-meter-explainer__bar"
+          >
+            <span
+              className="dashboard-page-level-meter-explainer__bar-fill"
+              style={{ width: `${soundFitnessLevelProgress}%` }}
+            />
+          </span>
+          <span className="dashboard-page-level-meter-explainer__points">
+            <span>
+              {soundPointsIntoLevel.toLocaleString()} /{" "}
+              {soundFitnessLevelSize.toLocaleString()} pts
+            </span>
+            <span>{soundPointsToNextLevelLabel} to go</span>
+          </span>
+          <span className="dashboard-page-level-meter-explainer__heading">
+            Milestones this level
+          </span>
+          <span className="dashboard-page-level-meter-explainer__milestones">
+            {DASHBOARD_PAGE_ANALOG_LEVEL_REWARDS.map((reward) => {
+              const unlocked = soundFitnessLevelProgress >= reward.threshold;
+              const isNext = !unlocked && reward === dashboardNextLevelReward;
+              const pointsRequired = Math.round(
+                (soundFitnessLevelSize * reward.threshold) / 100,
+              );
+              return (
+                <span
+                  className="dashboard-page-level-meter-explainer__milestone"
+                  key={`dashboard-page-level-explainer-${reward.icon}`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`dashboard-page-level-meter-explainer__milestone-icon dashboard-page-level-meter-explainer__milestone-icon--${reward.icon} ${
+                      unlocked
+                        ? "dashboard-page-level-meter-explainer__milestone-icon--unlocked"
+                        : ""
+                    }`}
+                  >
+                    {renderDashboardPageLevelRewardIcon(
+                      reward.icon,
+                      unlocked
+                        ? 1
+                        : soundFitnessLevelProgress /
+                            Math.max(1, reward.threshold),
+                    )}
+                  </span>
+                  <span>
+                    <span className="dashboard-page-level-meter-explainer__milestone-label">
+                      {reward.label}
+                    </span>
+                    <span className="dashboard-page-level-meter-explainer__milestone-meta">
+                      {reward.threshold >= 100
+                        ? "At level up"
+                        : `At ${reward.threshold}%`}{" "}
+                      · {pointsRequired.toLocaleString()} pts
+                    </span>
+                  </span>
+                  <span
+                    className={`dashboard-page-level-meter-explainer__status ${
+                      unlocked
+                        ? "dashboard-page-level-meter-explainer__status--unlocked"
+                        : isNext
+                          ? "dashboard-page-level-meter-explainer__status--next"
+                          : ""
+                    }`}
+                  >
+                    {unlocked ? "Unlocked" : isNext ? "Next" : "Locked"}
+                  </span>
+                </span>
+              );
+            })}
+          </span>
+          <span className="dashboard-page-level-meter-explainer__heading">
+            How you earn
+          </span>
+          <span className="dashboard-page-level-meter-explainer__earn">
+            <span className="dashboard-page-level-meter-explainer__earn-item">
+              <span>Workout</span>
+              <span className="dashboard-page-level-meter-explainer__earn-value">
+                +130
+              </span>
+            </span>
+            <span className="dashboard-page-level-meter-explainer__earn-item">
+              <span>Template</span>
+              <span className="dashboard-page-level-meter-explainer__earn-value">
+                +90
+              </span>
+            </span>
+            <span className="dashboard-page-level-meter-explainer__earn-item">
+              <span>Log entry</span>
+              <span className="dashboard-page-level-meter-explainer__earn-value">
+                +28
+              </span>
+            </span>
+            <span className="dashboard-page-level-meter-explainer__earn-item">
+              <span>Set</span>
+              <span className="dashboard-page-level-meter-explainer__earn-value">
+                +5
+              </span>
+            </span>
+          </span>
+          <span className="dashboard-page-level-meter-explainer__note">
+            Every {soundFitnessLevelSize} points is a level. Milestones reset
+            with each level; the trophy lands the moment you level up.
+          </span>
+        </aside>
+        {/* The semicircle tab hides while the popup is open, so the popup
+            carries its own close. Clicking the bar closes too, as before. */}
+        <button
+          aria-label="Close level meter"
+          className="dashboard-page-level-meter-panel__close"
+          data-dashboard-tooltip="Close"
+          onClick={() => setDashboardPageLevelMeterOpen(false)}
+          type="button"
+        >
+          <span aria-hidden="true">×</span>
+        </button>
         <div
           aria-label={`Sound Fitness level ${soundFitnessLevel}, ${Math.round(
             soundFitnessLevelProgress,
@@ -24589,6 +24946,7 @@ export default function UserHomeDashboardPage() {
                   pathLength={100}
                   r="35.5"
                   stroke="rgba(15,23,42,0.78)"
+                  strokeDasharray={dashboardPlanAttendanceDashes.track}
                   strokeWidth="10"
                 />
                 <circle
@@ -24599,9 +24957,7 @@ export default function UserHomeDashboardPage() {
                   pathLength={100}
                   r="35.5"
                   stroke={`url(#${gradientId})`}
-                  strokeDasharray="100"
-                  strokeDashoffset={100 - dashboardSummary.planSessionProgress}
-                  strokeLinecap="round"
+                  strokeDasharray={dashboardPlanAttendanceDashes.filled}
                   strokeWidth="10"
                   transform="rotate(-90 48 48)"
                 />
@@ -24793,6 +25149,7 @@ export default function UserHomeDashboardPage() {
                 pathLength={100}
                 r="35.5"
                 stroke="rgba(15,23,42,0.78)"
+                strokeDasharray={dashboardPlanAttendanceDashes.track}
                 strokeWidth="10"
               />
               <circle
@@ -24803,9 +25160,7 @@ export default function UserHomeDashboardPage() {
                 pathLength={100}
                 r="35.5"
                 stroke="url(#dashboardHeaderPortalPlanAttendanceGradient)"
-                strokeDasharray="100"
-                strokeDashoffset={100 - dashboardSummary.planSessionProgress}
-                strokeLinecap="round"
+                strokeDasharray={dashboardPlanAttendanceDashes.filled}
                 strokeWidth="10"
                 transform="rotate(-90 48 48)"
               />
@@ -25529,6 +25884,13 @@ export default function UserHomeDashboardPage() {
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/55 to-transparent"
       />
+      {/* Hover-to-open cue: while the dwell timer counts down the band glows
+          and a charge bar fills along its bottom edge, so a hover that has
+          registered looks different from one that hasn't. Driven by the
+          data-header-arming attribute the dwell helpers flip imperatively. */}
+      <span aria-hidden="true" className="dashboard-header-arming-cue">
+        <span className="dashboard-header-arming-cue__bar" />
+      </span>
       {decorationsReady ? (
       <div aria-hidden="true" className="dashboard-header-ambient-field">
         <span className="dashboard-header-ambient-field__grid-wall" />
@@ -27429,6 +27791,7 @@ export default function UserHomeDashboardPage() {
                         pathLength={100}
                         r="35.5"
                         stroke="rgba(15,23,42,0.78)"
+                        strokeDasharray={dashboardPlanAttendanceDashes.track}
                         strokeWidth="10"
                       />
                       <circle
@@ -27439,11 +27802,7 @@ export default function UserHomeDashboardPage() {
                         pathLength={100}
                         r="35.5"
                         stroke="url(#dashboardHeaderPlanAttendanceGradient)"
-                        strokeDasharray="100"
-                        strokeDashoffset={
-                          100 - dashboardSummary.planSessionProgress
-                        }
-                        strokeLinecap="round"
+                        strokeDasharray={dashboardPlanAttendanceDashes.filled}
                         strokeWidth="10"
                         transform="rotate(-90 48 48)"
                       />
@@ -30455,6 +30814,7 @@ export default function UserHomeDashboardPage() {
                                   pathLength={100}
                                   r="35.5"
                                   stroke="rgba(15,23,42,0.78)"
+                                  strokeDasharray={dashboardPlanAttendanceDashes.track}
                                   strokeWidth="10"
                                 />
                                 <circle
@@ -30465,11 +30825,7 @@ export default function UserHomeDashboardPage() {
                                   pathLength={100}
                                   r="35.5"
                                   stroke="url(#dashboardHeaderPanelPlanAttendanceGradient)"
-                                  strokeDasharray="100"
-                                  strokeDashoffset={
-                                    100 - dashboardSummary.planSessionProgress
-                                  }
-                                  strokeLinecap="round"
+                                  strokeDasharray={dashboardPlanAttendanceDashes.filled}
                                   strokeWidth="10"
                                   transform="rotate(-90 48 48)"
                                 />
@@ -32568,7 +32924,7 @@ export default function UserHomeDashboardPage() {
         id: "widgets",
         indicatorColor: "#a78bfa",
         indicatorGlow: "rgba(167,139,250,0.72)",
-        indicatorIcon: Plus,
+        indicatorIcon: LayoutGrid,
         label: "Widgets",
       },
     ];
@@ -34039,6 +34395,370 @@ export default function UserHomeDashboardPage() {
       </div>
     );
 
+    // News page (virtual hero index -1). Counts feed the edge tab, the sr-only
+    // announcement and the ticker; the list itself is built only while open.
+    const dashboardHeroNewsNextEvent = getDashboardNewsNextEvent(
+      dashboardNewsFeed.items,
+      dashboardToday,
+    );
+    const dashboardHeroNewsUpcomingCount = dashboardNewsFeed.items.filter(
+      (item) =>
+        item.event &&
+        new Date(item.event.startsAt).getTime() >= dashboardToday.getTime(),
+    ).length;
+    const dashboardHeroNewsWorldCount = dashboardNewsFeed.items.filter(
+      (item) => item.kind === "world",
+    ).length;
+    // Indicator strip = the news page (virtual index -1, the plus icon) in
+    // front of the seven cards. Both strip variants map over this list, and
+    // the active slot follows the news flag so no card claims selection
+    // while the news page is up.
+    const dashboardHeroIndicatorItems = [
+      {
+        id: "news",
+        index: -1,
+        indicatorColor: "#67e8f9",
+        indicatorGlow: "rgba(103,232,249,0.72)",
+        indicatorIcon: Plus,
+        label: "Sound Fitness News",
+      },
+      ...dashboardHeroPanels.map((panel, panelIndex) => ({
+        id: panel.id,
+        index: panelIndex,
+        indicatorColor: panel.indicatorColor,
+        indicatorGlow: panel.indicatorGlow,
+        indicatorIcon: panel.indicatorIcon,
+        label: panel.label,
+      })),
+    ];
+    const dashboardHeroActiveIndicatorIndex = dashboardHeroNewsOpen
+      ? -1
+      : activeDashboardHeroCardIndex;
+    const renderDashboardHeroNewsPanel = () => {
+      const newsItems = sortDashboardNewsFeed(
+        filterDashboardNewsFeed(dashboardNewsFeed.items, dashboardNewsFeedFilter),
+        dashboardToday,
+      );
+      const activeNewsFilter =
+        DASHBOARD_NEWS_FEED_FILTERS.find(
+          (entry) => entry.id === dashboardNewsFeedFilter,
+        ) ?? DASHBOARD_NEWS_FEED_FILTERS[0];
+      const newsFilterCounts = DASHBOARD_NEWS_FEED_FILTERS.map((entry) => ({
+        ...entry,
+        count: filterDashboardNewsFeed(dashboardNewsFeed.items, entry.id).length,
+      }));
+      const nextEventSpots = dashboardHeroNewsNextEvent?.event
+        ? formatDashboardNewsSpots(dashboardHeroNewsNextEvent.event)
+        : null;
+
+      return (
+        <div
+          className="dashboard-hero-card dashboard-hero-card--news relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-cyan-100/16 p-3 max-[759px]:pt-12 sm:p-4"
+          onPointerEnter={() => setDashboardContentFocused(true)}
+        >
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(34,211,238,0.045)_1px,transparent_1px),linear-gradient(180deg,rgba(125,211,252,0.05)_1px,transparent_1px)] bg-[length:34px_34px] opacity-60" />
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/72 to-transparent" />
+
+          <div className="relative z-10 flex min-w-0 items-center gap-2 pr-32 min-[760px]:pr-40">
+            <button
+              aria-controls="dashboard-hero-news-panel"
+              aria-label="Close news and return to the dashboard cards"
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-cyan-100/24 bg-cyan-300/10 px-2.5 text-[8px] font-black uppercase tracking-[0.14em] text-cyan-50 outline-none transition-[background-color,border-color] duration-200 hover:border-cyan-100/50 hover:bg-cyan-300/18 focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transition-none"
+              onClick={(event) => {
+                event.stopPropagation();
+                closeDashboardHeroNews();
+              }}
+              ref={dashboardHeroNewsCloseButtonRef}
+              type="button"
+            >
+              <ChevronLeft aria-hidden className="h-3 w-3" />
+              Back to dashboard
+              <span className="sr-only">
+                . Press Escape or swipe left to return.
+              </span>
+            </button>
+            <span className="truncate text-[8px] font-bold uppercase tracking-[0.12em] text-slate-500 max-[559px]:hidden">
+              Swipe left to return
+            </span>
+          </div>
+
+          <div className="relative z-10 mt-2 min-w-0 pr-32 min-[760px]:pr-40">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <div className="text-[8px] font-black uppercase tracking-[0.22em] text-cyan-100/78">
+                Sound Fitness · News
+              </div>
+              <div className="inline-flex min-h-5 shrink-0 items-center justify-center rounded-full border border-cyan-100/24 bg-cyan-300/10 px-2 text-[7px] font-black uppercase tracking-[0.12em] text-cyan-50 shadow-[0_0_18px_rgba(34,211,238,0.12)]">
+                {dashboardNewsFeed.items.length} stories · Updated{" "}
+                {formatDashboardDate(dashboardNewsFeed.updatedAt)}
+              </div>
+            </div>
+            <h2 className="mt-1 break-words text-[clamp(1.5rem,3vw,2.65rem)] font-black uppercase leading-none tracking-normal text-white [text-shadow:0_0_24px_rgba(34,211,238,0.16)]">
+              NEWS
+            </h2>
+            <p className="mt-1 text-[11px] font-semibold text-slate-400 max-[559px]:hidden">
+              Sound Fitness events and the fitness world, in one feed.
+            </p>
+          </div>
+
+          <div
+            aria-atomic="true"
+            aria-live="polite"
+            className="relative z-10 mt-2 flex h-7 min-w-0 items-center gap-2 rounded-full border border-white/10 bg-slate-950/44 px-2.5"
+            role="status"
+          >
+            <span
+              aria-hidden
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.7)]"
+            />
+            <span className="shrink-0 text-[8px] font-black uppercase tracking-[0.14em] text-[#67e8f9]">
+              Next up
+            </span>
+            <span className="min-w-0 truncate text-[10px] font-black uppercase text-cyan-50/90">
+              {dashboardHeroNewsNextEvent?.event
+                ? `${dashboardHeroNewsNextEvent.title} · ${formatCompactDateTime(
+                    dashboardHeroNewsNextEvent.event.startsAt,
+                  )}${nextEventSpots ? ` · ${nextEventSpots.label}` : ""}`
+                : "No upcoming events scheduled"}
+            </span>
+            <span className="sr-only">
+              Showing {newsItems.length} {activeNewsFilter.label} items.
+            </span>
+          </div>
+
+          <div
+            aria-label="Filter news"
+            className="relative z-10 mt-2 flex flex-wrap gap-1.5"
+            role="tablist"
+          >
+            {newsFilterCounts.map((entry) => {
+              const isSelected = entry.id === dashboardNewsFeedFilter;
+              const tone = dashboardIconToneStyles.cyan;
+              const FilterIcon =
+                entry.id === "events"
+                  ? CalendarDays
+                  : entry.id === "world"
+                    ? Globe
+                    : Newspaper;
+              return (
+                <button
+                  aria-controls="dashboard-hero-news-feed"
+                  aria-selected={isSelected}
+                  className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[8px] font-black uppercase tracking-[0.12em] outline-none transition-[background-color,border-color,opacity] duration-200 focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transition-none ${
+                    isSelected ? tone.active : tone.idle
+                  }`}
+                  id={`dashboard-hero-news-filter-${entry.id}`}
+                  key={entry.id}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setDashboardNewsFeedFilter(entry.id);
+                  }}
+                  onKeyDown={(event) => {
+                    const ids = DASHBOARD_NEWS_FEED_FILTERS.map(
+                      (filter) => filter.id,
+                    );
+                    const currentIndex = ids.indexOf(dashboardNewsFeedFilter);
+                    let nextIndex: number | null = null;
+                    if (event.key === "ArrowRight") {
+                      nextIndex = (currentIndex + 1) % ids.length;
+                    } else if (event.key === "ArrowLeft") {
+                      nextIndex = (currentIndex - 1 + ids.length) % ids.length;
+                    } else if (event.key === "Home") {
+                      nextIndex = 0;
+                    } else if (event.key === "End") {
+                      nextIndex = ids.length - 1;
+                    }
+                    if (nextIndex === null) return;
+                    // preventDefault bows out the window arrow router;
+                    // stopPropagation keeps the selector from rotating the deck.
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setDashboardNewsFeedFilter(ids[nextIndex]);
+                    const siblings = event.currentTarget.parentElement?.children;
+                    const nextChip = siblings?.[nextIndex];
+                    if (nextChip instanceof HTMLElement) {
+                      nextChip.focus({ preventScroll: true });
+                    }
+                  }}
+                  role="tab"
+                  tabIndex={isSelected ? 0 : -1}
+                  type="button"
+                >
+                  <FilterIcon aria-hidden className="h-3 w-3" />
+                  {entry.label}
+                  <span className="text-slate-400">{entry.count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div
+            aria-labelledby={`dashboard-hero-news-filter-${activeNewsFilter.id}`}
+            className="relative z-10 mt-2 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [touch-action:pan-y] [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full"
+            data-dashboard-orbiter-local-scroll="true"
+            id="dashboard-hero-news-feed"
+            role="tabpanel"
+            tabIndex={0}
+          >
+            <ul className="grid gap-1.5" role="list">
+              {newsItems.map((item) => {
+                const isEvent = item.kind === "event" && item.event;
+                const isNextEvent = dashboardHeroNewsNextEvent?.id === item.id;
+                const badge = item.event
+                  ? formatDashboardNewsEventBadge(item.event.startsAt)
+                  : null;
+                const spots = item.event
+                  ? formatDashboardNewsSpots(item.event)
+                  : null;
+                const tone = dashboardIconToneStyles[item.tone];
+                const KindIcon = isEvent ? CalendarDays : Globe;
+                const titleId = `dashboard-news-${item.id}-title`;
+                return (
+                  <li key={item.id}>
+                    <article
+                      aria-labelledby={titleId}
+                      className="dashboard-hero-news-row group relative grid min-w-0 grid-cols-[44px_minmax(0,1fr)] items-start gap-2.5 overflow-hidden rounded-[12px] border border-white/10 bg-slate-950/44 px-2 py-1.5 shadow-[0_10px_22px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.06)] min-[560px]:grid-cols-[44px_minmax(0,1fr)_auto] min-[560px]:px-2.5 min-[560px]:py-2"
+                      data-news-kind={item.kind}
+                      data-news-tone={item.tone}
+                    >
+                      {badge ? (
+                        <div
+                          aria-hidden
+                          className={`grid h-11 w-11 place-items-center rounded-[10px] border text-center leading-none ${tone.idle}`}
+                        >
+                          <div className="text-[7px] font-black uppercase tracking-[0.08em]">
+                            {badge.weekday}
+                          </div>
+                          <div className="text-sm font-black">{badge.day}</div>
+                          <div className="text-[7px] font-black uppercase tracking-[0.08em]">
+                            {badge.month}
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          aria-hidden
+                          className={`grid h-11 w-11 place-items-center rounded-[10px] border ${tone.idle}`}
+                        >
+                          <KindIcon className="h-4 w-4" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9px] font-black uppercase tracking-[0.08em] text-slate-500">
+                          <span>
+                            <span className="sr-only">
+                              {isEvent ? "Event: " : "Fitness world: "}
+                            </span>
+                            {isEvent ? "Sound Fitness event" : item.source}
+                          </span>
+                          {isNextEvent ? (
+                            <span className="rounded-full border border-emerald-200/30 bg-emerald-300/12 px-1.5 py-px text-[7px] text-emerald-100">
+                              Up next
+                            </span>
+                          ) : null}
+                          {!isEvent ? (
+                            <time dateTime={item.publishedAt}>
+                              {formatDashboardDate(item.publishedAt)}
+                            </time>
+                          ) : null}
+                        </div>
+                        <h4
+                          className="mt-0.5 min-w-0 break-words text-[12px] font-black leading-tight text-white min-[900px]:text-[13px]"
+                          id={titleId}
+                        >
+                          {item.title}
+                        </h4>
+                        <p className="mt-0.5 line-clamp-2 text-[11px] font-semibold leading-snug text-slate-300 min-[900px]:line-clamp-1">
+                          {item.summary}
+                        </p>
+                        {isEvent && item.event ? (
+                          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[9px] font-bold text-slate-400">
+                            <span className="inline-flex items-center gap-1">
+                              <time dateTime={item.event.startsAt}>
+                                {formatDashboardNewsEventWindow(item.event)}
+                              </time>
+                            </span>
+                            <span className="inline-flex min-w-0 items-center gap-1">
+                              <MapPin aria-hidden className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{item.event.location}</span>
+                            </span>
+                            {item.event.price ? (
+                              <span className="truncate">{item.event.price}</span>
+                            ) : null}
+                            <span className="min-[560px]:hidden">
+                              {spots ? (
+                                <span
+                                  className={`rounded-full border px-1.5 py-px text-[7px] font-black uppercase tracking-[0.1em] ${
+                                    dashboardIconToneStyles[spots.tone].idle
+                                  }`}
+                                >
+                                  {spots.label}
+                                </span>
+                              ) : null}
+                            </span>
+                            {item.href ? (
+                              <Link
+                                aria-label={`${item.hrefLabel ?? "Open"}: ${item.title}`}
+                                className="inline-flex h-5 items-center rounded-full border border-amber-100/30 bg-amber-300/12 px-2 text-[7px] font-black uppercase tracking-[0.12em] text-amber-100 outline-none transition-[background-color,border-color] duration-200 hover:bg-amber-300/22 focus-visible:ring-2 focus-visible:ring-amber-100/70 motion-reduce:transition-none min-[560px]:hidden"
+                                href={item.href}
+                              >
+                                {item.hrefLabel ?? "Open"}
+                              </Link>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="hidden shrink-0 flex-col items-end gap-1 min-[560px]:flex">
+                        {spots ? (
+                          <span
+                            className={`rounded-full border px-2 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] ${
+                              dashboardIconToneStyles[spots.tone].idle
+                            }`}
+                          >
+                            {spots.label}
+                          </span>
+                        ) : null}
+                        {item.href ? (
+                          <Link
+                            aria-label={`${item.hrefLabel ?? "Open"}: ${item.title}`}
+                            className="inline-flex h-6 items-center rounded-full border border-amber-100/30 bg-amber-300/12 px-2.5 text-[8px] font-black uppercase tracking-[0.12em] text-amber-100 outline-none transition-[background-color,border-color] duration-200 hover:bg-amber-300/22 focus-visible:ring-2 focus-visible:ring-amber-100/70 motion-reduce:transition-none"
+                            href={item.href}
+                          >
+                            {item.hrefLabel ?? "Open"}
+                          </Link>
+                        ) : null}
+                      </div>
+                    </article>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          <div className="relative z-10 mt-2 hidden grid-cols-3 gap-1.5 min-[560px]:grid">
+            {[
+              {
+                label: "This week",
+                value: `${dashboardSummary.workoutsThisWeek}/${dashboardSummary.weeklySessionGoal}`,
+              },
+              { label: "Next session", value: dashboardNextPlannedSessionLabel },
+              { label: "Upcoming events", value: `${dashboardHeroNewsUpcomingCount}` },
+            ].map((cell) => (
+              <div
+                className="min-w-0 rounded-[10px] border border-white/10 bg-slate-950/44 px-2 py-1.5"
+                key={cell.label}
+              >
+                <div className="text-[7px] font-black uppercase tracking-[0.14em] text-slate-500">
+                  {cell.label}
+                </div>
+                <div className="truncate text-[11px] font-black text-cyan-50">
+                  {cell.value}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+
     return (
       <div
         aria-label="Dashboard hero horizontal orbit"
@@ -34047,12 +34767,19 @@ export default function UserHomeDashboardPage() {
       >
         <div className="sr-only">
           Hero card orbit. Current card:{" "}
-          {dashboardHeroPanels[activeDashboardHeroCardIndex]?.label ||
-            dashboardHeroPanels[0].label}
+          {dashboardHeroNewsOpen
+            ? "Sound Fitness news"
+            : dashboardHeroPanels[activeDashboardHeroCardIndex]?.label ||
+              dashboardHeroPanels[0].label}
+        </div>
+        <div aria-live="polite" className="sr-only" role="status">
+          {dashboardHeroNewsOpen
+            ? `Sound Fitness news open. ${dashboardHeroNewsUpcomingCount} upcoming events and ${dashboardHeroNewsWorldCount} headlines.`
+            : ""}
         </div>
         <div
           aria-label="Choose dashboard hero card"
-          className="pointer-events-none absolute right-3 top-1.5 z-[80] flex h-7 items-center min-[760px]:right-4 min-[760px]:top-2 min-[760px]:h-9"
+          className="pointer-events-none absolute right-3 top-1.5 z-[80] flex h-11 items-center min-[760px]:right-4 min-[760px]:top-2 min-[760px]:h-11"
           data-dashboard-orbiter-local-scroll="true"
           onPointerEnter={() => setDashboardContentFocused(true)}
           onPointerMove={(event) => {
@@ -34062,7 +34789,10 @@ export default function UserHomeDashboardPage() {
           role="tablist"
         >
           <div
-            className="pointer-events-auto"
+            // Transparent to hits: in the narrow 3D strip the side buttons
+            // sit off this box's plane, and a hit-testable ancestor box in
+            // front swallowed their clicks. The buttons opt back in.
+            className="pointer-events-none"
             onClickCapture={(event) => {
               const target = event.target;
               const indicator =
@@ -34098,50 +34828,50 @@ export default function UserHomeDashboardPage() {
               selectDashboardHeroCard(indicatorIndex);
             }}
           >
-            <div className="hidden h-9 items-center gap-1 min-[760px]:flex">
-              {dashboardHeroPanels.map((panel, panelIndex) => {
-                const isActive = activeDashboardHeroCardIndex === panelIndex;
-                const IndicatorIcon = panel.indicatorIcon;
+            <div className="hidden h-11 items-center gap-1.5 min-[760px]:flex">
+              {dashboardHeroIndicatorItems.map((item) => {
+                const isActive = dashboardHeroActiveIndicatorIndex === item.index;
+                const IndicatorIcon = item.indicatorIcon;
                 return (
                   <button
-                    aria-label={`Show ${panel.label}`}
+                    aria-label={`Show ${item.label}`}
                     aria-selected={isActive}
-                    className={`group relative grid h-9 w-9 place-items-center rounded-[11px] border outline-none transition-[background-color,border-color,opacity,transform] duration-300 [touch-action:manipulation] hover:scale-105 focus-visible:ring-2 focus-visible:ring-cyan-100/70 ${
+                    className={`group pointer-events-auto relative grid h-11 w-11 place-items-center rounded-[13px] border outline-none transition-[background-color,border-color,opacity,transform] duration-300 [touch-action:manipulation] hover:scale-105 focus-visible:ring-2 focus-visible:ring-cyan-100/70 ${
                       isActive
                         ? "border-white/18 bg-slate-950/48 opacity-100"
                         : "border-transparent bg-slate-950/16 opacity-70 hover:border-white/14 hover:bg-slate-950/42 hover:opacity-100"
                     }`}
-                    data-dashboard-hero-indicator-index={panelIndex}
-                    data-dashboard-tooltip={panel.label}
-                    key={`dashboard-hero-indicator-${panel.id}`}
+                    data-dashboard-hero-indicator-index={item.index}
+                    data-dashboard-tooltip={item.label}
+                    key={`dashboard-hero-indicator-${item.id}`}
                     onClick={(event) => {
                       event.stopPropagation();
-                      selectDashboardHeroCard(panelIndex);
+                      selectDashboardHeroCard(item.index);
                     }}
                     onPointerDown={(event) => {
                       event.stopPropagation();
                       setDashboardContentFocused(true);
-                      selectDashboardHeroCard(panelIndex);
+                      selectDashboardHeroCard(item.index);
                     }}
                     role="tab"
-                    style={{ color: panel.indicatorColor }}
+                    style={{ color: item.indicatorColor }}
                     type="button"
                   >
                     <IndicatorIcon
                       aria-hidden="true"
-                      className="h-[19px] w-[19px]"
+                      className="h-[22px] w-[22px]"
                       style={{
-                        filter: `drop-shadow(0 0 ${isActive ? "5px" : "3px"} ${panel.indicatorGlow})`,
+                        filter: `drop-shadow(0 0 ${isActive ? "5px" : "3px"} ${item.indicatorGlow})`,
                       }}
                     />
                     <span
                       aria-hidden="true"
-                      className={`absolute bottom-0.5 h-px rounded-full transition-[width,opacity,box-shadow] duration-300 ${
-                        isActive ? "w-5 opacity-100" : "w-0 opacity-0"
+                      className={`absolute bottom-1 h-px rounded-full transition-[width,opacity,box-shadow] duration-300 ${
+                        isActive ? "w-6 opacity-100" : "w-0 opacity-0"
                       }`}
                       style={{
-                        backgroundColor: panel.indicatorColor,
-                        boxShadow: `0 0 5px ${panel.indicatorGlow}, 0 0 9px ${panel.indicatorGlow}`,
+                        backgroundColor: item.indicatorColor,
+                        boxShadow: `0 0 5px ${item.indicatorGlow}, 0 0 9px ${item.indicatorGlow}`,
                       }}
                     />
                   </button>
@@ -34149,68 +34879,65 @@ export default function UserHomeDashboardPage() {
               })}
             </div>
             <div
-              className="relative h-8 w-[5.5rem] [transform-style:preserve-3d] min-[760px]:hidden"
-              style={{ perspective: "300px" }}
+              className="pointer-events-none relative h-11 w-[8.5rem] [transform-style:preserve-3d] min-[760px]:hidden"
+              style={{ perspective: "360px" }}
             >
-              {dashboardHeroPanels.map((panel, panelIndex) => {
-                const heroPanelCount = dashboardHeroPanels.length;
-                let orbitOffset =
-                  (panelIndex - activeDashboardHeroCardIndex + heroPanelCount) %
-                  heroPanelCount;
-                if (orbitOffset > heroPanelCount / 2) {
-                  orbitOffset -= heroPanelCount;
-                }
+              {dashboardHeroIndicatorItems.map((item) => {
+                // Linear, like the deck itself: the slot left of the welcome
+                // card is always the news page, and nothing wraps around
+                // from the far end.
+                const orbitOffset = item.index - dashboardHeroActiveIndicatorIndex;
                 const isActive = orbitOffset === 0;
                 const isSidePreview = Math.abs(orbitOffset) === 1;
-                const IndicatorIcon = panel.indicatorIcon;
+                const IndicatorIcon = item.indicatorIcon;
                 const orbitTransform = isActive
                   ? "translate3d(-50%, -50%, 10px)"
                   : isSidePreview
-                    ? `translate3d(calc(-50% + ${orbitOffset * 27}px), -50%, -22px) rotateY(${orbitOffset * -36}deg) scale(0.88)`
-                    : `translate3d(calc(-50% + ${Math.sign(orbitOffset) * 40}px), -50%, -46px) scale(0.5)`;
+                    ? `translate3d(calc(-50% + ${orbitOffset * 42}px), -50%, 2px) rotateY(${orbitOffset * -34}deg) scale(0.9)`
+                    : `translate3d(calc(-50% + ${Math.sign(orbitOffset) * 60}px), -50%, -46px) scale(0.5)`;
                 return (
                   <button
-                    aria-label={`Show ${panel.label}`}
+                    aria-label={`Show ${item.label}`}
                     aria-selected={isActive}
-                    className={`group absolute left-1/2 top-1/2 grid h-7 w-7 place-items-center rounded-[9px] border outline-none transition-[transform,opacity,background-color,border-color] duration-300 [touch-action:manipulation] focus-visible:ring-2 focus-visible:ring-cyan-100/70 ${
+                    className={`group absolute left-1/2 top-1/2 grid h-10 w-10 place-items-center rounded-[12px] border outline-none transition-[transform,opacity,background-color,border-color] duration-300 [touch-action:manipulation] focus-visible:ring-2 focus-visible:ring-cyan-100/70 ${
                       isActive
-                        ? "z-30 border-white/18 bg-slate-950/48 opacity-100"
+                        ? "pointer-events-auto z-30 border-white/18 bg-slate-950/48 opacity-100"
                         : isSidePreview
-                          ? "z-20 border-transparent bg-slate-950/16 opacity-70"
+                          ? "pointer-events-auto z-20 border-white/10 bg-slate-950/28 opacity-85"
                           : "pointer-events-none z-10 border-transparent bg-slate-950/16 opacity-0"
                     }`}
-                    data-dashboard-hero-indicator-index={panelIndex}
-                    data-dashboard-tooltip={panel.label}
-                    key={`dashboard-hero-orbit-indicator-${panel.id}`}
+                    data-dashboard-hero-indicator-index={item.index}
+                    data-dashboard-tooltip={item.label}
+                    key={`dashboard-hero-orbit-indicator-${item.id}`}
                     onClick={(event) => {
                       event.stopPropagation();
-                      selectDashboardHeroCard(panelIndex);
+                      selectDashboardHeroCard(item.index);
                     }}
                     onPointerDown={(event) => {
                       event.stopPropagation();
                       setDashboardContentFocused(true);
-                      selectDashboardHeroCard(panelIndex);
+                      selectDashboardHeroCard(item.index);
                     }}
                     role="tab"
-                    style={{ color: panel.indicatorColor, transform: orbitTransform }}
+                    style={{ color: item.indicatorColor, transform: orbitTransform }}
                     tabIndex={isActive || isSidePreview ? 0 : -1}
                     type="button"
                   >
                     <IndicatorIcon
                       aria-hidden="true"
-                      className="h-4 w-4"
+                      className="h-5 w-5"
                       style={{
-                        filter: `drop-shadow(0 0 ${isActive ? "5px" : "3px"} ${panel.indicatorGlow})`,
+                        filter: `drop-shadow(0 0 ${isActive ? "5px" : "3px"} ${item.indicatorGlow})`,
                       }}
                     />
                     <span
                       aria-hidden="true"
-                      className={`absolute bottom-0.5 h-px rounded-full transition-[width,opacity,box-shadow] duration-300 ${
-                        isActive ? "w-4 opacity-100" : "w-0 opacity-0"
+                      className={`absolute bottom-1 h-px rounded-full transition-[width,opacity,box-shadow] duration-300 ${
+                        isActive ? "w-5 opacity-100" : "w-0 opacity-0"
                       }`}
                       style={{
-                        backgroundColor: panel.indicatorColor,
-                        boxShadow: `0 0 5px ${panel.indicatorGlow}, 0 0 9px ${panel.indicatorGlow}`,
+                        backgroundColor: item.indicatorColor,
+                        boxShadow: `0 0 5px ${item.indicatorGlow}, 0 0 9px ${item.indicatorGlow}`,
                       }}
                     />
                   </button>
@@ -34222,6 +34949,7 @@ export default function UserHomeDashboardPage() {
         <div
           aria-label="Dashboard hero card orbit selector"
           className="relative z-10 h-full w-full cursor-grab select-none overflow-visible outline-none [perspective:1700px] [touch-action:pan-y] active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-cyan-200/45"
+          ref={dashboardHeroCardSelectorRef}
           onClickCapture={(event) => {
             if (dashboardHeroCardPointerMovedRef.current) {
               event.preventDefault();
@@ -34229,9 +34957,18 @@ export default function UserHomeDashboardPage() {
               dashboardHeroCardPointerMovedRef.current = false;
             }
           }}
-          onKeyDown={(event) =>
-            handleDashboardOrbitKeyDown(event, rotateDashboardHeroCards)
-          }
+          onKeyDown={(event) => {
+            // Escape leaves the news page from anywhere inside it (chips,
+            // rows, links all bubble here); arrows keep steering the deck,
+            // where "left" at card 0 opens news and "right" closes it.
+            if (event.key === "Escape" && dashboardHeroNewsOpenRef.current) {
+              event.preventDefault();
+              event.stopPropagation();
+              closeDashboardHeroNews();
+              return;
+            }
+            handleDashboardOrbitKeyDown(event, rotateDashboardHeroCards);
+          }}
           onPointerCancel={(event) => {
             dashboardHeroCardPointerStartRef.current = null;
             if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
@@ -34277,6 +35014,40 @@ export default function UserHomeDashboardPage() {
           onWheelCapture={handleDashboardHeroCardWheel}
           tabIndex={0}
         >
+          {(() => {
+            // The news shell rides the same orbit maths as the seven cards
+            // from virtual index -1: it parks off the left edge and slides in
+            // when the deck's "left" gesture fires at card 0. No
+            // data-dashboard-orbit-card-index — a tap on it must not write
+            // -1 into the card index. No filter term either: the deck's blur
+            // crossfade is not worth a full-card filter pass on this surface.
+            const newsDistance = getDashboardHeroCardOrbitDistance(-1);
+            const isNewsActive = newsDistance === 0;
+            const newsAbsDistance = Math.abs(newsDistance);
+            return (
+              <section
+                aria-hidden={!isNewsActive}
+                aria-label="Sound Fitness news"
+                className="dashboard-hero-news-section absolute inset-0 flex min-w-full shrink-0 items-stretch justify-center [transform-style:preserve-3d]"
+                id="dashboard-hero-news-panel"
+                key="news"
+                role="region"
+                style={{
+                  opacity: isNewsActive ? 1 : 0,
+                  pointerEvents: isNewsActive ? "auto" : "none",
+                  transform: `translateX(${isNewsActive ? 0 : newsDistance * 348}px) translateY(0px) scale(${
+                    isNewsActive ? 1 : newsAbsDistance === 1 ? 0.84 : 0.72
+                  }) rotateY(${isNewsActive ? 0 : Math.sign(newsDistance) * -24}deg)`,
+                  transition:
+                    "transform 620ms cubic-bezier(0.2, 0.82, 0.2, 1), opacity 360ms ease",
+                  visibility: isNewsActive ? "visible" : "hidden",
+                  zIndex: isNewsActive ? 30 : 12 - newsAbsDistance,
+                }}
+              >
+                {isNewsActive ? renderDashboardHeroNewsPanel() : null}
+              </section>
+            );
+          })()}
           {dashboardHeroPanels.map((panel, panelIndex) => {
             const distance = getDashboardHeroCardOrbitDistance(panelIndex);
             const absDistance = Math.abs(distance);
@@ -43025,7 +43796,7 @@ export default function UserHomeDashboardPage() {
     <>
       <DashboardWebGlPreloader />
       <main
-        className={`h-[100dvh] max-h-[100dvh] overflow-hidden bg-[#020713] text-white ${
+        className={`h-[100dvh] max-h-[100dvh] overflow-clip bg-[#020713] text-white ${
           ""
         } ${
           dashboardHeaderTimedOut ? "dashboard-page--idle-menu-open" : ""
@@ -43074,7 +43845,7 @@ export default function UserHomeDashboardPage() {
         <style>{DASHBOARD_RUNTIME_STYLESHEET_IMPORT}</style>
         <div className="pointer-events-none fixed inset-0 -z-10 bg-[radial-gradient(circle_at_18%_0%,rgba(14,165,233,0.18),transparent_30%),radial-gradient(circle_at_82%_12%,rgba(16,185,129,0.13),transparent_26%),linear-gradient(180deg,#020713_0%,#07111f_48%,#020713_100%)]" />
 
-        <div className="mx-auto flex h-full max-h-full max-w-7xl flex-col overflow-hidden px-4 pb-0 pt-0 sm:px-8">
+        <div className="mx-auto flex h-full max-h-full max-w-7xl flex-col overflow-clip px-4 pb-0 pt-0 sm:px-8">
           <section className="hidden">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
               <div className="flex shrink-0 items-center justify-between gap-3 lg:w-[210px] lg:flex-col lg:items-start">
@@ -43735,7 +44506,7 @@ export default function UserHomeDashboardPage() {
               </DashboardAccessibilityNavigator>
             </div>
             <div
-              className="relative z-10 mt-0 min-h-0 flex-1 overflow-hidden"
+              className="relative z-10 mt-0 min-h-0 flex-1 overflow-clip"
               onPointerEnter={() => setDashboardContentFocused(true)}
               onPointerDown={() => setDashboardContentFocused(true)}
               onPointerMove={() => setDashboardContentFocused(true)}
@@ -43760,7 +44531,7 @@ export default function UserHomeDashboardPage() {
                 >
                   <div
                     data-dashboard-orbiter-local-scroll="true"
-                    className="flex h-full min-h-0 w-full max-w-[1180px] flex-col items-center overflow-hidden pb-3 pr-1 pt-4 [touch-action:pan-y]"
+                    className="flex h-full min-h-0 w-full max-w-[1180px] flex-col items-center overflow-clip pb-3 pr-1 pt-4 [touch-action:pan-y]"
                   >
                     {renderDashboardHeroRow()}
                   </div>
