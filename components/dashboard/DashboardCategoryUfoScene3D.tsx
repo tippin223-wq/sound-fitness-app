@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
-import type { BufferGeometry, Material, Object3D } from "three";
+import type {
+  BufferGeometry,
+  Material,
+  Object3D,
+  WebGLRenderer,
+} from "three";
 import {
   createDashboardWebGlRenderer,
   loadDashboardThree,
@@ -60,6 +65,10 @@ const DASHBOARD_CATEGORY_UFO_CHYRON_PIN_SECONDS =
 const DASHBOARD_CATEGORY_UFO_MAX_DELTA_SECONDS = 1 / 30;
 // How long the tractor beam takes to switch off before the ship departs.
 const DASHBOARD_CATEGORY_UFO_CLOSE_LIGHT_OUT_SECONDS = 0.16;
+// The meter panel is display:none this long after a close (it mirrors
+// DASHBOARD_HEADER_METER_MENU_EXIT_MS in the dashboard page), so any fly-out
+// frame drawn after it lands in an invisible canvas. (Speed audit.)
+const DASHBOARD_CATEGORY_UFO_CLOSE_DRAW_MS = 520;
 // Cap this heavy ambient scene to ~30fps. Motion is delta-timed so it animates
 // at the same speed, but doing half the per-frame work keeps the meter menu
 // responsive while it is open.
@@ -2047,6 +2056,8 @@ export default function DashboardCategoryUfoScene3D({
       let lastTargetBeamAccentStyle = beamColorRef.current;
       let lastTendrilGeometryUpdate = 0;
       let lastCanvasOpacity = -1;
+      // performance.now() when the current close began; 0 while open.
+      let closeStartedAt = 0;
       let canvasLive = false;
       let hasChyronAdvancedAfterDock = false;
       // Wall-clock accumulator (see realDeltaSeconds) plus the zero point for
@@ -2180,6 +2191,11 @@ export default function DashboardCategoryUfoScene3D({
         );
         lastFrameTime = time;
         const isOpenNow = isOpenRef.current;
+        if (isOpenNow) {
+          closeStartedAt = 0;
+        } else if (closeStartedAt === 0) {
+          closeStartedAt = performance.now();
+        }
         // Restart the grab sequence whenever the scene becomes live again.
         // Keyed on live rather than open because the renderer freezes this
         // canvas to a still image ~1s after the panel highlights a different
@@ -2256,7 +2272,15 @@ export default function DashboardCategoryUfoScene3D({
         // (the heaviest dashboard scene) stops burning CPU/GPU while it is off
         // screen, which is almost all the time. The loop keeps ticking cheaply
         // and resumes the instant the menu reopens.
-        if (!isOpenNow && presence < 0.004) {
+        if (
+          !isOpenNow &&
+          (presence < 0.004 ||
+            performance.now() - closeStartedAt >=
+              DASHBOARD_CATEGORY_UFO_CLOSE_DRAW_MS)
+        ) {
+          // Past the panel's exit the canvas is display:none, so the rest of
+          // the fly-out (~13 frames of the heaviest scene) was drawn unseen.
+          presence = 0;
           // Re-arm the dock choreography only once fully parked — resetting
           // it on the close transition snapped the band to its pre-dock
           // frame while the ship was still visibly flying out.
@@ -3137,7 +3161,50 @@ export default function DashboardCategoryUfoScene3D({
 
       frameId = window.requestAnimationFrame(render);
 
+      // While the panel is closed the loop above never draws, so the first
+      // live frame after the first open compiled every program in this scene
+      // (~15 MeshPhysicalMaterial variants) and uploaded the 2048x576 chyron
+      // texture in the frame the open animation starts (~285ms). Warm both
+      // during idle time; the cache keys match the live render because this
+      // scene draws to the canvas, not a render target. (Speed audit.)
+      let prewarmIdleId = 0;
+      let prewarmTimeoutId = 0;
+      const prewarm = () => {
+        prewarmIdleId = 0;
+        prewarmTimeoutId = 0;
+        if (cancelled) return;
+        try {
+          renderer.initTexture(chyronTexture);
+          const compileAsync = (
+            renderer as WebGLRenderer & {
+              compileAsync?: (s: unknown, c: unknown) => Promise<unknown>;
+            }
+          ).compileAsync;
+          if (typeof compileAsync === "function") {
+            void compileAsync
+              .call(renderer, scene, camera)
+              .catch(() => undefined);
+          } else {
+            renderer.compile(scene, camera);
+          }
+        } catch {
+          // Best effort — a lost context is handled by handleContextLost.
+        }
+      };
+      if (typeof window.requestIdleCallback === "function") {
+        prewarmIdleId = window.requestIdleCallback(prewarm, { timeout: 4000 });
+      } else {
+        prewarmTimeoutId = window.setTimeout(prewarm, 1200);
+      }
+
       cleanup = () => {
+        if (
+          prewarmIdleId !== 0 &&
+          typeof window.cancelIdleCallback === "function"
+        ) {
+          window.cancelIdleCallback(prewarmIdleId);
+        }
+        if (prewarmTimeoutId !== 0) window.clearTimeout(prewarmTimeoutId);
         if (frameId !== 0) {
           window.cancelAnimationFrame(frameId);
         }

@@ -94,6 +94,8 @@ const aliases: Record<string, string> = {
   Workout: "workout",
   "Workout / Sessions": "workout",
   Volume: "volume",
+  Tools: "wrench",
+  Wrench: "wrench",
   groups: "groups",
 };
 
@@ -117,12 +119,21 @@ export default function DashboardTabIcon({
   label = "",
   name,
 }: DashboardTabIconProps) {
-  const iconName =
-    aliases[name] ||
-    aliases[label] ||
-    label.toLowerCase().replace(/\s+/g, "-") ||
-    name.toLowerCase().replace(/\s+/g, "-");
+  // Try every candidate in order and take the first one that has a glyph.
+  // The explicit name comes before the label-derived slug: a label such as
+  // "Daily Tools" has no glyph of its own and used to shadow a valid name
+  // ("app"), so the rail rows all rendered the fallback clock.
+  const slug = (value: string) => value.toLowerCase().replace(/\s+/g, "-");
+  const candidates = [aliases[name], aliases[label], slug(name), slug(label)];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const glyph = renderDashboardTabIconGlyph(candidate, className);
+    if (glyph) return glyph;
+  }
+  return <IconSvg className={className}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></IconSvg>;
+}
 
+function renderDashboardTabIconGlyph(iconName: string, className: string) {
   switch (iconName) {
     case "dashboard":
       return <IconSvg className={className}><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5 5-2Z" /></IconSvg>;
@@ -136,6 +147,10 @@ export default function DashboardTabIcon({
       return <IconSvg className={className}><path d="M6 3h12a2 2 0 0 1 2 2v16l-4-2-4 2-4-2-4 2V5a2 2 0 0 1 2-2Z" /><path d="M8 8h8" /><path d="M8 12h6" /><path d="M8 16h5" /></IconSvg>;
     case "builder":
       return <IconSvg className={className}><path d="M14.7 6.3a1 1 0 0 0 1.4 1.4l1.6-1.6a3 3 0 0 1-3.8 3.8L7 16.8 4.2 14l6.9-6.9a3 3 0 0 1 3.8-3.8l-1.6 1.6Z" /><path d="m5 19 3-3" /></IconSvg>;
+    case "wrench":
+      // Lucide's wrench: an open-jaw head on a long handle, readable at 20px
+      // (the "builder" glyph above is a slimmer spanner-and-stroke).
+      return <IconSvg className={className}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></IconSvg>;
     case "library":
       return <IconSvg className={className}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" /><path d="M9 6h7" /><path d="M9 10h5" /><path d="M9 14h6" /></IconSvg>;
     case "nutrition":
@@ -209,6 +224,6 @@ export default function DashboardTabIcon({
     case "packages":
       return <IconSvg className={className}><path d="m12 3 8 4-8 4-8-4 8-4Z" /><path d="M4 7v10l8 4 8-4V7" /><path d="M12 11v10" /></IconSvg>;
     default:
-      return <IconSvg className={className}><circle cx="12" cy="12" r="8" /><path d="M12 8v4l3 2" /></IconSvg>;
+      return null;
   }
 }

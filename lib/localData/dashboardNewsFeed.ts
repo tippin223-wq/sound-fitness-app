@@ -7,15 +7,29 @@ import { ROUTES, type InternalHref } from "@/lib/routes";
  *
  * Two kinds today: Sound Fitness `event`s (bookable, dated) and fitness
  * `world` headlines (original one-line summaries with a source NAME only —
- * never an outlet's own copy). `getDashboardNewsFeed()` is the loader seam:
- * swap its body for a route-handler fetch or a Supabase read later and the
- * dashboard keeps working unchanged.
+ * never an outlet's own copy). Topic tags power the more specific filter rail.
+ * `getDashboardNewsFeed()` is the loader seam: swap its body for a route-handler
+ * fetch or a Supabase read later and the dashboard keeps working unchanged.
  */
 
 export type DashboardNewsFeedKind = "event" | "world";
+export type DashboardNewsFeedTopic =
+  | "community"
+  | "gear"
+  | "nutrition"
+  | "recovery"
+  | "training";
 /** Subset of the dashboard page's DashboardCardTone — indexes its tone styles. */
 export type DashboardNewsFeedTone = "amber" | "cyan" | "emerald" | "sky" | "violet";
-export type DashboardNewsFeedFilter = "all" | "events" | "world";
+export type DashboardNewsFeedFilter =
+  | "all"
+  | "community"
+  | "events"
+  | "gear"
+  | "nutrition"
+  | "recovery"
+  | "training"
+  | "world";
 
 export type DashboardNewsFeedEvent = {
   /** ISO 8601 with offset. */
@@ -31,6 +45,7 @@ export type DashboardNewsFeedEvent = {
 export type DashboardNewsFeedItem = {
   id: string;
   kind: DashboardNewsFeedKind;
+  topic: DashboardNewsFeedTopic;
   tone: DashboardNewsFeedTone;
   title: string;
   summary: string;
@@ -48,15 +63,23 @@ export type DashboardNewsFeed = {
   items: DashboardNewsFeedItem[];
 };
 
-export const DASHBOARD_NEWS_FEED_FILTERS = [
-  { id: "all", label: "All", kinds: ["event", "world"] },
-  { id: "events", label: "Events", kinds: ["event"] },
-  { id: "world", label: "World", kinds: ["world"] },
-] as const satisfies ReadonlyArray<{
+type DashboardNewsFeedFilterDefinition = {
   id: DashboardNewsFeedFilter;
   label: string;
-  kinds: readonly DashboardNewsFeedKind[];
-}>;
+  kinds?: readonly DashboardNewsFeedKind[];
+  topics?: readonly DashboardNewsFeedTopic[];
+};
+
+export const DASHBOARD_NEWS_FEED_FILTERS: readonly DashboardNewsFeedFilterDefinition[] = [
+  { id: "all", label: "All", kinds: ["event", "world"] },
+  { id: "events", label: "Events", kinds: ["event"] },
+  { id: "training", label: "Training", topics: ["training"] },
+  { id: "recovery", label: "Recovery", topics: ["recovery"] },
+  { id: "nutrition", label: "Nutrition", topics: ["nutrition"] },
+  { id: "gear", label: "Gear", topics: ["gear"] },
+  { id: "community", label: "Community", topics: ["community"] },
+  { id: "world", label: "World", kinds: ["world"] },
+];
 
 /** Studio clock. Events are announced in Sound Fitness local time. */
 export const DASHBOARD_NEWS_TIME_ZONE = "America/Los_Angeles";
@@ -67,6 +90,7 @@ export const DASHBOARD_NEWS_FEED_SEED: DashboardNewsFeed = {
     {
       id: "evt-waterfront-5k",
       kind: "event",
+      topic: "community",
       tone: "emerald",
       title: "Waterfront 5K + Bootcamp Finisher",
       summary:
@@ -87,6 +111,7 @@ export const DASHBOARD_NEWS_FEED_SEED: DashboardNewsFeed = {
     {
       id: "evt-mobility-clinic",
       kind: "event",
+      topic: "recovery",
       tone: "cyan",
       title: "Hips & Shoulders Mobility Clinic",
       summary:
@@ -107,6 +132,7 @@ export const DASHBOARD_NEWS_FEED_SEED: DashboardNewsFeed = {
     {
       id: "evt-deadlift-day",
       kind: "event",
+      topic: "training",
       tone: "amber",
       title: "Member Deadlift Day",
       summary:
@@ -127,6 +153,7 @@ export const DASHBOARD_NEWS_FEED_SEED: DashboardNewsFeed = {
     {
       id: "evt-fall-open-house",
       kind: "event",
+      topic: "community",
       tone: "sky",
       title: "Fall Kickoff Open House",
       summary:
@@ -145,6 +172,7 @@ export const DASHBOARD_NEWS_FEED_SEED: DashboardNewsFeed = {
     {
       id: "world-strength-longevity",
       kind: "world",
+      topic: "training",
       tone: "cyan",
       source: "Strength research roundup",
       title:
@@ -156,6 +184,7 @@ export const DASHBOARD_NEWS_FEED_SEED: DashboardNewsFeed = {
     {
       id: "world-shoe-rules",
       kind: "world",
+      topic: "gear",
       tone: "sky",
       source: "Road running bulletin",
       title:
@@ -167,6 +196,7 @@ export const DASHBOARD_NEWS_FEED_SEED: DashboardNewsFeed = {
     {
       id: "world-wearable-recovery",
       kind: "world",
+      topic: "recovery",
       tone: "violet",
       source: "Wearables industry brief",
       title:
@@ -178,6 +208,7 @@ export const DASHBOARD_NEWS_FEED_SEED: DashboardNewsFeed = {
     {
       id: "world-heat-guidance",
       kind: "world",
+      topic: "recovery",
       tone: "amber",
       source: "Public health advisory",
       title:
@@ -189,6 +220,7 @@ export const DASHBOARD_NEWS_FEED_SEED: DashboardNewsFeed = {
     {
       id: "world-creatine-cognition",
       kind: "world",
+      topic: "nutrition",
       tone: "emerald",
       source: "Nutrition science digest",
       title:
@@ -212,10 +244,14 @@ export const filterDashboardNewsFeed = (
   items: readonly DashboardNewsFeedItem[],
   filter: DashboardNewsFeedFilter,
 ) => {
-  const kinds: readonly DashboardNewsFeedKind[] =
-    DASHBOARD_NEWS_FEED_FILTERS.find((entry) => entry.id === filter)?.kinds ??
-    DASHBOARD_NEWS_FEED_FILTERS[0].kinds;
-  return items.filter((item) => kinds.includes(item.kind));
+  const selectedFilter =
+    DASHBOARD_NEWS_FEED_FILTERS.find((entry) => entry.id === filter) ??
+    DASHBOARD_NEWS_FEED_FILTERS[0];
+  return items.filter(
+    (item) =>
+      selectedFilter.kinds?.includes(item.kind) ||
+      selectedFilter.topics?.includes(item.topic),
+  );
 };
 
 const isUpcomingEvent = (item: DashboardNewsFeedItem, now: Date) =>

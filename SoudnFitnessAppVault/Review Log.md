@@ -277,3 +277,75 @@ Codex will use this note to record reviewed screenshots, interpretation notes, a
 - Enlarged the shared top-right hero-card selector to comfortable 28px compact and 36px large-screen targets, increased the icon sizes, strengthened hover/focus feedback, and expanded the Challenges header reserve so the controls remain easy to click without covering content.
 - Aligned each Training Constellation track directly through its node centers, replaced the desktop full-width strokes with clean per-cell segments that stop before and resume after every icon, and added matching dark node masks on mobile so track colors never draw across the stars.
 - Split the former combined Meters panel into three independent hero-row cards for Needle Meter, Achievements, and Favorite Workouts, then added Widgets as a dedicated seventh card after Challenges with direct widget shortcuts and its existing drawer action.
+
+## 2026-09-06
+
+- Removed the shared pill container and the individual circular containers from the Daily Tools pager arrows while preserving their spacing, page dots, hit areas, focus rings, and disabled states.
+
+## 2026-09-07
+
+- Expanded My Training Calendar toward the row's right and bottom edges, tightened its internal week padding, and added a live red current-time line with a clock label in today's column.
+- Kept the highlighted Week calendar cell centered within the usable time-grid viewport when possible and hid the grid's native scrollbars without disabling scrolling.
+- Added bare Up/Down controls on the left of the Week calendar and Left/Right controls below it, with a cyan-highlighted time cell that moves through hours and days without introducing return-to-today bubbles.
+- Rebuilt the calendar Week view as a vertical hourly schedule with events placed at assigned times; moved bare previous/next arrows to either side of the week range and removed the Today / Week in view bubble.
+- Removed the Cardio, Meal, Strength, and Recovery indicator tabs from My Training Calendar and anchored the Week/Month selector to the card's top-right corner at every width.
+- Renamed the dashboard card to My Training Calendar, moved the Week/Month toggle to its top-right, moved week navigation below the title, and removed the duplicate top scroll indicator.
+- Simplified the My Sound horizontal signal indicators to compact icon-only controls while preserving labels for tooltips and accessibility.
+- Added clickable, horizontally scrollable signal indicators to My Sound and gave every left-side row indicator icon a shared beveled 3D treatment.
+- Replaced the My Sound vertical row indicator with the Sound Fitness crest and removed the urgency/eyebrow markers above both My Sound and Workout / Sessions.
+- Left-aligned the floating Dashboards card title, including Workout / Sessions, and its selector with the shared row content edge, and removed the stray decorative line above it.
+
+- Aligned every member dashboard row below the hero to the hero's 60/80/96px responsive left gutter, matched its 1180px content cap, and reclaimed the oversized side padding for more usable row width.
+- Constrained the dashboard Calendar card to the row's available display height; month weeks flex within that height, while dense week timelines scroll inside their day cards instead of forcing the calendar below the viewport.
+- Reset each dashboard row to its starting card as soon as the user leaves it, across wheel, swipe, keyboard, joystick, and indicator navigation; returning to the hero row now restores the Body Command Center instead of the News page.
+- Switched Muscle Levels to its compact presentation at every short viewport height, including wide landscape resolutions, and gave compact mode a dedicated 64px padding-free cell so the full ring stays inside its measured viewport.
+- Sized the Support Signals viewport to an exact whole-card width so the right edge shows either a complete signal ring or none of it.
+- Removed the circular containers around the Support Signals scroll arrows while retaining their full click targets and focus behavior.
+- Spread the vertical dashboard row indicators across more of their rail and reduced their short-landscape size so adjacent controls and the active highlight no longer overlap.
+- Widened the Body Command Center's landscape control column to at least 320px from 700px upward so Training Categories and Muscle Levels retain clear lateral space for their scroll arrows.
+- On wide Body Command Center cards, moved Support Signals beneath the Training Categories and Muscle Levels column so the avatar can use the full vertical space on the left.
+- Added a short-height Body Command Center layout that places Training Categories and Muscle Levels side by side, preventing the Muscle Levels control from collapsing beneath Support Signals.
+- Moved the Body Command Center's expanded two-column breakpoint from 760px to 900px so medium-width hero cards keep the avatar centered and retain a visible compact Muscle Levels control.
+- Color-coded all eight News & Events category tabs, with distinct active, idle, hover, and glow treatments for faster category recognition.
+- Reduced the active left-rail indicator glow and added a small responsive paint-safe gutter so the highlighted state cannot visually overlap the hero card.
+- Moved the left dashboard row indicators into a dedicated responsive gutter and pulled the hero card left, removing both the wasted left gap and indicator/card overlap.
+- Removed the expanding tooltips from the left dashboard row indicators so their labels no longer open across the active card; the buttons retain accessible row labels.
+- Increased the Weekly Recap orbit spacing so inactive cards and their indicators no longer overlap the active card's left or right edges.
+- Changed the Weekly Recap card indicators into one horizontally scrollable row so they no longer wrap into multiple lines on narrower screens.
+- Removed the two pills above the Weekly Recap row title (the row label and urgency status) and reclaimed their spacing so the title sits cleanly at the top.
+
+- Renamed the dashboard hero news card to News & Events and removed the pill styling from its story-count and updated-date status.
+- Reworked News & Events with a clearer What's Happening eyebrow, a two-line Next Event chyron that keeps the date visible, eight topic filters, and bare horizontal arrows that cycle and center the highlighted category.
+- Fixed the dashboard orbit's rectangular aura edges by containing the glow, mist, and icon-shadow gradient fades; standardized the center as the aura and outer page icons as planets, including accessible controls.
+- Removed the icon beside the selected planet's page title, matched its raised 3D text to the planet's colour, and replaced the framed arrows with bare chevrons while preserving focus feedback and click targets.
+- Kept the planet orbit moving during pointer hover and clicks; only visible keyboard focus pauses the orbit, with reduced-motion and offscreen pauses preserved.
+- Gave Recent Workout Activity a full-width heading and readable stacked entries. Replaced empty placeholder status/route rows with one Start a workout link to the workout logger, removing duplicate summaries and nested containers.
+- Kept Recent Workout Activity visually complete when empty by using a three-column Exercise, Load, and Details table with understated placeholder rows and the single Start a workout action in its footer.
+- Lifted only the active Recent Workout Activity card within the Weekly Recap orbit far enough to keep its full lower edge visible across normal and extra-short dashboard viewport heights.
+- Bound Week calendar quick-add actions to the active highlighted day and hour, and exposed that target time in the selected-day panel so new events render in the chosen cell.
+- Centered the calendar's selected-event popup within the calendar card, with responsive inset padding and a slightly stronger backdrop for visual focus.
+- Removed the selected-day marker-count pill and allowed the full weekday/date heading to display without truncation.
+- Added a two-step Sound Session calendar quick-add with In-Home Strength Training, Assisted Stretch, Online Training, and Nutrition choices that inherit the highlighted day and time.
+- Added inline title/time editing and confirmation-based deletion for user-created calendar events; dashboard-provided schedule markers remain read-only.
+- Scoped the selected-day popup body to the highlighted hour, added a clear empty-cell message, and added color-coded same-day event pills beneath the date that jump to occupied time cells.
+- Made same-day event pills close the popup and reveal the corresponding centered, highlighted calendar cell.
+- Changed Week calendar cell clicks to a two-step interaction: the first click selects and centers a different cell, and a second click on that highlighted cell opens its popup.
+- Raised the selected-day popup above all sticky calendar headers and event layers so no part of the calendar can render over it.
+- Restyled the event editor time input as a labeled dark control with a clock icon, integrated picker treatment, and a clearer cyan focus state.
+- Kept the selected-day popup open when a same-day event pill is clicked, replacing the popup body in place with that event's highlighted time slot.
+- Replaced the browser-native event time field with explicit hour, minute, and AM/PM selectors so the selected time stays visible and editable across browser layouts.
+- Refined the event editor time control into a single time field with one clock icon on the right; opening it reveals styled hour, minute, and AM/PM selection columns centered on the current time.
+- Made event editing fill the calendar card's available height, with only the edited event shown and Save/Cancel always below the picker; day-add actions return after editing. Added bare up/down arrows beneath the hour and minute columns, with independent wrapping and automatic selection centering. Verified the full editor and arrow changes in the narrow live browser; TypeScript and lint passed with only existing warnings.
+- Replaced Add to this day buttons and Sound Session choices with matching color-coded icon cards. Both menus use horizontally scrolling, snapping rows with bare navigation arrows; Sound Session uses the existing crest and the submenu resets to its first card. Preserved full labels and highlighted date/time behavior, and constrained the popup to the calendar height. Verified both menus in the narrow live browser; TypeScript and lint passed with existing warnings only.
+- Removed the urgency/status dots from the left dashboard row navigation and replaced the small outline glyphs with filled, beveled SVG icons showing side faces and highlights. Preserved the welcome smile, branded Sound crest, current-row ring, accessible row labels, and fixed rail spacing. Checked the hero and Calendar states live at the narrow browser width; TypeScript passed and the browser reported no errors.
+- Connected Training Constellation to the training calendar through shared date/time normalization and a persisted live event store. Calendar additions, edits, deletions, cross-tab changes, and the selected week now drive the constellation. Replaced the static July sample week and invented load/duration/insight values with calendar dates, times, and statuses; render all same-day events rather than only the first. Included Performance and Check-In lanes, and excluded Nutrition from the constellation at the user's request while retaining its calendar entries. TypeScript, targeted lint, and the isolated regression suite (`node scripts/test-training-calendar-sync.cjs`) passed; verified the synced week/events in the narrow live browser.
+- Removed the left row indicators' background, border, blur, and button shadows while preserving sculpted 3D glyphs. Added a thin conic light ring and soft edge glow for active/hover/focus states, contained within the fixed rail slots with reduced-motion support. Reused the shared tooltip layer for row labels on hover/focus, added tooltip semantics and Escape/click dismissal, and moved the rail rules into the dedicated runtime stylesheet with an updated version. TypeScript and CSS/TSX syntax checks passed; verified transparent button surfaces and the Daily Tools hover label in the live narrow browser.
+  - Final refreshed screenshot confirmed the luminous active-row ring, bare inactive icons, and unchanged rail spacing.
+- Centered each sculpted row icon's SVG artwork in its frame and removed icon-only perspective/lift transforms so the light ring stays aligned through active, hover, and focus states. Live SVG measurements confirmed matching artwork/button centers; targeted ESLint, CSS/TSX syntax checks, and diff checks passed.
+- Fixed the first row indicator's partially blocked hover/click target: the collapsed header's empty menu-content overflow now passes pointer events through, while its real logo, joystick, and meter controls remain interactive. Preserved the main header stage's idle guard and expanded dropdown behavior. Verified the previously blocked upper portion shows the Weekly Snapshot tooltip and clicking it returns to the hero; no browser errors or error overlay detected.
+
+## 2026-09-08
+
+- Tightened Training Constellation to fit its container without horizontal scrolling: replaced the narrow view's 88px minimum track columns with equal fractional columns and a 32px day gutter, and removed the wide weekly grid's 1400px minimum. Added compact event cells with two-line summaries and smaller markers; full title/time/status remain available through accessible labels, hover titles, and the selected-session readout. Kept the multi-track filter and vertical day scrolling. TypeScript, component ESLint, TSX syntax, and diff checks passed. Live visual verification was attempted but blocked by repeated browser diagnostic timeouts after refresh; responsive browser confirmation remains pending.
+
+- Replaced Training Constellation's single-select track pills with an All Tracks dropdown containing independent color-coded checkbox options, Select All, and Clear. Kept it open during selection, added a clear no-tracks state, and made both timeline layouts and counts reflect the chosen combination. Hidden-track session details no longer remain visible. Anchored the dropdown outside the clipped hero card, with viewport bounds, keyboard focus/Escape, outside dismissal, and isolated scrolling. Verified multiple simultaneous selections, empty state, Select All, narrow-screen fit, horizontal scroll isolation, and Escape focus return in the live browser. TypeScript, component lint, calendar-sync regression tests, and TSX syntax passed; page lint completed with existing warnings only.

@@ -1913,14 +1913,14 @@ export default function SoundFitnessAvatar({
                 views, since the cap reads from either side. */}
             <path
               className="sound-fitness-avatar__body-zone-glow"
-              d="M80 96 C86 91 97 91 104 98 C106 108 104 120 98 128 C90 130 82 126 80 116 C79 108 79 100 80 96Z"
+              d="M82 100 C87 95 96 94 103 99 C106 108 104 120 98 128 C90 130 83 126 82 117 C81 110 81 104 82 100Z"
               fill={zoneColor("shoulders")}
               fillOpacity={wholeZoneOpacity(0.5)}
               filter={`url(#${avatarId}-zone-glow)`}
             />
             <path
               className="sound-fitness-avatar__body-zone-glow"
-              d="M160 96 C154 91 143 91 136 98 C134 108 136 120 142 128 C150 130 158 126 160 116 C161 108 161 100 160 96Z"
+              d="M158 100 C153 95 144 94 137 99 C134 108 136 120 142 128 C150 130 157 126 158 117 C159 110 159 104 158 100Z"
               fill={zoneColor("shoulders")}
               fillOpacity={wholeZoneOpacity(0.5)}
               filter={`url(#${avatarId}-zone-glow)`}

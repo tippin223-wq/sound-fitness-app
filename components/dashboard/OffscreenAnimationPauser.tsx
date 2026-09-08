@@ -39,6 +39,9 @@ export default function OffscreenAnimationPauser() {
     // Does this animation drive its own target's opacity? Cached per
     // animation — see the self-opacity carve-out in isHidden below.
     const opacityAnimated = new Map<Animation, boolean>();
+    // Iteration count per animation: getComputedTiming() is not free and the
+    // answer never changes for a given animation.
+    const iterationsCache = new WeakMap<Animation, number>();
     let timer = 0;
     let raf = 0;
     let stopped = false;
@@ -130,6 +133,24 @@ export default function OffscreenAnimationPauser() {
             rect.left >= vw)
         ) {
           hidden = true;
+        } else if (
+          typeof (el as HTMLElement).checkVisibility === "function"
+        ) {
+          // One native call instead of a getComputedStyle walk per ancestor
+          // (~2,000 reads per sweep with the meter panel open). The
+          // self-opacity carve-out is preserved by testing the parent chain
+          // and only display/visibility on the element itself. (Speed audit.)
+          const options = { opacityProperty: true, visibilityProperty: true };
+          if (ignoreSelfOpacity) {
+            const own = getComputedStyle(el);
+            const parent = el.parentElement as HTMLElement | null;
+            hidden =
+              own.display === "none" ||
+              own.visibility === "hidden" ||
+              (parent !== null && !parent.checkVisibility(options));
+          } else {
+            hidden = !(el as HTMLElement).checkVisibility(options);
+          }
         } else {
           let node: Element | null = el;
           while (node && node !== document.body) {
@@ -157,11 +178,14 @@ export default function OffscreenAnimationPauser() {
         const target = effect?.target;
         if (!target) continue;
 
-        let iterations: number;
-        try {
-          iterations = effect.getComputedTiming().iterations ?? 1;
-        } catch {
-          continue;
+        let iterations = iterationsCache.get(anim);
+        if (iterations === undefined) {
+          try {
+            iterations = effect.getComputedTiming().iterations ?? 1;
+          } catch {
+            continue;
+          }
+          iterationsCache.set(anim, iterations);
         }
         // Only endless decorative loops — leave one-shot intros/transitions alone.
         if (iterations !== Infinity) continue;
@@ -178,6 +202,20 @@ export default function OffscreenAnimationPauser() {
           cssHeld.delete(anim);
           stickyOverridden.delete(anim);
           opacityAnimated.delete(anim);
+          continue;
+        }
+
+        // Paused by a stylesheet rule we never touched — the planet rows
+        // alone hold ~140 orbit, moon and icon loops at
+        // animation-play-state: paused. Nothing to pause or resume, so skip
+        // the rect read and checkVisibility entirely; the sweep had grown
+        // from ~40ms to 60-90ms per pass on those reads (speed audit, Sept
+        // 2026).
+        if (
+          anim.playState === "paused" &&
+          !pausedByUs.has(anim) &&
+          !cssHeld.has(anim)
+        ) {
           continue;
         }
 
@@ -233,6 +271,16 @@ export default function OffscreenAnimationPauser() {
     // Run on an idle cadence, aligned to a frame so reads hit fresh layout.
     // ~400ms is far cheaper than the per-frame paint it removes, and a hidden
     // loop resuming a few hundred ms late is imperceptible.
+    // With the meter panel open its animations turn each sweep into a
+    // 35-50ms forced-style task on an already busy frame, and nothing the
+    // sweep guards changes visibility while the panel is up — sweep 4x less
+    // often then. Not skipped entirely: the cssWantsPaused repair is what
+    // re-pauses loops that carry a sticky WAAPI play() override. (Speed
+    // audit, Sept 2026.)
+    const meterPanelOpen = () =>
+      document.querySelector(
+        '.dashboard-header-meter-panel[data-meter-menu-state="open"]',
+      ) !== null;
     const schedule = () => {
       if (stopped) return;
       timer = window.setTimeout(() => {
@@ -241,7 +289,7 @@ export default function OffscreenAnimationPauser() {
           sweep();
           schedule();
         });
-      }, 400);
+      }, meterPanelOpen() ? 1600 : 800);
     };
 
     sweep();

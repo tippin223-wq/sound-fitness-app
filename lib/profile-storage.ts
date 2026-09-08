@@ -184,11 +184,24 @@ export function readSharedProfileSnapshot({
     profile,
     "profileImage",
   );
-  const profileImage = hasStoredProfileImage
-    ? typeof profile.profileImage === "string"
-      ? profile.profileImage
-      : ""
-    : readString(profile.avatarUrl, profile.avatar_url, authAvatar, current?.profileImage);
+  // SUPABASE FIRST. authAvatar is user_metadata.avatar_url, which the
+  // website writes when a member sets their account photo, so it is the
+  // one value shared across devices and surfaces. It used to come last,
+  // behind whatever this browser had cached, which meant a photo set
+  // anywhere else was invisible here for as long as a local copy existed.
+  // The local copies stay as the fallback for members who have not set one
+  // remotely yet, and for offline reads.
+  const profileImage =
+    readString(authAvatar) ||
+    (hasStoredProfileImage
+      ? typeof profile.profileImage === "string"
+        ? profile.profileImage
+        : ""
+      : readString(
+          profile.avatarUrl,
+          profile.avatar_url,
+          current?.profileImage,
+        ));
   const memberStatus = readString(
     profile.memberStatus,
     profile.memberType,

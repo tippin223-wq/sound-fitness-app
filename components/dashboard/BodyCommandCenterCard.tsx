@@ -49,6 +49,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
@@ -721,12 +722,43 @@ function BodyStatStack({
   const compactShowsGlyph = useSettledGlyphSwap(highlightedIndex, compact);
   const activeTone = statToneClasses[stats[highlightedIndex]?.tone ?? "cyan"];
 
+  const scrollToWholeCardIndex = (index: number) => {
+    const scroller = scrollRef.current;
+    const item = scroller?.children.item(index) as HTMLElement | null;
+    if (!scroller || !item) return;
+    const styles = getComputedStyle(scroller);
+    const gap = parseFloat(styles.columnGap) || 0;
+    const padding =
+      (parseFloat(styles.paddingLeft) || 0) +
+      (parseFloat(styles.paddingRight) || 0);
+    const stride = item.offsetWidth + gap;
+    if (stride <= 0) return;
+    const visibleCount = Math.max(
+      1,
+      Math.floor((Math.max(0, scroller.clientWidth - padding) + gap) / stride),
+    );
+    const firstVisible = Math.round(scroller.scrollLeft / stride);
+    const nextFirst =
+      index < firstVisible
+        ? index
+        : index >= firstVisible + visibleCount
+          ? index - visibleCount + 1
+          : firstVisible;
+    scroller.scrollTo({
+      behavior: "smooth",
+      left: Math.max(0, nextFirst * stride),
+    });
+  };
+
   const moveHighlight = (direction: -1 | 1) => {
     setHighlightedIndex((currentIndex) => {
       const nextIndex =
         (currentIndex + direction + stats.length) % stats.length;
       if (!compact) {
-        window.requestAnimationFrame(() => scrollToIndex(nextIndex));
+        window.requestAnimationFrame(() => {
+          if (vertical) scrollToIndex(nextIndex);
+          else scrollToWholeCardIndex(nextIndex);
+        });
       }
       return nextIndex;
     });
@@ -736,7 +768,7 @@ function BodyStatStack({
 
   const rail = (
     <div
-      className={`flex min-w-0 snap-mandatory gap-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "snap-x justify-center overflow-hidden pt-5" : vertical ? "min-h-0 flex-1 snap-y flex-col items-center overflow-y-auto overscroll-y-contain px-1 pb-1 pt-5" : "snap-x overflow-x-auto overscroll-x-contain px-1 pb-1 pt-5"}`}
+      className={`flex min-w-0 snap-mandatory gap-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "snap-x justify-center overflow-hidden pt-5" : vertical ? "min-h-0 flex-1 snap-y flex-col items-center overflow-y-auto overscroll-y-contain px-1 pb-1 pt-5" : "mx-auto snap-x overflow-x-auto overscroll-x-contain px-1 pb-1 pt-5"}`}
       ref={scrollRef}
     >
       {visibleStats.map((stat, index) => (
@@ -755,6 +787,49 @@ function BodyStatStack({
       ))}
     </div>
   );
+
+  // Keep the horizontal viewport exactly wide enough for whole signal cards.
+  // A flexible middle grid track otherwise ends at an arbitrary pixel and
+  // exposes a distracting slice of the next ring at its right edge.
+  useLayoutEffect(() => {
+    if (compact || vertical) return;
+    const scroller = scrollRef.current;
+    const host = scroller?.parentElement;
+    if (!scroller || !host) return;
+
+    const fitWholeCards = () => {
+      const firstCard = scroller.firstElementChild as HTMLElement | null;
+      if (!firstCard) return;
+      const styles = getComputedStyle(scroller);
+      const gap = parseFloat(styles.columnGap) || 0;
+      const padding =
+        (parseFloat(styles.paddingLeft) || 0) +
+        (parseFloat(styles.paddingRight) || 0);
+      const stride = firstCard.offsetWidth + gap;
+      const available = host.clientWidth;
+      if (stride <= 0 || available <= 0) return;
+      const count = Math.max(
+        1,
+        Math.min(
+          stats.length,
+          Math.floor((Math.max(0, available - padding) + gap) / stride),
+        ),
+      );
+      const wholeWidth = count * stride - gap + padding;
+      scroller.style.width = `${Math.min(available, wholeWidth)}px`;
+    };
+
+    fitWholeCards();
+    const observer = new ResizeObserver(fitWholeCards);
+    observer.observe(host);
+    if (scroller.firstElementChild) {
+      observer.observe(scroller.firstElementChild);
+    }
+    return () => {
+      observer.disconnect();
+      scroller.style.width = "";
+    };
+  }, [compact, scrollRef, stats.length, vertical]);
 
   return (
     <div className={`min-w-0 ${vertical && !compact ? "flex min-h-0 flex-1 flex-col" : ""}`}>
@@ -813,14 +888,16 @@ function BodyStatStack({
               direction="left"
               label={`Highlight previous ${label} item`}
               onClick={() => moveHighlight(-1)}
+              plain
             />
           </span>
-          {rail}
+          <div className="min-w-0 overflow-hidden">{rail}</div>
           <span className="grid place-items-center">
             <ScrollControlButton
               direction="right"
               label={`Highlight next ${label} item`}
               onClick={() => moveHighlight(1)}
+              plain
             />
           </span>
         </div>
@@ -1960,7 +2037,10 @@ function useSettledGlyphSwap(token: string | number, enabled: boolean) {
 
   useEffect(() => {
     if (!enabled) return;
-    const timer = window.setTimeout(() => setShowGlyph(true), 620);
+    // Just past the 220ms ghost exit: the outgoing icon has sunk before the
+    // incoming one rises, and the swap no longer reads as a lag (it used to
+    // wait 620ms). (Speed audit, Sept 2026.)
+    const timer = window.setTimeout(() => setShowGlyph(true), 280);
     return () => window.clearTimeout(timer);
   }, [enabled, token]);
 
@@ -2027,7 +2107,13 @@ function TrainingCategorySelector({
   };
 
   return (
-    <div className="min-w-0">
+    <div
+      className={`min-w-0 ${
+        compact
+          ? "[@media(max-height:650px)]:w-1/2 [@media(max-height:650px)]:shrink-0"
+          : ""
+      }`}
+    >
       {/* Arrows flank the title instead of taking their own row below the
           chips, and render plain (no circular container) — saves a full row of
           card height. */}
@@ -2118,8 +2204,14 @@ function TrainingCategorySelector({
         aria-label={`${group.label}, ${statusTheme.label}, ${groupLoad.completed} of ${groupLoad.target} planned sets in the last 7 days${opensBreakdown ? ". Open category breakdown" : ""}`}
         className={`relative grid shrink-0 snap-start place-items-center rounded-full transition-[box-shadow,outline-color,opacity] duration-300 ${groupTone.icon} ${statusTheme.border} ${
           isSide
-            ? "hidden h-11 w-11 opacity-60 min-[520px]:grid min-[760px]:h-[72px] min-[760px]:w-[72px] min-[760px]:opacity-70"
-            : "h-[84px] w-[84px] min-[520px]:h-[72px] min-[520px]:w-[72px]"
+            ? `hidden h-11 w-11 opacity-60 min-[520px]:grid min-[760px]:h-[72px] min-[760px]:w-[72px] min-[760px]:opacity-70 ${
+                compact ? "[@media(max-height:650px)]:!hidden" : ""
+              }`
+            : `h-[84px] w-[84px] min-[520px]:h-[72px] min-[520px]:w-[72px] ${
+                compact
+                  ? "[@media(max-height:650px)]:h-16 [@media(max-height:650px)]:w-16"
+                  : ""
+              }`
         } ${
           active && !isSide
             ? `${statusTheme.shadow}`
@@ -2498,6 +2590,69 @@ function MuscleGroupPanel({
     scrollRef,
     scrollToIndex,
   } = useScrollControls("vertical");
+
+  // Whole rows only: the grid's flex height could end anywhere inside a row,
+  // leaving a half-cut ring at the bottom. Cap the scroller at a whole number
+  // of row strides (row height + gap, plus its own padding) whenever its host
+  // or the cells resize; scroll-snap on the cells keeps scrolling on row
+  // boundaries as well. Imperative style write, no re-render.
+  useLayoutEffect(() => {
+    if (compact) return;
+    const scroller = scrollRef.current;
+    const host = scroller?.parentElement;
+    if (!scroller || !host) return;
+    let currentRows = 0;
+    let growTimer = 0;
+    const measure = () => {
+      const cell = scroller.firstElementChild as HTMLElement | null;
+      if (!cell) return null;
+      const styles = getComputedStyle(scroller);
+      const gap = parseFloat(styles.rowGap) || 0;
+      const padY =
+        (parseFloat(styles.paddingTop) || 0) +
+        (parseFloat(styles.paddingBottom) || 0);
+      const stride = cell.offsetHeight + gap;
+      if (stride <= 0) return null;
+      const available = host.clientHeight - padY;
+      const rows = Math.max(1, Math.floor((available + gap) / stride));
+      return { gap, padY, rows, stride };
+    };
+    const apply = (m: NonNullable<ReturnType<typeof measure>>) => {
+      currentRows = m.rows;
+      scroller.style.maxHeight = `${m.rows * m.stride - m.gap + m.padY}px`;
+    };
+    const fit = () => {
+      const m = measure();
+      if (!m) return;
+      // Shrink at once (a row that no longer fits must not linger half-cut),
+      // but GROW only after the extra room has held for a beat: the host
+      // changes height when the header opens/idles or deferred content
+      // settles, and a row that popped in only to vanish again read as a
+      // glitch. Better that it never appears than that it appears and goes.
+      if (currentRows === 0 || m.rows < currentRows) {
+        window.clearTimeout(growTimer);
+        growTimer = 0;
+        apply(m);
+        return;
+      }
+      if (m.rows > currentRows && growTimer === 0) {
+        growTimer = window.setTimeout(() => {
+          growTimer = 0;
+          const again = measure();
+          if (again && again.rows > currentRows) apply(again);
+        }, 600);
+      }
+    };
+    fit();
+    const observer = new ResizeObserver(() => fit());
+    observer.observe(host);
+    if (scroller.firstElementChild) observer.observe(scroller.firstElementChild);
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(growTimer);
+      scroller.style.maxHeight = "";
+    };
+  }, [compact, scrollRef, selectedGroup.muscles.length]);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const [detailSlug, setDetailSlug] = useState<BodyCommandMuscleSlug | null>(null);
   const safeHighlightedIndex = Math.min(
@@ -2611,7 +2766,7 @@ function MuscleGroupPanel({
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-visible">
         <div
-          className={`grid min-h-0 flex-1 grid-cols-1 content-start gap-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "overflow-hidden" : "overflow-y-auto overscroll-y-contain p-1 min-[760px]:grid-cols-2 min-[760px]:gap-1 min-[760px]:py-0"}`}
+          className={`grid min-h-0 flex-1 grid-cols-1 content-start gap-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "overflow-hidden" : "snap-y snap-mandatory overflow-y-auto overscroll-y-contain p-1 min-[760px]:grid-cols-2 min-[760px]:gap-1 min-[760px]:py-0"}`}
           ref={scrollRef}
         >
           {visibleMuscles.map(({ index, slug }) => {
@@ -2623,13 +2778,17 @@ function MuscleGroupPanel({
             return (
               <div
                 aria-current={index === highlightedIndex ? "true" : undefined}
-                className="relative grid min-h-[104px] min-w-0 place-items-center px-1 py-2 min-[520px]:min-h-[92px] min-[760px]:min-h-[80px] min-[760px]:px-2 min-[760px]:py-1"
+                className={`relative grid min-w-0 snap-start place-items-center ${
+                  compact
+                    ? "h-full min-h-0 px-0 py-0"
+                    : "min-h-[104px] px-1 py-2 min-[520px]:min-h-[92px] min-[760px]:min-h-[80px] min-[760px]:px-2 min-[760px]:py-1"
+                }`}
                 key={slug}
               >
                 <button
                   aria-label={`${meta.label}, ${meta.family}, ${statusTheme.label}, ${meta.load.completed} of ${meta.load.target} planned sets in the last 7 days`}
                   aria-haspopup="dialog"
-                  className={`relative grid h-[84px] w-[84px] shrink-0 place-items-center rounded-full transition-[box-shadow,outline-color] duration-300 min-[520px]:h-[72px] min-[520px]:w-[72px] ${categoryTone.icon} ${statusTheme.border} ${
+                  className={`relative grid shrink-0 place-items-center rounded-full transition-[box-shadow,outline-color] duration-300 ${compact ? "h-16 w-16" : "h-[84px] w-[84px] min-[520px]:h-[72px] min-[520px]:w-[72px]"} ${categoryTone.icon} ${statusTheme.border} ${
                     index === safeHighlightedIndex
                       ? `${statusTheme.shadow}`
                       : "shadow-[0_0_18px_rgba(34,211,238,0.09),inset_0_1px_0_rgba(255,255,255,0.08)]"
@@ -2646,7 +2805,7 @@ function MuscleGroupPanel({
                     segments={meta.load.target}
                     stroke={statusTheme.ring}
                   />
-                  <span className="relative flex max-w-[68px] flex-col items-center text-center leading-none min-[520px]:max-w-[58px]">
+                  <span className={`relative flex flex-col items-center text-center leading-none ${compact ? "max-w-[52px]" : "max-w-[68px] min-[520px]:max-w-[58px]"}`}>
                     <span className={`text-[10px] font-black uppercase leading-tight tracking-normal min-[520px]:text-[9px] ${categoryTone.text}`}>
                       {meta.label}
                     </span>
@@ -2973,13 +3132,13 @@ export default function BodyCommandCenterCard({
         ) : null}
       </div>
 
-      <div className="relative z-10 mt-3 grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-2">
+      <div className="relative z-10 mt-3 grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-2 min-[700px]:grid-cols-[minmax(220px,1fr)_minmax(320px,0.9fr)] min-[700px]:grid-rows-[minmax(0,1fr)_auto] min-[1000px]:gap-3">
         {/* Two columns: the avatar, then the category picker stacked directly
             above the muscle rings it filters — the picker decides which muscles
-            appear below it, so it reads top-down. Support signals are
-            independent of that selection, so they get the full-width strip. */}
-        <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_112px] gap-2 min-[520px]:grid-cols-[minmax(0,1fr)_180px] min-[760px]:grid-cols-[minmax(220px,1fr)_minmax(264px,0.86fr)] min-[1000px]:gap-3">
-          <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)_auto] content-stretch gap-1">
+            appear below it, so it reads top-down. On wide cards, Support
+            Signals stays under those controls while the avatar spans both rows. */}
+        <div className="grid h-full min-h-0 grid-cols-[minmax(0,1fr)_112px] gap-2 min-[520px]:grid-cols-[minmax(0,1fr)_180px] min-[700px]:contents">
+          <div className="relative grid min-h-0 grid-rows-[minmax(0,1fr)_auto] content-stretch gap-1 min-[700px]:row-span-2">
             <AvatarBodyPicker
               appearance={avatarAppearance}
               avatarSceneId={avatarSceneId}
@@ -2998,13 +3157,13 @@ export default function BodyCommandCenterCard({
             <AvatarDetailLegend />
           </div>
 
-          <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden pr-1 min-[760px]:gap-1">
+          <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden pr-1 min-[700px]:min-w-[320px] min-[900px]:gap-1 [@media(max-height:650px)]:flex-row [@media(max-height:650px)]:items-start [@media(max-height:650px)]:gap-1">
             <TrainingCategorySelector
               compact
               onSelectGroup={selectGroupFromUser}
               selectedGroupId={selectedGroupId}
             />
-            <div className="flex min-h-0 min-w-0 flex-1 min-[760px]:hidden">
+            <div className="flex min-h-0 min-w-0 flex-1 [@media(min-width:900px)_and_(min-height:651px)]:hidden [@media(max-height:650px)]:w-1/2 [@media(max-height:650px)]:shrink-0">
               <MuscleGroupPanel
                 compact
                 key={selectedGroupId}
@@ -3013,7 +3172,7 @@ export default function BodyCommandCenterCard({
                 showTitle={false}
               />
             </div>
-            <div className="hidden min-h-0 min-w-0 flex-1 min-[760px]:flex">
+            <div className="hidden min-h-0 min-w-0 flex-1 [@media(min-width:900px)_and_(min-height:651px)]:flex">
               <MuscleGroupPanel
                 key={selectedGroupId}
                 onHighlightMuscle={handleHighlightMuscle}
@@ -3023,7 +3182,7 @@ export default function BodyCommandCenterCard({
           </div>
         </div>
 
-        <div className="min-w-0 shrink-0 border-t border-cyan-100/10 pt-2">
+        <div className="min-w-0 shrink-0 border-t border-cyan-100/10 pt-2 min-[700px]:col-start-2 min-[700px]:row-start-2">
           <div className="mx-auto w-full max-w-[760px] min-w-0">
             <BodyStatStack
               label="Support Signals"

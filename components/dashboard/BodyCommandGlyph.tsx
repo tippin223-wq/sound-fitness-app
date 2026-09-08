@@ -535,8 +535,14 @@ export function BodyCommandRingFace({
           ) : null}
         </span>
       ) : null}
+      {/* Keyed by glyph: when a slot's content changes (category step in
+          the trio/compact layouts) the incoming glyph must MOUNT in the
+          hidden pose. Reusing the node made it inherit the outgoing glyph's
+          raised pose and transition down next to the ghost — two icons
+          sinking — before rising again after the settle beat. */}
       <span
         className={`${swap} pointer-events-none absolute bottom-0 left-1/2 grid -translate-x-1/2 place-items-center ${showGlyph ? shown : hidden}`}
+        key={glyph}
       >
         {halo ? (
           <span

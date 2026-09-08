@@ -1,3 +1,124 @@
+/* Bare row navigation with luminous selection rings. */
+.dashboard-page-orbit-node {
+  /* Bare sculpted icons, with light only at the rim of a selected/hovered node. */
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  isolation: isolate;
+  perspective: none;
+  transform-style: flat;
+  will-change: auto;
+}
+
+/* Artwork and halo share one unmoving centre. Depth is painted into the SVG;
+   icon-only perspective/lift would offset it from the circular light ring. */
+.dashboard-page-orbit-node .dashboard-page-orbit-icon,
+.dashboard-page-orbit-node--active .dashboard-page-orbit-icon,
+.dashboard-page-orbit-node:hover .dashboard-page-orbit-icon,
+.dashboard-page-orbit-node:focus-visible .dashboard-page-orbit-icon {
+  transform: none;
+  transform-style: flat;
+  transition: none;
+}
+
+.dashboard-page-orbit-node .dashboard-page-orbit-icon__glyph {
+  transform: none;
+}
+
+.dashboard-page-orbit-node::before {
+  content: "";
+  display: block;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 25deg,
+    #f0ffff 0deg,
+    #67e8f9 55deg,
+    rgba(34, 211, 238, 0.2) 125deg,
+    #a5f3fc 190deg,
+    #fff 218deg,
+    rgba(56, 189, 248, 0.3) 285deg,
+    #f0ffff 360deg
+  );
+  mask: radial-gradient(farthest-side, transparent calc(100% - 1.6px), #000 calc(100% - 1px));
+  inset: -2px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transform: scale(0.92);
+  transition: opacity 180ms ease, transform 220ms ease;
+  z-index: 0;
+}
+
+.dashboard-page-orbit-node::after {
+  content: "";
+  border: 1px solid rgba(165, 243, 252, 0.82);
+  border-radius: 50%;
+  box-shadow: 0 0 7px rgba(103, 232, 249, 0.8),
+    0 0 14px rgba(34, 211, 238, 0.3),
+    inset 0 0 5px rgba(125, 211, 252, 0.35);
+  filter: blur(1.8px);
+  inset: -1px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transition: opacity 180ms ease;
+  z-index: 0;
+}
+
+.dashboard-page-orbit-node:hover::before,
+.dashboard-page-orbit-node:focus-visible::before {
+  opacity: 0.76;
+  transform: scale(1);
+}
+
+.dashboard-page-orbit-node:hover::after,
+.dashboard-page-orbit-node:focus-visible::after {
+  opacity: 0.5;
+}
+
+.dashboard-page-orbit-node--active::before {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.dashboard-page-orbit-node--active::after,
+.dashboard-page-orbit-node--active:hover::after,
+.dashboard-page-orbit-node:focus-visible::after {
+  opacity: 1;
+}
+
+.dashboard-page-orbit-node:focus-visible {
+  outline: 1px solid rgba(236, 254, 255, 0.95);
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-page-orbit-node::before,
+  .dashboard-page-orbit-node::after {
+    transition: none;
+  }
+}
+
+.dashboard-page-orbit-node--ghost {
+  filter: none;
+}
+
+/* The collapsed menu keeps a taller layout box than its visible header band.
+   Let that empty overflow pass pointer hits through to the first row icon.
+   Restore only real controls; the main orbit stage retains its idle guard. */
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-menu-content {
+  pointer-events: none;
+}
+
+.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-menu-content
+  > :is(.dashboard-header-logo-cluster, .dashboard-header-mobile-orbit-joystick, .dashboard-header-meter-menu-shell) {
+  pointer-events: auto;
+}
+
+
 /*
  * dashboard-runtime.css
  * Extracted verbatim from app/dashboard/page.tsx runtime <style> template blocks.
@@ -99,6 +220,40 @@ html[data-dashboard-webgl="warming"]
   > .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-ready="true"]:not([data-webgl-fallback="true"]) {
   opacity: 1 !important;
   visibility: visible !important;
+}
+
+/* The header's 3D widgets reveal as one batch (the stage's header reveal
+   flush sets data-webgl-ready on all of them in one frame) and must not also
+   wait for the page-wide warming gate, which holds until the deferred content
+   widgets (gems, coin, claim) have compiled. Same escape hatch as the meter
+   icon above, for the two joysticks. */
+html[data-dashboard-webgl="warming"]
+  body
+  .dashboard-header-scroll-button__webgl[data-webgl-ready="true"]:not([data-webgl-fallback="true"]) {
+  opacity: 0.98 !important;
+  visibility: visible !important;
+}
+
+/* While WebGL is still warming the meter button shows nothing rather than
+   the SVG bars: the bars-then-UFO swap was the icon "loading in pieces". The
+   bars still appear when WebGL is unavailable (data-webgl-fallback on the
+   icon) or the page-wide gate gives up (data-dashboard-webgl="fallback"). */
+html[data-dashboard-webgl="warming"]
+  body
+  .dashboard-header-meter-menu-trigger:not(
+    :has(> .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-fallback="true"])
+  )
+  > .dashboard-header-meter-menu-trigger__fallback,
+/* Pre-hydration too (no data-dashboard-webgl yet): the server HTML otherwise
+   paints the bars for the ~400ms before the preloader marks "warming". */
+html:not([data-dashboard-webgl])
+  body
+  .dashboard-header-meter-menu-trigger:not(
+    :has(> .dashboard-header-meter-menu-trigger__webgl-icon[data-webgl-fallback="true"])
+  )
+  > .dashboard-header-meter-menu-trigger__fallback {
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 @media (max-width: 760px) {
@@ -5870,10 +6025,19 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
    (0,3,x) arms, so its filter animations kept running at DEEP IDLE whenever
    week-sessions was the centered meter. At (0,4,x) every arm now ties those
    rules and the tie breaks to this file by document order. */
+/* Enumerated subjects (speed audit, Sept 2026): a universal `*` here made
+   the data-header-focus attribute's invalidation set whole-subtree, so every
+   one of the header's ~630 nodes was restyled on each open/idle flip (60-80ms
+   per pass, several passes per transition). The lists below are every
+   header/profile class that declares an animation in globals.css or this
+   file, plus the live extras. Adding a new animated header class? Add it
+   here too, or the OffscreenAnimationPauser sweep is what stops it while
+   idle. Guard (idle): shell.getAnimations({subtree:true}).filter(a => a
+   instanceof CSSAnimation && a.playState === 'running').length === 0 */
 .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out),
-.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) *,
-.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) *::before,
-.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) *::after {
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) :is(.dashboard-header-achievement-cloud-trigger, .dashboard-header-achievement-cloud-trigger__clouds, .dashboard-header-achievement-cloud-trigger__light, .dashboard-header-achievement-cloud-trigger__menu-flash, .dashboard-header-achievement-meter, .dashboard-header-achievement-meter__orbit-item, .dashboard-header-achievement-meter__progress-item, .dashboard-header-achievement-meter__progress-shell, .dashboard-header-achievement-meter__ring, .dashboard-header-ambient-field, .dashboard-header-ambient-field__aura, .dashboard-header-ambient-field__beam, .dashboard-header-ambient-field__grid, .dashboard-header-ambient-field__grid-wall, .dashboard-header-ambient-field__meteor, .dashboard-header-ambient-field__meteor--impact, .dashboard-header-ambient-field__meteor-burst, .dashboard-header-ambient-field__node, .dashboard-header-ambient-field__rail, .dashboard-header-ambient-scene, .dashboard-header-ambient-stick, .dashboard-header-ambient-stick--arm-isolation, .dashboard-header-ambient-stick--athletic, .dashboard-header-ambient-stick--cervical, .dashboard-header-ambient-stick--core, .dashboard-header-ambient-stick--integrated, .dashboard-header-ambient-stick--lifter-one, .dashboard-header-ambient-stick--lifter-two, .dashboard-header-ambient-stick--lower-compound, .dashboard-header-ambient-stick--lower-isolation, .dashboard-header-ambient-stick--mobility, .dashboard-header-ambient-stick--runner-one, .dashboard-header-ambient-stick--runner-two, .dashboard-header-ambient-stick--upper-pull, .dashboard-header-ambient-stick--upper-push, .dashboard-header-ambient-stick__arm, .dashboard-header-ambient-stick__arm--back, .dashboard-header-ambient-stick__arm--front, .dashboard-header-ambient-stick__bar, .dashboard-header-ambient-stick__leg, .dashboard-header-ambient-stick__leg--back, .dashboard-header-ambient-stick__leg--front, .dashboard-header-ambient-stick__torso, .dashboard-header-category-actor, .dashboard-header-category-actor--center-stage, .dashboard-header-category-actor__arm, .dashboard-header-category-actor__arm--back, .dashboard-header-category-actor__arm--front, .dashboard-header-category-actor__body, .dashboard-header-category-actor__head, .dashboard-header-category-actor__label, .dashboard-header-category-actor__leg, .dashboard-header-category-actor__leg--back, .dashboard-header-category-actor__leg--front, .dashboard-header-category-actor__meter, .dashboard-header-category-actor__pose, .dashboard-header-category-actor__pose--clean-pull, .dashboard-header-category-actor__pose--clean-rack, .dashboard-header-category-actor__pose--curl-high, .dashboard-header-category-actor__pose--curl-low, .dashboard-header-category-actor__pose--jack-closed, .dashboard-header-category-actor__pose--jack-open, .dashboard-header-category-actor__pose--leg-extension-bent, .dashboard-header-category-actor__pose--leg-extension-straight, .dashboard-header-category-actor__pose--mobility-left, .dashboard-header-category-actor__pose--mobility-right, .dashboard-header-category-actor__pose--neck-center, .dashboard-header-category-actor__pose--neck-tilt, .dashboard-header-category-actor__pose--press-overhead, .dashboard-header-category-actor__pose--press-rack, .dashboard-header-category-actor__pose--pull-reach, .dashboard-header-category-actor__pose--pull-row, .dashboard-header-category-actor__pose--situp-down, .dashboard-header-category-actor__pose--situp-up, .dashboard-header-category-actor__pose--squat-down, .dashboard-header-category-actor__pose--squat-up, .dashboard-header-category-actor__prop, .dashboard-header-category-levels-menu__item, .dashboard-header-category-levels-menu__item--slot-center, .dashboard-header-category-levels-menu__level-text, .dashboard-header-category-levels-menu__ufo-chyron, .dashboard-header-category-levels-menu__ufo-chyron-copy, .dashboard-header-category-levels-menu__ufo-chyron-track, .dashboard-header-compound-pr-meter__badge, .dashboard-header-compound-pr-meter__header, .dashboard-header-compound-pr-meter__item, .dashboard-header-compound-pr-meter__item--slot-center, .dashboard-header-compound-pr-meter__list, .dashboard-header-compound-pr-meter__orbiter, .dashboard-header-compound-pr-meter__rank, .dashboard-header-compound-pr-meter__shadow-color, .dashboard-header-compound-pr-meter__shadow-light, .dashboard-header-compound-pr-meter__shadow-puppet, .dashboard-header-compound-pr-meter__shadow-stage, .dashboard-header-equipment-detail, .dashboard-header-equipment-highlight, .dashboard-header-home-logo__field, .dashboard-header-idle-trainer--run, .dashboard-header-idle-trainer--work, .dashboard-header-idle-trainer__arm, .dashboard-header-idle-trainer__arm--back, .dashboard-header-idle-trainer__arm--front, .dashboard-header-idle-trainer__arm-line--back, .dashboard-header-idle-trainer__arm-line--front, .dashboard-header-idle-trainer__aura--one, .dashboard-header-idle-trainer__aura--two, .dashboard-header-idle-trainer__figure, .dashboard-header-idle-trainer__head, .dashboard-header-idle-trainer__head-dot, .dashboard-header-idle-trainer__leg, .dashboard-header-idle-trainer__leg--back, .dashboard-header-idle-trainer__leg--front, .dashboard-header-idle-trainer__leg-line--back, .dashboard-header-idle-trainer__leg-line--front, .dashboard-header-idle-trainer__runner-arm--back, .dashboard-header-idle-trainer__runner-arm--front, .dashboard-header-idle-trainer__runner-foot--back, .dashboard-header-idle-trainer__runner-foot--front, .dashboard-header-idle-trainer__runner-frame--stride-a, .dashboard-header-idle-trainer__runner-frame--stride-b, .dashboard-header-idle-trainer__runner-frame--stride-c, .dashboard-header-idle-trainer__runner-frame--work, .dashboard-header-idle-trainer__runner-leg--back, .dashboard-header-idle-trainer__runner-leg--front, .dashboard-header-idle-trainer__shoe-line--back, .dashboard-header-idle-trainer__shoe-line--front, .dashboard-header-idle-trainer__spark--one, .dashboard-header-idle-trainer__spark--two, .dashboard-header-idle-trainer__torso, .dashboard-header-idle-trainer__torso-line, .dashboard-header-idle-training-floor__ground, .dashboard-header-journey-tab__core, .dashboard-header-journey-tab__float, .dashboard-header-journey-tab__halo, .dashboard-header-journey-tab__motion, .dashboard-header-logo-smoke, .dashboard-header-logo-smoke__puff, .dashboard-header-main-orbit-stage, .dashboard-header-main-orbit-stage--clockwise, .dashboard-header-main-orbit-stage--counter, .dashboard-header-meter-menu-trigger, .dashboard-header-meter-menu-trigger__bar, .dashboard-header-meter-menu-trigger__bar--one, .dashboard-header-meter-menu-trigger__bar--three, .dashboard-header-meter-menu-trigger__bar--two, .dashboard-header-meter-menu-trigger__flip, .dashboard-header-meter-menu-trigger__item, .dashboard-header-meter-menu-trigger__pulse, .dashboard-header-meter-menu-trigger__ufo-beam, .dashboard-header-meter-panel, .dashboard-header-meter-panel-halo, .dashboard-header-meter-panel__section, .dashboard-header-meter-panel__stack--orbit, .dashboard-header-meter-scroller--rail-active, .dashboard-header-meter-scroller__meter--center, .dashboard-header-meter-tornado, .dashboard-header-meter-tornado__base, .dashboard-header-meter-tornado__column, .dashboard-header-meter-tornado__core-map, .dashboard-header-meter-tornado__debris, .dashboard-header-meter-tornado__emerald, .dashboard-header-meter-tornado__emerald-core, .dashboard-header-meter-tornado__emerald-glint, .dashboard-header-meter-tornado__emerald-motion, .dashboard-header-meter-tornado__ribbon, .dashboard-header-meter-tornado__ribbon--back, .dashboard-header-meter-tornado__ribbon--front, .dashboard-header-meter-tornado__svg-mouth, .dashboard-header-meter-tornado__svg-mouth--inner, .dashboard-header-meter-tornado__svg-mouth--outer, .dashboard-header-meter-tornado__svg-stream, .dashboard-header-meter-tornado__svg-stream--cut, .dashboard-header-meter-tornado__svg-stream--primary, .dashboard-header-meter-tornado__svg-stream--secondary, .dashboard-header-news-chyron, .dashboard-header-news-chyron__gem, .dashboard-header-news-chyron__item, .dashboard-header-news-chyron__item--entering, .dashboard-header-news-chyron__light, .dashboard-header-news-chyron__track, .dashboard-header-page-orbit-node, .dashboard-header-page-orbit-node__icon, .dashboard-header-page-orbit-rail, .dashboard-header-plan-attendance__progress-ring, .dashboard-header-plan-attendance__spark, .dashboard-header-pr-meter__ring, .dashboard-header-rail-core-field, .dashboard-header-rail-particle, .dashboard-header-rail-pocket, .dashboard-header-rail-points-core, .dashboard-header-rail-points-core__spark, .dashboard-header-rail-spark, .dashboard-header-scroll-button, .dashboard-header-scroll-button__ball, .dashboard-header-scroll-button__bubble-fallback, .dashboard-header-scroll-button__core, .dashboard-header-scroll-button__grid, .dashboard-header-scroll-button__latitudes, .dashboard-header-scroll-button__spark, .dashboard-header-selector-meteor, .dashboard-header-selector-meteor-field, .dashboard-header-sets-meter__fill, .dashboard-header-streak-fire, .dashboard-header-streak-fire__embers, .dashboard-header-streak-fire__flame, .dashboard-header-streak-fire__meter-fill, .dashboard-header-timeout-meter-portal, .dashboard-header-timeout-meter-portal__card, .dashboard-header-timeout-meter-portal__vortex, .dashboard-header-urgency-blinker, .dashboard-header-urgency-blinker__dot, .dashboard-header-vortex-shell, .dashboard-header-week-sessions__fill, .dashboard-header-week-sessions__goal-section, .dashboard-header-week-sessions__goal-section--available-start, .dashboard-header-week-sessions__graph, .dashboard-header-week-sessions__needle-roof-dish, .dashboard-header-week-sessions__needle-roof-orbit, .dashboard-header-week-sessions__opening-sheen, .dashboard-page-level-meter-tab, .dashboard-page-level-meter-tab__next-reward, .dashboard-profile-action-gear, .dashboard-profile-app-gem-orbit__gem, .dashboard-profile-app-gem-orbit__gem-label, .dashboard-profile-app-gem-orbit__gem-value, .dashboard-profile-app-gem-orbit__readout-item, .dashboard-profile-charge-node, .dashboard-profile-charge-node-master, .dashboard-profile-charge-node-master__bolt, .dashboard-profile-charge-node-master__core, .dashboard-profile-charge-node__core, .dashboard-profile-charge-node__value, .dashboard-profile-claim-dropdown, .dashboard-profile-claim-trigger--webgl, .dashboard-profile-coach-badge, .dashboard-profile-hub-trigger, .dashboard-profile-quick-action, .dashboard-profile-quick-action__music-note, .dashboard-profile-sound-coins-vault, .dashboard-sound-level-badge, .dashboard-sound-level-badge__avatar, .dashboard-sound-level-badge__fill, .dashboard-header-rail-points-core__vortex-particle, .dashboard-profile-quick-action__bar),
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) :is(.dashboard-header-achievement-cloud-trigger, .dashboard-header-achievement-cloud-trigger__clouds, .dashboard-header-achievement-meter__ring, .dashboard-header-ambient-field__grid, .dashboard-header-ambient-field__grid-wall, .dashboard-header-ambient-field__meteor, .dashboard-header-ambient-field__meteor-burst, .dashboard-header-ambient-field__rail, .dashboard-header-category-actor__label, .dashboard-header-category-actor__meter, .dashboard-header-category-levels-menu__item, .dashboard-header-category-levels-menu__item--slot-center, .dashboard-header-category-levels-menu__level-text, .dashboard-header-category-levels-menu__ufo-chyron-copy, .dashboard-header-compound-pr-meter__item, .dashboard-header-compound-pr-meter__item--slot-center, .dashboard-header-compound-pr-meter__list, .dashboard-header-compound-pr-meter__orbiter, .dashboard-header-compound-pr-meter__rank, .dashboard-header-compound-pr-meter__shadow-stage, .dashboard-header-idle-trainer--run, .dashboard-header-logo-smoke, .dashboard-header-meter-menu-trigger, .dashboard-header-meter-panel__stack--orbit, .dashboard-header-meter-scroller__meter--center, .dashboard-header-meter-tornado, .dashboard-header-news-chyron, .dashboard-header-news-chyron__track, .dashboard-header-page-orbit-node, .dashboard-header-rail-core-field, .dashboard-header-rail-pocket, .dashboard-header-rail-points-core, .dashboard-header-scroll-button, .dashboard-header-selector-meteor-field, .dashboard-header-streak-fire, .dashboard-header-timeout-meter-portal__card, .dashboard-header-timeout-meter-portal__vortex, .dashboard-header-urgency-blinker, .dashboard-header-vortex-shell, .dashboard-header-week-sessions__fill, .dashboard-header-week-sessions__goal-section--available-start, .dashboard-header-week-sessions__graph, .dashboard-page-level-meter-tab, .dashboard-page-level-meter-tab__next-reward, .dashboard-profile-action-gear, .dashboard-profile-charge-node, .dashboard-profile-charge-node-master, .dashboard-profile-charge-node-master__core, .dashboard-profile-charge-node__core, .dashboard-profile-charge-node__value, .dashboard-profile-claim-trigger--webgl, .dashboard-profile-coach-badge, .dashboard-profile-hub-trigger, .dashboard-profile-quick-action, .dashboard-sound-level-badge__fill)::before,
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out) :is(.dashboard-header-achievement-cloud-trigger__clouds, .dashboard-header-achievement-meter__progress-shell, .dashboard-header-ambient-field, .dashboard-header-ambient-field__grid, .dashboard-header-ambient-field__grid-wall, .dashboard-header-ambient-field__meteor, .dashboard-header-ambient-field__meteor--impact, .dashboard-header-ambient-field__meteor-burst, .dashboard-header-ambient-field__rail, .dashboard-header-ambient-stick--runner-one, .dashboard-header-ambient-stick--runner-two, .dashboard-header-category-actor__meter, .dashboard-header-category-levels-menu__item, .dashboard-header-category-levels-menu__item--slot-center, .dashboard-header-category-levels-menu__ufo-chyron-copy, .dashboard-header-compound-pr-meter__badge, .dashboard-header-compound-pr-meter__item, .dashboard-header-compound-pr-meter__item--slot-center, .dashboard-header-compound-pr-meter__list, .dashboard-header-compound-pr-meter__orbiter, .dashboard-header-compound-pr-meter__rank, .dashboard-header-idle-trainer--run, .dashboard-header-idle-trainer__arm, .dashboard-header-idle-trainer__arm--back, .dashboard-header-idle-trainer__arm--front, .dashboard-header-idle-trainer__leg, .dashboard-header-idle-trainer__leg--back, .dashboard-header-idle-trainer__leg--front, .dashboard-header-idle-training-floor__ground, .dashboard-header-meter-menu-trigger, .dashboard-header-meter-panel__stack--orbit, .dashboard-header-meter-scroller--rail-active, .dashboard-header-meter-scroller__meter--center, .dashboard-header-meter-tornado, .dashboard-header-news-chyron, .dashboard-header-news-chyron__gem, .dashboard-header-page-orbit-node, .dashboard-header-pr-meter__ring, .dashboard-header-rail-core-field, .dashboard-header-rail-points-core, .dashboard-header-sets-meter__fill, .dashboard-header-streak-fire, .dashboard-header-streak-fire__meter-fill, .dashboard-header-urgency-blinker, .dashboard-header-vortex-shell, .dashboard-header-week-sessions__goal-section, .dashboard-header-week-sessions__graph, .dashboard-profile-action-gear, .dashboard-profile-app-gem-orbit__gem, .dashboard-profile-charge-node, .dashboard-profile-charge-node-master, .dashboard-profile-charge-node-master__core, .dashboard-profile-charge-node__core, .dashboard-profile-charge-node__value, .dashboard-profile-hub-trigger, .dashboard-profile-quick-action, .dashboard-profile-sound-coins-vault, .dashboard-sound-level-badge, .dashboard-sound-level-badge__fill)::after {
   animation-play-state: paused !important;
 }
 
@@ -5912,7 +6076,7 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
 
 .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
   .dashboard-header-menu-content
-  > * {
+  > :where(.dashboard-header-logo-cluster, .dashboard-header-mobile-orbit-joystick, .dashboard-header-main-orbit-stage, .dashboard-header-meter-menu-shell) {
   scale: 0.6;
 }
 
@@ -5932,34 +6096,48 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
    easings on the same row, which reads as the items resizing at slightly
    different speeds. Colour, border, opacity and transform stay on the fast
    150ms path so hover and press feedback are unaffected. */
-.dashboard-header-vortex-shell .dashboard-header-menu-content > * {
+/* Speed audit (Sept 2026): the 240ms LAYOUT group above (width, height,
+   margin, padding, font-size, flex-basis, zoom) is gone, and so is the
+   `all` catch-all that also covered them. Two motion sources fought here:
+   the FLIP bridge (runDashboardHeaderFocusFlip) animates every item's
+   position and scale on the compositor, but a CSS transition on a layout
+   property has not moved when the FLIP measures the item's end box, so the
+   bridge saw no delta and skipped — and the motion fell to layout-driven
+   transitions that dirtied layout on every frame. With the stage loop,
+   the flip sampler and the nav refit each reading layout per frame, an
+   open or close ran at 10-15fps. Layout now snaps once at the flip and the
+   bridge carries the whole glide; only paint/composite properties
+   transition here. The subject is the four real children, enumerated: a
+   `> *` keyed on the shell class is invalidation-neutral, but the same
+   enumeration is used by the focus-keyed rules below. */
+.dashboard-header-vortex-shell .dashboard-header-menu-content > :where(.dashboard-header-logo-cluster, .dashboard-header-mobile-orbit-joystick, .dashboard-header-main-orbit-stage, .dashboard-header-meter-menu-shell) {
   transition:
-    all 150ms ease,
-    flex-basis 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    font-size 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    gap 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    height 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    margin 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    max-width 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    min-width 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    padding 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease,
+    filter 150ms ease,
+    opacity 150ms ease,
+    outline-color 150ms ease,
     scale 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    translate 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    width 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    zoom 240ms cubic-bezier(0.2, 0.84, 0.2, 1);
+    translate 240ms cubic-bezier(0.2, 0.84, 0.2, 1);
 }
 
 /* The nav joystick's size is swapped by the --stable state rules (width,
    min-width, height, margin), not by scale — give those the same 420ms so it
    resizes in step with the nav's zoom and the rest of the row. transform stays
    on the fast 150ms path for hover/press feedback. */
+/* Same reasoning as above: the joystick's size swap is bridged by the FLIP
+   (it is in DASHBOARD_HEADER_FLIP_SELECTORS), so its box snaps and the
+   transform glide carries it. (Speed audit, Sept 2026.) */
 .dashboard-header-vortex-shell .dashboard-header-selector-joystick {
   transition:
-    all 150ms ease,
-    width 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    min-width 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    height 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-    margin 240ms cubic-bezier(0.2, 0.84, 0.2, 1);
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease,
+    filter 150ms ease,
+    opacity 150ms ease;
 }
 
 .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
@@ -5986,14 +6164,20 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
   pointer-events: auto;
 }
 
+/* The stage inherits `none` to everything; the enumerated arm only exists
+   to beat descendants that set `auto` themselves (interactive elements,
+   .pointer-events-auto, inline pointerEvents, the menu blocks). A `*` here
+   flagged both the focus attribute and main's idle class whole-subtree.
+   Guard (idle): every .dashboard-header-main-orbit-stage descendant must
+   compute pointer-events none. (Speed audit, Sept 2026.) */
 .dashboard-header-vortex-shell[data-header-focus="content"]
   .dashboard-header-main-orbit-stage,
 .dashboard-header-vortex-shell[data-header-focus="content"]
-  .dashboard-header-main-orbit-stage *,
+  .dashboard-header-main-orbit-stage :where([href], [type], [role], [tabindex], [aria-label], [aria-pressed], [aria-expanded], [aria-haspopup], [contenteditable], .pointer-events-auto, [style*="pointer-events"], .dashboard-header-menu-block, .dashboard-header-menu-block--slot-center, .dashboard-header-menu-block--dashboard, .dashboard-header-menu-block--profile, .dashboard-header-meter-scroller, .dashboard-header-meter-scroller__meter, .dashboard-profile-upper-actions, .dashboard-profile-quick-actions, .dashboard-profile-quick-action, .dashboard-profile-reward-orbit__panel, .dashboard-profile-coach-badge, .dashboard-header-meter-menu-shell, .dashboard-header-category-levels-menu__item--slot-center),
 main.dashboard-page--idle-menu-open
   .dashboard-header-main-orbit-stage,
 main.dashboard-page--idle-menu-open
-  .dashboard-header-main-orbit-stage * {
+  .dashboard-header-main-orbit-stage :where([href], [type], [role], [tabindex], [aria-label], [aria-pressed], [aria-expanded], [aria-haspopup], [contenteditable], .pointer-events-auto, [style*="pointer-events"], .dashboard-header-menu-block, .dashboard-header-menu-block--slot-center, .dashboard-header-menu-block--dashboard, .dashboard-header-menu-block--profile, .dashboard-header-meter-scroller, .dashboard-header-meter-scroller__meter, .dashboard-profile-upper-actions, .dashboard-profile-quick-actions, .dashboard-profile-quick-action, .dashboard-profile-reward-orbit__panel, .dashboard-profile-coach-badge, .dashboard-header-meter-menu-shell, .dashboard-header-category-levels-menu__item--slot-center) {
   pointer-events: none !important;
 }
 
@@ -6097,7 +6281,7 @@ main.dashboard-page--idle-menu-open
 
 .dashboard-header-vortex-shell[data-header-focus="header"]:not(.dashboard-header-vortex-shell--timed-out)
   .dashboard-header-menu-content
-  > * {
+  > :where(.dashboard-header-logo-cluster, .dashboard-header-mobile-orbit-joystick, .dashboard-header-main-orbit-stage, .dashboard-header-meter-menu-shell) {
   scale: 1;
 }
 
@@ -6599,8 +6783,8 @@ html[data-dashboard-webgl="warming"]
 .dashboard-header-meter-menu-trigger
   > .dashboard-header-meter-menu-trigger__fallback {
   transition:
-    opacity 160ms ease 240ms,
-    visibility 0s linear 400ms !important;
+    opacity 120ms ease 60ms,
+    visibility 0s linear 180ms !important;
 }
 
 .dashboard-header-meter-menu-trigger:not(
@@ -6725,20 +6909,28 @@ html[data-dashboard-webgl="warming"]
    popup trap. Every family listed here loops forever, so pausing mid-cycle
    and resuming is invisible. WAAPI FLIP bridges are unaffected by
    animation-play-state, so the transition itself still glides. */
+/* Enumerated subjects (speed audit, Sept 2026): `.family *` here made the
+   transitioning attribute's invalidation set whole-subtree, i.e. two more
+   full-header restyles per flip (set and clear). */
 html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-ambient-field,
-html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-ambient-field *,
-html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-ambient-field ::before,
-html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-ambient-field ::after,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-ambient-field :is(.dashboard-header-ambient-field, .dashboard-header-ambient-field__aura, .dashboard-header-ambient-field__beam, .dashboard-header-ambient-field__grid, .dashboard-header-ambient-field__grid-wall, .dashboard-header-ambient-field__meteor, .dashboard-header-ambient-field__meteor--impact, .dashboard-header-ambient-field__meteor-burst, .dashboard-header-ambient-field__node, .dashboard-header-ambient-field__rail, .dashboard-header-ambient-scene, .dashboard-header-ambient-stick, .dashboard-header-ambient-stick--arm-isolation, .dashboard-header-ambient-stick--athletic, .dashboard-header-ambient-stick--cervical, .dashboard-header-ambient-stick--core, .dashboard-header-ambient-stick--integrated, .dashboard-header-ambient-stick--lifter-one, .dashboard-header-ambient-stick--lifter-two, .dashboard-header-ambient-stick--lower-compound, .dashboard-header-ambient-stick--lower-isolation, .dashboard-header-ambient-stick--mobility, .dashboard-header-ambient-stick--runner-one, .dashboard-header-ambient-stick--runner-two, .dashboard-header-ambient-stick--upper-pull, .dashboard-header-ambient-stick--upper-push, .dashboard-header-ambient-stick__arm, .dashboard-header-ambient-stick__arm--back, .dashboard-header-ambient-stick__arm--front, .dashboard-header-ambient-stick__bar, .dashboard-header-ambient-stick__leg, .dashboard-header-ambient-stick__leg--back, .dashboard-header-ambient-stick__leg--front, .dashboard-header-ambient-stick__torso),
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-ambient-field :is(.dashboard-header-ambient-field__grid, .dashboard-header-ambient-field__grid-wall, .dashboard-header-ambient-field__meteor, .dashboard-header-ambient-field__meteor-burst, .dashboard-header-ambient-field__rail)::before,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-ambient-field :is(.dashboard-header-ambient-field, .dashboard-header-ambient-field__grid, .dashboard-header-ambient-field__grid-wall, .dashboard-header-ambient-field__meteor, .dashboard-header-ambient-field__meteor--impact, .dashboard-header-ambient-field__meteor-burst, .dashboard-header-ambient-field__rail, .dashboard-header-ambient-stick--runner-one, .dashboard-header-ambient-stick--runner-two)::after,
 html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-category-actor,
-html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-category-actor *,
-html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-category-actor ::before,
-html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-category-actor ::after,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-category-actor :is(.dashboard-header-category-actor, .dashboard-header-category-actor--center-stage, .dashboard-header-category-actor__arm, .dashboard-header-category-actor__arm--back, .dashboard-header-category-actor__arm--front, .dashboard-header-category-actor__body, .dashboard-header-category-actor__head, .dashboard-header-category-actor__label, .dashboard-header-category-actor__leg, .dashboard-header-category-actor__leg--back, .dashboard-header-category-actor__leg--front, .dashboard-header-category-actor__meter, .dashboard-header-category-actor__pose, .dashboard-header-category-actor__pose--clean-pull, .dashboard-header-category-actor__pose--clean-rack, .dashboard-header-category-actor__pose--curl-high, .dashboard-header-category-actor__pose--curl-low, .dashboard-header-category-actor__pose--jack-closed, .dashboard-header-category-actor__pose--jack-open, .dashboard-header-category-actor__pose--leg-extension-bent, .dashboard-header-category-actor__pose--leg-extension-straight, .dashboard-header-category-actor__pose--mobility-left, .dashboard-header-category-actor__pose--mobility-right, .dashboard-header-category-actor__pose--neck-center, .dashboard-header-category-actor__pose--neck-tilt, .dashboard-header-category-actor__pose--press-overhead, .dashboard-header-category-actor__pose--press-rack, .dashboard-header-category-actor__pose--pull-reach, .dashboard-header-category-actor__pose--pull-row, .dashboard-header-category-actor__pose--situp-down, .dashboard-header-category-actor__pose--situp-up, .dashboard-header-category-actor__pose--squat-down, .dashboard-header-category-actor__pose--squat-up, .dashboard-header-category-actor__prop),
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-category-actor :is(.dashboard-header-category-actor__label, .dashboard-header-category-actor__meter)::before,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-category-actor :is(.dashboard-header-category-actor__meter)::after,
 html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-category-dock,
-html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-category-dock *,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-category-dock :is(.dashboard-header-category-actor, .dashboard-header-category-actor--center-stage, .dashboard-header-category-actor__arm, .dashboard-header-category-actor__arm--back, .dashboard-header-category-actor__arm--front, .dashboard-header-category-actor__body, .dashboard-header-category-actor__head, .dashboard-header-category-actor__label, .dashboard-header-category-actor__leg, .dashboard-header-category-actor__leg--back, .dashboard-header-category-actor__leg--front, .dashboard-header-category-actor__meter, .dashboard-header-category-actor__pose, .dashboard-header-category-actor__pose--clean-pull, .dashboard-header-category-actor__pose--clean-rack, .dashboard-header-category-actor__pose--curl-high, .dashboard-header-category-actor__pose--curl-low, .dashboard-header-category-actor__pose--jack-closed, .dashboard-header-category-actor__pose--jack-open, .dashboard-header-category-actor__pose--leg-extension-bent, .dashboard-header-category-actor__pose--leg-extension-straight, .dashboard-header-category-actor__pose--mobility-left, .dashboard-header-category-actor__pose--mobility-right, .dashboard-header-category-actor__pose--neck-center, .dashboard-header-category-actor__pose--neck-tilt, .dashboard-header-category-actor__pose--press-overhead, .dashboard-header-category-actor__pose--press-rack, .dashboard-header-category-actor__pose--pull-reach, .dashboard-header-category-actor__pose--pull-row, .dashboard-header-category-actor__pose--situp-down, .dashboard-header-category-actor__pose--situp-up, .dashboard-header-category-actor__pose--squat-down, .dashboard-header-category-actor__pose--squat-up, .dashboard-header-category-actor__prop, .dashboard-header-category-levels-menu__item, .dashboard-header-category-levels-menu__item--slot-center, .dashboard-header-category-levels-menu__level-text, .dashboard-header-category-levels-menu__ufo-chyron, .dashboard-header-category-levels-menu__ufo-chyron-copy, .dashboard-header-category-levels-menu__ufo-chyron-track),
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-category-dock :is(.dashboard-header-category-actor__label, .dashboard-header-category-actor__meter, .dashboard-header-category-levels-menu__item, .dashboard-header-category-levels-menu__item--slot-center, .dashboard-header-category-levels-menu__level-text, .dashboard-header-category-levels-menu__ufo-chyron-copy)::before,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-category-dock :is(.dashboard-header-category-actor__meter, .dashboard-header-category-levels-menu__item, .dashboard-header-category-levels-menu__item--slot-center, .dashboard-header-category-levels-menu__ufo-chyron-copy)::after,
 html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-meteor-field,
-html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-meteor-field *,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-meteor-field :is(.dashboard-header-selector-meteor, .dashboard-header-selector-meteor-field),
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-meteor-field :is(.dashboard-header-selector-meteor-field)::before,
 html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-urgency-blinker,
-html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-urgency-blinker *,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-urgency-blinker :is(.dashboard-header-urgency-blinker, .dashboard-header-urgency-blinker__dot),
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-urgency-blinker :is(.dashboard-header-urgency-blinker)::before,
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-urgency-blinker :is(.dashboard-header-urgency-blinker)::after,
 html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-urgency-blinker::before,
 html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-urgency-blinker::after {
   animation-play-state: paused !important;

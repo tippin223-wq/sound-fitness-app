@@ -14737,9 +14737,37 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   display: none;
 }
 
-.dashboard-page-orbit-node {
-  transform-style: flat;
-  will-change: auto;
+
+.dashboard-page-orbit-icon {
+  /* The glyphs carry their own bevels and side faces. Leave room for their
+     silhouettes rather than flattening them against identical round discs. */
+  background: none;
+  border: 0;
+  box-shadow: none;
+  transform: rotateX(8deg) rotateY(-12deg);
+  transform-style: preserve-3d;
+  transition: transform 200ms ease;
+}
+
+.dashboard-page-orbit-icon__glyph {
+  display: block;
+  filter: drop-shadow(1px 3px 1px rgba(0, 0, 0, 0.65));
+  overflow: visible;
+  position: relative;
+  transform: translateZ(4px);
+  z-index: 2;
+}
+
+.dashboard-page-orbit-node--active .dashboard-page-orbit-icon,
+.dashboard-page-orbit-node:hover .dashboard-page-orbit-icon,
+.dashboard-page-orbit-node:focus-visible .dashboard-page-orbit-icon {
+  transform: translateY(-1px) rotateX(5deg) rotateY(-6deg) translateZ(3px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-page-orbit-icon {
+    transition: none;
+  }
 }
 
 @media (max-width: 719px) {
@@ -14748,23 +14776,6 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   }
 }
 
-.dashboard-page-orbit-node::before {
-  content: "";
-  display: none;
-  inset: -0.48rem;
-  opacity: 0;
-  pointer-events: none;
-  position: absolute;
-  z-index: -1;
-}
-
-.dashboard-page-orbit-node--active::before {
-  opacity: 0.72;
-}
-
-.dashboard-page-orbit-node--ghost {
-  filter: none;
-}
 
 .dashboard-page-level-meter-control {
   display: grid;
@@ -15059,55 +15070,9 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   transform: scale(1.06);
 }
 
-/* ==== HEADER HOVER-TO-OPEN ARMING CUE ==== */
-/* Shown while data-header-arming is set on the shell — i.e. the cursor is on
-   the idle band and the open dwell is counting. A glow says "registered"; the
-   bar filling along the bottom edge over exactly the dwell says "opening".
-   Transitions, not animations: the idle state parks every animation under
-   the shell with an !important play-state blanket, and this has to run while
-   idle. Removing the attribute snaps the bar back with no transition, so an
-   abandoned hover does not play out in reverse. */
-.dashboard-header-arming-cue {
-  border-radius: inherit;
-  box-shadow:
-    inset 0 0 0 1px rgba(103, 232, 249, 0.42),
-    inset 0 -0.7rem 1.3rem rgba(34, 211, 238, 0.22),
-    0 0 1.4rem rgba(34, 211, 238, 0.28);
-  inset: 0;
-  opacity: 0;
-  pointer-events: none;
-  position: absolute;
-  transition: opacity 160ms ease;
-  z-index: 2;
-}
-
-.dashboard-header-arming-cue__bar {
-  background: linear-gradient(90deg, rgba(34, 211, 238, 0.95), rgba(250, 204, 21, 0.95));
-  border-radius: 9999px;
-  bottom: 0;
-  box-shadow: 0 0 0.55rem rgba(34, 211, 238, 0.65);
-  height: 3px;
-  left: 6%;
-  position: absolute;
-  right: 6%;
-  transform: scaleX(0);
-  transform-origin: left center;
-}
-
-.dashboard-header-vortex-shell[data-header-arming="true"] .dashboard-header-arming-cue {
-  opacity: 1;
-}
-
-.dashboard-header-vortex-shell[data-header-arming="true"] .dashboard-header-arming-cue__bar {
-  transform: scaleX(1);
-  transition: transform var(--dashboard-header-arm-ms, 2000ms) linear;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dashboard-header-vortex-shell[data-header-arming="true"] .dashboard-header-arming-cue__bar {
-    transition: none;
-  }
-}
+/* The hover-to-open arming cue (glow + charge bar over a 2s dwell) was
+   removed in the Sept 2026 speed pass: the dwell is now 260ms and shows no
+   preview state. */
 
 .dashboard-page-level-meter-explainer::-webkit-scrollbar {
   display: none;
@@ -21808,6 +21773,9 @@ html[data-dashboard-webgl="warming"]
 }
 
 .dashboard-header-meter-panel {
+  /* Own compositor layer while mounted: the 520ms close fade was
+     re-layerising and repainting the whole panel at close start. */
+  will-change: transform, opacity;
   animation: dashboard-header-meter-panel-open 280ms
     cubic-bezier(0.16, 0.82, 0.2, 1) both;
   align-items: flex-end;
@@ -21846,6 +21814,7 @@ html[data-dashboard-webgl="warming"]
    copies the panel's fixed box and open/close/closed states so the two move
    as one. Order: page → halo → tornado canvas → panel content. */
 .dashboard-header-meter-panel-halo {
+  will-change: transform, opacity;
   animation: dashboard-header-meter-panel-open 280ms
     cubic-bezier(0.16, 0.82, 0.2, 1) both;
   bottom: clamp(0.6rem, 1.2vh, 0.95rem);
@@ -22471,13 +22440,11 @@ html[data-dashboard-webgl="warming"]
 
 .dashboard-header-category-levels-menu__ufo-webgl {
   display: block;
-  /* One filter pass, not two: this canvas redraws every frame the scene
-     animates, and each drop-shadow re-filters the full 575x620 element on
-     every one of those frames. The dark offset shadow was the less visible
-     of the pair over an already-dark panel. (Speed audit, Sept 2026.) */
-  filter: drop-shadow(
-    0 0 0.82rem color-mix(in srgb, var(--dashboard-header-category-color) 52%, transparent)
-  );
+  /* No filter on this live canvas: a drop-shadow here re-filtered the full
+     ~430x600 canvas on every WebGL frame and was worth 12fps on its own
+     while the meter menu was open. The category glow is now a static halo
+     painted behind the canvas (see __orbit--ufo-chyron::after below).
+     (Speed audit, Sept 2026.) */
   height: 280px;
   left: 50%;
   mix-blend-mode: normal;
@@ -23078,10 +23045,9 @@ html[data-dashboard-webgl="warming"]
   align-self: center;
   color: var(--dashboard-header-category-color);
   display: block;
-  filter:
-    drop-shadow(0 0 0.16rem rgba(207, 250, 254, 0.46))
-    drop-shadow(0 0 0.54rem color-mix(in srgb, currentColor 54%, transparent))
-    drop-shadow(0 0.12rem 0.2rem rgba(2, 6, 23, 0.86));
+  /* One glow pass instead of three (speed audit): the active actor animates
+     its pose every frame, and each drop-shadow re-filtered it. */
+  filter: drop-shadow(0 0 0.5rem color-mix(in srgb, currentColor 60%, transparent));
   grid-column: 1;
   grid-row: 1 / span 2;
   height: 4.1rem;
@@ -23876,7 +23842,9 @@ html
   --dashboard-meter-tornado-gem-top: rgba(236, 253, 245, 0.92);
   animation: none;
   display: block;
-  filter: saturate(1.08);
+  /* saturate(1.08) removed (speed audit): an 8% boost that re-filtered the
+     whole animating tornado every frame. */
+  filter: none;
   /* Top raised so the WebGL funnel's extended neck reaches up behind the
      UFO (which paints above the stage canvas) — the vortex connects to the
      ship instead of stopping short beneath it. */
@@ -26738,9 +26706,12 @@ html
   border: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
-  filter:
-    drop-shadow(0 1.2rem 2.35rem rgba(0, 0, 0, 0.52))
-    drop-shadow(0 0 2.1rem rgba(2, 6, 23, 0.52));
+  /* No drop-shadow filters here (speed audit, Sept 2026): these meters
+     animate while the panel is open, so the pair of large shadows was
+     re-filtered on every frame — removing them alone took the open menu
+     from ~35fps to ~51fps at 486px wide. The panel behind them is already
+     dark; the silhouette shadow read as depth only on close inspection. */
+  filter: none;
   position: relative;
 }
 
@@ -27297,6 +27268,46 @@ html
   z-index: 12 !important;
 }
 
+/* Static category glow behind the UFO canvas (speed audit, Sept 2026). The
+   canvas used to carry drop-shadow filters that re-ran over the whole
+   ~430x600 canvas on every WebGL frame; with the meter menu open that filter
+   alone cost 12fps at 440px wide. This gradient never repaints. It sits at
+   the canvas's own anchor (same top/left offsets) one z-step below it. */
+.dashboard-header-category-levels-menu__ufo-halo {
+  aspect-ratio: 1;
+  background: radial-gradient(
+    circle at 50% 50%,
+    color-mix(in srgb, var(--dashboard-header-category-color) 30%, transparent) 0%,
+    color-mix(in srgb, var(--dashboard-header-category-color) 12%, transparent) 36%,
+    transparent 68%
+  );
+  border-radius: 9999px;
+  left: 50%;
+  pointer-events: none;
+  position: absolute;
+  top: calc(50% + 0.16rem);
+  translate: calc(-50% - 12px) -50%;
+  width: 220px;
+  z-index: 3;
+}
+
+.dashboard-header-meter-panel .dashboard-header-category-levels-menu__ufo-halo {
+  /* The ship hovers ~21% down the canvas (the beam fills the rest), so the
+     halo rides 0.28 canvas-heights above the canvas centre. */
+  top: calc(50% + 3.35rem - 0.28 * min(620px, calc(100vh - 2.2rem)));
+  width: min(300px, calc(100vw - 120px));
+  z-index: 11;
+}
+
+.dashboard-header-category-levels-menu__ufo-halo[data-highlighted="true"] {
+  background: radial-gradient(
+    circle at 50% 50%,
+    color-mix(in srgb, var(--dashboard-header-category-color) 44%, transparent) 0%,
+    color-mix(in srgb, var(--dashboard-header-category-color) 18%, transparent) 38%,
+    transparent 70%
+  );
+}
+
 .dashboard-header-meter-panel[data-meter-highlight="ufo"]
   > .dashboard-header-category-levels-menu {
   z-index: 120 !important;
@@ -27388,11 +27399,8 @@ html
 
 .dashboard-header-category-levels-menu[data-meter-highlighted="true"]
   .dashboard-header-category-levels-menu__ufo-webgl {
-  filter:
-    drop-shadow(
-      0 0 1rem color-mix(in srgb, var(--dashboard-header-category-color) 72%, transparent)
-    )
-    drop-shadow(0 0.78rem 1.1rem rgba(2, 6, 23, 0.88));
+  /* Highlight glow moved to the static halo as well (speed audit). */
+  filter: none;
 }
 
 .dashboard-header-meter-panel__highlight-meter {
@@ -36101,4 +36109,557 @@ html
    own contents and the panel's own glass, with no boxed highlight. */
 .dashboard-header-meter-panel__section--slot-center::before {
   content: none !important;
+}
+
+/* Speed audit (Sept 2026): the DOM chyron is a screen-reader-only aria-live
+   mirror of the WebGL band (1px, clipped, opacity 0 in every state). Its
+   scroll/flash animations and its drop-shadow-filtered actors can never be
+   seen, yet they ran main-thread and composited work for the whole open
+   lifetime. Keep the element (it carries the live status); drop the work.
+   Do not display:none / visibility:hidden it — that would remove the status
+   from the accessibility tree. */
+.dashboard-header-category-levels-menu__ufo-chyron-track,
+.dashboard-header-category-levels-menu__ufo-chyron-copy::before,
+.dashboard-header-category-levels-menu__ufo-chyron-copy::after {
+  animation: none !important;
+  will-change: auto;
+}
+
+.dashboard-header-category-levels-menu__ufo-chyron-actor.dashboard-header-category-actor,
+.dashboard-header-category-levels-menu__ufo-chyron-actor.dashboard-header-category-actor::after,
+.dashboard-header-category-levels-menu__ufo-chyron-tab-actor.dashboard-header-category-actor {
+  filter: none !important;
+}
+
+/* ==== ORBIT CARDS: a dashboard aura, with its pages orbiting as planets ====
+   The scene is a real 3D context (perspective + preserve-3d): the ring is a
+   square tilted 66deg so it reads as an ellipse, each planet sits on it at
+   --dashboard-planet-angle and un-tilts itself to face the camera, and the
+   aura sits at z=0, so planets on the far side pass behind its glow. The
+   spin and the planets' counter-spin are one pair of transform animations
+   with equal periods; they run only for the active card of the row on
+   screen. No filters — the glow is gradients and shadows. */
+.dashboard-orbit-card--star,
+.dashboard-orbit-card--star.dashboard-orbit-card--active {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
+
+/* The old card chrome carried the focus ring; the transparent orbit card
+   needs its own. */
+.dashboard-orbit-card--star:focus-visible {
+  border-radius: 30px;
+  outline: 2px solid rgba(165, 243, 252, 0.8);
+  outline-offset: 6px;
+}
+
+.dashboard-star-system {
+  position: relative;
+}
+
+.dashboard-star-system__scene {
+  height: 224px;
+  perspective: 760px;
+  position: relative;
+  transform-style: preserve-3d;
+}
+
+.dashboard-star-system__ring {
+  height: 256px;
+  left: 50%;
+  margin: -128px 0 0 -128px;
+  position: absolute;
+  top: 50%;
+  transform: rotateX(66deg) rotateZ(0deg);
+  transform-style: preserve-3d;
+  width: 256px;
+}
+
+.dashboard-star-system__ring-line {
+  border: 1px solid var(--dashboard-star-ring, rgba(255, 255, 255, 0.16));
+  border-radius: 9999px;
+  box-shadow:
+    0 0 22px var(--dashboard-star-glow, rgba(34, 211, 238, 0.4)),
+    inset 0 0 28px rgba(255, 255, 255, 0.04);
+  inset: 0;
+  position: absolute;
+}
+
+.dashboard-star-system__planet-slot {
+  height: 0;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: rotateZ(var(--dashboard-planet-angle, 0deg)) translateX(128px)
+    rotateZ(calc(-1 * var(--dashboard-planet-angle, 0deg)));
+  transform-style: preserve-3d;
+  width: 0;
+}
+
+.dashboard-star-system__planet {
+  display: grid;
+  height: 36px;
+  left: -18px;
+  place-items: center;
+  position: absolute;
+  top: -18px;
+  transform: rotateZ(0deg) rotateX(-66deg);
+  transform-style: preserve-3d;
+  width: 36px;
+}
+
+.dashboard-star-system__planet-body {
+  align-items: center;
+  border-radius: 9999px;
+  display: flex;
+  height: 26px;
+  justify-content: center;
+  position: relative;
+  transition:
+    box-shadow 260ms ease,
+    transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  width: 26px;
+}
+
+/* Highlight halo: a soft disc behind the lit planet that breathes. Opacity and
+   scale only, so it composites. */
+.dashboard-star-system__planet-body::before {
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.55),
+    var(--dashboard-star-glow, rgba(34, 211, 238, 0.5)) 38%,
+    transparent 70%
+  );
+  border-radius: inherit;
+  content: "";
+  inset: -14px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transform: scale(0.6);
+  transition:
+    opacity 260ms ease,
+    transform 260ms ease;
+}
+
+/* Sphere shading: a highlight top-left, shadow bottom-right. */
+.dashboard-star-system__planet-body::after {
+  background: radial-gradient(
+    circle at 32% 28%,
+    rgba(255, 255, 255, 0.55),
+    rgba(255, 255, 255, 0.08) 38%,
+    rgba(2, 6, 23, 0.38) 100%
+  );
+  border-radius: inherit;
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.dashboard-star-system__planet--active .dashboard-star-system__planet-body {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.85),
+    0 0 0 5px rgba(255, 255, 255, 0.16),
+    0 0 26px var(--dashboard-star-glow, rgba(34, 211, 238, 0.5)),
+    0 0 54px var(--dashboard-star-glow, rgba(34, 211, 238, 0.5));
+  transform: scale(1.5);
+}
+
+.dashboard-star-system__planet--active .dashboard-star-system__planet-body::before {
+  opacity: 0.9;
+  transform: scale(1);
+}
+
+.dashboard-star-system__planet--active .dashboard-star-system__planet-body::before {
+  animation: dashboard-star-planet-halo 2.4s ease-in-out infinite;
+  animation-play-state: paused;
+}
+
+.dashboard-star-system__planet-body:hover,
+.dashboard-star-system__planet-body:focus-visible {
+  transform: scale(1.4);
+}
+
+.dashboard-star-system__planet--active .dashboard-star-system__planet-body:hover,
+.dashboard-star-system__planet--active
+  .dashboard-star-system__planet-body:focus-visible {
+  transform: scale(1.6);
+}
+
+/* Name tag above the lit planet; it counter-rotates with the planet to
+   stay upright as it travels around the aura. */
+.dashboard-star-system__planet-tag {
+  background: rgba(2, 6, 23, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 9999px;
+  bottom: calc(100% + 12px);
+  box-shadow:
+    0 0 14px var(--dashboard-star-glow, rgba(34, 211, 238, 0.5)),
+    0 6px 18px rgba(0, 0, 0, 0.4);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 900;
+  left: 50%;
+  letter-spacing: 0.14em;
+  line-height: 1;
+  padding: 5px 9px;
+  pointer-events: none;
+  position: absolute;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* Containerless controls; only keyboard focus draws a boundary. */
+.dashboard-star-system__arrow {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: #cffafe;
+  transition: color 180ms ease, transform 180ms ease;
+}
+
+.dashboard-star-system__arrow:hover {
+  color: #ffffff;
+  transform: scale(1.12);
+}
+
+.dashboard-star-system__arrow:active {
+  transform: scale(0.94);
+}
+
+.dashboard-star-system__arrow:focus-visible {
+  outline: 2px solid rgba(165, 243, 252, 0.8);
+  outline-offset: 3px;
+}
+
+.dashboard-star-system__page-link {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 48px;
+  padding: 4px 3px;
+  text-align: center;
+}
+
+/* A lit face and progressively darker extrusion match the selected planet.
+   CSS text remains selectable, accessible, and wraps for longer page names. */
+.dashboard-star-system__page-title {
+  color: var(--dashboard-star-core, #cffafe);
+  color: color-mix(
+    in srgb,
+    var(--dashboard-star-core, #cffafe) 40%,
+    var(--dashboard-star-mid, #06b6d4)
+  );
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.055em;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-transform: uppercase;
+  text-wrap: balance;
+  text-shadow:
+    0 -1px 0 var(--dashboard-star-core, #cffafe),
+    0 1px 0 var(--dashboard-star-mid, #06b6d4),
+    0.5px 2px 0 color-mix(in srgb, var(--dashboard-star-mid, #06b6d4) 65%, #020617),
+    1px 3px 0 color-mix(in srgb, var(--dashboard-star-mid, #06b6d4) 35%, #020617),
+    1.5px 4px 0 #020617,
+    2px 6px 6px rgba(0, 0, 0, 0.7),
+    0 0 18px var(--dashboard-star-glow, rgba(34, 211, 238, 0.5));
+  transform: perspective(400px) rotateX(10deg);
+}
+
+@media (min-width: 640px) {
+  .dashboard-star-system__page-title {
+    font-size: 16px;
+  }
+}
+
+.dashboard-star-system__aura {
+  height: 104px;
+  left: 50%;
+  margin: -52px 0 0 -52px;
+  position: absolute;
+  top: 50%;
+  transform: translateZ(1px);
+  transition: transform 560ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  width: 104px;
+}
+
+.dashboard-star-system[data-active="false"] .dashboard-star-system__aura {
+  transform: translateZ(1px) scale(0.86);
+}
+
+/* Mist banks: closest-side keeps each offset cloud's fade inside its layer,
+   so the aura never exposes a rectangular edge. */
+.dashboard-star-system__core::before {
+  background:
+    radial-gradient(
+      ellipse closest-side at 32% 34%,
+      var(--dashboard-star-core, #cffafe) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse closest-side at 70% 62%,
+      var(--dashboard-star-mid, #06b6d4) 0%,
+      transparent 100%
+    );
+  content: "";
+  inset: -22%;
+  opacity: 0.66;
+  pointer-events: none;
+  position: absolute;
+}
+
+.dashboard-star-system__core::after {
+  background: radial-gradient(
+    ellipse 52% 40% at 62% 30%,
+    rgba(255, 255, 255, 0.5) 0%,
+    transparent 58%
+  );
+  content: "";
+  inset: -14%;
+  opacity: 0.62;
+  pointer-events: none;
+  position: absolute;
+}
+
+.dashboard-star-system__corona {
+  background: radial-gradient(
+    ellipse 60% 52% at 48% 52%,
+    var(--dashboard-star-glow, rgba(34, 211, 238, 0.5)) 0%,
+    transparent 72%
+  );
+  inset: -40px;
+  opacity: 0.72;
+  pointer-events: none;
+  position: absolute;
+}
+
+/* Aura: closest-side makes the glow fully transparent at the nearest edge.
+   The default farthest-corner radius would clip a square out of the glow.
+   Colour comes from the card's tone variables. */
+.dashboard-star-system__core {
+  align-items: center;
+  background: radial-gradient(
+    circle closest-side at 50% 48%,
+    var(--dashboard-star-core, #cffafe) 0%,
+    var(--dashboard-star-mid, #06b6d4) 34%,
+    var(--dashboard-star-glow, rgba(34, 211, 238, 0.5)) 62%,
+    transparent 100%
+  );
+  color: #ffffff;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  opacity: 0.96;
+  position: relative;
+  width: 100%;
+}
+
+.dashboard-star-system__corona {
+  animation: dashboard-star-breathe 4.8s ease-in-out infinite;
+  animation-play-state: paused;
+}
+
+/* Aura icon: floats and tilts in 3D while light drifts through the haze.
+   Transform/opacity only. */
+.dashboard-star-system__icon {
+  display: grid;
+  height: 64px;
+  /* Its own perspective: the glyph sits a little above the well, so the
+     container's float/tilt produces a hint of parallax. */
+  perspective: 340px;
+  place-items: center;
+  position: relative;
+  transform-style: preserve-3d;
+  width: 64px;
+}
+
+/* A soft shadow core in the middle of the mist so the glyph reads against
+   it. No rim and no inset bevel — nothing that suggests a solid surface. */
+.dashboard-star-system__icon-plate {
+  background: radial-gradient(
+    circle closest-side at 50% 50%,
+    rgba(2, 6, 23, 0.86) 0%,
+    rgba(2, 6, 23, 0.6) 50%,
+    transparent 100%
+  );
+  inset: -20%;
+  pointer-events: none;
+  position: absolute;
+  transform: translateZ(0);
+}
+
+/* The glyph sits just proud of the well and drops a short shadow into it. */
+.dashboard-star-system__icon > svg {
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.65))
+    drop-shadow(0 0 5px rgba(255, 255, 255, 0.35));
+  stroke-width: 2.4;
+  transform: translateZ(6px);
+}
+
+/* A pale band drifting through the haze. No blend mode and no clip: mist
+   has no surface for a specular sweep. */
+.dashboard-star-system__core-glint {
+  inset: -10%;
+  pointer-events: none;
+  position: absolute;
+  z-index: 11;
+}
+
+.dashboard-star-system__core-glint::before {
+  background: radial-gradient(
+    ellipse 40% 70% at 50% 50%,
+    rgba(255, 255, 255, 0.42) 0%,
+    transparent 70%
+  );
+  content: "";
+  inset: 0;
+  opacity: 0;
+  position: absolute;
+  transform: translateX(-40%);
+}
+
+.dashboard-star-system__icon {
+  animation: dashboard-star-icon-float 6.5s ease-in-out infinite;
+  animation-play-state: paused;
+}
+
+.dashboard-star-system__core-glint::before {
+  animation: dashboard-star-icon-glint 5.5s ease-in-out infinite;
+  animation-play-state: paused;
+}
+
+@keyframes dashboard-star-icon-float {
+  0%,
+  100% {
+    transform: translateY(-1.5px) rotateY(-9deg) rotateX(4deg);
+  }
+  50% {
+    transform: translateY(1.5px) rotateY(9deg) rotateX(-4deg);
+  }
+}
+
+@keyframes dashboard-star-icon-glint {
+  0% {
+    opacity: 0;
+    transform: translateX(-40%);
+  }
+  50% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(40%);
+  }
+}
+
+/* The orbit spins on its own; the planets run the inverse spin so they keep
+   facing the camera. Attached everywhere but paused: only the active system
+   of the row on screen runs (gate below), and a deselected system holds its
+   pose instead of snapping back to rest. */
+.dashboard-star-system__ring {
+  animation: dashboard-star-ring-spin 48s linear infinite;
+  animation-play-state: paused;
+}
+
+.dashboard-star-system__planet {
+  animation: dashboard-star-planet-face 48s linear infinite;
+  animation-play-state: paused;
+}
+
+[data-dashboard-row-active="true"]
+  .dashboard-star-system[data-active="true"]
+  .dashboard-star-system__ring,
+[data-dashboard-row-active="true"]
+  .dashboard-star-system[data-active="true"]
+  .dashboard-star-system__planet,
+[data-dashboard-row-active="true"]
+  .dashboard-star-system[data-active="true"]
+  .dashboard-star-system__corona,
+[data-dashboard-row-active="true"]
+  .dashboard-star-system[data-active="true"]
+  .dashboard-star-system__icon,
+[data-dashboard-row-active="true"]
+  .dashboard-star-system[data-active="true"]
+  .dashboard-star-system__core-glint::before,
+[data-dashboard-row-active="true"]
+  .dashboard-star-system[data-active="true"]
+  .dashboard-star-system__planet--active
+  .dashboard-star-system__planet-body::before {
+  animation-play-state: running;
+}
+
+/* Hovering or clicking a planet never pauses its orbit. Visible keyboard
+   focus still holds the planets steady for accessible navigation. */
+[data-dashboard-row-active="true"]
+  .dashboard-star-system[data-active="true"]
+  .dashboard-star-system__scene:has(:focus-visible)
+  .dashboard-star-system__ring,
+[data-dashboard-row-active="true"]
+  .dashboard-star-system[data-active="true"]
+  .dashboard-star-system__scene:has(:focus-visible)
+  .dashboard-star-system__planet {
+  animation-play-state: paused;
+}
+
+@keyframes dashboard-star-ring-spin {
+  from {
+    transform: rotateX(66deg) rotateZ(0deg);
+  }
+  to {
+    transform: rotateX(66deg) rotateZ(-360deg);
+  }
+}
+
+@keyframes dashboard-star-planet-face {
+  from {
+    transform: rotateZ(0deg) rotateX(-66deg);
+  }
+  to {
+    transform: rotateZ(360deg) rotateX(-66deg);
+  }
+}
+
+@keyframes dashboard-star-planet-halo {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes dashboard-star-breathe {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.14);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-star-system__arrow,
+  .dashboard-star-system__page-link,
+  .dashboard-star-system__ring,
+  .dashboard-star-system__planet,
+  .dashboard-star-system__planet-body::before,
+  .dashboard-star-system__corona,
+  .dashboard-star-system__icon,
+  .dashboard-star-system__core-glint::before,
+  .dashboard-star-system__aura {
+    animation: none !important;
+    transition: none !important;
+  }
 }

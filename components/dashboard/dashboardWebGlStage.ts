@@ -159,6 +159,34 @@ const DASHBOARD_STAGE_COMPILE_TIMEOUT_MS = 4000;
 let stageCanvas: HTMLCanvasElement | null = null;
 let stageRenderer: WebGLRenderer | null = null;
 let stageThree: ThreeModule | null = null;
+// three keys every shader program on the CURRENT render target: inside any
+// non-XR WebGLRenderTarget the program's outputColorSpace is the working
+// (linear) space; on the canvas it is renderer.outputColorSpace (sRGB here).
+// compileAsync() ran between frames with no target bound, so every program
+// it built was the canvas variant, and a widget's first present into its own
+// render target missed the cache and recompiled the scene synchronously
+// inside runStageFrame (~300ms on the meter panel's first open). Bind a 1x1
+// scratch target while compiling so the pre-built programs are the ones the
+// frame loop actually uses. (Speed audit, Sept 2026.)
+let stageCompileTarget: WebGLRenderTarget | null = null;
+function compileWithStageTarget<T>(
+  renderer: WebGLRenderer,
+  compile: () => T,
+): T {
+  const THREE = stageThree;
+  if (!THREE) return compile();
+  stageCompileTarget ??= new THREE.WebGLRenderTarget(1, 1, {
+    depthBuffer: true,
+    stencilBuffer: false,
+  });
+  const previous = renderer.getRenderTarget();
+  renderer.setRenderTarget(stageCompileTarget);
+  try {
+    return compile();
+  } finally {
+    renderer.setRenderTarget(previous);
+  }
+}
 // performance.now() of the last webglcontextlost, 0 while healthy. The frame
 // loop's watchdog rebuilds the surface if the browser never restores it.
 let stageContextLostAt = 0;
@@ -470,6 +498,10 @@ const stageNow = () =>
   typeof performance !== "undefined" ? performance.now() : Date.now();
 
 export function boostDashboardStageFrameRate(durationMs = 460): void {
+  // On a software rasteriser an uncapped stage costs 15-40ms per frame and
+  // it competes with the flip it is meant to track, so there the boost only
+  // lifts the cap from 20fps to 30fps rather than to display rate. (Speed
+  // audit, Sept 2026.)
   stageBoostUntilMs = Math.max(stageBoostUntilMs, stageNow() + durationMs);
   markDashboardStageDirty();
 }
@@ -606,7 +638,14 @@ function runStageFrame(time: number) {
   // rAF's timestamp shares performance.now()'s clock, so it can be compared
   // with the boost deadline directly.
   const stageBoosted = time < stageBoostUntilMs;
-  if (!stageBoosted && time - stageLastDrawTime < stageFrameIntervalMs()) {
+  if (
+    time - stageLastDrawTime <
+    (stageBoosted
+      ? isStageSoftwareRenderer()
+        ? 1000 / 30
+        : 0
+      : stageFrameIntervalMs())
+  ) {
     return;
   }
   stageLastDrawTime = time;
@@ -983,6 +1022,9 @@ function rebuildStageSurfaceAfterContextLoss(): void {
   oldCanvas.remove();
   stageCanvas = surface.canvas;
   stageRenderer = surface.renderer;
+  // The scratch compile target belonged to the dead context; three re-creates
+  // it lazily on the next compile (do not dispose it here).
+  stageCompileTarget = null;
   for (const widget of stageWidgets) {
     widget.ready = true;
     widget.anchor.dataset.webglReady = "true";
@@ -1091,7 +1133,17 @@ export async function registerDashboardWidget(
   anchor: HTMLElement,
   builder: DashboardWidgetBuilder,
 ): Promise<() => void> {
-  await ensureStage();
+  try {
+    await ensureStage();
+  } catch {
+    // three throws out of the WebGLRenderer constructor when getContext
+    // returns null (no WebGL, or Chrome's context-creation backoff), so the
+    // !THREE branch below never ran on the real failure path: the anchor kept
+    // neither ready nor fallback, the CSS showed nothing, and the preloader's
+    // batch gate sat in "warming" for its full 7s timeout.
+    anchor.dataset.webglFallback = "true";
+    return () => {};
+  }
   const THREE = stageThree;
   if (!THREE) {
     // Stage couldn't init (no WebGL) — flag fallback so the CSS keeps each
@@ -1204,7 +1256,11 @@ export async function registerDashboardWidget(
       DASHBOARD_STAGE_COMPILE_TIMEOUT_MS,
     );
     compileSettled = Promise.resolve(
-      compileAsync.call(stageRenderer, instance.scene, instance.camera),
+      // compileAsync calls compile() synchronously before returning its
+      // polling promise, so the render-target bracket covers the compile.
+      compileWithStageTarget(stageRenderer, () =>
+        compileAsync.call(stageRenderer, instance.scene, instance.camera),
+      ),
     ).catch(() => undefined);
     void compileSettled.then(() => {
       globalThis.clearTimeout(timeoutId);
