@@ -196,6 +196,11 @@ import {
 } from "@/lib/profile-storage";
 import { ROUTES } from "@/lib/routes";
 import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
+import {
+  loadDirectoryRows,
+  primeDirectoryDiff,
+  saveDirectoryRows,
+} from "@/lib/directoryRecords";
 import { exerciseLibrary, type Exercise } from "@/lib/training/exerciseLibrary";
 import type { LocalExerciseStatEntry } from "@/types";
 
@@ -6726,13 +6731,21 @@ const readAdminUserListRecords = (): AdminUserListRecord[] | null => {
   }
 };
 
+/* SHARED WITH THE WEBSITE ADMIN, not saved to this browser.
+ *
+ * These rows used to go to localStorage and stop there: one browser profile,
+ * one machine, invisible to anything else - including the Sound Fitness
+ * website, which shows the same twelve steps of the same journey. They go to
+ * public.directory_records now, in the Supabase project both codebases share.
+ *
+ * saveDirectoryRows still writes the localStorage copy, as a cache for the
+ * first paint and a fallback while the table does not exist yet, and it
+ * diffs and coalesces before sending - this is called on every state change,
+ * which for a text field is every keystroke. */
 const writeAdminUserListRecords = (records: AdminUserListRecord[]) => {
   if (typeof window === "undefined") return;
 
-  window.localStorage.setItem(
-    ADMIN_USER_LIST_STORAGE_KEY,
-    JSON.stringify(records),
-  );
+  saveDirectoryRows(records);
 };
 
 const createAdminUserListDraft = (
@@ -10816,11 +10829,59 @@ export default function DashboardExperience({
     useRef<DashboardMusicAutoplayMode>("off");
 
   useEffect(() => {
+    /* The cached copy first, so the table has rows on the first paint rather
+       than flashing empty while a round trip runs. */
     const savedRecords = readAdminUserListRecords();
     if (savedRecords) {
       setAdminUserListRecords(savedRecords);
+      primeDirectoryDiff(savedRecords);
     }
+
+    let cancelled = false;
+
+    /* Then the shared table, which is the actual answer - it holds what was
+       typed on another machine, and what was typed in the website admin.
+       Null means it could not be reached, which is not the same as empty:
+       the cache stands rather than being wiped by a failed request. */
+    void loadDirectoryRows()
+      .then((rows) => {
+        if (cancelled || !rows) return;
+
+        const shared = rows.map((row, index) => ({
+          addedAt: row.addedAt,
+          clientId: createAdminUserListClientId(),
+          details: row.details,
+          id: row.id || `${row.stage}-${index}-${row.name}`,
+          isLiveDirectory: false,
+          isMock: adminUserListMockRecordIds.has(row.id),
+          name: row.name,
+          profile: row.profile ?? {},
+          reached: row.reached,
+          stage: row.stage as AdminUserListStageKey,
+        }));
+
+        const stageKeys = new Set(
+          adminUserListStages.map((stage) => stage.key),
+        );
+        const known = shared.filter((record) => stageKeys.has(record.stage));
+
+        primeDirectoryDiff(rows);
+        setAdminUserListRecords((records) => [
+          /* Live Stripe and Supabase rows are derived on every load and are
+             not in the shared table, so they are kept rather than replaced. */
+          ...records.filter((record) => record.isLiveDirectory),
+          ...known,
+        ]);
+      })
+      .catch(() => {
+        /* The cache is already on screen. */
+      });
+
     setAdminUserListStorageReady(true);
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
