@@ -1,5 +1,9 @@
 "use client";
 
+import DashboardExperience from "@/components/dashboard/DashboardExperience";
+import ProfileHeroPillRail from "@/components/profile/ProfileHeroPillRail";
+import heroStyles from "@/components/profile/ProfileHero.module.css";
+
 import {
   type CSSProperties,
   type ChangeEvent,
@@ -260,6 +264,18 @@ type ProfileAccordionSection =
   | "specialCircumstances";
 
 type ProfileAccordionState = Record<ProfileAccordionSection, boolean>;
+
+const createClosedProfileSections = (): ProfileAccordionState => ({
+  appCoachNotes: false,
+  benchmarks: false,
+  measurements: false,
+  myBody: false,
+  planBuilder: false,
+  planDirection: false,
+  previousExperience: false,
+  readiness: false,
+  specialCircumstances: false,
+});
 
 type ProfileOrbiterCard = {
   accordion?: ProfileAccordionSection;
@@ -617,13 +633,25 @@ const profileOverviewMetricCardClass =
 
 const tabs: Array<{ id: ProfileTab; label: string }> = [
   { id: "overview", label: "Overview" },
-  { id: "goals", label: "Goals" },
   { id: "readiness", label: "Training Readiness" },
   { id: "recovery", label: "Pain / Recovery Profile" },
   { id: "nutrition", label: "Nutrition" },
   { id: "coachApp", label: "Coach + App" },
 ];
-const profileDetailTabs = tabs.filter((tab) => tab.id !== "goals");
+const profileRowToneByTab: Partial<Record<ProfileTab, string>> = {
+  overview: "border-sky-200/28 bg-sky-300/12 text-sky-100",
+  readiness: "border-emerald-200/28 bg-emerald-300/12 text-emerald-100",
+  recovery: "border-rose-200/28 bg-rose-300/12 text-rose-100",
+  nutrition: "border-amber-200/28 bg-amber-300/12 text-amber-100",
+  coachApp: "border-violet-200/28 bg-violet-300/12 text-violet-100",
+};
+const profileRowIconByTab: Partial<Record<ProfileTab, SelectorIconName>> = {
+  overview: "user",
+  readiness: "activity",
+  recovery: "heart-pulse",
+  nutrition: "utensils",
+  coachApp: "clipboard-list",
+};
 const profileOrbiterCardStartRow = 1;
 const DEFAULT_PROFILE_HUB_INDEX = 1;
 const DEFAULT_PROFILE_HUB_ACCOUNT_INDEX = 0;
@@ -4243,6 +4271,26 @@ const getCompletionTone = (percent: number) => {
   };
 };
 
+const getProfileCardAccent = (tone: string) => {
+  const accents = [
+    ["amber", "251, 191, 36", "#fde68a"],
+    ["orange", "251, 146, 60", "#fed7aa"],
+    ["rose", "251, 113, 133", "#fecdd3"],
+    ["fuchsia", "217, 70, 239", "#f5d0fe"],
+    ["violet", "139, 92, 246", "#ddd6fe"],
+    ["indigo", "99, 102, 241", "#c7d2fe"],
+    ["blue", "59, 130, 246", "#bfdbfe"],
+    ["sky", "14, 165, 233", "#bae6fd"],
+    ["teal", "20, 184, 166", "#99f6e4"],
+    ["emerald", "52, 211, 153", "#a7f3d0"],
+    ["slate", "148, 163, 184", "#e2e8f0"],
+  ] as const;
+  const accent = accents.find(([name]) => tone.includes(name));
+  return accent
+    ? { color: accent[2], rgb: accent[1] }
+    : { color: "#a5f3fc", rgb: "34, 211, 238" };
+};
+
 const getCompletionIndicatorTone = (percent: number) => {
   if (percent >= 80) {
     return {
@@ -5986,30 +6034,7 @@ function InfoBubble({
   children: React.ReactNode;
   label: string;
 }) {
-  const tooltipId = `profile-info-${label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")}`;
-
-  return (
-    <span className="group/info relative z-40 inline-flex overflow-visible">
-      <button
-        type="button"
-        aria-describedby={tooltipId}
-        aria-label={`${label} info`}
-        className="grid h-7 w-7 place-items-center rounded-full border border-white/12 bg-slate-950/78 text-[11px] font-black text-slate-400 shadow-[0_0_14px_rgba(15,23,42,0.42)] transition hover:border-cyan-200/40 hover:bg-cyan-300/12 hover:text-cyan-100 focus:outline-none focus-visible:border-cyan-200/60 focus-visible:bg-cyan-300/14 focus-visible:text-cyan-100 focus-visible:ring-2 focus-visible:ring-cyan-300/20"
-      >
-        i
-      </button>
-      <span
-        id={tooltipId}
-        role="tooltip"
-        className="pointer-events-none absolute bottom-[calc(100%+0.65rem)] right-0 z-[120] w-64 max-w-[min(18rem,calc(100vw-2rem))] origin-bottom-right scale-95 rounded-2xl border border-cyan-100/22 bg-slate-950/96 p-3 text-left text-xs font-semibold leading-5 text-slate-200 opacity-0 shadow-[0_24px_70px_rgba(0,0,0,0.5),0_0_24px_rgba(34,211,238,0.16)] backdrop-blur-xl transition duration-150 group-hover/info:scale-100 group-hover/info:opacity-100 group-focus-within/info:scale-100 group-focus-within/info:opacity-100 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 sm:origin-bottom"
-      >
-        {children}
-        <span className="absolute -bottom-1 right-3 h-2 w-2 rotate-45 border-b border-r border-cyan-100/22 bg-slate-950 sm:left-1/2 sm:right-auto sm:-translate-x-1/2" />
-      </span>
-    </span>
-  );
+  return <FloatingInfoBubble label={label}>{children}</FloatingInfoBubble>;
 }
 
 function FloatingInfoBubble({
@@ -6075,7 +6100,8 @@ function FloatingInfoBubble({
       >
         i
       </button>
-      {isOpen ? (
+      {isOpen && typeof document !== "undefined"
+        ? createPortal(
         <span
           id={tooltipId}
           role="tooltip"
@@ -6087,8 +6113,10 @@ function FloatingInfoBubble({
           style={{ left: position.left, top: position.top }}
         >
           {children}
-        </span>
-      ) : null}
+        </span>,
+          document.body,
+        )
+        : null}
     </span>
   );
 }
@@ -6517,7 +6545,7 @@ function Panel({
           </div>
           {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
         </div>
-        {children}
+        <div data-profile-question-content="true">{children}</div>
       </div>
     </section>
   );
@@ -6596,6 +6624,7 @@ function CollapsibleProfilePanel({
         </div>
 
         <div
+          data-profile-question-content="true"
           className={`transition-all duration-300 ease-out ${
             expanded
               ? "mt-5 max-h-[7200px] overflow-visible opacity-100"
@@ -6609,6 +6638,150 @@ function CollapsibleProfilePanel({
   );
 }
 
+function ProfileQuestionPager({
+  children,
+  label,
+}: {
+  children: React.ReactNode;
+  label: string;
+}) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const questionPagesRef = useRef<HTMLElement[]>([]);
+  const [page, setPage] = useState(0);
+  const [pageCount, setPageCount] = useState(1);
+
+  const collectQuestionPages = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return [];
+
+    const markedRoots = Array.from(
+      viewport.querySelectorAll<HTMLElement>(
+        '[data-profile-question-content="true"]',
+      ),
+    );
+    let questionRoot = markedRoots.at(-1) || viewport;
+    let pages = Array.from(questionRoot.children).filter(
+      (child): child is HTMLElement =>
+        child instanceof HTMLElement && child.getAttribute("aria-hidden") !== "true",
+    );
+    let depth = 0;
+
+    while (pages.length === 1 && depth < 4) {
+      const onlyChild = pages[0];
+      const nestedPages = Array.from(onlyChild.children).filter(
+        (child): child is HTMLElement =>
+          child instanceof HTMLElement && child.getAttribute("aria-hidden") !== "true",
+      );
+      if (nestedPages.length <= 1) break;
+      questionRoot = onlyChild;
+      pages = nestedPages;
+      depth += 1;
+    }
+
+    return pages.length ? pages : [questionRoot];
+  }, []);
+
+  const showQuestionPage = useCallback((requestedPage: number) => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const pages = collectQuestionPages();
+    questionPagesRef.current = pages;
+    viewport
+      .querySelectorAll<HTMLElement>("[data-profile-question-deck='true']")
+      .forEach((deck) => deck.removeAttribute("data-profile-question-deck"));
+    pages[0]?.parentElement?.setAttribute("data-profile-question-deck", "true");
+    const safePage = Math.max(0, Math.min(pages.length - 1, requestedPage));
+    viewport
+      .querySelectorAll<HTMLElement>("[data-profile-question-heading='true']")
+      .forEach((heading) => heading.removeAttribute("data-profile-question-heading"));
+    pages.forEach((question, index) => {
+      question.hidden = index !== safePage;
+      question.dataset.profileQuestionPage = "true";
+      question.dataset.profileQuestionActive = index === safePage ? "true" : "false";
+      if (index === safePage) {
+        const titleCandidate = Array.from(
+          question.querySelectorAll<HTMLElement>("h2,h3,legend,p"),
+        ).find((element) => {
+          const text = element.textContent?.trim() || "";
+
+          return (
+            text.length > 0 &&
+            text.length <= 72 &&
+            !element.closest("button,label,option,[role='tooltip']")
+          );
+        });
+
+        titleCandidate?.setAttribute("data-profile-question-heading", "true");
+      }
+    });
+    setPageCount(Math.max(1, pages.length));
+    setPage(safePage);
+  }, [collectQuestionPages]);
+
+  useEffect(() => {
+    setPage(0);
+    const frame = window.requestAnimationFrame(() => {
+      showQuestionPage(0);
+      viewportRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [label, showQuestionPage]);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => showQuestionPage(page));
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [children, page, showQuestionPage]);
+
+  const moveQuestionPage = (direction: -1 | 1) => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+
+    const nextPage = Math.max(0, Math.min(pageCount - 1, page + direction));
+    showQuestionPage(nextPage);
+    viewport.scrollTo({ top: 0, behavior: "auto" });
+  };
+
+  return (
+    <div className={heroStyles.questionPager}>
+      <div
+        aria-label={`${label} question controls`}
+        className={heroStyles.questionPagerControls}
+      >
+        <button
+          type="button"
+          aria-label={`Show previous ${label} question`}
+          disabled={page === 0}
+          onClick={() => moveQuestionPage(-1)}
+        >
+          ←
+        </button>
+        <span aria-live="polite">
+          Question {page + 1} / {pageCount}
+        </span>
+        <button
+          type="button"
+          aria-label={`Show next ${label} question`}
+          disabled={page >= pageCount - 1}
+          onClick={() => moveQuestionPage(1)}
+        >
+          →
+        </button>
+      </div>
+      <div
+        ref={viewportRef}
+        data-profile-orbiter-scroll-area="true"
+        aria-label={`${label} questions`}
+        className={`${heroStyles.questionScroll} h-[min(52dvh,560px)] overflow-y-scroll rounded-[30px]`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function ClientProfilePage() {
   const {
     profile: sharedProfile,
@@ -6619,17 +6792,8 @@ export default function ClientProfilePage() {
   const [activeTab, setActiveTab] = useState<ProfileTab>("overview");
   const tabSliderRef = useRef<HTMLDivElement | null>(null);
   const tabButtonRefs = useRef<Partial<Record<ProfileTab, HTMLButtonElement | null>>>({});
-  const [profileSectionOpen, setProfileSectionOpen] = useState<ProfileAccordionState>({
-    appCoachNotes: false,
-    benchmarks: false,
-    measurements: false,
-    myBody: false,
-    planBuilder: false,
-    planDirection: false,
-    previousExperience: false,
-    readiness: false,
-    specialCircumstances: false,
-  });
+  const [profileSectionOpen, setProfileSectionOpen] =
+    useState<ProfileAccordionState>(createClosedProfileSections);
   const [activeProfileOrbiterIndices, setActiveProfileOrbiterIndices] =
     useState<Record<string, number>>({});
   const [activeProfileOrbiterRow, setActiveProfileOrbiterRow] = useState(0);
@@ -6637,12 +6801,16 @@ export default function ClientProfilePage() {
     useState(0);
   const [profileDashboardSlideDirection, setProfileDashboardSlideDirection] =
     useState<"left" | "right">("right");
-  const [openProfileOrbiterDetails, setOpenProfileOrbiterDetails] =
-    useState<string | null>(null);
   const [expandedProfileOrbiterCard, setExpandedProfileOrbiterCard] =
     useState<string | null>(null);
-  const [profileOrbiterRailExpanded, setProfileOrbiterRailExpanded] =
-    useState(false);
+  const [profileSummaryScrollState, setProfileSummaryScrollState] = useState({
+    canScrollLeft: false,
+    canScrollRight: false,
+  });
+  const [profileSummaryHighlight, setProfileSummaryHighlight] = useState({
+    activeIndex: 0,
+    overflowDistance: 0,
+  });
   const [activeProfileHubIndex, setActiveProfileHubIndex] = useState(
     DEFAULT_PROFILE_HUB_INDEX,
   );
@@ -6696,10 +6864,11 @@ export default function ClientProfilePage() {
   const profileOrbiterWheelLockRef = useRef(false);
   const profileOrbiterScrollSyncLockRef = useRef(false);
   const profileOrbiterScrollSyncTimerRef = useRef<number | null>(null);
-  const profileOrbiterRailCollapseTimerRef = useRef<number | null>(null);
   const profileOrbiterRef = useRef<HTMLElement | null>(null);
+  const profileOrbiterRailRef = useRef<HTMLDivElement | null>(null);
   const profileOrbiterViewportRef = useRef<HTMLDivElement | null>(null);
   const profileHeroRowRef = useRef<HTMLElement | null>(null);
+  const profileSummaryRailRef = useRef<HTMLDivElement | null>(null);
   const shouldLetProfileOrbiterTargetScroll = (
     target: EventTarget | null,
     deltaY: number,
@@ -6762,34 +6931,6 @@ export default function ClientProfilePage() {
     router.push(ROUTES.auth.login);
     router.refresh();
   }, [closeProfileHub, router]);
-  const expandProfileOrbiterRail = useCallback(() => {
-    if (profileOrbiterRailCollapseTimerRef.current) {
-      window.clearTimeout(profileOrbiterRailCollapseTimerRef.current);
-      profileOrbiterRailCollapseTimerRef.current = null;
-    }
-
-    setProfileOrbiterRailExpanded(true);
-  }, []);
-  const collapseProfileOrbiterRail = useCallback(() => {
-    if (profileOrbiterRailCollapseTimerRef.current) {
-      window.clearTimeout(profileOrbiterRailCollapseTimerRef.current);
-    }
-
-    profileOrbiterRailCollapseTimerRef.current = window.setTimeout(() => {
-      setProfileOrbiterRailExpanded(false);
-      profileOrbiterRailCollapseTimerRef.current = null;
-    }, 240);
-  }, []);
-  useEffect(() => {
-    if (activeProfileOrbiterRow !== 0) return;
-
-    if (profileOrbiterRailCollapseTimerRef.current) {
-      window.clearTimeout(profileOrbiterRailCollapseTimerRef.current);
-      profileOrbiterRailCollapseTimerRef.current = null;
-    }
-
-    setProfileOrbiterRailExpanded(false);
-  }, [activeProfileOrbiterRow]);
   useEffect(() => {
     activeProfileHubLayerRef.current = activeProfileHubLayer;
   }, [activeProfileHubLayer]);
@@ -6986,7 +7127,6 @@ export default function ClientProfilePage() {
       profileOrbiterPointerStartRef.current = null;
       profileOrbiterWheelLockRef.current = false;
       setActiveProfileOrbiterRow(0);
-      setOpenProfileOrbiterDetails(null);
       setExpandedProfileOrbiterCard(null);
       scrollProfileHeroRowIntoView(behavior);
       window.setTimeout(() => scrollProfileHeroRowIntoView("auto"), 90);
@@ -7003,12 +7143,88 @@ export default function ClientProfilePage() {
     memberSinceAt: "",
   });
   const [loading, setLoading] = useState(true);
+  const [profileOrbiterRailFits, setProfileOrbiterRailFits] = useState(false);
+  useEffect(() => {
+    if (loading) return;
+    const rail = profileOrbiterRailRef.current;
+    if (!rail) return;
+
+    const syncRailFit = () => {
+      const indicatorCount = rail.querySelectorAll(
+        "[data-profile-row-indicator='true']",
+      ).length;
+      const requiredHeight =
+        indicatorCount * 40 +
+        20 +
+        Math.max(0, indicatorCount - 1) * 12 +
+        24;
+      setProfileOrbiterRailFits(rail.clientHeight >= requiredHeight);
+    };
+    const resizeObserver = new ResizeObserver(syncRailFit);
+    resizeObserver.observe(rail);
+    syncRailFit();
+
+    return () => resizeObserver.disconnect();
+  }, [loading]);
+  useEffect(() => {
+    if (loading) return;
+    const rail = profileSummaryRailRef.current;
+    if (!rail) return;
+
+    const syncScrollState = () => {
+      const maxScroll = Math.max(0, rail.scrollWidth - rail.clientWidth);
+      const cards = Array.from(rail.children) as HTMLElement[];
+      const railCenter = rail.scrollLeft + rail.clientWidth / 2;
+      let activeIndex =
+        rail.scrollLeft <= 2
+          ? 0
+          : rail.scrollLeft >= maxScroll - 2
+            ? Math.max(0, cards.length - 1)
+            : 0;
+      if (rail.scrollLeft > 2 && rail.scrollLeft < maxScroll - 2) {
+        let closestDistance = Number.POSITIVE_INFINITY;
+        cards.forEach((card, index) => {
+          const distance = Math.abs(card.offsetLeft + card.offsetWidth / 2 - railCenter);
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            activeIndex = index;
+          }
+        });
+      }
+      const value = cards[activeIndex]?.querySelector<HTMLElement>(
+        "[data-profile-summary-value='true']",
+      );
+      const overflowDistance = value
+        ? Math.max(0, value.scrollWidth - value.clientWidth + 8)
+        : 0;
+      setProfileSummaryScrollState({
+        canScrollLeft: rail.scrollLeft > 2,
+        canScrollRight: rail.scrollLeft < maxScroll - 2,
+      });
+      setProfileSummaryHighlight((current) =>
+        current.activeIndex === activeIndex &&
+        current.overflowDistance === overflowDistance
+          ? current
+          : { activeIndex, overflowDistance },
+      );
+    };
+    const resizeObserver = new ResizeObserver(syncScrollState);
+    resizeObserver.observe(rail);
+    rail.addEventListener("scroll", syncScrollState, { passive: true });
+    syncScrollState();
+
+    return () => {
+      resizeObserver.disconnect();
+      rail.removeEventListener("scroll", syncScrollState);
+    };
+  }, [loading]);
   const [message, setMessage] = useState("");
   const [planDirectionMessage, setPlanDirectionMessage] = useState("");
   const [profile, setProfile] = useState<SoundFitnessProfile>(defaultProfile);
   const [savedSnapshot, setSavedSnapshot] = useState(
     JSON.stringify(defaultProfile),
   );
+  const [profilePhotoMenuOpen, setProfilePhotoMenuOpen] = useState(false);
   const [isEditingIdentity, setIsEditingIdentity] = useState(false);
   const [identityNameDraft, setIdentityNameDraft] = useState("");
   const [identityHandleDraft, setIdentityHandleDraft] = useState("");
@@ -7032,6 +7248,28 @@ export default function ClientProfilePage() {
   const [goalCompassScrolling, setGoalCompassScrolling] = useState(false);
   const [activeMeasurementIndex, setActiveMeasurementIndex] = useState(0);
   const [photoMessage, setPhotoMessage] = useState("");
+  const profilePhotoMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!profilePhotoMenuOpen) return;
+
+    const closePhotoMenuOnOutsidePress = (event: MouseEvent | TouchEvent) => {
+      if (!profilePhotoMenuRef.current?.contains(event.target as Node)) {
+        setProfilePhotoMenuOpen(false);
+      }
+    };
+    const closePhotoMenuOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setProfilePhotoMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", closePhotoMenuOnOutsidePress);
+    document.addEventListener("touchstart", closePhotoMenuOnOutsidePress);
+    document.addEventListener("keydown", closePhotoMenuOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closePhotoMenuOnOutsidePress);
+      document.removeEventListener("touchstart", closePhotoMenuOnOutsidePress);
+      document.removeEventListener("keydown", closePhotoMenuOnEscape);
+    };
+  }, [profilePhotoMenuOpen]);
   const [photoViewerIndex, setPhotoViewerIndex] = useState<number | null>(null);
   const [sessionPhotoPreviews, setSessionPhotoPreviews] = useState<
     Record<string, ProgressPhoto>
@@ -7526,6 +7764,11 @@ export default function ClientProfilePage() {
     tab: ProfileTab;
     targetId: string;
   }) => {
+    if (tab === "goals") {
+      router.push(ROUTES.dashboard.goals);
+      return;
+    }
+
     setActiveTab(tab);
     setActiveProfileOrbiterRow(getProfileOrbiterRowForTab(tab));
     if (accordion) {
@@ -7553,7 +7796,7 @@ export default function ClientProfilePage() {
         block: "start",
       });
     }, 120);
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (loading) return;
@@ -7602,9 +7845,6 @@ export default function ClientProfilePage() {
       }
       if (profileOrbiterScrollSyncTimerRef.current) {
         window.clearTimeout(profileOrbiterScrollSyncTimerRef.current);
-      }
-      if (profileOrbiterRailCollapseTimerRef.current) {
-        window.clearTimeout(profileOrbiterRailCollapseTimerRef.current);
       }
       if (profileHubFadeFrameRef.current !== null) {
         window.cancelAnimationFrame(profileHubFadeFrameRef.current);
@@ -8445,7 +8685,7 @@ export default function ClientProfilePage() {
     }));
   };
 
-  const saveProfile = () => {
+  const saveProfile = ({ announce = true }: { announce?: boolean } = {}) => {
     const storedProfile = readSoundFitnessProfile();
     const stored = asRecord(storedProfile);
     const displayName =
@@ -8521,7 +8761,18 @@ export default function ClientProfilePage() {
     );
     const bodyScanImports = normalizeBodyScanImports(profile.bodyScanImports);
     const bodyMetricSnapshot = createBodyMetricHistoryPoint(profile, updatedAt);
-    const nextBodyMetricHistory = bodyMetricSnapshot
+    const latestBodyMetric = bodyMetricHistory.at(-1);
+    const bodyMetricChanged = Boolean(
+      bodyMetricSnapshot &&
+        (!latestBodyMetric ||
+          bodyMetricSnapshot.bodyFat !== latestBodyMetric.bodyFat ||
+          bodyMetricSnapshot.muscleMass !== latestBodyMetric.muscleMass ||
+          bodyMetricSnapshot.source !== latestBodyMetric.source ||
+          bodyMetricSnapshot.waist !== latestBodyMetric.waist ||
+          bodyMetricSnapshot.weight !== latestBodyMetric.weight ||
+          bodyMetricSnapshot.weightTrend !== latestBodyMetric.weightTrend),
+    );
+    const nextBodyMetricHistory = bodyMetricSnapshot && bodyMetricChanged
       ? [...bodyMetricHistory, bodyMetricSnapshot].slice(-36)
       : bodyMetricHistory;
     const nextProfile = {
@@ -8577,9 +8828,23 @@ export default function ClientProfilePage() {
     updateProfile(nextProfile);
     setProfile(nextProfile);
     setSavedSnapshot(JSON.stringify(nextProfile));
-    setMessage("Profile saved locally.");
-    window.setTimeout(() => setMessage(""), 2400);
+    if (announce) {
+      setMessage("Profile saved locally.");
+      window.setTimeout(() => setMessage(""), 2400);
+    }
   };
+
+  useEffect(() => {
+    if (loading || isEditingIdentity || !hasUnsavedChanges) return;
+
+    const timeoutId = window.setTimeout(() => {
+      saveProfile({ announce: false });
+    }, 450);
+
+    return () => window.clearTimeout(timeoutId);
+    // saveProfile intentionally uses the current render's profile snapshot.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasUnsavedChanges, isEditingIdentity, loading, profile]);
 
   const saveIdentity = () => {
     const displayName =
@@ -8630,16 +8895,6 @@ export default function ClientProfilePage() {
   };
 
   const renderHeroStatusCommandCenter = () => {
-    const detailReadinessChips = heroReadinessChips.filter(
-      (chip) => chip.label !== "Recommendation",
-    );
-    const compactReadinessChips = detailReadinessChips.filter(
-      (chip) => chip.label !== "Risk",
-    );
-    const compactFactors = planReadiness.risk.factors.slice(0, 4);
-    const recommendedNext = planReadiness.missing.includes("Recovery Readiness")
-      ? "Complete readiness check-in"
-      : planReadiness.recommended.label;
     const painScore = getScaleValue(
       profile.bodyStatus.painLevel,
       profile.bodyStatus.painStatus,
@@ -8681,242 +8936,64 @@ export default function ClientProfilePage() {
     ];
 
     return (
-      <aside className="relative overflow-visible p-0">
-        <div className="flex items-center justify-between gap-3 xl:hidden">
+      <aside className={heroStyles.readiness}>
+        <div className={heroStyles.readinessHeader}>
           <div className="min-w-0">
-            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/75">
-              Readiness
-            </p>
-            <p className="mt-0.5 truncate text-xs font-black text-white">
-              {planReadiness.readinessLabel}
-            </p>
+            <p className="text-[9px] font-black uppercase tracking-[0.16em] text-cyan-100/75">Readiness</p>
           </div>
-          <button
-            type="button"
-            aria-expanded={heroReadinessDetailsOpen}
-            onClick={() => setHeroReadinessDetailsOpen((current) => !current)}
-            className="shrink-0 rounded-full border border-cyan-200/24 bg-cyan-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100 transition hover:bg-cyan-300/16"
-          >
-            {heroReadinessDetailsOpen ? "Hide details" : "View readiness details"}
-          </button>
         </div>
-
-        <div className="-mx-2 mt-2 flex max-w-[calc(100%+1rem)] gap-1.5 overflow-x-auto overscroll-x-contain px-2 pb-2 xl:hidden [scrollbar-color:rgba(34,211,238,0.42)_rgba(15,23,42,0.70)] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/42 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/60">
-          {mobileSummaryPills.map((pill) => (
-            <span
-              key={pill.label}
-              className={`inline-flex min-h-[28px] max-w-[220px] flex-none items-center rounded-full border px-2 py-1 text-[9px] font-black leading-none shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${pill.className}`}
-            >
-              <span className="shrink-0 text-slate-300/75">{pill.label}</span>
-              <span className="ml-1 truncate text-white">{pill.value}</span>
+        <ProfileHeroPillRail accent="cyan" label="Readiness signals" singleItem>
+          {mobileSummaryPills.filter(pill => ["Risk", "Sleep", "Pain/Soreness"].includes(pill.label)).map(pill => (
+            <span key={pill.label} className={`inline-flex items-center rounded-full border font-black ${pill.className}`}>
+              <span className="text-slate-300/75">{pill.label}</span>
+              <span className="ml-1 text-white">{pill.value}</span>
             </span>
           ))}
-        </div>
-
-        <div
-          className={`grid xl:hidden transition-all duration-300 ease-out ${
-            heroReadinessDetailsOpen
-              ? "mt-2 grid-rows-[1fr] opacity-100"
-              : "grid-rows-[0fr] opacity-0"
-          }`}
-        >
-          <div className="overflow-hidden">
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className="relative min-w-0 px-1 py-1">
-                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100/75">
-                  Plan Ready
-                </p>
-                <div className="mt-1 flex items-center gap-2">
-                  <p className={`shrink-0 text-lg font-black leading-none ${planReadinessTone.text}`}>
-                    {planReadiness.overall}%
-                  </p>
-                  <p className="min-w-0 text-[10px] font-black leading-4 text-slate-300">
-                    {planReadiness.overall >= 80 ? "Ready to plan" : "Building context"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="relative min-w-0 px-1 py-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[9px] font-black uppercase tracking-[0.12em] text-orange-100/75">
-                    Risk
-                  </p>
-                  <p className={`text-sm font-black ${planRiskTone.text}`}>
-                    {planReadiness.risk.label}
-                    <span className="ml-1 text-[10px] text-slate-500">
-                      {planReadiness.risk.score}%
-                    </span>
-                  </p>
-                </div>
-                <div className={`relative mt-2 h-2 rounded-full bg-[linear-gradient(90deg,#60a5fa_0%,#34d399_26%,#facc15_52%,#fb923c_74%,#dc2626_100%)] ${planRiskTone.glow}`}>
-                  <span
-                    className="absolute top-1/2 h-3 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_10px_rgba(255,255,255,0.75)] transition-[left] duration-500"
-                    style={{ left: `${riskGaugeScore}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="-mx-2 mt-2 flex max-w-[calc(100%+1rem)] gap-1.5 overflow-x-auto overscroll-x-contain px-2 pb-2 [scrollbar-color:rgba(34,211,238,0.42)_rgba(15,23,42,0.70)] [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/42 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/60">
-              {detailReadinessChips.map((chip) => (
-                <span
-                  key={chip.label}
-                  className={`inline-flex min-h-[26px] max-w-[220px] flex-none items-center rounded-full border px-2 py-1 text-[9px] font-black leading-none ${chip.className}`}
-                >
-                  <span className="shrink-0 text-slate-300/75">{chip.label}</span>
-                  <span className="ml-1 truncate text-white">{chip.value}</span>
-                </span>
-              ))}
-            </div>
-
-            <div className="mt-2 rounded-2xl border border-emerald-200/20 bg-emerald-300/8 px-3 py-2 text-xs font-semibold leading-5 text-emerald-50/85">
-              <span className="font-black text-emerald-100">Recommendation:</span>{" "}
-              {planReadiness.risk.recommendation}
-              <span className="mt-0.5 block text-[10px] font-black uppercase tracking-[0.1em] text-emerald-100/70">
-                Next: {recommendedNext}
-              </span>
-            </div>
-
-            {compactFactors.length ? (
-              <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {compactFactors.map((factor) => (
-                  <span
-                    key={factor}
-                    title={factor}
-                    className={`inline-flex min-h-[22px] shrink-0 items-center rounded-full border ${planRiskTone.border} bg-slate-950/42 px-2 py-0.5 text-[8px] font-black leading-none ${planRiskTone.text}`}
-                  >
-                    {getCompactRiskFactorLabel(factor)}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="hidden xl:flex xl:items-center xl:justify-between xl:gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-100/80">
-              Readiness Context
-            </p>
-            <p className="mt-1 text-sm font-black text-white">
-              Compact status
-            </p>
-          </div>
-          <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.11em] ${planReadinessTone.badge}`}>
-            {planReadiness.readinessLabel}
-          </span>
-        </div>
-
-        <div className="mt-3 hidden gap-2 xl:grid xl:grid-cols-2">
-          <div className="relative min-w-0 px-1 py-1">
-            <div className="flex items-center gap-3">
-              <div
-                className="relative grid h-14 w-14 shrink-0 place-items-center rounded-full border border-cyan-100/20 bg-slate-950/78 shadow-[0_0_24px_rgba(34,211,238,0.18)]"
-                style={{
-                  background: `conic-gradient(rgba(34,211,238,0.95) 0deg, rgba(52,211,153,0.95) ${planReadiness.overall * 3.6}deg, rgba(15,23,42,0.9) 0deg)`,
-                }}
-              >
-                <span className="absolute inset-1.5 rounded-full bg-slate-950" />
-                <span className={`relative text-sm font-black ${planReadinessTone.text}`}>
-                  {planReadiness.overall}%
-                </span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[9px] font-black uppercase tracking-[0.12em] text-cyan-100/75">
-                  Plan Ready
-                </p>
-                <p className="mt-1 text-sm font-black leading-5 text-white">
-                  {planReadiness.overall >= 80 ? "Profile ready" : "Building context"}
-                </p>
-                <p className="mt-0.5 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                  {planReadiness.completed.length}/{planReadiness.sections.length} complete
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative min-w-0 px-1 py-1">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[9px] font-black uppercase tracking-[0.12em] text-orange-100/75">
-                Risk
-              </p>
-              <p className={`text-sm font-black ${planRiskTone.text}`}>
-                {planReadiness.risk.label}
-                <span className="ml-1 text-[10px] text-slate-500">
-                  {planReadiness.risk.score}%
-                </span>
-              </p>
-            </div>
-            <div className={`relative mt-2 h-3 rounded-full bg-[linear-gradient(90deg,#60a5fa_0%,#34d399_26%,#facc15_52%,#fb923c_74%,#dc2626_100%)] ${planRiskTone.glow}`}>
-              <span
-                className="absolute top-1/2 h-4 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.8)] transition-[left] duration-500"
-                style={{ left: `${riskGaugeScore}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-3 hidden max-w-full flex-wrap gap-1.5 overflow-hidden xl:flex">
-          {compactReadinessChips.map((chip) => (
-            <div
-              key={chip.label}
-              className={`inline-flex min-h-[28px] w-fit max-w-[190px] flex-none items-center rounded-full border px-2.5 py-1 text-[9px] font-black leading-none ${chip.className}`}
-            >
-              <span className="shrink-0 text-slate-300/80">{chip.label}</span>
-              <span className="ml-1 truncate text-white">{chip.value}</span>
-            </div>
-          ))}
-        </div>
-
-        <div className="relative mt-3 hidden overflow-hidden rounded-2xl border border-emerald-200/28 bg-[radial-gradient(circle_at_14%_0%,rgba(52,211,153,0.16),transparent_40%),rgba(15,23,42,0.62)] px-3 py-2.5 shadow-[0_0_24px_rgba(34,211,238,0.08),inset_0_1px_0_rgba(255,255,255,0.08)] xl:block">
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-3 top-0 h-px bg-gradient-to-r from-emerald-300/70 via-cyan-300/60 to-transparent"
-          />
-          <p className="text-[9px] font-black uppercase tracking-[0.14em] text-emerald-100/80">
-            Recommendation
-          </p>
-          <p className="mt-1 text-xs font-black leading-5 text-cyan-50">
-            {planReadiness.risk.recommendation}
-          </p>
-          <p className="mt-1 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-100/65">
-            Next: {recommendedNext}
-          </p>
-        </div>
-
-        {compactFactors.length ? (
-          <div className="mt-2 hidden max-w-full flex-wrap gap-1.5 xl:flex">
-            {compactFactors.map((factor) => (
-              <span
-                key={factor}
-                title={factor}
-                className={`inline-flex min-h-[20px] items-center rounded-full border ${planRiskTone.border} bg-slate-950/42 px-2 py-0.5 text-[8px] font-black leading-none ${planRiskTone.text}`}
-              >
-                {getCompactRiskFactorLabel(factor)}
-              </span>
-            ))}
-            {planReadiness.risk.factors.length > compactFactors.length ? (
-              <span className="inline-flex min-h-[20px] items-center rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[8px] font-black leading-none text-slate-400">
-                +{planReadiness.risk.factors.length - compactFactors.length} more
-              </span>
-            ) : null}
-          </div>
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded={heroReadinessDetailsOpen}
+            onClick={() => setHeroReadinessDetailsOpen(true)}
+            className="rounded-full border border-cyan-200/24 bg-cyan-300/10 px-3 py-1.5 text-[10px] font-black uppercase text-cyan-100"
+          >
+            View details
+          </button>
+        </ProfileHeroPillRail>
+        {heroReadinessDetailsOpen ? createPortal(
+          <dialog className={heroStyles.dialog} aria-label="Profile readiness details"
+            ref={node => { if (node && !node.open) node.showModal(); }}
+            onCancel={() => setHeroReadinessDetailsOpen(false)}>
+            <button autoFocus type="button" className={heroStyles.dialogClose}
+              onClick={() => setHeroReadinessDetailsOpen(false)}>Close readiness details ×</button>
+            {renderPlanReadiness()}
+          </dialog>, document.body,
         ) : null}
       </aside>
     );
   };
 
   const renderHero = () => (
-    <section className="relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,146,60,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.94))] p-3 shadow-[0_34px_120px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.14)] sm:p-4">
+    <section data-profile-hero="true" className={`${heroStyles.hero} relative overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.22),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,146,60,0.18),transparent_32%),linear-gradient(135deg,rgba(15,23,42,0.92),rgba(2,6,23,0.94))] shadow-[0_34px_120px_rgba(0,0,0,0.58),inset_0_1px_0_rgba(255,255,255,0.14)]`}>
       <div className="pointer-events-none absolute right-[-10%] top-[-30%] h-72 w-72 rounded-full bg-cyan-300/10 blur-3xl" />
-      <div className="relative z-10 grid gap-3 xl:grid-cols-[minmax(0,1fr)_390px] xl:items-center">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.26em] text-cyan-200/80">
-            Personal Command Center
+      <div className={`${heroStyles.layout} relative z-10`}>
+        <div className={`${heroStyles.main} min-w-0`}>
+          <p className={`${heroStyles.eyebrow} text-[10px] font-black uppercase tracking-[0.26em] text-cyan-200/80`}>
+            Member Profile
           </p>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex shrink-0 flex-col items-center gap-2">
-              <div className="relative h-20 w-20 overflow-hidden rounded-full border border-cyan-100/24 bg-cyan-300/12 shadow-[0_0_44px_rgba(34,211,238,0.2)] sm:h-[5.5rem] sm:w-[5.5rem]">
+          <div className={heroStyles.identity}>
+            <div
+              ref={profilePhotoMenuRef}
+              className="relative flex shrink-0 flex-col items-center gap-2"
+            >
+              <button
+                type="button"
+                className={`${heroStyles.photo} group relative cursor-pointer overflow-hidden rounded-full border border-cyan-100/24 bg-cyan-300/12 shadow-[0_0_44px_rgba(34,211,238,0.2)] outline-none transition hover:border-cyan-100/70 hover:shadow-[0_0_34px_rgba(34,211,238,0.48)] focus-visible:border-cyan-100 focus-visible:ring-2 focus-visible:ring-cyan-200/80 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950`}
+                aria-label="Edit profile photo"
+                aria-expanded={profilePhotoMenuOpen}
+                aria-haspopup="menu"
+                title="Edit profile photo"
+                onClick={() => setProfilePhotoMenuOpen((current) => !current)}
+              >
                 {profile.profileImage ? (
                   <img
                     alt={`${identityDisplayName} profile`}
@@ -8928,39 +9005,54 @@ export default function ClientProfilePage() {
                     {identityDisplayName.trim().slice(0, 2).toUpperCase() || "SF"}
                   </div>
                 )}
-              </div>
-              <div className="flex flex-wrap justify-center gap-2">
-                <label
-                  className="inline-flex min-h-[34px] cursor-pointer items-center gap-2 rounded-full border border-cyan-100/28 bg-cyan-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.12)] transition hover:bg-cyan-300 hover:text-slate-950"
-                  title={profile.profileImage ? "Change Photo" : "Add Photo"}
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center gap-1 bg-slate-950/68 text-[8px] font-black uppercase tracking-[0.08em] text-cyan-50 opacity-0 backdrop-blur-[2px] transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <CameraIcon className="h-3.5 w-3.5" />
+                  Edit
+                </span>
+              </button>
+              {profilePhotoMenuOpen ? (
+                <div
+                  role="menu"
+                  aria-label="Profile photo options"
+                  className="absolute left-1/2 top-[calc(100%+0.45rem)] z-[90] w-32 -translate-x-1/2 rounded-2xl border border-cyan-100/22 bg-slate-950/96 p-1.5 text-left shadow-[0_20px_60px_rgba(0,0,0,0.46),0_0_22px_rgba(34,211,238,0.14)] backdrop-blur-xl"
                 >
-                  {profile.profileImage ? (
-                    <CameraIcon className="h-3.5 w-3.5" />
-                  ) : (
-                    <ImagePlusIcon className="h-3.5 w-3.5" />
-                  )}
-                  {profile.profileImage ? "Change" : "Add Photo"}
-                  <input
-                    accept="image/*"
-                    className="sr-only"
-                    onChange={handleProfileImageChange}
-                    type="file"
-                  />
-                </label>
-                {profile.profileImage ? (
                   <button
                     type="button"
-                    onClick={() => setProfileField("profileImage", "")}
-                    className="inline-flex min-h-[34px] items-center rounded-full border border-red-200/25 bg-red-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-red-100 transition hover:bg-red-400 hover:text-slate-950"
+                    role="menuitem"
+                    onClick={() => {
+                      setProfilePhotoMenuOpen(false);
+                      document.getElementById("profile-hero-image-input")?.click();
+                    }}
+                    className="block w-full rounded-xl px-3 py-2 text-left text-[10px] font-black uppercase tracking-[0.1em] text-cyan-50 transition hover:bg-cyan-300/14 focus:bg-cyan-300/14 focus:outline-none"
                   >
-                    Remove
+                    Edit Photo
                   </button>
-                ) : null}
-              </div>
+                  {profile.profileImage ? (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setProfilePhotoMenuOpen(false);
+                        setProfileField("profileImage", "");
+                      }}
+                      className="mt-1 block w-full rounded-xl px-3 py-2 text-left text-[10px] font-black uppercase tracking-[0.1em] text-red-100 transition hover:bg-red-400/14 focus:bg-red-400/14 focus:outline-none"
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+              <input
+                accept="image/*"
+                className="sr-only"
+                id="profile-hero-image-input"
+                onChange={handleProfileImageChange}
+                type="file"
+              />
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className={`${heroStyles.identityHeading} flex flex-wrap items-start justify-between`}>
                 <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
                     Sound Fitness ID
@@ -8985,27 +9077,13 @@ export default function ClientProfilePage() {
                 </button>
               </div>
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span className="rounded-full border border-orange-200/24 bg-orange-300/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-orange-100">
-                  {profile.memberType || "Member"}
-                </span>
-                <span className="rounded-full border border-cyan-200/24 bg-cyan-300/10 px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-cyan-100">
-                  {soundPoints} pts
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200/16 bg-slate-950/44 px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
-                  <span aria-hidden="true" className="text-cyan-100/80">
-                    ◷
-                  </span>
-                  <span>Member Since</span>
-                  <span className="text-cyan-100">{memberSinceLabel}</span>
-                </span>
-                <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-[11px] font-black uppercase tracking-[0.12em] text-slate-300">
-                  {profile.trainingAge || "Training age not set"}
-                </span>
-              </div>
-
-              {isEditingIdentity ? (
-                <div className="mt-4 rounded-[24px] border border-cyan-100/18 bg-slate-950/62 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+              {isEditingIdentity ? createPortal(
+                <dialog
+                  className={heroStyles.dialog}
+                  aria-label="Edit profile name"
+                  ref={(node) => { if (node && !node.open) node.showModal(); }}
+                  onCancel={() => setIsEditingIdentity(false)}
+                >
                   <div className="grid gap-3 md:grid-cols-[1fr_0.8fr]">
                     <Field
                       label="Display Name"
@@ -9040,17 +9118,18 @@ export default function ClientProfilePage() {
                       Cancel
                     </button>
                   </div>
-                </div>
+                </dialog>, document.body
               ) : null}
             </div>
           </div>
-          <h1 className="mt-3 max-w-4xl text-2xl font-black tracking-tight text-white sm:text-3xl">
+          <div className={heroStyles.plan}>
+          <h1 className="max-w-4xl font-black tracking-tight text-white">
             {profile.primaryGoal || "Goal not set"}
           </h1>
           <p className="mt-2 max-w-3xl text-sm font-semibold leading-5 text-slate-300">
-            Define the training identity that powers dashboard focus, workout generation, exercise recommendations, recovery thresholds, and nutrition direction.
+            Your training identity guides workouts, recovery, and nutrition.
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <ProfileHeroPillRail accent="orange" label="Training plan details">
             {[
               `Goal: ${profile.goalMode}`,
               `Mode: ${profile.bodyGoalMode}`,
@@ -9065,6 +9144,7 @@ export default function ClientProfilePage() {
                 {chip}
               </span>
             ))}
+          </ProfileHeroPillRail>
           </div>
         </div>
         <div className="min-w-0 xl:self-center">
@@ -13257,32 +13337,155 @@ export default function ClientProfilePage() {
   };
 
   const renderProfileHeroSummaryCards = () => (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+    <div className={heroStyles.summaryGroup}>
+    <div
+      ref={profileSummaryRailRef}
+      id="profile-summary-rail"
+      className={heroStyles.summary}
+      data-profile-summary-rail="true"
+      role="region"
+      aria-label="Profile summary cards"
+      tabIndex={0}
+      onPointerDown={(event) => event.stopPropagation()}
+      onWheel={(event) => {
+        event.stopPropagation();
+        const delta =
+          Math.abs(event.deltaX) >= Math.abs(event.deltaY)
+            ? event.deltaX
+            : event.deltaY;
+        if (!delta) return;
+
+        event.preventDefault();
+        event.currentTarget.scrollBy({ left: delta, behavior: "auto" });
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        event.currentTarget.scrollBy({
+          left:
+            (event.key === "ArrowRight" ? 1 : -1) *
+            Math.max(160, event.currentTarget.clientWidth * 0.75),
+          behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "auto"
+            : "smooth",
+        });
+      }}
+    >
       {[
-        ["Primary Goal", profile.primaryGoal || "Goal not set"],
-        ["Goal Mode", `${profile.goalMode} / ${profile.bodyGoalMode}`],
-        [
-          "Gender",
-          normalizeBodyModel(profile.gender || profile.bodyModel) === "female"
-            ? "Female"
-            : "Male",
-        ],
-        [
-          "Body Context",
-          `${activeLimitations.length} limits - ${profile.specialCircumstances.length} special`,
-        ],
-      ].map(([label, value]) => (
-        <div key={label} className={`${profileOverviewMetricCardClass} p-3`}>
+        ["Membership", profile.memberType || "Member"],
+        ["Sound Points", `${soundPoints} pts`],
+        ["Member Since", memberSinceLabel],
+        ["Training Age", profile.trainingAge || "Not set"],
+      ].map(([label, value], index) => {
+        const isHighlighted = profileSummaryHighlight.activeIndex === index;
+        const chyronActive = isHighlighted && profileSummaryHighlight.overflowDistance > 0;
+        return (
+        <button
+          key={label}
+          type="button"
+          aria-pressed={isHighlighted}
+          data-profile-summary-highlighted={isHighlighted ? "true" : "false"}
+          onClick={(event) => {
+            const valueElement = event.currentTarget.querySelector<HTMLElement>(
+              "[data-profile-summary-value='true']",
+            );
+            setProfileSummaryHighlight({
+              activeIndex: index,
+              overflowDistance: valueElement
+                ? Math.max(0, valueElement.scrollWidth - valueElement.clientWidth + 8)
+                : 0,
+            });
+            event.currentTarget.parentElement?.scrollTo({
+              left:
+                event.currentTarget.offsetLeft -
+                ((event.currentTarget.parentElement?.clientWidth || 0) -
+                  event.currentTarget.offsetWidth) /
+                  2,
+              behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+                ? "auto"
+                : "smooth",
+            });
+          }}
+          className={`${profileOverviewMetricCardClass} p-3 text-left transition duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/70 ${
+            isHighlighted
+              ? "z-10 -translate-y-0.5 border-cyan-100/58 bg-cyan-300/16 shadow-[0_0_28px_rgba(34,211,238,0.34),0_18px_54px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.18)] ring-2 ring-cyan-200/32"
+              : "opacity-70 hover:opacity-100"
+          }`}
+        >
           <span
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-cyan-200/55 to-fuchsia-200/35"
           />
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
+          <p className={`text-[10px] font-black uppercase tracking-[0.16em] ${isHighlighted ? "text-cyan-100" : "text-slate-500"}`}>
             {label}
           </p>
-          <p className="mt-1.5 text-base font-black text-white">{value}</p>
-        </div>
-      ))}
+          <p
+            className={`${heroStyles.summaryValue} mt-1.5 text-base font-black text-white`}
+            data-chyron-active={chyronActive ? "true" : "false"}
+            data-profile-summary-value="true"
+          >
+            <span
+              style={chyronActive ? {
+                "--profile-summary-chyron-offset": `-${profileSummaryHighlight.overflowDistance}px`,
+              } as CSSProperties : undefined}
+            >
+              {value}
+            </span>
+          </p>
+        </button>
+      )})}
+    </div>
+    {profileSummaryScrollState.canScrollLeft ||
+    profileSummaryScrollState.canScrollRight ? (
+      <div
+        className={heroStyles.summaryControls}
+        onPointerDown={(event) => event.stopPropagation()}
+        onWheel={(event) => event.stopPropagation()}
+      >
+        <button
+          type="button"
+          aria-controls="profile-summary-rail"
+          aria-label="Scroll profile summary tabs left"
+          disabled={!profileSummaryScrollState.canScrollLeft}
+          onClick={() =>
+            profileSummaryRailRef.current?.scrollBy({
+              left: -Math.max(
+                160,
+                (profileSummaryRailRef.current?.clientWidth || 0) * 0.75,
+              ),
+              behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
+                .matches
+                ? "auto"
+                : "smooth",
+            })
+          }
+        >
+          ‹
+        </button>
+        <button
+          type="button"
+          aria-controls="profile-summary-rail"
+          aria-label="Scroll profile summary tabs right"
+          disabled={!profileSummaryScrollState.canScrollRight}
+          onClick={() =>
+            profileSummaryRailRef.current?.scrollBy({
+              left: Math.max(
+                160,
+                (profileSummaryRailRef.current?.clientWidth || 0) * 0.75,
+              ),
+              behavior: window.matchMedia("(prefers-reduced-motion: reduce)")
+                .matches
+                ? "auto"
+                : "smooth",
+            })
+          }
+        >
+          ›
+        </button>
+      </div>
+    ) : null}
     </div>
   );
 
@@ -13346,48 +13549,7 @@ export default function ClientProfilePage() {
       profile.city && profile.state
         ? `${profile.city}, ${profile.state}`
         : profile.state || profile.city || "Location optional";
-    const goalStageCompletion = tabCompletions.goals;
-    const goalStageLabel = profile.goalDeadline
-      ? "Timeline set"
-      : profile.goalWeight
-        ? "Target set"
-        : profile.primaryGoal
-          ? "Direction set"
-          : "Stage open";
     const profileOrbitCards: ProfileOrbiterCard[] = [
-      {
-        accordion: "planDirection",
-        completion: tabCompletions.planDirection,
-        helper: "Primary and secondary priorities for training direction.",
-        icon: "compass",
-        label: "Goal Direction",
-        references: [
-          profile.planDirections[0] || profile.goalMode,
-          profile.planDirections[1] || profile.bodyGoalMode,
-          profile.primaryGoal || "Goal not set",
-        ],
-        stat: `${tabCompletions.planDirection}% ready`,
-        tab: "goals",
-        targetId: "plan-direction",
-        tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
-      },
-      {
-        completion: goalStageCompletion,
-        helper: "Timeline, priority, body target, and consistency stage from the Goals workspace.",
-        icon: "trophy",
-        label: "Goal Stage",
-        references: [
-          profile.primaryGoal || "Primary goal open",
-          profile.goalDeadline || "Timeline open",
-          profile.goalWeight
-            ? `Goal weight ${profile.goalWeight}`
-            : `${profile.weeklyConsistencyGoal}% consistency target`,
-        ],
-        stat: goalStageLabel,
-        tab: "goals",
-        targetId: "goal-stage",
-        tone: "border-amber-200/26 bg-amber-300/10 text-amber-100",
-      },
       {
         completion: vitalStatsCompletion,
         expandsToFullCard: true,
@@ -13574,6 +13736,28 @@ export default function ClientProfilePage() {
         tone: "border-slate-200/18 bg-slate-300/10 text-slate-100",
       },
       {
+        completion: Math.round(
+          (tabCompletions.overview +
+            tabCompletions.goals +
+            tabCompletions.training +
+            tabCompletions.nutrition +
+            tabCompletions.recovery) /
+            5,
+        ),
+        helper: "See how profile, goals, training, fuel, and recovery connect across the full journey.",
+        icon: "compass",
+        label: "Journey Map",
+        references: [
+          "Training journey",
+          "Fuel journey",
+          "Recovery roadmap",
+        ],
+        stat: "Master journey",
+        tab: "coachApp",
+        targetId: "journey-map",
+        tone: "border-indigo-200/24 bg-indigo-300/10 text-indigo-100",
+      },
+      {
         completion: tabCompletions.readiness,
         helper: "Work schedule, sleep window, travel, childcare, and reminder context.",
         icon: "clock",
@@ -13662,7 +13846,13 @@ export default function ClientProfilePage() {
     ];
     const profileCardRows = tabs
       .map((tab, index) => {
-        const cards = profileOrbitCards.filter((card) => card.tab === tab.id);
+        const cards = profileOrbitCards
+          .filter((card) => card.tab === tab.id)
+          .map((card) => ({
+            ...card,
+            expandsToFullCard: true,
+            tone: profileRowToneByTab[tab.id] || card.tone,
+          }));
         const completion = Math.round(
           cards.reduce((total, card) => total + card.completion, 0) /
             Math.max(cards.length, 1),
@@ -13748,7 +13938,6 @@ export default function ClientProfilePage() {
         [`sections-${tabId}`]: index,
       }));
       setActiveProfileOrbiterRow(rowIndex);
-      setOpenProfileOrbiterDetails(null);
       setExpandedProfileOrbiterCard(null);
       scrollProfileOrbiterViewportToRow(rowIndex);
     };
@@ -13768,100 +13957,70 @@ export default function ClientProfilePage() {
     const openProfileOrbiterFullCard = (tabId: ProfileTab, index: number) => {
       const cardRowIndex = tabs.findIndex((tab) => tab.id === tabId);
       const rowIndex = profileOrbiterCardStartRow + Math.max(0, cardRowIndex);
+      const selectedCard = profileCardRows
+        .find((row) => row.tab.id === tabId)
+        ?.cards[index];
       setActiveProfileOrbiterIndices((current) => ({
         ...current,
         [`sections-${tabId}`]: index,
       }));
+      setProfileSectionOpen(() => {
+        const next = createClosedProfileSections();
+        if (selectedCard?.accordion) next[selectedCard.accordion] = true;
+        return next;
+      });
       setActiveProfileOrbiterRow(rowIndex);
-      setOpenProfileOrbiterDetails(null);
       setExpandedProfileOrbiterCard(`${tabId}-${index}`);
       scrollProfileOrbiterIntoView();
       scrollProfileOrbiterViewportToRow(rowIndex);
     };
     const renderExpandedProfileOrbiterCard = (card: ProfileOrbiterCard) => {
-      const tone = getCompletionTone(card.completion);
-      const pulseTone = getProfilePulseIndicatorTone(card.completion);
-      const isOccupationActivityCard = card.targetId === "occupation-activity";
-      const isContactInfoCard = card.targetId === "contact-info";
-      const isVitalStatisticsCard = card.targetId === "vital-statistics";
-
-      if (
-        card.accordion !== "myBody" &&
-        !isOccupationActivityCard &&
-        !isContactInfoCard &&
-        !isVitalStatisticsCard
-      ) {
-        return null;
-      }
-
-      const title = isOccupationActivityCard
-        ? "Occupation + Daily Activity"
-        : isContactInfoCard
-          ? "Contact Info"
-          : isVitalStatisticsCard
-            ? "Vital Statistics"
-            : "My Body";
-      const description = isOccupationActivityCard
-        ? "Work context and daily activity inputs that help estimate fatigue, recovery pressure, and movement exposure."
-        : isContactInfoCard
-          ? "Optional location, phone, and emergency contact details kept separate from body metrics."
-          : isVitalStatisticsCard
-            ? "Stable body model inputs for age, gender, and height."
-            : "Variable body metrics for weight, waist, muscle mass, and body-fat direction.";
-      const content = isOccupationActivityCard
-        ? renderOccupationActivityControls()
-        : isContactInfoCard
-          ? renderContactInfoControls()
-          : isVitalStatisticsCard
-            ? renderVitalStatisticsControls()
-            : renderBodyMetrics({ embedded: true });
+      const contentByTarget: Record<string, () => React.ReactNode> = {
+        "app-preferences": () => renderPersonalization(),
+        benchmarks: () => renderBenchmarks(),
+        "coach-app-notes": () => renderNotes({ includeCoachingPreferences: true }),
+        "contact-info": () => renderContactInfoControls(),
+        "journey-map": () => renderMasterJourneyMap(),
+        lifestyle: () => renderLifestyle(),
+        measurements: () => renderMeasurements(),
+        "my-body": () => renderBodyMetrics({ embedded: true }),
+        "nutrition-direction": () => renderNutrition(),
+        "occupation-activity": () => renderOccupationActivityControls(),
+        "previous-experience": () => renderPreviousExperience(),
+        "readiness-section": () => renderReadinessSection(),
+        "recovery-profile": () => renderRecoveryProfile(),
+        "special-circumstances": () => renderSpecialCircumstances(),
+        "training-setup": () => renderPlanInputs(),
+        "training-style": () => renderTrainingStyle(),
+        "vital-statistics": () => renderVitalStatisticsControls(),
+      };
+      const content = contentByTarget[card.targetId]?.() ?? (
+        <div className="rounded-[24px] border border-white/10 bg-slate-950/42 p-5">
+          <p className="text-sm font-bold leading-6 text-slate-200">
+            {card.helper}
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            {card.references.map((reference) => (
+              <span
+                key={reference}
+                className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-3 text-xs font-black text-white"
+              >
+                {reference}
+              </span>
+            ))}
+          </div>
+        </div>
+      );
 
       return (
-        <div
-          data-profile-orbiter-scroll-area="true"
-          className="max-h-[min(60vh,560px)] overflow-y-auto rounded-[30px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          <section className={`${profileOverviewSectionShellClass} p-3 sm:p-3`}>
-            <span aria-hidden="true" className={profileOverviewSectionGlowClass} />
-            <div className="relative z-10">
-              <div className="relative overflow-hidden rounded-[22px] border border-cyan-200/14 bg-slate-950/48 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                {renderProfileCardLiquidGlass(card.completion, true)}
-                <div className="relative z-10">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-100/75">
-                        Full Profile Dropdown
-                      </p>
-                      <h3 className="mt-0.5 text-2xl font-black text-white">
-                        {title}
-                      </h3>
-                    </div>
-                    <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${tone.badge}`}>
-                      <span
-                        aria-hidden="true"
-                        data-active="true"
-                        data-profile-indicator-motion={pulseTone.motion}
-                        style={pulseTone.style}
-                        className={`profile-row-card-indicator inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border bg-black/25 ${pulseTone.outerActive}`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          data-profile-pulse-dot="true"
-                          className={`h-2 w-2 rounded-full ${pulseTone.dotActive}`}
-                        />
-                      </span>
-                      {card.completion}% complete
-                    </span>
-                  </div>
-                  <p className="mt-1 max-w-3xl text-sm font-semibold leading-5 text-slate-300">
-                    {description}
-                  </p>
-                </div>
-              </div>
-              <div className="mt-3">{content}</div>
-            </div>
-          </section>
-        </div>
+        <ProfileQuestionPager key={card.targetId} label={card.label}>
+          <div
+            data-profile-question-content="true"
+            className={heroStyles.questionContent}
+          >
+            {content}
+          </div>
+        </ProfileQuestionPager>
       );
     };
     const activeProfileOrbiterMeta =
@@ -13876,7 +14035,6 @@ export default function ClientProfilePage() {
       }
 
       setActiveProfileOrbiterRow(nextRow);
-      setOpenProfileOrbiterDetails(null);
       setExpandedProfileOrbiterCard(null);
       scrollProfileOrbiterIntoView();
       scrollProfileOrbiterViewportToRow(nextRow);
@@ -13894,7 +14052,6 @@ export default function ClientProfilePage() {
       }
 
       setActiveProfileOrbiterRow(nextRow);
-      setOpenProfileOrbiterDetails(null);
       setExpandedProfileOrbiterCard(null);
       scrollProfileOrbiterIntoView();
       scrollProfileOrbiterViewportToRow(nextRow);
@@ -13902,22 +14059,27 @@ export default function ClientProfilePage() {
     const renderCollapseProfileDropdownButton = () => (
       <button
         type="button"
+        data-profile-collapse-control="true"
         aria-label="Collapse full profile dropdown"
         onClick={() => setExpandedProfileOrbiterCard(null)}
-        className="absolute right-0 top-[-3.25rem] z-30 grid h-11 w-11 place-items-center rounded-2xl border border-cyan-100/24 bg-slate-950/76 text-lg font-black leading-none text-cyan-50 shadow-[0_18px_48px_rgba(0,0,0,0.38),0_0_20px_rgba(103,232,249,0.10)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-cyan-100/44 hover:bg-cyan-300/14 sm:-right-14 sm:top-4"
+        className="absolute right-1 top-[-1.375rem] z-30 grid h-5 w-5 place-items-center border-0 bg-transparent p-0 text-base font-black leading-none text-cyan-50 drop-shadow-[0_0_10px_rgba(103,232,249,0.7)] transition hover:-translate-y-0.5 hover:text-white sm:-right-14 sm:top-4 sm:h-11 sm:w-11 sm:rounded-2xl sm:border sm:border-cyan-100/24 sm:bg-slate-950/76 sm:text-lg sm:shadow-[0_18px_48px_rgba(0,0,0,0.38),0_0_20px_rgba(103,232,249,0.10)] sm:backdrop-blur-xl sm:hover:border-cyan-100/44 sm:hover:bg-cyan-300/14"
       >
         ^
       </button>
     );
     const renderProfileCardLiquidGlass = (
       completion: number,
+      cardTone: string,
       isActive = false,
     ) => {
-      const tone = getCompletionTone(completion);
+      const cardAccent = getProfileCardAccent(cardTone);
       const pulseTone = getProfilePulseIndicatorTone(completion);
       const progress = Math.max(10, Math.min(100, completion));
       const liquidStyle = {
         ...pulseTone.style,
+        "--profile-indicator-glow": `rgba(${cardAccent.rgb},0.92)`,
+        "--profile-indicator-glow-dim": `rgba(${cardAccent.rgb},0.46)`,
+        "--profile-indicator-glow-soft": `rgba(${cardAccent.rgb},0.34)`,
         "--profile-card-liquid-level": `${progress}%`,
       } as ProfilePulseIndicatorStyle & {
         "--profile-card-liquid-level": string;
@@ -13932,7 +14094,10 @@ export default function ClientProfilePage() {
           style={liquidStyle}
         >
           <span
-            className={`profile-card-liquid-reservoir absolute bg-gradient-to-br ${tone.bar}`}
+            className="profile-card-liquid-reservoir absolute"
+            style={{
+              background: `linear-gradient(135deg, rgba(${cardAccent.rgb},0.94), rgba(${cardAccent.rgb},0.48), rgba(2,6,23,0.72))`,
+            }}
           />
           <span
             aria-hidden="true"
@@ -14087,10 +14252,29 @@ export default function ClientProfilePage() {
       const visibleDistance = Math.min(absDistance, 3);
       const isActive = distance === 0;
 
+      if (profileOrbiterRailFits) {
+        const indicatorCount = Math.max(1, profileOrbiterRows.length - 1);
+        const positionOffset =
+          (row - (indicatorCount + 1) / 2) * 52;
+
+        return {
+          opacity: isActive ? 1 : Math.max(0.64, 0.88 - visibleDistance * 0.06),
+          pointerEvents: "auto",
+          top: `calc(50% + ${positionOffset}px)`,
+          transform: `translate(-50%, -50%) translateZ(${
+            isActive ? 42 : -visibleDistance * 18
+          }px) rotateX(${distance * -4}deg) scale(${isActive ? 1 : 0.92})`,
+          transition:
+            "opacity 240ms ease, top 420ms cubic-bezier(0.2,0.85,0.25,1), transform 420ms cubic-bezier(0.2,0.85,0.25,1), width 260ms ease, border-color 220ms ease, background-color 220ms ease",
+          zIndex: isActive ? 50 : 36 - visibleDistance,
+        };
+      }
+
       return {
         opacity:
           absDistance > 3 ? 0 : isActive ? 1 : Math.max(0.32, 0.72 - visibleDistance * 0.12),
         pointerEvents: absDistance > 3 ? "none" : "auto",
+        top: "50%",
         transform: `translate(-50%, -50%) translateY(${distance * 42}px) translateZ(${
           isActive ? 42 : -visibleDistance * 38
         }px) rotateX(${distance * -24}deg) scale(${
@@ -15365,7 +15549,12 @@ export default function ClientProfilePage() {
       );
     };
     const renderProfileRowHeader = (
-      meta: { eyebrow: string; helper?: string; title: string },
+      meta: {
+        completion?: number;
+        eyebrow: string;
+        helper?: string;
+        title: string;
+      },
       className = "",
       expanded = true,
       lifted = false,
@@ -15377,12 +15566,21 @@ export default function ClientProfilePage() {
     ) => {
       const showCardIndicator =
         expanded && Boolean(indicator) && (indicator?.cards.length || 0) > 0;
+      const activeIndicatorCard = showCardIndicator && indicator
+        ? indicator.cards[indicator.activeIndex] || indicator.cards[0]
+        : null;
+      const rowCompletion = Math.max(
+        0,
+        Math.min(100, meta.completion ?? activeIndicatorCard?.completion ?? 0),
+      );
+      const activeIndicatorTone = activeIndicatorCard
+        ? getCompletionTone(rowCompletion)
+        : null;
+      const activeCardAccent = getProfileCardAccent(activeIndicatorCard?.tone || "");
       const selectIndicatorCard = (index: number) => {
         if (!indicator) return;
 
         setProfileSectionOrbitIndex(indicator.tabId, index);
-        setOpenProfileOrbiterDetails(null);
-
         if (expandedProfileOrbiterCard?.startsWith(`${indicator.tabId}-`)) {
           const nextCard = indicator.cards[index];
           setExpandedProfileOrbiterCard(
@@ -15394,9 +15592,15 @@ export default function ClientProfilePage() {
       return (
         <div
           aria-expanded={expanded}
-          className={`relative isolate z-[80] mx-auto grid overflow-hidden rounded-[22px] border bg-[radial-gradient(circle_at_50%_-20%,rgba(125,211,252,0.22),transparent_48%),linear-gradient(180deg,rgba(15,23,42,0.58),rgba(2,6,23,0.46))] text-center shadow-[0_20px_60px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl transition-[width,max-width,padding,border-color,background-color,box-shadow,transform,opacity] duration-500 ease-[cubic-bezier(0.2,0.85,0.25,1)] ${
+          data-profile-row-header="true"
+          style={activeIndicatorCard ? {
+            background: `radial-gradient(circle at 50% -20%, rgba(${activeCardAccent.rgb}, 0.28), transparent 52%), linear-gradient(180deg, rgba(15,23,42,0.64), rgba(2,6,23,0.5))`,
+            borderColor: `rgba(${activeCardAccent.rgb}, 0.42)`,
+            boxShadow: `0 20px 60px rgba(0,0,0,0.34), 0 0 28px rgba(${activeCardAccent.rgb}, 0.14), inset 0 1px 0 rgba(255,255,255,0.14)`,
+          } : undefined}
+          className={`${heroStyles.rowHeader} relative isolate z-[80] mx-auto grid overflow-hidden rounded-[22px] border bg-[radial-gradient(circle_at_50%_-20%,rgba(125,211,252,0.22),transparent_48%),linear-gradient(180deg,rgba(15,23,42,0.58),rgba(2,6,23,0.46))] text-center shadow-[0_20px_60px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl transition-[width,max-width,padding,border-color,background-color,box-shadow,transform,opacity] duration-500 ease-[cubic-bezier(0.2,0.85,0.25,1)] ${
             expanded
-              ? `w-[min(92vw,980px)] gap-2 border-cyan-100/24 px-4 ${showCardIndicator ? "pb-6 pt-3" : "py-3"} sm:grid-cols-[minmax(0,1fr)_minmax(0,24rem)_minmax(0,1fr)] sm:items-center sm:gap-4`
+              ? `w-[min(92vw,980px)] gap-2 border-cyan-100/24 px-4 ${showCardIndicator ? "pb-11 pt-3" : "py-3"} sm:grid-cols-[minmax(0,1fr)_minmax(0,28rem)_minmax(0,1fr)] sm:items-center sm:gap-4`
               : "w-[min(76vw,280px)] border-white/12 px-4 py-2.5 opacity-80"
           } ${lifted ? "-translate-y-3" : ""} ${className}`}
         >
@@ -15424,49 +15628,65 @@ export default function ClientProfilePage() {
             </div>
           ) : null}
           <div
-            className={`relative z-10 min-w-0 justify-self-center text-center ${
+            className={`relative z-10 w-full min-w-0 justify-self-center text-center ${
               expanded ? "sm:col-start-2" : ""
             }`}
           >
-            <p
-              className={`whitespace-normal break-words font-black uppercase tracking-[0.14em] text-white transition-[font-size,line-height] duration-500 ${
-                expanded ? "text-sm leading-5" : "text-center text-xs leading-4"
-              }`}
-            >
-              {meta.title}
-            </p>
-          </div>
-          {expanded ? (
-            <div className="relative z-10 flex min-w-0 justify-center sm:col-start-3 sm:justify-self-end">
-              <button
-                type="button"
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  saveProfile();
-                }}
-                className="rounded-2xl border border-cyan-100/30 bg-cyan-300 px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.22)] transition hover:bg-cyan-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/50"
+            {activeIndicatorCard ? (
+              <>
+                <p
+                  className="mx-auto w-full max-w-[calc(100%-7rem)] whitespace-normal text-[9px] font-black uppercase leading-3 tracking-[0.14em] sm:max-w-none sm:whitespace-nowrap sm:tracking-[0.18em]"
+                  style={{ color: `rgba(${activeCardAccent.rgb}, 0.78)` }}
+                >
+                  {meta.title} · Profile Questions
+                </p>
+                <h2
+                  className="mt-0.5 text-xl font-black leading-tight drop-shadow-[0_0_14px_rgba(103,232,249,0.22)] sm:text-2xl"
+                  style={{ color: activeCardAccent.color }}
+                >
+                  {activeIndicatorCard.label}
+                </h2>
+              </>
+            ) : (
+              <p
+                className={`whitespace-normal break-words font-black uppercase tracking-[0.14em] text-white transition-[font-size,line-height] duration-500 ${
+                  expanded ? "text-sm leading-5" : "text-center text-xs leading-4"
+                }`}
               >
-                Save Profile
-              </button>
+                {meta.title}
+              </p>
+            )}
+          </div>
+          {activeIndicatorCard && activeIndicatorTone ? (
+            <div className="absolute right-2 top-2 z-10 justify-self-end sm:relative sm:right-auto sm:top-auto">
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.1em] sm:px-3 sm:py-1.5 sm:text-[10px] sm:tracking-[0.12em] ${activeIndicatorTone.badge}`}>
+                <SelectorIcon
+                  aria-hidden="true"
+                  name={
+                    indicator
+                      ? profileRowIconByTab[indicator.tabId] || activeIndicatorCard.icon
+                      : activeIndicatorCard.icon
+                  }
+                  className="h-3.5 w-3.5"
+                />
+                {rowCompletion}%
+                <span className="hidden sm:inline">row complete</span>
+              </span>
             </div>
           ) : null}
           {showCardIndicator && indicator ? (
             <div className="absolute inset-x-0 bottom-1.5 z-10 flex justify-center">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
                 {indicator.cards.map((card, index) => {
                   const isActiveIndicator = indicator.activeIndex === index;
-                  const pulseTone = getProfilePulseIndicatorTone(card.completion);
+                  const cardAccent = getProfileCardAccent(card.tone);
 
                   return (
                     <button
                       key={card.label}
                       type="button"
-                      aria-label={`Show ${card.label}, ${card.completion}% complete`}
+                      aria-label={`Show ${card.label}`}
                       aria-pressed={isActiveIndicator}
-                      data-profile-indicator-motion={pulseTone.motion}
                       onPointerDown={(event) => {
                         event.stopPropagation();
                       }}
@@ -15474,21 +15694,24 @@ export default function ClientProfilePage() {
                         event.stopPropagation();
                         selectIndicatorCard(index);
                       }}
-                      className={`profile-row-card-indicator inline-flex shrink-0 items-center justify-center rounded-full border bg-black/25 transition hover:scale-110 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-rose-100/55 ${
+                      className={`profile-row-card-indicator inline-flex shrink-0 items-center justify-center rounded-full border transition hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/55 ${
                         isActiveIndicator
-                          ? `h-3.5 w-3.5 ${pulseTone.outerActive}`
-                          : `h-3 w-3 ${pulseTone.outerInactive}`
+                          ? "h-8 w-8"
+                          : "h-7 w-7 opacity-70 hover:opacity-100"
                       }`}
-                      style={pulseTone.style}
+                      style={{
+                        background: `rgba(${cardAccent.rgb},${isActiveIndicator ? 0.2 : 0.08})`,
+                        borderColor: `rgba(${cardAccent.rgb},${isActiveIndicator ? 0.72 : 0.3})`,
+                        boxShadow: isActiveIndicator
+                          ? `0 0 18px rgba(${cardAccent.rgb},0.46), inset 0 1px 0 rgba(255,255,255,0.24)`
+                          : `0 0 8px rgba(${cardAccent.rgb},0.12)`,
+                        color: cardAccent.color,
+                      }}
                     >
-                      <span
+                      <SelectorIcon
                         aria-hidden="true"
-                        data-profile-pulse-dot="true"
-                        className={`rounded-full ${
-                          isActiveIndicator ? pulseTone.dotActive : pulseTone.dotInactive
-                        } ${
-                          isActiveIndicator ? "h-2 w-2" : "h-1.5 w-1.5"
-                        }`}
+                        name={card.icon}
+                        className={isActiveIndicator ? "h-[18px] w-[18px]" : "h-4 w-4"}
                       />
                     </button>
                   );
@@ -15505,9 +15728,8 @@ export default function ClientProfilePage() {
         id="profile-orbiter"
         ref={profileOrbiterRef}
         aria-label="Profile orbiter"
-        className="relative left-1/2 w-screen -translate-x-1/2 pt-0 scroll-mt-28"
+        className="relative left-1/2 w-screen -translate-x-1/2 overflow-hidden pt-0 scroll-mt-28"
       >
-        {renderProfileOrbiterTopMenu()}
         {clampedActiveProfileOrbiterRow === 0 || activeProfileCardRow ? null : (
           renderProfileRowHeader(
             activeProfileOrbiterMeta,
@@ -15515,55 +15737,15 @@ export default function ClientProfilePage() {
           )
         )}
         <div
-          className={`absolute right-0 top-1/2 z-[90] flex -translate-y-1/2 justify-end px-1 py-6 transition-[width] duration-300 ease-out sm:right-1 ${
-            profileOrbiterRailExpanded && clampedActiveProfileOrbiterRow !== 0
-              ? "w-44 sm:w-48"
-              : "w-16"
+          ref={profileOrbiterRailRef}
+          data-profile-row-rail="true"
+          className={`absolute inset-y-0 left-0 z-[90] w-20 justify-start py-3 sm:left-1 sm:w-24 ${
+            clampedActiveProfileOrbiterRow === 0 ? "hidden" : "flex"
           }`}
-          onBlurCapture={(event) => {
-            const nextTarget = event.relatedTarget;
-            if (
-              nextTarget instanceof Node &&
-              event.currentTarget.contains(nextTarget)
-            ) {
-              return;
-            }
-
-            if (clampedActiveProfileOrbiterRow !== 0) {
-              collapseProfileOrbiterRail();
-            }
-          }}
-          onFocusCapture={() => {
-            if (clampedActiveProfileOrbiterRow !== 0) {
-              expandProfileOrbiterRail();
-            }
-          }}
-          onPointerEnter={() => {
-            if (clampedActiveProfileOrbiterRow !== 0) {
-              expandProfileOrbiterRail();
-            }
-          }}
-          onPointerLeave={() => {
-            if (clampedActiveProfileOrbiterRow !== 0) {
-              collapseProfileOrbiterRail();
-            }
-          }}
         >
           <div
-            className={`relative isolate flex flex-col items-center gap-2 overflow-visible rounded-[22px] border p-1.5 shadow-[0_18px_60px_rgba(0,0,0,0.30),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl transition-[width,opacity,background-color,border-color,box-shadow] duration-300 ease-out ${
-              profileOrbiterRailExpanded && clampedActiveProfileOrbiterRow !== 0
-                ? "w-full border-cyan-100/28 bg-[radial-gradient(circle_at_18%_0%,rgba(103,232,249,0.24),transparent_36%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.15),transparent_34%),linear-gradient(180deg,rgba(15,23,42,0.72),rgba(2,6,23,0.52))] opacity-100 shadow-[0_22px_70px_rgba(0,0,0,0.46),0_0_28px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.18)]"
-                : "w-14 border-cyan-100/18 bg-[radial-gradient(circle_at_25%_0%,rgba(103,232,249,0.20),transparent_36%),linear-gradient(180deg,rgba(255,255,255,0.10),rgba(15,23,42,0.48)_42%,rgba(2,6,23,0.42))] opacity-90 shadow-[0_18px_60px_rgba(0,0,0,0.34),0_0_20px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.16)]"
-            }`}
+            className="relative isolate flex h-full min-h-0 w-full flex-col items-center gap-2 overflow-visible p-1.5"
           >
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-2 top-0 -z-10 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/70 to-transparent"
-            />
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 -z-10 bg-[linear-gradient(135deg,rgba(255,255,255,0.16),transparent_34%),radial-gradient(circle_at_50%_110%,rgba(34,211,238,0.12),transparent_42%)]"
-            />
             {clampedActiveProfileOrbiterRow === 0 ? (
               <button
                 type="button"
@@ -15578,78 +15760,90 @@ export default function ClientProfilePage() {
               <>
                 <button
                   type="button"
-                  aria-label="Scroll profile orbiter up"
+                  aria-label="Scroll to Member Profile hero"
                   disabled={profileOrbiterLocked}
-                  onClick={() => scrollProfileOrbiterRow(-1)}
-                  className="grid h-8 w-8 place-items-center rounded-xl border border-cyan-100/24 bg-[radial-gradient(circle_at_32%_12%,rgba(255,255,255,0.22),transparent_34%),rgba(34,211,238,0.10)] text-sm font-black text-cyan-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur transition hover:border-cyan-100/48 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-cyan-100/24 disabled:hover:bg-cyan-300/10"
+                  onClick={() => setProfileOrbiterRow(0)}
+                  title="Back to Member Profile"
+                  className="grid h-7 w-9 shrink-0 place-items-center border-0 bg-transparent p-0 text-xl font-black leading-none text-cyan-100 drop-shadow-[0_0_10px_rgba(103,232,249,0.72)] transition hover:-translate-y-0.5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/60 disabled:cursor-not-allowed disabled:opacity-35"
                 >
-                  ^
+                  ↑
                 </button>
                 <div
                   aria-label="Profile row 3D vertical scroller"
-                  className="relative h-[250px] w-full overflow-visible [perspective:720px]"
+                  className={`relative min-h-0 w-full overflow-visible [perspective:720px] ${
+                    profileOrbiterRailFits
+                      ? "flex-1"
+                      : "h-[min(250px,calc(100%-5rem))] flex-none"
+                  }`}
                 >
                   <span
                     aria-hidden="true"
                     className="pointer-events-none absolute left-1/2 top-1/2 h-[178px] w-[86%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(103,232,249,0.16),rgba(251,191,36,0.08)_44%,transparent_74%)] blur-xl"
                   />
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-x-2 top-1/2 h-px -translate-y-1/2 bg-gradient-to-r from-transparent via-cyan-100/35 to-transparent"
-                  />
                   {profileOrbiterRows.slice(1).map((row, rowOffset) => {
                     const rowIndex = rowOffset + 1;
                     const isActiveRow =
                       clampedActiveProfileOrbiterRow === rowIndex;
-                    const rowTone = getCompletionIndicatorTone(row.completion);
-                    const pulseTone = getProfilePulseIndicatorTone(row.completion);
-                    const rowTextVisible =
-                      profileOrbiterRailExpanded || isActiveRow;
+                    const rowCardGroup = profileCardRows[rowOffset];
+                    const rowCard = rowCardGroup?.cards[
+                      getProfileSectionOrbitIndex(
+                        rowCardGroup.tab.id,
+                        rowCardGroup.cards.length,
+                      )
+                    ];
+                    const rowIcon =
+                      profileRowIconByTab[rowCardGroup.tab.id] || "circle-dot";
+                    const rowAccent = getProfileCardAccent(
+                      profileRowToneByTab[rowCardGroup.tab.id] || rowCard?.tone || "",
+                    );
 
                     return (
                       <button
                         key={row.title}
                         type="button"
+                        data-profile-row-indicator="true"
                         aria-label={`Show profile orbiter row ${rowIndex}: ${row.title}, ${row.completion}% complete`}
                         aria-pressed={isActiveRow}
                         disabled={profileOrbiterLocked}
                         onClick={() => setProfileOrbiterRow(rowIndex)}
-                        className={`absolute left-1/2 top-1/2 flex min-h-9 items-center gap-2 overflow-hidden rounded-2xl border px-2 py-1.5 text-[8px] font-black uppercase leading-[0.68rem] tracking-[0.06em] backdrop-blur-xl ${
-                          rowTextVisible ? "w-[9.2rem] justify-start" : "w-9 justify-center"
-                        } ${
-                          isActiveRow
-                            ? `${rowTone.activeButton} shadow-[0_0_22px_rgba(34,211,238,0.18),0_16px_34px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.18)]`
-                            : "border-white/12 bg-slate-950/42 text-slate-300 shadow-[0_10px_24px_rgba(0,0,0,0.20),inset_0_1px_0_rgba(255,255,255,0.08)] hover:border-orange-200/34 hover:bg-orange-300/12 hover:text-orange-100"
-                        } disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-white/10 disabled:hover:bg-white/[0.035] disabled:hover:text-slate-400`}
+                        className={`group absolute left-1/2 top-1/2 grid h-12 w-12 place-items-center overflow-visible border-0 bg-transparent p-0 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-35 ${
+                          isActiveRow ? "z-20" : "z-10"
+                        }`}
                         style={getProfileOrbiterRailRowStyle(rowIndex)}
                       >
                         <span
                           aria-hidden="true"
                           data-active={isActiveRow ? "true" : "false"}
-                          data-profile-indicator-motion={pulseTone.motion}
-                          className={`profile-row-card-indicator inline-flex shrink-0 items-center justify-center rounded-full border bg-black/25 transition ${
+                          className={`relative grid h-10 w-10 place-items-center transition duration-300 ${
                             isActiveRow
-                              ? `h-3.5 w-3.5 ${pulseTone.outerActive}`
-                              : `h-3 w-3 ${pulseTone.outerInactive}`
+                              ? "scale-110"
+                              : "scale-90 opacity-72 group-hover:scale-100 group-hover:opacity-100 group-focus-visible:scale-100 group-focus-visible:opacity-100"
                           }`}
-                          style={pulseTone.style}
+                          style={{ color: rowAccent.color }}
                         >
                           <span
-                            aria-hidden="true"
-                            data-profile-pulse-dot="true"
-                            className={`rounded-full ${
+                            className={`absolute inset-0 rounded-full transition-opacity duration-300 ${
                               isActiveRow
-                                ? pulseTone.dotActive
-                                : pulseTone.dotInactive
-                            } ${isActiveRow ? "h-2 w-2" : "h-1.5 w-1.5"}`}
+                                ? "opacity-100"
+                                : "opacity-0 group-hover:opacity-70 group-focus-visible:opacity-70"
+                            }`}
+                            style={{
+                              background: `radial-gradient(circle, rgba(${rowAccent.rgb}, 0.36) 0%, rgba(${rowAccent.rgb}, 0.13) 42%, transparent 72%)`,
+                              boxShadow: `0 0 20px rgba(${rowAccent.rgb}, ${isActiveRow ? 0.52 : 0.28})`,
+                            }}
+                          />
+                          <SelectorIcon
+                            name={rowIcon}
+                            className="absolute h-6 w-6 translate-x-[2px] translate-y-[3px] text-black/90"
+                          />
+                          <SelectorIcon
+                            name={rowIcon}
+                            className="relative h-6 w-6"
                           />
                         </span>
                         <span
-                          className={`overflow-hidden whitespace-normal text-left transition-[max-width,opacity] duration-300 ${
-                            rowTextVisible
-                              ? "max-w-[6.8rem] opacity-100"
-                              : "max-w-0 opacity-0"
-                          }`}
+                          role="tooltip"
+                          className="pointer-events-none absolute left-full top-1/2 ml-1.5 min-w-max -translate-y-1/2 translate-x-1 rounded-lg border border-white/12 bg-slate-950/92 px-2 py-1.5 text-[9px] font-black uppercase tracking-[0.08em] text-white opacity-0 shadow-[0_10px_28px_rgba(0,0,0,0.42)] backdrop-blur-xl transition group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100"
                         >
                           {row.title}
                         </span>
@@ -15657,7 +15851,7 @@ export default function ClientProfilePage() {
                     );
                   })}
                 </div>
-                <button
+                {!profileOrbiterRailFits ? <button
                   type="button"
                   aria-label="Scroll profile orbiter down"
                   disabled={
@@ -15669,7 +15863,7 @@ export default function ClientProfilePage() {
                   className="grid h-8 w-8 place-items-center rounded-xl border border-orange-100/24 bg-[radial-gradient(circle_at_32%_12%,rgba(255,255,255,0.20),transparent_34%),rgba(251,146,60,0.10)] text-sm font-black text-orange-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur transition hover:border-orange-100/48 hover:bg-orange-300/16 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:border-orange-100/24 disabled:hover:bg-orange-300/10"
                 >
                   v
-                </button>
+                </button> : null}
               </>
             )}
           </div>
@@ -15678,12 +15872,12 @@ export default function ClientProfilePage() {
         <div
           ref={profileOrbiterViewportRef}
           aria-label="Profile orbiter rows and cards"
-          className={`relative h-[calc(100dvh-84px)] min-h-[640px] max-h-none cursor-grab select-none overscroll-y-auto scroll-smooth snap-y snap-mandatory [scrollbar-width:none] active:cursor-grabbing [&::-webkit-scrollbar]:hidden ${
+          className={`relative min-h-0 cursor-grab select-none overscroll-y-auto scroll-smooth snap-y snap-mandatory [scrollbar-width:none] active:cursor-grabbing [&::-webkit-scrollbar]:hidden ${
             profileOrbiterLocked ? "overflow-y-hidden" : "overflow-y-auto"
           }`}
           style={{
-            height: "calc(100dvh - 84px)",
-            minHeight: 640,
+            height: "calc(100dvh - 6.1rem)",
+            minHeight: 0,
           }}
           onClickCapture={(event) => {
             if (!profileOrbiterPointerMovedRef.current) return;
@@ -15749,15 +15943,15 @@ export default function ClientProfilePage() {
           role="region"
           tabIndex={0}
         >
-          <div className="relative flex min-h-full flex-col gap-[clamp(64px,10dvh,120px)] pb-[clamp(54px,9dvh,104px)] pt-0">
+          <div className={`${heroStyles.orbiterRows} relative flex min-h-full flex-col gap-[clamp(64px,10dvh,120px)] pb-[clamp(54px,9dvh,104px)] pt-0`}>
           <section
             id="profile-orbiter-row-0"
             ref={profileHeroRowRef}
             data-profile-orbiter-row="0"
-            className="relative flex min-h-[calc(100dvh-84px)] snap-center flex-col justify-center py-[clamp(14px,3dvh,30px)]"
+            className={`${heroStyles.row} relative flex snap-center flex-col`}
             style={getProfileOrbiterRowStyle(0)}
           >
-            <div className="mx-auto flex h-full w-full max-w-[1180px] flex-col justify-center gap-2.5">
+            <div className={`${heroStyles.rowContent} mx-auto flex w-full max-w-[1180px] flex-col justify-center`}>
               {renderHero()}
               {renderProfileHeroSummaryCards()}
             </div>
@@ -15786,20 +15980,22 @@ export default function ClientProfilePage() {
               hasExpandedActiveCard && activeCard
                 ? renderExpandedProfileOrbiterCard(activeCard)
                 : null;
-            const activeCardDetailsOpen = Boolean(
-              activeCardKey && openProfileOrbiterDetails === activeCardKey,
-            );
 
             if (expandedActiveContent) {
+              const previousQuestionIndex =
+                (activeCardIndex - 1 + cardRow.cards.length) % cardRow.cards.length;
+              const nextQuestionIndex =
+                (activeCardIndex + 1) % cardRow.cards.length;
+
               return (
                 <section
                   key={cardRow.tab.id}
                   id={`profile-orbiter-row-${cardRow.rowIndex}`}
                   data-profile-orbiter-row={cardRow.rowIndex}
-                  className="relative flex min-h-[calc(100dvh-84px)] snap-center flex-col items-center justify-center overflow-visible py-[clamp(54px,8dvh,92px)]"
+                  className="relative flex min-h-[calc(100dvh-84px)] snap-center flex-col items-center justify-center overflow-visible py-[clamp(24px,4.5dvh,52px)]"
                   style={getProfileOrbiterRowStyle(cardRow.rowIndex)}
                 >
-                  <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-3">
+                  <div className={`${heroStyles.expandedRowContent} flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-2`}>
                     {renderProfileRowHeader(cardRow, "", true, true, {
                       activeIndex: activeCardIndex,
                       cards: cardRow.cards,
@@ -15808,11 +16004,47 @@ export default function ClientProfilePage() {
                     <article
                       aria-current="page"
                       aria-label={`Expanded ${activeCard?.label || cardRow.title}`}
-                      className={`relative w-[min(88vw,980px)] rounded-[28px] border p-0 text-left shadow-[0_22px_58px_rgba(0,0,0,0.36)] outline-none backdrop-blur ring-2 ring-cyan-100/26 ${activeCard?.tone || ""} ${getCompletionTone(activeCard?.completion || 0).glow}`}
+                      className={`relative w-full max-w-[980px] rounded-[28px] border p-0 text-left shadow-[0_22px_58px_rgba(0,0,0,0.36)] outline-none backdrop-blur ring-2 ring-cyan-100/26 ${activeCard?.tone || ""} ${getCompletionTone(activeCard?.completion || 0).glow}`}
+                      style={{ background: "rgba(2, 6, 23, 0.72)" }}
                     >
                       {renderCollapseProfileDropdownButton()}
                       {expandedActiveContent}
                     </article>
+                    <nav
+                      aria-label={`${cardRow.title} question navigation`}
+                      data-profile-question-navigation="true"
+                      className="flex w-full max-w-[980px] shrink-0 items-center justify-between gap-2 px-1"
+                    >
+                      <button
+                        type="button"
+                        aria-label={`Show previous ${cardRow.title} question`}
+                        onClick={() =>
+                          openProfileOrbiterFullCard(
+                            cardRow.tab.id,
+                            previousQuestionIndex,
+                          )
+                        }
+                        className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-cyan-200/24 bg-cyan-300/10 text-xl font-black text-cyan-50 shadow-[0_0_20px_rgba(34,211,238,0.16)] transition hover:border-cyan-100/48 hover:bg-cyan-300/18"
+                      >
+                        ←
+                      </button>
+                      <p className="min-w-0 text-center text-[10px] font-black uppercase tracking-[0.14em] text-slate-300">
+                        <span className="block truncate text-white">
+                          {activeCard.label}
+                        </span>
+                        Card {activeCardIndex + 1} of {cardRow.cards.length}
+                      </p>
+                      <button
+                        type="button"
+                        aria-label={`Show next ${cardRow.title} question`}
+                        onClick={() =>
+                          openProfileOrbiterFullCard(cardRow.tab.id, nextQuestionIndex)
+                        }
+                        className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-orange-200/24 bg-orange-300/10 text-xl font-black text-orange-50 shadow-[0_0_20px_rgba(251,146,60,0.16)] transition hover:border-orange-100/48 hover:bg-orange-300/18"
+                      >
+                        →
+                      </button>
+                    </nav>
                   </div>
                 </section>
               );
@@ -15829,7 +16061,7 @@ export default function ClientProfilePage() {
                 style={getProfileOrbiterRowStyle(cardRow.rowIndex)}
               >
                 <div
-                  className={`relative w-full overflow-hidden [perspective:900px] ${
+                  className={`${heroStyles.orbiterStage} relative w-full overflow-hidden [perspective:900px] ${
                     hasExpandedActiveCard
                       ? "h-[calc(100%-3.25rem)] min-h-[0]"
                       : "h-[min(520px,calc(100%-5rem))] min-h-[430px]"
@@ -15837,11 +16069,9 @@ export default function ClientProfilePage() {
                 >
                   {renderProfileRowHeader(
                     cardRow,
-                    `absolute inset-x-0 mx-auto ${
-                      activeCardDetailsOpen ? "top-1" : "top-4"
-                    }`,
+                    "absolute inset-x-0 top-4 mx-auto",
                     cardRow.rowIndex === clampedActiveProfileOrbiterRow,
-                    activeCardDetailsOpen,
+                    false,
                     {
                       activeIndex: activeCardIndex,
                       cards: cardRow.cards,
@@ -15850,40 +16080,8 @@ export default function ClientProfilePage() {
                   )}
                   <span
                     aria-hidden="true"
-                    className="pointer-events-none absolute left-1/2 top-1/2 h-[220px] w-[min(88vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-[46px] bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.11),rgba(251,146,60,0.08)_48%,transparent_76%)] blur-xl"
+                    className="pointer-events-none absolute left-1/2 top-[max(calc(50%-0.75rem),15.5rem)] h-[220px] w-[min(88vw,760px)] -translate-x-1/2 -translate-y-1/2 rounded-[46px] bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.11),rgba(251,146,60,0.08)_48%,transparent_76%)] blur-xl"
                   />
-                  {cardRow.cards.length > 1 && !expandedProfileOrbiterCard ? (
-                    <>
-                      <button
-                        type="button"
-                        aria-label={`Show previous ${cardRow.title}`}
-                        onClick={() =>
-                          moveProfileSectionOrbit(
-                            cardRow.tab.id,
-                            cardRow.cards.length,
-                            -1,
-                          )
-                        }
-                        className="absolute left-4 top-1/2 z-[70] grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-cyan-200/18 bg-slate-950/72 text-lg font-black text-cyan-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-cyan-200/42 hover:bg-cyan-300/12 sm:left-6 lg:left-8"
-                      >
-                        &lt;
-                      </button>
-                      <button
-                        type="button"
-                        aria-label={`Show next ${cardRow.title}`}
-                        onClick={() =>
-                          moveProfileSectionOrbit(
-                            cardRow.tab.id,
-                            cardRow.cards.length,
-                            1,
-                          )
-                        }
-                        className="absolute right-[5.75rem] top-1/2 z-[70] grid h-11 w-11 -translate-y-1/2 place-items-center rounded-2xl border border-orange-200/18 bg-slate-950/72 text-lg font-black text-orange-100 shadow-[0_18px_52px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:border-orange-200/42 hover:bg-orange-300/12 sm:right-[6.5rem] lg:right-[7rem]"
-                      >
-                        &gt;
-                      </button>
-                    </>
-                  ) : null}
                   {cardRow.cards.map((card, index) => {
                     let distance = index - activeCardIndex;
                     if (distance > cardRow.cards.length / 2) {
@@ -15931,13 +16129,18 @@ export default function ClientProfilePage() {
                           : 0.36;
                     const tone = getCompletionTone(card.completion);
                     const pulseTone = getProfilePulseIndicatorTone(card.completion);
-                    const detailsKey = cardKey;
-                    const detailsOpen = openProfileOrbiterDetails === detailsKey;
-
+                    const cardAccent = getProfileCardAccent(card.tone);
+                    const rowPulseStyle = {
+                      ...pulseTone.style,
+                      "--profile-indicator-glow": `rgba(${cardAccent.rgb},0.92)`,
+                      "--profile-indicator-glow-dim": `rgba(${cardAccent.rgb},0.46)`,
+                      "--profile-indicator-glow-soft": `rgba(${cardAccent.rgb},0.34)`,
+                    } as ProfilePulseIndicatorStyle;
                     return (
                       <article
                         aria-current={isActive ? "page" : undefined}
                         aria-label={`${isActive ? "Active" : "Show"} ${card.label}`}
+                        data-profile-orbit-distance={absDistance}
                         key={card.label}
                         onClick={(event) => {
                           const openFullCard = () =>
@@ -15989,14 +16192,17 @@ export default function ClientProfilePage() {
                         }}
                         role={isActive && !card.expandsToFullCard ? undefined : "button"}
                         tabIndex={isActive && !card.expandsToFullCard ? -1 : 0}
-                        className={`absolute left-1/2 rounded-[28px] border text-left shadow-[0_22px_58px_rgba(0,0,0,0.36)] outline-none backdrop-blur transition-[transform,opacity,border-color,background-color,box-shadow,width] duration-[520ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] hover:border-white/28 focus-visible:ring-2 focus-visible:ring-cyan-100/50 ${
+                        className={`${heroStyles.orbitCard} absolute left-1/2 rounded-[28px] border text-left shadow-[0_22px_58px_rgba(0,0,0,0.36)] outline-none backdrop-blur transition-[transform,opacity,border-color,background-color,box-shadow,width] duration-[520ms] ease-[cubic-bezier(0.2,0.85,0.25,1)] hover:border-white/28 focus-visible:ring-2 focus-visible:ring-cyan-100/50 ${
                           expandedContent
                             ? `top-0 w-[min(88vw,980px)] p-0 ring-2 ring-cyan-100/26 ${tone.glow}`
                             : isActive
-                              ? `top-1/2 w-[min(82vw,380px)] overflow-hidden p-5 ring-2 ring-cyan-100/26 ${tone.glow}`
-                              : "top-1/2 w-[220px] cursor-pointer overflow-hidden p-5"
+                              ? `top-[max(calc(50%-0.75rem),15.5rem)] w-[min(82vw,380px)] overflow-hidden p-5 ring-2 ring-cyan-100/26 ${tone.glow}`
+                              : "top-[max(calc(50%-0.75rem),15.5rem)] w-[220px] cursor-pointer overflow-hidden p-5"
                         } ${card.tone}`}
                         style={{
+                          background: expandedContent
+                            ? "rgba(2, 6, 23, 0.72)"
+                            : undefined,
                           filter: "none",
                           opacity,
                           transform: expandedContent
@@ -16006,7 +16212,7 @@ export default function ClientProfilePage() {
                         }}
                       >
                         {!expandedContent
-                          ? renderProfileCardLiquidGlass(card.completion, isActive)
+                          ? renderProfileCardLiquidGlass(card.completion, card.tone, isActive)
                           : null}
                         {expandedContent ? (
                           <div className="relative">
@@ -16035,7 +16241,15 @@ export default function ClientProfilePage() {
                                   </p>
                                 </div>
                               </div>
-                              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${tone.badge}`}>
+                              <span
+                                className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black"
+                                style={{
+                                  background: `rgba(${cardAccent.rgb},0.14)`,
+                                  borderColor: `rgba(${cardAccent.rgb},0.42)`,
+                                  boxShadow: `0 0 14px rgba(${cardAccent.rgb},0.2)`,
+                                  color: cardAccent.color,
+                                }}
+                              >
                                 <span
                                   aria-hidden="true"
                                   data-active={isActive ? "true" : "false"}
@@ -16045,7 +16259,7 @@ export default function ClientProfilePage() {
                                       ? `h-3.5 w-3.5 ${pulseTone.outerActive}`
                                       : `h-3 w-3 ${pulseTone.outerInactive}`
                                   }`}
-                                  style={pulseTone.style}
+                                  style={rowPulseStyle}
                                 >
                                   <span
                                     aria-hidden="true"
@@ -16085,52 +16299,9 @@ export default function ClientProfilePage() {
                                   }}
                                   className="mt-4 block w-full rounded-2xl border border-cyan-200/22 bg-cyan-300/12 px-3 py-3 text-center text-[9px] font-black uppercase tracking-[0.14em] text-cyan-50 transition hover:border-cyan-200/42 hover:bg-cyan-300/18"
                                 >
-                                  Open Full Drop Down
+                                  Open Questions
                                 </button>
-                              ) : (
-                                <>
-                                  <button
-                                    type="button"
-                                    aria-expanded={detailsOpen}
-                                    onClick={() =>
-                                      setOpenProfileOrbiterDetails((current) =>
-                                        current === detailsKey ? null : detailsKey,
-                                      )
-                                    }
-                                    className="mt-4 flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-950/54 px-4 py-3 text-left text-[10px] font-black uppercase tracking-[0.16em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:border-cyan-200/30 hover:bg-cyan-300/10"
-                                  >
-                                    <span>Details</span>
-                                    <span
-                                      aria-hidden="true"
-                                      className={`text-sm leading-none text-cyan-100 transition-transform duration-300 ${
-                                        detailsOpen ? "rotate-180" : ""
-                                      }`}
-                                    >
-                                      v
-                                    </span>
-                                  </button>
-                                  <div
-                                    className={`grid transition-all duration-300 ease-out ${
-                                      detailsOpen
-                                        ? "mt-3 grid-rows-[1fr] opacity-100"
-                                        : "grid-rows-[0fr] opacity-0"
-                                    }`}
-                                  >
-                                    <div className="overflow-hidden">
-                                      <div className="grid gap-2 rounded-2xl border border-white/10 bg-slate-950/34 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-                                        {card.references.map((reference) => (
-                                          <span
-                                            key={reference}
-                                            className="truncate rounded-xl border border-white/10 bg-slate-950/42 px-3 py-2 text-[10px] font-black text-slate-100"
-                                          >
-                                            {reference}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </>
-                              )
+                              ) : null
                             ) : null}
                           </div>
                         )}
@@ -16279,53 +16450,6 @@ export default function ClientProfilePage() {
     }
     return renderOverview();
   };
-
-  const renderActiveTab = () => renderProfileTabContent(activeTab);
-
-  const renderProfileDetailsStack = () => (
-    <section className="space-y-6 pt-5" aria-label="Profile detail sections">
-      {profileDetailTabs.map((tab) => {
-        const completion = tabCompletions[tab.id] || 0;
-        const tone = getCompletionTone(completion);
-
-        return (
-          <section
-            key={tab.id}
-            className="space-y-5"
-            id={`profile-details-${tab.id}`}
-          >
-            <div className="relative overflow-hidden rounded-[28px] border border-cyan-200/16 bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.14),transparent_34%),rgba(15,23,42,0.62)] p-4 shadow-[0_18px_56px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.08)]">
-              <span
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-200/60 to-orange-200/45"
-              />
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200/70">
-                    Profile Details
-                  </p>
-                  <h2 className="mt-1 text-xl font-black text-white">
-                    {tab.label}
-                  </h2>
-                </div>
-                <span className={`rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] ${tone.badge}`}>
-                  {completion}% Complete
-                </span>
-              </div>
-              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-950/70">
-                <span
-                  className={`block h-full rounded-full bg-gradient-to-r ${tone.bar} transition-[width] duration-300`}
-                  style={{ width: `${completion}%` }}
-                />
-              </div>
-            </div>
-            {renderProfileTabContent(tab.id)}
-          </section>
-        );
-      })}
-      {renderMasterJourneyMap()}
-    </section>
-  );
 
   const renderMasterJourneyMap = () => {
     const journeyRows: Array<{
@@ -16688,8 +16812,8 @@ export default function ClientProfilePage() {
   };
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_30%),radial-gradient(circle_at_82%_10%,rgba(251,146,60,0.14),transparent_28%),linear-gradient(180deg,#020617_0%,#07111f_52%,#020617_100%)] pb-10 text-white">
-      <section className="mx-auto w-full max-w-[1440px] px-4 pb-6 pt-0 sm:px-6 lg:px-8">
+    <DashboardExperience headerOnly headerOnlyViewport>
+      <section className="mx-auto w-full max-w-[1440px] overflow-x-clip px-4 pb-0 pt-0 sm:px-6 lg:px-8">
         <nav className="hidden rounded-[28px] border border-white/10 bg-slate-950/52 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
           <div className="flex items-center gap-2">
             <button
@@ -16758,13 +16882,10 @@ export default function ClientProfilePage() {
             Loading profile command center...
           </div>
         ) : (
-          <>
-            {renderProfileSectionOrbiters()}
-            {renderProfileDetailsStack()}
-          </>
+          renderProfileSectionOrbiters()
         )}
       </section>
 
-    </main>
+    </DashboardExperience>
   );
 }

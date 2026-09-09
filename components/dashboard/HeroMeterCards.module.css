@@ -1,0 +1,299 @@
+.deck {
+  min-height: 0;
+  container-type: size;
+  container-name: hero-meter;
+}
+
+.challengeCard {
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  padding: 48px 14px 14px;
+  overflow: hidden;
+  container-type: size;
+  background: radial-gradient(ellipse at 15% 0%, #fbbf2421, transparent 48%), radial-gradient(ellipse at 90% 90%, #22d3ee13, transparent 48%), linear-gradient(145deg, #101b2be8, #020617eb);
+}
+.content.challengeContent { --meter-accent: #fde68a; grid-template-rows: auto auto minmax(0, 1fr) auto auto; }
+.challengeCategories { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 5px; }
+.challengeCategories button { display: grid; place-items: center; height: 32px; min-width: 0; border: 1px solid #ffffff1a; border-radius: 9px; background: #02061766; }
+.challengeCategories button:hover { background: #ffffff12; }
+.challengeCategories button:focus-visible { outline: 2px solid #a5f3fc; outline-offset: 2px; }
+.challengeCategories svg { height: 17px; width: 17px; }
+.challengeList { display: grid; grid-template-rows: auto repeat(3, minmax(min-content, 1fr)); gap: 8px; min-height: 0; }
+.challengeCategoryTitle, .challengeCategoryTitle h3 { display: flex; align-items: center; gap: 6px; }
+.challengeCategoryTitle { justify-content: space-between; }
+.challengeCategoryTitle h3 { font-size: 13px; font-weight: 800; }
+.challengeCategoryTitle svg { height: 16px; width: 16px; }
+.challengeCategoryTitle > span { color: #94a3b8; font-size: 11px; }
+.challengeItem { display: flex; flex-direction: column; justify-content: space-between; gap: 5px; min-height: 0; padding: 10px; border: 1px solid #ffffff18; border-left-color: var(--challenge-color); border-radius: 12px; background: linear-gradient(110deg, var(--challenge-soft), #02061755 70%); }
+.challengeItem h4 { display: flex; gap: 8px; color: #f1f5f9; font-size: 14px; font-weight: 800; line-height: 1.25; }
+.challengeItem h4 > span { color: var(--challenge-color); font-size: 11px; padding-top: 2px; }
+.challengeProgress { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px; font-size: 11px; color: var(--challenge-color); }
+.challengeProgress progress { grid-column: 1 / -1; width: 100%; height: 4px; border: 0; border-radius: 3px; appearance: none; overflow: hidden; background: #ffffff12; }
+.challengeProgress progress::-webkit-progress-bar { background: #ffffff12; }
+.challengeProgress progress::-webkit-progress-value { background: var(--challenge-color); }
+.challengeProgress progress::-moz-progress-bar { background: var(--challenge-color); }
+
+@container (max-width: 340px) {
+  .challengeCategories { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .challengeItem h4 { font-size: 12px; }
+}
+
+/* This container is the padded Challenges card, unlike the outer meter deck. */
+@container (max-height: 430px) {
+  .challengeContent { gap: 6px; }
+  .challengeCategories button { height: 26px; }
+  .challengeCategories svg { height: 15px; width: 15px; }
+  .challengeList { gap: 5px; }
+  .challengeItem { padding: 5px 8px; gap: 2px; }
+  .challengeItem h4 { font-size: 11px; line-height: 1.15; gap: 5px; }
+  .challengeItem h4 > span { padding-top: 0; font-size: 10px; }
+  .challengeProgress { font-size: 10px; gap: 2px; }
+  .challengeProgress progress { height: 3px; }
+}
+
+.deck > :global(.dashboard-hero-card) {
+  height: 100%;
+  min-height: 0;
+  display: block;
+  padding: 48px 14px 14px;
+}
+
+.content {
+  --meter-accent: #99f6e4;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+  gap: 10px;
+  width: 100%;
+  max-width: 620px;
+  height: 100%;
+  min-height: 0;
+  margin-inline: auto;
+}
+
+.heading p {
+  color: var(--meter-accent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.heading h2 {
+  color: var(--meter-accent);
+  font-size: clamp(21px, 6cqw, 32px);
+  font-weight: 950;
+  line-height: 1.15;
+  letter-spacing: .025em;
+  text-transform: uppercase;
+  text-shadow: 0 1px 0 #3b6669, 0 2px 0 #142c40, 0 4px 9px #0009;
+}
+
+.needleStage {
+  display: grid;
+  min-height: 0;
+  place-items: center;
+  padding-top: 28px;
+}
+
+.needleStage :global(.dashboard-hero-space-needle-meter) {
+  width: 100%;
+  height: 214px;
+  max-width: 372px;
+  transform: none;
+  padding-bottom: 0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-block: 1px solid #ffffff16;
+  padding-block: 9px;
+  text-align: center;
+}
+
+.stats > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column-reverse;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.stats > div + div { border-left: 1px solid #ffffff12; }
+.stats dt { color: #a8b9cc; font-size: 12px; line-height: 1.2; }
+.stats dd { color: var(--meter-accent); font-size: 23px; font-weight: 900; line-height: 1.1; }
+.stats small { color: #bdd0dc; font-size: 12px; font-weight: 600; }
+
+.week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  text-align: center;
+  font-size: 11px;
+  color: #a8b9cc;
+}
+.dayMark {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  margin: 3px auto 0;
+  border: 1px solid #ffffff18;
+  border-radius: 50%;
+  color: #8395a9;
+}
+.dayMark svg { width: 14px; height: 14px; }
+.week [data-trained="true"] .dayMark { color: #99f6e4; background: #2dd4bf25; border-color: #5eead477; }
+.week [data-today="true"] .dayMark { border-color: #67e8f9; box-shadow: 0 0 9px #22d3ee35; }
+
+.footer { display: grid; gap: 8px; text-align: center; }
+.footer p { color: #d2dce7; font-size: 12px; line-height: 1.35; }
+.footer p span { display: block; color: #91a5bc; font-size: 11px; margin-top: 2px; }
+.footer a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 36px;
+  border: 1px solid #99f6e42b;
+  border-radius: 12px;
+  background: linear-gradient(110deg, #5eead413, #5eead404);
+  color: var(--meter-accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+.footer a:hover { background: #ffffff12; }
+.footer a:focus-visible, .achievementControls button:focus-visible { outline: 2px solid var(--meter-accent); outline-offset: 2px; }
+.footer svg { width: 16px; height: 16px; }
+
+.achievements { --meter-accent: #fde68a; grid-template-rows: auto minmax(0, 1fr) auto auto auto auto; }
+.achievementStage { position: relative; min-height: 0; }
+.achievementStage :global(.dashboard-hero-achievement-cloud-bank) { top: 0; }
+.achievementOrbit { height: 100%; min-height: 0; }
+.achievementControls { display: flex; justify-content: center; align-items: center; gap: 20px; color: #b8c4d4; font-size: 12px; }
+.achievementControls button { display: grid; place-items: center; height: 28px; width: 32px; background: none; border: none; color: var(--meter-accent); }
+.achievementControls svg { width: 18px; height: 18px; }
+.nextMilestone { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 5px 8px; align-items: end; }
+.nextMilestone span { display: block; color: #94a3b8; font-size: 11px; }
+.nextMilestone strong { color: #fef3c7; font-size: 13px; }
+.nextMilestone progress { grid-column: 1 / -1; width: 100%; height: 4px; border: none; border-radius: 3px; overflow: hidden; appearance: none; background: #ffffff12; }
+.nextMilestone progress::-webkit-progress-bar { background: #ffffff12; }
+.nextMilestone progress::-webkit-progress-value { background: linear-gradient(90deg, #d97706, #fde68a); }
+.nextMilestone progress::-moz-progress-bar { background: #fde68a; }
+
+/* Meter visuals scale inside the remaining space; supporting content stays in
+   normal flow and the deck never gets a fixed minimum taller than its row. */
+@container hero-meter (max-height: 570px) {
+  .needleStage :global(.dashboard-hero-space-needle-meter) { zoom: .76; }
+}
+@container hero-meter (max-height: 490px) {
+  .content { gap: 6px; }
+  .deck > :global(.dashboard-hero-card) { padding-bottom: 10px; }
+  .needleStage { padding-top: 20px; }
+  .needleStage :global(.dashboard-hero-space-needle-meter) { zoom: .55; }
+  .stats { padding-block: 6px; }
+  .stats dd { font-size: 20px; }
+  .achievementOrbit { zoom: .85; }
+}
+@container hero-meter (max-height: 420px) {
+  .heading h2 { font-size: 20px; }
+  .content { gap: 4px; }
+  .needleStage :global(.dashboard-hero-space-needle-meter) { zoom: .44; }
+  .achievementOrbit { zoom: .68; }
+  .footer { gap: 4px; }
+  .footer a { min-height: 30px; }
+  .stats dd { font-size: 18px; }
+}
+
+/* Challenges has its own height budget: meter scaling must not compress its
+   category controls, card gutters, or summary. */
+.content.challengeContent { gap: 12px; }
+.challengeList { gap: 10px; }
+.challengeCategoryTitle { min-height: 22px; }
+.challengeItem { padding: 10px 12px; gap: 7px; }
+.challengeItem h4 { font-size: 14px; line-height: 1.3; align-items: baseline; }
+.challengeItem h4 > span { flex: 0 0 18px; }
+.challengeProgress { gap: 5px; font-size: 11px; padding-left: 26px; }
+.challengeContent .stats { padding-block: 8px; }
+
+@container (max-width: 340px) {
+  .challengeCategories { grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 3px; }
+  .challengeCategories button { height: 30px; border-radius: 7px; }
+  .challengeCategories svg { width: 15px; height: 15px; }
+  .challengeItem h4 { font-size: 12px; }
+}
+@container (max-height: 440px) {
+  .content.challengeContent { gap: 10px; }
+  .challengeList { gap: 9px; }
+  .challengeItem { padding: 8px 10px; gap: 4px; }
+  .challengeItem h4 { font-size: 12px; line-height: 1.25; }
+  .challengeContent .heading h2 { font-size: 24px; }
+  .challengeContent .stats { padding-block: 6px; }
+  .challengeContent .stats dd { font-size: 20px; }
+}
+@container (max-height: 380px) {
+  .content.challengeContent { gap: 6px; }
+  .challengeList { gap: 6px; }
+  .challengeItem { padding: 5px 8px; gap: 3px; }
+  .challengeItem h4 { font-size: 11px; }
+  .challengeProgress { padding-left: 23px; gap: 3px; font-size: 10px; }
+  .challengeContent .heading h2 { font-size: 22px; }
+  .challengeContent .stats { padding-block: 3px; }
+  .challengeContent .stats dt { font-size: 11px; }
+  .challengeContent .stats dd { font-size: 18px; }
+  .challengeContent .footer a { min-height: 32px; }
+}
+
+.favoriteCard { overflow: hidden; background: radial-gradient(ellipse at 15% 0%, #38bdf825, transparent 55%), linear-gradient(145deg, #111e30ed, #020617ed); }
+.content.favoriteContent { --meter-accent: #bae6fd; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 12px; }
+.favoriteContent .heading h2 { max-width: 100%; font-size: clamp(21px, 5.6cqw, 30px); }
+.favoriteNavigation { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #a8b9cc; font-size: 12px; }
+.favoriteNavigation > div { display: flex; align-items: center; gap: 6px; }
+.favoriteNavigation button { width: 30px; height: 30px; display: grid; place-items: center; background: none; border: 0; color: #bae6fd; }
+.favoriteNavigation svg { height: 18px; width: 18px; }
+.favoriteFeatured { display: flex; flex-direction: column; justify-content: space-between; gap: 12px; min-height: 0; padding: 18px; border: 1px solid #7dd3fc2e; border-radius: 20px; background: radial-gradient(ellipse at 50% 0%, #38bdf818, transparent 70%), #02061740; }
+.favoriteIdentity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.favoriteIdentity > div { min-width: 0; }
+.favoriteIdentity p { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #7dd3fc; }
+.favoriteIdentity h3, .favoriteEmpty h3 { color: #f0f9ff; font-size: 20px; line-height: 1.2; font-weight: 850; overflow-wrap: anywhere; }
+.favoriteIdentity h3 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.favoriteIcon { flex: 0 0 48px; display: grid; place-items: center; height: 48px; font-size: 28px; border-radius: 15px; background: #38bdf817; border: 1px solid #7dd3fc25; }
+.favoriteExercisePreview { display: grid; gap: 7px; min-height: 0; }
+.favoriteExercisePreview > p { font-size: 12px; color: #a8b9cc; }
+.favoriteExercisePreview ul { display: grid; gap: 8px; }
+.favoriteExercisePreview li { display: flex; gap: 10px; font-size: 13px; color: #dde7f0; }
+.favoriteExercisePreview li > span:first-child { color: #7dd3fc; font-size: 11px; }
+.favoriteExercisePreview li > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.favoriteStart { flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; border-radius: 12px; color: #e0f2fe; font-size: 13px; font-weight: 800; border: 1px solid #7dd3fc50; background: linear-gradient(120deg, #0ea5e930, #38bdf812); }
+.favoriteStart svg { height: 16px; width: 16px; }
+.favoriteStart:hover { background: #38bdf829; }
+.favoriteEmpty { text-align: center; align-items: center; justify-content: space-evenly; }
+.favoriteEmpty > div { max-width: 280px; }
+.favoriteEmpty p { margin-top: 10px; color: #a8b9cc; font-size: 14px; line-height: 1.5; }
+.favoriteEmpty .favoriteStart { width: 100%; }
+.favoriteEmptyIcon { position: relative; display: grid; place-items: center; width: 74px; height: 74px; border-radius: 50%; border: 1px solid #7dd3fc35; background: radial-gradient(circle at 30% 20%, #7dd3fc25, #0c4a6e20); box-shadow: inset 0 2px 1px #e0f2fe22, 0 8px 24px #02061780; color: #bae6fd; }
+.favoriteEmptyIcon > svg:first-child { width: 36px; height: 36px; filter: drop-shadow(0 3px 0 #075985); }
+.favoriteEmptyIcon > svg:last-child { position: absolute; right: -2px; bottom: 3px; width: 24px; height: 24px; color: #fcd34d; fill: #b45309; }
+.favoriteActions { display: grid; gap: 8px; }
+.favoriteActions a { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px; border-radius: 13px; border: 1px solid #ffffff18; background: #ffffff04; color: #cbd5e1; }
+.favoriteActions a > span { flex: 1; font-size: 13px; font-weight: 750; }
+.favoriteActions small { display: block; font-size: 11px; font-weight: 500; color: #94a3b8; }
+.favoriteActions svg { width: 18px; height: 18px; color: #7dd3fc; }
+.favoriteActions a:hover { background: #38bdf811; }
+.favoriteContent a:focus-visible, .favoriteNavigation button:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 2px; }
+
+@container hero-meter (max-height: 490px) {
+  .content.favoriteContent { gap: 8px; }
+  .favoriteFeatured { padding: 12px; gap: 8px; }
+  .favoriteIdentity h3, .favoriteEmpty h3 { font-size: 17px; }
+  .favoriteEmptyIcon { width: 56px; height: 56px; }
+  .favoriteEmpty p { font-size: 12px; line-height: 1.4; margin-top: 6px; }
+  .favoriteExercisePreview { gap: 4px; }
+  .favoriteExercisePreview ul { gap: 4px; }
+  .favoriteExercisePreview li { font-size: 12px; }
+  .favoriteActions a { min-height: 42px; padding: 6px 10px; }
+  .favoriteStart { min-height: 34px; }
+}

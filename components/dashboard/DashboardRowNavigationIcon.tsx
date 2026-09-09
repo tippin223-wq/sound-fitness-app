@@ -27,7 +27,7 @@ const artworkCenters: Record<string, readonly [number, number]> = {
   stats: [18.5, 19.35],
   dashboard: [19, 19.35],
   calendar: [19.5, 19.6],
-  sound: [18.75, 19.6],
+  sound: [20, 20],
   settings: [19.5, 20.85],
   plan: [19.5, 20.35],
   packages: [19, 21.35],
@@ -111,12 +111,7 @@ export default function DashboardRowNavigationIcon({
       break;
     case "sound":
       artwork = (
-        <>
-          {solid(<path d="M19 2C14 6 9 7 4 7V21C4 29 11 33 19 36C27 33 34 29 34 21V7C29 7 24 6 19 2Z" />)}
-          <path d="M19 5C15 8 10 9 7 9V21C7 27 12 30 19 33C26 30 31 27 31 21V9C27 9 23 8 19 5Z" fill="#061b30" />
-          <image href="/sound-crest-avatar.png" x="0.5" y="0.5" width="36.5" height="36.5" preserveAspectRatio="xMidYMid meet" />
-          <path d="M5 18V8C10 8 15 6 19 3" fill="none" stroke="#f0ffff" strokeWidth="1.3" strokeLinecap="round" />
-        </>
+        <image href="/sound-crest-avatar.png" x="0" y="0" width="40" height="40" preserveAspectRatio="xMidYMid meet" />
       );
       break;
     case "settings":

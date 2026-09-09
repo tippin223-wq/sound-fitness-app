@@ -567,6 +567,9 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     .dashboard-header-menu-content
     > .dashboard-header-mobile-orbit-joystick {
     translate: 0 1.43rem;
+    /* The crest's beveled artwork extends past its layout box. Reserve a
+       positive gap while open so the joystick cannot paint over that edge. */
+    margin-left: 0.5rem !important;
   }
 
   /* The nav's open-state shrink (formerly scale: 0.88 here) is folded into
@@ -596,11 +599,9 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
        instead of the ~71px menu area, and since that box's height changes with
        its contents the joystick kept drifting between positions. */
     align-self: flex-start !important;
-    /* Walks the collapsed joystick toward the crest: both shrink away from
-       each other (crest scales from its top-left, joystick from its centre),
-       which left a ~46px visual gap. The stage flexes to absorb the slack, so
-       the meter stays pinned right. */
-    margin-left: -2.2rem !important;
+    /* Only reclaim the crest's unused scaled layout space. The old -2.2rem
+       pull was tuned for a wider crest and overlapped its current artwork. */
+    margin-left: -0.5rem !important;
     /* 0.6 (the generic idle scale) x 0.88 (this joystick's deliberate open
        size): keeps its idle->open growth ratio identical to the neighbouring
        menu items, which animate 0.6 -> 1 over the same 420ms. */
@@ -741,6 +742,24 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
     .dashboard-profile-points-trigger {
     max-width: 5.2rem !important;
   }
+}
+
+/* The exercise figure is an optional accent, not a navigation sizing input.
+   Clearance is measured from its complete label/figure bounds. Keeping its
+   geometry when hidden lets it return without shrinking/growing the menu. */
+html body .dashboard-header-vortex-shell .dashboard-header-dashboard-selector {
+  position: relative;
+}
+html body .dashboard-header-vortex-shell .dashboard-header-main-orbit-stage--stable .dashboard-header-selector-category-dock {
+  position: absolute !important;
+  left: 100% !important;
+  top: 50% !important;
+  margin: 0 !important;
+  transform: translate(var(--exercise-offset-x, 0px), -50%) !important;
+}
+html body .dashboard-header-vortex-shell .dashboard-header-selector-category-dock[data-exercise-hidden="true"],
+html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dashboard-header-selector-category-dock {
+  visibility: hidden !important;
 }
 
 /* Narrow headers: the joystick pages through the account controls one at a
@@ -898,7 +917,7 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
   }
 
   .dashboard-header-vortex-shell .dashboard-header-mobile-orbit-joystick {
-    margin-left: -0.46rem !important;
+    margin-left: 0.5rem !important;
     margin-right: -0.24rem !important;
   }
 
@@ -6814,11 +6833,9 @@ html[data-dashboard-webgl="warming"]
    proportions — everything inside scales with it.
    Held at 0.95 rather than lower: the crest's 3D depth layer paints a little
    past its own box, and the joystick sits immediately to its right in flow, so
-   shrinking the box further walks the joystick into that bleed — measured 2.2px
-   of overlap at 0.82, and still touching at 0.88 once the header opens and the
-   crest is at full size. Margin is not the fix — fitDashboardHeaderNav
-   subtracts neighbours by getBoundingClientRect width, which ignores margin, so
-   it would hand the nav space the row does not actually have. */
+   shrinking the box further walks the joystick into that bleed. The joystick
+   now also reserves a small positive open-state margin; fitDashboardHeaderNav
+   includes positive neighbor margins so that gap is not given back to the nav. */
 @media (max-width: 430px) {
   .dashboard-header-vortex-shell
     .dashboard-header-menu-content

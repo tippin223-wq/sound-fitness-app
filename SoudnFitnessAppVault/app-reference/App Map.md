@@ -17,6 +17,7 @@ Sound Fitness is a Next.js App Router app with member, admin, coach, onboarding,
 - `app/`: route files, layouts, and page-level experiences
 - `components/`: shared UI, marketing, auth, dashboard, onboarding, anatomy
 - `components/dashboard/`: member dashboard shell, 3D assets, dashboard navigation and cards
+- `components/dashboard/DashboardExperience.tsx`: shared dashboard implementation. `/dashboard` renders the full experience; `/dashboard/profile` uses `headerOnly` with its existing Profile content. Both render the same header menu and overlays; dashboard body scrolling/row mounting are disabled in header-only mode.
 - `lib/routes.ts`: centralized route constants
 - `lib/supabaseClient.ts`: Supabase browser client and user helper
 - `lib/profile-storage.ts`: profile-related local/storage helpers
@@ -27,6 +28,7 @@ Sound Fitness is a Next.js App Router app with member, admin, coach, onboarding,
 ## Important Behavior
 
 - `components/dashboard/MemberDashboardShell.tsx` wraps protected member dashboard pages.
+- `/dashboard/goals` owns the goal-planning questionnaire and targets. `/dashboard/profile` deliberately omits a duplicate Goals orbiter row and focuses on member profile context.
 - The member shell checks Supabase auth and redirects unauthenticated users to `/login`.
 - The shell hides the shared `AppHeader` on embedded dashboard pages such as `/dashboard`, `/dashboard/goals`, `/dashboard/sessions`, `/dashboard/profile`, `/dashboard/exercise-library`, and `/dashboard/workout-builder/exercise-library`.
 - `ROUTES.member` is an alias of dashboard routes.

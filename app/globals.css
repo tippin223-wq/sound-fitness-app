@@ -11501,6 +11501,28 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
   gap: clamp(0.08rem, 0.28vw, 0.24rem);
 }
 
+/* Proportional nav typography: category 67%, section 83%, current page 100%. */
+.dashboard-header-vortex-shell .dashboard-header-selector-copy {
+  --dashboard-nav-title-size: clamp(0.95rem, 1.7vw, 1.25rem);
+}
+
+.dashboard-header-vortex-shell .dashboard-header-selector-copy > span > span {
+  letter-spacing: 0.035em;
+  line-height: 1.12;
+}
+
+.dashboard-header-vortex-shell .dashboard-header-selector-copy > span > span:nth-child(1) {
+  font-size: calc(var(--dashboard-nav-title-size) * 0.67);
+}
+
+.dashboard-header-vortex-shell .dashboard-header-selector-copy > span > span:nth-child(2) {
+  font-size: calc(var(--dashboard-nav-title-size) * 0.83);
+}
+
+.dashboard-header-vortex-shell .dashboard-header-selector-copy > span > span:nth-child(3) {
+  font-size: var(--dashboard-nav-title-size);
+}
+
 .dashboard-header-selector-category-dock {
   align-items: center;
   display: grid;
@@ -11882,12 +11904,12 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable
     .dashboard-header-selector-copy {
-    flex: 0 1 auto;
+    flex: 0 0 auto;
     margin-left: 0;
-    max-width: 6.2rem;
+    max-width: 8.5rem;
     min-width: 0 !important;
     overflow: hidden;
-    width: 100%;
+    width: max-content;
   }
 
   .dashboard-header-vortex-shell

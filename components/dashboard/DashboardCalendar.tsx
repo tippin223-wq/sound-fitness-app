@@ -41,11 +41,18 @@ type CalendarOrbitCommand = {
 
 export type { DashboardCalendarItem } from "@/lib/dashboard-calendar";
 
+export type CalendarEventFocus = {
+  id: string;
+  dateKey: string;
+  minutes: number;
+};
+
 type DashboardCalendarProps = {
   collapsible?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
   items?: DashboardCalendarItem[];
   initialDate?: Date;
+  initialEventFocus?: CalendarEventFocus | null;
   onDateChange?: (date: Date) => void;
   orbitCommand?: CalendarOrbitCommand | null;
 };
@@ -243,26 +250,31 @@ export default function DashboardCalendar({
   onCollapsedChange,
   items,
   initialDate,
+  initialEventFocus,
   onDateChange,
   orbitCommand,
 }: DashboardCalendarProps) {
   const [today] = useState<Date>(() => startOfDay(new Date()));
   const [view, setView] = useState<CalendarView>("week");
   const [collapsed, setCollapsed] = useState(false);
-  const [cursorDate, setCursorDate] = useState<Date | null>(() => initialDate ? startOfDay(initialDate) : null);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(() => initialDate ? startOfDay(initialDate) : null);
+  const [cursorDate, setCursorDate] = useState<Date | null>(() =>
+    parseCalendarDate(initialEventFocus?.dateKey) || (initialDate ? startOfDay(initialDate) : null),
+  );
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() =>
+    parseCalendarDate(initialEventFocus?.dateKey) || (initialDate ? startOfDay(initialDate) : null),
+  );
   const [highlightedWeekHour, setHighlightedWeekHour] = useState(() =>
     Math.max(
       weekTimelineHours[0],
       Math.min(
         weekTimelineHours[weekTimelineHours.length - 1],
-        new Date().getHours(),
+        initialEventFocus ? Math.floor(initialEventFocus.minutes / 60) : new Date().getHours(),
       ),
     ),
   );
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const weekGridScrollRef = useRef<HTMLDivElement | null>(null);
-  const [selectedDayDropdownOpen, setSelectedDayDropdownOpen] = useState(false);
+  const [selectedDayDropdownOpen, setSelectedDayDropdownOpen] = useState(Boolean(initialEventFocus));
   const [soundSessionMenuOpen, setSoundSessionMenuOpen] = useState(false);
   const [userEntries, setUserEntries] = useDashboardCalendarEntries();
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
@@ -422,7 +434,11 @@ export default function DashboardCalendar({
   );
   const displayedCellEvents = activeEditingEntry
     ? [activeEditingEntry]
-    : selectedCellEvents;
+    : initialEventFocus
+      ? [...selectedCellEvents].sort((a, b) =>
+          Number(b.id === initialEventFocus.id) - Number(a.id === initialEventFocus.id),
+        )
+      : selectedCellEvents;
   const todayEvents = eventsByDate[toDateKey(activeToday)] || [];
   const calendarReady = Boolean(today);
   const selectedDayDateLabel =
@@ -1371,6 +1387,7 @@ export default function DashboardCalendar({
                               ) : (
                                 <>
                                   <button
+                                    aria-label={`Edit ${event.title}`}
                                     className="text-[9px] font-black uppercase tracking-[0.12em] opacity-70 hover:opacity-100"
                                     onClick={() => beginEditingEntry(event)}
                                     type="button"
@@ -1378,6 +1395,7 @@ export default function DashboardCalendar({
                                     Edit
                                   </button>
                                   <button
+                                    aria-label={`Delete ${event.title}`}
                                     className="text-[9px] font-black uppercase tracking-[0.12em] text-rose-200/80 hover:text-rose-100"
                                     onClick={() => {
                                       setPendingDeleteEntryId(event.id || null);

@@ -56,6 +56,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import layoutStyles from "./BodyCommandCenterLayout.module.css";
 import type { MuscleSlug } from "@/components/anatomy/exerciseMuscleMap";
 
 type BodyStatTone = "blue" | "cyan" | "emerald" | "gold" | "lime" | "purple" | "rose" | "teal";
@@ -722,7 +723,7 @@ function BodyStatStack({
   const compactShowsGlyph = useSettledGlyphSwap(highlightedIndex, compact);
   const activeTone = statToneClasses[stats[highlightedIndex]?.tone ?? "cyan"];
 
-  const scrollToWholeCardIndex = (index: number) => {
+  const scrollToWholeCardIndex = useCallback((index: number, behavior: ScrollBehavior = "smooth") => {
     const scroller = scrollRef.current;
     const item = scroller?.children.item(index) as HTMLElement | null;
     if (!scroller || !item) return;
@@ -737,29 +738,28 @@ function BodyStatStack({
       1,
       Math.floor((Math.max(0, scroller.clientWidth - padding) + gap) / stride),
     );
-    const firstVisible = Math.round(scroller.scrollLeft / stride);
-    const nextFirst =
-      index < firstVisible
-        ? index
-        : index >= firstVisible + visibleCount
-          ? index - visibleCount + 1
-          : firstVisible;
+    // Keep the selected signal in the middle slot, clamping only at the
+    // beginning/end of the list so we never introduce empty signal slots.
+    const nextFirst = Math.max(
+      0,
+      Math.min(index - Math.floor(visibleCount / 2), stats.length - visibleCount),
+    );
     scroller.scrollTo({
-      behavior: "smooth",
-      left: Math.max(0, nextFirst * stride),
+      behavior,
+      left: nextFirst * stride,
     });
-  };
+  }, [scrollRef, stats.length]);
+
+  useEffect(() => {
+    if (compact) return;
+    if (vertical) scrollToIndex(highlightedIndex);
+    else scrollToWholeCardIndex(highlightedIndex);
+  }, [compact, highlightedIndex, scrollToIndex, scrollToWholeCardIndex, vertical]);
 
   const moveHighlight = (direction: -1 | 1) => {
     setHighlightedIndex((currentIndex) => {
       const nextIndex =
         (currentIndex + direction + stats.length) % stats.length;
-      if (!compact) {
-        window.requestAnimationFrame(() => {
-          if (vertical) scrollToIndex(nextIndex);
-          else scrollToWholeCardIndex(nextIndex);
-        });
-      }
       return nextIndex;
     });
   };
@@ -768,7 +768,7 @@ function BodyStatStack({
 
   const rail = (
     <div
-      className={`flex min-w-0 snap-mandatory gap-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "snap-x justify-center overflow-hidden pt-5" : vertical ? "min-h-0 flex-1 snap-y flex-col items-center overflow-y-auto overscroll-y-contain px-1 pb-1 pt-5" : "mx-auto snap-x overflow-x-auto overscroll-x-contain px-1 pb-1 pt-5"}`}
+      className={`flex min-w-0 snap-mandatory gap-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "snap-x justify-center overflow-hidden pt-5" : vertical ? "min-h-0 flex-1 snap-y flex-col items-center overflow-y-auto overscroll-y-contain px-1 pb-1 pt-5" : "mx-auto snap-x scroll-px-1 overflow-x-auto overscroll-x-contain px-1 pb-1 pt-5"}`}
       ref={scrollRef}
     >
       {visibleStats.map((stat, index) => (
@@ -808,15 +808,22 @@ function BodyStatStack({
       const stride = firstCard.offsetWidth + gap;
       const available = host.clientWidth;
       if (stride <= 0 || available <= 0) return;
-      const count = Math.max(
+      const fittedCount = Math.max(
         1,
         Math.min(
           stats.length,
           Math.floor((Math.max(0, available - padding) + gap) / stride),
         ),
       );
+      // Use every whole slot that fits. An even count uses the nearer
+      // middle slot instead of wasting room to force exact centering.
+      const count = fittedCount;
       const wholeWidth = count * stride - gap + padding;
       scroller.style.width = `${Math.min(available, wholeWidth)}px`;
+      const selectedIndex = Array.from(scroller.children).findIndex((child) =>
+        child.querySelector('[aria-current="true"]'),
+      );
+      if (selectedIndex >= 0) scrollToWholeCardIndex(selectedIndex, "instant");
     };
 
     fitWholeCards();
@@ -829,10 +836,10 @@ function BodyStatStack({
       observer.disconnect();
       scroller.style.width = "";
     };
-  }, [compact, scrollRef, stats.length, vertical]);
+  }, [compact, scrollRef, scrollToWholeCardIndex, stats.length, vertical]);
 
   return (
-    <div className={`min-w-0 ${vertical && !compact ? "flex min-h-0 flex-1 flex-col" : ""}`}>
+    <div className={`min-w-0 ${!vertical && !compact ? layoutStyles.supportSignals : ""} ${vertical && !compact ? "flex min-h-0 flex-1 flex-col" : ""}`}>
       {showLabel ? (
         <div className="mb-1 flex items-center gap-2">
           <span className="h-px flex-1 bg-cyan-100/16" />
@@ -2108,11 +2115,7 @@ function TrainingCategorySelector({
 
   return (
     <div
-      className={`min-w-0 ${
-        compact
-          ? "[@media(max-height:650px)]:w-1/2 [@media(max-height:650px)]:shrink-0"
-          : ""
-      }`}
+      className={`min-w-0 ${compact ? layoutStyles.categorySelector : ""}`}
     >
       {/* Arrows flank the title instead of taking their own row below the
           chips, and render plain (no circular container) — saves a full row of
@@ -2140,7 +2143,7 @@ function TrainingCategorySelector({
         <span className="h-px flex-1 bg-cyan-100/16" />
       </div>
 
-      <div className="min-w-0">
+      <div className={`min-w-0 ${compact ? layoutStyles.categoryBody : ""}`}>
         <div
           className={`hidden min-w-0 snap-x snap-mandatory items-center gap-2 overflow-x-auto overscroll-x-contain px-2 pt-7 pb-2 [scroll-padding-inline:0.5rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${compact ? "" : "min-[760px]:flex"} ${centered && !canScrollBackward && !canScrollForward ? "justify-center" : ""}`}
           ref={scrollRef}
@@ -2151,7 +2154,7 @@ function TrainingCategorySelector({
             on each side, matching the hero orbit's indicator pattern, instead
             of a rail that clips whatever does not fit. */}
         <div
-          className={`flex min-w-0 items-center justify-center gap-1.5 px-1.5 py-2 min-[760px]:py-1 ${compact ? "" : "min-[760px]:hidden"}`}
+          className={`flex min-w-0 items-center justify-center gap-1.5 px-1.5 py-2 min-[760px]:py-1 ${compact ? layoutStyles.categoryTrio : "min-[760px]:hidden"}`}
         >
           {renderCategoryChip(
             bodyPartGroups[
@@ -2205,11 +2208,11 @@ function TrainingCategorySelector({
         className={`relative grid shrink-0 snap-start place-items-center rounded-full transition-[box-shadow,outline-color,opacity] duration-300 ${groupTone.icon} ${statusTheme.border} ${
           isSide
             ? `hidden h-11 w-11 opacity-60 min-[520px]:grid min-[760px]:h-[72px] min-[760px]:w-[72px] min-[760px]:opacity-70 ${
-                compact ? "[@media(max-height:650px)]:!hidden" : ""
+                compact ? layoutStyles.categoryPreview : ""
               }`
             : `h-[84px] w-[84px] min-[520px]:h-[72px] min-[520px]:w-[72px] ${
                 compact
-                  ? "[@media(max-height:650px)]:h-16 [@media(max-height:650px)]:w-16"
+                  ? layoutStyles.categoryRing
                   : ""
               }`
         } ${
@@ -3107,7 +3110,7 @@ export default function BodyCommandCenterCard({
   return (
     <div
       aria-label="Body Command Center"
-      className="dashboard-hero-card dashboard-hero-card--body-command relative z-10 flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden overscroll-contain rounded-[30px] border border-cyan-100/22 bg-[radial-gradient(circle_at_50%_-8%,rgba(34,211,238,0.24),transparent_34%),radial-gradient(circle_at_9%_32%,rgba(56,189,248,0.18),transparent_30%),radial-gradient(circle_at_90%_22%,rgba(251,191,36,0.13),transparent_27%),linear-gradient(135deg,rgba(8,13,26,0.98),rgba(2,6,23,0.94))] p-3 shadow-[0_30px_82px_rgba(0,0,0,0.54),0_0_54px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)]"
+      className={`${layoutStyles.card} dashboard-hero-card dashboard-hero-card--body-command relative z-10 flex h-full min-h-0 w-full max-w-full flex-col overflow-hidden overscroll-contain rounded-[30px] border border-cyan-100/22 bg-[radial-gradient(circle_at_50%_-8%,rgba(34,211,238,0.24),transparent_34%),radial-gradient(circle_at_9%_32%,rgba(56,189,248,0.18),transparent_30%),radial-gradient(circle_at_90%_22%,rgba(251,191,36,0.13),transparent_27%),linear-gradient(135deg,rgba(8,13,26,0.98),rgba(2,6,23,0.94))] p-3 shadow-[0_30px_82px_rgba(0,0,0,0.54),0_0_54px_rgba(34,211,238,0.16),inset_0_1px_0_rgba(255,255,255,0.12)]`}
     >
       <div
         aria-hidden="true"
@@ -3126,7 +3129,7 @@ export default function BodyCommandCenterCard({
       <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-cyan-300/10 blur-3xl" />
       <div className="pointer-events-none absolute bottom-0 left-1/2 h-28 w-72 -translate-x-1/2 rounded-full bg-amber-300/8 blur-3xl" />
 
-      <div className="relative z-10 flex flex-wrap items-start justify-between gap-3">
+      <div className={`${layoutStyles.commandHeader} relative z-10 flex flex-wrap items-start justify-between gap-3`}>
         {commandCenterSlot ? (
           <div className="min-w-[min(100%,18rem)] flex-1">{commandCenterSlot}</div>
         ) : null}
@@ -3157,13 +3160,14 @@ export default function BodyCommandCenterCard({
             <AvatarDetailLegend />
           </div>
 
-          <div className="flex min-h-0 min-w-0 flex-col gap-2 overflow-hidden pr-1 min-[700px]:min-w-[320px] min-[900px]:gap-1 [@media(max-height:650px)]:flex-row [@media(max-height:650px)]:items-start [@media(max-height:650px)]:gap-1">
+          <div className={`${layoutStyles.controlsHost} min-[700px]:min-w-[320px]`}>
+          <div className={layoutStyles.controlsLayout}>
             <TrainingCategorySelector
               compact
               onSelectGroup={selectGroupFromUser}
               selectedGroupId={selectedGroupId}
             />
-            <div className="flex min-h-0 min-w-0 flex-1 [@media(min-width:900px)_and_(min-height:651px)]:hidden [@media(max-height:650px)]:w-1/2 [@media(max-height:650px)]:shrink-0">
+            <div className={layoutStyles.compactMuscles}>
               <MuscleGroupPanel
                 compact
                 key={selectedGroupId}
@@ -3172,13 +3176,14 @@ export default function BodyCommandCenterCard({
                 showTitle={false}
               />
             </div>
-            <div className="hidden min-h-0 min-w-0 flex-1 [@media(min-width:900px)_and_(min-height:651px)]:flex">
+            <div className={layoutStyles.expandedMuscles}>
               <MuscleGroupPanel
                 key={selectedGroupId}
                 onHighlightMuscle={handleHighlightMuscle}
                 selectedGroupId={selectedGroupId}
               />
             </div>
+          </div>
           </div>
         </div>
 

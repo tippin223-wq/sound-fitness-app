@@ -1,0 +1,93 @@
+.viewport {
+  container: master-journey / size;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  max-width: 1180px;
+  padding-bottom: 8px;
+}
+
+.layout {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+}
+
+.titleCard {
+  padding: 12px;
+}
+
+.titleHeader {
+  padding-top: 16px;
+  gap: 8px;
+}
+
+.titleIcon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  color: #ecfeff;
+}
+
+.titleGap {
+  margin-top: 8px;
+}
+
+.timeline {
+  min-height: 0;
+  max-height: 380px;
+  align-self: stretch;
+}
+
+.timelineBody {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: 12px;
+}
+
+.rail {
+  flex: 1;
+  min-height: 0;
+  overflow-y: hidden;
+}
+
+.track, .stepGroup, .step {
+  height: 100%;
+  min-height: 0;
+}
+
+.step {
+  padding: 12px;
+}
+
+.controls {
+  flex-shrink: 0;
+}
+
+@container master-journey (height < 490px) {
+  .layout { gap: 8px; }
+  .titleCard { padding: 10px 12px; }
+  .titleHeader { padding-top: 14px; }
+  .titleHeader h2 { font-size: 18px; }
+  .titleGap { margin-top: 6px; }
+  .timelineBody { padding: 8px 12px; }
+  .step { padding: 10px 12px; }
+  .stepIcon { width: 32px; height: 32px; }
+  .stepTitle { font-size: 16px; line-height: 18px; margin-top: 4px; }
+  .stepDetail { font-size: 11px; line-height: 16px; margin-top: 4px; }
+}
+
+@media (min-width: 1024px) {
+  .layout {
+    grid-template-columns: minmax(250px, 0.56fr) minmax(0, 1.44fr);
+    grid-template-rows: minmax(0, 1fr);
+    align-items: center;
+  }
+  .timeline { height: min(100%, 380px); align-self: center; }
+}

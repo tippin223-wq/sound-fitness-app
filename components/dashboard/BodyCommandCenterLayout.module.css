@@ -1,0 +1,88 @@
+.card { container: body-card / size; }
+
+/* Keep the short phone layout's heading and support strip from consuming
+   the space required for the two training controls. */
+@container body-card (max-width: 360px) and (max-height: 480px) {
+  .commandHeader [class~="@container"] { padding-right: 104px; gap: 4px; }
+  .supportSignals [class~="snap-x"] { padding-top: 16px; }
+  .supportSignals [role="progressbar"] { width: 64px; height: 64px; }
+  .supportSignals [class~="min-h-[88px]"] { min-height: 72px; padding-block: 4px; }
+}
+
+.controlsHost {
+  container: body-controls / size;
+  min-width: 0;
+  min-height: 0;
+}
+
+.controlsLayout {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+
+.categorySelector {
+  flex-shrink: 0;
+}
+
+.compactMuscles,
+.expandedMuscles {
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+}
+
+.compactMuscles { display: flex; }
+.expandedMuscles { display: none; }
+
+/* Choose the layout from the space actually left below the hero heading,
+   rather than the screen height, which says nothing about that heading. */
+@container body-controls (min-width: 300px) and (min-height: 240px) {
+  .compactMuscles { display: none; }
+  .expandedMuscles { display: flex; }
+}
+
+@container body-controls (min-width: 240px) and (max-height: 239px) {
+  .controlsLayout {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .categorySelector { flex: 1; min-width: 0; }
+  .categoryPreview { display: none; }
+  .categoryRing { width: 64px; height: 64px; }
+}
+
+/* A narrow column cannot fit two sets of lateral arrows side by side.
+   Share its height evenly and size both rings to the remaining room. */
+@container body-controls (max-width: 239px) {
+  .controlsLayout {
+    --control-ring-size: clamp(44px, calc((100cqh - 88px) / 2), 64px);
+  }
+
+  .categorySelector {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .categorySelector > :first-child { flex-shrink: 0; }
+  .categoryBody { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .categoryTrio { flex: 1; min-height: 0; padding: 4px 0; }
+  .categoryPreview { display: none; }
+  .categoryRing { width: var(--control-ring-size); height: var(--control-ring-size); }
+  .compactMuscles button[aria-haspopup="dialog"] {
+    width: var(--control-ring-size);
+    height: var(--control-ring-size);
+  }
+}
+
+@container body-controls (max-width: 239px) and (max-height: 184px) {
+  .controlsLayout { gap: 4px; }
+  .categorySelector > :first-child,
+  .compactMuscles > div > :first-child { margin-bottom: 2px; }
+}

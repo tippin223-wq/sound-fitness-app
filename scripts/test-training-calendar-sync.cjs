@@ -145,6 +145,14 @@ assert.equal(constellation.getConstellationWeek(new Date(2026, 2, 8))[6].dateKey
 assert.equal(constellation.getConstellationWeek(new Date(2026, 10, 1))[0].dateKey, "2026-10-26");
 assert.equal(constellation.getConstellationWeek(new Date(2026, 10, 1))[6].dateKey, "2026-11-01");
 assert.equal(constellation.getConstellationWeek(new Date(2026, 11, 31))[6].dateKey, "2027-01-03");
+for (const date of [new Date(2026, 2, 8), new Date(2026, 10, 1), new Date(2026, 11, 31)]) {
+  const monday = calendar.calendarWeekStart(date);
+  const forward = calendar.calendarAddDays(monday, 7);
+  const backward = calendar.calendarAddDays(forward, -7);
+  assert.equal(forward.getDay(), 1);
+  assert.equal(calendar.calendarDateKey(backward), calendar.calendarDateKey(monday));
+  assert.equal(constellation.getConstellationWeek(forward)[0].dateKey, calendar.calendarDateKey(forward));
+}
 const types = ["cardio", "check-in", "completed", "nutrition", "performance", "recovery", "training", "workout"];
 const source = types.map((type, index) => ({
   id: type, date: "2026-09-07", title: type, type,
