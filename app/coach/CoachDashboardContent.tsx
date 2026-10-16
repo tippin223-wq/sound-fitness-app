@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ROUTES } from "@/lib/routes";
-import { HUB_BRAND } from "@/lib/trainer-hub/model";
 
 const appointmentOffers = [
   {
@@ -42,12 +41,6 @@ const appointmentOffers = [
 ];
 
 const coachTools = [
-  {
-    title: HUB_BRAND.name,
-    icon: "📚",
-    text: "Open your learning path, exercise library, programs, and client workspace.",
-    href: `${HUB_BRAND.href}/workspace`,
-  },
   {
     title: "My Schedule",
     icon: "📅",
