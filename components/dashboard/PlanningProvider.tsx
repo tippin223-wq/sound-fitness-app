@@ -61,7 +61,10 @@ export default function PlanningProvider({ children }: { children: ReactNode }) 
   }, []);
   if (!ready) return <div className="p-6 text-slate-300"><p role="status">{startupError || "Loading your planning data…"}</p>{startupError && <button type="button" onClick={() => window.location.reload()}>Retry loading account</button>}</div>;
   return <>
-    <div className="flex flex-wrap items-center gap-3 bg-slate-950 px-4 py-2 text-xs text-slate-300" role="status">
+    <div key={account}>{children}</div>
+    <details key={`planning-tools:${account}`} className="bg-slate-950 px-4 py-2 text-xs text-slate-300">
+      <summary className="cursor-pointer">Data &amp; backups</summary>
+      <div className="mt-3 flex flex-wrap items-center gap-3" role="status">
       <span>Goals & Plan: {status}</span>
       <button type="button" onClick={downloadPlanning}>Export planning backup</button>
       {exportMessage?.account === account && exportMessage.generation === accountGeneration && <span>{exportMessage.text}</span>}
@@ -73,8 +76,8 @@ export default function PlanningProvider({ children }: { children: ReactNode }) 
       {status.includes("Retry") && <button type="button" onClick={() => void syncPlanning()}>Retry sync</button>}
       {status.startsWith("Sync conflict") && <><button type="button" onClick={() => void resolvePlanningConflict(false)}>Use cloud copy</button><button type="button" onClick={() => void resolvePlanningConflict(true)}>Keep this device’s changes</button></>}
       {legacy && <><span>Older browser planning data found. Import only if it belongs to this account.</span><button type="button" onClick={importLegacyPlanning}>Import my browser data</button><button type="button" onClick={dismissLegacy}>Skip import</button></>}
-    </div>
+      </div>
+    </details>
     <WorkoutTemplateConflicts key={`template-conflicts:${account}`} />
-    <div key={account}>{children}</div>
   </>;
 }

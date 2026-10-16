@@ -4167,3 +4167,9 @@ Active website workspace: `C:\Users\josep\01_Business\Sound Fitness\Website\Soun
 - Backup receipt reads and successful record results shared the canonical cache object. Detached read snapshots and stored record values so caller changes cannot silently alter recorded backup counts/timestamps outside revision-controlled writes. Account/generation locks and receipt validation remain intact.
 - Added regression coverage for returned/read mutation, caller count changes, unchanged canonical values, stale ticket refusal and quota-failure preservation. All 993 combined tests pass; helper lint clean; production build succeeds. Verification logs removed after processes exited.
 - No live member/schema writes or migration/package changes. Existing six-migration approval remains pending; authenticated acceptance, website identity linking and authoritative rewards remain unresolved. Unrelated changes preserved.
+
+
+## Member Hub header diagnostic strip removed — 2026-10-16
+
+- Moved PlanningProvider status, sync/retry, import and backup controls from above the member header into a closed Data & backups disclosure after page content. Kept account-keyed page state, initialization, sync operations and recovery controls intact.
+- Verified the actual return markup renders the header first, keeps details closed and retains export controls; targeted lint clean. Production build/deployment verification follows the scoped commit.

@@ -111,3 +111,5 @@ These notes are meant to reduce repeated misunderstandings. New user instruction
 - Fit the complete Master Training Journey row in its available height without vertical scrolling. Keep the Plan Timeline title icon bare, with no background or border container.
 - Keep the bottom timeline steps free of a shared outer card container; retain the individual step cards, highlights, connectors, and arrows.
 - Plan Timeline details (Current Focus, Plan Source, Next Action, Training Data) use bare text without individual pill backgrounds or borders; retain the slider and arrow.
+
+- TrainerHub is a separate app. Exclude its routes, APIs, migration, libraries and coach integration from Sound Fitness app releases; preserve its local work separately.
