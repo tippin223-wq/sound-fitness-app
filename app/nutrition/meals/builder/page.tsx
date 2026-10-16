@@ -1,5 +1,5 @@
-import { NutritionModulePage } from "../../_components/NutritionPortal";
+import MealLog from "../../_components/MealLog";
 
 export default function MealBuilderPage() {
-  return <NutritionModulePage moduleId="meals-builder" />;
+  return <MealLog />;
 }

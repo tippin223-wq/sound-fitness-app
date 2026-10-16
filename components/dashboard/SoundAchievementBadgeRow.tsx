@@ -136,7 +136,7 @@ const getAchievementProgress = (item: AchievementBadgeItem) => {
   if (typeof item.progress === "number") return clampProgress(item.progress);
   if (item.status === "completed") return 100;
   if (item.status === "locked") return 0;
-  if (item.status === "active") return 50;
+  if (item.status === "active") return 0;
   return 0;
 };
 

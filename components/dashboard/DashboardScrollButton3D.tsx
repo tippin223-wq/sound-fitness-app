@@ -555,13 +555,20 @@ export default function DashboardScrollButton3D({
           lastDrawnGlyphTone = toneForFrame;
         }
 
-        root.rotation.x = Math.sin(seconds * 0.72) * 0.035 * (1 + charge);
-        root.rotation.y = Math.sin(seconds * 0.56) * 0.08 * (0.5 + charge);
-        orbGroup.rotation.y += frameDelta * (0.00055 + charge * 0.0024);
-        orbGroup.rotation.x = Math.sin(seconds * 1.1) * 0.16 * charge;
-        // The orb leans toward the pointer-hovered arrow when there is one,
-        // else toward the standing active direction.
-        const leanDirection = hoverForFrame ?? activeDirectionForFrame;
+        // Idle drift only. These used to scale with `charge`, which spikes on
+        // every scroll step, so a step doubled the wobble and tipped the orb —
+        // movement where the button should have sat still.
+        root.rotation.x = Math.sin(seconds * 0.72) * 0.035;
+        root.rotation.y = Math.sin(seconds * 0.56) * 0.04;
+        orbGroup.rotation.y += frameDelta * 0.00055;
+        orbGroup.rotation.x = 0;
+        // The orb leans toward the arrow the POINTER is over, and nothing
+        // else. It used to fall back to activeDirection, which a scroll step
+        // stamps for 220ms and the horizontal joystick holds as a standing
+        // pose — so the ball slid 0.16 right/down on every scroll and sat
+        // off-centre between panels. A step now changes the glow, not the
+        // position.
+        const leanDirection = hoverForFrame;
         orbGroup.position.x =
           leanDirection === "left" ? -0.16 : leanDirection === "right" ? 0.16 : 0;
         orbGroup.position.y =

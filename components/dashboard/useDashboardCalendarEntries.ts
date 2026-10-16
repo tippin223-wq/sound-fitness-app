@@ -1,6 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { planningOwner, planningKeys, readPlanning, writePlanning, PLANNING_UPDATED } from "@/lib/planning/store";
+import { planningDashboardCalendarItems } from "@/lib/planning/dashboardCalendar";
 import {
   DASHBOARD_CALENDAR_ENTRIES_KEY,
   calendarEntryIdentity,
@@ -19,6 +21,8 @@ const listeners = new Set<() => void>();
 let snapshot = emptyEntries;
 let cachedStorageValue: string | null | undefined;
 let hasUnpersistedChanges = false;
+let snapshotOwner: string | null = null;
+let saveError = "";
 
 function withStableIds(entries: DashboardCalendarItem[]) {
   const occurrences = new Map<string, number>();
@@ -44,9 +48,11 @@ function parseEntries(raw: string | null) {
 
 function getSnapshot() {
   if (typeof window === "undefined") return emptyEntries;
+  const owner = planningOwner();
+  if (snapshotOwner !== owner) { snapshotOwner = owner; snapshot = emptyEntries; cachedStorageValue = undefined; hasUnpersistedChanges = false; saveError = ""; }
   if (hasUnpersistedChanges) return snapshot;
   try {
-    const raw = window.localStorage.getItem(DASHBOARD_CALENDAR_ENTRIES_KEY);
+    const raw = owner ? JSON.stringify([...readPlanning<DashboardCalendarItem[]>(planningKeys.dashboardCalendar, []), ...planningDashboardCalendarItems()]) : window.localStorage.getItem(DASHBOARD_CALENDAR_ENTRIES_KEY);
     if (raw !== cachedStorageValue) {
       const entries = parseEntries(raw);
       cachedStorageValue = raw;
@@ -76,26 +82,30 @@ function handleStorage(event: StorageEvent) {
 
 function subscribe(listener: () => void) {
   listeners.add(listener);
-  if (listeners.size === 1) window.addEventListener("storage", handleStorage);
+  if (listeners.size === 1) { window.addEventListener("storage", handleStorage); window.addEventListener(PLANNING_UPDATED, notifyListeners); }
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0) window.removeEventListener("storage", handleStorage);
+    if (listeners.size === 0) { window.removeEventListener("storage", handleStorage); window.removeEventListener(PLANNING_UPDATED, notifyListeners); }
   };
 }
 
 export function setDashboardCalendarEntries(update: CalendarEntriesUpdate) {
   const previous = getSnapshot();
   const next = typeof update === "function" ? update(previous) : update;
-  snapshot = withStableIds(next);
+  const editable = withStableIds(next.filter(entry => !entry.readOnly));
+  snapshot = planningOwner() ? [...editable, ...planningDashboardCalendarItems()] : editable;
+  saveError = "";
   try {
     const serialized = JSON.stringify(snapshot);
-    window.localStorage.setItem(DASHBOARD_CALENDAR_ENTRIES_KEY, serialized);
+    if (planningOwner()) writePlanning(planningKeys.dashboardCalendar, editable);
+    else window.localStorage.setItem(DASHBOARD_CALENDAR_ENTRIES_KEY, serialized);
     cachedStorageValue = serialized;
     hasUnpersistedChanges = false;
   } catch {
     // Even if reads also failed initially, recovered storage must not replace
     // this session's newer edits with its old value on the next snapshot read.
     hasUnpersistedChanges = true;
+    saveError = "Calendar changes are only in memory. Free device storage and retry before leaving this page.";
   }
   notifyListeners();
 }
@@ -103,5 +113,5 @@ export function setDashboardCalendarEntries(update: CalendarEntriesUpdate) {
 /** One persisted source for the calendar editor and all calendar-derived views. */
 export function useDashboardCalendarEntries() {
   const entries = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  return [entries, setDashboardCalendarEntries] as const;
+  return [entries, setDashboardCalendarEntries, saveError] as const;
 }

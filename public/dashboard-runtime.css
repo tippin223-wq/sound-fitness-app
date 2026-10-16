@@ -423,6 +423,17 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
   z-index: 20 !important;
 }
 
+.dashboard-header-rewards-popup-dim-layer {
+  background:
+    radial-gradient(ellipse at 72% 36%, rgba(15, 23, 42, 0.16), transparent 42%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.18), rgba(0, 0, 0, 0.3));
+  inset: 0;
+  opacity: 1;
+  pointer-events: none;
+  position: absolute;
+  z-index: 330;
+}
+
 .dashboard-header-vortex-shell--points-dropdown-open .dashboard-profile-points-dropdown {
   z-index: 680 !important;
 }
@@ -457,6 +468,16 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
 .dashboard-header-vortex-shell--claim-dropdown-open.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-header-news-chyron__gem,
 .dashboard-header-vortex-shell--claim-dropdown-open.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-header-selector-meteor,
 .dashboard-header-vortex-shell--claim-dropdown-open.dashboard-header-vortex-shell--claim-dropdown-open .dashboard-header-logo-smoke__puff {
+  animation-play-state: paused !important;
+}
+
+.dashboard-header-news-chyron--paused
+  :is(
+    .dashboard-header-news-chyron__track,
+    .dashboard-header-news-chyron__track::before,
+    .dashboard-header-news-chyron__item,
+    .dashboard-header-news-chyron__item--entering
+  ) {
   animation-play-state: paused !important;
 }
 
@@ -599,23 +620,32 @@ html body #dashboard-header-meter-panel.dashboard-header-meter-panel[data-meter-
        instead of the ~71px menu area, and since that box's height changes with
        its contents the joystick kept drifting between positions. */
     align-self: flex-start !important;
-    /* Only reclaim the crest's unused scaled layout space. The old -2.2rem
-       pull was tuned for a wider crest and overlapped its current artwork. */
-    margin-left: -0.5rem !important;
     /* 0.6 (the generic idle scale) x 0.88 (this joystick's deliberate open
        size): keeps its idle->open growth ratio identical to the neighbouring
-       menu items, which animate 0.6 -> 1 over the same 420ms. */
+       menu items, which animate 0.6 -> 1 over the same 420ms.
+
+       This rule no longer touches margin-left. It used to pull the joystick
+       -0.5rem against the open state's +0.5rem, and that 16px sign flip was
+       measured as the cause of "both joystick backgrounds shift down and
+       right every scroll": the button itself moved on every focus change and
+       the CSS bubble and the 3D ball both ride it. Worse, the joystick is the
+       flex item before the orbit stage, so the same 16px pushed the WHOLE NAV
+       right (stage offsetLeft 144 -> 160, width 279 -> 263) — the separate
+       "the nav shifts right during scroll" report. The crest holds
+       offsetLeft 12 in both states; the joystick was the only item in the row
+       that moved sideways, so nothing here should either. */
     scale: 0.528 !important;
-    /* Same 0.69rem drop as the menu blocks: at 0.125rem the collapsed
-       joystick's centre sat ~9px above the idle row line (crest/nav/account
-       all centre near y=36; the joystick centred at 27). */
-    translate: 0 0.69rem !important;
-    /* The 0.69rem above was tuned against a top-left scaling origin — but the
-       origin used to come from a .dashboard-header-scroll-button--left rule,
-       and that class swaps to --right when the account panel is active,
-       silently moving the scaled joystick's centre ~9px down. Pin the origin
-       here so the tuned drop holds in BOTH panel states. */
-    transform-origin: 0 0 !important;
+    /* Centred, not the old `0 0`. With a top-left origin the 0.528 shrink
+       also pulled the ball's CENTRE ~11px left of where the open state puts
+       it, so even with the margins equalised the button still slid sideways. */
+    transform-origin: 50% 50% !important;
+    /* Retunes the collapsed drop against that centred origin so the joystick
+       keeps its tuned idle line (centre y ~36, level with the crest and the
+       collapsed nav). The open state's 1.43rem still applies while open, so
+       the joystick drops with the rest of the row as the header grows — the
+       same ~21px every sibling travels. What it no longer does is move
+       sideways. */
+    translate: 0 0.1rem !important;
   }
 
   /* Same 13px lift for the menu blocks, which carry the nav content and the
@@ -935,13 +965,8 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
     transform: translate3d(0.72rem, -50%, -2rem) scale(0.74) !important;
     /* The size here comes from --dashboard-header-narrow-meter-size, i.e. from
        height and width — neither of which was in this list, so the button
-       SNAPPED to its idle size in a single frame while its neighbours in the
-       row eased over 240ms. It also ran transform on its own 260ms and its own
-       curve. Measured on a real collapse: the meter finished at 46ms and the
-       crest/joystick at 371ms, which reads as the left side closing slower
-       than the right. Geometry now matches the shared group on
-       .dashboard-header-menu-content > * (240ms, cubic-bezier(0.2, 0.84, 0.2, 1));
-       opacity and visibility stay on the faster fade, which is not spacing. */
+       SNAPPED to its idle size in a single frame while its neighbours eased.
+       The Account/Rewards/Meter pager now shares a 190ms swipe. */
     /* This rule is the HIDDEN target state, so its transition governs the
        hide direction — and opacity/visibility are deliberately NOT in the
        list, so the hide is INSTANT. Every other icon in the rotation swaps by
@@ -954,9 +979,9 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
        reveal rule below still fades the ENTRY over 180ms, and geometry keeps
        the shared 240ms group for open<->idle resizes. */
     transition:
-      height 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-      transform 160ms cubic-bezier(0.2, 0.84, 0.2, 1),
-      width 240ms cubic-bezier(0.2, 0.84, 0.2, 1) !important;
+      height var(--dashboard-header-account-page-swipe-duration) var(--dashboard-header-account-page-swipe-ease),
+      transform var(--dashboard-header-account-page-swipe-duration) var(--dashboard-header-account-page-swipe-ease),
+      width var(--dashboard-header-account-page-swipe-duration) var(--dashboard-header-account-page-swipe-ease) !important;
     visibility: hidden !important;
     width: var(--dashboard-header-narrow-meter-size) !important;
     z-index: 178 !important;
@@ -968,15 +993,14 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
     opacity: 1 !important;
     pointer-events: auto !important;
     transform: translate3d(0, -50%, 0) scale(0.9) !important;
-    /* Visible target state = this transition governs the fade-IN. Kept softer
-       than the 90ms hide above, and geometry stays on the shared 240ms group
-       so open<->idle resizes still move in step with the row. */
+    /* Visible target state = this transition governs the fade-IN. Use the same
+       190ms pager timing as Account and Rewards so the meter no longer lags. */
     transition:
-      height 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-      opacity 180ms ease,
-      transform 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-      visibility 180ms ease,
-      width 240ms cubic-bezier(0.2, 0.84, 0.2, 1) !important;
+      height var(--dashboard-header-account-page-swipe-duration) var(--dashboard-header-account-page-swipe-ease),
+      opacity var(--dashboard-header-account-page-swipe-duration) var(--dashboard-header-account-page-swipe-ease),
+      transform var(--dashboard-header-account-page-swipe-duration) var(--dashboard-header-account-page-swipe-ease),
+      visibility var(--dashboard-header-account-page-swipe-duration) var(--dashboard-header-account-page-swipe-ease),
+      width var(--dashboard-header-account-page-swipe-duration) var(--dashboard-header-account-page-swipe-ease) !important;
     visibility: visible !important;
   }
 
@@ -1102,19 +1126,28 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   }
 }
 
-/* ==== NARROW ACCOUNT PAGING ====
-   Moved out of the max-width: 359px block so it covers the whole compact-header
-   band. The header switches to its compact layout at 430px (the meter is hidden
-   there and revealed only for the account panel, ~line 876), but paging used to
-   start at 359px -- so 360-430px rendered every account control at once and they
-   piled up: the profile block ran 12px past a 367px viewport and the hub trigger
-   and coach badge overlapped by 16px.
-   Only the paging rules moved. The nav zoom-fit design widths, the overflow
-   clipping and the category-actor hide stay at 359px: they feed
-   fitDashboardHeaderNav and are tuned for that width.
-   Placed after the max-width: 430px block above so these win the source-order
-   tie as well as on specificity (the doubled class names below). */
-@media (max-width: 430px) {
+/* ==== FIT-AWARE ACCOUNT PAGING ====
+   Use the measured open-layout fit throughout the mobile/tablet header, not
+   just a phone-width cutoff. Account separates before it crowds Rewards; the
+   meter shares the Rewards step when their natural footprints fit, and falls
+   back to its own scroll position when they do not. */
+/* Layered !important declarations outrank the existing unlayered transition
+   overrides while the synchronous probe is active. No probe state is painted. */
+@layer dashboard-header-measurement {
+  .dashboard-header-vortex-shell[data-account-fit-probe="true"],
+  .dashboard-header-vortex-shell[data-account-fit-probe="true"] * {
+    transition: none !important;
+    animation-play-state: paused !important;
+  }
+}
+
+@media (max-width: 940px) {
+  .dashboard-header-vortex-shell {
+    --dashboard-header-account-page-swipe-duration: 190ms;
+    --dashboard-header-account-page-swipe-ease: cubic-bezier(0.18, 0.86, 0.18, 1);
+    --dashboard-header-account-page-swipe-offset: 1.18rem;
+  }
+
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable[data-narrow-account-item]
     :is(.dashboard-profile-hub-trigger, .dashboard-profile-rewards-control) {
@@ -1156,7 +1189,7 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="rewards"]
     .dashboard-header-menu-block--profile {
-    padding-right: 0.95rem !important;
+    padding-right: 0 !important;
   }
 
   .dashboard-header-vortex-shell
@@ -1169,38 +1202,71 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
      the "account" step — otherwise it was left stranding itself past the right
      edge of the screen with nothing to sit next to. Hide it by default and
      bring it back only for that step. */
-  .dashboard-header-vortex-shell
+  .dashboard-header-vortex-shell[data-account-paged="true"]
     .dashboard-header-main-orbit-stage--stable
     .dashboard-profile-action-gear {
     display: none !important;
   }
 
-  /* Tucked just left of the avatar and low against it, mirroring the coach
-     badge on the avatar's other side, instead of sitting 169px away at the far
-     end of the block. Offset = the block's right padding (0.95rem) + the
-     avatar (3.94rem) + a gap that keeps them from touching. */
+  .dashboard-header-vortex-shell[data-account-paged="true"]
+    .dashboard-header-main-orbit-stage--stable[data-exiting-narrow-account-item="account"]
+    .dashboard-profile-hub-trigger {
+    display: flex !important;
+    pointer-events: none !important;
+  }
+
+  .dashboard-header-vortex-shell[data-account-paged="true"]
+    .dashboard-header-main-orbit-stage--stable[data-exiting-narrow-account-item="account"]
+    .dashboard-profile-action-gear {
+    display: grid !important;
+    pointer-events: none !important;
+  }
+
+  /* Tucked just left of the centered avatar and low against it, mirroring the
+     coach badge on the other side without reserving asymmetric page padding. */
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
     .dashboard-profile-action-gear {
     display: grid !important;
-    /* The account icon is centred in the block on this step, so anchor the
-       gear off the block's centre rather than its right edge — it follows the
-       icon if the block's width changes. left:auto defeats the wide-view
-       inline left on the button, which otherwise wins the over-constrained
-       left/right/width resolution and ignores this. The -0.45rem matches the
-       hub's breathing-room shift below so the pair moves together. */
+    /* The tight account page stays perceptually centered, so anchor the gear
+       off the block's centre. The roomy shared-rewards case below switches to
+       a right-edge anchor to match the full header. */
     left: auto !important;
     right: calc(50% + 3rem - 0.45rem) !important;
     top: 2.5rem !important;
   }
 
-  /* Breathing room from the orbit joystick: the account icon sat close
-     enough to read as part of the joystick cluster at very narrow widths —
-     walk it (and the gear, above) a touch toward the free right side. */
+  /* Breathing room from the orbit joystick: at the tight phone sizes the
+     account page intentionally stays near the center instead of hugging the
+     right edge. */
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
     .dashboard-profile-hub-trigger {
     translate: 0.45rem 0;
+  }
+
+  .dashboard-header-vortex-shell[data-account-paged="true"][data-rewards-meter-shared="true"]
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
+    .dashboard-header-profile-cluster {
+    justify-content: flex-end !important;
+    /* Account is the only visible item on this paged step, while Rewards +
+       Meter share the next step. Keep the full-header right bias, but pull
+       the avatar inward so it reads center-right instead of pinned to the
+       far edge at this middle width. */
+    translate: clamp(-5.6rem, -19vw, -5rem) 0 !important;
+  }
+
+  .dashboard-header-vortex-shell[data-account-paged="true"][data-rewards-meter-shared="true"]
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
+    .dashboard-profile-action-gear {
+    right: 4.35rem !important;
+    translate: clamp(-5.6rem, -19vw, -5rem) 0 !important;
+  }
+
+  .dashboard-header-vortex-shell[data-account-paged="true"][data-rewards-meter-shared="true"]
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
+    .dashboard-profile-hub-trigger {
+    translate: 0 0;
   }
 
   /* The paging mode centers one account item at a time with its
@@ -1208,7 +1274,7 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
      the collapsed block's rightward nudge + fit-content) pushed the centered
      icon off-screen onto the meter and left the gear stranded ~40px away.
      Neutralize that tuning here. */
-  .dashboard-header-vortex-shell
+  .dashboard-header-vortex-shell[data-account-paged="true"]
     .dashboard-header-main-orbit-stage--stable
     .dashboard-profile-hub-trigger {
     margin-left: 0 !important;
@@ -1216,12 +1282,187 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
 
   /* :not() matches the wider-screen nudge rule's specificity so this later
      rule wins the !important tie. */
-  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
+  .dashboard-header-vortex-shell[data-account-paged="true"][data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
     .dashboard-header-main-orbit-stage
     > .dashboard-header-menu-block--profile.dashboard-header-menu-block--profile {
     translate: 0 0.69rem !important;
     transform-origin: 50% 0 !important;
     width: 100% !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    :is(.dashboard-profile-hub-trigger, .dashboard-profile-rewards-control, .dashboard-profile-points-trigger) {
+    flex-shrink: 0 !important;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-profile-points-trigger {
+    min-width: 4.82rem !important;
+  }
+
+  .dashboard-header-vortex-shell[data-account-paged="false"]
+    .dashboard-header-profile-cluster {
+    gap: 1.5rem !important;
+  }
+
+  /* Non-paged account panel: when the open menu only shows Account + Rewards
+     beside the meter, keep that cluster right-anchored like the idle header.
+     The default full-stage width gave the cluster a huge space-between gap,
+     which made the avatar read left-aligned while the gift stayed right. */
+  .dashboard-header-vortex-shell[data-account-paged="false"]:not([data-header-focus="content"])
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"]
+    > .dashboard-header-menu-block--profile.dashboard-header-menu-block--profile {
+    left: auto !important;
+    max-width: 100% !important;
+    right: 0 !important;
+    transform-origin: 100% 50% !important;
+    width: fit-content !important;
+  }
+
+  /* Middle compact band: the full points pill can be too wide, but Account +
+     gift + meter still fit. Keep those three actions in one open account menu
+     instead of paging Account away from the reward and meter controls. */
+  .dashboard-header-vortex-shell[data-account-paged="false"][data-account-compact-rewards="true"]
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"]
+    .dashboard-profile-points-trigger {
+    display: none !important;
+  }
+
+  .dashboard-header-vortex-shell[data-account-paged="false"][data-account-compact-rewards="true"]
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"]
+    .dashboard-header-profile-cluster {
+    gap: clamp(1.05rem, 3.4vw, 1.5rem) !important;
+  }
+
+  .dashboard-header-vortex-shell[data-account-paged="true"]
+    .dashboard-header-menu-block--profile {
+    width: 100% !important;
+    padding-inline: 0 !important;
+  }
+
+  /* The meter is another page in this mode, not an invisible flex item
+     stealing room from the centered Account / Rewards / navigation pages. */
+  .dashboard-header-vortex-shell[data-account-paged="true"]
+    .dashboard-header-meter-menu-shell {
+    position: absolute !important;
+    right: 0.75rem !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    transition:
+      opacity var(--dashboard-header-account-page-swipe-duration) var(--dashboard-header-account-page-swipe-ease),
+      transform var(--dashboard-header-account-page-swipe-duration) var(--dashboard-header-account-page-swipe-ease),
+      visibility var(--dashboard-header-account-page-swipe-duration) var(--dashboard-header-account-page-swipe-ease) !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+
+  .dashboard-header-vortex-shell[data-account-paged="true"]
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"][data-narrow-account-item="meter"]
+    + .dashboard-header-meter-menu-shell {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+  }
+
+  .dashboard-header-vortex-shell[data-account-paged="true"][data-rewards-meter-shared="true"]
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"][data-narrow-account-item="rewards"]
+    .dashboard-header-menu-block--profile {
+    padding-right: calc(clamp(2.46rem, 7.4vw, 3rem) + 1.1rem) !important;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged="true"][data-rewards-meter-shared="true"]
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"][data-narrow-account-item="rewards"]
+    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    visibility: visible !important;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged="true"][data-rewards-meter-shared="true"]
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="right"][data-mobile-header-panel="account"][data-narrow-account-item="rewards"]
+    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell {
+    @starting-style {
+      opacity: 0 !important;
+      transform: translate3d(var(--dashboard-header-account-page-swipe-offset), -50%, -2rem) scale(0.74) !important;
+    }
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged="true"][data-rewards-meter-shared="true"]
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="left"][data-mobile-header-panel="account"][data-narrow-account-item="rewards"]
+    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell {
+    @starting-style {
+      opacity: 0 !important;
+      transform: translate3d(calc(-1 * var(--dashboard-header-account-page-swipe-offset)), -50%, -2rem) scale(0.74) !important;
+    }
+  }
+
+  /* Center the navigation's real contents in the remaining stage. The dock
+     is positioned outside normal flow; its old empty second grid track and
+     left-only alignment made the nav look off-center even when it fitted. */
+  .dashboard-header-vortex-shell:not([data-header-focus="content"])
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-menu-block--dashboard {
+    justify-content: center !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .dashboard-header-vortex-shell:not([data-header-focus="content"])
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-dashboard-selector {
+    grid-template-columns: minmax(0, auto) !important;
+    max-width: none !important;
+    transform: none !important;
+    /* Perceptually the open nav reads too far right when mathematically
+       centered in the stage. Bias it left while keeping the row's measured
+       width unchanged for fit calculations and Account paging. The bias grows
+       through the wider mobile/tablet band where the empty joystick-to-nav
+       lane is most obvious, while staying modest on tight phone widths. */
+    translate: clamp(-3.5rem, calc(2.9rem - 15vw), -0.85rem) 0 !important;
+    /* A FIXED box, not max-content. The block above centres this element, so
+       sizing it to the destination name moved its left edge every time the
+       name changed — measured 139px for a long name vs 181px for a short one,
+       dragging the selector joystick 42px with it on every scroll step. The
+       widest destination lays out at ~305px here, so 19rem holds them all and
+       the zoom fit scales this constant box into the lane (which also makes
+       the fit's design measurement stable across destinations). The ≤359px
+       band already pins a width for the same reason. */
+    width: 19rem !important;
+  }
+
+  /* Let the title contribute its real width before zoom-fitting. A shrinking
+     grid track with a max-content child let the title escape the centered
+     box to the right, so centering only its parent was not sufficient. */
+  .dashboard-header-vortex-shell:not([data-header-focus="content"])
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-orbit-system {
+    grid-template-columns: 3.05rem max-content !important;
+    max-width: none !important;
+  }
+
+  .dashboard-header-vortex-shell:not([data-header-focus="content"])
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-body {
+    grid-template-columns: 6.65rem max-content !important;
+    max-width: none !important;
+    width: max-content !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .dashboard-header-vortex-shell:not([data-header-focus="content"])
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-orbit-system {
+    grid-template-columns: 2.86rem max-content !important;
+  }
+
+  .dashboard-header-vortex-shell:not([data-header-focus="content"])
+    .dashboard-header-main-orbit-stage--stable
+    .dashboard-header-selector-body {
+    grid-template-columns: 6.35rem max-content !important;
   }
 }
 
@@ -1326,10 +1567,17 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
 }
 
 .dashboard-profile-points-dropdown {
-  background: transparent !important;
-  background-color: transparent !important;
-  border-color: transparent !important;
-  box-shadow: none !important;
+  background:
+    radial-gradient(circle at 24% 0%, rgba(56, 189, 248, 0.12), transparent 32%),
+    radial-gradient(circle at 76% 8%, rgba(52, 211, 153, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(2, 6, 23, 0.94), rgba(3, 7, 18, 0.88) 56%, rgba(0, 0, 0, 0.92)) !important;
+  background-color: rgba(2, 6, 23, 0.92) !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  border-radius: 1.28rem;
+  box-shadow:
+    0 1.25rem 3rem rgba(0, 0, 0, 0.62),
+    0 0 2.2rem rgba(2, 6, 23, 0.78),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
   isolation: isolate;
   overflow: visible !important;
   transform: translateX(2.15rem);
@@ -1343,11 +1591,11 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   border-radius: 2rem;
   content: "";
   filter: blur(0.35rem);
-  inset: -0.8rem -0.55rem 0.3rem;
-  opacity: 0.98;
+  inset: -0.92rem -0.64rem 0.22rem;
+  opacity: 0.82;
   pointer-events: none;
   position: absolute;
-  z-index: 0;
+  z-index: -1;
 }
 
 @media (max-width: 860px) {
@@ -1490,8 +1738,13 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   /* Dim via opacity only. The old saturate/brightness/sub-pixel-blur filter
      re-rasterized the whole panel every frame of the 260ms rotation (opacity
      composites; filter does not), and the panel ends fully transparent anyway
-     so the filter was never visible at rest. */
+     so the filter was never visible at rest. Keep outgoing side panels instant
+     so a released side-scroll does not show the old card shrinking away. */
   opacity: 0;
+  transition:
+    filter 0ms linear,
+    opacity 0ms linear,
+    transform 0ms linear;
 }
 
 .dashboard-profile-reward-orbit__panel[data-reward-panel-side="left"] {
@@ -1562,20 +1815,195 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   text-shadow: 0 0 0.52rem rgba(250, 204, 21, 0.42);
 }
 
+.dashboard-profile-reward-orbit__panel-title--points {
+  align-items: center;
+  color: #f8fafc;
+  flex-direction: column;
+  font-size: clamp(1.42rem, 5.8vw, 1.82rem);
+  gap: 0.16rem;
+  justify-content: center;
+  letter-spacing: 0.02em;
+  line-height: 0.9;
+  margin-top: 0.02rem;
+  text-align: center;
+  text-shadow:
+    0 0 0.42rem rgba(255, 255, 255, 0.24),
+    0 0 1.1rem rgba(56, 189, 248, 0.46),
+    0 0 1.45rem rgba(37, 99, 235, 0.32);
+}
+
+.dashboard-profile-reward-orbit__panel-title--points span {
+  color: rgba(191, 219, 254, 0.82);
+  font-size: 0.58rem;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  order: -1;
+  text-shadow: 0 0 0.52rem rgba(56, 189, 248, 0.34);
+}
+
+.dashboard-profile-points-summary {
+  margin: 0.52rem -0.24rem 0;
+  min-width: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.dashboard-profile-points-summary::before,
+.dashboard-profile-points-summary::after {
+  content: "";
+  inset-block: 0;
+  pointer-events: none;
+  position: absolute;
+  width: 1.5rem;
+  z-index: 2;
+}
+
+.dashboard-profile-points-summary::before {
+  background: linear-gradient(90deg, rgba(2, 6, 23, 0.86), transparent);
+  left: 0;
+}
+
+.dashboard-profile-points-summary::after {
+  background: linear-gradient(270deg, rgba(2, 6, 23, 0.86), transparent);
+  right: 0;
+}
+
+.dashboard-profile-points-summary__rail {
+  display: flex;
+  gap: 0.48rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.08rem 0.28rem 0.18rem;
+  scroll-padding-inline: 0.28rem;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dashboard-profile-points-summary__rail::-webkit-scrollbar {
+  display: none;
+}
+
+.dashboard-profile-points-summary__card {
+  --dashboard-points-summary-rgb: 56, 189, 248;
+  align-items: center;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(255, 255, 255, 0.16), transparent 32%),
+    linear-gradient(
+      135deg,
+      rgba(var(--dashboard-points-summary-rgb), 0.18),
+      rgba(15, 23, 42, 0.76) 46%,
+      rgba(2, 6, 23, 0.88)
+    );
+  border: 1px solid rgba(var(--dashboard-points-summary-rgb), 0.24);
+  border-radius: 0.92rem;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0.5rem 1.1rem rgba(2, 6, 23, 0.28),
+    0 0 0.72rem rgba(var(--dashboard-points-summary-rgb), 0.1);
+  display: grid;
+  flex: 0 0 7.2rem;
+  gap: 0.34rem;
+  grid-template-columns: 1.05rem minmax(0, 1fr);
+  min-height: 3.25rem;
+  padding: 0.42rem 0.54rem;
+  scroll-snap-align: start;
+}
+
+.dashboard-profile-points-summary__card[data-point-type="total"] {
+  --dashboard-points-summary-rgb: 125, 211, 252;
+  flex-basis: 8.55rem;
+}
+
+.dashboard-profile-points-summary__card[data-point-type="consistency"] {
+  --dashboard-points-summary-rgb: 250, 204, 21;
+}
+
+.dashboard-profile-points-summary__card[data-point-type="recovery"] {
+  --dashboard-points-summary-rgb: 52, 211, 153;
+}
+
+.dashboard-profile-points-summary__card[data-point-type="knowledge"] {
+  --dashboard-points-summary-rgb: 168, 85, 247;
+}
+
+.dashboard-profile-points-summary__card[data-point-type="volume"] {
+  --dashboard-points-summary-rgb: 251, 113, 133;
+}
+
+.dashboard-profile-points-summary__card[data-point-type="technique"] {
+  --dashboard-points-summary-rgb: 34, 211, 238;
+}
+
+.dashboard-profile-points-summary__bolt {
+  color: rgb(var(--dashboard-points-summary-rgb));
+  display: inline-grid;
+  filter:
+    drop-shadow(0 0 0.12rem rgba(255, 255, 255, 0.42))
+    drop-shadow(0 0 0.36rem rgba(var(--dashboard-points-summary-rgb), 0.62));
+  height: 1.05rem;
+  place-items: center;
+  width: 1.05rem;
+}
+
+.dashboard-profile-points-summary__copy {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.dashboard-profile-points-summary__value {
+  color: rgba(255, 255, 255, 0.96);
+  font-size: 0.78rem;
+  font-weight: 950;
+  letter-spacing: 0.03em;
+  line-height: 0.95;
+  text-shadow:
+    0 0 0.2rem rgba(255, 255, 255, 0.26),
+    0 0 0.52rem rgba(var(--dashboard-points-summary-rgb), 0.48);
+}
+
+.dashboard-profile-points-summary__label,
+.dashboard-profile-points-summary__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.dashboard-profile-points-summary__label {
+  color: rgba(224, 242, 254, 0.9);
+  font-size: 0.48rem;
+  font-weight: 950;
+  letter-spacing: 0.1em;
+  line-height: 1;
+}
+
+.dashboard-profile-points-summary__meta {
+  color: rgba(191, 219, 254, 0.66);
+  font-size: 0.42rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+}
+
 .dashboard-profile-reward-orbit__controls {
   align-items: center;
   display: flex;
   justify-content: center;
   margin-bottom: 0.68rem;
   position: relative;
-  z-index: 12;
+  z-index: 34;
 }
 
 .dashboard-profile-reward-orbit__dots {
   align-items: center;
-  display: inline-flex;
-  gap: 0.46rem;
+  display: grid;
+  gap: 0.44rem;
+  grid-template-columns: repeat(3, 2.64rem);
+  justify-items: center;
   position: relative;
+  z-index: 35;
 }
 
 .dashboard-profile-reward-orbit__dot {
@@ -1583,20 +2011,23 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   align-items: center;
   background: transparent;
   border: 0;
+  box-shadow: none;
   color: rgba(224, 242, 254, 0.86);
   cursor: pointer;
   display: inline-flex;
-  height: 1.7rem;
+  grid-row: 1;
+  height: 2.42rem;
   justify-content: center;
   outline: none;
   padding: 0;
   position: relative;
+  touch-action: manipulation;
   transition:
     filter 160ms ease,
     opacity 160ms ease,
     transform 160ms ease;
-  width: 1.7rem;
-  z-index: 1;
+  width: 2.42rem;
+  z-index: 36;
 }
 
 .dashboard-profile-reward-orbit__dot[data-reward-indicator="points"] {
@@ -1609,14 +2040,20 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
 
 .dashboard-profile-reward-orbit__dot[data-reward-indicator="gems"] {
   --dashboard-reward-indicator-rgb: 52, 211, 153;
-  height: 2.08rem;
-  width: 2.08rem;
+  height: 2.92rem;
+  width: 2.92rem;
 }
 
 .dashboard-profile-reward-orbit__dot[data-reward-indicator="gems"]
   .dashboard-profile-reward-orbit__dot-logo {
-  height: 2.08rem;
-  width: 2.08rem;
+  height: 2.92rem;
+  width: 2.92rem;
+}
+
+.dashboard-profile-reward-orbit__dot[data-reward-indicator="gems"]
+  .dashboard-profile-reward-orbit__dot-webgl {
+  inline-size: 2.92rem;
+  min-inline-size: 2.92rem;
 }
 
 .dashboard-profile-reward-orbit__dot[aria-pressed="true"] {
@@ -1637,17 +2074,22 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
 
 .dashboard-profile-reward-orbit__dot-logo {
   align-items: center;
-  display: block;
-  height: 1.7rem;
-  justify-content: center;
+  display: grid;
+  height: 2.42rem;
+  justify-content: stretch;
+  justify-items: stretch;
   overflow: visible;
+  place-items: center;
   position: relative;
-  width: 1.7rem;
+  width: 2.42rem;
+  z-index: 1;
 }
 
 .dashboard-profile-reward-orbit__dot-webgl {
   display: block;
   height: 100%;
+  inline-size: 2.42rem;
+  min-inline-size: 2.42rem;
   pointer-events: none;
   position: relative;
   width: 100%;
@@ -1657,21 +2099,22 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   filter:
     drop-shadow(0 0 0.18rem rgba(186, 230, 253, 0.72))
     drop-shadow(0 0 0.42rem rgba(56, 189, 248, 0.62));
-  transform: scale(0.78);
+  transform: scale(0.94);
 }
 
 .dashboard-profile-reward-orbit__dot-webgl--coins {
   filter:
     drop-shadow(0 0 0.18rem rgba(254, 243, 199, 0.72))
     drop-shadow(0 0 0.44rem rgba(250, 204, 21, 0.54));
-  transform: scale(1.04);
+  transform: scale(1.14);
 }
 
 .dashboard-profile-reward-orbit__dot-webgl--gems {
   filter:
-    drop-shadow(0 0 0.24rem rgba(236, 253, 245, 0.82))
-    drop-shadow(0 0 0.68rem rgba(52, 211, 153, 0.66));
-  transform: scale(2.08);
+    drop-shadow(0 0 0.26rem rgba(236, 253, 245, 0.86))
+    drop-shadow(0 0 0.72rem rgba(52, 211, 153, 0.68));
+  transform: scale(1.66);
+  transform-origin: center center;
 }
 
 .dashboard-profile-reward-orbit__dot[data-reward-indicator="gems"][aria-pressed="true"]
@@ -1679,17 +2122,42 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   filter:
     drop-shadow(0 0 0.3rem rgba(236, 253, 245, 0.9))
     drop-shadow(0 0 0.82rem rgba(52, 211, 153, 0.72));
-  transform: scale(2.18);
+  transform: scale(1.82);
 }
 
 .dashboard-profile-reward-actions {
   align-items: center;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(250, 204, 21, 0.16), transparent 38%),
+    radial-gradient(circle at 86% 12%, rgba(34, 211, 238, 0.14), transparent 36%),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.8), rgba(2, 6, 23, 0.74));
+  border: 1px solid rgba(191, 219, 254, 0.16);
+  border-radius: 1.05rem;
+  box-shadow:
+    0 0.75rem 1.45rem rgba(2, 6, 23, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  contain: layout style;
   display: grid;
-  gap: 0.72rem;
+  gap: 0.42rem;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   margin-top: 0.88rem;
+  padding: 0.42rem;
   position: relative;
   z-index: 16;
+}
+
+.dashboard-profile-reward-actions::before {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12),
+    rgba(255, 255, 255, 0.02)
+  );
+  border-radius: inherit;
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  z-index: -1;
 }
 
 .dashboard-profile-reward-action {
@@ -1699,9 +2167,9 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
 
 .dashboard-profile-reward-action__button {
   align-items: center;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
+  background: rgba(15, 23, 42, 0.36);
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  border-radius: 0.78rem;
   box-shadow: none;
   color: rgba(224, 242, 254, 0.92);
   display: inline-flex;
@@ -1710,13 +2178,14 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   gap: 0.48rem;
   justify-content: center;
   letter-spacing: 0.12em;
-  min-height: 2rem;
+  min-height: 2.15rem;
   outline: none;
   padding: 0.35rem 0.28rem;
   text-shadow: 0 0 0.58rem rgba(125, 211, 252, 0.22);
   text-transform: uppercase;
   transition:
-    box-shadow 180ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
     color 180ms ease,
     text-shadow 180ms ease,
     transform 180ms ease;
@@ -1734,6 +2203,8 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
 .dashboard-profile-reward-action__button:hover,
 .dashboard-profile-reward-action__button:focus-visible,
 .dashboard-profile-reward-action__button[data-reward-action-open="true"] {
+  background: rgba(14, 165, 233, 0.12);
+  border-color: rgba(125, 211, 252, 0.28);
   box-shadow: none;
   color: #ffffff;
   text-shadow:
@@ -2612,6 +3083,7 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
 }
 
 .dashboard-profile-app-gem-orbit {
+  --dashboard-profile-app-gem-cycle: 10.8s;
   align-items: center;
   display: grid;
   gap: 0.44rem;
@@ -2764,20 +3236,21 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
 
 .dashboard-profile-app-gem-orbit__readout {
   display: block;
-  height: 1.28rem;
+  height: 1.72rem;
   left: 50%;
   pointer-events: none;
   position: absolute;
   right: auto;
-  top: 3.05rem;
+  top: 2.86rem;
   transform: translateX(-50%);
-  width: 5.55rem;
+  width: 6.45rem;
   z-index: 10;
 }
 
 .dashboard-profile-app-gem-orbit__readout-item {
   --dashboard-profile-app-gem-glow: rgba(125, 211, 252, 0.54);
-  animation: dashboard-profile-app-gem-front-readout 6.8s linear infinite;
+  animation: dashboard-profile-app-gem-front-readout
+    var(--dashboard-profile-app-gem-cycle) linear infinite;
   animation-delay: var(--dashboard-profile-app-gem-delay);
   background:
     radial-gradient(circle at 16% 50%, var(--dashboard-profile-app-gem-glow), transparent 42%),
@@ -2785,16 +3258,17 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   border: 1px solid rgba(191, 219, 254, 0.16);
   border-radius: 0.42rem;
   box-shadow:
-    0 0 0.42rem rgba(2, 6, 23, 0.5),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    0 0 0.5rem rgba(2, 6, 23, 0.56),
+    0 0 0.84rem color-mix(in srgb, var(--dashboard-profile-app-gem-glow) 32%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(1.65rem, auto);
+  grid-template-columns: minmax(0, 1fr) minmax(2.24rem, auto);
   grid-template-rows: 1fr;
-  gap: 0.34rem;
+  gap: 0.42rem;
   inset: 0;
   line-height: 1;
   opacity: 0;
-  padding: 0.22rem 0.34rem;
+  padding: 0.26rem 0.42rem;
   place-items: center start;
   position: absolute;
 }
@@ -2834,7 +3308,8 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   --dashboard-profile-app-gem-glow: rgba(125, 211, 252, 0.54);
   --dashboard-profile-app-gem-delay: 0s;
   align-items: center;
-  animation: dashboard-profile-app-gem-carousel 6.8s linear infinite;
+  animation: dashboard-profile-app-gem-carousel
+    var(--dashboard-profile-app-gem-cycle) linear infinite;
   animation-delay: var(--dashboard-profile-app-gem-delay);
   animation-play-state: paused;
   display: grid;
@@ -2932,7 +3407,7 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
 
 .dashboard-profile-app-gem-orbit__gem-label {
   color: rgba(239, 246, 255, 0.92);
-  font-size: 0.4rem;
+  font-size: 0.46rem;
   font-weight: 950;
   letter-spacing: 0.04em;
   line-height: 1;
@@ -2941,7 +3416,7 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
 
 .dashboard-profile-app-gem-orbit__gem-value {
   color: #ffffff;
-  font-size: 0.62rem;
+  font-size: 1.08rem;
   font-weight: 950;
   line-height: 1;
   text-align: right;
@@ -3863,11 +4338,24 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   min-height: 14.35rem;
 }
 
+.dashboard-profile-charge-node-grid--readouts-external.dashboard-profile-charge-node-grid--three {
+  grid-template-rows: repeat(3, minmax(2.9rem, auto));
+  margin-top: 0.44rem !important;
+  min-height: 11.85rem;
+}
+
 .dashboard-profile-charge-node-grid--three
   .dashboard-profile-charge-node-grid__tesla-scene {
   height: calc(100% - 0.5rem);
   inset: 0.3rem 1.08rem 0.2rem 1.08rem;
   width: calc(100% - 2.16rem);
+}
+
+.dashboard-profile-charge-node-grid--readouts-external.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node-grid__tesla-scene {
+  height: calc(100% + 0.1rem);
+  inset: 0.12rem 0.72rem -0.22rem 0.72rem;
+  width: calc(100% - 1.44rem);
 }
 
 .dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master,
@@ -3890,6 +4378,53 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(2.9rem, 1fr) auto;
   min-height: 4.65rem;
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node[data-turbine-running="false"] {
+  filter: brightness(0.56) saturate(0.72);
+  opacity: 0.6;
+}
+
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node[data-turbine-running="false"]::before,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node[data-turbine-running="false"]::after,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node[data-turbine-running="false"]
+  .dashboard-profile-charge-node__core::before,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node[data-turbine-running="false"]
+  .dashboard-profile-charge-node__core::after,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node[data-turbine-running="false"]
+  .dashboard-profile-charge-node__value::before,
+.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node[data-turbine-running="false"]
+  .dashboard-profile-charge-node__value::after {
+  animation-play-state: paused !important;
+}
+
+.dashboard-profile-charge-node-grid--readouts-external.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node-master {
+  grid-template-rows: minmax(5.2rem, 1fr);
+  min-height: 6.3rem;
+}
+
+.dashboard-profile-charge-node-grid--readouts-external.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node {
+  grid-template-rows: minmax(2.35rem, 1fr);
+  min-height: 3.25rem;
+}
+
+.dashboard-profile-charge-node-grid--readouts-external.dashboard-profile-charge-node-grid--three
+  :is(
+    .dashboard-profile-charge-node-master__readout,
+    .dashboard-profile-charge-node__readout
+  ) {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 
 .dashboard-profile-charge-node-grid--three .dashboard-profile-charge-node-master__readout,
@@ -6122,8 +6657,8 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
    position and scale on the compositor, but a CSS transition on a layout
    property has not moved when the FLIP measures the item's end box, so the
    bridge saw no delta and skipped — and the motion fell to layout-driven
-   transitions that dirtied layout on every frame. With the stage loop,
-   the flip sampler and the nav refit each reading layout per frame, an
+   transitions that dirtied layout on every frame. With the old stage loop,
+   flip sampler and nav refit each reading layout per frame, an
    open or close ran at 10-15fps. Layout now snaps once at the flip and the
    bridge carries the whole glide; only paint/composite properties
    transition here. The subject is the four real children, enumerated: a
@@ -6142,13 +6677,8 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
     translate 240ms cubic-bezier(0.2, 0.84, 0.2, 1);
 }
 
-/* The nav joystick's size is swapped by the --stable state rules (width,
-   min-width, height, margin), not by scale — give those the same 420ms so it
-   resizes in step with the nav's zoom and the rest of the row. transform stays
-   on the fast 150ms path for hover/press feedback. */
-/* Same reasoning as above: the joystick's size swap is bridged by the FLIP
-   (it is in DASHBOARD_HEADER_FLIP_SELECTORS), so its box snaps and the
-   transform glide carries it. (Speed audit, Sept 2026.) */
+/* The joystick participates directly in the focus bridge. Keep its normal
+   transitions limited to hover feedback; geometry uses the shared glide. */
 .dashboard-header-vortex-shell .dashboard-header-selector-joystick {
   transition:
     background-color 150ms ease,
@@ -6157,6 +6687,36 @@ body.dashboard-page--level-meter-open main.dashboard-page--level-meter-open.dash
     color 150ms ease,
     filter 150ms ease,
     opacity 150ms ease;
+}
+
+/* A focus change measures one final layout before its compositor bridge.
+   Ancestor scale/translate transitions otherwise give the bridge a moving
+   destination, and the old WAAPI transforms lose to !important mobile rules.
+   The bridge adds a temporary inline transform transition only to the visible
+   pieces it owns; their containers and the shell settle before that starts. */
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-header-focus][data-header-focus-flipping="true"],
+.dashboard-header-vortex-shell[data-header-focus-flipping="true"] :is(
+  .dashboard-header-menu-content,
+  .dashboard-header-logo-cluster,
+  .dashboard-header-mobile-orbit-joystick,
+  .dashboard-header-main-orbit-stage,
+  .dashboard-header-menu-block,
+  .dashboard-header-dashboard-selector,
+  .dashboard-header-orbit-system,
+  .dashboard-header-selector-joystick,
+  .dashboard-header-selector-body,
+  .dashboard-header-rail-pocket,
+  .dashboard-header-selector-copy,
+  .dashboard-header-selector-category-dock,
+  .dashboard-profile-hub-trigger,
+  .dashboard-profile-action-gear,
+  .dashboard-profile-rewards-control,
+  .dashboard-profile-upper-actions,
+  .dashboard-profile-quick-actions,
+  .dashboard-header-meter-menu-shell,
+  .dashboard-header-news-chyron
+) {
+  transition: none !important;
 }
 
 .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
@@ -6263,6 +6823,23 @@ main.dashboard-page--idle-menu-open
      shell's midline, leaving it out of line with the logo and joystick. */
   translate: 0 1.5rem;
   transform-origin: 0 0;
+}
+
+@media (max-width: 940px) {
+  .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-main-orbit-stage
+    > .dashboard-header-menu-block--dashboard.dashboard-header-menu-block--dashboard {
+    /* The visible collapsed rail still read with too much dead air between
+       the joystick and nav at tablet/mobile menu widths. Tighten that gap
+       without changing the block's measured fit or the open-header paging.
+
+       x was -0.75rem. The block carries the selector joystick, and the idle
+       0.6 scale about a top-left origin left that joystick's centre 4.26px
+       left of where the open header puts it — the last of the sideways travel
+       once the stage stopped moving. -0.75rem + 4.26px = -0.48rem, measured
+       to dx = -0.06px across a focus change. The collapsed drop is unchanged. */
+    translate: -0.48rem 0.69rem !important;
+  }
 }
 
 .dashboard-header-vortex-shell[data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
@@ -6674,19 +7251,14 @@ html[data-dashboard-webgl="warming"]
   -webkit-user-select: none;
 }
 
-/* While a drag gesture is live, fade in the panel it is heading toward so the
-   user can see what they are pulling into place — the neighbours rest at
-   opacity 0, which made drags feel like nothing-then-JUMP.
-   Only that ONE neighbour: revealing both put the card being left behind on
-   screen as well, so a drag showed a third section drifting in the background
-   that the gesture was never going to land on. Dragging right slides the row
-   right, which brings the LEFT neighbour to the middle, hence the crossed
-   pairing below. */
+/* During a drag, keep side panels hidden. The old partial reveal helped show
+   drag direction, but it also exposed a side card shrinking/moving under the
+   menu before the carousel settled. */
 .dashboard-profile-reward-orbit[data-orbit-drag-toward="left"]
   .dashboard-profile-reward-orbit__panel[data-reward-panel-side="left"],
 .dashboard-profile-reward-orbit[data-orbit-drag-toward="right"]
   .dashboard-profile-reward-orbit__panel[data-reward-panel-side="right"] {
-  opacity: 0.34;
+  opacity: 0;
 }
 
 /* The claim popup's keyframe entry could be caught PAUSED at t=0 (fill:both
@@ -6728,6 +7300,14 @@ html[data-dashboard-webgl="warming"]
     translateZ(var(--dashboard-profile-reward-depth, -5.2rem))
     rotateY(var(--dashboard-profile-reward-rotate, 0deg))
     scale(var(--dashboard-profile-reward-scale, 0.74));
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-side="left"],
+.dashboard-profile-reward-orbit__panel[data-reward-panel-side="right"] {
+  transition:
+    filter 0ms linear,
+    opacity 0ms linear,
+    transform 0ms linear;
 }
 
 /* While the pointer is down, panels must follow instantly — the 440ms
@@ -6787,6 +7367,20 @@ html[data-dashboard-webgl="warming"]
      use. Spend it on the gift rows, whose titles were truncating at 17rem. */
   .dashboard-profile-claim-dropdown {
     width: min(20rem, calc(100vw - 0.9rem)) !important;
+  }
+}
+
+@media (min-width: 431px) and (max-width: 940px) {
+  .dashboard-header-vortex-shell[data-account-paged="true"]
+    .dashboard-profile-points-dropdown {
+    left: 50% !important;
+    max-width: calc(100vw - 1.5rem) !important;
+    position: fixed !important;
+    right: auto !important;
+    top: 5.45rem !important;
+    transform: none !important;
+    translate: calc(-50% - 3.3rem) 0 !important;
+    width: min(27rem, calc(100vw - 1.5rem)) !important;
   }
 }
 
@@ -7021,39 +7615,127 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
    supplies the from-side values on the first rendered frame after a
    display:none flip. This file is served verbatim, so @starting-style and
    nesting survive the pipeline. */
-@media (max-width: 430px) {
+@media (max-width: 940px) {
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="account"]
     :is(.dashboard-profile-hub-trigger, .dashboard-profile-action-gear),
   .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-exiting-narrow-account-item="account"]
+    :is(.dashboard-profile-hub-trigger, .dashboard-profile-action-gear),
+  .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="rewards"]
-    .dashboard-profile-rewards-control {
+    .dashboard-profile-rewards-control,
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-narrow-account-item="rewards"]
+    .dashboard-profile-rewards-control
+    :is(.dashboard-profile-points-trigger, .dashboard-profile-claim-trigger) {
     transition:
-      opacity 240ms cubic-bezier(0.2, 0.84, 0.2, 1),
-      transform 240ms cubic-bezier(0.2, 0.84, 0.2, 1);
+      opacity var(--dashboard-header-account-page-swipe-duration) var(--dashboard-header-account-page-swipe-ease),
+      transform var(--dashboard-header-account-page-swipe-duration) var(--dashboard-header-account-page-swipe-ease);
+    will-change: opacity, transform;
   }
 
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable[data-header-slide="right"][data-narrow-account-item="account"]
-    :is(.dashboard-profile-hub-trigger, .dashboard-profile-action-gear),
+    :is(.dashboard-profile-hub-trigger, .dashboard-profile-action-gear) {
+    @starting-style {
+      opacity: 0;
+      transform: translateX(var(--dashboard-header-account-page-swipe-offset));
+    }
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="right"][data-exiting-narrow-account-item="account"]
+    .dashboard-profile-hub-trigger {
+    opacity: 0;
+    pointer-events: none !important;
+    position: absolute !important;
+    right: 0 !important;
+    top: 50% !important;
+    transform: translateX(calc(-1 * var(--dashboard-header-account-page-swipe-offset))) !important;
+    translate: 0 -50% !important;
+    z-index: 8;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="right"][data-exiting-narrow-account-item="account"]
+    .dashboard-profile-action-gear {
+    opacity: 0;
+    pointer-events: none !important;
+    position: absolute !important;
+    right: 4.35rem !important;
+    top: 2.5rem !important;
+    transform: translateX(calc(-1 * var(--dashboard-header-account-page-swipe-offset))) !important;
+    z-index: 9;
+  }
+
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable[data-header-slide="right"][data-narrow-account-item="rewards"]
     .dashboard-profile-rewards-control {
     @starting-style {
       opacity: 0;
-      transform: translateX(1.4rem);
+    }
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="right"][data-narrow-account-item="rewards"]
+    .dashboard-profile-rewards-control
+    :is(.dashboard-profile-points-trigger, .dashboard-profile-claim-trigger) {
+    @starting-style {
+      opacity: 0;
+      transform: translateX(var(--dashboard-header-account-page-swipe-offset));
     }
   }
 
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable[data-header-slide="left"][data-narrow-account-item="account"]
-    :is(.dashboard-profile-hub-trigger, .dashboard-profile-action-gear),
+    :is(.dashboard-profile-hub-trigger, .dashboard-profile-action-gear) {
+    @starting-style {
+      opacity: 0;
+      transform: translateX(calc(-1 * var(--dashboard-header-account-page-swipe-offset)));
+    }
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="left"][data-exiting-narrow-account-item="account"]
+    .dashboard-profile-hub-trigger {
+    opacity: 0;
+    pointer-events: none !important;
+    position: absolute !important;
+    right: 0 !important;
+    top: 50% !important;
+    transform: translateX(var(--dashboard-header-account-page-swipe-offset)) !important;
+    translate: 0 -50% !important;
+    z-index: 8;
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="left"][data-exiting-narrow-account-item="account"]
+    .dashboard-profile-action-gear {
+    opacity: 0;
+    pointer-events: none !important;
+    position: absolute !important;
+    right: 4.35rem !important;
+    top: 2.5rem !important;
+    transform: translateX(var(--dashboard-header-account-page-swipe-offset)) !important;
+    z-index: 9;
+  }
+
   .dashboard-header-vortex-shell
     .dashboard-header-main-orbit-stage--stable[data-header-slide="left"][data-narrow-account-item="rewards"]
     .dashboard-profile-rewards-control {
     @starting-style {
       opacity: 0;
-      transform: translateX(-1.4rem);
+    }
+  }
+
+  .dashboard-header-vortex-shell
+    .dashboard-header-main-orbit-stage--stable[data-header-slide="left"][data-narrow-account-item="rewards"]
+    .dashboard-profile-rewards-control
+    :is(.dashboard-profile-points-trigger, .dashboard-profile-claim-trigger) {
+    @starting-style {
+      opacity: 0;
+      transform: translateX(calc(-1 * var(--dashboard-header-account-page-swipe-offset)));
     }
   }
 
@@ -7064,7 +7746,7 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
      account run (the doubled-class suppression state, which previously left
      the transform parked at the revealed position, so the meter step was a
      pure fade — no motion at all). */
-  .dashboard-header-vortex-shell
+  .dashboard-header-vortex-shell[data-account-paged="true"]
     .dashboard-header-main-orbit-stage--stable[data-header-slide="left"]:not([data-mobile-header-panel="account"])
     + .dashboard-header-meter-menu-shell {
     transform: translate3d(-0.72rem, -50%, -2rem) scale(0.74) !important;
@@ -7087,4 +7769,296 @@ html body .dashboard-header-vortex-shell[data-header-transitioning="true"] .dash
     + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell {
     transform: translate3d(-0.72rem, -50%, -2rem) scale(0.74) !important;
   }
+
+  /* Rewards+Meter is a visible shared step, so it must not inherit the
+     hidden side-offset used while the standalone rewards page suppresses the
+     meter. In the collapsed header the shell is absolute instead of a flex
+     child, so pin its top to the same ~36px idle midline as the crest and
+     horizontal joystick rather than centring it in the taller header box. */
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged="true"][data-rewards-meter-shared="true"]
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"][data-narrow-account-item="rewards"]
+    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell {
+    transform: translateY(-50%) !important;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged="true"][data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-main-orbit-stage--stable
+    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell {
+    top: calc(2.25rem - 0.3 * var(--dashboard-header-meter-button-size)) !important;
+    transform: none !important;
+    translate: 0 !important;
+  }
+
+  .dashboard-header-vortex-shell.dashboard-header-vortex-shell[data-account-paged="true"][data-rewards-meter-shared="true"][data-header-focus="content"]:not(.dashboard-header-vortex-shell--timed-out)
+    .dashboard-header-main-orbit-stage--stable[data-mobile-header-panel="account"][data-narrow-account-item="rewards"]
+    + .dashboard-header-meter-menu-shell.dashboard-header-meter-menu-shell {
+    transform: translate3d(0, 0, 0) !important;
+  }
+}
+
+/* ==== REWARDS POINTS PANEL: ONE-AT-A-TIME SUMMARY ==== */
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary {
+  margin: 0.48rem 0 0.18rem !important;
+  overflow: visible !important;
+  padding-bottom: 0.08rem;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary::before,
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary::after {
+  display: none !important;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__pager {
+  align-items: center;
+  display: grid;
+  gap: 0.28rem;
+  grid-template-columns: 2.15rem minmax(0, 15.7rem) 2.15rem;
+  justify-content: center;
+  min-height: 5.28rem;
+  overflow: visible;
+  padding: 0.14rem 0.08rem 0.3rem;
+  width: 100%;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__arrow {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 9999px;
+  color: rgba(191, 219, 254, 0.88);
+  cursor: pointer;
+  display: inline-grid;
+  font-size: 1.65rem;
+  font-weight: 950;
+  height: 2.15rem;
+  justify-content: center;
+  line-height: 1;
+  outline: none;
+  padding: 0;
+  text-shadow:
+    0 0 0.24rem rgba(255, 255, 255, 0.22),
+    0 0 0.62rem rgba(56, 189, 248, 0.42);
+  touch-action: manipulation;
+  transition:
+    color 160ms ease,
+    filter 160ms ease,
+    transform 160ms ease;
+  width: 2.15rem;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__arrow:hover,
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__arrow:focus-visible {
+  color: #ffffff;
+  filter:
+    drop-shadow(0 0 0.22rem rgba(255, 255, 255, 0.28))
+    drop-shadow(0 0 0.58rem rgba(56, 189, 248, 0.46));
+  transform: translateY(-0.03rem) scale(1.06);
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout {
+  --dashboard-points-summary-rgb: 56, 189, 248;
+  align-items: center;
+  display: grid;
+  gap: 0;
+  grid-template-columns: 1.72rem minmax(0, 1fr) 1.72rem;
+  isolation: isolate;
+  justify-self: stretch;
+  min-height: 4.86rem;
+  min-width: 0;
+  overflow: visible;
+  padding: 0.38rem 0.44rem 0.46rem;
+  position: relative;
+  text-align: center;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout::before {
+  background:
+    radial-gradient(
+      ellipse at 50% 50%,
+      rgba(15, 23, 42, 0.96) 0%,
+      rgba(15, 23, 42, 0.84) 22%,
+      rgba(var(--dashboard-points-summary-rgb), 0.25) 44%,
+      rgba(var(--dashboard-points-summary-rgb), 0.11) 62%,
+      rgba(var(--dashboard-points-summary-rgb), 0.04) 74%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse at 50% 50%,
+      rgba(var(--dashboard-points-summary-rgb), 0.2) 0%,
+      rgba(var(--dashboard-points-summary-rgb), 0.08) 54%,
+      transparent 100%
+    );
+  border-radius: 9999px;
+  clip-path: ellipse(50% 48% at 50% 50%);
+  content: "";
+  filter:
+    blur(0.05rem)
+    drop-shadow(0 0 0.3rem rgba(var(--dashboard-points-summary-rgb), 0.2))
+    drop-shadow(0 0 0.58rem rgba(var(--dashboard-points-summary-rgb), 0.12));
+  height: 3.56rem;
+  left: -0.36rem;
+  opacity: 0.94;
+  pointer-events: none;
+  position: absolute;
+  right: -0.36rem;
+  top: 50%;
+  transform: translateY(-50%) skewX(-3deg);
+  z-index: -1;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout[data-point-type="total"] {
+  --dashboard-points-summary-rgb: 37, 99, 235;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout[data-point-type="intensity"] {
+  --dashboard-points-summary-rgb: 248, 113, 113;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout[data-point-type="consistency"] {
+  --dashboard-points-summary-rgb: 250, 204, 21;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout[data-point-type="recovery"] {
+  --dashboard-points-summary-rgb: 52, 211, 153;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout[data-point-type="knowledge"] {
+  --dashboard-points-summary-rgb: 167, 139, 250;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout[data-point-type="volume"] {
+  --dashboard-points-summary-rgb: 125, 211, 252;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout[data-point-type="technique"] {
+  --dashboard-points-summary-rgb: 251, 146, 60;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout
+  .dashboard-profile-points-summary__bolt {
+  color: rgb(var(--dashboard-points-summary-rgb));
+  grid-column: 1;
+  height: 1.56rem;
+  justify-self: center;
+  width: 1.56rem;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout
+  .dashboard-profile-points-summary__copy {
+  gap: 0.2rem;
+  grid-column: 2;
+  justify-items: center;
+  min-width: 0;
+  text-align: center;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout
+  .dashboard-profile-points-summary__value {
+  font-size: clamp(1.48rem, 7vw, 2.02rem);
+  font-weight: 900;
+  letter-spacing: 0.045em;
+  line-height: 1.02;
+  text-shadow:
+    0 0 0.16rem rgba(255, 255, 255, 0.2),
+    0 0 0.38rem rgba(var(--dashboard-points-summary-rgb), 0.34);
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout
+  .dashboard-profile-points-summary__label {
+  font-size: clamp(0.68rem, 2.8vw, 0.82rem);
+  font-weight: 900;
+  letter-spacing: 0.13em;
+  line-height: 1.06;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__readout
+  .dashboard-profile-points-summary__meta {
+  font-size: clamp(0.76rem, 3.2vw, 0.92rem);
+  font-weight: 850;
+  letter-spacing: 0.085em;
+  line-height: 1.14;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__rail {
+  display: flex !important;
+  flex-direction: row !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__card {
+  display: grid !important;
+  flex: 0 0 7.2rem !important;
+  min-height: 3.25rem !important;
+  width: auto !important;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-points-summary__card[data-point-type="total"] {
+  flex-basis: 8.55rem !important;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-charge-node-grid--readouts-external.dashboard-profile-charge-node-grid--three {
+  align-content: stretch !important;
+  grid-template-rows: repeat(3, minmax(3.32rem, 1fr)) !important;
+  margin-top: 0.26rem !important;
+  min-height: 13.35rem !important;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-charge-node-grid--readouts-external.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node-grid__tesla-scene {
+  height: calc(100% + 1.15rem);
+  inset: -0.46rem 0.42rem -0.74rem 0.42rem;
+  width: calc(100% - 0.84rem);
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-charge-node-grid--readouts-external.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node-master {
+  grid-template-rows: minmax(6.7rem, 1fr);
+  min-height: 7.35rem;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-charge-node-grid--readouts-external.dashboard-profile-charge-node-grid--three
+  .dashboard-profile-charge-node {
+  grid-template-rows: minmax(2.85rem, 1fr);
+  min-height: 3.7rem;
+}
+
+.dashboard-profile-reward-orbit__panel[data-reward-panel-active="true"]
+  .dashboard-profile-charge-node-grid--readouts-external.dashboard-profile-charge-node-grid--three
+  :is(
+    .dashboard-profile-charge-node-master__readout,
+    .dashboard-profile-charge-node__readout
+  ) {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }

@@ -50,6 +50,7 @@ export async function GET(request: Request) {
 
   const authClient = createClient(supabaseUrl, supabaseAnonKey, {
     auth: { persistSession: false },
+    global: { headers: { Authorization: `Bearer ${token}` } },
   });
   const {
     data: { user },

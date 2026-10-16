@@ -1,12 +1,602 @@
 .card { container: body-card / size; }
 
+.contentGrid,
+.bodyStageGrid,
+.supportSignalsHost {
+  min-width: 0;
+}
+
+.contentGrid {
+  --body-control-ring-size: 72px;
+  --body-control-slot-size: 80px;
+  --body-support-ring-size: 80px;
+  --body-support-card-min: 92px;
+  --body-support-cap-clearance: 18px;
+}
+
+.avatarStage {
+  min-width: 0;
+}
+
+.avatarViewport {
+  min-width: 0;
+}
+
+.coolnessLegend {
+  overflow: visible;
+}
+
+.coolnessRail {
+  /* The longest active status is "Overworked" (~83px at this size). Keep the
+     active slot wider than that even when the avatar column gets pinched. */
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: min(100%, 96px);
+  overflow-y: visible;
+  width: max-content;
+}
+
+.coolnessItem {
+  white-space: nowrap;
+}
+
+.coolnessDot {}
+
+@container body-card (max-width: 520px) {
+  .coolnessLegend {
+    gap: 0.25rem !important;
+    padding-right: 0 !important;
+  }
+
+  .coolnessRail {
+    gap: 0.25rem !important;
+    min-width: 0;
+  }
+
+  .coolnessItem {
+    font-size: 6px !important;
+    gap: 0.2rem !important;
+    letter-spacing: 0.045em !important;
+    padding-inline: 1px !important;
+  }
+
+  .coolnessDot {
+    height: 5px !important;
+    width: 5px !important;
+  }
+}
+
+.supportSignalViewport {
+  margin-inline: -12px;
+  margin-top: calc(var(--body-support-cap-clearance) * -1);
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: visible;
+  padding-inline: 12px;
+  padding-top: var(--body-support-cap-clearance);
+}
+
+.supportSignalTitleRow {
+  isolation: isolate;
+  margin-bottom: 0 !important;
+  position: relative;
+  transform: translateY(6px);
+  z-index: 90;
+  text-shadow: 0 1px 3px rgba(2, 6, 23, 0.95), 0 0 10px rgba(34, 211, 238, 0.26);
+}
+
+.supportSignalTitleText {
+  position: relative;
+  text-shadow:
+    0 1px 3px rgba(2, 6, 23, 0.98),
+    0 0 8px rgba(2, 6, 23, 0.92),
+    0 0 12px currentColor;
+  z-index: 2;
+}
+
+.supportSignalRail {
+  align-items: center;
+  margin-top: calc(var(--body-support-cap-clearance) * -1);
+  overflow-x: auto !important;
+  overflow-y: visible;
+  padding-top: calc(var(--body-support-cap-clearance) + 4px) !important;
+}
+
+.supportSignalCard {
+  min-height: var(--body-support-card-min) !important;
+  overflow: visible;
+  padding-block: 4px !important;
+}
+
+.supportSignalRing {
+  height: var(--body-support-ring-size) !important;
+  overflow: visible;
+  width: var(--body-support-ring-size) !important;
+}
+
+.supportSignalFace {
+  isolation: isolate;
+  min-width: 0;
+}
+
+.supportSignalLoaderTitle {
+  position: relative;
+  text-shadow:
+    0 1px 3px rgba(2, 6, 23, 0.98),
+    0 0 8px rgba(2, 6, 23, 0.9),
+    0 0 10px currentColor;
+  z-index: 40;
+}
+
+.supportSignalGlyph {}
+
+.supportSignalCaption {}
+
+.supportSignalStatus {}
+
+.avatarActions {
+  transform-origin: 50% 50%;
+}
+
+.commandHeader,
+.commandSummarySlot {
+  min-width: 0;
+}
+
+.commandSummarySlot :global(.dashboard-hero-active-profile) {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.controlTitleRow {
+  position: relative;
+  z-index: 40;
+  text-shadow: 0 1px 3px rgba(2, 6, 23, 0.95), 0 0 10px rgba(34, 211, 238, 0.26);
+}
+
+/* On phones, let the athlete use the full grid row height. The surrounding
+   card grid now owns overlap prevention, so this stage should not cap itself
+   by width and leave empty vertical space. */
+@container body-card (max-width: 699px) {
+  .contentGrid {
+    --body-control-ring-size: clamp(68px, min(30cqw, 17cqh), 76px);
+    --body-control-slot-size: calc(var(--body-control-ring-size) + 8px);
+    --body-support-ring-size: clamp(64px, min(28cqw, 16cqh), 70px);
+    --body-support-card-min: calc(var(--body-support-ring-size) + 10px);
+  }
+
+  .avatarStage {
+    align-self: stretch;
+    height: 100%;
+    max-height: none;
+    min-height: 0;
+  }
+
+  .avatarViewport {
+    height: 100% !important;
+    min-height: 0 !important;
+    padding-top: clamp(0.5rem, 3cqw, 1.25rem) !important;
+  }
+
+  .categoryRing {
+    height: var(--body-control-ring-size) !important;
+    width: var(--body-control-ring-size) !important;
+  }
+
+  .compactMuscleRail {
+    grid-template-columns: repeat(var(--compact-muscle-columns, 3), var(--body-control-slot-size)) !important;
+  }
+
+  .compactMuscleActive button[aria-haspopup="dialog"],
+  .compactMusclePreview button[aria-haspopup="dialog"] {
+    height: var(--body-control-ring-size) !important;
+    width: var(--body-control-ring-size) !important;
+  }
+
+  .compactMuscleActive button[aria-haspopup="dialog"] > span,
+  .compactMusclePreview button[aria-haspopup="dialog"] > span {
+    max-width: calc(var(--body-control-ring-size) - 22px) !important;
+  }
+
+  .supportSignalsHost {
+    border-top: 0 !important;
+    overflow: visible;
+  }
+
+  .compactMuscles,
+  .expandedMuscles {
+    overflow: visible;
+  }
+
+  .compactMuscleRail {
+    margin-bottom: 0;
+    overflow: visible !important;
+    padding-bottom: 6px !important;
+  }
+
+  .expandedMuscles > div > div:last-child > div {
+    margin-bottom: 0;
+    padding-bottom: 6px !important;
+  }
+
+  .supportSignalViewport {
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+  }
+
+  .supportSignalRail {
+    margin-top: calc(var(--body-support-cap-clearance) * -1);
+    padding-top: calc(var(--body-support-cap-clearance) + 4px) !important;
+  }
+}
+
+@container body-card (min-width: 520px) and (max-width: 699px) {
+  .avatarViewport {
+    padding-top: 0.15rem !important;
+  }
+
+  .avatarActions {
+    align-items: center !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    inset-inline: auto !important;
+    left: calc(50% - clamp(70px, 19cqw, 92px)) !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+  }
+}
+
+@media (min-height: 620px) {
+  @container body-card (max-width: 699px) {
+    .commandHeader {
+      display: block !important;
+    }
+
+    .commandSummarySlot {
+      flex-basis: 100% !important;
+      max-width: none !important;
+      width: 100% !important;
+    }
+
+    /* The slot spans the whole row here, but the scene-nav cluster is
+       absolutely positioned over the card's top-right corner, so the
+       heading reserves that column and shrinks into what is left instead
+       of running under the icons. The cluster sits a constant 126px in
+       from the content edge at every width below 760px, where the wider
+       five-icon cluster takes over (handled below). */
+    .commandSummarySlot [class~="@container"] {
+      padding-right: 9rem !important;
+    }
+
+    .commandSummarySlot h3 {
+      font-size: clamp(0.95rem, 6.2cqw, 3rem) !important;
+      max-width: none !important;
+    }
+  }
+}
+
+@media (min-height: 620px) and (min-width: 760px) {
+  @container body-card (max-width: 699px) {
+    .commandSummarySlot [class~="@container"] {
+      padding-right: 13.5rem !important;
+    }
+  }
+}
+
+@media (min-width: 640px) and (max-height: 700px) {
+  .avatarViewport {
+    padding-top: 0.15rem !important;
+  }
+
+  .avatarActions {
+    align-items: center !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    inset-inline: auto !important;
+    left: calc(50% - clamp(70px, 19vw, 92px)) !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+  }
+}
+
 /* Keep the short phone layout's heading and support strip from consuming
    the space required for the two training controls. */
 @container body-card (max-width: 360px) and (max-height: 480px) {
-  .commandHeader [class~="@container"] { padding-right: 104px; gap: 4px; }
-  .supportSignals [class~="snap-x"] { padding-top: 16px; }
-  .supportSignals [role="progressbar"] { width: 64px; height: 64px; }
-  .supportSignals [class~="min-h-[88px]"] { min-height: 72px; padding-block: 4px; }
+  .contentGrid {
+    --body-control-ring-size: clamp(62px, min(29cqw, 16cqh), 68px);
+    --body-control-slot-size: calc(var(--body-control-ring-size) + 7px);
+    --body-support-ring-size: clamp(60px, min(27cqw, 15cqh), 66px);
+    --body-support-card-min: calc(var(--body-support-ring-size) + 8px);
+  }
+
+  .commandHeader [class~="@container"] { padding-right: 140px; gap: 4px; }
+  .supportSignalRail { padding-top: calc(var(--body-support-cap-clearance) + 2px) !important; }
+  .supportSignalRing { width: var(--body-support-ring-size) !important; height: var(--body-support-ring-size) !important; }
+  .supportSignalCard { min-height: var(--body-support-card-min) !important; padding-block: 3px !important; }
+}
+
+/* Square-ish dashboard panes can be wide enough to trigger the two-column
+   hero layout while still being too short for the expanded category + muscle
+   rings and the Support Signals rail. Treat that as a compact dashboard card
+   shape, not as a full desktop card, so the hero contents stop stacking over
+   each other as the viewport approaches a square. */
+@container body-card (min-width: 520px) and (max-aspect-ratio: 1.22 / 1) {
+  .contentGrid {
+    --body-control-ring-size: clamp(66px, min(16cqh, 15cqw), 74px);
+    --body-control-slot-size: calc(var(--body-control-ring-size) + 8px);
+    --body-support-ring-size: clamp(64px, min(15cqh, 14cqw), 72px);
+    --body-support-card-min: calc(var(--body-support-ring-size) + 10px);
+  }
+
+  .contentGrid {
+    gap: 6px !important;
+    grid-template-columns: minmax(0, 1fr) minmax(216px, 0.56fr) !important;
+    grid-template-rows: minmax(0, 1fr) auto !important;
+  }
+
+  .bodyStageGrid {
+    display: grid !important;
+    gap: 6px !important;
+    grid-template-columns: minmax(0, 1fr) minmax(150px, 0.36fr) !important;
+  }
+
+  .avatarStage {
+    grid-row: auto !important;
+  }
+
+  .avatarViewport {
+    padding-top: 0.15rem !important;
+  }
+
+  .avatarActions {
+    align-items: center !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    inset-inline: auto !important;
+    left: calc(50% - clamp(70px, 19cqw, 92px)) !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+  }
+
+  .controlsHost {
+    min-width: 0 !important;
+  }
+
+  .controlsLayout {
+    gap: 4px;
+    padding-right: 0;
+  }
+
+  .compactMuscles {
+    display: flex !important;
+  }
+
+  .expandedMuscles {
+    display: none !important;
+  }
+
+  .supportSignalsHost {
+    padding-top: 4px !important;
+    overflow: visible;
+    padding-bottom: 5px !important;
+    padding-right: 6px !important;
+  }
+
+  .supportSignalRail {
+    margin-top: calc(var(--body-support-cap-clearance) * -1);
+    padding-top: calc(var(--body-support-cap-clearance) + 4px) !important;
+  }
+
+  .supportSignalRing {
+    height: var(--body-support-ring-size) !important;
+    width: var(--body-support-ring-size) !important;
+  }
+
+  .supportSignalCard {
+    min-height: var(--body-support-card-min) !important;
+    padding-block: 4px !important;
+  }
+}
+
+@container body-card (min-width: 520px) and (max-height: 560px) {
+  .contentGrid {
+    --body-control-ring-size: clamp(66px, min(16cqh, 15cqw), 74px);
+    --body-control-slot-size: calc(var(--body-control-ring-size) + 8px);
+    --body-support-ring-size: clamp(64px, min(15cqh, 14cqw), 72px);
+    --body-support-card-min: calc(var(--body-support-ring-size) + 10px);
+  }
+
+  .commandHeader {
+    gap: 4px !important;
+  }
+
+  .commandSummarySlot {
+    flex: 0 1 calc(56.25cqw - 1rem) !important;
+    max-width: calc(56.25cqw - 1rem) !important;
+  }
+
+  .commandSummarySlot [class~="@container"] {
+    gap: 4px !important;
+    padding-right: 0 !important;
+  }
+
+  .commandSummarySlot h3 {
+    font-size: clamp(1.05rem, 4.2cqw, 1.72rem) !important;
+    line-height: 0.96 !important;
+  }
+
+  .commandSummarySlot :global(.dashboard-hero-active-profile) {
+    gap: 4px !important;
+    padding-top: 4px !important;
+  }
+
+  .commandSummarySlot :global(.dashboard-hero-active-profile) a {
+    gap: 4px !important;
+  }
+
+  .commandSummarySlot :global(.dashboard-hero-active-profile) a > span:first-child {
+    border-radius: 7px !important;
+    height: 1.25rem !important;
+    margin-top: 0 !important;
+    width: 1.25rem !important;
+  }
+
+  .commandSummarySlot :global(.dashboard-hero-active-profile) a > span:last-child > span:first-child {
+    gap: 4px !important;
+  }
+
+  .commandSummarySlot :global(.dashboard-hero-active-profile) a > span:last-child > span:nth-child(2) {
+    font-size: 11px !important;
+    line-height: 1.05 !important;
+    margin-top: 1px !important;
+  }
+
+  .commandSummarySlot :global(.dashboard-hero-active-profile) a > span:last-child > span:nth-child(3) {
+    display: none !important;
+  }
+
+  .contentGrid {
+    gap: 6px !important;
+    grid-template-columns: minmax(0, 0.72fr) minmax(190px, 0.56fr) !important;
+    grid-template-rows: minmax(0, 1fr) auto !important;
+  }
+
+  .bodyStageGrid {
+    display: contents !important;
+  }
+
+  .avatarStage {
+    grid-column: 1 !important;
+    grid-row: 1 / span 2 !important;
+    grid-template-rows: minmax(0, 1fr) auto !important;
+    overflow: hidden;
+  }
+
+  .avatarViewport {
+    height: 100% !important;
+    min-height: 0 !important;
+    padding-top: 0.15rem !important;
+  }
+
+  .avatarActions {
+    align-items: center !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+    inset-inline: auto !important;
+    left: calc(50% - clamp(70px, 19cqw, 92px)) !important;
+    top: 50% !important;
+    transform: translateY(-50%);
+    transform-origin: 50% 50%;
+  }
+
+  .controlsHost {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    min-height: 88px !important;
+    min-width: 0 !important;
+    transform: translateY(-10px);
+    z-index: 2;
+  }
+
+  .supportSignalsHost {
+    border-left: 1px solid rgba(125, 211, 252, 0.1);
+    border-top: 0 !important;
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    min-height: 116px;
+    overflow: visible;
+    padding-bottom: 6px !important;
+    padding-left: 6px !important;
+    padding-right: 8px !important;
+    padding-top: 8px !important;
+  }
+
+  .controlsLayout {
+    gap: 4px;
+    padding-right: 0;
+  }
+
+  .compactMuscles {
+    display: flex !important;
+  }
+
+  .expandedMuscles {
+    display: none !important;
+  }
+  .supportSignalRail {
+    padding-bottom: 0;
+    padding-inline: 0;
+    margin-top: calc(var(--body-support-cap-clearance) * -1);
+    padding-top: calc(var(--body-support-cap-clearance) + 4px) !important;
+    scroll-padding-inline: 0;
+  }
+
+  .supportSignalViewport {
+    margin-inline: -18px;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    padding-inline: 18px;
+  }
+
+  .supportSignalRing {
+    height: var(--body-support-ring-size) !important;
+    width: var(--body-support-ring-size) !important;
+  }
+
+  .supportSignalCard {
+    min-height: var(--body-support-card-min) !important;
+    padding-block: 4px !important;
+  }
+
+  .supportSignalFace {
+    max-width: 70px !important;
+    transform: none;
+  }
+
+  .supportSignalGlyph {
+    height: 2rem !important;
+    width: 2rem !important;
+  }
+
+  .supportSignalCaption {
+    font-size: 8px !important;
+    line-height: 1.05 !important;
+    max-width: 64px !important;
+  }
+
+  .supportSignalStatus {
+    font-size: 8px !important;
+    line-height: 1.05 !important;
+    margin-top: 2px !important;
+  }
+
+  .supportSignalStatus span {
+    display: none;
+  }
+}
+
+@container body-card (min-width: 720px) and (max-height: 560px) {
+  .commandHeader {
+    gap: 6px !important;
+  }
+
+  .commandSummarySlot > div > div {
+    align-items: start;
+    display: grid !important;
+    gap: 6px !important;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .commandSummarySlot [class~="@container"] {
+    grid-column: 1;
+    padding-right: 0 !important;
+  }
+
+  .commandSummarySlot :global(.dashboard-hero-active-profile) {
+    border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+    grid-column: 1;
+    padding-top: 4px !important;
+  }
 }
 
 .controlsHost {
@@ -38,6 +628,78 @@
 .compactMuscles { display: flex; }
 .expandedMuscles { display: none; }
 
+.compactMuscleRail {
+  align-items: center !important;
+  content: center !important;
+  align-content: center !important;
+  gap: clamp(4px, 1.2cqw, 8px) !important;
+  grid-template-columns: repeat(var(--compact-muscle-columns, 3), 72px) !important;
+  justify-items: center;
+  justify-content: center;
+  padding: 2px;
+}
+
+.compactMusclePreview {
+  opacity: 0.72;
+  pointer-events: auto;
+  transform: scale(0.92);
+  transform-origin: center;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    filter 180ms ease;
+  filter: saturate(0.72) brightness(0.78);
+}
+
+.compactMuscleActive {
+  opacity: 1;
+  transform: scale(1);
+  transform-origin: center;
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease,
+    filter 180ms ease;
+  filter: none;
+  z-index: 1;
+}
+
+.motionScrollLeft {
+  animation: bodyControlScrollLeft 240ms cubic-bezier(0.2, 0.85, 0.2, 1) both;
+}
+
+.motionScrollRight {
+  animation: bodyControlScrollRight 240ms cubic-bezier(0.2, 0.85, 0.2, 1) both;
+}
+
+@keyframes bodyControlScrollLeft {
+  0% {
+    opacity: 0.72;
+    transform: translateX(18px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes bodyControlScrollRight {
+  0% {
+    opacity: 0.72;
+    transform: translateX(-18px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motionScrollLeft,
+  .motionScrollRight {
+    animation: none;
+  }
+}
+
 /* Choose the layout from the space actually left below the hero heading,
    rather than the screen height, which says nothing about that heading. */
 @container body-controls (min-width: 300px) and (min-height: 240px) {
@@ -53,7 +715,33 @@
 
   .categorySelector { flex: 1; min-width: 0; }
   .categoryPreview { display: none; }
-  .categoryRing { width: 64px; height: 64px; }
+  .categoryRing { width: 50px; height: 50px; }
+
+  .compactMuscles > div > :first-child {
+    margin-bottom: 1px;
+  }
+
+  .compactMuscleRail {
+    min-height: var(--body-control-slot-size);
+  }
+
+  .compactMuscleActive button[aria-haspopup="dialog"] {
+    height: var(--body-control-ring-size) !important;
+    width: var(--body-control-ring-size) !important;
+  }
+
+  .compactMusclePreview button[aria-haspopup="dialog"] {
+    height: var(--body-control-ring-size) !important;
+    width: var(--body-control-ring-size) !important;
+  }
+
+  .compactMuscleActive button[aria-haspopup="dialog"] > span {
+    max-width: calc(var(--body-control-ring-size) - 22px) !important;
+  }
+
+  .compactMusclePreview button[aria-haspopup="dialog"] > span {
+    max-width: calc(var(--body-control-ring-size) - 22px) !important;
+  }
 }
 
 /* A narrow column cannot fit two sets of lateral arrows side by side.

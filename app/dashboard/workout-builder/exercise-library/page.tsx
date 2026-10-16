@@ -1,5 +1,21 @@
 "use client";
+import { libraryPoundDisplayEntries, libraryLoadLabel, libraryBestLoadEntry, libraryLoadPounds, libraryEstimatedOneRepMax } from "@/lib/planning/libraryLoadUnits";
 
+import { libraryMomentum } from "@/lib/planning/libraryMomentum";
+import { libraryLeadingArea } from "@/lib/planning/libraryLeadingArea";
+import { readLibraryWeeklySetTarget, librarySetProgress, librarySetTargetLabel } from "@/lib/planning/librarySetTargets";
+import { statsHistoryIncludes, statsWeekBounds, statsCurrentStreak } from "@/lib/planning/statsEvidence";
+import { libraryRecordedCount, libraryCompletedReps, libraryCountReview } from "@/lib/planning/libraryCounts";
+import { activityTimestamp } from "@/lib/planning/dates";
+import { goalNumber } from "@/lib/planning/goalNumbers";
+import { libraryEntryVolume, libraryVolumeReports, libraryVolumeAchievement } from "@/lib/planning/libraryVolume";
+import StatsUnitWorkload from "@/components/dashboard/StatsUnitWorkload";
+import { libraryGoalGuidance as getGoalLogicCopy } from "@/lib/planning/libraryGoalGuidance";
+import { createLibraryExerciseLookup, resolveLibraryStatExercise } from "@/lib/planning/libraryCatalogMatching";
+import { libraryExerciseHistory, librarySelectedExerciseHistory } from "@/lib/planning/libraryExerciseHistory";
+import { captureLibraryStatEditor, prepareLibraryStatDraft, saveLibraryStatEntry, type LibraryStatEditor } from "@/lib/planning/libraryStatSave";
+import { captureLibraryActivityRecovery, libraryActivityRecoverySnapshot } from "@/lib/planning/libraryActivityRecovery";
+import LibraryActivityRecoveryView from "@/components/dashboard/LibraryActivityRecoveryView";
 import "./exercise-library.css";
 
 import {
@@ -13,6 +29,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type Dispatch,
   type FocusEvent,
@@ -32,9 +49,12 @@ import Body, {
 import { useRouter } from "next/navigation";
 import {
   loadWorkoutLogEntriesWithFallback,
+  loadWorkoutLogEntriesFromLocalStorage,
   loadWorkoutTemplatesWithFallback,
 } from "@/lib/data/workoutPersistence";
-import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
+import { readLibraryProfileSummary, defaultExerciseLibraryProfileSummary, type ExerciseLibraryProfileSummary } from "@/lib/planning/libraryProfile";
+import { createPlanningRefreshGuard } from "@/lib/planning/planningRefreshGuard";
+import { planningKeys, subscribePlanning } from "@/lib/planning/store";
 import {
   LOCAL_WORKOUT_BUILDER_STORAGE_KEYS,
   readWorkoutBuilderSelectedExercises,
@@ -51,7 +71,6 @@ import {
   type LocalWeeklyPlan,
 } from "@/lib/localData/workoutPlanData";
 import {
-  prependExerciseStats,
   readCustomExercises,
   subscribeToLocalWorkoutData,
   writeCustomExercises,
@@ -160,30 +179,6 @@ type PrivateExerciseDraft = {
   secondaryMuscles: string;
   cue: string;
   image: string;
-};
-
-type ExerciseLibraryProfileSummary = {
-  avatarUrl: string | null;
-  bio: string;
-  currentFocus: string;
-  displayName: string;
-  email: string;
-  preferredTrainingStyle: string;
-  primaryGoal: string;
-  secondaryGoal: string;
-  trainingLevel: string;
-};
-
-const defaultExerciseLibraryProfileSummary: ExerciseLibraryProfileSummary = {
-  avatarUrl: null,
-  bio: "Add profile details",
-  currentFocus: "Add profile details",
-  displayName: "Athlete",
-  email: "",
-  preferredTrainingStyle: "Add profile details",
-  primaryGoal: "No goal set",
-  secondaryGoal: "Add profile details",
-  trainingLevel: "",
 };
 
 type ExerciseLibraryViewMode = "detail" | "grid";
@@ -6240,56 +6235,7 @@ const getSkillPointsForNode = ({
   };
 };
 
-const getRecoveryExerciseNamesForBodyPart = (selectedBodyPart: string) => {
-  const normalized = normalizeFilterCompareValue(selectedBodyPart);
 
-  if (/(core|abs|oblique|rotation|extension)/.test(normalized)) {
-    return [
-      "Breathing Drill",
-      "Dead Bug Regression",
-      "Thoracic Mobility",
-      "Light Walking",
-    ];
-  }
-  if (/(quad|knee|sissy)/.test(normalized)) {
-    return [
-      "Quad Mobility",
-      "Assisted Bodyweight Range Work",
-      "Glute Bridge",
-      "Hamstring Curl",
-    ];
-  }
-  if (/(chest|shoulder|delt|press)/.test(normalized)) {
-    return [
-      "Shoulder CARs",
-      "Band External Rotation",
-      "Thoracic Mobility",
-      "Easy Row",
-    ];
-  }
-  if (/(back|lat|trap|row|pull)/.test(normalized)) {
-    return [
-      "T-Spine Rotation",
-      "Scapular CARs",
-      "Light Pulldown Technique",
-      "Chest Mobility",
-    ];
-  }
-  if (/(glute|hip|hamstring|hinge)/.test(normalized)) {
-    return [
-      "Hip CARs",
-      "Glute Activation",
-      "Hamstring Mobility",
-      "Easy Split Squat Range",
-    ];
-  }
-
-  return [
-    "Mobility Flow",
-    "Low-Load Technique",
-    "Alternate Ready Area",
-  ];
-};
 
 type HolisticExerciseRecommendationInput = {
   bodyPartStats: {
@@ -6316,202 +6262,27 @@ type HolisticExerciseRecommendations = {
   title: string;
 };
 
-function getHolisticExerciseRecommendations({
-  bodyPartStats,
-  goal,
-  injuryFlags,
-  lowerWeeklySets = 0,
-  openRootRegion,
-  selectedBodyPart,
-  totalWeeklyGoal,
-  totalWeeklySets,
-  upperWeeklySets = 0,
-}: HolisticExerciseRecommendationInput): HolisticExerciseRecommendations {
-  const totalProgress =
-    totalWeeklyGoal > 0 ? (totalWeeklySets / totalWeeklyGoal) * 100 : 0;
-  const normalizedSelected = normalizeFilterCompareValue(selectedBodyPart || "");
-  const normalizedRoot = normalizeFilterCompareValue(openRootRegion || "");
-  const isSelectedTooHot =
-    bodyPartStats.zoneId === "hot" ||
-    bodyPartStats.zoneId === "too-hot" ||
-    bodyPartStats.cooldownHours > 0 ||
-    bodyPartStats.weeklySets >= bodyPartStats.weeklyGoal ||
-    Boolean(injuryFlags);
-
-  if (isSelectedTooHot && selectedBodyPart) {
-    return {
-      description:
-        "Choose recovery work or a ready alternate area instead of stacking more hard sets here.",
-      exerciseNames: getRecoveryExerciseNamesForBodyPart(selectedBodyPart),
-      focusChip: "Recovery Signal",
-      title: "This area is running hot.",
-    };
-  }
-
-  if (totalProgress < 35) {
-    return {
-      description:
-        "You have not logged much total weekly volume yet. Start with compound movements that cover more muscle and unlock more skill-tree points.",
-      exerciseNames: [
-        "Goblet Squat",
-        "Push-Up",
-        "Bent Over Row",
-        "Romanian Deadlift",
-        "Farmer Carry",
-        "Pallof Press",
-      ],
-      focusChip: "Compound Base Focus",
-      title: "Build the base first.",
-    };
-  }
-
-  if (upperWeeklySets >= Math.max(8, lowerWeeklySets * 1.6) && lowerWeeklySets < 24) {
-    return {
-      description:
-        "Upper-body work is outpacing lower-body volume. A lower compound anchor helps keep the full tree balanced.",
-      exerciseNames: ["Goblet Squat", "Romanian Deadlift", "Reverse Lunge", "Farmer Carry"],
-      focusChip: "Lower Body Balance",
-      title: "Balance the tree.",
-    };
-  }
-
-  if (selectedBodyPart && bodyPartStats.weeklySets < bodyPartStats.weeklyGoal * 0.55) {
-    if (/(chest|pec|upper chest|mid chest|lower chest)/.test(normalizedSelected)) {
-      return {
-        description:
-          "Your total volume is building, so pair focused chest work with one pull for balance.",
-        exerciseNames: ["Push-Up", "Dumbbell Bench Press", "Chest Fly", "Row"],
-        focusChip: "Holistic Recommendation",
-        title: "Add targeted work.",
-      };
-    }
-    if (/(quad|knee|squat|leg)/.test(normalizedSelected)) {
-      return {
-        description:
-          "Bring quads up with one pattern-specific move and one broader lower-body anchor.",
-        exerciseNames: ["Goblet Squat", "Leg Extension", "Sissy Squat", "Glute Bridge"],
-        focusChip: "Holistic Recommendation",
-        title: "Add targeted work.",
-      };
-    }
-    if (/(back|lat|row|pull|trap)/.test(normalizedSelected)) {
-      return {
-        description:
-          "Use a pull pattern plus a compound support move to keep the week balanced.",
-        exerciseNames: ["Lat Pulldown", "Chest Supported Row", "Farmer Carry", "Push-Up"],
-        focusChip: "Holistic Recommendation",
-        title: "Add targeted work.",
-      };
-    }
-  }
-
-  if (/(lower)/.test(normalizedRoot)) {
-    return {
-      description:
-        "Lower-body compound work gives the biggest return for skill points and weekly balance.",
-      exerciseNames: ["Goblet Squat", "Romanian Deadlift", "Reverse Lunge", "Step-Up"],
-      focusChip: "Lower Compound Focus",
-      title: "Anchor the week.",
-    };
-  }
-
-  if (/(upper)/.test(normalizedRoot)) {
-    return {
-      description:
-        "Balance push and pull work so the upper-body branch gains points evenly.",
-      exerciseNames: ["Push-Up", "Chest Supported Row", "Shoulder Press", "Face Pull"],
-      focusChip: "Push/Pull Balance",
-      title: "Balance the upper tree.",
-    };
-  }
-
-  if (/(core)/.test(normalizedRoot)) {
-    return {
-      description:
-        "Core points climb fastest with anti-rotation, anti-extension, and carryover stability work.",
-      exerciseNames: ["Pallof Press", "Dead Bug", "Side Plank", "Farmer Carry"],
-      focusChip: "Core Stability",
-      title: "Build trunk control.",
-    };
-  }
-
+function getHolisticExerciseRecommendations({ selectedBodyPart }: HolisticExerciseRecommendationInput): HolisticExerciseRecommendations {
   return {
-    description:
-      `Your ${goal || "training"} volume is solid. Add focused work for the selected region without crowding recovery.`,
-    exerciseNames: ["Goblet Squat", "Push-Up", "Row", "Pallof Press"],
-    focusChip: "Holistic Recommendation",
-    title: "Add useful volume.",
+    description: "Browse exercises for your selected area. Use your saved plan to choose session volume; recorded sets do not establish recovery or readiness.",
+    exerciseNames: [],
+    focusChip: "Exercise options",
+    title: selectedBodyPart ? `Explore ${selectedBodyPart}.` : "Choose a body area to explore.",
   };
 }
 
-function getSelectedRecommendationAction({
-  cooldownHours,
-  exerciseNames,
-  injuryFlag,
-  momentumZone,
-  painFlag,
-  selectedBodyPart,
-  suggestedFocus,
-  weeklyGoal,
-  weeklySets,
-}: {
-  cooldownHours: number;
-  exerciseNames?: string[];
-  injuryFlag?: boolean;
-  momentumZone: string;
-  painFlag?: boolean;
-  selectedBodyPart: string | null;
-  suggestedFocus: string;
-  weeklyGoal: number;
-  weeklySets: number;
+function getSelectedRecommendationAction({ exerciseNames, injuryFlag, painFlag, selectedBodyPart }: {
+  cooldownHours: number; exerciseNames?: string[]; injuryFlag?: boolean; momentumZone: string; painFlag?: boolean;
+  selectedBodyPart: string | null; suggestedFocus: string; weeklyGoal: number; weeklySets: number;
 }): SelectedRecommendationAction {
-  const hasSpecificSelection =
-    Boolean(selectedBodyPart) &&
-    normalizeFilterCompareValue(selectedBodyPart) !==
-      normalizeFilterCompareValue("All Regions") &&
-    normalizeFilterCompareValue(selectedBodyPart) !==
-      normalizeFilterCompareValue("All");
-  const isRecoveryState =
-    hasSpecificSelection &&
-    (momentumZone === "hot" ||
-      momentumZone === "too-hot" ||
-      cooldownHours > 0 ||
-      weeklySets >= weeklyGoal ||
-      Boolean(painFlag) ||
-      Boolean(injuryFlag));
-
-  if (!hasSpecificSelection) {
-    return {
-      description: "Start with the area most ready for useful volume today.",
-      exerciseNames: suggestedFocus ? [suggestedFocus] : [],
-      label: "VIEW SUGGESTED FOCUS",
-      mode: "suggested-focus",
-      title: "Suggested Focus",
-    };
-  }
-
-  if (isRecoveryState) {
-    return {
-      caution: true,
-      description:
-        "This area is running hot. Choose recovery work or train an alternate ready area.",
-      exerciseNames: getRecoveryExerciseNamesForBodyPart(
-        selectedBodyPart || suggestedFocus,
-      ),
-      label: "OPEN RECOVERY OPTIONS",
-      mode: "recovery",
-      targetRoute: ROUTES.dashboard.recovery,
-      title: "Recovery Signal",
-    };
-  }
-
+  if (painFlag || injuryFlag) return {
+    caution: true, description: "Review your reported concern before choosing exercises.", exerciseNames: [],
+    label: "OPEN RECOVERY OPTIONS", mode: "recovery", targetRoute: ROUTES.dashboard.recovery, title: "Reported concern",
+  };
   return {
-    description:
-      "These match the selected muscle, movement pattern, and current training signal.",
-    exerciseNames: exerciseNames || [],
-    label: "VIEW RECOMMENDED EXERCISES",
-    mode: "recommended-exercises",
-    title: "Recommended Exercises",
+    description: "These are catalog options for the selected area. Follow your saved plan for session volume.",
+    exerciseNames: selectedBodyPart ? exerciseNames || [] : [], label: "VIEW EXERCISE OPTIONS",
+    mode: "recommended-exercises", title: "Exercise options",
   };
 }
 
@@ -8131,15 +7902,8 @@ function MuscleIntelligenceBlock({
   );
 }
 
-const getStatTime = (stat: LocalExerciseStatEntry) => {
-  const time = new Date(stat.date).getTime();
-  return Number.isFinite(time) ? time : 0;
-};
-
-const parseStatNumber = (value: string | number | undefined) => {
-  const parsed = Number.parseFloat(String(value || "").replace(/[^\d.-]/g, ""));
-  return Number.isFinite(parsed) ? parsed : 0;
-};
+const getStatTime = (stat: LocalExerciseStatEntry) => activityTimestamp(stat?.date);
+const parseStatNumber = (value: string | number | undefined) => goalNumber(value) ?? 0;
 
 const exerciseLibraryPreferredWeightUnitStorageKey =
   "soundFitness.exerciseLibrary.preferredWeightUnit";
@@ -8230,6 +7994,7 @@ const formatWeightMetric = (
   unit: WeightUnit,
   options: { compact?: boolean; volume?: boolean } = {},
 ) => {
+  if (options.volume) return "See load-volume report";
   if (valueInPounds <= 0) return "";
 
   const convertedValue = convertPoundsToPreferredUnit(valueInPounds, unit);
@@ -8243,31 +8008,14 @@ const formatWeightMetric = (
 };
 
 const formatWeeklyVolumeRangeLabel = (date = new Date()) => {
-  const startDate = new Date(date);
-  startDate.setDate(startDate.getDate() - 6);
-
-  const sameMonth = startDate.getMonth() === date.getMonth();
-  const startLabel = startDate.toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-  const endLabel = date.toLocaleDateString(undefined, {
-    month: sameMonth ? undefined : "short",
-    day: "numeric",
-  });
-
-  return `Trailing 7 days: ${startLabel}-${endLabel}`;
+  const { start, end } = statsWeekBounds(date);
+  const format = (value: Date) => value.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return `This week: ${format(start)}-${format(end)}`;
 };
 
-const getStatCompletedReps = (stat: LocalExerciseStatEntry) =>
-  parseStatNumber(stat.reps) * parseStatNumber(stat.sets);
+const getStatCompletedReps = libraryCompletedReps;
 
-const isStatWithinTrailingSevenDays = (stat: LocalExerciseStatEntry) => {
-  const statTime = getStatTime(stat);
-  if (!statTime) return false;
-
-  return statTime >= Date.now() - 7 * 24 * 60 * 60 * 1000;
-};
+const isStatWithinTrailingSevenDays = (stat: LocalExerciseStatEntry) => statsHistoryIncludes(getStatTime(stat), "This week");
 
 const getWeeklyVolumeForStats = (stats: LocalExerciseStatEntry[]) =>
   stats.reduce(
@@ -8276,7 +8024,7 @@ const getWeeklyVolumeForStats = (stats: LocalExerciseStatEntry[]) =>
 
       return {
         reps: summary.reps + getStatCompletedReps(stat),
-        sets: summary.sets + parseStatNumber(stat.sets),
+        sets: summary.sets + (libraryRecordedCount(stat.sets) ?? 0),
         weightVolume: summary.weightVolume + getStatVolume(stat),
       };
     },
@@ -8286,18 +8034,9 @@ const getWeeklyVolumeForStats = (stats: LocalExerciseStatEntry[]) =>
 const formatMetric = (value: number) =>
   value > 0 ? value.toLocaleString(undefined, { maximumFractionDigits: 0 }) : "--";
 
-const getStatVolume = (stat: LocalExerciseStatEntry) =>
-  parseStatNumber(stat.weight) *
-  parseStatNumber(stat.reps) *
-  parseStatNumber(stat.sets);
+const getStatVolume = (stat: LocalExerciseStatEntry) => libraryEntryVolume(stat) ?? 0;
 
-const getEstimatedOneRepMax = (stat: LocalExerciseStatEntry) => {
-  const weight = parseStatNumber(stat.weight);
-  const reps = parseStatNumber(stat.reps);
-
-  if (weight <= 0 || reps <= 0) return 0;
-  return weight * (1 + reps / 30);
-};
+const getEstimatedOneRepMax = (stat: LocalExerciseStatEntry) => libraryEstimatedOneRepMax(stat);
 
 type GoalLogicSummary = {
   emphasisLabel: string;
@@ -8309,94 +8048,11 @@ type GoalLogicSummary = {
   stimulusLabel: string;
 };
 
-const normalizeGoalLogicKey = (goal?: string | null) =>
-  normalizeFilterCompareValue(goal || "General Fitness");
-
-const goalLogicCopy: Record<
-  string,
-  { emphasisLabel: string; goalCue: string }
-> = {
-  strength: {
-    emphasisLabel: "Load progression",
-    goalCue:
-      "Prioritizes heavier quality sets, best-load trends, and longer-rest readiness.",
-  },
-  hypertrophy: {
-    emphasisLabel: "Muscle volume",
-    goalCue:
-      "Prioritizes weekly set volume, muscle coverage, and repeatable growth stimulus.",
-  },
-  "fat loss": {
-    emphasisLabel: "Consistency density",
-    goalCue:
-      "Prioritizes training consistency, total reps, and conditioning-friendly density.",
-  },
-  mobility: {
-    emphasisLabel: "ROM frequency",
-    goalCue:
-      "Prioritizes repeat exposure, controlled range, and low-friction consistency.",
-  },
-  "athletic performance": {
-    emphasisLabel: "Quality power",
-    goalCue:
-      "Prioritizes explosive intent, clean reps, and balanced athletic categories.",
-  },
-  conditioning: {
-    emphasisLabel: "Work capacity",
-    goalCue:
-      "Prioritizes repeatable output, density, and total weekly movement volume.",
-  },
-  "rehab return to training": {
-    emphasisLabel: "Controlled progression",
-    goalCue:
-      "Prioritizes gradual loading, controlled volume, and consistent exposure.",
-  },
-  stability: {
-    emphasisLabel: "Control under load",
-    goalCue:
-      "Prioritizes bracing, positional control, and stable repeatable patterns.",
-  },
-  power: {
-    emphasisLabel: "Explosive quality",
-    goalCue:
-      "Prioritizes quality reps, load intent, and crisp low-fatigue power practice.",
-  },
-  "general fitness": {
-    emphasisLabel: "Balanced training",
-    goalCue:
-      "Prioritizes broad weekly coverage, consistency, and sustainable progression.",
-  },
-  endurance: {
-    emphasisLabel: "Repeatable reps",
-    goalCue:
-      "Prioritizes total reps, frequency, and durable work capacity.",
-  },
-  "skill technique": {
-    emphasisLabel: "Movement quality",
-    goalCue:
-      "Prioritizes clean reps, practice frequency, and technique consistency.",
-  },
-  recovery: {
-    emphasisLabel: "Low fatigue consistency",
-    goalCue:
-      "Prioritizes fresh areas, controlled volume, and lower-fatigue movement choices.",
-  },
-};
-
-const getGoalLogicCopy = (goal?: string | null) =>
-  goalLogicCopy[normalizeGoalLogicKey(goal)] ||
-  goalLogicCopy["general fitness"];
-
-const isStatWithinPreviousTrailingSevenDays = (
-  stat: LocalExerciseStatEntry,
-) => {
-  const statTime = getStatTime(stat);
-  if (!statTime) return false;
-
-  const trailingSevenStart = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const previousSevenStart = Date.now() - 14 * 24 * 60 * 60 * 1000;
-
-  return statTime >= previousSevenStart && statTime < trailingSevenStart;
+const isStatWithinPreviousTrailingSevenDays = (stat: LocalExerciseStatEntry) => {
+  const currentStart = statsWeekBounds().start;
+  const previousStart = new Date(currentStart); previousStart.setDate(previousStart.getDate() - 7);
+  const time = getStatTime(stat);
+  return Number.isFinite(time) && time >= previousStart.getTime() && time < currentStart.getTime();
 };
 
 const getPreviousTrailingSevenDayWeightVolumeForStats = (
@@ -8406,130 +8062,9 @@ const getPreviousTrailingSevenDayWeightVolumeForStats = (
     .filter(isStatWithinPreviousTrailingSevenDays)
     .reduce((total, stat) => total + getStatVolume(stat), 0);
 
-const formatWeightVolumeComparison = (
-  currentVolume: number,
-  previousVolume: number,
-) => {
-  if (currentVolume <= 0) return "No load volume yet";
-  if (previousVolume <= 0) return "No prior loaded range";
+const formatWeightVolumeComparison: (currentVolume: number, previousVolume: number) => string = () => "See recorded-unit volume coverage";
 
-  const percentChange = ((currentVolume - previousVolume) / previousVolume) * 100;
-  const roundedChange = Math.round(percentChange);
-  const prefix = roundedChange > 0 ? "+" : "";
-
-  return `${prefix}${roundedChange}% vs prior 7 days`;
-};
-
-const getFutureLoadCapacityLabel = (
-  stats: LocalExerciseStatEntry[],
-  unit: WeightUnit,
-) => {
-  const loadedStats = stats
-    .filter((stat) => parseStatNumber(stat.weight) > 0)
-    .sort((left, right) => getStatTime(right) - getStatTime(left));
-
-  if (loadedStats.length < 2) return "Future load: needs more data";
-
-  const recentLoadedStats = loadedStats.slice(0, 5);
-  const latestWeight = parseStatNumber(recentLoadedStats[0].weight);
-  const bestEstimatedLoad = Math.max(
-    ...recentLoadedStats.map(getEstimatedOneRepMax),
-  );
-  const estimate = Math.max(latestWeight, bestEstimatedLoad * 0.82);
-  const displayEstimate = formatWeightMetric(estimate, unit);
-
-  return displayEstimate
-    ? `Estimated next working load: ${displayEstimate}`
-    : "Future load: needs more data";
-};
-
-const getVolumeForecastLabel = (
-  stats: LocalExerciseStatEntry[],
-  weeklySets: number,
-  weeklyGoalSets: number,
-) => {
-  const weeklyStats = stats.filter(isStatWithinTrailingSevenDays);
-  if (!weeklyStats.length) return "Forecast: log sets to project the week";
-
-  const oldestTime = Math.min(...weeklyStats.map(getStatTime).filter(Boolean));
-  const daysSpanned = Math.min(
-    7,
-    Math.max(1, Math.ceil((Date.now() - oldestTime) / (24 * 60 * 60 * 1000)) + 1),
-  );
-  const projectedSets = (Math.max(0, weeklySets) / daysSpanned) * 7;
-  const projectedPercent = Math.round(
-    getWeeklySetGoalProgressPercent(projectedSets, weeklyGoalSets),
-  );
-
-  return `At this pace: estimated ${projectedPercent}% of weekly volume`;
-};
-
-const getGoalStimulusLabel = (
-  goal: string,
-  weeklySets: number,
-  weeklyGoalSets: number,
-) => {
-  const progress = getWeeklySetGoalProgressPercent(weeklySets, weeklyGoalSets);
-  const normalizedGoal = normalizeGoalLogicKey(goal);
-
-  if (progress >= 111) return "Training stimulus: high, watch overreach";
-  if (progress >= 75) {
-    return normalizedGoal.includes("hypertrophy")
-      ? "Muscle-growth stimulus: high this range"
-      : "Training stimulus: on target";
-  }
-  if (progress >= 41) return "Training stimulus: building";
-  return "Training stimulus: under target";
-};
-
-const getRecoveryRiskLabel = (weeklySets: number, weeklyGoalSets: number) => {
-  const progress = getWeeklySetGoalProgressPercent(weeklySets, weeklyGoalSets);
-
-  if (progress > 110) return "Recovery signal: above target";
-  if (progress >= 75) return "Recovery signal: balanced";
-  return "Recovery signal: room to build";
-};
-
-const getExerciseStatHistory = (
-  stats: LocalExerciseStatEntry[],
-  exercise: Exercise,
-  variationName: string,
-  metadata?: NormalizedExerciseCatalogItem | null,
-  semanticVariationId?: string,
-) => {
-  const normalizedNames = new Set(
-    [
-      exercise.name,
-      exercise.semanticVariationName,
-      exercise.generatedTitle,
-      variationName,
-      ...(metadata?.semanticVariationNames || []),
-    ]
-      .filter(Boolean)
-      .map((name) => normalizeStatMatchValue(name)),
-  );
-
-  return stats
-    .filter((stat) => {
-      const statName = normalizeStatMatchValue(stat.exerciseName);
-      const statSemanticVariationId =
-        typeof stat.semanticVariationId === "string"
-          ? stat.semanticVariationId
-          : "";
-      const statSemanticName = normalizeStatMatchValue(stat.semanticVariationName);
-      const statGeneratedTitle = normalizeStatMatchValue(stat.generatedTitle);
-
-      return (
-        stat.exerciseId === exercise.id ||
-        (semanticVariationId &&
-          statSemanticVariationId === semanticVariationId) ||
-        (statSemanticName ? normalizedNames.has(statSemanticName) : false) ||
-        (statGeneratedTitle ? normalizedNames.has(statGeneratedTitle) : false) ||
-        (statName ? normalizedNames.has(statName) : false)
-      );
-    })
-    .sort((a, b) => getStatTime(b) - getStatTime(a));
-};
+const getExerciseStatHistory: (stats: LocalExerciseStatEntry[], exercise: Exercise, variationName: string, metadata?: NormalizedExerciseCatalogItem | null, semanticVariationId?: string) => LocalExerciseStatEntry[] = (...args) => librarySelectedExerciseHistory(args[0], args[1], args[2], args[4]);
 
 const getRecentExerciseStats = (
   stats: LocalExerciseStatEntry[],
@@ -8645,31 +8180,7 @@ const getDifficultySortRank = (level: string) => {
   return index === -1 ? Number.MAX_SAFE_INTEGER : index;
 };
 
-const getExerciseStatMatchesForSort = (
-  stats: LocalExerciseStatEntry[],
-  exercise: Exercise,
-) => {
-  const metadata = getMetadataForExercise(exercise);
-  const normalizedNames = new Set(
-    [
-      exercise.name,
-      metadata?.coreMovementLabel || "",
-      metadata?.movementPatternLabel || "",
-      ...(metadata?.semanticVariationNames || []),
-    ]
-      .filter(Boolean)
-      .map((name) => name.trim().toLowerCase()),
-  );
-
-  return stats.filter((stat) => {
-    const statName = stat.exerciseName?.trim().toLowerCase();
-
-    return (
-      stat.exerciseId === exercise.id ||
-      (statName ? normalizedNames.has(statName) : false)
-    );
-  });
-};
+const getExerciseStatMatchesForSort = (stats: LocalExerciseStatEntry[], exercise: Exercise) => libraryExerciseHistory(stats, { exerciseId: exercise.id, scope: "exercise" });
 
 const getExerciseLastUsedTime = (
   stats: LocalExerciseStatEntry[],
@@ -8686,7 +8197,7 @@ const getExerciseLoggedCount = (
 ) => getExerciseStatMatchesForSort(stats, exercise).length;
 
 const sumLoggedSets = (stats: LocalExerciseStatEntry[]) =>
-  stats.reduce((total, stat) => total + parseStatNumber(stat.sets), 0);
+  stats.reduce((total, stat) => total + (libraryRecordedCount(stat.sets) ?? 0), 0);
 
 const sumLoggedReps = (stats: LocalExerciseStatEntry[]) =>
   stats.reduce((total, stat) => total + getStatCompletedReps(stat), 0);
@@ -8699,72 +8210,7 @@ const normalizeStatMatchValue = (value?: string | null) =>
 const normalizeFilterCompareValue = (value?: string | null) =>
   value?.trim().toLowerCase().replace(/\s+/g, " ") || "";
 
-const getLifetimeSetsComplete = (
-  stats: LocalExerciseStatEntry[],
-  exercise: Exercise,
-  metadata: NormalizedExerciseCatalogItem | null,
-  semanticVariationName: string,
-  semanticVariationId?: string,
-) => {
-  const exactExerciseStats = stats.filter(
-    (stat) => stat.exerciseId === exercise.id,
-  );
-
-  if (exactExerciseStats.length > 0) return sumLoggedSets(exactExerciseStats);
-
-  const semanticNames = new Set(
-    [
-      semanticVariationName,
-      exercise.semanticVariationName,
-      exercise.generatedTitle,
-      exercise.name,
-      ...(metadata?.semanticVariationNames || []),
-    ]
-      .map(normalizeStatMatchValue)
-      .filter(Boolean),
-  );
-  const coreMovementIds = new Set(
-    [metadata?.coreMovementId, exercise.coreMovementPattern]
-      .map((value) => (typeof value === "string" ? value : ""))
-      .filter(Boolean),
-  );
-  const coreMovementNames = new Set(
-    [
-      metadata?.coreMovementLabel,
-      metadata?.movementPatternLabel,
-      exercise.pattern,
-    ]
-      .map(normalizeStatMatchValue)
-      .filter(Boolean),
-  );
-  const fallbackStats = stats.filter((stat) => {
-    const statSemanticVariationId =
-      typeof stat.semanticVariationId === "string"
-        ? stat.semanticVariationId
-        : "";
-    const statCoreMovementPattern =
-      typeof stat.coreMovementPattern === "string"
-        ? stat.coreMovementPattern
-        : "";
-    const statExerciseName = normalizeStatMatchValue(stat.exerciseName);
-    const statSemanticName = normalizeStatMatchValue(stat.semanticVariationName);
-    const statGeneratedTitle = normalizeStatMatchValue(stat.generatedTitle);
-    const statPattern = normalizeStatMatchValue(stat.pattern);
-
-    return (
-      (semanticVariationId &&
-        statSemanticVariationId === semanticVariationId) ||
-      (statSemanticName && semanticNames.has(statSemanticName)) ||
-      (statGeneratedTitle && semanticNames.has(statGeneratedTitle)) ||
-      (statExerciseName && semanticNames.has(statExerciseName)) ||
-      (statCoreMovementPattern &&
-        coreMovementIds.has(statCoreMovementPattern)) ||
-      (statPattern && coreMovementNames.has(statPattern))
-    );
-  });
-
-  return sumLoggedSets(fallbackStats);
-};
+const getLifetimeSetsComplete: (stats: LocalExerciseStatEntry[], exercise: Exercise, metadata: NormalizedExerciseCatalogItem | null, semanticVariationName: string, semanticVariationId?: string) => number = (...args) => sumLoggedSets(librarySelectedExerciseHistory(args[0], args[1], args[3], args[4]));
 
 const formatLifetimeSetsComplete = (sets: number) => {
   const roundedSets = Math.max(0, Math.round(sets));
@@ -8797,56 +8243,11 @@ const formatSemanticVariationLastLoggedLabel = (
   });
 };
 
-const getSemanticVariationStatsSummary = (
-  stats: LocalExerciseStatEntry[],
-  exercise: Exercise,
-  variation: SemanticVariationOption,
-) => {
-  const variationName = normalizeStatMatchValue(variation.name);
-  const variationAliases = new Set(
-    [variation.name, ...(variation.aliases || [])]
-      .map(normalizeStatMatchValue)
-      .filter(Boolean),
-  );
-  const exerciseImpliesVariation = [
-    exercise.semanticVariationName,
-    exercise.semanticVariation,
-    exercise.generatedTitle,
-    exercise.name,
-  ]
-    .map(normalizeStatMatchValue)
-    .some((name) => Boolean(name) && name === variationName);
-  const idMatches = stats.filter(
-    (stat) => stat.semanticVariationId === variation.id,
-  );
-  const nameMatches = idMatches.length
-    ? idMatches
-    : stats.filter((stat) => {
-        const statExerciseName = normalizeStatMatchValue(stat.exerciseName);
-        const statSemanticName = normalizeStatMatchValue(
-          stat.semanticVariationName,
-        );
-        const statGeneratedTitle = normalizeStatMatchValue(stat.generatedTitle);
-        const exactExerciseMatch =
-          exerciseImpliesVariation && stat.exerciseId === exercise.id;
-
-        return (
-          exactExerciseMatch ||
-          (statSemanticName && variationAliases.has(statSemanticName)) ||
-          (statGeneratedTitle && variationAliases.has(statGeneratedTitle)) ||
-          (statExerciseName && variationAliases.has(statExerciseName))
-        );
-      });
-  const lifetimeSets = sumLoggedSets(nameMatches);
-
-  if (!nameMatches.length) return emptySemanticVariationStatsSummary;
-
-  return {
-    hasStats: true,
-    lastLoggedLabel: formatSemanticVariationLastLoggedLabel(nameMatches),
-    lifetimeSets,
-    lifetimeSetsLabel: formatLifetimeSetsComplete(lifetimeSets),
-  };
+const getSemanticVariationStatsSummary = (stats: LocalExerciseStatEntry[], exercise: Exercise, variation: SemanticVariationOption) => {
+  const matches = libraryExerciseHistory(stats, { exerciseId: exercise.id, variationId: variation.id, variationName: variation.name, scope: "variation" });
+  if (!matches.length) return emptySemanticVariationStatsSummary;
+  const lifetimeSets = sumLoggedSets(matches);
+  return { hasStats: true, lastLoggedLabel: formatSemanticVariationLastLoggedLabel(matches), lifetimeSets, lifetimeSetsLabel: formatLifetimeSetsComplete(lifetimeSets) };
 };
 
 const sortExercisesForLibrary = (
@@ -9474,123 +8875,24 @@ type WeeklySetsSummary = {
   sectionWeightVolumeByKey: Map<string, number>;
 };
 
-const createExerciseStatLookup = (exercises: Exercise[]) => {
-  const byId = new Map<string, Exercise>();
-  const byName = new Map<string, Exercise>();
+const createExerciseStatLookup = createLibraryExerciseLookup<Exercise>;
+const resolveStatExercise = resolveLibraryStatExercise<Exercise>;
 
-  exercises.forEach((exercise) => {
-    byId.set(exercise.id, exercise);
-    [
-      exercise.name,
-      exercise.exerciseName,
-      exercise.generatedTitle,
-      exercise.semanticVariationName,
-      exercise.semanticVariation,
-    ]
-      .map(normalizeStatMatchValue)
-      .filter(Boolean)
-      .forEach((name) => {
-        if (!byName.has(name)) byName.set(name, exercise);
-      });
-  });
-
-  return { byId, byName };
-};
-
-const resolveStatExercise = (
-  stat: LocalExerciseStatEntry,
-  lookup: ReturnType<typeof createExerciseStatLookup>,
-) => {
-  const byIdMatch = lookup.byId.get(stat.exerciseId);
-  if (byIdMatch) return byIdMatch;
-
-  return (
-    lookup.byName.get(normalizeStatMatchValue(stat.exerciseName)) ||
-    lookup.byName.get(normalizeStatMatchValue(stat.generatedTitle)) ||
-    lookup.byName.get(normalizeStatMatchValue(stat.semanticVariationName)) ||
-    null
-  );
-};
-
-const defaultWeeklySetGoalsBySectionLabel: Record<string, number> = {
-  "arm isolation": 20,
-  athletic: 16,
-  "cervical isolation": 8,
-  core: 24,
-  favorites: 24,
-  integrated: 16,
-  "lower body compound": 40,
-  "lower body isolation": 24,
-  mobility: 14,
-  "my exercises": 20,
-  "upper pull": 32,
-  "upper push": 32,
-};
-
-const defaultWeeklySetGoalsByRegionLayer: Record<BodyRegionLayer, number> = {
-  Athletic: 16,
-  Core: 24,
-  Lower: 64,
-  Upper: 64,
-};
-
-const defaultBodyPartWeeklySetGoal = 12;
-const defaultWeeklySetGoalsByBodyPartMatcher: Array<{
-  goal: number;
-  pattern: RegExp;
-}> = [
-  { pattern: /\b(chest|pecs?|pectorals?)\b/, goal: 16 },
-  { pattern: /\b(back|lats?|traps?|trapezius|rhomboids?|rows?|pull)\b/, goal: 18 },
-  { pattern: /\b(shoulders?|delts?|deltoids?|rotator cuff)\b/, goal: 14 },
-  { pattern: /\b(biceps?)\b/, goal: 10 },
-  { pattern: /\b(triceps?)\b/, goal: 10 },
-  {
-    pattern:
-      /\b(core|abs?|obliques?|anti rotation|anti extension|anti lateral|trunk)\b/,
-    goal: 12,
-  },
-  { pattern: /\b(quads?|quadriceps|knee extension)\b/, goal: 16 },
-  { pattern: /\b(hamstrings?|knee flexion)\b/, goal: 14 },
-  { pattern: /\b(glutes?|gluteal|hip thrust|bridge|hip extension)\b/, goal: 16 },
-  { pattern: /\b(calves?|calf)\b/, goal: 12 },
-];
-const defaultCoreMovementWeeklySetGoal = 12;
-const defaultExerciseWeeklySetGoal = 12;
-const defaultMuscleWeeklySetGoal = 12;
-const allBodyRegionWeeklySetGoal = Object.values(
-  defaultWeeklySetGoalsByRegionLayer,
-).reduce((total, goal) => total + goal, 0);
-const defaultDailySetGoal = Math.ceil(allBodyRegionWeeklySetGoal / 7);
-
-const normalizeWeeklySetGoalLabel = (label: string) =>
-  label.trim().toLowerCase() === "integrated movement"
-    ? "integrated"
-    : label.trim().toLowerCase();
-
-const getWeeklySetGoalForSection = (label: string) =>
-  defaultWeeklySetGoalsBySectionLabel[normalizeWeeklySetGoalLabel(label)] || 20;
-
-const getWeeklySetGoalForRegionLayer = (layer: BodyRegionLayer | null) =>
-  layer ? defaultWeeklySetGoalsByRegionLayer[layer] : allBodyRegionWeeklySetGoal;
-
-const getWeeklySetGoalForBodyPart = (body: string) => {
-  const normalizedBody = normalizeBodySelectorValue(body);
-  if (normalizedBody === "all") return allBodyRegionWeeklySetGoal;
-
-  return (
-    defaultWeeklySetGoalsByBodyPartMatcher.find(({ pattern }) =>
-      pattern.test(normalizedBody),
-    )?.goal || defaultBodyPartWeeklySetGoal
-  );
-};
-
-const getWeeklySetGoalForCoreMovement = () => defaultCoreMovementWeeklySetGoal;
-
-const getWeeklySetGoalForExercise = () => defaultExerciseWeeklySetGoal;
-
-const getWeeklySetGoalForMuscle = () => defaultMuscleWeeklySetGoal;
+// No saved category, region, muscle, exercise or daily target exists in the current schema.
+// Zero is an internal unavailable sentinel; target displays and progress must use the helpers.
+const defaultBodyPartWeeklySetGoal = 0;
+const defaultExerciseWeeklySetGoal = 0;
+const defaultDailySetGoal = 0;
+const getLibraryWeeklySetGoal = () => readLibraryWeeklySetTarget() ?? 0;
+const getWeeklySetGoalForSection: (label: string) => number = () => 0;
+const getWeeklySetGoalForRegionLayer = (layer: BodyRegionLayer | null) => layer ? 0 : getLibraryWeeklySetGoal();
+const getWeeklySetGoalForBodyPart = (body: string) => normalizeBodySelectorValue(body) === "all" ? getLibraryWeeklySetGoal() : 0;
+const getWeeklySetGoalForCoreMovement = () => 0;
+const getWeeklySetGoalForExercise = () => 0;
+const getWeeklySetGoalForMuscle = () => 0;
 
 type WeeklyVolumeStatusId =
+  | "not-set"
   | "undertrained"
   | "almost-there"
   | "trained"
@@ -9600,60 +8902,33 @@ const weeklyVolumeStatusConfig: Record<
   WeeklyVolumeStatusId,
   { dotClass: string; label: string; ringClass: string }
 > = {
+  "not-set": { dotClass: "bg-slate-400", label: "Target not set", ringClass: "ring-slate-400/35" },
   undertrained: {
     dotClass: "bg-rose-400 shadow-[0_0_12px_rgba(251,113,133,0.55)]",
-    label: "Undertrained",
+    label: "Below saved target",
     ringClass: "ring-rose-300/35",
   },
   "almost-there": {
     dotClass: "bg-amber-300 shadow-[0_0_12px_rgba(252,211,77,0.55)]",
-    label: "Almost there",
+    label: "Approaching saved target",
     ringClass: "ring-amber-200/35",
   },
   trained: {
     dotClass: "bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.55)]",
-    label: "Trained",
+    label: "Within saved target",
     ringClass: "ring-emerald-200/35",
   },
   risk: {
     dotClass: "bg-fuchsia-300 shadow-[0_0_12px_rgba(240,171,252,0.58)]",
-    label: "Risk of overtraining",
+    label: "Above saved target",
     ringClass: "ring-fuchsia-200/35",
   },
 };
 
-const getWeeklyVolumeStatusId = (sets: number): WeeklyVolumeStatusId => {
-  const roundedSets = Math.max(0, Math.round(sets));
-  if (roundedSets <= 3) return "undertrained";
-  if (roundedSets <= 7) return "almost-there";
-  if (roundedSets <= 18) return "trained";
-  return "risk";
-};
-
-const getWeeklyVolumeStatus = (sets: number) =>
-  weeklyVolumeStatusConfig[getWeeklyVolumeStatusId(sets)];
-
-const getWeeklyVolumeProgressPercent = (sets: number) =>
-  Math.min(100, Math.max(0, (Math.max(0, sets) / 18) * 100));
-
-const getWeeklySetGoalProgressPercent = (sets: number, goal: number) => {
-  const safeGoal = Math.max(1, goal);
-  return Math.max(0, (Math.max(0, sets) / safeGoal) * 100);
-};
-
-const getWeeklySetGoalFillPercent = (sets: number, goal: number) =>
-  Math.min(100, getWeeklySetGoalProgressPercent(sets, goal));
-
-const getWeeklySetGoalStatusId = (
-  sets: number,
-  goal: number,
-): WeeklyVolumeStatusId => {
-  const progressPercent = getWeeklySetGoalProgressPercent(sets, goal);
-  if (progressPercent <= 40) return "undertrained";
-  if (progressPercent <= 74) return "almost-there";
-  if (progressPercent <= 110) return "trained";
-  return "risk";
-};
+const getWeeklyVolumeStatusId: (sets: number) => WeeklyVolumeStatusId = () => "not-set";
+const getWeeklySetGoalProgressPercent = (sets: number, goal: number) => librarySetProgress(sets, goal).percent;
+const getWeeklySetGoalFillPercent = (sets: number, goal: number) => librarySetProgress(sets, goal).fillPercent;
+const getWeeklySetGoalStatusId = (sets: number, goal: number): WeeklyVolumeStatusId => librarySetProgress(sets, goal).status;
 
 function VolumeStatusIndicator({
   blink = false,
@@ -9682,68 +8957,8 @@ function VolumeStatusIndicator({
   );
 }
 
-function WeightVolumeStat({
-  className = "",
-  comparisonLabel = "",
-  targetVolume = 0,
-  volume,
-  weightUnit,
-}: {
-  className?: string;
-  comparisonLabel?: string;
-  targetVolume?: number;
-  volume: number;
-  weightUnit: WeightUnit;
-}) {
-  const safeVolume = Math.max(0, volume);
-  const hasTarget = targetVolume > 0;
-  const volumeLabel = formatWeightMetric(safeVolume, weightUnit, {
-    compact: true,
-    volume: true,
-  });
-  const targetLabel =
-    hasTarget &&
-    formatWeightMetric(targetVolume, weightUnit, {
-      compact: true,
-      volume: true,
-    });
-  const displayLabel = safeVolume > 0
-    ? targetLabel
-      ? `${volumeLabel} / ${targetLabel} volume`
-      : `${volumeLabel} volume`
-    : "No loaded range yet";
-  const valueLabel = safeVolume > 0
-    ? targetLabel
-      ? `${volumeLabel} / ${targetLabel}`
-      : volumeLabel
-    : "Not logged yet";
-  const helperLabel =
-    comparisonLabel && safeVolume > 0
-      ? comparisonLabel
-      : safeVolume > 0
-        ? "Loaded range logged"
-        : "No prior loaded range";
-
-  return (
-    <span
-      className={`exercise-library-weight-volume-stat ${className}`}
-      title={
-        comparisonLabel
-          ? `Weight volume: ${displayLabel}. ${comparisonLabel}`
-          : `Weight volume: ${displayLabel}`
-      }
-    >
-      <span className="exercise-library-weight-volume-stat__label">
-        Weight Volume
-      </span>
-      <span className="exercise-library-weight-volume-stat__value">
-        {valueLabel}
-      </span>
-      <span className="exercise-library-weight-volume-stat__helper">
-        {helperLabel}
-      </span>
-    </span>
-  );
+function WeightVolumeStat({ className = "" }: { className?: string; comparisonLabel?: string; targetVolume?: number; volume: number; weightUnit: WeightUnit }) {
+  return <a href="#library-recorded-unit-volume" className={`exercise-library-weight-volume-stat ${className}`}>Load-volume report</a>;
 }
 
 type CooldownCounterSummary = {
@@ -9751,79 +8966,25 @@ type CooldownCounterSummary = {
   fillPercent: number;
   label: string;
   remainingMs: number;
-  sessionSets: number;
+  sessionSets: number | null;
   totalHours: number;
 };
 
-const getCooldownHoursFromSessionDose = (
-  sessionSetsCompleted: number,
-  weeklySetGoal: number,
-) => {
-  const safeGoal = Math.max(1, weeklySetGoal);
-  const sessionVolumeRatio = Math.max(0, sessionSetsCompleted) / safeGoal;
-  return Math.min(48, Math.max(0, (sessionVolumeRatio / 0.5) * 48));
-};
 
-const formatCooldownRemainingLabel = (remainingMs: number) => {
-  if (remainingMs <= 0) return "Ready";
 
-  const remainingHours = Math.max(1, Math.ceil(remainingMs / (60 * 60 * 1000)));
-  const days = Math.floor(remainingHours / 24);
-  const hours = remainingHours % 24;
 
-  if (days > 0 && hours > 0) return `Cooldown: ${days}d ${hours}h left`;
-  if (days > 0) return `Cooldown: ${days}d left`;
-  return `Cooldown: ${remainingHours}h left`;
-};
 
-const getCooldownCounterSummary = ({
-  lastTrainedTime,
-  sessionSetsCompleted,
-  weeklySetGoal,
-}: {
+const getCooldownCounterSummary = ({ sessionSetsCompleted }: {
   lastTrainedTime: number;
   sessionSetsCompleted: number;
   weeklySetGoal: number;
 }): CooldownCounterSummary => {
-  const safeSessionSets = Math.max(0, sessionSetsCompleted);
-  const cooldownHours = getCooldownHoursFromSessionDose(
-    safeSessionSets,
-    weeklySetGoal,
-  );
-
-  if (!lastTrainedTime || safeSessionSets <= 0 || cooldownHours <= 0) {
-    return {
-      detail: "No recent sets",
-      fillPercent: 0,
-      label: "Ready",
-      remainingMs: 0,
-      sessionSets: safeSessionSets,
-      totalHours: 0,
-    };
-  }
-
-  const cooldownMs = cooldownHours * 60 * 60 * 1000;
-  const elapsedMs = Math.max(0, Date.now() - lastTrainedTime);
-  const remainingMs = Math.max(0, cooldownMs - elapsedMs);
-  const fillPercent =
-    cooldownMs > 0 ? Math.min(100, (remainingMs / cooldownMs) * 100) : 0;
-  const label =
-    remainingMs <= 0
-      ? "Ready"
-      : elapsedMs < 12 * 60 * 60 * 1000
-        ? "Trained today"
-        : formatCooldownRemainingLabel(remainingMs);
-
+  const sessionSets = libraryRecordedCount(sessionSetsCompleted);
   return {
-    detail:
-      remainingMs <= 0
-        ? "Cooldown complete"
-        : formatCooldownRemainingLabel(remainingMs),
-    fillPercent,
-    label,
-    remainingMs,
-    sessionSets: safeSessionSets,
-    totalHours: cooldownHours,
+    detail: sessionSets === null
+      ? "Latest session set count is unavailable. Set counts and elapsed time do not assess recovery or readiness."
+      : `Latest recorded session: ${sessionSets.toLocaleString()} sets. Set counts and elapsed time do not assess recovery or readiness.`,
+    fillPercent: 0, label: "Recovery not assessed", remainingMs: 0, sessionSets, totalHours: 0,
   };
 };
 
@@ -9841,12 +9002,9 @@ function CooldownCounterBar({
   return (
     <span
       className={`exercise-library-cooldown-counter ${className}`}
-      data-ready={summary.remainingMs <= 0 ? "true" : "false"}
+      data-assessment="unavailable"
       style={cooldownStyle}
-      title={`2-Day Cooldown Counter. Latest session dose: ${Math.max(
-        0,
-        Math.round(summary.sessionSets),
-      )} sets. ${summary.detail}`}
+      title={summary.detail}
     >
       <span aria-hidden="true" className="exercise-library-cooldown-counter__track">
         <span className="exercise-library-cooldown-counter__fill" />
@@ -9883,7 +9041,7 @@ function WeeklySetGoalBadge({
 }) {
   const roundedCompletedSets = Math.max(0, Math.round(completedSets));
   const roundedCompletedReps = Math.max(0, Math.round(completedReps));
-  const roundedGoalSets = Math.max(1, Math.round(goalSets));
+  const roundedGoalSets = Math.max(0, Math.round(goalSets));
   const statusId = getWeeklySetGoalStatusId(roundedCompletedSets, roundedGoalSets);
   const status = weeklyVolumeStatusConfig[statusId];
   const weightVolumeLabel = formatWeightMetric(
@@ -9900,7 +9058,7 @@ function WeeklySetGoalBadge({
   return (
     <span
       className={`inline-flex items-center gap-1 ${className}`}
-      title={`${status.label}. Set volume, ${rangeLabel}: ${roundedCompletedSets} of ${roundedGoalSets} sets${repsLabel}${
+      title={`${status.label}. Set volume, ${rangeLabel}: ${librarySetTargetLabel(roundedCompletedSets, roundedGoalSets)}${repsLabel}${
         weightVolumeLabel ? ` - Weight volume: ${weightVolumeLabel}` : ""
       }`}
     >
@@ -9910,7 +9068,7 @@ function WeeklySetGoalBadge({
         statusId={statusId}
       />
       <span>
-        {roundedCompletedSets} / {roundedGoalSets} sets
+        {librarySetTargetLabel(roundedCompletedSets, roundedGoalSets)}
         {repsLabel}
       </span>
       {shouldShowWeightVolume ? (
@@ -9922,7 +9080,7 @@ function WeeklySetGoalBadge({
   );
 }
 
-type BodyPartVolumeStatus = "fresh" | "productive" | "high" | "maxed";
+type BodyPartVolumeStatus = "not-set" | "fresh" | "productive" | "high" | "maxed";
 
 type BodyPartVolumeSummary = {
   cooldownHours: number;
@@ -9935,7 +9093,8 @@ type BodyPartVolumeSummary = {
   weightVolume: number;
 };
 
-const getBodyPartVolumeStatus = (volumePercent: number): BodyPartVolumeStatus => {
+const getBodyPartVolumeStatus = (volumePercent: number, target: number | null = null): BodyPartVolumeStatus => {
+  if (libraryMomentum(volumePercent, target).id === "not-set") return "not-set";
   if (volumePercent <= 40) return "fresh";
   if (volumePercent <= 70) return "productive";
   if (volumePercent <= 90) return "high";
@@ -9943,43 +9102,16 @@ const getBodyPartVolumeStatus = (volumePercent: number): BodyPartVolumeStatus =>
 };
 
 const bodyPartVolumeStatusLabels: Record<BodyPartVolumeStatus, string> = {
-  fresh: "Fresh",
-  productive: "Productive",
-  high: "High fatigue",
-  maxed: "Maxed",
+  "not-set": "Target not set",
+  fresh: "Up to 40% of target",
+  productive: "40–70% of target",
+  high: "70–90% of target",
+  maxed: "Over 90% of target",
 };
 
-const getCooldownHoursRemaining = ({
-  lastTrainedTime,
-  recentSessionSets,
-  weeklyTarget,
-}: {
-  lastTrainedTime: number;
-  recentSessionSets: number;
-  weeklyTarget: number;
-}) => {
-  if (!lastTrainedTime || recentSessionSets <= 0) return 0;
+const getCooldownHoursRemaining = (_input: { lastTrainedTime: number; recentSessionSets: number; weeklyTarget: number }) => { void _input; return 0; };
 
-  const initialCooldownHours = getCooldownHoursFromSessionDose(
-    recentSessionSets,
-    weeklyTarget,
-  );
-  const elapsedHours = Math.max(0, (Date.now() - lastTrainedTime) / (60 * 60 * 1000));
-
-  return Math.max(0, initialCooldownHours - elapsedHours);
-};
-
-const formatVolumeRingCooldownLabel = (cooldownHours: number) => {
-  if (cooldownHours <= 0) return "Ready";
-
-  const roundedHours = Math.ceil(cooldownHours);
-  const days = Math.floor(roundedHours / 24);
-  const hours = roundedHours % 24;
-
-  if (days > 0 && hours > 0) return `${days}d ${hours}h cooldown`;
-  if (days > 0) return `${days}d cooldown`;
-  return `${roundedHours}h cooldown`;
-};
+const formatVolumeRingCooldownLabel = (_cooldownHours: number) => { void _cooldownHours; return "Recovery not assessed"; };
 
 function VolumeRing({
   className = "",
@@ -10014,15 +9146,15 @@ function VolumeRing({
   weeklySets: number;
   weeklyTarget: number;
 }) {
-  const safePercent = Math.min(100, Math.max(0, percent));
-  const status = getBodyPartVolumeStatus(safePercent);
+  const safePercent = libraryMomentum(percent, weeklyTarget).fillPercent;
+  const status = getBodyPartVolumeStatus(percent, weeklyTarget);
   const radius = size === "compact" ? 18 : 26;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference - (safePercent / 100) * circumference;
   const roundedSets = Math.max(0, Math.round(weeklySets));
   const roundedPercent = Math.round(safePercent);
   const cooldownLabel = formatVolumeRingCooldownLabel(cooldownHours);
-  const accessibleLabel = `${label}. Weekly Volume: ${roundedSets} of ${weeklyTarget} sets, ${roundedPercent} percent. ${bodyPartVolumeStatusLabels[status]}. ${cooldownLabel}.`;
+  const accessibleLabel = `${label}. ${librarySetTargetLabel(roundedSets, weeklyTarget)}. ${bodyPartVolumeStatusLabels[status]}. ${cooldownLabel}.`;
 
   return (
     <button
@@ -10062,15 +9194,15 @@ function VolumeRing({
           />
         </svg>
         <span className="exercise-library-volume-ring__center">
-          <span>{size === "compact" ? roundedPercent : roundedSets}</span>
-          <span>{size === "compact" ? "%" : "sets"}</span>
+          <span>{size === "compact" ? (status === "not-set" ? "—" : roundedPercent) : roundedSets}</span>
+          <span>{size === "compact" ? (status === "not-set" ? "" : "%") : "sets"}</span>
         </span>
       </span>
       {showLabel ? (
         <>
           <span className="exercise-library-volume-ring__label">{label}</span>
           <span className="exercise-library-volume-ring__meta">
-            {roundedSets}/{weeklyTarget} sets
+            {librarySetTargetLabel(roundedSets, weeklyTarget)}
           </span>
         </>
       ) : null}
@@ -10079,38 +9211,25 @@ function VolumeRing({
           {cooldownLabel}
         </span>
       ) : showLabel ? (
-        <span className="exercise-library-volume-ring__ready">Ready</span>
+        <span className="exercise-library-volume-ring__ready">Recovery not assessed</span>
       ) : null}
     </button>
   );
 }
 
-const getMomentumHeatStatus = (percent: number) => {
-  const safePercent = Math.max(0, percent);
-  if (safePercent <= 20) {
-    return { id: "ice", label: "Ice Cold", recommendation: "Fresh area ready to train." };
-  }
-  if (safePercent <= 45) {
-    return { id: "building", label: "Building", recommendation: "Good place to add quality volume." };
-  }
-  if (safePercent <= 75) {
-    return { id: "productive", label: "Productive Heat", recommendation: "Productive weekly stimulus." };
-  }
-  if (safePercent <= 90) {
-    return { id: "hot", label: "Hot", recommendation: "Consider lower-fatigue choices." };
-  }
-  return { id: "too-hot", label: "Too Hot", recommendation: "Recovery or alternate area recommended." };
-};
+const getMomentumHeatStatus = libraryMomentum;
 
 function AnatomyTreeMomentumRing({
   percent,
+  target,
   sets,
 }: {
   percent: number;
+  target: number;
   sets: number;
 }) {
-  const safePercent = Math.min(100, Math.max(0, percent));
-  const heatStatus = getMomentumHeatStatus(safePercent);
+  const safePercent = libraryMomentum(percent, target).fillPercent;
+  const heatStatus = getMomentumHeatStatus(percent, target);
   const radius = 15;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference - (safePercent / 100) * circumference;
@@ -10119,7 +9238,7 @@ function AnatomyTreeMomentumRing({
     <span
       className="exercise-library-anatomy-tree-ring"
       data-heat={heatStatus.id}
-      title={`${heatStatus.label}: ${Math.round(safePercent)}%`}
+      title={heatStatus.label}
     >
       <svg viewBox="0 0 42 42" aria-hidden="true" focusable="false">
         <circle cx="21" cy="21" r={radius} className="exercise-library-anatomy-tree-ring__track" />
@@ -10134,7 +9253,7 @@ function AnatomyTreeMomentumRing({
         />
       </svg>
       <span className="exercise-library-anatomy-tree-ring__text">
-        {heatStatus.id === "too-hot" ? "!" : Math.round(sets)}
+        {Math.round(sets)}
       </span>
     </span>
   );
@@ -10142,13 +9261,15 @@ function AnatomyTreeMomentumRing({
 
 function SelectedBodyPartMomentumMeter({
   percent,
+  target,
   title,
 }: {
   percent: number;
+  target: number;
   title: string;
 }) {
-  const safePercent = Math.min(100, Math.max(0, percent));
-  const heatStatus = getMomentumHeatStatus(safePercent);
+  const safePercent = libraryMomentum(percent, target).fillPercent;
+  const heatStatus = getMomentumHeatStatus(percent, target);
   const radius = 44;
   const circumference = 2 * Math.PI * radius;
   const dashOffset = circumference - (safePercent / 100) * circumference;
@@ -10157,7 +9278,7 @@ function SelectedBodyPartMomentumMeter({
     <div
       className="exercise-library-selected-momentum-meter"
       data-heat={heatStatus.id}
-      title={`${title}: ${Math.round(safePercent)}% momentum, ${heatStatus.label}`}
+      title={`${title}: ${heatStatus.label}`}
     >
       <svg viewBox="0 0 112 112" aria-hidden="true" focusable="false">
         <defs>
@@ -10183,24 +9304,21 @@ function SelectedBodyPartMomentumMeter({
         />
       </svg>
       <div className="exercise-library-selected-momentum-meter__center">
-        <span>{Math.round(safePercent)}%</span>
+        <span>{heatStatus.percentLabel}</span>
         <span>{heatStatus.label}</span>
       </div>
-      {heatStatus.id === "too-hot" ? (
-        <span className="exercise-library-selected-momentum-meter__flame" aria-hidden="true">
-          !
-        </span>
-      ) : null}
+
     </div>
   );
 }
 
 const momentumZoneLegend = [
-  { id: "ice", label: "Ice Cold", range: "0-20%" },
-  { id: "building", label: "Building", range: "21-45%" },
-  { id: "productive", label: "Productive Heat", range: "46-75%" },
-  { id: "hot", label: "Hot", range: "76-90%" },
-  { id: "too-hot", label: "Too Hot", range: "91%+" },
+  { id: "not-set", label: "Target not set", range: "Unavailable" },
+  { id: "ice", label: "0–20% of target", range: "" },
+  { id: "building", label: "20–45% of target", range: "" },
+  { id: "productive", label: "45–75% of target", range: "" },
+  { id: "hot", label: "75–90% of target", range: "" },
+  { id: "too-hot", label: "Over 90% of target", range: "" },
 ];
 
 const formatLastTrainedBadge = (time: number) => {
@@ -10218,6 +9336,7 @@ const getBodyTrainingSignal = (
   lastTrainedTime: number,
   weeklyGoal = defaultBodyPartWeeklySetGoal,
 ) => {
+  if (weeklyGoal <= 0) return librarySetTargetLabel(Math.max(0, Math.round(weeklySets)), null);
   const progressPercent = getWeeklySetGoalProgressPercent(weeklySets, weeklyGoal);
   if (progressPercent >= 75 && progressPercent <= 110) {
     return "Balanced this week";
@@ -10261,26 +9380,8 @@ const getTrainingDayKey = (time: number) => {
 };
 
 const getTrainingStreakLabel = (stats: LocalExerciseStatEntry[]) => {
-  const trainedDays = new Set(
-    stats
-      .map(getStatTime)
-      .filter(Boolean)
-      .map(getTrainingDayKey),
-  );
-
-  if (!trainedDays.size) return "No recent training logged";
-
-  const latestTrainingDay = Math.max(...Array.from(trainedDays));
-  const oneDay = 24 * 60 * 60 * 1000;
-  let streakDays = 0;
-  let cursor = latestTrainingDay;
-
-  while (trainedDays.has(cursor)) {
-    streakDays += 1;
-    cursor -= oneDay;
-  }
-
-  return `${streakDays} ${streakDays === 1 ? "day" : "days"} streak`;
+  const days = statsCurrentStreak(stats.filter(stat => (libraryRecordedCount(stat.sets) ?? 0) > 0).map(getStatTime));
+  return days ? `${days} ${days === 1 ? "day" : "days"} streak` : "No current training streak";
 };
 
 const getDailySetsComplete = (stats: LocalExerciseStatEntry[]) => {
@@ -10289,9 +9390,9 @@ const getDailySetsComplete = (stats: LocalExerciseStatEntry[]) => {
   return stats.reduce((total, stat) => {
     const statTime = getStatTime(stat);
 
-    if (!statTime || getTrainingDayKey(statTime) !== todayKey) return total;
+    if (!statsHistoryIncludes(statTime, "Lifetime") || getTrainingDayKey(statTime) !== todayKey) return total;
 
-    return total + parseStatNumber(stat.sets);
+    return total + (libraryRecordedCount(stat.sets) ?? 0);
   }, 0);
 };
 
@@ -10300,7 +9401,8 @@ const buildWeeklySetsSummary = (
   exercises: Exercise[],
 ): WeeklySetsSummary => {
   const lookup = createExerciseStatLookup(exercises);
-  const cutoffTime = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const now = new Date();
+  const cutoffTime = statsWeekBounds(now).start.getTime();
   type LatestSessionDose = { latestTime: number; sessionKey: number; sets: number };
   const summary: WeeklySetsSummary = {
     bodyRepsByLabel: new Map(),
@@ -10360,14 +9462,21 @@ const buildWeeklySetsSummary = (
 
   stats.forEach((stat) => {
     const statTime = getStatTime(stat);
-    if (!statTime) return;
+    if (!statsHistoryIncludes(statTime, "Lifetime", now)) return;
 
-    const sets = parseStatNumber(stat.sets);
+    const sets = (libraryRecordedCount(stat.sets) ?? 0);
     if (sets <= 0) return;
     const completedReps = getStatCompletedReps(stat);
     const completedWeightVolume = getStatVolume(stat);
 
     const exercise = resolveStatExercise(stat, lookup);
+    const recordedId = typeof stat.exerciseId === "string" ? stat.exerciseId.trim() : "";
+    if (statTime >= cutoffTime && (exercise?.id || recordedId)) {
+      const key = exercise?.id || recordedId;
+      addToMap(summary.exerciseSetsById, key, sets);
+      addToMap(summary.exerciseRepsById, key, completedReps);
+      addToMap(summary.exerciseWeightVolumeById, key, completedWeightVolume);
+    }
     if (!exercise) return;
 
     const metadata = getMetadataForExercise(exercise);
@@ -10405,13 +9514,7 @@ const buildWeeklySetsSummary = (
 
     if (statTime < cutoffTime) return;
 
-    addToMap(summary.exerciseSetsById, exercise.id, sets);
-    addToMap(summary.exerciseRepsById, exercise.id, completedReps);
-    addToMap(
-      summary.exerciseWeightVolumeById,
-      exercise.id,
-      completedWeightVolume,
-    );
+
     bodyLabels.forEach((label) =>
       addToMap(summary.bodySetsByLabel, label, sets),
     );
@@ -10543,8 +9646,8 @@ const buildLatestSetInsight = ({
   stat: LocalExerciseStatEntry;
 }): LatestSetInsight => {
   const metadata = getMetadataForExercise(exercise);
-  const addedSets = parseStatNumber(stat.sets);
-  const repsPerSet = parseStatNumber(stat.reps);
+  const addedSets = (libraryRecordedCount(stat.sets) ?? 0);
+  const repsPerSet = (libraryRecordedCount(stat.reps) ?? 0);
   const addedReps = getStatCompletedReps(stat);
   const weight = parseStatNumber(stat.weight);
   const bodyLabels = getExerciseVolumeBodyLabels(exercise, metadata);
@@ -10574,14 +9677,8 @@ const buildLatestSetInsight = ({
     metadata,
     stat.semanticVariationId || exercise.semanticVariationId,
   ).filter(isStatWithinTrailingSevenDays);
-  const previousBestVolume = previousExerciseStats.reduce(
-    (bestVolume, previousStat) =>
-      Math.max(bestVolume, getStatVolume(previousStat)),
-    0,
-  );
   const newStatVolume = getStatVolume(stat);
-  const isNewBestVolumeThisWeek =
-    newStatVolume > 0 && newStatVolume > previousBestVolume;
+  const volumeAchievement = libraryVolumeAchievement(stat, previousExerciseStats);
   const layerIds = Array.from(
     new Set(
       bodyLabels
@@ -10593,15 +9690,12 @@ const buildLatestSetInsight = ({
   return {
     addedReps,
     addedSets,
-    achievementLine: isNewBestVolumeThisWeek ? "New best volume this week" : "",
+    achievementLine: volumeAchievement,
     bodyLabels,
     coreMovementKey: getExerciseCoreMovementTabKey(exercise),
     exerciseId: exercise.id,
     exerciseName: stat.generatedTitle || exercise.generatedTitle || exercise.name,
-    goalLine: `Trailing 7 days - ${primaryBodyLabel}: ${Math.max(
-      0,
-      Math.round(nextPrimaryBodySets),
-    )} / ${bodyWeeklyGoal} weekly sets`,
+    goalLine: `${primaryBodyLabel}: ${librarySetTargetLabel(Math.max(0, Math.round(nextPrimaryBodySets)), bodyWeeklyGoal)}`,
     id: `${exercise.id}-${stat.date}-${addedSets}-${addedReps}`,
     lastTrainedLine: "Last trained today",
     latestLine: `Latest: ${Math.max(0, Math.round(addedSets))} ${
@@ -10615,14 +9709,14 @@ const buildLatestSetInsight = ({
       Math.round(addedSets) === 1 ? "set" : "sets"
     }${addedReps > 0 ? ` / +${Math.round(addedReps)} reps` : ""}`,
     remainingLine:
-      remainingSets > 0
+      bodyWeeklyGoal <= 0 ? "No saved body-area set target" : remainingSets > 0
         ? `${remainingSets} ${remainingSets === 1 ? "set" : "sets"} away from weekly goal`
         : "Weekly goal reached",
     sectionKey,
     sectionLabel,
     summaryLine: `+${Math.max(0, Math.round(addedSets))} ${
       Math.round(addedSets) === 1 ? "set" : "sets"
-    } added to ${primaryBodyLabel} in trailing 7 days`,
+    } added to ${primaryBodyLabel} in this week`,
     timestamp: Date.now(),
   };
 };
@@ -10946,6 +10040,7 @@ function ExerciseBodyAnatomySelector({
     : [];
   const anatomyPopupHeatStatus = getMomentumHeatStatus(
     anatomyPopupVolume?.volumePercent || 0,
+    anatomyPopupVolume?.weeklyTarget || null,
   );
   const anatomyPopupStyle =
     activeAnatomyPopup &&
@@ -11161,7 +10256,7 @@ function ExerciseBodyAnatomySelector({
       const weeklyTarget = getWeeklySetGoalForRegionLayer(node.layer);
       const volumePercent = Math.min(
         100,
-        (Math.max(0, weeklySets) / Math.max(1, weeklyTarget)) * 100,
+        getWeeklySetGoalProgressPercent(Math.max(0, weeklySets), weeklyTarget),
       );
       const lastTrainedTime =
         weeklySetsSummary.lastTrainedByLayer.get(node.layer) || 0;
@@ -11177,7 +10272,7 @@ function ExerciseBodyAnatomySelector({
         cooldownHours,
         cooldownPercent: Math.min((cooldownHours / 48) * 100, 100),
         recentSessionSets,
-        status: getBodyPartVolumeStatus(volumePercent),
+        status: getBodyPartVolumeStatus(volumePercent, weeklyTarget),
         volumePercent,
         weeklySets,
         weeklyTarget,
@@ -11348,6 +10443,7 @@ function ExerciseBodyAnatomySelector({
   );
   const selectedTreeHeatStatus = getMomentumHeatStatus(
     selectedTreeVolume.volumePercent,
+    selectedTreeVolume.weeklyTarget,
   );
   const selectedTreeWeightVolumeLabel = formatWeightMetric(
     selectedTreeVolume.weightVolume,
@@ -11363,9 +10459,6 @@ function ExerciseBodyAnatomySelector({
     : 0;
   const selectedTreeCooldownLabel = formatVolumeRingCooldownLabel(
     selectedTreeVolume.cooldownHours,
-  );
-  const selectedTreePercent = Math.round(
-    Math.min(100, Math.max(0, selectedTreeVolume.volumePercent)),
   );
   const selectedTreeLabel = selectedTreeNode?.label || "All Regions";
   const selectedPopularExercises = selectedTreeNode
@@ -11394,7 +10487,7 @@ function ExerciseBodyAnatomySelector({
     lowerWeeklySets,
     openRootRegion: openRootNode?.label || null,
     selectedBodyPart: selectedBodies[0] || selectedTreeNode?.label || null,
-    totalWeeklyGoal: allBodyRegionWeeklySetGoal,
+    totalWeeklyGoal: getLibraryWeeklySetGoal(),
     totalWeeklySets,
     upperWeeklySets,
   });
@@ -11652,7 +10745,7 @@ function ExerciseBodyAnatomySelector({
     index: number,
   ): ReactNode => {
     const volume = getTreeNodeVolumeSummary(node);
-    const heatStatus = getMomentumHeatStatus(volume.volumePercent);
+    const heatStatus = getMomentumHeatStatus(volume.volumePercent, volume.weeklyTarget);
     const skill = getTreeNodeSkillPointsSummary(node);
     const nodeTheme = getBodyRegionTheme(node.label || node.layer);
     const nodeStyle = {
@@ -11711,11 +10804,12 @@ function ExerciseBodyAnatomySelector({
               {node.label}
             </span>
             <span className="mt-2 block text-xs font-bold text-slate-300">
-              {Math.max(0, Math.round(volume.weeklySets))} / {volume.weeklyTarget} sets
+              {librarySetTargetLabel(Math.max(0, Math.round(volume.weeklySets)), volume.weeklyTarget)}
             </span>
           </span>
           <AnatomyTreeMomentumRing
             percent={volume.volumePercent}
+            target={volume.weeklyTarget}
             sets={volume.weeklySets}
           />
         </span>
@@ -11756,7 +10850,7 @@ function ExerciseBodyAnatomySelector({
     const isOpen = openTreeNodes.has(node.id);
     const hasChildren = Boolean(node.children?.length);
     const volume = getTreeNodeVolumeSummary(node);
-    const heatStatus = getMomentumHeatStatus(volume.volumePercent);
+    const heatStatus = getMomentumHeatStatus(volume.volumePercent, volume.weeklyTarget);
     const skill = getTreeNodeSkillPointsSummary(node);
     const isSelected =
       selectedTreeNode?.id === node.id ||
@@ -11784,9 +10878,7 @@ function ExerciseBodyAnatomySelector({
             aria-pressed={isSelected}
             onClick={() => selectTreeNode(node)}
             className="flex min-w-0 items-start gap-3 text-left"
-            title={`${node.label}: ${Math.max(0, Math.round(volume.weeklySets))} / ${
-              volume.weeklyTarget
-            } sets, ${heatStatus.label}`}
+            title={`${node.label}: ${librarySetTargetLabel(Math.max(0, Math.round(volume.weeklySets)), volume.weeklyTarget)}, ${heatStatus.label}`}
           >
             <span
               aria-hidden="true"
@@ -11797,7 +10889,7 @@ function ExerciseBodyAnatomySelector({
                 {node.label}
               </span>
               <span className="mt-1 block text-[10px] font-bold uppercase leading-4 tracking-[0.08em] text-slate-400">
-                {Math.max(0, Math.round(volume.weeklySets))} / {volume.weeklyTarget} sets
+                {librarySetTargetLabel(Math.max(0, Math.round(volume.weeklySets)), volume.weeklyTarget)}
                 <span className="mx-1 text-slate-600">-</span>
                 {heatStatus.label}
               </span>
@@ -11820,6 +10912,7 @@ function ExerciseBodyAnatomySelector({
             <div className="flex items-center gap-2">
               <AnatomyTreeMomentumRing
                 percent={volume.volumePercent}
+            target={volume.weeklyTarget}
                 sets={volume.weeklySets}
               />
               {workoutSuggestions.length ? (
@@ -11994,18 +11087,18 @@ function ExerciseBodyAnatomySelector({
             <div className="mt-4 grid gap-4 md:grid-cols-[auto_1fr] md:items-center">
               <SelectedBodyPartMomentumMeter
                 percent={selectedTreeVolume.volumePercent}
+                target={selectedTreeVolume.weeklyTarget}
                 title={selectedTreeLabel}
               />
               <div className="min-w-0">
                 <p className="text-3xl font-black leading-none text-white">
-                  {selectedTreePercent}%
+                  {selectedTreeHeatStatus.percentLabel}
                 </p>
                 <p className="mt-2 text-sm font-black text-white">
                   {selectedTreeLabel}
                 </p>
                 <p className="mt-1 text-xs font-semibold text-slate-400">
-                  {Math.max(0, Math.round(selectedTreeVolume.weeklySets))} /{" "}
-                  {selectedTreeVolume.weeklyTarget} sets this week
+                  {librarySetTargetLabel(Math.max(0, Math.round(selectedTreeVolume.weeklySets)), selectedTreeVolume.weeklyTarget)} this week
                 </p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-3 md:grid-cols-1 min-[1480px]:grid-cols-3">
                   {[
@@ -12383,14 +11476,12 @@ function ExerciseBodyAnatomySelector({
                 weeklyTarget={anatomyPopupVolume.weeklyTarget}
               />
               <span className="min-w-[7rem] text-[10px] font-black uppercase tracking-[0.12em] text-white">
-                {Math.max(0, Math.round(anatomyPopupVolume.weeklySets))} /{" "}
-                {anatomyPopupVolume.weeklyTarget} sets
+                {librarySetTargetLabel(Math.max(0, Math.round(anatomyPopupVolume.weeklySets)), anatomyPopupVolume.weeklyTarget)}
                 <span className="mt-1 block text-[9px] text-slate-400">
                   {weeklyVolumeRangeLabel}
                 </span>
                 <span className="mt-1 block text-[9px] text-[var(--exercise-theme-text)]">
-                  Momentum: {Math.round(anatomyPopupVolume.volumePercent)}%{" "}
-                  {anatomyPopupHeatStatus.label}
+                  Set progress: {anatomyPopupHeatStatus.label}
                 </span>
                 <span className="mt-1 block text-[9px] text-[var(--exercise-theme-text)]">
                   {formatVolumeRingCooldownLabel(anatomyPopupVolume.cooldownHours)}
@@ -13039,7 +12130,7 @@ function TrainingIntelligenceHeader({
           id="goal"
           isOpen={activeTrainingPanel === "goal"}
           onOpen={openTrainingPanel}
-          status={`${weeklyGoalProgressPercent}%`}
+          status={weeklyGoalSets > 0 ? `${weeklyGoalProgressPercent}%` : "Target not set"}
           title="Goal"
         >
           <div className="grid gap-3 lg:grid-cols-[1.1fr_0.9fr]">
@@ -13099,7 +12190,7 @@ function TrainingIntelligenceHeader({
                     Weekly Goal Progress
                   </p>
                   <p className="mt-1 text-lg font-black text-white">
-                    {roundedWeeklySets} / {weeklyGoalSets} sets
+                    {librarySetTargetLabel(roundedWeeklySets, weeklyGoalSets)}
                   </p>
                 </div>
                 <span
@@ -13145,7 +12236,7 @@ function TrainingIntelligenceHeader({
           id="stats"
           isOpen={activeTrainingPanel === "stats"}
           onOpen={openTrainingPanel}
-          status={`${roundedWeeklySets}/${weeklyGoalSets}`}
+          status={librarySetTargetLabel(roundedWeeklySets, weeklyGoalSets)}
           title="Stats"
         >
           <div className="max-w-full overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.04] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
@@ -13194,10 +12285,10 @@ function TrainingIntelligenceHeader({
                       Weekly Volume
                     </p>
                     <p className="mt-1 text-xl font-black text-white">
-                      {roundedWeeklySets} / {weeklyGoalSets} sets
+                      {librarySetTargetLabel(roundedWeeklySets, weeklyGoalSets)}
                     </p>
                     <p className="mt-1 text-xs font-semibold text-slate-400">
-                      {roundedWeeklyReps.toLocaleString()} reps / {weeklyGoalProgressPercent}% complete
+                      {roundedWeeklyReps.toLocaleString()} reps · {weeklyGoalSets > 0 ? `${weeklyGoalProgressPercent}% complete` : "target not set"}
                     </p>
                     <WeightVolumeStat
                       className="mt-3"
@@ -13278,7 +12369,7 @@ function TrainingIntelligenceHeader({
                     Sets
                   </p>
                   <p className="mt-0.5 text-sm font-black text-white">
-                    {roundedWeeklySets} / {weeklyGoalSets}
+                    {librarySetTargetLabel(roundedWeeklySets, weeklyGoalSets)}
                   </p>
                 </div>
                 <div className="exercise-library-logic-chip rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2">
@@ -13634,7 +12725,7 @@ function TrainingIntelligenceHeader({
                   Weekly Volume Command
                 </p>
                 <h3 className="mt-1 text-lg font-black text-white">
-                  {roundedWeeklySets} / {weeklyGoalSets} sets
+                  {librarySetTargetLabel(roundedWeeklySets, weeklyGoalSets)}
                 </h3>
                 <p className="mt-1 text-xs font-semibold text-slate-400">
                   {weeklyVolumeRangeLabel} - {roundedWeeklyReps.toLocaleString()} reps
@@ -13964,7 +13055,7 @@ function ExerciseLibraryWidgetDock({
               Weekly Volume Summary
             </p>
             <p className="mt-1 text-xl font-black text-white">
-              {Math.max(0, Math.round(weeklySets))} / {weeklyGoalSets} sets
+              {librarySetTargetLabel(Math.max(0, Math.round(weeklySets)), weeklyGoalSets)}
             </p>
             <WeightVolumeStat
               className="mt-2"
@@ -13980,6 +13071,7 @@ function ExerciseLibraryWidgetDock({
 
         <button
           type="button"
+          disabled={!primaryQuickActions.some((action) => action.id === "undertrained" && !action.disabled)}
           onClick={() =>
             primaryQuickActions.find((action) => action.id === "undertrained")
               ?.onClick()
@@ -13993,7 +13085,7 @@ function ExerciseLibraryWidgetDock({
             {currentFocusLabel}
           </p>
           <p className="mt-1 text-[10px] font-semibold leading-4 text-slate-400">
-            Best next area from live weekly volume.
+            Area targets are required to compare progress.
           </p>
         </button>
 
@@ -16549,7 +15641,7 @@ function ExerciseCategoryShelf({
                   Weekly Sets
                 </span>
                 <span className="mt-1 block text-sm font-black text-white">
-                  {Math.max(0, Math.round(weeklySets))} / {weeklyGoal}
+                  {librarySetTargetLabel(Math.max(0, Math.round(weeklySets)), weeklyGoal)}
                 </span>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
@@ -17229,6 +16321,7 @@ function getRecommendedNextMoveForSection(
   weeklySets: number,
   weeklyGoal: number,
 ) {
+  if (weeklyGoal <= 0) return "Choose exercises from your plan; no category set target is saved.";
   const remainingSets = Math.max(0, weeklyGoal - weeklySets);
   if (remainingSets <= 0) {
     return "Weekly target is complete. Consider recovery, mobility, or a lighter variation.";
@@ -18944,16 +18037,10 @@ function RecentStatsStrip({
   const [isPinnedOpen, setIsPinnedOpen] = useState(false);
   const latest = stats[0];
   const recentStats = stats.slice(0, 3);
-  const bestLoadStat = stats.reduce<LocalExerciseStatEntry | null>(
-    (best, stat) =>
-      !best || parseStatNumber(stat.weight) > parseStatNumber(best.weight)
-        ? stat
-        : best,
-    null,
-  );
+  const bestLoadStat = libraryBestLoadEntry(stats);
   const bestRepsStat = stats.reduce<LocalExerciseStatEntry | null>(
     (best, stat) =>
-      !best || parseStatNumber(stat.reps) > parseStatNumber(best.reps)
+      !best || (libraryRecordedCount(stat.reps) ?? 0) > (libraryRecordedCount(best.reps) ?? 0)
         ? stat
         : best,
     null,
@@ -18986,8 +18073,8 @@ function RecentStatsStrip({
   const lifetimeSets = sumLoggedSets(stats);
   const lifetimeReps = sumLoggedReps(stats);
   const hasBestStats =
-    Boolean(bestLoadStat && parseStatNumber(bestLoadStat.weight) > 0) ||
-    Boolean(bestRepsStat && parseStatNumber(bestRepsStat.reps) > 0) ||
+    Boolean(bestLoadStat && (libraryLoadPounds(bestLoadStat) ?? 0) > 0) ||
+    Boolean(bestRepsStat && (libraryRecordedCount(bestRepsStat.reps) ?? 0) > 0) ||
     Boolean(bestVolumeStat && getStatVolume(bestVolumeStat) > 0) ||
     Boolean(
       bestEstimatedOneRepMaxStat &&
@@ -18998,7 +18085,7 @@ function RecentStatsStrip({
         {
           label: "Last Load",
           value:
-            formatWeightMetric(parseStatNumber(latest.weight), preferredWeightUnit) ||
+            libraryLoadLabel(latest, preferredWeightUnit) ||
             "--",
           detail: `${latest.reps || "--"} reps x ${latest.sets || "--"} sets`,
         },
@@ -19025,11 +18112,8 @@ function RecentStatsStrip({
         {
           label: "Best Load",
           value:
-            bestLoadStat && parseStatNumber(bestLoadStat.weight) > 0
-              ? formatWeightMetric(
-                  parseStatNumber(bestLoadStat.weight),
-                  preferredWeightUnit,
-                )
+            bestLoadStat && (libraryLoadPounds(bestLoadStat) ?? 0) > 0
+              ? libraryLoadLabel(bestLoadStat, preferredWeightUnit)
               : "--",
           detail: bestLoadStat
             ? `${bestLoadStat.reps || "--"} reps`
@@ -19038,14 +18122,11 @@ function RecentStatsStrip({
         {
           label: "Best Reps",
           value:
-            bestRepsStat && parseStatNumber(bestRepsStat.reps) > 0
-              ? formatMetric(parseStatNumber(bestRepsStat.reps))
+            bestRepsStat && (libraryRecordedCount(bestRepsStat.reps) ?? 0) > 0
+              ? formatMetric((libraryRecordedCount(bestRepsStat.reps) ?? 0))
               : "--",
           detail: bestRepsStat
-            ? `${formatWeightMetric(
-                parseStatNumber(bestRepsStat.weight),
-                preferredWeightUnit,
-              ) || "--"} load`
+            ? `${libraryLoadLabel(bestRepsStat, preferredWeightUnit) || "--"} load`
             : "No reps yet",
         },
         {
@@ -19076,10 +18157,7 @@ function RecentStatsStrip({
                 )
               : "--",
           detail: bestEstimatedOneRepMaxStat
-            ? `${formatWeightMetric(
-                parseStatNumber(bestEstimatedOneRepMaxStat.weight),
-                preferredWeightUnit,
-              ) || "--"} x ${
+            ? `${libraryLoadLabel(bestEstimatedOneRepMaxStat, preferredWeightUnit) || "--"} x ${
                 bestEstimatedOneRepMaxStat.reps || "--"
               }`
             : "No estimate yet",
@@ -19090,7 +18168,7 @@ function RecentStatsStrip({
     {
       label: "Set Volume",
       value: `${Math.max(0, Math.round(weeklyVolume.sets))}`,
-      detail: `${Math.max(0, Math.round(weeklyVolume.sets))} / ${weeklyGoal} sets`,
+      detail: librarySetTargetLabel(Math.max(0, Math.round(weeklyVolume.sets)), weeklyGoal),
     },
     {
       label: "Weekly Reps",
@@ -19120,7 +18198,7 @@ function RecentStatsStrip({
   const historyCells = stats.slice(0, 8).map((stat) => ({
     label: new Date(stat.date).toLocaleDateString(),
     value: `${stat.sets || "--"} x ${stat.reps || "--"}`,
-    detail: `${formatWeightMetric(parseStatNumber(stat.weight), preferredWeightUnit) || "--"} load`,
+    detail: `${libraryLoadLabel(stat, preferredWeightUnit) || "--"} load`,
   }));
   const activeCells =
     view === "recent"
@@ -21709,7 +20787,15 @@ function WorkoutBuilderPreviewOverlay({
   );
 }
 
+const EMPTY_LIBRARY_ACTIVITY_SNAPSHOT = "";
+
 export default function ExerciseLibraryPage() {
+  useSyncExternalStore(subscribePlanning, libraryActivityRecoverySnapshot, () => EMPTY_LIBRARY_ACTIVITY_SNAPSHOT);
+  const review = captureLibraryActivityRecovery();
+  return review.issues.length ? <LibraryActivityRecoveryView review={review} /> : <ExerciseLibraryContent />;
+}
+
+function ExerciseLibraryContent() {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -21797,6 +20883,8 @@ export default function ExerciseLibraryPage() {
   const [statWeight, setStatWeight] = useState("");
   const [statReps, setStatReps] = useState("");
   const [statSets, setStatSets] = useState("");
+  const [statsSaveError, setStatsSaveError] = useState("");
+  const statsEditorRef = useRef<LibraryStatEditor | null>(null);
   const [savedExerciseStats, setSavedExerciseStats] = useState<
     LocalExerciseStatEntry[]
   >([]);
@@ -21954,91 +21042,9 @@ export default function ExerciseLibraryPage() {
   };
 
   useEffect(() => {
-    let isActive = true;
-
-    const loadProfileSummary = async () => {
-      try {
-        const { data: authData } = await getSupabaseUser();
-        const user = authData.user;
-
-        if (!user || !isActive) {
-          if (isActive) {
-            setProfileSummary(defaultExerciseLibraryProfileSummary);
-          }
-          return;
-        }
-
-        const [{ data: profile }, { data: savedBio }] = await Promise.all([
-          // The live `profiles` table has no `avatar_url` column; selecting it
-          // made PostgREST reject the whole request with a 400 (42703), losing
-          // full_name too. The avatar falls back to auth user_metadata below.
-          supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("id", user.id)
-            .single(),
-          supabase.from("client_bios").select("*").eq("id", user.id).single(),
-        ]);
-
-        if (!isActive) return;
-
-        const fullName =
-          profile?.full_name ||
-          user.user_metadata?.full_name ||
-          user.user_metadata?.name ||
-          "";
-        const firstName =
-          savedBio?.preferred_name ||
-          fullName.trim().split(/\s+/)[0] ||
-          "";
-        const emailPrefix = user.email?.split("@")[0] || "";
-        const displayName = firstName || fullName || emailPrefix || "Athlete";
-        const primaryGoal = savedBio?.primary_goal || "No goal set";
-        const secondaryGoal =
-          savedBio?.motivation ||
-          savedBio?.nutrition_focus ||
-          savedBio?.notes ||
-          "Add profile details";
-        const currentFocus =
-          savedBio?.nutrition_focus ||
-          savedBio?.motivation ||
-          savedBio?.primary_goal ||
-          "Add profile details";
-        const preferredTrainingStyle =
-          savedBio?.coaching_style || "Add profile details";
-        const bioParts = [
-          savedBio?.age ? `Age ${savedBio.age}` : "",
-          savedBio?.training_experience || "",
-          savedBio?.location || "",
-          savedBio?.nutrition_focus ? `Focus: ${savedBio.nutrition_focus}` : "",
-        ].filter(Boolean);
-
-        setProfileSummary({
-          avatarUrl:
-            user.user_metadata?.avatar_url ||
-            user.user_metadata?.picture ||
-            null,
-          bio: bioParts.length ? bioParts.join(" / ") : "Add profile details",
-          currentFocus,
-          displayName,
-          email: user.email || "",
-          preferredTrainingStyle,
-          primaryGoal,
-          secondaryGoal,
-          trainingLevel: savedBio?.training_experience || "",
-        });
-      } catch {
-        if (isActive) {
-          setProfileSummary(defaultExerciseLibraryProfileSummary);
-        }
-      }
-    };
-
-    void loadProfileSummary();
-
-    return () => {
-      isActive = false;
-    };
+    const refreshProfileSummary = () => setProfileSummary(readLibraryProfileSummary());
+    refreshProfileSummary();
+    return subscribePlanning(refreshProfileSummary);
   }, []);
 
   const toggleFavoriteExercise = (exerciseId: string) => {
@@ -22059,12 +21065,15 @@ export default function ExerciseLibraryPage() {
   useEffect(() => {
     let isActive = true;
 
+    const refreshGuard = createPlanningRefreshGuard([planningKeys.exerciseStats, planningKeys.logs]);
     const syncStats = async () => {
+      const ticket = refreshGuard.begin();
+      if (ticket.localChanged) setSavedExerciseStats(libraryPoundDisplayEntries(loadWorkoutLogEntriesFromLocalStorage().data));
       const result = await loadWorkoutLogEntriesWithFallback();
 
-      if (!isActive) return;
+      if (!isActive || !refreshGuard.current(ticket)) return;
 
-      setSavedExerciseStats(result.data);
+      setSavedExerciseStats(libraryPoundDisplayEntries(result.data));
     };
 
     void syncStats();
@@ -22075,6 +21084,7 @@ export default function ExerciseLibraryPage() {
 
     return () => {
       isActive = false;
+      refreshGuard.cancel();
       unsubscribe();
     };
   }, []);
@@ -22099,6 +21109,8 @@ export default function ExerciseLibraryPage() {
   const allExercises: Exercise[] = useMemo(() => {
     return [...normalizedSystemExercises, ...customExercises];
   }, [customExercises]);
+  const recordedUnitVolume = useMemo(() => libraryVolumeReports(savedExerciseStats), [savedExerciseStats]);
+  const countEntriesNeedingReview = useMemo(() => libraryCountReview(savedExerciseStats), [savedExerciseStats]);
   const weeklySetsSummary = useMemo(
     () => buildWeeklySetsSummary(savedExerciseStats, allExercises),
     [savedExerciseStats, allExercises],
@@ -22148,6 +21160,7 @@ export default function ExerciseLibraryPage() {
     [allExercises],
   );
 
+  const unclassifiedActivityCount = useMemo(() => savedExerciseStats.filter(stat => statsHistoryIncludes(getStatTime(stat), "Lifetime") && (libraryRecordedCount(stat.sets) ?? 0) > 0 && !resolveStatExercise(stat, exerciseStatLookup)).length, [savedExerciseStats, exerciseStatLookup]);
   const apparatusOptions = useMemo(() => {
     const equipmentCounts = normalizedCatalog.filterOptions.apparatus.reduce(
       (counts, option) => {
@@ -22243,7 +21256,7 @@ export default function ExerciseLibraryPage() {
           );
       const weeklyTarget = getWeeklySetGoalForBodyPart(bodyPart);
       const volumePercent = Math.min(
-        (Math.max(0, weeklySets) / Math.max(1, weeklyTarget)) * 100,
+        getWeeklySetGoalProgressPercent(Math.max(0, weeklySets), weeklyTarget),
         100,
       );
       const cooldownHours = getCooldownHoursRemaining({
@@ -22257,7 +21270,7 @@ export default function ExerciseLibraryPage() {
         cooldownHours,
         cooldownPercent,
         recentSessionSets,
-        status: getBodyPartVolumeStatus(volumePercent),
+        status: getBodyPartVolumeStatus(volumePercent, weeklyTarget),
         volumePercent,
         weeklySets,
         weeklyTarget,
@@ -23490,6 +22503,8 @@ export default function ExerciseLibraryPage() {
     mode: ExerciseStatsMenuMode,
     anchorElement?: HTMLElement | null,
   ) => {
+    statsEditorRef.current = captureLibraryStatEditor();
+    setStatsSaveError("");
     setStatsMenuMode(mode);
     if (anchorElement) {
       statsMenuAnchorRef.current = anchorElement;
@@ -23502,68 +22517,43 @@ export default function ExerciseLibraryPage() {
   };
 
   const closeStatsMenu = () => {
+    statsEditorRef.current = null;
+    setStatsSaveError("");
     setStatsExercise(null);
     resetStatsMenuAnchor();
   };
 
+  const markStatsDraftEdited = () => {
+    if (!statsEditorRef.current) statsEditorRef.current = captureLibraryStatEditor();
+    setStatsSaveError("");
+  };
   const saveStatsEntry = () => {
-    if (
-      !statsExercise ||
-      !statWeight.trim() ||
-      !statReps.trim() ||
-      !statSets.trim()
-    ) {
-      return;
-    }
-    const enteredWeight = parseStatNumber(statWeight);
-    const savedWeightInPounds =
-      preferredWeightUnit === "kg"
-        ? enteredWeight / kilogramsPerPound
-        : enteredWeight;
-    const savedWeightValue =
-      savedWeightInPounds > 0
-        ? String(Math.round(savedWeightInPounds * 10) / 10)
-        : statWeight.trim();
-
+    if (!statsExercise) return;
+    const draft = prepareLibraryStatDraft({ weight: statWeight, reps: statReps, sets: statSets, unit: preferredWeightUnit });
+    if (!draft.success) { setStatsSaveError(draft.message); return; }
     const newStat: LocalExerciseStatEntry = {
-      exerciseId: statsExercise.id,
-      exerciseName: statsExercise.name,
-      body: statsExercise.body,
-      pattern: statsExercise.pattern,
-      equipment: statsExercise.equipment,
-      coreMovementPattern: statsExercise.coreMovementPattern,
-      semanticVariationId: statsExercise.semanticVariationId,
-      semanticVariationName: statsExercise.semanticVariationName,
-      generatedTitle: statsExercise.generatedTitle,
-      selectedModifierIds: statsExercise.selectedModifierIds,
-      weight: savedWeightValue,
-      reps: statReps.trim(),
-      sets: statSets.trim(),
-      date: new Date().toISOString(),
-      source: "exercise-library",
+      exerciseId: statsExercise.id, exerciseName: statsExercise.name,
+      body: statsExercise.body, pattern: statsExercise.pattern, equipment: statsExercise.equipment,
+      coreMovementPattern: statsExercise.coreMovementPattern, semanticVariationId: statsExercise.semanticVariationId,
+      semanticVariationName: statsExercise.semanticVariationName, generatedTitle: statsExercise.generatedTitle,
+      selectedModifierIds: statsExercise.selectedModifierIds, ...draft.values,
+      date: new Date().toISOString(), source: "exercise-library",
     };
-
+    let nextLatestSetInsight: LatestSetInsight;
     try {
-      prependExerciseStats(newStat);
-    } catch {
+      nextLatestSetInsight = buildLatestSetInsight({ exercise: statsExercise, previousStats: savedExerciseStats, previousWeeklySetsSummary: weeklySetsSummary, stat: newStat });
+      saveLibraryStatEntry(newStat, statsEditorRef.current);
+    } catch (error) {
+      setStatsSaveError(error instanceof Error ? error.message : "Unable to save activity. Your entries are kept.");
       return;
     }
-
-    const nextLatestSetInsight = buildLatestSetInsight({
-      exercise: statsExercise,
-      previousStats: savedExerciseStats,
-      previousWeeklySetsSummary: weeklySetsSummary,
-      stat: newStat,
-    });
-
+    // An already-submitted render cannot save the same values twice before React clears them.
+    statsEditorRef.current = null;
+    setStatsSaveError("");
     setSavedExerciseStats((prev) => [newStat, ...prev]);
     setLatestSetInsight(nextLatestSetInsight);
-    setStatWeight("");
-    setStatReps("");
-    setStatSets("");
-    if (statsMenuMode === "grid") {
-      closeStatsMenu();
-    }
+    setStatWeight(""); setStatReps(""); setStatSets("");
+    if (statsMenuMode === "grid") closeStatsMenu();
   };
 
   useEffect(() => {
@@ -24505,7 +23495,7 @@ export default function ExerciseLibraryPage() {
   ).length;
   const weeklyCompletionPercent = getWeeklySetGoalProgressPercent(
     weeklyTotalSets,
-    allBodyRegionWeeklySetGoal,
+    getLibraryWeeklySetGoal(),
   );
   const latestTrainingRecord = useMemo(() => {
     const latestStat = savedExerciseStats.reduce<LocalExerciseStatEntry | null>(
@@ -24523,7 +23513,7 @@ export default function ExerciseLibraryPage() {
   }, [exerciseStatLookup, savedExerciseStats]);
   const bestRecentTrainingRecord = useMemo(() => {
     const bestStat = savedExerciseStats
-      .filter(isStatWithinTrailingSevenDays)
+      .filter(stat => isStatWithinTrailingSevenDays(stat) && (libraryEntryVolume(stat) ?? 0) > 0)
       .reduce<LocalExerciseStatEntry | null>((best, stat) => {
         if (!best) return stat;
 
@@ -24596,11 +23586,8 @@ export default function ExerciseLibraryPage() {
     trainingBodyVolumeRows.find((row) => row.statusId === "trained") || null;
   const needsRecoveryBodyTarget =
     trainingBodyVolumeRows.find((row) => row.statusId === "risk") || null;
-  const highestVolumeBodyTarget =
-    [...trainingBodyVolumeRows].sort(
-      (left, right) =>
-        right.sets - left.sets || left.body.localeCompare(right.body),
-    )[0] || null;
+  const leadingBodyArea = libraryLeadingArea(trainingBodyVolumeRows);
+  const highestVolumeBodyTarget = leadingBodyArea.uniqueLeader;
   const trainingCategoryVolumeRows = useMemo(() => {
     return exerciseSections
       .map((section) => {
@@ -24697,14 +23684,14 @@ export default function ExerciseLibraryPage() {
       const movementPattern =
         exercise ? getExerciseCoreMovementSortTitle(exercise) : stat.pattern || "Movement Pattern";
       const weightLabel =
-        formatWeightMetric(parseStatNumber(stat.weight), preferredWeightUnit) ||
+        libraryLoadLabel(stat, preferredWeightUnit) ||
         "Bodyweight";
 
       return {
         detail: new Date(stat.date).toLocaleDateString(),
-        helper: `${Math.max(0, Math.round(parseStatNumber(stat.sets)))} sets / ${Math.max(
+        helper: `${Math.max(0, Math.round((libraryRecordedCount(stat.sets) ?? 0)))} sets / ${Math.max(
           0,
-          Math.round(parseStatNumber(stat.reps)),
+          Math.round((libraryRecordedCount(stat.reps) ?? 0)),
         )} reps / ${weightLabel}`,
         id: `recent-stat-${stat.date}-${index}`,
         imageUrl: getExerciseVisualUrl(exercise),
@@ -24714,16 +23701,10 @@ export default function ExerciseLibraryPage() {
         value: exerciseName,
       };
     });
-  const prWeightStat = savedExerciseStats.reduce<LocalExerciseStatEntry | null>(
-    (best, stat) =>
-      !best || parseStatNumber(stat.weight) > parseStatNumber(best.weight)
-        ? stat
-        : best,
-    null,
-  );
+  const prWeightStat = libraryBestLoadEntry(savedExerciseStats);
   const prRepsStat = savedExerciseStats.reduce<LocalExerciseStatEntry | null>(
     (best, stat) =>
-      !best || parseStatNumber(stat.reps) > parseStatNumber(best.reps)
+      !best || (libraryRecordedCount(stat.reps) ?? 0) > (libraryRecordedCount(best.reps) ?? 0)
         ? stat
         : best,
     null,
@@ -24750,8 +23731,8 @@ export default function ExerciseLibraryPage() {
       label: "PR Weight",
       theme: getCategoryTheme("Upper Pull"),
       value:
-        prWeightStat && parseStatNumber(prWeightStat.weight) > 0
-          ? formatWeightMetric(parseStatNumber(prWeightStat.weight), preferredWeightUnit) || "0 lb"
+        prWeightStat && (libraryLoadPounds(prWeightStat) ?? 0) > 0
+          ? libraryLoadLabel(prWeightStat, preferredWeightUnit) || "0 lb"
           : "Not logged yet",
     },
     {
@@ -24761,8 +23742,8 @@ export default function ExerciseLibraryPage() {
       label: "PR Reps",
       theme: getCategoryTheme("Upper Push"),
       value:
-        prRepsStat && parseStatNumber(prRepsStat.reps) > 0
-          ? Math.max(0, Math.round(parseStatNumber(prRepsStat.reps))).toLocaleString()
+        prRepsStat && (libraryRecordedCount(prRepsStat.reps) ?? 0) > 0
+          ? Math.max(0, Math.round((libraryRecordedCount(prRepsStat.reps) ?? 0))).toLocaleString()
           : "Not logged yet",
     },
     {
@@ -24831,7 +23812,7 @@ export default function ExerciseLibraryPage() {
       helper: "Weekly completed sets",
       id: "weekly-sets",
       label: "Weekly Sets",
-      statusId: getWeeklySetGoalStatusId(weeklyTotalSets, allBodyRegionWeeklySetGoal),
+      statusId: getWeeklySetGoalStatusId(weeklyTotalSets, getLibraryWeeklySetGoal()),
       theme: activeExerciseSectionTheme,
       value: Math.max(0, Math.round(weeklyTotalSets)).toLocaleString(),
     },
@@ -24840,7 +23821,7 @@ export default function ExerciseLibraryPage() {
       id: "weekly-goal",
       label: "Weekly Goal",
       theme: getCategoryTheme("Core"),
-      value: allBodyRegionWeeklySetGoal.toLocaleString(),
+      value: readLibraryWeeklySetTarget()?.toLocaleString() || "Not set",
     },
     {
       helper: "Logged sets, reps, and load",
@@ -24853,9 +23834,9 @@ export default function ExerciseLibraryPage() {
       helper: "Weekly goal completion",
       id: "weekly-completion",
       label: "Completion %",
-      statusId: getWeeklySetGoalStatusId(weeklyTotalSets, allBodyRegionWeeklySetGoal),
+      statusId: getWeeklySetGoalStatusId(weeklyTotalSets, getLibraryWeeklySetGoal()),
       theme: getCategoryTheme("Mobility"),
-      value: `${Math.round(weeklyCompletionPercent)}%`,
+      value: readLibraryWeeklySetTarget() === null ? "Target not set" : `${Math.round(weeklyCompletionPercent)}%`,
     },
   ];
   const categoryMetricCards: TrainingPanelMetricCard[] = [
@@ -24933,9 +23914,9 @@ export default function ExerciseLibraryPage() {
     latestTrainingRecord.stat?.exerciseName ||
     "";
   const latestTrainingLine = latestTrainingRecord.stat
-    ? `${Math.max(0, Math.round(parseStatNumber(latestTrainingRecord.stat.sets)))} sets / ${Math.max(
+    ? `${Math.max(0, Math.round((libraryRecordedCount(latestTrainingRecord.stat.sets) ?? 0)))} sets / ${Math.max(
         0,
-        Math.round(parseStatNumber(latestTrainingRecord.stat.reps)),
+        Math.round((libraryRecordedCount(latestTrainingRecord.stat.reps) ?? 0)),
       )} reps`
     : "No recent training logged";
   const bestRecentExerciseName =
@@ -24945,15 +23926,12 @@ export default function ExerciseLibraryPage() {
     bestRecentTrainingRecord.stat?.exerciseName ||
     "";
   const bestRecentLiftLine = bestRecentTrainingRecord.stat
-    ? `${Math.max(0, Math.round(parseStatNumber(bestRecentTrainingRecord.stat.sets)))} x ${Math.max(
+    ? `${Math.max(0, Math.round((libraryRecordedCount(bestRecentTrainingRecord.stat.sets) ?? 0)))} x ${Math.max(
         0,
-        Math.round(parseStatNumber(bestRecentTrainingRecord.stat.reps)),
+        Math.round((libraryRecordedCount(bestRecentTrainingRecord.stat.reps) ?? 0)),
       )}${
-        parseStatNumber(bestRecentTrainingRecord.stat.weight) > 0
-          ? ` @ ${formatWeightMetric(
-              parseStatNumber(bestRecentTrainingRecord.stat.weight),
-              preferredWeightUnit,
-            )}`
+        (libraryLoadPounds(bestRecentTrainingRecord.stat) ?? 0) > 0
+          ? ` @ ${libraryLoadLabel(bestRecentTrainingRecord.stat, preferredWeightUnit)}`
           : ""
       }`
     : "No best stats yet";
@@ -24965,45 +23943,30 @@ export default function ExerciseLibraryPage() {
   const currentFocusLabel =
     undertrainedBodyTarget?.body ||
     undertrainedCategoryTarget?.label ||
-    activeExerciseSectionForCurrentPage?.label ||
-    "Exercise Library";
+    "No area recommendation";
   const goalLogicBase = getGoalLogicCopy(profileSummary.primaryGoal);
   const goalLogicSummary: GoalLogicSummary = {
     emphasisLabel: goalLogicBase.emphasisLabel,
-    forecastLabel: getVolumeForecastLabel(
-      savedExerciseStats,
-      weeklyTotalSets,
-      allBodyRegionWeeklySetGoal,
-    ),
-    futureLoadCapacityLabel: getFutureLoadCapacityLabel(
-      savedExerciseStats,
-      preferredWeightUnit,
-    ),
+    forecastLabel: "Set progress forecast unavailable",
+    futureLoadCapacityLabel: "Next working load: choose per exercise in your plan",
     goalCue: goalLogicBase.goalCue,
     primaryGoalLabel: profileSummary.primaryGoal || "General Fitness",
-    recoveryRiskLabel: getRecoveryRiskLabel(
-      weeklyTotalSets,
-      allBodyRegionWeeklySetGoal,
-    ),
-    stimulusLabel: getGoalStimulusLabel(
-      profileSummary.primaryGoal,
-      weeklyTotalSets,
-      allBodyRegionWeeklySetGoal,
-    ),
+    recoveryRiskLabel: profileSummary.readinessLabel,
+    stimulusLabel: profileSummary.weeklyTargetLabel,
   };
   const trainingStatCards: TrainingIntelligenceStatCard[] = [
     {
-      detail: `${Math.round(weeklyCompletionPercent)}% complete`,
+      detail: readLibraryWeeklySetTarget() === null ? "Set target in Goals" : `${Math.round(weeklyCompletionPercent)}% complete`,
       helper: weeklyVolumeRangeLabel,
       id: "sets-this-week",
       progressPercent: getWeeklySetGoalFillPercent(
         weeklyTotalSets,
-        allBodyRegionWeeklySetGoal,
+        getLibraryWeeklySetGoal(),
       ),
       pulse: Boolean(latestSetInsight),
       statusId: getWeeklySetGoalStatusId(
         weeklyTotalSets,
-        allBodyRegionWeeklySetGoal,
+        getLibraryWeeklySetGoal(),
       ),
       theme: activeExerciseSectionTheme,
       value: weeklyTotalSets.toLocaleString(undefined, {
@@ -25074,19 +24037,19 @@ export default function ExerciseLibraryPage() {
       label: "Best recent lift",
     },
     {
-      detail: `${Math.max(0, Math.round(weeklyTotalSets))} / ${allBodyRegionWeeklySetGoal} sets`,
+      detail: librarySetTargetLabel(Math.max(0, Math.round(weeklyTotalSets)), readLibraryWeeklySetTarget()),
       helper: "Default weekly set target",
       id: "weekly-goal-completion",
       progressPercent: getWeeklySetGoalFillPercent(
         weeklyTotalSets,
-        allBodyRegionWeeklySetGoal,
+        getLibraryWeeklySetGoal(),
       ),
       statusId: getWeeklySetGoalStatusId(
         weeklyTotalSets,
-        allBodyRegionWeeklySetGoal,
+        getLibraryWeeklySetGoal(),
       ),
       theme: getCategoryTheme("Core"),
-      value: `${Math.round(weeklyCompletionPercent)}%`,
+      value: readLibraryWeeklySetTarget() === null ? "Target not set" : `${Math.round(weeklyCompletionPercent)}%`,
       label: "Weekly goal",
     },
     {
@@ -25121,18 +24084,8 @@ export default function ExerciseLibraryPage() {
     },
     {
       detail: highestVolumeBodyTarget
-        ? `${Math.max(0, Math.round(highestVolumeBodyTarget.sets))} / ${
-            highestVolumeBodyTarget.goal
-          } sets${
-            highestVolumeBodyTarget.weightVolume
-              ? ` - ${formatWeightMetric(
-                  highestVolumeBodyTarget.weightVolume,
-                  preferredWeightUnit,
-                  { compact: true, volume: true },
-                )}`
-              : ""
-          }`
-        : "No data yet",
+        ? librarySetTargetLabel(highestVolumeBodyTarget.sets, highestVolumeBodyTarget.goal)
+        : leadingBodyArea.tied ? leadingBodyArea.label : "No recorded sets",
       helper: highestVolumeBodyTarget
         ? `${formatTrainingRecencyLabel(highestVolumeBodyTarget.lastTrainedTime)}`
         : "Highest volume body part appears after logs",
@@ -25142,7 +24095,7 @@ export default function ExerciseLibraryPage() {
         : undefined,
       statusId: highestVolumeBodyTarget?.statusId,
       theme: highestVolumeBodyTarget?.theme || getCategoryTheme("Lower Body Compound"),
-      value: highestVolumeBodyTarget?.body || "No data yet",
+      value: highestVolumeBodyTarget?.body || (leadingBodyArea.tied ? "Tied areas" : "No data yet"),
       label: "Highest volume",
     },
   ];
@@ -25222,11 +24175,11 @@ export default function ExerciseLibraryPage() {
   if (savedExerciseStats.length === 0) {
     trainingLogicInsights.push({
       detail:
-        "No recent training is logged yet. Add a set and the library will start pointing to the freshest next focus.",
+        "No training is logged yet. Record completed sets to see your activity history and progress toward saved targets.",
       eyebrow: "Starting point",
       id: "empty-training-log",
       theme: getCategoryTheme("Integrated"),
-      title: "Log a set to unlock live guidance",
+      title: "Record your completed training",
     });
   } else {
     if (undertrainedBodyTarget) {
@@ -27033,7 +25986,10 @@ export default function ExerciseLibraryPage() {
               ref={exerciseLibraryPageOrbitBodyRef}
               className="exercise-library-page-section-orbit__body"
             >
-              <section
+              {countEntriesNeedingReview > 0 ? <p role="status" className="mx-4 my-3 rounded-xl border border-amber-300/25 p-3 text-sm text-amber-100">{countEntriesNeedingReview} activity entries have missing or invalid counts/dates. Summaries include valid recorded fields only and may be partial. Original records remain in History for review.</p> : null}
+              {unclassifiedActivityCount > 0 ? <p role="status" className="mx-4 my-3 rounded-xl border border-slate-400/25 p-3 text-sm text-slate-300">{unclassifiedActivityCount} activity entries have no unambiguous catalog match. Recorded exercise IDs retain their totals; these entries are excluded from catalog body/category groupings. Original records remain in History.</p> : null}
+              <div id="library-recorded-unit-volume" className="mx-4 my-3"><StatsUnitWorkload reports={recordedUnitVolume} unit={preferredWeightUnit === "kg" ? "kg" : "lb"} /><p className="mt-2 text-sm text-slate-300">Other load-volume cards link to this report until their data coverage is available. Exercise and variation history requires matching recorded IDs; older unassigned entries remain in full History.</p></div>
+        <section
                 ref={exerciseLibraryIntroSectionRef}
                 data-page-section-orbit-card="true"
                 className="exercise-library-page-section-orbit__card exercise-library-page-section-orbit__card--intro"
@@ -27083,6 +26039,7 @@ export default function ExerciseLibraryPage() {
                     <p className="mt-1 text-[10px] font-bold leading-4 text-cyan-100/78">
                       {goalLogicSummary.emphasisLabel}
                     </p>
+                    {goalLogicBase.goalId === null ? <a href={ROUTES.dashboard.goals} className="mt-2 inline-block text-sm font-semibold text-cyan-200 underline">Set goals for training guidance</a> : null}
                     <p className="mt-1 line-clamp-2 text-[10px] font-semibold leading-4 text-slate-300">
                       {goalLogicSummary.stimulusLabel}
                     </p>
@@ -27133,9 +26090,7 @@ export default function ExerciseLibraryPage() {
         <div>
           <ExerciseLibraryWidgetDock
             bodyBalanceLabel={
-              highestVolumeBodyTarget
-                ? `${highestVolumeBodyTarget.body} leads this range`
-                : "Log sets to compare regions"
+              leadingBodyArea.label
             }
             currentFocusLabel={currentFocusLabel}
             latestTrainingExerciseName={latestTrainingExerciseName}
@@ -27145,7 +26100,7 @@ export default function ExerciseLibraryPage() {
             shortcuts={trainingShortcuts}
             themeId={uiThemeId}
             preferredWeightUnit={preferredWeightUnit}
-            weeklyGoalSets={allBodyRegionWeeklySetGoal}
+            weeklyGoalSets={getLibraryWeeklySetGoal()}
             weeklyMuscleGroupsHit={weeklyMuscleGroupsHit}
             weeklyWeightVolume={weeklyTotalWeightVolume}
             weeklyWeightVolumeComparisonLabel={weeklyWeightVolumeComparisonLabel}
@@ -27855,13 +26810,7 @@ export default function ExerciseLibraryPage() {
                         <span className="whitespace-nowrap">
                           {isCustomColumn
                             ? "Custom"
-                            : `${Math.max(
-                                0,
-                                Math.round(columnCompletedSets),
-                              )} / ${Math.max(
-                                1,
-                                Math.round(columnGoalSets),
-                              )} sets`}
+                            : librarySetTargetLabel(Math.max(0, Math.round(columnCompletedSets)), columnGoalSets)}
                         </span>
                       </span>
                     </button>
@@ -28464,22 +27413,22 @@ export default function ExerciseLibraryPage() {
 
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <input
-                  value={statWeight}
-                  onChange={(e) => setStatWeight(e.target.value)}
+                  aria-label="Load in displayed unit" inputMode="decimal" value={statWeight}
+                  onChange={(e) => { markStatsDraftEdited(); setStatWeight(e.target.value); }}
                   placeholder={`Weight (${preferredWeightUnit})`}
                   className="min-h-[46px] min-w-0 rounded-2xl border border-white/12 bg-slate-950/45 px-3 py-2 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] outline-none transition placeholder:text-white/35 focus:border-yellow-200/45 focus:bg-white/[0.10]"
                 />
 
                 <input
-                  value={statReps}
-                  onChange={(e) => setStatReps(e.target.value)}
+                  aria-label="Reps" inputMode="numeric" value={statReps}
+                  onChange={(e) => { markStatsDraftEdited(); setStatReps(e.target.value); }}
                   placeholder="Reps"
                   className="min-h-[46px] min-w-0 rounded-2xl border border-white/12 bg-slate-950/45 px-3 py-2 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] outline-none transition placeholder:text-white/35 focus:border-yellow-200/45 focus:bg-white/[0.10]"
                 />
 
                 <input
-                  value={statSets}
-                  onChange={(e) => setStatSets(e.target.value)}
+                  aria-label="Sets" inputMode="numeric" value={statSets}
+                  onChange={(e) => { markStatsDraftEdited(); setStatSets(e.target.value); }}
                   placeholder="Sets"
                   className="min-h-[46px] min-w-0 rounded-2xl border border-white/12 bg-slate-950/45 px-3 py-2 text-sm font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] outline-none transition placeholder:text-white/35 focus:border-yellow-200/45 focus:bg-white/[0.10]"
                 />
@@ -28487,6 +27436,7 @@ export default function ExerciseLibraryPage() {
             </div>
 
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {statsSaveError ? <p role="alert" className="mt-3 text-sm text-amber-200">{statsSaveError}</p> : null}
               <button
                 type="button"
                 onClick={saveStatsEntry}
@@ -28592,28 +27542,29 @@ export default function ExerciseLibraryPage() {
 
                     <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
                       <input
-                        value={statWeight}
-                        onChange={(e) => setStatWeight(e.target.value)}
+                        aria-label="Load in displayed unit" inputMode="decimal" value={statWeight}
+                        onChange={(e) => { markStatsDraftEdited(); setStatWeight(e.target.value); }}
                         placeholder={`Weight (${preferredWeightUnit})`}
                         className="min-h-[50px] rounded-2xl border border-white/12 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.055))] px-3.5 py-3 text-sm font-bold text-white shadow-[0_10px_28px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl outline-none transition placeholder:text-white/35 hover:border-yellow-200/25 hover:bg-white/[0.12] focus:border-yellow-200/45 focus:bg-white/[0.14] focus:shadow-[0_14px_34px_rgba(0,0,0,0.28),0_0_0_3px_rgba(250,204,21,0.08),inset_0_1px_0_rgba(255,255,255,0.18)]"
                       />
 
                       <input
-                        value={statReps}
-                        onChange={(e) => setStatReps(e.target.value)}
+                        aria-label="Reps" inputMode="numeric" value={statReps}
+                        onChange={(e) => { markStatsDraftEdited(); setStatReps(e.target.value); }}
                         placeholder="Reps"
                         className="min-h-[50px] rounded-2xl border border-white/12 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.055))] px-3.5 py-3 text-sm font-bold text-white shadow-[0_10px_28px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl outline-none transition placeholder:text-white/35 hover:border-yellow-200/25 hover:bg-white/[0.12] focus:border-yellow-200/45 focus:bg-white/[0.14] focus:shadow-[0_14px_34px_rgba(0,0,0,0.28),0_0_0_3px_rgba(250,204,21,0.08),inset_0_1px_0_rgba(255,255,255,0.18)]"
                       />
 
                       <input
-                        value={statSets}
-                        onChange={(e) => setStatSets(e.target.value)}
+                        aria-label="Sets" inputMode="numeric" value={statSets}
+                        onChange={(e) => { markStatsDraftEdited(); setStatSets(e.target.value); }}
                         placeholder="Sets"
                         className="min-h-[50px] rounded-2xl border border-white/12 bg-[linear-gradient(135deg,rgba(255,255,255,0.12),rgba(255,255,255,0.055))] px-3.5 py-3 text-sm font-bold text-white shadow-[0_10px_28px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-xl outline-none transition placeholder:text-white/35 hover:border-yellow-200/25 hover:bg-white/[0.12] focus:border-yellow-200/45 focus:bg-white/[0.14] focus:shadow-[0_14px_34px_rgba(0,0,0,0.28),0_0_0_3px_rgba(250,204,21,0.08),inset_0_1px_0_rgba(255,255,255,0.18)]"
                       />
                     </div>
                   </div>
 
+                  {statsSaveError ? <p role="alert" className="mt-3 text-sm text-amber-200">{statsSaveError}</p> : null}
                   <button
                     type="button"
                     onClick={saveStatsEntry}

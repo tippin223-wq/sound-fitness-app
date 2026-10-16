@@ -193,18 +193,8 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  // Fast path: the only thing getUser() gates here is "does a session exist"
-  // for the redirect below. When the cookie holds a token that is nowhere
-  // near expiry, pass the request through with cookies untouched instead of
-  // paying a Supabase network round-trip. Any parse failure, missing cookie,
-  // or near-expiry token falls through to the full getUser() path unchanged.
+  // Expiry is only a refresh hint. The cookie must still pass signature verification.
   const accessTokenExp = readAccessTokenExp(request);
-  if (
-    accessTokenExp !== null &&
-    accessTokenExp - Date.now() / 1000 > SESSION_FRESHNESS_BUFFER_SECONDS
-  ) {
-    return response;
-  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -244,6 +234,11 @@ export async function proxy(request: NextRequest) {
       },
     },
   );
+
+  if (accessTokenExp !== null && accessTokenExp - Date.now() / 1000 > SESSION_FRESHNESS_BUFFER_SECONDS) {
+    const { data, error } = await supabase.auth.getClaims();
+    if (!error && data?.claims.sub) return response;
+  }
 
   const {
     data: { user },

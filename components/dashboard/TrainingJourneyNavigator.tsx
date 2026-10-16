@@ -99,8 +99,8 @@ export const trainingJourneySteps: JourneyItem[] = [
     label: "My Plan",
     shortLabel: "Plan",
     subtitle: "Week",
-    requestedHref: "/dashboard/plan",
-    href: ROUTES.dashboard.plan,
+    requestedHref: "/dashboard/my-plan",
+    href: ROUTES.dashboard.myPlan,
     available: true,
   },
   {
@@ -129,8 +129,8 @@ export const trainingJourneySteps: JourneyItem[] = [
     label: "Progress",
     shortLabel: "Progress",
     subtitle: "Adapt",
-    requestedHref: "/dashboard/stats",
-    href: ROUTES.dashboard.stats,
+    requestedHref: "/dashboard/progress",
+    href: ROUTES.dashboard.progress,
     available: true,
   },
 ];
@@ -151,7 +151,7 @@ function getStatus({
   index: number;
 }) {
   if (!available) return "Soon";
-  if (index < currentIndex) return "Complete";
+  if (index < currentIndex) return "Explore";
   if (index === currentIndex) return "Active";
   return "Next";
 }

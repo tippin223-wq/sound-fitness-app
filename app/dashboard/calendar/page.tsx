@@ -1,20 +1,29 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { type ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import WorkoutHistoryReviewNotice from "@/components/dashboard/WorkoutHistoryReviewNotice";
+import { captureWorkoutHistoryRecovery } from "@/lib/planning/workoutHistoryRecovery";
 import TrainingJourneyNavigator from "@/components/dashboard/TrainingJourneyNavigator";
 import { ROUTES } from "@/lib/routes";
+import { activityTimestamp, validDateOnly } from "@/lib/planning/dates";
+import { savedPhaseContext } from "@/lib/planning/phaseContext";
+import { readEligibleGoals } from "@/lib/planning/goals";
+import { emptyCalendarReflection, startCalendarWorkout, startCalendarEditorWorkout, calendarDurationLabel, type CalendarReflection } from "@/lib/planning/calendar";
+import { reviewWorkoutLaunchEditor } from "@/lib/planning/workoutLaunchEditor";
 
 type CalendarViewMode = "week" | "month" | "agenda";
-type CalendarStatus = "Planned" | "Completed" | "Missed" | "Moved";
+type CalendarStatus = "Planned" | "Completed" | "Missed" | "Moved" | "Pending Approval";
 type WorkoutType =
   | "Strength"
   | "Hypertrophy"
   | "Mobility"
   | "Recovery"
   | "Conditioning"
-  | "Testing/PR";
-type MomentumZone = "Ice Cold" | "Building" | "Productive Heat" | "Hot" | "Too Hot";
+  | "Testing/PR"
+  | "Nutrition"
+  | "Check-In";
 
 type ProfileSnapshot = {
   displayName: string;
@@ -34,17 +43,6 @@ type PlanContext = {
   testingWeek: boolean;
 };
 
-type ExerciseStat = {
-  bodyPart: string;
-  date: string;
-  exerciseName: string;
-  pattern: string;
-  reps: number;
-  sets: number;
-  timestamp: number;
-  volume: number;
-  weight: number;
-};
 
 type WorkoutLog = {
   bodyParts: string[];
@@ -67,16 +65,9 @@ type DraftWorkout = {
   title: string;
 };
 
-type CalendarReflection = {
-  difficulty: number;
-  energy: number;
-  soreness: string;
-  painNotes: string;
-  wentWell: string;
-  adjust: string;
-};
-
 type CalendarItem = {
+  bookingId?: string;
+  planId?: string; planDayId?: string; assignmentId?: string;
   bodyFocus: string;
   date: string;
   duration: number;
@@ -92,6 +83,12 @@ type CalendarItem = {
   title: string;
   type: WorkoutType;
 };
+
+import { getActiveWorkoutPlan } from "@/lib/localData/workoutPlanData";
+import { subscribePlanning, planningSnapshot, planningOwner, planningAccountGeneration, readAccountRecord } from "@/lib/planning/store";
+import { inspectCalendarSources, calendarSourcesVersion, exportCalendarSources, plannedCalendarItems, readIndependentCalendar, saveCalendarItems, captureCalendarEditor, type CalendarEditor } from "@/lib/planning/calendar";
+import { readAvailableWorkoutLogs, setsInPlanWeek, workoutsInWeek } from "@/lib/planning/logs";
+import { workoutExerciseSetSummary } from "@/lib/planning/history";
 
 const STORAGE_KEYS = {
   profile: "soundFitnessProfile",
@@ -110,6 +107,8 @@ const WORKOUT_TYPES: WorkoutType[] = [
   "Recovery",
   "Conditioning",
   "Testing/PR",
+  "Nutrition",
+  "Check-In",
 ];
 
 const STATUS_OPTIONS: CalendarStatus[] = ["Planned", "Completed", "Missed", "Moved"];
@@ -172,57 +171,17 @@ const TYPE_STYLES: Record<
     dot: "bg-amber-300",
     text: "text-amber-100",
   },
-};
-
-const ZONE_STYLES: Record<MomentumZone, { border: string; bg: string; text: string }> = {
-  "Ice Cold": {
-    border: "border-sky-300/25",
-    bg: "bg-sky-400/10",
-    text: "text-sky-100",
+  Nutrition: {
+    bg: "bg-lime-400/10", border: "border-lime-300/25", chip: "bg-lime-400/15 text-lime-100 border-lime-300/25", dot: "bg-lime-300", text: "text-lime-100",
   },
-  Building: {
-    border: "border-teal-300/25",
-    bg: "bg-teal-400/10",
-    text: "text-teal-100",
-  },
-  "Productive Heat": {
-    border: "border-amber-300/25",
-    bg: "bg-amber-400/10",
-    text: "text-amber-100",
-  },
-  Hot: {
-    border: "border-orange-300/25",
-    bg: "bg-orange-400/10",
-    text: "text-orange-100",
-  },
-  "Too Hot": {
-    border: "border-rose-300/30",
-    bg: "bg-rose-400/10",
-    text: "text-rose-100",
+  "Check-In": {
+    bg: "bg-pink-400/10", border: "border-pink-300/25", chip: "bg-pink-400/15 text-pink-100 border-pink-300/25", dot: "bg-pink-300", text: "text-pink-100",
   },
 };
 
-const BODY_GOALS: Record<string, number> = {
-  Chest: 16,
-  Back: 18,
-  Shoulders: 14,
-  Arms: 14,
-  Core: 12,
-  Glutes: 16,
-  Quads: 16,
-  Hamstrings: 14,
-  Calves: 12,
-  "Neck / Traps": 10,
-};
 
-const emptyReflection: CalendarReflection = {
-  difficulty: 5,
-  energy: 5,
-  soreness: "",
-  painNotes: "",
-  wentWell: "",
-  adjust: "",
-};
+
+const emptyReflection = emptyCalendarReflection();
 
 const defaultEditorItem = (date: Date): CalendarItem => ({
   bodyFocus: "Full Body",
@@ -257,7 +216,7 @@ const safeJson = (value: string | null) => {
 
 const readLocal = (key: string) => {
   if (typeof window === "undefined") return null;
-  return safeJson(window.localStorage.getItem(key));
+  return readAccountRecord(key);
 };
 
 const writeLocal = (key: string, value: unknown) => {
@@ -330,14 +289,7 @@ const getStringArray = (record: Record<string, unknown> | null, keys: string[]) 
   return [];
 };
 
-const getTimestamp = (value: unknown) => {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = new Date(value).getTime();
-    if (Number.isFinite(parsed)) return parsed;
-  }
-  return Date.now();
-};
+const getTimestamp = activityTimestamp;
 
 const clampNumber = (value: number, min = 0, max = Number.POSITIVE_INFINITY) =>
   Math.min(Math.max(Number.isFinite(value) ? value : min, min), max);
@@ -392,33 +344,7 @@ const formatFullDate = (date: Date | number) =>
 const formatWeekRange = (weekStart: Date) =>
   `${formatShortDate(weekStart)}-${formatShortDate(addDays(weekStart, 6))}`;
 
-const formatCompactVolume = (value: number) => {
-  if (value >= 1000) return `${(value / 1000).toFixed(1)}k lb`;
-  return `${Math.round(value).toLocaleString()} lb`;
-};
 
-const inferBodyPart = (record: Record<string, unknown>, name: string) => {
-  const raw = [
-    getString(record, ["bodyPart", "body", "bodyRegion", "muscle", "muscles"]),
-    getString(record, ["category", "section", "primaryMuscle"]),
-    name,
-    getString(record, ["pattern", "movementPattern", "coreMovementPattern"]),
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  if (raw.includes("chest") || raw.includes("bench") || raw.includes("push-up")) return "Chest";
-  if (raw.includes("back") || raw.includes("row") || raw.includes("pull") || raw.includes("lat")) return "Back";
-  if (raw.includes("shoulder") || raw.includes("delt") || raw.includes("press")) return "Shoulders";
-  if (raw.includes("arm") || raw.includes("curl") || raw.includes("tricep") || raw.includes("bicep")) return "Arms";
-  if (raw.includes("core") || raw.includes("abs") || raw.includes("plank") || raw.includes("rotation")) return "Core";
-  if (raw.includes("glute") || raw.includes("hip thrust") || raw.includes("bridge")) return "Glutes";
-  if (raw.includes("quad") || raw.includes("squat") || raw.includes("lunge") || raw.includes("knee extension")) return "Quads";
-  if (raw.includes("hamstring") || raw.includes("hinge") || raw.includes("deadlift")) return "Hamstrings";
-  if (raw.includes("calf") || raw.includes("tibialis") || raw.includes("ankle")) return "Calves";
-  if (raw.includes("neck") || raw.includes("trap") || raw.includes("cervical")) return "Neck / Traps";
-  return "Full Body";
-};
 
 const inferWorkoutType = (record: Record<string, unknown> | null): WorkoutType => {
   const raw = [
@@ -436,90 +362,29 @@ const inferWorkoutType = (record: Record<string, unknown> | null): WorkoutType =
   return "Strength";
 };
 
-const getMomentumZone = (percent: number): MomentumZone => {
-  if (percent <= 20) return "Ice Cold";
-  if (percent <= 45) return "Building";
-  if (percent <= 75) return "Productive Heat";
-  if (percent <= 90) return "Hot";
-  return "Too Hot";
-};
 
 const normalizeProfile = (raw: unknown): ProfileSnapshot => {
   const profile = asRecord(raw);
-  const sessionsPerWeek = Math.round(
-    clampNumber(getNumber(profile, ["sessionsPerWeek", "weeklySessions"], 4), 1, 7),
-  );
+  const goals = readEligibleGoals();
+  const sessionsPerWeek = goals ? Number(goals.targetWeeklySessions) : 0;
 
   return {
     displayName: getString(profile, ["displayName", "name", "firstName"], "Member"),
-    goalMode: getString(profile, ["goalMode", "bodyGoalMode"], "General Health"),
-    primaryGoal: getString(profile, ["primaryGoal", "goal"], "General Health Plan"),
+    goalMode: goals?.primaryGoal || "Goals not set",
+    primaryGoal: goals?.primaryGoal || "Goals not set",
     sessionsPerWeek,
     preferredSplit: getString(profile, ["preferredSplit"], "Strength + Mobility"),
   };
 };
 
-const normalizePlanContext = (planRaw: unknown, phasesRaw: unknown): PlanContext => {
-  const plan = asRecord(planRaw);
-  const phaseRecord =
-    asRecord(phasesRaw) ||
-    coerceArray(phasesRaw)
-      .map((item) => asRecord(item))
-      .find((item) => item?.active === true || getString(item, ["status"]).toLowerCase() === "active") ||
-    asRecord(coerceArray(phasesRaw)[0]);
+const normalizePlanContext = savedPhaseContext;
 
-  const phaseWeek = Math.round(
-    clampNumber(getNumber(phaseRecord, ["week", "currentWeek", "phaseWeek"], 1), 1, 52),
-  );
-  const phaseWeeks = Math.round(
-    clampNumber(getNumber(phaseRecord, ["weeks", "durationWeeks", "totalWeeks"], 6), 1, 52),
-  );
-
-  return {
-    activePhase: getString(phaseRecord, ["name", "title", "phaseName"], "Foundation Block"),
-    activePlan: getString(plan, ["name", "title", "planName"], "No active plan yet"),
-    deloadWeek:
-      getString(phaseRecord, ["type", "focus"]).toLowerCase().includes("deload") ||
-      phaseWeek === Math.max(1, phaseWeeks - 1),
-    phaseWeek,
-    phaseWeeks,
-    planFocus: getString(plan, ["focus", "goal", "planFocus"], "Volume focus"),
-    testingWeek:
-      getString(phaseRecord, ["type", "focus"]).toLowerCase().includes("test") ||
-      phaseWeek === phaseWeeks,
-  };
-};
-
-const normalizeExerciseStat = (item: unknown, index: number): ExerciseStat | null => {
-  const record = asRecord(item);
-  if (!record) return null;
-  const exerciseName =
-    getString(record, ["exerciseName", "exercise_name", "name", "title"]) ||
-    `Exercise ${index + 1}`;
-  const timestamp = getTimestamp(
-    record.date ?? record.performed_at ?? record.performedAt ?? record.createdAt ?? record.timestamp,
-  );
-  const sets = Math.round(clampNumber(getNumber(record, ["sets", "setCount"], 0)));
-  const reps = Math.round(clampNumber(getNumber(record, ["reps", "repCount"], 0)));
-  const weight = clampNumber(getNumber(record, ["weight", "load", "weightPounds"], 0));
-
-  return {
-    bodyPart: inferBodyPart(record, exerciseName),
-    date: new Date(timestamp).toISOString(),
-    exerciseName,
-    pattern: getString(record, ["pattern", "movementPattern", "coreMovementPattern"], "Movement"),
-    reps,
-    sets,
-    timestamp,
-    volume: sets * reps * weight,
-    weight,
-  };
-};
 
 const normalizeWorkoutLog = (item: unknown, index: number): WorkoutLog | null => {
   const record = asRecord(item);
   if (!record) return null;
   const timestamp = getTimestamp(record.date ?? record.completedAt ?? record.createdAt ?? record.timestamp);
+  if (!Number.isFinite(timestamp)) return null;
   const rawExercises = coerceArray(record.exercises ?? record.items ?? record.entries);
   const exerciseNames = rawExercises
     .map((exercise) => getString(asRecord(exercise), ["exerciseName", "name", "title"]))
@@ -555,11 +420,14 @@ const normalizeCalendarItem = (item: unknown, index: number): CalendarItem | nul
   const record = asRecord(item);
   if (!record) return null;
   const timestamp = getTimestamp(record.date ?? record.scheduledAt ?? record.timestamp);
-  const date = toDateInput(new Date(timestamp));
+  if (!Number.isFinite(timestamp)) return null;
+  const date = typeof record.date === "string" && validDateOnly(record.date) ? record.date : toDateInput(new Date(timestamp));
   const status = getString(record, ["status"], "Planned");
   const type = getString(record, ["type", "workoutType"], "Strength");
 
   return {
+    bookingId: getString(record, ["bookingId"]) || undefined,
+    planId: getString(record, ["planId"]) || undefined, planDayId: getString(record, ["planDayId"]) || undefined, assignmentId: getString(record, ["assignmentId"]) || undefined,
     bodyFocus: getString(record, ["bodyFocus", "focus"], "Full Body"),
     date,
     duration: Math.round(clampNumber(getNumber(record, ["duration", "durationMinutes"], 45), 5, 240)),
@@ -573,7 +441,7 @@ const normalizeCalendarItem = (item: unknown, index: number): CalendarItem | nul
       ...(asRecord(record.reflection) || {}),
     },
     reminder: getString(record, ["reminder"], "Morning of"),
-    status: STATUS_OPTIONS.includes(status as CalendarStatus)
+    status: status === "Pending Approval" || STATUS_OPTIONS.includes(status as CalendarStatus)
       ? (status as CalendarStatus)
       : "Planned",
     time: getString(record, ["time"], "07:00"),
@@ -636,59 +504,20 @@ const createGeneratedCalendarItems = ({
   return [...planned, ...completed].sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
 };
 
-const getBodyPartReadiness = (stats: ExerciseStat[]) => {
-  const weekStart = startOfWeek(new Date()).getTime();
-
-  return Object.entries(BODY_GOALS).map(([label, goal]) => {
-    const entries = stats.filter((stat) => stat.bodyPart === label);
-    const weekly = entries.filter((stat) => stat.timestamp >= weekStart);
-    const sets = weekly.reduce((total, stat) => total + stat.sets, 0);
-    const percent = Math.min((sets / Math.max(goal, 1)) * 100, 130);
-    const latest = entries.sort((a, b) => b.timestamp - a.timestamp)[0];
-    const cooldownHours = latest
-      ? Math.max(0, 36 - (Date.now() - latest.timestamp) / (60 * 60 * 1000))
-      : 0;
-
-    return {
-      cooldownHours,
-      goal,
-      label,
-      lastTrained: latest ? formatShortDate(latest.timestamp) : "Not logged",
-      percent,
-      sets,
-      volume: weekly.reduce((total, stat) => total + stat.volume, 0),
-      zone: getMomentumZone(percent),
-    };
-  });
-};
 
 const getCalendarCoachInsight = ({
-  bodyReadiness,
   completedThisWeek,
+  loggedWorkouts,
   plannedThisWeek,
-  profile,
   weeklySets,
 }: {
-  bodyReadiness: ReturnType<typeof getBodyPartReadiness>;
   completedThisWeek: number;
+  loggedWorkouts: number;
   plannedThisWeek: number;
-  profile: ProfileSnapshot;
   weeklySets: number;
 }) => {
-  const hot = bodyReadiness.find((item) => item.zone === "Too Hot" || item.zone === "Hot");
-  if (hot) {
-    return `${hot.label} is running hot. Keep tomorrow alternate-focused or recovery-based.`;
-  }
-  if (plannedThisWeek >= 4 && completedThisWeek <= 1) {
-    return `You have ${plannedThisWeek} sessions planned and ${completedThisWeek} completed. Keep tomorrow moderate.`;
-  }
-  if (weeklySets < profile.sessionsPerWeek * 4) {
-    return "Low weekly volume. Add a compound full-body session or schedule a recovery-aware lift.";
-  }
-  if (profile.goalMode.toLowerCase().includes("cut")) {
-    return "Cut mode detected. Keep strength sessions focused and protect recovery spacing.";
-  }
-  return "Calendar rhythm looks useful. Keep sessions spaced and reflect after completion.";
+  if (!weeklySets && !plannedThisWeek && !completedThisWeek && !loggedWorkouts) return "No training recorded for this week. Save your goals, plan sessions, and log completed workouts to build your training history.";
+  return `${plannedThisWeek} planned sessions, ${completedThisWeek} schedule items marked complete, ${loggedWorkouts} logged workouts, and ${weeklySets} logged sets this week. Review your goals and reported readiness before changing training demand.`;
 };
 
 const getItemsForDate = (items: CalendarItem[], date: Date) =>
@@ -775,6 +604,21 @@ function SessionCard({
   onReflect: (item: CalendarItem) => void;
 }) {
   const styles = TYPE_STYLES[item.type];
+  const router = useRouter();
+  const [launchError, setLaunchError] = useState("");
+  const [launchEditor, setLaunchEditor] = useState(captureCalendarEditor);
+  const [launchReviewMessage, setLaunchReviewMessage] = useState("");
+  function reviewCardLaunchControls() {
+    try {
+      const reviewed = reviewWorkoutLaunchEditor(launchEditor.launch);
+      setLaunchEditor({ ...captureCalendarEditor(), launch: reviewed.editor });
+      setLaunchError(""); setLaunchReviewMessage(`Current workout: ${reviewed.title}. Controls reviewed; choose Start when ready.`);
+    } catch (cause) { setLaunchError(cause instanceof Error ? cause.message : "Workout controls could not be reviewed."); }
+  }
+  const start = () => {
+    try { const destination = startCalendarWorkout(item, launchEditor); setLaunchError(""); router.push(destination); }
+    catch (cause) { setLaunchError(cause instanceof Error ? cause.message : "Workout could not be opened. Your active session is preserved."); }
+  };
   const statusTone =
     item.status === "Completed"
       ? "emerald"
@@ -790,7 +634,7 @@ function SessionCard({
         <div className="min-w-0">
           <p className={`truncate text-sm font-black ${styles.text}`}>{item.title}</p>
           <p className="mt-1 text-[11px] text-slate-400">
-            {item.time} - {item.duration} min - {item.bodyFocus}
+            {item.time || "Time not set"} - {calendarDurationLabel(item)} - {item.bodyFocus}
           </p>
         </div>
         <Pill tone={statusTone}>{item.status}</Pill>
@@ -801,12 +645,17 @@ function SessionCard({
         </p>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-2">
-        <Link
-          href={ROUTES.dashboard.sessionWorkout}
+        {item.bookingId ? <Link href={ROUTES.dashboard.sessionBooking} className="rounded-xl border border-white/10 px-3 py-2 text-xs font-bold">Manage booking</Link> : <>
+        {item.assignmentId ? item.status === "Completed" ? <Link href={ROUTES.dashboard.sessionHistory} className="rounded-xl border border-white/10 px-3 py-2 text-xs text-white">View in History</Link> : <button
+          onClick={start}
+          type="button"
+          className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-white transition hover:bg-white/10"
+        >Start assigned workout</button> : <Link
+          href={ROUTES.dashboard.myPlan}
           className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-white transition hover:bg-white/10"
         >
-          Start
-        </Link>
+          Choose workout in My Plan
+        </Link>}
         <button
           className="rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-200 transition hover:bg-white/10"
           onClick={() => onEdit(item)}
@@ -814,21 +663,31 @@ function SessionCard({
         >
           Move
         </button>
-        <button
+        {(!item.assignmentId || item.status !== "Completed") && <button
           className="rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100 transition hover:bg-emerald-300 hover:text-slate-950"
-          onClick={() => onComplete(item)}
+          onClick={() => item.assignmentId ? start() : onComplete(item)}
           type="button"
         >
-          Complete
-        </button>
-        <button
+          {item.assignmentId ? "Log workout" : "Complete"}
+        </button>}
+        {item.assignmentId ? <Link
+          className="rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100 transition hover:bg-amber-300 hover:text-slate-950"
+          href={ROUTES.dashboard.journal}
+        >Reflect in Journal</Link> : <button
           className="rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-amber-100 transition hover:bg-amber-300 hover:text-slate-950"
           onClick={() => onReflect(item)}
           type="button"
         >
           Reflect
-        </button>
+        </button>}
+        </>}
       </div>
+      {launchError && <p role="alert" className="mt-3 text-sm text-rose-300">{launchError}</p>}
+      {launchError && item.assignmentId ? <div className="mt-2 flex flex-wrap gap-3 text-sm text-cyan-200">
+        <Link href={ROUTES.dashboard.sessionWorkout} target="_blank" rel="noreferrer">Open current workout</Link>
+        <button type="button" onClick={reviewCardLaunchControls} className="underline">Review current workout controls</button>
+      </div> : null}
+      {launchReviewMessage ? <p role="status" className="mt-2 text-sm text-cyan-200">{launchReviewMessage}</p> : null}
     </article>
   );
 }
@@ -878,67 +737,61 @@ const inputClass =
   "min-h-[44px] w-full rounded-2xl border border-white/10 bg-slate-950/65 px-3 py-2 text-sm font-semibold text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-300/40 focus:ring-2 focus:ring-cyan-300/10";
 
 export default function CalendarPage() {
+  const router = useRouter();
+  useSyncExternalStore(subscribePlanning, planningSnapshot, () => null);
+  const historyRecovery = captureWorkoutHistoryRecovery();
+  const calendarRecovery = inspectCalendarSources();
+  const sourcesVersion = calendarSourcesVersion();
+  const exportOwner = useRef({ account: planningOwner(), generation: planningAccountGeneration() });
+  const [exportStatus, setExportStatus] = useState("");
   const [profile, setProfile] = useState<ProfileSnapshot>(() => normalizeProfile(null));
   const [planContext, setPlanContext] = useState<PlanContext>(() =>
     normalizePlanContext(null, null),
   );
-  const [exerciseStats, setExerciseStats] = useState<ExerciseStat[]>([]);
   const [workoutLogs, setWorkoutLogs] = useState<WorkoutLog[]>([]);
   const [draftWorkout, setDraftWorkout] = useState<DraftWorkout>(() =>
     normalizeDraftWorkout(null),
   );
   const [calendarItems, setCalendarItems] = useState<CalendarItem[]>([]);
+  const [calendarEditor, setCalendarEditor] = useState(captureCalendarEditor);
+  const [openEditor, setOpenEditor] = useState<CalendarEditor | null>(null);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [anchorDate, setAnchorDate] = useState(() => startOfDay(new Date()));
   const [selectedDate, setSelectedDate] = useState(() => toDateInput(new Date()));
+  const [calendarError, setCalendarError] = useState("");
   const [editorItem, setEditorItem] = useState<CalendarItem | null>(null);
 
   useEffect(() => {
     const loadData = () => {
+      if (captureWorkoutHistoryRecovery().issues.length || inspectCalendarSources().issue) return;
       const nextProfile = normalizeProfile(readLocal(STORAGE_KEYS.profile));
       const nextPlanContext = normalizePlanContext(
-        readLocal(STORAGE_KEYS.plan),
+        getActiveWorkoutPlan(),
         readLocal(STORAGE_KEYS.phases),
       );
-      const nextStats = coerceArray(readLocal(STORAGE_KEYS.exerciseStats))
-        .map((item, index) => normalizeExerciseStat(item, index))
-        .filter((item): item is ExerciseStat => Boolean(item))
-        .sort((a, b) => b.timestamp - a.timestamp);
       const nextLogs = coerceArray(readLocal(STORAGE_KEYS.workoutLogs))
         .map((item, index) => normalizeWorkoutLog(item, index))
         .filter((item): item is WorkoutLog => Boolean(item))
         .sort((a, b) => b.timestamp - a.timestamp);
       const nextDraftWorkout = normalizeDraftWorkout(readLocal(STORAGE_KEYS.draftWorkout));
-      const storedCalendar = coerceArray(readLocal(STORAGE_KEYS.calendar))
+      const storedCalendar = [...readIndependentCalendar(), ...plannedCalendarItems()]
         .map((item, index) => normalizeCalendarItem(item, index))
         .filter((item): item is CalendarItem => Boolean(item));
 
       setProfile(nextProfile);
       setPlanContext(nextPlanContext);
-      setExerciseStats(nextStats);
       setWorkoutLogs(nextLogs);
       setDraftWorkout(nextDraftWorkout);
-      setCalendarItems(
-        storedCalendar.length > 0
-          ? storedCalendar
-          : createGeneratedCalendarItems({
-              draftWorkout: nextDraftWorkout,
-              planContext: nextPlanContext,
-              profile: nextProfile,
-              workoutLogs: nextLogs,
-            }),
-      );
+      setCalendarItems(storedCalendar);
+      setCalendarEditor(captureCalendarEditor());
     };
 
     loadData();
     window.addEventListener("storage", loadData);
-    return () => window.removeEventListener("storage", loadData);
+    const unsubscribe = subscribePlanning(loadData);
+    return () => { window.removeEventListener("storage", loadData); unsubscribe(); };
   }, []);
 
-  const bodyReadiness = useMemo(
-    () => getBodyPartReadiness(exerciseStats),
-    [exerciseStats],
-  );
   const weekDays = useMemo(() => getWeekDays(anchorDate), [anchorDate]);
   const monthDays = useMemo(() => getMonthDays(anchorDate), [anchorDate]);
   const weekStart = useMemo(() => startOfWeek(anchorDate), [anchorDate]);
@@ -967,38 +820,56 @@ export default function CalendarPage() {
     [calendarItems],
   );
 
-  const completedThisWeek = weekItems.filter((item) => item.status === "Completed").length;
-  const plannedThisWeek = weekItems.filter((item) => item.status === "Planned").length;
+  const exportOriginals = () => {
+    try {
+      const json = exportCalendarSources(sourcesVersion, exportOwner.current.account, exportOwner.current.generation);
+      const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+      try { const link = document.createElement("a"); link.href = url; link.download = "sound-fitness-calendar-originals.json"; link.click(); }
+      finally { URL.revokeObjectURL(url); }
+      setCalendarError(""); setExportStatus("Calendar originals exported. Saved plans and events are unchanged.");
+    } catch (cause) { setExportStatus(""); setCalendarError(cause instanceof Error ? cause.message : "Could not export calendar originals."); }
+  };
+  if (calendarRecovery.issue) return <main className="mx-auto max-w-3xl space-y-4 p-6 text-slate-100">
+    <h1 className="text-2xl font-bold">Review saved calendar sources</h1>
+    <p role="alert" className="text-amber-200">{calendarRecovery.issue}</p>
+    <p>Calendar reporting and editing are paused. Export original plan weeks and personal events before making changes.</p>
+    <button type="button" onClick={exportOriginals} className="rounded-xl bg-cyan-300 px-4 py-3 text-slate-950">Export calendar originals</button>
+    {calendarError && <p role="alert">{calendarError}</p>}{exportStatus && <p role="status">{exportStatus}</p>}
+    <Link href="/dashboard/sessions" className="block text-cyan-200">Review website bookings in Sessions</Link>
+  </main>;
+
+  if (historyRecovery.issues.length) return <WorkoutHistoryReviewNotice area="Training calendar completion reporting and editing" issues={historyRecovery.issues} />;
+
+  const trainingWeekItems = weekItems.filter(item => item.type !== "Nutrition" && item.type !== "Check-In");
+  const completedThisWeek = trainingWeekItems.filter((item) => item.status === "Completed").length;
+  const plannedThisWeek = trainingWeekItems.filter((item) => item.status === "Planned").length;
   const recoveryDays = weekItems.filter((item) => item.type === "Recovery").length;
-  const weeklySets = exerciseStats
-    .filter((stat) => stat.timestamp >= weekStart.getTime())
-    .reduce((total, stat) => total + stat.sets, 0);
-  const readinessZone = getMomentumZone(
-    Math.min((weeklySets / Math.max(profile.sessionsPerWeek * 12, 1)) * 100, 130),
-  );
+  const weeklySets = setsInPlanWeek(toDateInput(weekStart));
+  const loggedWorkouts = workoutsInWeek(toDateInput(weekStart), toDateInput(addDays(weekStart, 6))).length;
+  const exerciseVolume = workoutExerciseSetSummary(readAvailableWorkoutLogs(), toDateInput(weekStart), toDateInput(addDays(weekStart, 6)));
   const coachInsight = getCalendarCoachInsight({
-    bodyReadiness,
     completedThisWeek,
+    loggedWorkouts,
     plannedThisWeek,
-    profile,
     weeklySets,
   });
 
-  const saveItems = (items: CalendarItem[]) => {
+  const saveItems = (items: CalendarItem[], editor = calendarEditor) => {
     const sorted = [...items].sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`));
-    setCalendarItems(sorted);
-    writeLocal(STORAGE_KEYS.calendar, sorted);
+    try { saveCalendarItems(sorted, editor); setCalendarItems(sorted); setCalendarEditor(captureCalendarEditor()); setCalendarError(""); return true; }
+    catch (cause) { setCalendarError(cause instanceof Error ? cause.message : "Calendar changes could not be saved."); return false; }
   };
 
   const openNewEditor = (type: WorkoutType, date = parseDateInput(selectedDate)) => {
+    setOpenEditor(calendarEditor);
     setEditorItem({
       ...defaultEditorItem(date),
       bodyFocus: type === "Recovery" ? "Recovery" : "Full Body",
       linkedPlan: planContext.activePlan,
-      linkedWorkout: draftWorkout.title,
+      linkedWorkout: type === "Nutrition" || type === "Check-In" ? "" : draftWorkout.title,
       phase: planContext.activePhase,
       title:
-        type === "Recovery"
+        type === "Nutrition" ? "Nutrition reminder" : type === "Check-In" ? "Progress check-in" : type === "Recovery"
           ? "Recovery Day"
           : type === "Mobility"
             ? "Mobility Session"
@@ -1013,12 +884,12 @@ export default function CalendarPage() {
     if (!editorItem) return;
     const nextItem = {
       ...editorItem,
-      id: editorItem.id || `calendar-${Date.now()}`,
+      id: editorItem.id || `calendar-${crypto.randomUUID()}`,
     };
     const nextItems = calendarItems.some((item) => item.id === nextItem.id)
       ? calendarItems.map((item) => (item.id === nextItem.id ? nextItem : item))
       : [...calendarItems, nextItem];
-    saveItems(nextItems);
+    if (!saveItems(nextItems, openEditor ?? calendarEditor)) return;
     setSelectedDate(nextItem.date);
     setEditorItem(null);
   };
@@ -1028,7 +899,7 @@ export default function CalendarPage() {
       setEditorItem(null);
       return;
     }
-    saveItems(calendarItems.filter((item) => item.id !== editorItem.id));
+    if (!saveItems(calendarItems.filter((item) => item.id !== editorItem.id), openEditor ?? calendarEditor)) return;
     setEditorItem(null);
   };
 
@@ -1040,11 +911,25 @@ export default function CalendarPage() {
   };
 
   const openReflect = (item: CalendarItem) => {
-    setEditorItem({
-      ...item,
-      status: item.status === "Completed" ? item.status : "Completed",
-    });
+    setOpenEditor(calendarEditor);
+    setEditorItem({ ...item });
   };
+  const logEditorWorkout = () => {
+    if (!editorItem) return;
+    try {
+      const saved = calendarItems.find(item => item.id === editorItem.id);
+      const destination = startCalendarEditorWorkout(editorItem, saved, openEditor ?? calendarEditor);
+      setCalendarError(""); router.push(destination);
+    } catch (cause) { setCalendarError(cause instanceof Error ? cause.message : "Workout could not be opened. Your edits remain here."); }
+  };
+  function reviewOpenWorkoutControls() {
+    try {
+      const editor = openEditor ?? calendarEditor;
+      const reviewed = reviewWorkoutLaunchEditor(editor.launch);
+      setOpenEditor({ ...editor, launch: reviewed.editor });
+      setCalendarError(`Current workout: ${reviewed.title}. Launch controls reviewed. Your schedule edits remain open.`);
+    } catch (cause) { setCalendarError(cause instanceof Error ? cause.message : "Workout controls could not be reviewed. Your edits remain open."); }
+  }
 
   const navigateDate = (direction: -1 | 1) => {
     const days = viewMode === "month" ? 31 : 7;
@@ -1080,7 +965,7 @@ export default function CalendarPage() {
                   <p className="mt-1 text-2xl font-black text-white">{date.getDate()}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <Pill tone={isToday ? "cyan" : "amber"}>W{planContext.phaseWeek}</Pill>
+                  {planContext.phaseWeek > 0 && <Pill tone={isToday ? "cyan" : "amber"}>W{planContext.phaseWeek}</Pill>}
                   {hasConflict ? <Pill tone="rose">Conflict</Pill> : null}
                 </div>
               </div>
@@ -1127,7 +1012,6 @@ export default function CalendarPage() {
       {monthDays.map((date) => {
         const items = getItemsForDate(calendarItems, date);
         const outside = date.getMonth() !== anchorDate.getMonth();
-        const hotWarning = bodyReadiness.some((item) => item.zone === "Too Hot" || item.zone === "Hot");
 
         return (
           <button
@@ -1142,9 +1026,6 @@ export default function CalendarPage() {
           >
             <div className="flex items-center justify-between">
               <span className="text-sm font-black text-white">{date.getDate()}</span>
-              {hotWarning && items.length > 0 ? (
-                <span className="h-2 w-2 rounded-full bg-orange-300 shadow-[0_0_12px_rgba(251,146,60,0.5)]" />
-              ) : null}
             </div>
             <div className="mt-2 flex flex-wrap gap-1">
               {items.slice(0, 4).map((item) => (
@@ -1182,11 +1063,11 @@ export default function CalendarPage() {
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
-                  {formatFullDate(parseDateInput(item.date))} - {item.time}
+                  {formatFullDate(parseDateInput(item.date))} - {item.time || "Time not set"}
                 </p>
                 <h3 className="mt-2 text-xl font-black text-white">{item.title}</h3>
                 <p className="mt-1 text-sm text-slate-400">
-                  {item.phase || planContext.activePhase} - {item.bodyFocus} - {item.duration} min
+                  {item.phase || planContext.activePhase} - {item.bodyFocus} - {calendarDurationLabel(item)}
                 </p>
               </div>
               <SessionCard
@@ -1206,11 +1087,9 @@ export default function CalendarPage() {
   );
 
   const todayPrimary = todaysItems[0];
-  const hotBodyParts = bodyReadiness.filter((item) => item.zone === "Hot" || item.zone === "Too Hot");
-  const readyBodyParts = bodyReadiness.filter((item) => item.percent <= 45);
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_10%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_5%,rgba(251,191,36,0.16),transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_50%,#020617_100%)] pb-10 text-white">
+    <><p role="alert" className="bg-slate-950 px-4 text-amber-200">{calendarError}</p><main className="min-h-screen bg-[radial-gradient(circle_at_10%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_5%,rgba(251,191,36,0.16),transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_50%,#020617_100%)] pb-10 text-white">
       <section className="mx-auto w-full max-w-[1500px] space-y-5 px-3 py-5 sm:px-5 lg:px-8">
         <TrainingJourneyNavigator currentStep="calendar" variant="full" />
 
@@ -1229,14 +1108,14 @@ export default function CalendarPage() {
               <div className="mt-5 flex flex-wrap gap-2">
                 <Pill>{profile.goalMode}</Pill>
                 <Pill tone="amber">{planContext.activePhase}</Pill>
-                <Pill tone={ZONE_STYLES[readinessZone].text.includes("rose") ? "rose" : "emerald"}>
-                  {readinessZone}
+                <Pill tone="cyan">
+                  {weeklySets} logged sets
                 </Pill>
               </div>
             </div>
             <div className="rounded-[30px] border border-cyan-300/15 bg-slate-950/58 p-4">
               <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-200">
-                Coach Insight
+                Planning Note
               </p>
               <p className="mt-3 text-xl font-black leading-tight text-white">
                 {coachInsight}
@@ -1251,7 +1130,7 @@ export default function CalendarPage() {
             <MetricCard
               helper={formatWeekRange(weekStart)}
               label="Current Week"
-              value={`W${planContext.phaseWeek}`}
+              value={planContext.phaseWeek ? `W${planContext.phaseWeek}` : "Calendar week"}
             />
             <MetricCard
               helper={planContext.planFocus}
@@ -1259,14 +1138,14 @@ export default function CalendarPage() {
               value={planContext.activePhase}
             />
             <MetricCard
-              helper={`${profile.sessionsPerWeek} target sessions`}
+              helper={profile.sessionsPerWeek ? `${profile.sessionsPerWeek} target sessions` : "Set weekly sessions in Goals"}
               label="Planned"
               value={plannedThisWeek.toLocaleString()}
             />
             <MetricCard
-              helper="Completed this week"
-              label="Completed"
-              value={completedThisWeek.toLocaleString()}
+              helper={`${completedThisWeek} schedule items marked complete`}
+              label="Logged Workouts"
+              value={loggedWorkouts.toLocaleString()}
             />
             <MetricCard
               helper="Recovery / mobility sessions"
@@ -1274,9 +1153,9 @@ export default function CalendarPage() {
               value={recoveryDays.toLocaleString()}
             />
             <MetricCard
-              helper="Readiness / momentum"
-              label="Momentum"
-              value={readinessZone}
+              helper="Logged workout sets in the selected week"
+              label="Training Volume"
+              value={`${weeklySets} sets`}
             />
           </div>
         </section>
@@ -1307,7 +1186,7 @@ export default function CalendarPage() {
           <div className="flex flex-wrap gap-2">
             <CalendarButton onClick={() => openNewEditor("Strength")}>Add Session</CalendarButton>
             <CalendarButton onClick={() => openNewEditor("Recovery")}>Add Recovery Day</CalendarButton>
-            <CalendarButton onClick={() => openNewEditor("Mobility")}>Add Reflection</CalendarButton>
+            <DashboardLink href={ROUTES.dashboard.journal}>Add Reflection</DashboardLink>
           </div>
         </section>
 
@@ -1326,7 +1205,7 @@ export default function CalendarPage() {
                   </h2>
                 </div>
                 <p className="text-xs text-slate-500">
-                  Phase: {planContext.activePhase} - Week {planContext.phaseWeek} of {planContext.phaseWeeks}
+                  Phase: {planContext.activePhase}{planContext.phaseWeek ? ` - Week ${planContext.phaseWeek} of ${planContext.phaseWeeks || "unspecified"}` : ""}
                 </p>
               </div>
               {viewMode === "week" ? renderWeekView() : null}
@@ -1378,7 +1257,7 @@ export default function CalendarPage() {
           </div>
 
           <aside className="space-y-5">
-            <RecoveryRail bodyReadiness={bodyReadiness} />
+            <WorkoutVolumeRail exercises={exerciseVolume} weekLabel={formatWeekRange(weekStart)} />
             <SelectedDayPanel
               date={parseDateInput(selectedDate)}
               items={selectedDayItems}
@@ -1395,7 +1274,7 @@ export default function CalendarPage() {
               <div className="mt-4 grid gap-2">
                 <DashboardLink href={ROUTES.workoutBuilder.home}>Build Workout</DashboardLink>
                 <DashboardLink href={ROUTES.dashboard.myPlan}>View Plan</DashboardLink>
-                <DisabledLink label="View Phases" title="Future route: /dashboard/phases" />
+                <DashboardLink href={ROUTES.dashboard.phases}>View Phases</DashboardLink>
                 <DashboardLink href={ROUTES.dashboard.stats}>Open Stats</DashboardLink>
                 <DashboardLink href={ROUTES.dashboard.recovery}>Recovery Portal</DashboardLink>
               </div>
@@ -1406,15 +1285,18 @@ export default function CalendarPage() {
 
       {editorItem ? (
         <ScheduleEditor
+          error={calendarError}
           conflict={hasTimeConflict(calendarItems, editorItem)}
           item={editorItem}
           onChange={setEditorItem}
           onClose={() => setEditorItem(null)}
           onDelete={deleteEditorItem}
           onSave={saveEditorItem}
+          onLogWorkout={logEditorWorkout}
+          onReviewLaunch={reviewOpenWorkoutControls}
         />
       ) : null}
-    </main>
+    </main></>
   );
 }
 
@@ -1442,7 +1324,7 @@ function TodayTrainingCard({
         <div className="mt-4">
           <h3 className="text-2xl font-black text-white">{item.title}</h3>
           <p className="mt-2 text-sm text-slate-300">
-            {item.bodyFocus} - {item.duration} min - {item.type}
+            {item.bodyFocus} - {calendarDurationLabel(item)} - {item.type}
           </p>
           <SessionCard
             item={item}
@@ -1482,9 +1364,9 @@ function PhaseContextCard({ planContext }: { planContext: PlanContext }) {
           value={planContext.activePlan}
         />
         <MetricCard
-          helper={`${planContext.phaseWeeks} total weeks`}
+          helper={planContext.phaseWeeks ? `${planContext.phaseWeeks} total weeks` : "Activate a saved phase to track its schedule"}
           label="Phase Week"
-          value={`${planContext.phaseWeek} / ${planContext.phaseWeeks}`}
+          value={planContext.phaseWeek ? `${planContext.phaseWeek} / ${planContext.phaseWeeks || "unspecified"}` : "Not scheduled"}
         />
         <MetricCard
           helper="Recovery load management"
@@ -1501,51 +1383,26 @@ function PhaseContextCard({ planContext }: { planContext: PlanContext }) {
   );
 }
 
-function RecoveryRail({
-  bodyReadiness,
-}: {
-  bodyReadiness: ReturnType<typeof getBodyPartReadiness>;
-}) {
-  const hot = bodyReadiness.filter((item) => item.zone === "Hot" || item.zone === "Too Hot");
-  const ready = bodyReadiness.filter((item) => item.percent <= 45);
-
+function WorkoutVolumeRail({ exercises, weekLabel }: { exercises: ReturnType<typeof workoutExerciseSetSummary>; weekLabel: string }) {
   return (
     <section className="rounded-[32px] border border-white/10 bg-slate-950/58 p-4">
-      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">
-        Recovery / Readiness Rail
-      </p>
+      <p className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200">Logged Exercise Sets</p>
+      <p className="mt-2 text-xs text-slate-400">{weekLabel} · Completed workout history</p>
       <div className="mt-4 space-y-3">
-        {[...hot, ...ready].slice(0, 8).map((item) => {
-          const style = ZONE_STYLES[item.zone];
-          return (
-            <div
-              className={`rounded-2xl border ${style.border} ${style.bg} p-3`}
-              key={item.label}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-black text-white">{item.label}</p>
-                <span className={`text-xs font-black ${style.text}`}>{item.zone}</span>
-              </div>
-              <p className="mt-1 text-xs text-slate-400">
-                {item.sets} / {item.goal} sets - {formatCompactVolume(item.volume)}
-              </p>
-              <p className="mt-1 text-xs text-slate-500">
-                Last trained: {item.lastTrained}
-                {item.cooldownHours > 1 ? ` - ${Math.ceil(item.cooldownHours)}h cooldown` : ""}
-              </p>
+        {exercises.map(item => (
+          <div className="rounded-2xl border border-cyan-300/15 bg-cyan-300/5 p-3" key={item.id}>
+            <div className="flex items-center justify-between gap-3">
+              <p className="font-black text-white">{item.name}</p>
+              <span className="text-xs font-black text-cyan-200">{item.sets} sets</span>
             </div>
-          );
-        })}
-        {hot.length === 0 && ready.length === 0 ? (
-          <p className="text-sm leading-6 text-slate-500">
-            Add more logs to unlock readiness signals.
-          </p>
-        ) : null}
+            <p className="mt-1 text-xs text-slate-500">Last logged: {formatShortDate(activityTimestamp(item.lastCompletedAt))}</p>
+          </div>
+        ))}
+        {exercises.length === 0 ? <p className="text-sm leading-6 text-slate-500">No valid workout sets logged in this week.</p> : null}
       </div>
     </section>
   );
 }
-
 function SelectedDayPanel({
   date,
   items,
@@ -1606,7 +1463,8 @@ function ReflectionPrompt() {
       </p>
       <div className="mt-4 space-y-3 text-sm leading-6 text-slate-300">
         <p>After completion, capture difficulty, energy, soreness, pain notes, what went well, and what to adjust.</p>
-        <p>Reflection closes the loop so the next calendar block can adapt.</p>
+        <p>Save personal-event feedback in the event editor, or use Journal and Weekly Check-In for workout feedback. Reflections do not automatically complete sessions or change your plan.</p>
+        <div className="flex flex-wrap gap-3"><Link href={ROUTES.dashboard.journal} className="text-amber-100 underline">Open Journal</Link><Link href={ROUTES.dashboard.progressCheckIn} className="text-amber-100 underline">Weekly Check-In</Link></div>
       </div>
     </section>
   );
@@ -1645,20 +1503,28 @@ function EmptyPanel({ children }: { children: ReactNode }) {
 }
 
 function ScheduleEditor({
+  error,
   conflict,
   item,
   onChange,
   onClose,
   onDelete,
   onSave,
+  onLogWorkout,
+  onReviewLaunch,
 }: {
+  error: string;
   conflict: boolean;
   item: CalendarItem;
   onChange: (item: CalendarItem) => void;
   onClose: () => void;
   onDelete: () => void;
   onSave: () => void;
+  onLogWorkout: () => void;
+  onReviewLaunch: () => void;
 }) {
+  const linked = Boolean(item.assignmentId || item.bookingId);
+  const scheduleLocked = Boolean(item.bookingId || item.assignmentId && item.status === "Completed");
   const update = <K extends keyof CalendarItem>(key: K, value: CalendarItem[K]) =>
     onChange({ ...item, [key]: value });
   const updateReflection = <K extends keyof CalendarReflection>(
@@ -1692,9 +1558,16 @@ function ScheduleEditor({
           </button>
         </div>
 
+        {error && <p role="alert" className="mt-4 text-sm text-rose-200">{error}</p>}
+        {error && item.assignmentId ? <div className="mt-2 flex flex-wrap gap-4 text-sm text-cyan-200">
+          <Link href={ROUTES.dashboard.sessionWorkout} target="_blank" rel="noreferrer">Open current workout</Link>
+          <button type="button" onClick={onReviewLaunch} className="underline">Review current workout controls</button>
+        </div> : null}
+        {linked && <p className="mt-4 text-sm text-slate-300">{item.bookingId ? "Manage booked sessions through Sessions & booking." : scheduleLocked ? "Completed workout details remain in History." : "Move this assignment by changing its date, time or notes. Manage its workout and plan settings in My Plan; record completion in the logger."}</p>}
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <Field label="Session Title">
             <input
+              disabled={linked}
               className={inputClass}
               onChange={(event) => update("title", event.target.value)}
               value={item.title}
@@ -1702,6 +1575,7 @@ function ScheduleEditor({
           </Field>
           <Field label="Date">
             <input
+              disabled={scheduleLocked}
               className={inputClass}
               onChange={(event) => update("date", event.target.value)}
               type="date"
@@ -1710,23 +1584,26 @@ function ScheduleEditor({
           </Field>
           <Field label="Time">
             <input
+              disabled={scheduleLocked}
               className={inputClass}
               onChange={(event) => update("time", event.target.value)}
               type="time"
               value={item.time}
             />
           </Field>
-          <Field label="Duration">
-            <input
+          <Field label={item.assignmentId ? "Workout duration" : "Scheduled duration (minutes)"}>
+            {item.assignmentId ? <p className="py-3 text-sm text-slate-300">{calendarDurationLabel(item)}</p> : <input
+              disabled={linked}
               className={inputClass}
               min={5}
               onChange={(event) => update("duration", Number(event.target.value))}
               type="number"
               value={item.duration}
-            />
+            />}
           </Field>
           <Field label="Workout Type">
             <select
+              disabled={linked}
               className={inputClass}
               onChange={(event) => update("type", event.target.value as WorkoutType)}
               value={item.type}
@@ -1738,6 +1615,7 @@ function ScheduleEditor({
           </Field>
           <Field label="Body Focus">
             <select
+              disabled={linked}
               className={inputClass}
               onChange={(event) => update("bodyFocus", event.target.value)}
               value={item.bodyFocus}
@@ -1749,6 +1627,7 @@ function ScheduleEditor({
           </Field>
           <Field label="Linked Workout">
             <input
+              disabled={linked}
               className={inputClass}
               onChange={(event) => update("linkedWorkout", event.target.value)}
               value={item.linkedWorkout}
@@ -1756,6 +1635,7 @@ function ScheduleEditor({
           </Field>
           <Field label="Linked Plan">
             <input
+              disabled={linked}
               className={inputClass}
               onChange={(event) => update("linkedPlan", event.target.value)}
               value={item.linkedPlan}
@@ -1763,6 +1643,7 @@ function ScheduleEditor({
           </Field>
           <Field label="Phase">
             <input
+              disabled={linked}
               className={inputClass}
               onChange={(event) => update("phase", event.target.value)}
               value={item.phase}
@@ -1770,6 +1651,7 @@ function ScheduleEditor({
           </Field>
           <Field label="Status">
             <select
+              disabled={linked}
               className={inputClass}
               onChange={(event) => update("status", event.target.value as CalendarStatus)}
               value={item.status}
@@ -1781,6 +1663,7 @@ function ScheduleEditor({
           </Field>
           <Field label="Reminder">
             <select
+              disabled={linked}
               className={inputClass}
               onChange={(event) => update("reminder", event.target.value)}
               value={item.reminder}
@@ -1789,9 +1672,11 @@ function ScheduleEditor({
                 <option key={option}>{option}</option>
               ))}
             </select>
+            <p className="mt-2 text-xs text-slate-400">Saved preference only. Calendar reminders do not send notifications yet.</p>
           </Field>
           <Field label="Notes">
             <textarea
+              disabled={scheduleLocked}
               className={`${inputClass} min-h-[96px]`}
               onChange={(event) => update("notes", event.target.value)}
               value={item.notes}
@@ -1803,28 +1688,20 @@ function ScheduleEditor({
           <p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-100">
             Reflection
           </p>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {item.assignmentId || item.bookingId ? <div className="mt-3 space-y-3 text-sm text-amber-100"><p>Calendar reflections are available for personal events. Use Weekly Check-In or Journal to record feedback about planned workouts and booked sessions.</p><div className="flex gap-3"><Link href={ROUTES.dashboard.journal} className="underline">Open Journal</Link><Link href={ROUTES.dashboard.progressCheckIn} className="underline">Weekly Check-In</Link></div></div> : <div className="mt-4 grid gap-4 md:grid-cols-2">
             <Field label="Session Difficulty 1-10">
-              <input
+              <select
                 className={inputClass}
-                max={10}
-                min={1}
-                onChange={(event) => updateReflection("difficulty", Number(event.target.value))}
-                type="range"
-                value={item.reflection.difficulty}
-              />
-              <p className="mt-1 text-xs font-black text-white">{item.reflection.difficulty}/10</p>
+                onChange={(event) => updateReflection("difficulty", event.target.value === "" ? null : Number(event.target.value))}
+                value={item.reflection.difficulty ?? ""}
+              ><option value="">Not reported</option>{Array.from({ length: 10 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}/10</option>)}</select>
             </Field>
             <Field label="Energy 1-10">
-              <input
+              <select
                 className={inputClass}
-                max={10}
-                min={1}
-                onChange={(event) => updateReflection("energy", Number(event.target.value))}
-                type="range"
-                value={item.reflection.energy}
-              />
-              <p className="mt-1 text-xs font-black text-white">{item.reflection.energy}/10</p>
+                onChange={(event) => updateReflection("energy", event.target.value === "" ? null : Number(event.target.value))}
+                value={item.reflection.energy ?? ""}
+              ><option value="">Not reported</option>{Array.from({ length: 10 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}/10</option>)}</select>
             </Field>
             <Field label="Soreness">
               <input
@@ -1854,27 +1731,29 @@ function ScheduleEditor({
                 value={item.reflection.adjust}
               />
             </Field>
-          </div>
+          </div>}
         </div>
 
         <div className="mt-6 flex flex-wrap gap-2">
           <button
             className="rounded-2xl bg-cyan-300 px-5 py-3 text-xs font-black uppercase tracking-[0.12em] text-slate-950 transition hover:bg-cyan-200"
             onClick={onSave}
+            disabled={scheduleLocked}
             type="button"
           >
             Save
           </button>
-          <button
+          {item.bookingId ? <DashboardLink href={ROUTES.dashboard.sessionBooking}>Manage booking</DashboardLink> : item.assignmentId ? item.status === "Completed" ? <DashboardLink href={ROUTES.dashboard.sessionHistory}>View in History</DashboardLink> : <button type="button" onClick={onLogWorkout} className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-xs font-black uppercase tracking-[0.12em] text-emerald-100">Log workout</button> : <button
             className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-5 py-3 text-xs font-black uppercase tracking-[0.12em] text-emerald-100 transition hover:bg-emerald-300 hover:text-slate-950"
             onClick={() => onChange({ ...item, status: "Completed" })}
             type="button"
           >
             Mark Complete
-          </button>
+          </button>}
           <button
             className="rounded-2xl border border-rose-300/20 bg-rose-400/10 px-5 py-3 text-xs font-black uppercase tracking-[0.12em] text-rose-100 transition hover:bg-rose-300 hover:text-slate-950"
             onClick={onDelete}
+            disabled={scheduleLocked}
             type="button"
           >
             Delete

@@ -1,7 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { planningSnapshot, subscribePlanning } from "@/lib/planning/store";
+import { readStatsRecord, readStatsWorkoutLogs, readStatsGoalTargets, readStatsPlanContext, mergeStatsExerciseEntries, readStatsRecoveryReports, readStatsJourneyFoundations, readStatsBodyWeights, type StatsRecoveryReport } from "@/lib/planning/statsSource";
+import { captureWorkoutHistoryRecovery } from "@/lib/planning/workoutHistoryRecovery";
+import WorkoutHistoryReviewNotice from "@/components/dashboard/WorkoutHistoryReviewNotice";
+import StatsRecoveryReports from "@/components/dashboard/StatsRecoveryReports";
+import StatsUnitWorkload from "@/components/dashboard/StatsUnitWorkload";
+import { unitWorkloadSummary } from "@/lib/planning/unitWorkload";
+import { bestPositiveStatsMetric, mostTrainedStatsRegion, statsRecordedTimestamp, statsWeekBounds, statsHistoryIncludes, statsCurrentStreak, statsExerciseRecords, statsSetDistribution, statsTargetStatus, statsExerciseMetrics, statsWorkoutTotals, statsExerciseClassification, statsCompletedSessions } from "@/lib/planning/statsEvidence";
+import { WORKOUT_LOAD_UNIT_UNKNOWN, WORKOUT_VOLUME_UNIT_UNKNOWN, formatRecordedWorkoutLoad, workoutLoadInPounds } from "@/lib/planning/loadUnitEvidence";
+import { localDate } from "@/lib/planning/dates";
+import { workoutSetCount } from "@/lib/planning/history";
 import MasterTrainingJourney from "@/components/dashboard/MasterTrainingJourney";
 import { ROUTES } from "@/lib/routes";
 
@@ -17,12 +28,7 @@ type StatsTabId =
 
 type HistoryFilter = "This week" | "Last 30 days" | "Lifetime";
 
-type MomentumZone =
-  | "Ice Cold"
-  | "Building"
-  | "Productive Heat"
-  | "Hot"
-  | "Too Hot";
+type MomentumZone = ReturnType<typeof statsTargetStatus>;
 
 type Accent = "cyan" | "amber" | "emerald" | "rose" | "violet" | "blue";
 
@@ -40,8 +46,8 @@ type ProfileSnapshot = {
   planDirection: string;
   profileImage: string;
   trainingAge: string;
-  weeklySetGoal: number;
-  sessionsPerWeek: number;
+  weeklySetGoal: number | null;
+  sessionsPerWeek: number | null;
   goalWeight: number;
   preferredUnit: "lb" | "kg";
 };
@@ -58,6 +64,8 @@ type NormalizedExerciseStat = {
   sets: number;
   reps: number;
   weight: number;
+  weightUnit?: "lb" | "kg";
+  recordedLoadInPounds: number | null;
   volume: number;
   source: string;
   notes: string;
@@ -87,7 +95,7 @@ type WeeklyStats = {
   volume: number;
   exercisesTrained: number;
   sessionsCompleted: number;
-  weeklyGoal: number;
+  weeklyGoal: number | null;
   completionPercent: number;
   currentStreak: number;
 };
@@ -105,29 +113,26 @@ type LifetimeStats = {
 type BodyPartStat = {
   label: string;
   weeklySets: number;
-  weeklyGoal: number;
   weeklyReps: number;
   weeklyVolume: number;
   lifetimeSets: number;
   lifetimeVolume: number;
-  percent: number;
-  zone: MomentumZone;
+  sharePercent: number;
   lastTrained: string;
   lastTimestamp: number | null;
-  cooldownHours: number;
   status: string;
 };
 
 type PatternStat = {
   label: string;
   weeklySets: number;
-  weeklyGoal: number;
   lifetimeSets: number;
   volume: number;
-  percent: number;
+  sharePercent: number;
 };
 
 type PRCard = {
+  recorded: boolean;
   label: string;
   exercise: string;
   value: string;
@@ -137,20 +142,15 @@ type PRCard = {
 };
 
 type StrengthCard = {
+  id: string;
   label: string;
   currentBest: string;
-  goal: string;
-  progressPercent: number;
-  lastLogged: string;
-  recommendedFocus: string;
+  loadDate: string;
+  bestReps: string;
+  repsDate: string;
 };
 
-type RecoveryStats = {
-  runningHot: BodyPartStat[];
-  readyToTrain: BodyPartStat[];
-  cooldowns: BodyPartStat[];
-  recommendations: string[];
-};
+type RecoveryStats = StatsRecoveryReport;
 
 type TrendWeek = {
   label: string;
@@ -168,11 +168,15 @@ type TrendStats = {
 };
 
 type AppStatsSnapshot = {
+  foundations: ReturnType<typeof readStatsJourneyFoundations>;
+  recovery: RecoveryStats;
+  excludedEntries: number;
   profile: ProfileSnapshot;
   favorites: string[];
   exerciseStats: NormalizedExerciseStat[];
   workoutLogs: NormalizedWorkoutLog[];
   loadedAtLabel: string;
+  reportedAt: number;
 };
 
 const STATS_TABS: { id: StatsTabId; label: string }[] = [
@@ -192,21 +196,12 @@ const HISTORY_FILTERS: HistoryFilter[] = [
   "Lifetime",
 ];
 
-const TRAILING_DAYS = 7;
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-const DEFAULT_WEEKLY_SET_GOAL = 48;
-const DEFAULT_PATTERN_GOAL = 12;
+
 
 const EXERCISE_STAT_KEYS = [
   "soundFitnessExerciseStats",
   "soundFitnessExerciseLibraryStats",
   "soundFitness.exerciseLibrary.stats",
-];
-
-const WORKOUT_LOG_KEYS = [
-  "soundFitnessWorkoutLogs",
-  "soundFitnessWorkoutSessionLogs",
-  "soundFitness.workoutLogs",
 ];
 
 const FAVORITE_KEYS = [
@@ -215,122 +210,35 @@ const FAVORITE_KEYS = [
   "soundFitness.exerciseLibrary.favorites",
 ];
 
-const PHASE_KEYS = ["soundFitnessPhases", "soundFitnessTrainingPhases"];
-
-const PLAN_KEYS = ["soundFitnessPlan", "soundFitnessTrainingPlan", "soundFitnessMyPlan"];
-
-const BODY_REGION_GOALS: Record<string, number> = {
-  Chest: 16,
-  Back: 18,
-  Shoulders: 14,
-  Arms: 14,
-  Core: 12,
-  Glutes: 16,
-  Quads: 16,
-  Hamstrings: 14,
-  Calves: 12,
-  "Neck / Traps": 10,
-};
-
-const BODY_REGION_ORDER = Object.keys(BODY_REGION_GOALS);
-
-const STRENGTH_TARGETS = [
-  {
-    label: "Bench Press",
-    names: ["bench press", "chest press", "push-up", "push up"],
-    pattern: "Chest Press",
-    goal: 225,
-    focus: "Pressing strength with rows and triceps support.",
-  },
-  {
-    label: "Squat",
-    names: ["squat", "goblet squat", "front squat", "back squat"],
-    pattern: "Squat",
-    goal: 315,
-    focus: "Squat pattern, quad volume, bracing, and depth.",
-  },
-  {
-    label: "Deadlift",
-    names: ["deadlift", "romanian deadlift", "rdl", "hinge"],
-    pattern: "Hinge",
-    goal: 405,
-    focus: "Hinge strength, posterior chain, and lat tension.",
-  },
-  {
-    label: "Overhead Press",
-    names: ["overhead press", "shoulder press", "military press"],
-    pattern: "Shoulder Press",
-    goal: 135,
-    focus: "Shoulder strength with upper-back stability.",
-  },
-  {
-    label: "Pull-Up",
-    names: ["pull-up", "pull up", "chin-up", "chin up", "pulldown"],
-    pattern: "Vertical Pull",
-    goal: 10,
-    focus: "Vertical pulling, lats, biceps, and scapular control.",
-  },
-  {
-    label: "Row",
-    names: ["row", "seal row", "chest supported row"],
-    pattern: "Row",
-    goal: 185,
-    focus: "Horizontal pulling volume and upper-back density.",
-  },
-  {
-    label: "Hip Thrust",
-    names: ["hip thrust", "glute bridge", "bridge"],
-    pattern: "Hip Thrust / Bridge",
-    goal: 275,
-    focus: "Glute strength and hip-extension capacity.",
-  },
-  {
-    label: "Sissy Squat Depth",
-    names: ["sissy squat", "knee extension"],
-    pattern: "Knee Extension",
-    goal: 10,
-    focus: "Controlled knee extension, quad tolerance, and depth.",
-  },
-];
+const BODY_REGION_ORDER = ["Chest", "Back", "Shoulders", "Arms", "Core", "Glutes", "Quads", "Hamstrings", "Calves", "Neck / Traps"];
 
 const ZONE_STYLES: Record<
   MomentumZone,
-  { hex: string; text: string; border: string; bg: string; helper: string }
+  { hex: string; text: string; border: string; bg: string }
 > = {
-  "Ice Cold": {
+  "No sets": {
     hex: "#38bdf8",
     text: "text-sky-200",
     border: "border-sky-300/25",
     bg: "bg-sky-400/10",
-    helper: "Needs stimulus",
   },
-  Building: {
+  "Below target": {
     hex: "#2dd4bf",
     text: "text-teal-200",
     border: "border-teal-300/25",
     bg: "bg-teal-400/10",
-    helper: "Building momentum",
   },
-  "Productive Heat": {
+  "Target met": {
     hex: "#fbbf24",
     text: "text-amber-200",
     border: "border-amber-300/25",
     bg: "bg-amber-400/10",
-    helper: "Productive heat",
   },
-  Hot: {
-    hex: "#fb923c",
-    text: "text-orange-200",
-    border: "border-orange-300/25",
-    bg: "bg-orange-400/10",
-    helper: "Watch fatigue",
-  },
-  "Too Hot": {
+  "Above target": {
     hex: "#f43f5e",
     text: "text-rose-200",
     border: "border-rose-300/25",
     bg: "bg-rose-400/10",
-    helper: "Recovery signal",
   },
 };
 
@@ -387,23 +295,7 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
     ? (value as Record<string, unknown>)
     : null;
 
-const safeParseJson = (value: string | null) => {
-  if (!value) return null;
-
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return null;
-  }
-};
-
-const canUseLocalStorage = () =>
-  typeof window !== "undefined" && Boolean(window.localStorage);
-
-const readLocalValue = (key: string) => {
-  if (!canUseLocalStorage()) return null;
-  return safeParseJson(window.localStorage.getItem(key));
-};
+const readLocalValue = readStatsRecord;
 
 const coerceArray = (value: unknown): unknown[] => {
   if (Array.isArray(value)) return value;
@@ -429,15 +321,6 @@ const readFirstArray = (keys: string[]) => {
   return [];
 };
 
-const readFirstValue = (keys: string[]) => {
-  for (const key of keys) {
-    const value = readLocalValue(key);
-    if (value) return value;
-  }
-
-  return null;
-};
-
 const getString = (
   record: Record<string, unknown> | null,
   keys: string[],
@@ -449,25 +332,6 @@ const getString = (
     const value = record[key];
     if (typeof value === "string" && value.trim()) return value.trim();
     if (typeof value === "number" && Number.isFinite(value)) return `${value}`;
-  }
-
-  return fallback;
-};
-
-const getNumber = (
-  record: Record<string, unknown> | null,
-  keys: string[],
-  fallback = 0,
-) => {
-  if (!record) return fallback;
-
-  for (const key of keys) {
-    const value = record[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value === "string") {
-      const parsed = Number.parseFloat(value.replace(/,/g, ""));
-      if (Number.isFinite(parsed)) return parsed;
-    }
   }
 
   return fallback;
@@ -494,30 +358,9 @@ const getStringArray = (record: Record<string, unknown> | null, keys: string[]) 
   return [];
 };
 
-const cleanNumber = (value: number) =>
-  Number.isFinite(value) ? Math.max(0, value) : 0;
+const getWeekBounds = statsWeekBounds;
 
-const startOfLocalDay = (date: Date) =>
-  new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-
-const getTrailingWeekBounds = () => {
-  const end = new Date();
-  const start = new Date(end);
-  start.setDate(end.getDate() - (TRAILING_DAYS - 1));
-  start.setHours(0, 0, 0, 0);
-
-  return { start, end };
-};
-
-const getTimestamp = (value: unknown) => {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = new Date(value).getTime();
-    if (Number.isFinite(parsed)) return parsed;
-  }
-
-  return Date.now();
-};
+const getTimestamp = statsRecordedTimestamp;
 
 const formatShortDate = (timestamp: number | null) => {
   if (!timestamp) return "Not logged yet";
@@ -544,103 +387,11 @@ const formatDateRange = (start: Date, end: Date) => {
     day: "numeric",
   });
 
-  return `Trailing 7 days: ${formatter.format(start)}-${formatter.format(end)}`;
+  return `This week: ${formatter.format(start)}-${formatter.format(end)}`;
 };
-
-const formatCompactNumber = (value: number) => {
-  const safeValue = cleanNumber(value);
-  if (safeValue >= 1_000_000) return `${(safeValue / 1_000_000).toFixed(1)}m`;
-  if (safeValue >= 1000) return `${(safeValue / 1000).toFixed(1)}k`;
-  return Math.round(safeValue).toLocaleString();
-};
-
-const getDisplayWeight = (value: number, unit: "lb" | "kg") =>
-  unit === "kg" ? value * 0.453592 : value;
-
-const formatLoad = (value: number, unit: "lb" | "kg") => {
-  const display = getDisplayWeight(value, unit);
-  if (!display) return "Not logged yet";
-  return `${unit === "kg" ? display.toFixed(1) : Math.round(display).toLocaleString()} ${unit}`;
-};
-
-const formatWeightVolume = (value: number, unit: "lb" | "kg") => {
-  const display = getDisplayWeight(value, unit);
-  if (!display) return `0 ${unit}`;
-  return `${formatCompactNumber(display)} ${unit}`;
-};
-
-const toTitleCase = (value: string) =>
-  value
-    .split(/[\s-_]+/)
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-    .join(" ");
 
 const includesAny = (source: string, needles: string[]) =>
   needles.some((needle) => source.includes(needle));
-
-const inferBodyPart = (record: Record<string, unknown>, name: string) => {
-  const raw = [
-    getString(record, ["bodyPart", "body", "bodyRegion", "muscle", "muscles"]),
-    getString(record, ["category", "section", "primaryMuscle"]),
-    name,
-    getString(record, ["pattern", "movementPattern", "coreMovementPattern"]),
-  ]
-    .join(" ")
-    .toLowerCase();
-
-  if (includesAny(raw, ["chest", "bench", "push-up", "push up"])) return "Chest";
-  if (includesAny(raw, ["lat", "back", "row", "pull-up", "pull up", "pulldown", "pullover"])) return "Back";
-  if (includesAny(raw, ["shoulder", "delt", "lateral raise", "overhead press"])) return "Shoulders";
-  if (includesAny(raw, ["bicep", "tricep", "arm", "curl", "forearm", "wrist"])) return "Arms";
-  if (includesAny(raw, ["core", "abs", "oblique", "plank", "pallof", "rotation", "anti-extension"])) return "Core";
-  if (includesAny(raw, ["glute", "hip thrust", "bridge", "hip extension"])) return "Glutes";
-  if (includesAny(raw, ["quad", "squat", "lunge", "step-up", "step up", "knee extension", "sissy"])) return "Quads";
-  if (includesAny(raw, ["hamstring", "hinge", "deadlift", "rdl", "leg curl", "knee flexion"])) return "Hamstrings";
-  if (includesAny(raw, ["calf", "tibialis", "shin", "ankle"])) return "Calves";
-  if (includesAny(raw, ["neck", "trap", "shrug", "carry", "cervical"])) return "Neck / Traps";
-
-  return "Core";
-};
-
-const inferPattern = (record: Record<string, unknown>, name: string) => {
-  const explicit = getString(record, [
-    "pattern",
-    "movementPattern",
-    "coreMovementPattern",
-    "coreMovementPatternName",
-  ]);
-
-  if (explicit) return toTitleCase(explicit.replace(/-/g, " "));
-
-  const raw = [name, getString(record, ["category", "body", "bodyPart"])]
-    .join(" ")
-    .toLowerCase();
-
-  if (includesAny(raw, ["bench", "chest press", "push-up", "push up"])) return "Chest Press";
-  if (includesAny(raw, ["fly", "flye"])) return "Chest Fly";
-  if (includesAny(raw, ["row"])) return "Row";
-  if (includesAny(raw, ["pull-up", "pull up", "pulldown"])) return "Vertical Pull";
-  if (includesAny(raw, ["pullover"])) return "Pullover";
-  if (includesAny(raw, ["squat"])) return "Squat";
-  if (includesAny(raw, ["lunge"])) return "Lunge";
-  if (includesAny(raw, ["step-up", "step up"])) return "Step-Up";
-  if (includesAny(raw, ["deadlift", "hinge", "rdl"])) return "Hinge";
-  if (includesAny(raw, ["hip thrust", "bridge"])) return "Hip Thrust / Bridge";
-  if (includesAny(raw, ["knee extension", "sissy", "leg extension"])) return "Knee Extension";
-  if (includesAny(raw, ["curl"])) return "Curl";
-  if (includesAny(raw, ["tricep"])) return "Triceps Extension";
-  if (includesAny(raw, ["press", "shoulder"])) return "Shoulder Press";
-  if (includesAny(raw, ["carry"])) return "Carry";
-  if (includesAny(raw, ["crawl"])) return "Crawl";
-  if (includesAny(raw, ["jump"])) return "Jump";
-  if (includesAny(raw, ["sprint"])) return "Sprint";
-  if (includesAny(raw, ["throw"])) return "Throw";
-  if (includesAny(raw, ["mobility", "cars", "stretch"])) return "Mobility";
-  if (includesAny(raw, ["plank", "pallof", "rotation", "core"])) return "Core";
-
-  return "Movement";
-};
 
 const normalizeExerciseStat = (
   item: unknown,
@@ -667,13 +418,11 @@ const normalizeExerciseStat = (
       record.createdAt ??
       record.timestamp,
   );
-  const sets = Math.round(cleanNumber(getNumber(record, ["sets", "setCount", "completedSets"])));
-  const reps = Math.round(cleanNumber(getNumber(record, ["reps", "repCount", "completedReps"])));
-  const weight = cleanNumber(
-    getNumber(record, ["weight", "load", "weightPounds", "weightLb", "loadValue"]),
-  );
-  const bodyPart = inferBodyPart(record, exerciseName);
-  const pattern = inferPattern(record, exerciseName);
+  if (!Number.isFinite(timestamp)) return null;
+  const metrics = statsExerciseMetrics(record);
+  if (!metrics || metrics.sets > 2147483647 || metrics.reps > 2147483647) return null;
+  const { sets, reps, weight } = metrics;
+  const { bodyPart, pattern } = statsExerciseClassification(record);
 
   return {
     id:
@@ -691,6 +440,8 @@ const normalizeExerciseStat = (
     sets,
     reps,
     weight,
+    ...(record.weightUnit === "lb" || record.weightUnit === "kg" ? { weightUnit: record.weightUnit } : {}),
+    recordedLoadInPounds: ["weight", "load", "loadValue"].some(key => record[key] != null && !(typeof record[key] === "string" && !(record[key] as string).trim())) ? workoutLoadInPounds({ ...record, weight }) : null,
     volume: sets * reps * weight,
     source: getString(record, ["source"], "localStorage"),
     notes: getString(record, ["notes", "note"], ""),
@@ -707,10 +458,13 @@ const normalizeWorkoutLog = (
   const timestamp = getTimestamp(
     record.date ?? record.completedAt ?? record.createdAt ?? record.timestamp,
   );
+  if (!Number.isFinite(timestamp)) return null;
   const exerciseItems = coerceArray(record.exercises ?? record.items ?? record.entries);
   const normalizedExercises = exerciseItems
     .map((exercise, exerciseIndex) => normalizeExerciseStat(exercise, exerciseIndex))
     .filter((exercise): exercise is NormalizedExerciseStat => Boolean(exercise));
+  if (normalizedExercises.length !== exerciseItems.length) return null;
+  if (!normalizedExercises.some(exercise => workoutSetCount(exercise.sets) > 0)) return null;
 
   const explicitExercises = exerciseItems
     .map((exercise) => {
@@ -724,15 +478,9 @@ const normalizeWorkoutLog = (
       ? normalizedExercises.map((exercise) => exercise.exerciseName)
       : explicitExercises;
 
-  const totalSets =
-    getNumber(record, ["totalSets", "sets"]) ||
-    normalizedExercises.reduce((total, exercise) => total + exercise.sets, 0);
-  const totalReps =
-    getNumber(record, ["totalReps", "reps"]) ||
-    normalizedExercises.reduce((total, exercise) => total + exercise.reps, 0);
-  const totalVolume =
-    getNumber(record, ["totalVolume", "volume", "weightVolume"]) ||
-    normalizedExercises.reduce((total, exercise) => total + exercise.volume, 0);
+  const totals = statsWorkoutTotals(record, normalizedExercises);
+  if (!totals) return null;
+  const { totalSets, totalReps, totalVolume } = totals;
 
   return {
     id: getString(record, ["id", "workoutLogId"]) || `workout-${timestamp}-${index}`,
@@ -749,41 +497,6 @@ const normalizeWorkoutLog = (
     patterns: [...new Set(normalizedExercises.map((exercise) => exercise.pattern))],
     notes: getString(record, ["notes", "note"], ""),
   };
-};
-
-const getNamedItemLabel = (
-  value: unknown,
-  keys: string[],
-  fallback: string,
-) => {
-  const direct = asRecord(value);
-  if (direct) {
-    const nestedActive =
-      asRecord(direct.current) ||
-      asRecord(direct.active) ||
-      asRecord(direct.selected) ||
-      asRecord(direct.plan) ||
-      asRecord(direct.phase);
-    const directLabel = getString(direct, keys);
-    if (directLabel) return directLabel;
-    const nestedLabel = getString(nestedActive, keys);
-    if (nestedLabel) return nestedLabel;
-  }
-
-  const items = coerceArray(value);
-  const activeItem =
-    items
-      .map((item) => asRecord(item))
-      .find((item) =>
-        Boolean(
-          item &&
-            (item.isActive === true ||
-              item.active === true ||
-              getString(item, ["status"]).toLowerCase() === "active"),
-        ),
-      ) || asRecord(items[0]);
-
-  return getString(activeItem, keys, fallback);
 };
 
 const getLimitationCount = (profile: Record<string, unknown> | null) => {
@@ -804,7 +517,9 @@ const isJourneyValueComplete = (value: unknown) => {
     return (
       normalized.length > 0 &&
       !normalized.includes("not set") &&
-      !normalized.includes("no active")
+      !normalized.includes("no active") &&
+      !normalized.includes("not reported") &&
+      !normalized.startsWith("review ")
     );
   }
   return Boolean(value);
@@ -819,44 +534,32 @@ const getJourneyCompletion = (...items: unknown[]) =>
 const normalizeProfile = (rawProfile: unknown): ProfileSnapshot => {
   const profile = asRecord(rawProfile);
   const appPersonalization = asRecord(profile?.appPersonalization);
-  const sessionsPerWeek = Math.round(
-    cleanNumber(getNumber(profile, ["sessionsPerWeek", "weeklySessions"], 4)) || 4,
-  );
-  const weeklySetGoal =
-    Math.round(cleanNumber(getNumber(profile, ["weeklySetGoal", "weeklyTarget"]))) ||
-    Math.max(24, sessionsPerWeek * 12) ||
-    DEFAULT_WEEKLY_SET_GOAL;
+  const targets = readStatsGoalTargets();
+  const weights = readStatsBodyWeights();
+  const sessionsPerWeek = targets.weeklySessions;
+  const weeklySetGoal = targets.weeklySets;
   const preferredUnitRaw =
     getString(profile, ["preferredWeightUnit", "units", "preferredUnit"]) ||
     getString(appPersonalization, ["units", "preferredUnitSystem"]);
-  const currentPlan = getNamedItemLabel(
-    readFirstValue(PLAN_KEYS),
-    ["name", "title", "planName", "focus", "currentPlan"],
-    "No active plan yet",
-  );
-  const currentPhase = getNamedItemLabel(
-    readFirstValue(PHASE_KEYS),
-    ["name", "title", "phaseName", "focus", "currentPhase"],
-    "No active phase yet",
-  );
+  const context = readStatsPlanContext();
 
   return {
     anatomyBackground: getString(appPersonalization, ["anatomyBackground"], "Dark Grid"),
-    currentPhase,
-    currentPlan,
-    currentWeight: cleanNumber(getNumber(profile, ["currentWeight", "weight"])),
+    currentPhase: context.currentPhase,
+    currentPlan: context.currentPlan,
+    currentWeight: weights.currentWeight ?? 0,
     displayName: getString(profile, ["displayName", "name", "firstName"], "Member"),
     equipment: getStringArray(profile, ["equipment", "availableEquipment"]).slice(0, 6),
-    primaryGoal: getString(profile, ["primaryGoal", "goal"], "Goal not set"),
-    goalMode: getString(profile, ["goalMode", "bodyGoalMode"], "General Health"),
+    primaryGoal: context.primaryGoal,
+    goalMode: getString(profile, ["goalMode", "bodyGoalMode"], "Not set"),
     limitationCount: getLimitationCount(profile),
     memberType: getString(profile, ["memberType", "accountType"], "Active Member"),
-    planDirection: getString(profile, ["preferredSplit", "planDirection", "currentPlanFocus"], "Strength + Mobility"),
+    planDirection: context.planDirection,
     profileImage: getString(profile, ["profileImage", "avatar", "avatarUrl", "photoUrl"]),
     trainingAge: getString(profile, ["trainingAge", "memberType"], "Training age not set"),
     weeklySetGoal,
     sessionsPerWeek,
-    goalWeight: cleanNumber(getNumber(profile, ["goalWeight", "targetWeight"])),
+    goalWeight: weights.goalWeight ?? 0,
     preferredUnit: preferredUnitRaw.toLowerCase().includes("kg") ? "kg" : "lb",
   };
 };
@@ -871,20 +574,26 @@ const normalizeFavorites = (items: unknown[]) =>
     .filter(Boolean);
 
 function getStatsFromLocalStorage(): AppStatsSnapshot {
-  const exerciseStats = readFirstArray(EXERCISE_STAT_KEYS)
+  const savedWorkouts = readStatsWorkoutLogs();
+  const savedExercises = mergeStatsExerciseEntries(readFirstArray(EXERCISE_STAT_KEYS), savedWorkouts);
+  const exerciseStats = savedExercises
     .map((item, index) => normalizeExerciseStat(item, index))
     .filter((item): item is NormalizedExerciseStat => Boolean(item))
     .sort((a, b) => b.timestamp - a.timestamp);
 
-  const workoutLogs = readFirstArray(WORKOUT_LOG_KEYS)
+  const workoutLogs = statsCompletedSessions(savedWorkouts
     .map((item, index) => normalizeWorkoutLog(item, index))
     .filter((item): item is NormalizedWorkoutLog => Boolean(item))
-    .sort((a, b) => b.timestamp - a.timestamp);
+    .sort((a, b) => b.timestamp - a.timestamp));
 
   const profile = normalizeProfile(readLocalValue("soundFitnessProfile"));
   const favorites = normalizeFavorites(readFirstArray(FAVORITE_KEYS));
 
   return {
+    excludedEntries: savedExercises.length - exerciseStats.length + savedWorkouts.length - workoutLogs.length,
+    reportedAt: Date.now(),
+    foundations: readStatsJourneyFoundations(),
+    recovery: readStatsRecoveryReports(),
     profile,
     favorites,
     exerciseStats,
@@ -901,14 +610,15 @@ function getStatsFromLocalStorage(): AppStatsSnapshot {
 function getWeeklyStats(
   entries: NormalizedExerciseStat[],
   profile?: ProfileSnapshot,
+  workoutLogs: NormalizedWorkoutLog[] = [],
 ): WeeklyStats {
-  const { start, end } = getTrailingWeekBounds();
-  const weekEntries = entries.filter((entry) => entry.timestamp >= start.getTime());
-  const weeklyGoal = profile?.weeklySetGoal || DEFAULT_WEEKLY_SET_GOAL;
+  const { start, end } = getWeekBounds();
+  const through = Math.min(end.getTime(), Date.now());
+  const weekEntries = entries.filter((entry) => entry.timestamp >= start.getTime() && entry.timestamp <= through);
+  const weeklyGoal = profile?.weeklySetGoal ?? null;
   const uniqueExerciseIds = new Set(weekEntries.map((entry) => entry.exerciseId));
-  const uniqueTrainingDays = new Set(
-    weekEntries.map((entry) => new Date(entry.timestamp).toDateString()),
-  );
+  const completed = statsCompletedSessions(workoutLogs);
+  const weeklyCompleted = completed.filter(log => log.timestamp >= start.getTime() && log.timestamp <= through);
   const sets = weekEntries.reduce((total, entry) => total + entry.sets, 0);
 
   return {
@@ -920,10 +630,10 @@ function getWeeklyStats(
     reps: weekEntries.reduce((total, entry) => total + entry.reps * entry.sets, 0),
     volume: weekEntries.reduce((total, entry) => total + entry.volume, 0),
     exercisesTrained: uniqueExerciseIds.size,
-    sessionsCompleted: uniqueTrainingDays.size,
+    sessionsCompleted: weeklyCompleted.length,
     weeklyGoal,
-    completionPercent: Math.min((sets / Math.max(weeklyGoal, 1)) * 100, 140),
-    currentStreak: getCurrentStreak(entries),
+    completionPercent: weeklyGoal === null ? 0 : (sets / weeklyGoal) * 100,
+    currentStreak: statsCurrentStreak(completed.map(log => log.timestamp)),
   };
 }
 
@@ -940,23 +650,13 @@ function getLifetimeStats(
       }))
       .sort((a, b) => b.sets - a.sets)[0]?.exerciseName || "Not logged yet";
 
-  const mostImprovedExercise =
-    Object.entries(byExercise)
-      .map(([exerciseName, exerciseEntries]) => {
-        const sorted = [...exerciseEntries].sort((a, b) => b.timestamp - a.timestamp);
-        const latest = sorted[0]?.volume || 0;
-        const previous = sorted[1]?.volume || 0;
-        return { exerciseName, improvement: latest - previous };
-      })
-      .sort((a, b) => b.improvement - a.improvement)[0]?.exerciseName ||
-    "Not enough data yet";
+  const mostImprovedExercise = WORKOUT_LOAD_UNIT_UNKNOWN;
 
   return {
     sets: entries.reduce((total, entry) => total + entry.sets, 0),
     reps: entries.reduce((total, entry) => total + entry.reps * entry.sets, 0),
     volume: entries.reduce((total, entry) => total + entry.volume, 0),
-    sessionsCompleted:
-      workoutLogs.length || new Set(entries.map((entry) => startOfLocalDay(new Date(entry.timestamp)))).size,
+    sessionsCompleted: workoutLogs.length,
     exercisesTracked: new Set(entries.map((entry) => entry.exerciseId)).size,
     mostTrainedExercise,
     mostImprovedExercise,
@@ -964,107 +664,83 @@ function getLifetimeStats(
 }
 
 function getBodyPartStats(entries: NormalizedExerciseStat[]): BodyPartStat[] {
-  const { start } = getTrailingWeekBounds();
+  const { start, end } = getWeekBounds();
+  const through = Math.min(end.getTime(), Date.now());
 
-  return BODY_REGION_ORDER.map((label) => {
+  const labels = [...new Set([...BODY_REGION_ORDER, ...entries.map(entry => entry.bodyPart)])];
+  return statsSetDistribution(labels.map((label) => {
     const relatedEntries = entries.filter((entry) => entry.bodyPart === label);
     const weeklyEntries = relatedEntries.filter(
-      (entry) => entry.timestamp >= start.getTime(),
+      (entry) => entry.timestamp >= start.getTime() && entry.timestamp <= through,
     );
     const weeklySets = weeklyEntries.reduce((total, entry) => total + entry.sets, 0);
-    const weeklyGoal = BODY_REGION_GOALS[label] || 12;
-    const percent = Math.min((weeklySets / Math.max(weeklyGoal, 1)) * 100, 140);
     const latest = relatedEntries[0] || null;
-    const latestDay = latest
-      ? relatedEntries.filter(
-          (entry) => startOfLocalDay(new Date(entry.timestamp)) === startOfLocalDay(new Date(latest.timestamp)),
-        )
-      : [];
-    const recentSessionSets = latestDay.reduce((total, entry) => total + entry.sets, 0);
-    const initialCooldown = Math.min(recentSessionSets / weeklyGoal / 0.5, 1) * 48;
-    const elapsedHours = latest ? (Date.now() - latest.timestamp) / (60 * 60 * 1000) : 48;
-    const cooldownHours = Math.max(0, initialCooldown - elapsedHours);
-    const zone = getMomentumZone(percent);
 
     return {
       label,
       weeklySets,
-      weeklyGoal,
       weeklyReps: weeklyEntries.reduce((total, entry) => total + entry.reps * entry.sets, 0),
       weeklyVolume: weeklyEntries.reduce((total, entry) => total + entry.volume, 0),
       lifetimeSets: relatedEntries.reduce((total, entry) => total + entry.sets, 0),
       lifetimeVolume: relatedEntries.reduce((total, entry) => total + entry.volume, 0),
-      percent,
-      zone,
       lastTrained: latest ? formatShortDate(latest.timestamp) : "Not logged yet",
       lastTimestamp: latest?.timestamp || null,
-      cooldownHours,
-      status:
-        weeklySets >= weeklyGoal
-          ? "Recovery"
-          : percent >= 46
-            ? "Productive"
-            : "Needs stimulus",
+      status: weeklySets > 0 ? "Sets recorded this week" : "No sets recorded this week",
     };
-  });
+  }));
 }
 
 function getMovementPatternStats(entries: NormalizedExerciseStat[]): PatternStat[] {
-  const { start } = getTrailingWeekBounds();
+  const { start, end } = getWeekBounds();
+  const through = Math.min(end.getTime(), Date.now());
   const byPattern = groupBy(entries, (entry) => entry.pattern || "Movement");
 
-  return Object.entries(byPattern)
+  return statsSetDistribution(Object.entries(byPattern)
     .map(([label, patternEntries]) => {
       const weeklyEntries = patternEntries.filter(
-        (entry) => entry.timestamp >= start.getTime(),
+        (entry) => entry.timestamp >= start.getTime() && entry.timestamp <= through,
       );
       const weeklySets = weeklyEntries.reduce((total, entry) => total + entry.sets, 0);
-      const weeklyGoal = Math.max(DEFAULT_PATTERN_GOAL, Math.round(patternEntries.length / 2) * 4);
 
       return {
         label,
         weeklySets,
-        weeklyGoal,
         lifetimeSets: patternEntries.reduce((total, entry) => total + entry.sets, 0),
         volume: patternEntries.reduce((total, entry) => total + entry.volume, 0),
-        percent: Math.min((weeklySets / Math.max(weeklyGoal, 1)) * 100, 140),
       };
     })
-    .sort((a, b) => b.weeklySets - a.weeklySets);
+    .sort((a, b) => b.weeklySets - a.weeklySets));
 }
 
 function getPRStats(
   entries: NormalizedExerciseStat[],
-  workoutLogs: NormalizedWorkoutLog[] = [],
+  displayUnit: "lb" | "kg",
 ): { cards: PRCard[]; opportunities: string[]; strengthCards: StrengthCard[] } {
-  const heaviest = maxBy(entries, (entry) => entry.weight);
-  const mostReps = maxBy(entries, (entry) => entry.reps);
-  const highestE1rm = maxBy(entries, (entry) => getEstimatedOneRepMax(entry));
-  const bestSession = maxBy(workoutLogs, (log) => log.totalVolume);
+  const mostReps = bestPositiveStatsMetric(entries, (entry) => entry.reps);
   const mostSetsWeek = getMostSetsInAnyWeek(entries);
-  const plank = maxBy(
+  const plank = bestPositiveStatsMetric(
     entries.filter((entry) => entry.exerciseName.toLowerCase().includes("plank")),
     (entry) => entry.reps,
   );
-  const pullUp = maxBy(
+  const pullUp = bestPositiveStatsMetric(
     entries.filter((entry) =>
       includesAny(entry.exerciseName.toLowerCase(), ["pull-up", "pull up", "chin-up", "chin up"]),
     ),
     (entry) => entry.reps,
   );
-  const mobility = maxBy(
+  const mobility = bestPositiveStatsMetric(
     entries.filter((entry) =>
       includesAny(entry.exerciseName.toLowerCase(), ["depth", "mobility", "sissy"]),
     ),
-    (entry) => Math.max(entry.reps, entry.weight),
+    (entry) => entry.reps,
   );
 
   const cards: PRCard[] = [
     createPRCard(
       "Heaviest Set",
-      heaviest,
-      heaviest ? formatLoad(heaviest.weight, "lb") : "Not logged yet",
-      "Add a clean top set before loading more.",
+      null,
+      WORKOUT_LOAD_UNIT_UNKNOWN,
+      "A comparable load record requires recorded workout units.",
     ),
     createPRCard(
       "Most Reps",
@@ -1074,31 +750,33 @@ function getPRStats(
     ),
     createPRCard(
       "Highest Estimated 1RM",
-      highestE1rm,
-      highestE1rm ? formatLoad(getEstimatedOneRepMax(highestE1rm), "lb") : "Not logged yet",
-      "Use recent rep strength as a cautious projection.",
+      null,
+      WORKOUT_LOAD_UNIT_UNKNOWN,
+      "Estimated 1RM is unavailable without recorded load units.",
     ),
     {
       label: "Most Volume In A Session",
-      exercise: bestSession?.name || "Not logged yet",
-      value: bestSession ? `${bestSession.totalVolume.toLocaleString()} lb` : "Not logged yet",
-      date: bestSession ? formatShortDate(bestSession.timestamp) : "Not logged yet",
-      pattern: bestSession?.patterns[0] || "Session",
-      suggestion: "Repeat the structure with cleaner execution before adding volume.",
+      recorded: false,
+      exercise: WORKOUT_LOAD_UNIT_UNKNOWN,
+      value: WORKOUT_VOLUME_UNIT_UNKNOWN,
+      date: "Unavailable",
+      pattern: "Session",
+      suggestion: "Load-volume comparisons require recorded workout units.",
     },
     {
       label: "Most Sets In A Week",
+      recorded: mostSetsWeek > 0,
       exercise: "Weekly consistency",
-      value: `${mostSetsWeek.toLocaleString()} sets`,
-      date: "Best 7-day block",
+      value: mostSetsWeek > 0 ? `${mostSetsWeek.toLocaleString()} sets` : "Not logged yet",
+      date: mostSetsWeek > 0 ? "Best calendar week" : "Not logged yet",
       pattern: "Volume",
       suggestion: "A small bump above this can become the next milestone.",
     },
     createPRCard(
-      "Longest Plank",
+      "Most Plank Reps",
       plank,
-      plank ? `${plank.reps} sec` : "Not logged yet",
-      "Add time slowly or progress anti-extension difficulty.",
+      plank ? `${plank.reps} reps` : "Not logged yet",
+      "Based on recorded reps; hold duration is not recorded here.",
     ),
     createPRCard(
       "Max Pull-Ups",
@@ -1107,46 +785,21 @@ function getPRStats(
       "Rows and pulldowns can support the next rep milestone.",
     ),
     createPRCard(
-      "Best Depth / Mobility Score",
+      "Most Mobility Reps",
       mobility,
-      mobility ? `${Math.max(mobility.reps, mobility.weight)}` : "Not logged yet",
+      mobility ? `${mobility.reps} reps` : "Not logged yet",
       "Pair mobility exposure with controlled strength through range.",
     ),
   ];
 
-  const strengthCards = STRENGTH_TARGETS.map((target) => {
-    const matches = entries.filter((entry) => {
-      const exerciseName = entry.exerciseName.toLowerCase();
-      const pattern = entry.pattern.toLowerCase();
-      return target.names.some((name) => exerciseName.includes(name)) || pattern.includes(target.pattern.toLowerCase());
-    });
-    const best = maxBy(matches, (entry) =>
-      target.label.includes("Pull-Up") || target.label.includes("Depth")
-        ? entry.reps
-        : Math.max(entry.weight, getEstimatedOneRepMax(entry)),
-    );
-    const bestValue = best
-      ? target.label.includes("Pull-Up") || target.label.includes("Depth")
-        ? best.reps
-        : Math.max(best.weight, getEstimatedOneRepMax(best))
-      : 0;
-
-    return {
-      label: target.label,
-      currentBest: best
-        ? target.label.includes("Pull-Up") || target.label.includes("Depth")
-          ? `${bestValue.toLocaleString()} reps`
-          : formatLoad(bestValue, "lb")
-        : "Not logged yet",
-      goal:
-        target.label.includes("Pull-Up") || target.label.includes("Depth")
-          ? `${target.goal} reps`
-          : `${target.goal} lb`,
-      progressPercent: Math.min((bestValue / target.goal) * 100, 120),
-      lastLogged: best ? formatShortDate(best.timestamp) : "Not logged yet",
-      recommendedFocus: target.focus,
-    };
-  });
+  const strengthCards = statsExerciseRecords(entries).map(record => ({
+    id: JSON.stringify([record.exerciseId, record.exerciseName]),
+    label: record.exerciseName,
+    currentBest: record.load ? formatRecordedWorkoutLoad(record.load as unknown as Record<string, unknown>, displayUnit) : WORKOUT_LOAD_UNIT_UNKNOWN,
+    loadDate: record.load ? formatShortDate(record.load.timestamp) : "Unavailable",
+    bestReps: record.reps ? record.reps.reps.toLocaleString() + " reps" : "Reps not recorded",
+    repsDate: record.reps ? formatShortDate(record.reps.timestamp) : "Not logged yet",
+  }));
 
   return {
     cards,
@@ -1155,39 +808,15 @@ function getPRStats(
   };
 }
 
-function getRecoveryStats(bodyPartStats: BodyPartStat[]): RecoveryStats {
-  const runningHot = bodyPartStats.filter(
-    (stat) => stat.weeklySets >= stat.weeklyGoal || stat.zone === "Hot" || stat.zone === "Too Hot",
-  );
-  const readyToTrain = bodyPartStats.filter(
-    (stat) => stat.weeklySets < stat.weeklyGoal * 0.46 && stat.cooldownHours <= 1,
-  );
-  const cooldowns = bodyPartStats.filter((stat) => stat.cooldownHours > 0);
-  const recommendations = [
-    runningHot[0]
-      ? `${runningHot[0].label} is running hot. Use mobility, technique work, or train an alternate area today.`
-      : "No body area is above target yet. You can build volume intelligently.",
-    readyToTrain[0]
-      ? `${readyToTrain[0].label} looks ready for useful training stimulus.`
-      : "Most tracked areas have recent work. Keep the next session balanced.",
-    "Keep hard sets gradual when soreness, stress, or sleep quality are working against you.",
-  ];
-
-  return { runningHot, readyToTrain, cooldowns, recommendations };
-}
-
 function getTrendStats(
   entries: NormalizedExerciseStat[],
   workoutLogs: NormalizedWorkoutLog[] = [],
   profile?: ProfileSnapshot,
 ): TrendStats {
   const weeks = Array.from({ length: 8 }, (_, index) => {
-    const end = new Date();
-    end.setDate(end.getDate() - (7 * (7 - index)));
-    const start = new Date(end);
-    start.setDate(end.getDate() - 6);
-    start.setHours(0, 0, 0, 0);
-    end.setHours(23, 59, 59, 999);
+    const anchor = new Date();
+    anchor.setDate(anchor.getDate() - (7 * (7 - index)));
+    const { start, end } = getWeekBounds(anchor);
     const weekEntries = entries.filter(
       (entry) => entry.timestamp >= start.getTime() && entry.timestamp <= end.getTime(),
     );
@@ -1199,9 +828,7 @@ function getTrendStats(
       label: formatShortDate(start.getTime()),
       sets: weekEntries.reduce((total, entry) => total + entry.sets, 0),
       volume: weekEntries.reduce((total, entry) => total + entry.volume, 0),
-      sessions:
-        weekLogs.length ||
-        new Set(weekEntries.map((entry) => startOfLocalDay(new Date(entry.timestamp)))).size,
+      sessions: weekLogs.length,
       bestE1rm: maxBy(weekEntries, (entry) => getEstimatedOneRepMax(entry))
         ? getEstimatedOneRepMax(maxBy(weekEntries, (entry) => getEstimatedOneRepMax(entry)) as NormalizedExerciseStat)
         : 0,
@@ -1224,29 +851,7 @@ function getTrendStats(
   };
 }
 
-const getCurrentStreak = (entries: NormalizedExerciseStat[]) => {
-  if (entries.length === 0) return 0;
-
-  const trainedDays = new Set(entries.map((entry) => startOfLocalDay(new Date(entry.timestamp))));
-  const today = startOfLocalDay(new Date());
-  let cursor = trainedDays.has(today) ? today : today - MS_PER_DAY;
-  let streak = 0;
-
-  while (trainedDays.has(cursor)) {
-    streak += 1;
-    cursor -= MS_PER_DAY;
-  }
-
-  return streak;
-};
-
-const getMomentumZone = (percent: number): MomentumZone => {
-  if (percent <= 20) return "Ice Cold";
-  if (percent <= 45) return "Building";
-  if (percent <= 75) return "Productive Heat";
-  if (percent <= 90) return "Hot";
-  return "Too Hot";
-};
+const getMomentumZone = statsTargetStatus;
 
 const getEstimatedOneRepMax = (entry: NormalizedExerciseStat) =>
   entry.weight > 0 && entry.reps > 0 ? entry.weight * (1 + entry.reps / 30) : 0;
@@ -1270,6 +875,7 @@ const createPRCard = (
   value: string,
   suggestion: string,
 ): PRCard => ({
+  recorded: Boolean(entry),
   label,
   exercise: entry?.exerciseName || "Not logged yet",
   value,
@@ -1281,9 +887,7 @@ const createPRCard = (
 const getMostSetsInAnyWeek = (entries: NormalizedExerciseStat[]) => {
   const byWeek = entries.reduce<Record<string, number>>((weeks, entry) => {
     const date = new Date(entry.timestamp);
-    const weekStart = new Date(date);
-    weekStart.setDate(date.getDate() - date.getDay());
-    const key = weekStart.toISOString().slice(0, 10);
+    const key = localDate(getWeekBounds(date).start);
     weeks[key] = (weeks[key] || 0) + entry.sets;
     return weeks;
   }, {});
@@ -1296,62 +900,23 @@ const getPROpportunities = (cards: PRCard[], entries: NormalizedExerciseStat[]) 
     return ["Log two or three sessions to reveal your first PR opportunities."];
   }
 
-  const closeCard = cards.find((card) => card.value !== "Not logged yet");
-  const recentImprover = Object.entries(groupBy(entries, (entry) => entry.exerciseName))
-    .map(([exerciseName, exerciseEntries]) => {
-      const sorted = [...exerciseEntries].sort((a, b) => b.timestamp - a.timestamp);
-      return {
-        exerciseName,
-        change: (sorted[0]?.volume || 0) - (sorted[1]?.volume || 0),
-      };
-    })
-    .sort((a, b) => b.change - a.change)[0];
+  const closeCard = cards.find((card) => card.recorded);
+
 
   return [
     closeCard
-      ? `${closeCard.exercise} has a visible benchmark. Try to beat it by a small rep, load, or quality improvement.`
+      ? `${closeCard.exercise} has a visible benchmark. Try to beat it by a small rep or quality improvement.`
       : "Your next logged best set will become the first benchmark.",
-    recentImprover?.change > 0
-      ? `${recentImprover.exerciseName} is trending up. Keep the next progression modest and repeatable.`
-      : "Add repeat logs for the same movement to detect your next realistic PR window.",
+    "Load-volume comparisons are unavailable until workout load units are recorded.",
   ];
-};
-
-const buildHistorySessions = (
-  entries: NormalizedExerciseStat[],
-  workoutLogs: NormalizedWorkoutLog[],
-) => {
-  if (workoutLogs.length > 0) return workoutLogs;
-
-  const groupedByDay = groupBy(entries, (entry) =>
-    new Date(entry.timestamp).toISOString().slice(0, 10),
-  );
-
-  return Object.entries(groupedByDay)
-    .map(([day, dayEntries], index) => ({
-      id: `session-${day}-${index}`,
-      name: `Training Session - ${formatShortDate(new Date(day).getTime())}`,
-      date: new Date(day).toISOString(),
-      timestamp: new Date(day).getTime(),
-      exercises: [...new Set(dayEntries.map((entry) => entry.exerciseName))],
-      totalSets: dayEntries.reduce((total, entry) => total + entry.sets, 0),
-      totalReps: dayEntries.reduce((total, entry) => total + entry.reps * entry.sets, 0),
-      totalVolume: dayEntries.reduce((total, entry) => total + entry.volume, 0),
-      bodyParts: [...new Set(dayEntries.map((entry) => entry.bodyPart))],
-      patterns: [...new Set(dayEntries.map((entry) => entry.pattern))],
-      notes: "",
-    }))
-    .sort((a, b) => b.timestamp - a.timestamp);
 };
 
 const filterHistorySessions = (
   sessions: NormalizedWorkoutLog[],
   filter: HistoryFilter,
 ) => {
-  const now = Date.now();
-  if (filter === "Lifetime") return sessions;
-  const days = filter === "This week" ? TRAILING_DAYS : 30;
-  return sessions.filter((session) => session.timestamp >= now - days * MS_PER_DAY);
+  const now = new Date();
+  return sessions.filter((session) => statsHistoryIncludes(session.timestamp, filter, now));
 };
 
 const getBalanceStat = (
@@ -1382,13 +947,12 @@ const getCoachInsights = ({
 }) => {
   if (lifetime.sets === 0) {
     return [
-      "Your total logged volume is empty. Start with compound movements so the app can build a real training signal.",
-      "Log sets, reps, and load to unlock recovery, PR, and body-map intelligence.",
+      "No recorded workload is available yet. Log the exercises you complete to build your training history.",
+      "Log sets, reps, and load to build performance history. Add pain, soreness and sleep reports in Profile.",
     ];
   }
 
-  const hot = bodyPartStats.find((stat) => stat.weeklySets >= stat.weeklyGoal);
-  const cold = [...bodyPartStats].sort((a, b) => a.percent - b.percent)[0];
+  const cold = bodyPartStats.filter(stat => stat.lifetimeSets > 0).sort((a, b) => a.weeklySets - b.weeklySets)[0];
   const push = patternStats
     .filter((stat) => includesAny(stat.label.toLowerCase(), ["press", "push"]))
     .reduce((total, stat) => total + stat.weeklySets, 0);
@@ -1397,26 +961,22 @@ const getCoachInsights = ({
     .reduce((total, stat) => total + stat.weeklySets, 0);
 
   return [
-    hot
-      ? `${hot.label} is over weekly target. Consider recovery work or an alternate ready area today.`
-      : weekly.completionPercent < 40
-        ? "Your total weekly volume is low. Start with a few compound movements before chasing accessories."
-        : "Your weekly volume is building. Keep hard sets repeatable and let the next session fill obvious gaps.",
-    pull + 3 < push
-      ? "Pulling volume is lower than pressing. Add rows or pulldowns to balance the week."
-      : "Push and pull work look reasonably balanced from the current logs.",
+    weekly.weeklyGoal === null
+        ? "Save a weekly set target in Goals to compare it with your logged work."
+        : weekly.completionPercent < 40
+        ? `${weekly.sets} recorded sets are below 40% of your saved weekly target.`
+        : `${weekly.sets} recorded sets are ${Math.round(weekly.completionPercent)}% of your saved weekly target.`,
+    `${push} pressing/pushing sets and ${pull} pulling/rowing sets are recorded this week. Counts describe logged work; they do not determine the right balance for your plan.`,
     cold
-      ? `${cold.label} is the lowest-volume area right now. It is a useful candidate for your next focused block.`
-      : "Add more logs to identify undertrained body parts.",
+      ? `${cold.label} has ${cold.weeklySets} recorded sets this week. Review your plan and Profile reports before choosing more work.`
+      : "Add body-region information to your logs to compare recorded work.",
   ];
 };
 
 const getHeroCoachInsight = ({
   weekly,
-  bodyPartStats,
   patternStats,
   lifetime,
-  profile,
 }: {
   weekly: WeeklyStats;
   bodyPartStats: BodyPartStat[];
@@ -1428,13 +988,6 @@ const getHeroCoachInsight = ({
     return "Start logging workouts to unlock your training intelligence.";
   }
 
-  const hot = bodyPartStats.find(
-    (stat) => stat.weeklySets >= stat.weeklyGoal || stat.zone === "Too Hot",
-  );
-  if (hot) {
-    return "Recovery signal detected. Train an alternate region today.";
-  }
-
   const push = patternStats
     .filter((stat) => includesAny(stat.label.toLowerCase(), ["press", "push"]))
     .reduce((total, stat) => total + stat.weeklySets, 0);
@@ -1442,19 +995,7 @@ const getHeroCoachInsight = ({
     .filter((stat) => includesAny(stat.label.toLowerCase(), ["row", "pull"]))
     .reduce((total, stat) => total + stat.weeklySets, 0);
 
-  if (pull + 3 < push) {
-    return "Add pulling work to balance pressing.";
-  }
-
-  if (weekly.completionPercent < 40) {
-    return "Build the base this week with compound lifts.";
-  }
-
-  if (profile.goalMode.toLowerCase().includes("cut")) {
-    return "Keep strength work focused and recovery-aware while cutting.";
-  }
-
-  return "Your weekly momentum is building. Keep the next session clean, balanced, and repeatable.";
+  return `${weekly.sets} sets recorded this week: ${push} pressing/pushing and ${pull} pulling/rowing.${weekly.weeklyGoal === null ? " Save a weekly target in Goals to track progress." : ` ${Math.round(weekly.completionPercent)}% of your saved weekly target.`}`;
 };
 
 function MetricCard({
@@ -1497,12 +1038,14 @@ function ProgressBar({
   value,
   max,
   helper,
+  valueLabel,
   accent = "cyan",
 }: {
   label: string;
   value: number;
   max: number;
   helper?: string;
+  valueLabel?: string;
   accent?: Accent;
 }) {
   const percent = Math.min((value / Math.max(max, 1)) * 100, 120);
@@ -1515,7 +1058,7 @@ function ProgressBar({
           {label}
         </p>
         <p className={`shrink-0 text-xs font-black ${classes.text}`}>
-          {Math.round(value).toLocaleString()} / {Math.round(max).toLocaleString()}
+          {valueLabel ?? `${Math.round(value).toLocaleString()} / ${Math.round(max).toLocaleString()}`}
         </p>
       </div>
       <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.08]">
@@ -1630,12 +1173,11 @@ function TabButton({
 
 function BodyRegionCard({
   stat,
-  unit,
 }: {
   stat: BodyPartStat;
   unit: "lb" | "kg";
 }) {
-  const zone = ZONE_STYLES[stat.zone];
+  const zone = ZONE_STYLES["Below target"];
 
   return (
     <article className={`rounded-[26px] border ${zone.border} ${zone.bg} p-4`}>
@@ -1643,23 +1185,25 @@ function BodyRegionCard({
         <div className="min-w-0">
           <h3 className="truncate text-lg font-black text-white">{stat.label}</h3>
           <p className={`mt-1 text-xs font-black uppercase tracking-[0.14em] ${zone.text}`}>
-            {stat.zone}
+            {stat.weeklySets} sets this week
           </p>
         </div>
-        <MomentumRing percent={stat.percent} label={stat.label} zone={stat.zone} size="sm" />
+
       </div>
       <div className="mt-4 space-y-2">
         <ProgressBar
-          label="Weekly Sets"
-          value={stat.weeklySets}
-          max={stat.weeklyGoal}
-          accent={stat.zone === "Too Hot" ? "rose" : "cyan"}
+          label="Share of recorded region sets"
+          value={stat.sharePercent}
+          valueLabel={stat.sharePercent.toFixed(1) + "%"}
+          max={100}
+          helper={stat.sharePercent.toFixed(1) + "% of this week's recorded region sets"}
+          accent="cyan"
         />
         <div className="grid grid-cols-2 gap-2 text-xs">
           <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
             <p className="text-slate-500">Weight Volume</p>
             <p className="mt-1 font-black text-white">
-              {formatWeightVolume(stat.weeklyVolume, unit)}
+              {WORKOUT_VOLUME_UNIT_UNKNOWN}
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
@@ -1668,42 +1212,23 @@ function BodyRegionCard({
           </div>
         </div>
         <p className="text-xs text-slate-400">
-          {stat.cooldownHours > 1
-            ? `Cooldown: ${Math.ceil(stat.cooldownHours)}h remaining`
-            : stat.status}
+          {stat.status}
         </p>
       </div>
     </article>
   );
 }
 
-function StrengthProgressCard({
-  card,
-}: {
-  card: StrengthCard;
-}) {
+function StrengthProgressCard({ card }: { card: StrengthCard }) {
   return (
     <article className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate text-lg font-black text-white">{card.label}</h3>
-          <p className="mt-1 text-xs text-slate-500">Goal: {card.goal}</p>
-        </div>
-        <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-amber-200">
-          {Math.round(card.progressPercent)}%
-        </span>
-      </div>
-      <p className="mt-4 text-2xl font-black text-cyan-100">{card.currentBest}</p>
-      <p className="mt-1 text-xs text-slate-500">Last logged: {card.lastLogged}</p>
-      <div className="mt-4">
-        <ProgressBar
-          label="Progress"
-          value={Math.min(card.progressPercent, 100)}
-          max={100}
-          accent="amber"
-          helper={card.recommendedFocus}
-        />
-      </div>
+      <h3 className="text-lg font-black text-white">{card.label}</h3>
+      <p className="mt-4 text-xs text-slate-400">Highest recorded load</p>
+      <p className="mt-1 text-2xl font-black text-cyan-100">{card.currentBest}</p>
+      <p className="mt-1 text-xs text-slate-500">Logged: {card.loadDate}</p>
+      <p className="mt-4 text-xs text-slate-400">Most recorded reps in a set</p>
+      <p className="mt-1 text-xl font-black text-amber-100">{card.bestReps}</p>
+      <p className="mt-1 text-xs text-slate-500">Logged: {card.repsDate}</p>
     </article>
   );
 }
@@ -1726,7 +1251,6 @@ function PRStatCard({ card }: { card: PRCard }) {
 
 function HistoryCard({
   session,
-  unit,
 }: {
   session: NormalizedWorkoutLog;
   unit: "lb" | "kg";
@@ -1746,7 +1270,7 @@ function HistoryCard({
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-3">
         <MetricMini label="Total Reps" value={session.totalReps.toLocaleString()} />
-        <MetricMini label="Volume" value={formatWeightVolume(session.totalVolume, unit)} />
+        <MetricMini label="Volume" value={WORKOUT_VOLUME_UNIT_UNKNOWN} />
         <MetricMini label="Exercises" value={session.exercises.length.toLocaleString()} />
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
@@ -1949,16 +1473,12 @@ function StatsProfileHero({
   coachInsight: string;
   unit: "lb" | "kg";
 }) {
-  const readinessZone = getMomentumZone(weekly.completionPercent);
+  const readinessZone = weekly.weeklyGoal === null ? "No sets" : getMomentumZone(weekly.completionPercent);
   const readinessStyle = ZONE_STYLES[readinessZone];
-  const mostTrainedBodyPart =
-    [...bodyPartStats].sort((a, b) => b.lifetimeSets - a.lifetimeSets)[0]?.label ||
-    "Not enough data";
+  const mostTrainedBodyPart = mostTrainedStatsRegion(bodyPartStats);
   const recentWorkout = historySessions[0];
-  const hotZones = bodyPartStats.filter(
-    (stat) => stat.zone === "Hot" || stat.zone === "Too Hot",
-  ).length;
-  const prCount = prCards.filter((card) => card.value !== "Not logged yet").length;
+  const recordedRegions = bodyPartStats.filter(stat => stat.weeklySets > 0 && stat.label !== "Unclassified").length;
+  const prCount = prCards.filter((card) => card.recorded).length;
   const trendWeeks = trends.weeklyVolumeTrend.filter((week) => week.sets > 0).length;
   const bodyGoal =
     profile.currentWeight && profile.goalWeight
@@ -1968,11 +1488,11 @@ function StatsProfileHero({
 
   const navMetrics: Record<StatsTabId, string> = {
     overview: "Weekly snapshot",
-    volume: `${formatWeightVolume(weekly.volume, unit)} volume`,
+    volume: WORKOUT_VOLUME_UNIT_UNKNOWN,
     strength: `${prCount} PRs`,
-    "body-map": `${hotZones} hot zones`,
+    "body-map": `${recordedRegions} regions logged`,
     prs: `${prCount} records`,
-    recovery: `${recovery.runningHot.length} caution`,
+    recovery: `${recovery.reportedCount}/3 reported`,
     trends: `${trendWeeks} active weeks`,
     history: `${historySessions.length} logs`,
   };
@@ -2031,15 +1551,15 @@ function StatsProfileHero({
 
         <div className="rounded-[28px] border border-white/10 bg-slate-950/58 p-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-            <MomentumRing
+            {weekly.weeklyGoal === null ? <div className="grid h-32 w-32 shrink-0 place-items-center rounded-full border border-white/10 p-4 text-center text-sm text-slate-300"><Link href={ROUTES.dashboard.goals} className="text-cyan-200 underline">Set weekly target</Link></div> : <MomentumRing
               percent={weekly.completionPercent}
-              label="Readiness"
+              label="Set target progress"
               zone={readinessZone}
               size="lg"
-            />
+            />}
             <div className="min-w-0">
               <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${readinessStyle.text}`}>
-                {readinessZone}
+                {weekly.weeklyGoal === null ? "Target not set" : readinessZone}
               </p>
               <h2 className="mt-2 text-2xl font-black text-white">
                 Training state
@@ -2048,7 +1568,7 @@ function StatsProfileHero({
                 {coachInsight}
               </p>
               <p className="mt-2 text-xs text-slate-500">
-                {weekly.dateRangeLabel} - {weekly.sets} / {weekly.weeklyGoal} sets
+                {weekly.dateRangeLabel} - {weekly.sets} sets{weekly.weeklyGoal === null ? " · Target not set" : ` / ${weekly.weeklyGoal} target`}
               </p>
             </div>
           </div>
@@ -2056,24 +1576,24 @@ function StatsProfileHero({
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <HeroMetricCard
               label="Weekly Sets"
-              value={`${weekly.sets} / ${weekly.weeklyGoal}`}
-              helper={`${Math.round(weekly.completionPercent)}% complete`}
+              value={weekly.weeklyGoal === null ? String(weekly.sets) : `${weekly.sets} / ${weekly.weeklyGoal}`}
+              helper={weekly.weeklyGoal === null ? "Set a weekly target in Goals" : `${Math.round(weekly.completionPercent)}% of saved target`}
               accent="cyan"
             />
             <HeroMetricCard
               label="Weekly Volume"
-              value={formatWeightVolume(weekly.volume, unit)}
+              value={WORKOUT_VOLUME_UNIT_UNKNOWN}
               helper={`${weekly.exercisesTrained} exercises trained`}
               accent="amber"
             />
             <HeroMetricCard
               label="Lifetime Volume"
-              value={formatWeightVolume(lifetime.volume, unit)}
+              value={WORKOUT_VOLUME_UNIT_UNKNOWN}
               helper={`${lifetime.sets.toLocaleString()} lifetime sets`}
               accent="emerald"
             />
             <HeroMetricCard
-              label="Streak"
+              label="Workout Streak"
               value={`${weekly.currentStreak} day${weekly.currentStreak === 1 ? "" : "s"}`}
               helper={recentWorkout?.name || "No recent workout"}
               accent="blue"
@@ -2178,28 +1698,39 @@ function HeroRoutePill({ href, label }: { href: string; label: string }) {
 }
 
 export default function StatsPage() {
+  useSyncExternalStore(subscribePlanning, planningSnapshot, planningSnapshot);
+  const historyRecovery = captureWorkoutHistoryRecovery();
   const [activeTab, setActiveTab] = useState<StatsTabId>("overview");
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>("This week");
   const [snapshot, setSnapshot] = useState<AppStatsSnapshot>(() => ({
+    foundations: readStatsJourneyFoundations(),
+    recovery: readStatsRecoveryReports(),
+    excludedEntries: 0,
     profile: normalizeProfile(null),
     favorites: [],
     exerciseStats: [],
     workoutLogs: [],
     loadedAtLabel: "Not loaded yet",
+    reportedAt: 0,
   }));
 
   useEffect(() => {
-    const syncStats = () => setSnapshot(getStatsFromLocalStorage());
+    let active = true;
+    const syncStats = () => { if (active && !captureWorkoutHistoryRecovery().issues.length) setSnapshot(getStatsFromLocalStorage()); };
 
     syncStats();
     window.addEventListener("storage", syncStats);
+    window.addEventListener("focus", syncStats);
+    document.addEventListener("visibilitychange", syncStats);
+    const timer = window.setInterval(syncStats, 60000);
 
-    return () => window.removeEventListener("storage", syncStats);
+    const unsubscribe = subscribePlanning(syncStats);
+    return () => { active = false; window.clearInterval(timer); window.removeEventListener("storage", syncStats); window.removeEventListener("focus", syncStats); document.removeEventListener("visibilitychange", syncStats); unsubscribe(); };
   }, []);
 
   const weekly = useMemo(
-    () => getWeeklyStats(snapshot.exerciseStats, snapshot.profile),
-    [snapshot.exerciseStats, snapshot.profile],
+    () => getWeeklyStats(snapshot.exerciseStats, snapshot.profile, snapshot.workoutLogs),
+    [snapshot.exerciseStats, snapshot.profile, snapshot.workoutLogs],
   );
   const lifetime = useMemo(
     () => getLifetimeStats(snapshot.exerciseStats, snapshot.workoutLogs),
@@ -2214,21 +1745,19 @@ export default function StatsPage() {
     [snapshot.exerciseStats],
   );
   const prStats = useMemo(
-    () => getPRStats(snapshot.exerciseStats, snapshot.workoutLogs),
-    [snapshot.exerciseStats, snapshot.workoutLogs],
+    () => getPRStats(snapshot.exerciseStats, snapshot.profile.preferredUnit),
+    [snapshot.exerciseStats, snapshot.profile.preferredUnit],
   );
-  const recovery = useMemo(
-    () => getRecoveryStats(bodyPartStats),
-    [bodyPartStats],
-  );
+  const recovery = snapshot.recovery;
+  const unitWorkload = useMemo(() => {
+    const now = new Date(snapshot.reportedAt);
+    return { weekly: unitWorkloadSummary(snapshot.exerciseStats, "This week", now), lifetime: unitWorkloadSummary(snapshot.exerciseStats, "Lifetime", now) };
+  }, [snapshot.exerciseStats, snapshot.reportedAt]);
   const trends = useMemo(
     () => getTrendStats(snapshot.exerciseStats, snapshot.workoutLogs, snapshot.profile),
     [snapshot.exerciseStats, snapshot.workoutLogs, snapshot.profile],
   );
-  const historySessions = useMemo(
-    () => buildHistorySessions(snapshot.exerciseStats, snapshot.workoutLogs),
-    [snapshot.exerciseStats, snapshot.workoutLogs],
-  );
+  const historySessions = snapshot.workoutLogs;
   const filteredHistory = useMemo(
     () => filterHistorySessions(historySessions, historyFilter),
     [historySessions, historyFilter],
@@ -2294,31 +1823,18 @@ export default function StatsPage() {
         snapshot.profile.currentWeight,
         snapshot.profile.goalWeight,
       ),
-      goals: getJourneyCompletion(
-        snapshot.profile.primaryGoal,
-        snapshot.profile.goalMode,
-        snapshot.profile.goalWeight,
-        snapshot.profile.planDirection,
-      ),
+      goals: snapshot.foundations.goals,
       performance: getJourneyCompletion(
         lifetime.sessionsCompleted,
-        lifetime.volume,
-        prStats.cards.length,
+        false, // Load volume cannot establish progress without recorded units.
+        prStats.cards.filter(card => card.recorded).length,
         weekly.exercisesTrained,
       ),
-      profile: getJourneyCompletion(
-        snapshot.profile.displayName,
-        snapshot.profile.memberType,
-        snapshot.profile.trainingAge,
-        snapshot.profile.currentWeight,
-        snapshot.profile.sessionsPerWeek,
-        snapshot.profile.equipment,
-      ),
+      profile: snapshot.foundations.profile,
       recovery: getJourneyCompletion(
-        recovery.recommendations.length,
-        recovery.readyToTrain.length,
-        recovery.cooldowns.length,
-        snapshot.profile.limitationCount,
+        recovery.pain !== null,
+        recovery.soreness !== null,
+        recovery.sleep !== null,
       ),
       training: getJourneyCompletion(
         weekly.sets,
@@ -2328,7 +1844,7 @@ export default function StatsPage() {
         snapshot.favorites,
       ),
     }),
-    [lifetime, prStats, recovery, snapshot.favorites, snapshot.profile, weekly],
+    [lifetime, prStats, recovery, snapshot.favorites, snapshot.profile, snapshot.foundations, weekly],
   );
   const handleHeroTabSelect = (tab: StatsTabId) => {
     setActiveTab(tab);
@@ -2339,9 +1855,12 @@ export default function StatsPage() {
     });
   };
 
+  if (historyRecovery.issues.length) return <WorkoutHistoryReviewNotice area="Workout Stats reporting" issues={historyRecovery.issues} />;
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_10%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(251,191,36,0.16),transparent_30%),radial-gradient(circle_at_50%_70%,rgba(59,130,246,0.12),transparent_38%),linear-gradient(180deg,#020617_0%,#0f172a_48%,#020617_100%)] text-white">
       <section className="mx-auto w-full max-w-[1440px] space-y-5 px-3 py-5 sm:px-5 lg:px-8">
+        <p role="status" className="rounded-2xl border border-amber-300/20 p-4 text-sm text-amber-100">Strength load records use recorded lb/kg units for each exercise. Older loads without units are excluded from load comparisons. The load-volume panel reports its data coverage; other volume summaries, estimated 1RM and load trends remain unavailable. History preserves original values; sets, reps and workout counts remain available. Profile body-weight units do not establish workout load units.</p>
+        {snapshot.excludedEntries > 0 && <p role="status" className="rounded-2xl border border-amber-300/20 p-4 text-sm text-amber-100">{snapshot.excludedEntries} saved exercise or workout entries are excluded from Stats because their dates, recorded sets, numeric values, explicit load units or record shapes need review. Originals remain saved. <Link href={ROUTES.dashboard.sessionHistory} className="underline">Review workout history</Link> or export your planning backup above to inspect original exercise records.</p>}
         <StatsProfileHero
           activeTab={activeTab}
           bodyPartStats={bodyPartStats}
@@ -2372,6 +1891,7 @@ export default function StatsPage() {
         </nav>
 
         <div id="stats-command-center-content" className="scroll-mt-28 space-y-5">
+          {activeTab === "overview" || activeTab === "volume" ? <StatsUnitWorkload reports={unitWorkload} unit={unit} /> : null}
           {activeTab === "overview" ? (
             <OverviewTab
               weekly={weekly}
@@ -2406,7 +1926,7 @@ export default function StatsPage() {
           ) : null}
 
           {activeTab === "recovery" ? (
-            <RecoveryTab recovery={recovery} unit={unit} />
+            <StatsRecoveryReports reports={recovery} />
           ) : null}
 
           {activeTab === "trends" ? (
@@ -2433,7 +1953,6 @@ function OverviewTab({
   weekly,
   lifetime,
   coachInsights,
-  unit,
 }: {
   weekly: WeeklyStats;
   lifetime: LifetimeStats;
@@ -2451,18 +1970,18 @@ function OverviewTab({
             label="Weekly Sets"
             value={weekly.sets.toLocaleString()}
             helper={weekly.dateRangeLabel}
-            trend={`${Math.round(weekly.completionPercent)}% complete`}
+            trend={weekly.weeklyGoal === null ? "Target not set" : `${Math.round(weekly.completionPercent)}% of saved target`}
             accent="cyan"
           />
           <MetricCard
             label="Weekly Goal"
-            value={weekly.weeklyGoal.toLocaleString()}
-            helper="From profile or safe fallback target"
+            value={weekly.weeklyGoal?.toLocaleString() ?? "Not set"}
+            helper="From saved Goals"
             accent="blue"
           />
           <MetricCard
             label="Lifetime Volume"
-            value={formatWeightVolume(lifetime.volume, unit)}
+            value={WORKOUT_VOLUME_UNIT_UNKNOWN}
             helper="All logged load volume"
             accent="amber"
           />
@@ -2481,7 +2000,7 @@ function OverviewTab({
           <MetricCard
             label="Sessions Completed"
             value={lifetime.sessionsCompleted.toLocaleString()}
-            helper="Workout logs or training days"
+            helper="Saved workout completions"
             accent="cyan"
           />
           <MetricCard
@@ -2491,9 +2010,9 @@ function OverviewTab({
             accent="amber"
           />
           <MetricCard
-            label="Most Improved Exercise"
+            label="Largest Recorded Volume Increase"
             value={lifetime.mostImprovedExercise}
-            helper="Best latest-vs-previous volume change"
+            helper="Requires recorded workout load units"
             accent="emerald"
           />
         </div>
@@ -2519,7 +2038,6 @@ function VolumeTab({
   weekly,
   bodyPartStats,
   patternStats,
-  unit,
   pushPull,
   upperLower,
   compoundIsolation,
@@ -2540,13 +2058,13 @@ function VolumeTab({
       >
         <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="space-y-3">
-            <ProgressBar
+            {weekly.weeklyGoal === null ? <p className="rounded-2xl border border-white/10 p-4 text-sm text-slate-300">{weekly.sets} recorded sets. <Link href={ROUTES.dashboard.goals} className="text-cyan-200 underline">Set your weekly target in Goals</Link> to track target progress.</p> : <ProgressBar
               label="Weekly Volume Progress"
               value={weekly.sets}
               max={weekly.weeklyGoal}
-              helper={`${weekly.reps.toLocaleString()} reps - ${formatWeightVolume(weekly.volume, unit)} volume`}
+              helper={`${weekly.reps.toLocaleString()} reps - ${WORKOUT_VOLUME_UNIT_UNKNOWN} volume`}
               accent="cyan"
-            />
+            />}
             <BalanceCard label="Push vs Pull" left={pushPull.left} right={pushPull.right} leftLabel="Push" rightLabel="Pull" />
             <BalanceCard label="Upper vs Lower" left={upperLower.left} right={upperLower.right} leftLabel="Upper" rightLabel="Lower" />
             <BalanceCard
@@ -2567,26 +2085,28 @@ function VolumeTab({
                 <ProgressBar
                   key={stat.label}
                   label={stat.label}
-                  value={stat.weeklySets}
-                  max={stat.weeklyGoal}
-                  helper={`${formatWeightVolume(stat.weeklyVolume, unit)} - ${stat.zone}`}
-                  accent={stat.zone === "Too Hot" ? "rose" : "amber"}
+                  value={stat.sharePercent}
+                  valueLabel={stat.sharePercent.toFixed(1) + "%"}
+                  max={100}
+                  helper={`${stat.weeklySets} recorded sets - ${stat.sharePercent.toFixed(1)}% of recorded region sets - ${WORKOUT_VOLUME_UNIT_UNKNOWN}`}
+                  accent="amber"
                 />
               ))}
           </div>
         </div>
       </Panel>
 
-      <Panel title="Movement Pattern Breakdown" subtitle="Patterns stay aligned with the Sound Fitness movement engine.">
+      <Panel title="Movement Pattern Breakdown" subtitle="Recorded movement-pattern labels. Missing or conflicting metadata stays Unclassified.">
         {patternStats.length > 0 ? (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {patternStats.slice(0, 12).map((stat) => (
               <ProgressBar
                 key={stat.label}
                 label={stat.label}
-                value={stat.weeklySets}
-                max={stat.weeklyGoal}
-                helper={`${stat.lifetimeSets.toLocaleString()} lifetime sets - ${formatWeightVolume(stat.volume, unit)}`}
+                value={stat.sharePercent}
+                valueLabel={stat.sharePercent.toFixed(1) + "%"}
+                max={100}
+                helper={`${stat.weeklySets} recorded sets - ${stat.sharePercent.toFixed(1)}% of recorded pattern sets - ${stat.lifetimeSets.toLocaleString()} lifetime sets - ${WORKOUT_VOLUME_UNIT_UNKNOWN}`}
                 accent="emerald"
               />
             ))}
@@ -2646,11 +2166,12 @@ function StrengthTab({ strengthCards }: { strengthCards: StrengthCard[] }) {
   return (
     <Panel
       title="Strength Progress"
-      subtitle="Best available logged sets, estimated 1RM where load and reps exist, and movement-specific focus notes."
+      subtitle="Separate records for each logged exercise. Load records compare only saved lb/kg values; older unknown-unit loads are excluded. Converted values are rounded for display. Load and rep records may come from different sets."
     >
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {strengthCards.length === 0 && <p className="text-sm text-slate-400">No recorded exercise performances yet. Complete a workout with recorded loads or reps to see your records.</p>}
         {strengthCards.map((card) => (
-          <StrengthProgressCard key={card.label} card={card} />
+          <StrengthProgressCard key={card.id} card={card} />
         ))}
       </div>
     </Panel>
@@ -2667,7 +2188,7 @@ function BodyMapTab({
   return (
     <Panel
       title="Body Map"
-      subtitle="Compact region readiness using weekly sets, weekly goals, load volume, last trained, and cooldown."
+      subtitle="Recorded sets, load volume and last training dates by saved region. Broad labels are preserved; missing or conflicting metadata stays Unclassified."
     >
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {bodyPartStats.map((stat) => (
@@ -2711,83 +2232,6 @@ function PRsTab({
   );
 }
 
-function RecoveryTab({
-  recovery,
-  unit,
-}: {
-  recovery: RecoveryStats;
-  unit: "lb" | "kg";
-}) {
-  return (
-    <div className="space-y-5">
-      <Panel title="Recovery Intelligence" subtitle="Shows what is running hot, what is ready, and what to do next.">
-        <div className="grid gap-4 lg:grid-cols-3">
-          <RecoveryColumn title="Muscles Running Hot" stats={recovery.runningHot} empty="No area is above target right now." unit={unit} />
-          <RecoveryColumn title="Ready To Train" stats={recovery.readyToTrain} empty="No clear low-volume area yet." unit={unit} />
-          <RecoveryColumn title="Cooldown Timers" stats={recovery.cooldowns} empty="No active cooldown timers." unit={unit} />
-        </div>
-      </Panel>
-
-      <Panel title="Recovery Recommendations" subtitle="Safe training direction, not medical advice.">
-        <div className="grid gap-3 lg:grid-cols-3">
-          {recovery.recommendations.map((recommendation) => (
-            <div
-              key={recommendation}
-              className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-300"
-            >
-              {recommendation}
-            </div>
-          ))}
-        </div>
-      </Panel>
-    </div>
-  );
-}
-
-function RecoveryColumn({
-  title,
-  stats,
-  empty,
-  unit,
-}: {
-  title: string;
-  stats: BodyPartStat[];
-  empty: string;
-  unit: "lb" | "kg";
-}) {
-  return (
-    <div className="rounded-[26px] border border-white/10 bg-white/[0.04] p-4">
-      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
-        {title}
-      </p>
-      <div className="mt-4 space-y-3">
-        {stats.length > 0 ? (
-          stats.slice(0, 5).map((stat) => (
-            <div key={stat.label} className="rounded-2xl border border-white/10 bg-black/20 p-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="font-black text-white">{stat.label}</p>
-                <span className={`text-xs font-black ${ZONE_STYLES[stat.zone].text}`}>
-                  {stat.zone}
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-slate-500">
-                {stat.weeklySets} / {stat.weeklyGoal} sets - {formatWeightVolume(stat.weeklyVolume, unit)}
-              </p>
-              {stat.cooldownHours > 1 ? (
-                <p className="mt-1 text-xs text-amber-200">
-                  Cooldown: {Math.ceil(stat.cooldownHours)}h
-                </p>
-              ) : null}
-            </div>
-          ))
-        ) : (
-          <p className="text-sm leading-6 text-slate-500">{empty}</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
 function TrendsTab({
   trends,
   profile,
@@ -2801,10 +2245,9 @@ function TrendsTab({
     <div className="space-y-5">
       <Panel title="Trends" subtitle="Simple chart cards that stay safe even without a charting library.">
         <div className="grid gap-4 lg:grid-cols-2">
-          <TrendBars weeks={trends.weeklyVolumeTrend} valueKey="sets" label="Weekly Volume Trend" accent="cyan" />
-          <TrendBars weeks={trends.strengthTrend} valueKey="bestE1rm" label="Strength Trend" accent="amber" />
+          <TrendBars weeks={trends.weeklyVolumeTrend} valueKey="sets" label="Weekly Sets Trend" accent="cyan" />
           <TrendBars weeks={trends.consistencyTrend} valueKey="sessions" label="Consistency Trend" accent="emerald" />
-          <TrendBars weeks={trends.weeklyVolumeTrend} valueKey="volume" label={`Load Volume Trend (${unit})`} accent="violet" />
+          <EmptyState>Load-volume and estimated 1RM trends require recorded workout load units.</EmptyState>
         </div>
       </Panel>
 
@@ -2843,7 +2286,7 @@ function HistoryTab({
   return (
     <Panel
       title="History"
-      subtitle="Session-level training history built from workout logs, or grouped exercise stats when workout logs are missing."
+      subtitle="Saved workout completions. Standalone exercise records contribute to workload totals and keep their own dates."
       action={
         <div className="flex max-w-full gap-2 overflow-x-auto pb-1">
           {HISTORY_FILTERS.map((filter) => (

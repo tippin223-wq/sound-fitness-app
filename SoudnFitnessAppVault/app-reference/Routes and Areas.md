@@ -54,14 +54,14 @@ Route constants live in `lib/routes.ts`. Prefer those constants in code when pra
 - `/dashboard/sessions`
 - `/dashboard/sessions/booking`
 - `/dashboard/sessions/history`
-- `/dashboard/sessions/session-notes`
+- `/dashboard/sessions/session-notes` — compatibility redirect to `/dashboard/progress/journal`; shares recoverable member drafts and saved entry history.
 - `/dashboard/sessions/workout`
 - `/dashboard/sessions/workout-complete`
 - `/dashboard/social`
 - `/dashboard/social/post`
 - `/dashboard/stats`
 - `/dashboard/calendar`
-- `/dashboard/training-calendar`
+- `/dashboard/training-calendar` — compatibility redirect to `/dashboard/calendar`; uses the canonical member schedule.
 - `/dashboard/video-review`
 
 ## Dashboard Nutrition

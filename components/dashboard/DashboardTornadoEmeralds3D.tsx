@@ -2319,7 +2319,7 @@ export function DashboardGemStage3D({
         const orbitSeconds = orbitElapsedSeconds;
         const isSingleTriggerGem =
           variant === "trigger" && resolvedTones.length === 1;
-        const orbitSpeed = variant === "reserves" ? 1 / 6.8 : 1 / 4.8;
+        const orbitSpeed = variant === "reserves" ? 1 / 10.8 : 1 / 4.8;
         const orbitCenterX = variant === "reserves" ? 0.2 : 0;
         const radiusX = isSingleTriggerGem
           ? 0

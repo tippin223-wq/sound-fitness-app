@@ -36,6 +36,7 @@ function matchesRouteBoundary(pathname: string, route: string) {
 
 function isAllowedForRole(role: AuthRole, pathname: string) {
   if (publicAuthPaths.has(pathname)) return false;
+  if ((role === "coach" || role === "admin") && matchesRouteBoundary(pathname, "/trainer-hub/workspace")) return true;
   if (role === "admin") return matchesRouteBoundary(pathname, ROUTES.admin.home);
   if (role === "coach") return matchesRouteBoundary(pathname, ROUTES.coach.home);
   return (

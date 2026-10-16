@@ -10,6 +10,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { planningOwner } from "@/lib/planning/store";
 import {
   asRecord,
   readSoundFitnessProfile,
@@ -22,7 +23,7 @@ type ProfileRecord = Record<string, unknown>;
 type ProfileContextValue = {
   profile: ProfileRecord;
   setProfile: Dispatch<SetStateAction<ProfileRecord>>;
-  updateProfile: <T extends object>(nextProfile: T) => T;
+  updateProfile: <T extends object>(nextProfile: T, expectedVersion: string | undefined, expectedGeneration: number) => T;
 };
 
 const ProfileContext = createContext<ProfileContextValue>({
@@ -37,21 +38,17 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setProfile(readSoundFitnessProfile());
 
-    return subscribeToProfileUpdates((event) => {
-      const eventProfile =
-        event && "detail" in event ? asRecord((event as CustomEvent<unknown>).detail) : {};
-
-      setProfile(
-        Object.keys(eventProfile).length ? eventProfile : readSoundFitnessProfile(),
-      );
+    return subscribeToProfileUpdates(() => {
+      setProfile(readSoundFitnessProfile());
     });
   }, []);
 
-  const updateProfile = useCallback(<T extends object>(nextProfile: T) => {
+  const account = planningOwner();
+  const updateProfile = useCallback(<T extends object>(nextProfile: T, expectedVersion: string | undefined, expectedGeneration: number) => {
+    writeSoundFitnessProfile(nextProfile, account, expectedVersion, expectedGeneration);
     setProfile(asRecord(nextProfile));
-    writeSoundFitnessProfile(nextProfile);
     return nextProfile;
-  }, []);
+  }, [account]);
 
   const value = useMemo(
     () => ({

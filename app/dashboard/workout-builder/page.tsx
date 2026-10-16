@@ -1,20 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { planningOwner, subscribePlanning, readPlanning, planningKeys, planningSnapshot } from "@/lib/planning/store";
+import { captureBuilderSelectionEditor, commitBuilderSelection, type BuilderSelectionEditor } from "@/lib/planning/builderSelectionEditor";
+import { captureBuilderWorkoutLaunch, launchBuilderWorkout, type BuilderWorkoutLaunchEditor } from "@/lib/planning/builderWorkoutLaunch";
+import { assertBuilderTemplateEditor, captureBuilderTemplateEditor, type BuilderTemplateEditor } from "@/lib/planning/builderTemplateEditor";
+import { readLibraryProfileSummary } from "@/lib/planning/libraryProfile";
+import { readEligibleGoals } from "@/lib/planning/goals";
+import { readBuilderDraftArchives, exportBuilderDraftArchive, previewBuilderDraftArchive, confirmBuilderDraftArchive, type BuilderDraftArchiveEditor, type BuilderDraftArchivePreview, builderDraftPresent, captureBuilderDraftEditor, keepBuilderDraft, archiveAndKeepBuilderDraft, restoreBuilderDraft, exportBuilderDraft, type BuilderDraftEditor, type BuilderDraftForm, type BuilderDraftSection } from "@/lib/planning/builderDraft";
+import { readWorkoutTemplateArchives, exportWorkoutTemplateArchive, recoverWorkoutTemplateArchive, type WorkoutArchiveEditor } from "@/lib/planning/workoutTemplateArchives";
+import { builderExerciseOccurrences, bindBuilderTemplateOccurrences, builderOccurrenceDisplay, updateBuilderOccurrenceTarget } from "@/lib/planning/builderExerciseOccurrences";
+import { readWorkoutTargets, workoutTargetFieldValue, type WorkoutTargetField } from "@/lib/planning/workoutTargets";
+import { builderSuggestionModes, previewBuilderSuggestions, confirmBuilderSuggestions, type BuilderSuggestionMode, type BuilderSuggestionPreview } from "@/lib/planning/builderSuggestions";
 import { useRouter } from "next/navigation";
 import TrainingJourneyNavigator from "@/components/dashboard/TrainingJourneyNavigator";
 import {
   hasWorkoutBuilderSelectedExercises,
-  readWorkoutBuilderSelectedExerciseNames,
+  readWorkoutBuilderSelectedExercises,
   toWorkoutBuilderSelectedExercise,
   type LocalWorkoutBuilderSelectedExercise,
   type LocalWorkoutBuilderTemplate,
-  writeActiveWorkoutBuilderSessionTemplate,
-  writeWorkoutBuilderSelectedExercises,
 } from "@/lib/localData/workoutBuilderData";
 import {
   assignTemplateToPlanDay,
+  assertPlanEditor,
+  capturePlanEditor,
   readWorkoutPlans,
 } from "@/lib/localData/workoutPlanData";
 import {
@@ -29,37 +40,13 @@ const exerciseOptions: ExerciseCatalogItem[] =
   getExerciseCatalogWithLegacyFallback();
 const defaultSelectedExerciseNames = ["Goblet Squat", "DB Romanian Deadlift"];
 
-const safeJsonParse = (value: string | null): unknown => {
-  if (!value) return null;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-};
 
-const asRecord = (value: unknown): Record<string, unknown> =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
 
-const readLocal = (key: string) =>
-  typeof window === "undefined"
-    ? null
-    : safeJsonParse(window.localStorage.getItem(key));
 
-const getString = (
-  source: Record<string, unknown>,
-  keys: string[],
-  fallback: string,
-) => {
-  for (const key of keys) {
-    const value = source[key];
-    if (typeof value === "string" && value.trim()) return value;
-    if (typeof value === "number") return String(value);
-  }
-  return fallback;
-};
+
+
+
+
 
 type PlanAddToContext = {
   planId: string;
@@ -78,20 +65,9 @@ type TemplateSectionId =
   | "coreConditioning"
   | "coolDown";
 
-type TemplateSlot = {
-  id: string;
-  label: string;
-  exercise: string;
-};
 
-type TemplateSection = {
-  id: TemplateSectionId;
-  title: string;
-  helper: string;
-  accent: string;
-  border: string;
-  slots: TemplateSlot[];
-};
+
+type TemplateSection = BuilderDraftSection;
 
 type ActiveSlot = {
   sectionId: TemplateSectionId;
@@ -258,91 +234,40 @@ const createTemplateSections = (exerciseNames: string[] = []): TemplateSection[]
   ];
 };
 
-const getExerciseNamesFromSections = (sections: TemplateSection[]) =>
-  sections.flatMap((section) =>
-    section.slots.map((slot) => slot.exercise).filter(Boolean),
-  );
+const createRecordSections = (exercises: LocalWorkoutBuilderSelectedExercise[]): TemplateSection[] => exercises.length
+  ? bindBuilderTemplateOccurrences({ id: "builder-open", title: "Open workout", exercises, createdAt: "", updatedAt: "" }, createTemplateSections([])).sections
+  : createTemplateSections([]);
+
 
 const getExerciseImageIsUrl = (exercise: ExerciseCatalogItem | undefined) =>
   Boolean(exercise?.image && /^https?:\/\//i.test(exercise.image));
 
 const readBuilderContext = (): BuilderContext => {
-  const profile = asRecord(readLocal("soundFitnessProfile"));
-  const goals = asRecord(readLocal("soundFitnessGoals"));
-  const favorites = readLocal("soundFitnessFavorites");
-  const stats = readLocal("soundFitnessExerciseStats");
-  const entries = Array.isArray(stats) ? stats : Object.values(asRecord(stats));
-  const hotEntry = entries.find((entry) => {
-    const record = asRecord(entry);
-    const sets = Number(record.weeklySets ?? record.sets ?? 0);
-    const goal = Number(record.weeklyGoal ?? record.goal ?? 12);
-    return Number.isFinite(sets) && goal > 0 && sets >= goal;
-  });
-  const primaryGoal = getString(
-    goals,
-    ["primaryGoal"],
-    getString(profile, ["primaryGoal", "goalMode"], "General Health"),
-  );
-
+  const profile = readLibraryProfileSummary();
+  const goals = readEligibleGoals();
+  const favorites = readPlanning<unknown>(planningKeys.libraryFavorites, []);
   return {
-    currentFocus: getString(goals, ["secondaryGoal"], "Build base compounds"),
+    currentFocus: goals?.secondaryGoal || goals?.primaryGoal || "Set goals first",
     favoriteCount: Array.isArray(favorites) ? favorites.length : 0,
-    goal: primaryGoal,
-    readinessWarning: hotEntry ? "Recovery warning active" : "Ready to build",
-    suggestedFocus:
-      primaryGoal === "Strength"
-        ? "Main lift quality"
-        : primaryGoal === "Recovery"
-          ? "Recovery-safe movement"
-          : "Balanced full-body session",
+    goal: goals?.primaryGoal || "No goal set",
+    readinessWarning: profile.readinessLabel,
+    suggestedFocus: goals ? "Choose exercises from your saved plan" : "Set goals before planning",
   };
-};
-
-const writeDraftWorkout = ({
-  sections,
-  selectedExercises,
-  title,
-}: {
-  sections: TemplateSection[];
-  selectedExercises: ExerciseCatalogItem[];
-  title: string;
-}) => {
-  if (typeof window === "undefined") return;
-
-  window.localStorage.setItem(
-    "soundFitnessDraftWorkout",
-    JSON.stringify({
-      exercises: selectedExercises.map((exercise) => ({
-        body: exercise.body,
-        equipment: exercise.equipment,
-        goal: exercise.goal,
-        id: exercise.id,
-        muscles: exercise.muscles,
-        name: exercise.name,
-        pattern: exercise.pattern,
-      })),
-      sections,
-      title,
-      updatedAt: new Date().toISOString(),
-    }),
-  );
-};
-
-const appendSavedWorkout = (template: LocalWorkoutBuilderTemplate) => {
-  if (typeof window === "undefined") return;
-
-  const current = readLocal("soundFitnessSavedWorkouts");
-  const saved = Array.isArray(current) ? current : [];
-  const next = [
-    template,
-    ...saved.filter((item) => asRecord(item).id !== template.id),
-  ].slice(0, 25);
-
-  window.localStorage.setItem("soundFitnessSavedWorkouts", JSON.stringify(next));
 };
 
 export default function WorkoutBuilderPage() {
   const router = useRouter();
+  useSyncExternalStore(subscribePlanning, planningSnapshot, planningSnapshot);
+  const workoutArchives = readWorkoutTemplateArchives();
+  const archivedBuilderDrafts = readBuilderDraftArchives();
+  const [builderArchivePreview, setBuilderArchivePreview] = useState<BuilderDraftArchivePreview | null>(null);
+  const builderAccount = planningOwner();
+  const templateEditorRef = useRef<BuilderTemplateEditor | null>(null);
+  const selectionEditorRef = useRef<BuilderSelectionEditor | null>(null);
+  const workoutLaunchRef = useRef<BuilderWorkoutLaunchEditor | null>(null);
+  const templateSaveBusyRef = useRef(false);
+  const builderDraftEditorRef = useRef<BuilderDraftEditor | null>(null);
+  const keptDraftAvailable = useSyncExternalStore(subscribePlanning, builderDraftPresent, () => false);
   const [selected, setSelected] = useState<string[]>(
     resolveCatalogExerciseNames(defaultSelectedExerciseNames),
   );
@@ -363,12 +288,17 @@ export default function WorkoutBuilderPage() {
   const [activeSlot, setActiveSlot] = useState<ActiveSlot | null>(null);
   const [exerciseSearch, setExerciseSearch] = useState("");
   const [exerciseBodyFilter, setExerciseBodyFilter] = useState("All");
+  const [suggestionBody, setSuggestionBody] = useState("All");
+  const [suggestionPreview, setSuggestionPreview] = useState<BuilderSuggestionPreview | null>(null);
   const [exerciseGoalFilter, setExerciseGoalFilter] = useState("All");
   const [builderContext, setBuilderContext] = useState<BuilderContext>(() =>
     readBuilderContext(),
   );
 
   useEffect(() => {
+    builderDraftEditorRef.current = captureBuilderDraftEditor(builderAccount);
+    selectionEditorRef.current = captureBuilderSelectionEditor(builderAccount);
+    workoutLaunchRef.current = captureBuilderWorkoutLaunch(builderAccount);
     let isActive = true;
 
     const loadSavedTemplates = async () => {
@@ -378,21 +308,22 @@ export default function WorkoutBuilderPage() {
 
       setSavedTemplates(result.data);
       setTemplateSourceLabel(getTemplateSourceLabel(result));
+      if (!result.success && result.error) setTemplateStatus(result.error);
     };
 
     loadSavedTemplates();
     setBuilderContext(readBuilderContext());
+    const unsubscribeContext = subscribePlanning(() => setBuilderContext(readBuilderContext()));
 
-    const initialNames = hasWorkoutBuilderSelectedExercises()
-      ? readWorkoutBuilderSelectedExerciseNames()
-      : defaultSelectedExerciseNames;
-    const resolvedNames = resolveCatalogExerciseNames(initialNames);
-
-    setSelected(resolvedNames);
-    setTemplateSections(createTemplateSections(resolvedNames));
-
-    if (!hasWorkoutBuilderSelectedExercises()) {
-      writeWorkoutBuilderSelectedExercises(getCatalogExercisesByName(resolvedNames));
+    try {
+      const records = hasWorkoutBuilderSelectedExercises()
+        ? readWorkoutBuilderSelectedExercises()
+        : getCatalogExercisesByName(defaultSelectedExerciseNames).map(toWorkoutBuilderSelectedExercise);
+      const sections = createRecordSections(records);
+      setSelected(records.map(exercise => exercise.name));
+      setTemplateSections(sections);
+    } catch (cause) {
+      setTemplateStatus(cause instanceof Error ? cause.message : "Saved selections need review. Originals are preserved.");
     }
 
     const params = new URLSearchParams(window.location.search);
@@ -416,17 +347,22 @@ export default function WorkoutBuilderPage() {
 
     return () => {
       isActive = false;
+      unsubscribeContext();
     };
-  }, []);
+  }, [builderAccount]);
 
-  const selectedExercises = useMemo(
-    () => getCatalogExercisesByName(selected),
-    [selected],
-  );
+  const occurrenceState = useMemo(() => {
+    try {
+      const records = builderExerciseOccurrences(templateSections, exerciseOptions);
+      if (JSON.stringify(records.map(exercise => exercise.name)) !== JSON.stringify(selected)) throw new Error("Workout slots and selected order differ. Review before saving.");
+      return { records, issue: "" };
+    } catch (cause) {
+      return { records: [], issue: cause instanceof Error ? cause.message : "Review the workout slots before saving." };
+    }
+  }, [templateSections, selected]);
+  const selectedExercises = occurrenceState.records.map(exercise => builderOccurrenceDisplay(exercise, exerciseOptions));
 
-  useEffect(() => {
-    writeDraftWorkout({ sections: templateSections, selectedExercises, title });
-  }, [selectedExercises, templateSections, title]);
+
 
   const exerciseBodyOptions = useMemo(
     () => [
@@ -485,19 +421,39 @@ export default function WorkoutBuilderPage() {
     [planWeeks],
   );
 
-  function persistSelection(nextSelected: string[]) {
-    const resolvedSelection = resolveCatalogExerciseNames(nextSelected);
+  function writeWorkoutBuilderSelectedExercises(exercises: LocalWorkoutBuilderSelectedExercise[]) {
+    if (!selectionEditorRef.current) throw new Error("Wait for your Builder selections to load before editing exercises.");
+    selectionEditorRef.current = commitBuilderSelection(exercises, selectionEditorRef.current);
+  }
 
-    setSelected(resolvedSelection);
-    writeWorkoutBuilderSelectedExercises(
-      getCatalogExercisesByName(resolvedSelection),
-    );
-    setTemplateStatus("");
+  function persistSelection(nextSelected: string[], records?: LocalWorkoutBuilderSelectedExercise[]) {
+    try {
+      if (!builderAccount || planningOwner() !== builderAccount) throw new Error("Your account changed. Your open workout is preserved; reload before editing exercises.");
+      const resolvedSelection = records ? nextSelected : resolveCatalogExerciseNames(nextSelected);
+      if (!records && (resolvedSelection.length !== new Set(nextSelected).size || resolvedSelection.some(name => {
+        const matches = exerciseOptions.filter(exercise => exercise.name === name);
+        return matches.length !== 1 || exerciseOptions.filter(exercise => exercise.id === matches[0].id).length !== 1;
+      }))) throw new Error("Selected exercises are unavailable or ambiguous. Your previous selection and open workout are preserved.");
+      writeWorkoutBuilderSelectedExercises(records || getCatalogExercisesByName(resolvedSelection).map(toWorkoutBuilderSelectedExercise));
+      setSelected(resolvedSelection);
+      setTemplateStatus("");
+      return true;
+    } catch (cause) {
+      setTemplateStatus(cause instanceof Error ? cause.message : "Exercise changes could not be kept. Your open workout is preserved.");
+      return false;
+    }
   }
 
   function applyTemplateSections(nextSections: TemplateSection[]) {
-    setTemplateSections(nextSections);
-    persistSelection(getExerciseNamesFromSections(nextSections));
+    try {
+      const records = builderExerciseOccurrences(nextSections, exerciseOptions);
+      if (!persistSelection(records.map(exercise => exercise.name), records)) return false;
+      setTemplateSections(nextSections);
+      return true;
+    } catch (cause) {
+      setTemplateStatus(cause instanceof Error ? cause.message : "Exercise changes could not be kept. Your open workout is preserved.");
+      return false;
+    }
   }
 
   function addSlot(sectionId: TemplateSectionId) {
@@ -546,20 +502,34 @@ export default function WorkoutBuilderPage() {
     sectionId: TemplateSectionId,
     slotId: string,
     exerciseName: string,
+    exerciseId?: string,
   ) {
+    const matches = exerciseName ? exerciseOptions.filter(exercise => exercise.name === exerciseName && (!exerciseId || exercise.id === exerciseId)) : [];
+    if (exerciseName && (matches.length !== 1 || exerciseOptions.filter(exercise => exercise.id === matches[0].id).length !== 1)) {
+      setTemplateStatus("This exercise identity is unavailable or ambiguous. Your previous slot is preserved.");
+      return;
+    }
+    const exerciseRecord = exerciseName ? toWorkoutBuilderSelectedExercise(matches[0]) : null;
     const nextSections = templateSections.map((section) =>
       section.id === sectionId
         ? {
             ...section,
             slots: section.slots.map((slot) =>
-              slot.id === slotId ? { ...slot, exercise: exerciseName } : slot,
+              slot.id === slotId ? { ...slot, exercise: exerciseName, exerciseRecord } : slot,
             ),
           }
         : section,
     );
 
-    applyTemplateSections(nextSections);
-    setActiveSlot(null);
+    if (applyTemplateSections(nextSections)) setActiveSlot(null);
+  }
+
+  function updateSlotTarget(sectionId: TemplateSectionId, slotId: string, field: WorkoutTargetField, value: string) {
+    try {
+      applyTemplateSections(updateBuilderOccurrenceTarget(templateSections, exerciseOptions, sectionId, slotId, field, value));
+    } catch (cause) {
+      setTemplateStatus(cause instanceof Error ? cause.message : "Targets could not be kept. Previous instructions are preserved.");
+    }
   }
 
   function clearSlotExercise(sectionId: TemplateSectionId, slotId: string) {
@@ -567,8 +537,7 @@ export default function WorkoutBuilderPage() {
   }
 
   function clearSelection() {
-    setTemplateSections(createTemplateSections([]));
-    persistSelection([]);
+    if (applyTemplateSections(createTemplateSections([]))) setActiveSlot(null);
   }
 
   async function refreshSavedTemplates() {
@@ -576,6 +545,7 @@ export default function WorkoutBuilderPage() {
 
     setSavedTemplates(result.data);
     setTemplateSourceLabel(getTemplateSourceLabel(result));
+    if (!result.success && result.error) setTemplateStatus(result.error);
 
     return result;
   }
@@ -583,12 +553,9 @@ export default function WorkoutBuilderPage() {
   function buildCurrentTemplate(): LocalWorkoutBuilderTemplate {
     const now = new Date().toISOString();
     const normalizedTitle = getNormalizedTemplateTitle(title);
-    const existingTemplate = savedTemplates.find(
-      (template) =>
-        template.title.trim().toLowerCase() === normalizedTitle.toLowerCase(),
-    );
+    const existingTemplate = templateEditorRef.current?.template;
     const exercises: LocalWorkoutBuilderSelectedExercise[] =
-      selectedExercises.map(toWorkoutBuilderSelectedExercise);
+      builderExerciseOccurrences(templateSections, exerciseOptions);
 
     return {
       id: existingTemplate?.id || createLocalTemplateId(),
@@ -604,11 +571,16 @@ export default function WorkoutBuilderPage() {
   }: {
     assignToPlan?: boolean;
   } = {}) {
+    if (templateSaveBusyRef.current) return null;
     if (selectedExercises.length === 0) {
       setTemplateStatus("Add at least one exercise before saving a template.");
       return null;
     }
 
+    templateSaveBusyRef.current = true;
+    const submittedTitle = title;
+    const submittedEditor = templateEditorRef.current;
+    let committedTemplate: LocalWorkoutBuilderTemplate | null = null;
     setIsSavingTemplate(true);
     setTemplateStatus(
       assignToPlan && planAddToContext
@@ -617,17 +589,19 @@ export default function WorkoutBuilderPage() {
     );
 
     try {
-      const result = await saveWorkoutTemplateWithFallback(
-        buildCurrentTemplate(),
-      );
+      assertBuilderTemplateEditor(submittedEditor || captureBuilderTemplateEditor(undefined, builderAccount));
+      const planEditor = assignToPlan && planAddToContext ? capturePlanEditor(readWorkoutPlans().find(plan => plan.id === planAddToContext.planId)) : null;
+      const result = await saveWorkoutTemplateWithFallback(buildCurrentTemplate());
+      if (planningOwner() !== builderAccount) return null;
       const savedTemplate = result.data;
-      appendSavedWorkout(savedTemplate);
+      committedTemplate = savedTemplate;
       const sourceLabel = getTemplateSourceLabel(result);
       let statusMessage = result.error
         ? `${savedTemplate.title} saved locally. Supabase sync can retry later.`
         : `${savedTemplate.title} saved via ${sourceLabel}.`;
 
       if (assignToPlan && planAddToContext) {
+        if (planEditor) assertPlanEditor(planEditor);
         const assignment = assignTemplateToPlanDay({
           planId: planAddToContext.planId,
           dayId: planAddToContext.dayId,
@@ -644,49 +618,161 @@ export default function WorkoutBuilderPage() {
 
       const refreshResult = await refreshSavedTemplates();
 
-      setTitle(savedTemplate.title);
+      if (planningOwner() !== builderAccount) return null;
+      if (templateEditorRef.current === submittedEditor) templateEditorRef.current = captureBuilderTemplateEditor(savedTemplate, builderAccount);
+      setTitle(current => current === submittedTitle ? savedTemplate.title : current);
       setTemplateSourceLabel(getTemplateSourceLabel(refreshResult));
-      setTemplateStatus(statusMessage);
+      setTemplateStatus(!refreshResult.success && refreshResult.error ? `${statusMessage} ${refreshResult.error}` : statusMessage);
 
       return savedTemplate;
-    } catch {
-      setTemplateStatus("Template could not be saved. Try again.");
+    } catch (cause) {
+      if (planningOwner() !== builderAccount) return null;
+      const detail = cause instanceof Error ? cause.message : "Template could not be saved. Your unsaved workout is preserved.";
+      setTemplateStatus(committedTemplate ? `${committedTemplate.title} saved. ${detail}` : detail);
       return null;
     } finally {
+      templateSaveBusyRef.current = false;
       setIsSavingTemplate(false);
     }
   }
 
-  function loadTemplate(template: LocalWorkoutBuilderTemplate) {
-    const exerciseNames = resolveCatalogExerciseNames(
-      template.exercises.map((exercise) => exercise.name),
-    );
+  function currentBuilderDraft(): BuilderDraftForm {
+    return { title, sections: templateSections, exercises: builderExerciseOccurrences(templateSections, exerciseOptions), templateEditor: templateEditorRef.current };
+  }
 
-    setSelected(exerciseNames);
-    setTemplateSections(createTemplateSections(exerciseNames));
-    setTitle(template.title);
-    writeWorkoutBuilderSelectedExercises(getCatalogExercisesByName(exerciseNames));
-    setTemplateStatus(`${template.title} loaded into the builder.`);
+  function keepOpenBuilderDraft() {
+    try {
+      const editor = builderDraftEditorRef.current || captureBuilderDraftEditor(builderAccount);
+      builderDraftEditorRef.current = keepBuilderDraft(currentBuilderDraft(), editor);
+      setTemplateStatus("Open workout draft kept in this account.");
+    } catch (cause) { setTemplateStatus(cause instanceof Error ? cause.message : "Draft could not be kept. Your open workout is preserved."); }
+  }
+
+  function reviewSuggestions(mode: BuilderSuggestionMode) {
+    setSuggestionPreview(null);
+    try {
+      setSuggestionPreview(previewBuilderSuggestions(mode, exerciseOptions, currentBuilderDraft(), suggestionBody));
+      setTemplateStatus("Review suggested additions before applying them.");
+    } catch (cause) {
+      setTemplateStatus(cause instanceof Error ? cause.message : "Suggestions could not be reviewed. Your workout is preserved.");
+    }
+  }
+
+  function applySuggestions() {
+    if (!suggestionPreview) return;
+    try {
+      const sections = confirmBuilderSuggestions(suggestionPreview, exerciseOptions, currentBuilderDraft());
+      if (!applyTemplateSections(sections)) return;
+      setSuggestionPreview(null);
+      setTemplateStatus("Reviewed exercises added. Set their targets and review the workout before saving or starting.");
+    } catch (cause) {
+      setTemplateStatus(cause instanceof Error ? cause.message : "Suggestions could not be added. Your workout is preserved.");
+    }
+  }
+
+  function restoreKeptBuilderDraft() {
+    try {
+      const result = restoreBuilderDraft(builderDraftEditorRef.current || captureBuilderDraftEditor(builderAccount), exerciseOptions);
+      writeWorkoutBuilderSelectedExercises(result.form.exercises);
+      builderDraftEditorRef.current = result.editor;
+      templateEditorRef.current = result.form.templateEditor;
+      setTitle(result.form.title);
+      setSelected(result.form.exercises.map(exercise => exercise.name));
+      setTemplateSections(result.form.sections);
+      setTemplateStatus("Kept draft restored. Review it before saving a workout.");
+    } catch (cause) { setTemplateStatus(cause instanceof Error ? cause.message : "Draft could not be restored. Your open workout is preserved."); }
+  }
+
+  function archiveKeptBuilderDraft() {
+    try {
+      const editor = builderDraftEditorRef.current || captureBuilderDraftEditor(builderAccount);
+      builderDraftEditorRef.current = archiveAndKeepBuilderDraft(currentBuilderDraft(), editor);
+      setTemplateStatus("Previous kept draft archived in your account planning backup. The open workout is now kept as your current draft.");
+    } catch (cause) { setTemplateStatus(cause instanceof Error ? cause.message : "Draft could not be archived. Your originals and open workout are preserved."); }
+  }
+
+  function handleBuilderDraftArchive(archive: BuilderDraftArchiveEditor, action: "export" | "review") {
+    setBuilderArchivePreview(null);
+    try {
+      if (action === "export") {
+        const json = exportBuilderDraftArchive(archive);
+        const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+        const link = document.createElement("a"); link.href = url; link.download = "sound-fitness-builder-draft-archive.json"; link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setTemplateStatus("Exact Builder draft archive exported. Your open workout and kept draft are preserved.");
+      } else {
+        setBuilderArchivePreview(previewBuilderDraftArchive(archive, exerciseOptions, currentBuilderDraft()));
+        setTemplateStatus("Archived Builder draft preview ready. Review it before replacing the open workout.");
+      }
+    } catch (cause) { setTemplateStatus(cause instanceof Error ? cause.message : "Builder archive is unavailable. Your originals are preserved."); }
+  }
+
+  function applyBuilderDraftArchive() {
+    if (!builderArchivePreview) return;
+    try {
+      const form = confirmBuilderDraftArchive(builderArchivePreview, exerciseOptions, currentBuilderDraft());
+      writeWorkoutBuilderSelectedExercises(form.exercises);
+      templateEditorRef.current = null;
+      builderDraftEditorRef.current = captureBuilderDraftEditor(builderAccount);
+      setTitle(form.title); setSelected(form.exercises.map(exercise => exercise.name)); setTemplateSections(form.sections);
+      setBuilderArchivePreview(null);
+      setTemplateStatus("Archived draft loaded into the open Builder as a new workout. Your kept draft and archive remain unchanged. Review before saving.");
+    } catch (cause) { setTemplateStatus(cause instanceof Error ? cause.message : "Archived draft could not be loaded. Your open workout is preserved."); }
+  }
+
+  function exportKeptBuilderDraft() {
+    try {
+      const json = exportBuilderDraft(builderDraftEditorRef.current || captureBuilderDraftEditor(builderAccount));
+      const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+      const link = document.createElement("a"); link.href = url; link.download = "sound-fitness-kept-builder-draft.json"; link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setTemplateStatus("Kept draft exported. The saved original remains in this account.");
+    } catch (cause) { setTemplateStatus(cause instanceof Error ? cause.message : "Draft could not be exported."); }
+  }
+
+  function handleWorkoutArchive(archive: WorkoutArchiveEditor, action: "export" | "recover") {
+    try {
+      if (action === "export") {
+        const json = exportWorkoutTemplateArchive(archive);
+        const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+        const link = document.createElement("a"); link.href = url; link.download = "sound-fitness-workout-archive.json"; link.click();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setTemplateStatus("Exact workout archive exported. Saved workouts and your open Builder are preserved.");
+      } else {
+        const result = recoverWorkoutTemplateArchive(archive);
+        setSavedTemplates(readPlanning<LocalWorkoutBuilderTemplate[]>(planningKeys.templates, []));
+        setTemplateStatus(result.alreadyRecovered ? "This archive already has a recovered workout in your saved library. Your open Builder is preserved." : "Archived workout recovered as a separate saved copy. Your open Builder and current workouts are preserved. Cloud upload is pending.");
+      }
+    } catch (cause) { setTemplateStatus(cause instanceof Error ? cause.message : "Workout archive is unavailable. Your originals are preserved."); }
+  }
+
+  function loadTemplate(template: LocalWorkoutBuilderTemplate) {
+    try {
+      const editor = captureBuilderTemplateEditor(template, builderAccount);
+      assertBuilderTemplateEditor(editor);
+      const prepared = bindBuilderTemplateOccurrences(template, createTemplateSections([]));
+      writeWorkoutBuilderSelectedExercises(prepared.exercises);
+      templateEditorRef.current = editor;
+      setSelected(prepared.exercises.map(exercise => exercise.name));
+      setTemplateSections(prepared.sections);
+      setTitle(template.title);
+      setTemplateStatus(`${template.title} loaded into the builder.`);
+    } catch (cause) {
+      setTemplateStatus(cause instanceof Error ? cause.message : "The workout could not be loaded. Your current draft is preserved.");
+    }
   }
 
   function startTemplateWorkout(template: LocalWorkoutBuilderTemplate) {
-    const exerciseNames = resolveCatalogExerciseNames(
-      template.exercises.map((exercise) => exercise.name),
-    );
-    const catalogExercises = getCatalogExercisesByName(exerciseNames);
-
-    if (catalogExercises.length === 0) {
-      setTemplateStatus(
-        "This template has no available exercises to start right now.",
-      );
+    try {
+      if (!builderAccount || builderAccount !== planningOwner()) throw new Error("Your account changed. Reload Builder before starting a workout.");
+      if (!workoutLaunchRef.current) throw new Error("Wait for Builder to load before starting a workout.");
+      const result = launchBuilderWorkout(template, workoutLaunchRef.current, true);
+      workoutLaunchRef.current = result.editor;
+    }
+    catch (cause) {
+      setTemplateStatus(cause instanceof Error ? cause.message : "The saved workout could not be started. Your current session is preserved.");
       return;
     }
-
-    writeWorkoutBuilderSelectedExercises(catalogExercises);
-    writeActiveWorkoutBuilderSessionTemplate({
-      ...template,
-      exercises: catalogExercises.map(toWorkoutBuilderSelectedExercise),
-    });
     router.push(
       `${ROUTES.dashboard.sessionWorkout}?template=${encodeURIComponent(
         template.id,
@@ -700,10 +786,19 @@ export default function WorkoutBuilderPage() {
       return;
     }
 
-    const template = buildCurrentTemplate();
-
-    writeWorkoutBuilderSelectedExercises(selectedExercises);
-    writeActiveWorkoutBuilderSessionTemplate(template);
+    let template: LocalWorkoutBuilderTemplate;
+    try {
+      if (!builderAccount || builderAccount !== planningOwner()) throw new Error("Your account changed. Reload Builder before starting a workout.");
+      if (!workoutLaunchRef.current) throw new Error("Wait for Builder to load before starting a workout.");
+      if (templateEditorRef.current) assertBuilderTemplateEditor(templateEditorRef.current);
+      template = buildCurrentTemplate();
+      const result = launchBuilderWorkout(template, workoutLaunchRef.current);
+      workoutLaunchRef.current = result.editor;
+    }
+    catch (cause) {
+      setTemplateStatus(cause instanceof Error ? cause.message : "The workout could not be started. Your current session is preserved.");
+      return;
+    }
     router.push(
       `${ROUTES.dashboard.sessionWorkout}?template=${encodeURIComponent(
         template.id,
@@ -717,7 +812,10 @@ export default function WorkoutBuilderPage() {
         ?.slots.find((slot) => slot.id === activeSlot.slotId)?.label
     : null;
   const estimatedDuration = Math.max(20, selectedExercises.length * 8 + 12);
-  const estimatedSets = selectedExercises.length * 3;
+  const authoredTargets = occurrenceState.records.map(exercise => readWorkoutTargets(exercise));
+  const knownSets = authoredTargets.filter(target => target.sets !== null);
+  const missingSetTargets = authoredTargets.length - knownSets.length;
+  const plannedSetsLabel = knownSets.length ? `${knownSets.reduce((total, target) => total + target.sets!, 0)}${missingSetTargets ? ` + ${missingSetTargets} unset` : ""}` : "Not set";
   const selectedPatterns = Array.from(
     new Set(selectedExercises.map((exercise) => exercise.pattern)),
   );
@@ -822,6 +920,7 @@ export default function WorkoutBuilderPage() {
                       activeSlot.sectionId,
                       activeSlot.slotId,
                       exercise.name,
+                      exercise.id,
                     )
                   }
                   className="flex w-full gap-3 rounded-2xl bg-white/[0.04] p-3 text-left text-slate-200 transition hover:bg-cyan-400/10"
@@ -1032,9 +1131,11 @@ export default function WorkoutBuilderPage() {
                 <div className="flex w-max gap-4">
                   {templateSections.flatMap((section) =>
                     section.slots.map((slot, slotIndex) => {
-                      const selectedExercise = exerciseOptions.find(
-                        (exercise) => exercise.name === slot.exercise,
-                      );
+                      const selectedExercise = slot.exerciseRecord
+                        ? builderOccurrenceDisplay(slot.exerciseRecord, exerciseOptions)
+                        : exerciseOptions.filter(exercise => exercise.name === slot.exercise).length === 1
+                          ? exerciseOptions.find(exercise => exercise.name === slot.exercise)
+                          : undefined;
 
                       return (
                         <article
@@ -1139,12 +1240,19 @@ export default function WorkoutBuilderPage() {
                           </div>
 
                           <div className="mt-4 grid grid-cols-3 gap-2">
-                            <input placeholder="Sets" />
-                            <input placeholder="Reps" />
-                            <input placeholder="Rest" />
+                            {(["sets", "reps", "restSeconds"] as const).map(field => (
+                              <input key={field} aria-label={field === "restSeconds" ? "Planned rest in seconds" : `Planned ${field}`}
+                                placeholder={field === "restSeconds" ? "Rest (sec)" : field === "sets" ? "Sets" : "Reps"}
+                                inputMode={field === "reps" ? "text" : "numeric"} disabled={!slot.exercise}
+                                value={workoutTargetFieldValue(slot.exerciseRecord, field)}
+                                onChange={event => updateSlotTarget(section.id, slot.id, field, event.target.value)} />
+                            ))}
                           </div>
 
                           <textarea
+                            aria-label="Coaching notes" disabled={!slot.exercise}
+                            value={workoutTargetFieldValue(slot.exerciseRecord, "notes")}
+                            onChange={event => updateSlotTarget(section.id, slot.id, "notes", event.target.value)}
                             placeholder="Coaching notes..."
                             className="mt-3 min-h-[76px] resize-none rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-300"
                           />
@@ -1175,27 +1283,35 @@ export default function WorkoutBuilderPage() {
                 Smart Add Panel
               </p>
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                {[
-                  "Build base compounds",
-                  "Target selected muscle",
-                  "Recovery-safe",
-                  "Strength focus",
-                  "Hypertrophy focus",
-                  "Mobility focus",
-                ].map((mode) => (
+                {builderSuggestionModes.map((mode) => (
                   <button
                     key={mode}
                     type="button"
+                    onClick={() => reviewSuggestions(mode)}
                     className="rounded-2xl border border-white/10 bg-slate-950/45 px-4 py-3 text-left text-sm font-black text-white transition hover:border-amber-200/40 hover:bg-amber-300/10"
                   >
                     {mode}
                   </button>
                 ))}
               </div>
+              <label className="mt-4 block text-sm text-slate-200">
+                Body area for suggestions
+                <select value={suggestionBody} onChange={event => { setSuggestionBody(event.target.value); setSuggestionPreview(null); }} className="ml-2 rounded bg-slate-950 p-2">
+                  {exerciseBodyOptions.map(body => <option key={body} value={body}>{body}</option>)}
+                </select>
+              </label>
               <p className="mt-4 text-sm leading-6 text-slate-300">
-                Recommendations are shaped by {builderContext.goal}, favorites
-                ({builderContext.favoriteCount}), readiness, equipment, and recent stats.
+                Preview catalog matches using saved Goals, confirmed equipment and exact-ID favorites. Base movements fill missing patterns; existing slots stay in place. Review mobility options against your reported readiness.
               </p>
+              {suggestionPreview ? <div role="region" aria-label="Suggested exercise additions" className="mt-4 space-y-3">
+                <p>{suggestionPreview.context}</p>
+                {suggestionPreview.candidates.length ? <ul>{suggestionPreview.candidates.map(candidate => <li key={candidate.exercise.id} className="mt-3">
+                  <strong>{candidate.exercise.name}</strong> · {candidate.exercise.equipment}
+                  <p className="text-sm text-slate-300">{candidate.reasons.join(" ")}</p>
+                </li>)}</ul> : <p>No new matches with confirmed equipment. Review Profile equipment, change the body area, or choose exercises manually.</p>}
+                <button type="button" disabled={!suggestionPreview.candidates.length} onClick={applySuggestions} className="mr-4 underline disabled:opacity-50">Add reviewed exercises</button>
+                <button type="button" onClick={() => setSuggestionPreview(null)} className="underline">Cancel suggestions</button>
+              </div> : null}
             </section>
 
             <section className="rounded-[30px] border border-cyan-300/20 bg-cyan-300/10 p-5">
@@ -1205,8 +1321,8 @@ export default function WorkoutBuilderPage() {
               <div className="mt-4 grid gap-2">
                 {[
                   ["Total Exercises", String(selectedExercises.length)],
-                  ["Estimated Sets", String(estimatedSets)],
-                  ["Estimated Reps", `${estimatedSets * 10}`],
+                  ["Planned Sets", plannedSetsLabel],
+                  ["Rep Targets", `${authoredTargets.filter(target => target.reps).length}/${authoredTargets.length} exercises`],
                   ["Body Parts Hit", bodyPartsHit.join(", ") || "None yet"],
                   ["Movement Patterns", selectedPatterns.join(", ") || "None yet"],
                   ["Recovery Risk", builderContext.readinessWarning],
@@ -1227,9 +1343,54 @@ export default function WorkoutBuilderPage() {
             </section>
           </div>
 
-          {templateStatus ? (
-            <p className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-bold text-cyan-100">
-              {templateStatus}
+          <div className="mt-4 flex flex-wrap gap-3" aria-label="Builder draft controls">
+            <button type="button" onClick={keepOpenBuilderDraft}>Keep draft in this account</button>
+            <button type="button" disabled={!keptDraftAvailable} onClick={restoreKeptBuilderDraft}>Restore kept draft</button>
+            <button type="button" disabled={!keptDraftAvailable} onClick={exportKeptBuilderDraft}>Export kept draft</button>
+            <button type="button" disabled={!keptDraftAvailable} onClick={archiveKeptBuilderDraft}>Archive kept draft and keep open workout</button>
+          </div>
+          <p className="mt-2 text-xs text-slate-400">Drafts are kept when you choose Keep. Restore an existing draft before replacing it, or archive it to preserve the original in your account planning backup. Saving a workout is a separate action.</p>
+          <details className="mt-4 rounded-2xl border border-white/10 p-4 text-sm">
+            <summary className="cursor-pointer font-bold text-cyan-200">Archived Builder drafts</summary>
+            <p className="mt-2 text-slate-400">Review an archived draft before replacing the open workout, or export its exact original. Loading keeps the archive and current kept draft intact; saving creates a new workout.</p>
+            {archivedBuilderDrafts.length ? <ul className="mt-3 max-h-80 space-y-3 overflow-y-auto">
+              {archivedBuilderDrafts.map(archive => <li key={archive.editor.key} className="border-t border-white/10 pt-3">
+                <p className="font-bold">{archive.title}</p>
+                <p className="text-xs text-slate-400">{archive.archivedAt || "Archive date unavailable"}</p>
+                <div className="mt-2 flex flex-wrap gap-3 text-cyan-200">
+                  <button type="button" onClick={() => handleBuilderDraftArchive(archive.editor, "export")} className="underline">Export exact Builder archive</button>
+                  <button type="button" disabled={!archive.canReview} onClick={() => handleBuilderDraftArchive(archive.editor, "review")} className="underline disabled:opacity-50">Review archived Builder draft</button>
+                </div>
+              </li>)}
+            </ul> : <p className="mt-2 text-slate-400">No archived Builder drafts in this account.</p>}
+          </details>
+          {builderArchivePreview && <section aria-label="Archived Builder draft preview" className="mt-4 rounded-2xl border border-cyan-300/20 p-4 text-sm">
+            <h3 className="font-bold text-cyan-200">{builderArchivePreview.form.title || "Untitled archived draft"}</h3>
+            <ol className="mt-2 list-decimal space-y-1 pl-5">{builderArchivePreview.form.exercises.map((exercise, index) => <li key={index}>{exercise.name}</li>)}</ol>
+            <dl className="mt-3 space-y-2">{builderArchivePreview.form.sections.map(section => <div key={section.id}><dt className="font-bold">{section.title}</dt><dd>{section.slots.map(slot => `${slot.label}: ${slot.exercise || "Empty slot"}`).join(" · ")}</dd></div>)}</dl>
+            <p className="mt-2 text-slate-400">The open workout is unchanged until you choose Replace. The saved workout link is cleared so a later save creates a new workout.</p>
+            <div className="mt-3 flex flex-wrap gap-3 text-cyan-200">
+              <button type="button" onClick={applyBuilderDraftArchive} className="underline">Replace open Builder with archived draft</button>
+              <button type="button" onClick={() => setBuilderArchivePreview(null)} className="underline">Cancel archived draft preview</button>
+            </div>
+          </section>}
+          <details className="mt-4 rounded-2xl border border-white/10 p-4 text-sm">
+            <summary className="cursor-pointer font-bold text-cyan-200">Workouts archived before cloud refresh</summary>
+            <p className="mt-2 text-slate-400">Export an exact archive or recover it as a separate saved workout. Recovery keeps the archived exercises and leaves your open Builder, current workouts and plan unchanged.</p>
+            {workoutArchives.length ? <ul className="mt-3 max-h-80 space-y-3 overflow-y-auto">
+              {workoutArchives.map(archive => <li key={archive.editor.key} className="border-t border-white/10 pt-3">
+                <p className="font-bold">{archive.title}</p>
+                <p className="text-xs text-slate-400">{archive.archivedAt || "Archive date unavailable"}</p>
+                <div className="mt-2 flex flex-wrap gap-3 text-cyan-200">
+                  <button type="button" onClick={() => handleWorkoutArchive(archive.editor, "export")} className="underline">Export exact workout archive</button>
+                  <button type="button" disabled={!archive.canRecover} onClick={() => handleWorkoutArchive(archive.editor, "recover")} className="underline disabled:opacity-50">Recover as new workout</button>
+                </div>
+              </li>)}
+            </ul> : <p className="mt-2 text-slate-400">No workouts archived before cloud refresh in this account.</p>}
+          </details>
+          {(occurrenceState.issue || templateStatus) ? (
+            <p role="status" className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 px-4 py-3 text-sm font-bold text-cyan-100">
+              {occurrenceState.issue || templateStatus}
             </p>
           ) : null}
 

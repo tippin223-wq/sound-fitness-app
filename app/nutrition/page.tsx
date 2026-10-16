@@ -1,4 +1,9 @@
+"use client";
+
 import Link from "next/link";
+import { useNutritionSummary } from "./_components/useNutritionSummary";
+import { formatNutrition, nutrientLabels, NutritionRecoveryNotice } from "./_components/NutritionSummary";
+import { nutrientFields } from "@/lib/planning/meals";
 import {
   ActionLink,
   ContentCard,
@@ -9,41 +14,43 @@ import {
   journeyStages,
 } from "./_components/NutritionPortal";
 
-const utilityStats = [
-  { label: "Streak", value: "5 days", helper: "Protein minimum hit" },
-  { label: "Calories Remaining", value: "640", helper: "Placeholder target" },
-  { label: "Hydration", value: "64 / 96 oz", helper: "Add water today" },
-];
-
 const dailyActions = [
   { label: "Log Meal", href: "/nutrition/meals/builder", helper: "Add food quickly." },
   { label: "Add Water", href: "/nutrition/hydration", helper: "Update hydration." },
-  { label: "Scan Food", href: "/nutrition/meals/builder", helper: "Scanner placeholder." },
-  { label: "AI Meal Suggestion", href: "/nutrition/recommendations", helper: "Get a next meal." },
-  { label: "Grocery Builder", href: "/nutrition/grocery", helper: "Plan food for the week." },
+  { label: "Meal History", href: "/nutrition/meals/history", helper: "Review saved meals." },
+  { label: "Nutrition History", href: "/nutrition/progress", helper: "Review reported intake." },
+  { label: "Grocery Preview", href: "/nutrition/grocery", helper: "Explore the planning preview." },
 ];
 
-const analytics = [
-  { label: "Calories", value: "1,820", helper: "Logged estimate" },
-  { label: "Protein", value: "124 g", helper: "82% of target" },
-  { label: "Carbs", value: "188 g", helper: "Training fuel" },
-  { label: "Fats", value: "56 g", helper: "Daily balance" },
-  { label: "Hydration", value: "67%", helper: "Needs another bottle" },
-  { label: "Consistency", value: "78%", helper: "Weekly adherence" },
-];
-
-const recommendations = [
-  "Increase protein today with a lean dinner or Greek yogurt stack.",
-  "Hydration was low yesterday. Start with water before coffee.",
-  "Use a carb + protein meal 60-120 minutes before your next hard workout.",
-];
+const soundKitchenUrl =
+  process.env.NEXT_PUBLIC_SOUND_KITCHEN_URL ??
+  (process.env.NODE_ENV === "development" ? "http://localhost:3201" : "/nutrition");
 
 export default function NutritionDashboardPage() {
+  const { today, day, week, targets, issues } = useNutritionSummary();
+  if (today && issues.length) return <NutritionRecoveryNotice issues={issues} />;
+  if (!today || !day) return <p role="status">Loading your reported nutrition…</p>;
   const nextStage = journeyStages.find((stage) => stage.status === "Next") || journeyStages[0];
+  const utilityStats = [
+    { label: "Meals Today", value: String(day.mealCount), helper: `Saved meals · ${today}` },
+    { label: "Protein Goal", value: targets.proteinG === null ? "Not set" : `${targets.proteinG} g`, helper: "Your current saved daily goal" },
+    { label: "Water Goal", value: targets.waterOz === null ? "Not set" : `${targets.waterOz} US fl oz`, helper: "Your current saved daily goal" },
+  ];
+  const analytics = [
+    ...nutrientFields.map(key => ({ label: nutrientLabels[key], value: formatNutrition(day.nutrients[key].value, key === "calories" ? "kcal" : "g"), helper: `${day.nutrients[key].reported}/${day.mealCount} meals report this value` })),
+    { label: "Water Today", value: formatNutrition(day.waterMl, "ml"), helper: `${day.waterCount} reported entries` },
+    { label: "Days With Records", value: `${week.filter(row => row.mealCount || row.waterCount).length}/7`, helper: "Recorded days, without inferring adherence" },
+  ];
+  const recommendations = [
+    day.mealCount ? "Review saved meals and correct any quantities or missing nutrition values." : "Log your first meal to start today's reported intake.",
+    day.waterCount ? "Review water entries if you need to correct an amount." : "Add water you have already drunk to start today's water log.",
+    targets.proteinG === null || targets.waterOz === null ? "Set your own protein and water targets on Goals when ready." : "Your current saved targets are available on Goals.",
+  ];
 
   return (
     <div className="space-y-5">
       <NutritionBreadcrumbs items={["Nutrition"]} />
+      <p className="text-sm text-slate-300">Today: {today}. Totals include saved entries only; unknown values stay unreported and partial logging may not represent full daily intake.</p>
 
       <section className="grid gap-3 md:grid-cols-3">
         {utilityStats.map((stat) => (
@@ -67,6 +74,12 @@ export default function NutritionDashboardPage() {
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            <a
+              href={soundKitchenUrl}
+              className="rounded-3xl border border-emerald-300/20 bg-emerald-300/10 px-5 py-4 text-sm font-black uppercase tracking-[0.16em] text-emerald-100 transition hover:-translate-y-0.5 hover:border-emerald-200/45 hover:bg-emerald-300/15"
+            >
+              Open Sound Kitchen Menu
+            </a>
             <Link
               href="/nutrition/meals/builder"
               className="rounded-3xl bg-cyan-300 px-5 py-4 text-sm font-black uppercase tracking-[0.16em] text-slate-950 transition hover:-translate-y-0.5 hover:bg-cyan-200"
@@ -107,7 +120,7 @@ export default function NutritionDashboardPage() {
             </Link>
             <div className="rounded-3xl border border-white/10 bg-slate-950/55 px-5 py-4">
               <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
-                Next Stage
+                Preview Stage
               </p>
               <p className="mt-1 text-sm font-black text-white">
                 {nextStage.title}
@@ -120,7 +133,7 @@ export default function NutritionDashboardPage() {
       <section className="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
         <ContentCard className="border-cyan-300/18 bg-cyan-300/8">
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-200">
-            Current Fuel Stage
+            Journey Preview
           </p>
           <h2 className="mt-3 text-2xl font-black text-white">
             {nextStage.title}
@@ -128,11 +141,8 @@ export default function NutritionDashboardPage() {
           <p className="mt-2 text-sm leading-6 text-slate-300">
             {nextStage.helper}
           </p>
-          <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-950/80">
-            <div className="h-full w-[42%] rounded-full bg-gradient-to-r from-cyan-300 to-amber-300" />
-          </div>
           <p className="mt-3 text-xs font-bold uppercase tracking-[0.14em] text-slate-500">
-            Milestone progress: 42%
+            Explore the journey preview. Completion is not yet measured from your records.
           </p>
           <Link
             href="/nutrition/journey"
@@ -174,7 +184,7 @@ export default function NutritionDashboardPage() {
 
         <ContentCard className="border-amber-300/18 bg-amber-300/10">
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-amber-100">
-            AI Recommendations
+            Next Actions
           </p>
           <div className="mt-4 grid gap-3">
             {recommendations.map((recommendation) => (
@@ -187,10 +197,10 @@ export default function NutritionDashboardPage() {
             ))}
           </div>
           <Link
-            href="/nutrition/recommendations"
+            href="/dashboard/goals"
             className="mt-5 inline-flex rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-xs font-black uppercase tracking-[0.14em] text-amber-100 transition hover:border-amber-200/50"
           >
-            Open Recommendations
+            Review Goals
           </Link>
         </ContentCard>
       </section>

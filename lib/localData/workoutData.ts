@@ -1,4 +1,5 @@
 import type { LocalExerciseStatEntry } from "@/types";
+import { readPlanning, writePlanning, planningSnapshot, subscribePlanning } from "@/lib/planning/store";
 
 export const LOCAL_WORKOUT_STORAGE_KEYS = {
   exerciseStats: "soundFitnessExerciseStats",
@@ -23,23 +24,14 @@ const canUseLocalStorage = () =>
   typeof window !== "undefined" && Boolean(window.localStorage);
 
 const readLocalArray = <T>(key: string) => {
-  if (!canUseLocalStorage()) return [];
-
-  const saved = window.localStorage.getItem(key);
-  if (!saved) return [];
-
-  try {
-    const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) ? (parsed as T[]) : [];
-  } catch {
-    return [];
-  }
+  const saved = readPlanning<unknown>(key, []);
+  return Array.isArray(saved) ? saved as T[] : [];
 };
 
 const writeLocalArray = <T>(key: string, items: T[]) => {
   if (!canUseLocalStorage()) return;
 
-  window.localStorage.setItem(key, JSON.stringify(items));
+  writePlanning(key, items);
 };
 
 export const readExerciseStats = () =>
@@ -51,11 +43,18 @@ export const writeExerciseStats = (stats: LocalExerciseStatEntry[]) => {
   writeLocalArray(LOCAL_WORKOUT_STORAGE_KEYS.exerciseStats, stats);
 };
 
+export function readExerciseStatsForSave(): LocalExerciseStatEntry[] {
+  const values = planningSnapshot();
+  const original = Object.hasOwn(values, LOCAL_WORKOUT_STORAGE_KEYS.exerciseStats) ? values[LOCAL_WORKOUT_STORAGE_KEYS.exerciseStats] : [];
+  if (!Array.isArray(original)) throw new Error("Saved exercise statistics need review before adding entries. Original statistics and your open values are preserved.");
+  return original as LocalExerciseStatEntry[];
+}
+
 export const prependExerciseStats = (
   stats: LocalExerciseStatEntry | LocalExerciseStatEntry[],
 ) => {
   const newStats = Array.isArray(stats) ? stats : [stats];
-  const updatedStats = [...newStats, ...readExerciseStats()];
+  const updatedStats = [...newStats, ...readExerciseStatsForSave()];
 
   writeExerciseStats(updatedStats);
   return updatedStats;
@@ -92,6 +91,7 @@ export const subscribeToLocalWorkoutData = (callback: () => void) => {
   };
 
   window.addEventListener("storage", handleStorage);
+  const unsubscribe = subscribePlanning(callback);
 
-  return () => window.removeEventListener("storage", handleStorage);
+  return () => { unsubscribe(); window.removeEventListener("storage", handleStorage); };
 };

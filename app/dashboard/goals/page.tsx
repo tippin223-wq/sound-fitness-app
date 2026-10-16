@@ -10,47 +10,22 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import DashboardTabIcon from "@/components/dashboard/DashboardTabIcon";
-import { writeSoundFitnessProfile } from "@/lib/profile-storage";
+import { sessionRewardSummary, sessionRewardLabel } from "@/lib/planning/sessionRewards";
+import { readPlanning, planningKeys, planningOwner, planningAccountGeneration, planningRecordVersion, planningSnapshot, subscribePlanning } from "@/lib/planning/store";
+import { normalizeGoalId, normalizeGoals, savedGoalsIssue, saveGoalsRecord, goalSetupNextStep, type GoalState, type GoalId } from "@/lib/planning/goals";
+import { setsInWeek } from "@/lib/planning/logs";
+import { trainingJourneyState, readTrainingJourneyWorkoutLogs } from "@/lib/planning/trainingJourney";
+import { cloudHistorySnapshot, serverCloudHistory } from "@/lib/planning/availableLogs";
+import { checkInWeek } from "@/lib/planning/checkIns";
+import { localDate } from "@/lib/planning/dates";
+import { usePlanningDay } from "@/lib/planning/usePlanningDay";
+import { planGoalsNeedReview, inspectWorkoutPlans } from "@/lib/localData/workoutPlanData";
 import { ROUTES } from "@/lib/routes";
 
 type JsonObject = Record<string, unknown>;
-
-type GoalId =
-  | "Build Muscle"
-  | "Lose Fat"
-  | "Maintain"
-  | "Strength"
-  | "General Health"
-  | "Mobility"
-  | "Conditioning"
-  | "Recovery"
-  | "Performance";
-
-type GoalState = {
-  planDirections: GoalId[];
-  primaryGoal: GoalId;
-  secondaryGoal: GoalId;
-  constraintGoal: string;
-  goalDeadline: string;
-  goalMilestones: string;
-  goalPriorityRanking: string;
-  currentWeight: string;
-  goalWeight: string;
-  targetWeeklySessions: string;
-  targetWeeklySets: string;
-  targetProtein: string;
-  targetSteps: string;
-  stepsGoal: string;
-  targetSleep: string;
-  waterGoal: string;
-  benchmarkGoal: string;
-  goalMode: string;
-  motivationFocus: string;
-  planDirectionNotes: string;
-  updatedAt?: string;
-};
 
 type ProfileSnapshot = {
   displayName: string;
@@ -197,14 +172,6 @@ const goalCards: Array<{
     phaseType: "Performance block",
   },
 ];
-
-const selectablePlanDirectionIds = goalCards
-  .filter((goal) => goal.id !== "Maintain")
-  .map((goal) => goal.id);
-
-const isSelectablePlanDirection = (value: unknown): value is GoalId =>
-  typeof value === "string" &&
-  selectablePlanDirectionIds.includes(value as GoalId);
 
 const planDirectionVisualStyles: Record<
   GoalId,
@@ -378,7 +345,7 @@ const asRecord = (value: unknown): JsonObject =>
     : {};
 
 const readLocal = (key: string) =>
-  typeof window === "undefined" ? null : safeJsonParse(window.localStorage.getItem(key));
+  (Object.values(planningKeys) as string[]).includes(key) ? readPlanning(key, null) : key === "soundFitnessPlan" ? inspectWorkoutPlans().plans.find(p => p.status === "active") || null : typeof window === "undefined" ? null : safeJsonParse(window.localStorage.getItem(key));
 
 const getString = (source: JsonObject, keys: string[], fallback = "") => {
   for (const key of keys) {
@@ -396,26 +363,16 @@ const getStringArray = (source: JsonObject, key: string) => {
     : [];
 };
 
-const normalizeGoalId = (value: string, fallback: GoalId): GoalId => {
-  const normalized = value.toLowerCase();
-  return (
-    goalOptions.find(
-      (goal) =>
-        goal.toLowerCase() === normalized ||
-        normalized.includes(goal.toLowerCase()),
-    ) || fallback
-  );
-};
-
 const normalizePlanDirections = (
   directions: unknown,
   fallbackGoalMode: unknown,
 ): GoalId[] => {
   if (Array.isArray(directions)) {
-    return Array.from(new Set(directions.filter(isSelectablePlanDirection))).slice(0, 2);
+    return Array.from(new Set(directions.map(normalizeGoalId).filter((id): id is GoalId => Boolean(id)))).slice(0, 2);
   }
 
-  if (isSelectablePlanDirection(fallbackGoalMode)) return [fallbackGoalMode];
+  const fallback = normalizeGoalId(fallbackGoalMode);
+  if (fallback) return [fallback];
 
   return [];
 };
@@ -476,23 +433,6 @@ const readArrayLength = (key: string) => {
   return Array.isArray(value) ? value.length : 0;
 };
 
-const countWeeklySets = (rawStats: unknown) => {
-  const entries = Array.isArray(rawStats)
-    ? rawStats
-    : Object.values(asRecord(rawStats));
-  const now = Date.now();
-  const sevenDays = 7 * 24 * 60 * 60 * 1000;
-
-  return entries.reduce((total, raw) => {
-    const entry = asRecord(raw);
-    const dateValue = getString(entry, ["date", "createdAt", "loggedAt", "updatedAt"]);
-    const timestamp = dateValue ? new Date(dateValue).getTime() : now;
-    const isRecent = Number.isFinite(timestamp) && now - timestamp <= sevenDays;
-    const sets = Number(entry.sets ?? entry.weeklySets ?? entry.completedSets ?? 0);
-    return total + (isRecent && Number.isFinite(sets) ? sets : 0);
-  }, 0);
-};
-
 const defaultProfile = (): ProfileSnapshot => ({
   displayName: "Member",
   primaryGoal: "General Health",
@@ -518,8 +458,8 @@ const buildGoalsFromProfile = (profile: ProfileSnapshot): GoalState => {
 
   return {
     planDirections,
-    primaryGoal: normalizeGoalId(profile.primaryGoal, "General Health"),
-    secondaryGoal: normalizeGoalId(profile.secondaryGoal, "Strength"),
+    primaryGoal: normalizeGoalId(profile.primaryGoal) || "General Health",
+    secondaryGoal: normalizeGoalId(profile.secondaryGoal) || "",
     constraintGoal: "Recovery-aware training",
     goalDeadline: profile.goalDeadline,
     goalMilestones: profile.goalMilestones,
@@ -566,22 +506,6 @@ const getProfileSnapshot = (): ProfileSnapshot => {
     sleepGoal: getString(profile, ["sleepGoal"], fallback.sleepGoal),
     trainingAge: getString(profile, ["trainingAge", "trainingLevel"], fallback.trainingAge),
   };
-};
-
-const getCoachInsight = ({
-  goals,
-  weeklySets,
-}: {
-  goals: GoalState;
-  weeklySets: number;
-}) => {
-  const weeklyTarget = Number(goals.targetWeeklySets) || 48;
-  if (weeklySets === 0) return "Start the loop with one simple full-body session, then let Progress adapt the next plan.";
-  if (weeklySets < weeklyTarget * 0.4) return "Your weekly volume is still low. Build the base with compounds before adding lots of isolation.";
-  if (weeklySets > weeklyTarget) return "You are ahead of target. Keep the goal, but let Recovery and Calendar protect the next few sessions.";
-  if (goals.primaryGoal === "Lose Fat") return "Keep strength work focused while nutrition and steps support the body-composition goal.";
-  if (goals.primaryGoal === "Strength") return "Prioritize key movement patterns, repeatable loading, and enough recovery between hard sessions.";
-  return "Your goal stack is ready to feed the Library, Builder, My Plan, and future phases.";
 };
 
 function Field({
@@ -879,6 +803,13 @@ function GoalOrbiterIcon({
 }
 
 export default function GoalsPage() {
+  usePlanningDay();
+  useSyncExternalStore(subscribePlanning, planningSnapshot, planningSnapshot);
+  useSyncExternalStore(subscribePlanning, cloudHistorySnapshot, serverCloudHistory);
+  const weekStart = checkInWeek(new Date());
+  const weekEnd = new Date(`${weekStart}T12:00:00`); weekEnd.setDate(weekEnd.getDate() + 6);
+  const weeklySets = setsInWeek(weekStart, localDate(weekEnd));
+  const favoriteCount = readArrayLength("soundFitnessFavorites");
   const [profile, setProfile] = useState<ProfileSnapshot>(() => defaultProfile());
   const [goals, setGoals] = useState<GoalState>(() => buildGoalsFromProfile(defaultProfile()));
   const [activeGoalsHeaderIndex, setActiveGoalsHeaderIndex] = useState(0);
@@ -891,9 +822,22 @@ export default function GoalsPage() {
   const [planDirectionScrolling, setPlanDirectionScrolling] = useState(false);
   const [masterJourneyExpanded, setMasterJourneyExpanded] = useState(false);
   const [openMasterJourney, setOpenMasterJourney] = useState<string | null>(null);
-  const [weeklySets, setWeeklySets] = useState(0);
-  const [favoriteCount, setFavoriteCount] = useState(0);
   const [savedMessage, setSavedMessage] = useState("");
+  const [savedSnapshot, setSavedSnapshot] = useState("");
+  const goalsVersionRef = useRef(planningRecordVersion(planningKeys.goals));
+  const accountRef = useRef(planningOwner());
+  const generationRef = useRef(planningAccountGeneration());
+  const goalsRef = useRef(goals);
+  const savedRef = useRef(savedSnapshot);
+  useEffect(() => { goalsRef.current = goals; savedRef.current = savedSnapshot; }, [goals, savedSnapshot]);
+  useEffect(() => subscribePlanning(() => {
+    if (savedRef.current && JSON.stringify(goalsRef.current) === savedRef.current) {
+      const record = { ...buildGoalsFromProfile(getProfileSnapshot()), ...normalizeGoals(readPlanning(planningKeys.goals, {})) } as GoalState;
+      goalsVersionRef.current = planningRecordVersion(planningKeys.goals);
+      accountRef.current = planningOwner(); generationRef.current = planningAccountGeneration();
+      setGoals(record); setSavedSnapshot(JSON.stringify(record));
+    }
+  }), []);
   const planDirectionSliderRef = useRef<HTMLDivElement | null>(null);
   const planDirectionScrollTimerRef = useRef<number | null>(null);
 
@@ -903,7 +847,7 @@ export default function GoalsPage() {
     }
 
     const profileSnapshot = getProfileSnapshot();
-    const storedGoals = asRecord(readLocal("soundFitnessGoals"));
+    const storedGoals = normalizeGoals(asRecord(readLocal("soundFitnessGoals")));
     const mergedGoals = {
       ...buildGoalsFromProfile(profileSnapshot),
       ...storedGoals,
@@ -914,17 +858,18 @@ export default function GoalsPage() {
         mergedGoals.planDirections,
         mergedGoals.goalMode,
       ),
-      primaryGoal: normalizeGoalId(String(mergedGoals.primaryGoal || ""), "General Health"),
-      secondaryGoal: normalizeGoalId(String(mergedGoals.secondaryGoal || ""), "Strength"),
+      primaryGoal: normalizeGoalId(mergedGoals.primaryGoal) || "General Health",
+      secondaryGoal: normalizeGoalId(mergedGoals.secondaryGoal) || "",
       stepsGoal: getString(storedGoals, ["stepsGoal", "targetSteps"], mergedGoals.stepsGoal || mergedGoals.targetSteps || ""),
       targetSteps: getString(storedGoals, ["targetSteps", "stepsGoal"], mergedGoals.targetSteps || mergedGoals.stepsGoal || "8000"),
       waterGoal: getString(storedGoals, ["waterGoal"], mergedGoals.waterGoal || ""),
     } as GoalState;
 
+    goalsVersionRef.current = planningRecordVersion(planningKeys.goals);
+      accountRef.current = planningOwner(); generationRef.current = planningAccountGeneration();
     setProfile(profileSnapshot);
     setGoals(nextGoals);
-    setWeeklySets(countWeeklySets(readLocal("soundFitnessExerciseStats")));
-    setFavoriteCount(readArrayLength("soundFitnessFavorites"));
+    setSavedSnapshot(JSON.stringify(nextGoals));
   }, []);
 
   useEffect(() => {
@@ -957,7 +902,8 @@ export default function GoalsPage() {
   } as CSSProperties;
   const weeklyTarget = Number(goals.targetWeeklySets) || 48;
   const completion = Math.min(Math.round((weeklySets / weeklyTarget) * 100), 140);
-  const coachInsight = getCoachInsight({ goals, weeklySets });
+  const savedGoalIssue = savedGoalsIssue(readPlanning(planningKeys.goals, {}));
+  const unsavedGoalChanges = Boolean(savedSnapshot && JSON.stringify(goals) !== savedSnapshot);
   const weightDelta =
     Number(goals.goalWeight || 0) && Number(goals.currentWeight || 0)
       ? Number(goals.goalWeight) - Number(goals.currentWeight)
@@ -995,11 +941,7 @@ export default function GoalsPage() {
         year: "numeric",
       }).format(deadlineDate)
       : goals.goalDeadline || "Timeline open";
-  const recommendedNextStep = !goals.goalDeadline
-    ? "Set a realistic goal timeline so the plan can pace volume and progression."
-    : !goals.goalMilestones.trim()
-      ? "Add 2-3 milestones that turn the goal into visible weekly behaviors."
-      : coachInsight;
+  const recommendedNextStep = goalSetupNextStep(goals, unsavedGoalChanges || Boolean(savedGoalIssue));
   const goalPrioritySelectOptions =
     goals.goalPriorityRanking &&
     !goalPriorityOptions.includes(
@@ -1009,24 +951,15 @@ export default function GoalsPage() {
       : [...goalPriorityOptions];
   const displayName = profile.displayName.trim() || "Member";
   const firstName = displayName.split(/\s+/)[0] || "Member";
-  const soundPoints =
-    900 +
-    goalSetupCompletion * 10 +
-    weeklySets * 4 +
-    favoriteCount * 60 +
-    selectedDirections.length * 120;
-  const soundTokens =
-    70 +
-    Math.round(goalSetupCompletion / 5) +
-    favoriteCount * 2 +
-    selectedDirections.length * 4;
+  const goalRewards = sessionRewardSummary(readPlanning(planningKeys.profile, {}), []);
+  const soundPoints = goalRewards.soundPoints;
+  const soundTokens = goalRewards.soundTokens;
   const goalsHeaderLinks = [
     {
       href: ROUTES.dashboard.home,
       icon: "dashboard",
       label: "Dashboard",
       meta: "Command",
-      points: Math.round(soundPoints * 1.06),
       tone:
         "border-cyan-200/30 bg-cyan-300/10 text-cyan-100 hover:border-cyan-100/45 hover:bg-cyan-300/16",
     },
@@ -1035,7 +968,6 @@ export default function GoalsPage() {
       icon: "profile",
       label: "Profile",
       meta: "Identity",
-      points: Math.round(soundPoints * 0.92),
       tone:
         "border-cyan-200/30 bg-cyan-300/10 text-cyan-100 hover:border-cyan-100/45 hover:bg-cyan-300/16",
     },
@@ -1044,7 +976,6 @@ export default function GoalsPage() {
       icon: "workout",
       label: "Workout",
       meta: "Sessions",
-      points: Math.round(soundPoints * 0.82),
       tone:
         "border-sky-200/28 bg-sky-300/10 text-sky-100 hover:border-sky-100/45 hover:bg-sky-300/16",
     },
@@ -1053,7 +984,6 @@ export default function GoalsPage() {
       icon: "nutrition",
       label: "Nutrition",
       meta: "Fuel",
-      points: Math.round(soundPoints * 0.42),
       tone:
         "border-emerald-200/28 bg-emerald-300/10 text-emerald-100 hover:border-emerald-100/45 hover:bg-emerald-300/16",
     },
@@ -1062,7 +992,6 @@ export default function GoalsPage() {
       icon: "recovery",
       label: "Recovery",
       meta: "Readiness",
-      points: Math.round(soundPoints * 0.3),
       tone:
         "border-violet-200/28 bg-violet-300/10 text-violet-100 hover:border-violet-100/45 hover:bg-violet-300/16",
     },
@@ -1071,7 +1000,6 @@ export default function GoalsPage() {
       icon: "performance",
       label: "Performance",
       meta: "Athletic",
-      points: Math.round(soundPoints * 0.48),
       tone:
         "border-amber-200/30 bg-amber-300/10 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/16",
     },
@@ -1080,7 +1008,6 @@ export default function GoalsPage() {
       icon: "education",
       label: "Education",
       meta: "Learning",
-      points: Math.round(soundPoints * 0.16),
       tone:
         "border-blue-200/28 bg-blue-300/10 text-blue-100 hover:border-blue-100/45 hover:bg-blue-300/16",
     },
@@ -1089,7 +1016,6 @@ export default function GoalsPage() {
       icon: "soundworld",
       label: "Sound World",
       meta: "Community",
-      points: Math.round(soundPoints * 0.1),
       tone:
         "border-pink-200/28 bg-pink-300/10 text-pink-100 hover:border-pink-100/45 hover:bg-pink-300/16",
     },
@@ -1247,10 +1173,10 @@ export default function GoalsPage() {
               className={`shrink-0 rounded-2xl border px-3 py-2 text-right ${activeGoalsHeaderLink.tone}`}
             >
               <span className="block text-[8px] font-black uppercase tracking-[0.1em] opacity-75">
-                pts
+                recorded pts
               </span>
               <span className="block text-sm font-black leading-none [text-shadow:0_1px_12px_rgba(0,0,0,0.34)]">
-                {activeGoalsHeaderLink.points.toLocaleString()}
+                {sessionRewardLabel(soundPoints)}
               </span>
             </span>
           </Link>
@@ -1310,7 +1236,7 @@ export default function GoalsPage() {
           </span>
           <span className="flex items-center gap-3">
             <span className="flex items-center gap-1.5">
-              <span className="sr-only">Points</span>
+              <span className="sr-only">Recorded points</span>
               <svg
                 aria-hidden="true"
                 className="h-5 w-5 text-amber-200 drop-shadow-[0_0_12px_rgba(250,204,21,0.28)]"
@@ -1320,7 +1246,7 @@ export default function GoalsPage() {
                 <path d="M13.5 2 4.8 13.2h6.1L9.7 22 19.2 9.6h-6.4L13.5 2Z" />
               </svg>
               <span className="text-sm font-black leading-none text-white">
-                {soundPoints.toLocaleString()}
+                {sessionRewardLabel(soundPoints)}
               </span>
             </span>
             <span className="flex items-center gap-1.5">
@@ -1334,7 +1260,7 @@ export default function GoalsPage() {
                 width={20}
               />
               <span className="text-sm font-black leading-none text-white">
-                {soundTokens.toLocaleString()}
+                {sessionRewardLabel(soundTokens)}
               </span>
             </span>
           </span>
@@ -1750,7 +1676,14 @@ export default function GoalsPage() {
   };
 
   const updateGoal = <K extends keyof GoalState>(key: K, value: GoalState[K]) => {
-    setGoals((current) => ({ ...current, [key]: value }));
+    setGoals((current) => {
+      if (key === "primaryGoal" || key === "goalMode") {
+        const primary = value as GoalId;
+        return { ...current, ...normalizeGoals({ ...current, planDirections: [primary, ...current.planDirections.filter(id => id !== primary)].slice(0, 2) }) };
+      }
+      if (key === "secondaryGoal") return { ...current, ...normalizeGoals({ ...current, planDirections: [current.primaryGoal, ...(value && value !== current.primaryGoal ? [value as GoalId] : [])] }) };
+      return { ...current, [key]: value };
+    });
     setSavedMessage("");
   };
 
@@ -1803,7 +1736,7 @@ export default function GoalsPage() {
 
       setPlanDirectionMessage(
         nextDirections.length
-          ? "Primary drives programming. Secondary modifies accessories, recovery, and cardio."
+          ? "Primary guides your plan. Secondary adds a supporting focus."
           : "Choose up to 2 priorities.",
       );
       setSavedMessage("");
@@ -1812,6 +1745,8 @@ export default function GoalsPage() {
         ...current,
         goalMode: nextDirections[0] || current.goalMode,
         planDirections: nextDirections,
+        primaryGoal: nextDirections[0] || current.primaryGoal,
+        secondaryGoal: nextDirections[1] || "",
       };
     });
   };
@@ -1820,7 +1755,7 @@ export default function GoalsPage() {
     const nextDirections = normalizePlanDirections(goals.planDirections, goals.goalMode);
     const stepsGoal = goals.stepsGoal || goals.targetSteps;
     const nextGoals = {
-      ...goals,
+      ...goals, ...normalizeGoals(goals),
       planDirections: nextDirections,
       targetSteps: stepsGoal,
       stepsGoal,
@@ -1829,10 +1764,8 @@ export default function GoalsPage() {
     const storedProfile = asRecord(readLocal("soundFitnessProfile"));
     const nextProfile = {
       ...storedProfile,
-      primaryGoal: nextDirections.length
-        ? `${nextDirections.join(" + ")} Plan`
-        : goals.primaryGoal,
-      secondaryGoal: nextDirections[1] || goals.secondaryGoal,
+      primaryGoal: nextGoals.primaryGoal,
+      secondaryGoal: nextDirections[1] || "",
       goalMode: nextDirections[0] || goals.goalMode,
       planDirections: nextDirections,
       goalDeadline: goals.goalDeadline,
@@ -1849,46 +1782,19 @@ export default function GoalsPage() {
       sleepGoal: goals.targetSleep,
     };
 
-    window.localStorage.setItem("soundFitnessGoals", JSON.stringify(nextGoals));
-    writeSoundFitnessProfile(nextProfile);
-    setGoals(nextGoals);
+    let savedGoals: GoalState;
+    try { savedGoals = saveGoalsRecord(nextGoals, nextProfile, { account: accountRef.current, generation: generationRef.current, version: goalsVersionRef.current }); } catch (error) { setSavedMessage(error instanceof Error ? error.message : "Goals could not be saved."); return; }
+    goalsVersionRef.current = planningRecordVersion(planningKeys.goals);
+      accountRef.current = planningOwner(); generationRef.current = planningAccountGeneration();
+    setGoals(savedGoals);
+    setSavedSnapshot(JSON.stringify(savedGoals));
     setProfile(getProfileSnapshot());
-    setSavedMessage("Goals saved and Profile goal context updated.");
+    setSavedMessage("Goals saved locally. Cloud sync status appears above.");
   };
 
   const renderMasterTrainingJourney = () => {
-    const profileCompletion = calculateCompletion([
-      profile.displayName,
-      profile.trainingAge,
-      goals.currentWeight,
-      profile.sessionsPerWeek,
-    ]);
-    const trainingSetupCompletion = calculateCompletion([
-      goals.targetWeeklySessions,
-      goals.targetWeeklySets,
-      goals.benchmarkGoal,
-      selectedDirections,
-    ]);
-    const fuelCompletion = calculateCompletion([
-      goals.targetProtein,
-      goals.waterGoal,
-      activeDirection,
-      goals.goalMode,
-    ]);
-    const performanceCompletion = calculateCompletion([
-      weeklySets,
-      goals.benchmarkGoal,
-      activeDirection === "Performance" || activeDirection === "Conditioning"
-        ? activeDirection
-        : "",
-      goals.goalMilestones,
-    ]);
-    const recoveryCompletion = calculateCompletion([
-      goals.targetSleep,
-      activeDirection === "Recovery" ? activeDirection : "",
-      goals.planDirectionNotes,
-      goals.goalPriorityRanking,
-    ]);
+    const planRecovery = inspectWorkoutPlans();
+    const training = trainingJourneyState({ goals: readPlanning(planningKeys.goals, {}), plans: planRecovery.plans.filter(plan => !planGoalsNeedReview(plan)), logs: readTrainingJourneyWorkoutLogs() });
 
     const journeyRows: Array<{
       accent: string;
@@ -1904,9 +1810,7 @@ export default function GoalsPage() {
     }> = [
       {
         accent: "from-cyan-300 to-blue-400",
-        completion: Math.round(
-          (profileCompletion + goalSetupCompletion + trainingSetupCompletion) / 3,
-        ),
+        completion: training.completion,
         description: "Build sessions from profile, goals, libraries, and plans.",
         id: "training",
         title: "Training Journey",
@@ -1916,15 +1820,15 @@ export default function GoalsPage() {
           { href: ROUTES.dashboard.sessions, label: "Sessions", status: "Start" },
           { href: ROUTES.dashboard.exerciseLibrary, label: "Exercise Library", status: "Tools" },
           { href: ROUTES.dashboard.goals, label: "Goal Planning", status: "Goals" },
-          { href: ROUTES.dashboard.plan, label: "My Plan", status: "Organize" },
+          { href: ROUTES.dashboard.myPlan, label: "My Plan", status: "Organize" },
           { href: ROUTES.dashboard.phases, label: "Periodized Plan", status: "Phase" },
           { href: ROUTES.dashboard.calendar, label: "Calendar", status: "Schedule" },
-          { href: ROUTES.dashboard.stats, label: "Progress", status: "Reflect" },
+          { href: ROUTES.dashboard.progress, label: "Progress", status: "Reflect" },
         ],
       },
       {
         accent: "from-emerald-300 to-teal-400",
-        completion: Math.round((profileCompletion + goalSetupCompletion + fuelCompletion) / 3),
+        completion: 0,
         description: "Turn fuel decisions into meals, menus, and weekly nutrition plans.",
         id: "fuel",
         title: "Fuel Journey",
@@ -1941,9 +1845,7 @@ export default function GoalsPage() {
       },
       {
         accent: "from-orange-300 to-amber-300",
-        completion: Math.round(
-          (goalSetupCompletion + trainingSetupCompletion + performanceCompletion) / 3,
-        ),
+        completion: 0,
         description: "Develop conditioning, athletic metrics, and performance trends.",
         id: "performance",
         title: "Performance Pathway",
@@ -1953,12 +1855,12 @@ export default function GoalsPage() {
           { href: "/performance", label: "Conditioning", status: "Capacity" },
           { href: "/performance", label: "Metrics", status: "Measure" },
           { href: "/performance", label: "Athletic Tests", status: "Test" },
-          { href: ROUTES.dashboard.stats, label: "Progress", status: "Track" },
+          { href: ROUTES.dashboard.progress, label: "Progress", status: "Track" },
         ],
       },
       {
         accent: "from-violet-300 to-cyan-300",
-        completion: Math.round((profileCompletion + recoveryCompletion + goalSetupCompletion) / 3),
+        completion: 0,
         description: "Connect readiness, mobility, pain/soreness, and recovery planning.",
         id: "recovery",
         title: "Recovery Roadmap",
@@ -1968,7 +1870,7 @@ export default function GoalsPage() {
           { href: ROUTES.dashboard.painTracking, label: "Pain/Soreness", status: "Log" },
           { href: ROUTES.dashboard.profile, label: "Sleep/Stress", status: "Signals" },
           { href: "/recovery", label: "Recovery Plan", status: "Recover" },
-          { href: ROUTES.dashboard.stats, label: "Progress", status: "Track" },
+          { href: ROUTES.dashboard.progress, label: "Progress", status: "Track" },
         ],
       },
     ];
@@ -1987,23 +1889,14 @@ export default function GoalsPage() {
     ];
 
     const getJourneySummary = (row: (typeof journeyRows)[number]) => {
-      const completedCount = Math.min(
-        row.steps.length,
-        Math.floor((row.completion / 100) * row.steps.length),
-      );
-      const currentIndex = Math.min(completedCount, row.steps.length - 1);
+      const currentIndex = row.id === "training" ? Math.max(0, row.steps.findIndex(step => step.label === training.next)) : 0;
       const currentStep = row.steps[currentIndex]?.label || row.steps[0]?.label || "Profile";
-      const nextAction =
-        row.steps[Math.min(currentIndex + 1, row.steps.length - 1)]?.label ||
-        currentStep;
+      const nextAction = row.id === "training" ? training.next : "Explore modules";
 
-      return { completedCount, currentIndex, currentStep, nextAction };
+      return { currentIndex, currentStep, nextAction };
     };
 
-    const overallJourneyCompletion = Math.round(
-      journeyRows.reduce((total, row) => total + row.completion, 0) /
-        Math.max(journeyRows.length, 1),
-    );
+    const overallJourneyCompletion = training.completion;
     const currentJourney =
       journeyRows.find((row) => row.id === openMasterJourney) ||
       journeyRows.find((row) => row.completion < 100) ||
@@ -2012,6 +1905,10 @@ export default function GoalsPage() {
 
     return (
       <section className="overflow-hidden rounded-[30px] border border-white/10 bg-slate-950/58 shadow-2xl">
+        {planRecovery.issue && <aside role="alert" className="m-5 rounded-2xl border border-amber-300/30 p-4 text-sm text-amber-200">
+          <p>{planRecovery.issue}</p><p className="mt-2">Saved plan milestones need review. Your Goals and workout records remain saved.</p>
+          <Link href="/dashboard/calendar" className="mt-3 block underline">Review and export original plans in Calendar</Link>
+        </aside>}
         <button
           type="button"
           aria-expanded={masterJourneyExpanded}
@@ -2028,15 +1925,15 @@ export default function GoalsPage() {
                   Master Training Journey
                 </h2>
                 <span className="rounded-full border border-cyan-200/28 bg-cyan-300/12 px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100">
-                  {overallJourneyCompletion}% complete
+                  {overallJourneyCompletion}% training foundations
                 </span>
               </div>
               <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-slate-400">
-                Profile and goals are the foundation. Training, fuel, performance, and recovery journeys build from there.
+                Training foundations track saved goals, a saved week, an assigned workout, and a recorded completion. Other journeys are navigation; their completion is not tracked here.
               </p>
               <div className="mt-3 flex max-w-full flex-wrap gap-2">
                 <span className="rounded-full border border-emerald-200/20 bg-emerald-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-emerald-100">
-                  {overallJourneyCompletion}% Complete
+                  {overallJourneyCompletion}% Training Foundations
                 </span>
                 <span className="rounded-full border border-cyan-200/20 bg-cyan-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-cyan-100">
                   Current: {currentJourney.title}
@@ -2103,7 +2000,7 @@ export default function GoalsPage() {
               <div className="space-y-5">
                 {journeyRows.map((row) => {
                   const isOpen = openMasterJourney === row.id;
-                  const { completedCount, currentIndex, currentStep, nextAction } =
+                  const { currentIndex, currentStep, nextAction } =
                     getJourneySummary(row);
 
                   return (
@@ -2126,7 +2023,7 @@ export default function GoalsPage() {
                             <div className="flex flex-wrap items-center gap-3">
                               <p className="text-lg font-black text-white">{row.title}</p>
                               <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-[10px] font-black uppercase tracking-[0.1em] text-slate-300">
-                                {row.completion}% complete
+                                {row.id === "training" ? `${row.completion}% training foundations` : "Explore modules"}
                               </span>
                             </div>
                             <p className="mt-1 text-xs font-semibold leading-5 text-slate-400">
@@ -2168,14 +2065,13 @@ export default function GoalsPage() {
                           <div className="border-t border-white/10 p-4 pt-5">
                             <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                               {row.steps.map((step, index) => {
-                                const stepState =
-                                  index < completedCount
-                                    ? "Completed"
-                                    : index === currentIndex
-                                      ? "Active"
-                                      : "Next";
-                                const isActive = stepState === "Active";
-                                const isComplete = stepState === "Completed";
+                                const evidence = row.id === "training" && (
+                                  (step.label === "Goals" || step.label === "Goal Planning") && training.recorded.goals ? "Saved goals"
+                                  : step.label === "My Plan" && training.recorded.plan ? "Saved week"
+                                  : step.label === "Sessions" && training.recorded.workout ? "Workout recorded" : "");
+                                const stepState = evidence || (row.id === "training" && index === currentIndex ? "Next step" : "Explore");
+                                const isActive = stepState === "Next step";
+                                const isComplete = Boolean(evidence);
 
                                 return (
                                   <div
@@ -2368,8 +2264,7 @@ export default function GoalsPage() {
 
           {planDirectionOpen ? (
             <div className="border-t border-white/10 p-4">
-              {/* TODO: Primary plan direction should drive main programming. */}
-              {/* TODO: Secondary plan direction should modify accessories, recovery, and cardio once robo-coach rules are ready. */}
+              <p className="text-sm text-slate-300">Your saved priorities guide manual planning. Suggestions never change scheduled workouts automatically.</p>
               <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <p className="rounded-2xl border border-cyan-200/16 bg-cyan-300/8 px-4 py-3 text-xs font-semibold leading-5 text-cyan-50">
                   {planDirectionMessage ||
@@ -2521,12 +2416,21 @@ export default function GoalsPage() {
           ) : null}
         </section>
 
+        <p role="status" className="text-sm text-amber-200">{unsavedGoalChanges ? "Unsaved goal changes" : savedGoalIssue || "Showing saved goals"}</p>
+        {savedGoalIssue && <p className="text-sm text-slate-300">Prefilled values are draft suggestions for review. They become confirmed targets after you choose a direction and save valid goals. Setup percentages describe the current form, including suggestions.</p>}
         {savedMessage ? (
           <p className="rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm font-bold text-emerald-100">
             {savedMessage}
           </p>
         ) : null}
 
+        {(savedMessage.includes("Goals changed") || savedMessage.includes("account changed")) && <button type="button" className="rounded-xl border border-white/20 px-4 py-2 text-sm" onClick={() => {
+          const record = { ...buildGoalsFromProfile(getProfileSnapshot()), ...normalizeGoals(readPlanning(planningKeys.goals, {})) } as GoalState;
+          goalsVersionRef.current = planningRecordVersion(planningKeys.goals);
+      accountRef.current = planningOwner(); generationRef.current = planningAccountGeneration();
+          goalsRef.current = record; savedRef.current = JSON.stringify(record);
+          setGoals(record); setSavedSnapshot(JSON.stringify(record)); setProfile(getProfileSnapshot()); setSavedMessage("Saved goals reloaded.");
+        }}>Reload saved goals and discard these edits</button>}
         <section className="grid gap-5 xl:grid-cols-[0.92fr_1.08fr]">
           <section
             id="goal-stack"
@@ -2537,7 +2441,7 @@ export default function GoalsPage() {
             </p>
             <div className="mt-5 grid gap-4">
               <SelectField label="Primary Goal" value={goals.primaryGoal} options={goalOptions} onChange={(value) => updateGoal("primaryGoal", value as GoalId)} />
-              <SelectField label="Secondary Goal" value={goals.secondaryGoal} options={goalOptions} onChange={(value) => updateGoal("secondaryGoal", value as GoalId)} />
+              <SelectField label="Secondary Goal" value={goals.secondaryGoal} options={["", ...goalOptions.filter(id => id !== goals.primaryGoal)]} onChange={(value) => updateGoal("secondaryGoal", value as GoalId)} />
               <label className="block">
                 <span className="text-[10px] font-black uppercase tracking-[0.18em] text-cyan-200">
                   Constraint Goal
@@ -2548,7 +2452,7 @@ export default function GoalsPage() {
                   className="mt-2 min-h-[48px] w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-bold text-white outline-none transition focus:border-cyan-300"
                 />
               </label>
-              <SelectField label="Goal Mode" value={goals.goalMode} options={["Bulk", "Cut", "Maintain", "Strength", "General Health", "Performance", "Recovery"]} onChange={(value) => updateGoal("goalMode", value)} />
+              <SelectField label="Goal Mode" value={goals.goalMode} options={goalOptions} onChange={(value) => updateGoal("goalMode", value)} />
               <SelectField label="Goal Priorities" value={goals.goalPriorityRanking} options={goalPrioritySelectOptions} onChange={(value) => updateGoal("goalPriorityRanking", value)} />
             </div>
           </section>
@@ -2664,6 +2568,8 @@ export default function GoalsPage() {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <TextAreaField label="Goal Milestones" value={goals.goalMilestones} onChange={(value) => updateGoal("goalMilestones", value)} placeholder="Example: First 4-week consistency streak, strength benchmark, measurement checkpoint..." />
+              {goals.goalMilestones.split(/\n|,/).map(item => item.trim()).filter(Boolean).map(item => <label key={item} className="flex gap-2 text-sm text-slate-200"><input type="checkbox" checked={(goals.completedMilestones || []).includes(item)} onChange={event => updateGoal("completedMilestones", event.target.checked ? [...new Set([...(goals.completedMilestones || []), item])] : (goals.completedMilestones || []).filter(value => value !== item))} />{item}</label>)}
+
               <TextAreaField label="Motivation / Focus" value={goals.motivationFocus} onChange={(value) => updateGoal("motivationFocus", value)} placeholder="What should the coach and app keep you focused on?" />
               <div className="md:col-span-2">
                 <TextAreaField label="Plan Direction Notes" value={goals.planDirectionNotes} onChange={(value) => updateGoal("planDirectionNotes", value)} placeholder="Extra guidance for plan generation, tradeoffs, or goal context." />

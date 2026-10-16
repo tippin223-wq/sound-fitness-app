@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
 import TrainingJourneyNavigator from "@/components/dashboard/TrainingJourneyNavigator";
+import { planningAccountGeneration, planningOwner, planningSnapshot, subscribePlanning } from "@/lib/planning/store";
+import { addLibraryDraftItem, importLegacyLibrary, legacyLibraryAvailable, libraryDraftVersion, libraryVersion, libraryReviewIssue, readLibraryDraft, readLibraryState, removeLibraryDraftItem, toggleLibraryFavorite } from "@/lib/planning/libraries";
 import { ROUTES } from "@/lib/routes";
 
 export type LibraryItem = {
@@ -39,49 +41,6 @@ const librarySwitcher = [
   { emoji: "🧘", label: "Mobility", href: ROUTES.dashboard.mobility },
 ] as const;
 
-const safeJsonParse = (value: string | null): unknown => {
-  if (!value) return null;
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-};
-
-const asRecord = (value: unknown): Record<string, unknown> =>
-  value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
-
-const readLocal = (key: string) =>
-  typeof window === "undefined"
-    ? null
-    : safeJsonParse(window.localStorage.getItem(key));
-
-const writeLocal = (key: string, value: unknown) => {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, JSON.stringify(value));
-};
-
-const readStringArray = (key: string) => {
-  const value = readLocal(key);
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-};
-
-const readLibraryState = (key: string) => {
-  const state = asRecord(readLocal(key));
-  const favorites = Array.isArray(state.favorites)
-    ? state.favorites.filter((item): item is string => typeof item === "string")
-    : [];
-  const recent = Array.isArray(state.recent)
-    ? state.recent.filter((item): item is string => typeof item === "string")
-    : [];
-
-  return { favorites, recent };
-};
-
 export default function LibraryPageShell({
   actionLabel,
   categories,
@@ -89,26 +48,20 @@ export default function LibraryPageShell({
   heroMetrics,
   items,
   libraryId,
-  planStorageKey,
-  storageKey,
   subtitle,
   title,
 }: LibraryPageShellProps) {
   const [activeCategory, setActiveCategory] = useState("All");
   const [query, setQuery] = useState("");
-  const [favorites, setFavorites] = useState<string[]>([]);
-  const [recent, setRecent] = useState<string[]>([]);
+  useSyncExternalStore(subscribePlanning, planningSnapshot, planningSnapshot);
+  const account = useRef(planningOwner());
+  const generation = useRef(planningAccountGeneration());
+  const { favorites, recent } = readLibraryState(libraryId);
+  const draftItems = readLibraryDraft(libraryId);
+  const reviewIssue = libraryReviewIssue(libraryId);
+  const version = libraryVersion(libraryId); const planVersion = libraryDraftVersion(libraryId);
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    const namespaced = readLibraryState(storageKey);
-    const globalFavorites = readStringArray("soundFitnessFavorites")
-      .filter((key) => key.startsWith(`${libraryId}:`))
-      .map((key) => key.replace(`${libraryId}:`, ""));
-
-    setFavorites(Array.from(new Set([...namespaced.favorites, ...globalFavorites])));
-    setRecent(namespaced.recent);
-  }, [libraryId, storageKey]);
+  const [error, setError] = useState("");
 
   const filteredItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -136,60 +89,31 @@ export default function LibraryPageShell({
     [filteredItems],
   );
 
-  const persistLibraryState = (nextFavorites: string[], nextRecent: string[]) => {
-    writeLocal(storageKey, {
-      favorites: nextFavorites,
-      recent: nextRecent.slice(0, 8),
-      updatedAt: new Date().toISOString(),
-    });
+  const act = (action: () => void, message: string) => {
+    try { action(); setError(""); setMessage(message); }
+    catch (cause) { setMessage(""); setError(cause instanceof Error ? cause.message : "Could not save. Your previous account data remains saved."); }
   };
-
-  const toggleFavorite = (itemId: string) => {
-    const nextFavorites = favorites.includes(itemId)
-      ? favorites.filter((id) => id !== itemId)
-      : [...favorites, itemId];
-    const globalFavorites = readStringArray("soundFitnessFavorites");
-    const scopedKey = `${libraryId}:${itemId}`;
-    const nextGlobal = nextFavorites.includes(itemId)
-      ? Array.from(new Set([...globalFavorites, scopedKey]))
-      : globalFavorites.filter((item) => item !== scopedKey);
-
-    setFavorites(nextFavorites);
-    writeLocal("soundFitnessFavorites", nextGlobal);
-    persistLibraryState(nextFavorites, recent);
-  };
-
-  const addItem = (item: LibraryItem) => {
-    const currentPlan = readLocal(planStorageKey);
-    const planItems = Array.isArray(currentPlan)
-      ? currentPlan
-      : Array.isArray(asRecord(currentPlan).items)
-        ? (asRecord(currentPlan).items as unknown[])
-        : [];
-    const nextPlan = [
-      {
-        ...item,
-        addedAt: new Date().toISOString(),
-        sourceLibrary: libraryId,
-      },
-      ...planItems.filter((entry) => asRecord(entry).id !== item.id),
-    ].slice(0, 30);
-    const nextRecent = [item.id, ...recent.filter((id) => id !== item.id)];
-
-    writeLocal(planStorageKey, nextPlan);
-    setRecent(nextRecent);
-    persistLibraryState(favorites, nextRecent);
-    setMessage(`${item.title} added to draft.`);
-  };
+  const toggleFavorite = (itemId: string) => act(() => toggleLibraryFavorite(libraryId, itemId, version, account.current, generation.current), "Favorite saved to your account. Sync status appears above.");
+  const addItem = (item: LibraryItem) => act(() => addLibraryDraftItem(libraryId, item, version, planVersion, account.current, generation.current), item.title + " added to your account draft.");
 
   const recentItems = recent
     .map((itemId) => items.find((item) => item.id === itemId))
     .filter((item): item is LibraryItem => Boolean(item));
 
+  if (reviewIssue) return <main className="min-h-screen bg-slate-950 px-5 py-8 text-white">
+    <section className="mx-auto max-w-3xl space-y-4 rounded-[28px] border border-amber-300/30 p-6" aria-label="Library data review">
+      <h1 className="text-3xl font-bold">Review saved library data</h1>
+      <p className="text-slate-300">Favorites and draft edits are paused because this library&apos;s saved data needs review. Your original records remain saved.</p>
+      <p className="text-amber-200">{reviewIssue}</p>
+      <p className="text-sm text-slate-400">Use Export planning backup above to inspect the complete original records for this account before making changes.</p>
+    </section>
+  </main>;
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_12%_0%,rgba(34,211,238,0.16),transparent_34%),radial-gradient(circle_at_88%_8%,rgba(251,191,36,0.14),transparent_32%),linear-gradient(180deg,#020617_0%,#0f172a_48%,#020617_100%)] text-white">
       <section className="mx-auto w-full max-w-[1440px] space-y-5 px-3 py-5 sm:px-5 lg:px-8">
         <TrainingJourneyNavigator currentStep="library" variant="full" />
+        {legacyLibraryAvailable(libraryId) && <div className="rounded-2xl border border-amber-300/20 p-4 text-sm text-slate-300"><p>Older browser library data is available. Import it only if it belongs to this account. The originals will be preserved.</p><button type="button" onClick={() => act(() => importLegacyLibrary(libraryId, version, planVersion, account.current, generation.current), "Older library data imported into this account. Browser originals were preserved.")} className="mt-2 text-cyan-300">Import my older library data</button></div>}
 
         <section className="overflow-hidden rounded-[34px] border border-white/10 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.2),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.94),rgba(2,6,23,0.98))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.62)] sm:p-6 lg:p-8">
           <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr] xl:items-stretch">
@@ -407,6 +331,7 @@ export default function LibraryPageShell({
                   </p>
                 </div>
               </div>
+              {error && <p role="alert" className="mt-3 text-sm text-rose-300">{error}</p>}
               {message ? (
                 <p className="mt-4 rounded-2xl border border-emerald-300/20 bg-emerald-300/10 px-4 py-3 text-sm font-bold text-emerald-100">
                   {message}
@@ -459,6 +384,7 @@ export default function LibraryPageShell({
                 )}
               </div>
             </section>
+            <section className="rounded-[28px] border border-white/10 bg-slate-950/62 p-5 shadow-2xl"><h2 className="text-lg font-bold">Draft selection ({draftItems.length}/30)</h2><p className="mt-2 text-sm text-slate-400">Saved selections for later planning.</p>{!draftItems.length && <p className="mt-3 text-sm text-slate-400">No saved selections yet.</p>}{draftItems.map(item => <div key={item.id} className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-white/10 p-3"><span className="text-sm">{item.title}</span><button type="button" onClick={() => act(() => removeLibraryDraftItem(libraryId, item.id, planVersion, account.current, generation.current), "Removed from the draft. You can add it again from the library.")} className="text-sm text-cyan-300">Remove</button></div>)}</section>
           </aside>
         </section>
       </section>

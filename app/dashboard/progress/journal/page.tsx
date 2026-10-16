@@ -1,20 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
+import { planningAccountGeneration, planningOwner, planningSnapshot, subscribePlanning } from "@/lib/planning/store";
+import { inspectJournalRecords, journalRecordsVersion, exportJournalRecords, journalDraftVersion, saveJournalDraft, saveJournalEntry } from "@/lib/planning/journal";
 
 export default function JournalPage() {
-  const [entry, setEntry] = useState("");
+  useSyncExternalStore(subscribePlanning, planningSnapshot, planningSnapshot);
+  const records = inspectJournalRecords(); const { entries } = records;
+  const recordsVersion = journalRecordsVersion();
+  const [entry, setEntry] = useState(() => records.draft?.text || "");
+  const [error, setError] = useState("");
+  const [status, setStatus] = useState(() => records.draft ? "Saved draft restored." : "");
+  const account = useRef(planningOwner());
+  const generation = useRef(planningAccountGeneration());
+  const draftId = useRef(records.draft?.id || crypto.randomUUID());
+  const draftVersion = useRef(journalDraftVersion());
+  const updateEntry = (text: string) => {
+    setEntry(text);
+    try {
+      draftVersion.current = saveJournalDraft({ id: draftId.current, text }, draftVersion.current, account.current, generation.current);
+      setStatus("Draft saved on this device; account sync status appears above."); setError("");
+    } catch (cause) { setStatus(""); setError(cause instanceof Error ? cause.message : "Draft is in this tab only. Storage is unavailable."); }
+  };
+  const save = () => {
+    try {
+      saveJournalEntry({ id: draftId.current, text: entry }, draftVersion.current, account.current, generation.current);
+      setEntry(""); draftVersion.current = journalDraftVersion(); draftId.current = crypto.randomUUID();
+      setError(""); setStatus("Entry saved on this device; account sync status appears above.");
+    } catch (cause) { setStatus(""); setError(cause instanceof Error ? cause.message : "Entry could not be saved. Your text remains here."); }
+  };
+  const reloadDraft = () => {
+    if (account.current !== planningOwner()) { setStatus(""); setError("Your account changed. Reload the page before loading the journal."); return; }
+    const current = inspectJournalRecords();
+    if (current.issue) { setStatus(""); setError(current.issue); return; }
+    generation.current = planningAccountGeneration();
+    const draft = current.draft; setEntry(draft?.text || ""); draftId.current = draft?.id || crypto.randomUUID(); draftVersion.current = journalDraftVersion(); setError(""); setStatus("Saved draft loaded.");
+  };
 
-  const entries = [
-    {
-      date: "Today",
-      text: "Felt strong during lower body day. Step-ups were smoother, less knee discomfort.",
-    },
-    {
-      date: "Yesterday",
-      text: "Energy was low, but still got through the workout. Need better sleep tonight.",
-    },
-  ];
+  const exportRecords = () => {
+    try {
+      const json = exportJournalRecords(recordsVersion, account.current, generation.current);
+      const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+      try { const link = document.createElement("a"); link.href = url; link.download = "sound-fitness-journal.json"; link.click(); }
+      finally { URL.revokeObjectURL(url); }
+      setError(""); setStatus("Journal originals exported. Saved text is unchanged.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not export journal records. Original text remains saved."); }
+  };
 
   const prompts = [
     "How did your workout feel?",
@@ -53,7 +84,7 @@ export default function JournalPage() {
               {prompts.map((prompt) => (
                 <button
                   key={prompt}
-                  onClick={() => setEntry(prompt + " ")}
+                  onClick={() => updateEntry(entry ? `${entry}\n\n${prompt} ` : `${prompt} `)}
                   className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-left text-sm font-semibold text-slate-200 hover:bg-white/10"
                 >
                   {prompt}
@@ -79,18 +110,27 @@ export default function JournalPage() {
             <h2 className="text-2xl font-bold">New Entry</h2>
 
             <textarea
+              aria-label="Journal entry"
+              maxLength={10000}
               value={entry}
-              onChange={(e) => setEntry(e.target.value)}
+              onChange={(e) => updateEntry(e.target.value)}
               placeholder="Write about your workout, how you felt, what improved..."
               className="mt-4 min-h-40 w-full resize-none rounded-[26px] border border-white/10 bg-slate-950/70 p-4 text-white outline-none placeholder:text-slate-500 focus:border-sky-400"
             />
 
             <button
-              onClick={() => setEntry("")}
+              onClick={save}
+              disabled={Boolean(records.issue) || !entry.trim()}
               className="mt-4 w-full rounded-2xl bg-sky-500 px-5 py-4 font-bold text-slate-950 hover:bg-sky-400"
             >
               Save Entry
             </button>
+            <p className="mt-3 text-sm text-slate-300">Saved to your account. This does not send a coach message.</p>
+            {records.issue && <p role="alert" className="mt-3 text-amber-200">{records.issue}</p>}
+            <button type="button" onClick={exportRecords} className="mt-3 text-sm text-sky-300">Export journal records</button>
+            {error && <p role="alert" className="mt-3 text-rose-300">{error}</p>}
+            {status && <p role="status" className="mt-3 text-slate-300">{status}</p>}
+            <button disabled={Boolean(records.issue)} onClick={reloadDraft} className="mt-3 text-sm text-sky-300">Reload saved draft (replaces unsaved text)</button>
           </div>
 
           {/* PAST ENTRIES */}
@@ -100,13 +140,14 @@ export default function JournalPage() {
             </p>
 
             <div className="mt-5 space-y-4">
-              {entries.map((entry, index) => (
+              {!records.issue && !entries.length && <p className="text-slate-300">No saved journal entries yet.</p>}
+              {entries.map((entry) => (
                 <div
-                  key={index}
+                  key={entry.id}
                   className="rounded-[26px] border border-white/10 bg-slate-950/60 p-4"
                 >
-                  <p className="text-xs text-slate-500">{entry.date}</p>
-                  <p className="mt-2 text-sm text-slate-200">{entry.text}</p>
+                  <p className="text-xs text-slate-500">{new Date(entry.createdAt).toLocaleString()}</p>
+                  <p className="mt-2 whitespace-pre-wrap text-sm text-slate-200">{entry.text}</p>
                 </div>
               ))}
             </div>

@@ -1,8 +1,9 @@
+import { planningAccountGeneration, planningOwner, planningKeys, planningRecordVersion, readPlanning, writePlanning } from "@/lib/planning/store";
+
 export const SOUND_FITNESS_PROFILE_STORAGE_KEY = "soundFitnessProfile";
 export const SOUND_FITNESS_PROFILE_UPDATED_EVENT = "soundFitnessProfileUpdated";
 export const SOUND_PROFILE_UPDATED_EVENT = "sound-profile-updated";
 
-let inMemoryProfileFallback: unknown = null;
 const profileSubscribers = new Set<(profile: unknown) => void>();
 
 export type SharedProfileSnapshot = {
@@ -119,17 +120,8 @@ export function subscribeToProfileStore(callback: (profile: unknown) => void) {
 }
 
 export function readSoundFitnessProfileRecord() {
-  const memory = asRecord(inMemoryProfileFallback);
-  if (typeof window === "undefined") return memory;
-
-  try {
-    const stored = asRecord(
-      safeJsonParse(window.localStorage.getItem(SOUND_FITNESS_PROFILE_STORAGE_KEY)),
-    );
-    return Object.keys(memory).length ? { ...stored, ...memory } : stored;
-  } catch {
-    return memory;
-  }
+  // Legacy browser data requires explicit import into the current account.
+  return planningOwner() ? asRecord(readPlanning(planningKeys.profile, {})) : {};
 }
 
 export function readSoundFitnessProfile() {
@@ -137,23 +129,8 @@ export function readSoundFitnessProfile() {
 }
 
 export function readSoundFitnessPoints() {
-  if (typeof window === "undefined") return 0;
-
-  try {
-    const direct = safeJsonParse(window.localStorage.getItem("soundFitnessPoints"));
-    const directRecord = asRecord(direct);
-    const profile = readSoundFitnessProfileRecord();
-    const candidates = [
-      readNumber(direct),
-      readNumber(directRecord.points),
-      readNumber(directRecord.total),
-      readNumber(directRecord.available),
-      readNumber(profile.soundPoints),
-    ];
-    return Math.max(0, Math.round(candidates.find((item) => item !== null) ?? 0));
-  } catch {
-    return 0;
-  }
+  const value = readNumber(readSoundFitnessProfileRecord().soundPoints);
+  return Math.max(0, Math.round(value ?? 0));
 }
 
 export function readSharedProfileSnapshot({
@@ -219,42 +196,13 @@ export function readSharedProfileSnapshot({
   };
 }
 
-export function writeSoundFitnessProfile<T>(profile: T) {
-  inMemoryProfileFallback = profile;
-
-  if (typeof window === "undefined") return profile;
-
-  try {
-    window.localStorage.setItem(
-      SOUND_FITNESS_PROFILE_STORAGE_KEY,
-      JSON.stringify(profile),
-    );
-  } catch {
-    // localStorage can fail from private mode, quota limits, or large avatar data.
-    // Keep the in-memory fallback so the current app session stays stable.
-    const record = asRecord(profile);
-    if (typeof record.profileImage === "string" && record.profileImage.length > 0) {
-      try {
-        window.localStorage.setItem(
-          SOUND_FITNESS_PROFILE_STORAGE_KEY,
-          JSON.stringify({ ...record, profileImage: "" }),
-        );
-      } catch {
-        // If even the trimmed profile cannot persist, the event below still syncs UI.
-      }
-    }
-  }
-
-  try {
-    const eventInit = { detail: profile };
-    window.dispatchEvent(new CustomEvent(SOUND_FITNESS_PROFILE_UPDATED_EVENT, eventInit));
-    window.dispatchEvent(new CustomEvent(SOUND_PROFILE_UPDATED_EVENT, eventInit));
-  } catch {
-    // Header sync is helpful, but it must never block profile rendering/saving.
-  }
-
+export function writeSoundFitnessProfile<T>(profile: T, expectedOwner: string | null, expectedVersion: string | undefined, expectedGeneration: number) {
+  if (!expectedOwner) throw new Error("Profile data is still loading. Try again.");
+  if (planningOwner() !== expectedOwner || planningAccountGeneration() !== expectedGeneration) throw new Error("Your account changed. Reload your profile before saving.");
+  if (expectedVersion !== undefined && planningRecordVersion(planningKeys.profile) !== expectedVersion) throw new Error("Profile changed since you opened it. Your edits are still here. Copy them before reloading the saved profile.");
+  // Storage must succeed before announcing the new profile to any UI.
+  writePlanning(planningKeys.profile, profile);
   notifyProfileSubscribers(profile);
-
   return profile;
 }
 

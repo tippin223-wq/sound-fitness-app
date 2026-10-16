@@ -1,35 +1,72 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-
-const habits = [
-  "Completed planned workouts",
-  "Hit protein / nutrition targets",
-  "Did mobility or recovery work",
-  "Got enough steps or light movement",
-  "Logged pain, soreness, or notes honestly",
-];
+import React, { useRef, useState, useSyncExternalStore } from "react";
+import { CHECK_IN_HABITS as habits, checkInWeek, currentWeeklyCheckIn, checkInVersion, emptyCheckIn, checkInReadiness, saveWeeklyCheckIn, inspectWeeklyCheckInRecords, weeklyCheckInRecordsVersion, exportWeeklyCheckInRecords, readWeeklyCheckInDraft, weeklyDraftVersion, saveWeeklyCheckInDraft, discardWeeklyCheckInDraft, type WeeklyCheckInDraft } from "@/lib/planning/checkIns";
+import { planningAccountGeneration, planningOwner, planningSnapshot, subscribePlanning } from "@/lib/planning/store";
 
 export default function WeeklyCheckInPage() {
-  const [energy, setEnergy] = useState(7);
-  const [sleep, setSleep] = useState(7);
-  const [stress, setStress] = useState(5);
-  const [soreness, setSoreness] = useState(4);
-  const [checked, setChecked] = useState<string[]>([]);
-
-  const readiness = useMemo(() => {
-    const score = Math.round(
-      (energy + sleep + (10 - stress) + (10 - soreness)) / 4,
-    );
-    return Math.max(1, Math.min(10, score));
-  }, [energy, sleep, stress, soreness]);
-
+  useSyncExternalStore(subscribePlanning, planningSnapshot, planningSnapshot);
+  const records = inspectWeeklyCheckInRecords(); const { history, drafts: unfinished } = records;
+  const recordsVersion = weeklyCheckInRecordsVersion();
+  const [week, setWeek] = useState(checkInWeek);
+  const [savedInitial] = useState(() => records.history.find(item => item.weekStart === week));
+  const [recovered] = useState(() => records.drafts[week] ?? null);
+  const initial = recovered || savedInitial;
+  const account = useRef(planningOwner());
+  const generation = useRef(planningAccountGeneration());
+  const draftVersion = useRef(records.issue ? "null" : weeklyDraftVersion(week));
+  const version = useRef(recovered ? recovered.baseVersion ?? undefined : records.issue ? undefined : checkInVersion(week));
+  const [energy, setEnergy] = useState<number | null>(initial?.energy ?? null);
+  const [sleep, setSleep] = useState<number | null>(initial?.sleep ?? null);
+  const [stress, setStress] = useState<number | null>(initial?.stress ?? null);
+  const [soreness, setSoreness] = useState<number | null>(initial?.soreness ?? null);
+  const [checked, setChecked] = useState<string[]>(initial?.habits ?? []);
+  const [notes, setNotes] = useState(initial?.notes ?? "");
+  const [error, setError] = useState("");
+  const [savedAt, setSavedAt] = useState(savedInitial?.savedAt ?? "");
+  const [draftStatus, setDraftStatus] = useState(recovered ? "Recovered unfinished answers. Save Check-In to record them in history." : "Changes are saved as a recoverable draft; use Save Check-In to record weekly feedback.");
+  const readiness = checkInReadiness({ energy, sleep, stress, soreness, habits: checked, notes });
+  const ratingText = (value: number | null) => value == null ? "Not reported" : `${value}/10`;
+  const save = () => {
+    try {
+      const saved = saveWeeklyCheckIn({ energy, sleep, stress, soreness, habits: checked, notes }, week, version.current, new Date(), { account: account.current, generation: generation.current, draftVersion: draftVersion.current });
+      version.current = checkInVersion(week); draftVersion.current = weeklyDraftVersion(week); setSavedAt(saved.savedAt); setError(""); setDraftStatus("Check-in recorded. The matching recoverable draft was cleared.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not save. Your answers remain here."); }
+  };
+  const update = (patch: Partial<WeeklyCheckInDraft>) => {
+    const next = { energy, sleep, stress, soreness, habits: checked, notes, ...patch };
+    setEnergy(next.energy); setSleep(next.sleep); setStress(next.stress); setSoreness(next.soreness); setChecked(next.habits); setNotes(next.notes);
+    try {
+      draftVersion.current = saveWeeklyCheckInDraft(next, week, draftVersion.current, version.current, account.current, generation.current);
+      setError(""); setDraftStatus("Draft saved on this device. Account sync status appears above; weekly history updates only when you save the check-in.");
+    } catch (cause) { setDraftStatus("These changes are only on this screen. Copy your answers before leaving."); setError(cause instanceof Error ? cause.message : "Draft could not be saved."); }
+  };
+  const reload = (useDraft = true) => {
+    try {
+      if (account.current !== planningOwner()) throw new Error("Your account changed. Reload the page before loading answers.");
+      const currentRecords = inspectWeeklyCheckInRecords();
+      if (currentRecords.issue) throw new Error(currentRecords.issue);
+      const currentWeek = checkInWeek();
+      if (!useDraft) discardWeeklyCheckInDraft(currentWeek, currentWeek === week ? draftVersion.current : weeklyDraftVersion(currentWeek), account.current, generation.current);
+      const saved = currentWeeklyCheckIn(currentWeek); const recoveredDraft = useDraft ? readWeeklyCheckInDraft(currentWeek) : null;
+      const draft = recoveredDraft || saved || emptyCheckIn();
+      generation.current = planningAccountGeneration();
+      setWeek(currentWeek); version.current = recoveredDraft ? recoveredDraft.baseVersion ?? undefined : checkInVersion(currentWeek); draftVersion.current = weeklyDraftVersion(currentWeek);
+      setEnergy(draft.energy); setSleep(draft.sleep); setStress(draft.stress); setSoreness(draft.soreness); setChecked(draft.habits); setNotes(draft.notes); setSavedAt(saved?.savedAt ?? ""); setError("");
+      setDraftStatus(recoveredDraft ? "Recovered unfinished answers. Save Check-In to record them in history." : "Loaded saved answers. Changes will become a recoverable draft.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load answers. Your answers remain here."); }
+  };
+  const exportRecords = () => {
+    try {
+      const json = exportWeeklyCheckInRecords(recordsVersion, account.current, generation.current);
+      const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+      try { const link = document.createElement("a"); link.href = url; link.download = "sound-fitness-weekly-check-ins.json"; link.click(); }
+      finally { URL.revokeObjectURL(url); }
+      setError(""); setDraftStatus("Weekly check-in originals exported. Saved answers are unchanged.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not export weekly check-ins. Originals remain saved."); }
+  };
   function toggleHabit(habit: string) {
-    setChecked((current) =>
-      current.includes(habit)
-        ? current.filter((item) => item !== habit)
-        : [...current, habit],
-    );
+    update({ habits: checked.includes(habit) ? checked.filter(item => item !== habit) : [...checked, habit] });
   }
 
   return (
@@ -49,8 +86,8 @@ export default function WeeklyCheckInPage() {
                   </h1>
 
                   <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
-                    Quick weekly feedback so Joey can adjust training, recovery,
-                    and intensity before fatigue turns into missed workouts.
+                    Save weekly feedback to your account and review it with your coach.
+                    Your week begins {week}. Saving does not send a coach message.
                   </p>
                 </div>
 
@@ -59,10 +96,10 @@ export default function WeeklyCheckInPage() {
                     Readiness
                   </div>
                   <div className="mt-2 text-5xl font-bold tracking-tight">
-                    {readiness}/10
+                    {ratingText(readiness)}
                   </div>
                   <div className="mt-2 text-xs text-slate-300">
-                    Auto-estimated from ratings
+                    {readiness == null ? "Complete all four ratings" : "Personal feedback summary from your ratings"}
                   </div>
                 </div>
               </div>
@@ -71,22 +108,22 @@ export default function WeeklyCheckInPage() {
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <MiniStat
                 label="Energy"
-                value={`${energy}/10`}
+                value={ratingText(energy)}
                 color="text-sky-300"
               />
               <MiniStat
                 label="Sleep"
-                value={`${sleep}/10`}
+                value={ratingText(sleep)}
                 color="text-emerald-300"
               />
               <MiniStat
                 label="Stress"
-                value={`${stress}/10`}
+                value={ratingText(stress)}
                 color="text-amber-300"
               />
               <MiniStat
                 label="Soreness"
-                value={`${soreness}/10`}
+                value={ratingText(soreness)}
                 color="text-violet-300"
               />
             </section>
@@ -101,17 +138,17 @@ export default function WeeklyCheckInPage() {
                 </h2>
               </div>
 
-              <Rating label="Energy" value={energy} setValue={setEnergy} />
-              <Rating label="Sleep Quality" value={sleep} setValue={setSleep} />
+              <Rating label="Energy" value={energy} setValue={value => update({ energy: value })} />
+              <Rating label="Sleep Quality" value={sleep} setValue={value => update({ sleep: value })} />
               <Rating
                 label="Stress Level"
                 value={stress}
-                setValue={setStress}
+                setValue={value => update({ stress: value })}
               />
               <Rating
                 label="Soreness / Fatigue"
                 value={soreness}
-                setValue={setSoreness}
+                setValue={value => update({ soreness: value })}
               />
             </section>
 
@@ -129,6 +166,7 @@ export default function WeeklyCheckInPage() {
                 {habits.map((habit) => (
                   <button
                     key={habit}
+                    aria-pressed={checked.includes(habit)}
                     onClick={() => toggleHabit(habit)}
                     className={`flex items-center justify-between rounded-[22px] border p-4 text-left transition ${
                       checked.includes(habit)
@@ -144,6 +182,17 @@ export default function WeeklyCheckInPage() {
                 ))}
               </div>
             </section>
+            <section className="rounded-[34px] border border-white/10 bg-white/[0.055] p-6">
+              <h2 className="text-2xl font-bold">Saved weekly check-ins</h2>
+              {!records.issue && !history.length && <p className="mt-3 text-slate-300">No saved weekly check-ins yet.</p>}
+              {Object.values(unfinished).filter(draft => draft.weekStart !== week).map(draft => <details key={draft.weekStart} className="mt-4 border-t border-white/10 pt-3"><summary className="cursor-pointer">Unfinished draft · week of {draft.weekStart}</summary><p className="mt-2 text-sm text-slate-300">Energy {ratingText(draft.energy)} · Sleep {ratingText(draft.sleep)} · Stress {ratingText(draft.stress)} · Soreness {ratingText(draft.soreness)}</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-300">{draft.notes || "No notes added."}</p><p className="mt-2 text-sm text-slate-400">Habits: {draft.habits.join(", ") || "None selected"}. This draft was never recorded as weekly feedback.</p></details>)}
+              {[...history].sort((a, b) => b.weekStart.localeCompare(a.weekStart)).map(item => <details key={item.id} className="mt-4 border-t border-white/10 pt-3">
+                <summary className="cursor-pointer">Week of {item.weekStart} · saved {new Date(item.savedAt).toLocaleString()}</summary>
+                <p className="mt-3 text-sm text-slate-300">Energy {item.energy}/10 · Sleep {item.sleep}/10 · Stress {item.stress}/10 · Soreness {item.soreness}/10</p>
+                <p className="mt-2 text-sm text-slate-300">Habits: {item.habits.join(", ") || "None selected"}</p>
+                {item.notes && <p className="mt-2 whitespace-pre-wrap text-sm text-slate-200">{item.notes}</p>}
+              </details>)}
+            </section>
           </div>
 
           <div className="space-y-6">
@@ -152,10 +201,14 @@ export default function WeeklyCheckInPage() {
                 Coach Context
               </div>
               <h2 className="mt-2 text-2xl font-bold tracking-tight">
-                What should Joey know?
+                Notes for your review
               </h2>
 
               <textarea
+                aria-label="Weekly check-in notes"
+                value={notes}
+                onChange={event => update({ notes: event.target.value })}
+                maxLength={4000}
                 placeholder="Pain, schedule changes, wins, fatigue, stress, soreness, missed workouts, or anything that should affect next week..."
                 className="mt-5 min-h-[210px] w-full resize-y rounded-[26px] border border-white/10 bg-slate-950/55 p-5 text-sm leading-6 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
               />
@@ -191,13 +244,21 @@ export default function WeeklyCheckInPage() {
                 Next Step
               </div>
               <h2 className="mt-2 text-2xl font-bold tracking-tight">
-                Submit your check-in
+                Save your check-in
               </h2>
 
               <div className="mt-5 flex flex-col gap-3">
-                <button className="rounded-[24px] bg-sky-500 px-5 py-4 text-sm font-semibold text-slate-950 shadow-lg shadow-sky-500/20 hover:bg-sky-400">
-                  Submit Weekly Check-In
+                {records.issue && <p role="alert" className="text-amber-200">{records.issue}</p>}
+                <button type="button" onClick={exportRecords} className="text-sm text-sky-300">Export weekly check-in records</button>
+                {error && <p role="alert" className="text-rose-300">{error}</p>}
+                <p role="status" className="text-sm text-slate-300">{draftStatus}</p>
+                {savedAt && <p role="status">Last saved {new Date(savedAt).toLocaleString()}. Changes require saving again.</p>}
+                <button disabled={Boolean(records.issue)} onClick={save} className="rounded-[24px] bg-sky-500 px-5 py-4 text-sm font-semibold text-slate-950 shadow-lg shadow-sky-500/20 hover:bg-sky-400">
+                  Save Weekly Check-In
                 </button>
+                <button type="button" disabled={Boolean(records.issue)} onClick={() => reload()} className="text-sm text-sky-300">Reload recoverable draft (replaces answers on this screen)</button>
+                <button type="button" disabled={Boolean(records.issue)} onClick={() => reload(false)} className="text-sm text-slate-300">Use saved answers (clears this week’s draft and replaces unsaved edits)</button>
+                <a href="/dashboard/coach-messaging" className="text-sm text-sky-300">Message your coach separately</a>
 
                 <a
                   href="/dashboard/progress"
@@ -248,7 +309,7 @@ function Rating({
   setValue,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   setValue: (value: number) => void;
 }) {
   return (
@@ -256,7 +317,7 @@ function Rating({
       <div className="mb-3 flex items-center justify-between">
         <div className="text-sm font-medium text-slate-300">{label}</div>
         <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-sky-200">
-          {value}/10
+          {value == null ? "Not reported" : `${value}/10`}
         </div>
       </div>
 
@@ -264,6 +325,8 @@ function Rating({
         {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
           <button
             key={num}
+            aria-label={`${label}: ${num} out of 10`}
+            aria-pressed={value === num}
             onClick={() => setValue(num)}
             className={`rounded-2xl border px-2 py-3 text-sm font-semibold transition ${
               value === num

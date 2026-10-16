@@ -1,28 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { loadMemberSessionBalances, type SessionBalances } from "@/lib/member-services";
+import { planningOwner, planningSnapshot, subscribePlanning } from "@/lib/planning/store";
 
 export default function PaymentsPage() {
   const [selected, setSelected] = useState("12 Sessions");
+  useSyncExternalStore(subscribePlanning, planningSnapshot, planningSnapshot);
+  const account = planningOwner();
+  const [refresh, setRefresh] = useState(0);
+  const [result, setResult] = useState<{ account: string | null; refresh: number; balances: SessionBalances | null; error: string } | null>(null);
+  useEffect(() => {
+    if (!account) return;
+    let cancelled = false;
+    void loadMemberSessionBalances().then(balances => {
+      if (!cancelled && planningOwner() === account) setResult({ account, refresh, balances, error: "" });
+    }).catch(cause => {
+      if (!cancelled && planningOwner() === account) setResult({ account, refresh, balances: null, error: cause instanceof Error ? cause.message : "Balances could not be loaded. Try again." });
+    });
+    return () => { cancelled = true; };
+  }, [account, refresh]);
+  const current = result?.account === account && result?.refresh === refresh ? result : null;
+  const loading = Boolean(account && !current);
 
   const packages = [
     {
       name: "4 Sessions",
-      price: "$440",
-      detail: "$110/session",
-      bestFor: "Getting started",
+      detail: "Package preview",
     },
     {
       name: "12 Sessions",
-      price: "$1,260",
-      detail: "$105/session",
-      bestFor: "Best starting package",
+      detail: "Package preview",
     },
     {
       name: "24 Sessions",
-      price: "$2,400",
-      detail: "$100/session",
-      bestFor: "Best value",
+      detail: "Package preview",
     },
   ];
 
@@ -42,18 +54,32 @@ export default function PaymentsPage() {
           </p>
 
           <h1 className="mt-3 text-4xl font-bold">
-            Choose your training package.
+            Your session balances.
           </h1>
 
           <p className="mt-3 max-w-2xl text-slate-300">
-            Pick the package that fits your goals, schedule, and level of
-            support. You can add coaching upgrades before checkout.
+            View the session credits recorded in your website account. Manage packages and billing in the website client hub; you may need to sign in there.
           </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button type="button" disabled={loading || !account} onClick={() => setRefresh(value => value + 1)} className="rounded-xl border border-white/20 px-4 py-3 disabled:opacity-50">Refresh balances</button>
+            <a href="https://thesoundfitness.com/client-hub" target="_blank" rel="noopener noreferrer" className="rounded-xl bg-sky-300 px-4 py-3 font-bold text-slate-950">Open website client hub</a>
+            <a href="https://thesoundfitness.com/client-hub/payments" target="_blank" rel="noopener noreferrer" className="rounded-xl border border-sky-300/40 px-4 py-3 font-bold text-sky-200">View website invoices &amp; payment details</a>
+          </div>
+          {loading && <p role="status" className="mt-3">Loading session balances…</p>}
+          {current?.error && <p role="alert" className="mt-3 text-amber-200">{current.error}</p>}
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {([['training', 'Training'], ['stretch', 'Assisted stretch'], ['nutrition', 'Nutrition intro']] as const).map(([key, label]) => <div key={key} className="rounded-2xl border border-white/10 bg-slate-950/60 p-4"><p className="text-sm text-slate-300">{label} credits</p><p className="mt-2 text-3xl font-bold text-sky-200">{loading ? "Loading…" : current?.balances?.[key] ?? "Unavailable"}</p></div>)}
+          </div>
+          <p className="mt-3 text-xs text-slate-400">Balances refresh from your account. The website Payments &amp; Packages page provides paid invoices, payment-method management, purchases, and session totals. It opens in a new tab and may require website sign-in.</p>
         </div>
 
+        <h2 className="text-2xl font-bold">Package selection preview</h2>
+        <p className="text-sm text-slate-400">Explore the selection layout below. Package availability, current prices, and checkout require the website catalog.</p>
         <div className="grid gap-5 lg:grid-cols-3">
           {packages.map((pkg) => (
             <button
+              type="button"
+              aria-pressed={selected === pkg.name}
               key={pkg.name}
               onClick={() => setSelected(pkg.name)}
               className={`rounded-[32px] border p-6 text-left shadow-xl transition ${
@@ -62,11 +88,7 @@ export default function PaymentsPage() {
                   : "border-white/10 bg-white/[0.05] hover:bg-white/10"
               }`}
             >
-              <p className="text-sm text-slate-400">{pkg.bestFor}</p>
               <h2 className="mt-3 text-2xl font-bold">{pkg.name}</h2>
-              <p className="mt-4 text-4xl font-bold text-sky-300">
-                {pkg.price}
-              </p>
               <p className="mt-2 text-slate-400">{pkg.detail}</p>
             </button>
           ))}
@@ -75,7 +97,7 @@ export default function PaymentsPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_0.8fr]">
           <section className="rounded-[32px] border border-white/10 bg-white/[0.05] p-6 shadow-2xl">
             <p className="text-[11px] uppercase tracking-[0.24em] text-emerald-300">
-              Optional Add-Ons
+              Add-On Preview
             </p>
 
             <h2 className="mt-3 text-2xl font-bold">Upgrade your support</h2>
@@ -97,13 +119,13 @@ export default function PaymentsPage() {
 
           <section className="rounded-[32px] border border-sky-400/20 bg-sky-500/10 p-6 shadow-2xl">
             <p className="text-[11px] uppercase tracking-[0.24em] text-sky-300">
-              Checkout Summary
+              Selection Preview
             </p>
 
             <h2 className="mt-3 text-2xl font-bold">{selected}</h2>
 
             <p className="mt-3 text-slate-300">
-              Secure checkout will be connected through Stripe.
+              App package checkout is not connected yet. Your selection stays in this page preview.
             </p>
 
             <div className="mt-5 space-y-3">
@@ -113,17 +135,17 @@ export default function PaymentsPage() {
               </div>
 
               <div className="flex justify-between rounded-2xl bg-slate-950/60 p-4">
-                <span className="text-slate-400">Payment Status</span>
-                <span className="font-semibold text-amber-300">Pending</span>
+                <span className="text-slate-400">App checkout</span>
+                <span className="font-semibold text-amber-300">Unavailable</span>
               </div>
             </div>
 
-            <button className="mt-6 w-full rounded-2xl bg-sky-500 px-5 py-4 font-bold text-slate-950 hover:bg-sky-400">
-              Continue to Checkout
+            <button type="button" disabled aria-describedby="package-checkout-status" className="mt-6 w-full rounded-2xl bg-sky-500/30 px-5 py-4 font-bold text-slate-300">
+              App checkout unavailable
             </button>
 
-            <p className="mt-4 text-center text-xs text-slate-400">
-              No charge happens until Stripe checkout is connected.
+            <p id="package-checkout-status" className="mt-4 text-center text-xs text-slate-400">
+              Use the website client hub to review current account and package options.
             </p>
           </section>
         </div>

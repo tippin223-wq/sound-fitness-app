@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import OffscreenAnimationPauser from "@/components/dashboard/OffscreenAnimationPauser";
 import { ProfileProvider } from "@/components/profile/ProfileProvider";
+import PlanningProvider from "@/components/dashboard/PlanningProvider";
 import { ROUTES } from "@/lib/routes";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -78,10 +79,10 @@ export default function MemberDashboardShell({
   }, [router]);
 
   return (
-    <ProfileProvider>
+    <PlanningProvider><ProfileProvider>
       <OffscreenAnimationPauser />
       {useEmbeddedHeader ? null : <AppHeader />}
       {children}
-    </ProfileProvider>
+    </ProfileProvider></PlanningProvider>
   );
 }

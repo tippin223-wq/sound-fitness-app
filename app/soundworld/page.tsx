@@ -4,7 +4,7 @@ import { ProfileProvider } from "@/components/profile/ProfileProvider";
 import { ROUTES } from "@/lib/routes";
 
 export const metadata = {
-  title: "SoundWorld | Sound Fitness",
+  title: "Sound World Arcade | Sound Fitness",
   description: "Gamified training quests, streaks, badges, and fitness worlds.",
 };
 
@@ -142,6 +142,10 @@ const rewards = [
   "Sound credits placeholder",
 ] as const;
 
+const soundWorldArcadeUrl =
+  process.env.NEXT_PUBLIC_SOUND_WORLD_ARCADE_URL ??
+  (process.env.NODE_ENV === "development" ? "http://localhost:3202" : ROUTES.soundworld.home);
+
 function SectionHeader({
   eyebrow,
   title,
@@ -219,10 +223,10 @@ export default function SoundWorldDashboardPage() {
             <div className="grid gap-6 xl:grid-cols-[1fr_0.42fr] xl:items-end">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[0.32em] text-fuchsia-200">
-                  Gamified Fitness World
+                  Gamified Fitness Arcade
                 </p>
                 <h1 className="mt-4 text-5xl font-black tracking-tight text-white sm:text-6xl">
-                  SoundWorld
+                  Sound World Arcade
                 </h1>
                 <p className="mt-4 max-w-3xl text-base leading-7 text-slate-300">
                   Turn training into a world of quests, streaks, badges, and
@@ -231,12 +235,12 @@ export default function SoundWorldDashboardPage() {
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                <Link
+                <a
                   className="rounded-3xl bg-fuchsia-300 px-5 py-4 text-center text-sm font-black uppercase tracking-[0.16em] text-slate-950 shadow-[0_0_36px_rgba(217,70,239,0.25)] transition hover:-translate-y-0.5 hover:bg-fuchsia-200"
-                  href={ROUTES.soundworld.home}
+                  href={soundWorldArcadeUrl}
                 >
-                  Enter SoundWorld
-                </Link>
+                  Enter the Arcade
+                </a>
                 <Link
                   className="rounded-3xl border border-white/10 bg-white/[0.045] px-5 py-4 text-center text-sm font-black uppercase tracking-[0.16em] text-white transition hover:border-cyan-300/35 hover:bg-cyan-300/10"
                   href={ROUTES.dashboard.home}
@@ -348,7 +352,7 @@ export default function SoundWorldDashboardPage() {
                   Future World Map
                 </p>
                 <h2 className="mt-3 text-3xl font-black tracking-tight text-white">
-                  SoundWorld map placeholder
+                  Arcade world-map placeholder
                 </h2>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-300">
                   This area is reserved for a larger world map, portals, game

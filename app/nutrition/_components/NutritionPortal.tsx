@@ -845,14 +845,14 @@ export const nutritionModules: Record<NutritionModuleId, NutritionModule> = {
 };
 
 export const coreModuleLinks: PortalLink[] = [
-  { label: "Meals", href: "/nutrition/meals", helper: "Log and schedule food." },
+  { label: "Meals", href: "/nutrition/meals", helper: "Log meals already eaten." },
   { label: "Macros", href: "/nutrition/macros", helper: "Track protein, carbs, fats." },
   { label: "Recipes", href: "/nutrition/recipes", helper: "Find meals that fit." },
   { label: "Grocery", href: "/nutrition/grocery", helper: "Turn plans into food." },
-  { label: "Hydration", href: "/nutrition/hydration", helper: "Water and electrolytes." },
+  { label: "Hydration", href: "/nutrition/hydration", helper: "Review reported water." },
   { label: "Supplements", href: "/nutrition/supplements", helper: "Reference and notes." },
   { label: "Meal Plans", href: "/nutrition/meal-plan", helper: "Plan the week." },
-  { label: "Progress", href: "/nutrition/progress", helper: "Review adherence." },
+  { label: "Progress", href: "/nutrition/progress", helper: "Review reported intake." },
 ];
 
 type FuelJourneyStageStatus = "Complete" | "Current" | "Next" | "Unlocked" | "Locked";
@@ -1003,9 +1003,6 @@ export function NutritionPortalNav() {
     journeyStages.find((stage) => stage.status === "Current") ||
     journeyStages.find((stage) => stage.status === "Next") ||
     journeyStages[0];
-  const completedCount = journeyStages.filter(
-    (stage) => stage.status === "Complete",
-  ).length;
   const overallProgress = Math.round(
     journeyStages.reduce((total, stage) => total + stage.progress, 0) /
       journeyStages.length,
@@ -1023,7 +1020,7 @@ export function NutritionPortalNav() {
               Fuel Portal
             </Link>
             <span className="rounded-full border border-emerald-200/18 bg-emerald-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100">
-              {completedCount}/{journeyStages.length} complete
+              Journey preview · sample progress
             </span>
           </div>
           <h2 className="mt-3 text-2xl font-black uppercase tracking-tight text-white sm:text-3xl">
@@ -1038,7 +1035,7 @@ export function NutritionPortalNav() {
         <div className="rounded-[24px] border border-white/10 bg-slate-950/55 p-4 lg:min-w-[250px]">
           <div className="flex items-center justify-between gap-4">
             <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-              Journey Progress
+              Sample Journey Progress
             </span>
             <span className="text-lg font-black text-cyan-100">
               {overallProgress}%
@@ -1051,13 +1048,17 @@ export function NutritionPortalNav() {
             />
           </div>
           <p className="mt-3 text-xs font-bold text-slate-400">
-            Current focus:{" "}
+            Preview focus:{" "}
             <span className="text-cyan-100">{activeStage.title}</span>
           </p>
         </div>
       </div>
 
       <FuelJourneyOrbit stages={journeyStages} />
+
+      <p className="mt-3 text-sm text-slate-300">
+        Meal and water logging are connected to your account on Meals and Hydration. This journey’s percentages, completion states, and other nutrition modules are previews and do not represent your recorded intake.
+      </p>
 
       <div className="mt-2 flex max-w-full gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <Link

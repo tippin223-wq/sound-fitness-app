@@ -26,6 +26,7 @@ export type DashboardSoundPointsTurbineItem = {
 };
 
 type DashboardSoundPointsTeslaCoil3DProps = {
+  activeTurbineId?: string | null;
   className?: string;
   paused?: boolean;
   points: number;
@@ -1467,12 +1468,14 @@ const updateLightningArc = (
 };
 
 export default function DashboardSoundPointsTeslaCoil3D({
+  activeTurbineId = null,
   className = "",
   paused = false,
   points,
   turbines,
   weeklyProgress = 0,
 }: DashboardSoundPointsTeslaCoil3DProps) {
+  const activeTurbineIdRef = useRef(activeTurbineId);
   const pausedRef = useRef(paused);
   const pointsRef = useRef(points);
   const turbinesRef = useRef(turbines);
@@ -1480,6 +1483,10 @@ export default function DashboardSoundPointsTeslaCoil3D({
     new Map(turbines.map((item) => [item.id, item])),
   );
   const weeklyProgressRef = useRef(weeklyProgress);
+
+  useEffect(() => {
+    activeTurbineIdRef.current = activeTurbineId;
+  }, [activeTurbineId]);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -1575,6 +1582,21 @@ export default function DashboardSoundPointsTeslaCoil3D({
         const baseScale = layout.scale + Math.min(3, item.count) * 0.025;
         turbine.group.scale.setScalar(baseScale);
         scene.add(turbine.group);
+        const turbineMaterials = new Set<DashboardIlluminatedMaterial>();
+        turbine.group.traverse((child) => {
+          getIlluminatedMaterials(child as MaterialObject).forEach((material) => {
+            turbineMaterials.add(material);
+          });
+        });
+        const materialStates = Array.from(turbineMaterials).map((material) => ({
+          baseEmissiveIntensity:
+            typeof material.emissiveIntensity === "number"
+              ? material.emissiveIntensity
+              : undefined,
+          baseOpacity:
+            typeof material.opacity === "number" ? material.opacity : undefined,
+          material,
+        }));
 
         return {
           baseScale,
@@ -1591,6 +1613,7 @@ export default function DashboardSoundPointsTeslaCoil3D({
           group: turbine.group,
           halo: turbine.halo,
           id: item.id,
+          materialStates,
           position,
           rotor: turbine.rotor,
           tilt: layout.tilt,
@@ -1719,7 +1742,16 @@ export default function DashboardSoundPointsTeslaCoil3D({
               rungFill * (0.18 + Math.sin(seconds * 3.6 + index) * 0.035);
           });
 
+          const activeTurbineId = activeTurbineIdRef.current;
+          const shouldRunEveryTurbine =
+            activeTurbineId === null ||
+            activeTurbineId === undefined ||
+            activeTurbineId === "total";
+
           turbineEntries.forEach((entry, index) => {
+            const shouldRunTurbine =
+              shouldRunEveryTurbine || entry.id === activeTurbineId;
+            const inactiveTurbineDim = shouldRunTurbine ? 1 : 0.46;
             const latestItem = turbineStateByIdRef.current.get(entry.id);
             const latestCount = latestItem?.count ?? entry.count;
             const levelProgress = Math.max(
@@ -1733,43 +1765,72 @@ export default function DashboardSoundPointsTeslaCoil3D({
             );
             turbineChargeLevels[index] = levelProgress;
             turbinePowerLevels[index] = powerCharge;
+            entry.materialStates.forEach((state) => {
+              if (state.baseOpacity !== undefined) {
+                state.material.opacity = state.baseOpacity * inactiveTurbineDim;
+              }
+              if (state.baseEmissiveIntensity !== undefined) {
+                state.material.emissiveIntensity =
+                  state.baseEmissiveIntensity *
+                  (shouldRunTurbine ? 1 : 0.38);
+              }
+            });
             const countPulse = Math.min(3, latestCount) * 0.004;
-            entry.rotor.rotation.y +=
-              frameDelta * getTurbineRotorSpeed(levelProgress, index);
+            if (shouldRunTurbine) {
+              entry.rotor.rotation.y +=
+                frameDelta * getTurbineRotorSpeed(levelProgress, index);
+            }
             entry.group.rotation.y =
               entry.yaw +
-              Math.sin(seconds * 0.55 + index * 0.7) * 0.025;
+              (shouldRunTurbine
+                ? Math.sin(seconds * 0.55 + index * 0.7) * 0.025
+                : 0);
             entry.group.rotation.z =
-              entry.tilt + Math.sin(seconds * 0.72 + index) * 0.006;
+              entry.tilt +
+              (shouldRunTurbine ? Math.sin(seconds * 0.72 + index) * 0.006 : 0);
             entry.group.position.z =
-              entry.position[2] + Math.sin(seconds * 0.8 + index) * 0.012;
+              entry.position[2] +
+              (shouldRunTurbine ? Math.sin(seconds * 0.8 + index) * 0.012 : 0);
             const turbineBaseScale =
-              entry.baseScale + Math.sin(seconds * 1.6 + index) * countPulse;
+              entry.baseScale +
+              (shouldRunTurbine ? Math.sin(seconds * 1.6 + index) * countPulse : 0);
             entry.group.scale.setScalar(turbineBaseScale);
             entry.rotor.scale.setScalar(1);
             entry.halo.scale.setScalar(
               1.01 +
                 levelProgress * 0.08 +
-                powerCharge * 0.16 +
-                Math.sin(seconds * (2.1 + topCharge * 5) + index) *
-                  (0.02 + topCharge * 0.026),
+                powerCharge * (shouldRunTurbine ? 0.16 : 0.07) +
+                (shouldRunTurbine
+                  ? Math.sin(seconds * (2.1 + topCharge * 5) + index) *
+                    (0.02 + topCharge * 0.026)
+                  : 0),
             );
             const fillHeight = 0.92 * Math.max(0.04, levelProgress);
             entry.chargeFill.scale.y = Math.max(0.04, levelProgress);
             entry.chargeFill.position.y = -0.51 + fillHeight * 0.5;
             entry.darkFillMaterial.opacity =
-              0.8 - levelProgress * 0.34 + Math.sin(seconds * 1.4 + index) * 0.012;
+              shouldRunTurbine
+                ? 0.8 -
+                  levelProgress * 0.34 +
+                  Math.sin(seconds * 1.4 + index) * 0.012
+                : 0.9 - levelProgress * 0.18;
             entry.fillMaterial.opacity = Math.min(
               0.88,
-              0.12 +
-                levelProgress * 0.44 +
-                topCharge * 0.18 +
-                Math.sin(seconds * (3 + topCharge * 6) + index) *
-                  (0.025 + topCharge * 0.035),
+              (0.12 +
+                levelProgress * (shouldRunTurbine ? 0.44 : 0.22) +
+                topCharge * (shouldRunTurbine ? 0.18 : 0.04) +
+                (shouldRunTurbine
+                  ? Math.sin(seconds * (3 + topCharge * 6) + index) *
+                    (0.025 + topCharge * 0.035)
+                  : 0)) *
+                (shouldRunTurbine ? 1 : 0.62),
             );
           });
 
           arcs.forEach((arc, index) => {
+            const entry = turbineEntries[index];
+            const shouldRunTurbine =
+              shouldRunEveryTurbine || entry?.id === activeTurbineId;
             const levelProgress = turbineChargeLevels[index] ?? 0;
             const powerCharge = turbinePowerLevels[index] ?? levelProgress;
             const topCharge = getTurbineTopCharge(levelProgress);
@@ -1777,6 +1838,13 @@ export default function DashboardSoundPointsTeslaCoil3D({
             const beamPulse = Math.sin(
               beamSeconds * 4.2 + index * 0.9,
             );
+            if (!shouldRunTurbine) {
+              arc.material.opacity = 0.018;
+              arc.glowMaterial.opacity = 0.008;
+              arc.ribbonMaterial.opacity = 0.006;
+              arc.sparkMaterial.opacity = 0.008;
+              return;
+            }
             updateLightningArc(
               arc,
               beamSeconds,

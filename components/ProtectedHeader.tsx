@@ -88,7 +88,7 @@ const dashboardItems: MenuItem[] = [
   },
   {
     emoji: "🎮",
-    label: "SoundWorld",
+    label: "Sound World Arcade",
     href: ROUTES.soundworld.home,
     activeHrefs: [ROUTES.soundworld.home],
     helper: "Quests, badges, rewards, and gamified training worlds.",

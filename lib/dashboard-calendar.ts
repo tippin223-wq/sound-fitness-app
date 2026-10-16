@@ -1,4 +1,6 @@
 export type DashboardCalendarItem = {
+  readOnly?: boolean;
+  manageHref?: string;
   date?: string;
   dateISO?: string;
   dateLabel?: string;
@@ -76,9 +78,11 @@ export function formatCalendarTime(totalMinutes: number) {
   return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
-export function getCalendarEventMinutes(event: DashboardCalendarItem, eventIndex = 0) {
-  const explicitTime = /^(\d{1,2}):(\d{2})/.exec(event.time || "");
+/** Actual recorded clock time, separate from the visual timeline placement fallback. */
+export function recordedCalendarEventMinutes(event: DashboardCalendarItem): number | null {
+  const explicitTime = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(event.time || "");
   if (explicitTime) return Number(explicitTime[1]) * 60 + Number(explicitTime[2]);
+  if (event.time) return null;
 
   const dateWithTime = event.dateISO || event.date;
   if (dateWithTime?.includes("T")) {
@@ -88,7 +92,16 @@ export function getCalendarEventMinutes(event: DashboardCalendarItem, eventIndex
     }
   }
 
-  return defaultEventMinutes[event.type] + eventIndex * 30;
+  return null;
+}
+
+export function calendarEventTimeLabel(event: DashboardCalendarItem) {
+  const minutes = recordedCalendarEventMinutes(event);
+  return minutes === null ? "Time not set" : formatCalendarTime(minutes);
+}
+
+export function getCalendarEventMinutes(event: DashboardCalendarItem, eventIndex = 0) {
+  return recordedCalendarEventMinutes(event) ?? defaultEventMinutes[event.type] + eventIndex * 30;
 }
 
 /** Stable identity for older entries without an id; duplicate entries stay distinct. */
@@ -103,31 +116,14 @@ export function calendarEntryIdentity(item: DashboardCalendarItem, occurrence = 
   return `calendar-${(hash >>> 0).toString(36)}-${occurrence}`;
 }
 
-function buildFallbackItems(today: Date): DashboardCalendarItem[] {
-  const weekStart = calendarWeekStart(today);
-  const fallback: Pick<DashboardCalendarItem, "title" | "type" | "status">[] = [
-    { title: "Full Body Strength", type: "completed", status: "Done" },
-    { title: "Protein prep", type: "nutrition", status: "Plan" },
-    { title: "Performance tune-up", type: "performance", status: "Power" },
-    { title: "Mobility reset", type: "recovery", status: "Recovery" },
-    { title: "Lower Body", type: "workout", status: "Planned" },
-    { title: "Zone 2 walk", type: "recovery", status: "Optional" },
-    { title: "Weekly check-in", type: "check-in", status: "Review" },
-  ];
-  return fallback.map((item, index) => ({
-    ...item,
-    date: calendarDateKey(calendarAddDays(weekStart, index)),
-  }));
-}
-
 /** Calendar and constellation share both dated entries and recurring weekday markers. */
 export function normalizeCalendarItems(
   items: DashboardCalendarItem[] | undefined,
   cursorDate: Date,
-  today: Date,
+  _today: Date,
   userEntries: DashboardCalendarItem[] = [],
 ): CalendarEvent[] {
-  const source = [...(items?.length ? items : buildFallbackItems(today)), ...userEntries];
+  const source = [...(items || []), ...userEntries];
   const activeWeek = calendarWeekStart(cursorDate);
   const occurrences = new Map<string, number>();
 

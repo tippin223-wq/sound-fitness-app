@@ -31,6 +31,9 @@ function makeStoreFixture(initialRaw, initiallyUnreadable = false) {
     notifications: 0,
     storageListener: undefined,
     api: undefined,
+    owner: null,
+    accounts: new Map(),
+    canonical: [],
   };
   const window = {
     localStorage: {
@@ -45,8 +48,7 @@ function makeStoreFixture(initialRaw, initiallyUnreadable = false) {
       },
     },
     addEventListener(type, listener) {
-      assert.equal(type, "storage");
-      fixture.storageListener = listener;
+      if (type === "storage") fixture.storageListener = listener;
     },
     removeEventListener() {
       fixture.storageListener = undefined;
@@ -54,6 +56,8 @@ function makeStoreFixture(initialRaw, initiallyUnreadable = false) {
   };
   const hook = loadTypeScript("components/dashboard/useDashboardCalendarEntries.ts", (name) => {
     if (name === "@/lib/dashboard-calendar") return calendar;
+    if (name === "@/lib/planning/store") return { planningOwner: () => fixture.owner, PLANNING_UPDATED: 'planning-updated', planningKeys: { dashboardCalendar: 'dashboard-calendar' }, readPlanning: (_key, fallback) => fixture.accounts.get(fixture.owner) || fallback, writePlanning: (_key, value) => fixture.accounts.set(fixture.owner, value) };
+    if (name === "@/lib/planning/dashboardCalendar") return { planningDashboardCalendarItems: () => fixture.canonical };
     if (name === "react") {
       return {
         useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot) {
@@ -86,7 +90,7 @@ assert.equal(calendar.normalizeCalendarItems(recurringSource, nextWeek, today)[1
 assert.equal(calendar.normalizeCalendarItems(recurringSource, today, today)[0].id, first[0].id);
 const duplicates = calendar.normalizeCalendarItems([recurringSource[0], recurringSource[0]], today, today);
 assert.notEqual(duplicates[0].id, duplicates[1].id);
-assert.equal(calendar.normalizeCalendarItems(undefined, today, today).length, 7);
+assert.equal(calendar.normalizeCalendarItems(undefined, today, today).length, 0, 'empty calendars never invent scheduled or completed workouts');
 assert.equal(calendar.calendarDateKey(calendar.parseCalendarDate("2026-09-07")), "2026-09-07");
 
 const store = makeStoreFixture(JSON.stringify([{ date: "2026-09-07", title: "Legacy", type: "training" }]));
@@ -112,6 +116,7 @@ assert.equal(store.api.getSnapshot().length, 1);
 assert.equal(store.api.getSnapshot()[0].id, initial[0].id);
 store.writeFails = true;
 setEntries((previous) => [...previous, editable]);
+assert.match(store.useStore()[2], /only in memory/);
 assert.equal(store.api.getSnapshot().length, 2);
 assert.equal(JSON.parse(store.raw).length, 1);
 store.readFails = true;
@@ -120,6 +125,7 @@ store.readFails = false;
 assert.equal(store.api.getSnapshot().length, 2);
 store.writeFails = false;
 setEntries((previous) => previous);
+assert.equal(store.useStore()[2], '');
 assert.equal(JSON.parse(store.raw).length, 2);
 store.raw = JSON.stringify([{ ...editable, title: "Cross-tab" }]);
 store.storageListener({ key: calendar.DASHBOARD_CALENDAR_ENTRIES_KEY });
@@ -139,6 +145,20 @@ setBlockedEntries([editable]);
 blockedStore.readFails = false;
 assert.equal(blockedStore.api.getSnapshot()[0].id, editable.id);
 console.log("PASS: shared snapshots, stable IDs, add/edit/delete, storage failure recovery, and cross-tab sync");
+
+const accountStore = makeStoreFixture(JSON.stringify([editable]));
+accountStore.owner = 'alice';
+accountStore.canonical = [{ ...editable, id: 'plan-assignment:one', readOnly: true }];
+const [, setAccountEntries] = accountStore.useStore();
+assert.equal(accountStore.api.getSnapshot().length, 1, 'unscoped legacy entries require explicit import');
+setAccountEntries(previous => [...previous, editable]);
+assert.equal(accountStore.accounts.get('alice').length, 1, 'derived assignments never persist as personal copies');
+accountStore.owner = 'bob';
+accountStore.canonical = [];
+assert.equal(accountStore.api.getSnapshot().length, 0, 'account change clears the previous snapshot');
+accountStore.owner = 'alice';
+assert.equal(accountStore.api.getSnapshot()[0].id, 'existing');
+console.log('PASS: account isolation, explicit legacy import, and canonical assignment projection');
 
 assert.equal(constellation.getConstellationWeek(new Date(2026, 2, 8))[0].dateKey, "2026-03-02");
 assert.equal(constellation.getConstellationWeek(new Date(2026, 2, 8))[6].dateKey, "2026-03-08");
@@ -183,7 +203,17 @@ const fallback = calendar.normalizeCalendarItems([
 ], today, today);
 const fallbackSessions = constellation.getConstellationSessions(fallback, today);
 assert.equal(fallbackSessions.some((session) => session.title === "Two"), false);
-assert.equal(fallbackSessions.find((session) => session.title === "Three").time, "6:30 PM");
+assert.equal(fallbackSessions.find((session) => session.title === "Three").time, "Time not set");
+assert.equal(fallbackSessions.find((session) => session.title === "Three").minutes, 18 * 60 + 30, 'layout fallback remains separate from recorded time');
+for (const time of [undefined, '', '24:00', '12:60', '09:00bad']) {
+  const event = { date: '2026-09-07', title: 'No recorded time', type: 'workout', time };
+  assert.equal(calendar.recordedCalendarEventMinutes(event), null);
+  assert.equal(calendar.calendarEventTimeLabel(event), 'Time not set');
+  assert.equal(event.time, time, 'reading labels must preserve originals');
+}
+assert.equal(calendar.calendarEventTimeLabel({ ...editable, time: '00:00' }), '12:00 AM');
+assert.equal(calendar.calendarEventTimeLabel({ ...editable, time: '23:59' }), '11:59 PM');
+assert.equal(calendar.calendarEventTimeLabel(offsetEvent[0]), '6:30 PM');
 const past = calendar.normalizeCalendarItems([
   { date: "2026-09-07", title: "Past but planned", type: "workout", status: "Planned" },
 ], new Date(2026, 8, 13), new Date(2026, 8, 13));

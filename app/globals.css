@@ -10064,6 +10064,26 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
   isolation: isolate;
 }
 
+/* Preserve the original overlapping artwork. Only the crest's hit surface
+   starts below its transparent top margin, leaving the trophy above it
+   independently clickable without moving or shrinking either image. */
+.dashboard-header-home-logo--hero-active,
+.dashboard-header-home-logo--hero-active > * {
+  pointer-events: none;
+}
+
+.dashboard-header-home-logo--hero-active::after {
+  content: "";
+  position: absolute;
+  inset: 1rem 0 0;
+  pointer-events: auto;
+}
+
+.dashboard-header-vortex-shell--timed-out
+  .dashboard-header-home-logo--hero-active::after {
+  pointer-events: none;
+}
+
 .dashboard-header-trophy-selector__shadow {
   transition: opacity 520ms ease;
 }
@@ -12166,20 +12186,14 @@ html.dashboard-idle-active canvas.dashboard-webgl-stage {
   opacity: 0.1;
 }
 
-.dashboard-header-main-orbit-stage--clockwise.dashboard-header-main-orbit-stage--active {
-  animation: dashboard-header-main-orbit-spin-clockwise 680ms
-    cubic-bezier(0.16, 0.88, 0.2, 1) both;
-}
-
-.dashboard-header-main-orbit-stage--counter.dashboard-header-main-orbit-stage--active {
-  animation: dashboard-header-main-orbit-spin-counter 680ms
-    cubic-bezier(0.16, 0.88, 0.2, 1) both;
-}
-
-.dashboard-header-main-orbit-stage--clockwise.dashboard-header-main-orbit-stage--settling,
-.dashboard-header-main-orbit-stage--counter.dashboard-header-main-orbit-stage--settling {
-  animation-duration: 820ms;
-}
+/* The stage no longer spins on a rotation. It used to run
+   dashboard-header-main-orbit-spin-clockwise/-counter here, a 3D rotateY
+   plus a sideways translate. Dropping the translate was not enough: a
+   rotateY under this stage's perspective swings anything that is not on
+   the centre line sideways on screen, and the nav sits left of it — so the
+   nav and its joystick still slid right through every turn. The turn reads
+   through the vortex's glow and the content change instead; the keyframes
+   are kept below in case the motion is ever wanted centred on the nav. */
 
 .dashboard-header-news-chyron {
   align-items: center;
@@ -13183,6 +13197,22 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
 
 .dashboard-header-scroll-button:has(.dashboard-header-scroll-button__webgl)::before,
 .dashboard-header-scroll-button:has(.dashboard-header-scroll-button__webgl)::after {
+  /* Cancel the legacy `dashboard-header-scroll-button-field` animation that
+     .dashboard-header-scroll-button::before carries. Its keyframes are written
+     for the BASE pseudo, which is `inset: 0` and needs no centring, so they set
+     `transform: translateX(-3%) scale(0.96)` with no translate(-50%, -50%).
+     This rule re-anchors the pseudo to left/top 50%, where that centring is
+     load-bearing. An animation outranks a normal declaration EVEN WHILE PAUSED,
+     so every time the orbit system left idle (--active / --clockwise /
+     --settling re-attach it) the bubble lost its -50% and snapped to its
+     top-left anchor: down and right by half its own size (measured +17.16px x,
+     +15.56px y on the selector joystick, +14.44 / +15.36 on the mobile one),
+     then back on settle. The button itself never moved, which is why six fixes
+     aimed at the 3D orb, the aura spin, the per-step roll and the tilt all
+     missed it. These buttons draw their sphere in WebGL and this rule already
+     owns the pseudo's background, border, shadow, size, opacity and transform;
+     the inherited animation is not meant to reach them. */
+  animation: none !important;
   border-radius: 9999px;
   content: "";
   left: 50%;
@@ -14068,8 +14098,17 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
 }
 
 .dashboard-header-scroll-button::before {
-  animation: dashboard-header-scroll-button-field 5.2s ease-in-out infinite;
-  animation-play-state: paused;
+  /* No `animation: dashboard-header-scroll-button-field` here any more. Those
+     keyframes set `transform: translateX(-3%) scale(0.96)` with no
+     translate(-50%, -50%), which was fine when this pseudo was `inset: 0`, but
+     every scroll button now renders a WebGL anchor and is re-anchored to
+     left/top 50% by the :has(...) rule above, where that centring is
+     load-bearing. An animation outranks a normal declaration EVEN WHILE
+     PAUSED, so each nav rotation (which drops the shell's --idle class and so
+     un-suppresses the animation) threw the bubble down-and-right by half its
+     own box. The :has(...) rule also sets `animation: none !important`; this
+     removal is what makes the fix independent of :has() surviving the CSS
+     build. No element references these keyframes now. */
   background:
     radial-gradient(
       circle at 26% 22%,
@@ -18303,6 +18342,57 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   position: relative;
 }
 
+[data-dashboard-wheel-nudge="down"],
+[data-dashboard-wheel-nudge="up"] {
+  animation-duration: 360ms;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+[data-dashboard-wheel-nudge="down"] {
+  animation-name: dashboard-section-wheel-nudge-down;
+}
+
+[data-dashboard-wheel-nudge="up"] {
+  animation-name: dashboard-section-wheel-nudge-up;
+}
+
+@keyframes dashboard-section-wheel-nudge-down {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  42% {
+    transform: translate3d(0, 0.65rem, 0) scale(0.996);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes dashboard-section-wheel-nudge-up {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  42% {
+    transform: translate3d(0, -0.65rem, 0) scale(0.996);
+  }
+
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-dashboard-wheel-nudge="down"],
+  [data-dashboard-wheel-nudge="up"] {
+    animation-duration: 1ms;
+  }
+}
+
 .dashboard-hero-horizontal-orbit {
   height: clamp(560px, calc(100dvh - 10rem), 880px);
 }
@@ -18372,33 +18462,66 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
 }
 
 .dashboard-hero-news-row {
+  --dashboard-news-category-border: rgba(34, 211, 238, 0.48);
+  --dashboard-news-category-glow: rgba(34, 211, 238, 0.14);
+  --dashboard-news-category-soft: rgba(34, 211, 238, 0.08);
+  background:
+    linear-gradient(
+      90deg,
+      var(--dashboard-news-category-soft),
+      rgba(15, 23, 42, 0.44) 34%,
+      rgba(2, 6, 23, 0.24)
+    ),
+    rgba(15, 23, 42, 0.44);
   border-left-width: 2px;
+  border-left-color: var(--dashboard-news-category-border);
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.16),
+    0 0 18px var(--dashboard-news-category-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
   transition:
     translate 200ms ease,
+    background 200ms ease,
+    border-color 200ms ease,
+    box-shadow 200ms ease,
     opacity 200ms ease;
 }
 
-.dashboard-hero-news-row[data-news-tone="amber"] {
-  border-left-color: rgba(250, 204, 21, 0.55);
+.dashboard-hero-news-row[data-news-topic="community"] {
+  --dashboard-news-category-border: rgba(232, 121, 249, 0.56);
+  --dashboard-news-category-glow: rgba(232, 121, 249, 0.13);
+  --dashboard-news-category-soft: rgba(232, 121, 249, 0.085);
 }
 
-.dashboard-hero-news-row[data-news-tone="cyan"] {
-  border-left-color: rgba(34, 211, 238, 0.55);
+.dashboard-hero-news-row[data-news-topic="gear"] {
+  --dashboard-news-category-border: rgba(167, 139, 250, 0.56);
+  --dashboard-news-category-glow: rgba(167, 139, 250, 0.13);
+  --dashboard-news-category-soft: rgba(167, 139, 250, 0.085);
 }
 
-.dashboard-hero-news-row[data-news-tone="emerald"] {
-  border-left-color: rgba(52, 211, 153, 0.55);
+.dashboard-hero-news-row[data-news-topic="nutrition"] {
+  --dashboard-news-category-border: rgba(163, 230, 53, 0.54);
+  --dashboard-news-category-glow: rgba(163, 230, 53, 0.12);
+  --dashboard-news-category-soft: rgba(163, 230, 53, 0.078);
 }
 
-.dashboard-hero-news-row[data-news-tone="sky"] {
-  border-left-color: rgba(56, 189, 248, 0.55);
+.dashboard-hero-news-row[data-news-topic="recovery"] {
+  --dashboard-news-category-border: rgba(45, 212, 191, 0.56);
+  --dashboard-news-category-glow: rgba(45, 212, 191, 0.13);
+  --dashboard-news-category-soft: rgba(45, 212, 191, 0.08);
 }
 
-.dashboard-hero-news-row[data-news-tone="violet"] {
-  border-left-color: rgba(167, 139, 250, 0.55);
+.dashboard-hero-news-row[data-news-topic="training"] {
+  --dashboard-news-category-border: rgba(251, 146, 60, 0.56);
+  --dashboard-news-category-glow: rgba(251, 146, 60, 0.13);
+  --dashboard-news-category-soft: rgba(251, 146, 60, 0.085);
 }
 
 .dashboard-hero-news-row:hover {
+  box-shadow:
+    0 12px 26px rgba(0, 0, 0, 0.2),
+    0 0 24px var(--dashboard-news-category-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.075);
   translate: 0 -2px;
 }
 
@@ -18466,12 +18589,8 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   animation-play-state: running !important;
 }
 
-/* Logo-cluster spotlight pause, re-scoped from the whole <main> subtree to
-   the header shell: the universal subject made every crest hover restyle the
-   entire document. The :has() arms live in their OWN rules so a parser that
-   rejects :has() can only drop those, never the class-driven rules (the
-   build's minifier splits them the same way). RUN overrides below must stay
-   AFTER these (same specificity, source order decides). */
+/* Spotlight the hovered control independently. The shared flag only pauses
+   ambient header loops; it must never animate both navigation actions. */
 .dashboard-page--trophy-logo-highlight .dashboard-header-vortex-shell,
 .dashboard-page--trophy-logo-highlight .dashboard-header-vortex-shell *,
 .dashboard-page--trophy-logo-highlight .dashboard-header-vortex-shell::before,
@@ -18481,141 +18600,81 @@ html.dashboard-page--page-analog-active.dashboard-page--page-analog-active
   animation-play-state: paused !important;
 }
 
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-vortex-shell,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-vortex-shell
-  *,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-vortex-shell::before,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-vortex-shell::after,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-vortex-shell
-  *::before,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-vortex-shell
-  *::after {
-  animation-play-state: paused !important;
+.dashboard-header-home-logo:is(:hover, :focus-visible) .dashboard-header-logo-3d {
+  filter: drop-shadow(0 0.18rem 0.18rem rgba(2, 6, 23, 0.65))
+    drop-shadow(0 0 0.65rem rgba(103, 232, 249, 0.95));
+  transform: perspective(14rem) rotateX(-3deg) rotateY(0deg) translateY(-1px);
 }
 
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-vortex-shell,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-vortex-shell
-  *,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-vortex-shell::before,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-vortex-shell::after,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-vortex-shell
-  *::before,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-vortex-shell
-  *::after {
-  animation-play-state: paused !important;
+.dashboard-header-trophy-selector .dashboard-header-trophy-selector__icon {
+  transition: transform 180ms ease, filter 180ms ease;
 }
 
-.dashboard-page--trophy-logo-highlight .dashboard-header-trophy-selector,
-.dashboard-page--trophy-logo-highlight .dashboard-header-trophy-selector *,
-.dashboard-page--trophy-logo-highlight
-  .dashboard-header-trophy-selector
-  *::before,
-.dashboard-page--trophy-logo-highlight
-  .dashboard-header-trophy-selector
-  *::after,
-.dashboard-page--trophy-logo-highlight .dashboard-header-home-logo,
-.dashboard-page--trophy-logo-highlight .dashboard-header-home-logo *,
-.dashboard-page--trophy-logo-highlight .dashboard-header-home-logo *::before,
-.dashboard-page--trophy-logo-highlight .dashboard-header-home-logo *::after,
-.dashboard-page--trophy-logo-highlight .dashboard-header-logo-smoke,
-.dashboard-page--trophy-logo-highlight .dashboard-header-logo-smoke::before,
-.dashboard-page--trophy-logo-highlight .dashboard-header-logo-smoke::after,
-.dashboard-page--trophy-logo-highlight .dashboard-header-logo-smoke *,
-.dashboard-page--trophy-logo-highlight .dashboard-header-logo-smoke *::before,
-.dashboard-page--trophy-logo-highlight .dashboard-header-logo-smoke *::after {
+.dashboard-header-trophy-selector:is(:hover, :focus-visible, [aria-expanded="true"])
+  .dashboard-header-trophy-selector__icon {
+  filter: drop-shadow(0 0 0.5rem rgba(251, 191, 36, 0.9));
+  transform: translateY(-2px) rotate(-6deg);
+}
+
+.dashboard-header-trophy-selector::after {
+  background: radial-gradient(circle, #fff7cc 0 20%, #fbbf24 22% 35%, transparent 65%);
+  content: "";
+  height: 0.45rem;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: 0.1rem;
+  transform: scale(0.4);
+  transition: opacity 180ms ease, transform 180ms ease;
+  width: 0.45rem;
+}
+
+.dashboard-header-trophy-selector:is(:hover, :focus-visible, [aria-expanded="true"])::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.dashboard-header-home-logo:focus-visible,
+.dashboard-header-trophy-selector:focus-visible {
+  outline: 2px solid #67e8f9;
+  outline-offset: 3px;
+}
+
+.dashboard-header-trophy-selector:focus-visible {
+  outline-color: #fbbf24;
+}
+
+.dashboard-header-home-logo:active .dashboard-header-logo-3d,
+.dashboard-header-trophy-selector:active .dashboard-header-trophy-selector__icon {
+  transform: scale(0.94);
+}
+
+.dashboard-header-logo-cluster .dashboard-header-logo-smoke {
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.dashboard-header-trophy-selector:is(:hover, :focus-visible) ~ .dashboard-header-logo-smoke {
+  opacity: 0.6;
+}
+
+.dashboard-header-trophy-selector:is(:hover, :focus-visible) ~ .dashboard-header-logo-smoke::before,
+.dashboard-header-trophy-selector:is(:hover, :focus-visible) ~ .dashboard-header-logo-smoke .dashboard-header-logo-smoke__puff {
   animation-play-state: running !important;
 }
 
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-trophy-selector,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-trophy-selector
-  *,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-trophy-selector
-  *::before,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-trophy-selector
-  *::after,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-home-logo,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-home-logo
-  *,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-home-logo
-  *::before,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-home-logo
-  *::after,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-logo-smoke,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-logo-smoke::before,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-logo-smoke::after,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-logo-smoke
-  *,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-logo-smoke
-  *::before,
-main:has(.dashboard-header-home-logo--hero-active:is(:hover, :focus-visible))
-  .dashboard-header-logo-smoke
-  *::after {
-  animation-play-state: running !important;
-}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-header-home-logo .dashboard-header-logo-3d,
+  .dashboard-header-trophy-selector .dashboard-header-trophy-selector__icon,
+  .dashboard-header-trophy-selector::after {
+    transition: none;
+    transform: none !important;
+  }
 
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-trophy-selector,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-trophy-selector
-  *,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-trophy-selector
-  *::before,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-trophy-selector
-  *::after,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-home-logo,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-home-logo
-  *,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-home-logo
-  *::before,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-home-logo
-  *::after,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-logo-smoke,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-logo-smoke::before,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-logo-smoke::after,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-logo-smoke
-  *,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-logo-smoke
-  *::before,
-main:has(.dashboard-header-trophy-selector:is(:hover, :focus-visible))
-  .dashboard-header-logo-smoke
-  *::after {
-  animation-play-state: running !important;
+  .dashboard-header-logo-cluster .dashboard-header-logo-smoke {
+    display: none;
+  }
 }
 
 .dashboard-hero-space-needle-meter {
@@ -27286,8 +27345,19 @@ html
 .dashboard-header-meter-panel .dashboard-header-category-levels-menu__ufo-webgl {
   height: min(620px, calc(100vh - 2.2rem)) !important;
   top: calc(50% + 3.35rem) !important;
+  /* Centred on the tornado. The base rule nudges this canvas 12px left,
+     which suits the collapsed header chyron but inside the panel the
+     tornado centres on the SAME box, so the saucer hung 12px off its axis
+     (measured: UFO centre x 329.1 vs tornado 341.1). */
+  transform: translate(-50%, -50%) !important;
   width: min(720px, calc(100vw - 24px)) !important;
   z-index: 12 !important;
+}
+
+/* The static category glow sits behind the canvas and carries the same
+   -12px in its base rule, so it has to follow the saucer to stay behind it. */
+.dashboard-header-meter-panel .dashboard-header-category-levels-menu__ufo-halo {
+  translate: -50% -50% !important;
 }
 
 /* Static category glow behind the UFO canvas (speed audit, Sept 2026). The
@@ -29093,35 +29163,36 @@ html
   }
 }
 
+/* Spins in place. The turn used to travel sideways as well (translateX up
+   to 0.38rem plus the drift variable), which read as the whole header
+   sliding about mid-rotation rather than the stage turning. */
 @keyframes dashboard-header-main-orbit-spin-clockwise {
   0% {
-    transform: translateX(var(--dashboard-header-main-orbit-drift-x))
-      rotateY(var(--dashboard-header-main-orbit-tilt-y)) translateZ(0);
+    transform: rotateY(var(--dashboard-header-main-orbit-tilt-y)) translateZ(0);
   }
   38% {
-    transform: translateX(0.38rem) rotateY(24deg) translateZ(1.6rem);
+    transform: rotateY(24deg) translateZ(1.6rem);
   }
   72% {
-    transform: translateX(-0.12rem) rotateY(-7deg) translateZ(0.55rem);
+    transform: rotateY(-7deg) translateZ(0.55rem);
   }
   100% {
-    transform: translateX(0) rotateY(0deg) translateZ(0);
+    transform: rotateY(0deg) translateZ(0);
   }
 }
 
 @keyframes dashboard-header-main-orbit-spin-counter {
   0% {
-    transform: translateX(var(--dashboard-header-main-orbit-drift-x))
-      rotateY(var(--dashboard-header-main-orbit-tilt-y)) translateZ(0);
+    transform: rotateY(var(--dashboard-header-main-orbit-tilt-y)) translateZ(0);
   }
   38% {
-    transform: translateX(-0.38rem) rotateY(-24deg) translateZ(1.6rem);
+    transform: rotateY(-24deg) translateZ(1.6rem);
   }
   72% {
-    transform: translateX(0.12rem) rotateY(7deg) translateZ(0.55rem);
+    transform: rotateY(7deg) translateZ(0.55rem);
   }
   100% {
-    transform: translateX(0) rotateY(0deg) translateZ(0);
+    transform: rotateY(0deg) translateZ(0);
   }
 }
 

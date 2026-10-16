@@ -28,7 +28,7 @@ export type DashboardCategoryUfoChyronItem = {
   color: string;
   id: string;
   level: number;
-  levelNumber: number;
+  levelNumber: number | null;
   recommendedLabel: string;
   recommendedStatus: string;
   repsLabel: string;
@@ -844,7 +844,7 @@ const drawDashboardCategoryUfoChyronTexture = ({
       seconds,
     );
 
-    if (isHeldEntry && holdOverlayAlpha > 0.01) {
+    if (item.levelNumber !== null && isHeldEntry && holdOverlayAlpha > 0.01) {
       // Live percent counter ticking up with the sweep — the explicit
       // level-progress readout. Drawn after the actor so athletic poses
       // can't glow-wash it.
@@ -872,7 +872,7 @@ const drawDashboardCategoryUfoChyronTexture = ({
     context.fillText(
       ellipsizeCanvasText(
         context,
-        `${item.shortLabel} LV ${item.levelNumber}`,
+        `${item.shortLabel} ${item.levelNumber === null ? "Level unavailable" : "LV " + item.levelNumber}`,
         1400,
       ),
       textX,
@@ -2392,13 +2392,10 @@ export default function DashboardCategoryUfoScene3D({
                   color: colorRef.current,
                   id: "active",
                   level: progressRef.current,
-                  levelNumber: Math.max(
-                    1,
-                    Math.round(progressRef.current / 10),
-                  ),
-                  recommendedLabel: "Recommended pattern",
-                  recommendedStatus: "Needs reps",
-                  repsLabel: "Next reps",
+                  levelNumber: null,
+                  recommendedLabel: "Not mapped",
+                  recommendedStatus: "No mapped records",
+                  repsLabel: "Level target unavailable",
                   shortLabel: "Category",
                 },
               ];

@@ -39,6 +39,10 @@ These notes are meant to reduce repeated misunderstandings. New user instruction
 
 ## Dashboard Row Navigation
 
+- In Account paging, tight phone widths may keep the Account/avatar step near the center. When the header has enough room for the rewards/gift side to read to the right, the Account/avatar step should right-align to preserve the full-size header's account-on-the-right perception. Rewards may remain centered on its own step.
+- When Account paging is active, let Rewards and the meter share the same horizontal position only when their measured open-header footprints fit with breathing room. Tight phone widths should keep the meter as its own next scroll position.
+- Center the open header's complete navigation group (joystick, rail, and title) in its available menu lane. Move Rewards to the next horizontal scroll position before it crowds Account; use the controls' full open footprints and a clear gap, not only a hard-coded phone breakpoint or compressed idle sizes.
+- Preserve the original trophy-above-crest positions and sizes in the header. They are separate actions: crest returns to the dashboard, trophy opens the Sound popup. Give each its own hover/focus highlight animation; do not separate them by rearranging or shrinking the artwork.
 - Shared header: omit the urgency pill beneath the page title. The decorative exercise figure needs clearance measured from its full/longest text, not just its body; hide it when it would overlap controls or extend off-screen, without shrinking navigation to make it fit.
 - The exercise figure must fit the fully open header to appear in either open or idle mode. Extra room created by the smaller idle state must never bring back a figure that fails the open-header fit.
 - The header's page title is the third nav text line (for example, Dashboard beneath Training / Sessions). Keep all three proportionate, scaling together with category / section / page sizes at roughly 67% / 83% / 100%.

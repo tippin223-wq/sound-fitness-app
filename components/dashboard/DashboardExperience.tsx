@@ -1,5 +1,24 @@
 "use client";
 
+import { dashboardChallengeEvidence } from "@/lib/planning/dashboardChallengeEvidence";
+import { achievementMilestones } from "@/lib/planning/achievementEvidence";
+import { dashboardCategoryEvidence } from "@/lib/planning/dashboardCategoryEvidence";
+import { dashboardCompoundEvidence } from "@/lib/planning/dashboardCompoundEvidence";
+import { dashboardDailySets } from "@/lib/planning/dashboardDailySets";
+import { dashboardRewardEvidenceSnapshot, serverDashboardRewardEvidence, type DashboardRewardEvidence } from "@/lib/planning/dashboardRewardEvidence";
+import { dashboardGoalSetup, dashboardJourneyTimeline } from "@/lib/planning/dashboardJourneyEvidence";
+import { dashboardGoalTargetsSnapshot, serverDashboardGoalTargets, dashboardSessionGoalLabels, dashboardRecordedWeeklySets, type DashboardGoalTargets } from "@/lib/planning/dashboardGoalTargets";
+import { dashboardSessionEvidenceSnapshot, serverDashboardSessionEvidence, type DashboardSessionEvidence } from "@/lib/planning/dashboardSessionEvidence";
+import { dashboardWorkloadEvidence } from "@/lib/planning/dashboardWorkloadEvidence";
+import { createWorkoutSyncOperation, readWorkoutSyncReceipt } from "@/lib/planning/workoutSyncReceipt";
+import { dashboardPlanEvidenceSnapshot, serverDashboardPlanEvidence, subscribeDashboardPlanEvidence, type DashboardPlanEvidence } from "@/lib/planning/dashboardPlanEvidence";
+import { dashboardHealthEvidenceSnapshot, serverDashboardHealthEvidence, type DashboardHealthEvidence } from "@/lib/planning/dashboardHealthEvidence";
+import { readEligibleGoals } from "@/lib/planning/goals";
+import { createPlanningRefreshGuard } from "@/lib/planning/planningRefreshGuard";
+import { planningOwner, planningKeys, subscribePlanning, PLANNING_UPDATED } from "@/lib/planning/store";
+import { acceptDashboardManualStatsReview, captureDashboardManualStatsEditor, dashboardManualStatsReviewBelongsToCurrentAccount, inspectDashboardManualStats, reviewDashboardManualStats, saveDashboardManualStat } from "@/lib/planning/dashboardManualStats";
+import { readLibraryState as readAccountLibraryState } from "@/lib/planning/libraries";
+
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -58,6 +77,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
 import DashboardCalendar, {
@@ -69,7 +89,7 @@ import TrainingConstellationSessionCell from "@/components/dashboard/TrainingCon
 import TrainingConstellationTrackFilter from "@/components/dashboard/TrainingConstellationTrackFilter";
 import meterCardStyles from "@/components/dashboard/HeroMeterCards.module.css";
 import masterJourneyStyles from "@/components/dashboard/MasterJourneyLayout.module.css";
-import { normalizeCalendarItems, calendarDateKey, calendarAddDays, calendarWeekStart } from "@/lib/dashboard-calendar";
+import { normalizeCalendarItems, calendarDateKey, calendarAddDays, calendarWeekStart, formatCalendarTime, parseCalendarDate } from "@/lib/dashboard-calendar";
 import { getConstellationWeek, getConstellationSessions, type TrainingConstellationLane } from "@/lib/training-constellation";
 import DashboardAccessibilityNavigator from "@/components/dashboard/DashboardAccessibilityNavigator";
 import dynamic from "next/dynamic";
@@ -97,6 +117,27 @@ import {
   setDashboardStageVisibleScope,
 } from "@/components/dashboard/dashboardWebGlStage";
 import type { DashboardTornadoGemTone } from "@/components/dashboard/DashboardTornadoEmeralds3D";
+
+type PendingTrainingConstellationScheduleSpot = {
+  dateKey: string;
+  dayIndex: number;
+  fullDate: string;
+  lane: TrainingConstellationLane;
+  laneColor: string;
+  laneLabel: string;
+  minutes: number;
+};
+
+const DASHBOARD_TRAINING_CONSTELLATION_DEFAULT_MINUTES: Record<
+  TrainingConstellationLane,
+  number
+> = {
+  cardio: 7 * 60,
+  "check-in": 8 * 60,
+  performance: 8 * 60,
+  recovery: 19 * 60,
+  strength: 17 * 60,
+};
 
 // The four heaviest GL widget modules (~8,700 source lines) are code-split out
 // of the critical page chunk. ssr:false is safe for all of them: three are
@@ -132,6 +173,13 @@ const DashboardGemStage3D = dynamic(
     })),
   { ssr: false, loading: DashboardGlLoadingDisc },
 );
+const DashboardRewardIndicatorGemStage3D = dynamic(
+  () =>
+    import("@/components/dashboard/DashboardTornadoEmeralds3D").then((m) => ({
+      default: m.DashboardGemStage3D,
+    })),
+  { ssr: false, loading: () => null },
+);
 const DashboardCategoryUfoScene3D = dynamic(
   () => import("@/components/dashboard/DashboardCategoryUfoScene3D"),
   { ssr: false },
@@ -151,6 +199,13 @@ const DashboardSpinningSoundCoin3D = dynamic(
     })),
   { ssr: false, loading: DashboardGlLoadingDisc },
 );
+const DashboardRewardIndicatorSoundCoin3D = dynamic(
+  () =>
+    import("@/components/dashboard/DashboardTreasureChest3D").then((m) => ({
+      default: m.DashboardSpinningSoundCoin3D,
+    })),
+  { ssr: false, loading: () => null },
+);
 import { useProfile } from "@/components/profile/ProfileProvider";
 import {
   SoundLogoAchievementBadge,
@@ -169,15 +224,15 @@ import {
   readActiveWorkoutBuilderSessionTemplate,
   type LocalWorkoutBuilderSessionTemplate,
   type LocalWorkoutBuilderTemplate,
-  writeActiveWorkoutBuilderSessionTemplate,
+  startSavedWorkoutBuilderSession,
 } from "@/lib/localData/workoutBuilderData";
 import {
-  prependExerciseStats,
   subscribeToLocalWorkoutData,
 } from "@/lib/localData/workoutData";
 import {
   DASHBOARD_NEWS_FEED_FILTERS,
   type DashboardNewsFeedFilter,
+  type DashboardNewsFeedTopic,
   filterDashboardNewsFeed,
   formatDashboardNewsEventBadge,
   formatDashboardNewsEventWindow,
@@ -232,6 +287,7 @@ type ManualLibraryReference = {
 };
 
 type ManualStatsDraft = {
+  weightUnit?: "" | "lb" | "kg";
   dateTime: string;
   load: string;
   notes: string;
@@ -239,6 +295,14 @@ type ManualStatsDraft = {
   rpe: string;
   sessionLabel: string;
   sets: string;
+};
+
+type QuickManualSliderField = {
+  field: keyof Pick<ManualStatsDraft, "load" | "reps" | "rpe" | "sets">;
+  label: string;
+  max: number;
+  min: number;
+  step: number;
 };
 
 type ManualStatsLogEntry = ManualStatsDraft & {
@@ -303,8 +367,6 @@ const DASHBOARD_MUSIC_AUTOPLAY_OPTIONS: {
   { id: "off", label: "Off" },
   { id: "on", label: "On" },
 ];
-const WORKOUT_SYNC_LAST_SYNCED_KEY = "soundFitnessWorkoutDataLastSyncedAt";
-const MANUAL_STATS_LOG_STORAGE_KEY = "soundFitnessManualStatsLogs";
 const DASHBOARD_GOALS_STORAGE_KEY = "soundFitnessGoals";
 const DASHBOARD_PROFILE_VISITED_KEY = "soundFitnessDashboardProfileVisited";
 const DASHBOARD_GOALS_VISITED_KEY = "soundFitnessDashboardGoalsVisited";
@@ -323,10 +385,20 @@ const DASHBOARD_MUSIC_MASTER_GAIN_MAX = 0.34;
 const DASHBOARD_ANALOG_DRAG_THRESHOLD = 14;
 const DASHBOARD_ANALOG_HOLD_DELAY_MS = 120;
 const DASHBOARD_ANALOG_REPEAT_MS = 150;
+/** Repeat cadence for a HELD LATERAL drag. 150ms steps ~6.7 destinations a
+    second, which walks the whole ring before a label can be read; a lateral
+    hold is a deliberate hunt for a destination, so it is metered to one step
+    a second. Vertical holds keep DASHBOARD_ANALOG_REPEAT_MS — they scrub
+    within a list rather than changing where you are going. */
+const DASHBOARD_ANALOG_LATERAL_REPEAT_MS = 1000;
+const DASHBOARD_HEADER_SELECTOR_HORIZONTAL_DRAG_DELAY_MS = 2000;
+const DASHBOARD_HEADER_SELECTOR_VERTICAL_DRAG_DELAY_MS = 1000;
 /** Below-the-fold rows mount one per idle callback; slot k needs stage >= k. */
 const DASHBOARD_DEFERRED_ROW_STAGES = 8;
 const DASHBOARD_ORBITER_ROW_CLICK_LOCK_MS = 170;
 const DASHBOARD_ORBITER_ROW_SCROLL_LOCK_MS = 145;
+const DASHBOARD_ORBITER_WHEEL_ARM_MS = 850;
+const DASHBOARD_ORBITER_WHEEL_NUDGE_MS = 360;
 const DASHBOARD_PROFILE_ICON_FALLBACK = "/sound-fitness-logo.png";
 // Admin-preview business meter: the header level ring becomes an editable
 // "debt-to-income" score you can bump. Every LEVEL_SIZE points = one level, so
@@ -336,7 +408,6 @@ const ADMIN_DTI_LEVEL_SIZE = 100;
 const ADMIN_DTI_STEP = 5;
 const ADMIN_DTI_DEFAULT_SCORE = 42;
 const ADMIN_DTI_MAX_SCORE = 990;
-const DASHBOARD_WEEKLY_SESSION_GOAL = 7;
 const DASHBOARD_TRAINING_CONSTELLATION_SKY_STARS = Array.from(
   { length: 52 },
   (_, index) => ({
@@ -381,7 +452,6 @@ function getDashboardJoystickClickDirection(
   }
   return offsetY < 0 ? "up" : "down";
 }
-const DASHBOARD_PLAN_SESSION_TARGET = 10;
 const DASHBOARD_HEADER_METER_COUNT = 2;
 // Demo inbox depth for the AI assistant coach, matching the app's other
 // placeholder stats until real messaging lands.
@@ -561,6 +631,16 @@ const DASHBOARD_PROFILE_REWARD_PANELS = [
   { id: "coins", label: "Coins" },
   { id: "gems", label: "Gems" },
 ] as const;
+const DASHBOARD_REWARD_POINT_INDICATOR_COLORS: Record<string, string> = {
+  consistency: "#facc15",
+  default: "#38bdf8",
+  intensity: "#f87171",
+  knowledge: "#a78bfa",
+  recovery: "#34d399",
+  technique: "#fb923c",
+  total: "#2563eb",
+  volume: "#7dd3fc",
+};
 const DASHBOARD_PROFILE_REWARD_INDICATOR_GEM_TONES: readonly DashboardTornadoGemTone[] =
   ["green"];
 // Was 520ms — long enough that leaving the Gems panel felt dead; the vault
@@ -630,6 +710,65 @@ const dashboardWheelDeltaPixels = (event: WheelEvent, scroller: Element) => {
   if (event.deltaMode === 2) return event.deltaY * scroller.clientHeight;
   return event.deltaY;
 };
+
+const DASHBOARD_LOCAL_WHEEL_SCROLL_SELECTOR =
+  "[data-dashboard-orbiter-local-scroll='true']";
+const DASHBOARD_WHEEL_LOCK_SELECTOR = "[data-dashboard-wheel-lock='true']";
+
+const dashboardLocalWheelScroller = (target: EventTarget | null) => {
+  let node = target instanceof Element ? target : null;
+  while (node) {
+    if (
+      node instanceof HTMLElement &&
+      node.closest(DASHBOARD_LOCAL_WHEEL_SCROLL_SELECTOR)
+    ) {
+      const overflowY = getComputedStyle(node).overflowY;
+      if (
+        (overflowY === "auto" ||
+          overflowY === "scroll" ||
+          overflowY === "overlay") &&
+        node.scrollHeight > node.clientHeight + 1
+      ) {
+        return node;
+      }
+    }
+    node = node.parentElement;
+  }
+  return null;
+};
+
+const dashboardWheelLockFallbackScroller = (target: EventTarget | null) => {
+  const lockRoot =
+    target instanceof Element ? target.closest(DASHBOARD_WHEEL_LOCK_SELECTOR) : null;
+  if (!lockRoot) return null;
+
+  const candidates = lockRoot.querySelectorAll<HTMLElement>(
+    DASHBOARD_LOCAL_WHEEL_SCROLL_SELECTOR,
+  );
+  for (const candidate of candidates) {
+    const overflowY = getComputedStyle(candidate).overflowY;
+    if (
+      (overflowY === "auto" ||
+        overflowY === "scroll" ||
+        overflowY === "overlay") &&
+      candidate.scrollHeight > candidate.clientHeight + 1
+    ) {
+      return candidate;
+    }
+  }
+  return null;
+};
+
+const dashboardScrollerCanConsumeWheel = (
+  scroller: HTMLElement,
+  delta: number,
+) => {
+  const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+  if (maxScrollTop <= 1) return false;
+  if (delta > 0) return scroller.scrollTop < maxScrollTop - 1;
+  if (delta < 0) return scroller.scrollTop > 1;
+  return false;
+};
 const DASHBOARD_HEADER_MENU_BLOCK_COUNT = 5;
 const DASHBOARD_HEADER_PROGRESS_BLOCK_INDEX = 2;
 const DASHBOARD_HEADER_IDLE_TIMEOUT_MS = 60000;
@@ -670,23 +809,16 @@ const DASHBOARD_HEADER_CATEGORY_ACTOR_POSES: Record<string, readonly string[]> =
 };
 
 const DASHBOARD_HEADER_IDLE_SCENE_ENABLED = false;
-/**
- * Below this width the account cluster cannot fit its profile, rewards and
- * meter controls side by side — they declare ~193px of fixed width against a
- * block capped at `100vw - 7.75rem`, which pushed the claim/gift button off
- * the right edge. At these sizes the joystick pages through the three controls
- * one at a time instead of trying to seat them all at once.
- */
-/**
- * The header switches to its compact layout at 430px (the meter button is
- * hidden there and revealed only for the account panel). Paging used to start
- * at 359px, so 360-430px rendered every account control at once and they piled
- * up — the profile block ran 12px past a 367px viewport and the hub trigger
- * and coach badge overlapped by 16px. The paging CSS now lives in a
- * max-width: 430px block so the two bands line up.
- */
+// Tiny headers always page. Wider mobile headers page when their full-size
+// account controls, including gear/coach clearance, cannot fit the open row.
 const DASHBOARD_NARROW_HEADER_QUERY = "(max-width: 430px)";
+const DASHBOARD_MOBILE_HEADER_QUERY = "(max-width: 940px)";
 const DASHBOARD_NARROW_ACCOUNT_ITEMS = ["account", "rewards", "meter"] as const;
+type DashboardNarrowAccountItem = (typeof DASHBOARD_NARROW_ACCOUNT_ITEMS)[number];
+const DASHBOARD_NARROW_ACCOUNT_ITEMS_WITH_SHARED_METER = [
+  "account",
+  "rewards",
+] as const satisfies readonly DashboardNarrowAccountItem[];
 /**
  * The ambient field's ten category actors are held at `display: none` by an
  * unconditional rule in globals.css (`.dashboard-header-ambient-field >
@@ -710,17 +842,16 @@ const DASHBOARD_NAV_MIN_ZOOM = 0.3;
  * width or height runs out first. Uses zoom rather than a transform so layout
  * shrinks too and the nav genuinely occupies less of the row.
  */
-/* The nav and account blocks move between their open (carousel) and idle
-   (pinned) layouts via position/width/justification — properties that cannot
-   transition, so on a focus change their contents teleported while the rest
-   of the menu eased, making every piece read as an independent item. This is
-   a FLIP pass: measure each piece before the state class flips, flip, force
-   one layout, measure again, then play a compositor transform from the old
-   box to the new one on the menu's shared 420ms curve. composite: "add"
-   keeps each element's own CSS transform (e.g. the gear's resting offset)
-   intact underneath the animation. */
+/* Measure visible pieces before changing focus, settle and fit the entire
+   destination layout, then bridge the boxes together on one compositor curve.
+   Preserve their own resting transforms and account for scaled ancestors. */
 const DASHBOARD_HEADER_FLIP_SELECTORS = [
-  ".dashboard-header-dashboard-selector",
+  // Animate visible siblings, never both a container and its descendants.
+  // The joystick and label have different fixed widths when the nav refits.
+  ".dashboard-header-selector-joystick",
+  ".dashboard-header-rail-pocket",
+  ".dashboard-header-selector-copy",
+  ".dashboard-header-selector-category-dock",
   ".dashboard-profile-hub-trigger",
   ".dashboard-profile-action-gear",
   ".dashboard-profile-rewards-control",
@@ -736,142 +867,140 @@ const DASHBOARD_HEADER_FLIP_SELECTORS = [
   ".dashboard-header-news-chyron",
 ].join(", ");
 
-const DASHBOARD_HEADER_FLIP_ID = "dashboard-header-focus-flip";
+const DASHBOARD_HEADER_FOCUS_DURATION_MS = 240;
+const DASHBOARD_HEADER_PAGE_ROTATION_MS = 190;
+const DASHBOARD_HEADER_TRANSITION_PAUSE_MS = 420;
+let finishDashboardHeaderFocusFlip: ((restarting?: boolean) => void) | null = null;
+let dashboardHeaderFocusResizeInputs = "";
+let dashboardHeaderNavResizePending = false;
 
-// Last visual boxes painted during a focus transition, sampled per frame by
-// startDashboardHeaderFlipSampling below. The React commit lands mid-flight
-// and mutates layout BEFORE its layout effect can measure, so the effect
-// needs these pre-commit boxes as the FLIP's "first" — measuring at effect
-// time would only see post-commit geometry and bridge nothing.
-let dashboardHeaderLastPaintedRects: Map<HTMLElement, DOMRect> | null = null;
-let dashboardHeaderLastPaintedRectsAt = 0;
-let dashboardHeaderFlipSamplerFrame = 0;
+// Layout dimensions, not animated visual rects: the focus glide itself must
+// never look like a new resize. These inputs do change for a real viewport,
+// neighbour, or label resize that arrives while the glide is running.
+const readDashboardHeaderResizeInputs = (shell: HTMLElement) =>
+  `${window.innerWidth}x${window.innerHeight}|${shell.clientWidth}x${shell.clientHeight}|` +
+  Array.from(shell.querySelectorAll<HTMLElement>(
+    ".dashboard-header-menu-content, .dashboard-header-logo-cluster, .dashboard-header-mobile-orbit-joystick, .dashboard-header-meter-menu-shell, .dashboard-header-main-orbit-stage, .dashboard-header-dashboard-selector",
+  )).map((element) =>
+    `${element.offsetLeft},${element.offsetTop},${element.offsetWidth},${element.offsetHeight}`,
+  ).join("|");
 
-const startDashboardHeaderFlipSampling = () => {
-  if (typeof window === "undefined") return;
-  window.cancelAnimationFrame(dashboardHeaderFlipSamplerFrame);
-  const stopAt = performance.now() + 700;
-  let tick = 0;
-  const sample = () => {
-    // Every other frame is plenty for a 240ms bridge source, and each sample
-    // forces layout on a frame that is already animating. (Speed audit.)
-    if ((++tick & 1) === 0) {
-      if (performance.now() < stopAt) {
-        dashboardHeaderFlipSamplerFrame = window.requestAnimationFrame(sample);
-      }
-      return;
-    }
-    const map = new Map<HTMLElement, DOMRect>();
-    document
-      .querySelectorAll<HTMLElement>(DASHBOARD_HEADER_FLIP_SELECTORS)
-      .forEach((el) => {
-        if (el.offsetParent !== null) map.set(el, el.getBoundingClientRect());
-      });
-    dashboardHeaderLastPaintedRects = map;
-    dashboardHeaderLastPaintedRectsAt = performance.now();
-    if (performance.now() < stopAt) {
-      dashboardHeaderFlipSamplerFrame = window.requestAnimationFrame(sample);
-    }
-  };
-  dashboardHeaderFlipSamplerFrame = window.requestAnimationFrame(sample);
-};
-
-// Stored boxes older than this are worse than none: bridging from a stale
-// position animates a phantom journey. The commit that consumes them lands
-// ~320ms after the last flip re-arms the sampler, so fresh maps are recent.
-const takeDashboardHeaderFreshPaintedRects = () => {
-  // The sampler exists only to feed this consumer; once the commit has taken
-  // the map it would otherwise keep forcing layout every frame until its
-  // 700ms stop. (Speed audit, Sept 2026.)
-  window.cancelAnimationFrame(dashboardHeaderFlipSamplerFrame);
-  const map = dashboardHeaderLastPaintedRects;
-  dashboardHeaderLastPaintedRects = null;
-  if (!map) return null;
-  return performance.now() - dashboardHeaderLastPaintedRectsAt < 600
-    ? map
-    : null;
-};
-
-const runDashboardHeaderFocusFlip = (
-  applyStateChange: () => void,
-  firstOverride?: Map<HTMLElement, DOMRect> | null,
-) => {
-  if (
-    typeof window === "undefined" ||
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  ) {
+const runDashboardHeaderFocusFlip = (applyStateChange: () => void) => {
+  if (typeof window === "undefined") {
     applyStateChange();
     return;
   }
-
+  const shell = document.querySelector<HTMLElement>(".dashboard-header-vortex-shell");
+  if (!shell) return;
   const items = Array.from(
-    document.querySelectorAll<HTMLElement>(DASHBOARD_HEADER_FLIP_SELECTORS),
-  ).filter((el) => el.offsetParent !== null);
-  // FIRST: capture the current visual boxes (including any in-flight flip, so
-  // an interrupted transition re-flips smoothly from wherever it is). A
-  // caller that knows the DOM already mutated passes the last painted boxes.
-  const first = items.map(
-    (el) => firstOverride?.get(el) ?? el.getBoundingClientRect(),
+    shell.querySelectorAll<HTMLElement>(DASHBOARD_HEADER_FLIP_SELECTORS),
+  ).filter(
+    (el) => (typeof el.checkVisibility === "function"
+      ? el.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true })
+      : el.offsetParent !== null && getComputedStyle(el).visibility !== "hidden") &&
+      !el.parentElement?.closest(DASHBOARD_HEADER_FLIP_SELECTORS),
   );
-
+  // Capture interrupted motion before clearing its temporary transforms.
+  const first = items.map((el) => el.getBoundingClientRect());
+  finishDashboardHeaderFocusFlip?.(true);
+  shell.dataset.headerFocusFlipping = "true";
   applyStateChange();
-  // Force one style+layout pass so LAST is the settled target geometry.
-  void document.body.offsetWidth;
-
-  items.forEach((el, index) => {
-    const f = first[index];
-    const l = el.getBoundingClientRect();
-    if (!f.width || !l.width) return;
-    const dx = f.left + f.width / 2 - (l.left + l.width / 2);
-    const dy = f.top + f.height / 2 - (l.top + l.height / 2);
-    const scaleRatio = f.width / l.width;
-    if (Math.abs(dx) < 1 && Math.abs(dy) < 1 && Math.abs(scaleRatio - 1) < 0.02) {
-      // Nothing new to bridge — leave any in-flight bridge running rather
-      // than cancelling it into a mid-animation snap (the commit re-flip
-      // fires with sub-pixel deltas when the commit moved nothing).
-      return;
-    }
-    // Cancel only when replacing: the old bridge's transform must not stack
-    // with the new one.
-    el.getAnimations().forEach((animation) => {
-      if (animation.id === DASHBOARD_HEADER_FLIP_ID) animation.cancel();
-    });
-    // Bake the element's own transform into REPLACE-mode keyframes instead of
-    // using composite:"add": Chromium runs additive transform animations on
-    // the MAIN THREAD, so during the busy transition window they sat frozen
-    // at currentTime 0 — holding items at the old position and releasing them
-    // in one jump. Replace-mode transform-only keyframes with matching
-    // function lists run on the compositor and glide through the jank.
-    // (Read after the cancel above so an old bridge's value isn't baked in.)
-    const baseTransform = getComputedStyle(el).transform;
-    const base =
-      !baseTransform || baseTransform === "none" ? "" : " " + baseTransform;
-    const animation = el.animate(
-      [
-        {
-          transform:
-            "translate(" + dx + "px, " + dy + "px) scale(" + scaleRatio + ")" + base,
-        },
-        { transform: "translate(0px, 0px) scale(1)" + base },
-      ],
-      {
-        duration: 240,
-        easing: "cubic-bezier(0.2, 0.84, 0.2, 1)",
-      },
-    );
-    animation.id = DASHBOARD_HEADER_FLIP_ID;
+  // Fit BEFORE measuring the destination; no later zoom animation may resize
+  // the label into its neighbours after the header has already opened.
+  fitDashboardHeaderNav();
+  dashboardHeaderFocusResizeInputs = readDashboardHeaderResizeInputs(shell);
+  dashboardHeaderNavResizePending = false;
+  const targets = items.map((el, index) => {
+    const rect = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    const base = style.transform === "none" ? new DOMMatrix() : new DOMMatrix(style.transform);
+    const [originX, originY] = style.transformOrigin.split(" ").map(Number.parseFloat);
+    const corners = [[0, 0], [el.offsetWidth, 0], [0, el.offsetHeight], [el.offsetWidth, el.offsetHeight]]
+      .map(([x, y]) => base.transformPoint(new DOMPoint(x - originX, y - originY)));
+    const left = Math.min(...corners.map((point) => point.x));
+    const top = Math.min(...corners.map((point) => point.y));
+    const localWidth = Math.max(...corners.map((point) => point.x)) - left;
+    const localHeight = Math.max(...corners.map((point) => point.y)) - top;
+    const previous = first[index];
+    const scaleX = previous.width / rect.width;
+    const scaleY = previous.height / rect.height;
+    // Work in the element's coordinates: its parents may already be scaled
+    // to 0.6 and the nav may use zoom. Viewport deltas used directly here made
+    // the horizontal joystick overshoot, especially with a top-left origin.
+    const dx = (previous.left - rect.left) * localWidth / rect.width + (1 - scaleX) * left;
+    const dy = (previous.top - rect.top) * localHeight / rect.height + (1 - scaleY) * top;
+    return {
+      el,
+      valid: rect.width > 0 && rect.height > 0 && Number.isFinite(dx + dy + scaleX + scaleY),
+      from: `translate(${dx}px, ${dy}px) scale(${scaleX}, ${scaleY}) ${base.toString()}`,
+      to: `translate(0px, 0px) scale(1, 1) ${base.toString()}`,
+      appliedTransform: "",
+      saved: ["transform", "transition"].map((property) => ({
+        property,
+        value: el.style.getPropertyValue(property),
+        priority: el.style.getPropertyPriority(property),
+      })),
+    };
   });
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    delete shell.dataset.headerFocusFlipping;
+    return;
+  }
+  const active = targets.filter((target) => target.valid);
+  for (const { el, from } of active) {
+    el.style.setProperty("transition", "none", "important");
+    el.style.setProperty("transform", from, "important");
+  }
+  void shell.offsetWidth;
+  for (const target of active) {
+    const { el, to } = target;
+    // CSS transitions can interpolate the existing !important transform rules;
+    // Web Animations keyframes were overridden by those rules on both sticks.
+    el.style.setProperty("transition", `transform ${DASHBOARD_HEADER_FOCUS_DURATION_MS}ms cubic-bezier(0.2, 0.84, 0.2, 1)`, "important");
+    el.style.setProperty("transform", to, "important");
+    target.appliedTransform = el.style.getPropertyValue("transform");
+  }
+  const finish = (restarting = false) => {
+    window.clearTimeout(timer);
+    for (const { el, saved, appliedTransform } of active) {
+      const ownsTransform = el.style.getPropertyValue("transform") === appliedTransform;
+      el.style.setProperty("transition", "none", "important");
+      for (const { property, value, priority } of saved) {
+        // A live drag may have replaced the resting transform during the
+        // glide. Never restore over the control's newer pointer position.
+        if (property === "transform" && !ownsTransform) continue;
+        if (value) el.style.setProperty(property, value, priority);
+        else el.style.removeProperty(property);
+      }
+    }
+    delete shell.dataset.headerFocusFlipping;
+    finishDashboardHeaderFocusFlip = null;
+    // Fit again once the flip has settled: the fit inside the commit runs
+    // against mid-animation geometry, and the header's deferred commit adds
+    // the destination rows after it. The fit only ever grows the nav toward
+    // the largest size it fits in, so this corrects an under-measurement
+    // without ever shrinking what the user is already looking at.
+    if (!restarting && shell.isConnected) {
+      dashboardHeaderNavResizePending = false;
+      fitDashboardHeaderNav();
+    }
+  };
+  const timer = window.setTimeout(finish, DASHBOARD_HEADER_FOCUS_DURATION_MS + 40);
+  finishDashboardHeaderFocusFlip = finish;
 };
 
 // Speed audit II: with the ambient decorations running, a panel rotation
 // blocked 1.1-1.5s and a close 812ms; with them paused, 470ms and 213ms —
 // the header's busiest windows were fighting its own decorations for
 // main-thread frames. This stamps [data-header-transitioning] on the shell
-// for ~620ms around every rotation and focus flip; a runtime.css rule pauses
-// the infinite-only ambient families under it (the chyron is excluded there —
-// it carries a finite entry animation a blanket pause would trap at frame 0).
+// around rotations/focus flips; a runtime.css rule pauses the infinite-only
+// ambient families under it (the chyron is excluded there — it carries a
+// finite entry animation a blanket pause would trap at frame 0). Keep this
+// guard short enough that it does not outlive the now-snappier account pager.
 let dashboardHeaderTransitionPauseTimer = 0;
-const markDashboardHeaderTransitioning = () => {
+const markDashboardHeaderTransitioning = (
+  durationMs = DASHBOARD_HEADER_TRANSITION_PAUSE_MS,
+) => {
   if (typeof document === "undefined" || typeof window === "undefined") return;
   const shell = document.querySelector<HTMLElement>(
     ".dashboard-header-vortex-shell",
@@ -884,7 +1013,7 @@ const markDashboardHeaderTransitioning = () => {
   dashboardHeaderTransitionPauseTimer = window.setTimeout(() => {
     dashboardHeaderTransitionPauseTimer = 0;
     delete shell.dataset.headerTransitioning;
-  }, 620);
+  }, durationMs);
 };
 
 // Directional slide standardization: every rotation should move content the
@@ -939,20 +1068,17 @@ const stageDashboardHeaderSlide = (direction: "left" | "right") => {
   void stage.offsetWidth;
 };
 
-// Read-only fingerprint of the last fit's inputs: the refit observer fires on
-// every <main>/shell class flip (menus, meters, joystick) plus a 700ms re-fire,
-// but the nav geometry almost never changes between those — skipping repeat
-// runs avoids two forced layouts and a fresh 240ms zoom transition per flip.
+// Skip repeated natural-size probes when the available room has not changed.
 let lastDashboardNavFitInputs = "";
 
-const fitDashboardHeaderNav = (
-  // requestAnimationFrame hands this a timestamp; only an explicit options
-  // object switches to the instant (bridge-carried) zoom write.
-  options?: { instant?: boolean } | number,
-) => {
+// Largest zoom the nav has been measured to fit, per viewport. Every fit runs
+// against geometry that is still settling (the focus flip animates, and the
+// header's own commit adds the destination rows ~320ms later), so a single
+// measurement is a lower bound, not the answer.
+const dashboardNavZoomByViewport = new Map<string, number>();
+
+const fitDashboardHeaderNav = () => {
   if (typeof document === "undefined") return;
-  const instant =
-    typeof options === "object" && options !== null && options.instant === true;
 
   // The zoom is sized for the OPEN header; the idle state shrinks the whole
   // menu block with a 0.6 scale instead, so idle must not refit (its scaled
@@ -964,6 +1090,23 @@ const fitDashboardHeaderNav = (
   ) {
     // Idle geometry is scaled; any cached open-state measurement is stale.
     lastDashboardNavFitInputs = "";
+    // The fit belongs to the open header. Left behind, idle shrank twice
+    // (the block's scale on top of the open zoom) after the first open, so
+    // the nav came back at two-thirds of its fresh-load size. Clear it here,
+    // inside the flip commit, so the focus bridge carries the change and
+    // idle always renders at its own (CSS) zoom.
+    const idleSelector = document.querySelector<HTMLElement>(
+      ".dashboard-header-dashboard-selector",
+    );
+    if (idleSelector?.style.getPropertyValue("zoom")) {
+      const idleTransition = idleSelector.style.getPropertyValue("transition");
+      const idleTransitionPriority = idleSelector.style.getPropertyPriority("transition");
+      idleSelector.style.setProperty("transition", "none");
+      idleSelector.style.removeProperty("zoom");
+      void idleSelector.offsetWidth;
+      if (idleTransition) idleSelector.style.setProperty("transition", idleTransition, idleTransitionPriority);
+      else idleSelector.style.removeProperty("transition");
+    }
     return;
   }
 
@@ -980,74 +1123,35 @@ const fitDashboardHeaderNav = (
 
   const box = block.getBoundingClientRect();
 
-  // Measure the row rather than the nav's own container: the container is sized
-  // from its contents, so using it would grow with the nav and always report a
-  // perfect fit. What is actually fixed is the row minus the crest and the
-  // joystick beside it.
-  const row = shell.querySelector<HTMLElement>(
-    ".dashboard-header-menu-content",
-  );
-  const fixedNeighbours = [
-    ".dashboard-header-logo-cluster",
-    ".dashboard-header-mobile-orbit-joystick",
-    // The meter button is pinned to the right end of this same row. Leaving it
-    // out meant the nav was fitted into space the icon already occupies, so on
-    // a narrow screen the dashboard name ran under it — the nav looked like it
-    // fitted because the zoom said so, while visibly colliding.
-    ".dashboard-header-meter-menu-shell",
-  ].reduce((total, selectorText) => {
-    const neighbour = row?.querySelector<HTMLElement>(selectorText);
-    if (!neighbour) return total;
-    // Only reserve space for a neighbour that is actually on screen. The meter
-    // button is position:absolute below 430px and is revealed only on the
-    // "account" panel, but it keeps a full-size rect while hidden — so on every
-    // other panel the nav was fitted around 32px of button that owns none of
-    // the row. That is the room the dashboard name was missing: the label
-    // column resolved to 50.5px against the 62px "Sessions" needs, and the name
-    // rendered as "SESS…" with visible empty space beside it. A visible meter
-    // is still subtracted, which is what stops the nav running under it.
-    const measurable = neighbour as HTMLElement & {
-      checkVisibility?: (options?: {
-        checkOpacity?: boolean;
-        checkVisibilityCSS?: boolean;
-      }) => boolean;
-    };
-    if (
-      typeof measurable.checkVisibility === "function" &&
-      !measurable.checkVisibility({
-        checkOpacity: true,
-        checkVisibilityCSS: true,
-      })
-    ) {
-      return total;
-    }
-    const neighbourStyle = getComputedStyle(neighbour);
-    return total + neighbour.getBoundingClientRect().width +
-      Math.max(0, Number.parseFloat(neighbourStyle.marginLeft) || 0) +
-      Math.max(0, Number.parseFloat(neighbourStyle.marginRight) || 0);
-  }, 0);
-  // Breathing room between the nav and its neighbours. Kept small because the
-  // neighbours' own widths are already subtracted above — the meter button in
-  // particular was added to that list to stop the nav running under it, and a
-  // 20px gutter on top of a 32px button reserved the same space twice, which
-  // cost the open nav about a quarter of its size and made it stop visibly
-  // growing when the header opens.
-  const rowGutter = 8;
+  // CSS assigns this block a fixed share of the stage (100% while paging).
+  // Fit that actual lane, not row-minus-transformed-neighbour estimates, which
+  // missed padding/gaps and could hand the nav pixels outside its own stage.
+  const blockStyle = getComputedStyle(block);
   const availableWidth = Math.max(
     0,
-    (row?.clientWidth ?? box.width) - fixedNeighbours - rowGutter,
+    block.clientWidth -
+      (Number.parseFloat(blockStyle.paddingLeft) || 0) -
+      (Number.parseFloat(blockStyle.paddingRight) || 0),
   );
 
-  // The news chyron sits in the shell's bottom band, so the nav's usable height
-  // stops there rather than at the shell's edge.
-  const chyron = shell.querySelector(".dashboard-header-news-chyron");
-  const availableHeight = chyron
-    ? chyron.getBoundingClientRect().top - box.top
-    : box.height;
+  // Height is a backstop, not the driver. It used to stop at the news
+  // chyron's top, but the chyron eases into place over ~230ms after the focus
+  // attribute flips, so a fit taken during the flip saw a third less header
+  // than it settles with and locked the nav small until something forced a
+  // refit — the nav came back shrunken after every idle and every rotation.
+  // The shell's own box is final at the flip, and once the destination rows
+  // arrive with the header's deferred commit the nav is taller than the band
+  // above the chyron anyway, which made the old input bind and collapse the
+  // fit. Bounding by the shell keeps the width the driver, and a width-bound
+  // fit renders the same size whenever it is measured.
+  const availableHeight = Math.max(
+    box.height,
+    shell.getBoundingClientRect().bottom - box.top,
+  );
 
   // All of the above were pure reads. Skip the write phase (zoom probe +
   // forced reflows + transition restart) when nothing it depends on changed.
-  const inputs = `${window.innerWidth}x${window.innerHeight}|${Math.round(availableWidth * 2)}|${Math.round(availableHeight * 2)}|${Math.round(fixedNeighbours * 2)}`;
+  const inputs = `${window.innerWidth}x${window.innerHeight}|${Math.round(availableWidth * 2)}|${Math.round(availableHeight * 2)}|${selector.textContent}`;
   if (inputs === lastDashboardNavFitInputs) return;
   lastDashboardNavFitInputs = inputs;
 
@@ -1055,11 +1159,19 @@ const fitDashboardHeaderNav = (
   // transition is suppressed during measurement so the zoom: 1 probe never
   // animates or becomes a transition start point.
   const previousZoom = getComputedStyle(selector).zoom || "1";
+  const previousTransition = selector.style.getPropertyValue("transition");
+  const previousTransitionPriority = selector.style.getPropertyPriority("transition");
   selector.style.setProperty("transition", "none");
   selector.style.setProperty("zoom", "1");
   const designWidth = selector.scrollWidth;
   const designHeight = selector.scrollHeight;
-  if (!designWidth || !designHeight) return;
+  if (!designWidth || !designHeight) {
+    selector.style.setProperty("zoom", previousZoom);
+    if (previousTransition) selector.style.setProperty("transition", previousTransition, previousTransitionPriority);
+    else selector.style.removeProperty("transition");
+    lastDashboardNavFitInputs = "";
+    return;
+  }
 
   const fit = Math.min(
     1,
@@ -1082,41 +1194,28 @@ const fitDashboardHeaderNav = (
     ? 1
     : window.matchMedia("(max-width: 430px)").matches
       ? 0.93
-      : 0.88;
-  const targetZoom = Math.max(
+      : 1;
+  const measuredZoom = Math.max(
     DASHBOARD_NAV_MIN_ZOOM,
     Math.round(fit * aestheticShrink * 1000) / 1000,
   );
-
-  // Restore the pre-measurement zoom without animating, then let the
-  // stylesheet's zoom transition carry previous -> target at the same 420ms
-  // curve the rest of the menu uses. Without the restore step, the zoom: 1
-  // written above for measurement would become the transition's start point.
-  selector.style.setProperty("zoom", previousZoom);
-  // Already at the target: restore and stop — rewriting the same zoom would
-  // still restart the 240ms transition and extend the perceived settle.
-  if (Math.abs(Number(previousZoom) - targetZoom) < 0.002) {
-    selector.style.removeProperty("transition");
-    return;
-  }
-  if (instant) {
-    // Called from inside a FLIP bridge (the focus commit re-flip): write the
-    // target now, still under transition: none, and let the bridge animate
-    // the resulting jump together with everything else that moved.
-    selector.style.setProperty("zoom", String(targetZoom));
-    void selector.offsetWidth;
-    selector.style.removeProperty("transition");
-    return;
-  }
-  void selector.offsetWidth;
-  // Inline because the CSS build pipeline silently drops transition: zoom
-  // declarations from stylesheets (same stripping as :has() and two-value
-  // ellipse gradients — see the project memory on dropped CSS).
-  selector.style.setProperty(
-    "transition",
-    "zoom 240ms cubic-bezier(0.2, 0.84, 0.2, 1)",
+  // Hold the largest fit measured at this viewport. Measurements taken while
+  // the header is still opening report less room than it settles with, and
+  // keeping the smallest is what made the nav come back shrunken after every
+  // idle and every rotation. A real resize changes the key and re-measures.
+  const viewportKey = `${window.innerWidth}x${window.innerHeight}`;
+  const targetZoom = Math.max(
+    dashboardNavZoomByViewport.get(viewportKey) ?? 0,
+    measuredZoom,
   );
+  dashboardNavZoomByViewport.set(viewportKey, targetZoom);
+
+  // Geometry is always final before the focus bridge starts. Animating zoom
+  // separately caused the nav to expand again after its neighbours settled.
   selector.style.setProperty("zoom", String(targetZoom));
+  void selector.offsetWidth;
+  if (previousTransition) selector.style.setProperty("transition", previousTransition, previousTransitionPriority);
+  else selector.style.removeProperty("transition");
 };
 
 // ---- Hover tooltip layer ---------------------------------------------------
@@ -1151,6 +1250,36 @@ const hideDashboardTooltip = () => {
   dashboardTooltipLayerApi?.hide();
 };
 
+const DASHBOARD_TOOLTIP_MAX_CHARACTERS = 84;
+const DASHBOARD_TOOLTIP_MIN_SENTENCE_CHARACTERS = 22;
+
+const getConciseDashboardTooltipText = (value: string) => {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (normalized.length <= DASHBOARD_TOOLTIP_MAX_CHARACTERS) {
+    return normalized;
+  }
+
+  const firstSentence = normalized.match(/^(.+?[.!?])(?:\s|$)/)?.[1];
+  if (
+    firstSentence &&
+    firstSentence.length >= DASHBOARD_TOOLTIP_MIN_SENTENCE_CHARACTERS &&
+    firstSentence.length <= DASHBOARD_TOOLTIP_MAX_CHARACTERS
+  ) {
+    return firstSentence;
+  }
+
+  const clipped = normalized.slice(0, DASHBOARD_TOOLTIP_MAX_CHARACTERS + 1);
+  const lastSpace = clipped.lastIndexOf(" ");
+  const safeEnd =
+    lastSpace >= DASHBOARD_TOOLTIP_MAX_CHARACTERS * 0.58
+      ? lastSpace
+      : DASHBOARD_TOOLTIP_MAX_CHARACTERS;
+
+  return `${normalized
+    .slice(0, safeEnd)
+    .replace(/[\s,;:.-]+$/, "")}…`;
+};
+
 function DashboardTooltipLayer() {
   const [tooltip, setTooltip] = useState<DashboardTooltipState | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -1168,12 +1297,13 @@ function DashboardTooltipLayer() {
         setTooltip(null);
       },
       show: (target) => {
-        const text = target.getAttribute("data-dashboard-tooltip");
+        const rawText = target.getAttribute("data-dashboard-tooltip");
 
-        if (!text) return;
+        if (!rawText) return;
 
         clearTimer();
         timerRef.current = window.setTimeout(() => {
+          const text = getConciseDashboardTooltipText(rawText);
           const rect = target.getBoundingClientRect();
           const tooltipMaxWidth = Math.min(288, window.innerWidth - 24);
           const estimatedCharactersPerLine = Math.max(
@@ -1312,7 +1442,7 @@ const applyDashboardChyronMarquee = (element: HTMLElement | null) => {
 // occupied, preserving every document-order cascade tie vs globals.css.
 // Update the ?v= hash in DASHBOARD_RUNTIME_STYLESHEET_IMPORT when editing
 // that file.
-const DASHBOARD_RUNTIME_STYLESHEET_IMPORT = `@import url("/dashboard-runtime.css?v=header-exercise-clearance-20260909");`;
+const DASHBOARD_RUNTIME_STYLESHEET_IMPORT = `@import url("/dashboard-runtime.css?v=joystick-box-fixed-across-focus-20260916");`;
 /** An open header with no interaction for this long returns to idle. */
 const DASHBOARD_HEADER_OPEN_INACTIVITY_MS = 10_000;
 const DASHBOARD_HEADER_IDLE_RUN_MS = 3800;
@@ -1363,7 +1493,7 @@ const dashboardHeaderCategoryLevels = [
     id: "lower-compound",
     label: "Lower Body Compound",
     left: 8,
-    level: 74,
+    level: 0,
     shortLabel: "Lower Comp",
     top: 58,
   },
@@ -1372,7 +1502,7 @@ const dashboardHeaderCategoryLevels = [
     id: "lower-isolation",
     label: "Lower Body Isolation",
     left: 18,
-    level: 58,
+    level: 0,
     shortLabel: "Lower Iso",
     top: 49,
   },
@@ -1381,7 +1511,7 @@ const dashboardHeaderCategoryLevels = [
     id: "core",
     label: "Core",
     left: 28,
-    level: 66,
+    level: 0,
     shortLabel: "Core",
     top: 60,
   },
@@ -1390,7 +1520,7 @@ const dashboardHeaderCategoryLevels = [
     id: "upper-push",
     label: "Upper Push",
     left: 39,
-    level: 62,
+    level: 0,
     shortLabel: "Push",
     top: 50,
   },
@@ -1399,7 +1529,7 @@ const dashboardHeaderCategoryLevels = [
     id: "upper-pull",
     label: "Upper Pull",
     left: 50,
-    level: 55,
+    level: 0,
     shortLabel: "Pull",
     top: 58,
   },
@@ -1408,7 +1538,7 @@ const dashboardHeaderCategoryLevels = [
     id: "arm-isolation",
     label: "Arm Isolation",
     left: 61,
-    level: 49,
+    level: 0,
     shortLabel: "Arms",
     top: 50,
   },
@@ -1417,7 +1547,7 @@ const dashboardHeaderCategoryLevels = [
     id: "athletic",
     label: "Athletic",
     left: 71,
-    level: 71,
+    level: 0,
     shortLabel: "Athletic",
     top: 55,
   },
@@ -1426,7 +1556,7 @@ const dashboardHeaderCategoryLevels = [
     id: "integrated",
     label: "Integrated",
     left: 80,
-    level: 44,
+    level: 0,
     shortLabel: "Integrated",
     top: 49,
   },
@@ -1435,7 +1565,7 @@ const dashboardHeaderCategoryLevels = [
     id: "mobility",
     label: "Mobility",
     left: 89,
-    level: 61,
+    level: 0,
     shortLabel: "Mobility",
     top: 58,
   },
@@ -1444,7 +1574,7 @@ const dashboardHeaderCategoryLevels = [
     id: "cervical",
     label: "Cervical Isolation",
     left: 96,
-    level: 38,
+    level: 0,
     shortLabel: "Neck",
     top: 49,
   },
@@ -1533,14 +1663,6 @@ const dashboardHeaderCategoryLevelDetails = {
   },
 } as const;
 
-type DashboardHeaderCategoryLevelId =
-  (typeof dashboardHeaderCategoryLevels)[number]["id"];
-
-type DashboardHeaderRecommendedPattern = {
-  label: string;
-  recentSets: number;
-};
-
 const dashboardHeaderCategoryFloorSlots = [
   { delay: 0, left: 53, top: 55 },
   { delay: 0, left: 62, top: 49 },
@@ -1555,166 +1677,7 @@ const dashboardHeaderCategoryFloorSlots = [
 ] as const;
 
 const getDashboardHeaderCategoryMeterFill = (level: number) =>
-  `${Math.max(8, Math.min(68, Math.round(level * 0.74)))}%`;
-
-const DASHBOARD_HEADER_CATEGORY_REPS_PER_LEVEL_POINT = 3;
-
-const getDashboardHeaderCategoryNextLevelNumber = (level: number) =>
-  Math.min(10, Math.max(1, Math.round(level / 10) + 1));
-
-const getDashboardHeaderCategoryApproxRepsToNextLevel = (level: number) => {
-  const nextLevelNumber = getDashboardHeaderCategoryNextLevelNumber(level);
-  if (nextLevelNumber >= 10 && level >= 95) return 0;
-
-  const nextLevelThreshold = Math.min(100, nextLevelNumber * 10);
-  const levelGap = Math.max(1, nextLevelThreshold - level);
-  const rawReps = levelGap * DASHBOARD_HEADER_CATEGORY_REPS_PER_LEVEL_POINT;
-
-  return Math.max(5, Math.ceil(rawReps / 5) * 5);
-};
-
-const formatDashboardHeaderCategoryRepsToNextLevel = (level: number) => {
-  const repsToNextLevel =
-    getDashboardHeaderCategoryApproxRepsToNextLevel(level);
-
-  if (repsToNextLevel <= 0) return "Max level";
-
-  return `~${repsToNextLevel} reps to LV${getDashboardHeaderCategoryNextLevelNumber(
-    level,
-  )}`;
-};
-
-const formatDashboardHeaderCategoryApproxRepsCount = (level: number) => {
-  const repsToNextLevel =
-    getDashboardHeaderCategoryApproxRepsToNextLevel(level);
-
-  if (repsToNextLevel <= 0) return "Max";
-
-  return `~${repsToNextLevel} reps`;
-};
-
-const formatDashboardHeaderRecommendedPatternLabel = (value?: string) => {
-  const cleanedValue = (value || "")
-    .replace(/[-_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!cleanedValue) return "Pattern";
-
-  return cleanedValue
-    .replace(/\b\w/g, (letter) => letter.toUpperCase())
-    .replace(/\bPr\b/g, "PR")
-    .replace(/\bIso\b/g, "Isolation");
-};
-
-const getDashboardHeaderStatRecommendedPatternLabel = (
-  stat: LocalExerciseStatEntry,
-) =>
-  formatDashboardHeaderRecommendedPatternLabel(
-    readDashboardText(
-      stat.pattern,
-      stat.coreMovementPattern,
-      stat.semanticVariationName,
-      stat.exerciseName,
-    ),
-  );
-
-const getDashboardHeaderExerciseCategoryId = (signature: string) => {
-  const lowerSignature = signature.toLowerCase();
-  const includesAny = (terms: string[]) =>
-    terms.some((term) => lowerSignature.includes(term));
-
-  if (includesAny(["neck", "cervical"])) {
-    return "cervical";
-  }
-
-  if (includesAny(["mobility", "stretch", "range of motion", "flow"])) {
-    return "mobility";
-  }
-
-  if (
-    includesAny([
-      "leg extension",
-      "leg curl",
-      "calf",
-      "tibialis",
-      "adduction",
-      "abduction",
-      "kickback",
-      "frog pump",
-    ])
-  ) {
-    return "lower-isolation";
-  }
-
-  if (
-    includesAny([
-      "curl",
-      "triceps",
-      "biceps",
-      "wrist",
-      "face pull",
-      "external rotation",
-      "internal rotation",
-    ])
-  ) {
-    return "arm-isolation";
-  }
-
-  if (
-    includesAny([
-      "clean",
-      "snatch",
-      "thruster",
-      "swing",
-      "turkish",
-      "complex",
-      "combo",
-      "integrated",
-    ])
-  ) {
-    return "integrated";
-  }
-
-  if (
-    includesAny(["jump", "sprint", "plyo", "power", "agility", "slam", "throw"])
-  ) {
-    return "athletic";
-  }
-
-  if (
-    includesAny([
-      "squat",
-      "deadlift",
-      "hinge",
-      "lunge",
-      "leg press",
-      "hip thrust",
-      "glute",
-      "hamstring",
-      "quad",
-      "calf",
-    ])
-  ) {
-    return "lower-compound";
-  }
-
-  if (
-    includesAny(["row", "pull", "chin", "lat", "back", "pulldown", "face pull"])
-  ) {
-    return "upper-pull";
-  }
-
-  if (includesAny(["bench", "press", "push", "dip", "chest", "shoulder"])) {
-    return "upper-push";
-  }
-
-  if (includesAny(["plank", "core", "carry", "loaded carry", "farmer"])) {
-    return "core";
-  }
-
-  return "integrated";
-};
+  `${Math.max(0, Math.min(68, Math.round(level * 0.74)))}%`;
 
 const getDashboardHeaderTimeoutPortalPosition = () => {
   const zone =
@@ -2383,22 +2346,6 @@ const renderDashboardHeaderIdleEquipmentIcon = (
   }
 };
 
-const DASHBOARD_COMPOUND_LIFT_PATTERNS = [
-  "squat",
-  "deadlift",
-  "bench",
-  "press",
-  "row",
-  "pull-up",
-  "pull up",
-  "chin-up",
-  "chin up",
-  "clean",
-  "snatch",
-  "lunge",
-  "thruster",
-  "dip",
-];
 
 const dashboardMusicStations: DashboardMusicStation[] = [
   {
@@ -2801,15 +2748,6 @@ const getManualDateTimeInputValue = () => {
   return date.toISOString().slice(0, 16);
 };
 
-const getManualLogIsoDate = (value: string) => {
-  if (!value) return new Date().toISOString();
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return new Date().toISOString();
-
-  return date.toISOString();
-};
-
 const getDashboardLocalDateKey = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -2858,29 +2796,6 @@ const getDashboardEntryStreak = (dateKeys: Set<string>, endDate: Date) => {
   }
 
   return streak;
-};
-
-const readManualStatsLogEntries = (): ManualStatsLogEntry[] => {
-  if (typeof window === "undefined") return [];
-
-  const saved = window.localStorage.getItem(MANUAL_STATS_LOG_STORAGE_KEY);
-  if (!saved) return [];
-
-  try {
-    const parsed = JSON.parse(saved);
-    return Array.isArray(parsed) ? (parsed as ManualStatsLogEntry[]) : [];
-  } catch {
-    return [];
-  }
-};
-
-const writeManualStatsLogEntries = (entries: ManualStatsLogEntry[]) => {
-  if (typeof window === "undefined") return;
-
-  window.localStorage.setItem(
-    MANUAL_STATS_LOG_STORAGE_KEY,
-    JSON.stringify(entries),
-  );
 };
 
 const readStringArrayFromStorage = (key: string) => {
@@ -2977,29 +2892,7 @@ const writeDashboardMusicSettings = ({
 const readDashboardLibraryFavoriteIds = (
   source: (typeof dashboardFavoriteLibrarySources)[number],
 ) => {
-  if (typeof window === "undefined") return [];
-
-  let namespacedFavorites: string[] = [];
-
-  try {
-    const parsed = JSON.parse(
-      window.localStorage.getItem(source.storageKey) || "{}",
-    );
-    const favorites = asRecord(parsed).favorites;
-    namespacedFavorites = Array.isArray(favorites)
-      ? favorites.filter((value): value is string => typeof value === "string")
-      : [];
-  } catch {
-    namespacedFavorites = [];
-  }
-
-  const globalFavorites = readStringArrayFromStorage(
-    GLOBAL_DASHBOARD_FAVORITES_STORAGE_KEY,
-  )
-    .filter((value) => value.startsWith(`${source.id}:`))
-    .map((value) => value.replace(`${source.id}:`, ""));
-
-  return Array.from(new Set([...namespacedFavorites, ...globalFavorites]));
+  return readAccountLibraryState(source.id).favorites;
 };
 
 const formatFavoriteIdLabel = (value: string) =>
@@ -3450,20 +3343,147 @@ const createManualExerciseLibraryCategories = ({
   });
 };
 
+const quickManualSliderFields: QuickManualSliderField[] = [
+  {
+    field: "sets",
+    label: "Sets",
+    max: 10,
+    min: 1,
+    step: 1,
+  },
+  {
+    field: "reps",
+    label: "Reps",
+    max: 40,
+    min: 1,
+    step: 1,
+  },
+  {
+    field: "load",
+    label: "Load",
+    max: 450,
+    min: 0,
+    step: 5,
+  },
+  {
+    field: "rpe",
+    label: "RPE",
+    max: 10,
+    min: 1,
+    step: 1,
+  },
+];
+
+const getQuickManualSliderValue = (
+  manualStatsDraft: ManualStatsDraft,
+  field: QuickManualSliderField,
+) => {
+  const rawValue = manualStatsDraft[field.field];
+  const numericValue = rawValue.trim() ? Number(rawValue) : NaN;
+  const fallbackValue = Number.isFinite(numericValue)
+    ? numericValue
+    : field.min;
+
+  return Math.min(field.max, Math.max(field.min, fallbackValue));
+};
+
+function QuickManualStatsControls({
+  manualStatsDraft,
+  onManualStatsDraftChange,
+  onSaveManualStats,
+}: {
+  manualStatsDraft: ManualStatsDraft;
+  onManualStatsDraftChange: (
+    field: keyof ManualStatsDraft,
+    value: string,
+  ) => void;
+  onSaveManualStats: () => void;
+}) {
+  return (
+    <div
+      className="grid gap-2 lg:grid-cols-[minmax(0,1fr)_9.5rem] lg:items-stretch"
+      data-dashboard-quick-log-stats-controls="true"
+    >
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {quickManualSliderFields.map((field) => {
+          const sliderValue = getQuickManualSliderValue(
+            manualStatsDraft,
+            field,
+          );
+          const sliderFillPercent =
+            ((sliderValue - field.min) / (field.max - field.min)) * 100;
+          const sliderTrackStyle = {
+            background: `linear-gradient(90deg, rgba(34,211,238,0.95) 0%, rgba(103,232,249,0.95) ${sliderFillPercent}%, rgba(148,163,184,0.28) ${sliderFillPercent}%, rgba(148,163,184,0.28) 100%)`,
+            boxShadow: "0 0 18px rgba(34,211,238,0.14)",
+          } as CSSProperties;
+
+          return (
+            <div
+              key={`quick-log-${field.field}`}
+              className="min-w-0 rounded-[16px] border border-white/10 bg-slate-950/50 px-2.5 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-cyan-200/28 hover:bg-cyan-300/8"
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-400">
+                  {field.label}
+                </span>
+                <span className="text-[14px] font-black uppercase tracking-[0.05em] text-cyan-50">
+                  {manualStatsDraft[field.field].trim() ? `${manualStatsDraft[field.field]}${field.field === "load" ? ` ${manualStatsDraft.weightUnit || "unit unreported"}` : field.field === "rpe" ? "/10" : ""}` : "Unreported"}
+                </span>
+              </span>
+              <input
+                aria-label={`${field.label} slider`}
+                aria-valuetext={manualStatsDraft[field.field].trim() ? `${manualStatsDraft[field.field]}${field.field === "load" ? ` ${manualStatsDraft.weightUnit || "unit unreported"}` : ""}` : "Unreported; move the slider to record a value"}
+                className="mt-2 h-2 w-full cursor-ew-resize appearance-none rounded-full outline-none transition [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-cyan-50 [&::-moz-range-thumb]:bg-cyan-300 [&::-moz-range-thumb]:shadow-[0_0_16px_rgba(34,211,238,0.55)] [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-cyan-50 [&::-webkit-slider-thumb]:bg-cyan-300 [&::-webkit-slider-thumb]:shadow-[0_0_16px_rgba(34,211,238,0.55)]"
+                max={field.max}
+                min={field.min}
+                onChange={(event) =>
+                  onManualStatsDraftChange(field.field, event.target.value)
+                }
+                step={field.step}
+                style={sliderTrackStyle}
+                type="range"
+                value={sliderValue}
+              />
+              <input aria-label={`${field.label} value`} className="mt-2 w-full rounded border border-white/10 bg-slate-950 px-2 py-1 text-sm text-white" inputMode={field.field === "load" ? "decimal" : "numeric"} placeholder="Unreported" type="text" value={manualStatsDraft[field.field]} onChange={event => onManualStatsDraftChange(field.field, event.target.value)} />
+            </div>
+          );
+        })}
+      </div>
+
+      <label className="text-sm text-slate-200">Load unit
+        <select aria-label="Load unit" className="ml-2 rounded border border-white/10 bg-slate-950 p-1" value={manualStatsDraft.weightUnit || ""} onChange={event => onManualStatsDraftChange("weightUnit", event.target.value)}>
+          <option value="">Unreported</option><option value="lb">lb</option><option value="kg">kg</option>
+        </select>
+      </label>
+
+      <button
+        className="inline-flex min-h-[42px] w-full items-center justify-center rounded-[16px] bg-gradient-to-r from-amber-300 to-cyan-300 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_0_34px_rgba(250,204,21,0.18)] active:scale-[0.99] lg:h-full"
+        onClick={onSaveManualStats}
+        type="button"
+      >
+        Save Stat
+      </button>
+    </div>
+  );
+}
+
 function ManualExerciseLibraryPreview({
   activeCategoryId,
   categories,
+  layout = "full",
   manualStatsDraft,
   onCategorySelect,
   onCategoryShift,
   onExerciseSelect,
   onManualStatsDraftChange,
   onSaveManualStats,
+  selectedExercise,
   selectedExerciseCue,
   selectedExerciseIds,
 }: {
   activeCategoryId: string;
   categories: ManualExerciseLibraryCategory[];
+  layout?: "full" | "selectorOnly";
   manualStatsDraft: ManualStatsDraft;
   onCategorySelect: (categoryId: string) => void;
   onCategoryShift: (direction: "left" | "right") => void;
@@ -3473,9 +3493,11 @@ function ManualExerciseLibraryPreview({
     value: string,
   ) => void;
   onSaveManualStats: () => void;
+  selectedExercise?: Exercise | null;
   selectedExerciseCue?: string;
   selectedExerciseIds: Set<string>;
 }) {
+  const selectorOnly = layout === "selectorOnly";
   const activeCategory =
     categories.find((category) => category.id === activeCategoryId) ||
     categories[0];
@@ -3483,65 +3505,6 @@ function ManualExerciseLibraryPreview({
   const exerciseCardScrollerRef = useRef<HTMLDivElement | null>(null);
   const [exerciseCardsCanScrollDown, setExerciseCardsCanScrollDown] =
     useState(false);
-  const quickManualSliderFields: Array<{
-    defaultValue: number;
-    field: keyof Pick<ManualStatsDraft, "load" | "reps" | "rpe" | "sets">;
-    label: string;
-    max: number;
-    min: number;
-    step: number;
-    valueLabel: (value: number) => string;
-  }> = [
-    {
-      defaultValue: 3,
-      field: "sets",
-      label: "Sets",
-      max: 10,
-      min: 1,
-      step: 1,
-      valueLabel: (value) => `${value}`,
-    },
-    {
-      defaultValue: 10,
-      field: "reps",
-      label: "Reps",
-      max: 40,
-      min: 1,
-      step: 1,
-      valueLabel: (value) => `${value}`,
-    },
-    {
-      defaultValue: 185,
-      field: "load",
-      label: "Load",
-      max: 450,
-      min: 0,
-      step: 5,
-      valueLabel: (value) => (value >= 450 ? "450+ lb" : `${value} lb`),
-    },
-    {
-      defaultValue: 8,
-      field: "rpe",
-      label: "RPE",
-      max: 10,
-      min: 1,
-      step: 1,
-      valueLabel: (value) => `${value}/10`,
-    },
-  ];
-  const getQuickManualSliderValue = (
-    field: (typeof quickManualSliderFields)[number],
-  ) => {
-    const rawValue = manualStatsDraft[field.field];
-    const numericValue = Number.parseFloat(
-      String(rawValue).replace(/[^\d.]/g, ""),
-    );
-    const fallbackValue = Number.isFinite(numericValue)
-      ? numericValue
-      : field.defaultValue;
-
-    return Math.min(field.max, Math.max(field.min, fallbackValue));
-  };
   const activeCategoryIndex = Math.max(
     0,
     categories.findIndex((category) => category.id === activeCategory?.id),
@@ -3715,9 +3678,54 @@ function ManualExerciseLibraryPreview({
         </button>
       </div>
 
-      <div className="mt-3 rounded-[24px] border border-cyan-200/14 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.10),transparent_42%),rgba(2,6,23,0.38)] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:p-3">
-        <div className="grid items-stretch gap-2 min-[760px]:h-[24rem] min-[760px]:grid-cols-[minmax(0,1fr)_12rem] min-[1020px]:h-[25rem] min-[1020px]:grid-cols-[minmax(0,1fr)_13rem]">
-          <div className="relative flex min-h-[21rem] min-w-0 flex-col overflow-hidden rounded-[20px] border border-cyan-200/10 bg-slate-950/24 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] min-[760px]:h-full min-[760px]:min-h-0">
+      <div
+        className="mt-3 rounded-[24px] border border-cyan-200/14 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.10),transparent_42%),rgba(2,6,23,0.38)] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:p-3"
+        data-dashboard-quick-log-selector={selectorOnly ? "true" : undefined}
+      >
+        {selectorOnly ? (
+          <article className="mb-2 grid overflow-hidden rounded-[20px] border border-cyan-100/14 bg-slate-950/52 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] sm:grid-cols-[9.75rem_minmax(0,1fr)]">
+            <div
+              aria-hidden="true"
+              className="min-h-[7.25rem] bg-cover bg-center opacity-90 sm:min-h-full"
+              style={{
+                backgroundImage: selectedExercise
+                  ? `linear-gradient(90deg, rgba(2,6,23,0.10), rgba(2,6,23,0.92)), url(${selectedExercise.image})`
+                  : "radial-gradient(circle at 50% 0%, rgba(34,211,238,0.18), transparent 60%)",
+              }}
+            />
+            <div className="flex min-w-0 flex-col justify-center p-3 sm:p-3.5">
+              <p className="text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/76">
+                Selected exercise
+              </p>
+              <h3 className="mt-1 truncate text-xl font-black leading-tight text-white sm:text-2xl">
+                {selectedExercise?.name || "Choose an exercise"}
+              </h3>
+              <p className="mt-1 text-[11px] font-semibold leading-4 text-slate-300">
+                {selectedExercise
+                  ? `${selectedExercise.body} · ${selectedExercise.pattern} · ${selectedExercise.equipment}`
+                  : "Attach a library exercise before saving."}
+              </p>
+              {selectedExercise?.cue ? (
+                <p className="mt-2 line-clamp-2 rounded-2xl border border-amber-200/18 bg-amber-300/8 px-3 py-2 text-[10px] font-semibold leading-4 text-amber-50/90">
+                  Cue: {selectedExercise.cue}
+                </p>
+              ) : null}
+            </div>
+          </article>
+        ) : null}
+
+        <div
+          className={`grid items-stretch gap-2 ${
+            selectorOnly
+              ? "min-[760px]:h-[16rem]"
+              : "min-[760px]:h-[24rem] min-[760px]:grid-cols-[minmax(0,1fr)_12rem] min-[1020px]:h-[25rem] min-[1020px]:grid-cols-[minmax(0,1fr)_13rem]"
+          }`}
+        >
+          <div
+            className={`relative flex min-w-0 flex-col overflow-hidden rounded-[20px] border border-cyan-200/10 bg-slate-950/24 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] min-[760px]:h-full min-[760px]:min-h-0 ${
+              selectorOnly ? "min-h-[15rem]" : "min-h-[21rem]"
+            }`}
+          >
             {selectedExerciseCue ? (
               <p className="mb-1.5 line-clamp-1 text-center text-[10px] font-semibold text-cyan-100/70">
                 Cue: {selectedExerciseCue}
@@ -3809,54 +3817,11 @@ function ManualExerciseLibraryPreview({
             ) : null}
           </div>
 
+          {!selectorOnly ? (
           <div className="grid gap-1.5 min-[760px]:h-full min-[760px]:content-start">
-            {quickManualSliderFields.map((field) => {
-              const sliderValue = getQuickManualSliderValue(field);
-              const sliderFillPercent =
-                ((sliderValue - field.min) / (field.max - field.min)) * 100;
-              const sliderTrackStyle = {
-                background: `linear-gradient(90deg, rgba(34,211,238,0.95) 0%, rgba(103,232,249,0.95) ${sliderFillPercent}%, rgba(148,163,184,0.28) ${sliderFillPercent}%, rgba(148,163,184,0.28) 100%)`,
-                boxShadow: "0 0 18px rgba(34,211,238,0.14)",
-              } as CSSProperties;
-
-              return (
-                <label
-                  key={`quick-${field.field}`}
-                  className="min-w-0 rounded-[16px] border border-white/10 bg-slate-950/48 px-2.5 py-2 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-cyan-200/28 hover:bg-cyan-300/8"
-                >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="text-[9px] font-black uppercase tracking-[0.13em] text-slate-400">
-                      {field.label}
-                    </span>
-                    <span className="text-[14px] font-black uppercase tracking-[0.05em] text-cyan-50">
-                      {field.valueLabel(sliderValue)}
-                    </span>
-                  </span>
-                  <input
-                    aria-label={`${field.label} slider`}
-                    type="range"
-                    min={field.min}
-                    max={field.max}
-                    step={field.step}
-                    value={sliderValue}
-                    onChange={(event) =>
-                      onManualStatsDraftChange(field.field, event.target.value)
-                    }
-                    style={sliderTrackStyle}
-                    className="mt-2 h-2 w-full cursor-ew-resize appearance-none rounded-full outline-none transition [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-cyan-50 [&::-moz-range-thumb]:bg-cyan-300 [&::-moz-range-thumb]:shadow-[0_0_16px_rgba(34,211,238,0.55)] [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-cyan-50 [&::-webkit-slider-thumb]:bg-cyan-300 [&::-webkit-slider-thumb]:shadow-[0_0_16px_rgba(34,211,238,0.55)]"
-                  />
-                </label>
-              );
-            })}
-
-            <button
-              type="button"
-              onClick={onSaveManualStats}
-              className="mt-0.5 inline-flex min-h-[38px] w-full items-center justify-center rounded-[16px] bg-gradient-to-r from-amber-300 to-cyan-300 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.16)] transition hover:-translate-y-0.5 hover:shadow-[0_0_34px_rgba(250,204,21,0.18)] active:scale-[0.99]"
-            >
-              Save Stat
-            </button>
+            <QuickManualStatsControls manualStatsDraft={manualStatsDraft} onManualStatsDraftChange={onManualStatsDraftChange} onSaveManualStats={onSaveManualStats} />
           </div>
+          ) : null}
         </div>
 
         <div className="mt-3 flex justify-center">
@@ -3903,21 +3868,6 @@ const dashboardHeaderMeterFullDateTimeFormatter = new Intl.DateTimeFormat(
     weekday: "long",
   },
 );
-const dashboardAchievementEstimateDateFormatter = new Intl.DateTimeFormat(
-  "en-US",
-  {
-    day: "numeric",
-    month: "short",
-  },
-);
-const dashboardAchievementEstimateFullDateFormatter = new Intl.DateTimeFormat(
-  "en-US",
-  {
-    day: "numeric",
-    month: "short",
-    weekday: "long",
-  },
-);
 // The consistency calendar spans 22 months, so these two ran ~680 times per
 // render when the formatter was constructed inside the day/month loops.
 const dashboardConsistencyDayLabelFormatter = new Intl.DateTimeFormat("en-US", {
@@ -3932,18 +3882,6 @@ const dashboardConsistencyMonthLabelFormatter = new Intl.DateTimeFormat(
     year: "numeric",
   },
 );
-const dashboardDayMonthFormatter = new Intl.DateTimeFormat("en-US", {
-  day: "numeric",
-  month: "short",
-});
-const dashboardWeekdayShortFormatter = new Intl.DateTimeFormat("en-US", {
-  weekday: "short",
-});
-const dashboardTimelineDateFormatter = new Intl.DateTimeFormat("en-US", {
-  day: "numeric",
-  month: "short",
-  weekday: "short",
-});
 const dashboardFullDateFormatter = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   month: "short",
@@ -3981,12 +3919,6 @@ const formatHeaderMeterFullDateTime = (date: Date) =>
   Number.isNaN(date.getTime())
     ? "soon"
     : dashboardHeaderMeterFullDateTimeFormatter.format(date);
-
-const formatAchievementEstimateDate = (date: Date) =>
-  dashboardAchievementEstimateDateFormatter.format(date);
-
-const formatAchievementEstimateFullDate = (date: Date) =>
-  dashboardAchievementEstimateFullDateFormatter.format(date);
 
 const formatManualLoadDisplay = (value?: string) => {
   const trimmedValue = value?.trim();
@@ -4036,16 +3968,6 @@ const getWorkoutTemplateTag = (template: LocalWorkoutBuilderTemplate) =>
   template.exercises[0]?.pattern ||
   template.exercises[0]?.goal ||
   "Custom";
-
-const groupWorkoutDates = (entries: LocalExerciseStatEntry[]) =>
-  Array.from(
-    new Set(
-      entries
-        .filter((entry) => entry.source === "workout-session")
-        .map((entry) => entry.date)
-        .filter(Boolean),
-    ),
-  );
 
 const toLoggedNumber = (value: string | number | null | undefined) => {
   const parsed = Number(value);
@@ -4290,8 +4212,10 @@ const formatDashboardCompactCalories = (value: number) => {
   return Math.round(value).toLocaleString();
 };
 
-const readDashboardLocalRecord = (key: string) => {
+const readDashboardLocalRecord = (key: string): Record<string, unknown> => {
   if (typeof window === "undefined") return {};
+  if (key === SOUND_FITNESS_PROFILE_STORAGE_KEY) return readSoundFitnessProfileRecord();
+  if (key === DASHBOARD_GOALS_STORAGE_KEY) return { ...(readEligibleGoals() || {}) };
 
   try {
     return asRecord(safeJsonParse(window.localStorage.getItem(key)));
@@ -4322,38 +4246,9 @@ const getDashboardProfileCompletion = (profile: Record<string, unknown>) => {
   ]);
 };
 
-const getDashboardGoalsCompletion = (goals: Record<string, unknown>) =>
-  getDashboardCompletionFromValues([
-    goals.planDirections,
-    goals.primaryGoal,
-    goals.secondaryGoal,
-    goals.goalMode,
-    goals.goalDeadline,
-    goals.goalMilestones,
-    goals.goalPriorityRanking,
-    goals.goalWeight || goals.currentWeight,
-    goals.targetWeeklySessions,
-    goals.targetWeeklySets,
-    goals.targetProtein,
-    goals.targetSteps || goals.stepsGoal,
-    goals.targetSleep,
-    goals.waterGoal,
-    goals.benchmarkGoal,
-    goals.motivationFocus,
-    goals.planDirectionNotes,
-  ]);
+const getDashboardGoalsCompletion = (goals: Record<string, unknown>) => dashboardGoalSetup(goals).completion;
 
-const getDashboardGoalFocus = (
-  profile: Record<string, unknown>,
-  goals: Record<string, unknown>,
-) =>
-  readDashboardText(
-    Array.isArray(goals.planDirections) ? goals.planDirections[0] : "",
-    goals.primaryGoal,
-    goals.goalMode,
-    profile.primaryGoal,
-    profile.goalMode,
-  );
+const getDashboardGoalFocus = (goals: Record<string, unknown>) => dashboardGoalSetup(goals).focus;
 
 const readDashboardFoundationProgress = (): DashboardFoundationProgress => {
   if (typeof window === "undefined") {
@@ -4370,7 +4265,7 @@ const readDashboardFoundationProgress = (): DashboardFoundationProgress => {
   const goals = readDashboardLocalRecord(DASHBOARD_GOALS_STORAGE_KEY);
 
   return {
-    goalFocus: getDashboardGoalFocus(profile, goals),
+    goalFocus: getDashboardGoalFocus(goals),
     goalsCompletion: getDashboardGoalsCompletion(goals),
     goalsVisited:
       window.localStorage.getItem(DASHBOARD_GOALS_VISITED_KEY) === "true",
@@ -4607,14 +4502,6 @@ type AdminSettingsSection = {
   status: string;
   title: string;
   tone: DashboardCardTone;
-};
-
-type MasterJourneyNode = {
-  href: string;
-  icon: string;
-  label: string;
-  metric: string;
-  state: DashboardJourneyStepState;
 };
 
 type DashboardMasterPlanTimelineItem = {
@@ -5196,6 +5083,70 @@ const dashboardNewsFilterToneStyles: Record<
     active:
       "border-indigo-100/55 bg-indigo-300/20 text-indigo-50 shadow-[0_0_20px_rgba(129,140,248,0.24)]",
     idle: "border-indigo-200/22 bg-indigo-300/8 text-indigo-100/72 hover:border-indigo-100/42 hover:bg-indigo-300/14",
+  },
+};
+
+const dashboardNewsTopicToneStyles: Record<
+  DashboardNewsFeedTopic,
+  {
+    badge: string;
+    border: string;
+    chip: string;
+    glow: string;
+    label: string;
+    meta: string;
+    soft: string;
+  }
+> = {
+  community: {
+    badge:
+      "border-fuchsia-200/30 bg-fuchsia-300/12 text-fuchsia-100/85 shadow-[0_0_14px_rgba(232,121,249,0.14)]",
+    border: "rgba(232, 121, 249, 0.56)",
+    chip: "border-fuchsia-200/28 bg-fuchsia-300/12 text-fuchsia-100",
+    glow: "rgba(232, 121, 249, 0.13)",
+    label: "Community",
+    meta: "text-fuchsia-100/72",
+    soft: "rgba(232, 121, 249, 0.085)",
+  },
+  gear: {
+    badge:
+      "border-violet-200/30 bg-violet-300/12 text-violet-100/85 shadow-[0_0_14px_rgba(167,139,250,0.14)]",
+    border: "rgba(167, 139, 250, 0.56)",
+    chip: "border-violet-200/28 bg-violet-300/12 text-violet-100",
+    glow: "rgba(167, 139, 250, 0.13)",
+    label: "Gear",
+    meta: "text-violet-100/72",
+    soft: "rgba(167, 139, 250, 0.085)",
+  },
+  nutrition: {
+    badge:
+      "border-lime-200/30 bg-lime-300/12 text-lime-100/85 shadow-[0_0_14px_rgba(163,230,53,0.13)]",
+    border: "rgba(163, 230, 53, 0.54)",
+    chip: "border-lime-200/28 bg-lime-300/12 text-lime-100",
+    glow: "rgba(163, 230, 53, 0.12)",
+    label: "Nutrition",
+    meta: "text-lime-100/72",
+    soft: "rgba(163, 230, 53, 0.078)",
+  },
+  recovery: {
+    badge:
+      "border-teal-200/30 bg-teal-300/12 text-teal-100/85 shadow-[0_0_14px_rgba(45,212,191,0.14)]",
+    border: "rgba(45, 212, 191, 0.56)",
+    chip: "border-teal-200/28 bg-teal-300/12 text-teal-100",
+    glow: "rgba(45, 212, 191, 0.13)",
+    label: "Recovery",
+    meta: "text-teal-100/72",
+    soft: "rgba(45, 212, 191, 0.08)",
+  },
+  training: {
+    badge:
+      "border-orange-200/30 bg-orange-300/12 text-orange-100/85 shadow-[0_0_14px_rgba(251,146,60,0.14)]",
+    border: "rgba(251, 146, 60, 0.56)",
+    chip: "border-orange-200/28 bg-orange-300/12 text-orange-100",
+    glow: "rgba(251, 146, 60, 0.13)",
+    label: "Training",
+    meta: "text-orange-100/72",
+    soft: "rgba(251, 146, 60, 0.085)",
   },
 };
 
@@ -8970,6 +8921,10 @@ export default function DashboardExperience({
   useEffect(() => {
     setDashboardClockLive(true);
   }, []);
+  useEffect(() => {
+    void import("@/components/dashboard/DashboardTreasureChest3D");
+    void import("@/components/dashboard/DashboardTornadoEmeralds3D");
+  }, []);
   // Heavy purely-decorative header layers (ambient field + idle training floor,
   // ~4k DOM nodes) are deferred one frame past first paint so the initial
   // render/HTML stays light and the dashboard appears sooner. They fade in
@@ -8979,7 +8934,17 @@ export default function DashboardExperience({
     const id = window.requestAnimationFrame(() => setDecorationsReady(true));
     return () => window.cancelAnimationFrame(id);
   }, []);
+  const dashboardPlanEvidence = JSON.parse(useSyncExternalStore(subscribeDashboardPlanEvidence, dashboardPlanEvidenceSnapshot, serverDashboardPlanEvidence)) as DashboardPlanEvidence;
+  const dashboardRewardSnapshot = useSyncExternalStore(subscribeDashboardPlanEvidence, dashboardRewardEvidenceSnapshot, serverDashboardRewardEvidence);
+  const dashboardRewardEvidence = useMemo(() => JSON.parse(dashboardRewardSnapshot) as DashboardRewardEvidence, [dashboardRewardSnapshot]);
+  const dashboardGoalSnapshot = useSyncExternalStore(subscribeDashboardPlanEvidence, dashboardGoalTargetsSnapshot, serverDashboardGoalTargets);
+  const dashboardGoalTargets = useMemo(() => JSON.parse(dashboardGoalSnapshot) as DashboardGoalTargets, [dashboardGoalSnapshot]);
+  const dashboardSessionSnapshot = useSyncExternalStore(subscribeDashboardPlanEvidence, dashboardSessionEvidenceSnapshot, serverDashboardSessionEvidence);
+  const dashboardSessionEvidence = useMemo(() => JSON.parse(dashboardSessionSnapshot) as DashboardSessionEvidence, [dashboardSessionSnapshot]);
+  const dashboardHealthSnapshot = useSyncExternalStore(subscribeDashboardPlanEvidence, dashboardHealthEvidenceSnapshot, serverDashboardHealthEvidence);
+  const dashboardHealthEvidence = useMemo(() => JSON.parse(dashboardHealthSnapshot) as DashboardHealthEvidence, [dashboardHealthSnapshot]);
   const [firstName, setFirstName] = useState("Member");
+  const [workoutRefreshGuard] = useState(() => createPlanningRefreshGuard([planningKeys.exerciseStats, planningKeys.logs, planningKeys.templates]));
   const [exerciseStats, setExerciseStats] = useState<LocalExerciseStatEntry[]>(
     [],
   );
@@ -8988,6 +8953,7 @@ export default function DashboardExperience({
   >([]);
   const [activeSessionTemplate, setActiveSessionTemplate] =
     useState<LocalWorkoutBuilderSessionTemplate | null>(null);
+  const [workoutSyncOperation] = useState(createWorkoutSyncOperation);
   const [canSyncWorkoutData, setCanSyncWorkoutData] = useState(false);
   const [isSyncingWorkoutData, setIsSyncingWorkoutData] = useState(false);
   const [syncStatusMessage, setSyncStatusMessage] = useState("");
@@ -9010,18 +8976,25 @@ export default function DashboardExperience({
   >([]);
   const [manualStatsDraft, setManualStatsDraft] = useState<ManualStatsDraft>({
     dateTime: getManualDateTimeInputValue(),
-    load: "185",
+    load: "",
+    weightUnit: "",
     notes: "",
-    reps: "10",
-    rpe: "8",
+    reps: "",
+    rpe: "",
     sessionLabel: "",
-    sets: "3",
+    sets: "",
   });
   const [manualStatsLogs, setManualStatsLogs] = useState<ManualStatsLogEntry[]>(
     [],
   );
+  const manualStatsEditorRef = useRef<ReturnType<typeof captureDashboardManualStatsEditor> | null>(null);
+  const manualStatsIntentRef = useRef<{ signature: string; id: string } | null>(null);
   const [manualStatsAdderCollapsed, setManualStatsAdderCollapsed] =
     useState(true);
+  const [quickLogPopupOpen, setQuickLogPopupOpen] = useState(false);
+  const [quickLogSaveMessage, setQuickLogSaveMessage] = useState("");
+  const [manualStatsReview, setManualStatsReview] = useState<ReturnType<typeof reviewDashboardManualStats> | null>(null);
+  const [favoriteLaunchMessage, setFavoriteLaunchMessage] = useState("");
   const [activeDashboardOrbiterRow, setActiveDashboardOrbiterRow] = useState(
     () => (isAdminPreview ? 1 : 0),
   );
@@ -9061,11 +9034,32 @@ export default function DashboardExperience({
     useState(0);
   const [dashboardMobileHeaderOrbitPanel, setDashboardMobileHeaderOrbitPanel] =
     useState<"selector" | "account">("selector");
-  // Very narrow headers page through the account controls one at a time; see
-  // DASHBOARD_NARROW_HEADER_QUERY.
+  // Paging follows the available OPEN footprint, not the idle visual scale.
   const [dashboardHeaderIsNarrow, setDashboardHeaderIsNarrow] = useState(false);
+  const [dashboardHeaderRewardsMeterShared, setDashboardHeaderRewardsMeterShared] =
+    useState(false);
+  const [
+    dashboardHeaderCompactAccountRewards,
+    setDashboardHeaderCompactAccountRewards,
+  ] = useState(false);
   const [dashboardNarrowAccountIndex, setDashboardNarrowAccountIndex] =
     useState(0);
+  const [
+    dashboardExitingNarrowAccountItem,
+    setDashboardExitingNarrowAccountItem,
+  ] = useState<DashboardNarrowAccountItem | null>(null);
+  const dashboardExitingNarrowAccountTimerRef = useRef<number | null>(null);
+  const dashboardNarrowAccountItems = dashboardHeaderRewardsMeterShared
+    ? DASHBOARD_NARROW_ACCOUNT_ITEMS_WITH_SHARED_METER
+    : DASHBOARD_NARROW_ACCOUNT_ITEMS;
+  useEffect(() => {
+    return () => {
+      if (dashboardExitingNarrowAccountTimerRef.current !== null) {
+        window.clearTimeout(dashboardExitingNarrowAccountTimerRef.current);
+        dashboardExitingNarrowAccountTimerRef.current = null;
+      }
+    };
+  }, []);
   // Which half of the orbit joystick the pointer is over — highlights that
   // arrow in the 3D scene. Ref-guarded so pointermove only commits on a real
   // side change (left<->right), and transition-wrapped as decorative state.
@@ -9074,22 +9068,224 @@ export default function DashboardExperience({
   const dashboardOrbitJoystickHoverSideRef = useRef<"left" | "right" | null>(
     null,
   );
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
+    const shell = document.querySelector<HTMLElement>(".dashboard-header-vortex-shell");
+    const stage = shell?.querySelector<HTMLElement>(".dashboard-header-main-orbit-stage--stable");
+    const profile = stage?.querySelector<HTMLElement>(".dashboard-header-menu-block--profile");
+    const hub = profile?.querySelector<HTMLElement>(".dashboard-profile-hub-trigger");
+    const rewards = profile?.querySelector<HTMLElement>(".dashboard-profile-rewards-control");
+    const meter = shell?.querySelector<HTMLElement>(".dashboard-header-meter-menu-shell");
+    if (!shell || !stage || !profile || !hub || !rewards || !meter) return;
 
-    const query = window.matchMedia(DASHBOARD_NARROW_HEADER_QUERY);
+    const tinyQuery = window.matchMedia(DASHBOARD_NARROW_HEADER_QUERY);
+    const mobileQuery = window.matchMedia(DASHBOARD_MOBILE_HEADER_QUERY);
+    let frame = 0;
+    let deferTimer = 0;
+    let disposed = false;
+    let lastDecision: boolean | null = null;
+    let lastSharedDecision: boolean | null = null;
+    let lastCompactDecision: boolean | null = null;
+    const measureOpenAccountFit = () => {
+      // Probe the same nonpaged OPEN layout from both idle and paged states.
+      // Restore before paint; hiding the meter or shrinking the idle shell
+      // must never manufacture enough room to flip this decision back.
+      const savedAttributes = [
+        [shell, "data-header-focus", "header"],
+        [shell, "data-header-focus-flipping", "true"],
+        [shell, "data-account-paged", "false"],
+        [stage, "data-narrow-account-item", null],
+      ] as const;
+      const oldAttributes = savedAttributes.map(([element, name]) => element.getAttribute(name));
+      const oldProbe = shell.getAttribute("data-account-fit-probe");
+      shell.dataset.accountFitProbe = "true";
+      const savedStyles: Array<{ element: HTMLElement; property: string; value: string; priority: string }> = [];
+      const setProbeStyle = (element: HTMLElement, property: string, value: string) => {
+        savedStyles.push({ element, property, value: element.style.getPropertyValue(property), priority: element.style.getPropertyPriority(property) });
+        element.style.setProperty(property, value, "important");
+      };
+      try {
+        savedAttributes.forEach(([element, name, value]) => {
+          if (value === null) element.removeAttribute(name);
+          else element.setAttribute(name, value);
+        });
+        const points = rewards.querySelector<HTMLElement>(".dashboard-profile-points-trigger");
+        const claim = rewards.querySelector<HTMLElement>(".dashboard-profile-claim-trigger");
+        const gear = profile.querySelector<HTMLElement>(".dashboard-profile-action-gear");
+        for (const element of [hub, rewards, points]) {
+          if (!element) continue;
+          setProbeStyle(element, "display", "flex");
+          setProbeStyle(element, "flex-shrink", "0");
+          setProbeStyle(element, "width", "max-content");
+        }
+        if (claim) {
+          setProbeStyle(claim, "display", "grid");
+          setProbeStyle(claim, "flex-shrink", "0");
+        }
+        if (gear) setProbeStyle(gear, "display", "grid");
+        const profileStyle = getComputedStyle(profile);
+        const hubStyle = getComputedStyle(hub);
+        const coach = hub.querySelector<HTMLElement>(".dashboard-profile-coach-badge");
+        const coachOverhang = coach ? Math.max(0, -Number.parseFloat(getComputedStyle(coach).right) || 0) : 0;
+        const rem = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        const gearWidth = Math.max(
+          gear?.offsetWidth ?? 0,
+          gear?.querySelector<HTMLElement>(".dashboard-profile-action-gear__webgl")?.offsetWidth ?? 0,
+        );
+        const meterWidth = Math.max(
+          meter.offsetWidth,
+          meter.querySelector<HTMLElement>(".dashboard-header-meter-menu-trigger__webgl-icon")?.offsetWidth ?? 0,
+          meter.querySelector<HTMLElement>(".dashboard-header-meter-menu-trigger")?.offsetWidth ?? 0,
+        );
+        const gearPocket = Math.max(
+          Number.parseFloat(hubStyle.marginLeft) || 0,
+          gear ? gearWidth + rem * 0.4 : 0,
+        );
+        const available = Math.min(stage.clientWidth, profile.clientWidth) -
+          (Number.parseFloat(profileStyle.paddingLeft) || 0) -
+          (Number.parseFloat(profileStyle.paddingRight) || 0);
+        const accountRewardsRequired = gearPocket + hub.offsetWidth + Math.max(coachOverhang, rem * 0.5) +
+          rem * 1.5 + rewards.offsetWidth;
+        const rewardsMeterRequired = rewards.offsetWidth + meterWidth + rem * 1.35;
+        const claimWidth = Math.max(
+          claim?.offsetWidth ?? 0,
+          claim?.querySelector<HTMLElement>(".dashboard-profile-points-trigger__claim-webgl")?.offsetWidth ?? 0,
+        );
+        const accountGiftMeterRequired =
+          gearPocket +
+          hub.offsetWidth +
+          Math.max(coachOverhang, rem * 0.5) +
+          rem * 1.15 +
+          claimWidth +
+          rem * 1.15 +
+          meterWidth;
+        const accountRewardsMeterRequired =
+          accountRewardsRequired + meterWidth + rem * 1.35;
+        return {
+          accountGiftMeterRequired,
+          accountRewardsMeterRequired,
+          accountRewardsRequired,
+          available,
+          rewardsMeterRequired,
+        };
+      } finally {
+        for (const { element, property, value, priority } of savedStyles.reverse()) {
+          if (value) element.style.setProperty(property, value, priority);
+          else element.style.removeProperty(property);
+        }
+        savedAttributes.forEach(([element, name], index) => {
+          const value = oldAttributes[index];
+          if (value === null) element.removeAttribute(name);
+          else element.setAttribute(name, value);
+        });
+        // Commit the original geometry while transitions are still disabled;
+        // removing the probe marker together with focus would animate the
+        // probe's open layout back to idle despite never having painted it.
+        void shell.offsetWidth;
+        if (oldProbe === null) shell.removeAttribute("data-account-fit-probe");
+        else shell.setAttribute("data-account-fit-probe", oldProbe);
+      }
+    };
     const applyNarrowHeader = () => {
-      setDashboardHeaderIsNarrow(query.matches);
-      // Crossing the boundary shows and hides whole widget clusters (the gear,
-      // the rewards gems/coin/chest, the meter icon). The stage caches CSS
-      // visibility for ~6 frames, so without this they blink blank for ~200ms
-      // — the same refresh the rotation path gets.
+      if (disposed) return;
+      if (shell.dataset.headerFocusFlipping === "true") {
+        window.clearTimeout(deferTimer);
+        deferTimer = window.setTimeout(schedule, DASHBOARD_HEADER_FOCUS_DURATION_MS + 40);
+        return;
+      }
+      const fit = mobileQuery.matches ? measureOpenAccountFit() : null;
+      let paged = false;
+      let compactAccountRewards = false;
+      if (mobileQuery.matches && fit) {
+        // A small exit buffer prevents breakpoint chatter on fractional pixels.
+        const fullTrioFits =
+          fit.available > 0 &&
+          fit.available >= fit.accountRewardsMeterRequired - (lastDecision === false && !lastCompactDecision ? 12 : 0);
+        compactAccountRewards =
+          !fullTrioFits &&
+          fit.available > 0 &&
+          fit.available >= fit.accountGiftMeterRequired - (lastCompactDecision ? 12 : 0);
+        paged = !fullTrioFits && !compactAccountRewards;
+      } else {
+        paged = tinyQuery.matches;
+      }
+      if (!mobileQuery.matches) {
+        paged = false;
+        compactAccountRewards = false;
+      }
+      const rewardsMeterShared =
+        paged && Boolean(fit) && fit!.available > 0 &&
+        fit!.available >= fit!.rewardsMeterRequired - (lastSharedDecision ? 12 : 0);
+      if (
+        lastDecision === paged &&
+        lastSharedDecision === rewardsMeterShared &&
+        lastCompactDecision === compactAccountRewards
+      )
+        return;
+      // Grouped Account has no individual page selection. Forget an old
+      // Rewards/Meter step so narrowing again starts with Account; resizes
+      // that remain paged preserve the currently selected step.
+      if (!paged) setDashboardNarrowAccountIndex(0);
+      else if (rewardsMeterShared) {
+        setDashboardNarrowAccountIndex((current) =>
+          Math.min(current, DASHBOARD_NARROW_ACCOUNT_ITEMS_WITH_SHARED_METER.length - 1),
+        );
+      }
+      lastDecision = paged;
+      lastSharedDecision = rewardsMeterShared;
+      lastCompactDecision = compactAccountRewards;
+      setDashboardHeaderIsNarrow(paged);
+      setDashboardHeaderRewardsMeterShared(rewardsMeterShared);
+      setDashboardHeaderCompactAccountRewards(compactAccountRewards);
       invalidateDashboardStageVisibility();
     };
-
+    const schedule = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(applyNarrowHeader);
+    };
     applyNarrowHeader();
-    query.addEventListener("change", applyNarrowHeader);
-    return () => query.removeEventListener("change", applyNarrowHeader);
+    const widths = new Map<Element, number>();
+    const observer = new ResizeObserver((entries) => {
+      let changed = false;
+      for (const entry of entries) {
+        const width = entry.borderBoxSize?.[0]?.inlineSize ?? entry.contentRect.width;
+        const previous = widths.get(entry.target);
+        if (previous !== undefined && Math.abs(previous - width) > 0.5) changed = true;
+        widths.set(entry.target, width);
+      }
+      if (changed) schedule();
+    });
+    // Ignore height and idle stage repacking: only real row/neighbour width
+    // changes can change the available OPEN account footprint.
+    observer.observe(shell);
+    shell.querySelectorAll(
+      ".dashboard-header-menu-content, .dashboard-header-logo-cluster, .dashboard-header-mobile-orbit-joystick, .dashboard-header-meter-menu-shell",
+    ).forEach((element) => observer.observe(element));
+    const readPointsText = () => rewards.querySelector(".dashboard-profile-points-trigger")?.textContent ?? "";
+    let pointsText = readPointsText();
+    const textObserver = new MutationObserver(() => {
+      const nextText = readPointsText();
+      if (nextText === pointsText) return;
+      pointsText = nextText;
+      schedule();
+    });
+    textObserver.observe(rewards, { childList: true, characterData: true, subtree: true });
+    tinyQuery.addEventListener("change", schedule);
+    mobileQuery.addEventListener("change", schedule);
+    window.addEventListener("resize", schedule);
+    void document.fonts.ready.then(() => {
+      if (!disposed) schedule();
+    });
+    return () => {
+      disposed = true;
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(deferTimer);
+      observer.disconnect();
+      textObserver.disconnect();
+      tinyQuery.removeEventListener("change", schedule);
+      mobileQuery.removeEventListener("change", schedule);
+      window.removeEventListener("resize", schedule);
+    };
   }, []);
   // Clear the slide-staging marker in the same commit that flips the panel:
   // between the click and this commit the staged block must HOLD its staged
@@ -9622,6 +9818,11 @@ export default function DashboardExperience({
       // shell — the header oscillated between idle and open underneath the
       // panel for as long as it was being read. It holds idle while open.
       dashboardHeaderMeterMenuOpen);
+  // Holding a joystick pauses decoration, but must never shrink its hit area
+  // out from under the pointer. Geometry follows focus and popup ownership.
+  const dashboardHeaderLayoutIdle =
+    !dashboardHeaderPopupPinned &&
+    (dashboardContentFocused || dashboardHeaderMeterMenuOpen);
   // setDashboardContentFocused writes the shell attribute imperatively and is
   // a `[]` useCallback, so it reads the pin through a ref instead of closing
   // over it.
@@ -9784,11 +9985,8 @@ export default function DashboardExperience({
       if (!nextFocused && dashboardHeaderMeterMenuOpenRef.current) return;
       // Nothing to do when the pointer merely re-confirms a state that is
       // already both flipped on the shell AND committed in React, with no
-      // other intent pending. This handler fires on every pointer move and
-      // click over the content, and re-scheduling the deferred commit below
-      // re-rendered the page — with the layout-forcing commit re-flip —
-      // 320ms after every category click for no change at all. (Speed audit,
-      // Sept 2026.)
+      // other intent pending. Repeated pointer activity must not schedule a
+      // page render when the requested state has already settled.
       if (
         dashboardContentFocusCommitTimerRef.current === null &&
         dashboardContentFocusedCommittedRef.current === nextFocused &&
@@ -9807,14 +10005,7 @@ export default function DashboardExperience({
           ".dashboard-header-vortex-shell",
         );
         if (shellElement) {
-          // The instant flip follows the POINTER only. It used to also OR in
-          // dashboardHeaderControlsInUse, but those hover states now commit
-          // in deferred transitions — the closure read a stale `true` after
-          // leaving the level-meter tab/joysticks, so hovering back into the
-          // header refused to open it until some later crossing. The React
-          // commit (~320ms later) writes data-header-focus from the full
-          // dashboardHeaderMotionPaused derivation and re-asserts the
-          // controls-in-use semantics with fresh values.
+          // Pointer intent owns geometry; decoration pause state is separate.
           const nextState = nextFocused ? "content" : "header";
           // This handler fires on every pointermove over the content, so the
           // FLIP pass (which forces a layout) only runs on a real state change.
@@ -9825,22 +10016,12 @@ export default function DashboardExperience({
             runDashboardHeaderFocusFlip(() => {
               shellElement.dataset.headerFocus = nextState;
             });
-            // Keep per-frame visual boxes until the React commit lands, so
-            // its layout effect can bridge the commit's jump from the last
-            // painted frame (see dashboardHeaderLastPaintedRects).
-            startDashboardHeaderFlipSampling();
             // The flip shows/hides widget anchors via [data-header-focus]
             // rules; the stage's ~200ms checkVisibility cache would blink
             // them — refresh it on the same flip.
             invalidateDashboardStageVisibility();
-            // Every widget anchor moves for the next ~240ms, and again for
-            // 240ms once the deferred commit (320ms) re-bridges. The stage's
-            // 20-30fps present cap would land only a handful of positions
-            // across that, so the 3D stepped along behind the DOM chrome it
-            // sits in — worst on the joysticks closing to idle, where the
-            // anchor moves and shrinks at once. Track at display rate until
-            // the second bridge lands.
-            boostDashboardStageFrameRate(600);
+            // Track the single focus glide so 3D stays inside its DOM anchor.
+            boostDashboardStageFrameRate(DASHBOARD_HEADER_FOCUS_DURATION_MS + 40);
             // Freeze/dim the header 3D on the DOM's clock: the shell's
             // brightness filter starts now, and a bubble that stayed bright
             // and kept animating until the commit 320ms later read as a
@@ -9851,16 +10032,9 @@ export default function DashboardExperience({
           }
         }
       }
-      // The attribute flip and FLIP animations above already changed
-      // everything visible. React's catch-up render is DEFERRED past the
-      // 240ms glide: even time-sliced, its style-recalc chunks kept the frame
-      // pipeline from committing for ~150-300ms, so no animation (compositor
-      // included) could start and the transition began with a visible hold.
-      // An earlier deferral attempt was reverted because the commit's
-      // geometry side-effects landed visibly late — that is now safe: the
-      // commit re-flip (useLayoutEffect below) bridges whatever the commit
-      // moves, from the last painted frame, as its own compositor glide.
-      // Rapid hover flips just reschedule; the last intent wins.
+      // Let the large page's animation-state render follow the compositor
+      // glide. It no longer changes geometry or launches a second resize.
+      // Rapid pointer crossings replace this pending intent.
       if (dashboardContentFocusCommitTimerRef.current !== null) {
         window.clearTimeout(dashboardContentFocusCommitTimerRef.current);
       }
@@ -9883,33 +10057,23 @@ export default function DashboardExperience({
       if (dashboardContentFocusCommitTimerRef.current !== null) {
         window.clearTimeout(dashboardContentFocusCommitTimerRef.current);
       }
+      finishDashboardHeaderFocusFlip?.(true);
     },
     [],
   );
-  // The React commit lands ~200-400ms after the synchronous flip and its
-  // class changes move header geometry AGAIN — a second visible jump the
-  // original FLIP never covered. Re-run the FLIP with a no-op state change
-  // pre-paint: it captures each item's current visual box (mid-animation
-  // included), cancels in-flight bridges, and bridges from there to the
-  // committed layout, so both hops read as one continuous motion.
+  // Popups may change focus without a pointer crossing. Reconcile only a real
+  // state difference; ordinary deferred commits must not restart the glide.
   useLayoutEffect(() => {
-    // The nav zoom-fit rides this same bridge: fitting inside the flip's
-    // state-change step (instant zoom write, see fitDashboardHeaderNav) puts
-    // the fitted nav into the re-flip's LAST rects, so the selector — its
-    // joystick, rail and labels together — glides once. Left to the observer
-    // it refit 700ms later with its own 240ms zoom transition, resizing the
-    // selector again after everything else had settled.
-    runDashboardHeaderFocusFlip(
-      () => fitDashboardHeaderNav({ instant: true }),
-      takeDashboardHeaderFreshPaintedRects(),
-    );
-    boostDashboardStageFrameRate(300);
-    // The commit re-derives data-header-focus from the full motionPaused
-    // semantics, which can differ from the pointer-only sync flip — anchors
-    // may show/hide again here, so refresh the stage's visibility cache on
-    // this path too.
+    const shell = document.querySelector<HTMLElement>(".dashboard-header-vortex-shell");
+    const nextState = dashboardHeaderLayoutIdle ? "content" : "header";
+    if (!shell || shell.dataset.headerFocus === nextState) return;
+    markDashboardHeaderTransitioning();
+    runDashboardHeaderFocusFlip(() => {
+      shell.dataset.headerFocus = nextState;
+    });
+    boostDashboardStageFrameRate(DASHBOARD_HEADER_FOCUS_DURATION_MS + 40);
     invalidateDashboardStageVisibility();
-  }, [dashboardContentFocused]);
+  }, [dashboardHeaderLayoutIdle]);
   const [activeCommandCenterIndex, setActiveCommandCenterIndex] = useState(0);
   const [activeAdminServiceIndex, setActiveAdminServiceIndex] = useState(0);
   const [adminServiceDetailsOpen, setAdminServiceDetailsOpen] = useState(false);
@@ -10268,6 +10432,21 @@ export default function DashboardExperience({
     useState<DashboardNewsFeedFilter>("all");
   // Loader seam: a future async feed becomes useState(seed) + one effect.
   const [dashboardNewsFeed] = useState(() => getDashboardNewsFeed());
+  const [
+    dashboardNewsEventPopupOpen,
+    setDashboardNewsEventPopupOpen,
+  ] = useState(false);
+  useEffect(() => {
+    if (!dashboardHeroNewsOpen) setDashboardNewsEventPopupOpen(false);
+  }, [dashboardHeroNewsOpen]);
+  useEffect(() => {
+    if (!dashboardNewsEventPopupOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDashboardNewsEventPopupOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [dashboardNewsEventPopupOpen]);
   const [selectedTrainingConstellationLanes, setSelectedTrainingConstellationLanes] =
     useState<TrainingConstellationLane[]>(["recovery", "strength", "cardio", "performance", "check-in"]);
   const [dashboardCalendarDate, setDashboardCalendarDate] = useState(() => new Date());
@@ -10279,13 +10458,59 @@ export default function DashboardExperience({
     setDashboardCalendarDate((current) => calendarDateKey(current) === calendarDateKey(date) ? current : date);
   }, []);
   const [activeTrainingConstellationDayIndex, setActiveTrainingConstellationDayIndex] =
+    useState(() => {
+      const todayDateKey = calendarDateKey(trainingCalendarToday);
+      const todayIndex = getConstellationWeek(trainingCalendarToday).findIndex(
+        (day) => day.dateKey === todayDateKey,
+      );
+      return todayIndex >= 0 ? todayIndex : 0;
+    });
+  const [activeTrainingConstellationTrackIndex, setActiveTrainingConstellationTrackIndex] =
     useState(0);
   const [selectedTrainingConstellationSessionId, setSelectedTrainingConstellationSessionId] =
     useState<string | null>(null);
+  const [
+    pendingTrainingConstellationSchedule,
+    setPendingTrainingConstellationSchedule,
+  ] = useState<PendingTrainingConstellationScheduleSpot | null>(null);
   const [activeDashboardChallengeCategoryId, setActiveDashboardChallengeCategoryId] =
-    useState("strength");
+    useState("consistency");
   const dashboardTrainingConstellationScrollRef =
     useRef<HTMLDivElement | null>(null);
+  const scrollTrainingConstellationToDay = useCallback(
+    (dayIndex: number, behavior: ScrollBehavior = "smooth") => {
+      const scroller = dashboardTrainingConstellationScrollRef.current;
+      if (!scroller) return;
+
+      window.requestAnimationFrame(() => {
+        const nextIndex = Math.max(0, Math.min(6, dayIndex));
+        const isMobileTimeline = window.matchMedia("(max-width: 639px)").matches;
+        const maxScrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+        const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+        const dayRow = scroller.querySelector<HTMLElement>(
+          `[data-training-constellation-day-index="${nextIndex}"]`,
+        );
+
+        if (isMobileTimeline && dayRow) {
+          const scrollerRect = scroller.getBoundingClientRect();
+          const rowRect = dayRow.getBoundingClientRect();
+          scroller.scrollTo({
+            left: 0,
+            top: Math.max(0, scroller.scrollTop + rowRect.top - scrollerRect.top - 14),
+            behavior,
+          });
+          return;
+        }
+
+        scroller.scrollTo({
+          left: maxScrollLeft * (nextIndex / 6),
+          top: isMobileTimeline ? maxScrollTop * (nextIndex / 6) : scroller.scrollTop,
+          behavior,
+        });
+      });
+    },
+    [],
+  );
   const moveTrainingConstellationWeek = useCallback((direction: -1 | 1) => {
     setDashboardCalendarDate((current) => calendarAddDays(calendarWeekStart(current), direction * 7));
     // The calendar owns its cursor after mounting; reset it with the new shared
@@ -10293,22 +10518,56 @@ export default function DashboardExperience({
     setDashboardCalendarResetKey((key) => key + 1);
     setActiveTrainingConstellationDayIndex(0);
     setSelectedTrainingConstellationSessionId(null);
+    setPendingTrainingConstellationSchedule(null);
     dashboardTrainingConstellationScrollRef.current?.scrollTo({ left: 0, top: 0, behavior: "instant" });
   }, []);
   const moveTrainingConstellationTimeline = useCallback((direction: -1 | 1) => {
+    setPendingTrainingConstellationSchedule(null);
     setActiveTrainingConstellationDayIndex((currentIndex) => {
       const nextIndex = Math.max(0, Math.min(6, currentIndex + direction));
-      const scroller = dashboardTrainingConstellationScrollRef.current;
+      if (nextIndex !== currentIndex) {
+        scrollTrainingConstellationToDay(nextIndex);
+      }
 
-      if (scroller && nextIndex !== currentIndex) {
+      return nextIndex;
+    });
+  }, [scrollTrainingConstellationToDay]);
+  const jumpTrainingConstellationToToday = useCallback(() => {
+    const todayWeek = getConstellationWeek(dashboardToday);
+    const todayDateKey = calendarDateKey(dashboardToday);
+    const todayIndex = Math.max(
+      0,
+      todayWeek.findIndex((day) => day.dateKey === todayDateKey),
+    );
+
+    setDashboardCalendarDate(dashboardToday);
+    setDashboardCalendarResetKey((key) => key + 1);
+    setActiveTrainingConstellationDayIndex(todayIndex);
+    setSelectedTrainingConstellationSessionId(null);
+    setPendingTrainingConstellationSchedule(null);
+    scrollTrainingConstellationToDay(todayIndex);
+  }, [dashboardToday, scrollTrainingConstellationToDay]);
+  const moveTrainingConstellationTrack = useCallback((direction: -1 | 1) => {
+    setPendingTrainingConstellationSchedule(null);
+    setActiveTrainingConstellationTrackIndex((currentIndex) => {
+      const maxTrackIndex = Math.max(0, selectedTrainingConstellationLanes.length - 1);
+      const nextIndex = Math.max(0, Math.min(maxTrackIndex, currentIndex + direction));
+
+      if (nextIndex !== currentIndex) {
         window.requestAnimationFrame(() => {
-          const isMobileTimeline = window.matchMedia("(max-width: 639px)").matches;
-          const maxScrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
-          const maxScrollTop = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+          const scroller = dashboardTrainingConstellationScrollRef.current;
+          const row = scroller?.querySelector<HTMLElement>(
+            `[data-training-constellation-track-index="${nextIndex}"]`,
+          );
+
+          if (!scroller || !row) return;
+
+          const scrollerRect = scroller.getBoundingClientRect();
+          const rowRect = row.getBoundingClientRect();
+          const topOffset = rowRect.top - scrollerRect.top;
 
           scroller.scrollTo({
-            left: isMobileTimeline ? 0 : maxScrollLeft * (nextIndex / 6),
-            top: isMobileTimeline ? maxScrollTop * (nextIndex / 6) : 0,
+            top: Math.max(0, scroller.scrollTop + topOffset - 42),
             behavior: "smooth",
           });
         });
@@ -10316,7 +10575,12 @@ export default function DashboardExperience({
 
       return nextIndex;
     });
-  }, []);
+  }, [selectedTrainingConstellationLanes.length]);
+  useEffect(() => {
+    setActiveTrainingConstellationTrackIndex((currentIndex) =>
+      Math.min(currentIndex, Math.max(0, selectedTrainingConstellationLanes.length - 1)),
+    );
+  }, [selectedTrainingConstellationLanes.length]);
   const [activeHeroAchievementIndex, setActiveHeroAchievementIndex] =
     useState(0);
   const [heroAchievementSlideDirection, setHeroAchievementSlideDirection] =
@@ -10464,9 +10728,6 @@ export default function DashboardExperience({
   // ~250-element mount plus four scene builds and shader compiles.
   const [dashboardPointsDropdownLatched, setDashboardPointsDropdownLatched] =
     useState(false);
-  // Session-local claim state for the gifts popup, keyed by reward threshold.
-  const [dashboardClaimedLevelRewards, setDashboardClaimedLevelRewards] =
-    useState<ReadonlySet<number>>(() => new Set());
   const [dashboardPointsActionMenuOpen, setDashboardPointsActionMenuOpen] =
     useState<"collection" | "store" | null>(null);
   // Pre-latch the points dropdown (see the latched state's comment): mount it
@@ -10491,6 +10752,10 @@ export default function DashboardExperience({
   const [
     activeDashboardPointsRewardPanelIndex,
     setActiveDashboardPointsRewardPanelIndex,
+  ] = useState(0);
+  const [
+    activeDashboardPointsSummaryIndex,
+    setActiveDashboardPointsSummaryIndex,
   ] = useState(0);
   const [dashboardGemVaultClosing, setDashboardGemVaultClosing] =
     useState(false);
@@ -10699,10 +10964,23 @@ export default function DashboardExperience({
   const dashboardHeroNewsFocusArmedRef = useRef(false);
   const dashboardHeroCardSelectorRef = useRef<HTMLDivElement | null>(null);
   const dashboardHeroNewsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const dashboardHeroNewsFilterDragRef = useRef<{
+    moved: boolean;
+    pointerId: number;
+    scrollLeft: number;
+    startX: number;
+  } | null>(null);
+  const dashboardHeroNewsFilterSuppressClickRef = useRef(false);
   const dashboardOrbiterPointerStartRef =
     useRef<DashboardVerticalPointerStart | null>(null);
   const dashboardOrbiterPointerMovedRef = useRef(false);
   const dashboardOrbiterRowChangeLockRef = useRef(0);
+  const dashboardOrbiterWheelArmRef = useRef<{
+    direction: -1 | 1;
+    expiresAt: number;
+    row: number;
+  } | null>(null);
+  const dashboardOrbiterWheelNudgeTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     activeDashboardPointsRewardPanelIndexRef.current =
@@ -10811,6 +11089,12 @@ export default function DashboardExperience({
   const adminSettingsPointerStartRef = useRef<number | null>(null);
   const adminSettingsPointerMovedRef = useRef(false);
   const dashboardCardWheelLockRef = useRef(0);
+  /* The header joysticks' wheel paths had no rate floor, only an amplitude
+     threshold, so one trackpad flick (plus its inertia tail) walked the nav
+     dozens of destinations — measured 60 steps at a 58ms median. These hold
+     them to the same cadence a held drag uses. */
+  const dashboardHeaderScrollButtonWheelLockRef = useRef(0);
+  const dashboardHeaderMenuOrbitWheelLockRef = useRef(0);
   const heroAchievementPointerStartRef = useRef<number | null>(null);
   const heroAchievementPointerMovedRef = useRef(false);
   const heroAchievementWheelLockRef = useRef(0);
@@ -12552,6 +12836,7 @@ export default function DashboardExperience({
       return false;
     }
 
+    dashboardOrbiterWheelArmRef.current = null;
     dashboardOrbiterRowChangeLockRef.current = now;
     resetDashboardOrbiterRowToStart(clampedDashboardOrbiterRow);
     setActiveDashboardOrbiterRow(nextRow);
@@ -12583,6 +12868,7 @@ export default function DashboardExperience({
       return false;
     }
 
+    dashboardOrbiterWheelArmRef.current = null;
     dashboardOrbiterRowChangeLockRef.current = now;
     resetDashboardOrbiterRowToStart(clampedDashboardOrbiterRow);
     setActiveDashboardOrbiterRow(nextRow);
@@ -12591,6 +12877,51 @@ export default function DashboardExperience({
     );
     pulseDashboardPageAnalogDirection(direction > 0 ? "down" : "up");
     return true;
+  };
+  const triggerDashboardOrbiterWheelNudge = (direction: -1 | 1) => {
+    if (typeof document === "undefined") return;
+    const rowSelector = `[data-dashboard-orbiter-row="${clampedDashboardOrbiterRow}"]`;
+    const activeRow =
+      document.querySelector<HTMLElement>(
+        `${rowSelector}[data-dashboard-row-active="true"]`,
+      ) ?? document.querySelector<HTMLElement>(rowSelector);
+    if (!activeRow) return;
+
+    if (dashboardOrbiterWheelNudgeTimeoutRef.current !== null) {
+      window.clearTimeout(dashboardOrbiterWheelNudgeTimeoutRef.current);
+      dashboardOrbiterWheelNudgeTimeoutRef.current = null;
+    }
+
+    activeRow.removeAttribute("data-dashboard-wheel-nudge");
+    // Force the animation to restart when repeated wheel ticks hit the same
+    // boundary in quick succession.
+    void activeRow.offsetWidth;
+    activeRow.dataset.dashboardWheelNudge = direction > 0 ? "down" : "up";
+    dashboardOrbiterWheelNudgeTimeoutRef.current = window.setTimeout(() => {
+      activeRow.removeAttribute("data-dashboard-wheel-nudge");
+      dashboardOrbiterWheelNudgeTimeoutRef.current = null;
+    }, DASHBOARD_ORBITER_WHEEL_NUDGE_MS);
+  };
+  const dashboardWheelGestureAllowsRowMove = (direction: -1 | 1) => {
+    const now = Date.now();
+    const armed = dashboardOrbiterWheelArmRef.current;
+    if (
+      armed &&
+      armed.row === clampedDashboardOrbiterRow &&
+      armed.direction === direction &&
+      armed.expiresAt > now
+    ) {
+      dashboardOrbiterWheelArmRef.current = null;
+      return true;
+    }
+
+    dashboardOrbiterWheelArmRef.current = {
+      direction,
+      expiresAt: now + DASHBOARD_ORBITER_WHEEL_ARM_MS,
+      row: clampedDashboardOrbiterRow,
+    };
+    triggerDashboardOrbiterWheelNudge(direction);
+    return false;
   };
   const handleDashboardOrbiterWheel = (event: ReactWheelEvent<HTMLElement>) => {
     const target = event.target;
@@ -12618,6 +12949,7 @@ export default function DashboardExperience({
 
     event.preventDefault();
     event.stopPropagation();
+    if (!dashboardWheelGestureAllowsRowMove(direction)) return;
     setDashboardOrbiterRow(nextRow);
   };
   useEffect(() => {
@@ -12676,17 +13008,69 @@ export default function DashboardExperience({
         return;
       }
 
+      const wheelLockedTarget =
+        target instanceof Element &&
+        target.closest(DASHBOARD_WHEEL_LOCK_SELECTOR);
+      const localScroller = dashboardLocalWheelScroller(event.target);
+      if (localScroller) {
+        const delta = dashboardWheelDeltaPixels(event, localScroller);
+        if (dashboardScrollerCanConsumeWheel(localScroller, delta)) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.stopImmediatePropagation();
+          dashboardOrbiterWheelArmRef.current = null;
+          const maxScrollTop = Math.max(
+            0,
+            localScroller.scrollHeight - localScroller.clientHeight,
+          );
+          localScroller.scrollTop = Math.max(
+            0,
+            Math.min(maxScrollTop, localScroller.scrollTop + delta),
+          );
+          return;
+        }
+      }
+
+      if (wheelLockedTarget) {
+        const fallbackScroller = dashboardWheelLockFallbackScroller(event.target);
+        if (fallbackScroller && Math.abs(event.deltaY) >= Math.abs(event.deltaX)) {
+          const delta = dashboardWheelDeltaPixels(event, fallbackScroller);
+          const maxScrollTop = Math.max(
+            0,
+            fallbackScroller.scrollHeight - fallbackScroller.clientHeight,
+          );
+          fallbackScroller.scrollTop = Math.max(
+            0,
+            Math.min(maxScrollTop, fallbackScroller.scrollTop + delta),
+          );
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        dashboardOrbiterWheelArmRef.current = null;
+        return;
+      }
+
       if (Math.abs(event.deltaX) > Math.abs(event.deltaY) * 1.2) return;
 
       const direction = event.deltaY > 18 ? 1 : event.deltaY < -18 ? -1 : 0;
       if (direction === 0) return;
 
-      const didMove = moveDashboardOrbiterRow(direction);
-      if (!didMove) return;
+      const nextRow = Math.max(
+        0,
+        Math.min(
+          dashboardOrbiterRows.length - 1,
+          clampedDashboardOrbiterRow + direction,
+        ),
+      );
+      if (nextRow === clampedDashboardOrbiterRow) return;
 
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
+
+      if (!dashboardWheelGestureAllowsRowMove(direction)) return;
+      moveDashboardOrbiterRow(direction);
     };
 
     window.addEventListener("wheel", handleDashboardGlobalWheel, {
@@ -13811,7 +14195,13 @@ export default function DashboardExperience({
     pointerStartRef.current = event.clientX;
     pointerMovedRef.current = false;
     event.currentTarget.focus({ preventScroll: true });
-    event.currentTarget.setPointerCapture?.(event.pointerId);
+    // NO setPointerCapture here. An element holding pointer capture also
+    // receives the `click` derived from the gesture, so capturing on
+    // pointerdown retargeted every click to the orbit surface and silently
+    // killed every link and button nested inside it — the achievement meter
+    // at the bottom of the meter menu was the visible case, but this helper
+    // backs ~14 orbit surfaces. Capture is taken on the first real drag
+    // instead, in handleDashboardOrbitPointerMove below.
   };
   const handleDashboardOrbitPointerMove = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -13831,6 +14221,19 @@ export default function DashboardExperience({
     if (pointerMovedRef.current) return;
 
     const deltaX = event.clientX - startX;
+
+    // Capture as soon as this reads as a drag rather than a tap, which is
+    // the only time it is needed (to keep receiving moves once the pointer
+    // leaves the element). 8px is the same slop the pointerup handler uses
+    // to decide a gesture was drag-ish. Below it, the pointer stays
+    // uncaptured so the click lands on whatever was actually pressed.
+    if (
+      Math.abs(deltaX) >= 8 &&
+      !event.currentTarget.hasPointerCapture?.(event.pointerId)
+    ) {
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    }
+
     if (Math.abs(deltaX) < threshold) return;
 
     event.preventDefault();
@@ -13964,6 +14367,7 @@ export default function DashboardExperience({
     field: keyof ManualStatsDraft,
     value: string,
   ) => {
+    manualStatsIntentRef.current = null;
     setManualStatsDraft((current) => ({
       ...current,
       [field]: value,
@@ -13982,58 +14386,95 @@ export default function DashboardExperience({
     setExerciseReferenceSearch("");
   };
 
-  const saveManualStatsLog = () => {
-    const hasManualValue = [
-      manualStatsDraft.sets,
-      manualStatsDraft.reps,
-      manualStatsDraft.load,
-      manualStatsDraft.rpe,
-      manualStatsDraft.notes,
-      manualStatsDraft.sessionLabel,
-    ].some((value) => value.trim());
+  const saveManualStatsLog = (
+    overrideReferences: ManualLibraryReference[] = manualReferences,
+  ) => {
+    const editor = manualStatsEditorRef.current;
+    if (!editor) throw new Error("Planning data is still loading. Your entered values remain here.");
+    const signature = JSON.stringify([manualStatsDraft, overrideReferences]);
+    if (manualStatsIntentRef.current?.signature !== signature) manualStatsIntentRef.current = { signature, id: crypto.randomUUID() };
+    const saved = saveDashboardManualStat<ManualStatsLogEntry>({
+      ...manualStatsDraft, id: manualStatsIntentRef.current.id, loggedAt: new Date().toISOString(), references: overrideReferences,
+    }, editor);
+    manualStatsEditorRef.current = captureDashboardManualStatsEditor();
+    setManualStatsLogs(saved.entries);
+    if (saved.exerciseStats) setExerciseStats(saved.exerciseStats);
+    setManualStatsDraft({ dateTime: getManualDateTimeInputValue(), load: "", weightUnit: "", notes: "", reps: "", rpe: "", sessionLabel: "", sets: "" });
+    return saved.entry;
+  };
 
-    if (!hasManualValue && manualReferences.length === 0) {
-      return;
+  const getQuickLogDefaultExercise = () =>
+    selectedExercise ||
+    activeManualExerciseCategory?.exercises?.[0] ||
+    manualExerciseLibraryCategories[0]?.exercises?.[0] ||
+    exerciseLibrary[0] ||
+    null;
+
+  const reviewLatestManualStats = () => {
+    try {
+      if (!manualStatsEditorRef.current) throw new Error("Planning data is still loading. Your entered values remain here.");
+      setManualStatsReview(reviewDashboardManualStats(manualStatsEditorRef.current));
+      setQuickLogSaveMessage("Review the saved records below. Your entered values remain here.");
+    } catch (cause) { setManualStatsReview(null); setQuickLogSaveMessage(cause instanceof Error ? cause.message : "Saved records could not be reviewed."); }
+  };
+  const useReviewedManualStats = () => {
+    if (!manualStatsReview) return;
+    try {
+      manualStatsEditorRef.current = acceptDashboardManualStatsReview(manualStatsReview);
+      setManualStatsReview(null);
+      setQuickLogSaveMessage("Latest saved data reviewed. Your entered values are ready to save.");
+    } catch (cause) { setManualStatsReview(null); setQuickLogSaveMessage(cause instanceof Error ? cause.message : "Review the latest saved data again."); }
+  };
+
+  const openQuickLogPopup = () => {
+    setQuickLogPopupOpen(true);
+    setQuickLogSaveMessage("");
+
+    if (selectedExerciseReference) return;
+
+    const defaultExercise = getQuickLogDefaultExercise();
+    if (!defaultExercise) return;
+
+    const defaultReference = buildExerciseReference(defaultExercise);
+    setManualReferences((current) => [
+      defaultReference,
+      ...current.filter(
+        (reference) =>
+          reference.referenceType !== defaultReference.referenceType,
+      ),
+    ]);
+  };
+
+  const saveQuickLogStats = () => {
+    let referencesForSave = manualReferences;
+
+    if (!selectedExerciseReference) {
+      const defaultExercise = getQuickLogDefaultExercise();
+
+      if (defaultExercise) {
+        const defaultReference = buildExerciseReference(defaultExercise);
+        referencesForSave = [
+          defaultReference,
+          ...manualReferences.filter(
+            (reference) =>
+              reference.referenceType !== defaultReference.referenceType,
+          ),
+        ];
+        setManualReferences(referencesForSave);
+      }
     }
 
-    const loggedAt = new Date().toISOString();
-    const entry: ManualStatsLogEntry = {
-      ...manualStatsDraft,
-      id: `manual-log-${Date.now()}`,
-      loggedAt,
-      references: manualReferences,
-    };
-    const updatedManualLogs = [entry, ...manualStatsLogs].slice(0, 24);
-    setManualStatsLogs(updatedManualLogs);
-    writeManualStatsLogEntries(updatedManualLogs);
+    let savedEntry: ManualStatsLogEntry | null;
+    try { savedEntry = saveManualStatsLog(referencesForSave); }
+    catch (cause) { setQuickLogSaveMessage(cause instanceof Error ? cause.message : "Could not save. Your entered values remain here."); return; }
 
-    if (selectedExerciseReference) {
-      const statDate = getManualLogIsoDate(manualStatsDraft.dateTime);
-      const newExerciseStat: LocalExerciseStatEntry = {
-        body: selectedExerciseReference.metadata.body,
-        equipment: selectedExerciseReference.metadata.equipment,
-        exerciseId: selectedExerciseReference.referenceId,
-        exerciseName: selectedExerciseReference.referenceTitle,
-        pattern: selectedExerciseReference.metadata.movementPattern,
-        reps: manualStatsDraft.reps.trim() || "0",
-        sets: manualStatsDraft.sets.trim() || "1",
-        weight: manualStatsDraft.load.trim() || "0",
-        date: statDate,
-        source: "exercise-library",
-      };
-      const updatedExerciseStats = prependExerciseStats(newExerciseStat);
-      setExerciseStats(updatedExerciseStats);
+    if (savedEntry) {
+      const savedExercise =
+        referencesForSave.find(
+          (reference) => reference.referenceType === "exercise",
+        )?.referenceTitle || "stat";
+      setQuickLogSaveMessage(`Saved ${savedExercise}`);
     }
-
-    setManualStatsDraft({
-      dateTime: getManualDateTimeInputValue(),
-      load: "",
-      notes: "",
-      reps: "",
-      rpe: "",
-      sessionLabel: "",
-      sets: "",
-    });
   };
 
   const handleUploadOptionSelect = (optionId: UploadOptionId) => {
@@ -14125,10 +14566,15 @@ export default function DashboardExperience({
     );
   };
   const launchFavoriteWorkout = (template: LocalWorkoutBuilderTemplate) => {
-    if (!template.exercises.length) return;
-
-    const sessionTemplate = writeActiveWorkoutBuilderSessionTemplate(template);
-    setActiveSessionTemplate(sessionTemplate);
+    try {
+      const sessionTemplate = startSavedWorkoutBuilderSession(template);
+      setActiveSessionTemplate(sessionTemplate);
+      setFavoriteLaunchMessage("");
+      return true;
+    } catch (cause) {
+      setFavoriteLaunchMessage(cause instanceof Error ? cause.message : "The workout could not be opened. Try again.");
+      return false;
+    }
   };
 
   useEffect(
@@ -14141,7 +14587,14 @@ export default function DashboardExperience({
   );
 
   useEffect(() => {
-    setManualStatsLogs(readManualStatsLogEntries());
+    manualStatsEditorRef.current = captureDashboardManualStatsEditor();
+    const refresh = () => {
+      const inspected = inspectDashboardManualStats<ManualStatsLogEntry>();
+      setManualStatsLogs(inspected.entries);
+      if (inspected.issue) setQuickLogSaveMessage(inspected.issue);
+    };
+    refresh();
+    return subscribePlanning(refresh);
   }, []);
 
   useEffect(() => {
@@ -14355,6 +14808,10 @@ export default function DashboardExperience({
 
       if (dashboardHeroCardWheelTimeoutRef.current !== null) {
         window.clearTimeout(dashboardHeroCardWheelTimeoutRef.current);
+      }
+
+      if (dashboardOrbiterWheelNudgeTimeoutRef.current !== null) {
+        window.clearTimeout(dashboardOrbiterWheelNudgeTimeoutRef.current);
       }
     };
   }, []);
@@ -14713,10 +15170,12 @@ export default function DashboardExperience({
     };
 
     window.addEventListener("focus", loadDashboardFavorites);
+    window.addEventListener(PLANNING_UPDATED, loadDashboardFavorites);
     window.addEventListener("storage", handleStorage);
 
     return () => {
       window.removeEventListener("focus", loadDashboardFavorites);
+      window.removeEventListener(PLANNING_UPDATED, loadDashboardFavorites);
       window.removeEventListener("storage", handleStorage);
     };
   }, []);
@@ -14735,42 +15194,40 @@ export default function DashboardExperience({
   }, [exerciseSelectorOpen]);
 
   useEffect(() => {
+    const identityRefreshGuard = createPlanningRefreshGuard([]);
+    let observedAccount = planningOwner();
     async function loadUser() {
-      const { data: authData } = await getSupabaseUser();
-
-      if (!authData.user) {
-        setCanSyncWorkoutData(false);
-        setDashboardProfileIconUrl(readDashboardProfileIconUrl());
-        return;
-      }
-
-      setCanSyncWorkoutData(true);
-
-      // The live `profiles` table has no `avatar_url` column; selecting it made
-      // PostgREST reject the whole request with 400 (42703), losing full_name
-      // too. The avatar still falls back to auth user_metadata below.
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name")
-        .eq("id", authData.user.id)
-        .single();
-
-      const nameSource =
-        profile?.full_name ||
-        authData.user.user_metadata?.full_name ||
-        authData.user.user_metadata?.first_name ||
-        "Member";
-      const authProfileIcon = readDashboardText(
-        authData.user.user_metadata?.avatar_url,
-        authData.user.user_metadata?.picture,
-      );
-
-      setFirstName(String(nameSource).split(" ")[0] || "Member");
-      setDashboardAuthProfileIconUrl(authProfileIcon);
-      setDashboardProfileIconUrl(readDashboardProfileIconUrl(authProfileIcon));
+      const ticket = identityRefreshGuard.begin();
+      setCanSyncWorkoutData(false);
+      setFirstName("Member");
+      setDashboardAuthProfileIconUrl("");
+      setDashboardProfileIconUrl(readDashboardProfileIconUrl());
+      if (!ticket.account || ticket.account === "local-preview") return;
+      try {
+        const { data: authData, error: authError } = await getSupabaseUser();
+        if (authError || !identityRefreshGuard.current(ticket) || authData.user?.id !== ticket.account) return;
+        setCanSyncWorkoutData(true);
+        let profile: { full_name?: string | null } | null = null;
+        try {
+          const result = await supabase.from("profiles").select("full_name").eq("id", authData.user.id).single();
+          profile = result.data;
+        } catch { /* Verified auth metadata remains available when profile lookup fails. */ }
+        if (!identityRefreshGuard.current(ticket)) return;
+        const nameSource = profile?.full_name || authData.user.user_metadata?.full_name || authData.user.user_metadata?.first_name || "Member";
+        const authProfileIcon = readDashboardText(authData.user.user_metadata?.avatar_url, authData.user.user_metadata?.picture);
+        setFirstName(String(nameSource).split(" ")[0] || "Member");
+        setDashboardAuthProfileIconUrl(authProfileIcon);
+        setDashboardProfileIconUrl(readDashboardProfileIconUrl(authProfileIcon));
+      } catch { /* Keep cleared, account-scoped defaults when authentication is unavailable. */ }
     }
-
-    loadUser();
+    void loadUser();
+    const unsubscribe = subscribePlanning(() => {
+      const nextAccount = planningOwner();
+      if (nextAccount === observedAccount) return;
+      observedAccount = nextAccount;
+      void loadUser();
+    });
+    return () => { identityRefreshGuard.cancel(); unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -14782,7 +15239,6 @@ export default function DashboardExperience({
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    setLastSyncedAt(window.localStorage.getItem(WORKOUT_SYNC_LAST_SYNCED_KEY));
     setActiveSessionTemplate(readActiveWorkoutBuilderSessionTemplate());
   }, []);
 
@@ -14836,7 +15292,13 @@ export default function DashboardExperience({
   useEffect(() => {
     let isActive = true;
 
+    workoutRefreshGuard.activate();
     const syncDashboardData = async () => {
+      const ticket = workoutRefreshGuard.begin();
+      if (ticket.localChanged) {
+        setExerciseStats(loadWorkoutLogEntriesFromLocalStorage().data);
+        setSavedTemplates(loadWorkoutTemplatesFromLocalStorage().data);
+      }
       // The admin preview embeds this dashboard read-only. The signed-in admin
       // has no workout rows, so the Supabase-first loaders just burn a network
       // getUser() + table queries and contend on the auth-token lock before
@@ -14852,7 +15314,7 @@ export default function DashboardExperience({
             loadWorkoutTemplatesWithFallback(),
           ]);
 
-      if (!isActive) return;
+      if (!isActive || !workoutRefreshGuard.current(ticket)) return;
 
       setExerciseStats(statsResult.data);
       setSavedTemplates(templatesResult.data);
@@ -14865,6 +15327,7 @@ export default function DashboardExperience({
 
     return () => {
       isActive = false;
+      workoutRefreshGuard.cancel();
       unsubscribe();
     };
     // isAdminPreview is derived from the pathname and is constant for the life
@@ -14872,22 +15335,45 @@ export default function DashboardExperience({
     // while satisfying the deps rule. The rule has to stay enabled: React
     // Compiler refuses to optimize any component that disables a React lint
     // rule, and skipping this component is what it was doing before.
-  }, [isAdminPreview]);
+  }, [isAdminPreview, workoutRefreshGuard]);
 
   async function refreshHybridDashboardData() {
+    const ticket = workoutRefreshGuard.begin();
+    if (ticket.localChanged) {
+      setExerciseStats(loadWorkoutLogEntriesFromLocalStorage().data);
+      setSavedTemplates(loadWorkoutTemplatesFromLocalStorage().data);
+    }
     const [statsResult, templatesResult] = await Promise.all([
       loadWorkoutLogEntriesWithFallback(),
       loadWorkoutTemplatesWithFallback(),
     ]);
 
-    setExerciseStats(statsResult.data);
-    setSavedTemplates(templatesResult.data);
+    if (workoutRefreshGuard.current(ticket)) {
+      setExerciseStats(statsResult.data);
+      setSavedTemplates(templatesResult.data);
+    }
     return { statsResult, templatesResult };
   }
+
+  useEffect(() => {
+    workoutSyncOperation.activate();
+    const reviewSyncAccount = () => {
+      if (workoutSyncOperation.reviewAccount()) {
+        setSyncStatusMessage("");
+        setIsSyncingWorkoutData(false);
+      }
+      setLastSyncedAt(readWorkoutSyncReceipt()?.completedAt || null);
+    };
+    reviewSyncAccount();
+    const unsubscribe = subscribePlanning(reviewSyncAccount);
+    return () => { workoutSyncOperation.cancel(); unsubscribe(); };
+  }, [workoutSyncOperation]);
 
   async function syncLocalWorkoutData() {
     if (!canSyncWorkoutData || isSyncingWorkoutData) return;
 
+    const ticket = workoutSyncOperation.begin();
+    if (!ticket) return;
     setIsSyncingWorkoutData(true);
     setSyncStatusMessage("Syncing local workout data...");
 
@@ -14897,7 +15383,9 @@ export default function DashboardExperience({
         syncLocalWorkoutLogsToSupabase(),
       ]);
 
+      if (!workoutSyncOperation.current(ticket)) return;
       await refreshHybridDashboardData();
+      if (!workoutSyncOperation.current(ticket)) return;
 
       const templateSummary = templatesResult.data;
       const logSummary = logsResult.data;
@@ -14933,28 +15421,27 @@ export default function DashboardExperience({
         );
       }
 
-      if (failedCount === 0) {
-        const syncedAt = new Date().toISOString();
-
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(WORKOUT_SYNC_LAST_SYNCED_KEY, syncedAt);
-        }
-
-        setLastSyncedAt(syncedAt);
+      if (templatesResult.success && logsResult.success && failedCount === 0 && localCount > 0) {
+        const receipt = workoutSyncOperation.record(ticket, {
+          syncedTemplates: templateSummary.syncedItems, syncedLogs: logSummary.syncedItems, skippedItems: skippedCount,
+        });
+        setLastSyncedAt(receipt.completedAt);
       }
-    } catch {
-      setSyncStatusMessage(
-        "Local workout data could not sync right now. Your local fallback is still safe.",
-      );
+    } catch (cause) {
+      if (!workoutSyncOperation.current(ticket)) return;
+      setSyncStatusMessage(cause instanceof Error ? cause.message : "Local workout data could not sync right now. Your local fallback is still safe.");
     }
 
-    // Equivalent to the previous  block: the try has no early return
-    // and the catch does not rethrow, so this always runs on both paths. React
-    // Compiler cannot lower a try/finally, and this was the last thing stopping
-    // it from memoizing this component.
-    setIsSyncingWorkoutData(false);
+    if (workoutSyncOperation.finish(ticket)) setIsSyncingWorkoutData(false);
   }
 
+  const dashboardWorkload = dashboardWorkloadEvidence(exerciseStats);
+  const dashboardCategorySnapshot = JSON.stringify(dashboardCategoryEvidence(exerciseStats));
+  const dashboardRecordedCategories = useMemo(() => JSON.parse(dashboardCategorySnapshot) as ReturnType<typeof dashboardCategoryEvidence>, [dashboardCategorySnapshot]);
+  const dashboardCompoundSnapshot = JSON.stringify(dashboardCompoundEvidence(exerciseStats));
+  const dashboardCompoundRecords = useMemo(() => JSON.parse(dashboardCompoundSnapshot) as ReturnType<typeof dashboardCompoundEvidence>, [dashboardCompoundSnapshot]);
+  const dashboardDailySetSnapshot = JSON.stringify(dashboardDailySets(exerciseStats));
+  const dashboardDailySetEvidence = useMemo(() => JSON.parse(dashboardDailySetSnapshot) as ReturnType<typeof dashboardDailySets>, [dashboardDailySetSnapshot]);
   const dashboardSummary = useMemo(() => {
     const sortedStats = [...exerciseStats].sort(
       (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
@@ -14964,452 +15451,19 @@ export default function DashboardExperience({
       (sum, stat) => sum + toLoggedNumber(stat.sets),
       0,
     );
-    const totalVolume = exerciseStats.reduce(
-      (sum, stat) =>
-        sum +
-        toLoggedNumber(stat.weight) *
-          toLoggedNumber(stat.reps) *
-          toLoggedNumber(stat.sets),
-      0,
-    );
+    const totalVolume = dashboardWorkload.lifetime.volumePounds ?? 0;
     const workoutSessionEntries = exerciseStats.filter(
       (stat) => stat.source === "workout-session",
     );
-    const latestWorkoutSessionTimestamp = workoutSessionEntries.reduce<
-      number | null
-    >((latestTimestamp, entry) => {
-      const timestamp = new Date(entry.date).getTime();
-      if (!Number.isFinite(timestamp)) return latestTimestamp;
-      return latestTimestamp === null
-        ? timestamp
-        : Math.max(latestTimestamp, timestamp);
-    }, null);
+    const latestWorkoutSessionTimestamp = dashboardSessionEvidence.latestAt;
     const uniqueExercises = new Set(
       exerciseStats.map((stat) => stat.exerciseName).filter(Boolean),
     );
-    const todayDateKey = getDashboardLocalDateKey(dashboardToday);
-    const todayExerciseStats = [...exerciseStats]
-      .filter((stat) => getDashboardEntryDateKey(stat.date) === todayDateKey)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const categoryPatternScores = new Map<
-      DashboardHeaderCategoryLevelId,
-      Map<
-        string,
-        DashboardHeaderRecommendedPattern & {
-          priority: number;
-        }
-      >
-    >();
-
-    dashboardHeaderCategoryLevels.forEach((category) => {
-      const details = dashboardHeaderCategoryLevelDetails[category.id];
-      const patternScores = new Map<
-        string,
-        DashboardHeaderRecommendedPattern & {
-          priority: number;
-        }
-      >();
-
-      details.recommendedPatterns.forEach((patternLabel, priority) => {
-        patternScores.set(normalizeManualExerciseToken(patternLabel), {
-          label: patternLabel,
-          priority,
-          recentSets: 0,
-        });
-      });
-
-      categoryPatternScores.set(category.id, patternScores);
-    });
-
-    exerciseStats.forEach((stat) => {
-      const timestamp = new Date(stat.date).getTime();
-      if (!Number.isFinite(timestamp) || timestamp < thirtyDaysAgo) return;
-
-      const signature = [
-        stat.exerciseName,
-        stat.body,
-        stat.pattern,
-        stat.coreMovementPattern,
-        stat.semanticVariationName,
-      ]
-        .map((value) => String(value || "").toLowerCase())
-        .join(" ");
-      const categoryId = getDashboardHeaderExerciseCategoryId(
-        signature,
-      ) as DashboardHeaderCategoryLevelId;
-      const patternScores = categoryPatternScores.get(categoryId);
-      if (!patternScores) return;
-
-      const patternLabel = getDashboardHeaderStatRecommendedPatternLabel(stat);
-      const patternKey = normalizeManualExerciseToken(patternLabel);
-      const patternScore = patternScores.get(patternKey);
-      if (!patternScore) return;
-
-      patternScore.recentSets += Math.max(1, Math.round(toLoggedNumber(stat.sets)));
-    });
-
-    const categoryPatternRecommendations = dashboardHeaderCategoryLevels.reduce(
-      (recommendations, category) => {
-        const patternScores = categoryPatternScores.get(category.id);
-        const recommendedPattern =
-          patternScores && patternScores.size > 0
-            ? [...patternScores.values()].sort(
-                (a, b) => a.recentSets - b.recentSets || a.priority - b.priority,
-              )[0]
-            : null;
-
-        recommendations[category.id] = {
-          label:
-            recommendedPattern?.label ||
-            dashboardHeaderCategoryLevelDetails[category.id]
-              .recommendedPatterns[0],
-          recentSets: recommendedPattern?.recentSets || 0,
-        };
-
-        return recommendations;
-      },
-      {} as Record<DashboardHeaderCategoryLevelId, DashboardHeaderRecommendedPattern>,
-    );
-    const bestExerciseStats = new Map<
-      string,
-      { score: number; timestamp: number }
-    >();
-    const compoundLiftStats = new Map<
-      string,
-      {
-        entries: {
-          categoryId: string;
-          estimatedMax: number;
-          reps: number;
-          score: number;
-          sets: number;
-          timestamp: number;
-          volume: number;
-          weight: number;
-        }[];
-        categoryId: string;
-        name: string;
-      }
-    >();
-
-    exerciseStats.forEach((stat) => {
-      const exerciseName = stat.exerciseName?.trim();
-      const timestamp = new Date(stat.date).getTime();
-      if (!exerciseName || !Number.isFinite(timestamp)) return;
-
-      const weight = toLoggedNumber(stat.weight);
-      const reps = toLoggedNumber(stat.reps);
-      const sets = Math.max(1, toLoggedNumber(stat.sets));
-      const score = Math.max(weight * reps * sets, weight, reps * sets);
-      if (score <= 0) return;
-
-      const currentBest = bestExerciseStats.get(exerciseName);
-      if (!currentBest || score > currentBest.score) {
-        bestExerciseStats.set(exerciseName, { score, timestamp });
-      }
-
-      const compoundSignature = [
-        exerciseName,
-        stat.pattern,
-        stat.coreMovementPattern,
-        stat.semanticVariationName,
-      ]
-        .map((value) => String(value || "").toLowerCase())
-        .join(" ");
-      const isCompoundLift = DASHBOARD_COMPOUND_LIFT_PATTERNS.some((pattern) =>
-        compoundSignature.includes(pattern),
-      );
-
-      if (!isCompoundLift) return;
-
-      const categoryId =
-        getDashboardHeaderExerciseCategoryId(compoundSignature);
-      const estimatedMax =
-        weight > 0
-          ? weight * (1 + Math.min(Math.max(reps, 1), 30) / 30)
-          : score;
-      const compoundLiftKey = exerciseName.toLowerCase();
-      const compoundLift = compoundLiftStats.get(compoundLiftKey) || {
-        categoryId,
-        entries: [],
-        name: exerciseName,
-      };
-
-      compoundLift.entries.push({
-        categoryId,
-        estimatedMax,
-        reps,
-        score,
-        sets,
-        timestamp,
-        volume: score,
-        weight,
-      });
-      compoundLiftStats.set(compoundLiftKey, compoundLift);
-    });
-
-    const recentPrCount = Array.from(bestExerciseStats.values()).filter(
-      (bestStat) => bestStat.timestamp >= thirtyDaysAgo,
-    ).length;
-    const prTarget = Math.max(
-      3,
-      Math.min(8, Math.ceil(uniqueExercises.size / 2)),
-    );
-    const prProgress = clampDashboardPercent((recentPrCount / prTarget) * 100);
-    const compoundLiftSummaries: {
-      bestScore: number;
-      bestThirtyDayReps: number;
-      bestWeight: number;
-      bestThirtyDayTimestamp: number | null;
-      bestThirtyDayWeight: number;
-      categoryId: string;
-      improvementPercent: number;
-      improvementScore: number;
-      latestEstimatedMax: number;
-      name: string;
-      thirtyDaySets: number;
-      thirtyDayVolume: number;
-    }[] = [];
-
-    compoundLiftStats.forEach((compoundLift) => {
-      const sortedEntries = [...compoundLift.entries].sort(
-        (a, b) => a.timestamp - b.timestamp,
-      );
-      const firstEntry = sortedEntries[0];
-      if (!firstEntry) return;
-
-      const latestEntry = sortedEntries[sortedEntries.length - 1] || firstEntry;
-      const bestEntry = sortedEntries.reduce(
-        (best, entry) =>
-          entry.estimatedMax > best.estimatedMax ||
-          (entry.estimatedMax === best.estimatedMax &&
-            entry.weight > best.weight)
-            ? entry
-            : best,
-        firstEntry,
-      );
-      const bestThirtyDayEntry = sortedEntries
-        .filter((entry) => entry.timestamp >= thirtyDaysAgo)
-        .reduce<
-          (typeof sortedEntries)[number] | null
-        >((best, entry) => (!best || entry.estimatedMax > best.estimatedMax || (entry.estimatedMax === best.estimatedMax && entry.weight > best.weight) ? entry : best), null);
-      const thirtyDayEntries = sortedEntries.filter(
-        (entry) => entry.timestamp >= thirtyDaysAgo,
-      );
-      const thirtyDaySets = thirtyDayEntries.reduce(
-        (sum, entry) => sum + entry.sets,
-        0,
-      );
-      const thirtyDayVolume = thirtyDayEntries.reduce(
-        (sum, entry) => sum + entry.volume,
-        0,
-      );
-      const improvementScore =
-        latestEntry.estimatedMax - firstEntry.estimatedMax;
-      const improvementPercent =
-        firstEntry.estimatedMax > 0
-          ? (improvementScore / firstEntry.estimatedMax) * 100
-          : latestEntry.estimatedMax > 0
-            ? 100
-            : 0;
-
-      compoundLiftSummaries.push({
-        bestScore: bestEntry.score,
-        bestThirtyDayReps: bestThirtyDayEntry?.reps ?? 0,
-        bestWeight: bestEntry.weight,
-        bestThirtyDayTimestamp: bestThirtyDayEntry?.timestamp ?? null,
-        bestThirtyDayWeight: bestThirtyDayEntry?.weight ?? 0,
-        categoryId: compoundLift.categoryId,
-        improvementPercent,
-        improvementScore,
-        latestEstimatedMax: latestEntry.estimatedMax,
-        name: compoundLift.name,
-        thirtyDaySets,
-        thirtyDayVolume,
-      });
-    });
-
-    const totalCompoundThirtyDayVolume = compoundLiftSummaries.reduce(
-      (sum, summary) => sum + summary.thirtyDayVolume,
-      0,
-    );
-
-    const selectedCompoundLiftNames = new Set<string>();
-    const pickCompoundLift = (summaries: typeof compoundLiftSummaries) => {
-      const selected =
-        summaries.find(
-          (summary) => !selectedCompoundLiftNames.has(summary.name),
-        ) || null;
-      if (selected) selectedCompoundLiftNames.add(selected.name);
-      return selected;
-    };
-    const heaviestCompoundLift = pickCompoundLift(
-      [...compoundLiftSummaries].sort(
-        (a, b) =>
-          b.bestThirtyDayWeight - a.bestThirtyDayWeight ||
-          b.bestWeight - a.bestWeight ||
-          b.bestScore - a.bestScore,
-      ),
-    );
-    const mostImprovedCompoundLift = pickCompoundLift(
-      [...compoundLiftSummaries].sort(
-        (a, b) =>
-          b.improvementPercent - a.improvementPercent ||
-          b.improvementScore - a.improvementScore,
-      ),
-    );
-    const needsImprovementCompoundLift = pickCompoundLift(
-      [...compoundLiftSummaries].sort(
-        (a, b) =>
-          a.thirtyDayVolume - b.thirtyDayVolume ||
-          a.thirtyDaySets - b.thirtyDaySets ||
-          a.improvementPercent - b.improvementPercent,
-      ),
-    );
-    const formatCompoundLiftLoad = (
-      summary: (typeof compoundLiftSummaries)[number] | null,
-    ) => {
-      if (!summary) return "--";
-      const load =
-        summary.bestThirtyDayWeight > 0
-          ? summary.bestThirtyDayWeight
-          : summary.bestWeight > 0
-            ? summary.bestWeight
-            : summary.bestScore;
-      return load > 0 ? `${Math.round(load).toLocaleString()} lb` : "--";
-    };
-    const formatCompoundLiftChange = (
-      summary: (typeof compoundLiftSummaries)[number] | null,
-    ) => {
-      if (!summary) return "--";
-      const roundedChange = Math.round(summary.improvementPercent);
-      return `${roundedChange >= 0 ? "+" : ""}${roundedChange}%`;
-    };
-    const formatCompoundLiftThirtyDayWeight = (
-      summary: (typeof compoundLiftSummaries)[number] | null,
-    ) =>
-      summary && summary.bestThirtyDayWeight > 0
-        ? `${Math.round(summary.bestThirtyDayWeight).toLocaleString()} lb`
-        : "-- lb";
-    const formatCompoundLiftThirtyDayReps = (
-      summary: (typeof compoundLiftSummaries)[number] | null,
-    ) =>
-      summary && summary.bestThirtyDayReps > 0
-        ? `${Math.round(summary.bestThirtyDayReps).toLocaleString()}`
-        : "--";
-    const formatCompoundLiftThirtyDayDate = (
-      summary: (typeof compoundLiftSummaries)[number] | null,
-    ) =>
-      summary?.bestThirtyDayTimestamp
-        ? dashboardDayMonthFormatter.format(
-            new Date(summary.bestThirtyDayTimestamp),
-          )
-        : "-- date";
-    const formatCompoundLiftRelativeVolume = (
-      summary: (typeof compoundLiftSummaries)[number] | null,
-    ) =>
-      summary && totalCompoundThirtyDayVolume > 0
-        ? `${Math.round(
-            (summary.thirtyDayVolume / totalCompoundThirtyDayVolume) * 100,
-          )}%`
-        : "--%";
-    const formatCompoundLiftSets = (
-      summary: (typeof compoundLiftSummaries)[number] | null,
-    ) => (summary ? Math.round(summary.thirtyDaySets).toLocaleString() : "0");
-    const compoundLiftHighlights = [
-      {
-        categoryId: heaviestCompoundLift?.categoryId || "lower-compound",
-        dateLabel: formatCompoundLiftThirtyDayDate(heaviestCompoundLift),
-        detail: "Heaviest Lift",
-        label: heaviestCompoundLift?.name || "Log heavy lift",
-        rank: 1,
-        repsLabel: formatCompoundLiftThirtyDayReps(heaviestCompoundLift),
-        setsLabel: formatCompoundLiftSets(heaviestCompoundLift),
-        tone: "heavy",
-        value: formatCompoundLiftLoad(heaviestCompoundLift),
-        volumeLabel: formatCompoundLiftRelativeVolume(heaviestCompoundLift),
-        weightLabel: formatCompoundLiftThirtyDayWeight(heaviestCompoundLift),
-        windowLabel: "30 day best",
-      },
-      {
-        categoryId: mostImprovedCompoundLift?.categoryId || "integrated",
-        dateLabel: formatCompoundLiftThirtyDayDate(mostImprovedCompoundLift),
-        detail: "Most Improved",
-        label: mostImprovedCompoundLift?.name || "Build trend",
-        rank: 2,
-        repsLabel: formatCompoundLiftThirtyDayReps(mostImprovedCompoundLift),
-        setsLabel: formatCompoundLiftSets(mostImprovedCompoundLift),
-        tone: "improved",
-        value: formatCompoundLiftChange(mostImprovedCompoundLift),
-        volumeLabel: formatCompoundLiftRelativeVolume(mostImprovedCompoundLift),
-        weightLabel: formatCompoundLiftThirtyDayWeight(
-          mostImprovedCompoundLift,
-        ),
-        windowLabel: "30 day best",
-      },
-      {
-        categoryId:
-          needsImprovementCompoundLift?.categoryId || "lower-compound",
-        dateLabel: formatCompoundLiftThirtyDayDate(
-          needsImprovementCompoundLift,
-        ),
-        detail: "Needs Work",
-        label: needsImprovementCompoundLift?.name || "Add compound",
-        rank: 3,
-        repsLabel: formatCompoundLiftThirtyDayReps(
-          needsImprovementCompoundLift,
-        ),
-        setsLabel: formatCompoundLiftSets(needsImprovementCompoundLift),
-        tone: "needs",
-        value: formatCompoundLiftChange(needsImprovementCompoundLift),
-        volumeLabel: formatCompoundLiftRelativeVolume(
-          needsImprovementCompoundLift,
-        ),
-        weightLabel: formatCompoundLiftThirtyDayWeight(
-          needsImprovementCompoundLift,
-        ),
-        windowLabel: "30 day best",
-      },
-    ];
-    const workoutDates = groupWorkoutDates(exerciseStats);
-    const workoutDateKeys = new Set(
-      workoutDates
-        .map((date) => getDashboardEntryDateKey(date))
-        .filter((dateKey): dateKey is string => Boolean(dateKey)),
-    );
-    const weeklySessionGoal = DASHBOARD_WEEKLY_SESSION_GOAL;
-    const dashboardWeekStartDate = addDashboardDays(
-      getDashboardWeekResetDate(dashboardToday),
-      -(weeklySessionGoal - 1),
-    );
-    const dashboardTodayStartDate = new Date(
-      dashboardToday.getFullYear(),
-      dashboardToday.getMonth(),
-      dashboardToday.getDate(),
-    );
-    const dashboardWeekdayFormatter = dashboardWeekdayShortFormatter;
-    const weeklySessionDays = Array.from(
-      { length: weeklySessionGoal },
-      (_, dayIndex) => {
-        const date = addDashboardDays(dashboardWeekStartDate, dayIndex);
-        const dateKey = getDashboardLocalDateKey(date);
-        const trained = workoutDateKeys.has(dateKey);
-        const missed =
-          !trained && date.getTime() < dashboardTodayStartDate.getTime();
-        const today = dateKey === todayDateKey;
-        const label = dashboardWeekdayFormatter.format(date);
-
-        return {
-          dateKey,
-          fullLabel: label,
-          label: label.slice(0, 3).toUpperCase(),
-          missed,
-          today,
-          trained,
-        };
-      },
-    );
+    const categoryPatternRecommendations = dashboardRecordedCategories;
+    const compoundLiftHighlights = dashboardCompoundRecords.highlights;
+    const prProgress = 0;
+    const weeklySessionGoal = dashboardGoalTargets.sessions ?? 0;
+    const weeklySessionDays = dashboardSessionEvidence.days;
     const weeklySessionDateKeys = new Set(
       weeklySessionDays.map((sessionDay) => sessionDay.dateKey),
     );
@@ -15417,35 +15471,16 @@ export default function DashboardExperience({
       const entryDateKey = getDashboardEntryDateKey(stat.date);
       return entryDateKey ? weeklySessionDateKeys.has(entryDateKey) : false;
     });
-    const workoutsThisWeek = weeklySessionDays.filter(
-      (sessionDay) => sessionDay.trained,
-    ).length;
-    const planSessionsAttended = Math.min(
-      DASHBOARD_PLAN_SESSION_TARGET,
-      workoutDates.length,
-    );
-    const planSessionProgress = clampDashboardPercent(
-      (planSessionsAttended / DASHBOARD_PLAN_SESSION_TARGET) * 100,
-    );
-    const weeklySessionProgress = clampDashboardPercent(
-      (workoutsThisWeek / weeklySessionGoal) * 100,
-    );
-    const weeklySetGoal = Math.max(12, weeklySessionGoal * 4);
-    const weeklySets = weeklyExerciseStats.reduce(
-      (sum, stat) => sum + toLoggedNumber(stat.sets),
-      0,
-    );
+    const workoutsThisWeek = dashboardSessionEvidence.weekly;
+    const planSessionsAttended = dashboardPlanEvidence.completed;
+    const planSessionProgress = dashboardPlanEvidence.progress;
+    const weeklySessionProgress = dashboardSessionGoalLabels(workoutsThisWeek, dashboardGoalTargets.sessions).progress;
+    const weeklySetGoal = dashboardGoalTargets.sets ?? 0;
+    const weeklySets = dashboardRecordedWeeklySets(exerciseStats);
     const weeklySetProgress = clampDashboardPercent(
-      (weeklySets / weeklySetGoal) * 100,
+      weeklySetGoal > 0 ? (weeklySets / weeklySetGoal) * 100 : 0,
     );
-    const weeklyVolume = weeklyExerciseStats.reduce(
-      (sum, stat) =>
-        sum +
-        toLoggedNumber(stat.weight) *
-          toLoggedNumber(stat.reps) *
-          toLoggedNumber(stat.sets),
-      0,
-    );
+    const weeklyVolume = dashboardWorkload.weekly.volumePounds ?? 0;
     const dashboardProfile = readDashboardLocalRecord(
       SOUND_FITNESS_PROFILE_STORAGE_KEY,
     );
@@ -15537,93 +15572,9 @@ export default function DashboardExperience({
       6,
       clampDashboardPercent((Math.min(Math.abs(weightChange), 5) / 5) * 100),
     );
-    const dailySetGoal = Math.max(
-      12,
-      Math.ceil(weeklySetGoal / Math.max(1, weeklySessionGoal)),
-    );
-    const getDailySetGroup = (stat: LocalExerciseStatEntry) => {
-      const signature = [
-        stat.exerciseName,
-        stat.body,
-        stat.pattern,
-        stat.coreMovementPattern,
-        stat.semanticVariationName,
-      ]
-        .map((value) => String(value || "").toLowerCase())
-        .join(" ");
-      const isCompound = DASHBOARD_COMPOUND_LIFT_PATTERNS.some((pattern) =>
-        signature.includes(pattern),
-      );
-      const isLowerBody = [
-        "squat",
-        "deadlift",
-        "lunge",
-        "leg",
-        "hip",
-        "glute",
-        "hamstring",
-        "quad",
-        "calf",
-      ].some((term) => signature.includes(term));
-      const isUpperBody = [
-        "bench",
-        "press",
-        "row",
-        "pull",
-        "chin",
-        "dip",
-        "shoulder",
-        "chest",
-        "back",
-      ].some((term) => signature.includes(term));
-
-      if (isCompound && isLowerBody) return "lower-compound";
-      if (isCompound && isUpperBody) return "upper-compound";
-      if (isCompound) return "compound";
-      return "accessory";
-    };
-    const dailySetGroupLabels: Record<string, string> = {
-      accessory: "Accessory",
-      compound: "Compound",
-      "lower-compound": "Lower compound",
-      "upper-compound": "Upper compound",
-    };
-    const dailySetEntries = todayExerciseStats.flatMap((stat) => {
-      const setCount = Math.max(0, Math.round(toLoggedNumber(stat.sets)));
-      const group = getDailySetGroup(stat);
-
-      return Array.from({ length: setCount }, (_, setIndex) => ({
-        group,
-        id: `${stat.exerciseId || stat.exerciseName}-${stat.date}-${setIndex}`,
-      }));
-    });
-    const dailySetFocusGroup = dailySetEntries[0]?.group || "lower-compound";
-    const dailySetGroupCounts = dailySetEntries.reduce<Record<string, number>>(
-      (counts, setEntry) => ({
-        ...counts,
-        [setEntry.group]: (counts[setEntry.group] || 0) + 1,
-      }),
-      {},
-    );
-    const dailySetGroupSummary = Object.entries(dailySetGroupCounts)
-      .filter(([, count]) => count > 0)
-      .map(
-        ([group, count]) => `${count} ${dailySetGroupLabels[group] || "Other"}`,
-      )
-      .join(", ");
-    const dailySetTallyMarks = Array.from(
-      { length: dailySetGoal },
-      (_, markIndex) => {
-        const setEntry = dailySetEntries[markIndex];
-
-        return {
-          filled: Boolean(setEntry),
-          group: setEntry?.group || dailySetFocusGroup,
-          id: setEntry?.id || `empty-${markIndex}`,
-        };
-      },
-    );
-    const dailySets = dailySetEntries.length;
+    const dailySetGroupSummary = dashboardDailySetEvidence.detail;
+    const dailySetTallyMarks = dashboardDailySetEvidence.marks;
+    const dailySets = dashboardDailySetEvidence.sets ?? 0;
     const latestTemplate = [...savedTemplates].sort(
       (a, b) =>
         new Date(b.updatedAt || b.createdAt).getTime() -
@@ -15634,14 +15585,12 @@ export default function DashboardExperience({
       totalLoggedEntries: exerciseStats.length,
       workoutSessionEntries: workoutSessionEntries.length,
       categoryPatternRecommendations,
-      completedWorkouts: workoutDates.length,
+      completedWorkouts: dashboardSessionEvidence.total,
       compoundLiftHighlights,
       planSessionsAttended,
       planSessionProgress,
-      planSessionTarget: DASHBOARD_PLAN_SESSION_TARGET,
+      planSessionTarget: dashboardPlanEvidence.target,
       prProgress,
-      prTarget,
-      recentPrCount,
       workoutsThisWeek,
       weeklySessionDays,
       weeklySessionGoal,
@@ -15650,10 +15599,7 @@ export default function DashboardExperience({
       weeklyCaloriesDisplay: formatDashboardCompactCalories(weeklyCalories),
       weeklyCaloriesGoal,
       weeklyCaloriesProgress,
-      dailySetGoal,
-      dailySetGroupSummary:
-        dailySetGroupSummary ||
-        `${dailySetGroupLabels[dailySetFocusGroup]} day, no sets logged yet`,
+      dailySetGroupSummary,
       dailySets,
       dailySetTallyMarks,
       weightChange,
@@ -15679,8 +15625,9 @@ export default function DashboardExperience({
       latestTemplate,
       templateCount: savedTemplates.length,
     };
-  }, [dashboardToday, exerciseStats, savedTemplates]);
+  }, [dashboardRecordedCategories, dashboardCompoundRecords, dashboardDailySetEvidence.detail, dashboardDailySetEvidence.marks, dashboardDailySetEvidence.sets, dashboardGoalTargets, dashboardSessionEvidence, dashboardWorkload.lifetime.volumePounds, dashboardWorkload.weekly.volumePounds, dashboardToday, exerciseStats, savedTemplates, dashboardPlanEvidence.completed, dashboardPlanEvidence.progress, dashboardPlanEvidence.target]);
 
+  const dashboardWeeklySessionGoal = dashboardSessionGoalLabels(dashboardSummary.workoutsThisWeek, dashboardGoalTargets.sessions);
   const nextAction = activeSessionTemplate
     ? {
         eyebrow: "Resume active session",
@@ -15715,16 +15662,7 @@ export default function DashboardExperience({
   const dashboardWeeklySessionResetFullLabel = dashboardClockLive
     ? formatHeaderMeterFullDateTime(dashboardWeeklySessionResetDate)
     : "soon";
-  const dashboardNeedleChargesRemaining = Math.max(
-    0,
-    dashboardSummary.weeklySessionGoal - dashboardSummary.workoutsThisWeek,
-  );
-  const dashboardNeedleRewardDetail =
-    dashboardNeedleChargesRemaining <= 0
-      ? "Reward drop ready"
-      : `${dashboardNeedleChargesRemaining} charge${
-          dashboardNeedleChargesRemaining === 1 ? "" : "s"
-        } to next drop`;
+  const dashboardNeedleRewardDetail = "Reward ledger unavailable";
   const dashboardNeedleReward = getDashboardNeedleReward(
     dashboardSummary.weeklySessionProgress,
     [
@@ -15747,10 +15685,10 @@ export default function DashboardExperience({
   const getDashboardWeeklySessionPositionStyle = (goalIndex: number) =>
     ({
       "--dashboard-week-session-section-bottom": `${
-        (goalIndex / dashboardSummary.weeklySessionGoal) * 100
+        (goalIndex / dashboardSummary.weeklySessionDays.length) * 100
       }%`,
       "--dashboard-week-session-section-height": `${
-        100 / dashboardSummary.weeklySessionGoal
+        100 / dashboardSummary.weeklySessionDays.length
       }%`,
     }) as CSSProperties;
   const dashboardWeeklySessionAvailableStartDateKey =
@@ -15818,49 +15756,17 @@ export default function DashboardExperience({
     0,
     dashboardSummary.planSessionTarget - dashboardPlanSessionsAttended,
   );
-  const dashboardPlanSessionCadenceMs =
-    (7 / Math.max(1, dashboardSummary.weeklySessionGoal)) * 24 * 60 * 60 * 1000;
-  const dashboardNextPlannedSessionDate =
-    dashboardSummary.latestWorkoutSessionTimestamp === null
-      ? dashboardToday
-      : new Date(
-          dashboardSummary.latestWorkoutSessionTimestamp +
-            dashboardPlanSessionCadenceMs,
-        );
-
-  // Computed arithmetically instead of looping: this ran in the RENDER path,
-  // and a zero/NaN cadence (one bad stored goal away) would have frozen the
-  // tab in an unbounded while loop.
-  if (
-    !activeSessionTemplate &&
-    dashboardPlanSessionCadenceMs > 0 &&
-    dashboardNextPlannedSessionDate.getTime() < dashboardToday.getTime()
-  ) {
-    const missedSessions = Math.ceil(
-      (dashboardToday.getTime() - dashboardNextPlannedSessionDate.getTime()) /
-        dashboardPlanSessionCadenceMs,
-    );
-    dashboardNextPlannedSessionDate.setTime(
-      dashboardNextPlannedSessionDate.getTime() +
-        missedSessions * dashboardPlanSessionCadenceMs,
-    );
-  }
-
-  const dashboardNextPlannedSessionLabel = activeSessionTemplate
-    ? "Now"
-    : dashboardClockLive
-      ? formatHeaderMeterDeadline(dashboardNextPlannedSessionDate)
-      : "soon";
-  const dashboardNextPlannedSessionFullLabel = activeSessionTemplate
-    ? "a planned session is live now"
-    : dashboardClockLive
-      ? formatHeaderMeterFullDateTime(dashboardNextPlannedSessionDate)
-      : "soon";
-  const dashboardPlanAttendanceCaption =
-    dashboardPlanSessionsRemaining <= 0
-      ? "Plan complete"
-      : `Next ${dashboardNextPlannedSessionLabel}`;
-  const dashboardPlanAttendanceDescription = `${dashboardPlanSessionsAttended} of ${dashboardSummary.planSessionTarget} plan sessions attended. Next planned session ${dashboardNextPlannedSessionFullLabel}`;
+  const dashboardNextPlannedSessionDate = dashboardPlanEvidence.next
+    ? new Date(dashboardPlanEvidence.next.date + "T" + (dashboardPlanEvidence.next.time || "12:00") + ":00") : null;
+  const dashboardNextPlannedSessionLabel = dashboardPlanEvidence.next && dashboardNextPlannedSessionDate
+    ? dashboardPlanEvidence.next.time ? formatHeaderMeterDeadline(dashboardNextPlannedSessionDate) : dashboardDateFormatter.format(dashboardNextPlannedSessionDate) + " · time not set"
+    : "Not scheduled";
+  const dashboardPlanAttendanceCaption = dashboardPlanEvidence.issue || (!dashboardPlanEvidence.title ? "No active plan" : !dashboardSummary.planSessionTarget ? "No assignments" : dashboardPlanSessionsRemaining === 0 ? "Plan complete" : dashboardPlanEvidence.next ? "Next " + dashboardNextPlannedSessionLabel : "Review schedule");
+  const dashboardPlanAttendanceDescription = dashboardPlanEvidence.issue || (
+    (dashboardPlanEvidence.title ? dashboardPlanSessionsAttended + " of " + dashboardSummary.planSessionTarget + " assigned workouts completed in " + dashboardPlanEvidence.title + "." : "No active plan.")
+    + (dashboardPlanEvidence.next && dashboardNextPlannedSessionDate ? " Next " + (dashboardPlanEvidence.next.source === "booking" ? "booked session " : "assigned workout ") + dashboardPlanEvidence.next.title + " on " + (dashboardPlanEvidence.next.time ? formatHeaderMeterFullDateTime(dashboardNextPlannedSessionDate) : dashboardDateFormatter.format(dashboardNextPlannedSessionDate) + "; time not set") + "." : " No upcoming assigned workouts or confirmed bookings.")
+  );
+  const dashboardPlanAttendanceValue = dashboardPlanEvidence.issue || !dashboardPlanEvidence.title || !dashboardSummary.planSessionTarget ? "—" : dashboardPlanSessionsAttended + "/" + dashboardSummary.planSessionTarget;
   // One notch per planned session, attended ones lit — same treatment as the
   // Body Command Center rings.
   const dashboardPlanAttendanceDashes = getSegmentedRingDashes(
@@ -15894,85 +15800,18 @@ export default function DashboardExperience({
   ];
 
   const dashboardCharts = useMemo(() => {
-    const labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    const chartSevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const trainingVolume = labels.map((label, index) => {
-      const value = exerciseStats
-        .filter((entry) => {
-          const date = new Date(entry.date);
-          const timestamp = date.getTime();
-          if (Number.isNaN(timestamp) || timestamp < chartSevenDaysAgo) {
-            return false;
-          }
-          const dayIndex = date.getDay() === 0 ? 6 : date.getDay() - 1;
-          return dayIndex === index;
-        })
-        .reduce(
-          (sum, entry) =>
-            sum +
-            toLoggedNumber(entry.weight) *
-              toLoggedNumber(entry.reps) *
-              toLoggedNumber(entry.sets),
-          0,
-        );
-
-      return {
-        label,
-        value: value > 0 ? Math.round(value / 100) : 0,
-        target: 18,
-      };
-    });
-
-    const weeklyGoal = Math.max(12, (dashboardSummary.templateCount || 1) * 12);
-    const goalProgressPercent = Math.min(
-      (dashboardSummary.totalSets / weeklyGoal) * 100,
-      100,
-    );
+    const goalProgressPercent = dashboardSummary.weeklySetProgress;
 
     return {
-      trainingVolume,
       goalProgressPercent,
-      nutritionConsistency: [
-        {
-          label: "Protein",
-          value: dashboardSummary.hasStats ? 74 : 42,
-          target: 100,
-        },
-        {
-          label: "Hydration",
-          value: dashboardSummary.hasStats ? 68 : 40,
-          target: 100,
-        },
-        {
-          label: "Meals",
-          value: dashboardSummary.hasStats ? 81 : 35,
-          target: 100,
-        },
-      ],
-      recoveryTrend: [
-        { label: "Mon", value: 72 },
-        {
-          label: "Tue",
-          value: dashboardSummary.workoutsThisWeek > 2 ? 64 : 78,
-        },
-        { label: "Wed", value: 76 },
-        { label: "Thu", value: 70 },
-        { label: "Fri", value: dashboardSummary.totalSets > 30 ? 62 : 82 },
-        { label: "Sat", value: 84 },
-        { label: "Sun", value: 79 },
-      ],
+      nutritionConsistency: dashboardHealthEvidence.nutritionRows,
+      recoveryTrend: dashboardHealthEvidence.recoveryRows,
     };
-  }, [dashboardSummary, exerciseStats]);
+  }, [dashboardSummary, dashboardHealthEvidence]);
 
   const dashboardTabCompletions = useMemo(() => {
-    const nutritionAverage =
-      dashboardCharts.nutritionConsistency.reduce(
-        (sum, item) => sum + item.value,
-        0,
-      ) / dashboardCharts.nutritionConsistency.length;
-    const recoveryAverage =
-      dashboardCharts.recoveryTrend.reduce((sum, item) => sum + item.value, 0) /
-      dashboardCharts.recoveryTrend.length;
+    const nutritionAverage = dashboardHealthEvidence.nutritionPercent;
+    const recoveryAverage = dashboardHealthEvidence.recoveryRows.length ? 100 : 0;
     const workoutCompletion = clampDashboardPercent(
       Math.max(
         activeSessionTemplate ? 68 : 0,
@@ -16012,7 +15851,7 @@ export default function DashboardExperience({
     };
   }, [
     activeSessionTemplate,
-    dashboardCharts,
+    dashboardHealthEvidence,
     dashboardFoundationProgress.goalsCompletion,
     dashboardFoundationProgress.profileCompletion,
     dashboardSummary,
@@ -16084,65 +15923,8 @@ export default function DashboardExperience({
     return 20;
   };
 
-  const dashboardCalendarItems = useMemo<DashboardCalendarItem[]>(() => {
-    const templateTitle =
-      dashboardSummary.latestTemplate?.title || "Build first workout";
-
-    return [
-      {
-        dateLabel: "Mon",
-        time: "06:30",
-        title:
-          dashboardSummary.workoutsThisWeek > 0
-            ? "Completed session"
-            : "Plan first session",
-        type: dashboardSummary.workoutsThisWeek > 0 ? "completed" : "training",
-        status: dashboardSummary.workoutsThisWeek > 0 ? "Done" : "Start",
-      },
-      {
-        dateLabel: "Tue",
-        time: "08:00",
-        title: "Hydration check",
-        type: "nutrition",
-        status: "Fuel",
-      },
-      {
-        dateLabel: "Wed",
-        time: "17:30",
-        title: templateTitle,
-        type: "training",
-        status: "Planned",
-      },
-      {
-        dateLabel: "Thu",
-        time: "18:00",
-        title: "Mobility reset",
-        type: "recovery",
-        status: "Recovery",
-      },
-      {
-        dateLabel: "Fri",
-        time: "07:00",
-        title: dashboardSummary.latestExercise,
-        type: dashboardSummary.hasStats ? "completed" : "training",
-        status: dashboardSummary.hasStats ? "Recent" : "Suggested",
-      },
-      {
-        dateLabel: "Sat",
-        time: "10:00",
-        title: "Nutrition prep",
-        type: "nutrition",
-        status: "Plan",
-      },
-      {
-        dateLabel: "Sun",
-        time: "18:30",
-        title: "Reflection",
-        type: "recovery",
-        status: "Review",
-      },
-    ];
-  }, [dashboardSummary]);
+  // Actual plan and personal calendar records come from the shared account store.
+  const dashboardCalendarItems = useMemo<DashboardCalendarItem[]>(() => [], []);
 
   const trainingConstellationWeek = useMemo(
     () => getConstellationWeek(dashboardCalendarDate),
@@ -16156,309 +15938,25 @@ export default function DashboardExperience({
     [dashboardCalendarItems, dashboardCalendarDate, trainingCalendarToday, dashboardCalendarUserEntries],
   );
 
-  const masterJourneyCurrentFocus = activeSessionTemplate
-    ? "Session Execution"
-    : dashboardSummary.workoutsThisWeek > 0
-      ? "Progress Tracking"
-      : dashboardSummary.templateCount > 0
-        ? "Program Planning"
-        : "Workout Builder";
-  const masterJourneyNodes: MasterJourneyNode[] = [
-    {
-      href: ROUTES.dashboard.profile,
-      icon: "🧭",
-      label: "Foundation",
-      metric: "100% base",
-      state: "complete",
-    },
-    {
-      href: ROUTES.dashboard.goals,
-      icon: "🎯",
-      label: "Goals",
-      metric: "Direction XP",
-      state: "complete",
-    },
-    {
-      href: ROUTES.workoutBuilder.home,
-      icon: "🏋️",
-      label: "Workout Builder",
-      metric: `${dashboardSummary.templateCount} saved`,
-      state:
-        masterJourneyCurrentFocus === "Workout Builder"
-          ? "active"
-          : dashboardSummary.templateCount > 0
-            ? "complete"
-            : "default",
-    },
-    {
-      href: ROUTES.dashboard.myPlan,
-      icon: "📅",
-      label: "Program Planning",
-      metric: "Weekly map",
-      state:
-        masterJourneyCurrentFocus === "Program Planning" ? "active" : "default",
-    },
-    {
-      href: ROUTES.dashboard.sessions,
-      icon: "✅",
-      label: "Session Execution",
-      metric: `${dashboardSummary.workoutsThisWeek} this wk`,
-      state:
-        masterJourneyCurrentFocus === "Session Execution"
-          ? "active"
-          : dashboardSummary.workoutsThisWeek > 0
-            ? "complete"
-            : "default",
-    },
-    {
-      href: ROUTES.dashboard.recovery,
-      icon: "💧",
-      label: "Recovery",
-      metric: "72% ready",
-      state: "default",
-    },
-    {
-      href: ROUTES.nutritionPortal.home,
-      icon: "🍽️",
-      label: "Nutrition",
-      metric: "Fuel XP",
-      state: "default",
-    },
-    {
-      href: ROUTES.dashboard.stats,
-      icon: "📈",
-      label: "Progress Tracking",
-      metric: `${dashboardSummary.totalLoggedEntries} logs`,
-      state:
-        masterJourneyCurrentFocus === "Progress Tracking"
-          ? "active"
-          : dashboardSummary.hasStats
-            ? "complete"
-            : "default",
-    },
-    {
-      href: ROUTES.dashboard.performance,
-      icon: "⚡",
-      label: "Performance",
-      metric: "Power XP",
-      state: "default",
-    },
-    {
-      href: ROUTES.dashboard.insights,
-      icon: "🧠",
-      label: "Insights",
-      metric: "Unlocking",
-      state: "locked",
-    },
-    {
-      href: ROUTES.dashboard.achievements,
-      icon: "🏆",
-      label: "Achievement System",
-      metric: "0 pts",
-      state: "locked",
-    },
-    {
-      href: ROUTES.soundworld.home,
-      icon: "🌎",
-      label: "Sound World",
-      metric: "Community",
-      state: "locked",
-    },
-  ];
-  const masterJourneyProgress = Math.round(
-    ((masterJourneyNodes.filter((node) => node.state === "complete").length +
-      masterJourneyNodes.filter((node) => node.state === "active").length *
-        0.5) /
-      masterJourneyNodes.length) *
-      100,
-  );
-  const masterJourneyTimelineDateFormatter = dashboardTimelineDateFormatter;
-  const formatMasterJourneyTimelineDate = (dayOffset: number) =>
-    masterJourneyTimelineDateFormatter.format(
-      addDashboardDays(dashboardToday, dayOffset),
-    );
-  const dashboardMasterPlanTimeline: DashboardMasterPlanTimelineItem[] =
-    ((): DashboardMasterPlanTimelineItem[] => {
-      const trainingItems: DashboardMasterPlanTimelineItem[] =
-        favoriteWorkoutTemplates.slice(0, 4).map(
-          (template, index): DashboardMasterPlanTimelineItem => ({
-            dateLabel: formatMasterJourneyTimelineDate(index * 2 + 2),
-            detail: `${template.exercises.length} exercises / ${getWorkoutTemplateTag(
-              template,
-            )}`,
-            href:
-              activeSessionTemplate?.id === template.id
-                ? ROUTES.dashboard.sessionWorkout
-                : buildTemplateWorkoutHref(template.id),
-            icon: "workout",
-            metric: index === 0 ? "Primary" : "Queued",
-            status:
-              activeSessionTemplate?.id === template.id ? "Live" : "Planned",
-            title: template.title,
-            tone: (index === 0 ? "cyan" : "sky") as DashboardCardTone,
-          }),
-        );
-
-      if (activeSessionTemplate) {
-        return [
-          {
-            dateLabel: "Now",
-            detail: `${activeSessionTemplate.exercises.length} exercises in progress`,
-            href: ROUTES.dashboard.sessionWorkout,
-            icon: "workout",
-            metric: "Live",
-            status: "In progress",
-            title: activeSessionTemplate.title,
-            tone: "emerald" as DashboardCardTone,
-          },
-          ...trainingItems.filter(
-            (item) => item.title !== activeSessionTemplate.title,
-          ),
-          {
-            dateLabel: formatMasterJourneyTimelineDate(6),
-            detail: dashboardSummary.hasStats
-              ? dashboardSummary.latestExercise
-              : "Log the session output",
-            href: ROUTES.dashboard.stats,
-            icon: "stats",
-            metric: `${dashboardSummary.totalLoggedEntries} logs`,
-            status: "Checkpoint",
-            title: "Progress check",
-            tone: "amber" as DashboardCardTone,
-          },
-          {
-            dateLabel: formatMasterJourneyTimelineDate(7),
-            detail:
-              dashboardSummary.totalSets > 30
-                ? "Deload, mobility, and soreness notes"
-                : "Mobility reset and readiness notes",
-            href: ROUTES.dashboard.recovery,
-            icon: "recovery",
-            metric: "Recovery",
-            status: "Support",
-            title: "Readiness reset",
-            tone: "violet" as DashboardCardTone,
-          },
-        ].slice(0, 7);
-      }
-
-      if (trainingItems.length) {
-        return [
-          {
-            dateLabel: "Today",
-            detail: nextAction.detail,
-            href: nextAction.href,
-            icon: "plan",
-            metric: nextAction.cta,
-            status: "Next",
-            title: nextAction.title,
-            tone: "cyan" as DashboardCardTone,
-          },
-          ...trainingItems,
-          {
-            dateLabel: formatMasterJourneyTimelineDate(7),
-            detail: "Review volume, recovery, and fuel signals",
-            href: ROUTES.dashboard.myPlan,
-            icon: "calendar",
-            metric: `${dashboardSummary.templateCount} templates`,
-            status: "Review",
-            title: "Weekly plan review",
-            tone: "amber" as DashboardCardTone,
-          },
-        ].slice(0, 7);
-      }
-
-      return [
-        {
-          dateLabel: "Today",
-          detail: "Choose focus, timeline, and coaching context",
-          href: ROUTES.dashboard.goals,
-          icon: "goals",
-          metric: `${dashboardFoundationProgress.goalsCompletion}% goals`,
-          status: "Set direction",
-          title: "Define the goal",
-          tone: "amber" as DashboardCardTone,
-        },
-        {
-          dateLabel: formatMasterJourneyTimelineDate(1),
-          detail: "Place the first workout into the weekly map",
-          href: ROUTES.dashboard.myPlan,
-          icon: "plan",
-          metric: "Plan",
-          status: "Schedule",
-          title: "Make the plan",
-          tone: "sky" as DashboardCardTone,
-        },
-        {
-          dateLabel: formatMasterJourneyTimelineDate(2),
-          detail: "Create the first reusable training template",
-          href: ROUTES.workoutBuilder.home,
-          icon: "builder",
-          metric: "Builder",
-          status: "Build",
-          title: "Build first workout",
-          tone: "cyan" as DashboardCardTone,
-        },
-        {
-          dateLabel: formatMasterJourneyTimelineDate(3),
-          detail: "Run the first session and save training data",
-          href: ROUTES.dashboard.sessions,
-          icon: "workout",
-          metric: "Session",
-          status: "Train",
-          title: "Start session",
-          tone: "emerald" as DashboardCardTone,
-        },
-        {
-          dateLabel: formatMasterJourneyTimelineDate(4),
-          detail: "Submit a clip for technique feedback",
-          href: ROUTES.dashboard.videoReview,
-          icon: "form",
-          metric: "Form check",
-          status: "Coach",
-          title: "Video review",
-          tone: "violet" as DashboardCardTone,
-        },
-      ];
-    })();
-  const soundPoints =
-    1200 +
-    dashboardSummary.completedWorkouts * 130 +
-    dashboardSummary.totalLoggedEntries * 28 +
-    dashboardSummary.totalSets * 5 +
-    dashboardSummary.templateCount * 90;
-  const dashboardWeeklySoundPointLogGoal =
-    dashboardSummary.weeklySessionGoal * 4;
-  const dashboardWeeklySoundPointGoal =
-    dashboardSummary.weeklySessionGoal * 130 +
-    dashboardSummary.weeklySetGoal * 5 +
-    dashboardWeeklySoundPointLogGoal * 28;
-  const dashboardWeeklySoundPoints =
-    dashboardSummary.workoutsThisWeek * 130 +
-    dashboardSummary.weeklyLoggedEntries * 28 +
-    dashboardSummary.weeklySets * 5;
-  const dashboardWeeklySoundPointProgress = clampDashboardPercent(
-    (dashboardWeeklySoundPoints / Math.max(1, dashboardWeeklySoundPointGoal)) *
-      100,
-  );
-  const dashboardWeeklySoundPointFillStyle = {
-    "--sound-points-weekly-cap-opacity":
-      dashboardWeeklySoundPointProgress > 0 ? 1 : 0,
-    "--sound-points-weekly-fill": `${dashboardWeeklySoundPointProgress}%`,
-  } as CSSProperties;
-  const dashboardWeeklySoundPointLabel = `${dashboardWeeklySoundPoints.toLocaleString()} / ${dashboardWeeklySoundPointGoal.toLocaleString()}`;
+  const masterJourneyCurrentFocus = dashboardFoundationProgress.goalsCompletion !== 100
+    ? "Goals" : activeSessionTemplate ? "Session Execution" : dashboardSummary.completedWorkouts > 0 ? "Progress Tracking"
+      : dashboardPlanEvidence.title ? "Program Planning" : "Workout Builder";
+  const dashboardJourney = dashboardJourneyTimeline({ goalsReady: dashboardFoundationProgress.goalsCompletion === 100,
+    plan: dashboardPlanEvidence, active: activeSessionTemplate ? { title: activeSessionTemplate.title, count: activeSessionTemplate.exercises.length } : null,
+    templateCount: dashboardSummary.templateCount, completed: dashboardSummary.completedWorkouts });
+  const masterJourneyProgress = dashboardJourney.progress;
+  const dashboardMasterPlanTimeline: DashboardMasterPlanTimelineItem[] = dashboardJourney.rows;
+  const soundPoints = dashboardRewardEvidence.points ?? 0;
+  const dashboardWeeklySoundPointProgress = 0;
+  const dashboardWeeklySoundPointFillStyle = { "--sound-points-weekly-cap-opacity": 0, "--sound-points-weekly-fill": "0%" } as CSSProperties;
+  const dashboardWeeklySoundPointLabel = "Reward ledger unavailable";
   const dashboardProfileIconSource =
     dashboardProfileIconUrl || DASHBOARD_PROFILE_ICON_FALLBACK;
   const dashboardProfileHasCustomIcon =
     dashboardProfileIconSource !== DASHBOARD_PROFILE_ICON_FALLBACK;
   const soundFitnessLevelSize = 500;
-  const soundFitnessLevel = Math.max(
-    1,
-    Math.floor(soundPoints / soundFitnessLevelSize) + 1,
-  );
-  const soundFitnessLevelProgress = clampDashboardPercent(
-    ((soundPoints % soundFitnessLevelSize) / soundFitnessLevelSize) * 100,
-  );
+  const soundFitnessLevel = 0;
+  const soundFitnessLevelProgress = 0;
   // Admin-preview "debt-to-income" meter: same leveling metaphor as the fitness
   // ring, but driven by the editable adminDtiScore instead of sound points.
   const adminDtiLevel = Math.max(
@@ -16474,12 +15972,6 @@ export default function DashboardExperience({
   const dashboardBadgeProgress = isAdminPreview
     ? adminDtiProgress
     : soundFitnessLevelProgress;
-  const soundTokens =
-    80 +
-    dashboardSummary.completedWorkouts * 4 +
-    dashboardSummary.templateCount * 6 +
-    (dashboardSummary.hasStats ? 12 : 0);
-  const soundEmeralds = Math.max(0, Math.floor(soundTokens / 25));
   const soundPointsIntoLevel = soundPoints % soundFitnessLevelSize;
   const soundPointsToNextLevel =
     soundFitnessLevelSize - soundPointsIntoLevel || soundFitnessLevelSize;
@@ -16602,11 +16094,7 @@ export default function DashboardExperience({
     );
     if (entryDateKey) momentumEntryDateKeys.add(entryDateKey);
   });
-  const dashboardTrainingDateKeys = new Set(
-    groupWorkoutDates(exerciseStats)
-      .map((date) => getDashboardEntryDateKey(date))
-      .filter(Boolean),
-  );
+  const dashboardTrainingDateKeys = new Set(dashboardSessionEvidence.dates);
   const dashboardHasPlan =
     Boolean(activeSessionTemplate) || dashboardSummary.templateCount > 0;
   const dashboardStatDateKeys = Array.from(momentumEntryDateKeys).sort();
@@ -16639,7 +16127,6 @@ export default function DashboardExperience({
     });
   const momentumTodayKey = getDashboardLocalDateKey(dashboardToday);
   const momentumHasEntryToday = momentumEntryDateKeys.has(momentumTodayKey);
-  const momentumStreakTarget = 7;
   const momentumEntryStreak = momentumHasEntryToday
     ? getDashboardEntryStreak(momentumEntryDateKeys, dashboardToday)
     : 0;
@@ -16860,13 +16347,13 @@ export default function DashboardExperience({
     {
       helper:
         "Primary goals, training direction, weekly targets, and motivation.",
-      href: `${ROUTES.dashboard.profile}#plan-direction`,
+      href: ROUTES.dashboard.goals,
       icon: "goals",
       label: "Goal Direction",
       references: [
         dashboardFoundationProgress.goalFocus || "Goal focus open",
-        `${dashboardFoundationProgress.goalsCompletion}% goals`,
-        dashboardFoundationProgress.goalsVisited ? "Synced" : "Needs setup",
+        `${dashboardFoundationProgress.goalsCompletion}% goal setup`,
+        dashboardFoundationProgress.goalsCompletion === 100 ? "Saved" : "Needs setup",
       ],
       stat: `${dashboardFoundationProgress.goalsCompletion}% ready`,
       tone: "border-emerald-200/24 bg-emerald-300/10 text-emerald-100",
@@ -16916,9 +16403,9 @@ export default function DashboardExperience({
       icon: "goals",
       label: "Achievements",
       references: [
-        `${soundPoints.toLocaleString()} points`,
-        `${soundEmeralds.toLocaleString()} emeralds`,
-        `${soundTokens.toLocaleString()} tokens`,
+        `${dashboardRewardEvidence.pointsLabel} points`,
+        `${dashboardRewardEvidence.emeraldsLabel} emeralds`,
+        `${dashboardRewardEvidence.tokensLabel} tokens`,
       ],
       stat: "Rewards",
       tone: "border-orange-200/24 bg-orange-300/10 text-orange-100",
@@ -17242,6 +16729,7 @@ export default function DashboardExperience({
     if (!dashboardPointsDropdownOpen) {
       activeDashboardPointsRewardPanelIndexRef.current = 0;
       setActiveDashboardPointsRewardPanelIndex(0);
+      setActiveDashboardPointsSummaryIndex(0);
     }
     setDashboardPointsDropdownOpen((open) => !open);
   };
@@ -17347,7 +16835,6 @@ export default function DashboardExperience({
           dashboardFloatingSnapshotActiveJourneyStepIndex
         ]
       : null;
-  const dashboardWeeklyCaloriesTarget = 14700;
   const dashboardHydrationConsistency =
     dashboardCharts.nutritionConsistency.find(
       (item) => item.label === "Hydration",
@@ -17359,57 +16846,26 @@ export default function DashboardExperience({
     dashboardCharts.nutritionConsistency.find(
       (item) => item.label === "Protein",
     )?.value || 0;
-  const dashboardRecoveryAverage = Math.round(
-    dashboardCharts.recoveryTrend.reduce((sum, item) => sum + item.value, 0) /
-      dashboardCharts.recoveryTrend.length,
-  );
-  const dashboardNutritionAverage = Math.round(
-    dashboardCharts.nutritionConsistency.reduce(
-      (sum, item) => sum + item.value,
-      0,
-    ) / dashboardCharts.nutritionConsistency.length,
-  );
+  const dashboardNutritionAverage = dashboardHealthEvidence.nutritionPercent;
   const dashboardWeeklyRecapCards: DashboardWeeklyRecapCard[] = [
     {
-      description: "Training volume by day from the last 7 days.",
-      metric: `${Math.round(dashboardSummary.weeklyVolume).toLocaleString()} lb`,
-      rows: dashboardCharts.trainingVolume.map((item) => ({
-        detail:
-          item.value >= item.target
-            ? "At target"
-            : `${(item.target * 100).toLocaleString()} lb goal`,
-        label: item.label,
-        value: `${(item.value * 100).toLocaleString()} lb`,
-      })),
+      description: `This calendar week. ${dashboardWorkload.weeklyDetail}`,
+      metric: dashboardWorkload.weeklyLabel,
+      rows: dashboardWorkload.rows,
       title: "Weekly Training Volume",
       tone: "cyan",
     },
     {
-      description: "Fuel habits summarized for the current weekly rhythm.",
-      metric: `${dashboardNutritionAverage}%`,
-      rows: dashboardCharts.nutritionConsistency.map((item) => ({
-        detail: `${item.target}% target`,
-        label: item.label,
-        value: `${Math.round(item.value)}%`,
-      })),
-      title: "Nutrition Consistency",
-      tone: "emerald",
+      description: "Days with saved nutrition records in the last 7 days; coverage does not measure target adherence.",
+      metric: dashboardHealthEvidence.nutritionLabel,
+      rows: dashboardCharts.nutritionConsistency.map(item => ({ detail: dashboardHealthEvidence.nutritionIssue || "7-day recording coverage", label: item.label, value: item.days ? item.days + "/7 days (" + Math.round(item.value) + "%)" : "No records" })),
+      title: "Nutrition Records", tone: "emerald",
     },
     {
-      description: "Readiness trend across the last 7-day recovery window.",
-      metric: `${dashboardRecoveryAverage}%`,
-      rows: dashboardCharts.recoveryTrend.map((item) => ({
-        detail:
-          item.value >= 80
-            ? "Ready"
-            : item.value >= 70
-              ? "Steady"
-              : "Watch load",
-        label: item.label,
-        value: `${Math.round(item.value)}%`,
-      })),
-      title: "Recovery Readiness",
-      tone: "amber",
+      description: "Saved weekly check-in scores in the last 7 days. Self-reported feedback, not a clinical readiness assessment.",
+      metric: dashboardHealthEvidence.recoveryLabel,
+      rows: dashboardCharts.recoveryTrend.map(item => ({ detail: "Saved self-report score out of 10", label: item.label, value: item.value / 10 + "/10" })),
+      title: "Weekly Check-In", tone: "amber",
     },
     {
       description: dashboardSummary.hasStats
@@ -17466,17 +16922,17 @@ export default function DashboardExperience({
     row: DashboardWeeklyRecapCard["rows"][number],
   ) => {
     const value = getWeeklyRecapBarValue(row.value);
-    const target = getWeeklyRecapBarValue(row.detail);
+
+    if (card.title === "Weekly Check-In") return Math.max(0, Math.min(100, value * 10));
+    if (card.title === "Nutrition Records") return row.value.includes("%") ? Math.max(0, Math.min(100, value / 7 * 100)) : 0;
 
     if (row.value.includes("%")) {
       return Math.max(4, Math.min(100, value));
     }
 
     if (card.title === "Weekly Training Volume") {
-      return Math.max(
-        4,
-        Math.min(100, target > 0 ? (value / target) * 100 : 0),
-      );
+      const peak = Math.max(0, ...card.rows.map(item => getWeeklyRecapBarValue(item.value)));
+      return peak > 0 ? Math.max(0, Math.min(100, value / peak * 100)) : 0;
     }
 
     return Math.max(4, Math.min(100, value > 0 ? value : 0));
@@ -17510,9 +16966,7 @@ export default function DashboardExperience({
       metric: `${dashboardSummary.workoutsThisWeek} wk`,
       rows: [
         {
-          detail: `${dashboardSummary.weeklySets} sets / ${Math.round(
-            dashboardSummary.weeklyVolume,
-          ).toLocaleString()} lb`,
+          detail: `${dashboardSummary.weeklySets} sets / ${dashboardWorkload.weeklyLabel}`,
           label: "Signal",
           value:
             dashboardSummary.workoutsThisWeek > 0
@@ -17543,57 +16997,38 @@ export default function DashboardExperience({
     {
       completion: dashboardNutritionAverage,
       description:
-        "Fuel content is weighted toward the habits with the biggest gap this week.",
+        "Saved nutrition records show logging coverage over the last 7 days.",
       href: ROUTES.nutrition.home,
       icon: "nutrition",
-      metric: `${dashboardNutritionAverage}%`,
+      metric: dashboardHealthEvidence.nutritionLabel,
       rows: [
         {
-          detail: `${Math.round(dashboardProteinConsistency)}% protein`,
+          detail: dashboardHealthEvidence.nutritionIssue || `${Math.round(dashboardProteinConsistency)}% of days with protein records`,
           label: "Protein",
-          value: dashboardProteinConsistency >= 70 ? "Holding" : "Needs plan",
+          value: dashboardProteinConsistency > 0 ? "Recorded" : "No records",
         },
         {
-          detail: `${Math.round(dashboardHydrationConsistency)}% hydration`,
+          detail: dashboardHealthEvidence.nutritionIssue || `${Math.round(dashboardHydrationConsistency)}% of days with water records`,
           label: "Hydration",
-          value: dashboardHydrationConsistency >= 70 ? "Steady" : "Nudge",
+          value: dashboardHydrationConsistency > 0 ? "Recorded" : "No records",
         },
         {
           detail: `${dashboardNutritionFavorites} saved fuel items`,
           label: "Relevant",
-          value: dashboardMealConsistency >= 70 ? "Meal rhythm" : "Grocery",
+          value: dashboardMealConsistency > 0 ? "Meal records" : "Add a meal",
         },
       ],
       title: "Fuel Signal",
       tone: "emerald",
     },
     {
-      completion: dashboardRecoveryAverage,
-      description:
-        "Recovery suggestions respond to recent training heat and readiness.",
-      href: ROUTES.dashboard.recovery,
-      icon: "recovery",
-      metric: `${dashboardRecoveryAverage}%`,
+      completion: dashboardHealthEvidence.recoveryRows.length ? 100 : 0,
+      description: "Saved weekly check-ins provide self-reported energy, sleep, stress and soreness context.",
+      href: ROUTES.dashboard.recovery, icon: "recovery", metric: dashboardHealthEvidence.recoveryLabel,
       rows: [
-        {
-          detail:
-            dashboardSummary.weeklySets > 30
-              ? `${dashboardSummary.weeklySets} sets`
-              : "Load manageable",
-          label: "Heat",
-          value: dashboardSummary.weeklySets > 30 ? "Reduce" : "Build",
-        },
-        {
-          detail: `${dashboardRecoveryAverage}% average`,
-          label: "Readiness",
-          value: dashboardRecoveryAverage >= 78 ? "Ready" : "Monitor",
-        },
-        {
-          detail: "Mobility and soreness context",
-          label: "Relevant",
-          value:
-            dashboardSummary.weeklySets > 30 ? "Recovery plan" : "Mobility",
-        },
+        { detail: dashboardSummary.weeklySets + " logged sets", label: "Activity", value: "Recorded sets" },
+        { detail: dashboardHealthEvidence.recoveryLabel, label: "Check-in", value: dashboardHealthEvidence.recoveryRows.length ? "Reported" : "Not recorded" },
+        { detail: "Record how you feel before reviewing your recovery plan", label: "Next", value: "Weekly check-in" },
       ],
       title: "Recovery Signal",
       tone: "amber",
@@ -17664,26 +17099,14 @@ export default function DashboardExperience({
     {
       completion: soundFitnessLevelProgress,
       description:
-        "Rewards and community prompts are tuned from points, streaks, and unlocked milestones.",
+        dashboardRewardEvidence.description,
       href: ROUTES.dashboard.achievements,
       icon: "achievements",
-      metric: soundPoints.toLocaleString(),
+      metric: dashboardRewardEvidence.pointsLabel,
       rows: [
-        {
-          detail: `${soundEmeralds.toLocaleString()} Emeralds | ${soundTokens.toLocaleString()} Sound Tokens`,
-          label: "Wallet",
-          value: `${soundPoints.toLocaleString()} pts`,
-        },
-        {
-          detail: `${momentumEntryStreak}/${momentumStreakTarget} day goal`,
-          label: "Streak",
-          value: momentumHasEntryToday ? "Live" : "Log today",
-        },
-        {
-          detail: "Milestones and Sound World prompts",
-          label: "Relevant",
-          value: "Rewards",
-        },
+        { label: "Profile cache", value: dashboardRewardEvidence.pointsLabel, detail: "Recorded value; not a redeemable balance" },
+        { label: "Balances", value: "Unavailable", detail: "Tokens and gems require a verified reward ledger" },
+        { label: "Claims", value: "Unavailable", detail: "No award or redemption service is connected" },
       ],
       title: "Reward Signal",
       tone: "fuchsia",
@@ -17758,7 +17181,7 @@ export default function DashboardExperience({
       return [
         {
           label: "Weekly Volume",
-          value: `${Math.round(dashboardSummary.weeklyVolume).toLocaleString()} lb`,
+          value: dashboardWorkload.weeklyLabel,
         },
         {
           label: "Workouts",
@@ -17777,12 +17200,12 @@ export default function DashboardExperience({
         stepLabel === "Hydrate"
           ? {
               label: "Hydration",
-              value: `${Math.round(dashboardHydrationConsistency)}%`,
+              value: dashboardHealthEvidence.nutritionIssue || (dashboardHydrationConsistency > 0 ? `${Math.round(dashboardHydrationConsistency)}% days logged` : "No water records"),
             }
           : stepLabel === "Meals"
             ? {
                 label: "Meal Rhythm",
-                value: `${Math.round(dashboardMealConsistency)}%`,
+                value: dashboardHealthEvidence.nutritionIssue || (dashboardMealConsistency > 0 ? `${Math.round(dashboardMealConsistency)}% days logged` : "No meal records"),
               }
             : stepLabel === "Grocery"
               ? {
@@ -17792,7 +17215,7 @@ export default function DashboardExperience({
               : stepLabel === "Calories"
                 ? {
                     label: "Calories",
-                    value: `${dashboardWeeklyCaloriesTarget.toLocaleString()} target`,
+                    value: "Calorie target unavailable",
                   }
                 : {
                     label: "Inner Focus",
@@ -17802,15 +17225,15 @@ export default function DashboardExperience({
       return [
         {
           label: "Weekly Calories",
-          value: `${dashboardWeeklyCaloriesTarget.toLocaleString()} target`,
+          value: "Calorie target unavailable",
         },
         {
           label: "Meal Rhythm",
-          value: `${Math.round(dashboardMealConsistency)}%`,
+          value: dashboardHealthEvidence.nutritionIssue || (dashboardMealConsistency > 0 ? `${Math.round(dashboardMealConsistency)}% days logged` : "No meal records"),
         },
         {
           label: "Protein",
-          value: `${Math.round(dashboardProteinConsistency)}%`,
+          value: dashboardHealthEvidence.nutritionIssue || (dashboardProteinConsistency > 0 ? `${Math.round(dashboardProteinConsistency)}% days logged` : "No protein records"),
         },
         {
           label: "Saved Fuel",
@@ -17828,18 +17251,15 @@ export default function DashboardExperience({
       return [
         {
           label: "Readiness",
-          value: `${dashboardRecoveryAverage}%`,
+          value: dashboardHealthEvidence.recoveryLabel,
         },
         {
-          label: "Training Heat",
-          value:
-            dashboardSummary.weeklySets > 30
-              ? "Manage heat"
-              : `${dashboardSummary.weeklySets} sets`,
+          label: "Recorded Sets",
+          value: `${dashboardSummary.weeklySets} sets`,
         },
         {
           label: "Hydration",
-          value: `${Math.round(dashboardHydrationConsistency)}%`,
+          value: dashboardHealthEvidence.nutritionIssue || (dashboardHydrationConsistency > 0 ? `${Math.round(dashboardHydrationConsistency)}% days logged` : "No water records"),
         },
         progressMetric,
       ];
@@ -17849,7 +17269,7 @@ export default function DashboardExperience({
       return [
         {
           label: "Weekly Volume",
-          value: `${Math.round(dashboardSummary.weeklyVolume).toLocaleString()} lb`,
+          value: dashboardWorkload.weeklyLabel,
         },
         {
           label: "Exercises",
@@ -17874,7 +17294,7 @@ export default function DashboardExperience({
         },
         {
           label: "Weekly Volume",
-          value: `${Math.round(dashboardSummary.weeklyVolume).toLocaleString()} lb`,
+          value: dashboardWorkload.weeklyLabel,
         },
         {
           label: "Latest",
@@ -17924,15 +17344,15 @@ export default function DashboardExperience({
       return [
         {
           label: "Sound Points",
-          value: soundPoints.toLocaleString(),
+          value: dashboardRewardEvidence.pointsLabel,
         },
         {
           label: "Tokens",
-          value: soundTokens.toLocaleString(),
+          value: dashboardRewardEvidence.tokensLabel,
         },
         {
           label: "Emeralds",
-          value: soundEmeralds.toLocaleString(),
+          value: dashboardRewardEvidence.emeraldsLabel,
         },
         progressMetric,
       ];
@@ -17960,15 +17380,15 @@ export default function DashboardExperience({
       return [
         {
           label: "Sound Points",
-          value: soundPoints.toLocaleString(),
+          value: dashboardRewardEvidence.pointsLabel,
         },
         {
           label: "Tokens",
-          value: soundTokens.toLocaleString(),
+          value: dashboardRewardEvidence.tokensLabel,
         },
         {
           label: "Emeralds",
-          value: soundEmeralds.toLocaleString(),
+          value: dashboardRewardEvidence.emeraldsLabel,
         },
         progressMetric,
       ];
@@ -18023,7 +17443,7 @@ export default function DashboardExperience({
           },
           {
             label: "Weekly Volume",
-            value: `${Math.round(dashboardSummary.weeklyVolume).toLocaleString()} lb`,
+            value: dashboardWorkload.weeklyLabel,
           },
           {
             label: "Recovery",
@@ -18200,7 +17620,7 @@ export default function DashboardExperience({
       icon: "workout",
       label: "Sessions",
       meta: "Training",
-      points: Math.round(soundPoints * 0.82),
+      points: 0,
       tone: "border-sky-200/28 bg-sky-300/10 text-sky-100 hover:border-sky-100/45 hover:bg-sky-300/16",
       toneKey: "cyan",
     },
@@ -18210,7 +17630,7 @@ export default function DashboardExperience({
       icon: "profile",
       label: "Profile",
       meta: "Identity",
-      points: Math.round(soundPoints * 0.94),
+      points: 0,
       tone: "border-cyan-200/30 bg-cyan-300/10 text-cyan-100 hover:border-cyan-100/45 hover:bg-cyan-300/16",
       toneKey: "cyan",
     },
@@ -18220,7 +17640,7 @@ export default function DashboardExperience({
       icon: "goals",
       label: "Goals",
       meta: "Direction",
-      points: Math.round(soundPoints * 0.68),
+      points: 0,
       tone: "border-amber-200/34 bg-amber-300/12 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/18",
       toneKey: "amber",
     },
@@ -18230,7 +17650,7 @@ export default function DashboardExperience({
       icon: "nutrition",
       label: "Nutrition",
       meta: "Fuel",
-      points: Math.round(soundPoints * 0.38),
+      points: 0,
       tone: "border-emerald-200/28 bg-emerald-300/10 text-emerald-100 hover:border-emerald-100/45 hover:bg-emerald-300/16",
       toneKey: "emerald",
     },
@@ -18240,7 +17660,7 @@ export default function DashboardExperience({
       icon: "recovery",
       label: "Recovery",
       meta: "Readiness",
-      points: Math.round(soundPoints * 0.24),
+      points: 0,
       tone: "border-violet-200/28 bg-violet-300/10 text-violet-100 hover:border-violet-100/45 hover:bg-violet-300/16",
       toneKey: "sky",
     },
@@ -18250,7 +17670,7 @@ export default function DashboardExperience({
       icon: "performance",
       label: "Performance",
       meta: "Athletic",
-      points: Math.round(soundPoints * 0.46),
+      points: 0,
       tone: "border-amber-200/30 bg-amber-300/10 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/16",
       toneKey: "amber",
     },
@@ -18260,7 +17680,7 @@ export default function DashboardExperience({
       icon: "education",
       label: "Education",
       meta: "Learning",
-      points: Math.round(soundPoints * 0.12),
+      points: 0,
       tone: "border-blue-200/28 bg-blue-300/10 text-blue-100 hover:border-blue-100/45 hover:bg-blue-300/16",
       toneKey: "violet",
     },
@@ -18270,7 +17690,7 @@ export default function DashboardExperience({
       icon: "soundworld",
       label: "Sound World",
       meta: "Community",
-      points: Math.round(soundPoints * 0.08),
+      points: 0,
       tone: "border-pink-200/28 bg-pink-300/10 text-pink-100 hover:border-pink-100/45 hover:bg-pink-300/16",
       toneKey: "fuchsia",
     },
@@ -18974,38 +18394,86 @@ export default function DashboardExperience({
     // same commit that closes the popup.
     setDashboardContentFocused(false);
     // Three staggered re-checks rather than one: the React commit itself lands
-    // 150-250ms after the click while the main thread chews the panel
-    // transition, so a single fixed delay either fires mid-fade (re-cached as
-    // visible) or long after. Each call just resets a per-widget counter, so
-    // the extra two are effectively free.
-    window.setTimeout(() => invalidateDashboardStageVisibility(), 180);
-    window.setTimeout(() => invalidateDashboardStageVisibility(), 300);
-    window.setTimeout(() => invalidateDashboardStageVisibility(), 460);
+    // after the click while the main thread chews the panel transition, so a
+    // single fixed delay either fires mid-swipe (re-cached as visible) or long
+    // after. Match the now-snappier 190ms account pager so the gift/rewards
+    // WebGL anchors cull and re-enter with the same swipe instead of popping.
+    window.setTimeout(() => invalidateDashboardStageVisibility(), 120);
+    window.setTimeout(() => invalidateDashboardStageVisibility(), DASHBOARD_HEADER_PAGE_ROTATION_MS);
+    window.setTimeout(() => invalidateDashboardStageVisibility(), 320);
 
     // Narrow headers walk one flat sequence: the dashboard selector, then each
     // account control on its own, then back round to the selector.
     if (dashboardHeaderIsNarrow) {
-      const lastAccountIndex = DASHBOARD_NARROW_ACCOUNT_ITEMS.length - 1;
+      const lastAccountIndex = dashboardNarrowAccountItems.length - 1;
       const onSelector = dashboardMobileHeaderOrbitPanel === "selector";
+      const currentNarrowAccountItem =
+        dashboardMobileHeaderOrbitPanel === "account"
+          ? dashboardNarrowAccountItems[
+              Math.min(
+                Math.max(dashboardNarrowAccountIndex, 0),
+                lastAccountIndex,
+              )
+            ]
+          : null;
+      const stageExitingNarrowAccountItem = (
+        nextPanel: "selector" | "account",
+        nextIndex: number,
+      ) => {
+        const nextNarrowAccountItem =
+          nextPanel === "account"
+            ? dashboardNarrowAccountItems[
+                Math.min(Math.max(nextIndex, 0), lastAccountIndex)
+              ]
+            : null;
+        const shouldStageExit =
+          currentNarrowAccountItem !== null &&
+          nextNarrowAccountItem !== null &&
+          currentNarrowAccountItem !== nextNarrowAccountItem;
+
+        if (dashboardExitingNarrowAccountTimerRef.current !== null) {
+          window.clearTimeout(dashboardExitingNarrowAccountTimerRef.current);
+          dashboardExitingNarrowAccountTimerRef.current = null;
+        }
+
+        if (!shouldStageExit) {
+          setDashboardExitingNarrowAccountItem(null);
+          return;
+        }
+
+        setDashboardExitingNarrowAccountItem(currentNarrowAccountItem);
+        dashboardExitingNarrowAccountTimerRef.current = window.setTimeout(() => {
+          dashboardExitingNarrowAccountTimerRef.current = null;
+          setDashboardExitingNarrowAccountItem(null);
+        }, DASHBOARD_HEADER_TRANSITION_PAUSE_MS);
+      };
 
       if (direction === "right") {
         if (onSelector) {
+          stageExitingNarrowAccountItem("account", 0);
           setDashboardNarrowAccountIndex(0);
           setDashboardMobileHeaderOrbitPanel("account");
         } else if (dashboardNarrowAccountIndex < lastAccountIndex) {
-          setDashboardNarrowAccountIndex(dashboardNarrowAccountIndex + 1);
+          const nextAccountIndex = dashboardNarrowAccountIndex + 1;
+          stageExitingNarrowAccountItem("account", nextAccountIndex);
+          setDashboardNarrowAccountIndex(nextAccountIndex);
         } else {
+          stageExitingNarrowAccountItem("selector", dashboardNarrowAccountIndex);
           setDashboardMobileHeaderOrbitPanel("selector");
         }
         return;
       }
 
       if (onSelector) {
+        stageExitingNarrowAccountItem("account", lastAccountIndex);
         setDashboardNarrowAccountIndex(lastAccountIndex);
         setDashboardMobileHeaderOrbitPanel("account");
       } else if (dashboardNarrowAccountIndex > 0) {
-        setDashboardNarrowAccountIndex(dashboardNarrowAccountIndex - 1);
+        const nextAccountIndex = dashboardNarrowAccountIndex - 1;
+        stageExitingNarrowAccountItem("account", nextAccountIndex);
+        setDashboardNarrowAccountIndex(nextAccountIndex);
       } else {
+        stageExitingNarrowAccountItem("selector", dashboardNarrowAccountIndex);
         setDashboardMobileHeaderOrbitPanel("selector");
       }
       return;
@@ -19021,6 +18489,17 @@ export default function DashboardExperience({
           : "selector",
     );
   };
+  /** A plain primary click, i.e. one we are allowed to intercept. Modified and
+      non-primary clicks stay with the browser so ctrl/cmd/shift-click and
+      middle-click still open the page in a new tab or window. */
+  const isPlainDashboardNavClick = (
+    event: ReactMouseEvent<HTMLAnchorElement>,
+  ) =>
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey;
   const getDashboardHeaderMenuBlockSlot = (blockIndex: number) => {
     const relativeIndex =
       (blockIndex -
@@ -19211,23 +18690,53 @@ export default function DashboardExperience({
 
     if (!didMove) return false;
 
+    // The rail slide and the nav refit move the joysticks' WebGL anchors for
+    // the length of the turn. Their 3D follows the anchor rect once per stage
+    // frame, and the stage is capped well below display rate, so without this
+    // the drawn button trails its own chrome — it reads as the background
+    // glitching while you scroll. Track at display rate until the slide and
+    // its settle have finished, then let the cap return.
+    boostDashboardStageFrameRate(760);
+    invalidateDashboardStageVisibility();
+
     pulseDashboardHeaderVortex(direction);
 
-    setDashboardHeaderScrollButtonRoll((currentRoll) => {
-      const directionalRoll =
-        direction === "right"
-          ? 120
-          : direction === "left"
-            ? -120
-            : direction === "down"
-              ? 110
-              : -110;
-
-      return currentRoll + directionalRoll;
-    });
+    // The bubble used to take a ±120deg roll per step, which read as the
+    // joystick's background spinning every time the nav was scrolled. Roll
+    // now comes only from an actual drag (below), where it follows the
+    // pointer and is direct feedback rather than decoration.
 
     return true;
   };
+  const canDashboardHeaderScrollButtonDirection = (
+    direction: DashboardScrollButtonDirection,
+  ) => {
+    if (direction === "left" || direction === "right") {
+      return true;
+    }
+
+    const { activeJourneyStepIndex, journeySteps } =
+      getDashboardHeaderJourneyState();
+    return (
+      journeySteps.length > 1 &&
+      (direction === "up"
+        ? activeJourneyStepIndex > 0
+        : activeJourneyStepIndex < journeySteps.length - 1)
+    );
+  };
+  const getDashboardHeaderScrollButtonDragDelay = (
+    direction: DashboardScrollButtonDirection,
+  ) =>
+    direction === "left" || direction === "right"
+      ? DASHBOARD_HEADER_SELECTOR_HORIZONTAL_DRAG_DELAY_MS
+      : DASHBOARD_HEADER_SELECTOR_VERTICAL_DRAG_DELAY_MS;
+  /** Same axis split as the delay above, applied to the repeat cadence. */
+  const getDashboardAnalogRepeatMs = (
+    direction: DashboardScrollButtonDirection,
+  ) =>
+    direction === "left" || direction === "right"
+      ? DASHBOARD_ANALOG_LATERAL_REPEAT_MS
+      : DASHBOARD_ANALOG_REPEAT_MS;
   const stopDashboardHeaderScrollButtonHold = () => {
     const releasedDirection =
       dashboardHeaderScrollButtonHoldDirectionRef.current;
@@ -19262,24 +18771,32 @@ export default function DashboardExperience({
     }
 
     stopDashboardHeaderScrollButtonHold();
-    const didMove = runDashboardHeaderScrollButtonDirection(direction);
-    if (!didMove) return;
+    if (!canDashboardHeaderScrollButtonDirection(direction)) return;
 
     dashboardHeaderScrollButtonHoldDirectionRef.current = direction;
     setDashboardHeaderScrollButtonActiveDirection(direction);
 
     dashboardHeaderScrollButtonHoldTimeoutRef.current = window.setTimeout(
       () => {
+        if (dashboardHeaderScrollButtonHoldDirectionRef.current !== direction) {
+          return;
+        }
+
+        if (!runDashboardHeaderScrollButtonDirection(direction)) {
+          stopDashboardHeaderScrollButtonHold();
+          return;
+        }
+
         dashboardHeaderScrollButtonHoldIntervalRef.current = window.setInterval(
           () => {
             if (!runDashboardHeaderScrollButtonDirection(direction)) {
               stopDashboardHeaderScrollButtonHold();
             }
           },
-          DASHBOARD_ANALOG_REPEAT_MS,
+          getDashboardAnalogRepeatMs(direction),
         );
       },
-      DASHBOARD_ANALOG_HOLD_DELAY_MS,
+      getDashboardHeaderScrollButtonDragDelay(direction),
     );
   };
   const handleDashboardHeaderScrollButtonPointerDown = (
@@ -19373,6 +18890,18 @@ export default function DashboardExperience({
           ? "down"
           : "up";
 
+    // Metered like the drag-hold: a continuous swipe is one gesture, not one
+    // step per event. preventDefault stays above this so a rejected tick still
+    // does not scroll the page behind the joystick.
+    const wheelNow = Date.now();
+    if (
+      wheelNow - dashboardHeaderScrollButtonWheelLockRef.current <
+      getDashboardAnalogRepeatMs(nextDirection)
+    ) {
+      return;
+    }
+    dashboardHeaderScrollButtonWheelLockRef.current = wheelNow;
+
     if (runDashboardHeaderScrollButtonDirection(nextDirection)) {
       setDashboardHeaderScrollButtonActiveDirection(nextDirection);
       window.setTimeout(() => {
@@ -19437,7 +18966,8 @@ export default function DashboardExperience({
     dashboardHeaderMenuOrbitHoldTimeoutRef.current = window.setTimeout(() => {
       dashboardHeaderMenuOrbitHoldIntervalRef.current = window.setInterval(
         () => runDashboardHeaderMenuOrbitDirection(direction),
-        DASHBOARD_ANALOG_REPEAT_MS,
+        // DashboardHorizontalScrollDirection is lateral by definition.
+        DASHBOARD_ANALOG_LATERAL_REPEAT_MS,
       );
     }, DASHBOARD_ANALOG_HOLD_DELAY_MS);
   };
@@ -19513,6 +19043,15 @@ export default function DashboardExperience({
 
     const nextDirection: DashboardHorizontalScrollDirection =
       event.deltaX > 0 ? "right" : "left";
+
+    const wheelNow = Date.now();
+    if (
+      wheelNow - dashboardHeaderMenuOrbitWheelLockRef.current <
+      DASHBOARD_ANALOG_LATERAL_REPEAT_MS
+    ) {
+      return;
+    }
+    dashboardHeaderMenuOrbitWheelLockRef.current = wheelNow;
 
     runDashboardHeaderMenuOrbitDirection(nextDirection);
     setDashboardHeaderMenuOrbitActiveDirection(nextDirection);
@@ -19683,7 +19222,7 @@ export default function DashboardExperience({
         if (!runDashboardPageAnalogDirection(direction)) {
           stopDashboardPageAnalogHold();
         }
-      }, DASHBOARD_ANALOG_REPEAT_MS);
+      }, getDashboardAnalogRepeatMs(direction));
     }, DASHBOARD_ANALOG_HOLD_DELAY_MS);
   };
   const handleDashboardPageAnalogPointerDown = (
@@ -19811,157 +19350,26 @@ export default function DashboardExperience({
     dashboardPageAnalogDragging,
     dashboardProfileHubAnalogDragging,
   ]);
-  const heroAchievements = [
-    {
-      category: "intensity",
-      href: ROUTES.dashboard.achievements,
-      icon: "🏋️",
-      label: "Volume Milestone",
-      meta: "Training volume milestone",
-      progress: 100,
-      rarity: "gold",
-      status: "completed",
-      statusLabel: "Earned",
-    },
-    {
-      category: "consistency",
-      href: ROUTES.dashboard.achievements,
-      icon: "🔥",
-      label: "5 Day Streak",
-      meta: "Consistency streak",
-      progress: 100,
-      rarity: "gold",
-      status: "completed",
-      statusLabel: "Earned",
-    },
-    {
-      category: "consistency",
-      href: ROUTES.dashboard.achievements,
-      icon: "🎯",
-      label: "Goal Locked",
-      meta: "Plan direction set",
-      progress: 100,
-      rarity: "gold",
-      status: "completed",
-      statusLabel: "Earned",
-    },
-    {
-      category: "intensity",
-      href: ROUTES.dashboard.achievements,
-      icon: "💪",
-      label: "Strength Builder",
-      meta: "Progressive overload",
-      progress: 72,
-      rarity: "cyan",
-      status: "active",
-      statusLabel: "In progress",
-    },
-    {
-      category: "consistency",
-      href: ROUTES.dashboard.achievements,
-      icon: "🧠",
-      label: "Consistency King",
-      meta: "AI consistency trend",
-      progress: 45,
-      rarity: "cyan",
-      status: "active",
-      statusLabel: "In progress",
-    },
-    {
-      category: "recovery",
-      href: ROUTES.dashboard.achievements,
-      icon: "😴",
-      label: "Sleep Optimized",
-      meta: "Recovery rhythm",
-      progress: 28,
-      rarity: "bronze",
-      status: "active",
-      statusLabel: "In progress",
-    },
-    {
-      category: "intensity",
-      href: ROUTES.dashboard.achievements,
-      icon: "🏆",
-      label: "Elite Performer",
-      meta: "Future prestige tier",
-      progress: 0,
-      rarity: "elite",
-      status: "locked",
-      statusLabel: "Locked",
-    },
-    {
-      category: "intensity",
-      href: ROUTES.dashboard.achievements,
-      icon: "⚡",
-      label: "Power Surge",
-      meta: "Explosive performance",
-      progress: 0,
-      rarity: "silver",
-      status: "locked",
-      statusLabel: "Locked",
-    },
-    {
-      actionLabel: "Open",
-      category: "consistency",
-      description: "See all badges, progress, and locked rewards.",
-      href: ROUTES.dashboard.achievements,
-      icon: "\u{1F3C6}",
-      label: "View Achievements",
-      progress: 100,
-      rarity: "gold",
-      status: "active",
-      variant: "cta",
-    },
-  ] satisfies AchievementBadgeItem[];
+  const heroAchievements: AchievementBadgeItem[] = [
+    ...achievementMilestones({ goals: dashboardFoundationProgress.goalsCompletion === 100,
+      plan: Boolean(dashboardPlanEvidence.title), planIssue: dashboardPlanEvidence.issue,
+      workouts: dashboardSessionEvidence.total, historyIssue: dashboardSessionEvidence.issue }),
+    { actionLabel: "Open", category: "consistency", href: ROUTES.dashboard.achievements,
+      icon: "🏆", label: "View Achievements", description: "Review recorded milestones and award availability.",
+      progress: 0, status: "default", variant: "cta" },
+  ];
   const heroAchievementCount = heroAchievements.length;
   const headerAchievementItems = heroAchievements.filter(
     (achievement) => achievement.variant !== "cta",
   );
   const headerAchievementTotal = Math.max(1, headerAchievementItems.length);
   const getHeaderAchievementProgress = (achievement: AchievementBadgeItem) => {
-    const fallbackProgress =
-      achievement.status === "completed"
-        ? 100
-        : achievement.status === "locked"
-          ? 0
-          : 48;
-
-    return clampDashboardPercent(achievement.progress ?? fallbackProgress);
+    return clampDashboardPercent(achievement.progress ?? (achievement.status === "completed" ? 100 : 0));
   };
-  const getHeaderAchievementEstimate = (achievement: AchievementBadgeItem) => {
-    const progress = getHeaderAchievementProgress(achievement);
-
-    if (progress >= 100 || achievement.status === "completed") {
-      return {
-        fullLabel: `${achievement.label} is already earned`,
-        label: "Earned",
-      };
-    }
-
-    const plannedSessionsPerWeek = Math.max(
-      1,
-      dashboardSummary.weeklySessionGoal || DASHBOARD_WEEKLY_SESSION_GOAL,
-    );
-    const progressPerPlannedSession = 100 / plannedSessionsPerWeek;
-    const sessionsRemaining = Math.max(
-      1,
-      Math.ceil((100 - progress) / progressPerPlannedSession),
-    );
-    const daysPerPlannedSession = 7 / plannedSessionsPerWeek;
-    const daysRemaining = Math.max(
-      1,
-      Math.ceil(sessionsRemaining * daysPerPlannedSession),
-    );
-    const estimateDate = addDashboardDays(dashboardToday, daysRemaining);
-    const estimateDateLabel = formatAchievementEstimateDate(estimateDate);
-    const estimateFullDateLabel =
-      formatAchievementEstimateFullDate(estimateDate);
-
-    return {
-      fullLabel: `${achievement.label} estimated completion ${estimateFullDateLabel} if the current plan pace is followed`,
-      label: `Est. ${estimateDateLabel}`,
-    };
-  };
+  const getHeaderAchievementEstimate = (achievement: AchievementBadgeItem) => ({
+    fullLabel: achievement.label + ": " + (achievement.statusLabel || "Not yet recorded") + ". Completion date unavailable.",
+    label: achievement.status === "completed" ? "Recorded" : "No estimate",
+  });
   const headerAchievementsEarned = headerAchievementItems.filter(
     (achievement) =>
       achievement.status === "completed" || (achievement.progress ?? 0) >= 100,
@@ -20056,7 +19464,7 @@ export default function DashboardExperience({
     activeHeroAchievement?.statusLabel ||
     (activeHeroAchievementProgress >= 100 ||
     activeHeroAchievement?.status === "completed"
-      ? "Earned"
+      ? "Recorded"
       : activeHeroAchievement?.status === "locked"
         ? "Locked"
         : `${Math.round(activeHeroAchievementProgress)}% complete`);
@@ -20072,7 +19480,7 @@ export default function DashboardExperience({
     },
     {
       accentClassName: "bg-amber-300 shadow-[0_0_14px_rgba(250,204,21,0.62)]",
-      detail: `${dashboardFoundationProgress.goalsCompletion}% goals / ${dashboardConsistencyStage}`,
+      detail: `${dashboardFoundationProgress.goalsCompletion}% goal setup / ${dashboardConsistencyStage}`,
       href: ROUTES.dashboard.profile,
       id: "profile",
       label: "Active Profile",
@@ -20085,7 +19493,7 @@ export default function DashboardExperience({
       href: ROUTES.dashboard.sessions,
       id: "needle",
       label: "Needle Meter",
-      metric: `${dashboardSummary.workoutsThisWeek}/${dashboardSummary.weeklySessionGoal} sessions`,
+      metric: `${dashboardWeeklySessionGoal.count} sessions`,
       role: "Consistency",
     },
     {
@@ -20113,85 +19521,13 @@ export default function DashboardExperience({
     headerAchievementItems.find(
       (achievement) => achievement.status === "locked",
     );
-  const dashboardCoreLightning = headerAchievementItems.reduce(
-    (counts, achievement) => {
-      const progress = getHeaderAchievementProgress(achievement);
-      const lightningEarned =
-        achievement.status === "locked" || progress <= 0
-          ? 0
-          : achievement.status === "completed" || progress >= 100
-            ? 3
-            : Math.max(1, Math.ceil(progress / 34));
-
-      counts[achievement.category] += lightningEarned;
-      return counts;
-    },
-    {
-      consistency: 0,
-      intensity: 0,
-      recovery: 0,
-    } as Record<AchievementBadgeCategory, number>,
-  );
-  const dashboardKnowledgeLightning = Math.max(
-    0,
-    Math.min(
-      3,
-      Math.ceil(clampDashboardPercent(dashboardTabCompletions.education) / 34),
-    ),
-  );
-  const dashboardVolumeLightning = Math.max(
-    0,
-    Math.min(
-      3,
-      Math.ceil(clampDashboardPercent(dashboardSummary.weeklyVolume / 60) / 34),
-    ),
-  );
-  const dashboardTechniqueLightning = Math.max(
-    0,
-    Math.min(
-      3,
-      Math.ceil(clampDashboardPercent(dashboardTabCompletions.performance) / 34),
-    ),
-  );
-  const getDashboardLightningLevelProgress = (progressPercent: number) => {
-    const progress = clampDashboardPercent(progressPercent);
-    if (progress <= 0) return 0;
-    if (progress >= 100) return 100;
-
-    const activeLevel = Math.max(1, Math.ceil(progress / 34));
-    const levelStart = (activeLevel - 1) * 34;
-    const levelEnd = Math.min(100, activeLevel * 34);
-
-    return clampDashboardPercent(
-      ((progress - levelStart) / Math.max(1, levelEnd - levelStart)) * 100,
-    );
-  };
-  const dashboardCoreLightningProgress = headerAchievementItems.reduce(
-    (totals, achievement) => {
-      const progress = getHeaderAchievementProgress(achievement);
-      const progressTowardNext =
-        achievement.status === "locked" || progress <= 0
-          ? 0
-          : getDashboardLightningLevelProgress(progress);
-
-      totals[achievement.category].sum += progressTowardNext;
-      totals[achievement.category].total += 1;
-      return totals;
-    },
-    {
-      consistency: { sum: 0, total: 0 },
-      intensity: { sum: 0, total: 0 },
-      recovery: { sum: 0, total: 0 },
-    } as Record<AchievementBadgeCategory, { sum: number; total: number }>,
-  );
-  const getDashboardCoreLightningCategoryProgress = (
-    category: AchievementBadgeCategory,
-  ) => {
-    const progress = dashboardCoreLightningProgress[category];
-    return progress.total > 0
-      ? clampDashboardPercent(progress.sum / progress.total)
-      : 0;
-  };
+  // No award ledger exists: recorded milestones cannot create currency or levels.
+  const dashboardCoreLightning: Record<AchievementBadgeCategory, number> = { consistency: 0, intensity: 0, recovery: 0 };
+  const dashboardKnowledgeLightning = 0;
+  const dashboardVolumeLightning = 0;
+  const dashboardTechniqueLightning = 0;
+  const getDashboardLightningLevelProgress = (progressPercent: number) => { void progressPercent; return 0; };
+  const getDashboardCoreLightningCategoryProgress = (category: AchievementBadgeCategory) => { void category; return 0; };
   const dashboardCoreLightningPointMultiplier = 100;
   const dashboardCoreLightningItems = [
     {
@@ -20247,6 +19583,23 @@ export default function DashboardExperience({
       ),
     },
   ] as const;
+  const dashboardRewardPointSummaryCount = 1 + dashboardCoreLightningItems.length;
+  const dashboardRewardPointSummaryIndex =
+    ((activeDashboardPointsSummaryIndex % dashboardRewardPointSummaryCount) +
+      dashboardRewardPointSummaryCount) %
+    dashboardRewardPointSummaryCount;
+  const dashboardRewardTopPointsToneId =
+    dashboardPointsDropdownOpen &&
+    DASHBOARD_PROFILE_REWARD_PANELS[activeDashboardPointsRewardPanelIndex]?.id ===
+      "points"
+      ? dashboardRewardPointSummaryIndex === 0
+        ? "total"
+        : (dashboardCoreLightningItems[dashboardRewardPointSummaryIndex - 1]?.id ??
+          "total")
+      : "default";
+  const dashboardRewardTopPointsToneColor =
+    DASHBOARD_REWARD_POINT_INDICATOR_COLORS[dashboardRewardTopPointsToneId] ??
+    DASHBOARD_REWARD_POINT_INDICATOR_COLORS.default;
   const [
     dashboardSafeProminentGemTone,
     setDashboardSafeProminentGemTone,
@@ -20261,134 +19614,39 @@ export default function DashboardExperience({
       id: "sound",
       label: "Sapphire",
       tone: "blue",
-      valueLabel: soundPoints.toLocaleString(),
+      valueLabel: dashboardRewardEvidence.pointsLabel,
     },
     {
       id: "emerald",
       label: "Emerald",
       tone: "green",
-      valueLabel: soundEmeralds.toLocaleString(),
+      valueLabel: dashboardRewardEvidence.emeraldsLabel,
     },
     {
       id: "coin",
       label: "Topaz",
       tone: "yellow",
-      valueLabel: soundTokens.toLocaleString(),
+      valueLabel: dashboardRewardEvidence.tokensLabel,
     },
     {
       id: "charge",
       label: "Ruby",
       tone: "red",
-      valueLabel: dashboardCoreLightning.intensity.toLocaleString(),
+      valueLabel: "Unavailable",
     },
   ];
   const dashboardSafeProminentGemItem =
     dashboardAppGemOrbitItems.find(
       (item) => item.tone === dashboardSafeProminentGemTone,
     ) ?? dashboardAppGemOrbitItems[0];
-  const dashboardTrophyObjectiveGroups = [
-    {
-      helper: "Patron setup and app stewardship.",
-      id: "app",
-      items: [
-        {
-          detail: `${dashboardFoundationProgress.profileCompletion}% profile / ${dashboardFoundationProgress.goalsCompletion}% goals`,
-          id: "foundation",
-          progress: dashboardProfileHubCompletion,
-          reward: "+80 pts",
-          status:
-            dashboardProfileHubCompletion >= 100
-              ? "Claimed"
-              : dashboardProfileHubCompletion >= 70
-                ? "Close"
-                : "Build",
-          title: "Complete patron profile",
-        },
-        {
-          detail:
-            dashboardSummary.templateCount > 0
-              ? `${dashboardSummary.templateCount} saved template${
-                  dashboardSummary.templateCount === 1 ? "" : "s"
-                }`
-              : "Save one reusable training template",
-          id: "plan",
-          progress: clampDashboardPercent(
-            Math.max(
-              dashboardSummary.templateCount > 0 ? 100 : 0,
-              dashboardFoundationProgress.goalsCompletion,
-            ),
-          ),
-          reward: "+1 green",
-          status: dashboardSummary.templateCount > 0 ? "Claimed" : "Plan",
-          title: "Save a workout plan",
-        },
-        {
-          detail: lastSyncedAt
-            ? "Workout data backup complete"
-            : canSyncWorkoutData
-              ? "Backup service ready"
-              : "Connect local backup access",
-          id: "backup",
-          progress: lastSyncedAt ? 100 : canSyncWorkoutData ? 62 : 18,
-          reward: "+120 pts",
-          status: lastSyncedAt
-            ? "Claimed"
-            : canSyncWorkoutData
-              ? "Ready"
-              : "Open",
-          title: "Back up workout data",
-        },
-      ],
-      label: "App objectives",
-    },
-    {
-      helper: "At-home actions that prove the plan is alive.",
-      id: "home",
-      items: [
-        {
-          detail: `${dashboardSummary.workoutsThisWeek}/${dashboardSummary.weeklySessionGoal} weekly sessions logged`,
-          id: "sessions",
-          progress: dashboardSummary.weeklySessionProgress,
-          reward: "+1 red",
-          status:
-            dashboardSummary.weeklySessionProgress >= 100 ? "Claimed" : "Train",
-          title: "Complete weekly sessions",
-        },
-        {
-          detail: momentumHasEntryToday
-            ? `${momentumEntryStreak} day signal streak`
-            : "Log today's body signal",
-          id: "signal",
-          progress: momentumHasEntryToday
-            ? 100
-            : clampDashboardPercent(momentumEntryStreak * 18),
-          reward: "+1 green",
-          status: momentumHasEntryToday ? "Claimed" : "Log",
-          title: "Check in today",
-        },
-        {
-          detail: `${Math.round(dashboardTabCompletions.recovery)}% recovery / ${Math.round(
-            dashboardSummary.weeklyCaloriesProgress,
-          )}% fuel`,
-          id: "recovery",
-          progress: clampDashboardPercent(
-            Math.max(
-              dashboardTabCompletions.recovery,
-              dashboardSummary.weeklyCaloriesProgress,
-            ),
-          ),
-          reward: "+1 yellow",
-          status:
-            dashboardTabCompletions.recovery >= 85 ||
-            dashboardSummary.weeklyCaloriesProgress >= 100
-              ? "Claimed"
-              : "Recover",
-          title: "Protect recovery",
-        },
-      ],
-      label: "In-home objectives",
-    },
-  ];
+  const dashboardTrophyObjectiveGroups = [{
+    helper: "Current saved activity. Award history and claims are unavailable.",
+    id: "recorded", label: "Recorded milestones",
+    items: headerAchievementItems.map(item => ({
+      id: item.label, title: item.label, detail: item.meta || "Current saved records",
+      progress: item.progress || 0, status: item.statusLabel || "Not yet recorded", reward: "Unavailable",
+    })),
+  }];
   const dashboardTrophyObjectiveProgress = clampDashboardPercent(
     dashboardTrophyObjectiveGroups.reduce(
       (groupTotal, group) =>
@@ -20432,14 +19690,14 @@ export default function DashboardExperience({
                 Patron trophy menu
               </div>
               <div className="dashboard-header-trophy-menu__title">
-                Complete objectives to unlock trophy rewards.
+                Review recorded milestones. Rewards are unavailable.
               </div>
             </div>
             <div className="dashboard-header-trophy-menu__header-actions">
               <div
                 aria-label={`${Math.round(
                   dashboardTrophyObjectiveProgress,
-                )} percent trophy objective progress`}
+                )} percent recorded milestone completion`}
                 aria-valuemax={100}
                 aria-valuemin={0}
                 aria-valuenow={Math.round(dashboardTrophyObjectiveProgress)}
@@ -20535,19 +19793,15 @@ export default function DashboardExperience({
         progress: dashboardSummary.weeklySessionProgress,
         title: "Sessions / Week",
         tone: "emerald",
-        value: `${dashboardSummary.workoutsThisWeek}/${dashboardSummary.weeklySessionGoal}`,
+        value: `${dashboardWeeklySessionGoal.count}`,
       },
       {
         id: "sets",
         meta: dashboardSummary.dailySetGroupSummary,
-        progress: clampDashboardPercent(
-          (dashboardSummary.dailySets /
-            Math.max(1, dashboardSummary.dailySetGoal)) *
-            100,
-        ),
+        progress: 0,
         title: "Daily Sets",
         tone: "emerald",
-        value: `${dashboardSummary.dailySets}/${dashboardSummary.dailySetGoal}`,
+        value: dashboardDailySetEvidence.label,
       },
       {
         id: "pr",
@@ -20555,9 +19809,9 @@ export default function DashboardExperience({
           ? `${activePrHighlight.detail} / ${activePrHighlight.windowLabel}`
           : "30 day best pending",
         progress: dashboardSummary.prProgress,
-        title: "Compound PR",
+        title: "Compound Records",
         tone: "cyan",
-        value: activePrHighlight?.value ?? "0 lb",
+        value: activePrHighlight?.value ?? "Unavailable",
       },
       {
         id: "achievements",
@@ -21069,16 +20323,8 @@ export default function DashboardExperience({
     dashboardHeaderCategoryLevels[
       normalizedDashboardHeaderCategoryLevelActiveIndex
     ] ?? dashboardHeaderCategoryLevels[0];
-  const activeDashboardHeaderCategoryLevelNumber =
-    activeDashboardHeaderCategoryLevel
-      ? Math.max(1, Math.round(activeDashboardHeaderCategoryLevel.level / 10))
-      : 1;
-  const activeDashboardHeaderCategoryRepsToNextLevelLabel =
-    activeDashboardHeaderCategoryLevel
-      ? formatDashboardHeaderCategoryRepsToNextLevel(
-          activeDashboardHeaderCategoryLevel.level,
-        )
-      : "";
+  const activeDashboardHeaderCategoryLevelNumber = "—";
+  const activeDashboardHeaderCategoryRepsToNextLevelLabel = "Level target unavailable";
   const activeDashboardHeaderCategoryLevelDetails =
     activeDashboardHeaderCategoryLevel
       ? dashboardHeaderCategoryLevelDetails[activeDashboardHeaderCategoryLevel.id]
@@ -21089,40 +20335,23 @@ export default function DashboardExperience({
           activeDashboardHeaderCategoryLevel.id
         ]
       : null;
-  const activeDashboardHeaderCategoryPatternSetLabel =
-    activeDashboardHeaderCategoryPatternRecommendation &&
-    activeDashboardHeaderCategoryPatternRecommendation.recentSets > 0
-      ? `${activeDashboardHeaderCategoryPatternRecommendation.recentSets} recent set${
-          activeDashboardHeaderCategoryPatternRecommendation.recentSets === 1
-            ? ""
-            : "s"
-        }`
-      : "No recent sets";
+  const activeDashboardHeaderCategoryPatternSetLabel = activeDashboardHeaderCategoryPatternRecommendation?.status || "No mapped records";
   const dashboardHeaderCategoryUfoChyronItems =
     dashboardHeaderCategoryLevels.map((category) => {
-      const categoryDetails = dashboardHeaderCategoryLevelDetails[category.id];
       const categoryPatternRecommendation =
         dashboardSummary.categoryPatternRecommendations[category.id];
-      const categoryPatternSetLabel =
-        categoryPatternRecommendation &&
-        categoryPatternRecommendation.recentSets > 0
-          ? `${categoryPatternRecommendation.recentSets} recent set${
-              categoryPatternRecommendation.recentSets === 1 ? "" : "s"
-            }`
-          : "Needs reps";
+      const categoryPatternSetLabel = categoryPatternRecommendation?.status || "No mapped records";
 
       return {
         color: category.color,
         id: category.id,
         level: category.level,
-        levelNumber: Math.max(1, Math.round(category.level / 10)),
+        levelNumber: null,
         recommendedLabel:
           categoryPatternRecommendation?.label ||
-          categoryDetails.recommendedPatterns[0],
+          "Not mapped",
         recommendedStatus: categoryPatternSetLabel,
-        repsLabel: formatDashboardHeaderCategoryApproxRepsCount(
-          category.level,
-        ),
+        repsLabel: categoryPatternSetLabel,
         shortLabel: category.shortLabel,
       };
     });
@@ -21506,19 +20735,22 @@ export default function DashboardExperience({
     getDashboardHeaderJourneyState().activeJourneyStep?.label ||
     activeDashboardHeaderLink.label;
 
+  /** The href of the page the nav is HIGHLIGHTING, which since the nav became
+      select-then-open is not necessarily the destination root. The title
+      line already shows this step's label, so the link under it has to agree. */
+  const getDashboardHeaderActiveJourneyStepHref = () =>
+    getDashboardHeaderJourneyState().activeJourneyStep?.href ||
+    activeDashboardHeaderLink.href;
+
   const dashboardHeaderActiveJourneyStepLabel =
     getDashboardHeaderActiveJourneyStepLabel();
+  const dashboardHeaderActiveJourneyStepHref =
+    getDashboardHeaderActiveJourneyStepHref();
   // Plain computation for the same React Compiler reason as
   // dashboardHeaderTimeoutPortalMeters above.
   const dashboardHeaderNewsHeadlines: DashboardHeaderNewsHeadline[] = (() => {
     const activeHref = activeDashboardHeaderLink.href;
-    const planSessionsRemaining = Math.max(
-      0,
-      dashboardSummary.planSessionTarget - dashboardPlanSessionsAttended,
-    );
-    const weeklyVolumeLabel = Math.round(
-      dashboardSummary.weeklyVolume,
-    ).toLocaleString();
+    const weeklyVolumeLabel = dashboardWorkload.weeklyLabel;
     const latestLiftLabel = dashboardSummary.hasStats
       ? dashboardSummary.latestExercise
       : "your first logged lift";
@@ -21567,15 +20799,15 @@ export default function DashboardExperience({
       makeChyronHeadline("ADVICE", progressAdvice, "advice"),
       makeChyronHeadline(
         "STATUS",
-        `${dashboardPlanSessionsAttended}/${dashboardSummary.planSessionTarget} plan sessions logged; ${planSessionsRemaining} to go`,
+        dashboardPlanAttendanceDescription,
       ),
       makeChyronHeadline(
         "STATUS",
-        `${dashboardSummary.workoutsThisWeek} sessions this week / ${soundPoints.toLocaleString()} sound points`,
+        `${dashboardSummary.workoutsThisWeek} sessions this week / ${dashboardRewardEvidence.pointsLabel} sound points`,
       ),
       makeChyronHeadline(
         "SIGNAL",
-        `${dashboardSummary.dailySets}/${dashboardSummary.dailySetGoal} daily sets and ${weeklyVolumeLabel} lb weekly volume`,
+        `${dashboardDailySetEvidence.label} recorded daily sets and ${weeklyVolumeLabel} weekly volume`,
       ),
       makeChyronHeadline(
         "SIGNAL",
@@ -21662,6 +20894,7 @@ export default function DashboardExperience({
 
     if (
       dashboardHeaderMeterMenuOpen ||
+      dashboardProfileRewardDropdownOpen ||
       dashboardHeaderMotionPaused
     ) {
       dashboardHeaderNewsHeadlineRef.current?.classList.remove(
@@ -21734,6 +20967,7 @@ export default function DashboardExperience({
     };
   }, [
     dashboardHeaderMeterMenuOpen,
+    dashboardProfileRewardDropdownOpen,
     dashboardHeaderMotionPaused,
   ]);
 
@@ -21751,102 +20985,39 @@ export default function DashboardExperience({
     return () => window.removeEventListener("resize", remeasure);
   }, []);
 
-  // Keep the nav filling the row. The header changes size when it opens, closes
-  // and goes idle, and each of those changes what "fits" means, so re-fit on
-  // the class changes that drive those states as well as on resize.
+  // Focus transitions fit synchronously. Outside them, only actual available
+  // space changes need a refit; decoration classes are not geometry inputs.
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const main = document.querySelector("main");
-    const shell = document.querySelector(".dashboard-header-vortex-shell");
+    const shell = document.querySelector<HTMLElement>(".dashboard-header-vortex-shell");
+    const row = shell?.querySelector(".dashboard-header-menu-content");
     let frame = 0;
 
     const refit = () => {
       window.cancelAnimationFrame(frame);
-      frame = window.requestAnimationFrame(fitDashboardHeaderNav);
+      frame = window.requestAnimationFrame(() => {
+        if (shell?.dataset.headerFocusFlipping === "true") {
+          dashboardHeaderNavResizePending =
+            readDashboardHeaderResizeInputs(shell) !== dashboardHeaderFocusResizeInputs;
+          return;
+        }
+        fitDashboardHeaderNav();
+      });
     };
 
     refit();
     window.addEventListener("resize", refit);
 
-    // The open/collapse and idle transitions animate, so re-fit once they land.
-    // The shell's className also flips for states that never change the nav's
-    // available space (rewards dropdowns, hover highlights, the level-tab
-    // freeze) — skip those so a hover crossing of the rewards cluster doesn't
-    // schedule two refits (and risk the zoom-probe's forced-layout path).
-    const REFIT_IRRELEVANT_CLASS_TOKENS = new Set([
-      "dashboard-header-vortex-shell--points-dropdown-open",
-      "dashboard-header-vortex-shell--claim-dropdown-open",
-      "dashboard-header-vortex-shell--points-menu-highlighted",
-      "dashboard-header-vortex-shell--level-tab-freeze",
-      // The meter panel is a body portal and never changes the nav's room,
-      // so its open/close must not trigger a refit (a forced layout on both
-      // edges of every open). (Speed audit, Sept 2026.)
-      "dashboard-header-vortex-shell--meter-menu-open",
-      "dashboard-page--meter-menu-open",
-    ]);
-    const observer = new MutationObserver((mutations) => {
-      let relevant = false;
-      let focusChanged = false;
-      for (const mutation of mutations) {
-        // The open/idle flip is an ATTRIBUTE, not a class, and it is the single
-        // change that most alters how much room the nav has. Watching only
-        // class meant opening the header never re-fitted: the nav kept the zoom
-        // measured at mount, when the row was still collapsed and the height
-        // budget read ~35px instead of the settled ~69px, so it stayed at about
-        // 60% of the size it had room for.
-        if (mutation.attributeName === "data-header-focus") {
-          relevant = true;
-          focusChanged = true;
-          break;
-        }
-        const target = mutation.target;
-        if (!(target instanceof HTMLElement)) continue;
-        const before = new Set((mutation.oldValue ?? "").split(/\s+/));
-        const after = new Set(target.className.split(/\s+/));
-        for (const token of after) {
-          if (token && !before.has(token) && !REFIT_IRRELEVANT_CLASS_TOKENS.has(token)) {
-            relevant = true;
-          }
-        }
-        for (const token of before) {
-          if (token && !after.has(token) && !REFIT_IRRELEVANT_CLASS_TOKENS.has(token)) {
-            relevant = true;
-          }
-        }
-        if (relevant) break;
-      }
-      if (!relevant) return;
-      // A focus flip already animates the whole menu row on one shared curve.
-      // Re-fitting mid-flight starts a SECOND animation — a 240ms zoom on the
-      // nav alone, from a value measured against half-transitioned geometry —
-      // so the nav resized on its own clock while everything around it eased,
-      // which reads as the menu items resizing independently of the menu. Let
-      // the choreography land first, then correct against settled geometry.
-      // Same for any class flip that lands while the shell is still gliding
-      // (data-header-transitioning is set for 620ms by the focus flip): an
-      // immediate refit there forced a full layout mid-animation. The +700ms
-      // refit below still corrects against settled geometry.
-      if (
-        !focusChanged &&
-        (shell as HTMLElement | null)?.dataset.headerTransitioning !== "true"
-      ) {
-        refit();
-      }
-      window.setTimeout(refit, 700);
-    });
-    if (main) {
-      observer.observe(main, {
-        attributeFilter: ["class"],
-        attributeOldValue: true,
-      });
-    }
-    if (shell) {
-      observer.observe(shell, {
-        attributeFilter: ["class", "data-header-focus"],
-        attributeOldValue: true,
-      });
-    }
+    const observer = new ResizeObserver(refit);
+    if (shell) observer.observe(shell);
+    if (row) observer.observe(row);
+    // A fixed neighbour can take room from the flex stage without resizing
+    // the row itself (for example a row's crest variant). The selector also
+    // changes intrinsic size when its destination label changes.
+    shell?.querySelectorAll(
+      ".dashboard-header-logo-cluster, .dashboard-header-mobile-orbit-joystick, .dashboard-header-meter-menu-shell, .dashboard-header-main-orbit-stage, .dashboard-header-dashboard-selector",
+    ).forEach((element) => observer.observe(element));
 
     return () => {
       window.cancelAnimationFrame(frame);
@@ -22570,17 +21741,28 @@ export default function DashboardExperience({
 
           return (
             <Link
-              aria-label={`${step.label} journey rail page, ${stepUrgencyTone.label}`}
+              aria-label={`Highlight ${step.label} in the nav, ${stepUrgencyTone.label}`}
               className="dashboard-header-page-orbit-node pointer-events-auto absolute isolate grid h-6 w-6 place-items-center overflow-visible rounded-full border border-white/12 bg-slate-950/58 shadow-[0_0_14px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.08)] transition-[border-color,box-shadow,filter,transform] duration-200 hover:border-cyan-100/48 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/55 active:scale-95"
               draggable={false}
               href={step.href}
               key={`${activeDashboardHeaderLink.label}-${step.label}-dashboard-header-page-rail`}
-              onClick={() => {
+              onClick={(event) => {
+                // A modified click is asking for this page in a new tab, so
+                // the tab being left behind keeps its highlight.
+                if (!isPlainDashboardNavClick(event)) {
+                  markDashboardDestinationVisited(step.href);
+                  return;
+                }
+
+                // railSteps filters out distance === 0, so a rail node is
+                // never the highlighted page: a plain click only brings it
+                // into the highlight, and the nav title above then names it
+                // and opens it.
+                event.preventDefault();
                 setActiveDashboardJourneyStepIndexes((currentIndexes) => ({
                   ...currentIndexes,
                   [card.title]: stepIndex,
                 }));
-                markDashboardDestinationVisited(step.href);
               }}
               onDragStart={(event) => event.preventDefault()}
               data-dashboard-tooltip={step.label}
@@ -22734,7 +21916,11 @@ export default function DashboardExperience({
             return (
               <Link
                 aria-current={isActiveJourneyStep ? "step" : undefined}
-                aria-label={`${step.label} journey tab, ${stepUrgencyTone.label}`}
+                aria-label={
+                  isActiveJourneyStep
+                    ? `Open ${step.label}, ${stepUrgencyTone.label}`
+                    : `Highlight ${step.label} in the nav, ${stepUrgencyTone.label}`
+                }
                 className={`dashboard-header-journey-tab absolute left-1/2 top-1/2 isolate grid h-7 w-7 place-items-center overflow-visible rounded-full bg-transparent text-cyan-100 transition-[filter,opacity,transform,color] duration-300 hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/55 active:scale-95 ${
                   isActiveJourneyStep
                     ? "dashboard-header-journey-tab--active"
@@ -22743,13 +21929,31 @@ export default function DashboardExperience({
                 data-dashboard-tooltip={step.label}
                 href={step.href}
                 key={`${activeDashboardHeaderLink.label}-${step.label}-header-journey`}
-                onClick={() => {
+                onClick={(event) => {
+                  // As on the rail node: a modified click leaves this tab,
+                  // highlight included, exactly as it was.
+                  if (!isPlainDashboardNavClick(event)) {
+                    markDashboardDestinationVisited(step.href);
+                    return;
+                  }
+
                   if (card) {
                     setActiveDashboardJourneyStepIndexes((currentIndexes) => ({
                       ...currentIndexes,
                       [card.title]: stepIndex,
                     }));
                   }
+
+                  // Only the highlighted step opens. NOTE: today this tab is
+                  // rendered only for the active step (the points-dock branch
+                  // returns null otherwise), so this guard is defensive rather
+                  // than reachable — it keeps the rule correct if the full tab
+                  // strip is ever rendered again.
+                  if (!isActiveJourneyStep) {
+                    event.preventDefault();
+                    return;
+                  }
+
                   markDashboardDestinationVisited(step.href);
                 }}
                 style={{
@@ -22830,16 +22034,23 @@ export default function DashboardExperience({
     const canHeaderJoystickScrollDown =
       journeySteps.length > 1 &&
       activeJourneyStepIndex < journeySteps.length - 1;
+    // Only a drag tilts the ball. A step (wheel, click, arrow key) also sets
+    // an active direction, and tilting on that swung the bubble ±22deg for
+    // 220ms — the ball sits 18px forward in a perspective box, so that reads
+    // as the background lurching down/right on every scroll.
+    const scrollButtonTiltDirection = dashboardHeaderScrollButtonDragging
+      ? dashboardHeaderScrollButtonActiveDirection
+      : null;
     const scrollButtonTiltX =
-      dashboardHeaderScrollButtonActiveDirection === "up"
+      scrollButtonTiltDirection === "up"
         ? "-22deg"
-        : dashboardHeaderScrollButtonActiveDirection === "down"
+        : scrollButtonTiltDirection === "down"
           ? "22deg"
           : "10deg";
     const scrollButtonTiltY =
-      dashboardHeaderScrollButtonActiveDirection === "left"
+      scrollButtonTiltDirection === "left"
         ? "-22deg"
-        : dashboardHeaderScrollButtonActiveDirection === "right"
+        : scrollButtonTiltDirection === "right"
           ? "22deg"
           : "0deg";
 
@@ -22937,10 +22148,14 @@ export default function DashboardExperience({
 
   const renderDashboardHeaderMenuOrbitControl = () => {
     const menuOrbitTiltX = "7deg";
+    // Same rule as the selector joystick: tilt follows a drag, not a step.
+    const menuOrbitTiltDirection = dashboardHeaderMenuOrbitDragging
+      ? dashboardHeaderMenuOrbitActiveDirection
+      : null;
     const menuOrbitTiltY =
-      dashboardHeaderMenuOrbitActiveDirection === "left"
+      menuOrbitTiltDirection === "left"
         ? "-22deg"
-        : dashboardHeaderMenuOrbitActiveDirection === "right"
+        : menuOrbitTiltDirection === "right"
           ? "22deg"
           : "0deg";
 
@@ -23022,16 +22237,16 @@ export default function DashboardExperience({
   const renderDashboardMobileHeaderOrbitJoystick = () => {
     const accountPanelActive = dashboardMobileHeaderOrbitPanel === "account";
     // The center ball previews where rotating RIGHT lands next: the narrow
-    // header walks selector -> account -> rewards -> meter -> selector, the
-    // wider header just toggles selector <-> account.
+    // header walks selector -> account -> rewards/(meter if it fits) -> meter
+    // -> selector; the wider header just toggles selector <-> account.
     const nextOrbitItem: "account" | "meter" | "rewards" | "selector" =
       !accountPanelActive
         ? "account"
         : !dashboardHeaderIsNarrow ||
             dashboardNarrowAccountIndex >=
-              DASHBOARD_NARROW_ACCOUNT_ITEMS.length - 1
+              dashboardNarrowAccountItems.length - 1
           ? "selector"
-          : DASHBOARD_NARROW_ACCOUNT_ITEMS[dashboardNarrowAccountIndex + 1];
+          : dashboardNarrowAccountItems[dashboardNarrowAccountIndex + 1];
     const setJoystickHoverSide = (side: "left" | "right" | null) => {
       if (dashboardOrbitJoystickHoverSideRef.current === side) return;
       dashboardOrbitJoystickHoverSideRef.current = side;
@@ -23054,6 +22269,8 @@ export default function DashboardExperience({
         data-dashboard-mobile-header-panel={dashboardMobileHeaderOrbitPanel}
         onClick={(event) => {
           event.preventDefault();
+          const pressedDirection = event.currentTarget.dataset.joystickPressDirection;
+          delete event.currentTarget.dataset.joystickPressDirection;
           // Enter/Space fires a synthetic click with clientX 0, which the
           // pointer hit-test reads as a hard "left" — on a paging header that
           // walks the account run backwards and parks on the meter step. Its
@@ -23064,9 +22281,23 @@ export default function DashboardExperience({
               ? accountPanelActive && !dashboardHeaderIsNarrow
                 ? "left"
                 : "right"
-              : (getDashboardJoystickClickDirection(event, true) ??
-                (accountPanelActive ? "left" : "right")),
+              : ((pressedDirection === "left" || pressedDirection === "right"
+                  ? pressedDirection
+                  : getDashboardJoystickClickDirection(event, true)) ??
+                (accountPanelActive && !dashboardHeaderIsNarrow ? "left" : "right")),
           );
+        }}
+        onPointerDown={(event) => {
+          if (event.pointerType === "mouse" && event.button !== 0) return;
+          // The shell wakes after this bubbles, moving the button before
+          // pointerup. Keep that press attached and use its original side.
+          event.currentTarget.dataset.joystickPressDirection =
+            getDashboardJoystickClickDirection(event, true) ??
+            (accountPanelActive && !dashboardHeaderIsNarrow ? "left" : "right");
+          event.currentTarget.setPointerCapture?.(event.pointerId);
+        }}
+        onPointerCancel={(event) => {
+          delete event.currentTarget.dataset.joystickPressDirection;
         }}
         onPointerMove={(event) => {
           const bounds = event.currentTarget.getBoundingClientRect();
@@ -23274,7 +22505,7 @@ export default function DashboardExperience({
     </span>
   );
 
-  const renderDashboardPageLevelMeter = () => (
+  const renderDashboardPageLevelMeter = () => (!isAdminPreview ? <button aria-label="Open reward status. Level unavailable" className="dashboard-page-level-meter-control pointer-events-auto" onClick={toggleDashboardClaimRewardsDropdown} type="button">LV —</button> : (
     isAdminPreview ? (
       <div
         className={`dashboard-page-level-meter-control dashboard-page-level-meter-control--earnings pointer-events-auto absolute right-3 top-1/2 z-[78] -translate-y-1/2 ${
@@ -23851,22 +23082,29 @@ export default function DashboardExperience({
       </div>
     </div>
     )
-  );
+  ));
 
   const renderDashboardPageAnalog = () => {
     const canPageJoystickScrollUp = clampedDashboardOrbiterRow > 0;
     const canPageJoystickScrollDown =
       clampedDashboardOrbiterRow < dashboardOrbiterRows.length - 1;
+    // Same rule as the header joysticks: a step (wheel/click/arrow) must not
+    // tilt the ball. It sits forward inside a perspective box, so a 22deg
+    // swing reads as the background lurching diagonally and back. A drag still
+    // tips it, where the motion follows the pointer.
+    const pageAnalogTiltDirection = dashboardPageAnalogDragging
+      ? dashboardPageAnalogActiveDirection
+      : null;
     const pageAnalogTiltX =
-      dashboardPageAnalogActiveDirection === "up"
+      pageAnalogTiltDirection === "up"
         ? "-22deg"
-        : dashboardPageAnalogActiveDirection === "down"
+        : pageAnalogTiltDirection === "down"
           ? "22deg"
           : "10deg";
     const pageAnalogTiltY =
-      dashboardPageAnalogActiveDirection === "left"
+      pageAnalogTiltDirection === "left"
         ? "-22deg"
-        : dashboardPageAnalogActiveDirection === "right"
+        : pageAnalogTiltDirection === "right"
           ? "22deg"
           : "0deg";
     return (
@@ -25263,7 +24501,7 @@ export default function DashboardExperience({
                           vaultOpen={dashboardProfileHubOpen}
                         />
                       </span>
-                      {soundEmeralds.toLocaleString()}
+                      {dashboardRewardEvidence.emeraldsLabel}
                     </div>
                   </div>
                   <div className="overflow-visible rounded-2xl border border-cyan-200/18 bg-cyan-300/10 px-3 py-2.5">
@@ -25280,7 +24518,7 @@ export default function DashboardExperience({
                           paused={dashboardHeaderMotionPaused}
                         />
                       </span>
-                      {soundTokens.toLocaleString()}
+                      {dashboardRewardEvidence.tokensLabel}
                     </div>
                   </div>
                   <div className="overflow-visible rounded-2xl border border-sky-200/22 bg-sky-300/10 px-3 py-2.5">
@@ -25298,7 +24536,7 @@ export default function DashboardExperience({
                           paused={dashboardHeaderMotionPaused}
                         />
                       </span>
-                      {soundPoints.toLocaleString()}
+                      {dashboardRewardEvidence.pointsLabel}
                     </div>
                   </div>
                 </div>
@@ -25823,7 +25061,7 @@ export default function DashboardExperience({
                 />
               </span>
               <span className="dashboard-header-week-sessions__label">
-                {`${dashboardSummary.workoutsThisWeek}/${dashboardSummary.weeklySessionGoal} Week`}
+                {`${dashboardWeeklySessionGoal.count} Week`}
               </span>
               <span className="dashboard-header-meter-deadline dashboard-header-meter-deadline--week">
                 Reset {dashboardWeeklySessionResetLabel}
@@ -25975,7 +25213,7 @@ export default function DashboardExperience({
             </span>
             <span className="dashboard-header-streak-fire__content">
               <span className="dashboard-header-streak-fire__value">
-                {`${dashboardPlanSessionsAttended}/${dashboardSummary.planSessionTarget}`}
+                {dashboardPlanAttendanceValue}
               </span>
               <span className="dashboard-header-streak-fire__label">
                 Plan Sessions
@@ -26175,7 +25413,7 @@ export default function DashboardExperience({
           </span>
           <span className="dashboard-header-streak-fire__content">
             <span className="dashboard-header-streak-fire__value">
-              {`${dashboardPlanSessionsAttended}/${dashboardSummary.planSessionTarget}`}
+              {dashboardPlanAttendanceValue}
             </span>
             <span className="dashboard-header-streak-fire__label">
               Plan Sessions
@@ -26193,7 +25431,7 @@ export default function DashboardExperience({
         <div
           aria-hidden="true"
           className={`${portalActualClass} dashboard-header-sets-meter dashboard-header-sets-meter--standalone text-emerald-50`}
-          role="meter"
+          role="img"
         >
           <span className="dashboard-header-sets-meter__tower">
             <span className="dashboard-header-sets-meter__tallies">
@@ -26211,11 +25449,11 @@ export default function DashboardExperience({
             </span>
           </span>
           <span className="dashboard-header-sets-meter__value">
-            {dashboardSummary.dailySets}
+            {dashboardDailySetEvidence.label}
           </span>
           <span className="dashboard-header-sets-meter__label">Daily Sets</span>
           <span className="dashboard-header-meter-deadline dashboard-header-meter-deadline--sets">
-            Goal {dashboardSummary.dailySetGoal}
+            Daily target unavailable
           </span>
         </div>
       );
@@ -26238,11 +25476,11 @@ export default function DashboardExperience({
               aria-hidden="true"
               className="dashboard-header-compound-pr-meter__badge"
             >
-              PR
+              LOAD
             </span>
             <span className="dashboard-header-compound-pr-meter__heading-copy">
               <span className="dashboard-header-compound-pr-meter__eyebrow">
-                30 Day Best
+                Recorded Loads
               </span>
               <span className="dashboard-header-compound-pr-meter__heading">
                 Compound Lifts
@@ -26495,6 +25733,8 @@ export default function DashboardExperience({
   const renderDashboardPointsRewardPanelContent = (
     panelId: (typeof DASHBOARD_PROFILE_REWARD_PANELS)[number]["id"],
   ) => {
+    if (!isAdminPreview) return <div role="status" className="rounded-xl border border-white/10 bg-slate-950 p-4 text-sm text-slate-200"><p>Reward ledger unavailable</p><p>{dashboardRewardEvidence.description}</p><p>Recorded Profile points: {dashboardRewardEvidence.pointsLabel}</p><Link href={ROUTES.dashboard.achievements}>View achievements</Link></div>;
+
     const activeRewardPanelId =
       DASHBOARD_PROFILE_REWARD_PANELS[activeDashboardPointsRewardPanelIndex]
         ?.id;
@@ -26548,7 +25788,7 @@ export default function DashboardExperience({
                     key={item.id}
                     style={
                       {
-                        "--dashboard-profile-app-gem-delay": `${index * -1.7}s`,
+                        "--dashboard-profile-app-gem-delay": `${index * -2.7}s`,
                       } as CSSProperties
                     }
                   />
@@ -26585,13 +25825,13 @@ export default function DashboardExperience({
             Treasure Chest
           </div>
           <div
-            aria-label={`Treasure Tokens treasure chest ${soundTokens.toLocaleString()}`}
+            aria-label={`Treasure Tokens treasure chest ${dashboardRewardEvidence.tokensLabel}`}
             className="dashboard-profile-sound-coins-vault dashboard-profile-sound-coins-vault--showcase mt-3"
           >
             <span className="dashboard-profile-sound-coins-vault__readout">
               <span className="dashboard-profile-sound-coins-vault__count">
                 <span className="dashboard-profile-sound-coins-vault__value">
-                  {soundTokens.toLocaleString()}
+                  {dashboardRewardEvidence.tokensLabel}
                 </span>
                 {dashboardPointsDropdownLatched ||
                 (isActiveRewardPanel && dashboardPointsDropdownOpen) ? (
@@ -26635,18 +25875,140 @@ export default function DashboardExperience({
       isActiveRewardPanel && dashboardPointsDropdownOpen;
     const shouldMountSoundPointsTeslaScene =
       dashboardPointsDropdownLatched || shouldShowSoundPointsTeslaScene;
+    const dashboardPointsSummaryItems = [
+      {
+        id: "total",
+        label: "Total Points",
+        meta: `Weekly ${dashboardWeeklySoundPointLabel}`,
+        value: dashboardRewardEvidence.pointsLabel,
+      },
+      ...dashboardCoreLightningItems.map((item) => ({
+        id: item.id,
+        label: item.label,
+        meta: `LV ${item.count.toLocaleString()} • ${Math.round(
+          item.progress,
+        )}%`,
+        value: item.points.toLocaleString(),
+      })),
+    ];
+    const dashboardPointsSummaryCount = dashboardPointsSummaryItems.length;
+    const dashboardActivePointsSummaryIndex =
+      ((activeDashboardPointsSummaryIndex % dashboardPointsSummaryCount) +
+        dashboardPointsSummaryCount) %
+      dashboardPointsSummaryCount;
+    const dashboardActivePointsSummaryItem =
+      dashboardPointsSummaryItems[dashboardActivePointsSummaryIndex];
+    const dashboardActivePointsTurbineId =
+      dashboardActivePointsSummaryItem.id === "total"
+        ? null
+        : dashboardActivePointsSummaryItem.id;
+    const rotateDashboardPointsSummary = (direction: -1 | 1) => {
+      setActiveDashboardPointsSummaryIndex((currentIndex) =>
+        (currentIndex + direction + dashboardPointsSummaryCount) %
+        dashboardPointsSummaryCount,
+      );
+    };
 
     return (
       <div className="dashboard-profile-reward-orbit__panel-body">
+        <div className="dashboard-profile-reward-orbit__panel-title dashboard-profile-reward-orbit__panel-title--points">
+          Sound Points <span>points by source</span>
+        </div>
         <div
-          className={`dashboard-profile-charge-node-grid ${
+          aria-label="Sound point totals by source"
+          className="dashboard-profile-points-summary"
+        >
+          <div className="dashboard-profile-points-summary__pager">
+            <button
+              aria-label="Show previous point total"
+              className="dashboard-profile-points-summary__arrow dashboard-profile-points-summary__arrow--previous"
+              onClick={(event) => {
+                event.stopPropagation();
+                dashboardPointsRewardPointerMovedRef.current = false;
+                rotateDashboardPointsSummary(-1);
+              }}
+              onPointerCancelCapture={(event) => {
+                event.stopPropagation();
+              }}
+              onPointerDownCapture={(event) => {
+                dashboardPointsRewardPointerMovedRef.current = false;
+                dashboardPointsRewardPointerStartRef.current = null;
+                event.stopPropagation();
+              }}
+              onPointerMoveCapture={(event) => {
+                event.stopPropagation();
+              }}
+              onPointerUpCapture={(event) => {
+                event.stopPropagation();
+              }}
+              type="button"
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
+            <div
+              aria-live="polite"
+              className="dashboard-profile-points-summary__readout"
+              data-point-type={dashboardActivePointsSummaryItem.id}
+              role="status"
+            >
+              <span
+                aria-hidden="true"
+                className="dashboard-profile-points-summary__bolt"
+              >
+                {renderDashboardSoundPointsLightningIcon(
+                  dashboardActivePointsSummaryItem.id === "total" ? 0.82 : 0.68,
+                )}
+              </span>
+              <span className="dashboard-profile-points-summary__copy">
+                <span className="dashboard-profile-points-summary__value">
+                  {dashboardActivePointsSummaryItem.value}
+                </span>
+                <span className="dashboard-profile-points-summary__label">
+                  {dashboardActivePointsSummaryItem.label}
+                </span>
+                <span className="dashboard-profile-points-summary__meta">
+                  {dashboardActivePointsSummaryItem.meta}
+                </span>
+              </span>
+            </div>
+            <button
+              aria-label="Show next point total"
+              className="dashboard-profile-points-summary__arrow dashboard-profile-points-summary__arrow--next"
+              onClick={(event) => {
+                event.stopPropagation();
+                dashboardPointsRewardPointerMovedRef.current = false;
+                rotateDashboardPointsSummary(1);
+              }}
+              onPointerCancelCapture={(event) => {
+                event.stopPropagation();
+              }}
+              onPointerDownCapture={(event) => {
+                dashboardPointsRewardPointerMovedRef.current = false;
+                dashboardPointsRewardPointerStartRef.current = null;
+                event.stopPropagation();
+              }}
+              onPointerMoveCapture={(event) => {
+                event.stopPropagation();
+              }}
+              onPointerUpCapture={(event) => {
+                event.stopPropagation();
+              }}
+              type="button"
+            >
+              <span aria-hidden="true">›</span>
+            </button>
+          </div>
+        </div>
+        <div
+          className={`dashboard-profile-charge-node-grid dashboard-profile-charge-node-grid--readouts-external ${
             shouldShowSoundPointsTeslaScene
               ? "dashboard-profile-charge-node-grid--three"
               : ""
-          } mt-3 grid`}
+          } mt-2 grid`}
         >
           {shouldMountSoundPointsTeslaScene ? (
             <DashboardSoundPointsTeslaCoil3D
+              activeTurbineId={dashboardActivePointsTurbineId}
               className="dashboard-profile-charge-node-grid__tesla-scene"
               paused={
                 dashboardHeaderMotionPaused || !shouldShowSoundPointsTeslaScene
@@ -26657,7 +26019,7 @@ export default function DashboardExperience({
             />
           ) : null}
           <div
-            aria-label={`Sound Points Tesla coil ${soundPoints.toLocaleString()}, weekly goal ${dashboardWeeklySoundPointLabel}`}
+            aria-label={`Sound Points Tesla coil ${dashboardRewardEvidence.pointsLabel}, weekly goal ${dashboardWeeklySoundPointLabel}`}
             className="dashboard-profile-charge-node-master"
           >
             <span
@@ -26680,7 +26042,7 @@ export default function DashboardExperience({
                       "drop-shadow(0 0 0.16rem rgba(191,219,254,0.7)) drop-shadow(0 0 0.42rem rgba(29,78,216,0.92))",
                   })}
                 </span>
-                {soundPoints.toLocaleString()}
+                {dashboardRewardEvidence.pointsLabel}
               </span>
               <span className="dashboard-profile-charge-node-master__label">
                 Sound Points
@@ -26707,6 +26069,12 @@ export default function DashboardExperience({
                   : `${item.label} charge ${item.count.toLocaleString()}`
               }
               className={`dashboard-profile-charge-node dashboard-profile-charge-node--${item.id}`}
+              data-turbine-running={
+                dashboardActivePointsTurbineId === null ||
+                dashboardActivePointsTurbineId === item.id
+                  ? "true"
+                  : "false"
+              }
               key={item.id}
             >
               <span
@@ -26802,7 +26170,14 @@ export default function DashboardExperience({
           : ""
       } absolute inset-x-0 top-0 z-[120] mb-0 overflow-visible border-b border-cyan-100/18 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.18),transparent_34%),radial-gradient(circle_at_88%_12%,rgba(251,191,36,0.10),transparent_30%),linear-gradient(135deg,rgba(15,23,42,0.86),rgba(2,6,23,0.78))] shadow-[0_20px_70px_rgba(0,0,0,0.34),0_0_34px_rgba(34,211,238,0.10),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-md`}
       data-dashboard-header-timeout={dashboardHeaderTimedOut ? "true" : "false"}
-      data-header-focus={dashboardHeaderMotionPaused ? "content" : "header"}
+      data-account-paged={dashboardHeaderIsNarrow ? "true" : "false"}
+      data-account-compact-rewards={
+        dashboardHeaderCompactAccountRewards ? "true" : "false"
+      }
+      data-rewards-meter-shared={
+        dashboardHeaderRewardsMeterShared ? "true" : "false"
+      }
+      data-header-focus="content"
       onBlurCapture={handleDashboardHeaderSurfaceBlur}
       onFocusCapture={highlightDashboardHeaderSurface}
       onMouseEnter={handleDashboardHeaderSurfacePointerActivity}
@@ -26822,6 +26197,12 @@ export default function DashboardExperience({
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-100/55 to-transparent"
       />
+      {dashboardProfileRewardDropdownOpen ? (
+        <span
+          aria-hidden="true"
+          className="dashboard-header-rewards-popup-dim-layer"
+        />
+      ) : null}
       {decorationsReady ? (
       <div aria-hidden="true" className="dashboard-header-ambient-field">
         <span className="dashboard-header-ambient-field__grid-wall" />
@@ -27146,7 +26527,7 @@ export default function DashboardExperience({
         {activeDashboardHeaderCategoryLevel ? (
           <span
             className={`dashboard-header-category-actor dashboard-header-category-actor--center-stage dashboard-header-category-actor--${activeDashboardHeaderCategoryLevel.id}`}
-            data-category-level={`${activeDashboardHeaderCategoryLevel.label} level ${activeDashboardHeaderCategoryLevel.level}`}
+            data-category-level={`${activeDashboardHeaderCategoryLevel.label}. Level unavailable`}
             key={`dashboard-header-category-overlay-center-${activeDashboardHeaderCategoryLevel.id}`}
             style={
               {
@@ -27174,10 +26555,7 @@ export default function DashboardExperience({
             </span>
             <span className="dashboard-header-category-actor__level">
               LV{" "}
-              {Math.max(
-                1,
-                Math.round(activeDashboardHeaderCategoryLevel.level / 10),
-              )}
+              {"—"}
             </span>
           </span>
         ) : null}
@@ -27887,15 +27265,15 @@ export default function DashboardExperience({
                 aria-expanded={dashboardTrophyMenuOpen}
                 aria-label={
                   dashboardTrophyMenuOpen
-                    ? "Close trophy objectives menu"
-                    : "Open trophy objectives menu"
+                    ? "Close Sound popup"
+                    : "Open Sound popup"
                 }
-                className={`dashboard-header-trophy-selector group absolute left-1/2 top-[-0.82rem] z-[4] grid h-11 w-11 place-items-center rounded-full outline-none transition focus-visible:ring-2 focus-visible:ring-slate-100/75 ${
+                className={`dashboard-header-trophy-selector group absolute left-1/2 top-[-0.82rem] z-[4] grid h-11 w-11 place-items-center rounded-full outline-none ${
                   dashboardHeaderTimedOut
                     ? "dashboard-header-trophy-selector--behind-idle"
                     : ""
                 }`}
-                data-dashboard-tooltip="Trophies"
+                data-dashboard-tooltip="Sound"
                 onClick={(event) => {
                   event.preventDefault();
                   event.stopPropagation();
@@ -27904,6 +27282,7 @@ export default function DashboardExperience({
                 onFocus={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(true))}
                 onPointerDown={(event) => {
                   event.stopPropagation();
+                  event.currentTarget.setPointerCapture(event.pointerId);
                 }}
                 style={
                   {
@@ -27928,7 +27307,7 @@ export default function DashboardExperience({
                 />
                 <span
                   aria-hidden="true"
-                  className="dashboard-header-trophy-selector__icon relative grid h-11 w-11 place-items-center"
+                  className="dashboard-header-trophy-selector__icon relative grid h-full w-full place-items-center"
                   style={
                     {
                       transformOrigin: "50% 50%",
@@ -27943,7 +27322,7 @@ export default function DashboardExperience({
                       open/close scale animation. */}
                   <Image
                     alt=""
-                    className="h-11 w-11 select-none object-contain"
+                    className="h-full w-full select-none object-contain"
                     draggable={false}
                     height={96}
                     priority
@@ -27974,48 +27353,27 @@ export default function DashboardExperience({
               <span className="dashboard-header-logo-smoke__puff dashboard-header-logo-smoke__puff--five" />
             </span>
           ) : null}
-          <button
-            aria-controls={
-              clampedDashboardOrbiterRow === 0
-                ? "dashboard-trophy-menu"
-                : undefined
-            }
-            aria-expanded={
-              clampedDashboardOrbiterRow === 0
-                ? dashboardTrophyMenuOpen
-                : undefined
-            }
-            aria-label={
-              clampedDashboardOrbiterRow === 0
-                ? dashboardTrophyMenuOpen
-                  ? "Close trophy objectives menu"
-                  : "Open trophy objectives menu"
-                : "Open Sound Fitness dashboard"
-            }
-            className={`dashboard-header-home-logo relative isolate z-10 grid shrink-0 place-items-center overflow-visible bg-transparent p-0 transition ${
+          <Link
+            aria-label="Open Sound Fitness dashboard"
+            href={isAdminPreview ? ROUTES.admin.home : ROUTES.dashboard.home}
+            className={`dashboard-header-home-logo relative isolate z-10 grid shrink-0 place-items-center overflow-visible bg-transparent p-0 ${
               clampedDashboardOrbiterRow === 0
                 ? "dashboard-header-home-logo--hero-active min-h-[4rem] w-[4rem]"
                 : "min-h-[58px] w-12"
             }`}
-            data-dashboard-tooltip={
-              clampedDashboardOrbiterRow === 0 ? "Trophies" : "Sound Fitness"
-            }
+            data-dashboard-tooltip="Dashboard"
             data-hero-row-active={clampedDashboardOrbiterRow === 0}
             onBlur={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(false))}
             onClick={(event) => {
-              event.preventDefault();
               event.stopPropagation();
-
-              if (clampedDashboardOrbiterRow === 0) {
-                toggleDashboardTrophyMenu();
-                return;
-              }
-
-              router.push(
-                isAdminPreview ? ROUTES.admin.home : ROUTES.dashboard.home,
-              );
+              hideDashboardTooltip();
+              setDashboardTrophyMenuOpen(false);
+              setDashboardOrbiterRow(0);
             }}
             onFocus={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(true))}
+            onPointerDown={(event) => {
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
             onMouseEnter={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(true))}
             onMouseLeave={() => startTransition(() => setDashboardHeaderLogoClusterHighlighted(false))}
             onPointerEnter={() =>
@@ -28032,7 +27390,6 @@ export default function DashboardExperience({
                 transformOrigin: "center",
               } as CSSProperties
             }
-            type="button"
           >
             {/* domOnly: the crest pixels must ride the header's compositor
                 open/idle scale animation; the shared-canvas version could only
@@ -28046,7 +27403,7 @@ export default function DashboardExperience({
                 !dashboardHeaderLogoClusterAnimating
               }
             />
-          </button>
+          </Link>
         </div>
 
         {renderDashboardMobileHeaderOrbitJoystick()}
@@ -28065,12 +27422,17 @@ export default function DashboardExperience({
           // attribute styles nothing the user can see.
           data-narrow-account-item={
             dashboardHeaderIsNarrow
-              ? DASHBOARD_NARROW_ACCOUNT_ITEMS[
+              ? dashboardNarrowAccountItems[
                   Math.min(
                     Math.max(dashboardNarrowAccountIndex, 0),
-                    DASHBOARD_NARROW_ACCOUNT_ITEMS.length - 1,
+                    dashboardNarrowAccountItems.length - 1,
                   )
                 ]
+              : undefined
+          }
+          data-exiting-narrow-account-item={
+            dashboardHeaderIsNarrow && dashboardExitingNarrowAccountItem
+              ? dashboardExitingNarrowAccountItem
               : undefined
           }
         >
@@ -28087,15 +27449,10 @@ export default function DashboardExperience({
               <div
                 aria-label={`${activeDashboardHeaderLink.label} dashboard tab`}
                 className={`dashboard-header-orbit-system dashboard-header-orbit-system--${dashboardHeaderVortexPhase} flex min-h-[62px] w-auto min-w-max shrink-0 items-center gap-3 rounded-[22px] border border-transparent bg-transparent px-1.5 py-2 text-left text-cyan-50 shadow-none transition ${
-                  dashboardHeaderSlideDirection === "right"
-                    ? "animate-[sessions-dashboard-chip-slide-from-right_220ms_ease-out]"
-                    : "animate-[sessions-dashboard-chip-slide-from-left_220ms_ease-out]"
-                } ${
                   dashboardHeaderVortexMode
                     ? `dashboard-header-orbit-system--${dashboardHeaderVortexMode}`
                     : ""
                 }`}
-                key={`${activeDashboardHeaderLink.label}-${dashboardHeaderSlideDirection}`}
                 role="group"
               >
                 {renderDashboardHeaderScrollControls()}
@@ -28150,7 +27507,7 @@ export default function DashboardExperience({
                       aria-label={
                         isAdminPreview
                           ? `Open ${activeDashboardHeaderLink.label}`
-                          : `Open ${activeDashboardHeaderLink.label}, ${activeDashboardHeaderLink.points.toLocaleString()} points`
+                          : `Open ${activeDashboardHeaderLink.label}. Reward points unavailable`
                       }
                       className="dashboard-header-rail-points-core absolute left-[2.02rem] top-[1.3rem] z-[4] inline-flex max-w-[3.9rem] -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 overflow-hidden whitespace-nowrap rounded-full border px-1.5 py-0.5 text-[11px] font-black leading-none tracking-tight text-cyan-50 transition hover:brightness-125 active:scale-95"
                       draggable={false}
@@ -28195,7 +27552,7 @@ export default function DashboardExperience({
                       <span className="relative z-10 truncate">
                         {isAdminPreview
                           ? "ADMIN"
-                          : activeDashboardHeaderLink.points.toLocaleString()}
+                          : "Unavailable"}
                       </span>
                       <span
                         aria-hidden="true"
@@ -28204,18 +27561,29 @@ export default function DashboardExperience({
                     </Link>
                   </div>
                   <Link
-                    aria-label={`Open ${activeDashboardHeaderLink.label}`}
+                    /* Opens the HIGHLIGHTED page, not the destination root.
+                       This link's biggest line renders that page's label, so
+                       pointing it at the root sent people who had just
+                       highlighted a page to a different one. */
+                    aria-label={`Open ${dashboardHeaderActiveJourneyStepLabel}`}
                     className="dashboard-header-selector-copy -ml-1 block whitespace-nowrap rounded-xl px-1 py-1 transition hover:-translate-y-0.5 hover:bg-white/[0.04]"
                     draggable={false}
-                    href={activeDashboardHeaderLink.href}
+                    href={dashboardHeaderActiveJourneyStepHref}
                     onClick={() =>
                       markDashboardDestinationVisited(
-                        activeDashboardHeaderLink.href,
+                        dashboardHeaderActiveJourneyStepHref,
                       )
                     }
                     onDragStart={(event) => event.preventDefault()}
                   >
-                    <span className="block">
+                    <span
+                      className={`block ${
+                        dashboardHeaderSlideDirection === "right"
+                          ? "motion-safe:animate-[sessions-dashboard-chip-slide-from-right_220ms_ease-out]"
+                          : "motion-safe:animate-[sessions-dashboard-chip-slide-from-left_220ms_ease-out]"
+                      }`}
+                      key={`${activeDashboardHeaderLink.label}-${dashboardHeaderSlideDirection}`}
+                    >
                       <span
                         className={`block text-[8px] font-black uppercase tracking-[0.1em] ${activeDashboardHeaderTone.metaText}`}
                       >
@@ -28279,14 +27647,14 @@ export default function DashboardExperience({
             )}`}
           >
             <div
-              aria-label={`Compound lift PR meter. ${dashboardSummary.compoundLiftHighlights
+              aria-label={`Compound recorded loads. ${dashboardSummary.compoundLiftHighlights
                 .map(
                   (highlight) =>
-                    `${highlight.rank}. ${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.weightLabel}, ${highlight.repsLabel} reps, best on ${highlight.dateLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`,
+                    `${highlight.rank}. ${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.weightLabel}, ${highlight.repsLabel} reps, recorded on ${highlight.dateLabel}, ${highlight.volumeLabel} recorded external-load volume, ${highlight.setsLabel} total sets completed`,
                 )
                 .join(". ")}`}
               className="dashboard-header-compound-pr-meter hidden h-[5.55rem] min-w-[10.2rem] shrink-0 flex-col items-stretch justify-start gap-1 bg-transparent px-0 text-cyan-50 xl:flex"
-              data-dashboard-tooltip="Compound PR meter: 30 day best weight and date"
+              data-dashboard-tooltip="Recorded compound loads with explicit units; matched-rep changes require two recorded days"
               role="group"
               style={
                 {
@@ -28299,11 +27667,11 @@ export default function DashboardExperience({
                   aria-hidden="true"
                   className="dashboard-header-compound-pr-meter__badge"
                 >
-                  PR
+                  LOAD
                 </span>
                 <span className="dashboard-header-compound-pr-meter__heading-copy">
                   <span className="dashboard-header-compound-pr-meter__eyebrow">
-                    30 Day Best
+                    Recorded Loads
                   </span>
                   <span className="dashboard-header-compound-pr-meter__heading">
                     Compound Lifts
@@ -28373,7 +27741,7 @@ export default function DashboardExperience({
 
                       return (
                         <button
-                          aria-label={`${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.weightLabel}, ${highlight.repsLabel} reps, best on ${highlight.dateLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`}
+                          aria-label={`${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.weightLabel}, ${highlight.repsLabel} reps, recorded on ${highlight.dateLabel}, ${highlight.volumeLabel} recorded external-load volume, ${highlight.setsLabel} total sets completed`}
                           aria-pressed={isActivePrCard}
                           className={`dashboard-header-compound-pr-meter__item dashboard-header-compound-pr-meter__item--${highlight.tone} dashboard-header-compound-pr-meter__item--slot-${prCardSlot}`}
                           data-dashboard-orbit-card-index={index}
@@ -28450,7 +27818,7 @@ export default function DashboardExperience({
             </div>
 
             <Link
-              aria-label={`Open achievements, ${headerAchievementsEarned} of ${headerAchievementTotal} earned, ${Math.round(
+              aria-label={`Open achievements, ${headerAchievementsEarned} of ${headerAchievementTotal} recorded, ${Math.round(
                 headerAchievementProgress,
               )}% progress`}
               className={`dashboard-header-achievement-cloud-trigger dashboard-header-achievement-meter dashboard-header-achievement-meter--standalone ${
@@ -28458,7 +27826,7 @@ export default function DashboardExperience({
                   ? "dashboard-header-achievement-cloud-trigger--revealing"
                   : ""
               } hidden h-[4.65rem] min-w-[12rem] shrink-0 flex-col items-center justify-center bg-transparent px-0 text-center text-amber-50 md:flex`}
-              data-dashboard-tooltip={`Achievements: ${headerAchievementsEarned}/${headerAchievementTotal} earned${
+              data-dashboard-tooltip={`Achievements: ${headerAchievementsEarned}/${headerAchievementTotal} recorded${
                 headerAchievementNext
                   ? `, next ${headerAchievementNext.label}`
                   : ""
@@ -28550,16 +27918,11 @@ export default function DashboardExperience({
             )}`}
           >
             <div
-              aria-label={`${dashboardSummary.dailySets} daily sets out of ${dashboardSummary.dailySetGoal} target sets. ${dashboardSummary.dailySetGroupSummary}`}
-              aria-valuemax={dashboardSummary.dailySetGoal}
-              aria-valuemin={0}
-              aria-valuenow={Math.min(
-                dashboardSummary.dailySets,
-                dashboardSummary.dailySetGoal,
-              )}
+              aria-label={`${dashboardDailySetEvidence.detail}`}
+              
               className="dashboard-header-sets-meter dashboard-header-sets-meter--standalone relative hidden h-[4.65rem] min-w-[5.25rem] shrink-0 place-items-center overflow-visible bg-transparent px-0 text-center text-emerald-50 lg:grid"
-              data-dashboard-tooltip={`${dashboardSummary.dailySets} daily sets. ${dashboardSummary.dailySetGroupSummary}`}
-              role="meter"
+              data-dashboard-tooltip={`${dashboardDailySetEvidence.detail}`}
+              role="img"
             >
               <span className="dashboard-header-sets-meter__tower">
                 <span className="dashboard-header-sets-meter__tallies">
@@ -28579,13 +27942,13 @@ export default function DashboardExperience({
                 </span>
               </span>
               <span className="dashboard-header-sets-meter__value">
-                {dashboardSummary.dailySets}
+                {dashboardDailySetEvidence.label}
               </span>
               <span className="dashboard-header-sets-meter__label">
                 Daily Sets
               </span>
               <span className="dashboard-header-meter-deadline dashboard-header-meter-deadline--sets">
-                Goal {dashboardSummary.dailySetGoal}
+                Daily target unavailable
               </span>
             </div>
 
@@ -28601,18 +27964,18 @@ export default function DashboardExperience({
             >
               <div className="dashboard-header-meter-scroller__track">
                 <div
-                  aria-label={`${dashboardSummary.workoutsThisWeek} of ${dashboardSummary.weeklySessionGoal} weekly sessions logged, resets ${dashboardWeeklySessionResetFullLabel}`}
-                  aria-valuemax={dashboardSummary.weeklySessionGoal}
-                  aria-valuemin={0}
-                  aria-valuenow={Math.min(
+                  aria-label={`${dashboardWeeklySessionGoal.description}, resets ${dashboardWeeklySessionResetFullLabel}`}
+                  aria-valuemax={dashboardWeeklySessionGoal.available ? dashboardSummary.weeklySessionGoal : undefined}
+                  aria-valuemin={dashboardWeeklySessionGoal.available ? 0 : undefined}
+                  aria-valuenow={dashboardWeeklySessionGoal.available ? Math.min(
                     dashboardSummary.workoutsThisWeek,
                     dashboardSummary.weeklySessionGoal,
-                  )}
+                  ) : undefined}
                   className={`dashboard-header-week-sessions dashboard-header-meter-scroller__meter dashboard-header-meter-scroller__meter--${getDashboardHeaderMeterSlot(
                     1,
                   )} hidden h-14 min-w-[6.8rem] shrink-0 flex-col items-center justify-center bg-transparent px-0 text-center text-emerald-50 md:flex`}
-                  data-dashboard-tooltip={`${dashboardSummary.workoutsThisWeek} of ${dashboardSummary.weeklySessionGoal} weekly sessions logged. Resets ${dashboardWeeklySessionResetFullLabel}`}
-                  role="meter"
+                  data-dashboard-tooltip={`${dashboardWeeklySessionGoal.description}. Resets ${dashboardWeeklySessionResetFullLabel}`}
+                  role={dashboardWeeklySessionGoal.available ? "meter" : "img"}
                   style={
                     {
                       "--dashboard-week-session-bar": `${dashboardSummary.weeklySessionProgress}%`,
@@ -28657,8 +28020,8 @@ export default function DashboardExperience({
                 </div>
 
                 <div
-                  aria-label={`${dashboardPlanAttendanceDescription}, ${dashboardPlanSessionsRemaining} sessions remaining`}
-                  aria-valuemax={dashboardSummary.planSessionTarget}
+                  aria-label={dashboardPlanAttendanceDescription}
+                  aria-valuemax={dashboardSummary.planSessionTarget || undefined}
                   aria-valuemin={0}
                   aria-valuenow={dashboardPlanSessionsAttended}
                   className={`dashboard-header-plan-attendance dashboard-header-streak-fire dashboard-header-meter-scroller__meter dashboard-header-meter-scroller__meter--${getDashboardHeaderMeterSlot(
@@ -28796,7 +28159,7 @@ export default function DashboardExperience({
                   </span>
                   <span className="dashboard-header-streak-fire__content">
                     <span className="dashboard-header-streak-fire__value">
-                      {`${dashboardPlanSessionsAttended}/${dashboardSummary.planSessionTarget}`}
+                      {dashboardPlanAttendanceValue}
                     </span>
                     <span className="dashboard-header-streak-fire__label">
                       Plan Sessions
@@ -28907,13 +28270,13 @@ export default function DashboardExperience({
                 aria-label={
                   isAdminPreview
                     ? `Open profile hub, debt-to-income level ${dashboardBadgeLevel}`
-                    : `Open profile hub, Sound Fitness level ${soundFitnessLevel}`
+                    : "Open profile hub. Level unavailable"
                 }
                 className="dashboard-profile-hub-trigger relative isolate flex min-h-[58px] shrink-0 items-center rounded-[22px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:bg-transparent"
                 data-dashboard-tooltip={
                   isAdminPreview
                     ? `Debt-to-income, level ${dashboardBadgeLevel}`
-                    : `Profile hub, level ${soundFitnessLevel}`
+                    : "Profile hub. Level unavailable"
                 }
                 onClick={openDashboardProfileHub}
                 type="button"
@@ -29039,7 +28402,7 @@ export default function DashboardExperience({
                   </svg>
                   <span className="dashboard-sound-level-badge__label pointer-events-none absolute bottom-[0.16rem] z-30 flex items-baseline justify-center gap-[0.08rem] font-black leading-none tracking-[0.04em] text-white [text-shadow:0_0_8px_rgba(2,6,23,0.96),0_0_10px_rgba(250,204,21,0.62)]">
                     <span className="text-[0.42rem]">LV</span>
-                    <span className="text-[0.78rem]">{dashboardBadgeLevel}</span>
+                    <span className="text-[0.78rem]">{isAdminPreview ? dashboardBadgeLevel : "—"}</span>
                   </span>
                   {isAdminPreview ? (
                     // Business AI coach badge (cosmetic) for the admin preview.
@@ -29385,7 +28748,7 @@ export default function DashboardExperience({
                 <button
                   aria-controls="dashboard-points-dropdown"
                   aria-expanded={dashboardPointsDropdownOpen}
-                  aria-label={`Open Sound Points rewards, ${soundPoints.toLocaleString()} points, ${soundTokens.toLocaleString()} treasure tokens, ${soundEmeralds.toLocaleString()} emeralds, ${dashboardCoreLightning.intensity.toLocaleString()} intensity lightning, ${dashboardCoreLightning.consistency.toLocaleString()} consistency lightning, ${dashboardCoreLightning.recovery.toLocaleString()} recovery lightning, ${dashboardKnowledgeLightning.toLocaleString()} knowledge lightning, ${dashboardVolumeLightning.toLocaleString()} volume lightning, and ${dashboardTechniqueLightning.toLocaleString()} technique lightning`}
+                  aria-label={`Open reward status. ${dashboardRewardEvidence.description}`}
                   className="dashboard-profile-points-trigger flex min-h-[68px] min-w-[88px] shrink-0 flex-col items-start justify-center gap-0.5 rounded-[18px] border border-transparent bg-transparent px-2 py-2 text-left text-slate-200 shadow-none transition hover:-translate-y-0.5 hover:border-emerald-200/18 hover:bg-emerald-300/8"
                   data-dashboard-tooltip="Sound Points"
                   data-dropdown-open={
@@ -29421,7 +28784,7 @@ export default function DashboardExperience({
                           vaultOpen={dashboardPointsTriggerGlowActive}
                         />
                       </span>
-                      {soundEmeralds.toLocaleString()}
+                      {dashboardRewardEvidence.emeraldsLabel}
                     </span>
                     <span className="dashboard-profile-points-trigger__value-row text-xs font-black leading-none text-white">
                       <span className="sr-only">Treasure Tokens</span>
@@ -29434,7 +28797,7 @@ export default function DashboardExperience({
                           paused={dashboardPointsTriggerMotionPaused}
                         />
                       </span>
-                      {soundTokens.toLocaleString()}
+                      {dashboardRewardEvidence.tokensLabel}
                     </span>
                     <span className="dashboard-profile-points-trigger__value-row text-xs font-black leading-none text-white">
                       <span className="sr-only">Points</span>
@@ -29448,7 +28811,7 @@ export default function DashboardExperience({
                           paused={dashboardPointsTriggerMotionPaused}
                         />
                       </span>
-                      {soundPoints.toLocaleString()}
+                      {dashboardRewardEvidence.pointsLabel}
                     </span>
                   </span>
                 </button>
@@ -29456,9 +28819,9 @@ export default function DashboardExperience({
                 <button
                   aria-controls="dashboard-claim-rewards-dropdown"
                   aria-expanded={dashboardClaimRewardsDropdownOpen}
-                  aria-label={`Claim earned rewards, ${soundPoints.toLocaleString()} points, ${soundTokens.toLocaleString()} coins, and ${soundEmeralds.toLocaleString()} gems available`}
+                  aria-label={"Open reward status. Claims unavailable without a verified reward ledger"}
                   className="dashboard-profile-claim-trigger dashboard-profile-claim-trigger--webgl shrink-0 text-slate-200"
-                  data-dashboard-tooltip="Claim Rewards"
+                  data-dashboard-tooltip="Reward status"
                   data-dropdown-open={
                     dashboardClaimRewardsDropdownOpen ? "true" : "false"
                   }
@@ -29485,128 +28848,7 @@ export default function DashboardExperience({
                 </button>
 
                 {dashboardClaimRewardsDropdownOpen ? (
-                  <div
-                    aria-label="Claim rewards"
-                    aria-live="polite"
-                    className="dashboard-profile-claim-dropdown absolute right-0 top-[calc(100%+0.5rem)] z-[270] w-[17rem] max-w-[calc(100vw-1.5rem)] px-4 py-4 text-slate-100"
-                    id="dashboard-claim-rewards-dropdown"
-                    role="region"
-                  >
-                    <div className="dashboard-profile-claim-dropdown__header">
-                      <span className="dashboard-profile-claim-dropdown__title">
-                        Level Gifts
-                      </span>
-                      <span className="dashboard-profile-claim-dropdown__progress">
-                        LV {soundFitnessLevel} &middot;{" "}
-                        {Math.round(soundFitnessLevelProgress)}%
-                      </span>
-                    </div>
-                    <ul className="dashboard-profile-claim-dropdown__list">
-                      {DASHBOARD_PAGE_ANALOG_LEVEL_REWARDS.map((reward) => {
-                        const rewardEarned =
-                          soundFitnessLevelProgress >= reward.threshold;
-                        const rewardClaimed = dashboardClaimedLevelRewards.has(
-                          reward.threshold,
-                        );
-                        return (
-                          <li
-                            className="dashboard-profile-claim-dropdown__item"
-                            data-claimed={rewardClaimed ? "true" : "false"}
-                            data-earned={rewardEarned ? "true" : "false"}
-                            key={reward.threshold}
-                          >
-                            <span
-                              aria-hidden="true"
-                              className="dashboard-profile-claim-dropdown__icon"
-                            >
-                              {renderDashboardPageLevelRewardIcon(
-                                reward.icon,
-                                Math.min(
-                                  1,
-                                  soundFitnessLevelProgress /
-                                    Math.max(1, reward.threshold),
-                                ),
-                              )}
-                            </span>
-                            <span className="dashboard-profile-claim-dropdown__meta">
-                              <span className="dashboard-profile-claim-dropdown__label">
-                                {reward.label}
-                              </span>
-                              <span className="dashboard-profile-claim-dropdown__requirement">
-                                {rewardClaimed
-                                  ? "Claimed"
-                                  : rewardEarned
-                                    ? "Ready to claim!"
-                                    : `${Math.max(
-                                        1,
-                                        Math.round(
-                                          reward.threshold -
-                                            soundFitnessLevelProgress,
-                                        ),
-                                      )}% to go`}
-                              </span>
-                            </span>
-                            {rewardEarned && !rewardClaimed ? (
-                              <button
-                                className="dashboard-profile-claim-dropdown__claim"
-                                onClick={() =>
-                                  setDashboardClaimedLevelRewards(
-                                    (claimed) =>
-                                      new Set(claimed).add(reward.threshold),
-                                  )
-                                }
-                                type="button"
-                              >
-                                Claim
-                              </button>
-                            ) : (
-                              <span
-                                aria-hidden="true"
-                                className="dashboard-profile-claim-dropdown__state"
-                              >
-                                {rewardClaimed ? (
-                                  <svg
-                                    className="dashboard-profile-claim-dropdown__state-svg"
-                                    fill="none"
-                                    viewBox="0 0 16 16"
-                                  >
-                                    <path
-                                      d="M3 8.6 6.4 12 13 4.6"
-                                      stroke="currentColor"
-                                      strokeLinecap="round"
-                                      strokeLinejoin="round"
-                                      strokeWidth="2"
-                                    />
-                                  </svg>
-                                ) : (
-                                  <svg
-                                    className="dashboard-profile-claim-dropdown__state-svg"
-                                    fill="none"
-                                    viewBox="0 0 16 16"
-                                  >
-                                    <rect
-                                      height="7"
-                                      rx="1.4"
-                                      stroke="currentColor"
-                                      strokeWidth="1.6"
-                                      width="10"
-                                      x="3"
-                                      y="6.4"
-                                    />
-                                    <path
-                                      d="M5.4 6.2V4.9a2.6 2.6 0 0 1 5.2 0v1.3"
-                                      stroke="currentColor"
-                                      strokeWidth="1.6"
-                                    />
-                                  </svg>
-                                )}
-                              </span>
-                            )}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
+                  <div id="dashboard-claim-rewards-dropdown" role="region" aria-label="Reward status" className="dashboard-profile-claim-dropdown"><p>Reward ledger unavailable</p><p>{dashboardRewardEvidence.description}</p><p>Recorded Profile points: {dashboardRewardEvidence.pointsLabel}</p><p>Claims unavailable until an award ledger is connected.</p></div>
                 ) : null}
 
                 {/* Latched-but-closed: kept mounted (scenes stay registered
@@ -29630,6 +28872,14 @@ export default function DashboardExperience({
                       aria-label={`Rewards carousel. Current section ${DASHBOARD_PROFILE_REWARD_PANELS[activeDashboardPointsRewardPanelIndex]?.label}. Drag horizontally to rotate Points, Coins, and Gems.`}
                       className="dashboard-profile-reward-orbit"
                       onClickCapture={(event) => {
+                        const target = event.target;
+                        if (
+                          target instanceof HTMLElement &&
+                          target.closest(".dashboard-profile-reward-orbit__controls")
+                        ) {
+                          dashboardPointsRewardPointerMovedRef.current = false;
+                          return;
+                        }
                         if (dashboardPointsRewardPointerMovedRef.current) {
                           event.preventDefault();
                           event.stopPropagation();
@@ -29767,7 +29017,24 @@ export default function DashboardExperience({
                       <div className="dashboard-profile-reward-orbit__controls">
                         <span className="dashboard-profile-reward-orbit__dots">
                           {DASHBOARD_PROFILE_REWARD_PANELS.map(
-                            (panel, index) => (
+                            (panel, index) => {
+                              const indicatorDistance = getDashboardOrbitDistance(
+                                index,
+                                activeDashboardPointsRewardPanelIndex,
+                                dashboardProfileRewardPanelCount,
+                              );
+                              const indicatorSlot = Math.max(
+                                -1,
+                                Math.min(1, indicatorDistance),
+                              );
+                              const indicatorSlotName =
+                                indicatorSlot < 0
+                                  ? "left"
+                                  : indicatorSlot > 0
+                                    ? "right"
+                                    : "center";
+
+                              return (
                               <button
                                 aria-label={`Show ${panel.label} rewards`}
                                 aria-pressed={
@@ -29776,16 +29043,43 @@ export default function DashboardExperience({
                                 }
                                 className="dashboard-profile-reward-orbit__dot"
                                 data-reward-indicator={panel.id}
+                                data-reward-indicator-slot={indicatorSlotName}
                                 key={`dashboard-profile-reward-dot-${panel.id}`}
                                 onClick={(event) => {
                                   event.stopPropagation();
+                                  dashboardPointsRewardPointerMovedRef.current =
+                                    false;
                                   showDashboardPointsRewardPanel(index);
                                 }}
+                                onPointerCancelCapture={(event) => {
+                                  event.stopPropagation();
+                                }}
+                                onPointerDownCapture={(event) => {
+                                  dashboardPointsRewardPointerMovedRef.current =
+                                    false;
+                                  dashboardPointsRewardPointerStartRef.current =
+                                    null;
+                                  event.stopPropagation();
+                                }}
+                                onPointerMoveCapture={(event) => {
+                                  event.stopPropagation();
+                                }}
+                                onPointerUpCapture={(event) => {
+                                  event.stopPropagation();
+                                }}
+                                style={
+                                  {
+                                    "--dashboard-reward-indicator-slot":
+                                      indicatorSlot,
+                                    gridColumn: indicatorSlot + 2,
+                                  } as CSSProperties
+                                }
                                 type="button"
                               >
                                 <span
                                   aria-hidden="true"
                                   className="dashboard-profile-reward-orbit__dot-logo"
+                                  data-dashboard-webgl-header-exempt="true"
                                 >
                                   {panel.id === "points" ? (
                                     <DashboardLightningBolt3D
@@ -29799,9 +29093,10 @@ export default function DashboardExperience({
                                         index !==
                                           activeDashboardPointsRewardPanelIndex
                                       }
+                                      toneColor={dashboardRewardTopPointsToneColor}
                                     />
                                   ) : panel.id === "coins" ? (
-                                    <DashboardSpinningSoundCoin3D
+                                    <DashboardRewardIndicatorSoundCoin3D
                                       className="dashboard-profile-reward-orbit__dot-webgl dashboard-profile-reward-orbit__dot-webgl--coins"
                                       paused={
                                         dashboardHeaderMotionPaused ||
@@ -29810,7 +29105,7 @@ export default function DashboardExperience({
                                       }
                                     />
                                   ) : (
-                                    <DashboardGemStage3D
+                                    <DashboardRewardIndicatorGemStage3D
                                       className="dashboard-profile-reward-orbit__dot-webgl dashboard-profile-reward-orbit__dot-webgl--gems"
                                       paused={
                                         dashboardHeaderMotionPaused ||
@@ -29826,7 +29121,8 @@ export default function DashboardExperience({
                                   )}
                                 </span>
                               </button>
-                            ),
+                              );
+                            },
                           )}
                         </span>
                       </div>
@@ -29916,7 +29212,7 @@ export default function DashboardExperience({
                               />
                               <span>
                                 <span>Point Boosts</span>
-                                <span>{soundPoints.toLocaleString()} pts</span>
+                                <span>{dashboardRewardEvidence.pointsLabel} pts</span>
                               </span>
                             </button>
                             <button
@@ -29934,7 +29230,7 @@ export default function DashboardExperience({
                               />
                               <span>
                                 <span>Coin Vault</span>
-                                <span>{soundTokens.toLocaleString()} coins</span>
+                                <span>{dashboardRewardEvidence.tokensLabel} coins</span>
                               </span>
                             </button>
                             <button
@@ -29949,7 +29245,7 @@ export default function DashboardExperience({
                               <DashboardTabIcon className="h-4 w-4" name="App" />
                               <span>
                                 <span>Gem Reserves</span>
-                                <span>{soundEmeralds.toLocaleString()} gems</span>
+                                <span>{dashboardRewardEvidence.emeraldsLabel} gems</span>
                               </span>
                             </button>
                           </div>
@@ -31000,7 +30296,7 @@ export default function DashboardExperience({
                       {activeDashboardHeaderCategoryLevel &&
                       activeDashboardHeaderCategoryLevelDetails ? (
                         <div
-                          aria-label={`${activeDashboardHeaderCategoryLevel.label} level ${activeDashboardHeaderCategoryLevelNumber}, ${activeDashboardHeaderCategoryLevel.level}% progress, ${activeDashboardHeaderCategoryRepsToNextLevelLabel}, recommended pattern ${activeDashboardHeaderCategoryPatternRecommendation?.label || activeDashboardHeaderCategoryLevelDetails.recommendedPatterns[0]}, ${activeDashboardHeaderCategoryPatternSetLabel}`}
+                          aria-label={`${activeDashboardHeaderCategoryLevel.label}. Level unavailable. ${activeDashboardHeaderCategoryRepsToNextLevelLabel}. Observed pattern ${activeDashboardHeaderCategoryPatternRecommendation?.label || "Not mapped"}, ${activeDashboardHeaderCategoryPatternSetLabel}`}
                           aria-live="polite"
                           className="dashboard-header-category-levels-menu__ufo-chyron"
                           role="status"
@@ -31016,14 +30312,7 @@ export default function DashboardExperience({
                                   key={`dashboard-header-category-ufo-chyron-loop-${loopIndex}`}
                                 >
                                   {dashboardHeaderCategoryLevels.map((category) => {
-                                    const categoryLevelNumber = Math.max(
-                                      1,
-                                      Math.round(category.level / 10),
-                                    );
-                                    const categoryDetails =
-                                      dashboardHeaderCategoryLevelDetails[
-                                        category.id
-                                      ];
+                                    const categoryLevelNumber = "—";
                                     const categoryPatternRecommendation =
                                       dashboardSummary
                                         .categoryPatternRecommendations[
@@ -31031,21 +30320,9 @@ export default function DashboardExperience({
                                       ];
                                     const categoryPatternLabel =
                                       categoryPatternRecommendation?.label ||
-                                      categoryDetails.recommendedPatterns[0];
-                                    const categoryPatternSetLabel =
-                                      categoryPatternRecommendation &&
-                                      categoryPatternRecommendation.recentSets > 0
-                                        ? `${categoryPatternRecommendation.recentSets} set${
-                                            categoryPatternRecommendation.recentSets ===
-                                            1
-                                              ? ""
-                                              : "s"
-                                          }`
-                                        : "Needs reps";
-                                    const categoryRepsToNextLevelCountLabel =
-                                      formatDashboardHeaderCategoryApproxRepsCount(
-                                        category.level,
-                                      );
+                                      "Not mapped";
+                                    const categoryPatternSetLabel = categoryPatternRecommendation?.status || "No mapped records";
+                                    const categoryRepsToNextLevelCountLabel = "Level target unavailable";
                                     const categoryRepsGapLabelLeft = `${Math.min(
                                       category.level + 1,
                                       82,
@@ -31170,16 +30447,45 @@ export default function DashboardExperience({
                         38,
                       )
                     }
-                    onPointerUp={(event) =>
+                    onPointerUp={(event) => {
+                      // A tap that landed ON a meter must not have its
+                      // highlight re-pointed at the section's top meter.
+                      // onCardTap is called as onCardTap?.(cardIndex), so
+                      // targetOffset defaults to 0 = the top meter, and
+                      // pointerup flushes that synchronously BEFORE the
+                      // click — which made every meter's own
+                      // "am I already highlighted?" guard false on every
+                      // click, so none of them could ever reach their open
+                      // branch. The section wrappers carry the attribute too
+                      // ("section-0/1/2"), and a tap on a section's own
+                      // background SHOULD still pick its top meter, so only
+                      // a specific meter target opts out.
+                      const releaseEl = document.elementFromPoint(
+                        event.clientX,
+                        event.clientY,
+                      );
+                      const ownTarget =
+                        releaseEl instanceof HTMLElement
+                          ? releaseEl.closest<HTMLElement>(
+                              "[data-meter-highlight-target]",
+                            )
+                          : null;
+                      const ownValue =
+                        ownTarget?.dataset.meterHighlightTarget ?? null;
+                      const meterOwnsItsHighlight =
+                        !!ownValue && !ownValue.startsWith("section-");
+
                       handleDashboardOrbitPointerUp(
                         event,
                         dashboardHeaderMeterPanelPointerStartRef,
                         dashboardHeaderMeterPanelPointerMovedRef,
                         rotateDashboardHeaderMeterPanelSections,
                         undefined,
-                        setDashboardHeaderMeterPanelSectionHighlight,
-                      )
-                    }
+                        meterOwnsItsHighlight
+                          ? undefined
+                          : setDashboardHeaderMeterPanelSectionHighlight,
+                      );
+                    }}
                     onWheel={handleDashboardHeaderMeterPanelWheel}
                     ref={dashboardHeaderMeterPanelStackRef}
                     role="group"
@@ -31208,10 +30514,10 @@ export default function DashboardExperience({
                         Achievements + PR
                       </div>
                       <div
-                        aria-label={`Compound lift PR meter. ${dashboardSummary.compoundLiftHighlights
+                        aria-label={`Compound recorded loads. ${dashboardSummary.compoundLiftHighlights
                           .map(
                             (highlight) =>
-                              `${highlight.rank}. ${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.weightLabel}, ${highlight.repsLabel} reps, best on ${highlight.dateLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`,
+                              `${highlight.rank}. ${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.weightLabel}, ${highlight.repsLabel} reps, recorded on ${highlight.dateLabel}, ${highlight.volumeLabel} recorded external-load volume, ${highlight.setsLabel} total sets completed`,
                           )
                           .join(". ")}`}
                         aria-pressed={
@@ -31219,7 +30525,7 @@ export default function DashboardExperience({
                           "compound-pr"
                         }
                         className="dashboard-header-compound-pr-meter dashboard-header-meter-panel__highlight-meter dashboard-header-meter-panel__wide-meter text-cyan-50"
-                        data-dashboard-tooltip="Compound PR meter: 30 day best weight and date"
+                        data-dashboard-tooltip="Recorded compound loads with explicit units; matched-rep changes require two recorded days"
                         data-meter-highlight-target="compound-pr"
                         data-meter-highlighted={
                           dashboardHeaderMeterPanelHighlightTarget ===
@@ -31267,11 +30573,11 @@ export default function DashboardExperience({
                             aria-hidden="true"
                             className="dashboard-header-compound-pr-meter__badge"
                           >
-                            PR
+                            LOAD
                           </span>
                           <span className="dashboard-header-compound-pr-meter__heading-copy">
                             <span className="dashboard-header-compound-pr-meter__eyebrow">
-                              30 Day Best
+                              Recorded Loads
                             </span>
                             <span className="dashboard-header-compound-pr-meter__heading">
                               Compound Lifts
@@ -31348,7 +30654,7 @@ export default function DashboardExperience({
 
                                 return (
                                   <button
-                                    aria-label={`${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.weightLabel}, ${highlight.repsLabel} reps, best on ${highlight.dateLabel}, ${highlight.volumeLabel} relative volume, ${highlight.setsLabel} total sets completed`}
+                                    aria-label={`${highlight.detail}: ${highlight.label}, ${highlight.windowLabel}, ${highlight.weightLabel}, ${highlight.repsLabel} reps, recorded on ${highlight.dateLabel}, ${highlight.volumeLabel} recorded external-load volume, ${highlight.setsLabel} total sets completed`}
                                     aria-pressed={isActivePrCard}
                                     className={`dashboard-header-compound-pr-meter__item dashboard-header-compound-pr-meter__item--${highlight.tone} dashboard-header-compound-pr-meter__item--slot-${prCardSlot}`}
                                     data-dashboard-orbit-card-index={index}
@@ -31433,7 +30739,7 @@ export default function DashboardExperience({
                       </div>
 
                       <Link
-                        aria-label={`Open achievements, ${headerAchievementsEarned} of ${headerAchievementTotal} earned, ${Math.round(
+                        aria-label={`Open achievements, ${headerAchievementsEarned} of ${headerAchievementTotal} recorded, ${Math.round(
                           headerAchievementProgress,
                         )}% progress`}
                         aria-pressed={
@@ -31445,7 +30751,7 @@ export default function DashboardExperience({
                             ? "dashboard-header-achievement-cloud-trigger--revealing"
                             : ""
                         } dashboard-header-meter-panel__wide-meter text-amber-50`}
-                        data-dashboard-tooltip={`Achievements: ${headerAchievementsEarned}/${headerAchievementTotal} earned${
+                        data-dashboard-tooltip={`Achievements: ${headerAchievementsEarned}/${headerAchievementTotal} recorded${
                           headerAchievementNext
                             ? `, next ${headerAchievementNext.label}`
                             : ""
@@ -31457,6 +30763,12 @@ export default function DashboardExperience({
                             ? "true"
                             : "false"
                         }
+                        /* The only meter rendered as an <a>. Without this a
+                           press that travels ~12px starts a native link drag:
+                           dragstart, then pointercancel, and NO pointerup and
+                           no click at all. The div meters cannot do that, so
+                           they felt responsive while this one read as dead. */
+                        draggable={false}
                         href={ROUTES.dashboard.achievements}
                         onClick={(event) => {
                           if (
@@ -31569,15 +30881,10 @@ export default function DashboardExperience({
                         Daily + Plan
                       </div>
                       <div
-                        aria-label={`${dashboardSummary.dailySets} daily sets out of ${dashboardSummary.dailySetGoal} target sets. ${dashboardSummary.dailySetGroupSummary}`}
-                        aria-valuemax={dashboardSummary.dailySetGoal}
-                        aria-valuemin={0}
-                        aria-valuenow={Math.min(
-                          dashboardSummary.dailySets,
-                          dashboardSummary.dailySetGoal,
-                        )}
+                        aria-label={`${dashboardDailySetEvidence.detail}`}
+                        
                         className="dashboard-header-sets-meter dashboard-header-sets-meter--standalone dashboard-header-meter-panel__compact-meter dashboard-header-meter-panel__highlight-meter text-emerald-50"
-                        data-dashboard-tooltip={`${dashboardSummary.dailySets} daily sets. ${dashboardSummary.dailySetGroupSummary}`}
+                        data-dashboard-tooltip={`${dashboardDailySetEvidence.detail}`}
                         data-meter-highlight-target="daily-sets"
                         data-meter-highlighted={
                           dashboardHeaderMeterPanelHighlightTarget ===
@@ -31588,7 +30895,7 @@ export default function DashboardExperience({
                         onClick={() =>
                           setDashboardHeaderMeterPanelHighlight("daily-sets")
                         }
-                        role="meter"
+                        role="img"
                       >
                         <span className="dashboard-header-sets-meter__tower">
                           <span className="dashboard-header-sets-meter__tallies">
@@ -31608,13 +30915,13 @@ export default function DashboardExperience({
                           </span>
                         </span>
                         <span className="dashboard-header-sets-meter__value">
-                          {dashboardSummary.dailySets}
+                          {dashboardDailySetEvidence.label}
                         </span>
                         <span className="dashboard-header-sets-meter__label">
                           Daily Sets
                         </span>
                         <span className="dashboard-header-meter-deadline dashboard-header-meter-deadline--sets">
-                          Goal {dashboardSummary.dailySetGoal}
+                          Daily target unavailable
                         </span>
                       </div>
 
@@ -31638,18 +30945,18 @@ export default function DashboardExperience({
                       >
                         <div className="dashboard-header-meter-scroller__track">
                           <div
-                            aria-label={`${dashboardSummary.workoutsThisWeek} of ${dashboardSummary.weeklySessionGoal} weekly sessions logged, resets ${dashboardWeeklySessionResetFullLabel}`}
-                            aria-valuemax={dashboardSummary.weeklySessionGoal}
-                            aria-valuemin={0}
-                            aria-valuenow={Math.min(
+                            aria-label={`${dashboardWeeklySessionGoal.description}, resets ${dashboardWeeklySessionResetFullLabel}`}
+                            aria-valuemax={dashboardWeeklySessionGoal.available ? dashboardSummary.weeklySessionGoal : undefined}
+                            aria-valuemin={dashboardWeeklySessionGoal.available ? 0 : undefined}
+                            aria-valuenow={dashboardWeeklySessionGoal.available ? Math.min(
                               dashboardSummary.workoutsThisWeek,
                               dashboardSummary.weeklySessionGoal,
-                            )}
+                            ) : undefined}
                             className={`dashboard-header-week-sessions dashboard-header-meter-scroller__meter dashboard-header-meter-scroller__meter--${getDashboardHeaderMeterSlot(
                               1,
                             )} text-emerald-50`}
-                            data-dashboard-tooltip={`${dashboardSummary.workoutsThisWeek} of ${dashboardSummary.weeklySessionGoal} weekly sessions logged. Resets ${dashboardWeeklySessionResetFullLabel}`}
-                            role="meter"
+                            data-dashboard-tooltip={`${dashboardWeeklySessionGoal.description}. Resets ${dashboardWeeklySessionResetFullLabel}`}
+                            role={dashboardWeeklySessionGoal.available ? "meter" : "img"}
                             style={
                               {
                                 "--dashboard-week-session-bar": `${dashboardSummary.weeklySessionProgress}%`,
@@ -31694,8 +31001,8 @@ export default function DashboardExperience({
                           </div>
 
                           <div
-                            aria-label={`${dashboardPlanAttendanceDescription}, ${dashboardPlanSessionsRemaining} sessions remaining`}
-                            aria-valuemax={dashboardSummary.planSessionTarget}
+                            aria-label={dashboardPlanAttendanceDescription}
+                            aria-valuemax={dashboardSummary.planSessionTarget || undefined}
                             aria-valuemin={0}
                             aria-valuenow={dashboardPlanSessionsAttended}
                             className={`dashboard-header-plan-attendance dashboard-header-streak-fire dashboard-header-meter-scroller__meter dashboard-header-meter-scroller__meter--${getDashboardHeaderMeterSlot(
@@ -31847,7 +31154,7 @@ export default function DashboardExperience({
                             </span>
                             <span className="dashboard-header-streak-fire__content">
                               <span className="dashboard-header-streak-fire__value">
-                                {`${dashboardPlanSessionsAttended}/${dashboardSummary.planSessionTarget}`}
+                                {dashboardPlanAttendanceValue}
                               </span>
                               <span className="dashboard-header-streak-fire__label">
                                 Plan Sessions
@@ -32566,6 +31873,7 @@ export default function DashboardExperience({
             </button>
           </div>
 
+          {favoriteLaunchMessage ? <p role="status" className="mb-2 text-xs text-amber-200">{favoriteLaunchMessage}</p> : null}
           <div
             ref={favoriteWorkoutStripRef}
             className={`flex max-w-full snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain scroll-smooth [scrollbar-color:rgba(34,211,238,0.38)_rgba(15,23,42,0.72)] [scrollbar-width:thin] [touch-action:pan-x] [&::-webkit-scrollbar]:h-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/42 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/70 ${
@@ -32593,10 +31901,8 @@ export default function DashboardExperience({
                       : buildTemplateWorkoutHref(template.id)
                   }
                   key={template.id}
-                  onClick={() => {
-                    if (!isActive) {
-                      launchFavoriteWorkout(template);
-                    }
+                  onClick={(event) => {
+                    if (!isActive && !launchFavoriteWorkout(template)) event.preventDefault();
                   }}
                 >
                   <span
@@ -32764,7 +32070,8 @@ export default function DashboardExperience({
                 </ul>
                 {template.exercises.length > 2 ? <p>+{template.exercises.length - 2} more in this workout</p> : null}
               </div>
-              <Link className={meterCardStyles.favoriteStart} href={isActive ? ROUTES.dashboard.sessionWorkout : buildTemplateWorkoutHref(template.id)} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); if (!isActive) launchFavoriteWorkout(template); }}>
+              {favoriteLaunchMessage ? <p role="status" className="text-xs text-amber-200">{favoriteLaunchMessage}</p> : null}
+              <Link className={meterCardStyles.favoriteStart} href={isActive ? ROUTES.dashboard.sessionWorkout : buildTemplateWorkoutHref(template.id)} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); if (!isActive && !launchFavoriteWorkout(template)) event.preventDefault(); }}>
                 {isActive ? "Resume workout" : "Start workout"}<ChevronRight aria-hidden="true" />
               </Link>
             </section>
@@ -33255,16 +32562,16 @@ export default function DashboardExperience({
             </header>
             <div className={meterCardStyles.needleStage}>
             <div
-              aria-label={`${dashboardSummary.workoutsThisWeek} of ${dashboardSummary.weeklySessionGoal} weekly sessions logged, resets ${dashboardWeeklySessionResetFullLabel}`}
-              aria-valuemax={dashboardSummary.weeklySessionGoal}
-              aria-valuemin={0}
-              aria-valuenow={Math.min(
+              aria-label={`${dashboardWeeklySessionGoal.description}, resets ${dashboardWeeklySessionResetFullLabel}`}
+              aria-valuemax={dashboardWeeklySessionGoal.available ? dashboardSummary.weeklySessionGoal : undefined}
+              aria-valuemin={dashboardWeeklySessionGoal.available ? 0 : undefined}
+              aria-valuenow={dashboardWeeklySessionGoal.available ? Math.min(
                 dashboardSummary.workoutsThisWeek,
                 dashboardSummary.weeklySessionGoal,
-              )}
+              ) : undefined}
               className="dashboard-hero-space-needle-meter dashboard-header-week-sessions isolate order-2 relative flex h-[214px] w-[372px] max-w-full shrink-0 flex-col items-center justify-end text-center text-emerald-50 sm:h-[222px] sm:w-[404px]"
-              data-dashboard-tooltip={`${dashboardSummary.workoutsThisWeek} of ${dashboardSummary.weeklySessionGoal} weekly sessions logged. Current roulette prize: ${dashboardNeedleReward.label}, ${dashboardNeedleReward.yieldLabel}. Resets ${dashboardWeeklySessionResetFullLabel}`}
-              role="meter"
+              data-dashboard-tooltip={`${dashboardWeeklySessionGoal.description}. Reward ledger unavailable. Resets ${dashboardWeeklySessionResetFullLabel}`}
+              role={dashboardWeeklySessionGoal.available ? "meter" : "img"}
               style={
                 {
                   "--dashboard-needle-battery": `${dashboardSummary.weeklySessionProgress}%`,
@@ -33278,37 +32585,7 @@ export default function DashboardExperience({
                 aria-hidden="true"
                 className="dashboard-hero-space-needle-meter__aura"
               />
-              <span
-                aria-hidden="true"
-                className={`dashboard-hero-space-needle-meter__roulette dashboard-hero-space-needle-meter__roulette--${dashboardNeedleReward.tier}`}
-              >
-                <span className="dashboard-hero-space-needle-meter__roulette-crown" />
-                <span className="dashboard-hero-space-needle-meter__roulette-window">
-                  <span className="dashboard-hero-space-needle-meter__roulette-track">
-                    {dashboardNeedleReward.wheelSlots.map(
-                      (rewardSlot, rewardIndex) => (
-                        <span
-                          className="dashboard-hero-space-needle-meter__roulette-slot"
-                          data-reward-id={rewardSlot.id}
-                          data-reward-tier={rewardSlot.tier}
-                          key={`dashboard-needle-roulette-${rewardSlot.id}-${rewardIndex}`}
-                        >
-                          <span className="dashboard-hero-space-needle-meter__roulette-slot-icon" />
-                        </span>
-                      ),
-                    )}
-                  </span>
-                </span>
-                <span className="dashboard-hero-space-needle-meter__roulette-marker" />
-                <span className="dashboard-hero-space-needle-meter__roulette-result">
-                  <span
-                    className="dashboard-hero-space-needle-meter__roulette-result-icon"
-                    data-reward-id={dashboardNeedleReward.id}
-                  />
-                  <span>{dashboardNeedleReward.shortLabel}</span>
-                  <span>{dashboardNeedleReward.yieldLabel}</span>
-                </span>
-              </span>
+              <span className="dashboard-hero-space-needle-meter__roulette"><span>Rewards unavailable</span></span>
               <span
                 aria-hidden="true"
                 className="dashboard-header-week-sessions__graph"
@@ -33375,8 +32652,7 @@ export default function DashboardExperience({
                 />
               </span>
               <span className="dashboard-hero-space-needle-meter__readout">
-                {dashboardSummary.workoutsThisWeek}/
-                {dashboardSummary.weeklySessionGoal}
+                {dashboardWeeklySessionGoal.count}
               </span>
               <span
                 aria-hidden="true"
@@ -33413,9 +32689,9 @@ export default function DashboardExperience({
             </div>
             </div>
             <dl className={meterCardStyles.stats}>
-              <div><dt>Goal reached</dt><dd>{Math.round(dashboardSummary.weeklySessionProgress)}%</dd></div>
+              <div><dt>Goal reached</dt><dd>{dashboardWeeklySessionGoal.available ? Math.round(dashboardSummary.weeklySessionProgress) + "%" : "Not set"}</dd></div>
               <div><dt>Days trained</dt><dd>{dashboardSummary.weeklySessionDays.filter((day) => day.trained).length}<small> / 7</small></dd></div>
-              <div><dt>To goal</dt><dd>{dashboardNeedleChargesRemaining}<small> sessions</small></dd></div>
+              <div><dt>To goal</dt><dd>{dashboardWeeklySessionGoal.remaining ?? "—"}<small> sessions</small></dd></div>
             </dl>
             <div className={meterCardStyles.week} aria-label="Training activity this week">
               {dashboardSummary.weeklySessionDays.map((day) => (
@@ -33426,12 +32702,12 @@ export default function DashboardExperience({
               ))}
             </div>
             <footer className={meterCardStyles.footer}>
-              <p title={`Reset ${dashboardWeeklySessionResetFullLabel}. ${dashboardNeedleReward.rareChanceLabel}; ${dashboardNeedleReward.emeraldChanceLabel}.`}>
-                {dashboardNeedleChargesRemaining === 0 ? "Weekly goal complete" : "Every logged session builds your charge"}
+              <p title={`Reset ${dashboardWeeklySessionResetFullLabel}. Reward ledger unavailable.`}>
+                {dashboardWeeklySessionGoal.status}
                 <span>Resets {dashboardWeeklySessionResetLabel}</span>
               </p>
-              <Link href={ROUTES.dashboard.sessionWorkout} onClick={(event) => event.stopPropagation()}>
-                Start workout<ChevronRight aria-hidden="true" />
+              <Link href={dashboardWeeklySessionGoal.available ? ROUTES.dashboard.sessionWorkout : ROUTES.dashboard.goals} onClick={(event) => event.stopPropagation()}>
+                {dashboardWeeklySessionGoal.available ? "Start workout" : "Set weekly goals"}<ChevronRight aria-hidden="true" />
               </Link>
             </footer>
           </div>
@@ -33705,12 +32981,12 @@ export default function DashboardExperience({
             <button type="button" aria-label="Next achievement" onClick={(event) => { event.stopPropagation(); rotateHeroAchievement("right"); }}><ChevronRight aria-hidden="true" /></button>
           </div>
           <dl className={meterCardStyles.stats}>
-            <div><dt>Earned</dt><dd>{headerAchievementsEarned}<small> / {headerAchievementTotal}</small></dd></div>
+            <div><dt>Recorded</dt><dd>{headerAchievementsEarned}<small> / {headerAchievementTotal}</small></dd></div>
             <div><dt>In progress</dt><dd>{heroAchievementsInProgress.length}</dd></div>
             <div><dt>Locked</dt><dd>{headerAchievementItems.filter((achievement) => achievement.status === "locked").length}</dd></div>
           </dl>
           <div className={meterCardStyles.nextMilestone}>
-            <div><span>{nextHeroAchievement ? "Next milestone" : "Collection complete"}</span><strong>{nextHeroAchievement?.label ?? "All achievements earned"}</strong></div>
+            <div><span>{nextHeroAchievement ? "Next milestone" : "Collection complete"}</span><strong>{nextHeroAchievement?.label ?? "All milestones recorded"}</strong></div>
             <strong>{nextHeroAchievement ? `${Math.round(getHeaderAchievementProgress(nextHeroAchievement))}%` : "100%"}</strong>
             <progress aria-label="Next achievement progress" max={100} value={nextHeroAchievement ? getHeaderAchievementProgress(nextHeroAchievement) : 100} />
           </div>
@@ -33927,6 +33203,20 @@ export default function DashboardExperience({
 
     const dashboardTrainingConstellationDays = trainingConstellationWeek;
     const constellationWeekLabel = `${trainingConstellationWeek[0].fullDate.split(", ")[1]} – ${trainingConstellationWeek[6].fullDate.split(", ")[1]}`;
+    const trainingConstellationTodayDateKey = calendarDateKey(dashboardToday);
+    const trainingConstellationTodayIndex =
+      dashboardTrainingConstellationDays.findIndex(
+        (day) => day.dateKey === trainingConstellationTodayDateKey,
+      );
+    const trainingConstellationTodayPillActive =
+      trainingConstellationTodayIndex === activeTrainingConstellationDayIndex &&
+      trainingConstellationTodayIndex >= 0;
+    const trainingConstellationTodayLabel =
+      dashboardToday.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        weekday: "short",
+      });
 
     const dashboardTrainingConstellationLanes = [
       {
@@ -33997,6 +33287,14 @@ export default function DashboardExperience({
       dashboardTrainingConstellationLanes.filter(
         (lane) => selectedTrainingConstellationLanes.includes(lane.id),
       );
+    const boundedTrainingConstellationTrackIndex = Math.min(
+      activeTrainingConstellationTrackIndex,
+      Math.max(0, visibleTrainingConstellationLanes.length - 1),
+    );
+    const activeTrainingConstellationTrack =
+      visibleTrainingConstellationLanes[boundedTrainingConstellationTrackIndex] ?? null;
+    const showTrainingConstellationTrackControls =
+      visibleTrainingConstellationLanes.length > 3;
 
     const dashboardTrainingConstellationLegend = Object.values(
       dashboardTrainingConstellationStatuses,
@@ -34028,11 +33326,7 @@ export default function DashboardExperience({
         icon: Dumbbell,
         color: "rgb(56, 189, 248)",
         soft: "rgba(56, 189, 248, 0.16)",
-        challenges: [
-          { label: "Complete 4 strength sessions", progress: 50, reward: "+120 SP" },
-          { label: "Train 3 movement patterns", progress: 67, reward: "+80 SP" },
-          { label: "Add weight to one key lift", progress: 35, reward: "Power badge" },
-        ],
+        
       },
       {
         id: "cardio",
@@ -34040,11 +33334,7 @@ export default function DashboardExperience({
         icon: Activity,
         color: "rgb(251, 113, 133)",
         soft: "rgba(251, 113, 133, 0.16)",
-        challenges: [
-          { label: "Log 90 cardio minutes", progress: 45, reward: "+100 SP" },
-          { label: "Finish 2 zone sessions", progress: 50, reward: "+75 SP" },
-          { label: "Beat your weekly distance", progress: 72, reward: "Pace badge" },
-        ],
+        
       },
       {
         id: "mobility",
@@ -34052,11 +33342,7 @@ export default function DashboardExperience({
         icon: PersonStanding,
         color: "rgb(167, 139, 250)",
         soft: "rgba(167, 139, 250, 0.16)",
-        challenges: [
-          { label: "Complete 3 mobility flows", progress: 33, reward: "+90 SP" },
-          { label: "Open hips and shoulders", progress: 58, reward: "+60 SP" },
-          { label: "Hold a 7-day mobility streak", progress: 43, reward: "Flow badge" },
-        ],
+        
       },
       {
         id: "recovery",
@@ -34064,11 +33350,7 @@ export default function DashboardExperience({
         icon: HeartPulse,
         color: "rgb(52, 211, 153)",
         soft: "rgba(52, 211, 153, 0.16)",
-        challenges: [
-          { label: "Hit 2 planned recovery days", progress: 50, reward: "+80 SP" },
-          { label: "Log sleep for 5 nights", progress: 60, reward: "+70 SP" },
-          { label: "Complete a recovery check-in", progress: 20, reward: "Reset badge" },
-        ],
+        
       },
       {
         id: "consistency",
@@ -34076,11 +33358,7 @@ export default function DashboardExperience({
         icon: CalendarCheck,
         color: "rgb(251, 191, 36)",
         soft: "rgba(251, 191, 36, 0.16)",
-        challenges: [
-          { label: "Train on 4 planned days", progress: 75, reward: "+130 SP" },
-          { label: "Keep a 7-day check-in streak", progress: 57, reward: "+90 SP" },
-          { label: "Finish every scheduled session", progress: 40, reward: "Streak badge" },
-        ],
+        
       },
       {
         id: "nutrition",
@@ -34088,11 +33366,7 @@ export default function DashboardExperience({
         icon: Apple,
         color: "rgb(163, 230, 53)",
         soft: "rgba(163, 230, 53, 0.16)",
-        challenges: [
-          { label: "Log 5 balanced meals", progress: 40, reward: "+80 SP" },
-          { label: "Reach your protein target", progress: 64, reward: "+75 SP" },
-          { label: "Complete 4 hydration goals", progress: 50, reward: "Fuel badge" },
-        ],
+        
       },
       {
         id: "performance",
@@ -34100,11 +33374,7 @@ export default function DashboardExperience({
         icon: Gauge,
         color: "rgb(96, 165, 250)",
         soft: "rgba(96, 165, 250, 0.16)",
-        challenges: [
-          { label: "Set one new training best", progress: 30, reward: "+150 SP" },
-          { label: "Complete a benchmark test", progress: 65, reward: "+90 SP" },
-          { label: "Improve one tracked metric", progress: 48, reward: "Peak badge" },
-        ],
+        
       },
       {
         id: "learning",
@@ -34112,11 +33382,7 @@ export default function DashboardExperience({
         icon: BookOpen,
         color: "rgb(251, 146, 60)",
         soft: "rgba(251, 146, 60, 0.16)",
-        challenges: [
-          { label: "Review 3 exercise guides", progress: 67, reward: "+60 SP" },
-          { label: "Watch a form coaching lesson", progress: 25, reward: "+70 SP" },
-          { label: "Save 5 useful training notes", progress: 40, reward: "Scholar badge" },
-        ],
+        
       },
       {
         id: "community",
@@ -34124,13 +33390,9 @@ export default function DashboardExperience({
         icon: Users,
         color: "rgb(232, 121, 249)",
         soft: "rgba(232, 121, 249, 0.16)",
-        challenges: [
-          { label: "Share one weekly win", progress: 50, reward: "+60 SP" },
-          { label: "Encourage 3 members", progress: 33, reward: "+75 SP" },
-          { label: "Join a community challenge", progress: 70, reward: "Team badge" },
-        ],
+        
       },
-    ] as const;
+    ].map(category => ({ ...category, challenges: dashboardChallengeEvidence(category.id, dashboardGoalTargets, dashboardSessionEvidence, dashboardPlanEvidence) }));
     const activeDashboardChallengeCategory =
       dashboardChallengeCategories.find(
         (category) => category.id === activeDashboardChallengeCategoryId,
@@ -34139,12 +33401,10 @@ export default function DashboardExperience({
       activeDashboardChallengeCategory.challenges;
     const ActiveDashboardChallengeCategoryIcon =
       activeDashboardChallengeCategory.icon;
-    const dashboardChallengeAverageProgress = Math.round(
-      dashboardTrainingConstellationChallenges.reduce(
-        (total, challenge) => total + challenge.progress,
-        0,
-      ) / dashboardTrainingConstellationChallenges.length,
-    );
+    const dashboardTrackedChallenges = dashboardTrainingConstellationChallenges.filter(challenge => challenge.progress !== null);
+    const dashboardChallengeAverageProgress = dashboardTrackedChallenges.length ? Math.round(
+      dashboardTrackedChallenges.reduce((total, challenge) => total + (challenge.progress ?? 0), 0) / dashboardTrackedChallenges.length,
+    ) : null;
 
     const renderDashboardCommandCenterSummaryPanel = () => (
       <div className="relative min-w-0">
@@ -34207,7 +33467,7 @@ export default function DashboardExperience({
                     Goal Focus
                   </span>
                   <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
-                    {dashboardFoundationProgress.goalsCompletion}% goals
+                    {dashboardFoundationProgress.goalsCompletion}% goal setup
                   </span>
                 </span>
                 <span className="mt-1 block truncate text-[12px] font-black text-white group-hover:text-cyan-100 min-[520px]:text-sm">
@@ -34449,6 +33709,26 @@ export default function DashboardExperience({
 
     void renderDashboardTrainingConstellationLegacyPanel;
 
+    const openTrainingConstellationSchedulePrompt = (
+      day: (typeof dashboardTrainingConstellationDays)[number],
+      dayIndex: number,
+      lane: (typeof visibleTrainingConstellationLanes)[number],
+      laneIndex: number,
+    ) => {
+      setActiveTrainingConstellationDayIndex(dayIndex);
+      setActiveTrainingConstellationTrackIndex(laneIndex);
+      setSelectedTrainingConstellationSessionId(null);
+      setPendingTrainingConstellationSchedule({
+        dateKey: day.dateKey,
+        dayIndex,
+        fullDate: day.fullDate,
+        lane: lane.id,
+        laneColor: lane.color,
+        laneLabel: lane.label,
+        minutes: DASHBOARD_TRAINING_CONSTELLATION_DEFAULT_MINUTES[lane.id],
+      });
+    };
+
     const renderDashboardTrainingConstellationPanel = () => (
       <div className="dashboard-hero-card dashboard-hero-card--training-constellation relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-cyan-100/16 bg-[radial-gradient(circle_at_48%_12%,rgba(56,189,248,0.2),transparent_38%),radial-gradient(circle_at_10%_78%,rgba(52,211,153,0.11),transparent_32%),radial-gradient(circle_at_90%_36%,rgba(251,191,36,0.12),transparent_30%),linear-gradient(135deg,rgba(8,13,28,0.94),rgba(2,6,23,0.88))] p-3 max-[759px]:pt-12 shadow-[0_24px_70px_rgba(0,0,0,0.34),0_0_42px_rgba(56,189,248,0.11),inset_0_1px_0_rgba(255,255,255,0.09)] sm:p-4">
         <div
@@ -34495,50 +33775,79 @@ export default function DashboardExperience({
 
         <header className="relative z-20 min-w-0">
           <div className="min-w-0">
-            <div
-              aria-label="Training constellation week navigation"
-              className="grid w-fit max-w-full grid-cols-[1.5rem_minmax(0,1fr)_1.5rem] items-center gap-1 text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/80"
-              data-dashboard-orbiter-local-scroll="true"
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => event.stopPropagation()}
-              onPointerDown={(event) => event.stopPropagation()}
-              onPointerMove={(event) => event.stopPropagation()}
-              onPointerUp={(event) => event.stopPropagation()}
-            >
-              <button
-                aria-label="Previous constellation week"
-                className="grid h-6 w-6 place-items-center border-0 bg-transparent p-0 text-cyan-200 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
-                data-dashboard-tooltip="Previous week"
-                onClick={() => moveTrainingConstellationWeek(-1)}
-                type="button"
+            <div className="flex max-w-full flex-wrap items-center gap-1.5">
+              <div
+                aria-label="Training constellation week navigation"
+                className="grid w-fit max-w-full grid-cols-[1.5rem_minmax(0,1fr)_1.5rem] items-center gap-1 text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/80"
+                data-dashboard-orbiter-local-scroll="true"
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                onPointerMove={(event) => event.stopPropagation()}
+                onPointerUp={(event) => event.stopPropagation()}
               >
-                <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
-              </button>
-              <span aria-live="polite" aria-atomic="true" className="min-w-0 text-center leading-tight">
-                {constellationWeekLabel}
-              </span>
-              <button
-                aria-label="Next constellation week"
-                className="grid h-6 w-6 place-items-center border-0 bg-transparent p-0 text-cyan-200 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
-                data-dashboard-tooltip="Next week"
-                onClick={() => moveTrainingConstellationWeek(1)}
-                type="button"
-              >
-                <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
-              </button>
+                <button
+                  aria-label="Previous constellation week"
+                  className="grid h-6 w-6 place-items-center border-0 bg-transparent p-0 text-cyan-200 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
+                  onClick={() => moveTrainingConstellationWeek(-1)}
+                  type="button"
+                >
+                  <ChevronLeft aria-hidden="true" className="h-3.5 w-3.5" />
+                </button>
+                <span aria-live="polite" aria-atomic="true" className="min-w-0 text-center leading-tight">
+                  {constellationWeekLabel}
+                </span>
+                <button
+                  aria-label="Next constellation week"
+                  className="grid h-6 w-6 place-items-center border-0 bg-transparent p-0 text-cyan-200 transition hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
+                  onClick={() => moveTrainingConstellationWeek(1)}
+                  type="button"
+                >
+                  <ChevronRight aria-hidden="true" className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
-            <h2 className="mt-1 truncate text-xl font-black uppercase leading-none tracking-normal text-white sm:text-2xl">
+            <h2 className="mt-1 max-w-[10.5rem] whitespace-normal text-[13px] font-black uppercase leading-[0.96] tracking-[-0.02em] text-white min-[360px]:max-w-[12rem] min-[360px]:text-sm min-[420px]:max-w-full min-[420px]:text-base sm:truncate sm:text-2xl sm:leading-none sm:tracking-normal">
               TRAINING CONSTELLATION
             </h2>
           </div>
         </header>
 
-        <div className="relative z-20 mt-2 flex items-center justify-between gap-2">
-          <TrainingConstellationTrackFilter
-            options={dashboardTrainingConstellationLanes}
-            selectedIds={selectedTrainingConstellationLanes}
-            onChange={setSelectedTrainingConstellationLanes}
-          />
+        <div className="relative z-20 mt-2 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <TrainingConstellationTrackFilter
+              options={dashboardTrainingConstellationLanes}
+              selectedIds={selectedTrainingConstellationLanes}
+              onChange={(ids) => {
+                setSelectedTrainingConstellationLanes(ids);
+                setPendingTrainingConstellationSchedule(null);
+              }}
+            />
+            <button
+              aria-label={`Return training constellation to today, ${trainingConstellationTodayLabel}`}
+              aria-pressed={trainingConstellationTodayPillActive}
+              className={`inline-flex min-h-7 max-w-full shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[7px] font-black uppercase tracking-[0.12em] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 ${
+                trainingConstellationTodayPillActive
+                  ? "border-emerald-200/70 bg-emerald-300/18 text-white shadow-[0_0_18px_rgba(52,211,153,0.22),inset_0_1px_0_rgba(255,255,255,0.16)]"
+                  : "border-emerald-200/30 bg-emerald-300/8 text-emerald-100 shadow-[0_0_14px_rgba(52,211,153,0.08)] hover:border-emerald-100/65 hover:bg-emerald-300/16 hover:text-white"
+              }`}
+              data-dashboard-orbiter-local-scroll="true"
+              onClick={(event) => {
+                event.stopPropagation();
+                jumpTrainingConstellationToToday();
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+              onPointerMove={(event) => event.stopPropagation()}
+              onPointerUp={(event) => event.stopPropagation()}
+              type="button"
+            >
+              <CalendarDays aria-hidden="true" className="h-3.5 w-3.5" />
+              <span>Today</span>
+              <span className="hidden text-emerald-100/70 min-[420px]:inline">
+                {trainingConstellationTodayLabel}
+              </span>
+            </button>
+          </div>
 
           <div className="hidden shrink-0 items-center gap-2 min-[760px]:flex">
             {dashboardTrainingConstellationLegend.map((status) => (
@@ -34589,27 +33898,31 @@ export default function DashboardExperience({
                   gridTemplateColumns: `2rem repeat(${visibleTrainingConstellationLanes.length}, minmax(0, 1fr))`,
                 }}
               >
-                <div className="flex items-center px-1 text-[6px] font-black uppercase tracking-[0.12em] text-slate-500">
+                <div
+                  className="flex items-center justify-center px-1 text-[5.5px] font-black uppercase tracking-[0.08em] text-slate-500"
+                  data-dashboard-tooltip="Day"
+                >
                   Day
                 </div>
                 {visibleTrainingConstellationLanes.map((lane) => {
                   const LaneIcon = lane.icon;
                   return (
                     <div
-                      className="relative isolate grid min-w-0 place-items-center overflow-hidden px-0.5 py-1 text-center"
+                      aria-label={`${lane.label} training track`}
+                      className="group relative isolate grid min-w-0 place-items-center overflow-visible px-0.5 py-1 text-center focus-visible:outline-none"
                       data-dashboard-tooltip={lane.label}
                       key={`mobile-training-lane-${lane.id}`}
                     >
                       <LaneIcon
                         aria-hidden="true"
-                        className="absolute h-7 w-7 opacity-20"
+                        className="relative z-10 h-5 w-5"
                         style={{
                           color: lane.color,
-                          filter: `drop-shadow(0 0 9px ${lane.color})`,
+                          filter: `drop-shadow(0 0 10px ${lane.color}) drop-shadow(0 1px 2px rgba(0,0,0,0.85))`,
                         }}
                       />
-                      <span className="relative z-10 max-w-full text-[7px] font-black uppercase leading-tight tracking-normal text-white">
-                        {lane.id === "performance" ? "Perform." : lane.label}
+                      <span className="sr-only">
+                        {lane.label}
                       </span>
                     </div>
                   );
@@ -34642,10 +33955,15 @@ export default function DashboardExperience({
                 </div>
                 {dashboardTrainingConstellationDays.map((day, dayIndex) => {
                   const isActiveDay = activeTrainingConstellationDayIndex === dayIndex;
+                  const isToday = day.dateKey === trainingConstellationTodayDateKey;
                   return (
                     <div
                       className={`relative grid min-h-[68px] items-stretch border-b border-white/[0.055] py-1 transition-colors last:border-b-0 ${
-                        isActiveDay ? "bg-cyan-300/[0.055]" : ""
+                        isToday
+                          ? "bg-emerald-300/[0.07] shadow-[inset_2px_0_0_rgba(110,231,183,0.55),inset_0_0_24px_rgba(52,211,153,0.08)]"
+                          : isActiveDay
+                            ? "bg-cyan-300/[0.055]"
+                            : ""
                       }`}
                       data-training-constellation-day-index={dayIndex}
                       key={`mobile-training-day-${day.day}`}
@@ -34656,28 +33974,45 @@ export default function DashboardExperience({
                       <div className="relative z-10 flex flex-col items-center justify-center text-center">
                         <span
                           className={`grid h-7 w-7 place-items-center rounded-full border text-[9px] font-black transition ${
-                            isActiveDay
+                            isToday
+                              ? "border-emerald-100/80 bg-emerald-300/22 text-white shadow-[0_0_18px_rgba(52,211,153,0.4)]"
+                              : isActiveDay
                               ? "border-cyan-100/65 bg-cyan-300/18 text-white shadow-[0_0_14px_rgba(34,211,238,0.3)]"
                               : "border-white/12 bg-slate-950/90 text-slate-300"
                           }`}
                         >
                           {day.date}
                         </span>
-                        <span className="mt-1 text-[6px] font-black uppercase tracking-[0.12em] text-slate-500">
-                          {day.day}
+                        <span className={`mt-1 text-[6px] font-black uppercase tracking-[0.12em] ${isToday ? "text-emerald-100" : "text-slate-500"}`}>
+                          {isToday ? "Today" : day.day}
                         </span>
                       </div>
 
-                      {visibleTrainingConstellationLanes.map((lane) => (
+                      {visibleTrainingConstellationLanes.map((lane, laneIndex) => (
                         <TrainingConstellationSessionCell
                           compact
+                          isToday={isToday}
+                          tooltipOnly
                           key={lane.id}
                           color={lane.color}
+                          emptyLabel={`Schedule ${lane.label} on ${day.fullDate}`}
+                          emptyTooltip={`Schedule ${lane.label}`}
                           sessions={dashboardTrainingConstellationSessions.filter(
                             (session) => session.lane === lane.id && session.dayIndex === dayIndex,
                           )}
                           selectedId={selectedTrainingConstellationSessionId}
-                          onSelect={(id) => setSelectedTrainingConstellationSessionId((current) => current === id ? null : id)}
+                          onEmptySelect={() =>
+                            openTrainingConstellationSchedulePrompt(
+                              day,
+                              dayIndex,
+                              lane,
+                              laneIndex,
+                            )
+                          }
+                          onSelect={(id) => {
+                            setPendingTrainingConstellationSchedule(null);
+                            setSelectedTrainingConstellationSessionId((current) => current === id ? null : id);
+                          }}
                         />
                       ))}
                     </div>
@@ -34688,37 +34023,110 @@ export default function DashboardExperience({
 
             <div className="relative hidden min-h-full w-full min-w-0 pb-8 pt-2 sm:block">
               <div className="grid grid-cols-[minmax(60px,0.85fr)_repeat(7,minmax(0,1fr))] border-b border-white/8 pb-1.5">
-                <div className="flex items-center px-2 text-[7px] font-black uppercase tracking-[0.18em] text-slate-500">
+                <div
+                  className="flex items-center px-2 text-[7px] font-black uppercase tracking-[0.18em] text-slate-500"
+                  data-dashboard-tooltip="Week"
+                >
                   {constellationWeekLabel}
                 </div>
-                {dashboardTrainingConstellationDays.map((item) => (
-                  <div
-                    className={`mx-1 rounded-md py-0.5 text-center transition ${
-                      activeTrainingConstellationDayIndex === dashboardTrainingConstellationDays.indexOf(item)
-                        ? "bg-cyan-300/10 shadow-[inset_0_-2px_0_rgba(34,211,238,0.72),0_0_14px_rgba(34,211,238,0.08)]"
-                        : ""
-                    }`}
-                    key={item.day}
-                  >
-                    <span className="block text-[7px] font-black uppercase tracking-[0.16em] text-slate-500">
-                      {item.day}
-                    </span>
-                    <span className="mt-0.5 block text-[10px] font-black text-slate-200">
-                      {item.date}
-                    </span>
-                  </div>
-                ))}
+                {dashboardTrainingConstellationDays.map((item, dayIndex) => {
+                  const isActiveDay = activeTrainingConstellationDayIndex === dayIndex;
+                  const isToday = item.dateKey === trainingConstellationTodayDateKey;
+                  return (
+                    <div
+                      className={`mx-1 rounded-md border py-0.5 text-center transition ${
+                        isToday
+                          ? "border-emerald-200/42 bg-emerald-300/12 shadow-[inset_0_-2px_0_rgba(52,211,153,0.88),0_0_18px_rgba(52,211,153,0.12)]"
+                          : isActiveDay
+                            ? "border-cyan-200/16 bg-cyan-300/10 shadow-[inset_0_-2px_0_rgba(34,211,238,0.72),0_0_14px_rgba(34,211,238,0.08)]"
+                            : "border-transparent"
+                      }`}
+                      data-dashboard-tooltip={
+                        isToday ? "Today" : `${item.day} ${item.date}`
+                      }
+                      data-training-constellation-day-header-index={dayIndex}
+                      key={item.day}
+                    >
+                      <span className={`block text-[7px] font-black uppercase tracking-[0.16em] ${isToday ? "text-emerald-100" : "text-slate-500"}`}>
+                        {item.day}
+                      </span>
+                      <span className="mt-0.5 block text-[10px] font-black text-slate-200">
+                        {item.date}
+                      </span>
+                      {isToday ? (
+                        <span className="mt-0.5 block text-[5.5px] font-black uppercase tracking-[0.16em] text-emerald-100/85">
+                          Today
+                        </span>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
 
-              <div className="relative mt-1.5 grid gap-1.5">
-                {visibleTrainingConstellationLanes.map((lane) => {
+              <div className={`relative mt-1.5 grid gap-1.5 ${showTrainingConstellationTrackControls ? "grid-cols-[2.25rem_minmax(0,1fr)]" : "grid-cols-1"}`}>
+                {showTrainingConstellationTrackControls ? (
+                  <div
+                    aria-label="Training track scroll controls"
+                    className="sticky top-9 z-30 flex min-h-[74px] flex-col items-center justify-center gap-1.5 self-start py-1"
+                    data-dashboard-orbiter-local-scroll="true"
+                    onClick={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onPointerMove={(event) => event.stopPropagation()}
+                    onPointerUp={(event) => event.stopPropagation()}
+                    onWheel={(event) => event.stopPropagation()}
+                  >
+                    <button
+                      aria-label="Show previous constellation track"
+                      className="grid h-7 w-7 place-items-center rounded-full border border-emerald-200/24 bg-emerald-300/8 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.08)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
+                      disabled={boundedTrainingConstellationTrackIndex === 0}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        moveTrainingConstellationTrack(-1);
+                      }}
+                      type="button"
+                    >
+                      <ChevronUp aria-hidden="true" className="h-3.5 w-3.5" />
+                    </button>
+                    <div className="grid min-h-[4.7rem] place-items-center text-center">
+                      <span className="[writing-mode:vertical-rl] rotate-180 text-[6px] font-black uppercase tracking-[0.16em] text-cyan-100/70">
+                        {activeTrainingConstellationTrack?.label ?? "Tracks"}
+                      </span>
+                    </div>
+                    <button
+                      aria-label="Show next constellation track"
+                      className="grid h-7 w-7 place-items-center rounded-full border border-cyan-200/24 bg-cyan-300/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)] transition hover:border-cyan-200/55 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
+                      disabled={
+                        boundedTrainingConstellationTrackIndex >=
+                        visibleTrainingConstellationLanes.length - 1
+                      }
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        moveTrainingConstellationTrack(1);
+                      }}
+                      type="button"
+                    >
+                      <ChevronDown aria-hidden="true" className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : null}
+
+                <div className="relative grid min-w-0 gap-1.5">
+                {visibleTrainingConstellationLanes.map((lane, laneIndex) => {
                   const LaneIcon = lane.icon;
                   return (
                     <div
-                      className="relative grid min-h-[74px] grid-cols-[minmax(60px,0.85fr)_repeat(7,minmax(0,1fr))] items-stretch"
+                      className={`relative grid min-h-[74px] grid-cols-[minmax(60px,0.85fr)_repeat(7,minmax(0,1fr))] items-stretch transition ${
+                        boundedTrainingConstellationTrackIndex === laneIndex
+                          ? "drop-shadow-[0_0_14px_rgba(34,211,238,0.12)]"
+                          : ""
+                      }`}
+                      data-training-constellation-track-index={laneIndex}
                       key={lane.id}
                     >
-                      <div className="relative z-10 isolate flex min-w-0 items-center justify-center overflow-hidden border-r border-white/8 px-2 text-center">
+                      <div
+                        className="relative z-10 isolate flex min-w-0 items-center justify-center overflow-hidden border-r border-white/8 px-2 text-center"
+                        data-dashboard-tooltip={lane.label}
+                      >
                         <LaneIcon
                           aria-hidden="true"
                           className="pointer-events-none absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 opacity-20"
@@ -34745,18 +34153,33 @@ export default function DashboardExperience({
                       {dashboardTrainingConstellationDays.map((day, dayIndex) => (
                         <TrainingConstellationSessionCell
                           compact
+                          isToday={day.dateKey === trainingConstellationTodayDateKey}
                           key={day.dateKey}
                           color={lane.color}
+                          emptyLabel={`Schedule ${lane.label} on ${day.fullDate}`}
+                          emptyTooltip={`Schedule ${lane.label}`}
                           sessions={dashboardTrainingConstellationSessions.filter(
                             (session) => session.lane === lane.id && session.dayIndex === dayIndex,
                           )}
                           selectedId={selectedTrainingConstellationSessionId}
-                          onSelect={(id) => setSelectedTrainingConstellationSessionId((current) => current === id ? null : id)}
+                          onEmptySelect={() =>
+                            openTrainingConstellationSchedulePrompt(
+                              day,
+                              dayIndex,
+                              lane,
+                              laneIndex,
+                            )
+                          }
+                          onSelect={(id) => {
+                            setPendingTrainingConstellationSchedule(null);
+                            setSelectedTrainingConstellationSessionId((current) => current === id ? null : id);
+                          }}
                         />
                       ))}
                     </div>
                     );
                   })}
+                </div>
               </div>
 
               <div className="mt-2 flex items-center justify-between gap-3 px-2 text-[7px] font-black uppercase tracking-[0.12em] text-slate-500">
@@ -34769,6 +34192,97 @@ export default function DashboardExperience({
             </div>
           </div>
           )}
+
+          {pendingTrainingConstellationSchedule ? (
+            <div
+              aria-label="Schedule open constellation spot"
+              className="absolute inset-x-2 bottom-2 z-40 grid max-h-full gap-2 overflow-y-auto rounded-lg border border-cyan-100/22 bg-slate-950/90 p-3 shadow-[0_18px_44px_rgba(0,0,0,0.48),0_0_30px_rgba(34,211,238,0.12)] backdrop-blur-xl sm:left-auto sm:w-[min(22rem,calc(100%-1rem))]"
+              data-dashboard-orbiter-local-scroll="true"
+              role="dialog"
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === "Escape") {
+                  setPendingTrainingConstellationSchedule(null);
+                }
+              }}
+              onPointerDown={(event) => event.stopPropagation()}
+              onPointerMove={(event) => event.stopPropagation()}
+              onPointerUp={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-[7px] font-black uppercase tracking-[0.18em] text-cyan-200/70">
+                    <span
+                      aria-hidden="true"
+                      className="h-2 w-2 rounded-full"
+                      style={{
+                        background: pendingTrainingConstellationSchedule.laneColor,
+                        boxShadow: `0 0 12px ${pendingTrainingConstellationSchedule.laneColor}`,
+                      }}
+                    />
+                    Open constellation spot
+                  </div>
+                  <h3 className="mt-1 break-words text-sm font-black text-white">
+                    Schedule {pendingTrainingConstellationSchedule.laneLabel}?
+                  </h3>
+                </div>
+                <button
+                  aria-label="Dismiss schedule prompt"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 text-slate-300 transition hover:border-cyan-200/40 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
+                  onClick={() => setPendingTrainingConstellationSchedule(null)}
+                  type="button"
+                >
+                  <X aria-hidden="true" className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              <p className="text-[10px] font-semibold leading-relaxed text-slate-200">
+                Nothing is planned for {pendingTrainingConstellationSchedule.fullDate}. Do you want to open the calendar and schedule this spot around{" "}
+                {formatCalendarTime(pendingTrainingConstellationSchedule.minutes)}?
+              </p>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  className="min-h-10 rounded-xl border border-white/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-300 transition hover:border-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
+                  onClick={() => setPendingTrainingConstellationSchedule(null)}
+                  type="button"
+                >
+                  Not now
+                </button>
+                <button
+                  className="flex min-h-10 items-center justify-center gap-2 rounded-xl border border-cyan-200/30 bg-cyan-300/10 px-3 py-2 text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100 transition hover:bg-cyan-300/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200"
+                  onClick={() => {
+                    const scheduleDate = parseCalendarDate(
+                      pendingTrainingConstellationSchedule.dateKey,
+                    );
+                    const calendarRow = dashboardOrbiterRows.findIndex(
+                      (row) => row.title === "Calendar",
+                    );
+                    if (
+                      !scheduleDate ||
+                      calendarRow < 0 ||
+                      !setDashboardOrbiterRow(calendarRow)
+                    ) {
+                      return;
+                    }
+
+                    setDashboardCalendarDate(scheduleDate);
+                    setDashboardCalendarEventFocus({
+                      id: `schedule-${pendingTrainingConstellationSchedule.dateKey}-${pendingTrainingConstellationSchedule.lane}`,
+                      dateKey: pendingTrainingConstellationSchedule.dateKey,
+                      minutes: pendingTrainingConstellationSchedule.minutes,
+                    });
+                    setDashboardCalendarOrbitCommand(null);
+                    setDashboardCalendarResetKey((key) => key + 1);
+                    setPendingTrainingConstellationSchedule(null);
+                  }}
+                  type="button"
+                >
+                  Schedule
+                  <ChevronRight aria-hidden="true" className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ) : null}
 
           {selectedTrainingConstellationSession ? (
             <div
@@ -34845,8 +34359,7 @@ export default function DashboardExperience({
         >
           <button
             aria-label="Move down to the next constellation day"
-            className="grid h-8 w-8 place-items-center rounded-full border border-cyan-200/24 bg-cyan-300/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)] transition hover:border-cyan-200/55 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
-            data-dashboard-tooltip="Move down one training day"
+            className="grid h-8 w-8 place-items-center border-0 bg-transparent p-0 text-cyan-100 drop-shadow-[0_0_8px_rgba(34,211,238,0.28)] transition hover:-translate-y-0.5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 disabled:cursor-not-allowed disabled:text-slate-600 disabled:drop-shadow-none"
             disabled={
               activeTrainingConstellationDayIndex ===
               dashboardTrainingConstellationDays.length - 1
@@ -34872,8 +34385,7 @@ export default function DashboardExperience({
 
           <button
             aria-label="Move up to the previous constellation day"
-            className="grid h-8 w-8 place-items-center rounded-full border border-emerald-200/24 bg-emerald-300/8 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.08)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
-            data-dashboard-tooltip="Move up one training day"
+            className="grid h-8 w-8 place-items-center border-0 bg-transparent p-0 text-emerald-100 drop-shadow-[0_0_8px_rgba(52,211,153,0.28)] transition hover:-translate-y-0.5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-200 disabled:cursor-not-allowed disabled:text-slate-600 disabled:drop-shadow-none"
             disabled={activeTrainingConstellationDayIndex === 0}
             onClick={(event) => {
               event.stopPropagation();
@@ -34897,7 +34409,6 @@ export default function DashboardExperience({
           <button
             aria-label="Show previous constellation day"
             className="grid h-8 w-8 place-items-center rounded-full border border-emerald-200/24 bg-emerald-300/8 text-emerald-100 shadow-[0_0_16px_rgba(52,211,153,0.08)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
-            data-dashboard-tooltip="Previous training day"
             disabled={activeTrainingConstellationDayIndex === 0}
             onClick={(event) => {
               event.stopPropagation();
@@ -34921,7 +34432,6 @@ export default function DashboardExperience({
           <button
             aria-label="Show next constellation day"
             className="grid h-8 w-8 place-items-center rounded-full border border-cyan-200/24 bg-cyan-300/8 text-cyan-100 shadow-[0_0_16px_rgba(34,211,238,0.08)] transition hover:border-cyan-200/55 hover:bg-cyan-300/16 disabled:cursor-not-allowed disabled:border-white/8 disabled:bg-slate-950/30 disabled:text-slate-600 disabled:shadow-none"
-            data-dashboard-tooltip="Next training day"
             disabled={
               activeTrainingConstellationDayIndex ===
               dashboardTrainingConstellationDays.length - 1
@@ -34942,7 +34452,7 @@ export default function DashboardExperience({
       <div className={`dashboard-hero-card dashboard-hero-card--training-challenges ${meterCardStyles.challengeCard}`}>
         <div className={`${meterCardStyles.content} ${meterCardStyles.challengeContent}`}>
           <header className={meterCardStyles.heading}>
-            <p>Reward track</p>
+            <p>Saved target tracking</p>
             <h2>Challenges</h2>
           </header>
           <div
@@ -34984,7 +34494,7 @@ export default function DashboardExperience({
                 <ActiveDashboardChallengeCategoryIcon aria-hidden="true" />
                 {activeDashboardChallengeCategory.label}
               </h3>
-              <span>{dashboardTrainingConstellationChallenges.length} active</span>
+              <span>{dashboardTrackedChallenges.length} tracked</span>
             </div>
             {dashboardTrainingConstellationChallenges.map((challenge, index) => (
               <div
@@ -34996,22 +34506,23 @@ export default function DashboardExperience({
                 } as CSSProperties}
               >
                 <h4><span>{String(index + 1).padStart(2, "0")}</span>{challenge.label}</h4>
+                <p>{challenge.detail}</p>
                 <div className={meterCardStyles.challengeProgress}>
                   <span>{challenge.reward}</span>
-                  <strong>{challenge.progress}%</strong>
-                  <progress aria-label={`${challenge.label} progress`} max={100} value={challenge.progress} />
+                  <strong>{challenge.progress === null ? "Not tracked" : Math.round(challenge.progress) + "%"}</strong>
+                  {challenge.progress !== null ? <progress aria-label={challenge.label + ": " + challenge.detail} max={100} value={challenge.progress} /> : null}
                 </div>
               </div>
             ))}
           </div>
           <dl className={meterCardStyles.stats}>
-            <div><dt>Avg progress</dt><dd>{dashboardChallengeAverageProgress}%</dd></div>
-            <div><dt>Active</dt><dd>{dashboardTrainingConstellationChallenges.length}</dd></div>
+            <div><dt>Avg progress</dt><dd>{dashboardChallengeAverageProgress === null ? "Unavailable" : dashboardChallengeAverageProgress + "%"}</dd></div>
+            <div><dt>Tracked</dt><dd>{dashboardTrackedChallenges.length}</dd></div>
             <div><dt>Categories</dt><dd>{dashboardChallengeCategories.length}</dd></div>
           </dl>
           <footer className={meterCardStyles.footer}>
             <Link href={ROUTES.dashboard.progress} onClick={(event) => event.stopPropagation()}>
-              Open rewards<ChevronRight aria-hidden="true" />
+              Review recorded progress<ChevronRight aria-hidden="true" />
             </Link>
           </footer>
         </div>
@@ -35108,6 +34619,78 @@ export default function DashboardExperience({
           if (focusChip) nextChip?.focus({ preventScroll: true });
         });
       };
+      const handleDashboardNewsFilterPointerDown = (
+        event: ReactPointerEvent<HTMLDivElement>,
+      ) => {
+        if (event.pointerType === "mouse" && event.button !== 0) return;
+        dashboardHeroNewsFilterDragRef.current = {
+          moved: false,
+          pointerId: event.pointerId,
+          scrollLeft: event.currentTarget.scrollLeft,
+          startX: event.clientX,
+        };
+        event.stopPropagation();
+      };
+      const handleDashboardNewsFilterPointerMove = (
+        event: ReactPointerEvent<HTMLDivElement>,
+      ) => {
+        const drag = dashboardHeroNewsFilterDragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        const rail = event.currentTarget;
+        if (event.pointerType === "mouse" && (event.buttons & 1) === 0) {
+          dashboardHeroNewsFilterDragRef.current = null;
+          return;
+        }
+
+        const deltaX = event.clientX - drag.startX;
+        if (!drag.moved) {
+          if (Math.abs(deltaX) < 8) return;
+          drag.moved = true;
+          rail.setPointerCapture?.(event.pointerId);
+        }
+
+        rail.scrollLeft = drag.scrollLeft - deltaX;
+        event.preventDefault();
+        event.stopPropagation();
+      };
+      const handleDashboardNewsFilterPointerEnd = (
+        event: ReactPointerEvent<HTMLDivElement>,
+      ) => {
+        const drag = dashboardHeroNewsFilterDragRef.current;
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        dashboardHeroNewsFilterDragRef.current = null;
+
+        if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+          event.currentTarget.releasePointerCapture?.(event.pointerId);
+        }
+
+        if (drag.moved) {
+          dashboardHeroNewsFilterSuppressClickRef.current = true;
+          window.setTimeout(() => {
+            dashboardHeroNewsFilterSuppressClickRef.current = false;
+          }, 0);
+          event.preventDefault();
+        }
+        event.stopPropagation();
+      };
+      const handleDashboardNewsFilterClickCapture = (
+        event: ReactMouseEvent<HTMLDivElement>,
+      ) => {
+        if (!dashboardHeroNewsFilterSuppressClickRef.current) return;
+        dashboardHeroNewsFilterSuppressClickRef.current = false;
+        event.preventDefault();
+        event.stopPropagation();
+      };
+      const dashboardHeroNewsNextEventSpots =
+        dashboardHeroNewsNextEvent?.event
+          ? formatDashboardNewsSpots(dashboardHeroNewsNextEvent.event)
+          : null;
+      const dashboardHeroNewsNextEventTone =
+        dashboardHeroNewsNextEventSpots
+          ? dashboardIconToneStyles[dashboardHeroNewsNextEventSpots.tone]
+          : dashboardIconToneStyles.cyan;
+      const dashboardHeroNewsNextEventTitleId =
+        "dashboard-hero-news-next-event-popup-title";
       const newsFilterIcons = {
         all: Newspaper,
         community: Users,
@@ -35121,51 +34704,65 @@ export default function DashboardExperience({
 
       return (
         <div
-          className="dashboard-hero-card dashboard-hero-card--news relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-cyan-100/16 p-3 max-[759px]:pt-12 sm:p-4"
+          className="dashboard-hero-card dashboard-hero-card--news relative z-10 flex h-full min-h-[420px] w-full max-w-full flex-col overflow-hidden rounded-[30px] border border-cyan-100/16 p-3 sm:p-4"
           onPointerEnter={() => setDashboardContentFocused(true)}
         >
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,rgba(34,211,238,0.045)_1px,transparent_1px),linear-gradient(180deg,rgba(125,211,252,0.05)_1px,transparent_1px)] bg-[length:34px_34px] opacity-60" />
           <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-cyan-100/72 to-transparent" />
 
-          <div className="relative z-10 min-w-0 pr-32 min-[760px]:pr-40">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <div className="text-[8px] font-black uppercase tracking-[0.22em] text-cyan-100/78">
+          <div className="relative z-10 min-w-0 overflow-visible pr-28 [container-type:inline-size] min-[380px]:pr-32 min-[760px]:pr-40">
+            <div className="relative z-20 flex min-h-7 w-max max-w-none items-center gap-2 overflow-visible whitespace-nowrap">
+              <div className="shrink-0 text-[8px] font-black uppercase tracking-[0.2em] text-cyan-100/78 drop-shadow-[0_1px_5px_rgba(2,6,23,0.9)]">
                 What&apos;s Happening
               </div>
-              <div className="shrink-0 text-[7px] font-black uppercase tracking-[0.12em] text-cyan-50/80">
-                {dashboardNewsFeed.items.length} stories · Updated{" "}
-                {formatDashboardDate(dashboardNewsFeed.updatedAt)}
-              </div>
             </div>
-            <h2 className="mt-1 break-words text-[clamp(1.5rem,3vw,2.65rem)] font-black uppercase leading-none tracking-normal text-white [text-shadow:0_0_24px_rgba(34,211,238,0.16)]">
+            <h2 className="mt-0.5 max-w-full whitespace-nowrap text-[clamp(0.95rem,6cqw,2.55rem)] font-black uppercase leading-none tracking-[-0.045em] text-white [text-shadow:0_0_24px_rgba(34,211,238,0.16)] min-[520px]:tracking-normal">
               NEWS &amp; EVENTS
             </h2>
-            <p className="mt-1 text-[11px] font-semibold text-slate-400 max-[559px]:hidden">
+            <p className="mt-0.5 truncate text-[11px] font-semibold text-slate-400 max-[559px]:hidden">
               Sound Fitness events and the fitness world, in one feed.
             </p>
           </div>
 
-          <div
-            aria-atomic="true"
-            aria-live="polite"
-            className="relative z-10 mt-2 grid min-h-10 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[12px] border border-white/10 bg-slate-950/44 px-2.5 py-1.5"
-            role="status"
+          <button
+            aria-controls={
+              dashboardHeroNewsNextEvent
+                ? "dashboard-hero-news-next-event-popup"
+                : undefined
+            }
+            aria-expanded={
+              dashboardHeroNewsNextEvent
+                ? dashboardNewsEventPopupOpen
+                : undefined
+            }
+            aria-haspopup={dashboardHeroNewsNextEvent ? "dialog" : undefined}
+            aria-label={
+              dashboardHeroNewsNextEvent
+                ? `Open next event details: ${dashboardHeroNewsNextEvent.title}`
+                : "No upcoming events scheduled"
+            }
+            className="group relative z-10 mt-2 grid min-h-10 min-w-0 grid-cols-[minmax(4.9rem,auto)_minmax(0,1fr)] items-center gap-2 rounded-[12px] border border-white/10 bg-slate-950/44 px-2.5 py-1.5 text-left outline-none transition-[background-color,border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-cyan-100/28 hover:bg-slate-900/64 hover:shadow-[0_0_22px_rgba(34,211,238,0.16)] focus-visible:ring-2 focus-visible:ring-cyan-100/70 disabled:cursor-default disabled:hover:translate-y-0 disabled:hover:border-white/10 disabled:hover:bg-slate-950/44 disabled:hover:shadow-none motion-reduce:transform-none motion-reduce:transition-none"
+            disabled={!dashboardHeroNewsNextEvent}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (dashboardHeroNewsNextEvent) {
+                setDashboardNewsEventPopupOpen(true);
+              }
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+            type="button"
           >
-            <span className="inline-flex shrink-0 items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.14em] text-[#67e8f9]">
-              <span
-                aria-hidden
-                className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.7)]"
-              />
-              Next event
-            </span>
             <span className="min-w-0 leading-tight">
-              <span className="block truncate text-[10px] font-black uppercase text-cyan-50/90">
-                {dashboardHeroNewsNextEvent?.title ??
-                  "No upcoming events scheduled"}
+              <span className="inline-flex items-center gap-1.5 text-[8px] font-black uppercase tracking-[0.14em] text-[#67e8f9]">
+                <span
+                  aria-hidden
+                  className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.7)]"
+                />
+                Next event
               </span>
               {dashboardHeroNewsNextEvent?.event ? (
                 <time
-                  className="mt-0.5 block text-[8px] font-black uppercase tracking-[0.1em] text-emerald-200/85"
+                  className="mt-0.5 block truncate text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200/85"
                   dateTime={dashboardHeroNewsNextEvent.event.startsAt}
                 >
                   {formatCompactDateTime(
@@ -35174,104 +34771,222 @@ export default function DashboardExperience({
                 </time>
               ) : null}
             </span>
+            <span className="min-w-0 leading-tight">
+              <span className="line-clamp-2 block text-[10px] font-black uppercase leading-tight text-cyan-50/90">
+                {dashboardHeroNewsNextEvent?.title ??
+                  "No upcoming events scheduled"}
+              </span>
+            </span>
             <span className="sr-only">
               Showing {newsItems.length} {activeNewsFilter.label} items.
             </span>
-          </div>
+          </button>
+
+          {dashboardNewsEventPopupOpen && dashboardHeroNewsNextEvent?.event ? (
+            <div
+              aria-hidden="false"
+              className="absolute inset-0 z-[90] rounded-[30px] bg-slate-950/74 p-3 backdrop-blur-[2px]"
+              onClick={() => setDashboardNewsEventPopupOpen(false)}
+              onPointerDown={(event) => event.stopPropagation()}
+            >
+              <div
+                aria-labelledby={dashboardHeroNewsNextEventTitleId}
+                className="absolute inset-x-3 top-[5.25rem] max-h-[calc(100%-5.9rem)] overflow-y-auto rounded-[24px] border border-cyan-100/20 bg-slate-950/94 p-2.5 text-white shadow-[0_24px_60px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.08)] [scrollbar-width:thin]"
+                data-dashboard-orbiter-local-scroll="true"
+                id="dashboard-hero-news-next-event-popup"
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+                role="dialog"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[8px] font-black uppercase tracking-[0.18em] text-cyan-100/70">
+                      Up next
+                    </div>
+                    <h3
+                      className="mt-1 text-base font-black leading-none tracking-[-0.03em] text-white"
+                      id={dashboardHeroNewsNextEventTitleId}
+                    >
+                      {dashboardHeroNewsNextEvent.title}
+                    </h3>
+                  </div>
+                  <button
+                    aria-label="Close next event details"
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/5 text-cyan-50 outline-none transition-[background-color,border-color,transform] duration-200 hover:scale-105 hover:border-cyan-100/35 hover:bg-cyan-200/10 focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transform-none motion-reduce:transition-none"
+                    onClick={() => setDashboardNewsEventPopupOpen(false)}
+                    type="button"
+                  >
+                    <X aria-hidden className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <p className="mt-1.5 text-[11px] font-semibold leading-snug text-slate-300">
+                  {dashboardHeroNewsNextEvent.summary}
+                </p>
+
+                <div className="mt-2 grid gap-1.5 text-[10px] font-bold text-slate-300">
+                  <div className="grid grid-cols-[3.65rem_minmax(0,1fr)] gap-2 rounded-[12px] border border-white/10 bg-white/[0.03] p-1.5">
+                    <span className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-500">
+                      When
+                    </span>
+                    <span className="font-black uppercase text-cyan-50">
+                      {formatCompactDateTime(
+                        dashboardHeroNewsNextEvent.event.startsAt,
+                      )}{" "}
+                      ·{" "}
+                      {formatDashboardNewsEventWindow(
+                        dashboardHeroNewsNextEvent.event,
+                      )}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-[3.65rem_minmax(0,1fr)] gap-2 rounded-[12px] border border-white/10 bg-white/[0.03] p-1.5">
+                    <span className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-500">
+                      Where
+                    </span>
+                    <span className="min-w-0 font-black text-cyan-50">
+                      {dashboardHeroNewsNextEvent.event.location}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-[3.65rem_minmax(0,1fr)] gap-2 rounded-[12px] border border-white/10 bg-white/[0.03] p-1.5">
+                    <span className="text-[8px] font-black uppercase tracking-[0.16em] text-slate-500">
+                      Details
+                    </span>
+                    <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      {dashboardHeroNewsNextEvent.event.price ? (
+                        <span className="font-black text-cyan-50">
+                          {dashboardHeroNewsNextEvent.event.price}
+                        </span>
+                      ) : null}
+                      {dashboardHeroNewsNextEventSpots ? (
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.1em] ${dashboardHeroNewsNextEventTone.idle}`}
+                        >
+                          {dashboardHeroNewsNextEventSpots.label}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+                </div>
+
+                {dashboardHeroNewsNextEvent.href ? (
+                  <Link
+                    aria-label={`${dashboardHeroNewsNextEvent.hrefLabel ?? "Open"}: ${dashboardHeroNewsNextEvent.title}`}
+                    className="mt-3 inline-flex h-9 items-center justify-center rounded-full border border-amber-100/30 bg-amber-300/14 px-4 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100 outline-none transition-[background-color,border-color,transform] duration-200 hover:-translate-y-0.5 hover:bg-amber-300/24 focus-visible:ring-2 focus-visible:ring-amber-100/70 motion-reduce:transform-none motion-reduce:transition-none"
+                    href={dashboardHeroNewsNextEvent.href}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setDashboardNewsEventPopupOpen(false);
+                    }}
+                  >
+                    {dashboardHeroNewsNextEvent.hrefLabel ?? "Open"}
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           <div
-            aria-label="Filter News & Events"
-            className="relative z-10 mt-2 flex gap-1.5 overflow-x-auto scroll-smooth pb-0.5 [scrollbar-width:none] motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden"
-            data-dashboard-orbiter-local-scroll="true"
-            role="tablist"
-          >
-            {newsFilterCounts.map((entry) => {
-              const isSelected = entry.id === dashboardNewsFeedFilter;
-              const tone = dashboardNewsFilterToneStyles[entry.id];
-              const FilterIcon = newsFilterIcons[entry.id];
-              return (
-                <button
-                  aria-controls="dashboard-hero-news-feed"
-                  aria-selected={isSelected}
-                  className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[8px] font-black uppercase tracking-[0.12em] outline-none transition-[background-color,border-color,opacity] duration-200 focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transition-none ${
-                    isSelected ? tone.active : tone.idle
-                  }`}
-                  id={`dashboard-hero-news-filter-${entry.id}`}
-                  key={entry.id}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setDashboardNewsFeedFilter(entry.id);
-                  }}
-                  onKeyDown={(event) => {
-                    let nextIndex: number | null = null;
-                    if (event.key === "ArrowRight") {
-                      nextIndex = activeNewsFilterIndex + 1;
-                    } else if (event.key === "ArrowLeft") {
-                      nextIndex = activeNewsFilterIndex - 1;
-                    } else if (event.key === "Home") {
-                      nextIndex = 0;
-                    } else if (event.key === "End") {
-                      nextIndex = newsFilterIds.length - 1;
-                    }
-                    if (nextIndex === null) return;
-                    // preventDefault bows out the window arrow router;
-                    // stopPropagation keeps the selector from rotating the deck.
-                    event.preventDefault();
-                    event.stopPropagation();
-                    selectDashboardNewsFilter(nextIndex, true);
-                  }}
-                  // Focus lands here on open (the return strip that used to
-                  // take it is gone); Escape and ArrowRight still close.
-                  ref={isSelected ? dashboardHeroNewsCloseButtonRef : undefined}
-                  role="tab"
-                  tabIndex={isSelected ? 0 : -1}
-                  type="button"
-                >
-                  <FilterIcon aria-hidden className="h-3 w-3" />
-                  {entry.label}
-                  <span className="opacity-65">{entry.count}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div
-            aria-label="Browse News & Events categories"
-            className="relative z-10 mt-0.5 flex items-center justify-center gap-4"
+            className="relative z-10 mt-2 flex min-w-0 items-center gap-1.5"
             data-dashboard-orbiter-local-scroll="true"
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
             onPointerMove={(event) => event.stopPropagation()}
             onPointerUp={(event) => event.stopPropagation()}
           >
-            <button
-              aria-label="Highlight previous News & Events category"
-              className="grid h-7 w-8 place-items-center text-cyan-100/75 outline-none transition-[color,transform] duration-200 hover:-translate-x-0.5 hover:text-white focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transform-none motion-reduce:transition-none"
-              onClick={(event) => {
-                event.stopPropagation();
-                selectDashboardNewsFilter(activeNewsFilterIndex - 1);
-              }}
-              type="button"
+            <div
+              aria-label="Browse News & Events categories"
+              className="grid h-7 w-6 shrink-0 grid-rows-2 overflow-hidden rounded-full border border-cyan-100/15 bg-slate-950/44 shadow-[0_0_14px_rgba(34,211,238,0.12)]"
             >
-              <ChevronLeft aria-hidden className="h-4 w-4" />
-            </button>
-            <span
-              aria-live="polite"
-              className="min-w-20 text-center text-[7px] font-black uppercase tracking-[0.16em] text-slate-500"
+              <button
+                aria-label="Highlight previous News & Events category"
+                className="grid min-h-0 place-items-center border-b border-cyan-100/10 text-cyan-100/75 outline-none transition-[background-color,color,transform] duration-200 hover:-translate-x-0.5 hover:bg-cyan-200/10 hover:text-white focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transform-none motion-reduce:transition-none"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  selectDashboardNewsFilter(activeNewsFilterIndex - 1);
+                }}
+                type="button"
+              >
+                <ChevronLeft aria-hidden className="h-3 w-3" />
+              </button>
+              <button
+                aria-label="Highlight next News & Events category"
+                className="grid min-h-0 place-items-center text-cyan-100/75 outline-none transition-[background-color,color,transform] duration-200 hover:translate-x-0.5 hover:bg-cyan-200/10 hover:text-white focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transform-none motion-reduce:transition-none"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  selectDashboardNewsFilter(activeNewsFilterIndex + 1);
+                }}
+                type="button"
+              >
+                <ChevronRight aria-hidden className="h-3 w-3" />
+              </button>
+            </div>
+
+            <div
+              aria-label="Filter News & Events"
+              className="flex min-w-0 flex-1 cursor-grab select-none gap-1.5 overflow-x-auto scroll-smooth py-0.5 [scrollbar-width:none] [touch-action:pan-x] active:cursor-grabbing motion-reduce:scroll-auto [&::-webkit-scrollbar]:hidden"
+              data-dashboard-orbiter-local-scroll="true"
+              onClickCapture={handleDashboardNewsFilterClickCapture}
+              onPointerCancel={handleDashboardNewsFilterPointerEnd}
+              onPointerDown={handleDashboardNewsFilterPointerDown}
+              onPointerMove={handleDashboardNewsFilterPointerMove}
+              onPointerUp={handleDashboardNewsFilterPointerEnd}
+              role="tablist"
             >
+              {newsFilterCounts.map((entry) => {
+                const isSelected = entry.id === dashboardNewsFeedFilter;
+                const tone = dashboardNewsFilterToneStyles[entry.id];
+                const FilterIcon = newsFilterIcons[entry.id];
+                return (
+                  <button
+                    aria-controls="dashboard-hero-news-feed"
+                    aria-selected={isSelected}
+                    className={`inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-[8px] font-black uppercase tracking-[0.12em] outline-none transition-[background-color,border-color,opacity] duration-200 focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transition-none ${
+                      isSelected ? tone.active : tone.idle
+                    }`}
+                    id={`dashboard-hero-news-filter-${entry.id}`}
+                    key={entry.id}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setDashboardNewsFeedFilter(entry.id);
+                    }}
+                    onKeyDown={(event) => {
+                      let nextIndex: number | null = null;
+                      if (event.key === "ArrowRight") {
+                        nextIndex = activeNewsFilterIndex + 1;
+                      } else if (event.key === "ArrowLeft") {
+                        nextIndex = activeNewsFilterIndex - 1;
+                      } else if (event.key === "Home") {
+                        nextIndex = 0;
+                      } else if (event.key === "End") {
+                        nextIndex = newsFilterIds.length - 1;
+                      }
+                      if (nextIndex === null) return;
+                      // preventDefault bows out the window arrow router;
+                      // stopPropagation keeps the selector from rotating the deck.
+                      event.preventDefault();
+                      event.stopPropagation();
+                      selectDashboardNewsFilter(nextIndex, true);
+                    }}
+                    // Focus lands here on open (the return strip that used to
+                    // take it is gone); Escape and ArrowRight still close.
+                    ref={
+                      isSelected ? dashboardHeroNewsCloseButtonRef : undefined
+                    }
+                    role="tab"
+                    tabIndex={isSelected ? 0 : -1}
+                    type="button"
+                  >
+                    <FilterIcon aria-hidden className="h-3 w-3" />
+                    {entry.label}
+                    <span className="opacity-65">{entry.count}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <span aria-live="polite" className="sr-only">
               {activeNewsFilter.label}
             </span>
-            <button
-              aria-label="Highlight next News & Events category"
-              className="grid h-7 w-8 place-items-center text-cyan-100/75 outline-none transition-[color,transform] duration-200 hover:translate-x-0.5 hover:text-white focus-visible:ring-2 focus-visible:ring-cyan-100/70 motion-reduce:transform-none motion-reduce:transition-none"
-              onClick={(event) => {
-                event.stopPropagation();
-                selectDashboardNewsFilter(activeNewsFilterIndex + 1);
-              }}
-              type="button"
-            >
-              <ChevronRight aria-hidden className="h-4 w-4" />
-            </button>
           </div>
 
           <div
@@ -35292,7 +35007,7 @@ export default function DashboardExperience({
                 const spots = item.event
                   ? formatDashboardNewsSpots(item.event)
                   : null;
-                const tone = dashboardIconToneStyles[item.tone];
+                const categoryTone = dashboardNewsTopicToneStyles[item.topic];
                 const KindIcon = isEvent ? CalendarDays : Globe;
                 const titleId = `dashboard-news-${item.id}-title`;
                 return (
@@ -35301,12 +35016,23 @@ export default function DashboardExperience({
                       aria-labelledby={titleId}
                       className="dashboard-hero-news-row group relative grid min-w-0 grid-cols-[44px_minmax(0,1fr)] items-start gap-2.5 overflow-hidden rounded-[12px] border border-white/10 bg-slate-950/44 px-2 py-1.5 shadow-[0_10px_22px_rgba(0,0,0,0.16),inset_0_1px_0_rgba(255,255,255,0.06)] min-[560px]:grid-cols-[44px_minmax(0,1fr)_auto] min-[560px]:px-2.5 min-[560px]:py-2"
                       data-news-kind={item.kind}
-                      data-news-tone={item.tone}
+                      data-news-topic={item.topic}
+                      style={
+                        {
+                          "--dashboard-news-category-border":
+                            categoryTone.border,
+                          "--dashboard-news-category-glow": categoryTone.glow,
+                          "--dashboard-news-category-soft": categoryTone.soft,
+                          background: `linear-gradient(90deg, ${categoryTone.soft}, rgba(15, 23, 42, 0.44) 34%, rgba(2, 6, 23, 0.24)), rgba(15, 23, 42, 0.44)`,
+                          borderLeftColor: categoryTone.border,
+                          boxShadow: `0 10px 22px rgba(0, 0, 0, 0.16), 0 0 18px ${categoryTone.glow}, inset 0 1px 0 rgba(255, 255, 255, 0.06)`,
+                        } as CSSProperties
+                      }
                     >
                       {badge ? (
                         <div
                           aria-hidden
-                          className={`grid h-11 w-11 place-items-center rounded-[10px] border text-center leading-none ${tone.idle}`}
+                          className={`grid h-11 w-11 place-items-center rounded-[10px] border text-center leading-none ${categoryTone.badge}`}
                         >
                           <div className="text-[7px] font-black uppercase tracking-[0.08em]">
                             {badge.weekday}
@@ -35319,18 +35045,25 @@ export default function DashboardExperience({
                       ) : (
                         <div
                           aria-hidden
-                          className={`grid h-11 w-11 place-items-center rounded-[10px] border ${tone.idle}`}
+                          className={`grid h-11 w-11 place-items-center rounded-[10px] border ${categoryTone.badge}`}
                         >
                           <KindIcon className="h-4 w-4" />
                         </div>
                       )}
                       <div className="min-w-0">
-                        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9px] font-black uppercase tracking-[0.08em] text-slate-500">
+                        <div
+                          className={`flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9px] font-black uppercase tracking-[0.08em] ${categoryTone.meta}`}
+                        >
                           <span>
                             <span className="sr-only">
                               {isEvent ? "Event: " : "Fitness world: "}
                             </span>
                             {isEvent ? "Sound Fitness event" : item.source}
+                          </span>
+                          <span
+                            className={`rounded-full border px-1.5 py-px text-[7px] tracking-[0.1em] ${categoryTone.chip}`}
+                          >
+                            {categoryTone.label}
                           </span>
                           {isNextEvent ? (
                             <span className="rounded-full border border-emerald-200/30 bg-emerald-300/12 px-1.5 py-px text-[7px] text-emerald-100">
@@ -35420,7 +35153,7 @@ export default function DashboardExperience({
             {[
               {
                 label: "This week",
-                value: `${dashboardSummary.workoutsThisWeek}/${dashboardSummary.weeklySessionGoal}`,
+                value: `${dashboardWeeklySessionGoal.count}`,
               },
               { label: "Next session", value: dashboardNextPlannedSessionLabel },
               { label: "Upcoming events", value: `${dashboardHeroNewsUpcomingCount}` },
@@ -36082,7 +35815,7 @@ export default function DashboardExperience({
                                 </span>
                                 <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.12em] text-amber-100">
                                   {dashboardFoundationProgress.goalsCompletion}%
-                                  goals
+                                  goal setup
                                 </span>
                               </span>
                               <span className="mt-1 block truncate text-sm font-black text-white group-hover:text-cyan-100">
@@ -39821,6 +39554,177 @@ export default function DashboardExperience({
     );
   };
 
+  const renderQuickLogPopup = () => {
+    if (!quickLogPopupOpen || isAdminPreview) return null;
+
+    const quickLogExercise = selectedExercise || getQuickLogDefaultExercise();
+    const titleId = "dashboard-quick-log-title";
+    const descriptionId = "dashboard-quick-log-description";
+
+    return createPortal(
+      <div
+        aria-describedby={descriptionId}
+        aria-labelledby={titleId}
+        aria-modal="true"
+        className="fixed inset-0 z-[99998] flex items-center justify-center bg-slate-950/76 p-[clamp(10px,3vw,24px)] backdrop-blur-md"
+        data-dashboard-quick-log-overlay="true"
+        data-dashboard-wheel-lock="true"
+        onKeyDown={(event) => {
+          event.stopPropagation();
+          if (event.key === "Escape") {
+            setQuickLogPopupOpen(false);
+          }
+        }}
+        onMouseDown={(event) => {
+          if (event.currentTarget === event.target) {
+            setQuickLogPopupOpen(false);
+          }
+        }}
+        role="dialog"
+      >
+        <section className="relative flex max-h-[calc(100dvh-20px)] w-full max-w-[74rem] flex-col overflow-hidden rounded-[28px] border border-cyan-200/24 bg-[radial-gradient(circle_at_16%_0%,rgba(34,211,238,0.16),transparent_32%),radial-gradient(circle_at_86%_8%,rgba(250,204,21,0.10),transparent_30%),linear-gradient(145deg,rgba(10,18,34,0.97),rgba(2,6,23,0.98))] shadow-[0_28px_90px_rgba(0,0,0,0.72),inset_0_1px_0_rgba(255,255,255,0.12)]">
+          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5">
+            <div className="min-w-0">
+              <p className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.18em] text-cyan-100/82">
+                <span className="grid h-7 w-7 place-items-center rounded-full border border-cyan-100/28 bg-cyan-300/12 text-cyan-50">
+                  <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+                </span>
+                Exercise Library Quick Track
+              </p>
+              <h2
+                className="mt-1 text-2xl font-black uppercase tracking-[0.03em] text-white sm:text-3xl"
+                id={titleId}
+              >
+                Quick Log
+              </h2>
+              <p
+                className="mt-1 max-w-2xl text-xs font-semibold leading-5 text-slate-300"
+                id={descriptionId}
+              >
+                Pick an exercise from the library, adjust sets/reps/load/RPE,
+                and save it straight into dashboard stats.
+              </p>
+            </div>
+            <button
+              aria-label="Close Quick Log"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/12 bg-white/[0.035] text-slate-300 transition hover:border-cyan-100/38 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-100/70"
+              onClick={() => setQuickLogPopupOpen(false)}
+              type="button"
+            >
+              <X aria-hidden="true" className="h-4 w-4" />
+            </button>
+          </header>
+
+          <div
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 [scrollbar-color:rgba(34,211,238,0.38)_rgba(15,23,42,0.32)] [scrollbar-width:thin] sm:px-5 sm:py-4"
+            data-dashboard-orbiter-local-scroll="true"
+          >
+            <div className="grid gap-3">
+              <ManualExerciseLibraryPreview
+                activeCategoryId={activeManualExerciseCategoryId}
+                categories={manualExerciseLibraryCategories}
+                layout="selectorOnly"
+                manualStatsDraft={manualStatsDraft}
+                onCategorySelect={setActiveManualExerciseCategoryId}
+                onCategoryShift={rotateManualExerciseCategory}
+                onExerciseSelect={selectExerciseReference}
+                onManualStatsDraftChange={updateManualStatsDraft}
+                onSaveManualStats={saveQuickLogStats}
+                selectedExercise={quickLogExercise}
+                selectedExerciseCue={selectedExercise?.cue || quickLogExercise?.cue}
+                selectedExerciseIds={selectedManualExerciseReferenceIds}
+              />
+
+              <section className="min-w-0 rounded-[22px] border border-white/10 bg-slate-950/42 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+                <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/76">
+                      Track stats
+                    </p>
+                    <h3 className="mt-1 text-xl font-black uppercase tracking-[0.04em] text-white">
+                      Sliders first, details below
+                    </h3>
+                  </div>
+                  <div
+                    aria-live="polite"
+                    className="min-h-5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100"
+                  >
+                    {quickLogSaveMessage || "Ready to save"}
+                  </div>
+                </div>
+
+                <button type="button" className="mb-3 text-sm text-cyan-100 underline" onClick={reviewLatestManualStats}>Review latest saved data</button>
+                {manualStatsReview && dashboardManualStatsReviewBelongsToCurrentAccount(manualStatsReview) && (
+                  <section aria-label="Saved manual logging records" className="mb-3 space-y-2 text-sm text-slate-200">
+                    <p>{manualStatsReview.entries.length} saved notes · {manualStatsReview.exerciseStats.length} exercise statistics. Review before continuing with your entered values.</p>
+                    <details>
+                      <summary>View saved notes and measurements</summary>
+                      <ul className="max-h-48 overflow-y-auto">
+                        {manualStatsReview.entries.map(entry => <li key={entry.id}>{entry.dateTime} · {entry.sessionLabel || entry.references.map(ref => ref.referenceTitle).join(", ") || "Manual note"} · Sets: {entry.sets || "Unreported"} · Reps: {entry.reps || "Unreported"} · Load: {entry.load || "Unreported"} {entry.weightUnit || "unit unreported"} · RPE: {entry.rpe || "Unreported"} · {entry.notes}</li>)}
+                        {manualStatsReview.exerciseStats.map((entry, index) => <li key={index}>{entry && typeof entry === "object" ? [entry.date, entry.exerciseName, "Sets: " + (entry.sets || "Unreported"), "Reps: " + (entry.reps || "Unreported"), "Load: " + (entry.weight || "Unreported"), entry.weightUnit || "Unit unreported"].join(" · ") : "Legacy statistic needs review"}</li>)}
+                      </ul>
+                    </details>
+                    <button type="button" className="text-cyan-100 underline" onClick={useReviewedManualStats}>Use reviewed data and keep my entries</button>
+                  </section>
+                )}
+
+                <QuickManualStatsControls
+                  manualStatsDraft={manualStatsDraft}
+                  onManualStatsDraftChange={updateManualStatsDraft}
+                  onSaveManualStats={saveQuickLogStats}
+                />
+
+                <div
+                  className="mt-3 grid gap-2 md:grid-cols-2"
+                  data-dashboard-quick-log-fields="true"
+                >
+                  <label className="grid gap-1 text-[8px] font-black uppercase tracking-[0.14em] text-slate-400">
+                    Session
+                    <input
+                      className="min-h-10 rounded-2xl border border-white/10 bg-slate-950/68 px-3 text-sm font-bold normal-case tracking-normal text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/48 focus:ring-2 focus:ring-cyan-200/18"
+                      onChange={(event) =>
+                        updateManualStatsDraft(
+                          "sessionLabel",
+                          event.target.value,
+                        )
+                      }
+                      placeholder="Upper push, lower day..."
+                      type="text"
+                      value={manualStatsDraft.sessionLabel}
+                    />
+                  </label>
+                  <label className="grid gap-1 text-[8px] font-black uppercase tracking-[0.14em] text-slate-400">
+                    Date & time
+                    <input
+                      className="min-h-10 rounded-2xl border border-white/10 bg-slate-950/68 px-3 text-sm font-bold normal-case tracking-normal text-white outline-none transition focus:border-cyan-200/48 focus:ring-2 focus:ring-cyan-200/18"
+                      onChange={(event) =>
+                        updateManualStatsDraft("dateTime", event.target.value)
+                      }
+                      type="datetime-local"
+                      value={manualStatsDraft.dateTime}
+                    />
+                  </label>
+                  <label className="grid gap-1 text-[8px] font-black uppercase tracking-[0.14em] text-slate-400 md:col-span-2">
+                    Notes
+                    <textarea
+                      className="min-h-20 resize-none rounded-2xl border border-white/10 bg-slate-950/68 px-3 py-2 text-sm font-semibold normal-case leading-5 tracking-normal text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-200/48 focus:ring-2 focus:ring-cyan-200/18"
+                      onChange={(event) =>
+                        updateManualStatsDraft("notes", event.target.value)
+                      }
+                      placeholder="Technique cue, pain note, tempo..."
+                      value={manualStatsDraft.notes}
+                    />
+                  </label>
+                </div>
+              </section>
+            </div>
+          </div>
+        </section>
+      </div>,
+      document.body,
+    );
+  };
+
   const renderDashboardDailyToolsRow = () => {
     if (isAdminPreview) return renderAdminUserListRow();
 
@@ -40327,29 +40231,48 @@ export default function DashboardExperience({
                 {page.map((tool) => {
                   const tone = dashboardIconToneStyles[tool.tone];
                   const ToolIcon = tool.icon;
-                  return (
-                    <li className="flex min-h-0 min-w-0 items-center justify-center" key={tool.id}>
-                      <Link
-                        aria-label={`${tool.label}. ${tool.description}`}
-                        className="group flex w-full max-w-[8.5rem] flex-col items-center rounded-2xl p-2 text-center lg:max-w-[10.5rem] outline-none transition-[translate,opacity] duration-200 ease-out hover:-translate-y-1 hover:bg-white/[0.04] active:translate-y-0 active:opacity-80 focus-visible:ring-2 focus-visible:ring-cyan-100/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 motion-reduce:transition-none motion-reduce:hover:translate-y-0"
-                        data-dashboard-tooltip={tool.description}
-                        draggable={false}
-                        href={tool.href}
+                  const tileContent = (
+                    <>
+                      <span
+                        aria-hidden="true"
+                        className={`relative grid h-14 w-14 place-items-center rounded-[20px] border sm:h-16 sm:w-16 sm:rounded-[22px] lg:h-20 lg:w-20 lg:rounded-[26px] ${tone.idle}`}
                       >
                         <span
-                          aria-hidden="true"
-                          className={`relative grid h-14 w-14 place-items-center rounded-[20px] border sm:h-16 sm:w-16 sm:rounded-[22px] lg:h-20 lg:w-20 lg:rounded-[26px] ${tone.idle}`}
+                          className={`absolute inset-0 rounded-[inherit] border opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none ${tone.active}`}
+                        />
+                        <span className="absolute inset-x-3 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-white/40 to-transparent" />
+                        <ToolIcon className="relative z-10 h-7 w-7 sm:h-8 sm:w-8 lg:h-9 lg:w-9" strokeWidth={2} />
+                      </span>
+                      <span className="mt-2 line-clamp-2 min-h-[2.4em] w-full break-words text-[11px] font-black leading-[1.2] tracking-[0.01em] text-white/92 [overflow-wrap:anywhere] sm:mt-2.5 sm:text-xs lg:text-sm">
+                        {tool.label}
+                      </span>
+                    </>
+                  );
+                  return (
+                    <li className="flex min-h-0 min-w-0 items-center justify-center" key={tool.id}>
+                      {tool.id === "quick-log" ? (
+                        <button
+                          aria-haspopup="dialog"
+                          aria-label={`${tool.label}. ${tool.description}`}
+                          className="group flex w-full max-w-[8.5rem] flex-col items-center rounded-2xl p-2 text-center outline-none transition-[translate,opacity] duration-200 ease-out hover:-translate-y-1 hover:bg-white/[0.04] active:translate-y-0 active:opacity-80 focus-visible:ring-2 focus-visible:ring-cyan-100/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 motion-reduce:transition-none motion-reduce:hover:translate-y-0 lg:max-w-[10.5rem]"
+                          data-dashboard-quick-log-trigger="true"
+                          data-dashboard-tooltip={tool.description}
+                          onClick={openQuickLogPopup}
+                          type="button"
                         >
-                          <span
-                            className={`absolute inset-0 rounded-[inherit] border opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100 motion-reduce:transition-none ${tone.active}`}
-                          />
-                          <span className="absolute inset-x-3 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-white/40 to-transparent" />
-                          <ToolIcon className="relative z-10 h-7 w-7 sm:h-8 sm:w-8 lg:h-9 lg:w-9" strokeWidth={2} />
-                        </span>
-                        <span className="mt-2 line-clamp-2 min-h-[2.4em] w-full break-words text-[11px] font-black leading-[1.2] tracking-[0.01em] text-white/92 [overflow-wrap:anywhere] sm:mt-2.5 sm:text-xs lg:text-sm">
-                          {tool.label}
-                        </span>
-                      </Link>
+                          {tileContent}
+                        </button>
+                      ) : (
+                        <Link
+                          aria-label={`${tool.label}. ${tool.description}`}
+                          className="group flex w-full max-w-[8.5rem] flex-col items-center rounded-2xl p-2 text-center outline-none transition-[translate,opacity] duration-200 ease-out hover:-translate-y-1 hover:bg-white/[0.04] active:translate-y-0 active:opacity-80 focus-visible:ring-2 focus-visible:ring-cyan-100/60 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950 motion-reduce:transition-none motion-reduce:hover:translate-y-0 lg:max-w-[10.5rem]"
+                          data-dashboard-tooltip={tool.description}
+                          draggable={false}
+                          href={tool.href}
+                        >
+                          {tileContent}
+                        </Link>
+                      )}
                     </li>
                   );
                 })}
@@ -42075,7 +41998,7 @@ export default function DashboardExperience({
         accentClassName: "bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.62)]",
         stackOnNarrow: true,
         description:
-          "Last 7 days: training volume, nutrition consistency, readiness, and recent activity.",
+          "Last 7 days: training volume, nutrition records, saved check-ins, and recent activity.",
         footer: (
           <AdaptiveColumnIndicators
             label="Weekly recap card indicators"
@@ -42213,8 +42136,8 @@ export default function DashboardExperience({
           const slot = orbitSlots[Math.min(absDistance, orbitSlots.length - 1)];
           const tone = dashboardToneStyles[card.tone];
           const isActive = distance === 0;
-          const isRecoveryLineGraph = card.title === "Recovery Readiness";
-          const isNutritionLoadingBars = card.title === "Nutrition Consistency";
+          const isRecoveryLineGraph = card.title === "Weekly Check-In";
+          const isNutritionLoadingBars = card.title === "Nutrition Records";
           const isRecentWorkoutActivity =
             card.title === "Recent Workout Activity";
           const lineGraphPoints = card.rows.map((row, rowIndex) => {
@@ -42352,8 +42275,9 @@ export default function DashboardExperience({
                 ) : null}
                 {isRecoveryLineGraph ? (
                   <div className="relative h-[148px] overflow-hidden rounded-[22px] border border-white/8 bg-slate-950/42 px-1 pb-5 pt-1">
+                    {!card.rows.length ? <p className="absolute inset-x-4 top-12 text-sm text-slate-300">{dashboardHealthEvidence.recoveryIssue || "No saved check-in in the last 7 days."}</p> : null}
                     <svg
-                      aria-label="Recovery readiness trend line"
+                      aria-label="Saved weekly self-report check-in scores"
                       className="h-full w-full overflow-visible"
                       role="img"
                       viewBox="0 0 280 122"
@@ -44036,7 +43960,7 @@ export default function DashboardExperience({
           <aside className={`${masterJourneyStyles.titleCard} relative min-w-0 overflow-hidden rounded-[30px] border border-cyan-100/18 bg-[radial-gradient(circle_at_18%_0%,rgba(34,211,238,0.14),transparent_34%),linear-gradient(135deg,rgba(15,23,42,0.76),rgba(2,6,23,0.58))] shadow-2xl shadow-black/25 backdrop-blur`}>
             <span className="pointer-events-none absolute inset-x-6 top-0 h-px rounded-full bg-gradient-to-r from-transparent via-cyan-200/70 to-amber-200/55" />
             <span className="absolute right-4 top-2 rounded-full border border-amber-200/28 bg-amber-300/10 px-2 py-1 text-[8px] font-black uppercase tracking-[0.12em] text-amber-100">
-              {masterJourneyProgress}% completed
+              {dashboardJourney.progressLabel}
             </span>
             <div className={`${masterJourneyStyles.titleHeader} flex min-w-0 items-center`}>
               <span
@@ -44104,11 +44028,7 @@ export default function DashboardExperience({
                 },
                 {
                   label: "Plan source",
-                  value: activeSessionTemplate
-                    ? "Live workout"
-                    : favoriteWorkoutTemplates.length
-                      ? `${favoriteWorkoutTemplates.length} templates`
-                      : "Setup path",
+                  value: dashboardPlanEvidence.issue || dashboardPlanEvidence.title || "No active plan",
                 },
                 {
                   label: "Next action",
@@ -44249,6 +44169,11 @@ export default function DashboardExperience({
 
   return (
     <>
+      {dashboardSessionEvidence.issue ? (
+        <div role="status" className="fixed bottom-4 left-4 z-[200] max-w-md rounded-xl border border-amber-300/40 bg-slate-950 p-3 text-sm text-amber-100">
+          <Link href={ROUTES.dashboard.sessionHistory}>{dashboardSessionEvidence.issue}. Session counts may be incomplete. Open History to review the originals.</Link>
+        </div>
+      ) : null}
       <DashboardWebGlPreloader />
       <main
         className={`${headerOnly ? `${headerOnlyViewport ? "h-[100dvh] max-h-[100dvh] overflow-hidden" : "min-h-screen pb-10"} bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_30%),radial-gradient(circle_at_82%_10%,rgba(251,146,60,0.14),transparent_28%),linear-gradient(180deg,#020617_0%,#07111f_52%,#020617_100%)]` : "h-[100dvh] max-h-[100dvh] overflow-clip bg-[#020713]"} text-white ${
@@ -44534,6 +44459,7 @@ export default function DashboardExperience({
           </section>}
           {renderDashboardProfileHubOverlay()}
           {renderDashboardHeroWidgetsDrawer()}
+          {renderQuickLogPopup()}
           {renderAdminJourneyDetailOverlay()}
           {renderAdminJourneyPersonOverlay()}
           {renderAdminUserListAddOverlay()}

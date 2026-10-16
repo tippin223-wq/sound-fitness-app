@@ -26,6 +26,7 @@ import {
 import { useProfile } from "@/components/profile/ProfileProvider";
 import { getSupabaseUser, supabase } from "@/lib/supabaseClient";
 import { ROUTES } from "@/lib/routes";
+import { planningAccountGeneration, planningOwner, planningKeys, planningRecordVersion } from "@/lib/planning/store";
 import MuscleHeatMap from "@/components/anatomy/MuscleHeatMap";
 import {
   asRecord,
@@ -6784,8 +6785,6 @@ function ProfileQuestionPager({
 
 export default function ClientProfilePage() {
   const {
-    profile: sharedProfile,
-    setProfile: setSharedProfile,
     updateProfile,
   } = useProfile();
   const router = useRouter();
@@ -7218,6 +7217,10 @@ export default function ClientProfilePage() {
       rail.removeEventListener("scroll", syncScrollState);
     };
   }, [loading]);
+  const profileVersionRef = useRef(planningRecordVersion(planningKeys.profile));
+  const profileGenerationRef = useRef(planningAccountGeneration());
+  const profileReviewRef = useRef(0);
+  const [saveError, setSaveError] = useState("");
   const [message, setMessage] = useState("");
   const [planDirectionMessage, setPlanDirectionMessage] = useState("");
   const [profile, setProfile] = useState<SoundFitnessProfile>(defaultProfile);
@@ -7316,14 +7319,17 @@ export default function ClientProfilePage() {
         memberSinceAt: "",
       };
 
-      const shared = asRecord(sharedProfile);
-      const saved = Object.keys(shared).length ? shared : readSoundFitnessProfile();
+      const loadedAccount = planningOwner();
+      const loadedGeneration = planningAccountGeneration();
+      const saved = readSoundFitnessProfile();
+      const loadedVersion = planningRecordVersion(planningKeys.profile);
       if (Object.keys(saved).length) {
         nextProfile = mergeProfile(saved as Partial<SoundFitnessProfile>);
       }
 
       try {
         const { data } = await getSupabaseUser();
+        if (data.user && data.user.id !== loadedAccount) throw new Error("Profile account changed.");
         const metadata = asRecord(data.user?.user_metadata);
         const authEmail = data.user?.email || "";
         const authCreatedAt = data.user?.created_at || "";
@@ -7353,7 +7359,12 @@ export default function ClientProfilePage() {
       }
 
       if (!isMounted) return;
+      if (planningOwner() !== loadedAccount || planningAccountGeneration() !== loadedGeneration) {
+        setSaveError("Your account changed while the profile was loading. Reload the saved profile before editing."); setLoading(false); return;
+      }
 
+      profileVersionRef.current = loadedVersion;
+      profileGenerationRef.current = loadedGeneration;
       setAuthFallback(nextAuthFallback);
       setProfile(nextProfile);
       setSavedSnapshot(JSON.stringify(nextProfile));
@@ -8012,8 +8023,11 @@ export default function ClientProfilePage() {
     event.target.value = "";
     if (!file) return;
 
+    const readGeneration = profileGenerationRef.current;
+    const readReview = profileReviewRef.current;
     const reader = new FileReader();
     reader.onload = () => {
+      if (readGeneration !== planningAccountGeneration() || readGeneration !== profileGenerationRef.current || readReview !== profileReviewRef.current) return;
       const text = typeof reader.result === "string" ? reader.result : "";
       const parsed = parseBodyScanCsvRows(text);
       const mapping = inferBodyScanColumnMapping(parsed.headers);
@@ -8106,8 +8120,11 @@ export default function ClientProfilePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const readGeneration = profileGenerationRef.current;
+    const readReview = profileReviewRef.current;
     const reader = new FileReader();
     reader.onload = () => {
+      if (readGeneration !== planningAccountGeneration() || readGeneration !== profileGenerationRef.current || readReview !== profileReviewRef.current) return;
       const result = typeof reader.result === "string" ? reader.result : "";
       if (result) setProfileField("profileImage", result);
     };
@@ -8411,8 +8428,11 @@ export default function ClientProfilePage() {
       return;
     }
 
+    const readGeneration = profileGenerationRef.current;
+    const readReview = profileReviewRef.current;
     const reader = new FileReader();
     reader.onload = () => {
+      if (readGeneration !== planningAccountGeneration() || readGeneration !== profileGenerationRef.current || readReview !== profileReviewRef.current) return;
       const src = typeof reader.result === "string" ? reader.result : "";
       if (!src) return;
 
@@ -8462,6 +8482,7 @@ export default function ClientProfilePage() {
   };
 
   const removeProgressPhoto = (slotId: string) => {
+    profileReviewRef.current += 1;
     setProfile((current) => ({
       ...current,
       measurements: {
@@ -8822,22 +8843,29 @@ export default function ClientProfilePage() {
       username,
     };
 
-    // TODO: Persist this profile to Supabase when the profile schema is ready for
-    // the full training identity object. localStorage is the safe source today.
-    setSharedProfile(nextProfile);
-    updateProfile(nextProfile);
+    try {
+      updateProfile(nextProfile, profileVersionRef.current, profileGenerationRef.current);
+      profileVersionRef.current = planningRecordVersion(planningKeys.profile);
+      setSaveError("");
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Profile could not be saved. Your edits are still here.");
+      return;
+    }
     setProfile(nextProfile);
     setSavedSnapshot(JSON.stringify(nextProfile));
     if (announce) {
-      setMessage("Profile saved locally.");
+      setMessage("Profile saved on this device. Check the sync status for cloud storage.");
       window.setTimeout(() => setMessage(""), 2400);
     }
   };
 
   useEffect(() => {
     if (loading || isEditingIdentity || !hasUnsavedChanges) return;
+    const saveGeneration = profileGenerationRef.current;
+    const saveReview = profileReviewRef.current;
 
     const timeoutId = window.setTimeout(() => {
+      if (saveGeneration !== planningAccountGeneration() || saveGeneration !== profileGenerationRef.current || saveReview !== profileReviewRef.current) return;
       saveProfile({ announce: false });
     }, 450);
 
@@ -8864,8 +8892,14 @@ export default function ClientProfilePage() {
       updatedAt,
     };
 
-    setSharedProfile(nextProfile);
-    updateProfile(nextProfile);
+    try {
+      updateProfile(nextProfile, profileVersionRef.current, profileGenerationRef.current);
+      profileVersionRef.current = planningRecordVersion(planningKeys.profile);
+      setSaveError("");
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Profile identity could not be saved. Your edits are still here.");
+      return;
+    }
     setProfile(nextProfile);
     setSavedSnapshot(JSON.stringify(nextProfile));
     setIsEditingIdentity(false);
@@ -9033,6 +9067,7 @@ export default function ClientProfilePage() {
                       role="menuitem"
                       onClick={() => {
                         setProfilePhotoMenuOpen(false);
+                        profileReviewRef.current += 1;
                         setProfileField("profileImage", "");
                       }}
                       className="mt-1 block w-full rounded-xl px-3 py-2 text-left text-[10px] font-black uppercase tracking-[0.1em] text-red-100 transition hover:bg-red-400/14 focus:bg-red-400/14 focus:outline-none"
@@ -16814,6 +16849,12 @@ export default function ClientProfilePage() {
   return (
     <DashboardExperience headerOnly headerOnlyViewport>
       <section className="mx-auto w-full max-w-[1440px] overflow-x-clip px-4 pb-0 pt-0 sm:px-6 lg:px-8">
+        {saveError && <div role="alert" className="my-3 rounded-xl border border-rose-300/30 bg-slate-950 p-3 text-sm text-rose-100"><p>{saveError}</p><p>Keep a copy of your edits before reloading.</p><button type="button" className="mt-2 rounded-lg border border-white/20 px-3 py-2" onClick={() => {
+          const saved = mergeProfile(readSoundFitnessProfile() as Partial<SoundFitnessProfile>);
+          profileGenerationRef.current = planningAccountGeneration(); profileReviewRef.current += 1;
+          profileVersionRef.current = planningRecordVersion(planningKeys.profile);
+          setProfile(saved); setSavedSnapshot(JSON.stringify(saved)); setIsEditingIdentity(false); setSaveError("");
+        }}>Reload saved profile and discard these edits</button></div>}
         <nav className="hidden rounded-[28px] border border-white/10 bg-slate-950/52 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]">
           <div className="flex items-center gap-2">
             <button

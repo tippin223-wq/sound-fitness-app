@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { BufferGeometry, Material, Object3D } from "three";
 import DashboardWebGlWidget from "./DashboardWebGlWidget";
 import type {
@@ -14,6 +14,7 @@ type DashboardLightningBolt3DProps = {
   active?: boolean;
   className?: string;
   paused?: boolean;
+  toneColor?: string;
 };
 
 type MaterialObject = Object3D & {
@@ -61,11 +62,19 @@ export default function DashboardLightningBolt3D({
   active = false,
   className = "",
   paused = false,
+  toneColor = "#38bdf8",
 }: DashboardLightningBolt3DProps) {
   const activeRef = useRef(active);
   activeRef.current = active;
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
+  const toneColorRef = useRef(toneColor);
+  const toneDirtyRef = useRef(true);
+
+  useEffect(() => {
+    toneColorRef.current = toneColor;
+    toneDirtyRef.current = true;
+  }, [toneColor]);
 
   const build = useMemo<DashboardWidgetBuilder>(
     () =>
@@ -207,9 +216,47 @@ export default function DashboardLightningBolt3D({
         return spark;
       });
 
+      let appliedToneColor = "";
+      const applyToneColor = (nextToneColor: string) => {
+        if (appliedToneColor === nextToneColor) return false;
+        appliedToneColor = nextToneColor;
+        const baseColor = new THREE.Color(nextToneColor || "#38bdf8");
+        const brightColor = baseColor.clone().lerp(new THREE.Color("#ffffff"), 0.38);
+        const emissiveColor = baseColor.clone().lerp(new THREE.Color("#020617"), 0.18);
+        const rimColor = baseColor.clone().lerp(new THREE.Color("#e0f2fe"), 0.64);
+
+        boltMaterial.color.copy(baseColor);
+        boltMaterial.emissive.copy(emissiveColor);
+        glowMaterial.color.copy(brightColor);
+        edgeMaterial.color.copy(rimColor);
+        sparkMaterial.color.copy(brightColor);
+        cyanLight.color.copy(baseColor.clone().lerp(new THREE.Color("#ffffff"), 0.16));
+        blueLight.color.copy(baseColor.clone().lerp(new THREE.Color("#1d4ed8"), 0.34));
+        auraShards.forEach((shard, index) => {
+          const material = shard.material as Material & {
+            color?: { copy: (color: unknown) => void };
+          };
+          material.color?.copy(index === 0 ? brightColor : baseColor);
+        });
+        sparks.forEach((spark) => {
+          const material = spark.material as Material & {
+            color?: { copy: (color: unknown) => void };
+          };
+          material.color?.copy(brightColor);
+        });
+        return true;
+      };
+      applyToneColor(toneColorRef.current);
+
       let charge = 0;
       const update = (elapsed: number, delta: number) => {
         const seconds = elapsed;
+        const toneChanged =
+          toneDirtyRef.current || appliedToneColor !== toneColorRef.current;
+        if (toneChanged) {
+          applyToneColor(toneColorRef.current);
+          toneDirtyRef.current = false;
+        }
         const targetCharge = activeRef.current && !pausedRef.current ? 1 : 0;
         const previousCharge = charge;
         charge += (targetCharge - charge) * Math.min(1, delta * 12);
@@ -260,7 +307,7 @@ export default function DashboardLightningBolt3D({
         // At charge 0 every assignment above is a constant (all sin terms are
         // scaled by charge), so the scene only moves while charge is nonzero —
         // plus the one frame where it settles to exactly 0.
-        return charge !== 0 || previousCharge !== 0;
+        return toneChanged || charge !== 0 || previousCharge !== 0;
       };
 
       return {

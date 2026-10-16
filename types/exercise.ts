@@ -114,6 +114,7 @@ export type LocalExerciseStatEntry = {
   generatedTitle?: string;
   selectedModifierIds?: ExerciseModifierId[];
   weight: string;
+  weightUnit?: "lb" | "kg";
   reps: string;
   sets: string;
   date: ISODateString;

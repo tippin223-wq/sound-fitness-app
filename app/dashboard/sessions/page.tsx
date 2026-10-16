@@ -13,6 +13,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import {
   SoundLogoAchievementBadge,
@@ -24,17 +25,32 @@ import {
   readActiveWorkoutBuilderSessionTemplate,
   type LocalWorkoutBuilderSessionTemplate,
   type LocalWorkoutBuilderTemplate,
-  writeActiveWorkoutBuilderSessionTemplate,
+  startSavedWorkoutBuilderSession,
 } from "@/lib/localData/workoutBuilderData";
 import {
-  loadWorkoutLogEntriesWithFallback,
   loadWorkoutTemplatesWithFallback,
+  loadWorkoutTemplatesFromLocalStorage,
 } from "@/lib/data/workoutPersistence";
 import { ROUTES } from "@/lib/routes";
+import { planningKeys, planningOwner, planningAccountGeneration, planningRecordVersion, planningSnapshot, subscribePlanning } from "@/lib/planning/store";
+import { loadMemberSessionBalances } from "@/lib/member-services";
+import { captureWorkoutLaunchEditor, assertWorkoutLaunchEditor, reviewWorkoutLaunchEditor } from "@/lib/planning/workoutLaunchEditor";
+import { createPlanningRefreshGuard } from "@/lib/planning/planningRefreshGuard";
+import { sessionBillingSummary, type SessionBillingResult } from "@/lib/planning/sessionBilling";
+import { cloudHistorySnapshot, serverCloudHistory, mergeAvailableWorkoutLogs, workoutCompletionConflicts } from "@/lib/planning/availableLogs";
+import type { PlanningLog } from "@/lib/planning/logs";
+import { captureWorkoutHistoryRecovery } from "@/lib/planning/workoutHistoryRecovery";
+import { sessionReportLogs, sessionWeekMetrics, sessionWeekPatterns, sessionWeekWorkload, sessionWorkoutWorkload } from "@/lib/planning/sessionReporting";
+import { usePlanningDay } from "@/lib/planning/usePlanningDay";
+import { readSessionPlanSummary } from "@/lib/planning/sessionPlanSummary";
+import { sessionRewardSummary, sessionRewardLabel } from "@/lib/planning/sessionRewards";
+import { sessionJourneyEvidence } from "@/lib/planning/sessionJourney";
+import { WORKOUT_LOAD_UNIT_UNKNOWN } from "@/lib/planning/loadUnitEvidence";
+import WorkoutHistoryReviewNotice from "@/components/dashboard/WorkoutHistoryReviewNotice";
 import { supabase } from "@/lib/supabaseClient";
-import type { LocalExerciseStatEntry } from "@/types";
 
-type PlanMode = "coach" | "custom" | "hybrid";
+
+const serverPlanningGeneration = () => 0;
 
 type SourceResult = {
   source: "supabase" | "localStorage";
@@ -62,7 +78,7 @@ type RecentWorkoutSummary = {
   topLoad: number;
   totalReps: number;
   totalSets: number;
-  totalVolume: number;
+  volumeLabel: string;
   exerciseNames: string[];
 };
 
@@ -104,23 +120,12 @@ const formatCompactNumber = (value: number) =>
   Number.isInteger(value) ? String(value) : value.toFixed(1);
 
 const buildRecentWorkoutSummaries = (
-  entries: LocalExerciseStatEntry[],
+  logs: PlanningLog[],
 ): RecentWorkoutSummary[] => {
-  const workoutEntries = entries.filter(
-    (entry) => entry.source === "workout-session",
-  );
-  const sourceEntries = workoutEntries.length > 0 ? workoutEntries : entries;
-  const groups = sourceEntries.reduce<Map<string, LocalExerciseStatEntry[]>>(
-    (acc, entry) => {
-      const key = entry.date || "unknown-date";
-      acc.set(key, [...(acc.get(key) || []), entry]);
-      return acc;
-    },
-    new Map(),
-  );
-
-  return Array.from(groups.entries())
-    .map(([date, group]) => {
+  return logs
+    .map(log => {
+      const date = log.completedAt;
+      const group = log.entries;
       const sortedGroup = [...group].sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
       );
@@ -181,8 +186,8 @@ const buildRecentWorkoutSummaries = (
           equipment: movement.equipment,
           loadLabel:
             movement.topLoad > 0
-              ? `${formatCompactNumber(movement.topLoad)} lb`
-              : "Bodyweight / unweighted",
+              ? WORKOUT_LOAD_UNIT_UNKNOWN
+              : "Load not recorded or zero",
           name: movement.name,
           pattern: movement.pattern,
           repsLabel,
@@ -197,14 +202,6 @@ const buildRecentWorkoutSummaries = (
         (sum, entry) =>
           sum +
           parseLoggedNumber(entry.sets) * parseLoggedNumber(entry.reps),
-        0,
-      );
-      const totalVolume = sortedGroup.reduce(
-        (sum, entry) =>
-          sum +
-          parseLoggedNumber(entry.sets) *
-            parseLoggedNumber(entry.reps) *
-            parseLoggedNumber(entry.weight),
         0,
       );
       const topLoad = sortedGroup.reduce(
@@ -223,13 +220,10 @@ const buildRecentWorkoutSummaries = (
 
       return {
         bodyFocus,
-        id: `${date}-${exerciseNames.join("-")}`,
+        id: log.id,
         date,
         equipment,
-        title:
-          exerciseNames.length === 1
-            ? exerciseNames[0]
-            : `${exerciseNames.length} movement workout`,
+        title: log.title || "Untitled saved workout",
         exerciseCount: exerciseNames.length,
         latestExercise: latest?.exerciseName || "Workout",
         movements,
@@ -237,105 +231,13 @@ const buildRecentWorkoutSummaries = (
         topLoad,
         totalReps,
         totalSets,
-        totalVolume,
+        volumeLabel: sessionWorkoutWorkload(log).label,
         exerciseNames,
       };
     })
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 3);
 };
-
-const plans = {
-  coach: {
-    title: "Strength + Mobility Phase 1",
-    type: "Coach Plan",
-    phase: "Foundation",
-    goal: "Build strength, improve mobility, and stay consistent",
-    split: "Upper / Lower",
-    weeklyTarget: "4 workouts",
-    restDays: "2 recovery days",
-    sessionTypes: "Strength - Mobility - Assisted Stretch",
-    primaryFocus: "Strength",
-    secondaryFocus: "Core stability + mobility",
-    weakPoints: ["Glutes undertrained", "Upper pull volume low"],
-    recovery: "Ready",
-    progression: "+5 lbs when all reps are completed with clean form",
-    rule: "Stop 1-2 reps before failure unless coach says otherwise.",
-    note: "Follow the planned sequence. Keep lower body controlled and prioritize clean reps.",
-    workouts: [
-      "Lower Body Strength",
-      "Upper Push + Core",
-      "Upper Pull + Mobility",
-    ],
-  },
-  custom: {
-    title: "My Custom Plan",
-    type: "Custom Plan",
-    phase: "Flexible",
-    goal: "Train based on personal preference while staying balanced",
-    split: "User Selected",
-    weeklyTarget: "3-5 workouts",
-    restDays: "As needed",
-    sessionTypes: "Custom Strength - Conditioning - Mobility",
-    primaryFocus: "Personal preference",
-    secondaryFocus: "App-guided balance",
-    weakPoints: ["Needs push/pull review", "Needs recovery check"],
-    recovery: "Needs Review",
-    progression: "Add reps first, then weight when form stays clean.",
-    rule: "If soreness is high, reduce volume by 20% or choose mobility.",
-    note: "Build freely, but use app warnings to avoid imbalance.",
-    workouts: ["Choose Workout", "Build Session", "Save Template"],
-  },
-  hybrid: {
-    title: "Hybrid Strength Plan",
-    type: "Hybrid Plan",
-    phase: "Build",
-    goal: "Let the client choose while the system keeps training balanced",
-    split: "Guided Flexible",
-    weeklyTarget: "4 workouts",
-    restDays: "1-2 recovery days",
-    sessionTypes: "Strength - Mobility - Optional Conditioning",
-    primaryFocus: "Smart autonomy",
-    secondaryFocus: "Weak-point correction",
-    weakPoints: ["Posterior chain priority", "Core endurance"],
-    recovery: "Balanced",
-    progression: "Progress when heat map and recovery both look ready.",
-    rule: "Choose what you enjoy, but follow recovery and volume guardrails.",
-    note: "Best option: client preference plus coach/program guardrails.",
-    workouts: ["Lower Body Priority", "Upper Strength", "Mobility + Core"],
-  },
-} as const;
-
-const volumeTargets = [
-  { muscle: "Chest", target: 14, completed: 9 },
-  { muscle: "Back", target: 16, completed: 7 },
-  { muscle: "Legs", target: 18, completed: 10 },
-  { muscle: "Core", target: 12, completed: 6 },
-] as const;
-
-const packages = [
-  {
-    name: "4 Session Pack",
-    total: 4,
-    used: 1,
-    price: "$440",
-    status: "Starter",
-  },
-  {
-    name: "12 Session Pack",
-    total: 12,
-    used: 5,
-    price: "$1,260",
-    status: "Active",
-  },
-  {
-    name: "24 Session Pack",
-    total: 24,
-    used: 9,
-    price: "$2,400",
-    status: "Best Value",
-  },
-] as const;
 
 type WorkoutJourneyStageStatus =
   | "Complete"
@@ -349,17 +251,9 @@ type WorkoutJourneyStage = {
   href: string;
   icon: string;
   nextAction: string;
-  progress: number;
+  progress: number | null;
   status: WorkoutJourneyStageStatus;
   title: string;
-};
-
-type ExerciseLibraryPriorityTarget = {
-  completedSets: number;
-  focus: string;
-  goalSets: number;
-  label: string;
-  remainingSets: number;
 };
 
 const UPPER_TRAINING_JOURNEY_TITLES = new Set([
@@ -373,98 +267,6 @@ const UPPER_TRAINING_JOURNEY_TITLES = new Set([
   "Packages",
   "Achievements",
 ]);
-
-const normalizeLoggedText = (value?: string) =>
-  (value || "").toLowerCase().replace(/[-_]/g, " ").trim();
-
-const exerciseLibraryPriorityGoals = [
-  {
-    focus: "Squat / hinge / lunge",
-    goalSets: 12,
-    label: "Lower Body Compound",
-    match: (entry: LocalExerciseStatEntry) => {
-      const body = normalizeLoggedText(entry.body);
-      const pattern = normalizeLoggedText(entry.pattern);
-      const corePattern = normalizeLoggedText(entry.coreMovementPattern);
-      const name = normalizeLoggedText(entry.exerciseName);
-
-      return (
-        [
-          body,
-          pattern,
-          corePattern,
-          name,
-        ].some((value) =>
-          /squat|hinge|lunge|deadlift|leg press|split squat|step up|hip thrust|glute bridge/.test(
-            value,
-          ),
-        ) ||
-        /leg|glute|hamstring|posterior chain|quad|lower/.test(body)
-      );
-    },
-  },
-  {
-    focus: "Press / chest / shoulders",
-    goalSets: 10,
-    label: "Upper Push",
-    match: (entry: LocalExerciseStatEntry) => {
-      const body = normalizeLoggedText(entry.body);
-      const pattern = normalizeLoggedText(entry.pattern);
-      const name = normalizeLoggedText(entry.exerciseName);
-
-      return (
-        /push|press/.test(pattern) ||
-        /chest|shoulder|tricep/.test(body) ||
-        /press|push up|push-up|bench|dip/.test(name)
-      );
-    },
-  },
-  {
-    focus: "Row / pull / back",
-    goalSets: 10,
-    label: "Upper Pull",
-    match: (entry: LocalExerciseStatEntry) => {
-      const body = normalizeLoggedText(entry.body);
-      const pattern = normalizeLoggedText(entry.pattern);
-      const name = normalizeLoggedText(entry.exerciseName);
-
-      return (
-        /pull|row/.test(pattern) ||
-        /back|lat|bicep|upper back/.test(body) ||
-        /row|pull up|pull-up|pulldown|curl/.test(name)
-      );
-    },
-  },
-  {
-    focus: "Brace / rotate / carry",
-    goalSets: 8,
-    label: "Core Stability",
-    match: (entry: LocalExerciseStatEntry) => {
-      const body = normalizeLoggedText(entry.body);
-      const pattern = normalizeLoggedText(entry.pattern);
-      const name = normalizeLoggedText(entry.exerciseName);
-
-      return (
-        /core|abs|trunk/.test(body) ||
-        /carry|rotation|anti rotation|brace/.test(pattern) ||
-        /plank|carry|pallof|crunch|dead bug|bird dog/.test(name)
-      );
-    },
-  },
-  {
-    focus: "Single-joint support",
-    goalSets: 6,
-    label: "Accessory Balance",
-    match: (entry: LocalExerciseStatEntry) => {
-      const pattern = normalizeLoggedText(entry.pattern);
-      const name = normalizeLoggedText(entry.exerciseName);
-
-      return /isolation|accessory|raise|curl|extension|abduction|adduction/.test(
-        `${pattern} ${name}`,
-      );
-    },
-  },
-];
 
 const TRAINING_JOURNEY_HERO_LAYER = -1;
 const TRAINING_JOURNEY_LAYER_SPACING = 520;
@@ -607,19 +409,41 @@ const getTrainingJourneyRowUrgencyStatus = (
 
 export default function SessionsPage() {
   const router = useRouter();
-  const [planMode, setPlanMode] = useState<PlanMode>("coach");
   const [savedTemplates, setSavedTemplates] = useState<
     LocalWorkoutBuilderTemplate[]
   >([]);
   const [activeSessionTemplate, setActiveSessionTemplate] =
     useState<LocalWorkoutBuilderSessionTemplate | null>(null);
+  const [templateRefreshGuard] = useState(() => createPlanningRefreshGuard([planningKeys.templates]));
   const [templateSourceLabel, setTemplateSourceLabel] =
     useState("Loading templates");
-  const [workoutLogEntries, setWorkoutLogEntries] = useState<
-    LocalExerciseStatEntry[]
-  >([]);
-  const [logSourceLabel, setLogSourceLabel] = useState("Loading logs");
+  const planningCache = useSyncExternalStore(subscribePlanning, planningSnapshot, planningSnapshot);
+  const account = planningOwner();
+  const generation = useSyncExternalStore(subscribePlanning, planningAccountGeneration, serverPlanningGeneration);
+  const [billingResult, setBillingResult] = useState<SessionBillingResult | null>(null);
+  useEffect(() => {
+    if (!account || account === "local-preview") return;
+    let cancelled = false;
+    void loadMemberSessionBalances().then(balances => {
+      if (!cancelled && planningOwner() === account && planningAccountGeneration() === generation) setBillingResult({ account, generation, balances });
+    }).catch(() => {
+      if (!cancelled && planningOwner() === account && planningAccountGeneration() === generation) setBillingResult({ account, generation, balances: null });
+    });
+    return () => { cancelled = true; };
+  }, [account, generation]);
+  const billing = sessionBillingSummary(account, billingResult, generation);
+  const cloudCache = useSyncExternalStore(subscribePlanning, cloudHistorySnapshot, serverCloudHistory);
+  const reportingDay = usePlanningDay();
+  const historyRecovery = captureWorkoutHistoryRecovery();
+  const localLogs = planningCache[planningKeys.logs];
+  const completionConflicts = useMemo(() => historyRecovery.issues.length ? [] : workoutCompletionConflicts(Array.isArray(localLogs) ? localLogs : [], cloudCache.logs), [localLogs, cloudCache, historyRecovery.issues.length]);
+  const workoutSource = useMemo(() => historyRecovery.issues.length ? [] : mergeAvailableWorkoutLogs(Array.isArray(localLogs) ? localLogs : [], cloudCache.logs), [localLogs, cloudCache, historyRecovery.issues.length]);
+  const workoutLogs = useMemo(() => reportingDay ? sessionReportLogs(workoutSource) : [], [workoutSource, reportingDay]);
+  const workoutLogEntries = useMemo(() => workoutLogs.flatMap(log => log.entries), [workoutLogs]);
+  const logSourceLabel = "Saved workout completions";
   const [launcherMessage, setLauncherMessage] = useState("");
+  const [launchEditor, setLaunchEditor] = useState(captureWorkoutLaunchEditor);
+  const [launchNeedsReview, setLaunchNeedsReview] = useState(false);
   const [activeTrainingJourneyLayer, setActiveTrainingJourneyLayer] =
     useState(TRAINING_JOURNEY_HERO_LAYER);
   const [
@@ -836,37 +660,50 @@ export default function SessionsPage() {
 
   useEffect(() => {
     let isActive = true;
-
+    let lastSource = "";
+    templateRefreshGuard.activate();
     async function loadCommandCenterData() {
-      const [templateResult, logResult] = await Promise.all([
-        loadWorkoutTemplatesWithFallback(),
-        loadWorkoutLogEntriesWithFallback(),
-      ]);
-
-      if (!isActive) return;
-
-      setSavedTemplates(templateResult.data);
-      setTemplateSourceLabel(getSourceLabel(templateResult));
-      setWorkoutLogEntries(logResult.data);
-      setLogSourceLabel(getSourceLabel(logResult));
+      const ticket = templateRefreshGuard.begin();
+      if (ticket.localChanged) {
+        setSavedTemplates(loadWorkoutTemplatesFromLocalStorage().data);
+        setTemplateSourceLabel("Saved account workouts · checking cloud");
+      }
+      try {
+        const templateResult = await loadWorkoutTemplatesWithFallback();
+        if (!isActive || !templateRefreshGuard.current(ticket)) return;
+        setSavedTemplates(templateResult.data);
+        setTemplateSourceLabel(getSourceLabel(templateResult));
+      } catch {
+        if (!isActive || !templateRefreshGuard.current(ticket)) return;
+        setTemplateSourceLabel("Saved account workouts · cloud unavailable");
+      }
     }
-
-    setActiveSessionTemplate(readActiveWorkoutBuilderSessionTemplate());
-    void loadCommandCenterData();
-
+    const syncPlanning = () => {
+      setActiveSessionTemplate(readActiveWorkoutBuilderSessionTemplate());
+      const source = JSON.stringify([planningOwner(), planningAccountGeneration(), planningRecordVersion(planningKeys.templates)]);
+      if (source === lastSource) return;
+      lastSource = source;
+      void loadCommandCenterData();
+    };
+    syncPlanning();
+    const unsubscribe = subscribePlanning(syncPlanning);
+    const refresh = () => { void loadCommandCenterData(); };
+    window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
     return () => {
       isActive = false;
+      templateRefreshGuard.cancel();
+      unsubscribe();
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
     };
-  }, []);
+  }, [templateRefreshGuard]);
 
-  const activePlan = plans[planMode];
-  const active = packages[1];
-  const remaining = active.total - active.used;
-  const percentUsed = Math.round((active.used / active.total) * 100);
+  const activePlan = readSessionPlanSummary();
 
   const recentWorkoutSummaries = useMemo(
-    () => buildRecentWorkoutSummaries(workoutLogEntries),
-    [workoutLogEntries],
+    () => buildRecentWorkoutSummaries(workoutLogs),
+    [workoutLogs],
   );
 
   const workoutStats = useMemo(() => {
@@ -894,345 +731,57 @@ export default function SessionsPage() {
   // dashboard's floating snapshot header) — same weekly framing that display
   // showed for the Workout / Sessions card.
   const workoutConstellationMetrics = useMemo(() => {
-    const weekCutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    let weeklyVolume = 0;
-    let weeklySets = 0;
-    const weeklyWorkoutDays = new Set<string>();
-    for (const entry of workoutLogEntries) {
-      const entryTime = new Date(entry.date).getTime();
-      if (!Number.isFinite(entryTime) || entryTime < weekCutoff) continue;
-      const sets = Number(entry.sets || 0);
-      weeklyVolume += sets * Number(entry.reps || 0) * Number(entry.weight || 0);
-      weeklySets += sets;
-      weeklyWorkoutDays.add(String(entry.date).slice(0, 10));
-    }
+    const weekly = sessionWeekMetrics(workoutLogs);
     return [
-      {
-        label: "Weekly Volume",
-        value: `${Math.round(weeklyVolume).toLocaleString()} lb`,
-      },
-      { label: "Workouts", value: `${weeklyWorkoutDays.size} this week` },
-      { label: "Weekly Sets", value: `${weeklySets} sets` },
-      { label: "Templates", value: `${savedTemplates.length} saved` },
+      { label: "Weekly Volume", value: sessionWeekWorkload(workoutLogs).label },
+      { label: "Workouts", value: weekly.workouts + " this week" },
+      { label: "Weekly Sets", value: weekly.sets + " sets" },
+      { label: "Templates", value: savedTemplates.length + " saved" },
     ];
-  }, [savedTemplates.length, workoutLogEntries]);
+  }, [savedTemplates.length, workoutLogs]);
 
-  const exerciseLibraryPriorityTargets = useMemo<
-    ExerciseLibraryPriorityTarget[]
-  >(() => {
-    const workoutOnlyEntries = workoutLogEntries.filter(
-      (entry) => entry.source === "workout-session",
-    );
-    const entriesToMeasure =
-      workoutOnlyEntries.length > 0 ? workoutOnlyEntries : workoutLogEntries;
+  const weeklyPatterns = useMemo(() => sessionWeekPatterns(workoutLogs), [workoutLogs]);
+  const weeklyPatternSets = weeklyPatterns.reduce((sum, group) => sum + group.weeklySets, 0);
 
-    return exerciseLibraryPriorityGoals
-      .map((target) => {
-        const completedSets = entriesToMeasure.reduce(
-          (sum, entry) =>
-            target.match(entry) ? sum + parseLoggedNumber(entry.sets) : sum,
-          0,
-        );
+  const workoutRewardStats = useMemo(() => sessionRewardSummary(planningCache[planningKeys.profile], workoutLogs), [planningCache, workoutLogs]);
 
-        return {
-          completedSets,
-          focus: target.focus,
-          goalSets: target.goalSets,
-          label: target.label,
-          remainingSets: Math.max(0, target.goalSets - completedSets),
-        };
-      })
-      .sort(
-        (left, right) =>
-          right.remainingSets - left.remainingSets ||
-          right.goalSets - left.goalSets ||
-          left.completedSets - right.completedSets,
-      )
-      .slice(0, 3);
-  }, [workoutLogEntries]);
-
-  const workoutRewardStats = useMemo(() => {
-    const dateKeys = Array.from(
-      new Set(
-        workoutLogEntries
-          .map((entry) => {
-            const date = new Date(entry.date);
-            return Number.isNaN(date.getTime())
-              ? ""
-              : date.toISOString().slice(0, 10);
-          })
-          .filter(Boolean),
-      ),
-    );
-    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const trainingStreak = dateKeys.filter((dateKey) => {
-      const timestamp = new Date(`${dateKey}T00:00:00`).getTime();
-      return Number.isFinite(timestamp) && timestamp >= sevenDaysAgo;
-    }).length;
-
-    return {
-      soundPoints: 12450 + workoutStats.loggedEntries * 85 + workoutStats.totalSets * 12,
-      soundTokens: 88 + Math.floor(workoutStats.totalSets / 12),
-      trainingStreak: Math.max(1, Math.min(7, trainingStreak || active.used)),
-      workoutXp: 2400 + workoutStats.totalSets * 24 + savedTemplates.length * 120,
-    };
-  }, [
-    active.used,
-    savedTemplates.length,
-    workoutLogEntries,
-    workoutStats.loggedEntries,
-    workoutStats.totalSets,
-  ]);
-
-  const workoutJourneyStages: WorkoutJourneyStage[] = useMemo(() => {
-    const hasTemplates = savedTemplates.length > 0;
-    const hasLogs = workoutStats.loggedEntries > 0;
-    const hasActiveSession = Boolean(activeSessionTemplate?.exercises.length);
-    const builderProgress = hasTemplates ? 100 : 55;
-    const historyProgress = hasLogs
-      ? Math.min(100, 42 + workoutStats.loggedEntries * 4)
-      : hasActiveSession
-        ? 72
-        : hasTemplates
-          ? 38
-          : 12;
-    const historyStatus: WorkoutJourneyStageStatus =
-      hasLogs || hasActiveSession || hasTemplates ? "Current" : "Next";
-
-    return [
-      {
-        title: "Profile + Goals",
-        helper: "Profile setup, body metrics, readiness, goals, style, and experience drive everything downstream.",
-        href: ROUTES.dashboard.profile,
-        icon: "👤",
-        nextAction: "Open foundation",
-        progress: 92,
-        status: "Complete",
-      },
-      {
-        title: "My Plan",
-        helper: "Periodization, phases, weekly structure, and the active training block.",
-        href: ROUTES.dashboard.myPlan,
-        icon: "📅",
-        nextAction: "Open plan",
-        progress: 76,
-        status: "Complete",
-      },
-      {
-        title: "Workout Builder",
-        helper: "Workout creation, templates, session architecture, and movement selection.",
-        href: ROUTES.workoutBuilder.home,
-        icon: "🏋️",
-        nextAction: hasTemplates ? "Use saved template" : "Build first template",
-        progress: builderProgress,
-        status: hasTemplates ? "Complete" : "Current",
-      },
-      {
-        title: "Exercise Library",
-        helper: "Movement discovery, anatomy systems, exercise references, and patterns.",
-        href: ROUTES.dashboard.exerciseLibrary,
-        icon: "📚",
-        nextAction: "Browse movements",
-        progress: hasTemplates ? 70 : 46,
-        status: "Unlocked",
-      },
-      {
-        title: "Session History",
-        helper: "Completed workouts, logs, adherence, streaks, and repeatable sessions.",
-        href: ROUTES.dashboard.sessionHistory,
-        icon: "▶",
-        nextAction: hasLogs ? "Review logs" : "Start first log",
-        progress: historyProgress,
-        status: historyStatus,
-      },
-      {
-        title: "Insights",
-        helper: "Analytics, trends, recommendations, AI feedback, and coaching signals.",
-        href: ROUTES.dashboard.insights,
-        icon: "🧠",
-        nextAction: hasLogs ? "Open insights" : "Unlock insights",
-        progress: hasLogs ? 42 : 0,
-        status: hasLogs ? "Unlocked" : "Locked",
-      },
-      {
-        title: "Performance",
-        helper: "Strength metrics, cardio, speed, athletic testing, and progression.",
-        href: ROUTES.performance.home,
-        icon: "⚡",
-        nextAction: "Open performance",
-        progress: hasLogs ? 36 : 12,
-        status: hasLogs ? "Unlocked" : "Locked",
-      },
-      {
-        title: "Stats",
-        helper: "Logged entries, training totals, recent movement stats, and progress snapshots.",
-        href: ROUTES.dashboard.stats,
-        icon: "Stat",
-        nextAction: "Open stats",
-        progress: hasLogs ? 62 : 18,
-        status: hasLogs ? "Unlocked" : "Next",
-      },
-      {
-        title: "Progress",
-        helper: "Progress hub, check-ins, goals, journal notes, habits, and pain tracking.",
-        href: ROUTES.dashboard.progress,
-        icon: "Progress",
-        nextAction: hasLogs ? "Review progress" : "Start tracking",
-        progress: hasLogs
-          ? Math.min(100, 48 + workoutStats.loggedEntries * 3)
-          : 16,
-        status: hasLogs ? "Unlocked" : "Next",
-      },
-      {
-        title: "Calendar",
-        helper: "Training calendar, scheduled sessions, weekly planning, and upcoming commitments.",
-        href: ROUTES.dashboard.calendar,
-        icon: "Cal",
-        nextAction: "Open calendar",
-        progress: hasLogs ? 58 : 24,
-        status: "Unlocked",
-      },
-      {
-        title: "Appointments",
-        helper: "Booking requests, upcoming sessions, coach availability, and appointment flow.",
-        href: ROUTES.dashboard.sessionBooking,
-        icon: "Appt",
-        nextAction: "Book session",
-        progress: active.used > 0 ? 68 : 32,
-        status: "Unlocked",
-      },
-      {
-        title: "Messages",
-        helper: "Coach messages, questions, check-ins, feedback, and session follow-up threads.",
-        href: ROUTES.dashboard.coachMessaging,
-        icon: "Msg",
-        nextAction: "Open messages",
-        progress: hasLogs ? 54 : 26,
-        status: "Unlocked",
-      },
-      {
-        title: "Packages",
-        helper: "Session packages, remaining visits, payment status, and renewal planning.",
-        href: ROUTES.dashboard.payments,
-        icon: "Pkg",
-        nextAction: "View packages",
-        progress: percentUsed,
-        status: "Unlocked",
-      },
-      {
-        title: "Achievements",
-        helper: "Badges, milestones, streaks, Sound Points, and workout rewards.",
-        href: ROUTES.dashboard.achievements,
-        icon: "🏆",
-        nextAction: "View badges",
-        progress: Math.min(100, 22 + workoutRewardStats.trainingStreak * 9),
-        status: "Unlocked",
-      },
-    ];
-  }, [
-    active.used,
-    activeSessionTemplate,
-    percentUsed,
-    savedTemplates.length,
-    workoutRewardStats.trainingStreak,
-    workoutStats.loggedEntries,
-  ]);
-
-  const workoutJourneyProgress = Math.round(
-    workoutJourneyStages.reduce((total, stage) => total + stage.progress, 0) /
-      workoutJourneyStages.length,
-  );
+  const journey = useMemo(() => sessionJourneyEvidence(planningCache, savedTemplates, workoutLogs), [planningCache, savedTemplates, workoutLogs]);
+  const workoutJourneyStages: WorkoutJourneyStage[] = useMemo(() => [
+    { title: "Profile + Goals", helper: "Reported Profile foundation fields and saved Goals.", href: journey.goalsSaved ? ROUTES.dashboard.profile : ROUTES.dashboard.goals, icon: "👤", nextAction: journey.goalsSaved ? "Review Profile" : "Save Goals", progress: journey.foundation, status: journey.foundation === 100 ? "Complete" : "Current" },
+    { title: "My Plan", helper: journey.planIssue || "A saved non-archived week reviewed against current Goals.", href: journey.planIssue ? ROUTES.dashboard.calendar : ROUTES.dashboard.myPlan, icon: "📅", nextAction: journey.planIssue ? "Review and export original plans" : "Review saved week", progress: journey.planIssue ? null : journey.plan ? 100 : 0, status: journey.planIssue ? "Current" : journey.plan ? "Complete" : journey.goalsSaved ? "Current" : "Next" },
+    { title: "Workout Builder", helper: journey.templateReviewCount ? `${journey.templateReviewCount} saved workout(s) need review before use. Ready workouts remain available; originals are preserved.` : "A valid saved workout template with exercises.", href: ROUTES.workoutBuilder.home, icon: "🏋️", nextAction: journey.templateReviewCount ? "Review saved templates" : journey.templates ? "Use saved template" : "Build first template", progress: journey.templates ? 100 : journey.templateReviewCount ? null : 0, status: journey.templates ? "Complete" : journey.templateReviewCount ? "Current" : "Next" },
+    { title: "Exercise Library", helper: "Exercise references recorded in saved templates or completed workouts.", href: ROUTES.dashboard.exerciseLibrary, icon: "📚", nextAction: "Browse movements", progress: journey.library ? 100 : 0, status: journey.library ? "Complete" : "Next" },
+    { title: "Session History", helper: "At least one valid saved workout completion.", href: ROUTES.dashboard.sessionHistory, icon: "▶", nextAction: journey.history ? "Review logs" : "Start first log", progress: journey.history ? 100 : 0, status: journey.history ? "Complete" : journey.assignments ? "Current" : "Next" },
+    { title: "Insights", helper: "Review available analytics. Completion of this tool is not tracked here.", href: ROUTES.dashboard.insights, icon: "🧠", nextAction: "Open insights", progress: null, status: "Next" },
+    { title: "Performance", helper: "Performance testing completion is not tracked here.", href: ROUTES.performance.home, icon: "⚡", nextAction: "Open performance", progress: null, status: "Next" },
+    { title: "Stats", helper: "Recorded workout reporting is available after a saved completion.", href: ROUTES.dashboard.stats, icon: "Stat", nextAction: "Open stats", progress: journey.history ? 100 : 0, status: journey.history ? "Complete" : "Next" },
+    { title: "Progress", helper: "Check-ins, journal, habits and pain tracking. Completion is not tracked here.", href: ROUTES.dashboard.progress, icon: "Progress", nextAction: "Open progress", progress: null, status: "Next" },
+    { title: "Calendar", helper: journey.planIssue || "Saved workout assignments provide a recorded schedule.", href: ROUTES.dashboard.calendar, icon: "Cal", nextAction: journey.planIssue ? "Review and export original plans" : "Open calendar", progress: journey.planIssue ? null : journey.assignments ? 100 : 0, status: journey.planIssue ? "Current" : journey.assignments ? "Complete" : "Next" },
+    { title: "Appointments", helper: "Booking activity is not a workout-flow completion milestone.", href: ROUTES.dashboard.sessionBooking, icon: "Appt", nextAction: "Open bookings", progress: null, status: "Next" },
+    { title: "Messages", helper: "Coach messaging completion is not tracked here.", href: ROUTES.dashboard.coachMessaging, icon: "Msg", nextAction: "Open messages", progress: null, status: "Next" },
+    { title: "Packages", helper: "View account balances. Package use is not workout-flow progress.", href: ROUTES.dashboard.payments, icon: "Pkg", nextAction: "View balances", progress: null, status: "Next" },
+    { title: "Achievements", helper: "Saved completion records; no reward award is verified here.", href: ROUTES.dashboard.achievements, icon: "🏆", nextAction: "View records", progress: journey.history ? 100 : 0, status: journey.history ? "Complete" : "Next" },
+  ], [journey]);
+  const workoutJourneyProgress = journey.overall;
   const currentWorkoutStage =
     workoutJourneyStages.find((stage) => stage.status === "Current") ||
     workoutJourneyStages[0];
   const workoutAchievements: AchievementBadgeItem[] = [
     {
-      category: "intensity",
-      href: ROUTES.dashboard.achievements,
-      icon: "🏋️",
-      label: "Volume Milestone",
-      meta: `${workoutStats.totalSets} total sets`,
-      progress: Math.min(100, Math.max(35, workoutStats.totalSets * 2)),
-      rarity: workoutStats.totalSets >= 50 ? "gold" : "cyan",
-      status: workoutStats.totalSets >= 50 ? "completed" : "active",
-      statusLabel: workoutStats.totalSets >= 50 ? "Earned" : "In progress",
+      category: "consistency", href: ROUTES.dashboard.achievements, icon: "🏋️",
+      label: "First Saved Workout", meta: workoutLogs.length + " saved completions",
+      progress: workoutLogs.length > 0 ? 100 : 0, rarity: "cyan",
+      status: workoutLogs.length > 0 ? "completed" : "locked",
+      statusLabel: workoutLogs.length > 0 ? "Recorded" : "No saved workouts",
+      description: "Based on saved workout history. No points or XP award is verified here.",
     },
     {
-      category: "consistency",
-      href: ROUTES.dashboard.achievements,
-      icon: "🔥",
-      label: "7 Day Training Streak",
-      meta: `${workoutRewardStats.trainingStreak} day streak`,
-      progress: Math.min(100, Math.round((workoutRewardStats.trainingStreak / 7) * 100)),
-      rarity: "gold",
-      status: workoutRewardStats.trainingStreak >= 7 ? "completed" : "active",
-      statusLabel: workoutRewardStats.trainingStreak >= 7 ? "Earned" : "In progress",
-    },
-    {
-      category: "intensity",
-      href: ROUTES.dashboard.achievements,
-      icon: "💪",
-      label: "Push Strength Up",
-      meta: "Upper body progress",
-      progress: 64,
-      rarity: "cyan",
-      status: "active",
-      statusLabel: "In progress",
-    },
-    {
-      category: "intensity",
-      href: ROUTES.dashboard.achievements,
-      icon: "🦵",
-      label: "Leg Day Completed",
-      meta: "Lower body session",
-      progress: workoutStats.loggedEntries ? 100 : 0,
-      rarity: "gold",
-      status: workoutStats.loggedEntries ? "completed" : "locked",
-      statusLabel: workoutStats.loggedEntries ? "Earned" : "Locked",
-    },
-    {
-      category: "intensity",
-      href: ROUTES.dashboard.achievements,
-      icon: "⚡",
-      label: "PR Achieved",
-      meta: "Performance marker",
-      progress: 48,
-      rarity: "cyan",
-      status: "active",
-      statusLabel: "In progress",
-    },
-    {
-      category: "consistency",
-      href: ROUTES.dashboard.achievements,
-      icon: "🎯",
-      label: "Program Consistency",
-      meta: activePlan.weeklyTarget,
-      progress: Math.min(100, percentUsed),
-      rarity: percentUsed >= 80 ? "gold" : "bronze",
-      status: percentUsed >= 80 ? "completed" : "active",
-      statusLabel: percentUsed >= 80 ? "Earned" : "In progress",
-    },
-    {
-      category: "intensity",
-      href: ROUTES.dashboard.achievements,
-      icon: "🧠",
-      label: "Perfect Form Week",
-      meta: "Clean execution",
-      progress: 24,
-      rarity: "silver",
-      status: "locked",
-      statusLabel: "Locked",
-    },
-    {
-      category: "intensity",
-      href: ROUTES.dashboard.achievements,
-      icon: "🏃",
-      label: "Conditioning Complete",
-      meta: "Engine session",
-      progress: 18,
-      rarity: "bronze",
-      status: "locked",
-      statusLabel: "Locked",
+      category: "consistency", href: ROUTES.dashboard.achievements, icon: "🔥",
+      label: "Current Workout Streak", meta: workoutRewardStats.trainingStreak + " consecutive days",
+      progress: workoutRewardStats.trainingStreak > 0 ? 100 : 0, rarity: "cyan",
+      status: workoutRewardStats.trainingStreak > 0 ? "completed" : "locked",
+      statusLabel: workoutRewardStats.trainingStreak > 0 ? "Recorded" : "No current streak",
+      description: "Consecutive local dates with saved workout completions through today or yesterday.",
     },
   ];
   const recentProfileHubAchievement =
@@ -2019,7 +1568,7 @@ export default function SessionsPage() {
       icon: "Dashboard",
       label: "Command",
       meta: "Dashboard",
-      points: workoutRewardStats.soundPoints,
+      points: null as number | null,
       tone: "border-slate-200/30 bg-slate-100/10 text-slate-100 hover:border-cyan-100/45 hover:bg-cyan-300/14",
       urgencyStatus: "Unlocked",
     },
@@ -2028,7 +1577,7 @@ export default function SessionsPage() {
       icon: "Profile",
       label: "Profile",
       meta: "Identity",
-      points: Math.round(workoutRewardStats.soundPoints * 0.94),
+      points: null as number | null,
       tone: "border-cyan-200/30 bg-cyan-300/10 text-cyan-100 hover:border-cyan-100/45 hover:bg-cyan-300/16",
       urgencyStatus: "Complete",
     },
@@ -2037,7 +1586,7 @@ export default function SessionsPage() {
       icon: "Goals",
       label: "Goals",
       meta: "Direction",
-      points: Math.round(workoutRewardStats.soundPoints * 0.68),
+      points: null as number | null,
       tone: "border-amber-200/32 bg-amber-300/12 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/18",
       urgencyStatus: "Next",
     },
@@ -2046,7 +1595,7 @@ export default function SessionsPage() {
       icon: "🏋️",
       label: "Workout",
       meta: "Sessions",
-      points: workoutRewardStats.soundPoints,
+      points: null as number | null,
       tone: "border-cyan-100/50 bg-cyan-300 text-slate-950 shadow-[0_0_26px_rgba(34,211,238,0.24)]",
       urgencyStatus: "Current",
     },
@@ -2055,7 +1604,7 @@ export default function SessionsPage() {
       icon: "🍽️",
       label: "Nutrition",
       meta: "Fuel",
-      points: Math.round(workoutRewardStats.soundPoints * 0.38),
+      points: null as number | null,
       tone: "border-emerald-200/28 bg-emerald-300/10 text-emerald-100 hover:border-emerald-100/45 hover:bg-emerald-300/16",
       urgencyStatus: "Next",
     },
@@ -2064,7 +1613,7 @@ export default function SessionsPage() {
       icon: "🧘",
       label: "Recovery",
       meta: "Readiness",
-      points: Math.round(workoutRewardStats.soundPoints * 0.24),
+      points: null as number | null,
       tone: "border-sky-200/28 bg-sky-300/10 text-sky-100 hover:border-sky-100/45 hover:bg-sky-300/16",
       urgencyStatus: "Unlocked",
     },
@@ -2073,7 +1622,7 @@ export default function SessionsPage() {
       icon: "⚡",
       label: "Performance",
       meta: "Athletic",
-      points: Math.round(workoutRewardStats.soundPoints * 0.46),
+      points: null as number | null,
       tone: "border-amber-200/30 bg-amber-300/10 text-amber-100 hover:border-amber-100/45 hover:bg-amber-300/16",
       urgencyStatus: "Unlocked",
     },
@@ -2082,7 +1631,7 @@ export default function SessionsPage() {
       icon: "📚",
       label: "Education",
       meta: "Learning",
-      points: Math.round(workoutRewardStats.soundPoints * 0.12),
+      points: null as number | null,
       tone: "border-violet-200/28 bg-violet-300/10 text-violet-100 hover:border-violet-100/45 hover:bg-violet-300/16",
       urgencyStatus: "Unlocked",
     },
@@ -2091,7 +1640,7 @@ export default function SessionsPage() {
       icon: "🌎",
       label: "Sound World",
       meta: "Community",
-      points: Math.round(workoutRewardStats.soundPoints * 0.08),
+      points: null as number | null,
       tone: "border-pink-200/28 bg-pink-300/10 text-pink-100 hover:border-pink-100/45 hover:bg-pink-300/16",
       urgencyStatus: "Unlocked",
     },
@@ -2192,7 +1741,7 @@ export default function SessionsPage() {
       label: "Insights",
       references: [
         currentWorkoutStage.title,
-        `${workoutJourneyProgress}% journey`,
+        `${workoutJourneyProgress}% workout flow`,
         activePlan.recovery,
       ],
       stat: currentWorkoutStage.status,
@@ -2217,11 +1766,11 @@ export default function SessionsPage() {
       icon: "🏆",
       label: "Achievements",
       references: [
-        `${workoutRewardStats.soundPoints.toLocaleString()} points`,
+        `${sessionRewardLabel(workoutRewardStats.soundPoints)} points`,
         `${workoutRewardStats.trainingStreak} day streak`,
-        `${workoutRewardStats.soundTokens.toLocaleString()} tokens`,
+        `${sessionRewardLabel(workoutRewardStats.soundTokens)} tokens`,
       ],
-      stat: `${workoutRewardStats.workoutXp.toLocaleString()} XP`,
+      stat: `${sessionRewardLabel(workoutRewardStats.workoutXp)} XP`,
       tone: "border-orange-200/24 bg-orange-300/10 text-orange-100",
     },
     {
@@ -2289,15 +1838,11 @@ export default function SessionsPage() {
     },
     {
       href: ROUTES.dashboard.payments,
-      helper: "Payments and invoice history.",
+      helper: billing.helper,
       icon: "💳",
       label: "Billing",
-      references: [
-        active.name,
-        `${remaining} sessions left`,
-        active.price,
-      ],
-      stat: active.status,
+      references: billing.references,
+      stat: billing.stat,
       tone: "border-amber-200/24 bg-amber-300/10 text-amber-100",
     },
     {
@@ -2599,17 +2144,34 @@ export default function SessionsPage() {
   }
 
   function startTemplateWorkout(template: LocalWorkoutBuilderTemplate) {
-    if (template.exercises.length === 0) {
-      setLauncherMessage("This template has no exercises to start.");
-      return;
+    try {
+      assertWorkoutLaunchEditor(launchEditor);
+      if (template.exercises.length === 0) {
+        setLauncherMessage("This template has no exercises to start.");
+        return;
+      }
+      const sessionTemplate = startSavedWorkoutBuilderSession(template);
+      setLaunchEditor(captureWorkoutLaunchEditor());
+      setLaunchNeedsReview(false);
+      setActiveSessionTemplate(sessionTemplate);
+      setLauncherMessage(sessionTemplate.title + " is ready in the workout logger.");
+      router.push(ROUTES.dashboard.sessionWorkout + "?template=" + encodeURIComponent(sessionTemplate.id));
+    } catch (cause) {
+      setLaunchNeedsReview(true);
+      setLauncherMessage(cause instanceof Error ? cause.message : "The workout could not be opened. Try again.");
     }
-
-    const sessionTemplate = writeActiveWorkoutBuilderSessionTemplate(template);
-
-    setActiveSessionTemplate(sessionTemplate);
-    setLauncherMessage(`${sessionTemplate.title} is ready in the workout logger.`);
-    router.push(`${ROUTES.dashboard.sessionWorkout}?template=${template.id}`);
   }
+  function reviewLaunchControls() {
+    try {
+      const reviewed = reviewWorkoutLaunchEditor(launchEditor);
+      setLaunchEditor(reviewed.editor);
+      setLaunchNeedsReview(false);
+      setLauncherMessage("Current workout: " + reviewed.title + ". Controls reviewed. Choose a workout when ready; existing drafts are preserved.");
+    } catch (cause) {
+      setLauncherMessage(cause instanceof Error ? cause.message : "Workout controls could not be reviewed.");
+    }
+  }
+  const launchReviewAction = launchNeedsReview ? <button type="button" onClick={reviewLaunchControls} className="mt-2 text-xs font-semibold text-cyan-200 underline">Review current workout controls</button> : null;
   const profileHubLayerMotionStyle = {
     "--profile-hub-layer-offset": `${profileHubLayerMotionOffset}px`,
   } as CSSProperties;
@@ -2683,6 +2245,10 @@ export default function SessionsPage() {
       </div>
     </div>
   );
+
+  if (historyRecovery.issues.length) return <WorkoutHistoryReviewNotice area="Sessions reporting" issues={historyRecovery.issues} />;
+  if (completionConflicts.length) return <WorkoutHistoryReviewNotice area="Sessions reporting" issues={["Saved device and cloud workout completions disagree. Review both original records and their assignment links in History before using these reports."]} />;
+  if (workoutSource.length !== workoutLogs.length) return <WorkoutHistoryReviewNotice area="Sessions reporting" issues={["Some saved workouts have invalid dates, exercise values, explicit load units or repeated identities. Review and export the original records in History before using these reports."]} />;
 
   return (
     <main className="h-[100dvh] w-[100vw] overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
@@ -2819,7 +2385,7 @@ export default function SessionsPage() {
                     {activeSessionsDashboardUrgencyLabel}
                   </span>
                   <span className="block text-sm font-black leading-none [text-shadow:0_1px_12px_rgba(0,0,0,0.34)]">
-                    {activeSessionsDashboardLink.points.toLocaleString()}
+                    {sessionRewardLabel(activeSessionsDashboardLink.points)}
                   </span>
                 </span>
               </Link>
@@ -2879,7 +2445,7 @@ export default function SessionsPage() {
                       <path d="M13.5 2 4.8 13.2h6.1L9.7 22 19.2 9.6h-6.4L13.5 2Z" />
                     </svg>
                     <span className="text-sm font-black leading-none text-white">
-                      {workoutRewardStats.soundPoints.toLocaleString()}
+                      {sessionRewardLabel(workoutRewardStats.soundPoints)}
                     </span>
                   </span>
                   <span className="flex items-center gap-1.5">
@@ -2903,7 +2469,7 @@ export default function SessionsPage() {
                       width={24}
                     />
                     <span className="text-sm font-black leading-none text-white">
-                      {workoutRewardStats.soundTokens.toLocaleString()}
+                      {sessionRewardLabel(workoutRewardStats.soundTokens)}
                     </span>
                   </span>
                 </span>
@@ -2973,7 +2539,7 @@ export default function SessionsPage() {
                           ⚡ Sound Points
                         </div>
                         <div className="text-lg font-black text-white">
-                          {workoutRewardStats.soundPoints.toLocaleString()}
+                          {sessionRewardLabel(workoutRewardStats.soundPoints)}
                         </div>
                       </div>
                       <div className="rounded-2xl border border-cyan-200/18 bg-cyan-300/10 px-3 py-2">
@@ -2989,7 +2555,7 @@ export default function SessionsPage() {
                             src="/sound-fitness-logo.png"
                             width={20}
                           />
-                          {workoutRewardStats.soundTokens.toLocaleString()}
+                          {sessionRewardLabel(workoutRewardStats.soundTokens)}
                         </div>
                       </div>
                     </div>
@@ -3149,7 +2715,7 @@ export default function SessionsPage() {
                               Sound Points
                             </div>
                             <div className="text-xl font-black text-white">
-                              {workoutRewardStats.soundPoints.toLocaleString()}
+                              {sessionRewardLabel(workoutRewardStats.soundPoints)}
                             </div>
                           </div>
                           <div className="rounded-2xl border border-cyan-200/18 bg-cyan-300/10 px-4 py-3">
@@ -3165,7 +2731,7 @@ export default function SessionsPage() {
                                 src="/sound-fitness-logo.png"
                                 width={20}
                               />
-                              {workoutRewardStats.soundTokens.toLocaleString()}
+                              {sessionRewardLabel(workoutRewardStats.soundTokens)}
                             </div>
                           </div>
                         </div>
@@ -4194,7 +3760,7 @@ export default function SessionsPage() {
                         Current focus: {currentWorkoutStage.title}
                       </span>
                       <span className="rounded-full border border-emerald-200/18 bg-emerald-300/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100">
-                        {workoutJourneyProgress}% journey
+                        {workoutJourneyProgress}% workout flow
                       </span>
                     </div>
 
@@ -4237,6 +3803,7 @@ export default function SessionsPage() {
                           {launcherMessage}
                         </p>
                       ) : null}
+                      {launchReviewAction}
                     </div>
 
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
@@ -4306,21 +3873,21 @@ export default function SessionsPage() {
                       {[
                         {
                           icon: "⚡",
-                          label: "Sound Points",
+                          label: "Recorded Profile Points",
                           tone:
                             "border-cyan-300/20 bg-cyan-300/10 text-cyan-100",
-                          value: workoutRewardStats.soundPoints.toLocaleString(),
+                          value: sessionRewardLabel(workoutRewardStats.soundPoints),
                         },
                         {
                           icon: "🏋️",
                           label: "Workout XP",
                           tone:
                             "border-amber-300/24 bg-amber-300/10 text-amber-100",
-                          value: workoutRewardStats.workoutXp.toLocaleString(),
+                          value: sessionRewardLabel(workoutRewardStats.workoutXp),
                         },
                         {
                           icon: "🔥",
-                          label: "Training Streak",
+                          label: "Workout Streak",
                           tone:
                             "border-orange-300/22 bg-orange-300/10 text-orange-100",
                           value: `${workoutRewardStats.trainingStreak} days`,
@@ -4330,7 +3897,7 @@ export default function SessionsPage() {
                           label: "Sound Tokens",
                           tone:
                             "border-amber-300/24 bg-slate-950/50 text-amber-100",
-                          value: workoutRewardStats.soundTokens.toLocaleString(),
+                          value: sessionRewardLabel(workoutRewardStats.soundTokens),
                         },
                       ].map((reward) => (
                         <div
@@ -4972,13 +4539,13 @@ export default function SessionsPage() {
 
                               <div className="mt-4">
                                 <div className="flex items-center justify-between gap-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
-                                  <span>{stage.progress}%</span>
+                                  <span>{stage.progress === null ? "Not tracked" : stage.progress + "%"}</span>
                                   <span>{stage.nextAction}</span>
                                 </div>
                                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-950/80">
                                   <span
                                     className="block h-full rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.30)]"
-                                    style={{ width: `${stage.progress}%` }}
+                                    style={{ width: `${stage.progress ?? 0}%` }}
                                   />
                                 </div>
                               </div>
@@ -5129,13 +4696,13 @@ export default function SessionsPage() {
 
                               <div className="mt-4">
                                 <div className="flex items-center justify-between text-[9px] font-black uppercase tracking-[0.12em] text-yellow-100/45">
-                                  <span>{stage.progress}%</span>
+                                  <span>{stage.progress === null ? "Not tracked" : stage.progress + "%"}</span>
                                   <span>Build Flow</span>
                                 </div>
                                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-950/80">
                                   <span
                                     className="block h-full rounded-full bg-yellow-300 shadow-[0_0_16px_rgba(250,204,21,0.30)]"
-                                    style={{ width: `${stage.progress}%` }}
+                                    style={{ width: `${stage.progress ?? 0}%` }}
                                   />
                                 </div>
                               </div>
@@ -5151,6 +4718,12 @@ export default function SessionsPage() {
                                 </span>
                               </div>
 
+                              {launcherMessage ? (
+                                <p role="status" className="mt-3 rounded-2xl border border-cyan-300/20 bg-slate-950/70 px-3 py-2 text-xs text-cyan-100">
+                                  {launcherMessage}
+                                </p>
+                              ) : null}
+                      {launchReviewAction}
                               <div className="mt-3 grid gap-3">
                                 {savedTemplates.length > 0 ? (
                                   savedTemplates.slice(0, 3).map((template) => (
@@ -5234,10 +4807,10 @@ export default function SessionsPage() {
                                 Exercise Library
                               </span>
                               <span className="mt-2 block truncate text-2xl font-black text-white">
-                                Urgent category targets
+                                Recorded weekly patterns
                               </span>
                               <span className="mt-1 block truncate text-xs font-semibold text-cyan-100/75">
-                                {workoutStats.totalSets} logged sets
+                                {weeklyPatternSets} sets this week
                               </span>
                             </span>
                             <span
@@ -5273,10 +4846,10 @@ export default function SessionsPage() {
                                 Exercise Library
                               </p>
                               <h3 className="mt-4 text-2xl font-black leading-tight text-white">
-                                Urgent category targets
+                                Recorded weekly patterns
                               </h3>
                               <p className="mt-2 text-xs font-semibold leading-5 text-cyan-100/75">
-                                {workoutStats.totalSets} logged sets
+                                {weeklyPatternSets} sets this week
                               </p>
                             </div>
 
@@ -5308,78 +4881,34 @@ export default function SessionsPage() {
                                     Exercise Library
                                   </p>
                                   <h3 className="mt-2 text-2xl font-black text-white">
-                                    Urgent category targets
+                                    Recorded weekly patterns
                                   </h3>
                                   <p className="mt-2 max-w-[34rem] text-sm font-semibold leading-6 text-cyan-50/78">
-                                    The biggest set gaps from your current
-                                    training balance, ranked by what needs
-                                    attention first.
+                                    Largest recorded movement-pattern groups this week. Shares describe saved sets; category targets are not recorded.
                                   </p>
                                 </div>
                                 <span className="w-fit rounded-full border border-cyan-300/24 bg-cyan-400/14 px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-cyan-100">
-                                  {workoutStats.totalSets} logged sets
+                                  {weeklyPatternSets} sets this week
                                 </span>
                               </div>
 
                               <div className="mt-4 grid flex-1 gap-3">
-                                {exerciseLibraryPriorityTargets.map((target) => {
-                                  const percentComplete = Math.min(
-                                    100,
-                                    Math.round(
-                                      (target.completedSets /
-                                        target.goalSets) *
-                                        100,
-                                    ),
-                                  );
-                                  const isCovered =
-                                    target.remainingSets === 0;
-
-                                  return (
-                                    <div
-                                      className="rounded-[22px] border border-cyan-200/12 bg-slate-950/54 p-3"
-                                      key={target.label}
-                                    >
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                          <p className="text-sm font-black text-white">
-                                            {target.label}
-                                          </p>
-                                          <p className="mt-1 text-[10px] font-semibold text-cyan-100/50">
-                                            {target.focus}
-                                          </p>
-                                        </div>
-                                        <span
-                                          className={`shrink-0 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.12em] ${
-                                            isCovered
-                                              ? "border-emerald-300/24 bg-emerald-400/10 text-emerald-200"
-                                              : "border-yellow-300/24 bg-yellow-400/10 text-yellow-200"
-                                          }`}
-                                        >
-                                          {target.completedSets}/
-                                          {target.goalSets} sets
-                                        </span>
-                                      </div>
-
-                                      <div className="mt-3 flex items-center gap-3">
-                                        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-950/80">
-                                          <span
-                                            className={`block h-full rounded-full ${
-                                              isCovered
-                                                ? "bg-emerald-300"
-                                                : "bg-cyan-300 shadow-[0_0_16px_rgba(34,211,238,0.34)]"
-                                            }`}
-                                            style={{
-                                              width: `${percentComplete}%`,
-                                            }}
-                                          />
-                                        </div>
-                                        <span className="w-16 text-right text-[10px] font-black uppercase tracking-[0.12em] text-cyan-100/52">
-                                          {target.remainingSets} short
-                                        </span>
-                                      </div>
+                                {weeklyPatterns.length === 0 ? (
+                                  <p className="text-sm text-cyan-100/75">No recorded sets this week. Complete a workout to see its saved movement patterns here.</p>
+                                ) : weeklyPatterns.slice(0, 3).map(group => (
+                                  <div className="rounded-[22px] border border-cyan-200/12 bg-slate-950/54 p-3" key={group.label}>
+                                    <div className="flex items-start justify-between gap-3">
+                                      <p className="text-sm font-black text-white">{group.label}</p>
+                                      <span className="text-xs font-semibold text-cyan-100">{group.weeklySets} recorded sets</span>
                                     </div>
-                                  );
-                                })}
+                                    <div className="mt-3 flex items-center gap-3">
+                                      <div aria-hidden="true" className="h-2 flex-1 overflow-hidden rounded-full bg-slate-950/80">
+                                        <span className="block h-full rounded-full bg-cyan-300" style={{ width: group.sharePercent + "%" }} />
+                                      </div>
+                                      <span className="text-xs text-cyan-100/75">{Math.round(group.sharePercent)}% of weekly sets</span>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
                           </div>
@@ -5538,11 +5067,7 @@ export default function SessionsPage() {
                                               {session.totalSets}
                                             </td>
                                             <td className="px-3 py-3 align-top text-sm font-black text-emerald-100">
-                                              {session.totalVolume
-                                                ? `${session.totalVolume.toLocaleString()} lb`
-                                                : session.topLoad
-                                                  ? `${formatCompactNumber(session.topLoad)} lb`
-                                                  : "Unweighted"}
+                                              {session.volumeLabel}
                                             </td>
                                           </tr>
                                         ))}
@@ -5648,7 +5173,7 @@ export default function SessionsPage() {
                               Sound Points
                             </span>
                             <span className="text-sm font-black text-white">
-                              {workoutRewardStats.soundPoints.toLocaleString()}
+                              {sessionRewardLabel(workoutRewardStats.soundPoints)}
                             </span>
                           </div>
                           <div className="mt-2 flex gap-1.5 overflow-hidden">
@@ -5668,7 +5193,7 @@ export default function SessionsPage() {
 
                     <div className="relative z-10 mt-4">
                       <div className="flex items-center justify-between gap-3 text-[9px] font-black uppercase tracking-[0.12em] text-slate-500">
-                        <span>{stage.progress}%</span>
+                        <span>{stage.progress === null ? "Not tracked" : stage.progress + "%"}</span>
                         {isCurrent ? (
                           <span className="rounded-full border border-cyan-200/30 bg-cyan-300/12 px-2 py-1 text-cyan-100">
                             Current Focus
@@ -5694,7 +5219,7 @@ export default function SessionsPage() {
                                   ? "bg-amber-300"
                                   : "bg-white/20"
                           }`}
-                          style={{ width: `${stage.progress}%` }}
+                          style={{ width: `${stage.progress ?? 0}%` }}
                         />
                       </div>
 
@@ -5826,6 +5351,8 @@ export default function SessionsPage() {
               </span>
             </div>
 
+            {launcherMessage && <p role="status" className="mt-3 text-sm text-cyan-100">{launcherMessage}</p>}
+            {launchReviewAction}
             <div className="mt-5 grid gap-3 md:grid-cols-2">
               {savedTemplates.length > 0 ? (
                 savedTemplates.slice(0, 6).map((template) => (
@@ -6005,12 +5532,8 @@ export default function SessionsPage() {
                         ["Sets", String(session.totalSets)],
                         ["Reps", session.totalReps ? String(session.totalReps) : "Not logged"],
                         [
-                          session.totalVolume ? "Volume" : "Top Load",
-                          session.totalVolume
-                            ? `${session.totalVolume.toLocaleString()} lb`
-                            : session.topLoad
-                              ? `${formatCompactNumber(session.topLoad)} lb`
-                              : "Unweighted",
+                          "Load Volume",
+                          session.volumeLabel,
                         ],
                       ].map(([label, value]) => (
                         <div
@@ -6126,24 +5649,8 @@ export default function SessionsPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              {[
-                ["coach", "Coach Plan"],
-                ["custom", "Build My Own"],
-                ["hybrid", "Hybrid"],
-              ].map(([mode, label]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setPlanMode(mode as PlanMode)}
-                  className={`rounded-2xl px-4 py-2 text-xs font-black uppercase tracking-[0.14em] transition ${
-                    planMode === mode
-                      ? "bg-emerald-400 text-slate-950"
-                      : "border border-white/10 bg-slate-950/60 text-slate-300 hover:border-emerald-300/40"
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+              <Link href={ROUTES.dashboard.myPlan} className="rounded-2xl border border-emerald-300/30 px-4 py-2 text-xs font-black text-emerald-200">Review saved plan</Link>
+              <Link href={ROUTES.dashboard.goals} className="rounded-2xl border border-cyan-300/30 px-4 py-2 text-xs font-black text-cyan-200">Update Goals</Link>
             </div>
           </div>
 
@@ -6176,13 +5683,13 @@ export default function SessionsPage() {
           <div className="mt-6 grid gap-5 lg:grid-cols-[1fr_0.9fr]">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-300">
-                Next 3 Workouts
+                Saved Assignments
               </p>
 
               <div className="mt-4 space-y-3">
                 {activePlan.workouts.map((workout, index) => (
                   <div
-                    key={workout}
+                    key={`${index}-${workout}`}
                     className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3"
                   >
                     <div>
@@ -6192,7 +5699,7 @@ export default function SessionsPage() {
                       <p className="font-bold">{workout}</p>
                     </div>
                     <span className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-3 py-1 text-xs font-bold text-cyan-300">
-                      Planned
+                      Saved
                     </span>
                   </div>
                 ))}

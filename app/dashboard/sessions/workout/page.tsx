@@ -1,34 +1,56 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { exerciseSemanticMetadata, type ExerciseSemanticMetadata } from "@/lib/planning/exerciseSemanticMetadata";
+import { readWorkoutTargets } from "@/lib/planning/workoutTargets";
+
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
-  clearActiveWorkoutBuilderSessionTemplate,
-  readActiveWorkoutBuilderSessionTemplate,
   type LocalWorkoutBuilderTemplate,
   type LocalWorkoutBuilderSessionTemplate,
-  writeActiveWorkoutBuilderSessionTemplate,
+  startSavedWorkoutBuilderSession,
 } from "@/lib/localData/workoutBuilderData";
 import {
   loadWorkoutTemplatesWithFallback,
   saveCompletedWorkoutLogWithFallback,
 } from "@/lib/data/workoutPersistence";
+import { getActiveWorkoutSessionContext, inspectWorkoutPlans } from "@/lib/localData/workoutPlanData";
+import { activateDefaultWorkout } from "@/lib/planning/workoutLaunch";
+import { exerciseLogStatus, workoutCompletionIssue, plannedAssignmentSetTarget, workoutTargetLabel } from "@/lib/planning/workoutEntryDraft";
+import { assertWorkoutDraftEditor, captureWorkoutDraftEditor, writeWorkoutDraft, finalizeWorkoutDraft, unfinishedWorkoutDrafts, resumeWorkoutDraft, exportWorkoutDraft, preserveCompletedDefaultDraft, workoutDraftKey as sessionDraftKey, type WorkoutDraftEditor } from "@/lib/planning/workoutDrafts";
+import { assertWorkoutNotCompleted, readPlanningLogs, workoutSaveFailureMessage } from "@/lib/planning/logs";
+import { workoutStartedAt } from "@/lib/planning/history";
+import { planningOwner, planningAccountGeneration, planningSnapshot, subscribePlanning, readPlanning } from "@/lib/planning/store";
 import { ROUTES } from "@/lib/routes";
+import { captureWorkoutHistoryRecovery } from "@/lib/planning/workoutHistoryRecovery";
+import WorkoutHistoryReviewNotice from "@/components/dashboard/WorkoutHistoryReviewNotice";
+import { captureActiveSessionRecovery, exportActiveSessionRecovery } from "@/lib/planning/activeSessionRecovery";
+import { captureWorkoutLaunchEditor, assertWorkoutLaunchEditor, reviewWorkoutLaunchEditor } from "@/lib/planning/workoutLaunchEditor";
 import type { LocalExerciseStatEntry } from "@/types";
 
 type ExerciseLogDraft = {
   weight: string;
+  weightUnit?: string;
   reps: string;
   sets: string;
 };
+type SessionDraft = { id: string; logs: Record<number, ExerciseLogDraft>; completedAt?: string };
+function plannedSets(template: LocalWorkoutBuilderSessionTemplate) {
+  const context = getActiveWorkoutSessionContext();
+  if (context?.source !== "plan" || context.templateId !== template.id) return null;
+  const inspected = inspectWorkoutPlans();
+  if (inspected.issue) return null;
+  const assignment = inspected.plans.find(plan => plan.id === context.planId)?.days.find(day => day.id === context.planDayId && day.date === context.planDayDate)?.assignments.find(assignment => assignment.id === context.assignmentId && assignment.templateId === template.id);
+  return plannedAssignmentSetTarget(assignment);
+}
 
-type SessionExerciseMeta = {
+type SessionExerciseMeta = ExerciseSemanticMetadata & {
   exerciseId: string;
   exerciseName: string;
   body: string;
   pattern: string;
   equipment: string;
-  targetSets: number;
+  targetSets: number | null;
   targetReps: string;
   defaultWeight: string;
 };
@@ -134,11 +156,11 @@ const createTemplateWorkout = (template: LocalWorkoutBuilderSessionTemplate) => 
       id: index + 2,
       type: index === 0 ? "compound" : "accessory",
       title: exercise.name,
-      subtitle: `Template exercise ${index + 1} â€¢ 3 sets x 8 reps`,
+      subtitle: `Template exercise ${index + 1} · ${workoutTargetLabel(readWorkoutTargets(exercise, plannedSets(template)).sets, readWorkoutTargets(exercise).reps)}`,
       duration: 75,
       videoLabel: `${exercise.name} Notes`,
-      cue: "Move with control, keep the setup clean, and log your working sets.",
-      note: `${exercise.body} â€¢ ${exercise.pattern} â€¢ ${exercise.equipment}`,
+      cue: readWorkoutTargets(exercise).issue || readWorkoutTargets(exercise).notes || "Move with control, keep the setup clean, and log your working sets.",
+      note: [exercise.body, exercise.pattern, exercise.equipment, readWorkoutTargets(exercise).restSeconds === null ? "" : `Planned rest: ${readWorkoutTargets(exercise).restSeconds} seconds`].filter(Boolean).join(" · "),
     }),
   );
 
@@ -177,13 +199,14 @@ const createTemplateSessionExerciseMeta = (
     template.exercises.map((exercise, index) => [
       index + 2,
       {
+        ...exerciseSemanticMetadata(exercise),
         exerciseId: exercise.id,
         exerciseName: exercise.name,
         body: exercise.body,
         pattern: exercise.pattern,
         equipment: exercise.equipment,
-        targetSets: 3,
-        targetReps: "8",
+        targetSets: readWorkoutTargets(exercise, plannedSets(template)).sets,
+        targetReps: readWorkoutTargets(exercise).reps,
         defaultWeight: "",
       },
     ]),
@@ -197,32 +220,20 @@ const createInitialExerciseLogs = (
     timeline
       .filter((step) => exerciseMeta[step.id])
       .map((step) => {
-        const meta = exerciseMeta[step.id];
-
         return [
           step.id,
           {
-            weight: meta.defaultWeight,
-            reps: meta.targetReps,
-            sets: String(meta.targetSets),
+            weight: "",
+            weightUnit: "",
+            reps: "",
+            sets: "",
           },
         ];
       }),
   ) as Record<number, ExerciseLogDraft>;
 
-const hasNonNegativeNumber = (value: string) =>
-  value.trim() !== "" && Number(value) >= 0;
-
-const hasPositiveNumber = (value: string) =>
-  value.trim() !== "" && Number(value) > 0;
-
 const isCompleteExerciseLog = (log?: ExerciseLogDraft) =>
-  Boolean(
-    log &&
-      hasNonNegativeNumber(log.weight) &&
-      hasPositiveNumber(log.reps) &&
-      hasPositiveNumber(log.sets),
-  );
+  exerciseLogStatus(log) === "complete";
 
 const getTemplateSourceLabel = ({
   source,
@@ -238,10 +249,7 @@ const getTemplateSourceLabel = ({
     : "localStorage fallback";
 };
 
-export default function WorkoutBuilderPage() {
-  const router = useRouter();
-
-  const defaultWorkout = {
+const defaultWorkout = {
     title: "Lower Body Strength Day",
     subtitle: "Beginner • Dumbbells • 35 min",
     soundscape: "Rain + Soft Pulse",
@@ -345,6 +353,17 @@ export default function WorkoutBuilderPage() {
     ],
   };
 
+export default function WorkoutBuilderPage() {
+  const router = useRouter();
+  useSyncExternalStore(subscribePlanning, planningSnapshot, () => null);
+  const historyRecovery = captureWorkoutHistoryRecovery();
+  const historyNeedsReview = historyRecovery.issues.length > 0;
+  const activeRecovery = captureActiveSessionRecovery();
+  const activeNeedsReview = activeRecovery.issues.length > 0;
+  const unfinishedDrafts = historyNeedsReview ? [] : unfinishedWorkoutDrafts();
+  const loadedAccount = useRef(planningOwner());
+  const launchEditorRef = useRef(captureWorkoutLaunchEditor());
+  const draftEditor = useRef<WorkoutDraftEditor | null>(null);
   const [activeSessionTemplate, setActiveSessionTemplate] =
     useState<LocalWorkoutBuilderSessionTemplate | null>(null);
   const [savedSessionTemplates, setSavedSessionTemplates] = useState<
@@ -353,16 +372,30 @@ export default function WorkoutBuilderPage() {
   const [launcherMessage, setLauncherMessage] = useState("");
   const [templateSourceLabel, setTemplateSourceLabel] =
     useState("Loading templates");
-  const workout = activeSessionTemplate
+  const workout = activeSessionTemplate && !activeNeedsReview
     ? createTemplateWorkout(activeSessionTemplate)
     : defaultWorkout;
-  const activeSessionExerciseMeta = activeSessionTemplate
+  const activeSessionExerciseMeta = activeSessionTemplate && !activeNeedsReview
     ? createTemplateSessionExerciseMeta(activeSessionTemplate)
     : sessionExerciseMeta;
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [saveMessage, setSaveMessage] = useState("");
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const savingRef = useRef(false);
+  const completionViewRef = useRef({ active: false, revision: 0, timer: null as number | null });
+  useEffect(() => {
+    const view = completionViewRef.current;
+    view.active = true;
+    view.revision++;
+    return () => {
+      view.active = false;
+      view.revision++;
+      if (view.timer !== null) window.clearTimeout(view.timer);
+      view.timer = null;
+    };
+  }, []);
+  const sessionKeyRef = useRef<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [exerciseLogs, setExerciseLogs] = useState<
     Record<number, ExerciseLogDraft>
@@ -382,7 +415,8 @@ export default function WorkoutBuilderPage() {
 
     loadSavedSessionTemplates();
 
-    const activeTemplate = readActiveWorkoutBuilderSessionTemplate();
+    const reviewed = captureActiveSessionRecovery();
+    const activeTemplate = reviewed.issues.length ? null : reviewed.template;
 
     if (activeTemplate?.exercises?.length) {
       setActiveSessionTemplate(activeTemplate);
@@ -394,44 +428,73 @@ export default function WorkoutBuilderPage() {
   }, []);
 
   useEffect(() => {
-    if (!activeSessionTemplate) return;
-
-    const templateWorkout = createTemplateWorkout(activeSessionTemplate);
+    if (historyNeedsReview || activeNeedsReview) return;
+    const templateWorkout = activeSessionTemplate ? createTemplateWorkout(activeSessionTemplate) : defaultWorkout;
     const templateExerciseMeta =
-      createTemplateSessionExerciseMeta(activeSessionTemplate);
+      activeSessionTemplate ? createTemplateSessionExerciseMeta(activeSessionTemplate) : sessionExerciseMeta;
+    const saved = readPlanning<SessionDraft | string | null>(sessionDraftKey(activeSessionTemplate), null);
+    draftEditor.current = captureWorkoutDraftEditor(activeSessionTemplate, loadedAccount.current);
+    const draft = saved && typeof saved === "object" ? saved : null;
+    const id = draft?.id || (typeof saved === "string" ? saved : null);
+    const completed = id ? readPlanningLogs().find(log => log.id === id) : null;
 
+    sessionKeyRef.current = id; savingRef.current = false;
     setCurrentIndex(0);
     setSaveMessage("");
-    setLastSavedAt(null);
+    setLastSavedAt(completed?.completedAt || draft?.completedAt || null);
     setIsSaving(false);
     setExerciseLogs(
-      createInitialExerciseLogs(
+      draft?.logs || createInitialExerciseLogs(
         templateWorkout.timeline,
         templateExerciseMeta,
       ),
     );
-  }, [activeSessionTemplate]);
+  }, [activeSessionTemplate, historyNeedsReview, activeNeedsReview]);
 
-  const resetDefaultWorkoutSession = () => {
+  const resetDefaultWorkoutSession = (preserveVersion?: string) => {
+    if (planningOwner() !== loadedAccount.current) throw new Error("Your account changed. Reload the workout before switching sessions.");
+    assertWorkoutLaunchEditor(launchEditorRef.current);
+    let reset: boolean;
+    if (preserveVersion !== undefined) {
+      if (!draftEditor.current) throw new Error("Reload the workout before starting a new session.");
+      preserveCompletedDefaultDraft(preserveVersion, draftEditor.current);
+      reset = true;
+    } else {
+      reset = activateDefaultWorkout().reset;
+    }
+    launchEditorRef.current = captureWorkoutLaunchEditor();
+    draftEditor.current = captureWorkoutDraftEditor(null, loadedAccount.current);
     setActiveSessionTemplate(null);
+    const saved = readPlanning<SessionDraft | string | null>(sessionDraftKey(null), null);
+    const draft = saved && typeof saved === "object" ? saved : null;
+    const id = draft?.id || (typeof saved === "string" ? saved : null);
+    const completed = id ? readPlanningLogs().find(log => log.id === id) : null;
+    sessionKeyRef.current = id; savingRef.current = false;
     setCurrentIndex(0);
     setSaveMessage("");
-    setLastSavedAt(null);
+    setLastSavedAt(completed?.completedAt || draft?.completedAt || null);
     setIsSaving(false);
-    setExerciseLogs(
-      createInitialExerciseLogs(defaultWorkout.timeline, sessionExerciseMeta),
-    );
+    const nextLogs = reset ? createInitialExerciseLogs(defaultWorkout.timeline, sessionExerciseMeta) : draft?.logs || createInitialExerciseLogs(defaultWorkout.timeline, sessionExerciseMeta);
+    setExerciseLogs(JSON.parse(JSON.stringify(nextLogs)) as Record<number, ExerciseLogDraft>);
   };
 
   const startDefaultWorkout = () => {
-    clearActiveWorkoutBuilderSessionTemplate();
-    resetDefaultWorkoutSession();
-    setLauncherMessage("Default workout ready.");
+    if (savingRef.current) return;
+    try {
+      resetDefaultWorkoutSession();
+      setLauncherMessage("Default workout ready. Any unfinished default draft is retained.");
+    } catch (cause) {
+      setLauncherMessage(cause instanceof Error ? cause.message : "The workout could not be opened. Try again.");
+    }
   };
 
   const resumeActiveTemplate = () => {
-    const activeTemplate =
-      activeSessionTemplate || readActiveWorkoutBuilderSessionTemplate();
+    if (planningOwner() !== loadedAccount.current) { setLauncherMessage("Your account changed. Reload the workout before resuming."); return; }
+    try { launchEditorRef.current = reviewWorkoutLaunchEditor(launchEditorRef.current).editor; }
+    catch (cause) { setLauncherMessage(cause instanceof Error ? cause.message : "The current workout could not be reviewed."); return; }
+    const review = captureActiveSessionRecovery();
+    if (review.issues.length) { setLauncherMessage(review.issues.join(" ")); return; }
+    const activeTemplate = review.template;
 
     if (!activeTemplate?.exercises?.length) {
       setLauncherMessage("No active builder template to resume.");
@@ -448,19 +511,44 @@ export default function WorkoutBuilderPage() {
       return;
     }
 
-    const sessionTemplate = writeActiveWorkoutBuilderSessionTemplate(template);
-
-    setActiveSessionTemplate(sessionTemplate);
-    setLauncherMessage(`${sessionTemplate.title} ready.`);
+    if (savingRef.current) return;
+    try {
+      if (planningOwner() !== loadedAccount.current) throw new Error("Your account changed. Reload the workout before switching sessions.");
+      assertWorkoutLaunchEditor(launchEditorRef.current);
+      const sessionTemplate = startSavedWorkoutBuilderSession(template);
+      launchEditorRef.current = captureWorkoutLaunchEditor();
+      setActiveSessionTemplate(sessionTemplate);
+      setLauncherMessage(`${sessionTemplate.title} ready.`);
+    } catch (cause) {
+      setLauncherMessage(cause instanceof Error ? cause.message : "The workout could not be opened. Try again.");
+    }
   };
 
   const clearActiveTemplate = () => {
-    clearActiveWorkoutBuilderSessionTemplate();
-    resetDefaultWorkoutSession();
-    setLauncherMessage("Active builder template cleared.");
+    startDefaultWorkout();
   };
 
-  const current = workout.timeline[currentIndex];
+  function reviewLoggerLaunchControls() {
+    if (savingRef.current) return;
+    try {
+      const reviewed = reviewWorkoutLaunchEditor(launchEditorRef.current);
+      launchEditorRef.current = reviewed.editor;
+      setLauncherMessage(`Current workout: ${reviewed.title}. Launch controls reviewed. Choose a session when ready; logged entries are unchanged.`);
+    } catch (cause) { setLauncherMessage(cause instanceof Error ? cause.message : "Workout controls could not be reviewed."); }
+  }
+
+  function resumeSavedLoggerDraft(draft: { key: string; version: string; generation: number }) {
+    if (savingRef.current) return;
+    try {
+      assertWorkoutLaunchEditor(launchEditorRef.current);
+      const template = resumeWorkoutDraft(draft.key, draft.version, loadedAccount.current, draft.generation);
+      launchEditorRef.current = captureWorkoutLaunchEditor();
+      setActiveSessionTemplate({ ...template });
+      setLauncherMessage(`${template.title} restored with its saved entries.`);
+    } catch (cause) { setLauncherMessage(cause instanceof Error ? cause.message : "This draft could not be resumed."); }
+  }
+
+  const current = workout.timeline[currentIndex] || workout.timeline[0];
   const currentExerciseMeta = activeSessionExerciseMeta[current.id];
   const currentExerciseLog = exerciseLogs[current.id];
   const loggableSteps = workout.timeline.filter(
@@ -470,10 +558,7 @@ export default function WorkoutBuilderPage() {
     isCompleteExerciseLog(exerciseLogs[step.id]),
   ).length;
 
-  const progress = useMemo(
-    () => Math.round(((currentIndex + 1) / workout.timeline.length) * 100),
-    [currentIndex, workout.timeline.length],
-  );
+  const progress = Math.round(((currentIndex + 1) / workout.timeline.length) * 100);
 
   const canGoBack = currentIndex > 0;
   const canGoNext = currentIndex < workout.timeline.length - 1;
@@ -485,19 +570,38 @@ export default function WorkoutBuilderPage() {
     field: keyof ExerciseLogDraft,
     value: string,
   ) => {
+    if (lastSavedAt || savingRef.current) return;
+    const nextLogs = { ...exerciseLogs, [stepId]: { ...exerciseLogs[stepId], [field]: value } };
+    const id = sessionKeyRef.current || getActiveWorkoutSessionContext()?.id || crypto.randomUUID();
+    try {
+      if (!draftEditor.current) throw new Error("The workout is still loading. Try again.");
+      draftEditor.current = writeWorkoutDraft(draftEditor.current, { id, logs: nextLogs });
+    }
+    catch (cause) { setSaveMessage(cause instanceof Error ? cause.message : "Your draft could not be saved. Try again."); return; }
+    sessionKeyRef.current = id;
     setSaveMessage("");
     setLastSavedAt(null);
     setIsSaving(false);
-    setExerciseLogs((prev) => ({
-      ...prev,
-      [stepId]: {
-        ...prev[stepId],
-        [field]: value,
-      },
-    }));
+    setExerciseLogs(nextLogs);
   };
 
   const saveWorkoutStats = async () => {
+    if (!completionViewRef.current.active || savingRef.current || lastSavedAt) return;
+    try {
+      if (!draftEditor.current) throw new Error("The workout is still loading. Try again.");
+      assertWorkoutDraftEditor(draftEditor.current);
+    } catch (cause) { setSaveMessage(cause instanceof Error ? cause.message : "Reload the workout before saving."); return; }
+    const entryIssue = workoutCompletionIssue(loggableSteps.map(step => ({ name: activeSessionExerciseMeta[step.id].exerciseName, log: exerciseLogs[step.id] })));
+    if (entryIssue) { setSaveMessage(entryIssue); return; }
+    const context = getActiveWorkoutSessionContext();
+    const linkedContext = context && context.templateId === activeSessionTemplate?.id ? context : null;
+    try { assertWorkoutNotCompleted(sessionKeyRef.current, linkedContext?.assignmentId); }
+    catch (cause) { setSaveMessage(cause instanceof Error ? cause.message : "Review the completed workout in History before continuing."); return; }
+    if (!sessionKeyRef.current) {
+      const nextSessionId = linkedContext?.id || crypto.randomUUID();
+      try { draftEditor.current = writeWorkoutDraft(draftEditor.current!, { id: nextSessionId, logs: exerciseLogs }); } catch (cause) { setSaveMessage(cause instanceof Error ? cause.message : "This browser could not save the session. Try again."); return; }
+      sessionKeyRef.current = nextSessionId;
+    }
     const completedAt = new Date().toISOString();
     const completedEntries: LocalExerciseStatEntry[] = [];
 
@@ -507,12 +611,14 @@ export default function WorkoutBuilderPage() {
 
       if (meta && isCompleteExerciseLog(log)) {
         completedEntries.push({
+          ...exerciseSemanticMetadata(meta),
           exerciseId: meta.exerciseId,
           exerciseName: meta.exerciseName,
           body: meta.body,
           pattern: meta.pattern,
           equipment: meta.equipment,
           weight: log.weight.trim(),
+          ...(log.weightUnit === "lb" || log.weightUnit === "kg" ? { weightUnit: log.weightUnit } : {}),
           reps: log.reps.trim(),
           sets: log.sets.trim(),
           date: completedAt,
@@ -530,32 +636,49 @@ export default function WorkoutBuilderPage() {
       return;
     }
 
+    const account = planningOwner();
+    const savedSessionId = sessionKeyRef.current;
+    if (!savedSessionId) return;
+    const generation = planningAccountGeneration();
+    const viewRevision = completionViewRef.current.revision;
+    const stillCurrent = () => completionViewRef.current.active && completionViewRef.current.revision === viewRevision
+      && planningOwner() === account && planningAccountGeneration() === generation && sessionKeyRef.current === savedSessionId;
     try {
+      savingRef.current = true;
       setIsSaving(true);
       const result = await saveCompletedWorkoutLogWithFallback({
+        sessionId: savedSessionId,
+        planId: linkedContext?.planId, planDayId: linkedContext?.planDayId, assignmentId: linkedContext?.assignmentId,
         title: workout.title,
         templateId: activeSessionTemplate?.id ?? null,
-        startedAt: activeSessionTemplate?.startedAt ?? null,
+        startedAt: workoutStartedAt(completedAt, linkedContext?.startedAt, activeSessionTemplate?.startedAt),
         completedAt,
         entries: completedEntries,
       });
+      if (!stillCurrent() || getActiveWorkoutSessionContext()?.id !== context?.id) return;
       const sourceLabel =
         result.source === "supabase" ? "Supabase" : "localStorage fallback";
 
+      if (!result.success) throw new Error(result.error || "Workout could not be saved.");
+      assertWorkoutDraftEditor(draftEditor.current!);
+      finalizeWorkoutDraft(draftEditor.current!, savedSessionId, exerciseLogs, completedAt);
       setLastSavedAt(completedAt);
       setSaveMessage(
         `Saved ${completedEntries.length} exercise ${
           completedEntries.length === 1 ? "entry" : "entries"
-        } via ${sourceLabel}. Opening stats...`,
+        } via ${sourceLabel}. Opening your saved workout...`,
       );
-      window.setTimeout(() => {
-        router.push(ROUTES.dashboard.stats);
+      completionViewRef.current.timer = window.setTimeout(() => {
+        completionViewRef.current.timer = null;
+        if (stillCurrent()) router.push(`${ROUTES.dashboard.workoutComplete}#${encodeURIComponent(savedSessionId)}`);
       }, 650);
-    } catch {
+    } catch (cause) {
+      if (!stillCurrent() || getActiveWorkoutSessionContext()?.id !== context?.id) return;
+      savingRef.current = false;
       setIsSaving(false);
       setLastSavedAt(null);
       setSaveMessage(
-        "The workout could not be saved in this browser. Try again before leaving the page.",
+        workoutSaveFailureMessage(savedSessionId, cause),
       );
     }
   };
@@ -574,6 +697,26 @@ export default function WorkoutBuilderPage() {
     const seconds = value % 60;
     return `${minutes}:${String(seconds).padStart(2, "0")}`;
   };
+
+  if (historyNeedsReview) return <WorkoutHistoryReviewNotice area="Workout logging and draft recovery" issues={historyRecovery.issues} />;
+  if (activeNeedsReview) return <main className="mx-auto max-w-3xl space-y-4 p-6 text-slate-100">
+    <h1 className="text-2xl font-bold">Review the active workout</h1>
+    <p role="status">Workout logging is paused. Your original session, plan link and draft entries are preserved.</p>
+    <ul className="list-disc space-y-2 pl-5">{activeRecovery.issues.map(issue => <li key={issue}>{issue}</li>)}</ul>
+    <button type="button" className="rounded-xl bg-cyan-300 px-4 py-3 font-semibold text-slate-950" onClick={() => {
+      let url: string | null = null;
+      try {
+        const json = exportActiveSessionRecovery(activeRecovery);
+        url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+        const link = document.createElement("a"); link.href = url; link.download = "sound-fitness-active-workout-originals.json"; link.click();
+        setLauncherMessage("Original session and drafts exported. Saved data is unchanged.");
+      } catch (cause) { setLauncherMessage(cause instanceof Error ? cause.message : "Originals could not be exported. Saved data is preserved."); }
+      finally { if (url) { const downloadUrl = url; window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000); } }
+    }}>Export original session and drafts</button>
+    <p className="text-slate-300">Review the exported records before making changes. Reload after restoring a verified snapshot.</p>
+    {launcherMessage ? <p role="status">{launcherMessage}</p> : null}
+    <a className="inline-block underline" href={ROUTES.dashboard.sessionHistory}>Open workout History</a>
+  </main>;
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_30%),linear-gradient(180deg,#020617_0%,#0f172a_100%)] text-white">
@@ -677,7 +820,7 @@ export default function WorkoutBuilderPage() {
               <button
                 type="button"
                 onClick={resumeActiveTemplate}
-                disabled={!activeSessionTemplate}
+                disabled={!activeRecovery.template}
                 className="min-h-[48px] rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm font-bold text-emerald-200 transition hover:bg-emerald-400 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-emerald-400/10 disabled:hover:text-emerald-200"
               >
                 Resume Active Template
@@ -690,8 +833,47 @@ export default function WorkoutBuilderPage() {
               >
                 Clear Active Template
               </button>
+              <button type="button" onClick={reviewLoggerLaunchControls} disabled={isSaving} className="min-h-[48px] rounded-2xl border border-cyan-300/20 px-4 py-3 text-sm font-bold text-cyan-100 disabled:opacity-40">
+                Review current workout controls
+              </button>
             </div>
           </div>
+
+          {unfinishedDrafts.length > 0 && <section className="mt-5 rounded-2xl border border-cyan-300/20 p-4" aria-label="Saved workout drafts">
+            <h3 className="font-bold text-cyan-100">Saved workout drafts</h3>
+            <p className="mt-1 text-sm text-slate-400">Resume the original workout and saved entries. Switching leaves other drafts saved.</p>
+            <ul className="mt-3 space-y-3">
+              {unfinishedDrafts.map(draft => <li key={draft.key} className="rounded-xl border border-white/10 p-3">
+                <p className="font-semibold">{draft.title}</p>
+                {draft.startedAt && <p className="text-sm text-slate-400">Started {new Date(draft.startedAt).toLocaleString()}</p>}
+                {draft.resumable ? <button type="button" disabled={isSaving} className="mt-2 rounded-xl border border-cyan-300/30 px-4 py-2 text-sm text-cyan-100 disabled:opacity-40" onClick={() => resumeSavedLoggerDraft(draft)}>Resume saved draft</button> : <p className="mt-2 text-sm text-amber-200">{draft.completionRecorded ? "This workout is recorded in History. Additional draft values are preserved here for review and export; they have not changed the completed workout." : draft.recoveryIssue || "Original values are preserved. This draft needs review before it can be resumed automatically."}</p>}
+                {draft.key === "loggerDraft:default" && draft.completionRecorded && <button type="button" disabled={isSaving} className="mt-2 rounded-xl border border-cyan-300/30 px-4 py-2 text-sm text-cyan-100 disabled:opacity-40" onClick={() => {
+                  if (savingRef.current) return;
+                  try {
+                    resetDefaultWorkoutSession(draft.version);
+                    setLauncherMessage("New default workout ready. The previous draft is kept below for review and export.");
+                  } catch (cause) { setLauncherMessage(cause instanceof Error ? cause.message : "The draft could not be preserved. Try again before starting a new workout."); }
+                }}>Keep draft and start new default workout</button>}
+                <details className="mt-3 text-sm text-slate-300">
+                  <summary className="cursor-pointer text-cyan-100">Review saved values</summary>
+                  <p className="my-2 text-slate-400">These are the stored draft values. Older drafts may identify steps without exercise names.</p>
+                  <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-slate-950/70 p-3">{draft.preview}</pre>
+                  {draft.previewTruncated && <p className="mt-2 text-amber-200">Preview shortened. Export includes the complete saved draft.</p>}
+                </details>
+                <button type="button" className="mt-3 rounded-xl border border-white/20 px-4 py-2 text-sm text-slate-200" onClick={() => {
+                  let url: string | null = null;
+                  try {
+                    const json = exportWorkoutDraft(draft.key, draft.version, loadedAccount.current, draft.generation);
+                    url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
+                    const link = document.createElement("a");
+                    link.href = url; link.download = `sound-fitness-workout-draft-${Date.now()}.json`; link.click();
+                    setLauncherMessage("Draft export requested. The saved draft is unchanged.");
+                  } catch (cause) { setLauncherMessage(cause instanceof Error ? cause.message : "The draft could not be exported."); }
+                  finally { if (url) { const downloadUrl = url; window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000); } }
+                }}>Export draft as JSON</button>
+              </li>)}
+            </ul>
+          </section>}
 
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {savedSessionTemplates.length > 0 ? (
@@ -877,8 +1059,7 @@ export default function WorkoutBuilderPage() {
                           Log this movement
                         </div>
                         <p className="mt-2 text-sm text-slate-300">
-                          Target: {currentExerciseMeta.targetSets} x{" "}
-                          {currentExerciseMeta.targetReps}
+                          Target: {workoutTargetLabel(currentExerciseMeta.targetSets, currentExerciseMeta.targetReps)}
                         </p>
                       </div>
                       <span
@@ -894,7 +1075,7 @@ export default function WorkoutBuilderPage() {
                       </span>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-4">
                       {(["weight", "reps", "sets"] as const).map((field) => (
                         <label key={field} className="block">
                           <span className="text-xs font-semibold capitalize text-slate-400">
@@ -916,6 +1097,13 @@ export default function WorkoutBuilderPage() {
                           />
                         </label>
                       ))}
+                      <label className="block">
+                        <span className="text-xs font-semibold text-slate-400">Load unit</span>
+                        <select aria-label="Current movement load unit" value={currentExerciseLog.weightUnit ?? ""} onChange={event => updateExerciseLog(current.id, "weightUnit", event.target.value)} className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-3 text-sm text-white">
+                          <option value="">{Object.hasOwn(currentExerciseLog, "weightUnit") ? "Choose unit" : "Not recorded in older draft"}</option>
+                          <option value="lb">lb</option><option value="kg">kg</option>
+                        </select>
+                      </label>
                     </div>
                   </div>
                 ) : null}
@@ -934,7 +1122,7 @@ export default function WorkoutBuilderPage() {
                   <p className="mt-1 text-sm text-slate-400">
                     Completed movements stay available in your local stats and
                     sync to Supabase when available. Use 0 for bodyweight
-                    movements.
+                    movements. Choose the unit used for each load. Changing the unit does not convert the number.
                   </p>
                 </div>
 
@@ -975,7 +1163,7 @@ export default function WorkoutBuilderPage() {
                           </p>
                           <p className="mt-1 text-xs text-slate-400">
                             {meta.body} | {meta.pattern} | Target{" "}
-                            {meta.targetSets} x {meta.targetReps}
+                            {workoutTargetLabel(meta.targetSets, meta.targetReps)}
                           </p>
                         </button>
 
@@ -990,7 +1178,7 @@ export default function WorkoutBuilderPage() {
                         </span>
                       </div>
 
-                      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-4">
                         {(["weight", "reps", "sets"] as const).map(
                           (field) => (
                             <label key={field} className="block">
@@ -1014,6 +1202,13 @@ export default function WorkoutBuilderPage() {
                             </label>
                           ),
                         )}
+                        <label className="block">
+                          <span className="text-xs font-semibold text-slate-500">Load unit</span>
+                          <select aria-label={`${meta.exerciseName} load unit`} value={log?.weightUnit ?? ""} onChange={event => updateExerciseLog(step.id, "weightUnit", event.target.value)} className="mt-1 w-full rounded-2xl border border-white/10 bg-slate-950/70 px-3 py-3 text-sm text-white">
+                            <option value="">{log && Object.hasOwn(log, "weightUnit") ? "Choose unit" : "Not recorded in older draft"}</option>
+                            <option value="lb">lb</option><option value="kg">kg</option>
+                          </select>
+                        </label>
                       </div>
                     </article>
                   );

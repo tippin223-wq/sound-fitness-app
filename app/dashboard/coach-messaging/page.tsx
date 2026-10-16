@@ -1,30 +1,64 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { loadMemberMessages, sendMemberMessage, captureCoachMessageEditor, saveCoachMessageDraft, prepareCoachMessageSend, finishCoachMessageDraft, type MemberMessage } from "@/lib/member-services";
+import { planningAccountGeneration, readPlanning, planningOwner, subscribePlanning } from "@/lib/planning/store";
 
 export default function CoachMessagingPage() {
-  const [message, setMessage] = useState("");
+  const account = useSyncExternalStore(subscribePlanning, planningOwner, () => null);
+  const generation = useSyncExternalStore(subscribePlanning, planningAccountGeneration, () => null);
+  return <AccountCoachMessaging key={`${account ?? "uninitialized"}:${generation}`} account={account} generation={generation} />;
+}
 
-  const messages = [
-    {
-      sender: "Coach Joey",
-      role: "Coach",
-      text: "Nice work finishing your lower body session. How did the step-ups feel on your knees today?",
-      time: "9:12 AM",
-    },
-    {
-      sender: "Client",
-      role: "You",
-      text: "They felt way better than last week. Still a little tight, but no sharp pain.",
-      time: "9:18 AM",
-    },
-    {
-      sender: "Coach Joey",
-      role: "Coach",
-      text: "Perfect. Keep the same height next time and focus on slow control. We’ll progress once it feels smooth.",
-      time: "9:22 AM",
-    },
-  ];
+function AccountCoachMessaging({ account, generation }: { account: string | null; generation: number | null }) {
+  const [message, setMessage] = useState(() => { const draft = readPlanning<unknown>("coachMessageDraft", ""); return typeof draft === "string" ? draft : ""; });
+  const [rows, setRows] = useState<MemberMessage[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(Boolean(account));
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const refreshVersion = useRef(0);
+  const editorRef = useRef(captureCoachMessageEditor());
+  const refresh = useCallback(async () => {
+    if (!account || sendingRef.current) return;
+    const version = ++refreshVersion.current;
+    const current = () => mountedRef.current && planningOwner() === account && planningAccountGeneration() === generation && refreshVersion.current === version;
+    setLoading(true);
+    try { const messages = await loadMemberMessages(); if (current()) { setRows(messages); setError(""); } }
+    catch (cause) { if (current()) setError(cause instanceof Error ? cause.message : "Messages could not be loaded."); }
+    finally { if (current()) setLoading(false); }
+  }, [account, generation]);
+  useEffect(() => {
+    mountedRef.current = true;
+    void refresh();
+    return () => { mountedRef.current = false; refreshVersion.current += 1; };
+  }, [refresh]);
+  const updateMessage = (value: string) => {
+    if (sendingRef.current || planningOwner() !== account || planningAccountGeneration() !== generation) return;
+    setMessage(value);
+    try { editorRef.current = saveCoachMessageDraft(value, editorRef.current); setError(""); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : "Draft is in this tab only; browser storage is unavailable."); }
+  };
+  const send = async () => {
+    if (sendingRef.current || !message.trim()) return;
+    if (!account || planningOwner() !== account || planningAccountGeneration() !== generation) return;
+    refreshVersion.current += 1;
+    setLoading(false);
+    sendingRef.current = true; setSending(true); setError("");
+    try {
+      const prepared = prepareCoachMessageSend(message, editorRef.current);
+      editorRef.current = prepared.editor;
+      const sent = await sendMemberMessage(message, prepared.requestId);
+      if (!mountedRef.current || planningOwner() !== account || planningAccountGeneration() !== generation) return;
+      setRows(current => current.some(row => row.id === sent.id) ? current : [...current, sent]);
+      editorRef.current = finishCoachMessageDraft(prepared.editor);
+      setMessage("");
+    } catch (cause) { if (mountedRef.current && planningOwner() === account && planningAccountGeneration() === generation) setError(cause instanceof Error ? cause.message : "Message could not be sent."); }
+    finally { sendingRef.current = false; if (mountedRef.current && planningOwner() === account && planningAccountGeneration() === generation) setSending(false); }
+  };
+
+  const messages = rows.map(row => ({ id: row.id, sender: row.sent_by === "coach" ? "Your coach" : "You", role: row.sent_by === "coach" ? "Coach" : "You", text: row.body, time: new Date(row.created_at).toLocaleString() }));
 
   const quickTopics = [
     "Form question",
@@ -63,7 +97,9 @@ export default function CoachMessagingPage() {
               {quickTopics.map((topic) => (
                 <button
                   key={topic}
-                  onClick={() => setMessage(topic + ": ")}
+                  type="button"
+                  disabled={!account || sending}
+                  onClick={() => updateMessage(topic + ": ")}
                   className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3 text-left text-sm font-semibold text-slate-200 hover:bg-white/10"
                 >
                   {topic}
@@ -86,22 +122,26 @@ export default function CoachMessagingPage() {
         <div className="rounded-[36px] border border-white/10 bg-white/[0.05] p-5 shadow-2xl backdrop-blur">
           <div className="flex items-center justify-between border-b border-white/10 pb-4">
             <div>
-              <h2 className="text-2xl font-bold">Coach Joey</h2>
-              <p className="text-sm text-emerald-300">Usually replies soon</p>
+              <h2 className="text-2xl font-bold">Your coach</h2>
+              <p className="text-sm text-slate-300">Shared with your website coaching thread</p>
             </div>
 
             <div className="rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-              Active
+              <button type="button" onClick={() => void refresh()} disabled={!account || loading || sending}>Refresh</button>
             </div>
           </div>
 
           <div className="mt-5 space-y-4">
-            {messages.map((msg, index) => {
+            {!account && <p role="status">Waiting for your account’s planning data…</p>}
+            {loading && <p role="status">Loading messages…</p>}
+            {account && !loading && !messages.length && !error && <p>No messages yet. Start a conversation below.</p>}
+            {error && <p role="alert" className="text-rose-300">{error}</p>}
+            {messages.map((msg) => {
               const isClient = msg.role === "You";
 
               return (
                 <div
-                  key={index}
+                  key={msg.id}
                   className={`flex ${isClient ? "justify-end" : "justify-start"}`}
                 >
                   <div
@@ -130,13 +170,16 @@ export default function CoachMessagingPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              setMessage("");
+              void send();
             }}
             className="mt-6 rounded-[28px] border border-white/10 bg-slate-950/70 p-4"
           >
             <textarea
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={(e) => updateMessage(e.target.value)}
+              aria-label="Message your coach"
+              maxLength={2000}
+              disabled={!account || sending}
               placeholder="Message your coach..."
               className="min-h-28 w-full resize-none bg-transparent text-white outline-none placeholder:text-slate-500"
             />
@@ -144,16 +187,18 @@ export default function CoachMessagingPage() {
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <button
                 type="button"
+                disabled
                 className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-slate-200 hover:bg-white/10"
               >
-                Attach Video
+                Video attachments coming later
               </button>
 
               <button
                 type="submit"
+                disabled={!account || sending || !message.trim()}
                 className="rounded-2xl bg-sky-500 px-5 py-3 text-sm font-bold text-slate-950 hover:bg-sky-400"
               >
-                Send Message
+                {sending ? "Sending…" : "Send Message"}
               </button>
             </div>
           </form>

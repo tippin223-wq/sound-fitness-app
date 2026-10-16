@@ -7,27 +7,15 @@ import {
 } from "@/lib/appPlans";
 import { ROUTES } from "@/lib/routes";
 import { getStripeClient } from "@/lib/stripe";
+import { checkoutOrigin, CheckoutOriginError } from "@/lib/checkoutOrigin";
 
 export const runtime = "nodejs";
 
-type EmbeddedCheckoutRequest = {
-  planId?: string;
-};
-
-function getRequestOrigin(request: Request) {
-  return (
-    request.headers.get("origin") ??
-    process.env.NEXT_PUBLIC_APP_URL ??
-    process.env.APP_URL ??
-    "http://localhost:3000"
-  );
-}
-
 export async function POST(request: Request) {
-  let body: EmbeddedCheckoutRequest;
+  let body: unknown;
 
   try {
-    body = (await request.json()) as EmbeddedCheckoutRequest;
+    body = await request.json();
   } catch {
     return NextResponse.json(
       { error: "Could not read checkout request." },
@@ -35,11 +23,17 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!isAppPlanId(body.planId)) {
+  if (!body || typeof body !== "object" || Array.isArray(body) || !("planId" in body) || typeof body.planId !== "string" || !isAppPlanId(body.planId)) {
     return NextResponse.json(
       { error: "Choose a valid Sound Fitness plan." },
       { status: 400 },
     );
+  }
+
+  let origin: string;
+  try { origin = checkoutOrigin(request); }
+  catch (cause) {
+    return NextResponse.json({ error: cause instanceof Error ? cause.message : "Checkout address is unavailable." }, { status: cause instanceof CheckoutOriginError ? cause.status : 503 });
   }
 
   if (body.planId !== "online-coaching") {
@@ -68,7 +62,6 @@ export async function POST(request: Request) {
 
   try {
     const stripe = getStripeClient();
-    const origin = getRequestOrigin(request);
     const returnUrl = `${origin}${ROUTES.onboarding.confirmation}?session_id={CHECKOUT_SESSION_ID}&plan=${selectedPlan.id}`;
 
     const session = await stripe.checkout.sessions.create({

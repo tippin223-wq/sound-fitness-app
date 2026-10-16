@@ -387,6 +387,7 @@ function removeDashboardWebGlCachedSnapshot(canvas: HTMLCanvasElement) {
 
 function shouldSuppressDashboardWebGlFallbackSnapshot(canvas: HTMLCanvasElement) {
   return (
+    canvas.dataset.soundAvatarRenderer === "three" ||
     canvas.dataset.logoRenderer === "three" ||
     canvas.dataset.trophyRenderer === "three"
   );

@@ -1,5 +1,5 @@
-import { NutritionModulePage } from "../_components/NutritionPortal";
+import NutritionSummary from "../_components/NutritionSummary";
 
 export default function CaloriesPage() {
-  return <NutritionModulePage moduleId="calories" />;
+  return <NutritionSummary mode="calories" />;
 }

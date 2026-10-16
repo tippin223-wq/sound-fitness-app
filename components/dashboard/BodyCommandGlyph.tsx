@@ -26,9 +26,10 @@ import {
  * top, with a contact shadow underneath — not from shading the artwork.
  *
  * The support signals deliberately share no silhouette with each other or with
- * the anatomy: moon, head, battery, plaster, stretching figure, trunk, apple.
- * At ring size the outline is the whole message, so two signals that resolve to
- * similar blobs would be indistinguishable however different their detail.
+ * the anatomy: moon, head, battery, plaster, stretching figure, trunk, apple,
+ * water drop. At ring size the outline is the whole message, so two signals
+ * that resolve to similar blobs would be indistinguishable however different
+ * their detail.
  */
 export type BodyCommandGlyphName =
   | "arms"
@@ -37,6 +38,7 @@ export type BodyCommandGlyphName =
   | "core"
   | "fatigue"
   | "fuel"
+  | "hydration"
   | "legs"
   | "neck"
   | "recovery"
@@ -258,6 +260,33 @@ const glyphArt: Record<BodyCommandGlyphName, ReactNode> = {
       <path d="M12.9 5.2C14.1 3.8 16.1 3.4 17.5 4C17.1 5.6 15.5 6.6 13.7 6.4Z" fill="#4ADE80" />
     </>
   ),
+  // Hydration: a single water drop, distinct from the apple/fuel silhouette.
+  hydration: (
+    <>
+      <path
+        d="M12 2.4C15.9 7.1 18.2 10.8 18.2 14.3C18.2 18.3 15.5 21.4 12 21.4C8.5 21.4 5.8 18.3 5.8 14.3C5.8 10.8 8.1 7.1 12 2.4Z"
+        fill="#5EEAD4"
+        stroke="#0F766E"
+        strokeLinejoin="round"
+        strokeWidth="0.95"
+      />
+      <path
+        d="M9.1 14.1C9.1 16.4 10.5 18.1 12.6 18.6"
+        fill="none"
+        stroke="#CCFBF1"
+        strokeLinecap="round"
+        strokeWidth="1.45"
+      />
+      <path
+        d="M10 8.8C11.1 7.1 11.8 6.1 12 5.8C12.6 6.6 13.4 7.9 14.3 9.3"
+        fill="none"
+        opacity="0.5"
+        stroke="#F0FDFA"
+        strokeLinecap="round"
+        strokeWidth="1"
+      />
+    </>
+  ),
   // One leg from the side, a single closed outline. No creases: at this size
   // they read as wrinkles, not anatomy — the knee, calf and heel are all in
   // the contour itself.
@@ -413,8 +442,9 @@ export default function BodyCommandGlyph({
               // Tone aura, then a contact shadow cast down onto the meter so
               // the glyph reads as floating in front of the ring.
               filter: `drop-shadow(0 0 3px ${glow}) drop-shadow(0 3px 3px rgba(2,6,23,0.55))`,
+              overflow: "visible",
             }
-          : undefined
+          : { overflow: "visible" }
       }
       viewBox="0 0 24 24"
     >
@@ -436,20 +466,25 @@ export default function BodyCommandGlyph({
  */
 export function BodyCommandRingFace({
   children,
+  capGlyph = false,
   glyph,
   glyphClassName = "h-4 w-4",
   caption,
   captionClassName = "",
+  holdOutgoingGlyph = true,
   showGlyph,
   tone,
 }: {
   children: ReactNode;
+  /** Draw the glyph as a small raised cap above the label instead of replacing it. */
+  capGlyph?: boolean;
   glyph: BodyCommandGlyphName;
   glyphClassName?: string;
   /** The ring's name, shown small under the glyph — a moon on its own could
    *  be Sleep or Recovery. Rises in with the glyph, in the label's slot. */
   caption?: string;
   captionClassName?: string;
+  holdOutgoingGlyph?: boolean;
   showGlyph: boolean;
   tone?: BodyCommandGlyphTone;
 }) {
@@ -457,6 +492,10 @@ export function BodyCommandRingFace({
     "transition-[opacity,translate,scale] duration-200 ease-out motion-reduce:transition-none";
   const shown = "translate-y-0 scale-100 opacity-100 delay-[80ms]";
   const hidden = "translate-y-[7px] scale-90 opacity-0";
+  const textHidden = showGlyph && !capGlyph;
+  const glyphLayerClassName = capGlyph
+    ? "pointer-events-none absolute bottom-[calc(100%-0.55rem)] left-1/2 z-20 grid -translate-x-1/2 place-items-center"
+    : "pointer-events-none absolute bottom-0 left-1/2 grid -translate-x-1/2 place-items-center";
   const halo: CSSProperties | undefined = tone
     ? {
         background: `radial-gradient(circle, ${toneGlow[tone]} 0%, transparent 68%)`,
@@ -481,7 +520,7 @@ export function BodyCommandRingFace({
   const lastFaceRef = useRef({ caption, showGlyph, tone });
   if (glyph !== seenGlyph) {
     const last = lastFaceRef.current;
-    if (last.showGlyph) {
+    if (holdOutgoingGlyph && last.showGlyph) {
       setGhost({ caption: last.caption, glyph: seenGlyph, tone: last.tone });
     }
     setSeenGlyph(glyph);
@@ -504,20 +543,20 @@ export function BodyCommandRingFace({
   return (
     <span className="relative grid w-full justify-items-center">
       <span
-        aria-hidden={showGlyph ? "true" : undefined}
-        className={`${swap} col-start-1 row-start-1 flex w-full flex-col items-center ${showGlyph ? hidden : shown}`}
+        aria-hidden={textHidden ? "true" : undefined}
+        className={`${swap} col-start-1 row-start-1 flex w-full flex-col items-center ${capGlyph ? "relative z-30" : ""} ${textHidden ? hidden : shown}`}
       >
         {children}
       </span>
       {ghost ? (
         <span
           aria-hidden="true"
-          className="sf-ring-face-ghost pointer-events-none absolute bottom-0 left-1/2 grid -translate-x-1/2 place-items-center"
+          className={`sf-ring-face-ghost ${glyphLayerClassName}`}
         >
           {ghostHalo ? (
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-[-26%] rounded-full"
+              className="pointer-events-none absolute inset-[-22%] rounded-full"
               style={ghostHalo}
             />
           ) : null}
@@ -526,7 +565,7 @@ export function BodyCommandRingFace({
             name={ghost.glyph}
             tone={ghost.tone}
           />
-          {ghost.caption ? (
+          {ghost.caption && !capGlyph ? (
             <span
               className={`relative mt-0.5 max-w-[66px] text-center text-[7px] font-black uppercase leading-[1.05] tracking-[0.04em] ${captionClassName}`}
             >
@@ -541,13 +580,13 @@ export function BodyCommandRingFace({
           raised pose and transition down next to the ghost — two icons
           sinking — before rising again after the settle beat. */}
       <span
-        className={`${swap} pointer-events-none absolute bottom-0 left-1/2 grid -translate-x-1/2 place-items-center ${showGlyph ? shown : hidden}`}
+        className={`${swap} ${glyphLayerClassName} ${showGlyph ? shown : hidden}`}
         key={glyph}
       >
         {halo ? (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-[-26%] rounded-full"
+            className="pointer-events-none absolute inset-[-22%] rounded-full"
             style={halo}
           />
         ) : null}
@@ -556,7 +595,7 @@ export function BodyCommandRingFace({
           name={glyph}
           tone={tone}
         />
-        {caption ? (
+        {caption && !capGlyph ? (
           <span
             className={`relative mt-0.5 max-w-[66px] text-center text-[7px] font-black uppercase leading-[1.05] tracking-[0.04em] ${captionClassName}`}
           >

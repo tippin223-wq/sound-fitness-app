@@ -1,12 +1,14 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   calendarAddDays as addDays,
   calendarDateKey as toDateKey,
   calendarWeekStart as startOfWeek,
   formatCalendarTime as formatTimelineTime,
+  calendarEventTimeLabel,
   getCalendarEventMinutes as getEventTimelineMinutes,
   normalizeCalendarItems as normalizeItems,
   parseCalendarDate,
@@ -276,7 +278,7 @@ export default function DashboardCalendar({
   const weekGridScrollRef = useRef<HTMLDivElement | null>(null);
   const [selectedDayDropdownOpen, setSelectedDayDropdownOpen] = useState(Boolean(initialEventFocus));
   const [soundSessionMenuOpen, setSoundSessionMenuOpen] = useState(false);
-  const [userEntries, setUserEntries] = useDashboardCalendarEntries();
+  const [userEntries, setUserEntries, calendarSaveError] = useDashboardCalendarEntries();
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editingEntryTitle, setEditingEntryTitle] = useState("");
   const [editingEntryTime, setEditingEntryTime] = useState("");
@@ -364,7 +366,7 @@ export default function DashboardCalendar({
   }
 
   function beginEditingEntry(entry: DashboardCalendarItem) {
-    if (!entry.id) return;
+    if (!entry.id || entry.readOnly) return;
     setEditingEntryId(entry.id);
     setEditingEntryTitle(entry.title);
     setEditingEntryTime(entry.time || highlightedWeekTime);
@@ -613,6 +615,7 @@ export default function DashboardCalendar({
           : "flex h-full min-h-0 flex-col rounded-[32px] px-3 pb-1 pt-3"
       }`}
     >
+      {calendarSaveError && <p role="alert" className="mb-2 text-xs text-rose-200">{calendarSaveError} <button type="button" className="underline" onClick={() => setUserEntries(previous => previous)}>Retry calendar save</button></p>}
       {collapsed ? (
         <div className="flex min-w-0 items-center gap-3 sm:gap-4">
           <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-amber-300/30 bg-amber-300/10 text-center shadow-[0_0_24px_rgba(252,211,77,0.1)]">
@@ -914,7 +917,7 @@ export default function DashboardCalendar({
 
                     return (
                       <button
-                        aria-label={`${event.title}, ${formatTimelineTime(eventMinutes)} on ${compactDateFormatter.format(day)}`}
+                        aria-label={`${event.title}, ${calendarEventTimeLabel(event)} on ${compactDateFormatter.format(day)}`}
                         className={`z-10 mx-1 self-start overflow-hidden rounded-lg border px-2 py-1 text-left shadow-[0_8px_18px_rgba(0,0,0,0.24)] transition hover:-translate-y-0.5 hover:brightness-110 ${typeStyles[event.type]}`}
                         key={`timeline-event-${dayKey}-${event.title}-${eventIndex}`}
                         onClick={(clickEvent) => {
@@ -930,7 +933,7 @@ export default function DashboardCalendar({
                         type="button"
                       >
                         <span className="block truncate text-[7px] font-black uppercase tracking-[0.1em] opacity-75">
-                          {formatTimelineTime(eventMinutes)}
+                          {calendarEventTimeLabel(event)}
                         </span>
                         <span className="mt-0.5 block truncate text-[9px] font-black">
                           {event.title}
@@ -1096,7 +1099,7 @@ export default function DashboardCalendar({
 
                     return (
                       <button
-                        aria-label={`Show ${event.title} at ${formatTimelineTime(eventMinutes)}`}
+                        aria-label={`Show ${event.title}, ${calendarEventTimeLabel(event)}`}
                         aria-pressed={activeEventHour}
                         className={`shrink-0 rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-[0.1em] transition hover:brightness-125 ${
                           activeEventHour
@@ -1112,7 +1115,7 @@ export default function DashboardCalendar({
                         }}
                         type="button"
                       >
-                        {formatTimelineTime(eventMinutes)} · {event.title}
+                        {calendarEventTimeLabel(event)} · {event.title}
                       </button>
                     );
                   })}
@@ -1127,7 +1130,7 @@ export default function DashboardCalendar({
               {displayedCellEvents.length ? (
                 displayedCellEvents.map((event) => {
                   const userCreated = Boolean(
-                    event.id && userEntries.some((entry) => entry.id === event.id),
+                    !event.readOnly && event.id && userEntries.some((entry) => entry.id === event.id),
                   );
                   const editing = userCreated && editingEntryId === event.id;
                   const confirmingDelete =
@@ -1353,9 +1356,7 @@ export default function DashboardCalendar({
                               </p>
                               <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.12em] opacity-70">
                                 {typeLabels[event.type]}
-                                {event.time
-                                  ? ` · ${formatTimelineTime(getEventTimelineMinutes(event))}`
-                                  : ""}
+                                {` · ${calendarEventTimeLabel(event)}`}
                               </p>
                             </div>
                             <span className="shrink-0 rounded-full border border-current/20 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] opacity-80">
@@ -1408,7 +1409,7 @@ export default function DashboardCalendar({
                                 </>
                               )}
                             </div>
-                          ) : null}
+                          ) : event.readOnly ? <Link href={event.manageHref || "/dashboard/calendar"} className="mt-2 block text-right text-xs underline">{event.manageHref === "/dashboard/sessions/booking" ? "Manage booking" : "Manage in Training Calendar"}</Link> : null}
                         </>
                       )}
                     </div>

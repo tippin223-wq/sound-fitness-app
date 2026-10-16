@@ -1,5 +1,5 @@
-import { NutritionModulePage } from "../_components/NutritionPortal";
+import NutritionSummary from "../_components/NutritionSummary";
 
 export default function NutritionProgressPage() {
-  return <NutritionModulePage moduleId="progress" />;
+  return <NutritionSummary mode="progress" />;
 }

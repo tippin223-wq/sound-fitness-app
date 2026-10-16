@@ -1,5 +1,5 @@
-import { NutritionModulePage } from "../_components/NutritionPortal";
+import NutritionSummary from "../_components/NutritionSummary";
 
 export default function MacrosPage() {
-  return <NutritionModulePage moduleId="macros" />;
+  return <NutritionSummary mode="macros" />;
 }
