@@ -2727,13 +2727,13 @@ function AvatarLabMenu({
         </header>
 
         <div className="grid min-h-0 flex-1 grid-cols-1 overflow-x-hidden overflow-y-auto [scrollbar-color:rgba(34,211,238,0.38)_rgba(15,23,42,0.36)] [scrollbar-width:thin] min-[700px]:grid-cols-2">
-          <div className="relative min-h-[220px] border-b border-white/8 p-2 min-[700px]:border-b-0 min-[700px]:border-r">
+          <div className="relative flex min-h-[260px] flex-col border-b border-white/8 p-2 min-[700px]:border-b-0 min-[700px]:border-r">
             <SoundFitnessAvatar3D
               appearance={appearance}
-              className="h-full min-h-[210px] w-full rounded-[14px]"
+              className="min-h-[210px] w-full flex-1 rounded-[14px]"
               emotePreset={emotePreset}
             />
-            <div className="pointer-events-none absolute inset-x-5 bottom-4 z-20 flex flex-wrap justify-center gap-1">
+            <div className="pointer-events-none relative z-20 mt-2 flex shrink-0 flex-wrap justify-center gap-1 px-3 pb-2">
               {/* Keyed by slot, not value — shirt and shoes both offer an
                   "ember" preset, so raw-value keys can collide. Labels come
                   from the option arrays so chips read "Sound Tee", not the
@@ -4372,9 +4372,8 @@ export default function BodyCommandCenterCard({
     useState<BodyCommandMuscleSlug | null>(null);
   // The avatar glow stays dark on load: the default group and the panel's
   // first mount-time report are not the user choosing anything. A choice the
-  // user makes (arrows, a ring, a click on the figure) lights the matching
-  // part for a moment so it reads on the figure, then it fades — after that
-  // the glow follows hover, it is not a standing "selected" state.
+  // user makes lights the matching category briefly. An explicitly selected
+  // muscle stays lit while it is being inspected; hover remains a preview.
   const [avatarSelectionPulseToken, setAvatarSelectionPulseToken] = useState(0);
   const pulseAvatarSelection = useCallback(() => {
     setAvatarSelectionPulseToken((token) => token + 1);
@@ -4510,10 +4509,12 @@ export default function BodyCommandCenterCard({
     avatarMuscleFocusActive && focusMuscle && posteriorMuscles.has(focusMuscle)
       ? ("back" as const)
       : selectedBodyPartGroup.side;
-  // A part under the pointer on the figure (or keyboard focus on its
-  // screen-reader buttons) wins; otherwise a group ring the pointer rests
-  // on in the menu. Either previews the group whole.
-  const hoveredBodyPart = avatarHoveredBodyPart ?? menuHoveredGroup;
+  // An exact muscle selection takes priority over a broad category preview.
+  // Closing its details must not replace it with the whole group when focus
+  // returns to a category control. Choosing a new group clears the selection.
+  const hoveredBodyPart = avatarMuscleFocusActive
+    ? null
+    : avatarHoveredBodyPart ?? menuHoveredGroup;
   const hoveredBodyPartGroup = hoveredBodyPart
     ? bodyPartGroups.find((entry) => entry.id === hoveredBodyPart)
     : null;
@@ -4705,6 +4706,7 @@ export default function BodyCommandCenterCard({
               viewOverride={effectiveAvatarViewOverride}
               zoneGlowActive={
                 avatarSelectionPulse ||
+                avatarMuscleFocusActive ||
                 !!hoveredBodyPart ||
                 !!menuHoveredMuscleInGroup
               }

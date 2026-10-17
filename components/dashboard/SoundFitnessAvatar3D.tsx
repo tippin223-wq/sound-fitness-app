@@ -1,17 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { createSoundFitnessMuscleOverlays, isAvatarMuscleSelected, type AvatarMuscleOverlay } from "./soundFitnessAvatarAnatomy";
 import type {
   BufferGeometry,
   Group,
   Material,
   Matrix4,
   Mesh,
-  MeshBasicMaterial,
   MeshStandardMaterial,
   Object3D,
   PerspectiveCamera,
-  Plane,
   Raycaster,
   Scene,
   Vector2,
@@ -39,20 +38,18 @@ import {
 } from "./dashboardWebGlRenderer";
 
 /**
- * The Sound Fitness avatar: a procedural GLB (59 named part meshes, 17 named
- * materials, no rig) drawn on its own canvas. Everything that used to need
+ * The Sound Fitness avatar: an adult-proportioned GLB drawn on its own canvas.
+ * Named parts form shoulder/elbow and hip/knee joint chains. Everything that used to need
  * the flat SVG twin — appearance from the Avatar Lab, body-part hover and
  * click, muscle highlights, emotes — is done here on the real geometry:
  *
  * - Appearance recolours materials by name and toggles part meshes; gear is
  *   procedural and sized from the parts it sits on.
- * - Highlights are shells of the actual part geometry (cloned, scaled ~4%,
- *   additive), cut to sub-regions (biceps = upper front half of the arm) by
- *   clipping planes derived from each part's bounding box, so a highlight
- *   can never sit off the body.
+ * - Highlights use authored superficial muscle contours, projected onto
+ *   the actual curved part geometry and carried by its joint chain.
  * - Hover/click raycast the part meshes; the torso splits into chest, core
  *   and back by hit point.
- * - Emotes rotate arm and head pivots re-parented at the joints.
+ * - Emotes rotate articulated arm, leg and head pivots.
  *
  * The scene is built once per mount; prop changes update it in place (the
  * previous version reloaded the model on every highlight change).
@@ -83,9 +80,8 @@ type SoundFitnessAvatar3DProps = {
 type ThreeModule = typeof import("three");
 type MaterialObject = Object3D & { material?: Material | Material[] };
 type GeometryObject = Object3D & { geometry?: BufferGeometry };
-type Frac = [number, number];
 
-const SOUND_AVATAR_MODEL_URL = "/models/sound-avatar.glb";
+const SOUND_AVATAR_MODEL_URL = "/models/sound-avatar.glb?v=athlete-anatomy-v3";
 const SOUND_AVATAR_MODEL_SCALE = 0.79;
 const SOUND_AVATAR_BASE_Y = -1.18;
 // Highlight shells fade over this long when the glow turns off; bounded, so
@@ -96,45 +92,16 @@ const HIGHLIGHT_FADE_MS = 350;
 // pelvis come in two cuts that carry the body profile.
 type LatheProfile = Array<[number, number]>;
 const TEE_PROFILES: Record<"male" | "female", LatheProfile> = {
-  // V taper: wide shoulder line, narrow hem, worn out over the joggers.
-  male: [
-    [0, 1.44], [0.48, 1.44], [0.53, 1.5], [0.5, 1.62], [0.475, 1.76], [0.5, 1.96],
-    [0.555, 2.16], [0.585, 2.34], [0.595, 2.46], [0.56, 2.57], [0.44, 2.66],
-    [0.28, 2.71], [0.18, 2.73], [0, 2.73],
-  ],
-  // Tucked at the waist so the hip curve shows; narrower shoulder line;
-  // the bust is sculpted in afterwards.
-  female: [
-    [0, 1.6], [0.45, 1.6], [0.45, 1.66], [0.43, 1.76], [0.42, 1.86], [0.45, 2.02],
-    [0.5, 2.2], [0.525, 2.36], [0.52, 2.48], [0.48, 2.57], [0.39, 2.66],
-    [0.26, 2.71], [0.17, 2.73], [0, 2.73],
-  ],
+  male: [[0,1.83],[.30,1.83],[.33,1.91],[.31,2.05],[.33,2.20],[.40,2.42],[.46,2.65],[.45,2.74],[.34,2.83],[.15,2.88],[0,2.88]],
+  female: [[0,1.87],[.29,1.87],[.30,1.98],[.27,2.10],[.30,2.27],[.37,2.48],[.40,2.65],[.39,2.75],[.29,2.84],[.14,2.88],[0,2.88]],
 };
 const PELVIS_PROFILES: Record<"male" | "female", LatheProfile> = {
-  male: [
-    [0, 1.22], [0.38, 1.22], [0.45, 1.32], [0.48, 1.46], [0.485, 1.6], [0.47, 1.72],
-    [0.45, 1.8], [0.42, 1.83], [0, 1.83],
-  ],
-  // Widest below the tee's tucked hem, waist tucked under it.
-  female: [
-    [0, 1.22], [0.4, 1.22], [0.5, 1.32], [0.545, 1.44], [0.55, 1.54], [0.52, 1.64],
-    [0.44, 1.74], [0.42, 1.83], [0, 1.83],
-  ],
+  male: [[0,1.64],[.27,1.64],[.35,1.73],[.37,1.84],[.34,1.96],[.30,2.04],[0,2.04]],
+  female: [[0,1.64],[.28,1.64],[.38,1.73],[.40,1.84],[.35,1.96],[.29,2.04],[0,2.04]],
 };
-// Along the arm: 0 is the shoulder joint, negative runs down the arm.
-const SLEEVE_PROFILE: LatheProfile = [
-  [0, -0.4], [0.14, -0.4], [0.165, -0.36], [0.19, -0.24], [0.21, -0.1],
-  [0.215, 0.03], [0.19, 0.14], [0.12, 0.21], [0, 0.23],
-];
-// The two leg tubes meet at the knee (y 0.74-0.76) instead of overlapping.
-const THIGH_PROFILE: LatheProfile = [
-  [0, 0.74], [0.15, 0.74], [0.155, 0.78], [0.17, 0.9], [0.185, 1.06], [0.185, 1.22],
-  [0.15, 1.32], [0, 1.32],
-];
-const SHIN_PROFILE: LatheProfile = [
-  [0, 0.08], [0.1, 0.08], [0.115, 0.12], [0.12, 0.26], [0.135, 0.44], [0.145, 0.62],
-  [0.15, 0.76], [0, 0.76],
-];
+const SLEEVE_PROFILE: LatheProfile = [[0,-.35],[.09,-.35],[.105,-.30],[.125,-.17],[.145,-.02],[.145,.06],[.105,.13],[0,.15]];
+const THIGH_PROFILE: LatheProfile = [[0,.97],[.09,.97],[.105,1.02],[.14,1.14],[.17,1.35],[.175,1.58],[.16,1.76],[.12,1.84],[0,1.84]];
+const SHIN_PROFILE: LatheProfile = [[0,.12],[.058,.12],[.065,.20],[.08,.36],[.115,.58],[.125,.73],[.10,.89],[.09,1.01],[0,1.01]];
 const CREST_ONLY_SHIRT_DECORATION_NAMES = [
   "performance seam",
   "performance piping",
@@ -196,7 +163,6 @@ const regionDefaultColors: Partial<Record<SoundFitnessAvatarGlowRegion, string>>
 };
 
 // ---------------------------------------------------------------- part names
-const UPPER_ARMS = ["left upper arm", "right upper arm"];
 const HANDS = ["left hand", "right hand"];
 const WRIST_BANDS = ["left wrist band", "right wrist band"];
 const SHOULDERS = ["left shoulder", "right shoulder"];
@@ -232,72 +198,6 @@ const TORSO_ATTACHED_PARTS = [
   "right shoulder performance seam",
   "subtle chest speed slash",
 ];
-
-/**
- * A highlight is a set of part meshes plus optional fractions of each
- * part's own bounding box: `x`/`y`/`z` are model-space fractions (0 = min,
- * 1 = max), `lateral` runs from the body's midline (0) outward (1) so one
- * spec serves both sides, and `x` may list two ranges (obliques flank the
- * rectus column). The shells are the parts' real geometry, so the glow
- * hugs the figure and is occluded by it from behind.
- */
-type HighlightSpec = {
-  /** Extra shell scale for parts buried under their neighbours. */
-  grow?: number;
-  lateral?: Frac;
-  parts: string[];
-  x?: Frac | Frac[];
-  y?: Frac;
-  z?: Frac;
-};
-
-const wholeBodyPartSpecs: Record<SoundFitnessAvatarBodyPart, HighlightSpec[]> = {
-  arms: [{ parts: [...UPPER_ARMS, ...HANDS, ...WRIST_BANDS] }],
-  back: [{ parts: TORSO, y: [0.04, 0.97], z: [0, 0.42] }],
-  chest: [{ parts: TORSO, y: [0.45, 0.86], z: [0.5, 1] }],
-  core: [{ parts: TORSO, x: [0.08, 0.92], y: [0.04, 0.45], z: [0.5, 1] }],
-  // Cut at the knee plane so the two tube shells meet instead of stacking
-  // into a bright seam.
-  legs: [
-    { parts: THIGHS, y: [0.02, 1] },
-    { parts: SHINS, y: [0, 0.985] },
-  ],
-  // The neck mesh is enclosed by the head and torso; the collar band on
-  // the torso carries the visible glow.
-  neck: [
-    { grow: 1.28, parts: NECK },
-    { parts: TORSO, y: [0.86, 0.97] },
-  ],
-  shoulders: [{ parts: SHOULDERS }],
-};
-
-const regionSpecs: Partial<Record<SoundFitnessAvatarGlowRegion, HighlightSpec[]>> = {
-  abductors: [{ lateral: [0.58, 1], parts: THIGHS, y: [0.35, 0.96] }],
-  adductors: [{ lateral: [0, 0.42], parts: THIGHS, y: [0.1, 0.9] }],
-  biceps: [{ parts: UPPER_ARMS, y: [0.5, 0.98], z: [0.5, 1] }],
-  calves: [{ parts: SHINS, y: [0.36, 0.95], z: [0, 0.5] }],
-  forearms: [{ parts: UPPER_ARMS, y: [0.02, 0.5] }],
-  frontDelt: [{ parts: SHOULDERS, z: [0.56, 1] }],
-  glutes: [{ parts: HIPS, y: [0.08, 0.92], z: [0, 0.46] }],
-  hamstrings: [{ parts: THIGHS, y: [0.06, 0.96], z: [0, 0.5] }],
-  hipRotators: [{ lateral: [0.5, 1], parts: HIPS, y: [0.1, 0.9], z: [0, 0.55] }],
-  lateralDelt: [{ lateral: [0.52, 1], parts: SHOULDERS }],
-  lats: [{ parts: TORSO, x: [[0.02, 0.32], [0.68, 0.98]], y: [0.2, 0.62], z: [0, 0.42] }],
-  lowerBack: [{ parts: TORSO, x: [0.24, 0.76], y: [0.03, 0.28], z: [0, 0.42] }],
-  lowerChest: [{ parts: TORSO, y: [0.45, 0.58], z: [0.58, 1] }],
-  midChest: [{ parts: TORSO, y: [0.58, 0.72], z: [0.58, 1] }],
-  obliques: [{ parts: TORSO, x: [[0.06, 0.32], [0.68, 0.94]], y: [0.06, 0.45], z: [0.58, 1] }],
-  quads: [{ parts: THIGHS, y: [0.06, 0.96], z: [0.5, 1] }],
-  rearDelt: [{ parts: SHOULDERS, z: [0, 0.44] }],
-  rhomboids: [{ parts: TORSO, x: [0.3, 0.7], y: [0.5, 0.74], z: [0, 0.42] }],
-  rotatorExternal: [{ parts: TORSO, x: [[0.08, 0.32], [0.68, 0.92]], y: [0.6, 0.78], z: [0, 0.42] }],
-  rotatorInternal: [{ parts: TORSO, x: [[0.06, 0.3], [0.7, 0.94]], y: [0.58, 0.76], z: [0.58, 1] }],
-  tibialis: [{ parts: SHINS, y: [0.3, 0.9], z: [0.5, 1] }],
-  traps: [{ parts: TORSO, x: [0.18, 0.82], y: [0.74, 0.98], z: [0, 0.42] }],
-  triceps: [{ parts: UPPER_ARMS, y: [0.5, 0.98], z: [0, 0.5] }],
-  upperChest: [{ parts: TORSO, y: [0.72, 0.86], z: [0.58, 1] }],
-  core: [{ parts: TORSO, x: [0.32, 0.68], y: [0.04, 0.45], z: [0.58, 1] }],
-};
 
 // ---------------------------------------------------------------- helpers
 const disposeObject = (object: Object3D) => {
@@ -353,6 +253,7 @@ const HEAD_PART_FRAGMENTS = [
   "crown",
   "temple",
   "eye white",
+  "eyebrow",
   "iris",
   "pupil",
   "nose",
@@ -366,7 +267,7 @@ const partForHit = (
 ): SoundFitnessAvatarBodyPart | null => {
   // The shirt yoke is torso, not the shoulder spheres.
   if (name.includes("shoulder") && !name.includes("yoke")) return "shoulders";
-  if (includesAny(name, ["upper arm", "hand", "wrist band", "sleeve cuff"])) return "arms";
+  if (includesAny(name, ["upper arm", "forearm", "hand", "wrist band", "sleeve cuff"])) return "arms";
   if (includesAny(name, ["thigh", "shin", "shoe"])) return "legs";
   if (name === "neck") return "neck";
   if (name === "hips") return point.z < 0 ? "legs" : "core";
@@ -525,17 +426,17 @@ export default function SoundFitnessAvatar3D({
         const gl = renderer;
         gl.outputColorSpace = THREE.SRGBColorSpace;
         gl.toneMapping = THREE.ACESFilmicToneMapping;
-        gl.toneMappingExposure = 1.05;
+        gl.toneMappingExposure = 0.95;
         gl.setClearColor(0x000000, 0);
         gl.localClippingEnabled = true;
 
         const scene: Scene = new THREE.Scene();
         const camera: PerspectiveCamera = new THREE.PerspectiveCamera(31, 1, 0.1, 100);
-        camera.position.set(0, 0.98, 7.05);
-        camera.lookAt(0, 0.46, 0);
+        camera.position.set(0, 0.25, 5.8);
+        camera.lookAt(0, 0.16, 0);
 
-        scene.add(new THREE.HemisphereLight(0xbdefff, 0x172033, 1.75));
-        const keyLight = new THREE.DirectionalLight(0xffffff, 2.55);
+        scene.add(new THREE.HemisphereLight(0xbdefff, 0x172033, 1.25));
+        const keyLight = new THREE.DirectionalLight(0xffffff, 1.7);
         keyLight.position.set(-2.8, 4.2, 4.8);
         scene.add(keyLight);
         const rimLight = new THREE.DirectionalLight(0x67e8f9, 1.15);
@@ -643,6 +544,16 @@ export default function SoundFitnessAvatar3D({
           ),
         );
 
+        // The elbow carries the forearm, wrist and hand as one articulated chain.
+        const elbows = [leftArmPivot, rightArmPivot].map((armPivot, index) => {
+          const side = index === 0 ? "left" : "right";
+          const forearm = partBox(side + " forearm");
+          const elbow = makePivot(side + " elbow pivot", index===0 ? -.63 : .63,
+            forearm?.max.y ?? 2.26, 0, [side+" forearm",side+" wrist band",side+" hand"]);
+          armPivot.attach(elbow);
+          return elbow;
+        });
+
         // Anything worn on the head rides this group: it sits under the head
         // pivot but is offset back to the root's origin, so attachments are
         // placed in the same coordinates as the part boxes and still turn
@@ -685,19 +596,21 @@ export default function SoundFitnessAvatar3D({
           );
           // Bodies are wider than they are deep.
           geometry.scale(1, 1, zRatio);
+          geometry.userData.soundAvatarDepthRatio = zRatio;
           geometry.computeVertexNormals();
           geometry.computeBoundingBox();
           return geometry;
         };
         // A soft bust raised out of the tee's front, no separate shapes.
         const sculptBust = (geometry: BufferGeometry) => {
+          geometry.userData.soundAvatarBust = true;
           const position = geometry.getAttribute("position");
           for (let i = 0; i < position.count; i += 1) {
             const z = position.getZ(i);
             if (z <= 0) continue;
             const across = Math.exp(-((Math.abs(position.getX(i)) - 0.17) ** 2) / (2 * 0.085 ** 2));
-            const along = Math.exp(-((position.getY(i) - 2.24) ** 2) / (2 * 0.12 ** 2));
-            position.setZ(i, z + 0.11 * across * along);
+            const along = Math.exp(-((position.getY(i) - 2.53) ** 2) / (2 * 0.12 ** 2));
+            position.setZ(i, z + 0.045 * across * along);
           }
           position.needsUpdate = true;
           geometry.computeVertexNormals();
@@ -722,26 +635,8 @@ export default function SoundFitnessAvatar3D({
           geometry.computeBoundingBox();
           return geometry;
         };
-        // The female chest glow uses one broad, soft hump across the front
-        // (higher than the bust) so the band covers the bust as one surface
-        // instead of outlining it or being pierced by it.
-        const sculptChestBand = (geometry: BufferGeometry) => {
-          const position = geometry.getAttribute("position");
-          for (let i = 0; i < position.count; i += 1) {
-            const z = position.getZ(i);
-            if (z <= 0) continue;
-            const across = Math.exp(-(position.getX(i) ** 2) / (2 * 0.3 ** 2));
-            const along = Math.exp(-((position.getY(i) - 2.24) ** 2) / (2 * 0.15 ** 2));
-            position.setZ(i, z + 0.135 * across * along);
-          }
-          position.needsUpdate = true;
-          geometry.computeVertexNormals();
-          geometry.computeBoundingBox();
-          return geometry;
-        };
         const teeGeometries = {
           female: sculptBust(latheGeometry(TEE_PROFILES.female, 0.6)),
-          femaleShell: sculptChestBand(latheGeometry(TEE_PROFILES.female, 0.6)),
           male: latheGeometry(TEE_PROFILES.male, 0.6),
         };
         const pelvisGeometries = {
@@ -794,7 +689,7 @@ export default function SoundFitnessAvatar3D({
             sleeve.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), down);
           }
           replacePart(`${side} shoulder`, sleeve, pivot);
-          const x = side === "left" ? -0.23 : 0.23;
+          const x = side === "left" ? -0.19 : 0.19;
           const thigh = new THREE.Mesh(latheGeometry(THIGH_PROFILE, 0.92), joggerMaterial);
           thigh.position.x = x;
           replacePart(`${side} thigh`, thigh, root);
@@ -820,9 +715,7 @@ export default function SoundFitnessAvatar3D({
         }
         const wearGarments = (female: boolean) => {
           tee.geometry = female ? teeGeometries.female : teeGeometries.male;
-          // The glow is a band the bust rises out of, not an outline of it.
-          if (female) highlightGeometryFor.set("torso shirt core", teeGeometries.femaleShell);
-          else highlightGeometryFor.delete("torso shirt core");
+          // Surface overlays are rebuilt when the body profile changes.
           refreshPartBox("torso shirt core");
           pelvis.geometry = female ? pelvisGeometries.female : pelvisGeometries.male;
           refreshPartBox("hips");
@@ -830,6 +723,14 @@ export default function SoundFitnessAvatar3D({
             headSculpt.geometry = female ? headGeometries.female : headGeometries.male;
           }
         };
+
+        const legPivots = ["left", "right"].map((side,index) => {
+          const x=index===0 ? -.19 : .19;
+          const hip=makePivot(side+" hip pivot",x,1.78,0,[side+" thigh",side+" shin",side+" shoe",side+" shoe sole glow"]);
+          const knee=makePivot(side+" knee pivot",x,.99,0,[side+" shin",side+" shoe",side+" shoe sole glow"]);
+          hip.attach(knee);
+          return {hip,knee};
+        });
 
         // Rest positions inside their pivots, for parts the profile shifts.
         const basePositions = new Map<string, InstanceType<ThreeModule["Vector3"]>>();
@@ -852,6 +753,7 @@ export default function SoundFitnessAvatar3D({
 
         // ---- appearance ----
         const gearGroup: Group = new THREE.Group();
+        const jointGear: Mesh[] = [];
         gearGroup.name = "gear";
         root.add(gearGroup);
         const setColor = (materialName: string, hex: string, emissive?: string) => {
@@ -992,6 +894,8 @@ export default function SoundFitnessAvatar3D({
         const gloveMaterial = gearMaterial("#0f172a", "#000000", 0.05);
         const handBaseMaterials = new Map<string, Material | Material[]>();
         const buildGear = (appearanceNow: SoundFitnessAvatarAppearance) => {
+          for (const mesh of jointGear) { disposeObject(mesh); mesh.removeFromParent(); }
+          jointGear.length = 0;
           disposeObject(gearGroup);
           gearGroup.clear();
           disposeObject(headGearGroup);
@@ -1015,7 +919,7 @@ export default function SoundFitnessAvatar3D({
             const bandY = head.min.y + (head.max.y - head.min.y) * 0.7;
             if (gear !== "cap") {
               const band = new THREE.Mesh(
-                new THREE.TorusGeometry(radius, 0.045, 12, 48),
+                new THREE.TorusGeometry(radius, radius * .1, 12, 48),
                 gearMaterial(accent, accent, 0.05),
               );
               band.position.set(cx, bandY, cz);
@@ -1046,7 +950,7 @@ export default function SoundFitnessAvatar3D({
               crown.scale.set(1, 0.95, 1.02);
               addGear("cap crown", crown, true);
               const badge = new THREE.Mesh(
-                new THREE.CircleGeometry(0.075, 24),
+                new THREE.CircleGeometry(radius * .26, 24),
                 gearMaterial(accent, accent, 0),
               );
               // Just proud of the crown's front surface at this height.
@@ -1064,27 +968,28 @@ export default function SoundFitnessAvatar3D({
           if (head && gear === "shades") {
             const y = head.min.y + (head.max.y - head.min.y) * 0.55;
             const z = head.max.z + 0.02;
+            const faceWidth = head.max.x - head.min.x;
             const lens = () =>
               new THREE.Mesh(
-                new THREE.BoxGeometry(0.19, 0.11, 0.03),
+                new THREE.BoxGeometry(faceWidth * .32, faceWidth * .17, .02),
                 gearMaterial("#06090f", "#0f172a", 0.6),
               );
             const left = lens();
-            left.position.set(-0.15, y, z);
+            left.position.set(-faceWidth * .19, y, z);
             addGear("left lens", left, true);
             const right = lens();
-            right.position.set(0.15, y, z);
+            right.position.set(faceWidth * .19, y, z);
             addGear("right lens", right, true);
             const bridge = new THREE.Mesh(
-              new THREE.BoxGeometry(0.42, 0.022, 0.02),
+              new THREE.BoxGeometry(faceWidth * .74, .014, .015),
               gearMaterial(accent, accent, 0.3),
             );
-            bridge.position.set(0, y + 0.045, z);
+            bridge.position.set(0, y + faceWidth * .07, z);
             addGear("shades bridge", bridge, true);
           }
           if (neck && gear === "chain") {
             const chain = new THREE.Mesh(
-              new THREE.TorusGeometry(0.36, 0.02, 10, 48),
+              new THREE.TorusGeometry((neck.max.x - neck.min.x) * 1.25, 0.012, 10, 48),
               gearMaterial("#facc15", "#7c5a06", 0.85),
             );
             // Lies around the collar with the front hanging onto the chest.
@@ -1101,13 +1006,13 @@ export default function SoundFitnessAvatar3D({
           }
           if (hips && gear === "belt") {
             const belt = new THREE.Mesh(
-              new THREE.CylinderGeometry(0.53, 0.53, 0.11, 40, 1, true),
+              new THREE.CylinderGeometry((hips.max.x-hips.min.x)/2+.012, (hips.max.x-hips.min.x)/2+.012, 0.07, 40, 1, true),
               gearMaterial(dark, "#000000", 0.2),
             );
             // The tee hangs over the waistband, so the belt reads at its hem.
             const beltY = (torso?.min.y ?? hips.min.y) + 0.05;
             belt.position.set(0, beltY, 0);
-            belt.scale.set(1.1, 1, 0.68);
+            belt.scale.set(1, 1, 0.68);
             addGear("belt", belt);
             const buckle = new THREE.Mesh(
               new THREE.BoxGeometry(0.13, 0.09, 0.03),
@@ -1117,17 +1022,15 @@ export default function SoundFitnessAvatar3D({
             addGear("belt buckle", buckle);
           }
           if (leftShin && rightShin && gear === "kneeSleeves") {
-            for (const box of [leftShin, rightShin]) {
+            for (const [index] of [leftShin, rightShin].entries()) {
               const sleeve = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.17, 0.155, 0.3, 24, 1, true),
+                new THREE.CylinderGeometry(0.11, 0.105, 0.22, 24, 1, true),
                 gearMaterial(shirt.base, accent, 0.1),
               );
-              sleeve.position.set(
-                (box.min.x + box.max.x) / 2,
-                box.max.y - 0.08,
-                (box.min.z + box.max.z) / 2,
-              );
-              addGear("knee sleeve", sleeve);
+              sleeve.name = "knee sleeve";
+              sleeve.position.set(appearanceNow.body === "female" ? (index === 0 ? -.03 : .03) : 0, -.06, 0);
+              legPivots[index].knee.add(sleeve);
+              jointGear.push(sleeve);
             }
           }
           // Hands share the skin material with the face and arms, so the
@@ -1217,7 +1120,7 @@ export default function SoundFitnessAvatar3D({
           // gear stay fitted.
           wearGarments(female);
           for (const pivot of [leftArmPivot, rightArmPivot]) {
-            pivot.scale.set(female ? 0.85 : 1, 1, female ? 0.85 : 1);
+            pivot.scale.set(female ? 0.90 : 1, 1, female ? 0.90 : 1);
           }
           for (const name of SHOULDERS) {
             scalePart(name, female ? 0.93 : 1, female ? 0.92 : 1, female ? 0.95 : 1);
@@ -1239,169 +1142,74 @@ export default function SoundFitnessAvatar3D({
             scalePart(name, female ? 1.08 : 1);
           }
           for (const name of CREST_PARTS) offsetPart(name, 0, 0, female ? 0.07 : 0);
+          rebuildAnatomy(a.body);
           buildHair(a);
           buildFaceDetails(a);
           buildGear(a);
-          canvas.dataset.soundAvatarGear = `${a.gear}:${gearGroup.children.length + headGearGroup.children.length}`;
+          canvas.dataset.soundAvatarGear = `${a.gear}:${gearGroup.children.length + headGearGroup.children.length + jointGear.length}`;
           canvas.dataset.soundAvatarWristbands = String(part("left wrist band")?.visible ?? "missing");
           canvas.dataset.soundAvatarHair = `${a.hair}:${hairGroup.children.length}`;
           // Body profile and face presets rescale parts; refit the shells.
           applyHighlight();
         };
 
-        // ---- highlights ----
-        // Parts whose glow shell should use a different geometry than the
-        // part itself (the sculpted female tee glows with the smooth tee).
-        const highlightGeometryFor = new Map<string, BufferGeometry>();
-        // Shells are the parts' own geometry, parented beside each part so
-        // they follow the joint pivots through emotes. The cut planes are
-        // authored in root space at the rest pose and carried to world
-        // space every frame by each part's own transform.
+        // Muscle surfaces follow each parent part through every joint pose.
+        // Appearance changes rebuild them only when the underlying body changes.
+        let anatomy: AvatarMuscleOverlay[] = [];
+        let anatomyBody: string | null = null;
         let highlightShells: Mesh[] = [];
-        let highlightPlanes: Array<{
-          local: Plane;
-          mesh: Mesh;
-          restInverse: Matrix4;
-          world: Plane;
-        }> = [];
-        const highlightCarry = new THREE.Matrix4();
-        const specsFor = (
-          bodyPart: SoundFitnessAvatarBodyPart,
-          focus: SoundFitnessAvatarGlowRegion | null,
-        ): HighlightSpec[] => {
-          if (focus) {
-            const regional = regionSpecs[focus];
-            if (regional) return regional;
-            if (focus in wholeBodyPartSpecs) {
-              return wholeBodyPartSpecs[focus as SoundFitnessAvatarBodyPart];
-            }
+        let highlightFadeStart: number | null = null;
+        const rebuildAnatomy = (body: string) => {
+          if (anatomyBody !== body) {
+            for (const {mesh} of anatomy) { mesh.removeFromParent(); mesh.geometry.dispose(); mesh.material.dispose(); }
+            anatomy = createSoundFitnessMuscleOverlays(THREE, parts);
+            anatomyBody = body;
+            highlightShells = [];
+            highlightFadeStart = null;
           }
-          return wholeBodyPartSpecs[bodyPart];
-        };
-        const rangeOf = (
-          box: InstanceType<ThreeModule["Box3"]>,
-          axis: "x" | "y" | "z",
-          frac: Frac,
-        ): Frac => {
-          const min = box.min[axis];
-          const size = box.max[axis] - min;
-          return [min + size * frac[0], min + size * frac[1]];
+          for (const {mesh} of anatomy) {
+            const source=mesh.parent as Mesh;
+            const material=source.material as MeshStandardMaterial;
+            mesh.userData.neutralColor=material.color.clone().lerp(new THREE.Color("#8ba2b5"),.14);
+          }
+          canvas.dataset.soundAvatarAnatomy = String(anatomy.length);
         };
         const clearHighlight = () => {
-          for (const shell of highlightShells) {
-            shell.removeFromParent();
-            (shell.material as Material).dispose();
+          for (const {mesh} of anatomy) {
+            mesh.material.color.copy(mesh.userData.neutralColor);
+            mesh.material.emissive.set(0x000000);
+            mesh.material.opacity=.34;
+            mesh.renderOrder=2;
+            mesh.visible=mesh.userData.neutralVisible;
           }
-          highlightShells = [];
-          highlightPlanes = [];
+          highlightShells=[];
         };
-        const syncHighlightPlanes = () => {
-          if (!highlightPlanes.length) return;
-          root.updateMatrixWorld(true);
-          for (const pair of highlightPlanes) {
-            highlightCarry.copy(pair.mesh.matrixWorld).multiply(pair.restInverse);
-            pair.world.copy(pair.local).applyMatrix4(highlightCarry);
-          }
-        };
-        let highlightFadeStart: number | null = null;
         const applyHighlight = () => {
-          const state = latest.current;
-          const bodyPart = state.selectedBodyPart;
-          if (!state.bodyPartGlowActive || !bodyPart) {
-            // Let the render loop fade the shells rather than cutting them.
-            if (highlightShells.length && highlightFadeStart === null) {
-              highlightFadeStart = performance.now();
-            }
+          const state=latest.current;
+          if (!state.bodyPartGlowActive || !state.selectedBodyPart) {
+            if (highlightShells.length && highlightFadeStart===null) highlightFadeStart=performance.now();
+            else if (!highlightShells.length) clearHighlight();
             return;
           }
-          highlightFadeStart = null;
+          highlightFadeStart=null;
           clearHighlight();
-          const focus = state.glowMode === "pieces" ? (state.glowFocus ?? null) : null;
-          const colorKey = (focus ?? bodyPart) as SoundFitnessAvatarGlowRegion;
-          const color = parseColor(
-            THREE,
-            state.bodyPartGlowColors?.[colorKey],
-            regionDefaultColors[colorKey] ?? bodyPartDefaultColors[bodyPart],
-          );
-          const specs = specsFor(bodyPart, focus);
-          for (const spec of specs) {
-            const xRanges: Frac[] = Array.isArray(spec.x?.[0])
-              ? (spec.x as Frac[])
-              : spec.x
-                ? [spec.x as Frac]
-                : [[0, 1]];
-            const grow = spec.grow ?? 1;
-            for (const partName of spec.parts) {
-              const mesh = part(partName);
-              const box = partBox(partName);
-              const rest = partRestMatrices.get(partName);
-              const parent = mesh?.parent;
-              if (!mesh || !box || !rest || !parent || !mesh.visible) continue;
-              const restInverse = new THREE.Matrix4().copy(rest).invert();
-              const centreX = (box.min.x + box.max.x) / 2;
-              for (const xFrac of xRanges) {
-                const planes: Plane[] = [];
-                // An open end (fraction 0 or 1) gets no plane: the shells
-                // are scaled up a little and would otherwise be cut where
-                // they poke past the part's own box.
-                const addRange = (axis: "x" | "y" | "z", frac: Frac) => {
-                  const [lo, hi] = rangeOf(box, axis, frac);
-                  const normal = new THREE.Vector3();
-                  normal[axis] = 1;
-                  if (frac[0] > 0) planes.push(new THREE.Plane(normal.clone(), -lo));
-                  if (frac[1] < 1) planes.push(new THREE.Plane(normal.clone().negate(), hi));
-                };
-                if (spec.x) addRange("x", xFrac);
-                if (spec.lateral) {
-                  // 0 = midline side of this part, 1 = its outer edge.
-                  const [f0, f1] = spec.lateral;
-                  addRange("x", centreX < 0 ? [1 - f1, 1 - f0] : [f0, f1]);
-                }
-                if (spec.y) addRange("y", spec.y);
-                if (spec.z) addRange("z", spec.z);
-                const worldPlanes = planes.map((local) => {
-                  const world = local.clone();
-                  highlightPlanes.push({ local, mesh, restInverse, world });
-                  return world;
-                });
-                // Stand-off in model units, so thin limbs get the same
-                // clearance as the torso instead of a sliver that loses the
-                // depth test.
-                const halfExtent = (axis: "x" | "y" | "z") =>
-                  Math.max(0.02, (box.max[axis] - box.min[axis]) / 2);
-                const shellFor = (margin: number, opacity: number) => {
-                  const material = new THREE.MeshBasicMaterial({
-                    blending: THREE.AdditiveBlending,
-                    clippingPlanes: worldPlanes.length ? worldPlanes : null,
-                    color,
-                    depthTest: true,
-                    depthWrite: false,
-                    opacity,
-                    transparent: true,
-                  });
-                  const shell = new THREE.Mesh(
-                    highlightGeometryFor.get(partName) ?? mesh.geometry,
-                    material,
-                  );
-                  shell.name = `${partName} glow`;
-                  shell.position.copy(mesh.position);
-                  shell.quaternion.copy(mesh.quaternion);
-                  shell.scale.set(
-                    mesh.scale.x * (1 + margin / halfExtent("x")) * grow,
-                    mesh.scale.y * (1 + margin / halfExtent("y")) * grow,
-                    mesh.scale.z * (1 + margin / halfExtent("z")) * grow,
-                  );
-                  shell.renderOrder = 10;
-                  parent.add(shell);
-                  shell.userData.baseOpacity = opacity;
-                  highlightShells.push(shell);
-                };
-                shellFor(0.028, 0.42);
-                shellFor(0.085, 0.12);
-              }
-            }
+          const focus=state.glowMode==="pieces" ? state.glowFocus ?? null : null;
+          const key=focus ?? state.selectedBodyPart;
+          const color=parseColor(THREE,state.bodyPartGlowColors?.[key],regionDefaultColors[key] ?? bodyPartDefaultColors[state.selectedBodyPart]);
+          // The neutral unavailable-data gray is not a training status.
+          // Use cyan for selection so it reads clearly without implying one.
+          if (state.bodyPartGlowColors?.[key]?.toLowerCase() === "#94a3b8") color.set("#38bdf8");
+          for (const {mesh,definition} of anatomy) {
+            if (!isAvatarMuscleSelected(definition,state.selectedBodyPart,focus)) continue;
+            mesh.visible=true;
+            mesh.material.color.copy(color);
+            mesh.material.emissive.copy(color);
+            mesh.material.emissiveIntensity=.12;
+            mesh.material.opacity=.88;
+            mesh.renderOrder=10;
+            mesh.userData.baseOpacity=.88;
+            highlightShells.push(mesh);
           }
-          syncHighlightPlanes();
         };
 
         // ---- pointer hit testing ----
@@ -1463,7 +1271,7 @@ export default function SoundFitnessAvatar3D({
           dev.soundAvatarShells = () =>
             highlightShells.map(
               (shell) =>
-                `${shell.name}@${shell.position.toArray().map((v) => v.toFixed(2)).join(",")} s=${shell.scale.toArray().map((v) => v.toFixed(2)).join(",")} clip=${(shell.material as MeshBasicMaterial).clippingPlanes?.length ?? 0} parent=${shell.parent?.name ?? "none"}`,
+                `${shell.name} vertices=${shell.geometry.getAttribute("position").count} parent=${shell.parent?.name ?? "none"}`,
             );
           dev.soundAvatarGear = () =>
             gearGroup.children.map(
@@ -1548,6 +1356,11 @@ export default function SoundFitnessAvatar3D({
           const width = Math.max(1, Math.round(rect.width));
           const height = Math.max(1, Math.round(rect.height));
           camera.aspect = width / height;
+          // Fit the full athlete using both dimensions, including narrow
+          // phone canvases. A nearly level camera avoids shortening the legs.
+          const halfFov = THREE.MathUtils.degToRad(camera.fov / 2);
+          camera.position.z = Math.max(2.76 / (2 * Math.tan(halfFov) * .88),
+            1.38 / (2 * Math.tan(halfFov) * camera.aspect * .88));
           camera.updateProjectionMatrix();
           gl.setSize(width, height, false);
           gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.45));
@@ -1614,6 +1427,15 @@ export default function SoundFitnessAvatar3D({
           leftArmPivot.rotation.set(pose.leftArm[0], 0, pose.leftArm[1]);
           rightArmPivot.rotation.set(pose.rightArm[0], 0, pose.rightArm[1]);
           headPivot.rotation.set(pose.head[0], pose.head[1], pose.head[2]);
+          const elbowBend=state.emotePreset==="focus" ? -.65 : state.emotePreset==="stretch" ? -.2 : -.08;
+          elbows[0].rotation.x += (elbowBend-elbows[0].rotation.x)*ease;
+          const rightBend=state.emotePreset==="wave" || state.emotePreset==="salute" ? -1.0 : elbowBend;
+          elbows[1].rotation.x += (rightBend-elbows[1].rotation.x)*ease;
+          for (const {hip,knee} of legPivots) {
+            const bend=!still && state.emotePreset==="celebrate" ? Math.abs(Math.sin(seconds*4))*.12 : 0;
+            hip.rotation.x=-bend*.5;
+            knee.rotation.x=bend;
+          }
           root.position.y = SOUND_AVATAR_BASE_Y + bob;
 
           if (highlightFadeStart !== null) {
@@ -1624,12 +1446,11 @@ export default function SoundFitnessAvatar3D({
               clearHighlight();
             } else {
               for (const shell of highlightShells) {
-                (shell.material as MeshBasicMaterial).opacity =
+                (shell.material as MeshStandardMaterial).opacity =
                   (shell.userData.baseOpacity as number) * (1 - progress);
               }
             }
           }
-          syncHighlightPlanes();
           gl.render(scene, camera);
           animationFrame = window.requestAnimationFrame(render);
         };

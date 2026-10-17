@@ -58,6 +58,7 @@ These notes are meant to reduce repeated misunderstandings. New user instruction
 
 ## Hero Cards
 
+- Use natural adult athletic proportions for the 3D avatar, with clearly shaped muscles and fitted selection surfaces rather than rectangular glow bands. Exact muscle selections should remain visible while being inspected.
 - Support Signals should show every whole circle that fits, including even counts. Keep the highlight centered when possible (nearest middle slot for even counts); do not hide an otherwise fitting circle just to force exact centering. Clamp at list ends without empty slots.
 - Muscle Levels must show complete rings on short/mobile cards. Base compact/expanded training controls on their actual available space, not just viewport height.
 - Consistency and Achievements are complete cards centered on their existing meters, with their summaries and actions visible at once on mobile.

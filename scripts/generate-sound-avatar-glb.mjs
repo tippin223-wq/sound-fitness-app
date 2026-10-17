@@ -1,15 +1,20 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import {
   BoxGeometry,
+  BufferGeometry,
   CapsuleGeometry,
   Group,
+  Float32BufferAttribute,
+  LatheGeometry,
   Mesh,
   MeshStandardMaterial,
   Scene,
   SphereGeometry,
   TorusGeometry,
+  Vector2,
 } from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
 
 globalThis.FileReader ??= class FileReader {
@@ -201,7 +206,99 @@ add("sound crest navy shield mark", new BoxGeometry(0.066, 0.076, 0.026), shirtI
 add("sound crest cyan diagonal", new BoxGeometry(0.13, 0.02, 0.03), shirtStripe, [-0.18, 1.69, 0.386], [1, 1, 1], [0, 0, -0.58]);
 add("subtle chest speed slash", new BoxGeometry(0.34, 0.024, 0.018), shirtStripe, [0.14, 1.5, 0.347], [1, 1, 1], [0, 0, -0.12]);
 
-avatar.position.y = 0.52;
+// Adult proportions in one shared coordinate system: sole 0, knee .98,
+// hip 1.8, shoulder 2.75, crown 3.41. The runtime garments use these landmarks.
+const byName = (name) => avatar.children.find((mesh) => mesh.name === name);
+const place = (name, position, scale) => {
+  const mesh = byName(name);
+  if (!mesh) return;
+  mesh.position.set(...position);
+  if (scale) mesh.scale.set(...scale);
+};
+for (const mesh of avatar.children) {
+  if (["head sculpt", "face highlight", "cheek", "hair", "crown", "temple", "eye white", "iris", "pupil", "nose", "smile"].some((fragment) => mesh.name.includes(fragment))) {
+    mesh.position.set(mesh.position.x*.43, 3.18+(mesh.position.y-2.55)*.46, .02+(mesh.position.z-.02)*.5);
+    mesh.scale.multiply({x:.43,y:.46,z:.5});
+  }
+}
+// Authored human facial topology, derived from the MakeHuman CC0 core mesh.
+// The local subset includes only head faces and carries pinned provenance.
+const head = byName("head sculpt");
+const headSource=JSON.parse(await readFile(new URL('./assets/makehuman-head/head.json',import.meta.url),'utf8'));
+head.geometry.dispose();
+head.geometry=new BufferGeometry();
+head.geometry.setAttribute('position',new Float32BufferAttribute(headSource.positions,3));
+head.geometry.setIndex(headSource.indices);
+head.geometry.computeVertexNormals();
+head.userData.source='MakeHuman Community CC0 head topology';
+for(const name of ['face highlight plane','nose bridge','nose tip','smile']) {
+  const feature=byName(name);
+  feature.geometry.dispose();
+  avatar.remove(feature);
+}
+for(const [side,sign] of [['left',-1],['right',1]]) {
+  const eye=headSource.eyes[sign<0?'right':'left'];
+  const position=[eye[0]*head.scale.x,3.18+eye[1]*head.scale.y,.02+eye[2]*head.scale.z];
+  place(`${side} eye white`,position,[.028,.014,.014]);
+  place(`${side} iris`,[position[0],position[1],position[2]+.014],[.010,.010,.003]);
+  place(`${side} pupil`,[position[0],position[1],position[2]+.017],[.006,.006,.002]);
+  add(`${side} eyebrow`,new TorusGeometry(.029,.0035,6,20,Math.PI),hair,[position[0],position[1]+.022,position[2]+.013],[1,.3,1]);
+  place(`${side} cheek warmth`,[sign*.09,3.13,.15],[.024,.014,.006]);
+}
+const crown=byName("continuous crown hair cap");
+crown.geometry.dispose();
+crown.geometry=new SphereGeometry(1,40,24,0,Math.PI*2,0,Math.PI*.55);
+crown.position.set(0,3.27,.005);
+crown.scale.set(.17,.14,.165);
+const limb = (profile) => new LatheGeometry(profile.map(([r,y])=>new Vector2(r,y)),32);
+place("hips",[0,1.8,0],[.36,.23,.24]);
+place("torso shirt core",[0,2.35,0],[.45,.52,.25]);
+place("neck",[0,2.94,0],[.72,.72,.72]);
+place("upper chest shoulder yoke",[0,2.76,0],[.92,.92,.75]);
+for (const [side,sign] of [["left",-1],["right",1]]) {
+  place(`${side} shoulder`,[sign*.48,2.75,0],[.145,.155,.155]);
+  const upper=byName(`${side} upper arm`);
+  upper.geometry.dispose();
+  upper.geometry=limb([[0,-.25],[.055,-.25],[.066,-.21],[.09,-.10],[.095,.06],[.086,.17],[.06,.25],[0,.25]]);
+  upper.position.set(sign*.565,2.5,0);
+  upper.rotation.z=sign*.16;
+  upper.scale.set(1,1,1);
+  add(`${side} forearm`,limb([[0,-.23],[.042,-.23],[.047,-.17],[.058,-.05],[.077,.10],[.075,.18],[.057,.23],[0,.23]]),skin,[sign*.66,2.04,0],[1,1,.92],[0,0,sign*.1]);
+  place(`${side} wrist band`,[sign*.697,1.82,0],[.67,.67,.67]);
+  const hand=byName(`${side} hand`);
+  const palm=sphere(24).scale(.065,.085,.032);
+  const handPieces=[palm];
+  for (let finger=0;finger<4;finger++) {
+    const length=[.13,.16,.15,.12][finger];
+    handPieces.push(capsule(.015,length,8).translate((finger-1.5)*.032,-.085-length/2,.002));
+  }
+  handPieces.push(capsule(.018,.10,8).rotateZ(sign*.55).translate(sign*.078,-.045,.015));
+  hand.geometry.dispose();
+  hand.geometry=mergeGeometries(handPieces);
+  handPieces.forEach((geometry)=>geometry.dispose());
+  hand.position.set(sign*.71,1.73,0);
+  hand.scale.set(1,1,1);
+  hand.rotation.z=sign*.06;
+  place(`${side} thigh`,[sign*.19,1.43,0],[1,1,1]);
+  place(`${side} shin`,[sign*.19,.55,0],[1,1,1]);
+  const shoe=byName(`${side} shoe`),sole=byName(`${side} shoe sole glow`);
+  shoe.geometry.dispose();
+  shoe.geometry=sphere(24).scale(.105,.07,.25);
+  shoe.position.set(sign*.19,.085,.08);
+  shoe.scale.set(1,1,1);
+  shoe.rotation.y=sign*.08;
+  sole.geometry.dispose();
+  sole.geometry=sphere(24).scale(.106,.018,.251);
+  sole.position.set(sign*.19,.03,.08);
+  sole.scale.set(1,1,1);
+  sole.rotation.y=sign*.08;
+}
+// Keep the chest crest fitted to the new shirt instead of floating at its
+// former mascot-height waistline. Appearance material names stay compatible.
+place("sound fitness small left chest crest",[-.15,2.55,.259],[.045,.045,.009]);
+place("sound crest navy shield mark",[-.15,2.55,.269],[.5,.5,.5]);
+place("sound crest cyan diagonal",[-.15,2.55,.279],[.5,.5,.5]);
+avatar.position.y = 0;
 
 const exporter = new GLTFExporter();
 const arrayBuffer = await exporter.parseAsync(scene, {
