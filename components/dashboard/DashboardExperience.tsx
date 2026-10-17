@@ -1442,7 +1442,7 @@ const applyDashboardChyronMarquee = (element: HTMLElement | null) => {
 // occupied, preserving every document-order cascade tie vs globals.css.
 // Update the ?v= hash in DASHBOARD_RUNTIME_STYLESHEET_IMPORT when editing
 // that file.
-const DASHBOARD_RUNTIME_STYLESHEET_IMPORT = `@import url("/dashboard-runtime.css?v=joystick-box-fixed-across-focus-20260916");`;
+const DASHBOARD_RUNTIME_STYLESHEET_IMPORT = `@import url("/dashboard-runtime.css?v=header-controls-pointer-fix-20261017");`;
 /** An open header with no interaction for this long returns to idle. */
 const DASHBOARD_HEADER_OPEN_INACTIVITY_MS = 10_000;
 const DASHBOARD_HEADER_IDLE_RUN_MS = 3800;
@@ -18772,6 +18772,8 @@ export default function DashboardExperience({
 
     stopDashboardHeaderScrollButtonHold();
     if (!canDashboardHeaderScrollButtonDirection(direction)) return;
+    // A short flick must take a step even when released before hold-repeat.
+    if (!runDashboardHeaderScrollButtonDirection(direction)) return;
 
     dashboardHeaderScrollButtonHoldDirectionRef.current = direction;
     setDashboardHeaderScrollButtonActiveDirection(direction);
@@ -18809,6 +18811,10 @@ export default function DashboardExperience({
       y: event.clientY,
     };
     dashboardHeaderScrollButtonPointerMovedRef.current = false;
+    // Capture the pressed side before waking the header changes its geometry.
+    event.currentTarget.dataset.joystickPressDirection =
+      getDashboardJoystickClickDirection(event) ?? "right";
+    wakeDashboardHeaderMenu();
     setDashboardHeaderScrollButtonDragging(true);
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -18981,6 +18987,10 @@ export default function DashboardExperience({
       y: event.clientY,
     };
     dashboardHeaderMenuOrbitPointerMovedRef.current = false;
+    // Capture the pressed side before waking the header changes its geometry.
+    event.currentTarget.dataset.joystickPressDirection =
+      getDashboardJoystickClickDirection(event, true) ?? "right";
+    wakeDashboardHeaderMenu();
     setDashboardHeaderMenuOrbitDragging(true);
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -22075,7 +22085,12 @@ export default function DashboardExperience({
           }
 
           const direction =
+            (event.detail === 0
+              ? "right"
+              : event.currentTarget.dataset.joystickPressDirection as
+                  DashboardScrollButtonDirection | undefined) ??
             getDashboardJoystickClickDirection(event) ?? "right";
+          delete event.currentTarget.dataset.joystickPressDirection;
           if (
             (direction === "up" && !canHeaderJoystickScrollUp) ||
             (direction === "down" && !canHeaderJoystickScrollDown)
@@ -22179,9 +22194,14 @@ export default function DashboardExperience({
             return;
           }
 
-          runDashboardHeaderMenuOrbitDirection(
-            getDashboardJoystickClickDirection(event, true) ?? "right",
-          );
+          const direction =
+            (event.detail === 0
+              ? "right"
+              : event.currentTarget.dataset.joystickPressDirection as
+                  DashboardHorizontalScrollDirection | undefined) ??
+            getDashboardJoystickClickDirection(event, true) ?? "right";
+          delete event.currentTarget.dataset.joystickPressDirection;
+          runDashboardHeaderMenuOrbitDirection(direction);
         }}
         onBlur={resetDashboardHeaderMenuOrbitDrag}
         onKeyDown={(event) => {
@@ -22505,8 +22525,7 @@ export default function DashboardExperience({
     </span>
   );
 
-  const renderDashboardPageLevelMeter = () => (!isAdminPreview ? <button aria-label="Open reward status. Level unavailable" className="dashboard-page-level-meter-control pointer-events-auto" onClick={toggleDashboardClaimRewardsDropdown} type="button">LV —</button> : (
-    isAdminPreview ? (
+  const renderDashboardPageLevelMeter = () => (isAdminPreview ? (
       <div
         className={`dashboard-page-level-meter-control dashboard-page-level-meter-control--earnings pointer-events-auto absolute right-3 top-1/2 z-[78] -translate-y-1/2 ${
           dashboardPageLevelMeterOpen
@@ -22683,17 +22702,10 @@ export default function DashboardExperience({
           </div>
         </div>
       </div>
-    ) : (
-    <div
+    ) : (<div
       className={`dashboard-page-level-meter-control pointer-events-auto absolute right-3 top-1/2 z-[78] -translate-y-1/2 ${
-        dashboardPageLevelMeterOpen
-          ? "dashboard-page-level-meter-control--open"
-          : ""
-      } ${
-        dashboardPageLevelMeterTucked
-          ? "dashboard-page-level-meter-control--tucked"
-          : ""
-      }`}
+        dashboardPageLevelMeterOpen ? "dashboard-page-level-meter-control--open" : ""
+      } ${dashboardPageLevelMeterTucked ? "dashboard-page-level-meter-control--tucked" : ""}`}
       onClick={(event) => event.stopPropagation()}
       onPointerDown={(event) => event.stopPropagation()}
       onPointerMove={(event) => event.stopPropagation()}
@@ -22703,386 +22715,31 @@ export default function DashboardExperience({
       <button
         aria-controls="dashboard-page-level-meter-panel"
         aria-expanded={dashboardPageLevelMeterOpen}
-        aria-label={
-          dashboardPageLevelMeterTucked
-            ? "Reveal Sound Fitness level meter"
-            : `${
-                dashboardPageLevelMeterOpen ? "Close" : "Open"
-              } Sound Fitness level meter`
-        }
+        aria-label={dashboardPageLevelMeterTucked ? "Reveal Sound Fitness level meter" : (dashboardPageLevelMeterOpen ? "Close" : "Open") + " Sound Fitness level meter"}
         className="dashboard-page-level-meter-tab"
-        data-dashboard-tooltip={
-          dashboardPageLevelMeterTucked
-            ? "Level meter"
-            : dashboardPageLevelMeterOpen
-              ? "Close level meter"
-              : "Open level meter"
-        }
         onBlur={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(false))}
         onClick={handleDashboardLevelMeterTabClick}
         onFocus={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(true))}
         onPointerDown={handleDashboardLevelMeterTabPointerDown}
         onPointerEnter={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(true))}
         onPointerLeave={() => startTransition(() => setDashboardPageLevelMeterTabHighlighted(false))}
-        style={
-          {
-            "--dashboard-page-level-tab-progress": `${soundFitnessLevelProgress}%`,
-            "--dashboard-page-level-tab-progress-deg":
-              dashboardLevelTabProgressDegrees,
-          } as CSSProperties
-        }
+        style={{ "--dashboard-page-level-tab-progress-deg": "0deg" } as CSSProperties}
         type="button"
       >
-        <span
-          aria-hidden="true"
-          className={`dashboard-page-level-meter-tab__next-reward dashboard-page-level-meter-tab__next-reward--${dashboardNextLevelReward.icon}`}
-          data-dashboard-tooltip={`Next reward: ${
-            dashboardNextLevelReward.label
-          } at ${dashboardNextLevelRewardPoints.toLocaleString()} points`}
-        >
-          {renderDashboardPageLevelRewardIcon(
-            dashboardNextLevelReward.icon,
-            soundFitnessLevelProgress /
-              Math.max(1, dashboardNextLevelReward.threshold),
-          )}
-        </span>
-        <span className="dashboard-page-level-meter-tab__label">
-          LV {soundFitnessLevel}
-        </span>
-        <span
-          aria-label={`${soundPointsToNextLevelLabel} sound points to level ${
-            soundFitnessLevel + 1
-          }`}
-          className="dashboard-page-level-meter-tab__value"
-        >
-          {renderDashboardLevelSoundPoints(
-            soundPointsToNextLevel,
-            "dashboard-page-level-sound-points--tab",
-          )}
-          <span className="dashboard-page-level-meter-tab__to-go">
-            PTS TO GO!
-          </span>
-        </span>
+        <span className="dashboard-page-level-meter-tab__label">LV —</span>
+        <span className="dashboard-page-level-meter-tab__value">Level unavailable</span>
       </button>
-      <div
-        aria-hidden={!dashboardPageLevelMeterOpen}
-        className="dashboard-page-level-meter-panel"
-        id="dashboard-page-level-meter-panel"
-        onClick={() => setDashboardPageLevelMeterOpen(false)}
-        onPointerDown={() => setDashboardPageLevelMeterOpen(false)}
-      >
-        {/* Level explainer: everything the bar is showing, spelled out, sat to
-            the bar's left. It swallows pointer events so reading or scrolling
-            it never dismisses the meter the way clicking the bar does. */}
-        <aside
-          aria-label={`Level ${soundFitnessLevel} details`}
-          className="dashboard-page-level-meter-explainer"
-          onClick={(event) => event.stopPropagation()}
-          onPointerDown={(event) => event.stopPropagation()}
-          onWheel={(event) => event.stopPropagation()}
-        >
-          <span className="dashboard-page-level-meter-explainer__eyebrow">
-            Sound Fitness level
-          </span>
-          <span className="dashboard-page-level-meter-explainer__level">
-            <span className="dashboard-page-level-meter-explainer__level-number">
-              LV {soundFitnessLevel}
-            </span>
-            <span className="dashboard-page-level-meter-explainer__level-next">
-              {Math.round(soundFitnessLevelProgress)}% to LV{" "}
-              {soundFitnessLevel + 1}
-            </span>
-          </span>
-          <span
-            aria-hidden="true"
-            className="dashboard-page-level-meter-explainer__bar"
-          >
-            <span
-              className="dashboard-page-level-meter-explainer__bar-fill"
-              style={{ width: `${soundFitnessLevelProgress}%` }}
-            />
-          </span>
-          <span className="dashboard-page-level-meter-explainer__points">
-            <span>
-              {soundPointsIntoLevel.toLocaleString()} /{" "}
-              {soundFitnessLevelSize.toLocaleString()} pts
-            </span>
-            <span>{soundPointsToNextLevelLabel} to go</span>
-          </span>
-          <span className="dashboard-page-level-meter-explainer__heading">
-            Milestones this level
-          </span>
-          <span className="dashboard-page-level-meter-explainer__milestones">
-            {DASHBOARD_PAGE_ANALOG_LEVEL_REWARDS.map((reward) => {
-              const unlocked = soundFitnessLevelProgress >= reward.threshold;
-              const isNext = !unlocked && reward === dashboardNextLevelReward;
-              const pointsRequired = Math.round(
-                (soundFitnessLevelSize * reward.threshold) / 100,
-              );
-              return (
-                <span
-                  className="dashboard-page-level-meter-explainer__milestone"
-                  key={`dashboard-page-level-explainer-${reward.icon}`}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`dashboard-page-level-meter-explainer__milestone-icon dashboard-page-level-meter-explainer__milestone-icon--${reward.icon} ${
-                      unlocked
-                        ? "dashboard-page-level-meter-explainer__milestone-icon--unlocked"
-                        : ""
-                    }`}
-                  >
-                    {renderDashboardPageLevelRewardIcon(
-                      reward.icon,
-                      unlocked
-                        ? 1
-                        : soundFitnessLevelProgress /
-                            Math.max(1, reward.threshold),
-                    )}
-                  </span>
-                  <span>
-                    <span className="dashboard-page-level-meter-explainer__milestone-label">
-                      {reward.label}
-                    </span>
-                    <span className="dashboard-page-level-meter-explainer__milestone-meta">
-                      {reward.threshold >= 100
-                        ? "At level up"
-                        : `At ${reward.threshold}%`}{" "}
-                      · {pointsRequired.toLocaleString()} pts
-                    </span>
-                  </span>
-                  <span
-                    className={`dashboard-page-level-meter-explainer__status ${
-                      unlocked
-                        ? "dashboard-page-level-meter-explainer__status--unlocked"
-                        : isNext
-                          ? "dashboard-page-level-meter-explainer__status--next"
-                          : ""
-                    }`}
-                  >
-                    {unlocked ? "Unlocked" : isNext ? "Next" : "Locked"}
-                  </span>
-                </span>
-              );
-            })}
-          </span>
-          <span className="dashboard-page-level-meter-explainer__heading">
-            How you earn
-          </span>
-          <span className="dashboard-page-level-meter-explainer__earn">
-            <span className="dashboard-page-level-meter-explainer__earn-item">
-              <span>Workout</span>
-              <span className="dashboard-page-level-meter-explainer__earn-value">
-                +130
-              </span>
-            </span>
-            <span className="dashboard-page-level-meter-explainer__earn-item">
-              <span>Template</span>
-              <span className="dashboard-page-level-meter-explainer__earn-value">
-                +90
-              </span>
-            </span>
-            <span className="dashboard-page-level-meter-explainer__earn-item">
-              <span>Log entry</span>
-              <span className="dashboard-page-level-meter-explainer__earn-value">
-                +28
-              </span>
-            </span>
-            <span className="dashboard-page-level-meter-explainer__earn-item">
-              <span>Set</span>
-              <span className="dashboard-page-level-meter-explainer__earn-value">
-                +5
-              </span>
-            </span>
-          </span>
-          <span className="dashboard-page-level-meter-explainer__note">
-            Every {soundFitnessLevelSize} points is a level. Milestones reset
-            with each level; the trophy lands the moment you level up.
-          </span>
+      <div aria-hidden={!dashboardPageLevelMeterOpen} className="dashboard-page-level-meter-panel" id="dashboard-page-level-meter-panel">
+        <aside aria-label="Sound Fitness level details" className="dashboard-page-level-meter-explainer">
+          <span className="dashboard-page-level-meter-explainer__eyebrow">Sound Fitness level</span>
+          <span className="dashboard-page-level-meter-explainer__level-number">LV —</span>
+          <span className="dashboard-page-level-meter-explainer__heading">Level unavailable</span>
+          <p>{dashboardRewardEvidence.description}</p>
+          <span className="dashboard-page-level-meter-explainer__points">Profile points: {dashboardRewardEvidence.pointsLabel}</span>
+          <button className="dashboard-page-level-meter-explainer__heading" onClick={() => setDashboardPageLevelMeterOpen(false)} type="button">Close level meter</button>
         </aside>
-        {/* The semicircle tab hides while the popup is open, so the popup
-            carries its own close. Clicking the bar closes too, as before. */}
-        <button
-          aria-label="Close level meter"
-          className="dashboard-page-level-meter-panel__close"
-          data-dashboard-tooltip="Close"
-          onClick={() => setDashboardPageLevelMeterOpen(false)}
-          type="button"
-        >
-          <span aria-hidden="true">×</span>
-        </button>
-        <div
-          aria-label={`Sound Fitness level ${soundFitnessLevel}, ${Math.round(
-            soundFitnessLevelProgress,
-          )}% to level ${soundFitnessLevel + 1}`}
-          className="dashboard-page-analog-dock pointer-events-none relative"
-          style={
-            {
-              "--dashboard-analog-level-fill": dashboardAnalogLevelFill,
-              "--dashboard-analog-level-marker-y": dashboardAnalogLevelMarkerY,
-              "--dashboard-page-orbit-fill": dashboardAnalogLevelFill,
-              "--dashboard-page-orbit-marker-y": dashboardAnalogLevelMarkerY,
-            } as CSSProperties
-          }
-        >
-          <DashboardLevelMeterBar3D
-            active={dashboardPageLevelMeterOpen}
-            className="dashboard-page-level-meter-webgl"
-            paused={!dashboardPageLevelMeterOpen}
-            progress={soundFitnessLevelProgress}
-          />
-          <span
-            aria-label={`Level ${soundFitnessLevel} progress, ${Math.round(
-              soundFitnessLevelProgress,
-            )} percent. ${soundPointsToNextLevelLabel} points to level ${
-              soundFitnessLevel + 1
-            }. Rewards: ${dashboardLevelRewardSummary}.`}
-            aria-valuemax={100}
-            aria-valuemin={0}
-            aria-valuenow={Math.round(soundFitnessLevelProgress)}
-            aria-valuetext={`${soundPointsToNextLevelLabel} points to level ${
-              soundFitnessLevel + 1
-            }`}
-            className="dashboard-page-analog-rail"
-            role="meter"
-          />
-          <span
-            aria-hidden="true"
-            className="dashboard-page-analog-rail__fill"
-            style={{
-              bottom: "1.34rem",
-              boxShadow:
-                "0 0 0.28rem rgba(34,211,238,0.26), 0 0 0.48rem rgba(250,204,21,0.12)",
-              top: "auto",
-              transform: `translateX(-50%) scaleY(${dashboardAnalogLevelFill})`,
-              transformOrigin: "bottom center",
-              transition:
-                "transform 420ms cubic-bezier(0.2, 0.82, 0.2, 1)",
-            }}
-          />
-          <span
-            aria-hidden="true"
-            className="dashboard-page-analog-rail__cap dashboard-page-analog-rail__cap--top"
-          >
-            LV {soundFitnessLevel + 1}
-          </span>
-          <span
-            aria-hidden="true"
-            className="dashboard-page-analog-rail__ticks"
-          >
-            {DASHBOARD_PAGE_ANALOG_LEVEL_TICKS.map((tick) => {
-              const tickRatio = Math.max(0.04, Math.min(1, tick / 100));
-              return (
-                <span
-                  className={`dashboard-page-analog-rail__tick ${
-                    soundFitnessLevelProgress >= tick
-                      ? "dashboard-page-analog-rail__tick--filled"
-                      : ""
-                  }`}
-                  key={`dashboard-page-analog-level-tick-${tick}`}
-                  style={
-                    {
-                      "--dashboard-analog-level-tick-y": `${
-                        1.34 + (1 - tickRatio) * 19.9
-                      }rem`,
-                    } as CSSProperties
-                  }
-                />
-              );
-            })}
-          </span>
-          <span
-            aria-hidden="true"
-            className="dashboard-page-analog-rail__rewards"
-          >
-            {DASHBOARD_PAGE_ANALOG_LEVEL_REWARDS.map((reward, rewardIndex) => {
-              const isLevelUpReward = reward.threshold >= 100;
-              const rewardRatio = Math.max(
-                0.04,
-                Math.min(1, reward.threshold / 100),
-              );
-              const rewardUnlocked =
-                soundFitnessLevelProgress >= reward.threshold;
-              const rewardInnerFillRatio = rewardUnlocked
-                ? 1
-                : soundFitnessLevelProgress / Math.max(1, reward.threshold);
-              const rewardPointsRequired = Math.round(
-                (soundFitnessLevelSize * reward.threshold) / 100,
-              );
-              const rewardY = isLevelUpReward
-                ? "1.14rem"
-                : `${1.34 + (1 - rewardRatio) * 19.9}rem`;
-
-              return (
-                <span
-                  className={`dashboard-page-analog-rail__reward dashboard-page-analog-rail__reward--${reward.icon} ${
-                    rewardUnlocked
-                      ? "dashboard-page-analog-rail__reward--unlocked"
-                      : ""
-                  } dashboard-page-analog-rail__reward--cycle ${
-                    isLevelUpReward
-                      ? "dashboard-page-analog-rail__reward--level-up"
-                      : ""
-                  }`}
-                  key={`dashboard-page-analog-level-reward-${reward.icon}`}
-                  style={
-                    {
-                      "--dashboard-analog-reward-attention-delay": `${
-                        rewardIndex * 2.4
-                      }s`,
-                      "--dashboard-analog-level-reward-y": rewardY,
-                    } as CSSProperties
-                  }
-                >
-                  {renderDashboardPageLevelRewardIcon(
-                    reward.icon,
-                    rewardInnerFillRatio,
-                  )}
-                  <span className="dashboard-page-analog-rail__reward-points">
-                    {renderDashboardLevelSoundPoints(
-                      rewardPointsRequired,
-                      "dashboard-page-level-sound-points--reward",
-                    )}
-                  </span>
-                </span>
-              );
-            })}
-          </span>
-          <span
-            aria-hidden="true"
-            className="dashboard-page-analog-rail__scanner"
-          />
-          <span
-            aria-hidden="true"
-            className="dashboard-page-analog-rail__marker"
-          >
-            <span
-              aria-hidden="true"
-              className="dashboard-page-analog-rail__marker-smoke"
-            />
-            <span
-              aria-label={`${soundPointsToNextLevelLabel} sound points to level ${
-                soundFitnessLevel + 1
-              }`}
-              className="dashboard-page-analog-rail__marker-value"
-            >
-              {renderDashboardLevelSoundPoints(
-                soundPointsToNextLevel,
-                "dashboard-page-level-sound-points--marker",
-              )}
-            </span>
-          </span>
-            <span
-              aria-hidden="true"
-              className="dashboard-page-analog-rail__badge"
-            >
-              LV {soundFitnessLevel}
-            </span>
-        </div>
       </div>
-    </div>
-    )
-  ));
+    </div>));
 
   const renderDashboardPageAnalog = () => {
     const canPageJoystickScrollUp = clampedDashboardOrbiterRow > 0;

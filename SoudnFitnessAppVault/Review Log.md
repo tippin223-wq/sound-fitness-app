@@ -4173,3 +4173,10 @@ Active website workspace: `C:\Users\josep\01_Business\Sound Fitness\Website\Soun
 
 - Moved PlanningProvider status, sync/retry, import and backup controls from above the member header into a closed Data & backups disclosure after page content. Kept account-keyed page state, initialization, sync operations and recovery controls intact.
 - Verified the actual return markup renders the header first, keeps details closed and retains export controls; targeted lint clean. Production build/deployment verification follows the scoped commit.
+
+## Member Hub joystick and level tab controls — 2026-10-17
+
+- Idle-header CSS disabled pointer input on navigation joysticks. Restored their hit areas, captured the pressed direction before header expansion changes geometry, and made short selector drags advance immediately before hold-repeat. Header styling and mobile paging layout remain intact.
+- Restored the member level tab's tuck/reveal/open/close interaction using the existing meter styling. Removed the unreachable synthetic member-level display. The panel explains unavailable verified levels and distinguishes recorded Profile points from an authoritative reward balance; no awards or levels are fabricated.
+- Browser verified the first selector click, keyboard navigation, drag navigation, mobile account/selector paging and meter reveal/open/close. Saved local proof at test-results/header-controls-level-meter.png. All 996 planning/database/preflight tests pass; component lint has zero errors (143 warnings). Production compilation, TypeScript and local page generation pass (136 routes including excluded local TrainerHub work); Git release contains only the scoped Sound Fitness files.
+- TrainerHub integrations and unrelated local work remain excluded. No database migrations or reward-service activation performed.

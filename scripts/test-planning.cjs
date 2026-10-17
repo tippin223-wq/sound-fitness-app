@@ -7970,12 +7970,130 @@ test('dashboard reward snapshots follow account ownership without creating award
   const helper=load('lib/planning/dashboardRewardEvidence.ts');await store.initializePlanning('wallet-first');store.writePlanning(store.planningKeys.profile,{soundPoints:'25'});store.writePlanning(store.planningKeys.logs,[dashboardCompletionFixture('wallet-workout')]);const before=store.planningSnapshot(),snapshot=JSON.parse(helper.dashboardRewardEvidenceSnapshot());assert.equal(snapshot.points,25);assert.equal(snapshot.canClaim,false);assert.equal(store.planningSnapshot(),before);await store.initializePlanning('wallet-second');assert.equal(JSON.parse(helper.dashboardRewardEvidenceSnapshot()).points,null);assert.equal(JSON.parse(helper.serverDashboardRewardEvidence()).points,null);
 });
 
-function actualDashboardRewardAdapters(evidence) {
-  const source=fs.readFileSync(path.join(root,'components/dashboard/DashboardExperience.tsx'),'utf8'),ast=ts.createSourceFile('dashboard.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),names=['renderDashboardPageLevelMeter','renderDashboardPointsRewardPanelContent'],nodes=[];let claim='';function visit(node){if(ts.isVariableDeclaration(node)&&names.includes(node.name.getText(ast)))nodes.push('const '+node.getText(ast)+';');if(ts.isJsxElement(node)&&node.openingElement.attributes.properties.some(prop=>prop.name?.getText(ast)==='id'&&prop.initializer?.getText(ast)==='"dashboard-claim-rewards-dropdown"'))claim=node.getText(ast);ts.forEachChild(node,visit);}visit(ast);assert.equal(nodes.length,2);assert.ok(claim);const context={exports:{},require,isAdminPreview:false,dashboardRewardEvidence:evidence,toggleDashboardClaimRewardsDropdown:()=>{},Link:props=>require('react').createElement('a',{href:props.href},props.children),ROUTES:load('lib/routes.ts').ROUTES};const code=ts.transpileModule(nodes.join('\n')+'\nexports.api={level:renderDashboardPageLevelMeter(),panel:renderDashboardPointsRewardPanelContent("points"),claim:'+claim+'};',{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;new Function(...Object.keys(context),code)(...Object.values(context));return {api:context.exports.api,render:require('react-dom/server').renderToStaticMarkup};
+function actualDashboardRewardAdapters(evidence, meter = {}) {
+  const source=fs.readFileSync(path.join(root,'components/dashboard/DashboardExperience.tsx'),'utf8'),ast=ts.createSourceFile('dashboard.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),names=['renderDashboardPageLevelMeter','renderDashboardPointsRewardPanelContent'],nodes=[];let claim='';function visit(node){if(ts.isVariableDeclaration(node)&&names.includes(node.name.getText(ast)))nodes.push('const '+node.getText(ast)+';');if(ts.isJsxElement(node)&&node.openingElement.attributes.properties.some(prop=>prop.name?.getText(ast)==='id'&&prop.initializer?.getText(ast)==='"dashboard-claim-rewards-dropdown"'))claim=node.getText(ast);ts.forEachChild(node,visit);}visit(ast);assert.equal(nodes.length,2);assert.ok(claim);const context={exports:{},require,isAdminPreview:false,dashboardRewardEvidence:evidence,dashboardPageLevelMeterOpen:false,dashboardPageLevelMeterTucked:true,startTransition:fn=>fn(),setDashboardPageLevelMeterTabHighlighted:()=>{},handleDashboardLevelMeterTabClick:()=>{},handleDashboardLevelMeterTabPointerDown:()=>{},setDashboardPageLevelMeterOpen:()=>{},...meter,toggleDashboardClaimRewardsDropdown:()=>{},Link:props=>require('react').createElement('a',{href:props.href},props.children),ROUTES:load('lib/routes.ts').ROUTES};const code=ts.transpileModule(nodes.join('\n')+'\nexports.api={level:renderDashboardPageLevelMeter(),panel:renderDashboardPointsRewardPanelContent("points"),claim:'+claim+'};',{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;new Function(...Object.keys(context),code)(...Object.values(context));return {api:context.exports.api,render:require('react-dom/server').renderToStaticMarkup};
 }
 
 test('actual member level, reward panel and claim panel show unverified status without generated awards or Claim actions', () => {
   const helper=load('lib/planning/dashboardRewardEvidence.ts');for(const profile of [null,{soundPoints:1200}]){const {api,render}=actualDashboardRewardAdapters(helper.dashboardRewardEvidence(profile));const level=render(api.level);assert.match(level,/Level unavailable/);assert.doesNotMatch(level,/level 3|level 4|aria-valuenow|500|300/);for(const panel of [api.panel,api.claim]){const html=render(panel);assert.match(html,/ledger unavailable/);assert.match(html,/not verified/);assert.doesNotMatch(html,/Ready to claim|Claimed|>Claim<|80|3 emeralds|rewardEarned|threshold/);}if(profile)assert.match(render(api.panel),/1,200 recorded/);}
+});
+
+function actualDashboardControlHandlers(names, environment) {
+  const source = fs.readFileSync(path.join(root, 'components/dashboard/DashboardExperience.tsx'), 'utf8');
+  const ast = ts.createSourceFile('dashboard.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const declarations = [];
+  function visit(node) {
+    if (ts.isVariableDeclaration(node) && names.includes(node.name.getText(ast))) declarations.push('const ' + node.getText(ast) + ';');
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  assert.equal(declarations.length, names.length);
+  const exports = {};
+  const code = ts.transpileModule(declarations.join('\n') + '\nexports.api={' + names.join(',') + '};', {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
+  }).outputText;
+  new Function('exports', ...Object.keys(environment), code)(exports, ...Object.values(environment));
+  return exports.api;
+}
+
+test('member level tab reveals, opens, closes and suppresses the click after dragging', () => {
+  const state = { tucked: true, open: false };
+  const drag = { current: null };
+  const click = () => actualDashboardControlHandlers(['handleDashboardLevelMeterTabClick'], {
+    dashboardLevelMeterDragRef: drag,
+    dashboardPageLevelMeterTucked: state.tucked,
+    setDashboardPageLevelMeterTucked: value => state.tucked = value,
+    setDashboardPageLevelMeterOpen: update => state.open = update(state.open),
+  }).handleDashboardLevelMeterTabClick;
+  const evidence = load('lib/planning/dashboardRewardEvidence.ts').dashboardRewardEvidence(null);
+  const render = () => actualDashboardRewardAdapters(evidence, {
+    dashboardPageLevelMeterTucked: state.tucked, dashboardPageLevelMeterOpen: state.open,
+    handleDashboardLevelMeterTabClick: click(),
+  });
+  let adapter = render();
+  assert.match(adapter.render(adapter.api.level), /Reveal Sound Fitness level meter/);
+  adapter.api.level.props.children[0].props.onClick();
+  assert.deepEqual(state, { tucked: false, open: false });
+  adapter = render();
+  adapter.api.level.props.children[0].props.onClick();
+  adapter = render();
+  assert.match(adapter.render(adapter.api.level), /aria-expanded="true"/);
+  assert.match(adapter.render(adapter.api.level), /Sound Fitness level details/);
+  drag.current = { handled: true };
+  click()();
+  assert.equal(state.open, true);
+  click()();
+  assert.equal(state.open, false);
+});
+
+test('a brief selector drag advances immediately, then repeats only while held', () => {
+  const ref = { current: null }, timeout = { current: null }, interval = { current: null };
+  const moves = [], timers = [];
+  const api = actualDashboardControlHandlers(['startDashboardHeaderScrollButtonHold'], {
+    dashboardHeaderScrollButtonHoldDirectionRef: ref,
+    dashboardHeaderScrollButtonHoldTimeoutRef: timeout,
+    dashboardHeaderScrollButtonHoldIntervalRef: interval,
+    stopDashboardHeaderScrollButtonHold: () => { ref.current = null; },
+    canDashboardHeaderScrollButtonDirection: direction => direction !== 'up',
+    runDashboardHeaderScrollButtonDirection: direction => { moves.push(direction); return true; },
+    setDashboardHeaderScrollButtonActiveDirection: () => {},
+    getDashboardHeaderScrollButtonDragDelay: () => 400,
+    getDashboardAnalogRepeatMs: () => 200,
+    window: { setTimeout: callback => { timers.push(callback); return timers.length; }, setInterval: callback => { timers.push(callback); return timers.length; } },
+  });
+  api.startDashboardHeaderScrollButtonHold('right');
+  assert.deepEqual(moves, ['right']);
+  api.startDashboardHeaderScrollButtonHold('right');
+  assert.deepEqual(moves, ['right']);
+  ref.current = null; // Release before the hold delay.
+  timers[0]();
+  assert.deepEqual(moves, ['right']);
+  api.startDashboardHeaderScrollButtonHold('up');
+  assert.deepEqual(moves, ['right']);
+  api.startDashboardHeaderScrollButtonHold('left');
+  timers[1]();
+  assert.deepEqual(moves, ['right', 'left', 'left']);
+});
+
+test('header joystick clicks retain the pressed side across a focus resize and keyboard activation moves forward', () => {
+  const source = fs.readFileSync(path.join(root, 'components/dashboard/DashboardExperience.tsx'), 'utf8');
+  const ast = ts.createSourceFile('dashboard.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const clickHandlers = {};
+  function visit(node) {
+    if (ts.isJsxOpeningElement(node)) {
+      const attrs = node.attributes.properties;
+      const label = attrs.find(attr => attr.name?.getText(ast) === 'aria-label')?.initializer?.getText(ast);
+      if (['"Scroll dashboard selector"', '"Spin main header menu horizontally"'].includes(label)) {
+        clickHandlers[label] = attrs.find(attr => attr.name?.getText(ast) === 'onClick').initializer.expression.getText(ast);
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(ast);
+  assert.equal(Object.keys(clickHandlers).length, 2);
+  for (const handler of Object.values(clickHandlers)) {
+    const moves = [], moved = { current: false };
+    const env = {
+      dashboardHeaderScrollButtonPointerMovedRef: moved, dashboardHeaderMenuOrbitPointerMovedRef: moved,
+      canHeaderJoystickScrollUp: true, canHeaderJoystickScrollDown: true,
+      runDashboardHeaderScrollButtonDirection: value => moves.push(value),
+      runDashboardHeaderMenuOrbitDirection: value => moves.push(value),
+      getDashboardJoystickClickDirection: () => 'right', // Waking moved the button beneath the pointer.
+    };
+    const code = ts.transpileModule('return ' + handler, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+    const click = new Function(...Object.keys(env), code)(...Object.values(env));
+    const event = { detail: 1, currentTarget: { dataset: { joystickPressDirection: 'left' } }, preventDefault() {}, stopPropagation() {} };
+    click(event);
+    assert.deepEqual(moves, ['left']);
+    assert.equal(event.currentTarget.dataset.joystickPressDirection, undefined);
+    event.detail = 0;
+    event.currentTarget.dataset.joystickPressDirection = 'left';
+    click(event);
+    assert.deepEqual(moves, ['left', 'right']);
+    moved.current = true;
+    click(event);
+    assert.deepEqual(moves, ['left', 'right']);
+  }
 });
 
 

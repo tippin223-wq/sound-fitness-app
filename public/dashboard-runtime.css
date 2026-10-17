@@ -6760,6 +6760,14 @@ main.dashboard-page--idle-menu-open
   pointer-events: none !important;
 }
 
+/* Navigation joysticks must accept the first press while the header is idle.
+   Their pointer-down handler wakes the header and captures the pressed side. */
+.dashboard-header-vortex-shell.dashboard-header-vortex-shell
+  .dashboard-header-main-orbit-stage
+  :is(.dashboard-header-selector-joystick, .dashboard-header-menu-orbit-control) {
+  pointer-events: auto !important;
+}
+
 /* Above the mobile breakpoint the idle header never got the centring
    corrections the <=940px rules provide, so the collapsed menu sat its items
    9-14px below the menu-area midline (the shell's bottom band belongs to the
