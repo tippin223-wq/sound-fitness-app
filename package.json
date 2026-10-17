@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:planning": "node --test scripts/test-planning.cjs scripts/test-planning-database.mjs scripts/test-planning-backend-preflight.mjs",
+    "test:planning": "node --test scripts/test-planning.cjs scripts/test-planning-database.mjs scripts/test-planning-backend-preflight.mjs scripts/test-dashboard-quick-log.cjs",
     "test:avatar": "node --test scripts/test-avatar-anatomy.cjs",
     "check:planning-backend": "node scripts/check-planning-backend.mjs"
   },

@@ -3717,7 +3717,7 @@ function ManualExerciseLibraryPreview({
         <div
           className={`grid items-stretch gap-2 ${
             selectorOnly
-              ? "min-[760px]:h-[16rem]"
+              ? "h-[clamp(15rem,44dvh,24rem)]"
               : "min-[760px]:h-[24rem] min-[760px]:grid-cols-[minmax(0,1fr)_12rem] min-[1020px]:h-[25rem] min-[1020px]:grid-cols-[minmax(0,1fr)_13rem]"
           }`}
         >
@@ -3737,7 +3737,7 @@ function ManualExerciseLibraryPreview({
               onScroll={() => updateExerciseCardsScrollCue()}
               className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 scroll-smooth [scrollbar-color:rgba(34,211,238,0.36)_rgba(15,23,42,0.56)] [scrollbar-width:thin] [touch-action:pan-y] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-cyan-300/38 [&::-webkit-scrollbar-track]:rounded-full [&::-webkit-scrollbar-track]:bg-slate-950/58"
             >
-              <div className="grid gap-1.5 pb-8 sm:grid-cols-3">
+              <div className="grid gap-3 p-1 pb-8 min-[480px]:grid-cols-2 min-[900px]:grid-cols-3">
                 {visibleExercises.map((exercise) => {
                   const selected = selectedExerciseIds.has(exercise.id);
 
@@ -3746,8 +3746,9 @@ function ManualExerciseLibraryPreview({
                       key={`${activeCategory?.id}-${exercise.id}`}
                       type="button"
                       aria-label={`Attach ${exercise.name}`}
+                      aria-pressed={selected}
                       onClick={() => onExerciseSelect(exercise)}
-                      className={`group relative isolate min-h-[96px] overflow-hidden rounded-[16px] border p-2 text-left transition hover:-translate-y-0.5 active:scale-[0.98] ${
+                      className={`group relative isolate min-h-[112px] overflow-hidden rounded-[16px] border p-3 text-left transition hover:-translate-y-0.5 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-200 ${
                         selected
                           ? "border-emerald-200/50 bg-emerald-300/12 text-emerald-50 shadow-[0_0_26px_rgba(16,185,129,0.16)]"
                           : "border-white/10 bg-white/[0.045] text-slate-200 hover:border-cyan-200/34 hover:bg-cyan-300/8 hover:text-white"
@@ -3782,7 +3783,7 @@ function ManualExerciseLibraryPreview({
                           <span className="block truncate text-[6.5px] font-black uppercase tracking-[0.09em] text-cyan-100/80">
                             {exercise.pattern} / {exercise.equipment}
                           </span>
-                          <span className="mt-0.5 block truncate text-[12px] font-black leading-4 text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.55)]">
+                          <span className="mt-1 block text-sm font-black leading-5 text-white [text-shadow:0_2px_18px_rgba(0,0,0,0.55)]">
                             {exercise.name}
                           </span>
                           <span className="mt-0.5 line-clamp-1 text-[8px] font-semibold leading-3 text-slate-200/88">
@@ -8992,6 +8993,8 @@ export default function DashboardExperience({
   const [manualStatsAdderCollapsed, setManualStatsAdderCollapsed] =
     useState(true);
   const [quickLogPopupOpen, setQuickLogPopupOpen] = useState(false);
+  const [quickLogStep, setQuickLogStep] = useState<"exercise" | "stats">("exercise");
+  const quickLogStatsHeadingRef = useRef<HTMLHeadingElement | null>(null);
   const [quickLogSaveMessage, setQuickLogSaveMessage] = useState("");
   const [manualStatsReview, setManualStatsReview] = useState<ReturnType<typeof reviewDashboardManualStats> | null>(null);
   const [favoriteLaunchMessage, setFavoriteLaunchMessage] = useState("");
@@ -14428,6 +14431,7 @@ export default function DashboardExperience({
 
   const openQuickLogPopup = () => {
     setQuickLogPopupOpen(true);
+    setQuickLogStep("exercise");
     setQuickLogSaveMessage("");
 
     if (selectedExerciseReference) return;
@@ -39277,31 +39281,41 @@ export default function DashboardExperience({
             data-dashboard-orbiter-local-scroll="true"
           >
             <div className="grid gap-3">
-              <ManualExerciseLibraryPreview
+              {quickLogStep === "exercise" ? <ManualExerciseLibraryPreview
                 activeCategoryId={activeManualExerciseCategoryId}
                 categories={manualExerciseLibraryCategories}
                 layout="selectorOnly"
                 manualStatsDraft={manualStatsDraft}
                 onCategorySelect={setActiveManualExerciseCategoryId}
                 onCategoryShift={rotateManualExerciseCategory}
-                onExerciseSelect={selectExerciseReference}
+                onExerciseSelect={(exercise) => {
+                  selectExerciseReference(exercise);
+                  setQuickLogSaveMessage("");
+                  setQuickLogStep("stats");
+                  window.requestAnimationFrame(() => {
+                    quickLogStatsHeadingRef.current?.focus();
+                  });
+                }}
                 onManualStatsDraftChange={updateManualStatsDraft}
                 onSaveManualStats={saveQuickLogStats}
                 selectedExercise={quickLogExercise}
                 selectedExerciseCue={selectedExercise?.cue || quickLogExercise?.cue}
                 selectedExerciseIds={selectedManualExerciseReferenceIds}
-              />
+              /> : null}
 
-              <section className="min-w-0 rounded-[22px] border border-white/10 bg-slate-950/42 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
+              <section hidden={quickLogStep !== "stats"} className="min-w-0 rounded-[22px] border border-white/10 bg-slate-950/42 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
                 <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-[8px] font-black uppercase tracking-[0.16em] text-cyan-100/76">
                       Track stats
                     </p>
-                    <h3 className="mt-1 text-xl font-black uppercase tracking-[0.04em] text-white">
-                      Sliders first, details below
+                    <h3 ref={quickLogStatsHeadingRef} tabIndex={-1} className="mt-1 text-xl font-black tracking-[0.04em] text-white outline-none">
+                      {quickLogExercise?.name || "Exercise stats"}
                     </h3>
                   </div>
+                  <button type="button" className="min-h-10 rounded-xl border border-cyan-200/25 px-3 text-sm font-bold text-cyan-100" onClick={() => setQuickLogStep("exercise")}>
+                    Change exercise
+                  </button>
                   <div
                     aria-live="polite"
                     className="min-h-5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-100"

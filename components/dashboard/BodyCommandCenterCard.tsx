@@ -4049,14 +4049,16 @@ function MuscleGroupPanel({
     if (!rail) return;
 
     const fit = () => {
-      const columns = Math.max(
+      const columns = rail.clientWidth < 240 ? 1 : Math.max(
         1,
         Math.min(
           selectedGroup.muscles.length,
           Math.floor((Math.max(0, rail.clientWidth) + 8) / 80),
         ),
       );
-      const rows = rail.clientHeight >= 150 ? 2 : 1;
+      // In the narrow lane, give the selected ring the available height.
+      // Stacking a second row makes both rings small despite the tall column.
+      const rows = rail.clientWidth >= 240 && rail.clientHeight >= 150 ? 2 : 1;
       setCompactGrid((current) =>
         current.columns === columns && current.rows === rows
           ? current

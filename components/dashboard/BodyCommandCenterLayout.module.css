@@ -748,7 +748,9 @@
    Share its height evenly and size both rings to the remaining room. */
 @container body-controls (max-width: 239px) {
   .controlsLayout {
-    --control-ring-size: clamp(44px, calc((100cqh - 88px) / 2), 64px);
+    --control-ring-size: clamp(44px, min(calc(100cqw - 16px), calc((100cqh - 88px) / 2)), 108px);
+    --body-control-ring-size: var(--control-ring-size);
+    --body-control-slot-size: calc(var(--control-ring-size) + 8px);
   }
 
   .categorySelector {
@@ -762,10 +764,11 @@
   .categoryBody { display: flex; flex-direction: column; flex: 1; min-height: 0; }
   .categoryTrio { flex: 1; min-height: 0; padding: 4px 0; }
   .categoryPreview { display: none; }
-  .categoryRing { width: var(--control-ring-size); height: var(--control-ring-size); }
+  .categoryRing { width: var(--control-ring-size) !important; height: var(--control-ring-size) !important; }
+  .compactMuscleRail { grid-template-columns: var(--body-control-slot-size) !important; }
   .compactMuscles button[aria-haspopup="dialog"] {
-    width: var(--control-ring-size);
-    height: var(--control-ring-size);
+    width: var(--control-ring-size) !important;
+    height: var(--control-ring-size) !important;
   }
 }
 

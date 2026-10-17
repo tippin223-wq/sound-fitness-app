@@ -1,5 +1,12 @@
 # Review Log
 
+## Narrow training controls and Quick Log continuation — 2026-10-17
+
+- Enlarged the narrow Training Areas and Muscle Levels rings using their actual control-column width and height, up to 108px. Narrow muscle selectors show one complete active ring with the existing title-side arrows; wider layouts retain their multi-ring arrangement.
+- Quick Log now advances from exercise selection to a dedicated stats-entry step, focuses the selected exercise heading, and provides Change exercise without clearing entered values. The exercise picker has a bounded scroll area, larger gaps, readable wrapping names and keyboard focus outlines.
+- Preserved the existing account-scoped manual-stat save, review, conflict and retry guards. All 996 existing planning checks and three new tests exercising the actual selection/open/change callbacks pass; the new regressions are included in test:planning. Production compilation, TypeScript and page generation pass. Scoped lint finishes with zero errors and 151 warnings in the existing large dashboard components. Browser visual verification is pending because the in-app browser cannot attach a preview tab in this task; local Next.js is running on port 3000.
+- Changes are local; TrainerHub and unrelated edits are preserved.
+
 ## 2026-10-12 Sound Fitness product family
 
 - The main Sound Fitness app is the parent product for Angles, Steady, Run Tracker, Graduate, and Soundworld Arcade.
