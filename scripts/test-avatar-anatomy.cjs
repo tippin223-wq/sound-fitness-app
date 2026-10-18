@@ -35,12 +35,62 @@ test('adult model preserves named appearance parts and balanced body landmarks',
   const height=head.max.y-sole.min.y,headHeight=head.max.y-head.min.y;
   assert.ok(parts.get('head sculpt').geometry.getAttribute('position').count>=4000,'authored facial topology');
   assert.match(parts.get('head sculpt').userData.source,/MakeHuman Community/);
-  assert.ok(height/headHeight>7 && height/headHeight<8,`head ratio ${height/headHeight}`);
+  assert.ok(height/headHeight>6.7 && height/headHeight<7.2,`enlarged adult head ratio ${height/headHeight}`);
   assert.ok(box('left hand').min.y<1.7);
   assert.ok(box('left forearm').min.y>box('left hand').min.y);
   assert.ok(box('neck').max.y>head.min.y);
   for(const name of ['left upper arm','right upper arm','left forearm','right forearm','left thigh','right thigh','left shin','right shin','sound crest cyan diagonal'])assert.ok(parts.has(name),name);
   assert.ok(parts.get('left hand').geometry.getAttribute('position').count>500,'palm and individual fingers');
+});
+
+test('idle motion has brief complete blinks, bounded secondary motion and a neutral reduced-motion frame',()=>{
+  const motionCode=ts.transpileModule(fs.readFileSync('components/dashboard/soundFitnessAvatarMotion.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  const motionApi={};new Function('exports',motionCode)(motionApi);
+  const frame=motionApi.soundFitnessAvatarIdleMotion;
+  assert.ok(frame(3.175,true).blink>.999);
+  assert.equal(frame(3,true).blink,0);
+  assert.equal(frame(3.35,true).blink,0);
+  assert.ok(frame(7.835,true).blink>.999,'occasional double blink');
+  for(let t=0;t<24;t+=.01){
+    const sample=frame(t,true);
+    assert.ok(Object.values(sample).every(Number.isFinite));
+    assert.ok(sample.blink>=0&&sample.blink<=1);
+    assert.ok(Math.abs(sample.headYaw)<=.034);
+    assert.ok(Math.abs(sample.weightShift)<=.012);
+    assert.ok(Math.abs(sample.breath)<=1);
+  }
+  assert.ok(Object.values(frame(3.175,false)).every(value=>value===0),'all autonomous motion stops');
+  assert.notEqual(frame(1,true).breath,frame(3,true).breath);
+  assert.deepEqual(frame(3.175,true),frame(3.175,true),'stable frame independent of refresh rate');
+});
+
+test('actual render loop animates the face and chest, preserves emotes, and stops idle movement when paused or reduced',()=>{
+  const renderer=fs.readFileSync('components/dashboard/SoundFitnessAvatar3D.tsx','utf8');
+  const ast=ts.createSourceFile('avatar.tsx',renderer,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),nodes={};
+  function visit(node){if(ts.isVariableDeclaration(node)&&['render','restPose','emotePoses'].includes(node.name.getText(ast)))nodes[node.name.getText(ast)]=node.initializer;ts.forEachChild(node,visit);}visit(ast);
+  const motionApi={};new Function('exports',ts.transpileModule(fs.readFileSync('components/dashboard/soundFitnessAvatarMotion.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(motionApi);
+  const vector=()=>({x:0,y:0,z:0,set(x,y,z){this.x=x;this.y=y;this.z=z;}});
+  const joint=()=>({position:vector(),rotation:vector(),scale:vector()});
+  const head=joint(),left=joint(),right=joint(),torso=joint(),hips=joint(),root=joint(),lid=joint(),feature=joint();
+  const state={active:true,paused:false,view:'front',emotePreset:'calm',appearance:{body:'male'}},reducedMotion={matches:false};
+  let frames=0;
+  const env={...motionApi,disposed:false,latest:{current:state},lastTime:0,idleSeconds:3.1,yaw:-.08,pose:{head:[0,0,0],leftArm:[.025,.22],rightArm:[.025,-.22]},reducedMotion,root,canvas:{},setDashboardWebGlCanvasActive:()=>{},headPivot:head,leftArmPivot:left,rightArmPivot:right,torsoPivot:torso,hipsPivot:hips,upperBodyJoints:[head,left,right].map(joint=>({joint,restY:3})),eyelids:[{lid,height:.015,centerY:3.2}],facialFeatures:[{mesh:feature,base:{x:.05,y:3.2},eyebrow:false}],elbows:[joint(),joint()],legPivots:[{hip:joint(),knee:joint()}],SOUND_AVATAR_BASE_Y:-1.18,highlightFadeStart:null,gl:{render:()=>frames++},scene:{},camera:{},window:{requestAnimationFrame:()=>1},animationFrame:0};
+  const exported={};
+  const code=ts.transpileModule(`const restPose=${nodes.restPose.getText(ast)};const emotePoses=${nodes.emotePoses.getText(ast)};const render=${nodes.render.getText(ast)};exports.render=render;`,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+  new Function('exports',...Object.keys(env),code)(exported,...Object.values(env));
+  exported.render(50);
+  assert.ok(lid.visible,'actual eyelid closes during blink');
+  assert.notEqual(torso.scale.z,1,'chest breathes');
+  assert.notEqual(head.rotation.y,0,'head looks around');
+  assert.notEqual(feature.position.x,.05,'eyes shift gaze');
+  reducedMotion.matches=true;exported.render(100);
+  assert.equal(lid.visible,false);assert.equal(torso.scale.z,1);assert.equal(head.rotation.y,0);
+  assert.equal(left.rotation.z,.22,'neutral arms stay close to the body');
+  state.emotePreset='wave';exported.render(150);
+  assert.equal(right.rotation.z,2.35,'explicit wave still articulates');
+  reducedMotion.matches=false;state.paused=true;state.emotePreset='calm';exported.render(200);
+  assert.equal(lid.visible,false);assert.equal(torso.rotation.z,0);assert.equal(feature.position.x,.05);
+  assert.equal(frames,4);
 });
 
 test('muscle surfaces cover every selection with finite, fitted front/back geometry on both body profiles',async()=>{

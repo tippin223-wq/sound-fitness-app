@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { createSoundFitnessMuscleOverlays, isAvatarMuscleSelected, type AvatarMuscleOverlay } from "./soundFitnessAvatarAnatomy";
+import { soundFitnessAvatarIdleMotion } from "./soundFitnessAvatarMotion";
 import type {
   BufferGeometry,
   Group,
@@ -81,7 +82,7 @@ type ThreeModule = typeof import("three");
 type MaterialObject = Object3D & { material?: Material | Material[] };
 type GeometryObject = Object3D & { geometry?: BufferGeometry };
 
-const SOUND_AVATAR_MODEL_URL = "/models/sound-avatar.glb?v=athlete-anatomy-v3";
+const SOUND_AVATAR_MODEL_URL = "/models/sound-avatar.glb?v=athlete-lifelike-v4";
 const SOUND_AVATAR_MODEL_SCALE = 0.79;
 const SOUND_AVATAR_BASE_Y = -1.18;
 // Highlight shells fade over this long when the glow turns off; bounded, so
@@ -99,7 +100,7 @@ const PELVIS_PROFILES: Record<"male" | "female", LatheProfile> = {
   male: [[0,1.64],[.27,1.64],[.35,1.73],[.37,1.84],[.34,1.96],[.30,2.04],[0,2.04]],
   female: [[0,1.64],[.28,1.64],[.38,1.73],[.40,1.84],[.35,1.96],[.29,2.04],[0,2.04]],
 };
-const SLEEVE_PROFILE: LatheProfile = [[0,-.35],[.09,-.35],[.105,-.30],[.125,-.17],[.145,-.02],[.145,.06],[.105,.13],[0,.15]];
+const SLEEVE_PROFILE: LatheProfile = [[0,-.35],[.082,-.35],[.094,-.30],[.108,-.17],[.123,-.02],[.12,.06],[.091,.13],[0,.15]];
 const THIGH_PROFILE: LatheProfile = [[0,.97],[.09,.97],[.105,1.02],[.14,1.14],[.17,1.35],[.175,1.58],[.16,1.76],[.12,1.84],[0,1.84]];
 const SHIN_PROFILE: LatheProfile = [[0,.12],[.058,.12],[.065,.20],[.08,.36],[.115,.58],[.125,.73],[.10,.89],[.09,1.01],[0,1.01]];
 const CREST_ONLY_SHIRT_DECORATION_NAMES = [
@@ -302,7 +303,7 @@ type EmotePose = {
   rightArm: [number, number];
 };
 
-const restPose: EmotePose = { head: [0, 0, 0], leftArm: [0, 0], rightArm: [0, 0] };
+const restPose: EmotePose = { head: [0, 0, 0], leftArm: [0.025, 0.22], rightArm: [0.025, -0.22] };
 
 // Arm pivots sit at the shoulder joint; z rotates the arm out to the side
 // (right arm positive, left negative raises), x swings it forward.
@@ -311,9 +312,9 @@ const emotePoses: Record<SoundFitnessAvatarEmotePreset, EmotePose> = {
   celebrate: { head: [-0.08, 0, 0], leftArm: [0, -2.55], rightArm: [0, 2.55] },
   focus: { head: [0.16, 0, 0], leftArm: [0.38, -0.12], rightArm: [0.38, 0.12] },
   nod: restPose,
-  salute: { head: [0, 0, 0], leftArm: [0, 0], rightArm: [0.95, 1.85] },
+  salute: { head: [0, 0, 0], leftArm: restPose.leftArm, rightArm: [0.95, 1.85] },
   stretch: { head: [-0.14, 0, 0], leftArm: [0, -2.95], rightArm: [0, 2.95] },
-  wave: { head: [0, 0, 0.08], leftArm: [0, 0], rightArm: [0, 2.35] },
+  wave: { head: [0, 0, 0.08], leftArm: restPose.leftArm, rightArm: [0, 2.35] },
 };
 
 export default function SoundFitnessAvatar3D({
@@ -865,6 +866,21 @@ export default function SoundFitnessAvatar3D({
         const faceDetailGroup: Group = new THREE.Group();
         faceDetailGroup.name = "face details";
         headAttachGroup.add(faceDetailGroup);
+        // Skin-coloured upper lids cover the actual eye geometry during a blink.
+        // They share the skin material and head pivot, including all appearance changes.
+        const eyelids = ["left", "right"].flatMap((side) => {
+          const eye = partBox(`${side} eye white`);
+          if (!eye || !headSculpt) return [];
+          const lid = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), headSculpt.material);
+          const height = (eye.max.y - eye.min.y) * 0.58;
+          const centerY = (eye.min.y + eye.max.y) / 2;
+          lid.name = `${side} blinking eyelid`;
+          lid.position.set((eye.min.x + eye.max.x) / 2, centerY, eye.max.z + 0.007);
+          lid.scale.set((eye.max.x - eye.min.x) * 0.57, height, 0.009);
+          lid.visible = false;
+          headAttachGroup.add(lid);
+          return [{ lid, height, centerY }];
+        });
         const buildFaceDetails = (appearanceNow: SoundFitnessAvatarAppearance) => {
           disposeObject(faceDetailGroup);
           faceDetailGroup.clear();
@@ -1373,7 +1389,15 @@ export default function SoundFitnessAvatar3D({
         let animationFrame = 0;
         let lastTime = performance.now();
         let yaw = latest.current.view === "back" ? Math.PI - 0.08 : -0.08;
-        const pose = { head: [0, 0, 0], leftArm: [0, 0], rightArm: [0, 0] };
+        const pose = { head: [...restPose.head], leftArm: [...restPose.leftArm], rightArm: [...restPose.rightArm] };
+        let idleSeconds = 0;
+        const upperBodyJoints = [headPivot, leftArmPivot, rightArmPivot].map(joint => ({ joint, restY: joint.position.y }));
+        const facialFeatures = ["left", "right"].flatMap(side =>
+          ["iris", "pupil", "eyebrow"].map(feature => {
+            const name = `${side} ${feature}`;
+            return { mesh: part(name), base: basePositions.get(name), eyebrow: feature === "eyebrow" };
+          }),
+        );
         const render = (time: number) => {
           if (disposed) return;
           const state = latest.current;
@@ -1383,18 +1407,20 @@ export default function SoundFitnessAvatar3D({
           setDashboardWebGlCanvasActive(canvas, live);
           const seconds = time / 1000;
           const still = reducedMotion.matches || !live;
+          if (!still) idleSeconds += dt;
+          const idle = soundFitnessAvatarIdleMotion(idleSeconds, !still);
           const ease = still ? 1 : 1 - Math.exp(-dt * 7);
 
           const targetYaw = state.view === "back" ? Math.PI - 0.08 : -0.08;
           yaw += (targetYaw - yaw) * (still ? 1 : 1 - Math.exp(-dt * 5));
-          const sway = still ? 0 : Math.sin(seconds * 0.7) * 0.045;
+          const sway = idle.weightShift * 0.65;
           root.rotation.y = yaw + sway;
 
           const target = emotePoses[state.emotePreset] ?? restPose;
-          let bob = still ? 0 : Math.sin(seconds * 1.45) * 0.014;
+          let bob = idle.breath * 0.002;
           let leftZ = target.leftArm[1];
           let rightZ = target.rightArm[1];
-          let headX = target.head[0];
+          let headX = target.head[0] + idle.headPitch;
           if (!still) {
             switch (state.emotePreset) {
               case "wave":
@@ -1417,16 +1443,33 @@ export default function SoundFitnessAvatar3D({
                 break;
             }
           }
-          pose.leftArm[0] += (target.leftArm[0] - pose.leftArm[0]) * ease;
+          pose.leftArm[0] += (target.leftArm[0] + idle.armSwing - pose.leftArm[0]) * ease;
           pose.leftArm[1] += (leftZ - pose.leftArm[1]) * ease;
-          pose.rightArm[0] += (target.rightArm[0] - pose.rightArm[0]) * ease;
+          pose.rightArm[0] += (target.rightArm[0] - idle.armSwing * 0.7 - pose.rightArm[0]) * ease;
           pose.rightArm[1] += (rightZ - pose.rightArm[1]) * ease;
           pose.head[0] += (headX - pose.head[0]) * ease;
-          pose.head[1] += (target.head[1] - pose.head[1]) * ease;
-          pose.head[2] += (target.head[2] - pose.head[2]) * ease;
+          pose.head[1] += (target.head[1] + idle.headYaw - pose.head[1]) * ease;
+          pose.head[2] += (target.head[2] + idle.headRoll - pose.head[2]) * ease;
           leftArmPivot.rotation.set(pose.leftArm[0], 0, pose.leftArm[1]);
           rightArmPivot.rotation.set(pose.rightArm[0], 0, pose.rightArm[1]);
           headPivot.rotation.set(pose.head[0], pose.head[1], pose.head[2]);
+          // Breathe through the chest instead of floating the entire athlete.
+          torsoPivot.scale.set(1 + idle.breath * 0.002, 1 + idle.breath * 0.0015, 1 + idle.breath * 0.008);
+          torsoPivot.rotation.z = idle.weightShift;
+          hipsPivot.rotation.z = -idle.weightShift * 0.25;
+          for (const { joint, restY } of upperBodyJoints) joint.position.y = restY + idle.breath * 0.003;
+          for (const { lid, height, centerY } of eyelids) {
+            const eyeScale = state.appearance.body === "female" ? 1.1 : 1;
+            lid.visible = idle.blink > 0.001;
+            lid.scale.y = height * eyeScale * Math.max(0.001, idle.blink);
+            lid.position.y = centerY + height * eyeScale * (1 - idle.blink);
+          }
+          for (const { mesh, base, eyebrow } of facialFeatures) {
+            if (mesh && base) {
+              mesh.position.x = base.x + (eyebrow ? 0 : idle.gaze);
+              mesh.position.y = base.y + (eyebrow ? idle.brow : 0);
+            }
+          }
           const elbowBend=state.emotePreset==="focus" ? -.65 : state.emotePreset==="stretch" ? -.2 : -.08;
           elbows[0].rotation.x += (elbowBend-elbows[0].rotation.x)*ease;
           const rightBend=state.emotePreset==="wave" || state.emotePreset==="salute" ? -1.0 : elbowBend;

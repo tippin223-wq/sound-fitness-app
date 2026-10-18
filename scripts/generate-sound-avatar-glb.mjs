@@ -250,6 +250,13 @@ crown.geometry.dispose();
 crown.geometry=new SphereGeometry(1,40,24,0,Math.PI*2,0,Math.PI*.55);
 crown.position.set(0,3.27,.005);
 crown.scale.set(.17,.14,.165);
+// Enlarge the complete head about the neck, keeping the eyes, brows and cap fitted.
+for (const mesh of avatar.children) {
+  if (["head sculpt", "face highlight", "cheek", "hair", "crown", "temple", "eye white", "eyebrow", "iris", "pupil"].some(fragment => mesh.name.includes(fragment))) {
+    mesh.position.set(mesh.position.x * 1.1, 2.98 + (mesh.position.y - 2.98) * 1.1, .02 + (mesh.position.z - .02) * 1.1);
+    mesh.scale.multiplyScalar(1.1);
+  }
+}
 const limb = (profile) => new LatheGeometry(profile.map(([r,y])=>new Vector2(r,y)),32);
 place("hips",[0,1.8,0],[.36,.23,.24]);
 place("torso shirt core",[0,2.35,0],[.45,.52,.25]);

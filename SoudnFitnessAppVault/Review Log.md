@@ -1,5 +1,11 @@
 # Review Log
 
+## Avatar proportion and idle-life refinement — 2026-10-17
+
+- Enlarged the complete authored head by 10% about the neck, including eyes, brows and hair cap. The model now measures about 6.8 head heights. Slimmed the procedural sleeves by roughly 15% and brought neutral arms inward, while retaining the explicit emote poses.
+- Added chest breathing, gentle torso/hip weight shifts, small head turns and tilts, asynchronous arm sway, gaze and brow movement, and skin-coloured animated upper eyelids with occasional double blinks. The idle clock advances only while active; pause and reduced-motion show a neutral static pose. Movements update existing scene objects without React state updates. Accessories and fitted muscle surfaces remain attached to their parent joints.
+- Five avatar checks pass, including actual render-loop behavior for blinking/breathing/gaze, explicit wave preservation, pause/reduced-motion, both body-profile surface fits and selection persistence. Production compilation, TypeScript and page generation pass; scoped lint has zero errors and two existing warnings. Browser visual review is blocked by the in-app preview failing to attach a tab. Changes remain local; unrelated TrainerHub edits are preserved.
+
 ## Narrow training controls and Quick Log continuation — 2026-10-17
 
 - Enlarged the narrow Training Areas and Muscle Levels rings using their actual control-column width and height, up to 108px. Narrow muscle selectors show one complete active ring with the existing title-side arrows; wider layouts retain their multi-ring arrangement.
