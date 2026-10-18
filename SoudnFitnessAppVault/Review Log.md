@@ -1,5 +1,12 @@
 # Review Log
 
+## Natural joint contours and neutral hands — 2026-10-18
+
+- Lowered and narrowed the shoulder landmarks and sleeve caps to create a neck-to-shoulder slope. Reshaped the pelvis to reduce the rounded hip shelf, slimmed knee transitions, and tapered the ankle cuffs into the shoes. Narrower standing arm angles retain clearance beside the hips.
+- Rebuilt upper-arm/forearm contours as connected skinned surfaces and placed each elbow pivot from its actual forearm transform instead of the former fixed horizontal offset. Arm muscle highlights bind to these same surfaces. Rotated palms toward the thighs with thumbs forward and added a small relaxed finger curl; wristband selections are preserved.
+- All seven avatar tests pass, including inward-palm/forward-thumb orientation, connected elbow geometry, highlight clearance, cloth continuity, both body profiles and retained motion. Production compilation, TypeScript and route generation pass. Scoped lint has zero errors and the renderer's two existing warnings. Verified the revised silhouette and hands in the actual local dashboard; proof is test-results/avatar-joint-alignment.png.
+- Saved locally for review; no production, TrainerHub or unrelated changes.
+
 ## Continuous avatar garments and visible resting sway — 2026-10-18
 
 - Replaced the visible torso/sleeve and pelvis/thigh/shin pieces with one connected skinned shirt surface and one connected skinned pants surface. Smooth volume unions blend the shoulder, hip and knee joins; the original fitted parts remain available for hit testing. Clothing follows the existing joints and appearance palettes without rebuilding on color changes.

@@ -8,6 +8,7 @@ export function createSoundFitnessGarment(
   sources: GarmentPart[],
   material: Three.Material,
   name: string,
+  blend = .055,
 ) {
   root.updateMatrixWorld(true);
   const rootInverse = new THREE.Matrix4().copy(root.matrixWorld).invert();
@@ -42,7 +43,6 @@ export function createSoundFitnessGarment(
       sample.y - profile[profile.length - 1][1],
     );
   });
-  const blend = .055;
   const field = (x: number, y: number, z: number) => distances(x, y, z).reduce((a, b) => {
     const h = Math.max(0, blend - Math.abs(a - b)) / blend;
     return Math.min(a, b) - h * h * blend * .25;

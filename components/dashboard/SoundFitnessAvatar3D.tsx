@@ -83,7 +83,7 @@ type ThreeModule = typeof import("three");
 type MaterialObject = Object3D & { material?: Material | Material[] };
 type GeometryObject = Object3D & { geometry?: BufferGeometry };
 
-const SOUND_AVATAR_MODEL_URL = "/models/sound-avatar.glb?v=athlete-lifelike-v4";
+const SOUND_AVATAR_MODEL_URL = "/models/sound-avatar.glb?v=athlete-joints-v5";
 const SOUND_AVATAR_MODEL_SCALE = 0.79;
 const SOUND_AVATAR_BASE_Y = -1.18;
 // Highlight shells fade over this long when the glow turns off; bounded, so
@@ -94,16 +94,18 @@ const HIGHLIGHT_FADE_MS = 350;
 // pelvis come in two cuts that carry the body profile.
 type LatheProfile = Array<[number, number]>;
 const TEE_PROFILES: Record<"male" | "female", LatheProfile> = {
-  male: [[0,1.83],[.30,1.83],[.33,1.91],[.31,2.05],[.33,2.20],[.40,2.42],[.46,2.65],[.45,2.74],[.34,2.83],[.15,2.88],[0,2.88]],
-  female: [[0,1.87],[.29,1.87],[.30,1.98],[.27,2.10],[.30,2.27],[.37,2.48],[.40,2.65],[.39,2.75],[.29,2.84],[.14,2.88],[0,2.88]],
+  male: [[0,1.83],[.30,1.83],[.32,1.91],[.31,2.05],[.33,2.20],[.39,2.42],[.43,2.62],[.40,2.73],[.30,2.83],[.15,2.88],[0,2.88]],
+  female: [[0,1.87],[.29,1.87],[.30,1.98],[.27,2.10],[.30,2.27],[.36,2.48],[.38,2.63],[.35,2.74],[.27,2.84],[.14,2.88],[0,2.88]],
 };
 const PELVIS_PROFILES: Record<"male" | "female", LatheProfile> = {
-  male: [[0,1.64],[.27,1.64],[.35,1.73],[.37,1.84],[.34,1.96],[.30,2.04],[0,2.04]],
-  female: [[0,1.64],[.28,1.64],[.38,1.73],[.40,1.84],[.35,1.96],[.29,2.04],[0,2.04]],
+  male: [[0,1.57],[.14,1.63],[.26,1.70],[.33,1.81],[.32,1.93],[.30,2.04],[0,2.04]],
+  female: [[0,1.57],[.15,1.63],[.28,1.70],[.36,1.81],[.33,1.93],[.29,2.04],[0,2.04]],
 };
-const SLEEVE_PROFILE: LatheProfile = [[0,-.35],[.082,-.35],[.094,-.30],[.108,-.17],[.123,-.02],[.12,.06],[.091,.13],[0,.15]];
-const THIGH_PROFILE: LatheProfile = [[0,.92],[.092,.95],[.10,1.02],[.14,1.14],[.17,1.35],[.175,1.58],[.16,1.76],[.12,1.84],[0,1.84]];
-const SHIN_PROFILE: LatheProfile = [[0,.12],[.058,.12],[.065,.20],[.08,.36],[.105,.58],[.11,.73],[.10,.89],[.10,1.04],[0,1.08]];
+const SLEEVE_PROFILE: LatheProfile = [[0,-.33],[.076,-.33],[.085,-.28],[.10,-.16],[.108,-.04],[.095,.02],[.06,.055],[0,.08]];
+const THIGH_PROFILE: LatheProfile = [[0,.91],[.079,.95],[.085,1.02],[.112,1.14],[.145,1.35],[.16,1.58],[.15,1.76],[.115,1.86],[0,1.90]];
+const SHIN_PROFILE: LatheProfile = [[0,.12],[.047,.15],[.052,.23],[.065,.36],[.087,.55],[.099,.68],[.094,.79],[.080,.94],[.080,1.04],[0,1.09]];
+const UPPER_ARM_PROFILE: LatheProfile = [[0,-.28],[.045,-.26],[.058,-.21],[.08,-.10],[.088,.06],[.08,.17],[.055,.25],[0,.27]];
+const FOREARM_PROFILE: LatheProfile = [[0,-.25],[.038,-.23],[.044,-.17],[.055,-.05],[.069,.10],[.06,.20],[.045,.25],[0,.27]];
 const CREST_ONLY_SHIRT_DECORATION_NAMES = [
   "performance seam",
   "performance piping",
@@ -304,7 +306,7 @@ type EmotePose = {
   rightArm: [number, number];
 };
 
-const restPose: EmotePose = { head: [0, 0, 0], leftArm: [0.025, 0.22], rightArm: [0.025, -0.22] };
+const restPose: EmotePose = { head: [0, 0, 0], leftArm: [0.025, 0.12], rightArm: [0.025, -0.12] };
 
 // Arm pivots sit at the shoulder joint; z rotates the arm out to the side
 // (right arm positive, left negative raises), x swings it forward.
@@ -550,8 +552,11 @@ export default function SoundFitnessAvatar3D({
         const elbows = [leftArmPivot, rightArmPivot].map((armPivot, index) => {
           const side = index === 0 ? "left" : "right";
           const forearm = partBox(side + " forearm");
-          const elbow = makePivot(side + " elbow pivot", index===0 ? -.63 : .63,
-            forearm?.max.y ?? 2.26, 0, [side+" forearm",side+" wrist band",side+" hand"]);
+          const location = new THREE.Vector3(0, .24, 0);
+          const rest = partRestMatrices.get(side + " forearm");
+          if (rest) location.applyMatrix4(rest);
+          else location.set(index === 0 ? -.55 : .55, (forearm?.max.y ?? 2.28) - .04, 0);
+          const elbow = makePivot(side + " elbow pivot", location.x, location.y, location.z, [side+" forearm",side+" wrist band",side+" hand"]);
           armPivot.attach(elbow);
           return elbow;
         });
@@ -1181,9 +1186,10 @@ export default function SoundFitnessAvatar3D({
           const source = (name: string, profile: LatheProfile, depth: number) => ({ mesh: part(name)!, profile, depth });
           garments = [
             createSoundFitnessGarment(THREE, root, [source("torso shirt core", TEE_PROFILES[female ? "female" : "male"], .6), ...SHOULDERS.map(name => source(name, SLEEVE_PROFILE, 1))], shirtMaterial, "continuous performance shirt"),
-            createSoundFitnessGarment(THREE, root, [source("hips", PELVIS_PROFILES[female ? "female" : "male"], female ? .7 : .66), ...["left", "right"].flatMap(side => [source(`${side} thigh`, THIGH_PROFILE, .92), source(`${side} shin`, SHIN_PROFILE, .92)])], joggerMaterial, "continuous training pants"),
+            createSoundFitnessGarment(THREE, root, [source("hips", PELVIS_PROFILES[female ? "female" : "male"], female ? .7 : .66), ...["left", "right"].flatMap(side => [source(`${side} thigh`, THIGH_PROFILE, .92), source(`${side} shin`, SHIN_PROFILE, .92)])], joggerMaterial, "continuous training pants", .035),
+            ...["left", "right"].map(side => createSoundFitnessGarment(THREE, root, [source(`${side} upper arm`, UPPER_ARM_PROFILE, 1), source(`${side} forearm`, FOREARM_PROFILE, 1)], materialsByName.get("warm athletic skin")!, `${side} continuous arm`, .018)),
           ];
-          for (const name of ["torso shirt core", "hips", ...SHOULDERS, ...THIGHS, ...SHINS]) {
+          for (const name of ["torso shirt core", "hips", ...SHOULDERS, ...THIGHS, ...SHINS, "left upper arm", "right upper arm", "left forearm", "right forearm"]) {
             const mesh = part(name)!;
             // Keep the source's children and raycast surface available; only
             // its own render material is hidden beneath the sewn garment.
@@ -1211,7 +1217,8 @@ export default function SoundFitnessAvatar3D({
             anatomy = anatomy.map(overlay => {
               const part = overlay.definition.part;
               const garment = part === "torso shirt core" || SHOULDERS.includes(part) ? garments[0]
-                : part === "hips" || THIGHS.includes(part) || SHINS.includes(part) ? garments[1] : null;
+                : part === "hips" || THIGHS.includes(part) || SHINS.includes(part) ? garments[1]
+                : part.endsWith("upper arm") || part.endsWith("forearm") ? garments[part.startsWith("left") ? 2 : 3] : null;
               return garment ? { ...overlay, mesh: garment.bindOverlay(overlay.mesh) } : overlay;
             });
             anatomyBody = body;
@@ -1222,7 +1229,7 @@ export default function SoundFitnessAvatar3D({
             const source=parts.get(definition.part)!;
             const material=source.material as MeshStandardMaterial;
             if (source.userData.garmentProxy) material.color.copy(
-              (source.name === "hips" || source.name.includes("thigh") || source.name.includes("shin") ? joggerMaterial : shirtMaterial).color,
+              (source.name === "hips" || source.name.includes("thigh") || source.name.includes("shin") ? joggerMaterial : source.name.endsWith("arm") ? materialsByName.get("warm athletic skin")! : shirtMaterial).color,
             );
             mesh.userData.neutralColor=material.color.clone().lerp(new THREE.Color("#8ba2b5"),.14);
           }

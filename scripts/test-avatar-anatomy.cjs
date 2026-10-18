@@ -18,12 +18,12 @@ async function sceneParts() {
   const ast=ts.createSourceFile('avatar.tsx',rendererSource,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
   const declarations=[];
   function visit(node) {
-    if(ts.isVariableDeclaration(node)&&['TEE_PROFILES','PELVIS_PROFILES','SLEEVE_PROFILE','THIGH_PROFILE','SHIN_PROFILE','sculptBust'].includes(node.name.getText(ast)))declarations.push('const '+node.getText(ast)+';');
+    if(ts.isVariableDeclaration(node)&&['TEE_PROFILES','PELVIS_PROFILES','SLEEVE_PROFILE','THIGH_PROFILE','SHIN_PROFILE','UPPER_ARM_PROFILE','FOREARM_PROFILE','sculptBust'].includes(node.name.getText(ast)))declarations.push('const '+node.getText(ast)+';');
     ts.forEachChild(node,visit);
   }
   visit(ast);
   const profiles={};
-  new Function('exports',ts.transpileModule(declarations.join('\n')+'\nexports.data={TEE_PROFILES,PELVIS_PROFILES,SLEEVE_PROFILE,THIGH_PROFILE,SHIN_PROFILE,sculptBust};',{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(profiles);
+  new Function('exports',ts.transpileModule(declarations.join('\n')+'\nexports.data={TEE_PROFILES,PELVIS_PROFILES,SLEEVE_PROFILE,THIGH_PROFILE,SHIN_PROFILE,UPPER_ARM_PROFILE,FOREARM_PROFILE,sculptBust};',{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(profiles);
   return {THREE,parts,profiles:profiles.data,scene};
 }
 
@@ -41,6 +41,27 @@ test('adult model preserves named appearance parts and balanced body landmarks',
   assert.ok(box('neck').max.y>head.min.y);
   for(const name of ['left upper arm','right upper arm','left forearm','right forearm','left thigh','right thigh','left shin','right shin','sound crest cyan diagonal'])assert.ok(parts.has(name),name);
   assert.ok(parts.get('left hand').geometry.getAttribute('position').count>500,'palm and individual fingers');
+});
+
+test('relaxed hands face inward with forward thumbs and elbow surfaces form one continuous arm',async()=>{
+  const {THREE,parts,profiles,scene}=await sceneParts();
+  scene.updateMatrixWorld(true);
+  const garmentApi={};new Function('exports',ts.transpileModule(fs.readFileSync('components/dashboard/soundFitnessAvatarGarments.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(garmentApi);
+  const skin=new THREE.MeshStandardMaterial();
+  for(const [side,sign] of [['left',-1],['right',1]]) {
+    const hand=parts.get(side+' hand'),palm=new THREE.Vector3(0,0,1).transformDirection(hand.matrixWorld),thumb=new THREE.Vector3(sign,0,0).transformDirection(hand.matrixWorld);
+    assert.ok(palm.x*-sign>.9,'palm faces the thigh');assert.ok(thumb.z>.9,'thumb points forward');
+    const upper=new THREE.Box3().setFromObject(parts.get(side+' upper arm')),forearm=new THREE.Box3().setFromObject(parts.get(side+' forearm'));
+    assert.ok(forearm.max.y-upper.min.y>.03,'joint surfaces overlap at the actual elbow');
+    const arm=garmentApi.createSoundFitnessGarment(THREE,scene,[{mesh:parts.get(side+' upper arm'),profile:profiles.UPPER_ARM_PROFILE,depth:1},{mesh:parts.get(side+' forearm'),profile:profiles.FOREARM_PROFILE,depth:1}],skin,'test continuous arm',.018);
+    const indices=arm.mesh.geometry.index.array,count=arm.mesh.geometry.getAttribute('position').count,adjacency=Array.from({length:count},()=>new Set());
+    for(let i=0;i<indices.length;i+=3){const a=indices[i],b=indices[i+1],c=indices[i+2];adjacency[a].add(b).add(c);adjacency[b].add(a).add(c);adjacency[c].add(a).add(b);}
+    const reached=new Set([0]),queue=[0];while(queue.length)for(const next of adjacency[queue.pop()])if(!reached.has(next)){reached.add(next);queue.push(next);}
+    assert.equal(reached.size,count,'no detached elbow pieces');arm.dispose();
+  }
+  assert.ok(Math.max(...profiles.SLEEVE_PROFILE.map(([r])=>r))<.115,'soft sleeve cap');
+  assert.ok(2.88-(2.72+profiles.SLEEVE_PROFILE.at(-1)[1])>.07,'shoulder slopes down from collar');
+  skin.dispose();
 });
 
 test('idle motion has brief complete blinks, bounded secondary motion and a neutral reduced-motion frame',()=>{
@@ -74,7 +95,7 @@ test('actual render loop animates the face and chest, preserves emotes, and stop
   const head=joint(),left=joint(),right=joint(),torso=joint(),hips=joint(),root=joint(),lid=joint(),feature=joint();
   const state={active:true,paused:false,view:'front',emotePreset:'calm',appearance:{body:'male'}},reducedMotion={matches:false};
   let frames=0;
-  const env={...motionApi,disposed:false,latest:{current:state},lastTime:0,idleSeconds:3.1,yaw:-.08,pose:{head:[0,0,0],leftArm:[.025,.22],rightArm:[.025,-.22]},reducedMotion,root,canvas:{},setDashboardWebGlCanvasActive:()=>{},headPivot:head,leftArmPivot:left,rightArmPivot:right,torsoPivot:torso,hipsPivot:hips,torsoCentre:[0,2.35,0],garments:[],upperBodyJoints:[head,left,right].map(joint=>({joint,restX:0,restY:3})),eyelids:[{lid,height:.015,centerY:3.2}],facialFeatures:[{mesh:feature,base:{x:.05,y:3.2},eyebrow:false}],elbows:[joint(),joint()],legPivots:[{hip:joint(),knee:joint()}],SOUND_AVATAR_BASE_Y:-1.18,highlightFadeStart:null,gl:{render:()=>frames++},scene:{},camera:{},window:{requestAnimationFrame:()=>1},animationFrame:0};
+  const env={...motionApi,disposed:false,latest:{current:state},lastTime:0,idleSeconds:3.1,yaw:-.08,pose:{head:[0,0,0],leftArm:[.025,.12],rightArm:[.025,-.12]},reducedMotion,root,canvas:{},setDashboardWebGlCanvasActive:()=>{},headPivot:head,leftArmPivot:left,rightArmPivot:right,torsoPivot:torso,hipsPivot:hips,torsoCentre:[0,2.35,0],garments:[],upperBodyJoints:[head,left,right].map(joint=>({joint,restX:0,restY:3})),eyelids:[{lid,height:.015,centerY:3.2}],facialFeatures:[{mesh:feature,base:{x:.05,y:3.2},eyebrow:false}],elbows:[joint(),joint()],legPivots:[{hip:joint(),knee:joint()}],SOUND_AVATAR_BASE_Y:-1.18,highlightFadeStart:null,gl:{render:()=>frames++},scene:{},camera:{},window:{requestAnimationFrame:()=>1},animationFrame:0};
   const exported={};
   const code=ts.transpileModule(`const restPose=${nodes.restPose.getText(ast)};const emotePoses=${nodes.emotePoses.getText(ast)};const render=${nodes.render.getText(ast)};exports.render=render;`,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   new Function('exports',...Object.keys(env),code)(exported,...Object.values(env));
@@ -87,7 +108,7 @@ test('actual render loop animates the face and chest, preserves emotes, and stop
   assert.equal(root.position.y,-1.18,'the resting sway does not lift the shoes');
   reducedMotion.matches=true;exported.render(100);
   assert.equal(lid.visible,false);assert.equal(torso.scale.z,1);assert.equal(head.rotation.y,0);
-  assert.equal(left.rotation.z,.22,'neutral arms stay close to the body');
+  assert.equal(left.rotation.z,.12,'neutral arms stay close to the body');
   state.emotePreset='wave';exported.render(150);
   assert.equal(right.rotation.z,2.35,'explicit wave still articulates');
   reducedMotion.matches=false;state.paused=true;state.emotePreset='calm';exported.render(200);

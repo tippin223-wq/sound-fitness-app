@@ -263,29 +263,29 @@ place("torso shirt core",[0,2.35,0],[.45,.52,.25]);
 place("neck",[0,2.94,0],[.72,.72,.72]);
 place("upper chest shoulder yoke",[0,2.76,0],[.92,.92,.75]);
 for (const [side,sign] of [["left",-1],["right",1]]) {
-  place(`${side} shoulder`,[sign*.48,2.75,0],[.145,.155,.155]);
+  place(`${side} shoulder`,[sign*.45,2.72,0],[.125,.125,.135]);
   const upper=byName(`${side} upper arm`);
   upper.geometry.dispose();
-  upper.geometry=limb([[0,-.25],[.055,-.25],[.066,-.21],[.09,-.10],[.095,.06],[.086,.17],[.06,.25],[0,.25]]);
-  upper.position.set(sign*.565,2.5,0);
-  upper.rotation.z=sign*.16;
+  upper.geometry=limb([[0,-.28],[.045,-.26],[.058,-.21],[.08,-.10],[.088,.06],[.08,.17],[.055,.25],[0,.27]]);
+  upper.position.set(sign*.51,2.47,0);
+  upper.rotation.z=sign*.12;
   upper.scale.set(1,1,1);
-  add(`${side} forearm`,limb([[0,-.23],[.042,-.23],[.047,-.17],[.058,-.05],[.077,.10],[.075,.18],[.057,.23],[0,.23]]),skin,[sign*.66,2.04,0],[1,1,.92],[0,0,sign*.1]);
-  place(`${side} wrist band`,[sign*.697,1.82,0],[.67,.67,.67]);
+  add(`${side} forearm`,limb([[0,-.25],[.038,-.23],[.044,-.17],[.055,-.05],[.069,.10],[.06,.20],[.045,.25],[0,.27]]),skin,[sign*.565,2.01,0],[1,1,.92],[0,0,sign*.06]);
+  place(`${side} wrist band`,[sign*.595,1.79,0],[.62,.62,.62]);
   const hand=byName(`${side} hand`);
   const palm=sphere(24).scale(.065,.085,.032);
   const handPieces=[palm];
   for (let finger=0;finger<4;finger++) {
     const length=[.13,.16,.15,.12][finger];
-    handPieces.push(capsule(.015,length,8).translate((finger-1.5)*.032,-.085-length/2,.002));
+    handPieces.push(capsule(.014,length,8).rotateX(-.18).translate((finger-1.5)*.030,-.075-length/2,.012));
   }
   handPieces.push(capsule(.018,.10,8).rotateZ(sign*.55).translate(sign*.078,-.045,.015));
   hand.geometry.dispose();
   hand.geometry=mergeGeometries(handPieces);
   handPieces.forEach((geometry)=>geometry.dispose());
-  hand.position.set(sign*.71,1.73,0);
+  hand.position.set(sign*.60,1.70,0);
   hand.scale.set(1,1,1);
-  hand.rotation.z=sign*.06;
+  hand.rotation.set(-.06,-sign*1.25,sign*.025);
   place(`${side} thigh`,[sign*.19,1.43,0],[1,1,1]);
   place(`${side} shin`,[sign*.19,.55,0],[1,1,1]);
   const shoe=byName(`${side} shoe`),sole=byName(`${side} shoe sole glow`);
