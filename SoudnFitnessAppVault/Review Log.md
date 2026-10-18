@@ -1,5 +1,12 @@
 # Review Log
 
+## Continuous avatar garments and visible resting sway — 2026-10-18
+
+- Replaced the visible torso/sleeve and pelvis/thigh/shin pieces with one connected skinned shirt surface and one connected skinned pants surface. Smooth volume unions blend the shoulder, hip and knee joins; the original fitted parts remain available for hit testing. Clothing follows the existing joints and appearance palettes without rebuilding on color changes.
+- Projected clothing muscle selections onto the new garment surfaces and bound them to the same skeleton, preserving visibility through turns and movement. Reduced neutral anatomy shading so ordinary clothes read as cloth rather than separate muscle panels.
+- Increased the slow upper-body weight shift and arm response, moving the head/shoulder anchors with the torso. Resting breathing no longer lifts the root/shoes. Blink, emote and reduced-motion behavior remain intact.
+- Verified the real local dashboard renders the new garments and shows hamstring/quadriceps selections through front/back turns. All six avatar checks pass, covering connected surfaces, normalized weights, transformed-root rest binding, joint deformation, actual triangle clearance for highlights, both body profiles, and disposal. Production compilation, TypeScript and 136-route generation pass; scoped lint has zero errors and the renderer's two existing warnings. Proof: test-results/avatar-continuous-clothing.jpg. Changes remain local; TrainerHub and unrelated work are preserved.
+
 ## Avatar proportion and idle-life refinement — 2026-10-17
 
 - Enlarged the complete authored head by 10% about the neck, including eyes, brows and hair cap. The model now measures about 6.8 head heights. Slimmed the procedural sleeves by roughly 15% and brought neutral arms inward, while retaining the explicit emote poses.

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { createSoundFitnessMuscleOverlays, isAvatarMuscleSelected, type AvatarMuscleOverlay } from "./soundFitnessAvatarAnatomy";
 import { soundFitnessAvatarIdleMotion } from "./soundFitnessAvatarMotion";
+import { createSoundFitnessGarment } from "./soundFitnessAvatarGarments";
 import type {
   BufferGeometry,
   Group,
@@ -101,8 +102,8 @@ const PELVIS_PROFILES: Record<"male" | "female", LatheProfile> = {
   female: [[0,1.64],[.28,1.64],[.38,1.73],[.40,1.84],[.35,1.96],[.29,2.04],[0,2.04]],
 };
 const SLEEVE_PROFILE: LatheProfile = [[0,-.35],[.082,-.35],[.094,-.30],[.108,-.17],[.123,-.02],[.12,.06],[.091,.13],[0,.15]];
-const THIGH_PROFILE: LatheProfile = [[0,.97],[.09,.97],[.105,1.02],[.14,1.14],[.17,1.35],[.175,1.58],[.16,1.76],[.12,1.84],[0,1.84]];
-const SHIN_PROFILE: LatheProfile = [[0,.12],[.058,.12],[.065,.20],[.08,.36],[.115,.58],[.125,.73],[.10,.89],[.09,1.01],[0,1.01]];
+const THIGH_PROFILE: LatheProfile = [[0,.92],[.092,.95],[.10,1.02],[.14,1.14],[.17,1.35],[.175,1.58],[.16,1.76],[.12,1.84],[0,1.84]];
+const SHIN_PROFILE: LatheProfile = [[0,.12],[.058,.12],[.065,.20],[.08,.36],[.105,.58],[.11,.73],[.10,.89],[.10,1.04],[0,1.08]];
 const CREST_ONLY_SHIRT_DECORATION_NAMES = [
   "performance seam",
   "performance piping",
@@ -710,6 +711,7 @@ export default function SoundFitnessAvatar3D({
           "right shoulder performance seam",
           "left side performance piping",
           "right side performance piping",
+          "upper chest shoulder yoke",
         ]) {
           const mesh = part(name);
           if (mesh) mesh.visible = false;
@@ -1158,6 +1160,7 @@ export default function SoundFitnessAvatar3D({
             scalePart(name, female ? 1.08 : 1);
           }
           for (const name of CREST_PARTS) offsetPart(name, 0, 0, female ? 0.07 : 0);
+          rebuildGarments(a.body);
           rebuildAnatomy(a.body);
           buildHair(a);
           buildFaceDetails(a);
@@ -1167,6 +1170,32 @@ export default function SoundFitnessAvatar3D({
           canvas.dataset.soundAvatarHair = `${a.hair}:${hairGroup.children.length}`;
           // Body profile and face presets rescale parts; refit the shells.
           applyHighlight();
+        };
+
+        let garments: ReturnType<typeof createSoundFitnessGarment>[] = [];
+        let garmentBody: string | null = null;
+        const rebuildGarments = (body: string) => {
+          if (garmentBody === body) return;
+          garments.forEach(garment => garment.dispose());
+          const female = body === "female";
+          const source = (name: string, profile: LatheProfile, depth: number) => ({ mesh: part(name)!, profile, depth });
+          garments = [
+            createSoundFitnessGarment(THREE, root, [source("torso shirt core", TEE_PROFILES[female ? "female" : "male"], .6), ...SHOULDERS.map(name => source(name, SLEEVE_PROFILE, 1))], shirtMaterial, "continuous performance shirt"),
+            createSoundFitnessGarment(THREE, root, [source("hips", PELVIS_PROFILES[female ? "female" : "male"], female ? .7 : .66), ...["left", "right"].flatMap(side => [source(`${side} thigh`, THIGH_PROFILE, .92), source(`${side} shin`, SHIN_PROFILE, .92)])], joggerMaterial, "continuous training pants"),
+          ];
+          for (const name of ["torso shirt core", "hips", ...SHOULDERS, ...THIGHS, ...SHINS]) {
+            const mesh = part(name)!;
+            // Keep the source's children and raycast surface available; only
+            // its own render material is hidden beneath the sewn garment.
+            if (!mesh.userData.garmentProxy) {
+              const material = (mesh.material as MeshStandardMaterial).clone();
+              material.visible = false;
+              mesh.material = material;
+              mesh.userData.garmentProxy = true;
+            }
+          }
+          garmentBody = body;
+          canvas.dataset.soundAvatarGarments = "continuous-shirt:continuous-pants";
         };
 
         // Muscle surfaces follow each parent part through every joint pose.
@@ -1179,13 +1208,22 @@ export default function SoundFitnessAvatar3D({
           if (anatomyBody !== body) {
             for (const {mesh} of anatomy) { mesh.removeFromParent(); mesh.geometry.dispose(); mesh.material.dispose(); }
             anatomy = createSoundFitnessMuscleOverlays(THREE, parts);
+            anatomy = anatomy.map(overlay => {
+              const part = overlay.definition.part;
+              const garment = part === "torso shirt core" || SHOULDERS.includes(part) ? garments[0]
+                : part === "hips" || THIGHS.includes(part) || SHINS.includes(part) ? garments[1] : null;
+              return garment ? { ...overlay, mesh: garment.bindOverlay(overlay.mesh) } : overlay;
+            });
             anatomyBody = body;
             highlightShells = [];
             highlightFadeStart = null;
           }
-          for (const {mesh} of anatomy) {
-            const source=mesh.parent as Mesh;
+          for (const {mesh, definition} of anatomy) {
+            const source=parts.get(definition.part)!;
             const material=source.material as MeshStandardMaterial;
+            if (source.userData.garmentProxy) material.color.copy(
+              (source.name === "hips" || source.name.includes("thigh") || source.name.includes("shin") ? joggerMaterial : shirtMaterial).color,
+            );
             mesh.userData.neutralColor=material.color.clone().lerp(new THREE.Color("#8ba2b5"),.14);
           }
           canvas.dataset.soundAvatarAnatomy = String(anatomy.length);
@@ -1194,7 +1232,7 @@ export default function SoundFitnessAvatar3D({
           for (const {mesh} of anatomy) {
             mesh.material.color.copy(mesh.userData.neutralColor);
             mesh.material.emissive.set(0x000000);
-            mesh.material.opacity=.34;
+            mesh.material.opacity=.12;
             mesh.renderOrder=2;
             mesh.visible=mesh.userData.neutralVisible;
           }
@@ -1391,7 +1429,7 @@ export default function SoundFitnessAvatar3D({
         let yaw = latest.current.view === "back" ? Math.PI - 0.08 : -0.08;
         const pose = { head: [...restPose.head], leftArm: [...restPose.leftArm], rightArm: [...restPose.rightArm] };
         let idleSeconds = 0;
-        const upperBodyJoints = [headPivot, leftArmPivot, rightArmPivot].map(joint => ({ joint, restY: joint.position.y }));
+        const upperBodyJoints = [headPivot, leftArmPivot, rightArmPivot].map(joint => ({ joint, restX: joint.position.x, restY: joint.position.y }));
         const facialFeatures = ["left", "right"].flatMap(side =>
           ["iris", "pupil", "eyebrow"].map(feature => {
             const name = `${side} ${feature}`;
@@ -1417,7 +1455,7 @@ export default function SoundFitnessAvatar3D({
           root.rotation.y = yaw + sway;
 
           const target = emotePoses[state.emotePreset] ?? restPose;
-          let bob = idle.breath * 0.002;
+          let bob = 0;
           let leftZ = target.leftArm[1];
           let rightZ = target.rightArm[1];
           let headX = target.head[0] + idle.headPitch;
@@ -1454,10 +1492,13 @@ export default function SoundFitnessAvatar3D({
           rightArmPivot.rotation.set(pose.rightArm[0], 0, pose.rightArm[1]);
           headPivot.rotation.set(pose.head[0], pose.head[1], pose.head[2]);
           // Breathe through the chest instead of floating the entire athlete.
-          torsoPivot.scale.set(1 + idle.breath * 0.002, 1 + idle.breath * 0.0015, 1 + idle.breath * 0.008);
+          torsoPivot.scale.set(1 + idle.breath * 0.003, 1 + idle.breath * 0.004, 1 + idle.breath * 0.015);
           torsoPivot.rotation.z = idle.weightShift;
           hipsPivot.rotation.z = -idle.weightShift * 0.25;
-          for (const { joint, restY } of upperBodyJoints) joint.position.y = restY + idle.breath * 0.003;
+          for (const { joint, restX, restY } of upperBodyJoints) {
+            joint.position.x = restX - idle.weightShift * Math.max(0, restY - torsoCentre[1]);
+            joint.position.y = restY + idle.breath * 0.007;
+          }
           for (const { lid, height, centerY } of eyelids) {
             const eyeScale = state.appearance.body === "female" ? 1.1 : 1;
             lid.visible = idle.blink > 0.001;
@@ -1494,6 +1535,7 @@ export default function SoundFitnessAvatar3D({
               }
             }
           }
+          for (const garment of garments) garment.update();
           gl.render(scene, camera);
           animationFrame = window.requestAnimationFrame(render);
         };
@@ -1518,6 +1560,7 @@ export default function SoundFitnessAvatar3D({
           canvas.style.cursor = "";
           resizeObserver.disconnect();
           setDashboardWebGlCanvasActive(canvas, false);
+          garments.forEach(garment => garment.dispose());
           disposeObject(scene);
           gl.dispose();
           onReadyChange?.(false);

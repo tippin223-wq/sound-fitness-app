@@ -56,7 +56,7 @@ test('idle motion has brief complete blinks, bounded secondary motion and a neut
     assert.ok(Object.values(sample).every(Number.isFinite));
     assert.ok(sample.blink>=0&&sample.blink<=1);
     assert.ok(Math.abs(sample.headYaw)<=.034);
-    assert.ok(Math.abs(sample.weightShift)<=.012);
+    assert.ok(Math.abs(sample.weightShift)<=.035);
     assert.ok(Math.abs(sample.breath)<=1);
   }
   assert.ok(Object.values(frame(3.175,false)).every(value=>value===0),'all autonomous motion stops');
@@ -74,7 +74,7 @@ test('actual render loop animates the face and chest, preserves emotes, and stop
   const head=joint(),left=joint(),right=joint(),torso=joint(),hips=joint(),root=joint(),lid=joint(),feature=joint();
   const state={active:true,paused:false,view:'front',emotePreset:'calm',appearance:{body:'male'}},reducedMotion={matches:false};
   let frames=0;
-  const env={...motionApi,disposed:false,latest:{current:state},lastTime:0,idleSeconds:3.1,yaw:-.08,pose:{head:[0,0,0],leftArm:[.025,.22],rightArm:[.025,-.22]},reducedMotion,root,canvas:{},setDashboardWebGlCanvasActive:()=>{},headPivot:head,leftArmPivot:left,rightArmPivot:right,torsoPivot:torso,hipsPivot:hips,upperBodyJoints:[head,left,right].map(joint=>({joint,restY:3})),eyelids:[{lid,height:.015,centerY:3.2}],facialFeatures:[{mesh:feature,base:{x:.05,y:3.2},eyebrow:false}],elbows:[joint(),joint()],legPivots:[{hip:joint(),knee:joint()}],SOUND_AVATAR_BASE_Y:-1.18,highlightFadeStart:null,gl:{render:()=>frames++},scene:{},camera:{},window:{requestAnimationFrame:()=>1},animationFrame:0};
+  const env={...motionApi,disposed:false,latest:{current:state},lastTime:0,idleSeconds:3.1,yaw:-.08,pose:{head:[0,0,0],leftArm:[.025,.22],rightArm:[.025,-.22]},reducedMotion,root,canvas:{},setDashboardWebGlCanvasActive:()=>{},headPivot:head,leftArmPivot:left,rightArmPivot:right,torsoPivot:torso,hipsPivot:hips,torsoCentre:[0,2.35,0],garments:[],upperBodyJoints:[head,left,right].map(joint=>({joint,restX:0,restY:3})),eyelids:[{lid,height:.015,centerY:3.2}],facialFeatures:[{mesh:feature,base:{x:.05,y:3.2},eyebrow:false}],elbows:[joint(),joint()],legPivots:[{hip:joint(),knee:joint()}],SOUND_AVATAR_BASE_Y:-1.18,highlightFadeStart:null,gl:{render:()=>frames++},scene:{},camera:{},window:{requestAnimationFrame:()=>1},animationFrame:0};
   const exported={};
   const code=ts.transpileModule(`const restPose=${nodes.restPose.getText(ast)};const emotePoses=${nodes.emotePoses.getText(ast)};const render=${nodes.render.getText(ast)};exports.render=render;`,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   new Function('exports',...Object.keys(env),code)(exported,...Object.values(env));
@@ -83,6 +83,8 @@ test('actual render loop animates the face and chest, preserves emotes, and stop
   assert.notEqual(torso.scale.z,1,'chest breathes');
   assert.notEqual(head.rotation.y,0,'head looks around');
   assert.notEqual(feature.position.x,.05,'eyes shift gaze');
+  assert.ok(Math.abs(head.position.x)>.005,'visible upper-body weight shift');
+  assert.equal(root.position.y,-1.18,'the resting sway does not lift the shoes');
   reducedMotion.matches=true;exported.render(100);
   assert.equal(lid.visible,false);assert.equal(torso.scale.z,1);assert.equal(head.rotation.y,0);
   assert.equal(left.rotation.z,.22,'neutral arms stay close to the body');
@@ -159,4 +161,50 @@ test('an explicitly selected muscle stays illuminated after the selection pulse 
   const hover=new Function('avatarMuscleFocusActive','avatarHoveredBodyPart','menuHoveredGroup','return '+hoverExpression);
   assert.equal(hover(true,'back','back'),null,'restored category focus cannot replace the selected lat');
   assert.equal(hover(false,'back',null),'back');
+});
+
+test('shirt and pants are connected skinned surfaces which stay bound through joint motion on both profiles',async()=>{
+  const garmentApi={};new Function('exports',ts.transpileModule(fs.readFileSync('components/dashboard/soundFitnessAvatarGarments.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(garmentApi);
+  for(const body of ['male','female']) {
+    const {THREE,parts,profiles,scene}=await sceneParts();
+    scene.position.set(.1,-1.18,0);scene.scale.setScalar(.79);scene.rotation.y=-.08;
+    const material=new THREE.MeshStandardMaterial();
+    const source=(name,profile,depth,x=0,y=0,angle=0)=>{
+      const mesh=parts.get(name);mesh.geometry=new THREE.LatheGeometry(profile.map(([r,y])=>new THREE.Vector2(r,y)),48).scale(1,1,depth);
+      mesh.position.set(x,y,0);mesh.scale.set(1,1,1);mesh.rotation.set(0,0,angle);
+      return {mesh,profile,depth};
+    };
+    const shirt=[source('torso shirt core',profiles.TEE_PROFILES[body],.6),...['left','right'].map((side,index)=>source(side+' shoulder',profiles.SLEEVE_PROFILE,1,index===0?-.48:.48,2.75,index===0?-.33:.33))];
+    const pants=[source('hips',profiles.PELVIS_PROFILES[body],.66),...['left','right'].flatMap((side,index)=>[source(side+' thigh',profiles.THIGH_PROFILE,.92,index===0?-.19:.19),source(side+' shin',profiles.SHIN_PROFILE,.92,index===0?-.19:.19)])];
+    for(const sources of [shirt,pants]) {
+      const garment=garmentApi.createSoundFitnessGarment(THREE,scene,sources,material,'test garment');
+      const geometry=garment.mesh.geometry,position=geometry.getAttribute('position'),weights=geometry.getAttribute('skinWeight'),indices=geometry.index.array;
+      assert.ok(position.count>1000&&position.count<30000,'bounded smooth mesh');
+      assert.ok([...position.array].every(Number.isFinite));
+      const neighbours=Array.from({length:position.count},()=>new Set());
+      for(let i=0;i<indices.length;i+=3){const [a,b,c]=[indices[i],indices[i+1],indices[i+2]];neighbours[a].add(b).add(c);neighbours[b].add(a).add(c);neighbours[c].add(a).add(b);}
+      const reached=new Set([0]),queue=[0];while(queue.length){for(const next of neighbours[queue.pop()])if(!reached.has(next)){reached.add(next);queue.push(next);}}
+      assert.equal(reached.size,position.count,'one continuous garment, no detached body-part islands');
+      for(let i=0;i<position.count;i+=137){assert.ok(Math.abs(weights.getX(i)+weights.getY(i)+weights.getZ(i)+weights.getW(i)-1)<1e-6);}
+      garment.update();garment.mesh.skeleton.update();
+      const overlay=new THREE.Mesh(new THREE.PlaneGeometry(.15,.12,2,2),new THREE.MeshBasicMaterial());
+      overlay.position.set(0,sources===shirt?2.65:1.8,.1);sources[0].mesh.add(overlay);
+      const selection=garment.bindOverlay(overlay);
+      assert.equal(selection.skeleton,garment.mesh.skeleton,'highlights use the clothing joints');
+      const selectedPosition=selection.geometry.getAttribute('position');
+      assert.ok([...selectedPosition.array].every(Number.isFinite));
+      assert.ok(selectedPosition.getZ(4)>.15,'highlight is projected out of the body onto the cloth');
+      scene.updateMatrixWorld(true);garment.mesh.skeleton.update();
+      const selectedPoint=new THREE.Vector3().fromBufferAttribute(selectedPosition,4).applyMatrix4(scene.matrixWorld),outward=new THREE.Vector3(0,0,1).transformDirection(scene.matrixWorld);
+      const hit=new THREE.Raycaster(selectedPoint.clone().addScaledVector(outward,.5),outward.clone().negate()).intersectObject(garment.mesh,false)[0];
+      assert.ok(hit&&hit.distance>.501,'the actual cloth triangles do not occlude the selection');
+      const originals=[];for(let i=0;i<position.count;i+=137){const point=new THREE.Vector3().fromBufferAttribute(position,i);assert.ok(garment.mesh.applyBoneTransform(i,point.clone()).distanceTo(point)<1e-5,'rest binding preserves cloth position');originals.push({i,point});}
+      sources[1].mesh.rotation.z+=.7;garment.update();garment.mesh.skeleton.update();
+      assert.ok(originals.some(({i,point})=>garment.mesh.applyBoneTransform(i,point.clone()).distanceTo(point)>.01),'the continuous cloth follows the articulated source');
+      assert.equal(geometry.index.array,indices,'joint movement never opens a mesh seam');
+      garment.dispose();assert.equal(garment.mesh.parent,null);
+      selection.removeFromParent();selection.geometry.dispose();selection.material.dispose();
+    }
+    material.dispose();
+  }
 });
