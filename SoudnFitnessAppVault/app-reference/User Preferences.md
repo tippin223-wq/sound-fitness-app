@@ -58,6 +58,7 @@ These notes are meant to reduce repeated misunderstandings. New user instruction
 
 ## Hero Cards
 
+- Avatar target: the realistic adult sports-character reference selected on 2026-10-19. Use free licensed authored human/clothing meshes, natural hands and joints, matte skin/fabric detail, and restrained standing motion. Fix skin/hair clipping and retain existing muscle/appearance controls. Use the Client Gear shirt's crest-beside-wordmark chest design. The timer remains stopped until explicitly restarted.
 - Use natural adult athletic proportions for the 3D avatar, with clearly shaped muscles and fitted selection surfaces rather than rectangular glow bands. Exact muscle selections should remain visible while being inspected.
 - Make the avatar's shirt and pants read as continuous garments, with blended shoulder, hip and knee joins rather than separate body-part pieces. Give the resting athlete a visible, gentle upper-body sway with planted feet; keep blinking, muscle selections and reduced-motion support.
 - Judge avatar joints against natural anatomy: sloping shoulders, a smooth hip/crotch transition, tapered knees and ankles, and continuous elbows. Resting palms face inward toward the thighs with thumbs forward and relaxed fingers.

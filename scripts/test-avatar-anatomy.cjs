@@ -30,12 +30,12 @@ async function sceneParts() {
 test('adult model preserves named appearance parts and balanced body landmarks',async()=>{
   const {THREE,parts,scene}=await sceneParts();
   scene.updateMatrixWorld(true);
-  const box=name=>new THREE.Box3().setFromObject(parts.get(name));
+  const box=name=>new THREE.Box3().setFromObject(parts.get(name),true);
   const head=box('head sculpt'),sole=box('left shoe sole glow');
   const height=head.max.y-sole.min.y,headHeight=head.max.y-head.min.y;
   assert.ok(parts.get('head sculpt').geometry.getAttribute('position').count>=4000,'authored facial topology');
   assert.match(parts.get('head sculpt').userData.source,/MakeHuman Community/);
-  assert.ok(height/headHeight>6.7 && height/headHeight<7.2,`enlarged adult head ratio ${height/headHeight}`);
+  assert.ok(height/headHeight>7.1 && height/headHeight<7.9,`authored adult head ratio ${height/headHeight}`);
   assert.ok(box('left hand').min.y<1.7);
   assert.ok(box('left forearm').min.y>box('left hand').min.y);
   assert.ok(box('neck').max.y>head.min.y);

@@ -16,6 +16,7 @@ import {
 } from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { GLTFExporter } from "three/examples/jsm/exporters/GLTFExporter.js";
+import { addAuthoredBody } from "./build-sound-avatar-body.mjs";
 
 globalThis.FileReader ??= class FileReader {
   readAsArrayBuffer(blob) {
@@ -306,6 +307,38 @@ place("sound fitness small left chest crest",[-.15,2.55,.259],[.045,.045,.009]);
 place("sound crest navy shield mark",[-.15,2.55,.269],[.5,.5,.5]);
 place("sound crest cyan diagonal",[-.15,2.55,.279],[.5,.5,.5]);
 avatar.position.y = 0;
+const authored = await addAuthoredBody(avatar, { skin, shirt, pants });
+for(const [index,side] of ['left','right'].entries()) {
+  const eye=authored.eyes[index];
+  place(`${side} eye white`,[eye[0],eye[1],eye[2]+.012],[.024,.012,.016]);
+  place(`${side} iris`,[eye[0],eye[1],eye[2]+.027],[.009,.009,.003]);
+  place(`${side} pupil`,[eye[0],eye[1],eye[2]+.030],[.0045,.0045,.002]);
+  place(`${side} eyebrow`,[eye[0],eye[1]+.027,eye[2]+.015],[.9,.24,.7]);
+  byName(`${side} cheek warmth`).visible=false;
+}
+// A scalp shell cut from the actual head cannot intersect its source surface.
+const scalpSource=byName('head sculpt').geometry;
+const scalpPositions=scalpSource.attributes.position,scalpNormals=scalpSource.attributes.normal;
+const scalpIndices=scalpSource.index.array,scalpTriangles=[];
+for(let i=0;i<scalpIndices.length;i+=3) {
+  const triangle=[scalpIndices[i],scalpIndices[i+1],scalpIndices[i+2]];
+  if(triangle.every(id=>scalpPositions.getY(id)>3.175+.125*Math.max(0,Math.min(1,(scalpPositions.getZ(id)+.035)/.18))))scalpTriangles.push(...triangle);
+}
+const scalpGeometry=scalpSource.clone();scalpGeometry.setIndex(scalpTriangles);
+const scalpPoints=scalpGeometry.attributes.position;
+for(let i=0;i<scalpPoints.count;i++)scalpPoints.setXYZ(i,scalpPositions.getX(i)+scalpNormals.getX(i)*.009,scalpPositions.getY(i)+scalpNormals.getY(i)*.009,scalpPositions.getZ(i)+scalpNormals.getZ(i)*.009);
+delete scalpGeometry.attributes.skinIndex;delete scalpGeometry.attributes.skinWeight;
+const femaleScalp=scalpGeometry.morphAttributes.position[0];
+for(let i=0;i<femaleScalp.count;i++)femaleScalp.setXYZ(i,femaleScalp.getX(i)+scalpNormals.getX(i)*.012,femaleScalp.getY(i)+scalpNormals.getY(i)*.012,femaleScalp.getZ(i)+scalpNormals.getZ(i)*.012);
+const sweptScalp=scalpPoints.clone();
+for(let i=0;i<sweptScalp.count;i++) {
+  const lift=.022*Math.max(0,Math.min(1,(scalpPoints.getZ(i)+.04)/.22));
+  sweptScalp.setXYZ(i,scalpPoints.getX(i)+scalpNormals.getX(i)*lift,scalpPoints.getY(i)+scalpNormals.getY(i)*lift,scalpPoints.getZ(i)+scalpNormals.getZ(i)*lift);
+}
+scalpGeometry.morphAttributes.position.push(sweptScalp);
+const scalp=byName('continuous crown hair cap');scalp.geometry.dispose();scalp.geometry=scalpGeometry;scalp.position.set(0,0,0);scalp.scale.set(1,1,1);
+scalp.updateMorphTargets();
+for(const name of ['raised front hairline cap','soft left hairline taper','soft right hairline taper','left temple coverage','right temple coverage','back hair coverage','subtle crown sheen'])byName(name).visible=false;
 
 const exporter = new GLTFExporter();
 const arrayBuffer = await exporter.parseAsync(scene, {
