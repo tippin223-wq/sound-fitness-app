@@ -4228,3 +4228,10 @@ Active website workspace: `C:\Users\josep\01_Business\Sound Fitness\Website\Soun
 
 - Added the authorized real localhost app at `/angles`: native-inspired Home, $10 Angles pricing plus the Sound Fitness pricing column, library, worker-based pose tracking, shared Supabase sign-in/TOTP and account-separated History with explicit summary sync. Camera/video cleanup, partial-rep interruption, idempotent saves, storage preservation and cloud tombstone/ownership safeguards are implemented. No billing activation or live backend changes.
 - TypeScript and scoped lint pass; all eleven isolated counter/storage/cloud tests pass. Browser checks verified Home, pricing columns, pricing-to-account navigation, library selection, empty History and real model inference/skeleton on the existing exercise video, with no browser console errors. No webcam access, personal password entry, production summary writes or physical measurement accuracy claims. See `docs/angles-web.md` for remaining validation and existing dependency advisories.
+
+## Angles connected accounts — 2026-10-27
+
+- Shared website identity and credentials now resolve through `get_angles_account_context()`. Approved website coaches map to Coach; all other profiles map to Training user without an Angles admin capability.
+- Angles free signup stays inside the app and does not create a coaching relationship. Enrollment source is only a product origin label. Separate `angles_accounts` product grants default to free and cannot be edited by clients.
+- Applied only `20261027090000_angles_account_context.sql` to the existing shared Supabase project after a transaction-only trial. Live role/RLS/MFA/expiry checks passed; all fixtures rolled back. Existing website session verified in browser. No personal credentials entered or session signed out.
+- 13 isolated tests, TypeScript, scoped TS/TSX ESLint and CommonJS syntax checks passed. Email delivery/confirmation still needs a real mailbox check; checkout grants and coach/client consented sharing remain separate implementation work. Saved browser proof: `test-results/angles-connected-account.png`.

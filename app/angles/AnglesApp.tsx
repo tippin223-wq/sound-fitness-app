@@ -4,12 +4,12 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import Link from "next/link";
 import { Activity, ArrowDown, ArrowLeft, ArrowRight, Check, ChevronRight, Dumbbell, Footprints, History, Home, Layers3, LockKeyhole, Play, ShieldCheck, Sparkles, UserRound, X } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
-import { syncHistory, verifiedAccount } from "@/lib/angles/account";
+import { registerAnglesAccount, syncHistory, verifiedAccount, type AnglesMember } from "@/lib/angles/account";
 import { readHistory, type Result } from "@/lib/angles/assessment";
 import Assessment from "./Assessment";
 
 type Section = "home" | "assess" | "workout" | "library" | "history" | "account";
-type Member = { id: string; email: string } | null;
+type Member = AnglesMember | null;
 const sections = [
   { id: "home", label: "Home", Icon: Home }, { id: "assess", label: "Assess", Icon: Activity },
   { id: "workout", label: "Workout", Icon: Dumbbell }, { id: "library", label: "Library", Icon: Layers3 },
@@ -51,6 +51,7 @@ function Pricing({ onClose, onAccount }: { onClose: () => void; onAccount: () =>
 
 function Account({ member, factor, onVerified, onClose }: { member: Member; factor: string | null; onVerified: () => Promise<void>; onClose: () => void }) {
   const [email, setEmail] = useState(""), [password, setPassword] = useState(""), [code, setCode] = useState("");
+  const [creating, setCreating] = useState(false), [fullName, setFullName] = useState("");
   const [busy, setBusy] = useState(false), [message, setMessage] = useState("");
   async function submit(event: FormEvent) {
     event.preventDefault(); setBusy(true); setMessage("");
@@ -58,18 +59,23 @@ function Account({ member, factor, onVerified, onClose }: { member: Member; fact
       if (factor) {
         if (factor === "unsupported") throw Error("Complete your additional verification through the Sound Fitness account portal.");
         const { error } = await supabase.auth.mfa.challengeAndVerify({ factorId: factor, code }); if (error) throw error;
-      } else { const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) throw error; }
+      } else if (creating) {
+        await registerAnglesAccount(email, password, fullName);
+        setPassword(""); setCreating(false);
+        setMessage("Check your email to confirm your account, then return to Angles to sign in. If you already have a Sound Fitness account, use Sign in or Forgot password instead.");
+        await onVerified(); return;
+      } else { const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password }); if (error) throw error; }
       setPassword(""); setCode(""); await onVerified();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Sign-in could not be completed."); }
     finally { setBusy(false); }
   }
-  return <Modal title={member ? "Your account." : "Welcome back."} onClose={onClose}>
+  return <Modal title={member ? "Your account." : creating ? "Start with Angles." : "Welcome back."} onClose={onClose}>
     <div className="an-account-emblem"><UserRound size={30} /></div>
-    {member ? <div className="an-account-content"><span className="an-eyebrow">CONNECTED TO SOUND FITNESS</span><p>{member.email}</p><p className="an-muted">Your Angles assessments have their own History. Sync summaries from the History screen to share them with your Android app.</p><a className="an-secondary" href="https://thesoundfitness.com/client-hub/settings" target="_blank" rel="noreferrer">Linked accounts & settings <ArrowRight size={16} /></a><button className="an-text-button" disabled={busy} onClick={async () => { setBusy(true); const { error } = await supabase.auth.signOut({ scope: "local" }); if (error) setMessage(error.message); await onVerified(); setBusy(false); }}>Sign out on this browser</button></div> :
-      <form className="an-account-content" onSubmit={submit}><p className="an-muted">Use your Sound Fitness account. Your identity stays connected across the ecosystem.</p>
-        {factor ? <label className="an-field">Authenticator code<input value={code} onChange={e => setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" required maxLength={6} /></label> : <><label className="an-field">Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="username" required /></label><label className="an-field">Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete="current-password" required /></label></>}
-        <button className="an-primary" disabled={busy || factor === "unsupported"}>{busy ? "Checking…" : factor ? "Verify & continue" : "Sign in"}<ArrowRight size={18} /></button>
-        <div className="an-auth-links"><a href="https://thesoundfitness.com/client-hub/forgot-password" target="_blank" rel="noreferrer">Forgot password?</a><Link href="/signup">Create an account</Link></div>
+    {member ? <div className="an-account-content"><span className="an-eyebrow">ONE SOUND FITNESS ACCOUNT</span><p>{member.email}</p><div className="an-account-details"><span>{member.role === "coach" ? "Coach" : "Training user"}</span><span>{member.accessPlan === "angles" ? "Angles standalone access" : member.accessPlan === "sound_fitness" ? "Sound Fitness bundle access" : "Free assessment access"}</span></div><p className="an-muted">{member.enrollmentSource === "angles" ? "You joined through Angles. A coaching membership is optional." : "Your existing Sound Fitness login is connected to Angles."} Your assessments have their own History. Sync summaries to share them with your Android app.</p>{member.accessPlan === "free" && <p className="an-fine-print">A paid Angles plan has not been activated. Pricing previews do not activate a subscription.</p>}<a className="an-secondary" href="https://thesoundfitness.com/client-hub/settings" target="_blank" rel="noreferrer">Account settings <ArrowRight size={16} /></a><button className="an-text-button" disabled={busy} onClick={async () => { setBusy(true); const { error } = await supabase.auth.signOut({ scope: "local" }); if (error) setMessage(error.message); await onVerified(); setBusy(false); }}>Sign out on this browser</button></div> :
+      <form className="an-account-content" onSubmit={submit}><p className="an-muted">{creating ? "Create one account for Angles and Sound Fitness. Start with the free squat assessment; coaching and paid plans are optional." : "Existing coach or client? Use the same Sound Fitness email and password. Standalone Angles accounts sign in here too."}</p>
+        {factor ? <label className="an-field">Authenticator code<input value={code} onChange={e => setCode(e.target.value)} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" required maxLength={6} /></label> : <>{creating && <label className="an-field">Name<input value={fullName} onChange={e => setFullName(e.target.value)} autoComplete="name" maxLength={120} /></label>}<label className="an-field">Email<input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="username" required /></label><label className="an-field">Password<input type="password" value={password} onChange={e => setPassword(e.target.value)} autoComplete={creating ? "new-password" : "current-password"} minLength={creating ? 8 : undefined} required /></label></>}
+        <button className="an-primary" disabled={busy || factor === "unsupported"}>{busy ? "Checking…" : factor ? "Verify & continue" : creating ? "Create free account" : "Sign in"}<ArrowRight size={18} /></button>
+        {!factor && <div className="an-auth-links"><a href="https://thesoundfitness.com/client-hub/forgot-password" target="_blank" rel="noreferrer">Forgot password?</a><button type="button" className="an-text-button" disabled={busy} onClick={() => { setCreating(!creating); setPassword(""); setMessage(""); }}>{creating ? "Back to sign in" : "Create an account"}</button></div>}
       </form>}
     {message && <p className="an-notice" role="alert">{message}</p>}
   </Modal>;

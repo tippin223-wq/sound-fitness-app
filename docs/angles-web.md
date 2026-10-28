@@ -27,6 +27,18 @@ Browser checks: `/angles` returns HTTP 200; Home renders, both pricing columns s
 
 An audit during setup reported existing `next` (critical) and transitive `zod` (high) advisories. The only dependency added here is pinned `@mediapipe/tasks-vision@1.2.0`; its addition did not introduce those packages. This localhost task does not deploy or upgrade the shared framework. Resolve the existing advisories before external release.
 
+## Connected accounts — 2026-10-27
+
+Angles uses the existing Sound Fitness Supabase identity UUID and credentials. There is no account copying or email-based merging. The account dialog supports existing coach/client logins and Angles-specific free registration. New registrations send only `full_name` and a cosmetic `signup_product: angles` label; the existing hardened shared trigger creates a basic profile. Signup neither creates a coaching relationship nor activates billing. Email confirmation remains required by the provider; confirm the email and return to Angles to sign in. Production email delivery/redirect behavior still needs a real mailbox check.
+
+Installed additive migration: `supabase/migrations/20261027090000_angles_account_context.sql`. `angles_accounts` stores Angles enrollment source and trusted product grants separately from website coaching/billing. `get_angles_account_context()` derives the user from the verified JWT, enforces existing MFA, enrolls only that user idempotently, and maps exactly the website `coach` role to Angles `coach`. All other website roles have `training_user` capabilities in Angles, without an Angles admin role. Existing clients can sign in without migrating their account. Enrollment source describes where an account joined, **not** whether they are a coaching client.
+
+Only trusted server operations can change `access_plan` or its expiry. The default is `free`; expired grants resolve to `free`. Price labels, signup metadata, website package names and coach status do not activate paid access. Checkout/webhook entitlement fulfillment is not implemented. Coach/client assignment and consented assessment sharing are not implemented; coaches retain only their own History access. The shared schema is compatible with existing Android identity and assessment sync; this change updates the browser account UI, not Android role screens.
+
+Verification: 13 isolated assessment/account tests, TypeScript and scoped app/library ESLint pass. The live PostgreSQL verifier tests the actual function and RLS using disposable fixtures in a transaction that always rolls back: metadata escalation, approved coach mapping, admin-to-training-user mapping, foreign row isolation, denied direct writes and profile role changes, expiry, anonymous denial, and enrolled MFA/AAL2. Re-run explicitly with `node scripts/verify-angles-accounts.cjs --env-file <server-env> --postgres-module <postgres/src/index.js> --ca <trusted-ca>`; `--apply` installs only this migration after a successful trial and skips an already installed schema. No fixture accounts persist. Browser verification recognized the existing signed-in website identity and showed the server-provided role and free access. No personal password was entered or session signed out.
+
+The broader ESLint command including CommonJS test scripts hits an existing global React-hooks plugin configuration error; the scoped TS/TSX app/library lint passes. Both CommonJS scripts also pass Node syntax checks.
+
 ## Model assets
 
 The worker, SDK and model are served from `/angles-assets/`, with no third-party model/CDN requests. MediaPipe SDK version is pinned in `package.json` / lockfile. To refresh its vendored browser files deliberately:

@@ -1,6 +1,14 @@
 import { supabase } from "@/lib/supabaseClient";
 import { historyKey, isResult, readHistory, type Result } from "./assessment";
 
+export type AnglesMember = {
+  id: string;
+  email: string;
+  role: "coach" | "training_user";
+  enrollmentSource: "angles" | "sound_fitness";
+  accessPlan: "free" | "angles" | "sound_fitness";
+};
+
 export async function verifiedAccount() {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return { user: null, factor: null as string | null };
@@ -11,7 +19,22 @@ export async function verifiedAccount() {
     if (factors.error) throw factors.error;
     return { user: null, factor: factors.data.totp.find(f => f.status === "verified")?.id ?? "unsupported" };
   }
-  return { user: { id: data.user.id, email: data.user.email ?? "Sound Fitness member" }, factor: null };
+  const { data: context, error: contextError } = await supabase.rpc("get_angles_account_context");
+  if (contextError) throw contextError;
+  if (context?.id !== data.user.id || !["coach", "training_user"].includes(context.role) ||
+      !["angles", "sound_fitness"].includes(context.enrollmentSource) ||
+      !["free", "angles", "sound_fitness"].includes(context.accessPlan)) {
+    throw Error("Angles account could not be verified.");
+  }
+  return { user: { ...context, email: data.user.email ?? "Sound Fitness member" } as AnglesMember, factor: null };
+}
+
+/** Uses the shared identity provider, without creating a coaching enrollment. */
+export async function registerAnglesAccount(email: string, password: string, fullName: string) {
+  if (password.length < 8) throw Error("Use a password with at least 8 characters.");
+  const { error } = await supabase.auth.signUp({ email: email.trim(), password,
+    options: { data: { full_name: fullName.trim(), signup_product: "angles" } } });
+  if (error) throw error;
 }
 
 function equal(a: Result, b: Result) {
