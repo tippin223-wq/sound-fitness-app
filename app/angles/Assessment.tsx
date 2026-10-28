@@ -118,7 +118,8 @@ export default function Assessment({ owner, workout, onSaved, onDirty }: {
   }
   function togglePause() {
     pausedRef.current = !pausedRef.current; epoch.current++; counter.current.invalidate(); setPaused(pausedRef.current);
-    if (pausedRef.current) video.current?.pause(); else video.current?.play().catch(() => setMessage("Press Resume again to restart playback."));
+    if (pausedRef.current) video.current?.pause();
+    else video.current?.play().catch(() => { pausedRef.current = true; setPaused(true); setMessage("Playback could not resume. Try Resume again."); });
   }
   function finish() {
     if (source === "demo") return;
@@ -150,7 +151,7 @@ export default function Assessment({ owner, workout, onSaved, onDirty }: {
       {running && <button className="an-secondary" onClick={togglePause} disabled={owner !== initialOwner || finished}>{paused ? <Play size={18} /> : <Pause size={18} />}{paused ? "Resume" : "Pause"}</button>}
       {source !== "demo" && <button className="an-primary" onClick={finish} disabled={busy || owner !== initialOwner || !hasSamples}><Check size={18} /> Finish & save</button>}
       {(running || hasSamples) && <button className="an-text-button" onClick={() => { if (draft.current.samples && !window.confirm("Discard this unsaved result and restart?")) return; start(source ?? "camera"); }} disabled={busy || owner !== initialOwner}><RotateCcw size={15} /> Restart</button>}
-      {source === "demo" && <button className="an-text-button" onClick={() => { stop(); setRunning(false); setSource(null); }}><CircleStop size={16} /> Stop demo</button>}
+      {source === "demo" && <button className="an-text-button" onClick={() => { stop(); setBusy(false); setRunning(false); setSource(null); }}><CircleStop size={16} /> Stop demo</button>}
       {message && <p className="an-notice" role="alert">{message}</p>}
       <p className="an-fine-print">Experimental image-space estimates. Not a clinical measurement. Frames stay on this device; only completed summaries can sync to your account.</p>
     </aside></div>
