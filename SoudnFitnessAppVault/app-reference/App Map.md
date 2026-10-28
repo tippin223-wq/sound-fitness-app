@@ -2108,3 +2108,7 @@ For visual edits, use the running app at `http://localhost:3000`, verify the aff
 
 - Moved PlanningProvider status, sync/retry, import and backup controls from above the member header into a closed Data & backups disclosure after page content. Kept account-keyed page state, initialization, sync operations and recovery controls intact.
 - Verified the actual return markup renders the header first, keeps details closed and retains export controls; targeted lint clean. Production build/deployment verification follows the scoped commit.
+
+## Angles browser app — 2026-10-27
+
+- `/angles` is the native-inspired browser implementation, not a mock. `app/angles/` owns its UI; `lib/angles/` ports squat counting and validated account-separated browser History. `/angles-assets/` self-hosts the native videos, model and pinned MediaPipe worker runtime. See `docs/angles-web.md` for scope and verification. Native Android remains in its existing repository.

@@ -13,6 +13,7 @@
     "check:planning-backend": "node scripts/check-planning-backend.mjs"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "1.2.0",
     "@stripe/react-stripe-js": "^6.6.0",
     "@stripe/stripe-js": "^9.8.0",
     "@supabase/ssr": "^0.10.2",
